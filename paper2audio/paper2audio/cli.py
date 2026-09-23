@@ -13,8 +13,8 @@ from . import extract, tts
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Convert papers/PDFs to audiobooks (MP3).")
-    p.add_argument("sources", nargs="*", help="PDF/TXT paths, URLs, or arXiv IDs")
+    p = argparse.ArgumentParser(description="Convert papers, PDFs and e-books to audio (MP3).")
+    p.add_argument("sources", nargs="*", help="PDF/EPUB/TXT paths, URLs, or arXiv IDs")
     p.add_argument("-o", "--output", help="Output MP3 (single source) or directory")
     p.add_argument("-v", "--voice", default=tts.DEFAULT_VOICE)
     p.add_argument("-s", "--speed", type=float, default=1.0, help="0.5 – 2.0")
@@ -25,6 +25,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--keep-citations", action="store_true")
     p.add_argument("--keep-captions", action="store_true")
     p.add_argument("--skip-appendix", action="store_true")
+    p.add_argument("--split-chapters", action="store_true",
+                   help="EPUB: write one MP3 per chapter into a folder")
     args = p.parse_args(argv)
 
     if args.list_voices is not None:
@@ -49,7 +51,8 @@ def main(argv: list[str] | None = None) -> int:
             doc = extract.load(path, opts)
         stem = re.sub(r"[^\w\-]+", "_", doc.title)[:80].strip("_") or "paper"
         target = Path(args.output) if (args.output and not multi) else out_dir / f"{stem}.mp3"
-        print(f"{doc.title!r}: {len(doc.text.split())} words from {doc.pages} pages")
+        unit = "chapters" if doc.chapters else "pages"
+        print(f"{doc.title!r}: {len(doc.text.split())} words from {doc.pages} {unit}")
 
         if args.text_only:
             txt = target.with_suffix(".txt")
@@ -59,6 +62,16 @@ def main(argv: list[str] | None = None) -> int:
 
         def progress(done: int, total: int) -> None:
             print(f"\r  synthesizing {done}/{total}", end="", file=sys.stderr, flush=True)
+
+        if args.split_chapters and doc.chapters:
+            folder = target.with_suffix("")
+            for n, (name, text) in enumerate(doc.chapters, 1):
+                slug = re.sub(r"[^\w\-]+", "_", name)[:60].strip("_") or "chapter"
+                print(f"  [{n}/{len(doc.chapters)}] {name}", file=sys.stderr)
+                out = asyncio.run(tts.synthesize(
+                    text, folder / f"{n:02d}_{slug}.mp3", args.voice, args.speed, progress=progress))
+                print(f"\n  wrote {out}")
+            continue
 
         out = asyncio.run(tts.synthesize(doc.text, target, args.voice, args.speed, progress=progress))
         print(f"\n  wrote {out}")

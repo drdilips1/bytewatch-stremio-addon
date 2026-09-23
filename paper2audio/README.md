@@ -1,12 +1,12 @@
 # Paper to Audio (self-hosted, unlimited)
 
-Turn research papers and PDFs into audio you can listen to, similar to
+Turn research papers, PDFs and EPUB e-books into audio you can listen to, similar to
 paper2audio.com. It runs on your own machine, so there are no page limits,
 monthly quotas or accounts.
 
 ## What it does
 
-- Reads a **PDF, TXT or Markdown** file, a **PDF link**, or an **arXiv ID** such as `1706.03762`.
+- Reads a **PDF, EPUB, TXT or Markdown** file, a **PDF or EPUB link**, or an **arXiv ID** such as `1706.03762`.
 - Cleans the text so it sounds good read aloud:
   - removes running headers, footers and page numbers
   - joins words split by hyphens at line ends (`atten-` / `tion` becomes `attention`)
@@ -15,6 +15,11 @@ monthly quotas or accounts.
   - stops at **References** or **Bibliography**; optionally also skips the appendix
   - skips acknowledgements
   - expands `e.g.`, `i.e.`, `%`, `≈`, `±` and similar into spoken words
+- For **EPUB** books:
+  - follows the book's own reading order and chapters
+  - drops footnote markers and footnote text, the cover, contents, copyright and index pages
+  - skips Notes and Bibliography chapters (unless `--keep-references`)
+  - can write one MP3 per chapter (`--split-chapters`)
 - Converts the text to natural-sounding speech with adjustable speed (0.5× to 2×) and many voices.
 - Offers a web page (upload a file, then listen or download the MP3) and a command-line tool.
 
@@ -70,14 +75,20 @@ python -m paper2audio.cli paper.pdf -v piper:en_US-lessac-medium
 # list voices (optionally by language)
 python -m paper2audio.cli --list-voices en-GB
 
+# an e-book, one MP3 per chapter (written to a "book/" folder)
+python -m paper2audio.cli book.epub --split-chapters -o book.mp3
+
 # only save the cleaned text, to check what will be read aloud
 python -m paper2audio.cli paper.pdf --text-only
 ```
 
-Options: `--keep-references`, `--keep-citations`, `--keep-captions`, `--skip-appendix`.
+Options: `--keep-references`, `--keep-citations`, `--keep-captions`, `--skip-appendix`, `--split-chapters`.
 
 ## Limitations
 
 - Equations are skipped, not spoken as math.
 - Complex multi-column layouts can occasionally read out of order. Use `--text-only` to check.
+- Tables are skipped. In EPUBs, all superscript text is treated as footnote markers and dropped.
+- EPUBs with DRM (bought from Kindle, Apple Books or similar stores) cannot be read.
+- In the web app, a book becomes one long MP3; use the command line for one file per chapter.
 - Scanned PDFs (images with no text layer) need OCR first, for example `ocrmypdf in.pdf out.pdf`.

@@ -1,4 +1,4 @@
-"""Small web UI: upload a PDF (or paste an arXiv link), get an MP3 back.
+"""Small web UI: upload a PDF or EPUB (or paste an arXiv link), get an MP3 back.
 
 Run with:  python -m paper2audio.web   then open http://localhost:8000
 """

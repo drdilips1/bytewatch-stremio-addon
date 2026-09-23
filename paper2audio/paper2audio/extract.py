@@ -1,4 +1,4 @@
-"""Turn a research paper (PDF, text, or arXiv link) into clean, listenable text.
+"""Turn a research paper or book (PDF, EPUB, text, or arXiv link) into clean, listenable text.
 
 The cleanup mirrors what makes paper-to-audio tools pleasant to listen to:
 running headers/footers and page numbers are dropped, hyphenated line breaks
@@ -16,6 +16,8 @@ from pathlib import Path
 
 import pymupdf
 
+from .epub import read_epub
+
 ARXIV_RE = re.compile(
     r"^(?:https?://(?:www\.)?arxiv\.org/(?:abs|pdf)/)?(\d{4}\.\d{4,5}(?:v\d+)?)(?:\.pdf)?/?$"
 )
@@ -28,6 +30,7 @@ APPENDIX_RE = re.compile(
     r"^\s*(?:[A-Z]\.?\s*)?(appendix|appendices|supplementary material)\b.*$",
     re.IGNORECASE,
 )
+NOTES_RE = re.compile(r"^\s*(notes|endnotes|footnotes)\s*$", re.IGNORECASE)
 ACK_RE = re.compile(r"^\s*(?:\d+\.?\s*)?acknowledge?ments?\s*$", re.IGNORECASE)
 CAPTION_RE = re.compile(r"^\s*(figure|fig\.|table|algorithm)\s*\d+[.:]", re.IGNORECASE)
 
@@ -58,7 +61,7 @@ class Document:
     title: str
     text: str
     pages: int = 0
-    notes: list[str] = field(default_factory=list)
+    chapters: list[tuple[str, str]] = field(default_factory=list)
 
 
 def fetch(source: str, dest_dir: Path) -> Path:
@@ -69,7 +72,7 @@ def fetch(source: str, dest_dir: Path) -> Path:
     if source.startswith(("http://", "https://")):
         dest_dir.mkdir(parents=True, exist_ok=True)
         name = re.sub(r"[^\w.-]+", "_", source.rstrip("/").rsplit("/", 1)[-1]) or "download"
-        if not name.lower().endswith((".pdf", ".txt")):
+        if not name.lower().endswith((".pdf", ".txt", ".epub")):
             name += ".pdf"
         out = dest_dir / name
         req = urllib.request.Request(source, headers={"User-Agent": "paper2audio/1.0"})
@@ -87,7 +90,26 @@ def load(path: Path, opts: Options | None = None) -> Document:
     if path.suffix.lower() in {".txt", ".md"}:
         raw = path.read_text(encoding="utf-8", errors="ignore")
         return Document(title=path.stem, text=clean_text(raw.splitlines(), opts))
+    if path.suffix.lower() == ".epub":
+        return _load_epub(path, opts)
     return _load_pdf(path, opts)
+
+
+def _load_epub(path: Path, opts: Options) -> Document:
+    title, raw_chapters = read_epub(path)
+    chapters: list[tuple[str, str]] = []
+    for name, lines in raw_chapters:
+        if opts.skip_references and (END_SECTION_RE.match(name) or NOTES_RE.match(name)):
+            continue
+        if opts.skip_acknowledgements and ACK_RE.match(name):
+            continue
+        if opts.skip_appendix and APPENDIX_RE.match(name):
+            continue
+        text = clean_text(lines, opts)
+        if text:
+            chapters.append((name, text))
+    text = "\n\n".join(t for _, t in chapters)
+    return Document(title=title, text=text, pages=len(chapters), chapters=chapters)
 
 
 def _load_pdf(path: Path, opts: Options) -> Document:
