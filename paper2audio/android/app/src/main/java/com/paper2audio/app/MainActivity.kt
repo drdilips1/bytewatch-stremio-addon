@@ -11,7 +11,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
-import android.speech.tts.Voice
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
@@ -62,7 +61,8 @@ class MainActivity : Activity() {
     private lateinit var urlInput: EditText
 
     private var source: Loader.Source? = null
-    private var voices: List<Voice> = emptyList()
+    private var voices: List<Speaker.VoiceOption> = emptyList()
+    private var voicesShown = -1
     private var busy: String? = null
     private var userSeeking = false
 
@@ -165,14 +165,14 @@ class MainActivity : Activity() {
                 Exporter.cancel()
             } else {
                 askNotificationPermission()
-                Exporter.start(this, doc, Speaker.currentVoiceName, Speaker.speed)
+                Exporter.start(this, doc, Speaker.voiceId, Speaker.speed)
             }
         }
         btnOpenAudio.setOnClickListener {
             val uri = Exporter.resultUri ?: return@setOnClickListener
             try {
                 startActivity(
-                    Intent(Intent.ACTION_VIEW).setDataAndType(uri, "audio/mp4")
+                    Intent(Intent.ACTION_VIEW).setDataAndType(uri, contentResolver.getType(uri) ?: "audio/*")
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 )
             } catch (e: Exception) {
@@ -193,22 +193,18 @@ class MainActivity : Activity() {
     )
 
     private fun setupVoices() {
-        voices = Speaker.voices()
-        if (voices.isEmpty()) return
-        val labels = voices.map { v ->
-            val online = if (v.isNetworkConnectionRequired) " (online)" else ""
-            "${v.locale.displayName} · ${v.name}$online"
-        }
+        voicesShown = Speaker.voicesVersion
+        voices = Speaker.voiceOptions()
         voiceSpinner.onItemSelectedListener = null
-        voiceSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, labels).apply {
+        voiceSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, voices.map { it.label }).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
-        val current = voices.indexOfFirst { it.name == Speaker.currentVoiceName }
-        if (current >= 0) voiceSpinner.setSelection(current, false)
+        // voiceOptions() always contains the saved voice, so this never falls back to
+        // an arbitrary (possibly foreign-language) first entry.
+        voiceSpinner.setSelection(voices.indexOfFirst { it.id == Speaker.voiceId }.coerceAtLeast(0), false)
         voiceSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val name = voices[position].name
-                if (name != Speaker.currentVoiceName) Speaker.setVoice(name)
+                voices.getOrNull(position)?.let { Speaker.setVoice(it.id) }
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
@@ -333,7 +329,6 @@ class MainActivity : Activity() {
         docTitle.text = doc?.title ?: "No document open"
         docInfo.text = when {
             busy != null -> busy
-            Speaker.initFailed -> "No text-to-speech engine found. Install \"Speech Services by Google\" from the Play Store."
             doc != null -> {
                 val minutes = (doc.words / (160 * Speaker.speed)).toInt()
                 val length = if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
@@ -351,15 +346,20 @@ class MainActivity : Activity() {
         } else {
             posLabel.text = ""
         }
-        listOf(btnPrev, btnPlay, btnNext).forEach { it.isEnabled = hasDoc && Speaker.ready }
+        listOf(btnPrev, btnPlay, btnNext).forEach { it.isEnabled = hasDoc }
         btnPlay.text = if (Speaker.playing) "❚❚ Pause" else "▶ Play"
         btnChapters.visibility = if (doc != null && doc.chapters.size > 1) View.VISIBLE else View.GONE
 
-        btnExport.isEnabled = hasDoc && Speaker.ready
+        btnExport.isEnabled = hasDoc
         btnExport.text = if (Exporter.running) "Cancel saving" else "Save as audio file"
         exportProgress.visibility = if (Exporter.running) View.VISIBLE else View.GONE
         exportProgress.progress = Exporter.progress
         exportStatus.text = Exporter.message ?: ""
+        if (Speaker.voicesVersion != voicesShown) setupVoices()
+        Speaker.lastError?.let {
+            Speaker.lastError = null
+            toast(it)
+        }
         btnOpenAudio.visibility =
             if (Exporter.resultUri != null && !Exporter.running && Build.VERSION.SDK_INT >= 29) View.VISIBLE else View.GONE
     }
@@ -383,7 +383,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (Speaker.ready) setupVoices() // pick up voices installed while we were away
+        setupVoices() // pick up phone voices installed while we were away
     }
 
     override fun onStop() {

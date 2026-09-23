@@ -11,8 +11,8 @@ android {
         applicationId = "com.paper2audio.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     // Sign with your own key when P2A_KEYSTORE is set (see README), so new
@@ -57,5 +57,6 @@ android {
 dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("org.jsoup:jsoup:1.17.2")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }

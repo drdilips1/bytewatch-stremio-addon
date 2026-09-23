@@ -22,18 +22,25 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.FileDescriptor
+import java.io.IOException
 import java.io.RandomAccessFile
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
 import kotlin.coroutines.coroutineContext
 
-/** Renders a whole document to an M4A (AAC) file in Music/Paper2Audio. */
+/**
+ * Renders a whole document to one audio file in Music/Paper2Audio: MP3 for
+ * the natural (Microsoft) voices, M4A (AAC) for the phone's own voices.
+ */
 object Exporter {
     var running = false
         private set
@@ -62,7 +69,7 @@ object Exporter {
         listeners.forEach { it() }
     }
 
-    fun start(context: Context, doc: Doc, voiceName: String?, speed: Float) {
+    fun start(context: Context, doc: Doc, voiceId: String, speed: Float) {
         if (running) return
         val app = context.applicationContext
         running = true
@@ -73,7 +80,11 @@ object Exporter {
         ReaderService.start(app)
         job = scope.launch {
             try {
-                val (uri, where) = export(app, doc, voiceName, speed)
+                val (uri, where) = if (voiceId.startsWith(Speaker.EDGE)) {
+                    exportEdge(app, doc, voiceId.removePrefix(Speaker.EDGE), speed)
+                } else {
+                    export(app, doc, voiceId.removePrefix(Speaker.SYSTEM), speed)
+                }
                 update {
                     resultUri = uri
                     message = "Saved to $where"
@@ -126,7 +137,7 @@ object Exporter {
 
             val chunks = group(doc.paragraphs)
             val wav = File(context.cacheDir, "chunk.wav")
-            val out = createOutput(context, doc.title)
+            val out = createOutput(context, doc.title, "m4a", "audio/mp4")
             var writer: AacWriter? = null
             var ok = false
             try {
@@ -159,6 +170,51 @@ object Exporter {
         } finally {
             tts.shutdown()
         }
+    }
+
+    private suspend fun exportEdge(context: Context, doc: Doc, voice: String, speed: Float): Pair<Uri, String> {
+        val chunks = group(doc.paragraphs, 2400)
+        val rate = Speaker.ratePercent(speed)
+        val out = createOutput(context, doc.title, "mp3", "audio/mpeg")
+        var ok = false
+        try {
+            ParcelFileDescriptor.AutoCloseOutputStream(out.pfd).buffered().use { os ->
+                coroutineScope {
+                    var i = 0
+                    while (i < chunks.size) {
+                        // A few requests in flight at once, written in order.
+                        val batch = (i until minOf(i + 4, chunks.size)).map { k ->
+                            async(Dispatchers.IO) { synthEdge(chunks[k], voice, rate) }
+                        }
+                        for (part in batch) os.write(part.await())
+                        i += batch.size
+                        val pct = i * 100 / chunks.size
+                        update {
+                            progress = pct
+                            message = "Saving audio… $pct%"
+                        }
+                    }
+                }
+            }
+            ok = true
+        } finally {
+            runCatching { out.pfd.close() }
+            if (ok) out.commit() else out.discard()
+        }
+        return out.uri to out.where
+    }
+
+    private suspend fun synthEdge(text: String, voice: String, rate: Int): ByteArray {
+        var wait = 2_000L
+        repeat(3) {
+            try {
+                return EdgeTts.synthesize(text, voice, rate)
+            } catch (e: IOException) {
+                delay(wait)
+                wait *= 2
+            }
+        }
+        return EdgeTts.synthesize(text, voice, rate) // last try; its error is reported
     }
 
     /** Fewer, larger requests are much faster than one per paragraph. */
@@ -195,13 +251,13 @@ object Exporter {
         return ok && file.length() > 44
     }
 
-    private fun createOutput(context: Context, title: String): Output {
+    private fun createOutput(context: Context, title: String, ext: String, mime: String): Output {
         val safe = title.replace(Regex("""[\\/:*?"<>|]+"""), "_").take(80).ifBlank { "audio" }
         if (Build.VERSION.SDK_INT >= 29) {
             val cr = context.contentResolver
             val values = ContentValues().apply {
-                put(MediaStore.Audio.Media.DISPLAY_NAME, "$safe.m4a")
-                put(MediaStore.Audio.Media.MIME_TYPE, "audio/mp4")
+                put(MediaStore.Audio.Media.DISPLAY_NAME, "$safe.$ext")
+                put(MediaStore.Audio.Media.MIME_TYPE, mime)
                 put(MediaStore.Audio.Media.TITLE, title)
                 put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/Paper2Audio")
                 put(MediaStore.Audio.Media.IS_PENDING, 1)
@@ -218,7 +274,7 @@ object Exporter {
             )
         }
         val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "Paper2Audio").apply { mkdirs() }
-        val file = File(dir, "$safe.m4a")
+        val file = File(dir, "$safe.$ext")
         val pfd = ParcelFileDescriptor.open(
             file,
             ParcelFileDescriptor.MODE_READ_WRITE or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE,

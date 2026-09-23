@@ -14,17 +14,23 @@ the phone: no server, no account, no limits.
   a chapter list. Reading continues with the screen off, with controls in the
   notification and on the lock screen.
 - **Remembers where you stopped** in each document.
-- **Save as audio file**: renders the whole document to an `.m4a` file in
-  `Music/Paper2Audio`, playable in any music or podcast app.
-- Speed from 0.5× to 3×, and any voice installed on your phone.
+- **Save as audio file**: renders the whole document to one file in
+  `Music/Paper2Audio` (MP3 for natural voices, M4A for phone voices), playable in
+  any music or podcast app.
+- Speed from 0.5× to 3×.
 
 ## Voices
 
-The app uses your phone's text-to-speech engine, which is free and unlimited. For
-the best voices, install or update **Speech Services by Google** from the Play
-Store, then tap **Get more voices** in the app to download high-quality voices
-for your languages. Voices marked *(online)* need internet; the others work
-offline.
+- **★ Natural voices (default)**: Microsoft's neural voices, the same ones as
+  Edge's "Read aloud" and the desktop tool. They sound close to a human
+  narrator, cover 100+ languages (Indian English and Hindi included), and are
+  free with no limits. They need an internet connection: each paragraph is
+  fetched a moment before it is read.
+- **Phone voices**: your phone's own text-to-speech engine. They work offline,
+  but quality depends on the phone and is often robotic. Tap **Get more phone
+  voices** to download better ones.
+
+Pick a voice from the list; the ★ voices are at the top.
 
 ## Getting the APK
 
@@ -60,5 +66,7 @@ Android SDK installed. Requires JDK 17.
 ## Limitations
 
 - Requires Android 8.0 or newer.
+- Natural voices use an unofficial Microsoft service. If Microsoft changes it,
+  they may stop working until the app is updated; phone voices keep working.
 - Scanned PDFs (images only) and DRM-protected e-books can't be read.
 - Complex multi-column PDFs can occasionally read out of order.
