@@ -256,6 +256,11 @@ object Kokoro {
 
     class Pcm(val bytes: ByteArray, val sampleRate: Int)
 
+    /** Loads the model for [voice]'s accent without generating anything. */
+    fun prepare(voice: KVoice) {
+        synchronized(lock) { engineFor(voice.british) }
+    }
+
     private fun engineFor(british: Boolean): OfflineTts {
         engine?.let { if (engineBritish == british) return it }
         engine?.release()

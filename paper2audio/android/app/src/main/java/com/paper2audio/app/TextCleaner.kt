@@ -169,6 +169,27 @@ object TextCleaner {
         return p.count { it.isLetter() }.toDouble() / p.length < 0.5
     }
 
+    /**
+     * Splits a paragraph into short playback pieces of whole sentences, about
+     * [target] characters each. A single long sentence stays whole unless it is
+     * longer than [hardMax].
+     */
+    fun pieces(p: String, target: Int, hardMax: Int = 1000): List<String> {
+        val out = ArrayList<String>()
+        val buf = StringBuilder()
+        for (sentence in p.split(SENTENCE_BREAK)) {
+            if (sentence.isBlank()) continue
+            if (buf.isNotEmpty() && buf.length + sentence.length + 1 > target) {
+                out += buf.toString()
+                buf.setLength(0)
+            }
+            if (buf.isNotEmpty()) buf.append(' ')
+            buf.append(sentence)
+        }
+        if (buf.isNotEmpty()) out += buf.toString()
+        return out.flatMap { if (it.length > hardMax) splitLong(it, hardMax) else listOf(it) }
+    }
+
     /** Splits paragraphs longer than the TTS engine accepts, at sentence boundaries. */
     fun splitLong(p: String, limit: Int = 3000): List<String> {
         if (p.length <= limit) return listOf(p)

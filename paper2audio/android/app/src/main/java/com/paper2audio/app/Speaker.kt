@@ -39,6 +39,7 @@ object Speaker {
     const val KOKORO = "kokoro:"
     const val DEFAULT_VOICE = EDGE + "en-US-AndrewMultilingualNeural"
     private const val LOOKAHEAD = 3
+    private const val PIECE_LOOKAHEAD = 4
 
     data class VoiceOption(val id: String, val label: String)
 
@@ -99,6 +100,7 @@ object Speaker {
         Kokoro.init(app)
         speed = prefs.getFloat("speed", 1.0f)
         voiceId = prefs.getString("voice2", null) ?: DEFAULT_VOICE
+        warmUpKokoro()
         pendingReady += onReady
         tts = TextToSpeech(app) { status ->
             main.post {
@@ -170,6 +172,7 @@ object Speaker {
         voiceId = id
         prefs.edit().putString("voice2", id).apply()
         if (id.startsWith(SYSTEM)) tts?.let { t -> t.voices?.firstOrNull { it.name == id.removePrefix(SYSTEM) }?.let { t.voice = it } }
+        if (!playing) warmUpKokoro() // when playing, play() below renders right away anyway
         pausedAt = -1
         if (playing) play()
         notifyChanged()
@@ -178,7 +181,15 @@ object Speaker {
     /** Call after the Kokoro download finishes so the voice list updates. */
     fun refreshVoices() {
         voicesVersion++
+        warmUpKokoro()
         notifyChanged()
+    }
+
+    /** Loads the Kokoro model in the background so pressing Play starts quickly. */
+    private fun warmUpKokoro() {
+        val v = Kokoro.voice(voiceId.removePrefix(KOKORO)) ?: return
+        if (!isKokoro || !Kokoro.isInstalled()) return
+        scope.launch(kokoroThread) { runCatching { Kokoro.prepare(v) } }
     }
 
     fun setSpeed(value: Float) {
@@ -330,27 +341,38 @@ object Speaker {
             deleteRecursively()
             mkdirs()
         }
+        // Short pieces (a sentence or two) so audio starts almost immediately
+        // instead of after a whole paragraph has been rendered.
+        val pieceChars = if (kokoro) 220 else 500
         session = scope.launch {
-            val pending = HashMap<Int, Deferred<File>>()
-            fun fetch(k: Int) = pending.getOrPut(k) {
-                if (kokoro) {
-                    async(kokoroThread) {
-                        File(dir, "$g-$k.wav").also {
-                            Kokoro.writeWav(it, Kokoro.synthesize(d.paragraphs[k], kVoice!!, currentSpeed))
+            val pieces = (index until d.paragraphs.size).asSequence()
+                .flatMap { k -> TextCleaner.pieces(d.paragraphs[k], pieceChars).map { k to it } }
+                .iterator()
+            val queue = ArrayDeque<Pair<Int, Deferred<File>>>()
+            var n = 0
+            fun fill() {
+                while (queue.size < PIECE_LOOKAHEAD && pieces.hasNext()) {
+                    val (k, text) = pieces.next()
+                    val id = n++
+                    queue.addLast(k to if (kokoro) {
+                        async(kokoroThread) {
+                            File(dir, "$g-$id.wav").also {
+                                Kokoro.writeWav(it, Kokoro.synthesize(text, kVoice!!, currentSpeed))
+                            }
                         }
-                    }
-                } else {
-                    async(Dispatchers.IO) {
-                        File(dir, "$g-$k.mp3").apply { writeBytes(EdgeTts.synthesize(d.paragraphs[k], voice, rate)) }
-                    }
+                    } else {
+                        async(Dispatchers.IO) {
+                            File(dir, "$g-$id.mp3").apply { writeBytes(EdgeTts.synthesize(text, voice, rate)) }
+                        }
+                    })
                 }
             }
 
-            var i = index
-            while (i < d.paragraphs.size) {
-                for (k in i until minOf(i + LOOKAHEAD, d.paragraphs.size)) fetch(k)
+            while (true) {
+                fill()
+                val (k, pending) = queue.removeFirstOrNull() ?: break
                 val file = try {
-                    pending.getValue(i).await()
+                    pending.await()
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -362,16 +384,17 @@ object Speaker {
                     }
                     return@launch
                 }
-                pending.remove(i)
                 if (g != generation) return@launch
-                index = i
-                savePosition()
-                notifyChanged()
+                if (k != index) {
+                    index = k
+                    savePosition()
+                    notifyChanged()
+                }
+                fill() // keep rendering ahead while this piece plays
                 playFile(file)
                 player?.release()
                 player = null
                 file.delete()
-                i++
             }
             if (g == generation) {
                 playing = false
