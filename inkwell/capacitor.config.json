@@ -1,0 +1,20 @@
+{
+  "appId": "app.inkwell.books",
+  "appName": "Inkwell",
+  "webDir": "dist",
+  "backgroundColor": "#0b0a14",
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#0b0a14"
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true },
+    "SplashScreen": {
+      "launchShowDuration": 900,
+      "launchAutoHide": true,
+      "backgroundColor": "#0b0a14",
+      "showSpinner": false
+    },
+    "StatusBar": { "overlaysWebView": true, "style": "DARK" }
+  }
+}

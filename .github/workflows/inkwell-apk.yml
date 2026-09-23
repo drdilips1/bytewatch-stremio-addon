@@ -1,0 +1,94 @@
+name: Inkwell Android APK
+
+on:
+  push:
+    paths:
+      - 'inkwell/**'
+      - '.github/workflows/inkwell-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: inkwell-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: inkwell
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: inkwell/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;35.0.0'
+
+      - name: Install & build web app
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: Prepare signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.INKWELL_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/inkwell.jks"
+            echo "INKWELL_KEYSTORE=$RUNNER_TEMP/inkwell.jks" >> "$GITHUB_ENV"
+          else
+            # No release key configured: sign with a throwaway debug key so the APK installs.
+            mkdir -p ~/.android
+            [ -f ~/.android/debug.keystore ] || keytool -genkeypair -v -keystore ~/.android/debug.keystore \
+              -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+              -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Build release APK
+        env:
+          INKWELL_KEYSTORE_PASSWORD: ${{ secrets.INKWELL_KEYSTORE_PASSWORD }}
+          INKWELL_KEY_ALIAS: ${{ secrets.INKWELL_KEY_ALIAS }}
+          INKWELL_KEY_PASSWORD: ${{ secrets.INKWELL_KEY_PASSWORD }}
+        working-directory: inkwell/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/app-release.apk "../out/Inkwell-v${VERSION_NAME}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Inkwell-v${{ env.VERSION_NAME }}
+          path: inkwell/out/*.apk
+
+      - name: Publish GitHub release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: inkwell-v${{ env.VERSION_NAME }}
+          name: Inkwell v${{ env.VERSION_NAME }}
+          target_commitish: ${{ github.sha }}
+          files: inkwell/out/*.apk
+          body: |
+            Inkwell for Android — download the APK below and open it on your phone
+            (allow "Install unknown apps" for your browser or file manager when asked).
+
+            Built from ${{ github.sha }} on `${{ github.ref_name }}`.

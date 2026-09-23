@@ -1,5 +1,7 @@
 # Bytewatch Stremio Addon
 
+> 📚 **New: [Inkwell](inkwell/README.md)**, an Android audiobook and ebook app built with Capacitor. Its APK is built automatically by GitHub Actions.
+
 A Node.js-powered Stremio addon that scrapes multiple streaming sites using Puppeteer. It integrates them into the Stremio ecosystem through a single stream handler.
 
 ---
