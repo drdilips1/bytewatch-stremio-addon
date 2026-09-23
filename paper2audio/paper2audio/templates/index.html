@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper to Audio</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#fff; --fg:#1d1d1f; --muted:#6b6b70; --accent:#2f5bea; --border:#e2e2e0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141416; --card:#1e1e21; --fg:#ececef; --muted:#9a9aa2; --accent:#7c9bff; --border:#2e2e33; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width:640px; margin:0 auto; padding:32px 16px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 24px; }
+  form, #jobs > div { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+  label { display:block; font-weight:600; margin:14px 0 6px; }
+  input[type=text], select, input[type=file] { width:100%; padding:10px; border:1px solid var(--border);
+    border-radius:8px; background:var(--bg); color:var(--fg); font:inherit; }
+  .row { display:flex; gap:12px; } .row > div { flex:1; }
+  .checks label { font-weight:400; display:flex; gap:8px; align-items:center; margin:6px 0; }
+  .or { text-align:center; color:var(--muted); margin:10px 0 0; }
+  button { margin-top:18px; width:100%; padding:12px; border:0; border-radius:8px; background:var(--accent);
+    color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:wait; }
+  #jobs { display:grid; gap:12px; margin-top:20px; }
+  .bar { height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin:8px 0; }
+  .bar > i { display:block; height:100%; background:var(--accent); width:0; transition:width .3s; }
+  audio { width:100%; margin-top:8px; }
+  .muted { color:var(--muted); font-size:.9rem; } .err { color:#d33; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Paper to Audio</h1>
+  <p class="sub">Turn research papers into audio. Self-hosted, no limits.</p>
+
+  <form id="f">
+    <label for="file">PDF or text file</label>
+    <input id="file" name="file" type="file" accept=".pdf,.txt,.md">
+    <p class="or">or</p>
+    <label for="url">arXiv ID or PDF link</label>
+    <input id="url" name="url" type="text" placeholder="2401.12345 or https://…/paper.pdf">
+
+    <div class="row">
+      <div>
+        <label for="voice">Voice</label>
+        <select id="voice" name="voice">
+          {% for v in voices %}
+          <option value="{{ v.ShortName }}" {% if v.ShortName == default_voice %}selected{% endif %}>
+            {{ v.ShortName }} ({{ v.Gender }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="speed">Speed: <span id="sv">1.0</span>×</label>
+        <input id="speed" name="speed" type="range" min="0.5" max="2" step="0.1" value="1.0" style="width:100%">
+      </div>
+    </div>
+
+    <div class="checks">
+      <label><input type="checkbox" name="skip_references" checked> Skip references</label>
+      <label><input type="checkbox" name="remove_citations" checked> Remove inline citations</label>
+      <label><input type="checkbox" name="skip_captions" checked> Skip figure and table captions</label>
+      <label><input type="checkbox" name="skip_appendix"> Skip appendix</label>
+    </div>
+    <button id="go">Convert to audio</button>
+  </form>
+
+  <div id="jobs"></div>
+</main>
+<script>
+const f = document.getElementById('f'), jobsEl = document.getElementById('jobs');
+document.getElementById('speed').oninput = e => document.getElementById('sv').textContent = (+e.target.value).toFixed(1);
+
+f.onsubmit = async e => {
+  e.preventDefault();
+  const btn = document.getElementById('go'); btn.disabled = true;
+  try {
+    const r = await fetch('/api/jobs', { method:'POST', body:new FormData(f) });
+    const j = await r.json();
+    if (!r.ok) { alert(j.error || 'Failed'); return; }
+    track(j.id); f.reset(); document.getElementById('sv').textContent = '1.0';
+  } finally { btn.disabled = false; }
+};
+
+function track(id) {
+  const el = document.createElement('div');
+  jobsEl.prepend(el);
+  const tick = async () => {
+    const j = await (await fetch('/api/jobs/' + id)).json();
+    const title = j.title ? j.title.replace(/</g, '&lt;') : 'Processing…';
+    if (j.status === 'done') {
+      el.innerHTML = `<strong>${title}</strong><div class="muted">${j.words} words</div>
+        <audio controls preload="none" src="/api/jobs/${id}/audio"></audio>
+        <div class="muted"><a href="/api/jobs/${id}/audio?download=1">Download MP3</a> ·
+        <a href="/api/jobs/${id}/text" target="_blank">View text</a></div>`;
+      return;
+    }
+    if (j.status === 'error') {
+      el.innerHTML = `<strong>${title}</strong><div class="err">${String(j.error).replace(/</g, '&lt;')}</div>`;
+      return;
+    }
+    el.innerHTML = `<strong>${title}</strong><div class="bar"><i style="width:${j.progress}%"></i></div>
+      <div class="muted">${j.status} ${j.status === 'synthesizing' ? j.progress + '%' : ''}</div>`;
+    setTimeout(tick, 1500);
+  };
+  tick();
+}
+</script>
+</body>
+</html>
