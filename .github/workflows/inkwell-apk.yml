@@ -50,23 +50,27 @@ jobs:
       - name: Prepare signing key
         env:
           KEYSTORE_B64: ${{ secrets.INKWELL_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.INKWELL_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.INKWELL_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.INKWELL_KEY_PASSWORD }}
         run: |
+          KS="$RUNNER_TEMP/inkwell.jks"
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/inkwell.jks"
-            echo "INKWELL_KEYSTORE=$RUNNER_TEMP/inkwell.jks" >> "$GITHUB_ENV"
+            echo "$KEYSTORE_B64" | base64 -d > "$KS"
           else
-            # No release key configured: sign with a throwaway debug key so the APK installs.
-            mkdir -p ~/.android
-            [ -f ~/.android/debug.keystore ] || keytool -genkeypair -v -keystore ~/.android/debug.keystore \
-              -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
-              -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            # No release key configured: generate a throwaway key so the APK still installs.
+            KS_PASS=inkwell-ci KEY_PASS=inkwell-ci KEY_ALIAS=inkwell
+            keytool -genkeypair -keystore "$KS" -storepass "$KS_PASS" -alias "$KEY_ALIAS" -keypass "$KEY_PASS" \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Inkwell,O=Inkwell,C=US"
           fi
+          {
+            echo "INKWELL_KEYSTORE=$KS"
+            echo "INKWELL_KEYSTORE_PASSWORD=$KS_PASS"
+            echo "INKWELL_KEY_ALIAS=$KEY_ALIAS"
+            echo "INKWELL_KEY_PASSWORD=$KEY_PASS"
+          } >> "$GITHUB_ENV"
 
       - name: Build release APK
-        env:
-          INKWELL_KEYSTORE_PASSWORD: ${{ secrets.INKWELL_KEYSTORE_PASSWORD }}
-          INKWELL_KEY_ALIAS: ${{ secrets.INKWELL_KEY_ALIAS }}
-          INKWELL_KEY_PASSWORD: ${{ secrets.INKWELL_KEY_PASSWORD }}
         working-directory: inkwell/android
         run: |
           chmod +x gradlew
