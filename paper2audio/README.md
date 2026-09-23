@@ -30,6 +30,12 @@ monthly quotas or accounts.
 | **Edge** (default) | 400+ neural voices, 100+ languages (for example `en-US-AndrewMultilingualNeural`, `en-GB-SoniaNeural`, `hi-IN-SwaraNeural`) | Yes | Microsoft's free "Read aloud" voices. No API key needed. |
 | **Piper** | `piper:en_US-lessac-medium`, `piper:en_US-ryan-high`, and [many more](https://huggingface.co/rhasspy/piper-voices) | Only to download a voice once | Runs fully offline on your CPU. Needs `ffmpeg` for MP3 output; otherwise it writes WAV. |
 
+## Android app
+
+There is also a standalone Android app that does all of this on the phone,
+using the phone's own voices. See [android/README.md](android/README.md) for how
+to download the APK.
+
 ## Install
 
 Requires Python 3.10 or newer.
