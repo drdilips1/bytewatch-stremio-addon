@@ -82,6 +82,8 @@ object Exporter {
             try {
                 val (uri, where) = if (voiceId.startsWith(Speaker.EDGE)) {
                     exportEdge(app, doc, voiceId.removePrefix(Speaker.EDGE), speed)
+                } else if (voiceId.startsWith(Speaker.KOKORO)) {
+                    exportKokoro(app, doc, voiceId.removePrefix(Speaker.KOKORO), speed)
                 } else {
                     export(app, doc, voiceId.removePrefix(Speaker.SYSTEM), speed)
                 }
@@ -198,6 +200,36 @@ object Exporter {
             }
             ok = true
         } finally {
+            runCatching { out.pfd.close() }
+            if (ok) out.commit() else out.discard()
+        }
+        return out.uri to out.where
+    }
+
+    private suspend fun exportKokoro(context: Context, doc: Doc, name: String, speed: Float): Pair<Uri, String> {
+        val voice = Kokoro.voice(name) ?: error("Unknown Kokoro voice")
+        if (!Kokoro.isInstalled()) error("Download the Kokoro voices first")
+        val out = createOutput(context, doc.title, "m4a", "audio/mp4")
+        var writer: AacWriter? = null
+        var ok = false
+        try {
+            for ((i, text) in doc.paragraphs.withIndex()) {
+                coroutineContext.ensureActive()
+                val pcm = Kokoro.synthesize(text, voice, speed)
+                val w = writer ?: AacWriter(out.pfd.fileDescriptor, pcm.sampleRate, 1).also { writer = it }
+                w.writePcm(pcm.bytes, pcm.bytes.size)
+                val pct = (i + 1) * 100 / doc.paragraphs.size
+                if (pct != progress) {
+                    update {
+                        progress = pct
+                        message = "Saving audio… $pct%"
+                    }
+                }
+            }
+            (writer ?: error("No audio was produced")).finish()
+            ok = true
+        } finally {
+            if (!ok) runCatching { writer?.release() }
             runCatching { out.pfd.close() }
             if (ok) out.commit() else out.discard()
         }
@@ -359,6 +391,8 @@ class AacWriter(fd: FileDescriptor, val sampleRate: Int, val channels: Int) {
             }
         }
     }
+
+    fun writePcm(pcm: ByteArray, len: Int) = feed(pcm, len)
 
     private fun feed(pcm: ByteArray, len: Int) {
         var pos = 0

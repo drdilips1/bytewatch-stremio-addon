@@ -11,8 +11,8 @@ android {
         applicationId = "com.paper2audio.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     // Sign with your own key when P2A_KEYSTORE is set (see README), so new
@@ -48,8 +48,11 @@ android {
     }
     packaging {
         resources {
-            // BouncyCastle (pulled in by pdfbox-android) ships duplicate metadata.
-            excludes += setOf("META-INF/versions/**", "META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
+            // BouncyCastle (pulled in by pdfbox-android) and Apache Commons ship duplicate metadata.
+            excludes += setOf(
+                "META-INF/versions/**", "META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA",
+                "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/DEPENDENCIES",
+            )
         }
     }
 }
@@ -58,5 +61,6 @@ dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("org.jsoup:jsoup:1.17.2")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.apache.commons:commons-compress:1.26.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }

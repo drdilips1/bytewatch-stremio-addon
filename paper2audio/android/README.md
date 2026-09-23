@@ -21,7 +21,13 @@ the phone: no server, no account, no limits.
 
 ## Voices
 
-- **★ Natural voices (default)**: Microsoft's neural voices, the same ones as
+- **◆ Kokoro voices (best, offline)**: an open-source AI voice model that runs
+  on the phone itself. Very natural, no internet needed after a one-time
+  download of about 300–350 MB (the app asks before downloading), and no
+  limits. English only (American and British voices; *Heart* is the
+  best-rated). Needs a 64-bit ARM phone (almost every phone from the last
+  several years); fast on recent flagship phones, slower on budget ones.
+- **★ Microsoft voices (default)**: Microsoft's neural voices, the same ones as
   Edge's "Read aloud" and the desktop tool. They sound close to a human
   narrator, cover 100+ languages (Indian English and Hindi included), and are
   free with no limits. They need an internet connection: each paragraph is
@@ -30,7 +36,8 @@ the phone: no server, no account, no limits.
   but quality depends on the phone and is often robotic. Tap **Get more phone
   voices** to download better ones.
 
-Pick a voice from the list; the ★ voices are at the top.
+Pick a voice from the list: ◆ Kokoro voices first, then ★ Microsoft voices,
+then phone voices.
 
 ## Getting the APK
 
@@ -62,6 +69,14 @@ Then in GitHub → **Settings** → **Secrets and variables** → **Actions**, a
 
 Open this folder in Android Studio, or run `./gradlew assembleRelease` with the
 Android SDK installed. Requires JDK 17.
+
+Kokoro needs the sherpa-onnx native libraries, which are not committed. Download
+`sherpa-onnx-v1.13.8-android.tar.bz2` from the
+[sherpa-onnx releases](https://github.com/k2-fsa/sherpa-onnx/releases/tag/v1.13.8)
+and copy `jniLibs/arm64-v8a/*.so` into `app/src/main/jniLibs/arm64-v8a/`
+(the GitHub workflow does this automatically). Without them the app still
+builds and runs, just without Kokoro voices. The version must match the
+vendored `app/src/main/java/com/k2fsa/sherpa/onnx/Tts.kt`.
 
 ## Limitations
 

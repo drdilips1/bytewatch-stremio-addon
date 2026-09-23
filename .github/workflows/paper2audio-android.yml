@@ -23,6 +23,18 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Fetch Kokoro engine (sherpa-onnx native library)
+        env:
+          SHERPA_ONNX_VERSION: v1.13.8 # must match app/src/main/java/com/k2fsa/sherpa/onnx/Tts.kt
+        run: |
+          curl -fsSL -o sherpa.tar.bz2 \
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/${SHERPA_ONNX_VERSION}/sherpa-onnx-${SHERPA_ONNX_VERSION}-android.tar.bz2"
+          mkdir -p sherpa app/src/main/jniLibs/arm64-v8a
+          tar xjf sherpa.tar.bz2 -C sherpa
+          cp -v $(find sherpa -path '*arm64-v8a/*.so') app/src/main/jniLibs/arm64-v8a/
+          test -f app/src/main/jniLibs/arm64-v8a/libsherpa-onnx-jni.so
+          rm -rf sherpa sherpa.tar.bz2
+
       - name: Build APK
         env:
           KEYSTORE_B64: ${{ secrets.P2A_KEYSTORE_B64 }}

@@ -145,6 +145,28 @@
             android:layout_height="wrap_content"
             android:text="Get more phone voices" />
 
+        <Button
+            android:id="@+id/btnKokoro"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Download Kokoro voices"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/kokoroProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/kokoroStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:alpha="0.7"
+            android:visibility="gone" />
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

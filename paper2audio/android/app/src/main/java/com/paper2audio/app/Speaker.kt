@@ -16,6 +16,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -27,13 +28,15 @@ import kotlin.coroutines.resume
 import kotlin.math.roundToInt
 
 /**
- * Read-aloud engine. Voices are either Microsoft neural voices ("edge:NAME",
- * natural sounding, needs internet) or the phone's own TTS voices ("sys:NAME").
+ * Read-aloud engine. Voices are Kokoro ("kokoro:NAME", natural, on-device after
+ * a one-time download), Microsoft neural voices ("edge:NAME", natural, needs
+ * internet) or the phone's own TTS voices ("sys:NAME").
  * All state changes happen on the main thread; listeners are called there too.
  */
 object Speaker {
     const val EDGE = "edge:"
     const val SYSTEM = "sys:"
+    const val KOKORO = "kokoro:"
     const val DEFAULT_VOICE = EDGE + "en-US-AndrewMultilingualNeural"
     private const val LOOKAHEAD = 3
 
@@ -68,6 +71,12 @@ object Speaker {
         private set
 
     val isEdge: Boolean get() = voiceId.startsWith(EDGE)
+    val isKokoro: Boolean get() = voiceId.startsWith(KOKORO)
+    /** Voices played from generated audio files (true pause/resume). */
+    private val isStreamed: Boolean get() = isEdge || isKokoro
+
+    /** Kokoro runs one generation at a time; keep its work on one thread. */
+    private val kokoroThread = java.util.concurrent.Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
     /** Bumped on every restart so callbacks from stopped audio are ignored. */
     private var generation = 0
@@ -75,7 +84,7 @@ object Speaker {
     // Phone TTS playback state.
     private var queuedUpTo = -1
 
-    // Microsoft voice playback state.
+    // Kokoro / Microsoft voice playback state.
     private var session: Job? = null
     private var player: MediaPlayer? = null
     private var pausedAt = -1
@@ -87,6 +96,7 @@ object Speaker {
         }
         initialized = true
         app = context.applicationContext
+        Kokoro.init(app)
         speed = prefs.getFloat("speed", 1.0f)
         voiceId = prefs.getString("voice2", null) ?: DEFAULT_VOICE
         pendingReady += onReady
@@ -113,7 +123,7 @@ object Speaker {
     private fun configureSystem() {
         val t = tts ?: return
         t.setSpeechRate(speed)
-        if (!isEdge) t.voices?.firstOrNull { it.name == voiceId.removePrefix(SYSTEM) }?.let { t.voice = it }
+        if (voiceId.startsWith(SYSTEM)) t.voices?.firstOrNull { it.name == voiceId.removePrefix(SYSTEM) }?.let { t.voice = it }
         t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(id: String) {
                 main.post { handleStart(id) }
@@ -130,9 +140,13 @@ object Speaker {
         })
     }
 
-    /** Natural (online) voices first, then the phone's voices with its own language on top. */
+    /** Kokoro, then Microsoft voices, then the phone's voices with its own language on top. */
     fun voiceOptions(): List<VoiceOption> {
         val out = ArrayList<VoiceOption>()
+        if (Kokoro.supported) {
+            val note = if (Kokoro.isInstalled()) "offline" else "one-time download"
+            for (v in Kokoro.VOICES) out += VoiceOption(KOKORO + v.name, "◆ ${v.label} (Kokoro, $note)")
+        }
         for (v in edgeVoices) {
             val person = v.name.substringAfterLast('-').removeSuffix("Neural").removeSuffix("Multilingual")
             val locale = Locale.forLanguageTag(v.locale).displayName
@@ -155,9 +169,15 @@ object Speaker {
         if (id == voiceId) return
         voiceId = id
         prefs.edit().putString("voice2", id).apply()
-        if (!isEdge) tts?.let { t -> t.voices?.firstOrNull { it.name == id.removePrefix(SYSTEM) }?.let { t.voice = it } }
+        if (id.startsWith(SYSTEM)) tts?.let { t -> t.voices?.firstOrNull { it.name == id.removePrefix(SYSTEM) }?.let { t.voice = it } }
         pausedAt = -1
         if (playing) play()
+        notifyChanged()
+    }
+
+    /** Call after the Kokoro download finishes so the voice list updates. */
+    fun refreshVoices() {
+        voicesVersion++
         notifyChanged()
     }
 
@@ -183,13 +203,18 @@ object Speaker {
         if (d.paragraphs.isEmpty()) return
         if (index >= d.paragraphs.size) index = 0
         lastError = null
-        if (isEdge) {
+        if (isKokoro && !Kokoro.isInstalled()) {
+            lastError = "Download the Kokoro voices first (button under the voice list), or choose a ★ voice."
+            notifyChanged()
+            return
+        }
+        if (isStreamed) {
             val p = player
             if (p != null && pausedAt == index) {
                 p.start()
                 pausedAt = -1
             } else {
-                startEdge()
+                startStreaming()
             }
         } else {
             if (!systemReady) {
@@ -209,7 +234,7 @@ object Speaker {
     fun pause() {
         playing = false
         val p = player
-        if (isEdge && p != null && p.isPlaying) {
+        if (isStreamed && p != null && p.isPlaying) {
             p.pause()
             pausedAt = index
         } else {
@@ -263,7 +288,7 @@ object Speaker {
 
     private fun parse(id: String): Int? {
         val (gen, idx) = id.split(':').map { it.toIntOrNull() ?: return null }
-        return if (gen == generation && !isEdge) idx else null
+        return if (gen == generation && !isStreamed) idx else null
     }
 
     private fun handleStart(id: String) {
@@ -284,16 +309,23 @@ object Speaker {
         }
     }
 
-    // ---- Microsoft neural voices ----
+    // ---- Kokoro and Microsoft voices: render paragraphs to files ahead of playback ----
 
     fun ratePercent(s: Float = speed) = ((s - 1f) * 100).roundToInt().coerceIn(-50, 200)
 
-    private fun startEdge() {
+    private fun startStreaming() {
         stopAll()
         val d = doc ?: return
         val g = generation
+        val kokoro = isKokoro
+        val kVoice = Kokoro.voice(voiceId.removePrefix(KOKORO))
         val voice = voiceId.removePrefix(EDGE)
         val rate = ratePercent()
+        val currentSpeed = speed
+        if (kokoro && kVoice == null) {
+            fail("Unknown Kokoro voice")
+            return
+        }
         val dir = File(app.cacheDir, "voice").apply {
             deleteRecursively()
             mkdirs()
@@ -301,8 +333,16 @@ object Speaker {
         session = scope.launch {
             val pending = HashMap<Int, Deferred<File>>()
             fun fetch(k: Int) = pending.getOrPut(k) {
-                async(Dispatchers.IO) {
-                    File(dir, "$g-$k.mp3").apply { writeBytes(EdgeTts.synthesize(d.paragraphs[k], voice, rate)) }
+                if (kokoro) {
+                    async(kokoroThread) {
+                        File(dir, "$g-$k.wav").also {
+                            Kokoro.writeWav(it, Kokoro.synthesize(d.paragraphs[k], kVoice!!, currentSpeed))
+                        }
+                    }
+                } else {
+                    async(Dispatchers.IO) {
+                        File(dir, "$g-$k.mp3").apply { writeBytes(EdgeTts.synthesize(d.paragraphs[k], voice, rate)) }
+                    }
                 }
             }
 
@@ -315,7 +355,10 @@ object Speaker {
                     throw e
                 } catch (e: Exception) {
                     if (g == generation) {
-                        fail("Couldn't reach the natural voice service (${e.message}). Check your internet, or pick a Phone voice.")
+                        fail(
+                            if (kokoro) "Kokoro couldn't read this (${e.message})."
+                            else "Couldn't reach the natural voice service (${e.message}). Check your internet, or pick a ◆ Kokoro or Phone voice."
+                        )
                     }
                     return@launch
                 }

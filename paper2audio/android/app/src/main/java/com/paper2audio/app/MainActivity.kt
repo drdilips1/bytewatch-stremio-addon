@@ -59,6 +59,9 @@ class MainActivity : Activity() {
     private lateinit var exportStatus: TextView
     private lateinit var btnOpenAudio: Button
     private lateinit var urlInput: EditText
+    private lateinit var btnKokoro: Button
+    private lateinit var kokoroProgress: ProgressBar
+    private lateinit var kokoroStatus: TextView
 
     private var source: Loader.Source? = null
     private var voices: List<Speaker.VoiceOption> = emptyList()
@@ -88,6 +91,9 @@ class MainActivity : Activity() {
         exportStatus = findViewById(R.id.exportStatus)
         btnOpenAudio = findViewById(R.id.btnOpenAudio)
         urlInput = findViewById(R.id.urlInput)
+        btnKokoro = findViewById(R.id.btnKokoro)
+        kokoroProgress = findViewById(R.id.kokoroProgress)
+        kokoroStatus = findViewById(R.id.kokoroStatus)
         checks = listOf(R.id.cbRefs, R.id.cbCites, R.id.cbCaptions, R.id.cbAppendix).map { findViewById(it) }
 
         setupControls()
@@ -159,6 +165,10 @@ class MainActivity : Activity() {
             }
         }
 
+        btnKokoro.setOnClickListener {
+            if (Kokoro.installing) Kokoro.cancelInstall() else promptKokoroDownload()
+        }
+
         btnExport.setOnClickListener {
             val doc = Speaker.doc ?: return@setOnClickListener
             if (Exporter.running) {
@@ -204,11 +214,32 @@ class MainActivity : Activity() {
         voiceSpinner.setSelection(voices.indexOfFirst { it.id == Speaker.voiceId }.coerceAtLeast(0), false)
         voiceSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                voices.getOrNull(position)?.let { Speaker.setVoice(it.id) }
+                val option = voices.getOrNull(position) ?: return
+                if (option.id == Speaker.voiceId) return
+                Speaker.setVoice(option.id)
+                if (option.id.startsWith(Speaker.KOKORO) && !Kokoro.isInstalled() && !Kokoro.installing) {
+                    promptKokoroDownload()
+                }
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
+    }
+
+    private fun promptKokoroDownload() {
+        AlertDialog.Builder(this)
+            .setTitle("Download Kokoro voices?")
+            .setMessage(
+                "Kokoro voices sound very natural and work offline, with no limits. " +
+                    "They need a one-time download of about 300–350 MB, so Wi-Fi is best. " +
+                    "You can keep using the app while it downloads."
+            )
+            .setPositiveButton("Download") { _, _ ->
+                askNotificationPermission()
+                Kokoro.install { Speaker.refreshVoices() }
+            }
+            .setNegativeButton("Not now", null)
+            .show()
     }
 
     private fun openPicker() {
@@ -356,6 +387,14 @@ class MainActivity : Activity() {
         exportProgress.progress = Exporter.progress
         exportStatus.text = Exporter.message ?: ""
         if (Speaker.voicesVersion != voicesShown) setupVoices()
+        val needsKokoro = Speaker.isKokoro && !Kokoro.isInstalled()
+        btnKokoro.visibility = if (needsKokoro || Kokoro.installing) View.VISIBLE else View.GONE
+        btnKokoro.text = if (Kokoro.installing) "Cancel download" else "Download Kokoro voices (~350 MB)"
+        kokoroProgress.visibility = if (Kokoro.installing) View.VISIBLE else View.GONE
+        kokoroProgress.progress = Kokoro.progress
+        val kokoroMessage = Kokoro.message
+        kokoroStatus.visibility = if (kokoroMessage != null && (needsKokoro || Kokoro.installing)) View.VISIBLE else View.GONE
+        kokoroStatus.text = kokoroMessage ?: ""
         Speaker.lastError?.let {
             Speaker.lastError = null
             toast(it)
@@ -378,6 +417,7 @@ class MainActivity : Activity() {
         super.onStart()
         Speaker.addListener(refresh)
         Exporter.addListener(refresh)
+        Kokoro.addListener(refresh)
         render()
     }
 
@@ -389,6 +429,7 @@ class MainActivity : Activity() {
     override fun onStop() {
         Speaker.removeListener(refresh)
         Exporter.removeListener(refresh)
+        Kokoro.removeListener(refresh)
         super.onStop()
     }
 

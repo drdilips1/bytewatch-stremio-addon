@@ -43,6 +43,7 @@ class ReaderService : Service() {
         )
         Speaker.addListener(refresh)
         Exporter.addListener(refresh)
+        Kokoro.addListener(refresh)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -52,7 +53,7 @@ class ReaderService : Service() {
             ACTION_PREV -> Speaker.previous()
             ACTION_CLOSE -> {
                 Speaker.pause()
-                if (!Exporter.running) {
+                if (!Exporter.running && !Kokoro.installing) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                     return START_NOT_STICKY
@@ -97,6 +98,7 @@ class ReaderService : Service() {
         )
         val text = when {
             Exporter.running -> Exporter.message ?: "Saving audio…"
+            Kokoro.installing -> Kokoro.message ?: "Downloading voices…"
             doc == null -> "Nothing loaded"
             else -> {
                 val chapter = doc.chapterAt(Speaker.index)?.title?.let { "$it · " } ?: ""
@@ -108,7 +110,7 @@ class ReaderService : Service() {
             .setContentTitle(doc?.title ?: getString(R.string.app_name))
             .setContentText(text)
             .setContentIntent(open)
-            .setOngoing(Speaker.playing || Exporter.running)
+            .setOngoing(Speaker.playing || Exporter.running || Kokoro.installing)
             .setOnlyAlertOnce(true)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .addAction(action(R.drawable.ic_prev, "Previous", ACTION_PREV))
@@ -125,6 +127,7 @@ class ReaderService : Service() {
     override fun onDestroy() {
         Speaker.removeListener(refresh)
         Exporter.removeListener(refresh)
+        Kokoro.removeListener(refresh)
         super.onDestroy()
     }
 
