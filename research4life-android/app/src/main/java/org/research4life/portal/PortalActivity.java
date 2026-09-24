@@ -46,6 +46,7 @@ public class PortalActivity extends Activity {
     static final String EXTRA_URL = "url";
     static final String EXTRA_KEY = "key";
     static final String EXTRA_TITLE = "title";
+    static final String EXTRA_PROVIDER = "provider";
 
     private static final int REQUEST_FILE_CHOOSER = 1;
 
@@ -53,10 +54,14 @@ public class PortalActivity extends Activity {
     private ProgressBar progressBar;
     private TextView titleView;
     private TextView hint;
+    private TextView homeButton;
     private ValueCallback<Uri[]> filePathCallback;
     private String articleKey;
     private String articleTitle;
     private boolean saving;
+    private String provider = R4LSession.R4L;
+    private String lastSignInUrl;
+    private int signInRepeats;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -80,28 +85,41 @@ public class PortalActivity extends Activity {
     private void handleIntent(Intent in) {
         articleKey = in.getStringExtra(EXTRA_KEY);
         articleTitle = in.getStringExtra(EXTRA_TITLE);
+        String p = in.getStringExtra(EXTRA_PROVIDER);
+        provider = R4LSession.UTD.equals(p) ? R4LSession.UTD : R4LSession.R4L;
+        homeButton.setText(R4LSession.UTD.equals(provider) ? "UTD" : "R4L");
+        String name = R4LSession.UTD.equals(provider) ? "UpToDate" : "Research4Life";
         hint.setText(articleKey != null
                 ? "PDFs you open here save to this paper"
-                : R4LSession.hasCredentials(this)
-                    ? "Research4Life: " + R4LSession.username(this) + " · PDFs save to your library"
-                    : "PDFs you open here save to your library");
+                : R4LSession.hasCredentials(this, provider)
+                    ? name + ": " + R4LSession.username(this, provider) + " · signed in automatically"
+                    : name + " · your sign-in is remembered");
         String url = in.getStringExtra(EXTRA_URL);
         if (url != null) {
             webView.loadUrl(url);
         } else if (webView.getUrl() == null) {
-            webView.loadUrl(R4LSession.PORTAL_URL);
+            webView.loadUrl(homeUrl());
         } else {
             titleView.setText(webView.getTitle());
             onPageLoaded(webView.getUrl());
         }
     }
 
+    private String homeUrl() {
+        return R4LSession.UTD.equals(provider) ? R4LSession.UTD_HOME : R4LSession.PORTAL_URL;
+    }
+
     private void onPageLoaded(String url) {
         if (url == null) return;
-        Uri u = Uri.parse(url);
-        if (R4LSession.isR4LHost(u.getHost()) && !PdfFetcher.isProxiedContent(u)) {
-            String pass = R4LSession.hasCredentials(this) ? R4LSession.password(this) : null;
-            webView.evaluateJavascript(R4LSession.signInScript(R4LSession.username(this), pass, true), null);
+        // Stop auto-submitting if the same sign-in page keeps coming back (wrong password).
+        String path = Uri.parse(url).getPath();
+        boolean loginPage = path != null && path.toLowerCase().matches(".*(login|signin|sign-in).*");
+        if (loginPage && url.equals(lastSignInUrl)) signInRepeats++;
+        else if (loginPage) { lastSignInUrl = url; signInRepeats = 0; }
+        String js = R4LSession.signInScriptFor(this, url, signInRepeats < 2);
+        if (js != null) webView.evaluateJavascript(js, null);
+        if (loginPage && signInRepeats == 2) {
+            Toast.makeText(this, "Sign-in didn't go through. Check your saved password in Settings.", Toast.LENGTH_LONG).show();
         }
     }
 
@@ -267,7 +285,8 @@ public class PortalActivity extends Activity {
         titles.addView(titleView);
         titles.addView(hint);
         bar.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        bar.addView(headerButton("R4L", v -> webView.loadUrl(R4LSession.PORTAL_URL), accent));
+        homeButton = headerButton("R4L", v -> webView.loadUrl(homeUrl()), accent);
+        bar.addView(homeButton);
         bar.addView(headerButton("↻", v -> webView.reload(), fg));
         root.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
 

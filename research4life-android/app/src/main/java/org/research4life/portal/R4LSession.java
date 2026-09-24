@@ -99,14 +99,15 @@ final class R4LSession {
         public void credentials(String user, String pass) {
             if (user == null || pass == null || user.trim().isEmpty() || pass.isEmpty()) return;
             main.post(() -> {
-                // Only trust calls made while an R4L page (not proxied publisher content) is showing.
+                // Only trust calls made while an R4L or UpToDate page is showing.
                 String url = webView == null ? null : webView.getUrl();
                 if (url == null) return;
-                Uri u = Uri.parse(url);
-                if (!isR4LHost(u.getHost()) || (u.getPath() != null && u.getPath().startsWith("/tacsgr1"))) return;
-                if (!user.trim().equals(username(app)) || !pass.equals(password(app))) {
-                    saveCredentials(app, user, pass);
-                    android.widget.Toast.makeText(app, "Research4Life sign-in saved on this phone", android.widget.Toast.LENGTH_SHORT).show();
+                String provider = providerFor(Uri.parse(url));
+                if (provider == null) return;
+                if (!user.trim().equals(username(app, provider)) || !pass.equals(password(app, provider))) {
+                    saveCredentials(app, provider, user, pass);
+                    String name = UTD.equals(provider) ? "UpToDate" : "Research4Life";
+                    android.widget.Toast.makeText(app, name + " sign-in saved on this phone", android.widget.Toast.LENGTH_SHORT).show();
                 }
             });
         }
@@ -138,24 +139,35 @@ final class R4LSession {
 
     // ------------------------------------------------------------------ credentials
 
-    private static SharedPreferences prefs(Context ctx) {
-        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    /** Saved-login providers: Research4Life and UpToDate. */
+    static final String R4L = "r4l";
+    static final String UTD = "utd";
+    static final String UTD_HOME = "https://www.uptodate.com/contents/search";
+
+    private static SharedPreferences prefs(Context ctx, String provider) {
+        return ctx.getSharedPreferences(UTD.equals(provider) ? "utd" : PREFS, Context.MODE_PRIVATE);
     }
 
-    static String username(Context ctx) {
-        return prefs(ctx).getString("user", "");
+    static String username(Context ctx) { return username(ctx, R4L); }
+    static boolean hasCredentials(Context ctx) { return hasCredentials(ctx, R4L); }
+    static void saveCredentials(Context ctx, String user, String password) { saveCredentials(ctx, R4L, user, password); }
+    static String password(Context ctx) { return password(ctx, R4L); }
+    static void forget(Context ctx) { forget(ctx, R4L); }
+
+    static String username(Context ctx, String provider) {
+        return prefs(ctx, provider).getString("user", "");
     }
 
-    static boolean hasCredentials(Context ctx) {
-        return !username(ctx).isEmpty() && prefs(ctx).contains("pass");
+    static boolean hasCredentials(Context ctx, String provider) {
+        return !username(ctx, provider).isEmpty() && prefs(ctx, provider).contains("pass");
     }
 
-    static void saveCredentials(Context ctx, String user, String password) {
+    static void saveCredentials(Context ctx, String provider, String user, String password) {
         try {
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
             c.init(Cipher.ENCRYPT_MODE, key());
             byte[] enc = c.doFinal(password.getBytes(StandardCharsets.UTF_8));
-            prefs(ctx).edit()
+            prefs(ctx, provider).edit()
                     .putString("user", user.trim())
                     .putString("iv", Base64.encodeToString(c.getIV(), Base64.NO_WRAP))
                     .putString("pass", Base64.encodeToString(enc, Base64.NO_WRAP))
@@ -165,8 +177,8 @@ final class R4LSession {
         }
     }
 
-    static String password(Context ctx) {
-        SharedPreferences p = prefs(ctx);
+    static String password(Context ctx, String provider) {
+        SharedPreferences p = prefs(ctx, provider);
         String iv = p.getString("iv", null);
         String enc = p.getString("pass", null);
         if (iv == null || enc == null) return null;
@@ -179,8 +191,25 @@ final class R4LSession {
         }
     }
 
-    static void forget(Context ctx) {
-        prefs(ctx).edit().clear().apply();
+    static void forget(Context ctx, String provider) {
+        prefs(ctx, provider).edit().clear().apply();
+    }
+
+    /** Which saved login (if any) a page's sign-in form belongs to. */
+    static String providerFor(Uri u) {
+        String host = u.getHost();
+        if (host == null) return null;
+        if (isR4LHost(host)) return u.getPath() != null && u.getPath().startsWith("/tacsgr1") ? null : R4L;
+        if (host.equals("uptodate.com") || host.endsWith(".uptodate.com")) return UTD;
+        return null;
+    }
+
+    /** The sign-in helper for the page at {@code url}, with that provider's saved login. */
+    static String signInScriptFor(Context ctx, String url, boolean autoSubmit) {
+        String provider = url == null ? null : providerFor(Uri.parse(url));
+        if (provider == null) return null;
+        String pass = hasCredentials(ctx, provider) ? password(ctx, provider) : null;
+        return signInScript(username(ctx, provider), pass, autoSubmit);
     }
 
     private static SecretKey key() throws Exception {
@@ -242,7 +271,10 @@ final class R4LSession {
                 + "var btn=(form&&form.querySelector('button[type=submit],input[type=submit],button:not([type])'))"
                 + "||[].slice.call(document.querySelectorAll('button,input[type=submit]')).filter(vis).filter(function(b){return /sign\\s*in|log\\s*in|login|submit|continue/i.test(b.textContent||b.value||'');})[0];"
                 + "if(btn)btn.click();else if(form){form.requestSubmit?form.requestSubmit():form.submit();}},500);}"
-                + "else if(tries>40)clearInterval(t);},400);"
+                + "else if(!f&&AUTO&&!window.__dsStep1){var u=[].slice.call(document.querySelectorAll('input[type=email],input[autocomplete=username],input[name*=user i],input[id*=user i],input[name*=email i]')).filter(vis)[0];"
+                + "var nb=[].slice.call(document.querySelectorAll('button,input[type=submit]')).filter(vis).filter(function(b){return /continue|next|sign\\s*in|log\\s*in/i.test(b.textContent||b.value||'');})[0];"
+                + "if(u&&nb&&!u.value){window.__dsStep1=1;set(u,U);setTimeout(function(){nb.click();},400);}}"
+                + "if(tries>40)clearInterval(t);},400);"
                 + "})();";
     }
 

@@ -29,6 +29,10 @@
     r4lAccount: () => JSON.stringify({ user: localStorage.getItem('ds.r4lUser') || '', saved: !!localStorage.getItem('ds.r4lUser') }),
     r4lSetCredentials: (u) => localStorage.setItem('ds.r4lUser', u),
     r4lForget: () => localStorage.removeItem('ds.r4lUser'),
+    account: (p) => JSON.stringify({ user: localStorage.getItem('ds.acc.' + p) || '', saved: !!localStorage.getItem('ds.acc.' + p) }),
+    setCredentials: (p, u) => localStorage.setItem('ds.acc.' + p, u),
+    forgetCredentials: (p) => localStorage.removeItem('ds.acc.' + p),
+    openUpToDate: (q) => window.open('https://www.uptodate.com/contents/search' + (q ? '?search=' + encodeURIComponent(q) : ''), '_blank'),
   };
   function copyText(t) { navigator.clipboard?.writeText(t); toast('Copied'); }
 
@@ -93,7 +97,7 @@
     get(k, d) { try { const v = localStorage.getItem('ds.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem('ds.' + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
   };
-  const settings = Object.assign({ derm: true, preprints: false, theme: 'system', sort: 'relevance' }, store.get('settings', {}));
+  const settings = Object.assign({ derm: true, preprints: false, theme: 'system', sort: 'relevance', accent: 'ocean', bgLight: 'white', bgDark: 'graphite', showR4L: false, showUTD: false }, store.get('settings', {}));
   const saveSettings = () => store.set('settings', settings);
   let follows = store.get('follows', null);
   if (!follows) {
@@ -206,13 +210,13 @@
       authors: r.authorString || '',
       journal: jj.title || r.journalTitle || r.bookOrReportDetails?.publisher || (r.source === 'PPR' ? 'Preprint' : ''),
       jAbbr: jj.isoabbreviation || jj.medlineAbbreviation || r.journalTitle || '',
-      issn: jj.issn || '', essn: jj.essn || '',
-      year: r.pubYear || '', date: r.firstPublicationDate || '',
-      volume: j.volume || '', issue: j.issue || '', pages: r.pageInfo || '',
+      issn: jj.issn || (r.journalIssn || '').split(';')[0].trim(), essn: jj.essn || (r.journalIssn || '').split(';')[1]?.trim() || '',
+      year: r.pubYear || '', date: r.firstPublicationDate || '', pubDate: j.dateOfPublication || '',
+      volume: j.volume || r.journalVolume || '', issue: j.issue || r.issue || '', pages: r.pageInfo || '',
       citedBy: r.citedByCount || 0,
       oa: r.isOpenAccess === 'Y',
       inPMC: r.inPMC === 'Y' || !!r.pmcid,
-      types: r.pubTypeList?.pubType || [],
+      types: r.pubTypeList?.pubType || (r.pubType ? r.pubType.split(/;\s*/) : []),
       abstract: r.abstractText || '',
       links: (r.fullTextUrlList?.fullTextUrl || []).map((u) => ({ style: u.documentStyle, site: u.site, url: u.url, code: u.availabilityCode })),
       keywords: r.keywordList?.keyword || [],
@@ -359,7 +363,7 @@
 
   window.addEventListener('hashchange', render);
 
-  const TAB_OF = { home: 'search', search: 'search', a: null, read: null, pdf: null, journals: 'journals', j: 'journals', library: 'library', settings: null };
+  const TAB_OF = { home: 'search', search: 'search', a: null, read: null, pdf: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', settings: null };
 
   async function render() {
     closeSheet();
@@ -367,6 +371,7 @@
     closeLightbox();
     document.body.classList.remove('reading');
     delete document.body.dataset.rtheme;
+    ['--bg', '--card', '--line'].forEach((v) => document.body.style.removeProperty(v));
     applyTheme();
     const r = parseHash();
     current = r;
@@ -383,6 +388,7 @@
         case 'pdf': return renderPdfReader(r.arg);
         case 'journals': return renderJournals();
         case 'j': return renderJournal(r.arg, r.params);
+        case 'ji': return renderIssue(r.arg);
         case 'library': return renderLibrary(r.params);
         case 'settings': return renderSettings();
         default: return renderHome();
@@ -412,24 +418,38 @@
 
   function renderHome() {
     const followed = JOURNALS.filter((j) => follows.includes(j.abbr));
+    const h = new Date().getHours();
+    const greet = h < 5 ? 'Working late' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    const utd = account('utd');
     view.innerHTML = `
-      <div class="row" style="justify-content:flex-end;padding-top:8px"><button class="icon-btn" data-act="settings" aria-label="Settings">${icon('settings')}</button></div>
-      <section class="hero" style="padding-top:12px">
-        <div class="brand">${LOGO}DermScholar</div>
-        <h2>Evidence-based answers from dermatology research</h2>
-        <p>Search 40M+ papers, read the key findings, and keep what matters offline.</p>
+      <div class="home-top"><div class="brand">${LOGO}<span>DermScholar</span></div>
+        <button class="icon-btn" data-act="settings" aria-label="Settings">${icon('settings')}</button></div>
+      <section class="hero-card">
+        <div class="hero-greet">${greet}</div>
+        <h2>Evidence from dermatology research, <em>in seconds.</em></h2>
+        ${searchBox()}
+        <div class="scroll-x hero-chips">
+          <button class="chip derm ${settings.derm ? 'on' : ''}" data-act="toggle-derm">${icon('leaf')}Dermatology focus</button>
+          <button class="chip" data-act="quick" data-types="meta,sr">${icon('chart')}Meta-analyses</button>
+          <button class="chip" data-act="quick" data-types="rct">${icon('check')}RCTs</button>
+          <button class="chip" data-act="quick" data-types="guide">${icon('list')}Guidelines</button>
+        </div>
       </section>
-      ${searchBox()}
-      <div class="scroll-x">
-        <button class="chip derm ${settings.derm ? 'on' : ''}" data-act="toggle-derm">${icon('leaf')}Dermatology focus</button>
-        <button class="chip" data-act="quick" data-types="meta,sr">${icon('chart')}Meta-analyses</button>
-        <button class="chip" data-act="quick" data-types="rct">${icon('check')}RCTs</button>
-        <button class="chip" data-act="quick" data-types="guide">${icon('list')}Guidelines</button>
+
+      <div class="stat-row">
+        <button class="stat-tile" data-act="tab" data-tab="library"><b>${saved.size}</b><span>Saved</span></button>
+        <button class="stat-tile" data-act="lib-offline"><b>${pdfKeys.size}</b><span>PDFs offline</span></button>
+        <button class="stat-tile" data-act="tab" data-tab="journals"><b>${followed.length}</b><span>Following</span></button>
+      </div>
+
+      <div class="app-tiles">
+        <button class="app-tile utd" data-act="utd-open"><span class="app-ico">${icon('book')}</span><b>UpToDate</b><span>${utd.saved ? 'Signed in automatically' : 'Add your login in Settings'}</span></button>
+        <button class="app-tile r4l" data-act="r4l-open"><span class="app-ico">${icon('key')}</span><b>Research4Life</b><span>${account('r4l').saved ? 'Access ready' : 'Add your login'}</span></button>
       </div>
 
       <div class="section">
         <div class="section-h"><h3>Try asking</h3></div>
-        ${EXAMPLES.map((q) => `<button class="example" data-act="ask" data-q="${esc(q)}">${icon('bulb')}<span>${esc(q)}</span></button>`).join('')}
+        <div class="list-card">${EXAMPLES.map((q) => `<button class="example" data-act="ask" data-q="${esc(q)}">${icon('bulb')}<span>${esc(q)}</span></button>`).join('')}</div>
       </div>
 
       ${recent.length ? `<div class="section"><div class="section-h"><h3>Recent searches</h3><button data-act="clear-history">Clear</button></div>
@@ -437,11 +457,12 @@
 
       <div class="section">
         <div class="section-h"><h3>Browse topics</h3></div>
-        <div class="row wrap">${TOPICS.map((t) => `<button class="chip" data-act="topic" data-q="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+        <div class="row wrap">${TOPICS.map((t) => `<button class="chip topic" data-act="topic" data-q="${esc(t)}"><i style="background:hsl(${hueFor(t)} 60% 50%)"></i>${esc(t)}</button>`).join('')}</div>
       </div>
 
       <div class="section">
         <div class="section-h"><h3>New in your journals</h3><button data-act="tab" data-tab="journals">Manage</button></div>
+        ${followed.length ? `<div class="scroll-x covers" style="margin-bottom:12px">${followed.map(jcover).join('')}</div>` : ''}
         <div id="feed">${followed.length ? skeletons(3) : `<div class="muted small">Follow journals to see their latest articles here.</div>`}</div>
       </div>`;
     if (followed.length) loadFeed(followed);
@@ -483,7 +504,8 @@
   function cardActions(a) {
     const s = saved.has(a.id);
     return `<div class="card-actions">${pdfAction(a)}
-      <button class="btn xs ${s ? 'good' : ''}" data-act="card-save" data-id="${esc(a.id)}">${icon(s ? 'bookmarkFill' : 'bookmark')}${s ? 'Saved' : 'Save'}</button></div>`;
+      <button class="btn xs ${s ? 'good' : ''}" data-act="card-save" data-id="${esc(a.id)}">${icon(s ? 'bookmarkFill' : 'bookmark')}${s ? 'Saved' : 'Save'}</button>
+      <button class="btn xs icon-only" data-act="card-share" data-id="${esc(a.id)}" aria-label="Share">${icon('share')}</button></div>`;
   }
 
   function card(a, { compact = false } = {}) {
@@ -524,6 +546,7 @@
         <button class="chip ${f.years !== 'any' ? 'on' : ''}" data-act="f-years">${icon('calendar')}${esc(YEARS[f.years])}</button>
         <button class="chip ${f.oa ? 'on' : ''}" data-act="f-oa">${icon('unlock')}Open access</button>
         <button class="chip ${f.sort !== 'relevance' ? 'on' : ''}" data-act="f-sort">${icon('sort')}${esc(SORTS[f.sort].label)}</button>
+        <button class="chip utd" data-act="utd-search" data-q="${esc(keywordTerms(f.q).join(' '))}">${icon('book')}UpToDate</button>
       </div>
       <div id="results">${skeletons(5)}</div>`;
     const ta = $('.searchbox textarea');
@@ -653,9 +676,14 @@
   const doiUrl = (a) => (a.doi ? `https://doi.org/${a.doi}` : null);
   const R4L_PROXY = 'https://login.research4life.org/tacsgr1';
 
-  function r4lAccount() {
-    try { return JSON.parse(Native.r4lAccount ? Native.r4lAccount() : '{}'); } catch { return {}; }
+  const PROVIDERS = {
+    r4l: { name: 'Research4Life', id: 'User ID', desc: 'Used by Get PDF to fetch paywalled papers in the background.' },
+    utd: { name: 'UpToDate', id: 'Username', desc: 'Signs you in automatically whenever you open UpToDate.' },
+  };
+  function account(p) {
+    try { return JSON.parse(Native.account ? Native.account(p) : p === 'r4l' ? Native.r4lAccount() : '{}'); } catch { return {}; }
   }
+  const r4lAccount = () => account('r4l');
 
   /** Read the PDF if it's saved; otherwise fetch it (free copy first, then Research4Life). */
   async function getPdf(a, { skipAsk = false } = {}) {
@@ -679,13 +707,14 @@
     Native.getPdf(a.id, a.doi || '', a.title, free || '');
   }
 
-  function r4lSignInSheet(then) {
-    const acc = r4lAccount();
-    sheet(`<h3>Research4Life sign-in</h3>
-      <p class="muted small" style="margin-top:-4px">Save your Research4Life user ID and password once. The app then signs in for you whenever you tap
-      <b>Get PDF</b>, so there's no website login each time. It's stored encrypted on this phone only.</p>
+  function r4lSignInSheet(then) { signInSheet('r4l', then); }
+  function signInSheet(provider, then) {
+    const acc = account(provider);
+    const P = PROVIDERS[provider];
+    sheet(`<h3>${P.name} sign-in</h3>
+      <p class="muted small" style="margin-top:-4px">${P.desc} Stored encrypted on this phone only.</p>
       <form data-form="r4l">
-        <label class="field">User ID</label><input type="text" name="u" value="${esc(acc.user || '')}" autocomplete="username" autocapitalize="none">
+        <label class="field">${P.id}</label><input type="text" name="u" value="${esc(acc.user || '')}" autocomplete="username" autocapitalize="none">
         <label class="field">Password</label><input type="password" name="p" autocomplete="current-password">
         <div class="actions"><button type="button" class="btn" data-act="r4l-skip">${then ? 'Skip' : 'Cancel'}</button><button class="btn primary">Save</button></div>
       </form>`);
@@ -695,10 +724,10 @@
       e.preventDefault();
       const u = form.u.value.trim(); const p = form.p.value;
       if (!u || !p) { toast('Enter both user ID and password'); return; }
-      Native.r4lSetCredentials(u, p);
-      store.set('r4lAsked', true);
+      if (Native.setCredentials) Native.setCredentials(provider, u, p); else Native.r4lSetCredentials(u, p);
+      if (provider === 'r4l') store.set('r4lAsked', true);
       closeSheet(true);
-      toast('Research4Life sign-in saved');
+      toast(`${P.name} sign-in saved`);
       if (then) then(); else render();
     });
     actions['r4l-skip'] = () => { store.set('r4lAsked', true); closeSheet(true); if (then) then(); };
@@ -740,6 +769,7 @@
           ${canRead ? `<button class="btn" data-act="reader">${icon('book')}${s?.fullText ? 'Read offline' : 'Full text'}</button>` : ''}
           ${a.doi ? `<button class="btn" data-act="publisher">${icon('key')}Open via R4L</button>` : ''}
           <button class="btn" data-act="cite">${icon('quote')}Cite</button>
+          <button class="btn" data-act="utd-search" data-q="${esc((a.mesh[0] || a.keywords[0] || a.title.split(/[:.]/)[0]).slice(0, 80))}">${icon('book')}UpToDate</button>
         </div>
 
         ${s ? libraryPanel(s) : ''}
@@ -990,7 +1020,18 @@
     showReader(model, { key, title: s?.title || model.title || title, pdf: true, reflowMod, startInPages: model.scanned });
   }
 
-  const rprefs = Object.assign({ size: 18, font: 'serif', theme: 'auto', spacing: 'normal' }, store.get('reader', {}));
+  const rprefs = Object.assign({ size: 18, font: 'serif', theme: 'auto', spacing: 'normal', fg: '#1f2933', bgc: '#fdfcf8', width: 'normal' }, store.get('reader', {}));
+  // Reading themes: [background, text, label]. 'custom' uses the user's own colours.
+  const RTHEMES = {
+    light: ['#ffffff', '#1a1a1a', 'Light'], paper: ['#faf6ef', '#2b2620', 'Paper'], sepia: ['#f4ecd8', '#5b4636', 'Sepia'],
+    mint: ['#eef7f2', '#1f3a2e', 'Mint'], rose: ['#fbf1f2', '#40262b', 'Rose'], dusk: ['#1e2430', '#d6dbe4', 'Dusk'],
+    dark: ['#111317', '#d9dbe0', 'Dark'], black: ['#000000', '#c9c9c9', 'Black'],
+  };
+  const isDarkColor = (hex) => {
+    const n = parseInt(String(hex).replace('#', ''), 16);
+    if (Number.isNaN(n)) return false;
+    return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) < 110;
+  };
   const saveRprefs = () => store.set('reader', rprefs);
 
   function readerTop(title) {
@@ -1033,13 +1074,27 @@
   function applyReaderPrefs() {
     const el = $('.rd-page');
     if (!el) return;
-    el.dataset.rtheme = rprefs.theme === 'auto' ? (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light') : rprefs.theme;
+    applyTheme();
+    const appDark = document.documentElement.dataset.theme === 'dark';
+    const key = rprefs.theme === 'auto' ? (appDark ? 'dark' : 'light') : rprefs.theme;
+    const [bg, fg] = key === 'custom' ? [rprefs.bgc, rprefs.fg] : (RTHEMES[key] || RTHEMES.light);
+    const dark = isDarkColor(bg);
+    el.dataset.rtheme = key;
     el.dataset.font = rprefs.font;
     el.dataset.spacing = rprefs.spacing;
+    el.dataset.width = rprefs.width;
     el.style.setProperty('--rsize', rprefs.size + 'px');
-    document.body.dataset.rtheme = el.dataset.rtheme;
-    // The bars and panels follow the reading theme while reading.
-    document.documentElement.dataset.theme = el.dataset.rtheme === 'dark' ? 'dark' : 'light';
+    el.style.setProperty('--rbg', bg);
+    el.style.setProperty('--rfg', fg);
+    el.style.setProperty('--rmuted', `color-mix(in srgb, ${fg} 62%, ${bg})`);
+    el.style.setProperty('--rline', `color-mix(in srgb, ${fg} 14%, ${bg})`);
+    el.style.setProperty('--rsoft', `color-mix(in srgb, ${fg} 6%, ${bg})`);
+    // The bars and panels follow the reading colours while reading.
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    document.body.dataset.rtheme = key;
+    document.body.style.setProperty('--bg', bg);
+    document.body.style.setProperty('--card', `color-mix(in srgb, ${fg} 4%, ${bg})`);
+    document.body.style.setProperty('--line', `color-mix(in srgb, ${fg} 12%, ${bg})`);
   }
 
   function showReader(model, opts) {
@@ -1141,19 +1196,30 @@
 
   function styleSheet() {
     const seg = (name, opts, val) => `<div class="seg wide">${opts.map(([k, l]) => `<button class="${val === k ? 'on' : ''}" data-act="rs-${name}" data-v="${k}">${l}</button>`).join('')}</div>`;
+    const themes = [['auto', null], ...Object.entries(RTHEMES), ['custom', [rprefs.bgc, rprefs.fg, 'Custom']]];
     sheet(`<h3>Reading settings</h3>
-      <label class="field">Text size</label>
+      <label class="field" style="margin-top:0">Text size</label>
       <div class="row" style="gap:10px"><button class="btn small" data-act="rs-size" data-v="-1" style="flex:1"><span style="font-size:13px">A−</span></button>
         <span style="min-width:44px;text-align:center;font-weight:600">${rprefs.size}</span>
         <button class="btn small" data-act="rs-size" data-v="1" style="flex:1"><span style="font-size:18px">A+</span></button></div>
-      <label class="field">Font</label>${seg('font', [['serif', 'Serif'], ['sans', 'Sans']], rprefs.font)}
-      <label class="field">Theme</label>${seg('theme', [['auto', 'Auto'], ['light', 'Light'], ['sepia', 'Sepia'], ['dark', 'Dark']], rprefs.theme)}
-      <label class="field">Line spacing</label>${seg('spacing', [['compact', 'Compact'], ['normal', 'Normal'], ['relaxed', 'Relaxed']], rprefs.spacing)}`);
+      <label class="field">Colours</label>
+      <div class="rthemes">${themes.map(([k, t]) => `<button class="rtheme ${rprefs.theme === k ? 'on' : ''}" data-act="rs-theme" data-v="${k}"
+          style="${t ? `background:${t[0]};color:${t[1]}` : 'background:linear-gradient(135deg,#fff 50%,#111317 50%);color:#888'}"><span>Aa</span><small>${t ? t[2] : 'Auto'}</small></button>`).join('')}</div>
+      ${rprefs.theme === 'custom' ? `<div class="custom-colors">
+        <label>Text<input type="color" data-rc="fg" value="${esc(rprefs.fg)}"></label>
+        <label>Background<input type="color" data-rc="bgc" value="${esc(rprefs.bgc)}"></label>
+        <div class="presets">${[['#1f2933', '#fdfcf8'], ['#0b3d2e', '#f0f7f2'], ['#3b1f4a', '#f7f0fb'], ['#f5e6c8', '#23201a'], ['#9fe0c0', '#0e1a16'], ['#e8e8e8', '#1b1d2a']].map(([f, b]) => `<button class="preset" data-act="rs-preset" data-f="${f}" data-b="${b}" style="background:${b};color:${f}">Aa</button>`).join('')}</div></div>` : ''}
+      <label class="field">Font</label>${seg('font', [['serif', 'Literata'], ['sans', 'Inter'], ['display', 'Fraunces'], ['classic', 'Georgia']], rprefs.font)}
+      <label class="field">Line spacing</label>${seg('spacing', [['compact', 'Compact'], ['normal', 'Normal'], ['relaxed', 'Relaxed']], rprefs.spacing)}
+      <label class="field">Margins</label>${seg('width', [['wide', 'Narrow'], ['normal', 'Normal'], ['narrow', 'Wide']], rprefs.width)}`);
     const set = (k, v) => { rprefs[k] = v; saveRprefs(); applyReaderPrefs(); styleSheet(); };
-    actions['rs-size'] = (b) => set('size', Math.min(28, Math.max(14, rprefs.size + Number(b.dataset.v))));
+    actions['rs-size'] = (b) => set('size', Math.min(30, Math.max(13, rprefs.size + Number(b.dataset.v))));
     actions['rs-font'] = (b) => set('font', b.dataset.v);
     actions['rs-theme'] = (b) => set('theme', b.dataset.v);
     actions['rs-spacing'] = (b) => set('spacing', b.dataset.v);
+    actions['rs-width'] = (b) => set('width', b.dataset.v);
+    actions['rs-preset'] = (b) => { rprefs.fg = b.dataset.f; rprefs.bgc = b.dataset.b; set('theme', 'custom'); };
+    $$('[data-rc]').forEach((inp) => inp.addEventListener('input', () => { rprefs[inp.dataset.rc] = inp.value; saveRprefs(); applyReaderPrefs(); }));
   }
 
   function openDrawer(headings, images, tables) {
@@ -1268,34 +1334,41 @@
   function closeLightbox() { $('#lb')?.remove(); }
 
   // ---------------------------------------------------------------- journals
-  const colorFor = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h} 45% 42%)`; };
+  const hueFor = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+  const colorFor = (s) => `hsl(${hueFor(s)} 45% 42%)`;
+  const coverStyle = (s) => { const h = hueFor(s); return `background:linear-gradient(140deg,hsl(${h} 58% 46%),hsl(${(h + 38) % 360} 62% 28%))`; };
   const initials = (j) => j.abbr.replace(/[^A-Za-z ]/g, '').split(' ').filter((w) => w.length > 1 || /[A-Z]/.test(w)).map((w) => w[0]).join('').slice(0, 3).toUpperCase();
+  const journalHash = (j) => 'j/' + encodeURIComponent(j.custom ? 'issn:' + j.issn : j.abbr);
 
   function jrow(j) {
     const on = follows.includes(j.abbr);
-    return `<div class="jrow"><div class="avatar" style="background:${colorFor(j.abbr)}">${esc(initials(j))}</div>
+    return `<div class="jrow"><div class="avatar" style="${coverStyle(j.abbr)}">${esc(initials(j))}</div>
       <button class="open" data-act="journal" data-abbr="${esc(j.abbr)}"><div class="name">${esc(j.name)}</div>
       <div class="sub">${esc(j.abbr)} · ${esc(j.publisher)}${j.oa ? ' · <span style="color:var(--good)">Open access</span>' : ''}</div></button>
       <button class="star ${on ? 'on' : ''}" data-act="follow" data-abbr="${esc(j.abbr)}" aria-label="Follow">${icon(on ? 'starFill' : 'star')}</button></div>`;
   }
+  function jcover(j) {
+    return `<button class="jcover" data-act="journal" data-abbr="${esc(j.abbr)}">
+      <div class="jcover-art" style="${coverStyle(j.abbr)}"><span>${esc(initials(j))}</span><small>${esc(j.publisher)}</small></div>
+      <b>${esc(j.abbr)}</b></button>`;
+  }
 
   function renderJournals() {
     const followed = JOURNALS.filter((j) => follows.includes(j.abbr));
-    view.innerHTML = `${topbar('Dermatology journals', { back: false })}
-      <label class="search-inline">${icon('search')}<input id="jfilter" placeholder="Filter ${JOURNALS.length} journals" autocomplete="off"></label>
+    view.innerHTML = `<div class="large-title"><h1>Journals</h1><span class="muted small">${JOURNALS.length} dermatology journals</span></div>
+      <label class="search-inline">${icon('search')}<input id="jfilter" placeholder="Filter journals" autocomplete="off"></label>
       <div id="jlist">
-        ${followed.length ? `<div class="section"><div class="section-h"><h3>Following · ${followed.length}</h3></div>${followed.map(jrow).join('')}</div>` : ''}
-        ${JOURNAL_GROUPS.map((g) => `<div class="section"><div class="section-h"><h3>${esc(g)}</h3></div>${JOURNALS.filter((j) => j.group === g).map(jrow).join('')}</div>`).join('')}
+        ${followed.length ? `<div class="section"><div class="section-h"><h3>Following</h3></div>
+          <div class="scroll-x covers">${followed.map(jcover).join('')}</div></div>` : ''}
+        ${JOURNAL_GROUPS.map((g) => `<div class="section"><div class="section-h"><h3>${esc(g)}</h3></div><div class="list-card">${JOURNALS.filter((j) => j.group === g).map(jrow).join('')}</div></div>`).join('')}
         <div class="section"><div class="section-h"><h3>Discover more</h3></div>
           <button class="btn full" data-act="discover" style="width:100%">${icon('globe')}Find other dermatology journals</button>
-          <div id="discover"></div></div>
+          <div id="discover" class="list-card" style="margin-top:10px"></div></div>
       </div>`;
     $('#jfilter').addEventListener('input', (e) => {
       const q = e.target.value.trim().toLowerCase();
-      $('#jlist').innerHTML = q
-        ? `<div class="section">${JOURNALS.filter((j) => (j.name + ' ' + j.abbr + ' ' + j.publisher).toLowerCase().includes(q)).map(jrow).join('') || '<div class="empty"><b>No match</b></div>'}</div>`
-        : '';
-      if (!q) renderJournals();
+      if (!q) { renderJournals(); return; }
+      $('#jlist').innerHTML = `<div class="section"><div class="list-card">${JOURNALS.filter((j) => (j.name + ' ' + j.abbr + ' ' + j.publisher).toLowerCase().includes(q)).map(jrow).join('') || '<div class="empty"><b>No match</b></div>'}</div></div>`;
     });
     actions.discover = async (btn) => {
       btn.disabled = true;
@@ -1305,7 +1378,7 @@
         const j = await getJSON(`${OPENALEX}sources?search=dermatology&sort=cited_by_count:desc&per_page=50&select=display_name,issn_l,summary_stats,is_oa,works_count,host_organization_name`);
         const known = new Set(JOURNALS.map((x) => x.issn).filter(Boolean));
         const list = j.results.filter((s) => s.issn_l && !known.has(s.issn_l) && s.works_count > 200 && s.summary_stats?.['2yr_mean_citedness'] > 0);
-        el.innerHTML = list.map((s) => `<div class="jrow"><div class="avatar" style="background:${colorFor(s.display_name)}">${esc(s.display_name.replace(/[^A-Z]/g, '').slice(0, 3) || 'J')}</div>
+        el.innerHTML = list.map((s) => `<div class="jrow"><div class="avatar" style="${coverStyle(s.display_name)}">${esc(s.display_name.replace(/[^A-Z]/g, '').slice(0, 3) || 'J')}</div>
           <button class="open" data-act="journal-issn" data-issn="${esc(s.issn_l)}" data-name="${esc(s.display_name)}"><div class="name">${esc(s.display_name)}</div>
           <div class="sub">${esc(s.host_organization_name || '')} · h-index ${s.summary_stats.h_index}${s.is_oa ? ' · Open access' : ''}</div></button></div>`).join('') || '<div class="muted small">Nothing new found.</div>';
       } catch (e) { el.innerHTML = errorBox(e, false); }
@@ -1313,33 +1386,75 @@
     actions['journal-issn'] = (b) => go(`j/issn:${encodeURIComponent(b.dataset.issn)}?name=${encodeURIComponent(b.dataset.name)}`);
   }
 
-  async function renderJournal(arg, params) {
+  function journalFromArg(arg, params) {
     let j = journalByAbbr.get(arg.toLowerCase());
     if (!j && arg.startsWith('issn:')) {
       const issn = arg.slice(5);
       j = journalByIssn.get(issn) || { name: params.name || issn, abbr: params.name || issn, issn, publisher: '', custom: true };
     }
+    return j;
+  }
+
+  // Issues come from Europe PMC's volume/issue tags on each article, one year at a time.
+  const issueCache = new Map();
+  const issueNum = (x) => { const n = parseInt(x, 10); return Number.isNaN(n) ? -1 : n; };
+  async function loadYear(j, y) {
+    const key = `${j.abbr}|${y}`;
+    if (issueCache.has(key)) return issueCache.get(key);
+    const q = `${journalQuery(j)} AND PUB_YEAR:${y} ${NOISE}`;
+    const items = [];
+    let cursor = '*';
+    for (let page = 0; page < 3 && cursor; page++) {
+      const p = new URLSearchParams({ query: q, format: 'json', resultType: 'lite', pageSize: 1000, cursorMark: cursor });
+      const r = await getJSON(EPMC + 'search?' + p);
+      items.push(...(r.resultList?.result || []));
+      cursor = r.nextCursorMark && r.nextCursorMark !== cursor && items.length < r.hitCount ? r.nextCursorMark : null;
+    }
+    const groups = new Map();
+    const inPress = [];
+    for (const r of items) {
+      if (!r.journalVolume || !r.issue) { inPress.push(r); continue; }
+      const k = `${r.journalVolume}|${r.issue}`;
+      const g = groups.get(k) || { v: r.journalVolume, i: r.issue, count: 0, oa: 0 };
+      g.count++;
+      if (r.isOpenAccess === 'Y') g.oa++;
+      groups.set(k, g);
+    }
+    const issues = [...groups.values()].sort((a, b) => issueNum(b.v) - issueNum(a.v) || issueNum(b.i) - issueNum(a.i) || String(a.i).localeCompare(String(b.i)));
+    inPress.sort((a, b) => (b.firstPublicationDate || '').localeCompare(a.firstPublicationDate || ''));
+    const out = { issues, inPress, total: items.length };
+    issueCache.set(key, out);
+    return out;
+  }
+  const issueHash = (j, v, i) => `ji/${encodeURIComponent(j.custom ? 'issn:' + j.issn : j.abbr)}/${encodeURIComponent(v)}/${encodeURIComponent(i)}`;
+  const issueLabel = (g) => (/^\d+$/.test(g.i) ? `Issue ${g.i}` : /^s\d*$|suppl/i.test(g.i) ? `Supplement ${g.i.replace(/^s|supplementary\s*/i, '')}`.trim() : `Issue ${g.i}`);
+
+  async function renderJournal(arg, params) {
+    const j = journalFromArg(arg, params);
     if (!j) return go('journals', { replace: true });
-    const tab = params.t || 'latest';
+    const tab = params.t || 'issues';
     const on = follows.includes(j.abbr);
-    view.innerHTML = `${topbar(j.abbr, { right: j.custom ? '' : `<button class="star ${on ? 'on' : ''}" data-act="follow" data-abbr="${esc(j.abbr)}">${icon(on ? 'starFill' : 'star')}</button>` })}
-      <div class="row" style="gap:14px;margin-top:16px"><div class="avatar" style="width:52px;height:52px;background:${colorFor(j.abbr)}">${esc(j.custom ? 'J' : initials(j))}</div>
-        <div><div style="font:600 18px/1.3 var(--serif)">${esc(j.name)}</div><div class="muted small">${esc(j.publisher)}${j.oa ? ' · Open access' : ''}</div></div></div>
+    const nav = (patch) => go(`j/${encodeURIComponent(arg)}?${new URLSearchParams(Object.fromEntries(Object.entries({ ...params, ...patch }).filter(([, v]) => v !== '' && v != null)))}`, { replace: true });
+    view.innerHTML = `${topbar(j.abbr, { right: `<button class="icon-btn" data-act="j-share" aria-label="Share">${icon('share')}</button>` })}
+      <section class="jhero">
+        <div class="jhero-art" style="${coverStyle(j.abbr)}"><span>${esc(j.custom ? 'J' : initials(j))}</span></div>
+        <div class="jhero-body"><h2>${esc(j.name)}</h2><div class="muted small">${esc(j.publisher)}${j.oa ? ' · Open access' : ''}</div>
+          <div class="row" style="gap:8px;margin-top:10px">
+            ${j.custom ? '' : `<button class="btn xs ${on ? 'good' : 'primary'}" data-act="follow" data-abbr="${esc(j.abbr)}" data-style="btn">${icon(on ? 'check' : 'plus')}${on ? 'Following' : 'Follow'}</button>`}
+            <button class="btn xs" data-act="j-home">${icon('globe')}Website</button>
+            <button class="btn xs" data-act="j-r4l">${icon('key')}R4L</button></div></div>
+      </section>
       <div class="jstats" id="jstats">${['h-index', 'Cites / paper (2y)', 'Papers'].map((l) => `<div class="stat"><b>…</b><span>${l}</span></div>`).join('')}</div>
-      <div class="row" style="gap:8px"><button class="btn small" data-act="j-home" style="flex:1">${icon('globe')}Website</button>
-        <button class="btn small" data-act="j-r4l" style="flex:1">${icon('key')}Research4Life</button></div>
       <form class="search-inline" data-form="jsearch">${icon('search')}<input name="q" placeholder="Search in this journal" value="${esc(params.q || '')}" enterkeyhint="search"></form>
-      <div class="tabs">${[['latest', 'Latest'], ['cited', 'Most cited · 3y'], ['reviews', 'Reviews & meta']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-act="jtab" data-t="${k}">${l}</button>`).join('')}</div>
+      <div class="tabs scroll-tabs">${[['issues', 'Issues'], ['latest', 'Latest'], ['press', 'In press'], ['cited', 'Most cited'], ['reviews', 'Reviews']].map(([k, l]) => `<button class="${tab === k && !params.q ? 'on' : ''}" data-act="jtab" data-t="${k}">${l}</button>`).join('')}</div>
       <div id="jarts">${skeletons(4)}</div>`;
 
     let homepage = null;
-    actions.jtab = (b) => go(`j/${encodeURIComponent(arg)}?${new URLSearchParams({ ...params, t: b.dataset.t })}`, { replace: true });
+    actions.jtab = (b) => nav({ t: b.dataset.t, q: '' });
     actions['j-home'] = () => (homepage ? Native.openPortal(homepage, '', '') : toast('Website not known yet'));
     actions['j-r4l'] = () => { Native.copy(j.name); toast('Journal name copied — paste it into Research4Life'); Native.openPortal(PORTAL, '', ''); };
-    $('[data-form=jsearch]').addEventListener('submit', (e) => {
-      e.preventDefault();
-      go(`j/${encodeURIComponent(arg)}?${new URLSearchParams({ ...params, q: e.target.q.value.trim() })}`, { replace: true });
-    });
+    actions['j-share'] = () => Native.share(j.name, `${j.name}${j.publisher ? ' (' + j.publisher + ')' : ''}${homepage ? '\n' + homepage : ''}${j.issn ? '\nISSN ' + j.issn : ''}\n\nShared from DermScholar`);
+    $('[data-form=jsearch]').addEventListener('submit', (e) => { e.preventDefault(); nav({ q: e.target.q.value.trim() }); });
 
     const statsUrl = j.issn ? `${OPENALEX}sources/issn:${j.issn}` : `${OPENALEX}sources?search=${encodeURIComponent(j.name)}&per_page=1`;
     getJSON(statsUrl).then((d) => {
@@ -1350,25 +1465,115 @@
       $$('#jstats b').forEach((b, i) => { b.textContent = v[i]; });
     }).catch(() => { $$('#jstats b').forEach((b) => { b.textContent = '—'; }); });
 
+    const el = $('#jarts');
+    if (tab === 'issues' && !params.q) return renderIssuesTab(j, params, nav, el);
+    if (tab === 'press' && !params.q) {
+      try {
+        const [a, b] = await Promise.all([loadYear(j, THIS_YEAR), loadYear(j, THIS_YEAR - 1)]);
+        const list = [...a.inPress, ...b.inPress].map(normalize);
+        if (!el.isConnected) return;
+        el.innerHTML = list.length ? `<div class="meta-line">${list.length} articles published online ahead of an issue</div>${list.slice(0, 60).map((x) => card(x, { compact: true })).join('')}`
+          : '<div class="empty"><b>Nothing in press</b><div>All recent articles are already in issues.</div></div>';
+      } catch (e) { el.innerHTML = errorBox(e); }
+      return;
+    }
     let q = journalQuery(j) + (params.q ? ` AND (${params.q})` : '');
     let sort = 'P_PDATE_D desc';
-    if (tab === 'cited') { q += ` AND PUB_YEAR:[${THIS_YEAR - 2} TO ${THIS_YEAR}]`; sort = 'CITED desc'; }
-    if (tab === 'reviews') q += ' AND (PUB_TYPE:"Review" OR PUB_TYPE:"Meta-Analysis" OR PUB_TYPE:"Systematic Review")';
+    if (tab === 'cited' && !params.q) { q += ` AND PUB_YEAR:[${THIS_YEAR - 2} TO ${THIS_YEAR}]`; sort = 'CITED desc'; }
+    if (tab === 'reviews' && !params.q) q += ' AND (PUB_TYPE:"Review" OR PUB_TYPE:"Meta-Analysis" OR PUB_TYPE:"Systematic Review")';
     q += ' ' + NOISE;
     let next = '*';
     const load = async (btn) => {
       try {
         const res = await epmcSearch(q, { sort, cursor: next });
         next = res.next;
-        const el = $('#jarts');
-        if (!el) return;
-        if (btn) btn.remove(); else el.innerHTML = '';
+        if (!el.isConnected) return;
+        if (btn) btn.remove(); else el.innerHTML = params.q ? `<div class="meta-line">${fmt(res.hit)} results for “${esc(params.q)}”</div>` : '';
         el.insertAdjacentHTML('beforeend', res.results.map((a) => card(a, { compact: true })).join('') || '<div class="empty"><b>No articles</b></div>');
         if (next) el.insertAdjacentHTML('beforeend', '<button class="more" data-act="jmore">Load more</button>');
-      } catch (e) { const el = $('#jarts'); if (el) el.innerHTML = errorBox(e); }
+      } catch (e) { if (el.isConnected) el.innerHTML = errorBox(e); }
     };
     actions.jmore = (b) => { b.disabled = true; b.textContent = 'Loading…'; load(b); };
     load();
+  }
+
+  async function renderIssuesTab(j, params, nav, el) {
+    const years = Array.from({ length: 8 }, (_, k) => THIS_YEAR - k);
+    const y = Number(params.y) || THIS_YEAR;
+    const yearChips = `<div class="scroll-x" style="margin:8px -16px 12px">${years.map((yy) => `<button class="chip ${yy === y ? 'on' : ''}" data-act="jyear" data-y="${yy}">${yy}</button>`).join('')}</div>`;
+    el.innerHTML = yearChips + skeletons(3);
+    actions.jyear = (b) => nav({ y: b.dataset.y });
+    try {
+      let data = await loadYear(j, y);
+      // Early in the year the newest issues may still be last year's.
+      let current = null;
+      if (y === THIS_YEAR) {
+        current = data.issues[0] || (await loadYear(j, THIS_YEAR - 1)).issues[0] || null;
+      }
+      if (!el.isConnected) return;
+      const tiles = data.issues.map((g) => `<button class="issue-tile" data-act="open-issue" data-v="${esc(g.v)}" data-i="${esc(g.i)}">
+          <span class="issue-vol">Vol ${esc(g.v)}</span><b>${esc(issueLabel(g))}</b><span class="muted small">${g.count} articles${g.oa ? ` · ${g.oa} open` : ''}</span></button>`).join('');
+      el.innerHTML = yearChips + (current ? `<button class="current-issue" data-act="open-issue" data-v="${esc(current.v)}" data-i="${esc(current.i)}" style="${coverStyle(j.abbr)}">
+          <span class="ci-label">Current issue</span><b>Volume ${esc(current.v)} · ${esc(issueLabel(current))}</b>
+          <span>${current.count} articles · open table of contents →</span></button>` : '') +
+        (data.issues.length ? `<div class="section-h" style="margin-top:18px"><h3>${y} issues</h3><span class="muted small">${data.issues.length}</span></div><div class="issue-grid">${tiles}</div>`
+          : `<div class="empty"><b>No issues found for ${y}</b><div>Europe PMC may not list issue numbers for this journal.</div></div>`) +
+        (data.inPress.length && y >= THIS_YEAR - 1 ? `<button class="btn full" style="width:100%;margin-top:14px" data-act="jtab" data-t="press">${icon('clock')}${data.inPress.length} articles in press</button>` : '');
+      actions['open-issue'] = (b) => go(issueHash(j, b.dataset.v, b.dataset.i));
+    } catch (e) { if (el.isConnected) el.innerHTML = yearChips + errorBox(e); }
+  }
+
+  const SECTION_ORDER = ['Systematic reviews & meta-analyses', 'Clinical trials', 'Original research', 'Reviews & guidelines', 'Case reports', 'Letters, comments & editorials'];
+  function sectionOf(a) {
+    const l = studyType(a).label;
+    if (l === 'Meta-analysis' || l === 'Systematic review') return SECTION_ORDER[0];
+    if (l === 'RCT' || l === 'Clinical trial') return SECTION_ORDER[1];
+    if (l === 'Review' || l === 'Guideline') return SECTION_ORDER[3];
+    if (l === 'Case report') return SECTION_ORDER[4];
+    if (l === 'Commentary' || /^(letter|comment|editorial|reply|correspondence|research letter)/i.test(a.title)) return SECTION_ORDER[5];
+    return SECTION_ORDER[2];
+  }
+
+  async function renderIssue(arg) {
+    const [ja, v, i] = arg.split('/').map(decodeURIComponent);
+    const j = journalFromArg(ja, {});
+    if (!j) return go('journals', { replace: true });
+    view.innerHTML = `${topbar(`${j.abbr} · Vol ${v}`, { right: `<button class="icon-btn" data-act="issue-share" aria-label="Share">${icon('share')}</button>` })}${skeletons(5)}`;
+    const q = `${journalQuery(j)} AND VOLUME:"${v}" AND ISSUE:"${i}" ${NOISE}`;
+    const all = [];
+    try {
+      let cursor = '*';
+      for (let n = 0; n < 4 && cursor; n++) {
+        const res = await epmcSearch(q, { cursor, size: 100 });
+        all.push(...res.results);
+        cursor = res.next && all.length < res.hit ? res.next : null;
+      }
+    } catch (e) { view.innerHTML = topbar(j.abbr) + errorBox(e); return; }
+    if (current.name !== 'ji') return;
+    const firstPage = (a) => { const m = String(a.pages || '').match(/\d+/); return m ? +m[0] : 1e9; };
+    all.sort((a, b) => firstPage(a) - firstPage(b));
+    const date = all.find((a) => a.pubDate)?.pubDate || '';
+    const bySection = new Map(SECTION_ORDER.map((s) => [s, []]));
+    all.forEach((a) => bySection.get(sectionOf(a)).push(a));
+    view.innerHTML = `${topbar(`${j.abbr} · Vol ${v}`, { right: `<button class="icon-btn" data-act="issue-share" aria-label="Share">${icon('share')}</button>` })}
+      <section class="issue-hero" style="${coverStyle(j.abbr)}">
+        <span class="ci-label">${esc(j.name)}</span>
+        <h2>Volume ${esc(v)} · ${esc(issueLabel({ i }))}</h2>
+        <span>${esc(date)}${date ? ' · ' : ''}${all.length} articles</span>
+        <div class="row" style="gap:8px;margin-top:12px"><button class="btn xs glass" data-act="issue-share">${icon('share')}Share contents</button>
+          <button class="btn xs glass" data-act="issue-toc">${icon('list')}Sections</button></div>
+      </section>
+      ${[...bySection.entries()].filter(([, l]) => l.length).map(([sec, list], k) => `<div class="section" id="sec-${k}"><div class="section-h"><h3>${esc(sec)}</h3><span class="muted small">${list.length}</span></div>
+        ${list.map((a) => card(a, { compact: true })).join('')}</div>`).join('') || '<div class="empty"><b>No articles listed</b></div>'}`;
+    actions['issue-share'] = () => {
+      const lines = all.slice(0, 40).map((a) => `• ${a.title}${a.doi ? '\n  https://doi.org/' + a.doi : ''}`).join('\n');
+      Native.share(`${j.abbr} Vol ${v} ${issueLabel({ i })}`, `${j.name}\nVolume ${v}, ${issueLabel({ i })}${date ? ' (' + date + ')' : ''}\n\n${lines}${all.length > 40 ? `\n…and ${all.length - 40} more` : ''}\n\nShared from DermScholar`);
+    };
+    actions['issue-toc'] = () => {
+      const secs = [...bySection.entries()].map(([sec, l], k) => [sec, l.length, k]).filter(([, n]) => n);
+      sheet(`<h3>Sections</h3>${secs.map(([sec, n, k]) => `<button class="opt" data-act="goto-sec" data-k="${k}">${icon('list')}${esc(sec)}<span class="chk muted">${n}</span></button>`).join('')}`);
+      actions['goto-sec'] = (b) => { closeSheet(); const el = $('#sec-' + b.dataset.k); if (el) window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - 70, behavior: 'smooth' }); };
+    };
   }
 
   // ---------------------------------------------------------------- library
@@ -1516,26 +1721,48 @@
   }
 
   // ---------------------------------------------------------------- settings
+  const ACCENTS = { ocean: '#2563eb', teal: '#0d9488', violet: '#7c3aed', rose: '#e11d48', amber: '#d97706', forest: '#16a34a', indigo: '#4f46e5', slate: '#475569' };
+  const BG_LIGHT = { white: ['#ffffff', 'White'], paper: ['#faf6ef', 'Paper'], mist: ['#f3f6fb', 'Mist'], mint: ['#f1faf6', 'Mint'], blush: ['#fdf4f5', 'Blush'] };
+  const BG_DARK = { graphite: ['#0f1115', 'Graphite'], midnight: ['#0b1224', 'Midnight'], forest: ['#0c1512', 'Forest'], amoled: ['#000000', 'Black'] };
+
   function renderSettings() {
     const pdfCount = pdfKeys.size;
     const mb = (Number(Native.storageBytes()) / 1048576).toFixed(1);
     const sw = (k, title, sub) => `<div class="setting"><div class="body"><b>${title}</b><span>${sub}</span></div>
       <label class="switch"><input type="checkbox" data-set="${k}" ${settings[k] ? 'checked' : ''}><span></span></label></div>`;
+    const accRow = (p) => {
+      const acc = account(p);
+      const P = PROVIDERS[p];
+      return `<div class="acc-card"><div class="acc-ico ${p}">${icon(p === 'utd' ? 'book' : 'key')}</div>
+        <div class="body"><b>${P.name}</b><span>${acc.saved ? 'Signed in as ' + esc(acc.user) : 'Not saved'}</span></div>
+        <button class="btn xs ${acc.saved ? '' : 'primary'}" data-act="acc-set" data-p="${p}">${acc.saved ? 'Change' : 'Add login'}</button>
+        ${acc.saved ? `<button class="icon-btn" data-act="acc-forget" data-p="${p}" aria-label="Forget">${icon('trash')}</button>` : ''}</div>`;
+    };
     view.innerHTML = `${topbar('Settings')}
-      <div class="section"><div class="section-h"><h3>Search</h3></div>
+      <div class="section"><div class="section-h"><h3>Appearance</h3></div>
+        <div class="panel">
+          <label class="field" style="margin-top:0">Mode</label>
+          <div class="seg wide">${['system', 'light', 'dark'].map((t) => `<button class="${settings.theme === t ? 'on' : ''}" data-act="theme" data-t="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>
+          <label class="field">Accent colour</label>
+          <div class="swatches">${Object.entries(ACCENTS).map(([k, c]) => `<button class="swatch ${settings.accent === k ? 'on' : ''}" data-act="accent" data-v="${k}" style="--sw:${c}" aria-label="${k}"></button>`).join('')}</div>
+          <label class="field">Light background</label>
+          <div class="swatches">${Object.entries(BG_LIGHT).map(([k, [c, l]]) => `<button class="bgswatch ${settings.bgLight === k ? 'on' : ''}" data-act="bg-light" data-v="${k}" style="--sw:${c}"><i></i>${l}</button>`).join('')}</div>
+          <label class="field">Dark background</label>
+          <div class="swatches">${Object.entries(BG_DARK).map(([k, [c, l]]) => `<button class="bgswatch dark ${settings.bgDark === k ? 'on' : ''}" data-act="bg-dark" data-v="${k}" style="--sw:${c}"><i></i>${l}</button>`).join('')}</div>
+          <p class="muted small" style="margin:12px 0 0">Reading colours and fonts for papers are in the reader's <b>Aa</b> menu.</p>
+        </div></div>
+      <div class="section"><div class="section-h"><h3>Accounts</h3></div>
+        ${accRow('r4l')}${accRow('utd')}
+        <p class="muted small">Passwords are encrypted with this phone's keystore and only sent to the provider's own sign-in page.</p></div>
+      <div class="section"><div class="section-h"><h3>Bottom bar</h3></div>
+        ${sw('showUTD', 'Show UpToDate tab', 'Quick access from anywhere in the app')}
+        ${sw('showR4L', 'Show Research4Life tab', 'Get PDF works without it; hide it if you never browse R4L')}</div>
+      <div class="section"><div class="section-h"><h3>Search &amp; PDFs</h3></div>
         ${sw('derm', 'Dermatology focus by default', 'Limit results to skin-related papers')}
         ${sw('preprints', 'Include preprints', 'Show papers that are not yet peer reviewed')}
         ${sw('autoOpen', 'Open PDFs when downloaded', 'Otherwise they just save, with an Open button')}
         <div class="setting"><div class="body"><b>Default sort</b><span>${esc(SORTS[settings.sort].label)}</span></div>
           <button class="btn small" data-act="set-sort">Change</button></div></div>
-      <div class="section"><div class="section-h"><h3>Research4Life</h3></div>
-        ${(() => { const acc = r4lAccount(); return `<div class="setting"><div class="body"><b>${acc.saved ? 'Signed in as ' + esc(acc.user) : 'Not saved'}</b>
-          <span>${acc.saved ? 'The app signs in for you when you tap Get PDF.' : 'Save your R4L sign-in so Get PDF works in one tap.'}</span></div>
-          <button class="btn small" data-act="r4l-account">${acc.saved ? 'Change' : 'Save sign-in'}</button></div>
-          <div class="row" style="gap:8px;margin-top:10px"><button class="btn small" data-act="r4l-open" style="flex:1">${icon('key')}Open Research4Life</button>
-          ${acc.saved ? `<button class="btn small" data-act="r4l-forget" style="flex:1">${icon('trash')}Forget sign-in</button>` : ''}</div>`; })()}</div>
-      <div class="section"><div class="section-h"><h3>Appearance</h3></div>
-        <div class="seg">${['system', 'light', 'dark'].map((t) => `<button class="${settings.theme === t ? 'on' : ''}" data-act="theme" data-t="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>
       <div class="section"><div class="section-h"><h3>Storage</h3></div>
         <div class="stats" style="margin-top:0"><div class="stat"><b>${saved.size}</b><span>Saved papers</span></div>
           <div class="stat"><b>${pdfCount}</b><span>Offline PDFs</span></div><div class="stat"><b>${mb} MB</b><span>PDF storage</span></div></div>
@@ -1543,16 +1770,22 @@
         <button class="btn small" data-act="clear-history">Clear search history</button></div>
       <div class="section"><div class="section-h"><h3>About</h3></div>
         <p class="small muted">DermScholar ${esc(Native.version())}. Paper data from <b>Europe PMC</b> (PubMed, PMC and more); journal metrics from <b>OpenAlex</b>.
-        "Key finding" is taken from each abstract's own conclusion. It is not a medical recommendation. Paywalled full text is available through your
-        <b>Research4Life</b> sign-in.</p></div>`;
-    $$('[data-set]').forEach((el) => el.addEventListener('change', () => { settings[el.dataset.set] = el.checked; saveSettings(); searchCache.clear(); }));
+        "Key finding" is taken from each abstract's own conclusion. It is not a medical recommendation. Fonts: Inter, Literata, Fraunces (SIL OFL); PDF engine: pdf.js.</p></div>`;
+    $$('[data-set]').forEach((el) => el.addEventListener('change', () => { settings[el.dataset.set] = el.checked; saveSettings(); searchCache.clear(); applyNav(); }));
     actions['set-sort'] = () => pickOne('Default sort', Object.fromEntries(Object.entries(SORTS).map(([k, v]) => [k, v.label])), settings.sort, (v) => { settings.sort = v; saveSettings(); render(); });
-    actions.theme = (b) => { settings.theme = b.dataset.t; saveSettings(); applyTheme(); render(); };
+    const keepScroll = (fn) => { const y = scrollY; fn(); saveSettings(); applyTheme(); render(); requestAnimationFrame(() => window.scrollTo(0, y)); };
+    actions.theme = (b) => keepScroll(() => { settings.theme = b.dataset.t; });
+    actions.accent = (b) => keepScroll(() => { settings.accent = b.dataset.v; });
+    actions['bg-light'] = (b) => keepScroll(() => { settings.bgLight = b.dataset.v; if (settings.theme === 'dark') settings.theme = 'light'; });
+    actions['bg-dark'] = (b) => keepScroll(() => { settings.bgDark = b.dataset.v; if (settings.theme === 'light') settings.theme = 'dark'; });
   }
 
   function applyTheme() {
     const dark = settings.theme === 'dark' || (settings.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    const root = document.documentElement;
+    root.dataset.theme = dark ? 'dark' : 'light';
+    root.dataset.accent = settings.accent;
+    root.dataset.bg = dark ? settings.bgDark : settings.bgLight;
   }
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
 
@@ -1610,9 +1843,18 @@
       toast('Saved to library');
       if (a.pmcid && (a.oa || a.inPMC)) cacheFullText(a).catch(() => {});
     },
-    'r4l-account': () => r4lSignInSheet(null),
-    'r4l-forget': () => { Native.r4lForget(); toast('Research4Life sign-in removed'); render(); },
+    'card-share': (b) => {
+      const a = saved.get(b.dataset.id) || cache.get(b.dataset.id);
+      if (a) Native.share(a.title, `${a.title}\n${[a.jAbbr || a.journal, a.year].filter(Boolean).join(' ')}\n${doiUrl(a) || (a.pmid ? 'https://pubmed.ncbi.nlm.nih.gov/' + a.pmid : '')}`);
+    },
+    'r4l-account': () => signInSheet('r4l', null),
+    'r4l-forget': () => { (Native.forgetCredentials ? Native.forgetCredentials('r4l') : Native.r4lForget()); toast('Research4Life sign-in removed'); render(); },
     'r4l-open': () => Native.openPortal(PORTAL, '', ''),
+    'acc-set': (b) => signInSheet(b.dataset.p, null),
+    'acc-forget': (b) => { Native.forgetCredentials(b.dataset.p); toast(`${PROVIDERS[b.dataset.p].name} sign-in removed`); render(); },
+    'utd-open': () => Native.openUpToDate(''),
+    'utd-search': (b) => Native.openUpToDate(b.dataset.q || ''),
+    'lib-offline': () => go('library?f=offline'),
     ask: (b) => go(searchHash(filtersFrom({ q: b.dataset.q }))),
     topic: (b) => go(searchHash({ ...filtersFrom({ q: b.dataset.q }), sort: 'newest', years: '2' })),
     quick: (b) => {
@@ -1628,7 +1870,10 @@
       follows = follows.includes(abbr) ? follows.filter((x) => x !== abbr) : [...follows, abbr];
       store.set('follows', follows);
       const on = follows.includes(abbr);
-      $$(`[data-act=follow][data-abbr="${CSS.escape(abbr)}"]`).forEach((s) => { s.classList.toggle('on', on); s.innerHTML = icon(on ? 'starFill' : 'star'); });
+      $$(`[data-act=follow][data-abbr="${CSS.escape(abbr)}"]`).forEach((s) => {
+        if (s.dataset.style === 'btn') { s.className = `btn xs ${on ? 'good' : 'primary'}`; s.innerHTML = `${icon(on ? 'check' : 'plus')}${on ? 'Following' : 'Follow'}`; return; }
+        s.classList.toggle('on', on); s.innerHTML = icon(on ? 'starFill' : 'star');
+      });
       toast(on ? 'Following — new articles appear on Search' : 'Unfollowed');
     },
   };
@@ -1663,8 +1908,13 @@
     if (e.target.matches('.searchbox textarea')) { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }
   });
 
+  function applyNav() {
+    $('#nav [data-tab=portal]')?.classList.toggle('hidden', !settings.showR4L);
+    $('#nav [data-tab=utd]')?.classList.toggle('hidden', !settings.showUTD);
+  }
   function switchTab(tab) {
     if (tab === 'portal') { Native.openPortal(PORTAL, '', ''); return; }
+    if (tab === 'utd') { Native.openUpToDate(''); return; }
     const target = { search: '', journals: 'journals', library: 'library' }[tab];
     if (parseHash().name === (target || 'home')) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     go(target);
@@ -1752,6 +2002,7 @@
 
   // ---------------------------------------------------------------- start
   applyTheme();
+  applyNav();
   (async () => {
     try { await loadSaved(); await syncPdfs(); } catch { /* library unavailable */ }
     render();

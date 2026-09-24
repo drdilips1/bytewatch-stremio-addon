@@ -130,6 +130,10 @@ public class MainActivity extends Activity {
     }
 
     private void openLink(String url, String key, String title) {
+        openLink(url, key, title, R4LSession.R4L);
+    }
+
+    private void openLink(String url, String key, String title, String provider) {
         Uri uri = Uri.parse(url);
         String scheme = uri.getScheme();
         if (!"http".equals(scheme) && !"https".equals(scheme)) {
@@ -145,6 +149,7 @@ public class MainActivity extends Activity {
         i.putExtra(PortalActivity.EXTRA_URL, url);
         if (key != null) i.putExtra(PortalActivity.EXTRA_KEY, key);
         if (title != null) i.putExtra(PortalActivity.EXTRA_TITLE, title);
+        i.putExtra(PortalActivity.EXTRA_PROVIDER, provider);
         startActivityForResult(i, REQUEST_PORTAL);
     }
 
@@ -249,6 +254,38 @@ public class MainActivity extends Activity {
                     else emit(event("pdfFailed", "key", key, "message", "Couldn't download the free PDF."));
                 }
             });
+        }
+
+        @JavascriptInterface
+        public String account(String provider) {
+            try {
+                JSONObject o = new JSONObject();
+                o.put("user", R4LSession.username(MainActivity.this, provider));
+                o.put("saved", R4LSession.hasCredentials(MainActivity.this, provider));
+                return o.toString();
+            } catch (Exception e) {
+                return "{}";
+            }
+        }
+
+        @JavascriptInterface
+        public void setCredentials(String provider, String user, String pass) {
+            if (user == null || pass == null || user.trim().isEmpty() || pass.isEmpty()) return;
+            R4LSession.saveCredentials(MainActivity.this, provider, user, pass);
+        }
+
+        @JavascriptInterface
+        public void forgetCredentials(String provider) {
+            R4LSession.forget(MainActivity.this, provider);
+        }
+
+        /** Opens UpToDate (signed in automatically when a login is saved), optionally searching. */
+        @JavascriptInterface
+        public void openUpToDate(String query) {
+            String url = query == null || query.trim().isEmpty()
+                    ? R4LSession.UTD_HOME
+                    : R4LSession.UTD_HOME + "?search=" + Uri.encode(query.trim());
+            main.post(() -> openLink(url, null, null, R4LSession.UTD));
         }
 
         @JavascriptInterface

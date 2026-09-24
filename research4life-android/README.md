@@ -18,8 +18,10 @@ A dermatology research app with a Consensus-style search, built around
   - Import PDFs you already have.
   - Export the library as RIS (Zotero, Mendeley, EndNote), BibTeX, CSV or a Vancouver reference list.
 - **Journals**: 50+ curated dermatology journals in five groups (leading clinical, research, open access, India and regional, subspecialty).
-  - Follow journals to get a "new in your journals" feed.
-  - Each journal page shows h-index and citation metrics (OpenAlex), plus latest, most-cited and review tabs, and search inside the journal.
+  - Each journal has tabs for **Issues** (current issue, plus every issue by year back to 8 years), **Latest**, **In press**, **Most cited** and **Reviews**, plus search inside the journal.
+  - Each issue opens a table of contents grouped into sections (reviews and meta-analyses, trials, original research, case reports, letters).
+  - Share buttons on journals, issues (the table of contents with DOI links) and every article card.
+  - Follow journals for a "new in your journals" feed; journal pages also show h-index and citation metrics (OpenAlex).
 - **Get PDF (one tap)** on every result and paper. It runs in the background; the website never appears:
   1. A free copy is downloaded directly when one exists.
   2. Otherwise a hidden browser opens the paper through the Research4Life access proxy (`login.research4life.org/tacsgr1doi_org/<DOI>`).
@@ -32,6 +34,10 @@ A dermatology research app with a Consensus-style search, built around
   - Reading settings: text size, serif/sans, light/sepia/dark theme, line spacing. Reading position is remembered.
   - Original page layout is one tap away; scanned PDFs open in page view automatically.
   - Open-access full text (Europe PMC) uses the same reader, with its figures and HTML tables.
+- **UpToDate**: save your UpToDate login once. The app then signs you in automatically when you open UpToDate from the home screen, from a search ("UpToDate" chip) or from a paper (searches its main topic).
+- **Themes**: light/dark/system mode, 8 accent colours, 5 light and 4 dark backgrounds; bundled Inter, Literata and Fraunces fonts.
+  The reader has 8 reading themes plus custom text and background colours, 4 fonts, and line-spacing and margin options.
+- **Bottom bar**: Research4Life and UpToDate tabs can be shown or hidden in Settings (hidden by default).
 - **Research4Life session**: one browser session is kept alive while the app runs, so going back and forth doesn't log you out.
   Your R4L user ID and password can be saved once (Settings, or the first time you tap Get PDF). They're encrypted with an Android Keystore key and never leave the phone.
 
