@@ -147,17 +147,19 @@ function waitForObj(page, objId, ms) {
   });
 }
 
-function imageObjToCanvas(o, flipX, flipY) {
+async function imageObjToCanvas(o, flipX, flipY) {
+  // Keep canvases under ~15 MP (iOS limit); big scans are scaled down.
+  const k = Math.min(1, Math.sqrt(15e6 / (o.width * o.height)));
   const c = document.createElement('canvas');
-  c.width = o.width;
-  c.height = o.height;
+  c.width = Math.max(1, Math.round(o.width * k));
+  c.height = Math.max(1, Math.round(o.height * k));
   const ctx = c.getContext('2d');
   let hasAlpha = false;
   if (o.bitmap) {
-    ctx.drawImage(o.bitmap, 0, 0);
+    ctx.drawImage(o.bitmap, 0, 0, c.width, c.height);
   } else if (o.data) {
     const K = pdfjsLib.ImageKind;
-    const id = ctx.createImageData(o.width, o.height);
+    const id = new ImageData(o.width, o.height);
     const d = id.data, src = o.data, n = o.width * o.height;
     if (o.kind === K.RGBA_32BPP) {
       d.set(src.subarray(0, n * 4));
@@ -174,7 +176,12 @@ function imageObjToCanvas(o, flipX, flipY) {
         }
       }
     } else return null;
-    ctx.putImageData(id, 0, 0);
+    if (k === 1) ctx.putImageData(id, 0, 0);
+    else {
+      const bmp = await createImageBitmap(id);
+      ctx.drawImage(bmp, 0, 0, c.width, c.height);
+      if (bmp.close) bmp.close();
+    }
   } else return null;
   if (flipX || flipY) {
     const f = document.createElement('canvas');
@@ -203,7 +210,7 @@ async function extractPdfImage(p, key) {
       await page.render({ canvasContext: c.getContext('2d'), viewport: page.getViewport({ scale: 64 / Math.max(page.view[2], page.view[3]) }) }).promise;
       o = await waitForObj(page, it.objId, 3000);
     }
-    const conv = o && imageObjToCanvas(o, it.flipX, it.flipY);
+    const conv = o && await imageObjToCanvas(o, it.flipX, it.flipY);
     if (!conv) { toast('This picture type cannot be picked up'); return; }
     const mime = conv.hasAlpha ? 'image/png' : 'image/jpeg';
     const url = conv.canvas.toDataURL(mime, 0.92);
@@ -471,11 +478,54 @@ function openOcr() {
     </div>
   </div>`);
   try { $('#ocrLang').value = localStorage.getItem('ocrLang') || 'eng'; } catch (e) { /* ignore */ }
+  if (!hasBridge && navigator.serviceWorker && navigator.serviceWorker.controller) {
+    const note = document.createElement('div');
+    note.className = 'opt-form';
+    note.innerHTML = '<div class="opt-note" id="ocrOffline">Checking offline OCR…</div>';
+    $('#optBody').appendChild(note);
+    ocrCached().then(ok => {
+      const box = $('#ocrOffline');
+      if (!box) return;
+      if (ok) { box.textContent = '✓ OCR works offline on this device.'; return; }
+      box.innerHTML = 'OCR needs a one-time download (about 16 MB) to work offline. <button class="chip" id="ocrDl">Download now</button>';
+      $('#ocrDl').onclick = downloadOcr;
+    });
+  }
   bindOptions({
     page: () => runOcr([cur]),
     all: () => runOcr(S.pages.slice())
   });
   return hasText;
+}
+
+const OCR_FILES = ['lib/tesseract/tesseract.min.js', 'lib/tesseract/worker.min.js',
+  'lib/tesseract/core/tesseract-core-lstm.wasm.js', 'lib/tesseract/core/tesseract-core-simd-lstm.wasm.js',
+  'lib/tesseract/core/tesseract-core-relaxedsimd-lstm.wasm.js',
+  'lib/tesseract/lang/eng.traineddata.gz', 'lib/tesseract/lang/hin.traineddata.gz'];
+
+async function ocrCached() {
+  for (const f of OCR_FILES) if (!(await caches.match(new URL(f, location.href).href))) return false;
+  return true;
+}
+
+// Fetch the OCR engine once so the offline cache (sw.js) keeps it.
+async function downloadOcr() {
+  try {
+    let n = 0;
+    for (const f of OCR_FILES) {
+      busy(true, `Downloading OCR… ${Math.round(n++ / OCR_FILES.length * 100)}%`);
+      const res = await fetch(f);
+      if (!res.ok) throw new Error(res.status + ' ' + f);
+      await res.arrayBuffer();
+    }
+    const box = $('#ocrOffline');
+    if (box) box.textContent = '✓ OCR works offline on this device.';
+    toast('OCR is ready for offline use');
+  } catch (e) {
+    toast('Download failed – check your internet connection', 4000);
+  } finally {
+    busy(false);
+  }
 }
 
 // Page as an image in its frame orientation, including pictures added as annotations.
@@ -562,7 +612,8 @@ async function runOcr(pages) {
     toast(`Recognised ${lines} line(s). Tap a block to edit it; Save keeps the text searchable.`, 5000);
   } catch (e) {
     console.error(e);
-    toast('OCR failed: ' + (e.message || e), 6000);
+    const offline = !hasBridge && /failed to load|fetch|network/i.test(String(e && (e.message || e)));
+    toast(offline ? 'OCR is not downloaded yet: connect to the internet once, then use OCR (or its "Download now" button).' : 'OCR failed: ' + (e.message || e), 7000);
   } finally {
     if (worker) worker.terminate().catch(() => {});
     busy(false);

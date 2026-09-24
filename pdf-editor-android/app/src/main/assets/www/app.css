@@ -302,3 +302,14 @@ body.tool-editimage .layer { touch-action: auto; }
 #pages.pinching { transition: none; }
 .find-hit { outline: 3px solid #f29900 !important; background: rgba(242,153,0,.18) !important; }
 #viewer { touch-action: pan-x pan-y; }
+
+/* Web app: no double-tap zoom on controls; respect iPhone notch/home bar in standalone mode. */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+#topbar { padding-top: env(safe-area-inset-top); height: calc(var(--topbar-h) + env(safe-area-inset-top)); }
+#home { top: calc(var(--topbar-h) + env(safe-area-inset-top)); }
+.sheet { padding-top: env(safe-area-inset-top); }
+#readBar { top: calc(10px + env(safe-area-inset-top)); }
+#viewer { top: calc(var(--topbar-h) + env(safe-area-inset-top)); bottom: calc(var(--toolbar-h) + var(--propbar-h) + env(safe-area-inset-bottom)); }
+#toolbar { height: calc(var(--toolbar-h) + env(safe-area-inset-bottom)); }
+#propbar { bottom: calc(var(--toolbar-h) + env(safe-area-inset-bottom)); }
+#dlgBody { white-space: pre-line; }

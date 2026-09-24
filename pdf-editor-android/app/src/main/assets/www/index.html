@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#B3261E">
 <title>PDF Editor</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PDF Editor">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -44,7 +51,7 @@
     <button data-home="images"><span class="tg-ic" data-icon="image"></span>Images to PDF</button>
     <button data-home="blank"><span class="tg-ic" data-icon="blank"></span>Blank PDF</button>
   </div>
-  <p class="muted small">Tip: use “Open with → PDF Editor” from any file manager.</p>
+  <p class="muted small" id="homeTip">Tip: use “Open with → PDF Editor” from any file manager.</p>
 </section>
 
 <!-- ============ Document view ============ -->

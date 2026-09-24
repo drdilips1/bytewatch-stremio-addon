@@ -1,0 +1,45 @@
+name: PDF Editor web app
+
+# Publishes the editor (pdf-editor-android/app/src/main/assets/www) to GitHub Pages,
+# so it can be installed on iPhone/iPad via Safari → Share → Add to Home Screen.
+on:
+  push:
+    branches: [claude/pdf-editor-apk-oousz1]
+    paths:
+      - 'pdf-editor-android/app/src/main/assets/www/**'
+      - '.github/workflows/pdf-editor-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pdf-editor-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare site
+        run: |
+          cp -r pdf-editor-android/app/src/main/assets/www _site
+          # New cache version on every deploy so installed apps pick up updates.
+          sed -i "s/const VERSION = 'dev';/const VERSION = '${GITHUB_SHA::10}';/" _site/sw.js
+          grep -q "${GITHUB_SHA::10}" _site/sw.js
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

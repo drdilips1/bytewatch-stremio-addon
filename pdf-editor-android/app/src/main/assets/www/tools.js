@@ -75,7 +75,7 @@ async function renderPageToCanvas(pdf, n, dpi) {
   const page = await pdf.getPage(n);
   let scale = dpi / 72;
   const vp1 = page.getViewport({ scale: 1 });
-  const maxPx = 24e6;
+  const maxPx = 15e6;  // iOS Safari refuses canvases above ~16.7 MP
   if (vp1.width * vp1.height * scale * scale > maxPx) scale = Math.sqrt(maxPx / (vp1.width * vp1.height));
   const vp = page.getViewport({ scale });
   const c = document.createElement('canvas');

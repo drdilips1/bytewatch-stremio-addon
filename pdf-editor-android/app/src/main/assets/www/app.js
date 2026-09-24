@@ -172,7 +172,7 @@ function bytesToBase64(bytes) {
 }
 
 // ------------------------------------------------------------------ dialogs
-function dialog({ title, body = '', input = null, ok = 'OK', cancel = 'Cancel' }) {
+function dialog({ title, body = '', input = null, ok = 'OK', cancel = 'Cancel', onOk = null }) {
   return new Promise(resolve => {
     $('#dlgTitle').textContent = title;
     $('#dlgBody').textContent = body;
@@ -191,7 +191,7 @@ function dialog({ title, body = '', input = null, ok = 'OK', cancel = 'Cancel' }
       resolve(v);
     };
     dialog.cancel = () => done(null);
-    $('#dlgOk').onclick = () => done(input !== null ? inp.value : true);
+    $('#dlgOk').onclick = () => { if (onOk) onOk(); done(input !== null ? inp.value : true); };
     $('#dlgCancel').onclick = () => done(null);
     inp.onkeydown = e => { if (e.key === 'Enter') $('#dlgOk').click(); };
   });
@@ -1976,7 +1976,7 @@ async function rasterizePage(out, p) {
   // Fallback for encrypted sources pdf-lib cannot rewrite: embed a high-res image of the page.
   const pg = await S.sources[p.src].pdf.getPage(p.idx + 1);
   const { W, H } = frameSize(p);
-  const scale = Math.min(2.5, Math.sqrt(16e6 / (W * H)));
+  const scale = Math.min(2.5, Math.sqrt(15e6 / (W * H)));
   const c = document.createElement('canvas');
   c.width = Math.round(W * scale);
   c.height = Math.round(H * scale);
@@ -2104,6 +2104,24 @@ async function saveBytes(bytes, name, mode, marksClean) {
     }
     AndroidBridge.finishFile(mode);
     // busy is cleared by onNativeSaved
+  } else if (canShareFiles(name)) {
+    // iPhone / iPad / Android browsers: hand the file to the system share sheet
+    // (Save to Files, AirDrop, Print, Mail…). share() needs a fresh tap, hence the prompt.
+    const ext = name.split('.').pop().toLowerCase();
+    const file = new File([bytes], name, { type: MIME_BY_EXT[ext] || 'application/octet-stream' });
+    busy(false);
+    window.__lastSaved = bytes;
+    window.__lastSavedName = name;
+    await dialog({
+      title: 'File ready',
+      body: `${name} · ${fmtSize(bytes.length)}\nChoose “Save to Files”${mode === 'print' ? ' or “Print”' : ''} in the next screen.`,
+      ok: mode === 'print' ? 'Print / Share' : 'Save / Share',
+      onOk: () => {
+        navigator.share({ files: [file], title: name })
+          .then(() => { if (marksClean) S.dirty = false; })
+          .catch(err => { if (err && err.name !== 'AbortError') downloadBytes(bytes, name); });
+      }
+    });
   } else {
     const ext = name.split('.').pop().toLowerCase();
     const url = URL.createObjectURL(new Blob([bytes], { type: MIME_BY_EXT[ext] || 'application/octet-stream' }));
@@ -2124,6 +2142,22 @@ async function saveBytes(bytes, name, mode, marksClean) {
     window.__lastSaved = bytes; // used by automated tests
     window.__lastSavedName = name;
   }
+}
+
+function canShareFiles(name) {
+  if (!navigator.canShare || !(navigator.maxTouchPoints > 0)) return false;
+  try { return navigator.canShare({ files: [new File([new Uint8Array(1)], name, { type: 'application/pdf' })] }); } catch (e) { return false; }
+}
+
+function downloadBytes(bytes, name) {
+  const url = URL.createObjectURL(new Blob([bytes]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 const MIME_BY_EXT = {
@@ -2385,6 +2419,22 @@ function init() {
 
   setTool('select');
   showHome();
+  initWeb();
+}
+
+// Web / home-screen app (iPhone etc.): offline cache, platform hints, no browser zoom.
+function initWeb() {
+  if (hasBridge) return;
+  const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  $('#homeTip').textContent = standalone ? 'Works offline. Your files never leave this device.'
+    : ios ? 'Install: tap the Share button ⬆ in Safari, then “Add to Home Screen”. Works offline.'
+      : 'Install: open the browser menu and choose “Install app” / “Add to Home screen”.';
+  // Safari ignores user-scalable=no; stop its page zoom so the app's own pinch-zoom is used.
+  ['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(err => console.warn('offline cache unavailable', err));
+  }
 }
 
 init();

@@ -1,4 +1,4 @@
-# PDF Editor (Android, offline)
+# PDF Editor (Android + iPhone, offline)
 
 A self-use PDF editor APK. Everything runs on the phone: no internet permission,
 no accounts, no watermarks, no page/file limits.
@@ -6,6 +6,13 @@ no accounts, no watermarks, no page/file limits.
 **Install:** grab `dist/PdfEditor.apk` (or the `pdf-editor-latest` release / the
 `PdfEditor-apk` artifact from the *PDF Editor APK* GitHub Action), open it on the
 phone and allow "Install unknown apps" when prompted. Android 8.0+.
+
+**iPhone / iPad (free, no App Store):** open
+https://drdilips1.github.io/bytewatch-stremio-addon/ in Safari, tap Share →
+**Add to Home Screen**. It then runs full-screen and offline; saving goes through
+the Share sheet (Save to Files, AirDrop, Print…). For offline OCR, open OCR once
+and tap *Download now*. The site is published by the *PDF Editor web app* GitHub
+Action (needs Settings → Pages → Source: **GitHub Actions**).
 
 ## Features
 
