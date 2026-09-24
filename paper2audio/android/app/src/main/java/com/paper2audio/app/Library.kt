@@ -1,0 +1,225 @@
+package com.paper2audio.app
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+
+/** The user's documents: files, metadata and thumbnails, stored in app storage. */
+object Library {
+    class Item(
+        val id: String,
+        var title: String,
+        var author: String?,
+        val kind: Loader.Kind,
+        val sourceName: String,
+        val added: Long,
+        var opened: Long,
+        var paragraphs: Int,
+        var words: Int,
+        var chapters: Int,
+        var pages: Int,
+    ) {
+        fun toJson() = JSONObject()
+            .put("id", id).put("title", title).put("author", author ?: "")
+            .put("kind", kind.name).put("sourceName", sourceName)
+            .put("added", added).put("opened", opened)
+            .put("paragraphs", paragraphs).put("words", words)
+            .put("chapters", chapters).put("pages", pages)
+
+        companion object {
+            fun fromJson(o: JSONObject) = Item(
+                o.getString("id"), o.getString("title"), o.optString("author").ifBlank { null },
+                Loader.Kind.valueOf(o.getString("kind")), o.optString("sourceName"),
+                o.optLong("added"), o.optLong("opened"), o.optInt("paragraphs"), o.optInt("words"),
+                o.optInt("chapters"), o.optInt("pages"),
+            )
+        }
+    }
+
+    private var cache: MutableList<Item>? = null
+
+    fun dir(context: Context) = File(context.filesDir, "library")
+
+    private fun index(context: Context) = File(dir(context), "library.json")
+
+    fun thumb(context: Context, id: String) = File(dir(context), "$id.jpg")
+
+    private fun prefs(context: Context) = context.getSharedPreferences("p2a", Context.MODE_PRIVATE)
+
+    @Synchronized
+    fun items(context: Context): List<Item> {
+        val list = cache ?: run {
+            val f = index(context)
+            val arr = if (f.exists()) runCatching { JSONArray(f.readText()) }.getOrNull() else null
+            MutableList(arr?.length() ?: 0) { Item.fromJson(arr!!.getJSONObject(it)) }.also { cache = it }
+        }
+        return list.sortedByDescending { maxOf(it.opened, it.added) }
+    }
+
+    fun get(context: Context, id: String?): Item? = id?.let { i -> items(context).firstOrNull { it.id == i } }
+
+    @Synchronized
+    private fun save(context: Context) {
+        val arr = JSONArray()
+        cache.orEmpty().forEach { arr.put(it.toJson()) }
+        dir(context).mkdirs()
+        index(context).writeText(arr.toString())
+    }
+
+    fun source(context: Context, item: Item): Loader.Source {
+        val file = File(dir(context), "${item.id}.${item.kind.name.lowercase()}")
+        return Loader.Source(file, item.kind, item.sourceName, item.id)
+    }
+
+    /** The document open in the player (restored after the app restarts). */
+    var currentId: String? = null
+        private set
+
+    fun loadCurrentId(context: Context) {
+        currentId = prefs(context).getString("currentId", null)
+    }
+
+    /** Adds a newly imported document and renders its thumbnail. Call off the main thread. */
+    fun add(context: Context, src: Loader.Source, doc: Doc): Item {
+        val now = System.currentTimeMillis()
+        val item = Item(
+            src.id, doc.title, doc.author, src.kind, src.name, now, now,
+            doc.paragraphs.size, doc.words, doc.chapters.size, doc.pages,
+        )
+        runCatching { Thumbs.make(context, src, doc, thumb(context, src.id)) }
+        synchronized(this) {
+            items(context)
+            cache!!.add(item)
+            save(context)
+        }
+        return item
+    }
+
+    /** Records that [item] was opened, with counts from the freshly parsed [doc]. */
+    fun opened(context: Context, item: Item, doc: Doc) {
+        synchronized(this) {
+            item.opened = System.currentTimeMillis()
+            item.paragraphs = doc.paragraphs.size
+            item.words = doc.words
+            item.chapters = doc.chapters.size
+            if (doc.pages > 0) item.pages = doc.pages
+            save(context)
+        }
+        currentId = item.id
+        prefs(context).edit().putString("currentId", item.id).apply()
+    }
+
+    fun remove(context: Context, item: Item) {
+        synchronized(this) {
+            items(context)
+            cache!!.removeAll { it.id == item.id }
+            save(context)
+        }
+        source(context, item).file.delete()
+        thumb(context, item.id).delete()
+        prefs(context).edit().remove("pos:${item.id}").apply()
+        if (currentId == item.id) {
+            currentId = null
+            prefs(context).edit().remove("currentId").apply()
+        }
+    }
+
+    /** Listening progress, 0..100. */
+    fun progress(context: Context, item: Item): Int {
+        if (item.paragraphs <= 1) return 0
+        val pos = prefs(context).getInt("pos:${item.id}", 0)
+        return (pos * 100 / (item.paragraphs - 1)).coerceIn(0, 100)
+    }
+
+    fun minutesLeft(context: Context, item: Item, speed: Float): Int {
+        val remaining = item.words * (100 - progress(context, item)) / 100
+        return (remaining / (160 * speed)).toInt()
+    }
+}
+
+/** Library thumbnails: a PDF's first page, an EPUB's cover, or a generated tile. */
+object Thumbs {
+    private const val WIDTH = 360
+    private val TILE_COLORS = intArrayOf(
+        0xFF2F5BEA.toInt(), 0xFF2E7D4F.toInt(), 0xFFE4572E.toInt(), 0xFF6D4AE0.toInt(),
+        0xFFD6336C.toInt(), 0xFF8B5E34.toInt(), 0xFF0E7C86.toInt(), 0xFF4B5563.toInt(),
+    )
+
+    fun make(context: Context, src: Loader.Source, doc: Doc, out: File) {
+        val bitmap = when (src.kind) {
+            Loader.Kind.PDF -> runCatching { pdfPage(src.file) }.getOrNull()
+            Loader.Kind.EPUB -> doc.cover?.let { runCatching { decode(it) }.getOrNull() }
+            Loader.Kind.TEXT -> null
+        } ?: tile(doc.title)
+        out.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+        bitmap.recycle()
+    }
+
+    private fun pdfPage(file: File): Bitmap {
+        val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+        val renderer = PdfRenderer(pfd)
+        try {
+            val page = renderer.openPage(0)
+            try {
+                val height = WIDTH * page.height / page.width.coerceAtLeast(1)
+                val bmp = Bitmap.createBitmap(WIDTH, height.coerceIn(1, WIDTH * 2), Bitmap.Config.ARGB_8888)
+                bmp.eraseColor(Color.WHITE)
+                page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                return bmp
+            } finally {
+                page.close()
+            }
+        } finally {
+            renderer.close()
+            pfd.close()
+        }
+    }
+
+    private fun decode(bytes: ByteArray): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= WIDTH) sample *= 2
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+    }
+
+    /** A colored "book cover" with the title's initial, for documents without artwork. */
+    private fun tile(title: String): Bitmap {
+        val h = WIDTH * 4 / 3
+        val bmp = Bitmap.createBitmap(WIDTH, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        canvas.drawColor(TILE_COLORS[(title.hashCode() and 0x7fffffff) % TILE_COLORS.size])
+        val letter = title.trim().firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "¶"
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+            textSize = WIDTH * 0.5f
+        }
+        canvas.drawText(letter, WIDTH / 2f, h / 2f - (paint.descent() + paint.ascent()) / 2, paint)
+        paint.color = 0x33FFFFFF
+        canvas.drawRect(0f, h * 0.86f, WIDTH.toFloat(), h * 0.9f, paint)
+        return bmp
+    }
+
+    /** Loads a thumbnail for display, scaled down to [widthPx]. */
+    suspend fun load(file: File, widthPx: Int): Bitmap? = withContext(Dispatchers.IO) {
+        if (!file.exists()) return@withContext null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.path, bounds)
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= widthPx) sample *= 2
+        BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+    }
+}

@@ -35,7 +35,8 @@ object PdfExtractor {
             val title = pdf.documentInformation?.title?.takeIf { it.isNotBlank() }
                 ?: lines.firstOrNull { it.trim().length > 8 }?.trim()
                 ?: name
-            return Doc.build(title, key, listOf(null to TextCleaner.clean(lines, o)))
+            val author = pdf.documentInformation?.author?.takeIf { it.isNotBlank() }
+            return Doc.build(title, key, listOf(null to TextCleaner.clean(lines, o)), author, pages = pdf.numberOfPages)
         }
     }
 }
@@ -65,7 +66,14 @@ object EpubExtractor {
             val opf = Jsoup.parse(read(opfPath) ?: error("Not a valid EPUB"), "", Parser.xmlParser())
             val base = opfPath.substringBeforeLast('/', "")
             val title = opf.tags("title").firstOrNull { it.text().isNotBlank() }?.text()?.trim() ?: name
+            val author = opf.tags("creator").firstOrNull { it.text().isNotBlank() }?.text()?.trim()
             val manifest = opf.tags("item").associateBy { it.attr("id") }
+            val coverItem = manifest.values.firstOrNull { "cover-image" in it.attr("properties").split(' ') }
+                ?: opf.tags("meta").firstOrNull { it.attr("name") == "cover" }?.let { manifest[it.attr("content")] }
+                ?: manifest.values.firstOrNull { it.attr("media-type").startsWith("image/") && "cover" in it.attr("id").lowercase() }
+            val cover = coverItem?.let { item ->
+                zip.getEntry(resolve(base, item.attr("href")))?.let { e -> zip.getInputStream(e).use { it.readBytes() } }
+            }
 
             val sections = ArrayList<Pair<String?, List<String>>>()
             var part = 0
@@ -85,7 +93,7 @@ object EpubExtractor {
                 if (o.skipAppendix && TextCleaner.APPENDIX.containsMatchIn(chapter)) continue
                 sections += chapter to TextCleaner.clean(lines, o)
             }
-            return Doc.build(title, key, sections)
+            return Doc.build(title, key, sections, author, cover)
         }
     }
 

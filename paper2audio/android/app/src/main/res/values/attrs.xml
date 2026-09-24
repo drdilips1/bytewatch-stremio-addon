@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="p2aBg" format="color" />
+    <attr name="p2aSurface" format="color" />
+    <attr name="p2aSurface2" format="color" />
+    <attr name="p2aAccent" format="color" />
+    <attr name="p2aOnAccent" format="color" />
+    <attr name="p2aText" format="color" />
+    <attr name="p2aMuted" format="color" />
+</resources>

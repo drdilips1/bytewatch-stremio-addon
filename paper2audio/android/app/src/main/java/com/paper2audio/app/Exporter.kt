@@ -175,25 +175,34 @@ object Exporter {
     }
 
     private suspend fun exportEdge(context: Context, doc: Doc, voice: String, speed: Float): Pair<Uri, String> {
-        val chunks = group(doc.paragraphs, 2400)
+        // Each request is one round trip of at most ~1100 characters (the service
+        // renders long text piece by piece anyway), and several run at once.
+        val chunks = group(doc.paragraphs.flatMap { TextCleaner.pieces(it, 1100, 1100) }, 1100)
         val rate = Speaker.ratePercent(speed)
         val out = createOutput(context, doc.title, "mp3", "audio/mpeg")
         var ok = false
         try {
             ParcelFileDescriptor.AutoCloseOutputStream(out.pfd).buffered().use { os ->
                 coroutineScope {
-                    var i = 0
-                    while (i < chunks.size) {
-                        // A few requests in flight at once, written in order.
-                        val batch = (i until minOf(i + 4, chunks.size)).map { k ->
-                            async(Dispatchers.IO) { synthEdge(chunks[k], voice, rate) }
+                    // Keep up to 8 requests in flight, writing results in order.
+                    val inFlight = ArrayDeque<kotlinx.coroutines.Deferred<ByteArray>>()
+                    var next = 0
+                    var written = 0
+                    var lastPct = -1
+                    while (written < chunks.size) {
+                        while (inFlight.size < 8 && next < chunks.size) {
+                            val text = chunks[next++]
+                            inFlight.addLast(async(Dispatchers.IO) { synthEdge(text, voice, rate) })
                         }
-                        for (part in batch) os.write(part.await())
-                        i += batch.size
-                        val pct = i * 100 / chunks.size
-                        update {
-                            progress = pct
-                            message = "Saving audio… $pct%"
+                        os.write(inFlight.removeFirst().await())
+                        written++
+                        val pct = written * 100 / chunks.size
+                        if (pct != lastPct) {
+                            lastPct = pct
+                            update {
+                                progress = pct
+                                message = "Saving audio… $pct%"
+                            }
                         }
                     }
                 }

@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/p2aBg"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="4dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            style="@style/P2A.Icon"
+            android:contentDescription="Back to library"
+            android:src="@drawable/ic_back" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="Now reading"
+            android:textColor="?attr/p2aMuted"
+            android:textSize="14sp" />
+
+        <ImageButton
+            android:id="@+id/btnChapters"
+            style="@style/P2A.Icon"
+            android:contentDescription="Chapters"
+            android:src="@drawable/ic_list" />
+
+        <ImageButton
+            android:id="@+id/btnTheme"
+            style="@style/P2A.Icon"
+            android:contentDescription="Theme"
+            android:src="@drawable/ic_palette" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="24dp">
+
+            <ImageView
+                android:id="@+id/cover"
+                android:layout_width="150dp"
+                android:layout_height="200dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_thumb"
+                android:elevation="8dp"
+                android:scaleType="centerCrop" />
+
+            <TextView
+                android:id="@+id/docTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:gravity="center"
+                android:textColor="?attr/p2aText"
+                android:textSize="21sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/docAuthor"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:gravity="center"
+                android:textColor="?attr/p2aMuted"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/docInfo"
+                style="@style/P2A.Muted"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center" />
+
+            <TextView
+                android:id="@+id/currentText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_card"
+                android:ellipsize="end"
+                android:lineSpacingMultiplier="1.3"
+                android:maxLines="7"
+                android:minLines="3"
+                android:padding="16dp"
+                android:textColor="?attr/p2aText"
+                android:textSize="16sp" />
+
+            <SeekBar
+                android:id="@+id/posBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:progressBackgroundTint="?attr/p2aSurface2"
+                android:progressTint="?attr/p2aAccent"
+                android:thumbTint="?attr/p2aAccent" />
+
+            <TextView
+                android:id="@+id/posLabel"
+                style="@style/P2A.Muted"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:singleLine="true" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/btnPrev"
+                    style="@style/P2A.Icon"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:contentDescription="Previous paragraph"
+                    android:padding="14dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_prev" />
+
+                <ImageButton
+                    android:id="@+id/btnPlay"
+                    android:layout_width="76dp"
+                    android:layout_height="76dp"
+                    android:layout_marginStart="24dp"
+                    android:layout_marginEnd="24dp"
+                    android:background="@drawable/bg_play"
+                    android:contentDescription="Play or pause"
+                    android:elevation="6dp"
+                    android:padding="20dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_play"
+                    android:tint="?attr/p2aOnAccent" />
+
+                <ImageButton
+                    android:id="@+id/btnNext"
+                    style="@style/P2A.Icon"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:contentDescription="Next paragraph"
+                    android:padding="14dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_next" />
+            </LinearLayout>
+
+            <!-- Voice and speed -->
+            <LinearLayout
+                style="@style/P2A.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp">
+
+                <TextView
+                    style="@style/P2A.CardTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Voice and speed" />
+
+                <Spinner
+                    android:id="@+id/voiceSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="?attr/p2aMuted" />
+
+                <TextView
+                    android:id="@+id/speedLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:textColor="?attr/p2aText" />
+
+                <SeekBar
+                    android:id="@+id/speedBar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="25"
+                    android:progressBackgroundTint="?attr/p2aSurface2"
+                    android:progressTint="?attr/p2aAccent"
+                    android:thumbTint="?attr/p2aAccent" />
+
+                <Button
+                    android:id="@+id/btnKokoro"
+                    style="@style/P2A.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Download Kokoro voices"
+                    android:visibility="gone" />
+
+                <ProgressBar
+                    android:id="@+id/kokoroProgress"
+                    style="@style/P2A.Progress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:max="100"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/kokoroStatus"
+                    style="@style/P2A.Muted"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnMoreVoices"
+                        style="@style/P2A.Button.Text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Get more phone voices" />
+
+                    <Button
+                        android:id="@+id/btnDeleteKokoro"
+                        style="@style/P2A.Button.Text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Delete Kokoro (~350 MB)"
+                        android:visibility="gone" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Save audio -->
+            <LinearLayout
+                style="@style/P2A.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    style="@style/P2A.CardTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Save as audio file" />
+
+                <TextView
+                    style="@style/P2A.Muted"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Creates one audio file of the whole document in Music/Paper2Audio, to play in any music or podcast app, even offline." />
+
+                <Button
+                    android:id="@+id/btnExport"
+                    style="@style/P2A.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:drawableStart="@drawable/ic_save"
+                    android:text="Save audio file" />
+
+                <ProgressBar
+                    android:id="@+id/exportProgress"
+                    style="@style/P2A.Progress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:max="100"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/exportStatus"
+                    style="@style/P2A.Muted"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <Button
+                    android:id="@+id/btnOpenAudio"
+                    style="@style/P2A.Button.Text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Open saved audio"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- Reading options -->
+            <LinearLayout
+                style="@style/P2A.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    style="@style/P2A.CardTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="What to read" />
+
+                <CheckBox
+                    android:id="@+id/cbRefs"
+                    style="@style/P2A.Check"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Skip references and notes" />
+
+                <CheckBox
+                    android:id="@+id/cbCites"
+                    style="@style/P2A.Check"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Remove inline citations" />
+
+                <CheckBox
+                    android:id="@+id/cbCaptions"
+                    style="@style/P2A.Check"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Skip figure and table captions" />
+
+                <CheckBox
+                    android:id="@+id/cbAppendix"
+                    style="@style/P2A.Check"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Skip appendix" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -5,6 +5,11 @@ the phone: no server, no account, no limits.
 
 ## Features
 
+- **Library** of your papers and books with thumbnails (a PDF's first page or an
+  EPUB's cover), title, author, length and listening progress. Tap to open,
+  long-press to remove. A mini player at the bottom shows what's playing.
+- **9 color themes**: System (follows light/dark mode), Ocean, Forest, Sunset,
+  Lavender, Rose, Sepia, Midnight and Black. Tap the palette icon.
 - Open a **PDF, EPUB or text file**, share one to the app from another app, or
   paste an **arXiv ID or link**.
 - The same cleanup as the desktop tool: headers, footers, page numbers,

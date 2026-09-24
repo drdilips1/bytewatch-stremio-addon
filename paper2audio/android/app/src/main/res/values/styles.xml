@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="P2A.Button" parent="android:Widget.Material.Button">
+        <item name="android:background">@drawable/bg_button</item>
+        <item name="android:textColor">?attr/p2aOnAccent</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:drawableTint">?attr/p2aOnAccent</item>
+        <item name="android:drawablePadding">8dp</item>
+    </style>
+
+    <style name="P2A.Button.Soft">
+        <item name="android:background">@drawable/bg_button_soft</item>
+        <item name="android:textColor">?attr/p2aText</item>
+        <item name="android:drawableTint">?attr/p2aText</item>
+    </style>
+
+    <style name="P2A.Button.Text" parent="android:Widget.Material.Button.Borderless">
+        <item name="android:textColor">?attr/p2aAccent</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="P2A.Icon">
+        <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>
+        <item name="android:tint">?attr/p2aText</item>
+        <item name="android:padding">12dp</item>
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+    </style>
+
+    <style name="P2A.Card">
+        <item name="android:background">@drawable/bg_card</item>
+        <item name="android:padding">16dp</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:layout_marginTop">14dp</item>
+    </style>
+
+    <style name="P2A.CardTitle">
+        <item name="android:textColor">?attr/p2aText</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:layout_marginBottom">8dp</item>
+    </style>
+
+    <style name="P2A.Muted">
+        <item name="android:textColor">?attr/p2aMuted</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <style name="P2A.Check">
+        <item name="android:textColor">?attr/p2aText</item>
+        <item name="android:buttonTint">?attr/p2aAccent</item>
+        <item name="android:minHeight">44dp</item>
+    </style>
+
+    <style name="P2A.Progress" parent="android:Widget.Material.ProgressBar.Horizontal">
+        <item name="android:progressTint">?attr/p2aAccent</item>
+        <item name="android:progressBackgroundTint">?attr/p2aSurface2</item>
+    </style>
+</resources>

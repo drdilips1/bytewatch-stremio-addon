@@ -11,7 +11,8 @@ import java.net.URL
 object Loader {
     enum class Kind { PDF, EPUB, TEXT }
 
-    data class Source(val file: File, val kind: Kind, val name: String)
+    /** A document file in the library; [id] names its library entry. */
+    data class Source(val file: File, val kind: Kind, val name: String, val id: String)
 
     private val ARXIV = Regex(
         """^(?:https?://(?:www\.)?arxiv\.org/(?:abs|pdf)/)?(\d{4}\.\d{4,5}(?:v\d+)?)(?:\.pdf)?/?$"""
@@ -62,10 +63,10 @@ object Loader {
         val tmp = File(context.filesDir, "incoming.tmp")
         tmp.outputStream().use(write)
         val kind = sniff(tmp, name)
-        val dest = File(context.filesDir, "current." + kind.name.lowercase())
-        context.filesDir.listFiles { f -> f.name.startsWith("current.") }?.forEach { it.delete() }
+        val id = java.util.UUID.randomUUID().toString().replace("-", "").take(16)
+        val dest = File(Library.dir(context).apply { mkdirs() }, "$id." + kind.name.lowercase())
         if (!tmp.renameTo(dest)) error("Could not save the file")
-        return Source(dest, kind, name)
+        return Source(dest, kind, name, id)
     }
 
     private fun sniff(file: File, name: String): Kind {
@@ -80,7 +81,7 @@ object Loader {
     }
 
     fun parse(context: Context, src: Source, o: CleanOptions): Doc {
-        val key = "${src.name}:${src.file.length()}"
+        val key = src.id
         val title = src.name.substringBeforeLast('.')
         return when (src.kind) {
             Kind.PDF -> PdfExtractor.extract(context, src.file, o, title, key)
