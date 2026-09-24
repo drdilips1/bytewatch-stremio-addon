@@ -63,6 +63,8 @@ export const settings = persisted('settings', {
   readerFont: 'serif',
   language: 'en',
   debridPreferred: 'torbox', // torbox | realdebrid
+  metaProviders: { audible: true, apple: true, google: true, openlibrary: true },
+  metaOrder: ['audible', 'apple', 'google', 'openlibrary'],
 });
 
 export const library = persisted('library', {}); // uid -> book summary + addedAt

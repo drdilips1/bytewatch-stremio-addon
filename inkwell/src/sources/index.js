@@ -8,8 +8,8 @@ import * as cloud from './debrid.js';
 import * as hc from './hardcover.js';
 import * as gr from './goodreads.js';
 import { settings } from '../lib/store.js';
-import { getJson, qs } from '../lib/http.js';
 import { matches, mainTitle } from '../lib/match.js';
+import { lookup, wantsMeta } from '../lib/meta.js';
 
 export const SOURCES = {
   ia: { name: 'Internet Archive', short: 'Archive', hue: 28, kind: 'Listen', blurb: 'LibriVox mirror, old-time radio & spoken word', impl: ia },
@@ -31,21 +31,23 @@ export function sourceOf(uid) {
   return p === 'addon' ? 'addon' : p;
 }
 
-async function coverFromOpenLibrary(book) {
-  try {
-    const d = await getJson('https://openlibrary.org/search.json?' + qs({ q: `${book.title} ${book.author}`.trim(), limit: 1, fields: 'cover_i' }));
-    const id = d.docs?.[0]?.cover_i;
-    return id ? `https://covers.openlibrary.org/b/id/${id}-L.jpg` : '';
-  } catch {
-    return '';
-  }
-}
-
 export async function getDetails(book) {
   const src = SOURCES[sourceOf(book.uid)];
-  const d = await src.impl.details(book);
-  if (!d.cover && (d.source === 'tb' || d.source === 'rd')) d.cover = await coverFromOpenLibrary(d);
-  return d;
+  const [d, meta] = await Promise.all([src.impl.details(book), wantsMeta(book) ? lookup(book).catch(() => null) : null]);
+  if (!meta) return d;
+  const cloudItem = d.source === 'tb' || d.source === 'rd';
+  return {
+    ...d,
+    title: cloudItem && meta.title ? meta.title : d.title,
+    author: (cloudItem && meta.author) || d.author || meta.author || '',
+    cover: d.cover || meta.cover || '',
+    description: d.description && !/audio files? in your/i.test(d.description) ? d.description : meta.description || d.description,
+    narrator: d.narrator || meta.narrator || '',
+    series: d.series || meta.series || '',
+    year: d.year || meta.year || '',
+    duration: d.duration || meta.runtime || 0,
+    metaSource: meta.source,
+  };
 }
 
 // Search every enabled source in parallel; results stream in per source.

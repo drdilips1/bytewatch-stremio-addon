@@ -15,6 +15,7 @@ import { Settings } from './screens/Settings.jsx';
 import { Book } from './screens/Book.jsx';
 import { Browse } from './screens/Browse.jsx';
 import { Reader } from './screens/Reader.jsx';
+import { Shelf } from './screens/Shelf.jsx';
 
 const TABS = [
   ['home', 'Home', 'home'],
@@ -23,7 +24,7 @@ const TABS = [
   ['settings', 'Settings', 'settings'],
 ];
 const ROOTS = { home: Home, discover: Discover, library: Library, settings: Settings };
-const ROUTES = { book: Book, browse: Browse, reader: Reader };
+const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf };
 
 export function App() {
   const [route, setRoute] = useState(nav.state());

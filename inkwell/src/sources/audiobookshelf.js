@@ -107,6 +107,13 @@ export async function recent() {
   return (data.results || []).map(toBook);
 }
 
+/** Whole library (up to 500 items), newest first. */
+export async function all() {
+  if (!connected() || !cfg().libraryId) return [];
+  const data = await call(`/api/libraries/${cfg().libraryId}/items?` + qs({ limit: 500, sort: 'addedAt', desc: 1, minified: 1 }));
+  return (data.results || []).map(toBook);
+}
+
 export async function inProgress() {
   if (!connected()) return [];
   const data = await call('/api/me/items-in-progress?limit=20', { fresh: true });

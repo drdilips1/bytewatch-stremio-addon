@@ -34,7 +34,7 @@ export function Book({ book: initial }) {
       .catch((e) => alive && setError(e.message))
       .finally(() => alive && setLoading(false));
     if (initial.kind === 'discover') findEditions(initial).then((e) => alive && setEditions(e));
-    if (hc.connected()) hc.getStatus(initial).then((st) => alive && setHcStatus(st?.status || 0)).catch(() => alive && setHcStatus(-1));
+    if (hc.connected()) hc.knownStatus(initial).then((st) => alive && setHcStatus(st || 0)).catch(() => alive && setHcStatus(0));
     return () => (alive = false);
   }, [initial.uid]);
 
@@ -79,6 +79,7 @@ export function Book({ book: initial }) {
             {book.duration > 0 && <span>{fmtDuration(book.duration)}</span>}
             {tracks.length > 1 && <span>{tracks.length} parts</span>}
             {book.narrator && <span>Narrated by {book.narrator}</span>}
+            {book.series && <span>{book.series}</span>}
             {book.language && <span>{book.language}</span>}
           </div>
         </div>
@@ -123,6 +124,7 @@ export function Book({ book: initial }) {
         </section>
       )}
 
+      {book.metaSource && <p class="muted pad meta-credit">Details from {book.metaSource}</p>}
       {book.subjects?.length > 0 && (
         <div class="chips pad">
           {book.subjects.slice(0, 8).map((s) => (
@@ -131,7 +133,7 @@ export function Book({ book: initial }) {
         </div>
       )}
 
-      {hc.connected() && hcStatus !== null && hcStatus !== -1 && (
+      {hc.connected() && hcStatus !== null && (
         <section class="pad">
           <h3 class="section-label">Hardcover</h3>
           <div class="chips">

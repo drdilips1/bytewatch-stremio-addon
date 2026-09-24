@@ -2240,3 +2240,46 @@ select {
   font-size: 12px;
   color: var(--muted);
 }
+.meta-credit {
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+.row-head.tappable {
+  cursor: pointer;
+}
+.row-head.tappable:active {
+  opacity: 0.7;
+}
+.see-all {
+  white-space: nowrap;
+}
+.shelf-sub {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.search-box.small {
+  height: 46px;
+  margin-bottom: 4px;
+}
+.meta-row {
+  justify-content: flex-start;
+}
+.meta-name {
+  flex: 1;
+  min-width: 0;
+}
+.meta-order {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.icon-btn.tiny {
+  width: 26px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.icon-btn.tiny:disabled {
+  opacity: 0.25;
+}

@@ -5,6 +5,7 @@ import { Icon } from './icons.jsx';
 import { nav } from '../lib/nav.js';
 import { progress as progressStore, useStore } from '../lib/store.js';
 import { useImage } from '../lib/image.js';
+import { useMeta } from '../lib/meta.js';
 
 export function Cover({ book, class: cls = '', eager }) {
   const { src, failed: proxyFailed } = useImage(book?.cover || '');
@@ -46,7 +47,21 @@ export function SourceBadge({ uid, book }) {
   );
 }
 
-export function BookCard({ book, wide }) {
+// Debrid/addon items borrow cover + tidy title/author from metadata providers.
+export function withMeta(book, meta) {
+  if (!meta) return book;
+  const cloudItem = book.source === 'tb' || book.source === 'rd';
+  return {
+    ...book,
+    cover: book.cover || meta.cover || '',
+    title: cloudItem && meta.title ? meta.title : book.title,
+    author: (cloudItem && meta.author) || book.author || meta.author || '',
+  };
+}
+
+export function BookCard({ book: raw, wide }) {
+  const meta = useMeta(raw);
+  const book = withMeta(raw, meta);
   const prog = useStore(progressStore)[book.uid];
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
   return (
@@ -100,7 +115,7 @@ export function Row({ title, subtitle, load, items: given, icon, onMore, deps = 
   if (error || (items && !items.length)) return null;
   return (
     <section class="row">
-      <header class="row-head">
+      <header class={'row-head' + (onMore ? ' tappable' : '')} onClick={onMore}>
         <div>
           <h2>
             {icon && <Icon name={icon} size={18} />} {title}
@@ -108,9 +123,9 @@ export function Row({ title, subtitle, load, items: given, icon, onMore, deps = 
           {subtitle && <p>{subtitle}</p>}
         </div>
         {onMore && (
-          <button class="link-btn" onClick={onMore}>
-            See all
-          </button>
+          <span class="link-btn see-all">
+            See all{items ? ` ${items.length}` : ''} ›
+          </span>
         )}
       </header>
       <div class="row-scroll">

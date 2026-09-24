@@ -5,6 +5,7 @@ import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBa
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr } from '../sources/index.js';
 import { clearHttpCache } from '../lib/http.js';
 import { ACCENTS } from '../lib/theme.js';
+import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
 
 function Section({ icon, title, children }) {
   return (
@@ -401,6 +402,51 @@ function AddonsCard() {
   );
 }
 
+function MetadataCard() {
+  const st = useStore(settings);
+  const order = (st.metaOrder || Object.keys(PROVIDERS)).filter((k) => PROVIDERS[k]);
+  const on = st.metaProviders || {};
+  const move = (i, d) => {
+    const next = order.slice();
+    [next[i], next[i + d]] = [next[i + d], next[i]];
+    settings.patch({ metaOrder: next });
+  };
+  return (
+    <>
+      <p class="muted pad-s">Used for covers, clean titles, narrators and descriptions of TorBox / Real-Debrid files, addon results and Goodreads imports. Tried top to bottom.</p>
+      {order.map((k, i) => (
+        <div class="set-row meta-row">
+          <div class="meta-order">
+            <button class="icon-btn tiny" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
+              ▲
+            </button>
+            <button class="icon-btn tiny" disabled={i === order.length - 1} onClick={() => move(i, 1)} aria-label="Move down">
+              ▼
+            </button>
+          </div>
+          <div class="meta-name">
+            <b>{PROVIDERS[k].name}</b>
+            <small>{PROVIDERS[k].blurb}</small>
+          </div>
+          <input type="checkbox" class="switch" checked={on[k] !== false} onChange={(e) => settings.patch({ metaProviders: { ...on, [k]: e.currentTarget.checked } })} />
+        </div>
+      ))}
+      <div class="set-row">
+        <b>Metadata cache</b>
+        <button
+          class="pill small"
+          onClick={() => {
+            clearMetaCache();
+            toast('Metadata will be looked up again');
+          }}
+        >
+          Refresh all
+        </button>
+      </div>
+    </>
+  );
+}
+
 function PreferredDebrid() {
   const st = useStore(settings);
   const d = useStore(debrid);
@@ -446,6 +492,9 @@ export function Settings() {
       <PreferredDebrid />
       <Section icon="puzzle" title="Addons">
         <AddonsCard />
+      </Section>
+      <Section icon="sparkle" title="Metadata providers">
+        <MetadataCard />
       </Section>
       <Section icon="book" title="Hardcover">
         <HardcoverCard />
@@ -554,7 +603,7 @@ export function Settings() {
       </Section>
 
       <p class="about">
-        Inkwell 1.3 · Built-in sources are free and public domain.
+        Inkwell 1.5 · Built-in sources are free and public domain.
         <br />
         Addons and servers you add are your responsibility.
       </p>
