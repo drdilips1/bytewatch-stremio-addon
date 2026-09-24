@@ -42,6 +42,9 @@ const SECTIONS = {
   tts: { store: ttsCfg, secret: true },
 };
 
+// Installs from before the server was built in saved an empty address — use the built-in one.
+if (BAKED_URL && !account.get().url) account.patch({ url: BAKED_URL, anonKey: BAKED_KEY });
+
 const stamps = persisted('syncStamps', {}); // section -> last local change time
 let applying = false;
 
@@ -127,6 +130,16 @@ export async function signIn(email, password) {
   saveSession(r);
   await syncNow({ first: true });
   return 'Signed in — your data is synced';
+}
+
+/** Which sign-in methods the server has switched on, e.g. { email: true, google: false }. */
+export async function providers() {
+  try {
+    const r = await api('/auth/v1/settings');
+    return { email: r?.external?.email !== false, google: !!r?.external?.google };
+  } catch {
+    return { email: true, google: false };
+  }
 }
 
 export async function resetPassword(email) {

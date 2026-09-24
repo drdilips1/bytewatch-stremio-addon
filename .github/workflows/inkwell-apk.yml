@@ -44,9 +44,7 @@ jobs:
       - name: Install & build web app
         env:
           VITE_APP_VERSION: ${{ env.VERSION_NAME }}
-          # Optional: bake a sync server into the app (otherwise it is entered in Settings).
-          VITE_SUPABASE_URL: ${{ vars.INKWELL_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.INKWELL_SUPABASE_ANON_KEY }}
+          # The sync server comes from inkwell/.env.production.
         run: |
           npm ci
           npm run build

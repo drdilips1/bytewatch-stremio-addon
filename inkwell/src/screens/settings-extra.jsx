@@ -30,6 +30,10 @@ export function AccountCard() {
   const [pass, setPass] = useState('');
   const [busy, setBusy] = useState('');
   const [showSetup, setShowSetup] = useState(false);
+  const [google, setGoogle] = useState(false);
+  useEffect(() => {
+    if (sync.configured() && !sync.signedIn()) sync.providers().then((p) => setGoogle(p.google));
+  }, [a.url, a.refreshToken]);
   const run = (name, fn) => async (e) => {
     e?.preventDefault?.();
     setBusy(name);
@@ -118,7 +122,7 @@ export function AccountCard() {
 
   return (
     <form class="set-form" onSubmit={run('in', () => sync.signIn(email, pass))}>
-      <p class="muted">Sign in or create an account to back up and sync everything. {a.status && <b>{a.status}</b>}</p>
+      <p class="muted">Sign in or create an account to back up your library, progress, addons and logins, and use them on your other devices. {a.status && <b>{a.status}</b>}</p>
       <input type="email" placeholder="Email" value={email} onInput={(e) => setEmail(e.currentTarget.value)} autocapitalize="off" autocomplete="email" />
       <input type="password" placeholder="Password (6+ characters)" value={pass} onInput={(e) => setPass(e.currentTarget.value)} autocomplete="current-password" />
       <div class="btn-row">
@@ -129,18 +133,22 @@ export function AccountCard() {
           {busy === 'up' ? <span class="spinner" /> : null} Create account
         </button>
       </div>
-      <button type="button" class="btn google" disabled={!!busy} onClick={run('g', () => sync.signInWith('google'))}>
-        <span class="g-logo">G</span> Continue with Google
-      </button>
+      {google && (
+        <button type="button" class="btn google" disabled={!!busy} onClick={run('g', () => sync.signInWith('google'))}>
+          <span class="g-logo">G</span> Continue with Google
+        </button>
+      )}
       <div class="btn-row small">
         <button type="button" class="link-btn" disabled={!email} onClick={run('reset', () => sync.resetPassword(email))}>
           Forgot password?
         </button>
-        <button type="button" class="link-btn" onClick={() => setShowSetup(true)}>
-          Change sync server
-        </button>
+        {!import.meta.env.VITE_SUPABASE_URL && (
+          <button type="button" class="link-btn" onClick={() => setShowSetup(true)}>
+            Change sync server
+          </button>
+        )}
       </div>
-      <p class="muted tiny">Google sign-in needs the Google provider switched on in your Supabase project (Authentication → Providers), with <code>app.inkwell.books://auth</code> added to Redirect URLs.</p>
+
     </form>
   );
 }
