@@ -41,6 +41,21 @@ jobs:
         with:
           packages: 'platforms;android-36 build-tools;35.0.0'
 
+      - name: Fetch built-in voice engine (sherpa-onnx)
+        working-directory: inkwell/android/app
+        run: |
+          mkdir -p libs
+          for v in 1.13.8 1.13.7 1.13.6 1.13.5 1.13.4 1.13.3 1.13.2 1.13.1 1.13.0 1.12.15 1.12.14 1.12.13; do
+            for url in \
+              "https://github.com/k2-fsa/sherpa-onnx/releases/download/v$v/sherpa-onnx-$v.aar" \
+              "https://huggingface.co/csukuangfj2/sherpa-onnx-libs/resolve/main/android/aar/sherpa-onnx-$v.aar"; do
+              if curl -fsSL --retry 3 -o libs/sherpa-onnx.aar "$url"; then
+                echo "Using sherpa-onnx $v from $url"; ls -lh libs; exit 0
+              fi
+            done
+          done
+          echo "::error::Could not download the sherpa-onnx AAR"; exit 1
+
       - name: Install & build web app
         env:
           VITE_APP_VERSION: ${{ env.VERSION_NAME }}
