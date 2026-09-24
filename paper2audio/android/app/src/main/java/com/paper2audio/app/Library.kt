@@ -31,6 +31,10 @@ object Library {
         var pages: Int,
         var description: String? = null,
         var year: Int = 0,
+        /** Bookmarks and notes as a JSON array of {i: paragraph, t: note text or "", at: time}. */
+        var notes: String = "[]",
+        /** Optional collection (folder) name. */
+        var collection: String? = null,
     ) {
         fun toJson() = JSONObject()
             .put("id", id).put("title", title).put("author", author ?: "")
@@ -39,6 +43,7 @@ object Library {
             .put("paragraphs", paragraphs).put("words", words)
             .put("chapters", chapters).put("pages", pages)
             .put("description", description ?: "").put("year", year)
+            .put("notes", JSONArray(notes)).put("collection", collection ?: "")
 
         companion object {
             fun fromJson(o: JSONObject) = Item(
@@ -47,6 +52,7 @@ object Library {
                 o.optLong("added"), o.optLong("opened"), o.optInt("paragraphs"), o.optInt("words"),
                 o.optInt("chapters"), o.optInt("pages"),
                 o.optString("description").ifBlank { null }, o.optInt("year"),
+                o.optJSONArray("notes")?.toString() ?: "[]", o.optString("collection").ifBlank { null },
             )
         }
     }
@@ -137,6 +143,49 @@ object Library {
         }
     }
 
+    class Note(val index: Int, val text: String, val at: Long) {
+        val isBookmark get() = text.isBlank()
+    }
+
+    fun notes(item: Item): List<Note> {
+        val arr = runCatching { JSONArray(item.notes) }.getOrElse { JSONArray() }
+        return (0 until arr.length()).map { arr.getJSONObject(it) }
+            .map { Note(it.optInt("i"), it.optString("t"), it.optLong("at")) }
+            .sortedBy { it.index }
+    }
+
+    private fun saveNotes(context: Context, item: Item, notes: List<Note>) = synchronized(this) {
+        val arr = JSONArray()
+        notes.forEach { arr.put(JSONObject().put("i", it.index).put("t", it.text).put("at", it.at)) }
+        item.notes = arr.toString()
+        item.opened = maxOf(item.opened, System.currentTimeMillis())
+        save(context)
+    }
+
+    fun addNote(context: Context, item: Item, index: Int, text: String) =
+        saveNotes(context, item, notes(item) + Note(index, text.trim(), System.currentTimeMillis()))
+
+    fun deleteNote(context: Context, item: Item, note: Note) =
+        saveNotes(context, item, notes(item).filterNot { it.at == note.at })
+
+    /** Union of two note lists by creation time. (A note deleted on one device can come back from another.) */
+    private fun mergeNotes(a: String, b: String): String {
+        val seen = HashMap<Long, JSONObject>()
+        for (src in listOf(a, b)) {
+            val arr = runCatching { JSONArray(src) }.getOrElse { JSONArray() }
+            for (i in 0 until arr.length()) arr.getJSONObject(i).let { seen[it.optLong("at")] = it }
+        }
+        return JSONArray(seen.values.sortedBy { it.optLong("at") }).toString()
+    }
+
+    fun setCollection(context: Context, item: Item, name: String?) = synchronized(this) {
+        item.collection = name?.trim()?.ifBlank { null }
+        item.opened = maxOf(item.opened, System.currentTimeMillis())
+        save(context)
+    }
+
+    fun collections(context: Context): List<String> = items(context).mapNotNull { it.collection }.distinct().sorted()
+
     fun remove(context: Context, item: Item) {
         synchronized(this) {
             items(context)
@@ -191,7 +240,9 @@ object Library {
                 local.pages = r.pages
                 local.description = r.description
                 local.year = r.year
+                local.collection = r.collection
             }
+            if (local != null) local.notes = mergeNotes(local.notes, r.notes)
             val remoteAt = o.optLong("posAt", 0)
             if (remoteAt > p.getLong("posAt:${r.id}", 0)) {
                 edit.putInt("pos:${r.id}", o.optInt("pos")).putLong("posAt:${r.id}", remoteAt)

@@ -63,6 +63,7 @@ object Speaker {
         private set
     var speed = 1.0f
         private set
+    private var speedRendered = 1.0f
     var voiceId: String = DEFAULT_VOICE
         private set
     /** Set when playback stops because of an error; the UI shows it once. */
@@ -76,8 +77,10 @@ object Speaker {
     /** Voices played from generated audio files (true pause/resume). */
     private val isStreamed: Boolean get() = isEdge || isKokoro
 
-    /** Kokoro runs one generation at a time; keep its work on one thread. */
-    private val kokoroThread = java.util.concurrent.Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    /** The sentence(s) being read right now, for highlighting in the reader. */
+    var currentPiece: String? = null
+        private set
+    private var warmJob: Job? = null
 
     /** Bumped on every restart so callbacks from stopped audio are ignored. */
     private var generation = 0
@@ -99,6 +102,7 @@ object Speaker {
         app = context.applicationContext
         Kokoro.init(app)
         speed = prefs.getFloat("speed", 1.0f)
+        speedRendered = speed
         voiceId = prefs.getString("voice2", null) ?: DEFAULT_VOICE
         warmUpKokoro()
         pendingReady += onReady
@@ -181,7 +185,7 @@ object Speaker {
         if (id.startsWith(SYSTEM)) tts?.let { t -> t.voices?.firstOrNull { it.name == id.removePrefix(SYSTEM) }?.let { t.voice = it } }
         if (!playing) warmUpKokoro() // when playing, play() below renders right away anyway
         pausedAt = -1
-        if (playing) play()
+        if (playing) play() else prewarm()
         notifyChanged()
     }
 
@@ -196,15 +200,23 @@ object Speaker {
     private fun warmUpKokoro() {
         val v = Kokoro.voice(voiceId.removePrefix(KOKORO)) ?: return
         if (!isKokoro || !Kokoro.isInstalled()) return
-        scope.launch(kokoroThread) { runCatching { Kokoro.prepare(v) } }
+        scope.launch(Renderer.kokoroThread) { runCatching { Kokoro.prepare(v) } }
     }
 
     fun setSpeed(value: Float) {
         speed = value
         prefs.edit().putFloat("speed", value).apply()
         tts?.setSpeechRate(value)
-        pausedAt = -1
-        if (playing) play()
+        // Only the part above what the engine renders changes: adjust the running player.
+        val p = player
+        val sameAudio = isStreamed && Renderer.engineSpeed(voiceId, value) == Renderer.engineSpeed(voiceId, speedRendered)
+        if (sameAudio && p != null && p.isPlaying) {
+            runCatching { p.playbackParams = p.playbackParams.setSpeed(Renderer.playbackBoost(voiceId, value)) }
+        } else {
+            pausedAt = -1
+            if (playing) play() else prewarm()
+        }
+        speedRendered = value
         notifyChanged()
     }
 
@@ -213,6 +225,9 @@ object Speaker {
         stopAll()
         doc = newDoc
         index = prefs.getInt("pos:${newDoc.key}", 0).coerceIn(0, maxOf(0, newDoc.paragraphs.size - 1))
+        currentPiece = null
+        prewarm()
+        scope.launch(Dispatchers.IO) { Renderer.trim(app) }
         notifyChanged()
     }
 
@@ -245,6 +260,7 @@ object Speaker {
             enqueueSystem()
         }
         playing = true
+        speedRendered = speed
         ReaderService.start(app)
         notifyChanged()
     }
@@ -268,7 +284,11 @@ object Speaker {
         index = i.coerceIn(0, maxOf(0, d.paragraphs.size - 1))
         pausedAt = -1
         savePosition()
-        if (playing) play() else notifyChanged()
+        currentPiece = null
+        if (playing) play() else {
+            prewarm()
+            notifyChanged()
+        }
     }
 
     fun next() = seek(index + 1)
@@ -311,8 +331,8 @@ object Speaker {
 
     private fun handleStart(id: String) {
         val idx = parse(id) ?: return
-        index = idx
-        savePosition()
+        if (idx != index) moveTo(idx)
+        currentPiece = doc?.paragraphs?.getOrNull(idx)
         notifyChanged()
     }
 
@@ -335,49 +355,28 @@ object Speaker {
         stopAll()
         val d = doc ?: return
         val g = generation
-        val kokoro = isKokoro
-        val kVoice = Kokoro.voice(voiceId.removePrefix(KOKORO))
-        val voice = voiceId.removePrefix(EDGE)
-        val rate = ratePercent()
+        val vid = voiceId
         val currentSpeed = speed
-        if (kokoro && kVoice == null) {
+        if (isKokoro && Kokoro.voice(vid.removePrefix(KOKORO)) == null) {
             fail("Unknown Kokoro voice")
             return
         }
-        val dir = File(app.cacheDir, "voice").apply {
-            deleteRecursively()
-            mkdirs()
-        }
-        // Short pieces (a sentence or two) so audio starts almost immediately
-        // instead of after a whole paragraph has been rendered.
-        val pieceChars = if (kokoro) 220 else 500
+        val boost = Renderer.playbackBoost(vid, currentSpeed)
         session = scope.launch {
             val pieces = (index until d.paragraphs.size).asSequence()
-                .flatMap { k -> TextCleaner.pieces(d.paragraphs[k], pieceChars).map { k to it } }
+                .flatMap { k -> Renderer.pieces(d.paragraphs[k], vid).map { k to it } }
                 .iterator()
-            val queue = ArrayDeque<Pair<Int, Deferred<File>>>()
-            var n = 0
+            val queue = ArrayDeque<Triple<Int, String, Deferred<File>>>()
             fun fill() {
                 while (queue.size < PIECE_LOOKAHEAD && pieces.hasNext()) {
                     val (k, text) = pieces.next()
-                    val id = n++
-                    queue.addLast(k to if (kokoro) {
-                        async(kokoroThread) {
-                            File(dir, "$g-$id.wav").also {
-                                Kokoro.writeWav(it, Kokoro.synthesize(text, kVoice!!, currentSpeed))
-                            }
-                        }
-                    } else {
-                        async(Dispatchers.IO) {
-                            File(dir, "$g-$id.mp3").apply { writeBytes(EdgeTts.synthesize(text, voice, rate)) }
-                        }
-                    })
+                    queue.addLast(Triple(k, text, async { Renderer.render(app, vid, currentSpeed, text) }))
                 }
             }
 
             while (true) {
                 fill()
-                val (k, pending) = queue.removeFirstOrNull() ?: break
+                val (k, text, pending) = queue.removeFirstOrNull() ?: break
                 val file = try {
                     pending.await()
                 } catch (e: CancellationException) {
@@ -385,32 +384,127 @@ object Speaker {
                 } catch (e: Exception) {
                     if (g == generation) {
                         fail(
-                            if (kokoro) "Kokoro couldn't read this (${e.message})."
-                            else "Couldn't reach the natural voice service (${e.message}). Check your internet, or pick a ◆ Kokoro or Phone voice."
+                            if (vid.startsWith(KOKORO)) "Kokoro couldn't read this (${e.message})."
+                            else "Couldn't reach the natural voice service (${e.message}). Check your internet, or download the document for offline listening."
                         )
                     }
                     return@launch
                 }
                 if (g != generation) return@launch
-                if (k != index) {
-                    index = k
-                    savePosition()
-                    notifyChanged()
-                }
+                if (k != index) moveTo(k) else savePosition()
+                currentPiece = text
+                notifyChanged()
+                if (!playing) return@launch // sleep timer or end of chapter stopped us
                 fill() // keep rendering ahead while this piece plays
-                playFile(file)
+                playFile(file, boost)
                 player?.release()
                 player = null
-                file.delete()
             }
             if (g == generation) {
                 playing = false
+                currentPiece = null
                 notifyChanged()
             }
         }
     }
 
-    private suspend fun playFile(file: File) = suspendCancellableCoroutine { cont ->
+    /** Renders the first pieces at the current position in the background, so Play starts at once. */
+    private fun prewarm() {
+        val d = doc ?: return
+        if (playing || !isStreamed || (isKokoro && !Kokoro.isInstalled())) return
+        val vid = voiceId
+        val sp = speed
+        val from = index
+        warmJob?.cancel()
+        warmJob = scope.launch {
+            val first = (from until minOf(from + 2, d.paragraphs.size)).flatMap { Renderer.pieces(d.paragraphs[it], vid) }.take(2)
+            for (text in first) runCatching { Renderer.render(app, vid, sp, text) }
+        }
+    }
+
+    /** Called whenever playback reaches a new paragraph. */
+    private fun moveTo(k: Int) {
+        val d = doc
+        val oldChapter = d?.chapterAt(index)
+        index = k
+        savePosition()
+        if (sleepEndOfChapter && d != null && d.chapterAt(k) != oldChapter) {
+            sleepEndOfChapter = false
+            pause()
+        }
+    }
+
+    // ---- Voice preview ----
+
+    private var previewPlayer: MediaPlayer? = null
+    private const val PREVIEW_TEXT =
+        "Hello! This is how I will sound reading your papers and books aloud. Choose the voice you like best."
+
+    fun preview() {
+        if (playing) pause()
+        if (!isStreamed) {
+            tts?.speak(PREVIEW_TEXT, TextToSpeech.QUEUE_FLUSH, Bundle(), "preview:x")
+            return
+        }
+        if (isKokoro && !Kokoro.isInstalled()) {
+            lastError = "Download the Kokoro voices first."
+            notifyChanged()
+            return
+        }
+        val vid = voiceId
+        val sp = speed
+        scope.launch {
+            try {
+                val f = Renderer.render(app, vid, sp, PREVIEW_TEXT)
+                previewPlayer?.release()
+                previewPlayer = MediaPlayer().apply {
+                    setDataSource(f.path)
+                    prepare()
+                    val boost = Renderer.playbackBoost(vid, sp)
+                    if (boost > 1.01f) runCatching { playbackParams = playbackParams.setSpeed(boost) }
+                    setOnCompletionListener {
+                        it.release()
+                        if (previewPlayer === it) previewPlayer = null
+                    }
+                    start()
+                }
+            } catch (e: Exception) {
+                lastError = "Couldn't play the preview (${e.message})."
+                notifyChanged()
+            }
+        }
+    }
+
+    // ---- Sleep timer ----
+
+    /** When the sleep timer stops playback (epoch millis), or 0 if off. */
+    var sleepAt = 0L
+        private set
+    var sleepEndOfChapter = false
+        private set
+    private val sleepRunnable = Runnable {
+        sleepAt = 0
+        pause()
+    }
+
+    fun setSleepTimer(minutes: Int) {
+        main.removeCallbacks(sleepRunnable)
+        sleepEndOfChapter = false
+        sleepAt = 0
+        if (minutes > 0) {
+            sleepAt = System.currentTimeMillis() + minutes * 60_000L
+            main.postDelayed(sleepRunnable, minutes * 60_000L)
+        }
+        notifyChanged()
+    }
+
+    fun setSleepAtEndOfChapter() {
+        setSleepTimer(0)
+        sleepEndOfChapter = true
+        notifyChanged()
+    }
+
+    private suspend fun playFile(file: File, boost: Float) = suspendCancellableCoroutine { cont ->
         val mp = MediaPlayer()
         mp.setAudioAttributes(
             AudioAttributes.Builder()
@@ -432,6 +526,7 @@ object Speaker {
             cont.resume(Unit)
             return@suspendCancellableCoroutine
         }
+        if (boost > 1.01f) runCatching { mp.playbackParams = mp.playbackParams.setSpeed(boost) }
         player = mp
         mp.start()
     }

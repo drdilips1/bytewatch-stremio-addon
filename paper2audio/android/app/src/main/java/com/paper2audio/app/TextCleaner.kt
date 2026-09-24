@@ -174,12 +174,13 @@ object TextCleaner {
      * [target] characters each. A single long sentence stays whole unless it is
      * longer than [hardMax].
      */
-    fun pieces(p: String, target: Int, hardMax: Int = 1000): List<String> {
+    fun pieces(p: String, target: Int, hardMax: Int = 1000, firstTarget: Int = target): List<String> {
         val out = ArrayList<String>()
         val buf = StringBuilder()
         for (sentence in p.split(SENTENCE_BREAK)) {
             if (sentence.isBlank()) continue
-            if (buf.isNotEmpty() && buf.length + sentence.length + 1 > target) {
+            val limit = if (out.isEmpty()) firstTarget else target
+            if (buf.isNotEmpty() && buf.length + sentence.length + 1 > limit) {
                 out += buf.toString()
                 buf.setLength(0)
             }
