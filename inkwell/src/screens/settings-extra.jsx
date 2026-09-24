@@ -3,9 +3,7 @@ import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/common.jsx';
 import { useStore } from '../lib/store.js';
 import * as sync from '../lib/sync.js';
-import { ttsCfg, ENGINES, synth, elevenVoices, clearAudioCache } from '../lib/tts.js';
-import { deviceVoices } from '../lib/readaloud.js';
-import { TextToSpeech } from '@capacitor-community/text-to-speech';
+import { ttsCfg, engines as listEngines, voices as listVoices, speak, stopSpeaking, clearAudioCache, qualityLabel, RECOMMENDED } from '../lib/tts.js';
 
 const ago = (t) => {
   if (!t) return 'never';
@@ -155,125 +153,103 @@ export function AccountCard() {
 
 export function VoicesCard() {
   const c = useStore(ttsCfg);
-  const [open, setOpen] = useState(c.engine);
-  const [phoneVoices, setPhoneVoices] = useState([]);
-  const [eleven, setEleven] = useState(null);
-  const [busy, setBusy] = useState('');
+  const [eng, setEng] = useState(null);
+  const [vs, setVs] = useState(null);
+  const [err, setErr] = useState('');
+  const [previewing, setPreviewing] = useState(false);
+
+  const loadEngines = () =>
+    listEngines()
+      .then(setEng)
+      .catch((e) => setErr(e.message));
   useEffect(() => {
-    deviceVoices().then(setPhoneVoices);
+    loadEngines();
+    // Re-check when coming back from installing an engine.
+    const onVis = () => document.visibilityState === 'visible' && loadEngines();
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
+  useEffect(() => {
+    setVs(null);
+    listVoices(c.engine)
+      .then(setVs)
+      .catch((e) => setErr(e.message));
+  }, [c.engine]);
 
-  const preview = async (engine) => {
-    setBusy(engine);
-    try {
-      const b64 = await synth(engine, 'Chapter one. It was a bright cold day in April, and the clocks were striking thirteen.');
-      new Audio('data:audio/mpeg;base64,' + b64).play();
-    } catch (e) {
-      toast(e.message);
-    } finally {
-      setBusy('');
-    }
-  };
-
-  const e = ENGINES[open];
-  const voices = open === 'elevenlabs' && eleven ? eleven : e.voices;
-  const voiceField = open === 'openai' ? 'openaiVoice' : open === 'google' ? 'googleVoice' : 'elevenVoice';
+  const installed = eng?.engines || [];
+  const hasEngine = (hint) => installed.some((e) => hint.test(e.name) || hint.test(e.label));
 
   return (
     <>
       <p class="muted pad-s">
-        Turn any ebook into an audiobook. <b>AI voices</b> sound like a real narrator and play in the audiobook player — they use your own API key and are generated only as you listen (cached on this phone). The <b>phone voice</b> is free and offline.
+        Free voices that run on your phone — no accounts, no API keys, no cost. Tap <b>Listen</b> on any ebook to hear it as an audiobook.
       </p>
       <div class="set-row column">
-        <b>AI voice service</b>
-        <div class="segmented tight">
-          {Object.entries(ENGINES).map(([k, x]) => (
-            <button type="button" class={open === k ? 'on' : ''} onClick={() => setOpen(k)}>
-              {x.name}
-              {c[x.keyField] ? ' ✓' : ''}
-            </button>
+        <b>Voice engine</b>
+        <select value={c.engine} onChange={(e) => ttsCfg.patch({ engine: e.currentTarget.value, voice: '' })}>
+          <option value="">Phone default{eng?.defaultEngine ? ` (${installed.find((x) => x.name === eng.defaultEngine)?.label || eng.defaultEngine})` : ''}</option>
+          {installed.map((e) => (
+            <option value={e.name}>{e.label}</option>
           ))}
-        </div>
-      </div>
-      <div class="set-form">
-        <input
-          type="password"
-          placeholder={`${e.name} API key`}
-          value={c[e.keyField]}
-          onInput={(ev) => ttsCfg.patch({ [e.keyField]: ev.currentTarget.value.trim() })}
-          autocapitalize="off"
-          autocorrect="off"
-          spellcheck={false}
-        />
-        <small class="muted">
-          Get a key at{' '}
-          <a href={e.keyUrl} target="_blank" rel="noopener">
-            {e.keyUrl.replace(/^https:\/\//, '')}
-          </a>
-          . Billed by {e.name} per character — a typical novel is 400–600k characters.
-        </small>
-        {open === 'openai' && (
-          <select value={c.openaiModel} onChange={(ev) => ttsCfg.patch({ openaiModel: ev.currentTarget.value })}>
-            {e.models.map(([v, l]) => (
-              <option value={v}>{l}</option>
-            ))}
-          </select>
-        )}
-        <div class="btn-row">
-          <select
-            value={c[voiceField]}
-            onChange={(ev) => {
-              const opt = ev.currentTarget.selectedOptions[0];
-              ttsCfg.patch({ [voiceField]: ev.currentTarget.value, ...(open === 'elevenlabs' ? { elevenVoiceName: opt?.textContent || '' } : {}) });
-            }}
-          >
-            {voices.map(([v, l]) => (
-              <option value={v}>{l}</option>
-            ))}
-          </select>
-          <button type="button" class="btn secondary" disabled={!c[e.keyField] || !!busy} onClick={() => preview(open)}>
-            {busy === open ? <span class="spinner" /> : <Icon name="play" size={14} />} Preview
-          </button>
-        </div>
-        {open === 'elevenlabs' && c.elevenKey && !eleven && (
-          <button type="button" class="link-btn" onClick={() => elevenVoices().then(setEleven).catch((err) => toast(err.message))}>
-            Load my ElevenLabs voices
-          </button>
-        )}
-        <label class="set-row">
-          <b>Use {e.name} by default</b>
-          <input type="checkbox" class="switch" checked={c.engine === open} onChange={() => ttsCfg.patch({ engine: open })} />
-        </label>
+        </select>
       </div>
       <div class="set-row column">
-        <b>Phone voice</b>
+        <b>Voice</b>
         <div class="btn-row">
-          <select value={c.deviceVoice} onChange={(ev) => ttsCfg.patch({ deviceVoice: +ev.currentTarget.value })}>
-            <option value={-1}>System default</option>
-            {phoneVoices.map((v) => (
-              <option value={v.index}>
-                {v.name} ({v.lang}){v.local === false ? ' · online' : ''}
+          <select value={c.voice} onChange={(e) => ttsCfg.patch({ voice: e.currentTarget.value })} disabled={!vs}>
+            <option value="">{vs ? 'Engine default' : 'Loading voices…'}</option>
+            {(vs?.voices || []).map((v) => (
+              <option value={v.name}>
+                {v.name} · {v.langLabel || v.lang} · {qualityLabel(v.quality)}
+                {v.network ? ' · online' : ''}
               </option>
             ))}
           </select>
           <button
             type="button"
             class="btn secondary"
-            onClick={() =>
-              TextToSpeech.speak({ text: 'This is how your phone voice sounds.', rate: c.deviceRate, voice: c.deviceVoice >= 0 ? c.deviceVoice : undefined }).catch((err) => toast(err.message))
-            }
+            style={{ flex: 'none' }}
+            onClick={async () => {
+              if (previewing) {
+                stopSpeaking();
+                return setPreviewing(false);
+              }
+              setPreviewing(true);
+              try {
+                await speak('Chapter one. It was a bright cold day in April, and the clocks were striking thirteen.');
+              } catch (e) {
+                if (e.message !== 'stopped') toast(e.message);
+              } finally {
+                setPreviewing(false);
+              }
+            }}
           >
-            <Icon name="play" size={14} /> Preview
+            <Icon name={previewing ? 'pause' : 'play'} size={14} /> {previewing ? 'Stop' : 'Preview'}
           </button>
         </div>
         <div class="chips">
-          {[0.8, 0.9, 1, 1.15, 1.3, 1.5].map((r) => (
-            <button type="button" class={'pill small' + (c.deviceRate === r ? ' active' : '')} onClick={() => ttsCfg.patch({ deviceRate: r })}>
-              {r}×
+          {[0.8, 0.9, 1, 1.1, 1.25].map((r) => (
+            <button type="button" class={'pill small' + (c.rate === r ? ' active' : '')} onClick={() => ttsCfg.patch({ rate: r })}>
+              {r}× read-along
             </button>
           ))}
         </div>
-        <small class="muted">Tip: for more natural phone voices, install “Speech Services by Google” and download a high-quality voice in Android Settings → Text-to-speech.</small>
+        {err && <small class="err">{err}</small>}
+      </div>
+      <div class="set-row column">
+        <b>Get more natural free voices</b>
+        <small class="muted">Install one, open it once to download a voice, then pick it under Voice engine above.</small>
+        {RECOMMENDED.map((r) => (
+          <a class="voice-rec" href={r.url} target="_blank" rel="noopener">
+            <div>
+              <b>
+                {r.name} {hasEngine(r.pkgHint) && <span class="chip ready">INSTALLED</span>}
+              </b>
+              <small>{r.what}</small>
+            </div>
+            <Icon name="external" size={16} />
+          </a>
+        ))}
       </div>
       <div class="set-row">
         <b>Generated audio</b>

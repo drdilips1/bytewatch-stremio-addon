@@ -2426,3 +2426,25 @@ pre.sql {
   font-size: 12px;
   line-height: 1.4;
 }
+.voice-rec {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  text-decoration: none;
+}
+.voice-rec small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.voice-rec .chip {
+  margin-left: 6px;
+  font-size: 10px;
+  vertical-align: 2px;
+}

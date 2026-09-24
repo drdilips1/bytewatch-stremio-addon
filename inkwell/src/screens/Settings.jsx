@@ -536,7 +536,7 @@ export function Settings() {
       <Section icon="puzzle" title="Addons">
         <AddonsCard />
       </Section>
-      <Section icon="headphones" title="Read-aloud voices">
+      <Section icon="headphones" title="Free voices">
         <VoicesCard />
       </Section>
       <Section icon="sparkle" title="Metadata providers">

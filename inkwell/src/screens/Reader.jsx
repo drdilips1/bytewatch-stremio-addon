@@ -4,8 +4,8 @@ import { gb } from '../sources/index.js';
 import { progress, settings, summarize, useStore } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { readAloud } from '../lib/readaloud.js';
-import { paragraphs, estimate, ENGINES, availableEngines } from '../lib/tts.js';
-import { narrate } from '../sources/ttsbooks.js';
+import { paragraphs, estimate } from '../lib/tts.js';
+import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import * as player from '../lib/player.js';
 import { toast } from '../components/common.jsx';
 
@@ -68,11 +68,11 @@ export function Reader({ book, readAloud: autoAloud }) {
   };
   useEffect(() => () => ctl.current?.stop(), []);
 
-  const narrateWithAI = async (engine) => {
-    setAiBusy(engine);
+  const listenAsAudiobook = async () => {
+    setAiBusy('book');
     try {
       closeAloud();
-      const audio = await narrate(book, engine);
+      const audio = await narrate(book);
       nav.openOverlay('player');
       player.playBook(audio);
       setPanel(null);
@@ -197,6 +197,21 @@ export function Reader({ book, readAloud: autoAloud }) {
       {panel === 'listen' && doc && (
         <div class="reader-panel">
           <h3>Listen to this book</h3>
+          {canNarrate() && (
+            <button class="listen-opt ai" disabled={!!aiBusy} onClick={listenAsAudiobook}>
+              {aiBusy ? <span class="spinner" /> : <Icon name="headphones" size={18} />}
+              <div>
+                <b>Listen as an audiobook</b>
+                <small>
+                  Free voice in the player — chapters, speed, sleep timer & lock screen · ~
+                  {(() => {
+                    const m = estimate(paragraphs(doc.html)).minutes;
+                    return m >= 60 ? `${Math.round(m / 60)} h` : `${m} min`;
+                  })()}
+                </small>
+              </div>
+            </button>
+          )}
           <button
             class="listen-opt"
             onClick={() => {
@@ -204,31 +219,13 @@ export function Reader({ book, readAloud: autoAloud }) {
               startAloud();
             }}
           >
-            <Icon name="headphones" size={18} />
+            <Icon name="book" size={18} />
             <div>
-              <b>Phone voice</b>
-              <small>Free & offline · reads here in the reader</small>
+              <b>Read along here</b>
+              <small>Highlights each paragraph as it's spoken · tap any paragraph to jump</small>
             </div>
           </button>
-          {availableEngines().map((k) => {
-            const est = estimate(paragraphs(doc.html));
-            return (
-              <button class="listen-opt ai" disabled={!!aiBusy} onClick={() => narrateWithAI(k)}>
-                {aiBusy === k ? <span class="spinner" /> : <Icon name="sparkle" size={18} />}
-                <div>
-                  <b>{ENGINES[k].name} AI voice</b>
-                  <small>
-                    Natural narration in the player · ~{est.minutes >= 60 ? `${Math.round(est.minutes / 60)} h` : `${est.minutes} min`} · {Math.round(est.chars / 1000)}k characters, generated as you listen
-                  </small>
-                </div>
-              </button>
-            );
-          })}
-          {!availableEngines().length && (
-            <p class="muted small-note">
-              For natural AI narration, add an OpenAI, Google Cloud or ElevenLabs API key in Settings → Read-aloud voices.
-            </p>
-          )}
+          <p class="muted small-note">Voices: Settings → Free voices. Install HayaiTTS or SherpaTTS for the most natural free voices.</p>
         </div>
       )}
       {aloud && (
@@ -242,7 +239,7 @@ export function Reader({ book, readAloud: autoAloud }) {
           <button class="icon-btn" onClick={() => startAloud(aloud.index + 1)} aria-label="Next paragraph">
             <Icon name="next" size={20} />
           </button>
-          <span class="aloud-label">Phone voice · tap any paragraph to jump</span>
+          <span class="aloud-label">Reading along · tap any paragraph to jump</span>
           <button class="icon-btn" onClick={closeAloud} aria-label="Stop reading aloud">
             <Icon name="close" size={18} />
           </button>

@@ -1,71 +1,88 @@
-// Ebook → audio. Two paths:
-//  * Phone voice: Android's built-in text-to-speech reads the book aloud in the
-//    reader (free, offline, quality depends on the installed voices).
-//  * AI voices (OpenAI / Google Cloud / ElevenLabs, user's own API key): the
-//    book is split into chapter-aligned sections that are synthesised on demand
-//    (one section ahead), cached on the device and played through the normal
-//    audiobook player — so chapters, speed, sleep timer and lock-screen
-//    controls all work.
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
-import { Filesystem, Directory } from '@capacitor/filesystem';
+// Ebook → audio with FREE voices only: whatever text-to-speech engines are
+// installed on the phone (Google Speech Services, Samsung, or free neural
+// engines like HayaiTTS / SherpaTTS with Kokoro & Piper voices).
+//
+//  * Listen: the book is split into chapter-aligned sections, each rendered to
+//    a WAV file on the phone (one section ahead) and played in the audiobook
+//    player — chapters, speed, sleep timer and lock-screen controls all work.
+//  * Read along: the reader speaks paragraph by paragraph with highlighting.
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { persisted } from './store.js';
 
-export const ttsCfg = persisted('tts', {
-  engine: 'openai', // default AI engine: openai | google | elevenlabs
-  openaiKey: '',
-  openaiModel: 'gpt-4o-mini-tts',
-  openaiVoice: 'nova',
-  googleKey: '',
-  googleVoice: 'en-US-Chirp3-HD-Aoede',
-  elevenKey: '',
-  elevenVoice: '21m00Tcm4TlvDq8ikWAM',
-  elevenVoiceName: 'Rachel',
-  deviceVoice: -1,
-  deviceRate: 1,
+const Native = registerPlugin('InkwellTts');
+export const nativeTts = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellTts');
+
+export const ttsCfg = persisted('voice', {
+  engine: '', // '' = phone default
+  voice: '', // '' = engine default
+  rate: 1,
 });
 
-export const ENGINES = {
-  openai: {
-    name: 'OpenAI',
-    keyField: 'openaiKey',
-    keyUrl: 'https://platform.openai.com/api-keys',
-    maxChars: 3800,
-    voices: ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse'].map((v) => [v, v[0].toUpperCase() + v.slice(1)]),
-    models: [
-      ['gpt-4o-mini-tts', 'GPT-4o mini TTS (most natural)'],
-      ['tts-1-hd', 'TTS-1 HD'],
-      ['tts-1', 'TTS-1 (cheapest)'],
-    ],
+/** Free engines worth installing for natural voices. */
+export const RECOMMENDED = [
+  {
+    name: 'HayaiTTS',
+    what: 'Kokoro & Piper neural voices — very natural, offline',
+    url: 'https://github.com/HayaiApp/HayaiTTS',
+    pkgHint: /hayai/i,
   },
-  google: {
-    name: 'Google Cloud',
-    keyField: 'googleKey',
-    keyUrl: 'https://console.cloud.google.com/apis/credentials',
-    maxChars: 1500,
-    voices: [
-      ['en-US-Chirp3-HD-Aoede', 'Aoede (US, female, Chirp 3 HD)'],
-      ['en-US-Chirp3-HD-Kore', 'Kore (US, female, Chirp 3 HD)'],
-      ['en-US-Chirp3-HD-Charon', 'Charon (US, male, Chirp 3 HD)'],
-      ['en-US-Chirp3-HD-Puck', 'Puck (US, male, Chirp 3 HD)'],
-      ['en-GB-Chirp3-HD-Aoede', 'Aoede (UK, female, Chirp 3 HD)'],
-      ['en-GB-Chirp3-HD-Charon', 'Charon (UK, male, Chirp 3 HD)'],
-      ['en-IN-Chirp3-HD-Aoede', 'Aoede (India, female, Chirp 3 HD)'],
-      ['en-IN-Chirp3-HD-Charon', 'Charon (India, male, Chirp 3 HD)'],
-      ['en-US-Studio-O', 'Studio O (US, female)'],
-      ['en-US-Neural2-D', 'Neural2 D (US, male)'],
-    ],
+  {
+    name: 'SherpaTTS',
+    what: 'Piper neural voices — natural, offline (on F-Droid)',
+    url: 'https://f-droid.org/packages/org.woheller69.ttsengine/',
+    pkgHint: /woheller|sherpa/i,
   },
-  elevenlabs: {
-    name: 'ElevenLabs',
-    keyField: 'elevenKey',
-    keyUrl: 'https://elevenlabs.io/app/settings/api-keys',
-    maxChars: 2500,
-    voices: [['21m00Tcm4TlvDq8ikWAM', 'Rachel']],
+  {
+    name: 'Speech Services by Google',
+    what: 'Google voices — download a high-quality voice in its settings',
+    url: 'https://play.google.com/store/apps/details?id=com.google.android.tts',
+    pkgHint: /com\.google\.android\.tts/,
   },
-};
+];
 
-export const hasKey = (engine) => !!ttsCfg.get()[ENGINES[engine]?.keyField];
-export const availableEngines = () => Object.keys(ENGINES).filter(hasKey);
+// ---- engines & voices -------------------------------------------------------
+export async function engines() {
+  if (!nativeTts) return { engines: [{ name: '', label: 'Browser voice' }], defaultEngine: '' };
+  return Native.getEngines();
+}
+
+export async function voices(engine = ttsCfg.get().engine) {
+  if (!nativeTts) {
+    const list = (window.speechSynthesis?.getVoices() || []).map((v) => ({ name: v.name, lang: v.lang, langLabel: v.lang, quality: 300, network: !v.localService }));
+    return { voices: list, defaultVoice: '' };
+  }
+  const r = await Native.getVoices({ engine });
+  // Most natural first: high quality, then the phone's language.
+  const lang = (navigator.language || 'en').slice(0, 2);
+  r.voices.sort((a, b) => Number(b.lang.startsWith(lang)) - Number(a.lang.startsWith(lang)) || b.quality - a.quality || a.name.localeCompare(b.name));
+  return r;
+}
+
+export const qualityLabel = (q) => (q >= 500 ? 'Very high' : q >= 400 ? 'High' : q >= 300 ? 'Normal' : 'Low');
+
+/** Speak a short text now (preview / read along). Resolves when finished. */
+export function speak(text, opts = {}) {
+  const c = { ...ttsCfg.get(), ...opts };
+  if (nativeTts) return Native.speak({ text, engine: c.engine, voice: c.voice, rate: c.rate });
+  return new Promise((resolve, reject) => {
+    const synth = window.speechSynthesis;
+    if (!synth) return reject(new Error('No voices available'));
+    const u = new SpeechSynthesisUtterance(text);
+    const v = synth.getVoices().find((x) => x.name === c.voice);
+    if (v) u.voice = v;
+    u.rate = c.rate;
+    u.onend = () => resolve();
+    u.onerror = (e) => (e.error === 'interrupted' || e.error === 'canceled' ? reject(new Error('stopped')) : reject(new Error(e.error)));
+    synth.speak(u);
+  });
+}
+
+export function stopSpeaking() {
+  if (nativeTts) return Native.stop().catch(() => {});
+  window.speechSynthesis?.cancel();
+}
+
+export const clearAudioCache = () => (nativeTts ? Native.clearCache() : Promise.resolve());
 
 // ---- text preparation ------------------------------------------------------
 /** Paragraphs from the sanitized reader HTML, tagged with chapter headings. */
@@ -109,15 +126,17 @@ function splitLong(text, max) {
 }
 
 /** Chapter-aligned sections of at most `max` characters. */
-export function sections(paras, max) {
+export function sections(paras, max = 3000) {
   const out = [];
   let chapter = 'Opening';
   let part = 1;
   let buf = [];
   const flush = () => {
     const text = buf.join('\n\n').trim();
-    if (text) out.push({ title: part > 1 ? `${chapter} · part ${part}` : chapter, text });
-    if (text) part++;
+    if (text) {
+      out.push({ title: part > 1 ? `${chapter} · part ${part}` : chapter, text });
+      part++;
+    }
     buf = [];
   };
   for (const p of paras) {
@@ -142,112 +161,25 @@ export function estimate(paras) {
   return { chars, minutes: Math.round(chars / 900) };
 }
 
-// ---- synthesis ----------------------------------------------------------------
-const native = Capacitor.isNativePlatform();
-
-async function postBinary(url, headers, body) {
-  if (native) {
-    const r = await CapacitorHttp.request({ url, method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, data: body, responseType: 'blob', connectTimeout: 30000, readTimeout: 120000 });
-    if (r.status >= 400) throw new Error(errText(r.data, r.status));
-    return r.data; // base64
-  }
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(errText(await res.text().catch(() => ''), res.status));
-  const buf = new Uint8Array(await res.arrayBuffer());
-  let s = '';
-  for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-  return btoa(s);
-}
-
-function errText(data, status) {
-  let msg = '';
-  try {
-    const j = typeof data === 'string' ? JSON.parse(data.startsWith('{') ? data : atob(data)) : data;
-    msg = j?.error?.message || j?.detail?.message || j?.detail || j?.message || '';
-  } catch {}
-  if (status === 401 || status === 403) return `The voice service rejected your API key${msg ? ` (${msg})` : ''}`;
-  if (status === 429) return `Voice service rate limit or quota reached${msg ? ` (${msg})` : ''}`;
-  return msg || `Voice service error (HTTP ${status})`;
-}
-
-/** Returns base64 MP3 for `text` using the configured engine. */
-export async function synth(engine, text, opts = {}) {
-  const c = { ...ttsCfg.get(), ...opts };
-  if (engine === 'openai') {
-    const body = { model: c.openaiModel, voice: c.openaiVoice, input: text, response_format: 'mp3' };
-    if (c.openaiModel === 'gpt-4o-mini-tts') body.instructions = 'You are narrating an audiobook. Read warmly and clearly at a steady, natural pace, with expressive but restrained delivery.';
-    return postBinary('https://api.openai.com/v1/audio/speech', { Authorization: `Bearer ${c.openaiKey.trim()}` }, body);
-  }
-  if (engine === 'google') {
-    const lang = c.googleVoice.split('-').slice(0, 2).join('-');
-    const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(c.googleKey.trim())}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input: { text }, voice: { languageCode: lang, name: c.googleVoice }, audioConfig: { audioEncoding: 'MP3' } }),
-    });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok || !j.audioContent) throw new Error(errText(j, res.status));
-    return j.audioContent;
-  }
-  if (engine === 'elevenlabs') {
-    return postBinary(
-      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(c.elevenVoice)}?output_format=mp3_44100_128`,
-      { 'xi-api-key': c.elevenKey.trim() },
-      { text, model_id: 'eleven_multilingual_v2' }
-    );
-  }
-  throw new Error('Unknown voice engine');
-}
-
-export async function elevenVoices() {
-  const res = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': ttsCfg.get().elevenKey.trim() } });
-  if (!res.ok) throw new Error(errText(await res.text().catch(() => ''), res.status));
-  const j = await res.json();
-  return (j.voices || []).map((v) => [v.voice_id, `${v.name}${v.labels?.accent ? ` (${v.labels.accent})` : ''}`]);
-}
-
-// ---- caching ---------------------------------------------------------------------
-const b64ToUrl = (b64) => URL.createObjectURL(new Blob([Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))], { type: 'audio/mpeg' }));
+// ---- audiobook ---------------------------------------------------------------
 const safe = (s) => String(s).replace(/[^a-z0-9._-]+/gi, '_').slice(0, 80);
 
-async function cachedFile(path) {
-  try {
-    await Filesystem.stat({ path, directory: Directory.Cache });
-    return (await Filesystem.getUri({ path, directory: Directory.Cache })).uri;
-  } catch {
-    return null;
-  }
-}
-
-/** Playable URL for one section: cached file when available, otherwise synthesised now. */
-export async function sectionUrl(bookUid, engine, index, text) {
+/** Build a playable audiobook from an ebook's text using the chosen free voice. */
+export function buildAudiobook(book, paras) {
+  if (!nativeTts) throw new Error('Listening as an audiobook works in the Android app — use Read along here');
   const c = ttsCfg.get();
-  const voice = engine === 'openai' ? `${c.openaiModel}-${c.openaiVoice}` : engine === 'google' ? c.googleVoice : c.elevenVoice;
-  const path = `tts/${safe(bookUid)}/${safe(engine + '-' + voice)}/${index}.mp3`;
-  if (native) {
-    const hit = await cachedFile(path);
-    if (hit) return hit;
-  }
-  const b64 = await synth(engine, text);
-  if (!native) return b64ToUrl(b64);
-  await Filesystem.writeFile({ path, data: b64, directory: Directory.Cache, recursive: true });
-  return (await Filesystem.getUri({ path, directory: Directory.Cache })).uri;
-}
-
-export async function clearAudioCache() {
-  try {
-    await Filesystem.rmdir({ path: 'tts', directory: Directory.Cache, recursive: true });
-  } catch {}
-}
-
-/** Build a playable "audiobook" from an ebook's text. */
-export function buildAudiobook(book, paras, engine) {
-  const secs = sections(paras, ENGINES[engine].maxChars);
+  const secs = sections(paras, 3000);
   const uid = `tts:${book.uid}`;
+  const folder = `tts/${safe(book.uid)}/${safe((c.engine || 'default') + '-' + (c.voice || 'default'))}`;
   const inflight = new Map();
-  const load = (i) => {
+  // Render sections one at a time (engines handle one utterance at a time).
+  let chain = Promise.resolve();
+  const render = (i) => {
     if (!inflight.has(i)) {
-      const p = sectionUrl(uid, engine, i, secs[i].text);
+      const p = (chain = chain
+        .catch(() => {})
+        .then(() => Native.synthesize({ text: secs[i].text, engine: c.engine, voice: c.voice, rate: 1, path: `${folder}/${i}.wav` }))
+        .then((r) => r.uri));
       p.catch(() => inflight.delete(i));
       inflight.set(i, p);
     }
@@ -258,13 +190,13 @@ export function buildAudiobook(book, paras, engine) {
     uid,
     source: 'tts',
     kind: 'audio',
-    narrator: `${ENGINES[engine].name} voice`,
+    narrator: 'Free phone voice',
     tracks: secs.map((s, i) => ({
       title: s.title,
       index: i,
       resolve: async () => {
-        const url = await load(i);
-        if (i + 1 < secs.length) load(i + 1).catch(() => {}); // prepare the next section while this one plays
+        const url = await render(i);
+        if (i + 1 < secs.length) render(i + 1).catch(() => {}); // prepare the next section while this one plays
         return url;
       },
     })),

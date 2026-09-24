@@ -9,7 +9,7 @@ import { nav } from '../lib/nav.js';
 import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
 import { SourceResults } from '../components/source-results.jsx';
-import { narrate, pickEngine } from '../sources/ttsbooks.js';
+import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
@@ -104,7 +104,7 @@ export function Book({ book: initial }) {
             class="btn secondary big"
             disabled={listenBusy}
             onClick={async () => {
-              if (!pickEngine()) return nav.push('reader', { book, readAloud: true });
+              if (!canNarrate()) return nav.push('reader', { book, readAloud: true });
               setListenBusy(true);
               try {
                 const audio = await narrate(book);

@@ -39,9 +39,10 @@ for Android with Capacitor.
 - Chapters, speeds from 0.5× to 3×, adjustable skip intervals, bookmarks, and a sleep timer that fades out (or stops at the end of a part).
 - Progress saved automatically, with a short rewind when you resume after a break.
 
-**Ebooks to audio**
-- Phone voice (free, offline) reads any Gutenberg ebook aloud in the reader with paragraph highlighting.
-- AI voices: OpenAI (gpt-4o-mini-tts / tts-1-hd), Google Cloud (Chirp 3 HD), ElevenLabs, using your own key. The book becomes a chaptered audiobook in the player, generated a section ahead as you listen and cached on the device.
+**Ebooks to audio (free voices only)**
+- Uses any text-to-speech engine installed on the phone: Google Speech Services, Samsung, or free offline neural engines like HayaiTTS (Kokoro/Piper) and SherpaTTS (Piper).
+- Listen: the ebook becomes a chaptered audiobook in the player (sections rendered on the phone one ahead, cached).
+- Read along: the reader speaks paragraph by paragraph with highlighting.
 
 **Reader**
 - Night, Black, Sepia and Paper themes; serif or sans text; adjustable size; table of contents; tap the edges to turn pages; remembers your position.
