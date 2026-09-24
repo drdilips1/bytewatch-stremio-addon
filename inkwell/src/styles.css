@@ -2733,3 +2733,77 @@ pre.sql {
 .rating-chip svg {
   fill: currentColor;
 }
+
+/* Settings → Sources: rearrangeable list */
+.set-note {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 0 0 6px;
+}
+.src-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  touch-action: pan-y;
+}
+.src-row.off .src-text {
+  opacity: 0.5;
+}
+.src-row.dragging {
+  z-index: 2;
+  background: var(--surface-2, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.src-grip {
+  touch-action: none;
+  cursor: grab;
+  color: var(--muted);
+  flex: none;
+}
+.src-text {
+  flex: 1;
+  min-width: 0;
+}
+.src-num {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  border-radius: 50%;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.src-arrows {
+  display: flex;
+  flex: none;
+}
+.src-arrows .icon-btn {
+  width: 32px;
+  height: 32px;
+}
+.src-arrows .icon-btn:disabled {
+  opacity: 0.25;
+}
+.src-reset {
+  margin-top: 8px;
+}
+.src-order .src-row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  min-height: 0;
+}
+.src-order .src-text small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.src-order .src-text b {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}

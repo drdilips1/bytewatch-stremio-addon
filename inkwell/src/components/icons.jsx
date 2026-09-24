@@ -7,6 +7,8 @@ const P = {
   pause: 'M6 4h4v16H6zM14 4h4v16h-4z',
   back: 'M15 5l-7 7 7 7',
   down: 'M5 9l7 7 7-7',
+  up: 'M5 15l7-7 7 7',
+  grip: 'M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01',
   next: 'M5 5l10 7-10 7zM17 5h2v14h-2z',
   prev: 'M19 5 9 12l10 7zM5 5h2v14H5z',
   plus: 'M12 5v14M5 12h14',

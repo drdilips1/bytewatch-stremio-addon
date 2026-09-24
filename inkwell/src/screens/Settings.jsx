@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup } from '../lib/store.js';
-import { SOURCES, absSrc, addonSrc, cloud, hc, gr } from '../sources/index.js';
+import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache } from '../lib/http.js';
 import { ACCENTS } from '../lib/theme.js';
 import { APP_VERSION } from '../components/update.jsx';
@@ -30,6 +30,81 @@ function Toggle({ on, onChange, label, hint }) {
       </div>
       <input type="checkbox" class="switch" checked={on} onChange={(e) => onChange(e.currentTarget.checked)} />
     </label>
+  );
+}
+
+/**
+ * Sources in the user's order: drag the grip (or use the arrows) to rearrange.
+ * The order is used for Home rows, the banner and Discover search results.
+ */
+function SourceOrder({ st, setSource }) {
+  const order = sourceOrder();
+  const listRef = useRef();
+  const [drag, setDrag] = useState(null); // { key, y, offset }
+  const save = (next) => settings.patch({ sourceOrder: next });
+  const move = (k, delta) => {
+    const next = order.slice();
+    const i = next.indexOf(k);
+    const j = Math.max(0, Math.min(next.length - 1, i + delta));
+    if (i === j) return;
+    next.splice(j, 0, ...next.splice(i, 1));
+    save(next);
+  };
+  const onDown = (k, e) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setDrag({ key: k, startY: e.clientY, dy: 0 });
+  };
+  const onMove = (e) => {
+    if (!drag) return;
+    const rows = [...listRef.current.querySelectorAll('.src-row')];
+    const i = order.indexOf(drag.key);
+    const h = rows[i]?.getBoundingClientRect().height || 60;
+    const dy = e.clientY - drag.startY;
+    const shift = Math.round(dy / h);
+    if (shift) {
+      move(drag.key, shift);
+      setDrag({ ...drag, startY: drag.startY + shift * h, dy: dy - shift * h });
+    } else setDrag({ ...drag, dy });
+  };
+  const onUp = () => setDrag(null);
+  return (
+    <div class="src-order" ref={listRef} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+      <p class="set-note">Drag ⋮⋮ or use the arrows to choose the order of rows on Home and results in Discover.</p>
+      {order.map((k, i) => {
+        const s = SOURCES[k];
+        const key = k === 'addon' ? 'addons' : k;
+        const on = st.sources[key] !== false;
+        const dragging = drag?.key === k;
+        return (
+          <div class={'set-row src-row' + (dragging ? ' dragging' : '') + (on ? '' : ' off')} key={k} style={dragging ? { transform: `translateY(${drag.dy}px)` } : null}>
+            <button class="icon-btn src-grip" aria-label={`Drag ${s.name}`} onPointerDown={(e) => onDown(k, e)}>
+              <Icon name="grip" size={20} />
+            </button>
+            <div class="src-text">
+              <b>
+                <span class="src-num">{i + 1}</span> {s.name}
+              </b>
+              <small>{s.blurb}</small>
+            </div>
+            <div class="src-arrows">
+              <button class="icon-btn" aria-label={`Move ${s.name} up`} disabled={i === 0} onClick={() => move(k, -1)}>
+                <Icon name="up" size={16} />
+              </button>
+              <button class="icon-btn" aria-label={`Move ${s.name} down`} disabled={i === order.length - 1} onClick={() => move(k, 1)}>
+                <Icon name="down" size={16} />
+              </button>
+            </div>
+            <input type="checkbox" class="switch" aria-label={`Use ${s.name}`} checked={on} onChange={(e) => setSource(key, e.currentTarget.checked)} />
+          </div>
+        );
+      })}
+      {(st.sourceOrder || []).length > 0 && (
+        <button class="pill small src-reset" onClick={() => save([])}>
+          Reset order
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -629,9 +704,7 @@ export function Settings() {
       </Section>
 
       <Section icon="sparkle" title="Sources">
-        {Object.entries(SOURCES).filter(([, x]) => !x.hidden).map(([k, s]) => (
-          <Toggle label={s.name} hint={s.blurb} on={st.sources[k === 'addon' ? 'addons' : k] !== false} onChange={(v) => setSource(k === 'addon' ? 'addons' : k, v)} />
-        ))}
+        <SourceOrder st={st} setSource={setSource} />
         <Stepper label="Ebook language" value={st.language} options={['en', 'fr', 'de', 'es', 'it', 'pt', 'nl']} fmt={(v) => v.toUpperCase()} onChange={(v) => settings.patch({ language: v })} />
       </Section>
 

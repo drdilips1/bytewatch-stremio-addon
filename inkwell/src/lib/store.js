@@ -57,6 +57,7 @@ export const settings = persisted('settings', {
   skipBack: 15,
   skipForward: 30,
   speed: 1,
+  sourceOrder: [], // user's preferred order of source keys (Settings → Sources)
   sources: { ia: true, lv: true, gb: true, ol: true, abs: true, addons: true, tb: true, rd: true, hc: true, gr: true },
   readerSize: 19,
   readerTheme: 'night', // night | sepia | paper | amoled

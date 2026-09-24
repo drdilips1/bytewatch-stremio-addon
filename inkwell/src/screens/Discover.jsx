@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Grid, Empty, Skeleton } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
-import { searchAll, SOURCES } from '../sources/index.js';
+import { searchAll, SOURCES, sourceRank, sourceOrder } from '../sources/index.js';
 import { persisted, useStore } from '../lib/store.js';
 import { GenreChips } from './Home.jsx';
 import { nav } from '../lib/nav.js';
@@ -61,7 +61,8 @@ export function Discover() {
 
   const groups = Object.entries(results)
     .map(([src, r]) => [src, r.items.filter((b) => filter === 'all' || b.kind === filter)])
-    .filter(([, items]) => items.length);
+    .filter(([, items]) => items.length)
+    .sort((a, b) => sourceRank(a[0]) - sourceRank(b[0]));
   const total = groups.reduce((a, [, i]) => a + i.length, 0);
   // Seed for "related" rows: the top Audible hit, else the first result anywhere.
   const seed = results.au?.items?.[0] || groups.flatMap(([, i]) => i).find((b) => b.kind !== 'text') || null;
@@ -110,7 +111,7 @@ export function Discover() {
           </div>
           <h3 class="section-label">Sources</h3>
           <div class="source-cards">
-            {Object.entries(SOURCES).filter(([, x]) => !x.hidden).map(([k, s]) => (
+            {sourceOrder().map((k) => [k, SOURCES[k]]).map(([k, s]) => (
               <div class="source-card" style={{ '--h': s.hue }}>
                 <b>{s.name}</b>
                 <span>{s.blurb}</span>

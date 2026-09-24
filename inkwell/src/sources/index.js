@@ -32,6 +32,25 @@ export const SOURCES = {
 
 const enabled = (k) => settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
 
+// Your own services first, then listings, then free catalogues — until the user rearranges them.
+const DEFAULT_ORDER = ['abs', 'tb', 'rd', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'ol'];
+/** Source keys in the user's chosen order (Settings → Sources). */
+export function sourceOrder() {
+  const saved = (settings.get().sourceOrder || []).filter((k) => SOURCES[k] && !SOURCES[k].hidden);
+  const rest = DEFAULT_ORDER.filter((k) => !saved.includes(k));
+  // Keep newly added sources near their default neighbours.
+  for (const k of rest) {
+    const i = DEFAULT_ORDER.indexOf(k);
+    const after = DEFAULT_ORDER.slice(0, i).reverse().find((x) => saved.includes(x));
+    saved.splice(after ? saved.indexOf(after) + 1 : 0, 0, k);
+  }
+  return saved;
+}
+export const sourceRank = (k) => {
+  const i = sourceOrder().indexOf(k);
+  return i < 0 ? 99 : i;
+};
+
 export function sourceOf(uid) {
   const p = uid.split(':')[0];
   return p === 'addon' ? 'addon' : p;
