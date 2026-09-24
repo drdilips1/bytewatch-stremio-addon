@@ -8,3 +8,4 @@ android/app/src/main/assets/public/
 android/capacitor-cordova-android-plugins/
 *.keystore
 *.jks
+out/
