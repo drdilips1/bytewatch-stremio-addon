@@ -198,3 +198,142 @@ export async function search(term) {
   const [a, b] = await Promise.all([torboxLibrary().catch(() => []), realdebridLibrary().catch(() => [])]);
   return [...a, ...b].filter((x) => matches(term, `${x.title} ${x.author} ${x.rawName || ''}`));
 }
+
+// ---------------- magnet → stream ----------------
+const B32 = 'abcdefghijklmnopqrstuvwxyz234567';
+function base32ToHex(s) {
+  let bits = '';
+  for (const c of s.toLowerCase()) {
+    const v = B32.indexOf(c);
+    if (v < 0) return '';
+    bits += v.toString(2).padStart(5, '0');
+  }
+  let hex = '';
+  for (let i = 0; i + 4 <= bits.length; i += 4) hex += parseInt(bits.slice(i, i + 4), 2).toString(16);
+  return hex;
+}
+
+/** Info-hash (lowercase hex) from a magnet link or a raw hash. */
+export function infoHash(magnet, hash) {
+  let h = String(hash || '').trim();
+  if (!h) h = (/xt=urn:btih:([a-z0-9]+)/i.exec(magnet || '') || [])[1] || '';
+  if (/^[a-z2-7]{32}$/i.test(h)) h = base32ToHex(h);
+  return /^[a-f0-9]{40}$/i.test(h) ? h.toLowerCase() : '';
+}
+
+export function magnetFor(magnet, hash, name) {
+  if (magnet) return magnet;
+  const h = infoHash('', hash);
+  return h ? `magnet:?xt=urn:btih:${h}${name ? `&dn=${encodeURIComponent(name)}` : ''}` : '';
+}
+
+export const preferredProvider = (pref) =>
+  pref === 'realdebrid' && rdConnected() ? 'realdebrid' : pref === 'torbox' && tbConnected() ? 'torbox' : tbConnected() ? 'torbox' : rdConnected() ? 'realdebrid' : null;
+
+/** Which of these hashes TorBox can stream instantly (one batched call). */
+export async function torboxCached(hashes) {
+  const list = [...new Set(hashes.filter(Boolean))];
+  if (!tbConnected() || !list.length) return new Set();
+  try {
+    const r = await getJson(`${TB}/torrents/checkcached?` + qs({ hash: list.join(','), format: 'list', list_files: 'false' }), { headers: tbHeaders() });
+    const data = r?.data;
+    const found = Array.isArray(data) ? data.map((d) => d.hash) : data && typeof data === 'object' ? Object.keys(data) : [];
+    return new Set(found.map((h) => String(h).toLowerCase()));
+  } catch {
+    return new Set();
+  }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const tbAudioCount = (it) => (it.files || []).filter((f) => AUDIO.test(f.name || f.short_name || '')).length;
+
+async function tbEnsure(magnet, hash, onStatus) {
+  const find = async () => (await tbList('torrents')).find((t) => String(t.hash || '').toLowerCase() === hash);
+  let it = hash ? await find() : null;
+  if (!it) {
+    onStatus?.('Adding to TorBox…');
+    const r = await sendForm(`${TB}/torrents/createtorrent`, 'POST', { magnet }, tbHeaders());
+    if (r && r.success === false && !/already|duplicate/i.test(`${r.error} ${r.detail}`)) throw new Error(r.detail || 'TorBox rejected the magnet');
+    forget();
+    for (let i = 0; i < 4 && !it; i++) {
+      await sleep(1200);
+      it = await find();
+    }
+    if (!it && r?.data?.torrent_id) it = { id: r.data.torrent_id, name: r.data.name || '', files: [] };
+  }
+  return it;
+}
+
+async function rdEnsure(magnet, hash, onStatus) {
+  const list = await getJson(`${RD}/torrents?limit=200`, { headers: rdHeaders(), fresh: true });
+  let t = (list || []).find((x) => String(x.hash || '').toLowerCase() === hash);
+  if (!t) {
+    onStatus?.('Adding to Real-Debrid…');
+    const r = await sendForm(`${RD}/torrents/addMagnet`, 'POST', { magnet }, rdHeaders());
+    if (!r?.id) throw new Error('Real-Debrid rejected the magnet');
+    t = { id: r.id };
+    forget();
+  }
+  return t;
+}
+
+/**
+ * Put a magnet into the user's debrid account (reusing it when it's already
+ * there) and wait briefly until it can stream. Resolves to a book stub whose
+ * details list the audio files; throws a friendly "still downloading" error
+ * when the service needs more time.
+ */
+export async function prepareMagnet(provider, { magnet, hash, title }, onStatus) {
+  const h = infoHash(magnet, hash);
+  const m = magnetFor(magnet, h, title);
+  if (!m) throw new Error('This result has no magnet link');
+
+  if (provider === 'torbox') {
+    let it = await tbEnsure(m, h, onStatus);
+    for (let i = 0; i < 12; i++) {
+      if (it?.download_finished || it?.download_present) break;
+      onStatus?.(`TorBox is fetching it… ${Math.round((it?.progress || 0) * 100)}%`);
+      await sleep(2500);
+      const data = await getJson(`${TB}/torrents/mylist?` + qs({ id: it.id, bypass_cache: 'true' }), { headers: tbHeaders(), fresh: true }).catch(() => null);
+      it = (Array.isArray(data?.data) ? data.data[0] : data?.data) || it;
+    }
+    if (!(it?.download_finished || it?.download_present)) {
+      forget();
+      throw new Error(`Downloading on TorBox (${Math.round((it?.progress || 0) * 100)}%). It will appear under "Your TorBox" when it's ready.`);
+    }
+    if (!tbAudioCount(it)) throw new Error('That torrent has no playable audio files');
+    forget();
+    return toBook('tb', 'tb', `t:${it.id}`, it.name || title, it.files || []);
+  }
+
+  let t = await rdEnsure(m, h, onStatus);
+  for (let i = 0; i < 12; i++) {
+    const info = await getJson(`${RD}/torrents/info/${t.id}`, { headers: rdHeaders(), fresh: true });
+    if (info.status === 'waiting_files_selection') {
+      await sendForm(`${RD}/torrents/selectFiles/${t.id}`, 'POST', { files: 'all' }, rdHeaders()).catch(() => {});
+    } else if (info.status === 'downloaded') {
+      forget();
+      return toBook('rd', 'rd', t.id, info.filename || title, info.links || []);
+    } else if (/error|dead|virus|magnet_error/.test(info.status)) {
+      throw new Error(`Real-Debrid could not fetch this torrent (${info.status})`);
+    }
+    onStatus?.(`Real-Debrid is fetching it… ${Math.round(info.progress || 0)}%`);
+    await sleep(2500);
+  }
+  forget();
+  throw new Error('Downloading on Real-Debrid. It will appear under "Your Real-Debrid" when it\'s ready.');
+}
+
+/** Add without waiting. */
+export async function addMagnetOnly(provider, { magnet, hash, title }) {
+  const h = infoHash(magnet, hash);
+  const m = magnetFor(magnet, h, title);
+  if (!m) throw new Error('This result has no magnet link');
+  if (provider === 'torbox') await tbEnsure(m, h);
+  else {
+    const t = await rdEnsure(m, h);
+    await sendForm(`${RD}/torrents/selectFiles/${t.id}`, 'POST', { files: 'all' }, rdHeaders()).catch(() => {});
+  }
+  forget();
+  return provider === 'torbox' ? 'Added to TorBox' : 'Added to Real-Debrid';
+}

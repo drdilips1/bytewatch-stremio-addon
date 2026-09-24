@@ -2,6 +2,7 @@
 // (manifest.json + /catalog, /meta, /stream). Install any addon by URL.
 import { getJson, cleanUrl } from '../lib/http.js';
 import { addons } from '../lib/store.js';
+import { isSourceManifest } from './sourceaddons.js';
 
 export function normalizeUrl(u) {
   return cleanUrl(String(u || '').trim().replace(/^stremio:\/\//i, 'https://'));
@@ -43,6 +44,10 @@ export async function install(rawUrl) {
       continue;
     }
     if (isManifest(data)) return save(u, data);
+    if (isSourceManifest(data)) {
+      addons.set((list) => [...list.filter((a) => a.manifest.id !== data.id), { kind: 'source', url: u, manifest: data }]);
+      return data;
+    }
     const list = Array.isArray(data) ? data : Array.isArray(data?.addons) ? data.addons : null;
     if (list) {
       const installed = [];
@@ -52,6 +57,10 @@ export async function install(rawUrl) {
           else if (isManifest(item?.manifest) && item.transportUrl) installed.push(save(item.transportUrl, item.manifest));
           else if (item?.transportUrl) installed.push(await install(item.transportUrl));
           else if (isManifest(item)) installed.push(save(u, item));
+          else if (isSourceManifest(item)) {
+            addons.set((l) => [...l.filter((a) => a.manifest.id !== item.id), { kind: 'source', url: u, manifest: item }]);
+            installed.push(item);
+          }
         } catch {}
       }
       if (installed.length) return { name: `${installed.length} addon${installed.length > 1 ? 's' : ''}`, id: installed[0].id };
@@ -89,7 +98,7 @@ function toBook(addon, meta) {
 // Rows for the home screen: every catalog that needs no mandatory extras.
 export async function catalogRows() {
   const rows = [];
-  for (const a of addons.get()) {
+  for (const a of addons.get().filter((x) => x.kind !== 'source')) {
     for (const c of a.manifest.catalogs || []) {
       const required = (c.extra || []).some((e) => e.isRequired) || (c.extraRequired || []).length;
       if (required) continue;
@@ -110,7 +119,7 @@ export async function catalogRows() {
 export async function search(term) {
   const out = [];
   await Promise.all(
-    addons.get().flatMap((a) =>
+    addons.get().filter((x) => x.kind !== 'source').flatMap((a) =>
       (a.manifest.catalogs || [])
         .filter((c) => (c.extra || []).some((e) => e.name === 'search') || (c.extraSupported || []).includes('search'))
         .map(async (c) => {

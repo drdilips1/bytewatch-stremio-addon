@@ -8,6 +8,8 @@ import { fmtDuration, fmtTime } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
 import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
+import { SourceResults } from '../components/source-results.jsx';
+import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
 
@@ -161,7 +163,7 @@ export function Book({ book: initial }) {
           <h3 class="section-label">Where to listen or read</h3>
           {!editions ? (
             <p class="muted">Searching your server, cloud, addons and free sources…</p>
-          ) : ['server', 'cloud', 'addons', 'audio', 'text'].every((k) => !editions[k].length) ? (
+          ) : ['server', 'cloud', 'addons', 'audio', 'text'].every((k) => !editions[k].length) && !sourceAddons().length ? (
             <>
               <p class="muted">
                 Not found in {editions.searched.join(', ')}. Your TorBox and Real-Debrid search only covers files already in your account, so add the book there first (Settings → TorBox → add a magnet or link) or install an addon that searches for it.
@@ -176,6 +178,9 @@ export function Book({ book: initial }) {
       {editions?.server?.length > 0 && <Row title="On your server" subtitle="Audiobookshelf" icon="server" items={editions.server} />}
       {editions?.cloud?.length > 0 && <Row title="In your cloud" subtitle="TorBox / Real-Debrid" icon="download" items={editions.cloud} />}
       {editions?.addons?.length > 0 && <Row title="From your addons" subtitle="Addon results" icon="puzzle" items={editions.addons} />}
+      {book.kind === 'discover' && sourceAddons().length > 0 && (
+        <SourceResults title={mainTitle(book.title)} author={(book.author || '').split(',')[0].trim()} book={book} />
+      )}
       {editions?.audio?.length > 0 && <Row title="Free audiobooks" subtitle="LibriVox / Internet Archive" icon="headphones" items={editions.audio} />}
       {editions?.text?.length > 0 && <Row title="Free ebooks" subtitle="Project Gutenberg" icon="book" items={editions.text} />}
 

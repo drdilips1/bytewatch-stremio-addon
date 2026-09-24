@@ -309,15 +309,15 @@ function AddonsCard() {
   return (
     <>
       <p class="muted pad-s">
-        Paste an addon install link — a Stremio-style manifest (e.g. a TorBox/Real-Debrid audiobook addon), a hosted JSON manifest, or an addon collection. Only install addons you trust.
+        Paste an addon link: InkShelf-style source addons (JSON on jsonkeeper etc.), Stremio-style manifests, or addon collections. Only install addons you trust.
       </p>
       {list.map((a) => (
         <div class="set-row addon-row">
-          {a.manifest.logo ? <img src={a.manifest.logo} alt="" class="addon-logo" /> : <span class="addon-logo"><Icon name="puzzle" size={18} /></span>}
+          {a.manifest.logo || a.manifest.icon ? <img src={a.manifest.logo || a.manifest.icon} alt="" class="addon-logo" /> : <span class="addon-logo"><Icon name="puzzle" size={18} /></span>}
           <div>
             <b>{a.manifest.name}</b>
             <small>
-              v{a.manifest.version} · {(a.manifest.catalogs || []).length} catalogs
+              v{a.manifest.version} · {a.kind === 'source' ? 'source addon · results in Search & book pages' : `${(a.manifest.catalogs || []).length} catalogs`}
             </small>
           </div>
           <button class="icon-btn" aria-label="Remove addon" onClick={() => addonSrc.uninstall(a.manifest.id)}>
@@ -378,6 +378,32 @@ function AddonsCard() {
   );
 }
 
+function PreferredDebrid() {
+  const st = useStore(settings);
+  const d = useStore(debrid);
+  if (!d.torbox || !d.realdebrid) return null;
+  return (
+    <Section icon="download" title="Default debrid">
+      <div class="set-row">
+        <div>
+          <b>Use for Add / Play</b>
+          <small>Source addon results go to this service</small>
+        </div>
+        <div class="chips">
+          {[
+            ['torbox', 'TorBox'],
+            ['realdebrid', 'Real-Debrid'],
+          ].map(([k, label]) => (
+            <button class={'pill small' + (st.debridPreferred === k ? ' active' : '')} onClick={() => settings.patch({ debridPreferred: k })}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 export function Settings() {
   const st = useStore(settings);
   const setSource = (k, v) => settings.patch({ sources: { ...st.sources, [k]: v } });
@@ -394,6 +420,7 @@ export function Settings() {
       <Section icon="download" title="Real-Debrid">
         <DebridCard provider="realdebrid" label="Real-Debrid" keyHint="real-debrid.com/apitoken" keyUrl="https://real-debrid.com/apitoken" />
       </Section>
+      <PreferredDebrid />
       <Section icon="puzzle" title="Addons">
         <AddonsCard />
       </Section>
@@ -504,7 +531,7 @@ export function Settings() {
       </Section>
 
       <p class="about">
-        Inkwell 1.2 · Built-in sources are free and public domain.
+        Inkwell 1.3 · Built-in sources are free and public domain.
         <br />
         Addons and servers you add are your responsibility.
       </p>

@@ -5,6 +5,8 @@ import { searchAll, SOURCES } from '../sources/index.js';
 import { persisted, useStore } from '../lib/store.js';
 import { GenreChips } from './Home.jsx';
 import { nav } from '../lib/nav.js';
+import { SourceResults } from '../components/source-results.jsx';
+import { sourceAddons } from '../sources/sourceaddons.js';
 
 const recent = persisted('recentSearches', []);
 let pendingQuery = '';
@@ -132,7 +134,8 @@ export function Discover() {
               <Grid items={items} />
             </section>
           ))}
-          {!pending && !total && (
+          {sourceAddons().length > 0 && (filter === 'all' || filter === 'audio') && <SourceResults query={term} title={term} />}
+          {!pending && !total && !sourceAddons().length && (
             <Empty icon="search" title="No matches">
               Nothing found for “{term}”. Try an author's surname or a shorter title.
             </Empty>

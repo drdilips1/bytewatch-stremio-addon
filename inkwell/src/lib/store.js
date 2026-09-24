@@ -62,6 +62,7 @@ export const settings = persisted('settings', {
   readerTheme: 'night', // night | sepia | paper | amoled
   readerFont: 'serif',
   language: 'en',
+  debridPreferred: 'torbox', // torbox | realdebrid
 });
 
 export const library = persisted('library', {}); // uid -> book summary + addedAt
