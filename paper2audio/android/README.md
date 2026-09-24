@@ -83,6 +83,11 @@ and don't use it, **Delete Kokoro voices** frees about 350 MB.
 
 ## Getting the APK
 
+**Latest build (direct download):**
+https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/paper2audio-apk/Paper2Audio.apk
+
+Every build also stays available as a workflow artifact:
+
 Every push that changes `paper2audio/android/` builds the app on GitHub Actions:
 
 1. Open the repository on GitHub → **Actions** → **Paper2Audio Android APK**.

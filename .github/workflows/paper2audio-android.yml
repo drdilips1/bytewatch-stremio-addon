@@ -7,6 +7,9 @@ on:
       - ".github/workflows/paper2audio-android.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write # publish the APK to the paper2audio-apk release
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -63,3 +66,17 @@ jobs:
         with:
           name: Paper2Audio-apk
           path: paper2audio/android/Paper2Audio.apk
+
+      - name: Publish to the permanent download link
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: paper2audio-apk
+          name: Paper to Audio – Android app (latest build)
+          prerelease: true
+          overwrite_files: true
+          files: paper2audio/android/Paper2Audio.apk
+          body: |
+            Latest build of the Paper to Audio Android app. Open this page on your phone and
+            tap **Paper2Audio.apk** to install or update (updates install over the old app).
+
+            Direct link: https://github.com/${{ github.repository }}/releases/download/paper2audio-apk/Paper2Audio.apk
