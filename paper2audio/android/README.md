@@ -34,6 +34,13 @@ the phone: no server, no account, no limits.
   time left, a **table of contents** and a **sleep timer** (minutes or end of
   chapter). Reading continues with the screen off, with controls in the
   notification and on the lock screen.
+- **AI, free with Google Gemini** (Options tab; needs a free key from
+  aistudio.google.com/apikey, no card): short and long summaries of a document
+  or chapter (listen to them or add them to the library), spoken explanations of
+  a PDF's **figures, tables and equations** read where the text first mentions
+  them, and **Explain with AI** for any paragraph (long-press it). The free tier
+  has a daily limit and never charges; Google may use what's sent to improve its
+  products.
 - **Offline listening**: download the whole document's audio in advance;
   previews for every voice.
 - **Remembers where you stopped** in each document.

@@ -127,7 +127,7 @@ object DriveSync {
         val dir = Library.dir(context).apply { mkdirs() }
         var moved = 0
         for (item in merged.items) {
-            val names = listOf(Library.fileName(item), "${item.id}.jpg", "${item.id}.ocr.txt")
+            val names = listOf(Library.fileName(item), "${item.id}.jpg", "${item.id}.ocr.txt", "${item.id}.ai.json")
             for (name in names) {
                 val local = File(dir, name)
                 val there = remote[name]

@@ -440,10 +440,17 @@ object Speaker {
     private const val PREVIEW_TEXT =
         "Hello! This is how I will sound reading your papers and books aloud. Choose the voice you like best."
 
-    fun preview() {
+    /** Stops a voice preview or a spoken AI answer. */
+    fun stopPreview() {
+        previewPlayer?.let { runCatching { it.stop() }; it.release() }
+        previewPlayer = null
+        if (!isStreamed && !playing) tts?.stop()
+    }
+
+    fun preview(text: String = PREVIEW_TEXT) {
         if (playing) pause()
         if (!isStreamed) {
-            tts?.speak(PREVIEW_TEXT, TextToSpeech.QUEUE_FLUSH, Bundle(), "preview:x")
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle(), "preview:x")
             return
         }
         if (isKokoro && !Kokoro.isInstalled()) {
@@ -455,7 +462,7 @@ object Speaker {
         val sp = speed
         scope.launch {
             try {
-                val f = Renderer.render(app, vid, sp, PREVIEW_TEXT)
+                val f = Renderer.render(app, vid, sp, text)
                 previewPlayer?.release()
                 previewPlayer = MediaPlayer().apply {
                     setDataSource(f.path)

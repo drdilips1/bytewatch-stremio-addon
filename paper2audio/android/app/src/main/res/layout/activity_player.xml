@@ -275,6 +275,89 @@
                     </LinearLayout>
                 </LinearLayout>
 
+                <!-- AI -->
+                <LinearLayout
+                    style="@style/P2A.Card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        style="@style/P2A.CardTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="AI (free, with Google Gemini)" />
+
+                    <TextView
+                        android:id="@+id/aiStatus"
+                        style="@style/P2A.Muted"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnShortSummary"
+                            style="@style/P2A.Button"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="5dp"
+                            android:layout_weight="1"
+                            android:text="Short summary" />
+
+                        <Button
+                            android:id="@+id/btnLongSummary"
+                            style="@style/P2A.Button.Soft"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="5dp"
+                            android:layout_weight="1"
+                            android:text="Long summary" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnChapterSummary"
+                        style="@style/P2A.Button.Soft"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Summarize this chapter" />
+
+                    <Button
+                        android:id="@+id/btnVisuals"
+                        style="@style/P2A.Button.Soft"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Explain figures and tables" />
+
+                    <CheckBox
+                        android:id="@+id/cbVisuals"
+                        style="@style/P2A.Check"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Read figure and table explanations where they're mentioned" />
+
+                    <ProgressBar
+                        android:id="@+id/aiProgress"
+                        style="@style/P2A.Progress"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:indeterminate="true"
+                        android:visibility="gone" />
+
+                    <Button
+                        android:id="@+id/btnGeminiKey"
+                        style="@style/P2A.Button.Text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Gemini key" />
+                </LinearLayout>
+
                 <!-- Offline -->
                 <LinearLayout
                     style="@style/P2A.Card"

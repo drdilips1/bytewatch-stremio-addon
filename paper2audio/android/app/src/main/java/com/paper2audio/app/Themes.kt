@@ -78,8 +78,12 @@ object Opener {
     }
 
     /** Parses a library item and loads it into the player. Call off the main thread. */
-    fun parse(context: Context, item: Library.Item): Doc =
-        Loader.parse(context, Library.source(context, item), options(context)).also(::check)
+    fun parse(context: Context, item: Library.Item): Doc {
+        val doc = Loader.parse(context, Library.source(context, item), options(context)).also(::check)
+        // Spoken explanations of figures and tables, if made with Gemini and switched on.
+        val visuals = if (prefs(context).getBoolean("aiVisuals", true)) Ai.visuals(context, item) else null
+        return if (visuals.isNullOrEmpty()) doc else Ai.withVisuals(doc, visuals)
+    }
 
     /** Imports a new document into the library. Call off the main thread. */
     fun import(context: Context, fetch: () -> Loader.Source, progress: (String) -> Unit = {}): Pair<Library.Item, Doc> {

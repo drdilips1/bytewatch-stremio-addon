@@ -7,6 +7,7 @@ import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.net.Uri
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Outline
@@ -111,6 +112,13 @@ class PlayerActivity : Activity() {
     private var offlineFor: String? = null
     private var textSizeSp = 17f
     private var notesFor: String? = null
+    private var aiFor: String? = null
+    private var aiBusy: String? = null
+    private lateinit var aiStatus: TextView
+    private lateinit var aiProgress: ProgressBar
+    private lateinit var btnVisuals: Button
+    private lateinit var btnChapterSummary: Button
+    private lateinit var cbVisuals: CheckBox
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Themes.apply(this)
@@ -287,6 +295,8 @@ class PlayerActivity : Activity() {
             if (Kokoro.installing) Kokoro.cancelInstall() else promptKokoroDownload()
         }
 
+        setupAi()
+
         btnOffline.setOnClickListener {
             val doc = Speaker.doc ?: return@setOnClickListener
             when {
@@ -400,7 +410,7 @@ class PlayerActivity : Activity() {
     private fun paragraphMenu(position: Int) {
         val item = Library.get(this, Library.currentId)
         val text = Speaker.doc?.paragraphs?.getOrNull(position) ?: return
-        val options = mutableListOf("Play from here", "Add bookmark", "Add note…", "Copy text")
+        val options = mutableListOf("Play from here", "Add bookmark", "Add note…", "Copy text", "Explain with AI")
         AlertDialog.Builder(this)
             .setTitle("Paragraph ${position + 1}")
             .setItems(options.toTypedArray()) { _, which ->
@@ -420,6 +430,7 @@ class PlayerActivity : Activity() {
                         getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("paragraph", text))
                         toast("Copied")
                     }
+                    4 -> explainParagraph(position)
                 }
             }
             .show()
@@ -747,6 +758,10 @@ class PlayerActivity : Activity() {
         docDescription.visibility = if (item?.description != null) View.VISIBLE else View.GONE
         doc?.let { loadCover(it.key) }
 
+        if (doc != null && aiFor != doc.key) {
+            aiFor = doc.key
+            refreshAi()
+        }
         if (doc != null && notesFor != doc.key) {
             notesFor = doc.key
             noteIndexes = item?.let { Library.notes(it).map { n -> n.index }.toSet() } ?: emptySet()
@@ -855,6 +870,217 @@ class PlayerActivity : Activity() {
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+
+    // ---- AI (Google Gemini, free tier) ----
+
+    private fun setupAi() {
+        aiStatus = findViewById(R.id.aiStatus)
+        aiProgress = findViewById(R.id.aiProgress)
+        btnVisuals = findViewById(R.id.btnVisuals)
+        btnChapterSummary = findViewById(R.id.btnChapterSummary)
+        cbVisuals = findViewById(R.id.cbVisuals)
+        cbVisuals.isChecked = prefs.getBoolean("aiVisuals", true)
+        cbVisuals.setOnCheckedChangeListener { _, on ->
+            prefs.edit().putBoolean("aiVisuals", on).apply()
+            reparse()
+        }
+        findViewById<Button>(R.id.btnShortSummary).setOnClickListener { summarize(long = false, chapter = false) }
+        findViewById<Button>(R.id.btnLongSummary).setOnClickListener { summarize(long = true, chapter = false) }
+        btnChapterSummary.setOnClickListener { summarize(long = false, chapter = true) }
+        btnVisuals.setOnClickListener { explainVisuals() }
+        findViewById<Button>(R.id.btnGeminiKey).setOnClickListener { askGeminiKey(null) }
+    }
+
+    private fun refreshAi() {
+        val doc = Speaker.doc
+        val item = doc?.let { Library.get(this, it.key) }
+        val isPdf = item?.kind == Loader.Kind.PDF
+        val visuals = if (isPdf) Ai.visuals(this, item!!) else null
+        btnVisuals.visibility = if (isPdf) View.VISIBLE else View.GONE
+        btnVisuals.text = if (visuals != null) "Explain figures and tables again" else "Explain figures and tables"
+        cbVisuals.visibility = if (visuals != null) View.VISIBLE else View.GONE
+        btnChapterSummary.visibility = if ((doc?.chapters?.size ?: 0) > 1) View.VISIBLE else View.GONE
+        aiProgress.visibility = if (aiBusy != null) View.VISIBLE else View.GONE
+        aiStatus.text = when {
+            aiBusy != null -> aiBusy
+            Gemini.key(this) == null -> "Summaries, figure and table explanations, and \"Explain with AI\" " +
+                "(long-press a paragraph). Needs a free Gemini key: tap a button to set it up."
+            visuals != null -> "${visuals.size} figures, tables and equations explained" +
+                if (cbVisuals.isChecked) "; they're read where the text first mentions them." else "."
+            else -> "Long-press a paragraph in the reader and choose \"Explain with AI\" for a plain-language explanation."
+        }
+    }
+
+    /** Asks for the key if it's missing, then runs [then]. */
+    private fun withKey(then: () -> Unit) {
+        if (Gemini.key(this) != null) then() else askGeminiKey(then)
+    }
+
+    private fun askGeminiKey(then: (() -> Unit)?) {
+        val d = resources.displayMetrics.density
+        val input = EditText(this).apply {
+            hint = "Paste your Gemini API key"
+            isSingleLine = true
+            setText(Gemini.key(this@PlayerActivity) ?: "")
+        }
+        val box = FrameLayout(this).apply {
+            setPadding((20 * d).toInt(), (8 * d).toInt(), (20 * d).toInt(), 0)
+            addView(input)
+        }
+        val builder = AlertDialog.Builder(this)
+            .setTitle("Free Gemini key")
+            .setMessage(
+                "1. Tap \"Get a key\" and sign in with your Google account.\n" +
+                    "2. Tap \"Create API key\", copy it, and paste it here.\n\n" +
+                    "It's free, with no card needed. The free tier has a daily limit; when it's used up, AI " +
+                    "features pause until the next day. Nothing is ever charged.\n\n" +
+                    "On the free tier, Google may use what you send (the document's text and images) to improve its products. " +
+                    "The key stays on this phone."
+            )
+            .setView(box)
+            .setPositiveButton("Save") { _, _ ->
+                Gemini.setKey(this, input.text.toString())
+                refreshAi()
+                if (Gemini.key(this) != null) then?.invoke()
+            }
+            .setNeutralButton("Get a key") { _, _ ->
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Gemini.KEY_PAGE)))
+                } catch (e: ActivityNotFoundException) {
+                    toast("Open ${Gemini.KEY_PAGE} in your browser")
+                }
+            }
+            .setNegativeButton("Cancel", null)
+        if (Gemini.key(this) != null) {
+            builder.setNegativeButton("Remove key") { _, _ ->
+                Gemini.setKey(this, null)
+                refreshAi()
+            }
+        }
+        builder.show()
+    }
+
+    private fun runAi(label: String, work: suspend ((String) -> Unit) -> Unit) {
+        if (aiBusy != null) {
+            toast("Please wait: $aiBusy")
+            return
+        }
+        withKey {
+            aiBusy = label
+            refreshAi()
+            scope.launch {
+                try {
+                    work { text -> runOnUiThread { aiBusy = text; refreshAi() } }
+                } catch (e: Exception) {
+                    AlertDialog.Builder(this@PlayerActivity)
+                        .setTitle("AI didn't work")
+                        .setMessage(e.message ?: "Something went wrong. Check your internet connection.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                } finally {
+                    aiBusy = null
+                    refreshAi()
+                }
+            }
+        }
+    }
+
+    private fun summarize(long: Boolean, chapter: Boolean) {
+        val doc = Speaker.doc ?: return
+        val item = Library.get(this, doc.key)
+        val ch = if (chapter) doc.chapterAt(Speaker.index) else null
+        val from = ch?.start ?: 0
+        val to = ch?.let { c -> doc.chapters.firstOrNull { it.start > c.start }?.start } ?: doc.paragraphs.size
+        val what = if (ch != null) "the chapter \"${ch.title}\"" else "the whole text"
+        val name = when {
+            ch != null -> "Summary of ${ch.title}"
+            long -> "Long summary"
+            else -> "Short summary"
+        }
+        runAi("Writing the ${name.lowercase()}…") { progress ->
+            val text = withContext(Dispatchers.IO) {
+                Ai.summary(this@PlayerActivity, doc, item, long, from, to, what, progress)
+            }
+            showAiText("$name: ${doc.title}", text, item)
+        }
+    }
+
+    private fun explainParagraph(position: Int) {
+        val doc = Speaker.doc ?: return
+        runAi("Explaining paragraph ${position + 1}…") {
+            val text = withContext(Dispatchers.IO) { Ai.explain(this@PlayerActivity, doc, position) }
+            showAiText("Paragraph ${position + 1}, explained", text, null)
+        }
+    }
+
+    private fun explainVisuals() {
+        val doc = Speaker.doc ?: return
+        val item = Library.get(this, doc.key) ?: return
+        runAi("Gemini is looking at the figures and tables… (up to a minute or two)") {
+            val n = withContext(Dispatchers.IO) { Ai.explainVisuals(this@PlayerActivity, item) }
+            prefs.edit().putBoolean("aiVisuals", true).apply()
+            cbVisuals.isChecked = true // reparses with the explanations inserted
+            reparse()
+            DriveSync.request(this@PlayerActivity)
+            toast("$n figures, tables and equations explained. They're read where the text mentions them; see the contents list too.")
+        }
+    }
+
+    /**
+     * Shows an AI answer. "Listen" reads it now; for summaries, "Add to library" keeps it as
+     * its own document (with the offline, speed and save-audio features).
+     */
+    private fun showAiText(title: String, text: String, item: Library.Item?) {
+        val d = resources.displayMetrics.density
+        val view = ScrollView(this).apply {
+            addView(TextView(this@PlayerActivity).apply {
+                this.text = text
+                textSize = 16f
+                setLineSpacing(0f, 1.25f)
+                setTextIsSelectable(true)
+                setTextColor(Themes.color(this@PlayerActivity, R.attr.p2aText))
+                setPadding((22 * d).toInt(), (10 * d).toInt(), (22 * d).toInt(), (10 * d).toInt())
+            })
+        }
+        val builder = AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(view)
+            .setPositiveButton("Listen", null)
+            .setNegativeButton("Close") { _, _ -> Speaker.stopPreview() }
+            .setOnCancelListener { Speaker.stopPreview() }
+        if (item != null) builder.setNeutralButton("Add to library") { _, _ -> Speaker.stopPreview(); addSummary(title, text, item) }
+        val dialog = builder.show()
+        // "Listen" keeps the dialog open so it can be read along.
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { Speaker.preview(text) }
+    }
+
+    private fun addSummary(title: String, text: String, from: Library.Item) {
+        busy = "Adding to library…"
+        render()
+        scope.launch {
+            try {
+                val (item, doc) = withContext(Dispatchers.IO) {
+                    Opener.import(this@PlayerActivity, { Loader.storeText(this@PlayerActivity, title, text) }).also { (item, _) ->
+                        if (from.collection != null) Library.setCollection(this@PlayerActivity, item, from.collection)
+                        // Same thumbnail as the original.
+                        runCatching { Library.thumb(this@PlayerActivity, from.id).copyTo(Library.thumb(this@PlayerActivity, item.id), overwrite = true) }
+                        if (from.author != null) item.author = from.author
+                    }
+                }
+                withContext(Dispatchers.IO) { Library.opened(this@PlayerActivity, item, doc) }
+                Speaker.load(doc)
+                Speaker.play()
+                coverFor = null
+                DriveSync.request(this@PlayerActivity)
+                toast("Added to your library")
+            } catch (e: Exception) {
+                toast(e.message ?: "Couldn't add it")
+            } finally {
+                busy = null
+                render()
+            }
+        }
+    }
 
     override fun onStart() {
         super.onStart()
