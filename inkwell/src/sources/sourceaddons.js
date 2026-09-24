@@ -114,18 +114,19 @@ async function run(addon, { title = '', author = '', query = '' }) {
         language: get(row, 'language') || '',
         date: get(row, 'date') || '',
         cache: cachedFlag(get(row, 'debridCache')),
+        link: get(row, 'downloadUrl') || get(row, 'url') || get(row, 'link') || get(row, 'pageUrl') || '',
       };
       r.hash = infoHash(r.magnet, get(row, 'infoHash'));
       r.score = wanted ? similarity(wanted, r.title) : 1;
       return r;
     })
-    .filter((r) => (r.magnet || r.hash) && r.score >= Math.min(threshold, 0.9));
+    .filter((r) => (r.magnet || r.hash || /^https?:/i.test(r.link)) && r.score >= Math.min(threshold, 0.9));
 
   // Mark results TorBox can stream instantly.
   const instant = await torboxCached(results.map((r) => r.hash));
   results.forEach((r) => instant.has(r.hash) && (r.cache = { ...r.cache, torbox: true, any: true }));
 
-  results.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || b.score - a.score || b.seeders - a.seeders);
+  results.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || Number(b.seeders > 0) - Number(a.seeders > 0) || b.score - a.score || b.seeders - a.seeders);
   cache.set(key, { t: Date.now(), v: results });
   return results;
 }

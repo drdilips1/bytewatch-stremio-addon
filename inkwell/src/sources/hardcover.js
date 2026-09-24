@@ -10,9 +10,16 @@ export const connected = () => !!hardcover.get().token;
 const token = () => hardcover.get().token.trim().replace(/^Bearer\s+/i, '');
 
 async function gql(query, variables = {}, tok = token()) {
-  const r = await sendJson(API, 'POST', { query, variables }, { Authorization: `Bearer ${tok}` });
+  let r;
+  try {
+    r = await sendJson(API, 'POST', { query, variables }, { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' });
+  } catch (e) {
+    if (e.status === 401 || e.status === 403) throw new Error('Hardcover rejected the token — copy a fresh one from hardcover.app/account/api');
+    throw e;
+  }
   if (r?.errors?.length) throw new Error(r.errors[0].message || 'Hardcover request failed');
-  return r?.data || {};
+  if (!r?.data) throw new Error('Hardcover returned no data');
+  return r.data;
 }
 const me = (d) => (Array.isArray(d.me) ? d.me[0] : d.me) || {};
 
@@ -39,20 +46,52 @@ function toBook(b) {
   };
 }
 
-const BOOK_FIELDS = 'id title description release_year image { url } contributions(limit: 2) { author { name } }';
+// Richest field set first; if the server rejects a field (schema changes,
+// permission limits) fall back to simpler selections.
+const FIELD_SETS = [
+  'id title description release_year image { url } contributions(limit: 2) { author { name } }',
+  'id title release_year cached_image cached_contributors',
+  'id title release_year',
+];
+
+async function withFallback(build, variables) {
+  let lastErr;
+  for (const fields of FIELD_SETS) {
+    try {
+      return await gql(build(fields), variables);
+    } catch (e) {
+      lastErr = e;
+      if (/auth|token|jwt|expired|unauthor|401|403/i.test(e.message)) break;
+    }
+  }
+  throw lastErr;
+}
+
+function normalize(b) {
+  const img = b.image?.url || b.cached_image?.url || (typeof b.cached_image === 'string' ? b.cached_image : '');
+  const cc = Array.isArray(b.cached_contributors) ? b.cached_contributors.map((c) => c.author?.name || c.name).filter(Boolean) : [];
+  return toBook({ ...b, image: img ? { url: img } : null, author_names: cc });
+}
 
 export async function shelf(status) {
   if (!connected()) return [];
-  const d = await gql(
-    `query Shelf($s: Int!) { me { user_books(where: { status_id: { _eq: $s } }, limit: 40) { book { ${BOOK_FIELDS} } } } }`,
+  const d = await withFallback(
+    (f) => `query Shelf($s: Int!) { me { user_books(where: { status_id: { _eq: $s } }, limit: 60) { book { ${f} } } } }`,
     { s: status }
   );
-  return (me(d).user_books || []).map((ub) => toBook(ub.book)).filter((b) => b.title);
+  return (me(d).user_books || []).map((ub) => ub.book && normalize(ub.book)).filter((b) => b?.title);
 }
 
 export async function details(book) {
-  const d = await gql(`query B($id: Int!) { books(where: { id: { _eq: $id } }, limit: 1) { ${BOOK_FIELDS} } }`, { id: +book.uid.slice(3) });
-  return d.books?.[0] ? { ...book, ...toBook(d.books[0]), link: `https://hardcover.app/books/${book.uid.slice(3)}` } : book;
+  const d = await withFallback((f) => `query B($id: Int!) { books(where: { id: { _eq: $id } }, limit: 1) { ${f} } }`, { id: +book.uid.slice(3) });
+  return d.books?.[0] ? { ...book, ...normalize(d.books[0]), cover: book.cover || normalize(d.books[0]).cover, link: `https://hardcover.app/books/${book.uid.slice(3)}` } : book;
+}
+
+/** Counts per shelf, used by Settings to show the connection works. */
+export async function counts() {
+  const out = {};
+  for (const [k, v] of Object.entries(STATUS)) out[k] = (await shelf(v)).length;
+  return out;
 }
 
 async function findBookId(book) {

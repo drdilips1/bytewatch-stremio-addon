@@ -68,7 +68,7 @@ export function BookCard({ book, wide }) {
   );
 }
 
-export function Row({ title, subtitle, load, items: given, icon, onMore, deps = [] }) {
+export function Row({ title, subtitle, load, items: given, icon, onMore, deps = [], showErrors = false, emptyText = '' }) {
   const [items, setItems] = useState(given || null);
   const [error, setError] = useState(null);
   useEffect(() => {
@@ -81,6 +81,22 @@ export function Row({ title, subtitle, load, items: given, icon, onMore, deps = 
       .catch((e) => alive && setError(e));
     return () => (alive = false);
   }, deps);
+  // Integration rows (your server, cloud, shelves) show what went wrong instead of vanishing.
+  if (showErrors && (error || (items && !items.length && emptyText))) {
+    return (
+      <section class="row">
+        <header class="row-head">
+          <div>
+            <h2>
+              {icon && <Icon name={icon} size={18} />} {title}
+            </h2>
+            {subtitle && <p>{subtitle}</p>}
+          </div>
+        </header>
+        <p class={'row-note' + (error ? ' bad' : '')}>{error ? `Couldn't load: ${error.message || error}` : emptyText}</p>
+      </section>
+    );
+  }
   if (error || (items && !items.length)) return null;
   return (
     <section class="row">

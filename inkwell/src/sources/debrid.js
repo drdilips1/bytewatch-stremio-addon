@@ -337,3 +337,48 @@ export async function addMagnetOnly(provider, { magnet, hash, title }) {
   forget();
   return provider === 'torbox' ? 'Added to TorBox' : 'Added to Real-Debrid';
 }
+
+/**
+ * Status of everything already in the user's debrid accounts, keyed by
+ * info-hash: { provider, ready, progress (0..1), state, seeds }.
+ */
+export async function accountStatus() {
+  const out = new Map();
+  const jobs = [];
+  if (tbConnected())
+    jobs.push(
+      remember('tb-status', async () => tbList('torrents'))
+        .then((items) => {
+          for (const t of items) {
+            if (!t.hash) continue;
+            out.set(String(t.hash).toLowerCase(), {
+              provider: 'torbox',
+              ready: !!(t.download_finished || t.download_present),
+              progress: Number(t.progress) || 0,
+              state: t.download_state || '',
+              seeds: t.seeds,
+            });
+          }
+        })
+        .catch(() => {})
+    );
+  if (rdConnected())
+    jobs.push(
+      remember('rd-status', async () => getJson(`${RD}/torrents?limit=200`, { headers: rdHeaders(), fresh: true }))
+        .then((items) => {
+          for (const t of items || []) {
+            if (!t.hash || out.has(String(t.hash).toLowerCase())) continue;
+            out.set(String(t.hash).toLowerCase(), {
+              provider: 'realdebrid',
+              ready: t.status === 'downloaded',
+              progress: (Number(t.progress) || 0) / 100,
+              state: t.status || '',
+              seeds: t.seeders,
+            });
+          }
+        })
+        .catch(() => {})
+    );
+  await Promise.all(jobs);
+  return out;
+}

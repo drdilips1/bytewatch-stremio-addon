@@ -15,6 +15,8 @@ export function SourceResults({ title = '', author = '', query = '', book = null
   useStore(debrid);
   const [groups, setGroups] = useState({});
   const [pending, setPending] = useState(false);
+  const [account, setAccount] = useState(new Map());
+  const refreshAccount = () => cloud.accountStatus().then(setAccount).catch(() => {});
   const count = sourceAddons().length;
   const provider = cloud.preferredProvider(st.debridPreferred);
 
@@ -26,6 +28,7 @@ export function SourceResults({ title = '', author = '', query = '', book = null
     searchSources({ title, author, query }, (name, results, error) => {
       if (alive) setGroups((g) => ({ ...g, [name]: { results, error } }));
     }).then(() => alive && setPending(false));
+    refreshAccount();
     return () => (alive = false);
   }, [title, author, query, count]);
 
@@ -60,18 +63,23 @@ export function SourceResults({ title = '', author = '', query = '', book = null
       {!pending && !total && entries.length > 0 && <p class="muted pad-s">No source results.</p>}
       <div class="src-list">
         {entries.flatMap(([, g]) => g.results).map((r) => (
-          <SourceRow key={r.key} r={r} provider={provider} book={book} />
+          <SourceRow key={r.key} r={r} provider={provider} book={book} inAccount={account.get(r.hash)} onChanged={refreshAccount} />
         ))}
       </div>
     </section>
   );
 }
 
-function SourceRow({ r, provider, book }) {
+function seedClass(n) {
+  return n >= 10 ? 'good' : n > 0 ? 'low' : 'none';
+}
+
+function SourceRow({ r, provider, book, inAccount, onChanged }) {
   const [busy, setBusy] = useState(null); // 'add' | 'play'
   const [status, setStatus] = useState('');
-  const cached = provider && (r.cache[provider] || (provider === 'torbox' ? false : r.cache.any));
-  const meta = [r.addon, r.format && String(r.format).toUpperCase(), fmtSize(r.size), r.seeders ? `${r.seeders} seeds` : '', r.language].filter(Boolean);
+  const cachedFor = provider && (r.cache[provider] || (provider === 'realdebrid' && r.cache.any && !r.cache.torbox));
+  const ready = !!(cachedFor || inAccount?.ready);
+  const dead = !ready && !inAccount && r.seeders === 0 && !!(r.magnet || r.hash);
 
   const need = () => {
     if (provider) return true;
@@ -85,6 +93,8 @@ function SourceRow({ r, provider, book }) {
     setBusy('add');
     try {
       toast(await cloud.addMagnetOnly(provider, r));
+      cloud.forget();
+      setTimeout(onChanged, 1500);
     } catch (e) {
       toast(e.message);
     } finally {
@@ -111,36 +121,63 @@ function SourceRow({ r, provider, book }) {
     } catch (e) {
       setStatus('');
       toast(e.message);
+      onChanged();
     } finally {
       setBusy(null);
     }
   };
 
+  const acct = inAccount
+    ? `In your ${LABEL[inAccount.provider]} · ${inAccount.ready ? 'ready to play' : `${Math.round(inAccount.progress * 100)}%${inAccount.state ? ` · ${inAccount.state}` : ''}`}`
+    : '';
+
   return (
-    <div class="src-row">
-      <div class="src-title">
-        {cached && (
-          <span class="src-instant" title="Cached — plays instantly">
-            ⚡
-          </span>
-        )}
-        {r.title}
-      </div>
+    <div class={'src-row' + (ready ? ' is-ready' : '') + (dead ? ' is-dead' : '')}>
+      <div class="src-title">{r.title}</div>
       {(r.author || r.narrator) && (
         <div class="src-sub">
           {r.author}
           {r.narrator ? ` · read by ${r.narrator}` : ''}
         </div>
       )}
-      <div class="src-meta">{meta.join(' · ')}</div>
+      <div class="src-chips">
+        {ready && <span class="chip ready">READY</span>}
+        {r.format && <span class="chip">{String(r.format).toUpperCase()}</span>}
+        {r.size > 0 && <span class="chip">{fmtSize(r.size)}</span>}
+        {(r.magnet || r.hash) && <span class={'chip seeds ' + seedClass(r.seeders)}>{r.seeders} seed{r.seeders === 1 ? '' : 's'}</span>}
+        {r.language && <span class="chip">{r.language}</span>}
+        <span class="chip ghost">{r.addon}</span>
+      </div>
+      {acct && <div class={'src-acct' + (inAccount.ready ? ' ok' : '')}>{acct}</div>}
+      {dead && <div class="src-warn">No seeders — your debrid service may never finish downloading this one.</div>}
       {status && <div class="src-status">{status}</div>}
-      <div class="src-actions">
-        <button class="btn outline" disabled={!!busy} onClick={add}>
-          {busy === 'add' ? <span class="spinner" /> : <Icon name="download" size={16} />} {provider ? `Add to ${LABEL[provider]}` : 'Add to debrid'}
-        </button>
-        <button class="btn primary" disabled={!!busy} onClick={play}>
-          {busy === 'play' ? <span class="spinner" /> : <Icon name="play" size={16} />} Play
-        </button>
+      <div class={'src-actions' + (ready || !(r.magnet || r.hash) ? ' ready' : '')}>
+        {!(r.magnet || r.hash) ? (
+          <a class="btn primary" href={r.link} target="_blank" rel="noopener">
+            <Icon name="external" size={16} /> Open
+          </a>
+        ) : ready ? (
+          <>
+            <button class="btn primary" disabled={!!busy} onClick={play}>
+              {busy === 'play' ? <span class="spinner" /> : <Icon name="play" size={16} />} Play
+            </button>
+            {!inAccount && (
+              <button class="btn outline icon-only" disabled={!!busy} onClick={add} aria-label={`Add to ${LABEL[provider] || 'debrid'}`}>
+                {busy === 'add' ? <span class="spinner" /> : <Icon name="download" size={18} />}
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <button class="btn outline" disabled={!!busy || !!inAccount} onClick={add}>
+              {busy === 'add' ? <span class="spinner" /> : <Icon name="download" size={16} />}{' '}
+              {inAccount ? 'Added' : provider ? `Add to ${LABEL[provider]}` : 'Add to debrid'}
+            </button>
+            <button class="btn primary" disabled={!!busy} onClick={play}>
+              {busy === 'play' ? <span class="spinner" /> : <Icon name="play" size={16} />} Play
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

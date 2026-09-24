@@ -216,17 +216,40 @@ function HardcoverCard() {
   const cfg = useStore(hardcover);
   const [tok, setTok] = useState('');
   const [busy, setBusy] = useState(false);
+  const [check, setCheck] = useState('');
   if (cfg.token) {
     return (
-      <div class="set-row">
-        <div>
-          <b>Connected</b>
-          <small>@{cfg.username} · shelves on Home, status buttons on book pages</small>
+      <>
+        <div class="set-row">
+          <div>
+            <b>Connected</b>
+            <small>@{cfg.username} · shelves on Home, status buttons on book pages</small>
+          </div>
+          <button class="pill danger small" onClick={() => hc.disconnect()}>
+            Sign out
+          </button>
         </div>
-        <button class="pill danger small" onClick={() => hc.disconnect()}>
-          Sign out
-        </button>
-      </div>
+        <div class="set-row">
+          <div>
+            <b>Shelves</b>
+            <small>{check || 'Check that your shelves load'}</small>
+          </div>
+          <button
+            class="pill small"
+            onClick={async () => {
+              setCheck('Loading…');
+              try {
+                const c = await hc.counts();
+                setCheck(`Want to read ${c.want} · Reading ${c.reading} · Read ${c.read}`);
+              } catch (e) {
+                setCheck('Error: ' + e.message);
+              }
+            }}
+          >
+            Test
+          </button>
+        </div>
+      </>
     );
   }
   return (

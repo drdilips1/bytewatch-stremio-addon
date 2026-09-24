@@ -12,9 +12,15 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body } =
     if (!res.ok) {
       let detail = '';
       try {
-        detail = (await res.text()).slice(0, 160).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const text = await res.text();
+        try {
+          const j = JSON.parse(text);
+          detail = j.message || j.detail || j.error_description || (typeof j.error === 'string' ? j.error : '') || '';
+        } catch {}
+        if (!detail) detail = text.slice(0, 160).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
       } catch {}
-      const err = new Error(`HTTP ${res.status}${detail ? ` — ${detail}` : ''} (${url.replace(/([?&](token|apikey|api_key)=)[^&]+/gi, '$1…')})`);
+      const err = new Error(`HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
+      err.url = url.replace(/([?&](token|apikey|api_key)=)[^&]+/gi, '$1…');
       err.status = res.status;
       throw err;
     }
