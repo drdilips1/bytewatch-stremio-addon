@@ -564,7 +564,19 @@ function ocrLinesToItems(data, k) {
         const basePx = bl && bl.has_baseline !== false && bl.y0 ? (bl.y0 + bl.y1) / 2 : b.y1 - bh * 0.2;
         const rh = line.rowAttributes && line.rowAttributes.row_height;
         const sizePx = Math.max(bh * 0.6, Math.min(bh * 1.1, rh || bh / 1.15));
-        items.push({ key: 'o' + (j++), str: text, x: b.x0 / k, base: basePx / k, size: sizePx / k, w: (b.x1 - b.x0) / k, font: 'Helvetica', bold: false, italic: false });
+        // Split the line where words are far apart (table columns, "label ....... value"),
+        // so each column becomes its own editable block.
+        const words = (line.words || []).filter(w => w.text && w.text.trim()).sort((a, b) => a.bbox.x0 - b.bbox.x0);
+        const groups = [];
+        for (const w of words) {
+          const g = groups[groups.length - 1];
+          if (g && w.bbox.x0 - g.x1 < sizePx * 1.2) { g.text += ' ' + w.text.trim(); g.x1 = w.bbox.x1; }
+          else groups.push({ text: w.text.trim(), x0: w.bbox.x0, x1: w.bbox.x1 });
+        }
+        if (!groups.length) groups.push({ text, x0: b.x0, x1: b.x1 });
+        for (const g of groups) {
+          items.push({ key: 'o' + (j++), str: g.text, x: g.x0 / k, base: basePx / k, size: sizePx / k, w: (g.x1 - g.x0) / k, font: 'Helvetica', bold: false, italic: false });
+        }
       }
     }
   }
@@ -576,13 +588,19 @@ async function runOcr(pages) {
   try { localStorage.setItem('ocrLang', lang); } catch (e) { /* ignore */ }
   closeOptions();
   finishEditing();
-  busy(true, 'Starting OCR…');
-  let worker = null;
+  let worker = null, cancelled = false;
+  busy(true, 'Starting OCR…', () => {
+    cancelled = true;
+    if (worker) worker.terminate().catch(() => {});
+    busy(false);
+    toast('OCR cancelled');
+  });
+  const withTimeout = (promise, ms, msg) => Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
   try {
     if (!window.Tesseract) await loadScript('lib/tesseract/tesseract.min.js');
     const abs = path => new URL(path, location.href).href;
     let pageNo = 0;
-    worker = await Tesseract.createWorker(lang.split('+'), 1, {
+    worker = await withTimeout(Tesseract.createWorker(lang.split('+'), 1, {
       workerPath: abs('lib/tesseract/worker.min.js'),
       corePath: abs('lib/tesseract/core'),
       langPath: abs('lib/tesseract/lang'),
@@ -590,15 +608,19 @@ async function runOcr(pages) {
       cacheMethod: 'none',
       gzip: true,
       logger: m => {
+        if (cancelled) return;
         if (m.status === 'recognizing text') busy(true, `Reading page ${pageNo} of ${pages.length}… ${Math.round(m.progress * 100)}%`);
       }
-    });
+    }), 60000, 'the OCR engine did not start on this device (it needs a recent browser/WebView and ~200 MB free memory)');
+    if (cancelled) return;
     let lines = 0, first = true;
     for (const p of pages) {
+      if (cancelled) return;
       pageNo++;
       busy(true, `Reading page ${pageNo} of ${pages.length}…`);
       const { canvas, k } = await renderFrameCanvas(p, 2600);
-      const { data } = await worker.recognize(canvas, {}, { blocks: true, text: false });
+      const { data } = await withTimeout(worker.recognize(canvas, {}, { blocks: true, text: false }), 180000, 'reading the page took too long');
+      if (cancelled) return;
       canvas.width = canvas.height = 0;
       const items = ocrLinesToItems(data, k);
       if (first) { checkpoint(); first = false; }
@@ -612,12 +634,31 @@ async function runOcr(pages) {
     toast(`Recognised ${lines} line(s). Tap a block to edit it; Save keeps the text searchable.`, 5000);
   } catch (e) {
     console.error(e);
+    if (cancelled) return;
     const offline = !hasBridge && /failed to load|fetch|network/i.test(String(e && (e.message || e)));
     toast(offline ? 'OCR is not downloaded yet: connect to the internet once, then use OCR (or its "Download now" button).' : 'OCR failed: ' + (e.message || e), 7000);
   } finally {
     if (worker) worker.terminate().catch(() => {});
-    busy(false);
+    if (!cancelled) busy(false);
   }
+}
+
+// Edit Text on a page without real text (scans, or "Print to PDF" files whose letters were
+// turned into shapes): offer OCR instead of showing nothing.
+async function offerOcrIfNoText() {
+  const p = currentPage();
+  if (!p || p.ocr) return;
+  let blocks;
+  try { blocks = await getTextBlocks(p); } catch (e) { return; }
+  if (blocks.length || S.tool !== 'edittext' || offerOcrIfNoText.asked === p.id) return;
+  offerOcrIfNoText.asked = p.id;
+  const ok = await dialog({
+    title: 'No editable text on this page',
+    body: 'This page is a scan, or its letters were saved as shapes (common with “Print to PDF”). ' +
+      'Recognise the text with OCR so you can edit it?',
+    ok: 'Run OCR'
+  });
+  if (ok) openOcr();
 }
 
 // ------------------------------------------------------------------ wiring

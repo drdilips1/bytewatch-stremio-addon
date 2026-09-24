@@ -36,6 +36,7 @@
     </div>
   </div>
   <button class="big-btn primary" id="homeOpen"><span data-icon="open"></span>Open PDF</button>
+  <div class="home-section">Tools</div>
   <div class="tool-grid">
     <button data-home="edit"><span class="tg-ic" data-icon="edittext"></span>Edit</button>
     <button data-home="convert"><span class="tg-ic" data-icon="convert"></span>Convert</button>
@@ -50,6 +51,8 @@
     <button data-home="sign"><span class="tg-ic" data-icon="sign"></span>Sign</button>
     <button data-home="images"><span class="tg-ic" data-icon="image"></span>Images to PDF</button>
     <button data-home="blank"><span class="tg-ic" data-icon="blank"></span>Blank PDF</button>
+    <button data-home="cloud"><span class="tg-ic" data-icon="cloud"></span>Cloud files</button>
+    <button data-home="settings"><span class="tg-ic" data-icon="palette"></span>Theme</button>
   </div>
   <p class="muted small" id="homeTip">Tip: use “Open with → PDF Editor” from any file manager.</p>
 </section>
@@ -91,34 +94,53 @@
 
 <!-- ============ Bottom toolbar ============ -->
 <nav id="toolbar" hidden>
-  <button class="tool active" data-tool="select"><span data-icon="select"></span>Select</button>
-  <button class="tool" data-tool="text"><span data-icon="text"></span>Add Text</button>
-  <button class="tool" data-tool="edittext"><span data-icon="edittext"></span>Edit Text</button>
-  <button class="tool" data-tool="editimage"><span data-icon="imageedit"></span>Edit Images</button>
-  <button class="tool" data-action="find"><span data-icon="find"></span>Find &amp; Fix</button>
-  <button class="tool" data-action="ocr"><span data-icon="ocr"></span>OCR</button>
-  <button class="tool" data-tool="draw"><span data-icon="draw"></span>Draw</button>
-  <button class="tool" data-tool="highlight"><span data-icon="highlight"></span>Highlight</button>
-  <button class="tool" data-tool="whiteout"><span data-icon="eraser"></span>Whiteout</button>
-  <button class="tool" data-tool="rect"><span data-icon="rect"></span>Box</button>
-  <button class="tool" data-tool="ellipse"><span data-icon="ellipse"></span>Circle</button>
-  <button class="tool" data-tool="line"><span data-icon="line"></span>Line</button>
-  <button class="tool" data-tool="arrow"><span data-icon="arrow"></span>Arrow</button>
-  <button class="tool" data-tool="check"><span data-icon="check"></span>Tick</button>
-  <button class="tool" data-tool="cross"><span data-icon="cross"></span>Cross</button>
-  <button class="tool" data-tool="date"><span data-icon="date"></span>Date</button>
-  <button class="tool" data-action="image"><span data-icon="image"></span>Image</button>
-  <button class="tool" data-action="sign"><span data-icon="sign"></span>Sign</button>
-  <button class="tool" data-action="forms"><span data-icon="form"></span>Forms</button>
-  <button class="tool" data-action="read"><span data-icon="read"></span>Read</button>
-  <button class="tool" data-action="zoomout"><span data-icon="zoomout"></span>Zoom −</button>
-  <button class="tool" data-action="zoomin"><span data-icon="zoomin"></span>Zoom +</button>
+  <div id="toolRow">
+    <button class="tool active" data-cat="edit" data-tool="select"><span data-icon="select"></span>Select</button>
+    <button class="tool" data-cat="edit" data-tool="edittext"><span data-icon="edittext"></span>Edit Text</button>
+    <button class="tool" data-cat="edit" data-tool="text"><span data-icon="text"></span>Add Text</button>
+    <button class="tool" data-cat="edit" data-tool="editimage"><span data-icon="imageedit"></span>Images</button>
+    <button class="tool" data-cat="edit" data-action="ocr"><span data-icon="ocr"></span>OCR</button>
+    <button class="tool" data-cat="edit" data-action="find"><span data-icon="find"></span>Find &amp; Fix</button>
+    <button class="tool" data-cat="annotate" data-tool="draw"><span data-icon="draw"></span>Draw</button>
+    <button class="tool" data-cat="annotate" data-tool="highlight"><span data-icon="highlight"></span>Highlight</button>
+    <button class="tool" data-cat="annotate" data-tool="whiteout"><span data-icon="eraser"></span>Whiteout</button>
+    <button class="tool" data-cat="annotate" data-tool="rect"><span data-icon="rect"></span>Box</button>
+    <button class="tool" data-cat="annotate" data-tool="ellipse"><span data-icon="ellipse"></span>Circle</button>
+    <button class="tool" data-cat="annotate" data-tool="line"><span data-icon="line"></span>Line</button>
+    <button class="tool" data-cat="annotate" data-tool="arrow"><span data-icon="arrow"></span>Arrow</button>
+    <button class="tool" data-cat="insert" data-action="sign"><span data-icon="sign"></span>Sign</button>
+    <button class="tool" data-cat="insert" data-action="image"><span data-icon="image"></span>Image</button>
+    <button class="tool" data-cat="insert" data-tool="check"><span data-icon="check"></span>Tick</button>
+    <button class="tool" data-cat="insert" data-tool="cross"><span data-icon="cross"></span>Cross</button>
+    <button class="tool" data-cat="insert" data-tool="date"><span data-icon="date"></span>Date</button>
+    <button class="tool" data-cat="insert" data-action="forms"><span data-icon="form"></span>Forms</button>
+    <button class="tool" data-cat="pages" data-action="organize"><span data-icon="pages"></span>Organize</button>
+    <button class="tool" data-cat="pages" data-action="rotatepage"><span data-icon="rotr"></span>Rotate</button>
+    <button class="tool" data-cat="pages" data-action="blankpage"><span data-icon="blank"></span>Blank page</button>
+    <button class="tool" data-cat="pages" data-action="merge"><span data-icon="merge"></span>Merge</button>
+    <button class="tool" data-cat="pages" data-action="imagepages"><span data-icon="image"></span>Add photos</button>
+    <button class="tool" data-cat="view" data-action="read"><span data-icon="read"></span>Read</button>
+    <button class="tool" data-cat="view" data-action="zoomout"><span data-icon="zoomout"></span>Zoom −</button>
+    <button class="tool" data-cat="view" data-action="zoomfit"><span data-icon="fit"></span>Fit</button>
+    <button class="tool" data-cat="view" data-action="zoomin"><span data-icon="zoomin"></span>Zoom +</button>
+    <button class="tool" data-cat="view" data-action="settings"><span data-icon="palette"></span>Theme</button>
+  </div>
+  <div id="toolTabs">
+    <button data-tab="edit" class="on">Edit</button>
+    <button data-tab="annotate">Annotate</button>
+    <button data-tab="insert">Insert</button>
+    <button data-tab="pages">Pages</button>
+    <button data-tab="view">View</button>
+  </div>
 </nav>
 
 <!-- ============ Menu ============ -->
 <div id="menuBackdrop" class="backdrop" hidden></div>
 <aside id="menu" hidden>
-  <div class="menu-head">PDF Editor</div>
+  <div class="menu-head">PDF Editor<small id="menuAcct">Not signed in</small></div>
+  <button data-menu="account"><span data-icon="account"></span>Account &amp; sync…</button>
+  <button data-menu="settings"><span data-icon="palette"></span>Theme &amp; settings…</button>
+  <hr>
   <button data-menu="open"><span data-icon="open"></span>Open PDF…</button>
   <button data-menu="merge"><span data-icon="merge"></span>Merge: append PDF…</button>
   <button data-menu="images"><span data-icon="image"></span>Add images as pages…</button>
@@ -135,6 +157,7 @@
   <button data-menu="print"><span data-icon="print"></span>Print…</button>
   <hr>
   <button data-menu="save"><span data-icon="save"></span>Save as…</button>
+  <button data-menu="cloudsave"><span data-icon="cloud"></span>Save to cloud</button>
   <button data-menu="share"><span data-icon="share"></span>Share</button>
   <button data-menu="rename"><span data-icon="edittext"></span>Rename file</button>
   <hr>
@@ -240,7 +263,7 @@
   <button class="icon-btn" id="readNight" data-icon="night" title="Night mode"></button>
 </div>
 
-<div id="busy" hidden><div class="spinner"></div><div id="busyText">Working…</div></div>
+<div id="busy" hidden><div class="spinner"></div><div id="busyText">Working…</div><button class="chip" id="busyCancel" hidden>Cancel</button></div>
 <div id="toast" hidden></div>
 
 <input type="file" id="filePdf" accept="application/pdf" hidden>
@@ -248,6 +271,7 @@
 <input type="file" id="fileImage" accept="image/*" hidden>
 <input type="file" id="fileImagesPages" accept="image/*" multiple hidden>
 
+<script src="config.js"></script>
 <script src="lib/pdf.min.js"></script>
 <script src="lib/pdf-lib.min.js"></script>
 <script src="lib/fontkit.min.js"></script>
@@ -255,5 +279,6 @@
 <script src="app.js"></script>
 <script src="tools.js"></script>
 <script src="edit2.js"></script>
+<script src="ui.js"></script>
 </body>
 </html>

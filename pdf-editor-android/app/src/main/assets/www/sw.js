@@ -9,6 +9,8 @@ const SHELL = [
     'app.js',
     'tools.js',
     'edit2.js',
+    'ui.js',
+    'config.js',
     'manifest.webmanifest',
     'icons/icon-192.png',
     'icons/apple-touch-icon.png',

@@ -17,7 +17,7 @@ sed -e "s/\${applicationId}/$PKG/g" \
 
 aapt2 compile --dir app/src/main/res -o "$OUT/res.zip"
 aapt2 link -I "$ANDROID_JAR" --manifest "$OUT/AndroidManifest.xml" \
-  --min-sdk-version 26 --target-sdk-version 34 --version-code 4 --version-name 1.3 \
+  --min-sdk-version 26 --target-sdk-version 34 --version-code 5 --version-name 1.4 \
   -A app/src/main/assets --java "$OUT/gen" -o "$OUT/unsigned.apk" "$OUT/res.zip"
 
 javac -nowarn -source 8 -target 8 -bootclasspath "$ANDROID_JAR" -d "$OUT/classes" \

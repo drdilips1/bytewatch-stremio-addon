@@ -105,9 +105,13 @@ function toast(msg, ms = 2600) {
   toast._t = setTimeout(() => { t.hidden = true; }, ms);
 }
 
-function busy(on, text) {
+// Full-screen progress overlay. Pass onCancel to show a Cancel button (kept until busy(false)).
+function busy(on, text, onCancel) {
   $('#busy').hidden = !on;
   if (text) $('#busyText').textContent = text;
+  if (!on) busy.cancel = null;
+  else if (onCancel) busy.cancel = onCancel;
+  $('#busyCancel').hidden = !busy.cancel;
 }
 
 function hexToRgb(hex) {
@@ -1307,9 +1311,10 @@ function setTool(tool) {
   S.tool = tool;
   document.body.classList.forEach(c => { if (c.startsWith('tool-')) document.body.classList.remove(c); });
   document.body.classList.add('tool-' + tool);
+  if (typeof showToolTab === 'function') showToolTab(toolTab(tool));
   $$('#toolbar .tool[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
   if (tool === 'edittext' || tool === 'editimage' || prevEdit) renderAllLayers();
-  if (tool === 'edittext') toast('Tap a highlighted block, then tap where you want to type');
+  if (tool === 'edittext') { toast('Tap a highlighted block, then tap where you want to type'); offerOcrIfNoText(); }
   if (tool === 'editimage') toast('Tap a picture in the PDF to move, resize, crop or replace it');
   updatePropbar();
 }
@@ -1332,6 +1337,22 @@ function annotKind(a) {
 }
 
 function updatePropbar() {
+  updatePropbarInner();
+  // The page area only shrinks while the properties bar is actually shown.
+  document.body.classList.toggle('has-prop', !$('#propbar').hidden && !$('#toolbar').hidden);
+}
+
+function rotateCurrentPage() {
+  const p = currentPage();
+  if (!p) return;
+  finishEditing();
+  checkpoint();
+  p.ru = (p.ru + 90) % 360;
+  afterStructureChange();
+  scrollToPage(p);
+}
+
+function updatePropbarInner() {
   const bar = $('#propbar');
   if (!S.pages.length) { bar.hidden = true; return; }
   const t = propTarget();
@@ -1500,6 +1521,7 @@ function savedSigs() {
 
 function storeSigs(list) {
   try { localStorage.setItem('signatures', JSON.stringify(list.slice(0, 6))); } catch (e) { /* storage full */ }
+  if (typeof settingsChanged === 'function') settingsChanged();
 }
 
 function renderSavedSigs() {
@@ -2213,7 +2235,7 @@ function pickFile(sel) {
 
 async function menuAction(m) {
   toggleMenu(false);
-  const needDoc = ['merge', 'blankpage', 'pages', 'forms', 'save', 'share', 'rename', 'close', 'convert', 'compress', 'protect', 'read', 'print', 'find', 'ocr'];
+  const needDoc = ['cloudsave', 'merge', 'blankpage', 'pages', 'forms', 'save', 'share', 'rename', 'close', 'convert', 'compress', 'protect', 'read', 'print', 'find', 'ocr'];
   if (needDoc.includes(m) && !S.pages.length) { toast('Open a PDF first'); return; }
   switch (m) {
     case 'open':
@@ -2248,6 +2270,9 @@ async function menuAction(m) {
     }
     case 'close': closeDocument(); break;
     case 'convert': openConvert(); break;
+    case 'settings': openSettings(); break;
+    case 'account': openAccount(); break;
+    case 'cloudsave': saveToCloud(); break;
     case 'find': openFind(); break;
     case 'ocr': openOcr(); break;
     case 'compress': openCompress(); break;
@@ -2323,6 +2348,13 @@ function init() {
         case 'find': openFind(); break;
         case 'ocr': openOcr(); break;
         case 'zoomin': setZoom(S.zoom * 1.25); break;
+        case 'zoomfit': setZoom(1); break;
+        case 'organize': openPagesPanel(); break;
+        case 'rotatepage': rotateCurrentPage(); break;
+        case 'blankpage': menuAction('blankpage'); break;
+        case 'merge': pickFile('#fileMerge'); break;
+        case 'imagepages': pickFile('#fileImagesPages'); break;
+        case 'settings': openSettings(); break;
         case 'zoomout': setZoom(S.zoom / 1.25); break;
       }
     };

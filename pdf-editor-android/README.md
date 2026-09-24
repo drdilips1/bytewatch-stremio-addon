@@ -1,7 +1,7 @@
 # PDF Editor (Android + iPhone, offline)
 
-A self-use PDF editor APK. Everything runs on the phone: no internet permission,
-no accounts, no watermarks, no page/file limits.
+A self-use PDF editor. Everything runs on the phone: no watermarks, no page/file
+limits. The internet is only used for the optional account & cloud sync.
 
 **Install:** grab `dist/PdfEditor.apk` (or the `pdf-editor-latest` release / the
 `PdfEditor-apk` artifact from the *PDF Editor APK* GitHub Action), open it on the
@@ -14,6 +14,17 @@ the Share sheet (Save to Files, AirDrop, Print…). For offline OCR, open OCR on
 and tap *Download now*. The site is published by the *PDF Editor web app* GitHub
 Action (needs Settings → Pages → Source: **GitHub Actions**).
 
+**Account & sync (optional):** email/password sign-in; PDFs saved to the cloud,
+plus theme and signatures, follow you to every device (Android app and iPhone web app).
+One-time setup by the app owner, free tier, no card:
+1. Create a project at https://supabase.com (sign in with GitHub).
+2. SQL Editor → paste `supabase-setup.sql` → Run.
+3. Authentication → URL Configuration → Site URL: `https://drdilips1.github.io/bytewatch-stremio-addon/`.
+4. Project Settings → API: copy the Project URL and the anon/publishable key into
+   `app/src/main/assets/www/config.js` (both are public by design; access is limited
+   per user by the policies from step 2).
+Without this the app simply stays in offline mode.
+
 ## Features
 
 | | |
@@ -21,7 +32,7 @@ Action (needs Settings → Pages → Source: **GitHub Actions**).
 | **Add Text** | Tap anywhere to type. 8 fonts (incl. Roboto, Open Sans, Lato, handwriting, Hindi), size, bold, italic, colour, white background. Drag the round handle to make the box wider/narrower – text re-wraps. |
 | **Edit Text** | Existing text is grouped into paragraphs; tap a paragraph and the cursor goes where you tapped. Longer edits wrap inside the paragraph. Works on scanned pages after OCR. |
 | **Find & Fix** | Find & replace across the whole document to fix typos (also keyboard spell-check while typing). |
-| **OCR** | Offline text recognition (English, Hindi) for scans/photos: makes pages searchable, copyable, convertible to Word/Text and editable with Edit Text. |
+| **OCR** | Offline text recognition (English, Hindi) for scans/photos and "Print to PDF" files whose letters are only shapes: makes pages searchable, copyable, convertible to Word/Text and editable with Edit Text (table columns become separate blocks). Edit Text offers it automatically when a page has no text. |
 | **Edit Images** | Tap a picture that's in the PDF to move, resize, crop, replace or delete it. |
 | **Draw / Highlight** | Freehand pen and a translucent highlighter (straightens itself over a line of text). |
 | **Whiteout** | Drag a box to erase anything (any colour). |
@@ -37,6 +48,7 @@ Action (needs Settings → Pages → Source: **GitHub Actions**).
 | **Protect / Unlock** | AES-256 password, optionally blocking editing & copying. Save any PDF without its password or restrictions. |
 | **Read** | Full-screen reading mode with night mode and "go to page". |
 | **Print** | Straight to Android's print dialog (printers or "Save as PDF"). |
+| **Themes** | Light, dark or follow the phone; 8 accent colours. Tools are grouped in tabs: Edit, Annotate, Insert, Pages, View. |
 | **Undo / Redo**, zoom, Save As, Share, "Open with" / "Share to" from any app. |
 
 Protected PDFs: password-protected files ask for the password; files with

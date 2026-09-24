@@ -443,12 +443,17 @@ public class MainActivity extends Activity {
         MIME.put("gz", "application/gzip");
     }
 
+    static boolean isSyncHost(String host) {
+        return host != null && (host.endsWith(".supabase.co") || host.endsWith(".supabase.in"));
+    }
+
     private class LocalClient extends WebViewClient {
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             Uri url = request.getUrl();
             if (!HOST.equals(url.getHost())) {
-                // Fully offline: block everything else.
+                // Offline app: only the optional sync service may be reached; block everything else.
+                if (isSyncHost(url.getHost())) return null;
                 return new WebResourceResponse("text/plain", "utf-8", 403, "Blocked",
                         new HashMap<>(), null);
             }
