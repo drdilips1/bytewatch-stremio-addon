@@ -8,6 +8,7 @@ import * as cloud from './debrid.js';
 import * as hc from './hardcover.js';
 import * as gr from './goodreads.js';
 import * as ttsb from './ttsbooks.js';
+import { audible, googleBooks } from './catalogs.js';
 import { settings } from '../lib/store.js';
 import { matches, mainTitle } from '../lib/match.js';
 import { lookup, wantsMeta } from '../lib/meta.js';
@@ -17,6 +18,8 @@ export const SOURCES = {
   lv: { name: 'LibriVox', short: 'LibriVox', hue: 350, kind: 'Listen', blurb: '20,000+ volunteer-read public-domain audiobooks', impl: lv },
   gb: { name: 'Project Gutenberg', short: 'Gutenberg', hue: 150, kind: 'Read', blurb: '75,000+ free classic ebooks, read in-app', impl: gb },
   ol: { name: 'Open Library', short: 'Open Library', hue: 210, kind: 'Discover', blurb: 'Trending books, rich descriptions & covers', impl: ol },
+  au: { name: 'Audible catalog', short: 'Audible', hue: 32, kind: 'Discover', blurb: 'Audiobook listings with narrators, series & covers', impl: audible },
+  gbk: { name: 'Google Books', short: 'Google Books', hue: 220, kind: 'Discover', blurb: 'Listings for almost every book in print', impl: googleBooks },
   abs: { name: 'Audiobookshelf', short: 'My Server', hue: 265, kind: 'Listen', blurb: 'Your self-hosted audiobook server', impl: absSrc },
   tb: { name: 'TorBox', short: 'TorBox', hue: 130, kind: 'Cloud', blurb: 'Stream audiobooks from your TorBox cloud', impl: cloud },
   rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud },
@@ -62,6 +65,8 @@ export function searchAll(term, onResult) {
     ['ia', () => ia.search(term), true],
     ['lv', () => lv.search(term), true],
     ['gb', () => gb.search(term), true],
+    ['au', () => audible.search(term), true],
+    ['gbk', () => googleBooks.search(term), true],
     ['ol', () => ol.search(term), true],
   ].filter(([k, , ok]) => ok && enabled(k));
   return Promise.all(
