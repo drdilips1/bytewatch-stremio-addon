@@ -37,9 +37,9 @@ jobs:
 
       - name: Build APK
         env:
-          KEYSTORE_B64: ${{ secrets.P2A_KEYSTORE_B64 }}
-          P2A_KEYSTORE_PASSWORD: ${{ secrets.P2A_KEYSTORE_PASSWORD }}
-          P2A_KEY_ALIAS: ${{ secrets.P2A_KEY_ALIAS }}
+          KEYSTORE_B64: ${{ secrets.P2A_KEYSTORE_B64 || secrets.SIGNING_KEY }}
+          P2A_KEYSTORE_PASSWORD: ${{ secrets.P2A_KEYSTORE_PASSWORD || secrets.SIGNING_PASSWORD }}
+          P2A_KEY_ALIAS: ${{ secrets.P2A_KEY_ALIAS || secrets.SIGNING_ALIAS || 'p2a' }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/p2a.keystore"
@@ -51,7 +51,7 @@ jobs:
 
       - name: Show signing certificate (SHA-1 must match the Google Cloud OAuth client)
         env:
-          HAS_KEY: ${{ secrets.P2A_KEYSTORE_B64 != '' }}
+          HAS_KEY: ${{ (secrets.P2A_KEYSTORE_B64 || secrets.SIGNING_KEY) != '' }}
         run: |
           APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
           "$APKSIGNER" verify --print-certs Paper2Audio.apk | grep -i "SHA-1" || true
