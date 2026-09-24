@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.bookracy.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.bookracy.app'
+        minSdk 29
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    // Fixed key so new builds install as updates over old ones.
+    signingConfigs {
+        shared {
+            storeFile file('app.keystore')
+            storePassword 'bookracy'
+            keyAlias 'bookracy'
+            keyPassword 'bookracy'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.shared
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

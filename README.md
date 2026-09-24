@@ -119,3 +119,8 @@ After deploying the app, paste the deployment URL in Stremio's searchbar to add 
 ## License
 
 ISC License. Use freely and modify as needed.
+## Bookracy Android app
+
+`android/` contains a small Android app that opens [bookracy.com](https://bookracy.com/) full-screen, with back-button navigation, downloads saved to your phone's **Downloads** folder, and a **Share → Bookracy** option that searches whatever text you share.
+
+GitHub Actions builds it on every change under `android/`. To install it, open the repo's **Releases** page on your phone, download `Bookracy.apk`, and allow installs from your browser when Android asks.
