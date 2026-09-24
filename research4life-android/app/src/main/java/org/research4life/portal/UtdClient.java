@@ -32,7 +32,7 @@ final class UtdClient {
 
     static final String BASE = "https://www.uptodate.com";
     private static final long POLL_MS = 700;
-    private static final long TIMEOUT_MS = 45_000;
+    private static final long TIMEOUT_MS = 60_000;
     private static final int MAX_LOGINS = 2;
 
     private final Context app;
@@ -50,6 +50,19 @@ final class UtdClient {
     private int continueClicks;
     private long lastProgress;
     private String lastPayload;
+    private int stableCount;
+    private int lastLength = -1;
+    private String topicUrl;       // the topic as linked (print view is tried first)
+    private boolean triedFullPage;
+    private long stageStarted;
+    private long lastReport;
+    private final Runnable hardTimeout = () -> {
+        if (callback == null) return;
+        webView.stopLoading();
+        String title = webView.getTitle();
+        finish(result("stuck", "UpToDate is taking too long" + (title == null || title.isEmpty() ? "" : " (stopped at “" + title + "”)")
+                + ". Tap Show page to see what it needs, or try again."));
+    };
 
     @SuppressLint("SetJavaScriptEnabled")
     UtdClient(Context activity, FrameLayout host) {
@@ -99,7 +112,12 @@ final class UtdClient {
             cb.onResult(result("error", "Not an UpToDate link"));
             return;
         }
-        start("topic", url, url, cb);
+        topicUrl = url;
+        triedFullPage = false;
+        // The print view is plain text: quicker to load and to read than the full interactive page.
+        String path = u.getPath() == null ? "" : u.getPath();
+        String print = path.endsWith("/print") ? url : u.buildUpon().path(path.replaceAll("/+$", "") + "/print").build().toString();
+        start("topic", print, url, cb);
     }
 
     private void start(String kind, String url, String request, Callback cb) {
@@ -114,11 +132,29 @@ final class UtdClient {
         this.returnedToTarget = false;
         this.continueClicks = 0;
         this.lastPayload = null;
+        this.stableCount = 0;
+        this.lastLength = -1;
+        this.stageStarted = started;
+        this.lastReport = started;
         report("search".equals(kind) ? "Searching UpToDate…" : "Opening topic…");
         webView.stopLoading();
         webView.loadUrl(url);
         final int t = token;
+        main.removeCallbacks(hardTimeout);
+        main.postDelayed(hardTimeout, TIMEOUT_MS);
         main.postDelayed(() -> poll(t), 1500);
+    }
+
+    /** Falls back from the print view to the full topic page. */
+    private void tryFullPage() {
+        triedFullPage = true;
+        target = topicUrl;
+        stageStarted = System.currentTimeMillis();
+        lastPayload = null;
+        stableCount = 0;
+        lastLength = -1;
+        report("Loading the full topic page…");
+        webView.loadUrl(topicUrl);
     }
 
     private void report(String message) {
@@ -177,11 +213,12 @@ final class UtdClient {
     private void poll(int t) {
         if (t != token || callback == null) return;
         long now = System.currentTimeMillis();
-        if (now - started > TIMEOUT_MS) {
-            String title = webView.getTitle();
-            finish(result("stuck", "UpToDate stopped at “" + (title == null || title.isEmpty() ? currentUrl() : title)
-                    + "”. Tap Show page to see what it needs."));
-            return;
+        if ("topic".equals(kind) && !triedFullPage && now - stageStarted > 12_000) {
+            tryFullPage();
+        }
+        if (now - lastReport > 5000) {
+            lastReport = now;
+            report(("search".equals(kind) ? "Searching UpToDate… " : "Loading topic… ") + ((now - started) / 1000) + "s");
         }
         webView.evaluateJavascript("search".equals(kind) ? SEARCH_SCRIPT : TOPIC_SCRIPT, value -> {
             if (t != token || callback == null) return;
@@ -192,12 +229,19 @@ final class UtdClient {
                 if ("login".equals(state)) {
                     // A sign-in form on the page (possibly a pop-up, not a /login address).
                     if (System.currentTimeMillis() - lastProgress > 6000 || logins == 0) signIn();
+                } else if ("ok".equals(state) && "topic".equals(kind) && !triedFullPage && o.optString("html").length() < 3000) {
+                    // Too little for a topic: the print view probably isn't available; wait for the fallback.
                 } else if ("results".equals(state) || "ok".equals(state) || "empty".equals(state)) {
-                    if (json.equals(lastPayload) && (logins == 0 || atTarget(webView.getUrl()))) {
+                    // Settled once the content stops growing (pages may keep changing in small ways).
+                    int len = json.length();
+                    if (len <= lastLength || json.equals(lastPayload)) stableCount++;
+                    else stableCount = 0;
+                    lastLength = Math.max(lastLength, len);
+                    lastPayload = json;
+                    if (stableCount >= 1 && (logins == 0 || atTarget(webView.getUrl()))) {
                         finish(o);
                         return;
                     }
-                    lastPayload = json;
                 } else if (System.currentTimeMillis() - lastProgress > 8000 && continueClicks < 2) {
                     // Nothing recognisable yet: an interstitial ("Continue", "Accept", other session) may be waiting.
                     continueClicks++;
@@ -217,6 +261,7 @@ final class UtdClient {
         Callback cb = callback;
         callback = null;
         token++;
+        main.removeCallbacks(hardTimeout);
         try {
             o.put("kind", kind);
             o.put("request", request);
@@ -271,26 +316,29 @@ final class UtdClient {
     /** The topic's article text, reduced to simple markup the app can restyle. */
     static final String TOPIC_SCRIPT = "(function(){"
             + "if(document.querySelector('input[type=password]'))return JSON.stringify({state:'login'});"
-            + "var cands=[].slice.call(document.querySelectorAll('#topicText,#topicContent,[id*=topicText],[class*=topicText],[class*=topic-text],[class*=topicContent],article,main,[role=main]'));"
-            + "var root=null,best=0;cands.forEach(function(c){var n=(c.innerText||'').length;if(n>best){best=n;root=c;}});"
+            + "var cands=[].slice.call(document.querySelectorAll('#topicContent,#topicText,[id*=topicText],[class*=topicText],[class*=topic-text],[class*=topicContent],[class*=print],article,main,[role=main]'));"
+            + "var root=null,best=0;cands.forEach(function(c){var n=(c.textContent||'').length;if(n>best){best=n;root=c;}});"
+            + "if((!root||best<150)&&document.body&&(document.body.textContent||'').length>600){root=document.body;best=root.textContent.length;}"
             + "if(!root||best<150)return JSON.stringify({state:'waiting'});"
-            + "var keep={H1:'h2',H2:'h2',H3:'h3',H4:'h4',H5:'h4',P:'p',UL:'ul',OL:'ol',LI:'li',TABLE:'table',THEAD:'thead',TBODY:'tbody',TR:'tr',TH:'th',TD:'td',B:'b',STRONG:'b',I:'i',EM:'i',SUP:'sup',SUB:'sub',BR:'br',A:'a',IMG:'img',DIV:'div',SPAN:'span',BLOCKQUOTE:'blockquote',DL:'dl',DT:'dt',DD:'dd'};"
-            + "var drop=/^(SCRIPT|STYLE|NOSCRIPT|BUTTON|INPUT|SELECT|TEXTAREA|FORM|NAV|HEADER|FOOTER|SVG|IFRAME|CANVAS|VIDEO|AUDIO)$/;"
+            + "var keep={H1:'h2',H2:'h2',H3:'h3',H4:'h4',H5:'h4',H6:'h4',P:'p',UL:'ul',OL:'ol',LI:'li',TABLE:'table',THEAD:'thead',TBODY:'tbody',TR:'tr',TH:'th',TD:'td',B:'b',STRONG:'b',I:'i',EM:'i',SUP:'sup',SUB:'sub',BR:'br',A:'a',IMG:'img',DIV:'div',SECTION:'div',BLOCKQUOTE:'blockquote',DL:'dl',DT:'dt',DD:'dd'};"
+            + "var drop=/^(SCRIPT|STYLE|NOSCRIPT|BUTTON|INPUT|SELECT|TEXTAREA|FORM|NAV|HEADER|FOOTER|SVG|IFRAME|CANVAS|VIDEO|AUDIO|TEMPLATE|DIALOG)$/;"
+            + "var out=[],size=0,MAX=1800000;"
             + "function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}"
-            + "function walk(n){if(n.nodeType===3)return esc(n.nodeValue);if(n.nodeType!==1)return '';"
-            + "if(drop.test(n.tagName.toUpperCase()))return '';var st=getComputedStyle(n);if(st.display==='none'||st.visibility==='hidden')return '';"
+            + "function walk(n){if(size>MAX)return '';if(n.nodeType===3){size+=n.nodeValue.length;return esc(n.nodeValue);}if(n.nodeType!==1)return '';"
+            + "var tn=n.tagName.toUpperCase();if(drop.test(tn))return '';"
+            + "if(n.hidden||n.getAttribute('aria-hidden')==='true'||(n.style&&n.style.display==='none'))return '';"
             + "var inner='';for(var c=n.firstChild;c;c=c.nextSibling)inner+=walk(c);"
-            + "var tag=keep[n.tagName];if(!tag)return inner;"
-            + "if(tag==='img'){var src=n.currentSrc||n.getAttribute('src')||n.getAttribute('data-src')||'';if(!src)return '';try{src=new URL(src,location.href).href;}catch(e){return '';}return '<img src=\"'+esc(src)+'\">';}"
+            + "var tag=keep[tn];if(!tag)return inner;"
+            + "if(tag==='img'){var src=n.getAttribute('src')||n.getAttribute('data-src')||'';if(!src||/^data:/.test(src))return '';try{src=new URL(src,location.href).href;}catch(e){return '';}return '<img src=\"'+esc(src)+'\">';}"
             + "if(tag==='a'){var h=n.getAttribute('href')||'';var u;try{u=new URL(h,location.href);}catch(e){return inner;}"
-            + "if(/uptodate\\.com$/.test(u.hostname)&&/\\/contents\\//.test(u.pathname)){u.hash=/image/i.test(u.pathname)?'':u.hash;return '<a data-utd=\"'+esc(u.href)+'\">'+inner+'</a>';}return inner;}"
-            + "if(tag==='div'||tag==='span'){if(tag==='div'&&/block|flex|list-item/.test(st.display))return '<p>'+inner+'</p>';return inner;}"
+            + "if(/uptodate\\.com$/.test(u.hostname)&&/\\/contents\\//.test(u.pathname)){u.pathname=u.pathname.replace(/\\/print$/,'');return '<a data-utd=\"'+esc(u.href)+'\">'+inner+'</a>';}return inner;}"
+            + "if(tag==='div')return inner.trim()?'<p>'+inner+'</p>':'';"
             + "if(tag==='br')return '<br>';"
             + "var attrs='';if(tag==='td'||tag==='th'){['colspan','rowspan'].forEach(function(k){var v=n.getAttribute(k);if(v)attrs+=' '+k+'=\"'+(parseInt(v,10)||1)+'\"';});}"
             + "return '<'+tag+attrs+'>'+inner+'</'+tag+'>';}"
-            + "var html=walk(root).replace(/<p>\\s*<\\/p>/g,'').replace(/<p>(\\s*<p>)+/g,'<p>').replace(/(<\\/p>\\s*)+<\\/p>/g,'</p>');"
+            + "var html=walk(root).replace(/<p>\\s*<\\/p>/g,'');"
             + "var h1=document.querySelector('h1');"
-            + "var title=(h1&&h1.innerText||document.title||'').replace(/\\s*-\\s*UpToDate\\s*$/i,'').trim();"
-            + "return JSON.stringify({state:'ok',title:title,html:html,url:location.href.split('#')[0]});"
+            + "var title=((h1&&h1.textContent)||document.title||'').replace(/\\s*-\\s*UpToDate\\s*$/i,'').replace(/\\s+/g,' ').trim();"
+            + "return JSON.stringify({state:'ok',title:title,html:html,url:location.href.split('#')[0].replace(/\\/print(\\?|$)/,'$1')});"
             + "})()";
 }

@@ -1040,7 +1040,10 @@
     let res = utdCache.get(q);
     if (!res) {
       el.innerHTML = `<div class="meta-line"><span class="spin" style="vertical-align:-3px;margin-right:8px"></span><span id="utd-status">Searching UpToDate…</span></div>${skeletons(4)}`;
-      res = await utdCall('search', q);
+      res = await Promise.race([
+        utdCall('search', q),
+        new Promise((r) => setTimeout(() => r({ state: 'stuck', message: 'UpToDate did not respond. Tap Show page to see what it needs.' }), 75000)),
+      ]);
       if (res.state === 'cancelled') return;
       if (res.state === 'results') { utdCache.set(q, res); addHistory(q); }
     }
@@ -1153,26 +1156,45 @@
 
   async function renderUtdTopic(url) {
     const key = 'utd:' + url;
-    view.innerHTML = readerTop('UpToDate') + readerLoading('Opening UpToDate topic…');
-    let model = await db.getReflow(key).catch(() => null);
-    if (!model) {
-      const res = await utdCall('topic', url);
-      if (res.state === 'cancelled' || current.name !== 'utd' || current.arg !== url) return;
-      if (res.state === 'login' || res.state === 'stuck') {
-        view.innerHTML = topbar('UpToDate') + utdLoginCard(res.message || 'Sign in to UpToDate to read this topic here.', true);
-        bindUtdLogin(() => render());
-        return;
+    const here = () => current.name === 'utd' && current.arg === url;
+    const fail = (title, msg, withShow) => {
+      if (!here()) return;
+      view.innerHTML = topbar('UpToDate') + `<div class="empty">${icon('alert')}<b>${esc(title)}</b><div>${esc(msg || '')}</div>
+        <div class="spacer"></div><div class="row" style="gap:8px;justify-content:center">
+        <button class="btn small primary" data-act="utd-retry">Try again</button>
+        ${withShow ? '<button class="btn small" data-act="utd-show">Show page</button>' : ''}</div></div>`;
+      actions['utd-retry'] = async () => { await db.delReflow(key).catch(() => {}); render(); };
+      bindUtdLogin(() => render());
+    };
+    view.innerHTML = readerTop('UpToDate') + readerLoading('Opening topic…') +
+      '<div class="center hidden" id="utd-slow" style="margin-top:-40px"><button class="btn small" data-act="utd-show">Taking long? Show page</button></div>';
+    bindUtdLogin(() => render());
+    const slow = setTimeout(() => $('#utd-slow')?.classList.remove('hidden'), 15000);
+    try {
+      let model = await db.getReflow(key).catch(() => null);
+      if (!model) {
+        // Watchdog: never leave the spinner up if the background page never answers.
+        const res = await Promise.race([
+          utdCall('topic', url),
+          new Promise((r) => setTimeout(() => r({ state: 'stuck', message: 'UpToDate did not respond. Tap Show page to see what it needs.' }), 75000)),
+        ]);
+        if (res.state === 'cancelled' || !here()) return;
+        if (res.state === 'login') {
+          view.innerHTML = topbar('UpToDate') + utdLoginCard(res.message || 'Sign in to UpToDate to read this topic here.', true);
+          bindUtdLogin(() => render());
+          return;
+        }
+        if (res.state !== 'ok' || !res.html) { fail("Couldn't open this topic", res.message, true); return; }
+        model = { ...utdToModel(res.html, res.title || 'UpToDate topic', url), key };
+        if (model.blocks.length < 3) { fail('This topic came back empty', 'UpToDate may have shown a notice instead of the topic.', true); return; }
+        db.putReflow(model).catch(() => {});
       }
-      if (res.state !== 'ok' || !res.html) {
-        view.innerHTML = topbar('UpToDate') + `<div class="empty">${icon('alert')}<b>Couldn't open this topic</b><div>${esc(res.message || '')}</div>
-          <div class="spacer"></div><button class="btn small" data-act="utd-retry">Try again</button></div>`;
-        actions['utd-retry'] = () => render();
-        return;
-      }
-      model = { ...utdToModel(res.html, res.title || 'UpToDate topic', url), key };
-      db.putReflow(model).catch(() => {});
+      if (here()) showReader(model, { key, title: model.title, utd: true, url });
+    } catch (e) {
+      fail("Couldn't show this topic", String(e && e.message || e), true);
+    } finally {
+      clearTimeout(slow);
     }
-    showReader(model, { key, title: model.title, utd: true, url });
   }
 
   // ---------------------------------------------------------------- PDF → mobile reader
@@ -1428,7 +1450,7 @@
     closeDrawer();
     const tab = store.get('drawerTab', 'toc');
     document.body.insertAdjacentHTML('beforeend', `<div class="drawer-bg" data-act="rd-close-drawer"></div>
-      <aside class="drawer" id="drawer"><div class="drawer-head"><b>In this paper</b><button class="icon-btn" data-act="rd-close-drawer">${icon('x')}</button></div>
+      <aside class="drawer" id="drawer"><div class="drawer-head"><b>In this document</b><button class="icon-btn" data-act="rd-close-drawer">${icon('x')}</button></div>
       <div class="tabs drawer-tabs">
         <button data-act="rd-dtab" data-t="toc">Contents</button>
         <button data-act="rd-dtab" data-t="figs">Figures · ${images.length}</button>
