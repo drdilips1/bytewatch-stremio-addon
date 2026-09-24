@@ -9,8 +9,8 @@ const cache = new Map();
 const native = Capacitor.isNativePlatform();
 
 const isAbs = (url) => {
-  const { server, token } = abs.get();
-  return !!(server && token && url.startsWith(server));
+  const { server, altServer, token } = abs.get();
+  return !!(token && ((server && url.startsWith(server)) || (altServer && url.startsWith(altServer))));
 };
 
 export function needsProxy(url) {

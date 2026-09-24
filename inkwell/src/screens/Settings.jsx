@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup } from '../lib/store.js';
@@ -50,6 +50,11 @@ function Stepper({ label, value, options, onChange, fmt = (v) => v }) {
 
 function AbsCard() {
   const cfg = useStore(abs);
+  const [alt, setAlt] = useState(cfg.altServer || '');
+  const [inUse, setInUse] = useState('');
+  useEffect(() => {
+    if (cfg.token && cfg.altServer) absSrc.resolveServer(true).then(setInUse).catch(() => {});
+  }, [cfg.token, cfg.altServer]);
   const [server, setServer] = useState(cfg.server || '');
   const [mode, setMode] = useState('password');
   const [user, setUser] = useState(cfg.username || '');
@@ -65,6 +70,12 @@ function AbsCard() {
             <b>Connected</b>
             <small>
               {cfg.username} @ {cfg.server}
+              {cfg.altServer && (
+                <>
+                  <br />
+                  In use: {inUse || 'checking…'}
+                </>
+              )}
             </small>
           </div>
           <button class="pill danger small" onClick={() => absSrc.logout()}>
@@ -85,6 +96,30 @@ function AbsCard() {
             </button>
           )}
         </div>
+        <form
+          class="set-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            try {
+              const used = await absSrc.setAltServer(alt);
+              setInUse(used);
+              toast(alt.trim() ? `Saved — now using ${used}` : 'Second address removed');
+            } catch (err) {
+              toast(err.message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <small class="muted">Second address — e.g. Tailscale (100.x.y.z:port or your MagicDNS name). Inkwell uses whichever address answers and switches automatically when one stops working.</small>
+          <div class="btn-row">
+            <input placeholder="http://100.101.102.103:13378" value={alt} onInput={(e) => setAlt(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} inputmode="url" />
+            <button class="btn secondary" style={{ flex: 'none' }} disabled={busy}>
+              {busy ? <span class="spinner" /> : 'Save'}
+            </button>
+          </div>
+        </form>
       </>
     );
   }

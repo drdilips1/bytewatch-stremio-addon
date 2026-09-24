@@ -5,7 +5,38 @@ import { abs } from '../lib/store.js';
 
 const cfg = () => abs.get();
 const auth = () => ({ Authorization: `Bearer ${cfg().token}` });
-const base = () => cfg().server.replace(/\/+$/, '');
+// Two addresses for the same server (e.g. home LAN + Tailscale). The one that
+// answers is used; on a connection failure the other is tried automatically.
+let active = '';
+let checkedAt = 0;
+const trim = (u) => (u || '').replace(/\/+$/, '');
+const base = () => trim(active || cfg().server);
+export const activeServer = () => base();
+
+async function reachable(url) {
+  try {
+    const r = await getJson(trim(url) + '/ping', { timeout: 3500, fresh: true });
+    return r?.success !== false;
+  } catch (e) {
+    return !!e.status; // an HTTP error still means the host answered
+  }
+}
+
+/** Pick the address that currently answers (cached for a minute). */
+export async function resolveServer(force = false) {
+  const { server, altServer } = cfg();
+  if (!altServer) return (active = trim(server));
+  if (!force && active && Date.now() - checkedAt < 60e3) return active;
+  checkedAt = Date.now();
+  const order = active === trim(altServer) ? [altServer, server] : [server, altServer];
+  for (const u of order) {
+    if (await reachable(u)) {
+      if (trim(u) !== active && active) console.info('Audiobookshelf: switched to', u);
+      return (active = trim(u));
+    }
+  }
+  return (active = trim(server));
+}
 export const connected = () => !!(cfg().server && cfg().token);
 
 function normalizeServer(server) {
@@ -20,9 +51,15 @@ function normalizeServer(server) {
 async function call(path, { method = 'GET', body, fresh } = {}) {
   const run = () =>
     method === 'GET' ? getJson(base() + path, { headers: auth(), fresh }) : sendJson(base() + path, method, body, auth());
+  await resolveServer();
   try {
     return await run();
   } catch (e) {
+    // Network failure (no HTTP status): try the other address once.
+    if (!e.status && cfg().altServer) {
+      const before = base();
+      if ((await resolveServer(true)) !== before) return run();
+    }
     if (e.status === 401 && cfg().refreshToken && (await refresh())) return run();
     if (e.status === 401) throw new Error('Audiobookshelf session expired — please sign in again');
     throw e;
@@ -62,7 +99,8 @@ export async function login(server, username, password) {
   // Prefer the long-lived legacy token when the server still issues one.
   const token = u.token || u.accessToken;
   if (!token) throw new Error('Login failed — the server returned no token');
-  abs.set({ server, token, refreshToken: u.token ? '' : u.refreshToken || '', username: u.username || username, libraryId: '' });
+  abs.set({ server, altServer: cfg().altServer || '', token, refreshToken: u.token ? '' : u.refreshToken || '', username: u.username || username, libraryId: '' });
+  active = server;
   return pickLibrary();
 }
 
@@ -73,12 +111,21 @@ export async function loginWithKey(server, key) {
   const me = await getJson(server + '/api/me', { headers: { Authorization: `Bearer ${token}` }, fresh: true }).catch((e) => {
     throw new Error(e.status === 401 ? 'That API key was rejected' : `Can't reach ${server}`);
   });
-  abs.set({ server, token, refreshToken: '', username: me.username || 'API key', libraryId: '' });
+  abs.set({ server, altServer: cfg().altServer || '', token, refreshToken: '', username: me.username || 'API key', libraryId: '' });
+  active = server;
   return pickLibrary();
 }
 
+export function setAltServer(url) {
+  const u = url.trim() ? normalizeServer(url) : '';
+  abs.patch({ altServer: u });
+  active = '';
+  return resolveServer(true);
+}
+
 export function logout() {
-  abs.set({ server: '', token: '', refreshToken: '', username: '', libraryId: '' });
+  abs.set({ server: '', altServer: cfg().altServer, token: '', refreshToken: '', username: '', libraryId: '' });
+  active = '';
 }
 
 export async function libraries() {

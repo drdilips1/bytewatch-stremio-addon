@@ -71,7 +71,7 @@ export const library = persisted('library', {}); // uid -> book summary + addedA
 export const progress = persisted('progress', {}); // uid -> { track, time, duration, percent, finished, updatedAt, book, kind }
 export const bookmarks = persisted('bookmarks', {}); // uid -> [{ track, time, label, createdAt }]
 export const addons = persisted('addons', []); // [{ url, manifest }]
-export const abs = persisted('abs', { server: '', token: '', refreshToken: '', username: '', libraryId: '' });
+export const abs = persisted('abs', { server: '', altServer: '', token: '', refreshToken: '', username: '', libraryId: '' });
 
 export function summarize(book) {
   const { uid, source, kind, title, author, cover, year, duration } = book;
