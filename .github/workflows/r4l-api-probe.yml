@@ -9,18 +9,27 @@ jobs:
       - name: Europe PMC
         run: |
           B="https://www.ebi.ac.uk/europepmc/webservices/rest/search"
-          q() { echo "=== $1"; curl -sG "$B" --data-urlencode "query=$1" -d format=json -d pageSize=2 -d resultType=core --data-urlencode "sort=$2" | jq -c '{hit:.hitCount,next:.nextCursorMark,r:[.resultList.result[]? | {title,src:.source,id,pubYear,citedByCount,isOpenAccess,doi,pmid,pmcid,j:.journalInfo.journal.title,iso:.journalInfo.journal.isoabbreviation,issn:.journalInfo.journal.issn,essn:.journalInfo.journal.essn,pt:.pubTypeList,ft:.fullTextUrlList,abs:(.abstractText//""|.[0:250]),keys:(keys)}]}'; }
-          q 'vitiligo AND (MESH:"Skin Diseases" OR JOURNAL:dermatol*)' ''
-          q 'vitiligo AND (MESH:"Skin Diseases" OR MESH:"Dermatology")' 'CITED desc'
-          q 'psoriasis AND PUB_TYPE:"Randomized Controlled Trial"' 'P_PDATE_D desc'
-          q 'acne AND PUB_TYPE:"Meta-Analysis" AND PUB_YEAR:[2020 TO 2026] AND OPEN_ACCESS:y' ''
-          q 'melasma AND PUB_TYPE:"Systematic Review"' ''
-          q 'JOURNAL:"Journal of the American Academy of Dermatology"' 'P_PDATE_D desc'
-          q 'JOURNAL:"J Am Acad Dermatol"' 'P_PDATE_D desc'
-          q 'ISSN:"0190-9622"' 'P_PDATE_D desc'
-          q 'JOURNAL:"Indian Journal of Dermatology, Venereology and Leprology"' 'P_PDATE_D desc'
-          q 'JOURNAL:"JAMA Dermatology"' 'P_PDATE_D desc'
-          q 'JOURNAL:"British Journal of Dermatology"' 'P_PDATE_D desc'
-      - name: OpenAlex
-        run: |
-          curl -s "https://api.openalex.org/sources?search=dermatology&sort=cited_by_count:desc&per_page=60&select=display_name,issn_l,summary_stats,is_oa,homepage_url,works_count,cited_by_count,host_organization_name" | jq -c '.results[] | [.display_name,.issn_l,.summary_stats.h_index,.summary_stats."2yr_mean_citedness",.is_oa,.works_count,.host_organization_name]'
+          c() { printf '%s  => ' "$1"; curl -sG "$B" --data-urlencode "query=$1" -d format=json -d pageSize=3 -d resultType=lite | jq -c '[.hitCount, [.resultList.result[]?.journalTitle]]'; }
+          c 'vitiligo'
+          c 'vitiligo AND (MESH:"Skin Diseases" OR JOURNAL:dermatol*)'
+          c 'vitiligo AND (MESH:"Skin Diseases" OR MESH:"Skin" OR MESH:"Dermatology" OR dermatol* OR skin OR cutaneous)'
+          c 'metformin'
+          c 'metformin AND (MESH:"Skin Diseases" OR MESH:"Skin" OR MESH:"Dermatology" OR dermatol* OR skin OR cutaneous)'
+          c 'metformin AND (MESH:"Skin Diseases" OR MESH:"Skin" OR MESH:"Dermatology" OR JOURNAL:dermatol* OR TITLE:skin OR TITLE:cutaneous OR TITLE:dermatitis)'
+          c 'metformin AND (MESH:"Skin Diseases" OR MESH:"Skin" OR JOURNAL:"J Am Acad Dermatol" OR JOURNAL:"Br J Dermatol")'
+          c 'metformin AND (MESH:"Skin Diseases" OR MESH:"Skin Physiological Phenomena" OR MESH:"Dermatologic Agents" OR MESH:"Dermatology" OR MESH:"Skin")'
+          c 'ISSN:"0007-0963"'
+          c 'ISSN:"2784-8450"'
+          c 'JOURNAL:"Dermatol Surg"'; c 'JOURNAL:"Contact Dermatitis"'; c 'JOURNAL:"Acta Derm Venereol"'; c 'JOURNAL:"J Dermatol Sci"'
+          c 'JOURNAL:"Dermatol Ther"'; c 'JOURNAL:"Dermatol Clin"'; c 'JOURNAL:"JAAD Case Rep"'; c 'JOURNAL:"Skin Appendage Disord"'
+          c 'JOURNAL:"J Cutan Pathol"'; c 'JOURNAL:"Am J Dermatopathol"'; c 'JOURNAL:"Photodermatol Photoimmunol Photomed"'
+          c 'JOURNAL:"Lasers Surg Med"'; c 'JOURNAL:"Mycoses"'; c 'JOURNAL:"Lepr Rev"'; c 'JOURNAL:"Melanoma Res"'
+          c 'JOURNAL:"Skin Res Technol"'; c 'JOURNAL:"Wound Repair Regen"'; c 'JOURNAL:"An Bras Dermatol"'; c 'JOURNAL:"Dermatitis"'
+          c 'JOURNAL:"Skin Health Dis"'; c 'JOURNAL:"Actas Dermosifiliogr"'; c 'JOURNAL:"J Eur Acad Dermatol Venereol"'; c 'JOURNAL:"Indian Dermatol Online J"'
+          c 'JOURNAL:"Dermatol Ther (Heidelb)"'; c 'JOURNAL:"J Invest Dermatol"'; c 'JOURNAL:"Clin Exp Dermatol"'; c 'JOURNAL:"Pediatr Dermatol"'
+          echo "=== citations"; curl -s "https://www.ebi.ac.uk/europepmc/webservices/rest/MED/24523323/citations?format=json&pageSize=2" | jq -c '{hitCount, c:.citationList.citation[0]}'
+          echo "=== references"; curl -s "https://www.ebi.ac.uk/europepmc/webservices/rest/MED/24523323/references?format=json&pageSize=2" | jq -c '{hitCount, r:.referenceList.reference[0]}'
+          echo "=== CORS epmc"; curl -sI -H "Origin: https://appassets.androidplatform.net" "$B?query=acne&format=json&pageSize=1" | grep -i access-control
+          echo "=== CORS openalex"; curl -sI -H "Origin: https://appassets.androidplatform.net" "https://api.openalex.org/sources?search=dermatology&per_page=1" | grep -i access-control
+          echo "=== pdf render"; curl -sIL "https://europepmc.org/articles/PMC4086941?pdf=render" | grep -iE "^HTTP|content-type|location"
+          echo "=== openalex by issn"; curl -s "https://api.openalex.org/sources/issn:0007-0963" | jq -c '{display_name,homepage_url,is_oa,summary_stats,works_count,apc_usd}'
