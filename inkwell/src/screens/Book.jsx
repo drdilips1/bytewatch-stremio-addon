@@ -9,6 +9,7 @@ import { nav } from '../lib/nav.js';
 import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
 import { SourceResults } from '../components/source-results.jsx';
+import { narrate, pickEngine } from '../sources/ttsbooks.js';
 import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
@@ -25,6 +26,7 @@ export function Book({ book: initial }) {
   const color = useCoverColor(book);
   const isCurrent = ps.book?.uid === book.uid;
   const [hcStatus, setHcStatus] = useState(null);
+  const [listenBusy, setListenBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -94,7 +96,28 @@ export function Book({ book: initial }) {
         )}
         {canRead && (
           <button class="btn primary big" onClick={() => nav.push('reader', { book })}>
-            <Icon name="book" size={18} /> {pct > 0 ? `Continue reading · ${pct}%` : 'Read now'}
+            <Icon name="book" size={18} /> {pct > 0 ? `Continue · ${pct}%` : 'Read'}
+          </button>
+        )}
+        {canRead && (
+          <button
+            class="btn secondary big"
+            disabled={listenBusy}
+            onClick={async () => {
+              if (!pickEngine()) return nav.push('reader', { book, readAloud: true });
+              setListenBusy(true);
+              try {
+                const audio = await narrate(book);
+                nav.openOverlay('player');
+                player.playBook(audio);
+              } catch (e) {
+                toast(e.message);
+              } finally {
+                setListenBusy(false);
+              }
+            }}
+          >
+            {listenBusy ? <span class="spinner" /> : <Icon name="headphones" size={18} />} Listen
           </button>
         )}
         {book.link && (

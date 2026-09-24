@@ -42,6 +42,11 @@ jobs:
           packages: 'platforms;android-36 build-tools;35.0.0'
 
       - name: Install & build web app
+        env:
+          VITE_APP_VERSION: ${{ env.VERSION_NAME }}
+          # Optional: bake a sync server into the app (otherwise it is entered in Settings).
+          VITE_SUPABASE_URL: ${{ vars.INKWELL_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.INKWELL_SUPABASE_ANON_KEY }}
         run: |
           npm ci
           npm run build
@@ -56,8 +61,15 @@ jobs:
         run: |
           KS="$RUNNER_TEMP/inkwell.jks"
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$KS"
+            # One secret is enough: password/alias default to the values the
+            # keystore was generated with; override with the other secrets if needed.
+            echo "$KEYSTORE_B64" | tr -d ' \n\r' | base64 -d > "$KS"
+            KS_PASS="${KS_PASS:-inkwell-ci}"
+            KEY_ALIAS="${KEY_ALIAS:-inkwell}"
+            KEY_PASS="${KEY_PASS:-$KS_PASS}"
+            echo "Signing with the permanent release key (updates install over each other)."
           else
+            echo "::warning::No INKWELL_KEYSTORE_BASE64 secret - signing with a throwaway key; each build needs an uninstall first."
             # No release key configured: generate a throwaway key so the APK still installs.
             KS_PASS=inkwell-ci KEY_PASS=inkwell-ci KEY_ALIAS=inkwell
             keytool -genkeypair -keystore "$KS" -storepass "$KS_PASS" -alias "$KEY_ALIAS" -keypass "$KEY_PASS" \

@@ -5,7 +5,10 @@ import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBa
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr } from '../sources/index.js';
 import { clearHttpCache } from '../lib/http.js';
 import { ACCENTS } from '../lib/theme.js';
+import { APP_VERSION } from '../components/update.jsx';
 import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
+import { AccountCard, VoicesCard } from './settings-extra.jsx';
+import { UpdateCard } from '../components/update.jsx';
 
 function Section({ icon, title, children }) {
   return (
@@ -480,6 +483,11 @@ export function Settings() {
     <div class="screen settings">
       <h1 class="screen-title">Settings</h1>
 
+      <UpdateCard />
+      <Section icon="server" title="Account & sync">
+        <AccountCard />
+      </Section>
+
       <Section icon="server" title="Audiobookshelf">
         <AbsCard />
       </Section>
@@ -492,6 +500,9 @@ export function Settings() {
       <PreferredDebrid />
       <Section icon="puzzle" title="Addons">
         <AddonsCard />
+      </Section>
+      <Section icon="headphones" title="Read-aloud voices">
+        <VoicesCard />
       </Section>
       <Section icon="sparkle" title="Metadata providers">
         <MetadataCard />
@@ -538,7 +549,7 @@ export function Settings() {
       </Section>
 
       <Section icon="sparkle" title="Sources">
-        {Object.entries(SOURCES).map(([k, s]) => (
+        {Object.entries(SOURCES).filter(([, x]) => !x.hidden).map(([k, s]) => (
           <Toggle label={s.name} hint={s.blurb} on={st.sources[k === 'addon' ? 'addons' : k] !== false} onChange={(v) => setSource(k === 'addon' ? 'addons' : k, v)} />
         ))}
         <Stepper label="Ebook language" value={st.language} options={['en', 'fr', 'de', 'es', 'it', 'pt', 'nl']} fmt={(v) => v.toUpperCase()} onChange={(v) => settings.patch({ language: v })} />
@@ -603,7 +614,7 @@ export function Settings() {
       </Section>
 
       <p class="about">
-        Inkwell 1.5 · Built-in sources are free and public domain.
+        Inkwell {APP_VERSION} · Built-in sources are free and public domain.
         <br />
         Addons and servers you add are your responsibility.
       </p>

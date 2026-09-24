@@ -107,7 +107,7 @@ export function Discover() {
           </div>
           <h3 class="section-label">Sources</h3>
           <div class="source-cards">
-            {Object.entries(SOURCES).map(([k, s]) => (
+            {Object.entries(SOURCES).filter(([, x]) => !x.hidden).map(([k, s]) => (
               <div class="source-card" style={{ '--h': s.hue }}>
                 <b>{s.name}</b>
                 <span>{s.blurb}</span>

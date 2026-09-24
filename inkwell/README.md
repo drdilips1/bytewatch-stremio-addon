@@ -39,6 +39,10 @@ for Android with Capacitor.
 - Chapters, speeds from 0.5× to 3×, adjustable skip intervals, bookmarks, and a sleep timer that fades out (or stops at the end of a part).
 - Progress saved automatically, with a short rewind when you resume after a break.
 
+**Ebooks to audio**
+- Phone voice (free, offline) reads any Gutenberg ebook aloud in the reader with paragraph highlighting.
+- AI voices: OpenAI (gpt-4o-mini-tts / tts-1-hd), Google Cloud (Chirp 3 HD), ElevenLabs, using your own key. The book becomes a chaptered audiobook in the player, generated a section ahead as you listen and cached on the device.
+
 **Reader**
 - Night, Black, Sepia and Paper themes; serif or sans text; adjustable size; table of contents; tap the edges to turn pages; remembers your position.
 
@@ -51,11 +55,16 @@ Every push that touches `inkwell/` runs **.github/workflows/inkwell-apk.yml**. I
 a signed release APK, attaches it to a GitHub Release called `inkwell-v1.0.<run>`, and
 uploads it as a workflow artifact.
 
-To sign with your own permanent key, so that updates install over older versions, add
-these repository secrets: `INKWELL_KEYSTORE_BASE64` (`base64 -w0 my.jks`),
-`INKWELL_KEYSTORE_PASSWORD`, `INKWELL_KEY_ALIAS`, `INKWELL_KEY_PASSWORD`. Without
-them, each build is signed with a throwaway key. Uninstall the old version before
-installing a build signed with a different key.
+**Permanent signing (updates install over each other, data kept):** add one
+repository secret, `INKWELL_KEYSTORE_BASE64`, holding the base64 of the release
+keystore (password `inkwell-ci`, alias `inkwell` unless overridden with
+`INKWELL_KEYSTORE_PASSWORD` / `INKWELL_KEY_ALIAS` / `INKWELL_KEY_PASSWORD`). Without it
+each build uses a throwaway key and needs an uninstall first. The app checks GitHub
+Releases for updates (Settings → top card).
+
+**Accounts & sync:** Settings → Account & sync connects to your own free Supabase
+project (setup SQL is shown in the app). To bake a server into builds, set repository
+*variables* `INKWELL_SUPABASE_URL` and `INKWELL_SUPABASE_ANON_KEY`.
 
 ## Develop locally
 
