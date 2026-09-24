@@ -39,6 +39,14 @@ android {
             }
         }
     }
+    packaging {
+        jniLibs {
+            // Compress native libraries inside the APK (much smaller download).
+            useLegacyPackaging = true
+            // Only the JNI bridge + ONNX Runtime are used by the voice engine.
+            excludes += ['**/libsherpa-onnx-c-api.so', '**/libsherpa-onnx-cxx-api.so']
+        }
+    }
     buildTypes {
         release {
             signingConfig signingConfigs.release
