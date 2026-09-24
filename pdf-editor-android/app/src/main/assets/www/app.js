@@ -52,11 +52,46 @@ const TOOL_DEFAULTS = {
 };
 const PALETTE = ['#000000', '#5f6368', '#ffffff', '#d93025', '#f29900', '#ffeb3b', '#188038', '#1a73e8', '#1a3fb8', '#9334e6'];
 
-const CSS_FONTS = {
-  Helvetica: 'Helvetica, Arial, "Liberation Sans", Roboto, sans-serif',
-  Times: '"Times New Roman", Times, "Liberation Serif", "Noto Serif", serif',
-  Courier: '"Courier New", Courier, "Liberation Mono", monospace'
+// Fonts. The three PDF standard fonts need no embedding; the others are bundled
+// TTFs (lib/fonts) used both on screen (@font-face) and embedded into the PDF.
+const FONTS = {
+  Helvetica: { label: 'Sans (Helvetica)', css: 'Helvetica, Arial, "Liberation Sans", Roboto, sans-serif', std: ['Helvetica', 'HelveticaBold', 'HelveticaOblique', 'HelveticaBoldOblique'] },
+  Times: { label: 'Serif (Times)', css: '"Times New Roman", Times, "Liberation Serif", "Noto Serif", serif', std: ['TimesRoman', 'TimesRomanBold', 'TimesRomanItalic', 'TimesRomanBoldItalic'] },
+  Courier: { label: 'Mono (Courier)', css: '"Courier New", Courier, "Liberation Mono", monospace', std: ['Courier', 'CourierBold', 'CourierOblique', 'CourierBoldOblique'] },
+  Roboto: { label: 'Roboto', files: ['Roboto_400Regular', 'Roboto_700Bold', 'Roboto_400Regular_Italic', 'Roboto_700Bold_Italic'] },
+  OpenSans: { label: 'Open Sans', files: ['OpenSans_400Regular', 'OpenSans_700Bold', 'OpenSans_400Regular_Italic', 'OpenSans_700Bold_Italic'] },
+  Lato: { label: 'Lato', files: ['Lato_400Regular', 'Lato_700Bold', 'Lato_400Regular_Italic', 'Lato_700Bold_Italic'] },
+  Dancing: { label: 'Handwriting', files: ['DancingScript_400Regular', 'DancingScript_700Bold', null, null] },
+  Devanagari: { label: 'हिन्दी (Devanagari)', files: ['NotoSansDevanagari_400Regular', 'NotoSansDevanagari_700Bold', null, null] }
 };
+for (const [k, f] of Object.entries(FONTS)) if (f.files) f.css = `"PE-${k}", ${k === 'Dancing' ? 'cursive' : 'sans-serif'}`;
+const CSS_FONTS = Object.fromEntries(Object.entries(FONTS).map(([k, f]) => [k, f.css]));
+
+// Index into FONTS[x].files / .std for a style; custom fonts without an italic file
+// use the upright file and a synthetic slant.
+function fontVariant(a) { return (a.bold ? 1 : 0) + (a.italic ? 2 : 0); }
+
+function installFontFaces() {
+  const css = [];
+  for (const [k, f] of Object.entries(FONTS)) {
+    if (!f.files) continue;
+    f.files.forEach((file, i) => {
+      if (!file) return;
+      css.push(`@font-face{font-family:"PE-${k}";src:url("lib/fonts/${file}.ttf") format("truetype");` +
+        `font-weight:${i & 1 ? 700 : 400};font-style:${i & 2 ? 'italic' : 'normal'};font-display:block}`);
+    });
+  }
+  const st = document.createElement('style');
+  st.textContent = css.join('\n');
+  document.head.appendChild(st);
+  // Load them up front so text measurement uses the real metrics.
+  const loads = [];
+  for (const [k, f] of Object.entries(FONTS)) {
+    if (!f.files) continue;
+    f.files.forEach((file, i) => { if (file) loads.push(document.fonts.load(`${i & 2 ? 'italic ' : ''}${i & 1 ? 'bold ' : ''}20px "PE-${k}"`)); });
+  }
+  Promise.all(loads).then(() => { if (S.pages.length) renderAllLayers(); }).catch(() => {});
+}
 
 let uidCounter = 1;
 const uid = () => 'a' + (Date.now() % 1e8).toString(36) + (uidCounter++).toString(36);
@@ -558,13 +593,41 @@ function fontCss(a, k) {
   return `${a.italic ? 'italic ' : ''}${a.bold ? 'bold ' : ''}${(a.size * k).toFixed(2)}px ${CSS_FONTS[a.font] || CSS_FONTS.Helvetica}`;
 }
 
+// Line pitch (× size) and baseline offset (× size) of a text annotation.
+function lineH(a) { return a.lh || LINE_H; }
+function textAsc(a) { return TEXT_ASC + (lineH(a) - LINE_H) / 2; }
+
 const measureCtx = document.createElement('canvas').getContext('2d');
-function measureText(a) {
+function textWidth(a, str) {
   measureCtx.font = fontCss(a, 100 / a.size);  // measure at 100px, scale down
-  const lines = (a.text || '').split('\n');
+  return measureCtx.measureText(str).width * a.size / 100;
+}
+
+// Visual lines: the typed lines, word-wrapped to the box width when it has one.
+function layoutLines(a) {
+  const paras = (a.text || '').split('\n');
+  if (!a.w) return paras;
+  const out = [];
+  for (const para of paras) {
+    const words = para.split(/(\s+)/);
+    let line = '';
+    for (const w of words) {
+      const next = line + w;
+      if (line && !/^\s+$/.test(w) && textWidth(a, next) > a.w) {
+        out.push(line.replace(/\s+$/, ''));
+        line = w;
+      } else line = next;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+function measureText(a) {
+  const lines = layoutLines(a);
   let w = 0;
-  for (const l of lines) w = Math.max(w, measureCtx.measureText(l).width);
-  return { w: Math.max(w * a.size / 100, a.size * 0.3), h: lines.length * a.size * LINE_H };
+  for (const l of lines) w = Math.max(w, textWidth(a, l));
+  return { w: a.w ? Math.max(a.w, w) : Math.max(w, a.size * 0.3), h: lines.length * a.size * lineH(a), lines };
 }
 
 function annotBBox(a) {
@@ -631,21 +694,28 @@ function renderLayer(p) {
   const list = p.annots.slice();
   if (S.temp && S.temp.pageId === p.id) list.push(S.temp.annot);
 
+  // Covers (original text/images that were replaced) go under every other annotation.
+  for (const a of list) {
+    if (!a.cover) continue;
+    const c = document.createElement('div');
+    c.className = 'annot cover';
+    c.dataset.id = a.id;
+    Object.assign(c.style, { left: a.cover.x * g.k + 'px', top: a.cover.y * g.k + 'px', width: a.cover.w * g.k + 'px', height: a.cover.h * g.k + 'px' });
+    layer.appendChild(c);
+  }
+  layer.appendChild(svg);
+
   for (const a of list) {
     switch (a.type) {
       case 'text': {
-        if (a.cover) {
-          const c = document.createElement('div');
-          c.className = 'annot cover';
-          c.dataset.id = a.id;
-          Object.assign(c.style, { left: a.cover.x * g.k + 'px', top: a.cover.y * g.k + 'px', width: a.cover.w * g.k + 'px', height: a.cover.h * g.k + 'px' });
-          layer.appendChild(c);
-        }
         const t = document.createElement('div');
         t.className = 'annot text';
         t.dataset.id = a.id;
-        t.textContent = a.text;
-        Object.assign(t.style, { left: a.x * g.k + 'px', top: a.y * g.k + 'px', font: fontCss(a, g.k), lineHeight: LINE_H, color: a.color, background: a.bg ? '#fff' : 'transparent' });
+        t.spellcheck = true;
+        t.textContent = a.w ? measureText(a).lines.join('\n') : a.text;
+        Object.assign(t.style, { left: a.x * g.k + 'px', top: a.y * g.k + 'px', font: fontCss(a, g.k), lineHeight: lineH(a), color: a.color, background: a.bg ? '#fff' : 'transparent' });
+        if (a.w) t.style.width = a.w * g.k + 'px';
+        if (a.italic && FONTS[a.font] && FONTS[a.font].files && !FONTS[a.font].files[fontVariant(a)]) t.style.fontSynthesis = 'style';
         layer.appendChild(t);
         break;
       }
@@ -690,10 +760,10 @@ function renderLayer(p) {
       }
     }
   }
-  // Vector annotations sit under text/images so whiteout can be typed over.
-  layer.insertBefore(svg, layer.firstChild);
+  // (svg was added above: vector annotations sit under text/images so whiteout can be typed over.)
 
   if (S.tool === 'edittext') renderTextItems(p, el, layer, g);
+  if (S.tool === 'editimage') renderImageItems(p, el, layer, g);
 
   if (S.selected && S.selected.pageId === p.id && !(S.editing && S.editing.id === S.selected.id)) {
     const a = annotById(p, S.selected.id);
@@ -709,9 +779,10 @@ function renderLayer(p) {
 }
 
 // ------------------------------------------------------------------ existing-text detection (Edit Text)
-const textItemCache = new Map(); // "src:idx" -> items (F0 points)
+const textItemCache = new Map(); // "src:idx" -> text fragments (F0 points)
+const blockCache = new Map();    // page id -> text blocks
 
-async function getTextItems(p) {
+async function pdfTextItems(p) {
   if (p.src === null) return [];
   const key = p.src + ':' + p.idx;
   if (textItemCache.has(key)) return textItemCache.get(key);
@@ -748,47 +819,133 @@ async function getTextItems(p) {
   return items;
 }
 
+// All text fragments of a page: the PDF's own text plus OCR results.
+async function getTextItems(p) {
+  const items = await pdfTextItems(p);
+  return p.ocr && p.ocr.length ? items.concat(p.ocr) : items;
+}
+
+// Group fragments into lines, then lines into paragraph blocks, so Edit Text
+// works on whole paragraphs instead of individual words.
+function groupBlocks(items) {
+  const frags = items.slice().sort((a, b) => a.base - b.base || a.x - b.x);
+  const lines = [];
+  for (const f of frags) {
+    let line = null;
+    for (let i = lines.length - 1; i >= 0 && i >= lines.length - 6; i--) {
+      const L = lines[i];
+      const gap = f.x - (L.x + L.w);
+      if (Math.abs(L.base - f.base) < Math.min(L.size, f.size) * 0.35 &&
+          Math.abs(L.size - f.size) < Math.max(L.size, f.size) * 0.3 &&
+          gap > -L.size * 0.5 && gap < Math.max(L.size, f.size) * 1.6) { line = L; break; }
+    }
+    if (line) {
+      const gap = f.x - (line.x + line.w);
+      const sep = gap > line.size * 0.12 && !/\s$/.test(line.str) && !/^\s/.test(f.str) ? ' ' : '';
+      line.str += sep + f.str;
+      line.w = Math.max(line.w, f.x + f.w - line.x);
+      line.keys.push(f.key);
+    } else {
+      lines.push({ str: f.str, x: f.x, base: f.base, size: f.size, w: f.w, font: f.font, bold: f.bold, italic: f.italic, keys: [f.key] });
+    }
+  }
+  lines.forEach(l => { l.str = l.str.replace(/\s+$/, ''); });
+  lines.sort((a, b) => a.base - b.base || a.x - b.x);
+  const blocks = [];
+  for (const l of lines) {
+    let blk = null;
+    for (const b of blocks) {
+      const last = b.lines[b.lines.length - 1];
+      const pitch = l.base - last.base;
+      const overlap = Math.min(b.x + b.w, l.x + l.w) - Math.max(b.x, l.x);
+      if (pitch > l.size * 0.8 && pitch < Math.max(l.size, last.size) * 2.1 &&
+          Math.abs(l.size - last.size) < Math.max(l.size, last.size) * 0.25 &&
+          (overlap > 0 || Math.abs(l.x - b.x) < l.size * 2) &&
+          (!b.pitch || Math.abs(pitch - b.pitch) < l.size * 0.45)) { blk = b; if (!b.pitch) b.pitch = pitch; break; }
+    }
+    if (blk) {
+      blk.lines.push(l);
+      const right = Math.max(blk.x + blk.w, l.x + l.w);
+      blk.x = Math.min(blk.x, l.x);
+      blk.w = right - blk.x;
+    } else blocks.push({ lines: [l], x: l.x, w: l.w, pitch: 0 });
+  }
+  return blocks.map((b, i) => {
+    const first = b.lines[0], last = b.lines[b.lines.length - 1];
+    const size = first.size;
+    return {
+      key: 'b' + i + ':' + first.keys[0],
+      text: b.lines.map(l => l.str).join('\n'),
+      x: b.x, w: b.w, size, base: first.base,
+      lh: b.lines.length > 1 ? b.pitch / size : LINE_H,
+      top: first.base - size * 0.92,
+      h: last.base + size * 0.24 - (first.base - size * 0.92),
+      font: first.font, bold: first.bold, italic: first.italic
+    };
+  });
+}
+
+async function getTextBlocks(p) {
+  const cacheKey = p.id + ':' + (p.ocr ? p.ocr.length : 0);
+  if (blockCache.has(cacheKey)) return blockCache.get(cacheKey);
+  const blocks = groupBlocks(await getTextItems(p));
+  blockCache.set(cacheKey, blocks);
+  return blocks;
+}
+
+function cachedBlocks(p) { return blockCache.get(p.id + ':' + (p.ocr ? p.ocr.length : 0)); }
+
 function renderTextItems(p, el, layer, g) {
-  const key = p.src + ':' + p.idx;
-  if (!textItemCache.has(key)) {
-    if (p.src !== null) getTextItems(p).then(() => { if (S.tool === 'edittext') renderLayer(p); }).catch(() => {});
+  const blocks = cachedBlocks(p);
+  if (!blocks) {
+    getTextBlocks(p).then(() => { if (S.tool === 'edittext') renderLayer(p); }).catch(() => {});
     return;
   }
-  const replaced = new Set(p.annots.filter(a => a.srcItem !== undefined).map(a => a.srcItem));
-  for (const it of textItemCache.get(key)) {
-    if (replaced.has(it.key)) continue;
+  const replaced = new Set(p.annots.filter(a => a.srcBlock !== undefined).map(a => a.srcBlock));
+  for (const b of blocks) {
+    if (replaced.has(b.key)) continue;
     const d = document.createElement('div');
     d.className = 'textitem';
-    d.dataset.item = it.key;
+    d.dataset.item = b.key;
     Object.assign(d.style, {
-      left: it.x * g.k + 'px', top: (it.base - it.size * 0.92) * g.k + 'px',
-      width: Math.max(it.w, 2) * g.k + 'px', height: it.size * 1.14 * g.k + 'px'
+      left: (b.x - 1) * g.k + 'px', top: b.top * g.k + 'px',
+      width: (Math.max(b.w, 2) + 2) * g.k + 'px', height: b.h * g.k + 'px'
     });
     layer.appendChild(d);
   }
 }
 
-async function replaceTextItem(p, itemKey) {
-  const items = await getTextItems(p);
-  const it = items.find(i => i.key === itemKey);
-  if (!it) return;
-  checkpoint();
-  const size = Math.round(it.size * 2) / 2;
+// Turn an original text block into an editable text annotation that covers it.
+function blockAnnotation(b, text) {
+  const size = Math.round(b.size * 2) / 2;
   const a = {
-    id: uid(), type: 'text', text: it.str.replace(/\s+$/, ''),
-    x: it.x, y: it.base - size * TEXT_ASC, size,
-    font: it.font, bold: it.bold, italic: it.italic, color: '#000000', bg: false,
-    cover: { x: it.x - 0.5, y: it.base - it.size * 0.92, w: it.w + 1, h: it.size * 1.14 },
-    srcItem: itemKey
+    id: uid(), type: 'text', text: text === undefined ? b.text : text,
+    x: b.x, y: 0, size, lh: Math.round(b.lh * 100) / 100,
+    font: b.font, bold: b.bold, italic: b.italic, color: '#000000', bg: false,
+    cover: { x: b.x - 1, y: b.top, w: b.w + 2, h: b.h },
+    srcBlock: b.key
   };
+  a.y = b.base - size * textAsc(a);
+  // Wrap at (a little more than) the original width, so longer edits flow onto new lines.
+  const natural = measureText(Object.assign({}, a, { text: b.text })).w;
+  a.w = Math.ceil(Math.max(b.w, natural) * 1.04 + 2);
+  return a;
+}
+
+async function replaceTextBlock(p, key, clientX, clientY) {
+  const blocks = await getTextBlocks(p);
+  const b = blocks.find(x => x.key === key);
+  if (!b) return;
+  checkpoint();
+  const a = blockAnnotation(b);
   p.annots.push(a);
   S.selected = { pageId: p.id, id: a.id };
   renderLayer(p);
-  startEditing(p, a, false);
+  startEditing(p, a, false, clientX, clientY);
 }
 
 // ------------------------------------------------------------------ text editing
-function startEditing(p, a, isNew) {
+function startEditing(p, a, isNew, clientX, clientY) {
   const el = pageEls.get(p.id);
   const t = el && el.querySelector(`.annot.text[data-id="${a.id}"]`);
   if (!t) return;
@@ -796,11 +953,22 @@ function startEditing(p, a, isNew) {
   S.selected = { pageId: p.id, id: a.id };
   const sb = el.querySelector('.selbox');
   if (sb) sb.remove();
+  // Edit the typed text; the browser wraps it inside the box while typing.
+  t.textContent = a.text;
+  if (a.w) t.style.whiteSpace = 'pre-wrap';
   t.contentEditable = 'true';
   t.focus();
-  const range = document.createRange();
-  range.selectNodeContents(t);
-  range.collapse(false);
+  // Put the caret where the user tapped (or at the end).
+  let range = null;
+  if (clientX !== undefined && document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(clientX, clientY);
+    if (r && t.contains(r.startContainer)) range = r;
+  }
+  if (!range) {
+    range = document.createRange();
+    range.selectNodeContents(t);
+    range.collapse(false);
+  }
   const sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
@@ -858,8 +1026,9 @@ function onPointerDown(e) {
 
   if (S.editing) {
     if (target.closest('[contenteditable="true"]')) return; // caret moves inside the editor
-    finishEditing();
-    if (S.tool === 'text') { gesture = { kind: 'none' }; return; }
+    // Finish on lift, so a pinch (whose first finger lands here) keeps the box open.
+    gesture = { kind: 'finishedit', pointerId: e.pointerId };
+    return;
   }
 
   const pt = toFrame(p, pageEl, e.clientX, e.clientY);
@@ -873,7 +1042,10 @@ function onPointerDown(e) {
   } else if (onSel && target.classList.contains('mover')) {
     const a = annotById(p, S.selected.id);
     gesture = { kind: 'move', p, el: pageEl, a, start: pt, orig: JSON.parse(JSON.stringify(a)), moved: false, tapSelected: true };
-  } else if (S.tool === 'select' || ((S.tool === 'text' || S.tool === 'edittext') && hitId)) {
+  } else if (S.tool === 'editimage' && !hitId) {
+    const item = target.closest('.imgitem');
+    gesture = item ? { kind: 'editimg', p, key: item.dataset.item } : { kind: 'deselect', p };
+  } else if (S.tool === 'select' || ((S.tool === 'text' || S.tool === 'edittext' || S.tool === 'editimage') && hitId)) {
     if (hitId) {
       const a = annotById(p, hitId);
       if ((S.tool === 'text' || S.tool === 'edittext') && a.type === 'text') {
@@ -891,7 +1063,7 @@ function onPointerDown(e) {
     gesture = { kind: 'newtext', p, pt };
   } else if (S.tool === 'edittext') {
     const item = target.closest('.textitem');
-    gesture = item ? { kind: 'edititem', p, key: +item.dataset.item } : { kind: 'hint' };
+    gesture = item ? { kind: 'edititem', p, key: item.dataset.item } : { kind: 'hint' };
   } else if (S.tool === 'check' || S.tool === 'cross' || S.tool === 'date') {
     gesture = { kind: 'stamp', p, pt };
   } else if (DRAG_TOOLS.includes(S.tool)) {
@@ -910,6 +1082,9 @@ function onPointerDown(e) {
   } else {
     return;
   }
+  // Taps that open a text box must not be followed by the compatibility mousedown,
+  // which would move focus away from the box (and close the keyboard).
+  if (['newtext', 'edit', 'edititem'].includes(gesture.kind) || (gesture.kind === 'move' && gesture.tapSelected && gesture.a.type === 'text')) e.preventDefault();
   try { pageEl.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
   gesture.pointerId = e.pointerId;
   gesture.clientStart = [e.clientX, e.clientY];
@@ -941,14 +1116,17 @@ function onPointerUp(e) {
   gesture = null;
   const cancelled = e.type === 'pointercancel';
   switch (g.kind) {
+    case 'finishedit':
+      if (!cancelled) finishEditing();
+      break;
     case 'deselect':
       if (S.selected) { S.selected = null; renderLayer(g.p); updatePropbar(); }
       break;
     case 'move':
-      if (!g.moved && g.tapSelected && g.a.type === 'text' && !cancelled) startEditing(g.p, g.a, false);
+      if (!g.moved && g.tapSelected && g.a.type === 'text' && !cancelled) startEditing(g.p, g.a, false, e.clientX, e.clientY);
       break;
     case 'edit':
-      if (!cancelled) startEditing(g.p, g.a, false);
+      if (!cancelled) startEditing(g.p, g.a, false, e.clientX, e.clientY);
       break;
     case 'newtext': {
       if (cancelled) break;
@@ -962,10 +1140,13 @@ function onPointerUp(e) {
       break;
     }
     case 'edititem':
-      if (!cancelled) replaceTextItem(g.p, g.key);
+      if (!cancelled) replaceTextBlock(g.p, g.key, e.clientX, e.clientY);
       break;
     case 'hint':
       toast('Tap on highlighted text to edit it');
+      break;
+    case 'editimg':
+      if (!cancelled) extractPdfImage(g.p, g.key);
       break;
     case 'stamp':
       if (!cancelled) addStamp(g.p, g.pt);
@@ -1041,10 +1222,11 @@ function applyResize(a, o, b, dx, dy) {
   const minS = 4;
   let sx = Math.max(minS, b.w + dx) / Math.max(b.w, 0.01);
   let sy = Math.max(minS, b.h + dy) / Math.max(b.h, 0.01);
-  if (a.type === 'image' || a.type === 'text') { const s = Math.max(sx, sy); sx = sy = s; }
+  if (a.type === 'image') { const s = Math.max(sx, sy); sx = sy = s; }
   switch (a.type) {
     case 'text':
-      a.size = Math.max(4, Math.min(300, o.size * sy));
+      // Dragging the handle sets the box width; the text re-wraps inside it.
+      a.w = Math.max(o.size * 2, b.w + dx);
       break;
     case 'image': case 'rect': case 'ellipse': case 'whiteout':
       a.w = Math.max(minS, o.w * sx); a.h = Math.max(minS, o.h * sy);
@@ -1121,13 +1303,14 @@ function placeImage(imgId, widthFrac) {
 // ------------------------------------------------------------------ tools & properties
 function setTool(tool) {
   finishEditing();
-  const prevEdit = S.tool === 'edittext';
+  const prevEdit = S.tool === 'edittext' || S.tool === 'editimage';
   S.tool = tool;
   document.body.classList.forEach(c => { if (c.startsWith('tool-')) document.body.classList.remove(c); });
   document.body.classList.add('tool-' + tool);
   $$('#toolbar .tool[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
-  if (tool === 'edittext' || prevEdit) renderAllLayers();
-  if (tool === 'edittext') toast('Tap any highlighted text to change it');
+  if (tool === 'edittext' || tool === 'editimage' || prevEdit) renderAllLayers();
+  if (tool === 'edittext') toast('Tap a highlighted block, then tap where you want to type');
+  if (tool === 'editimage') toast('Tap a picture in the PDF to move, resize, crop or replace it');
   updatePropbar();
 }
 
@@ -1165,8 +1348,10 @@ function updatePropbar() {
   const kind = t.kind === 'annot' ? annotKind(a) :
     ({ text: 'text', edittext: 'text', date: 'text', whiteout: 'whiteout', rect: 'shape', ellipse: 'shape', check: 'stamp', cross: 'stamp' }[S.tool] || 'stroke');
   $('#propColors').hidden = kind === 'image';
+  if (kind === 'image') { $('#propSizeWrap').hidden = $('#propFontWrap').hidden = true; }
   $('#propFontWrap').hidden = kind !== 'text';
   $('#propFillWrap').hidden = kind !== 'shape';
+  $('#propImgWrap').hidden = kind !== 'image' || t.kind !== 'annot';
   const sw = $('#propSizeWrap');
   const size = $('#propSize');
   if (kind === 'text' || kind === 'stamp') {
@@ -1200,7 +1385,8 @@ function setProp(key, value) {
       const el = pageEls.get(p.id).querySelector(`.annot.text[data-id="${t.a.id}"]`);
       if (el) {
         el.style.font = fontCss(t.a, pageEls.get(p.id)._scale);
-        el.style.lineHeight = LINE_H;
+        el.style.lineHeight = lineH(t.a);
+        if (t.a.w) el.style.width = t.a.w * pageEls.get(p.id)._scale + 'px';
         el.style.color = t.a.color;
         el.style.background = t.a.bg ? '#fff' : 'transparent';
       }
@@ -1238,7 +1424,8 @@ function duplicateSelected() {
   const c = JSON.parse(JSON.stringify(a));
   c.id = uid();
   delete c.cover;
-  delete c.srcItem;
+  delete c.srcBlock;
+  delete c.srcImage;
   applyMove(c, JSON.parse(JSON.stringify(c)), 12, 12);
   p.annots.push(c);
   S.selected = { pageId: p.id, id: c.id };
@@ -1583,6 +1770,8 @@ async function applyForms() {
       src.bytes = bytes;
       src.pdf = await loadPdfJs(bytes);
       textItemCache.forEach((v, k) => { if (k.startsWith(si + ':')) textItemCache.delete(k); });
+      blockCache.clear();
+      imageItemCache.clear();
     }
     for (const el of pageEls.values()) { el._key = null; }
     S.dirty = true;
@@ -1615,29 +1804,101 @@ async function rasterizeTextAnnot(a) {
   ctx.font = fontCss(a, k);
   ctx.fillStyle = a.color;
   ctx.textBaseline = 'alphabetic';
-  a.text.split('\n').forEach((l, i) => ctx.fillText(l, 0, (i * LINE_H + TEXT_ASC) * a.size * k));
+  m.lines.forEach((l, i) => ctx.fillText(l, 0, (i * lineH(a) + textAsc(a)) * a.size * k));
   return { png: dataUrlToBytes(c.toDataURL('image/png')), w: m.w, h: m.h };
 }
 
-async function drawAnnotations(out, page, p, view, r0, fonts, imgCache) {
+// Scripts that need shaping (Devanagari, Arabic, Thai, ...): drawn as images, since
+// PDF text output here has no shaping engine. Everything else is real, selectable text.
+const COMPLEX_SCRIPT = /[\u0590-\u08FF\u0900-\u0DFF\u0E00-\u0FFF\u1000-\u109F\u1780-\u17FF]/;
+const fontFiles = {};
+async function fontFile(file) {
+  if (!fontFiles[file]) {
+    const bytes = new Uint8Array(await (await fetch('lib/fonts/' + file + '.ttf')).arrayBuffer());
+    fontFiles[file] = { bytes, fk: fontkit.create(bytes) };
+  }
+  return fontFiles[file];
+}
+
+// Picks a PDF font able to show `text` in the annotation's style.
+// Returns {font, skew} or null when the text must be drawn as an image.
+async function pdfFontFor(out, fonts, a, text, allowComplex) {
+  if (!allowComplex && COMPLEX_SCRIPT.test(text)) return null;
+  const v = fontVariant(a);
+  const def = FONTS[a.font] || FONTS.Helvetica;
+  const plain = text.replace(/\n/g, '');
+  if (def.std) {
+    const key = def.std[v];
+    if (!fonts[key]) fonts[key] = await out.embedFont(StandardFonts[key]);
+    try { fonts[key].encodeText(plain); return { font: fonts[key] }; } catch (e) { /* not WinAnsi: try a Unicode font */ }
+  }
+  const candidates = def.files ? [a.font, 'Roboto', 'Devanagari'] : ['Roboto', 'Devanagari'];
+  for (const fam of candidates) {
+    const files = FONTS[fam].files;
+    const file = files[v] || files[v & 1];
+    const ff = await fontFile(file);
+    let ok = true;
+    for (const ch of plain) if (ch.trim() && !ff.fk.hasGlyphForCodePoint(ch.codePointAt(0))) { ok = false; break; }
+    if (!ok) continue;
+    if (!fonts.__fontkit) { out.registerFontkit(fontkit); fonts.__fontkit = true; }
+    if (!fonts[file]) fonts[file] = await out.embedFont(ff.bytes, { subset: true });
+    return { font: fonts[file], skew: v & 2 && !files[v] ? degrees(12) : undefined };
+  }
+  return null;
+}
+
+// Removes the original picture behind an "Edit Images" annotation from the page by pointing
+// its resource name at a transparent 1×1 image (page-local, other pages keep it).
+// Returns the ids of annotations whose original was removed (they need no white cover).
+async function removeReplacedImages(out, page, p, fonts) {
+  const done = new Set();
+  const want = p.annots.filter(a => a.srcImage);
+  if (!want.length) return done;
+  const { PDFName, PDFDict, PDFRawStream } = PDFLib;
+  const res = page.node.Resources();
+  const xo = res && res.lookupMaybe(PDFName.of('XObject'), PDFDict);
+  if (!xo) return done;
+  let newXo = null;
+  for (const a of want) {
+    const hits = xo.keys().filter(k => {
+      const obj = out.context.lookup(xo.get(k));
+      if (!(obj && obj.dict) || String(obj.dict.get(PDFName.of('Subtype'))) !== '/Image') return false;
+      const w = obj.dict.lookup(PDFName.of('Width')), h = obj.dict.lookup(PDFName.of('Height'));
+      return w && h && w.asNumber() === a.srcImage.w && h.asNumber() === a.srcImage.h;
+    });
+    if (hits.length !== 1) continue;
+    if (!fonts.__blankImg) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 1;
+      fonts.__blankImg = (await out.embedPng(dataUrlToBytes(c.toDataURL('image/png')))).ref;
+    }
+    if (!newXo) {
+      newXo = xo.clone(out.context);
+      const newRes = res.clone(out.context);
+      newRes.set(PDFName.of('XObject'), newXo);
+      page.node.set(PDFName.of('Resources'), newRes);
+    }
+    newXo.set(hits[0], fonts.__blankImg);
+    done.add(a.id);
+  }
+  return done;
+}
+
+async function drawAnnotations(out, page, p, view, r0, fonts, imgCache, canEditResources) {
   const { W, H } = frameSize({ view, r0 });
   const visible = p.annots.filter(a => !(a.type === 'text' && !a.text && !a.cover));
-  if (!visible.length) return;
+  if (!visible.length && !(p.ocr && p.ocr.length)) return;
+  const removed = canEditResources ? await removeReplacedImages(out, page, p, fonts) : new Set();
   page.pushOperators(pushGraphicsState(), concatTransformationMatrix(...frameMatrix(view, r0, H)));
   const Y = y => H - y;
-  const getFont = async a => {
-    const key = (a.font || 'Helvetica') + (a.bold ? 'B' : '') + (a.italic ? 'I' : '');
-    if (!fonts[key]) {
-      const map = {
-        Helvetica: ['Helvetica', 'HelveticaBold', 'HelveticaOblique', 'HelveticaBoldOblique'],
-        Times: ['TimesRoman', 'TimesRomanBold', 'TimesRomanItalic', 'TimesRomanBoldItalic'],
-        Courier: ['Courier', 'CourierBold', 'CourierOblique', 'CourierBoldOblique']
-      }[a.font || 'Helvetica'] || ['Helvetica', 'HelveticaBold', 'HelveticaOblique', 'HelveticaBoldOblique'];
-      const idx = (a.bold ? 1 : 0) + (a.italic ? 2 : 0);
-      fonts[key] = await out.embedFont(StandardFonts[map[idx]]);
-    }
-    return fonts[key];
-  };
+  // Invisible OCR text, so scanned pages become searchable/selectable.
+  for (const it of p.ocr || []) {
+    const f = await pdfFontFor(out, fonts, { font: 'Helvetica' }, it.str, true);
+    if (!f) continue;
+    const natural = f.font.widthOfTextAtSize(it.str, it.size) || 1;
+    const size = Math.max(1, Math.min(it.size * 2, it.size * it.w / natural));
+    page.drawText(it.str, { x: it.x, y: Y(it.base), size, font: f.font, renderMode: 3 });
+  }
   const getImage = async id => {
     if (!imgCache[id]) {
       const im = S.images[id];
@@ -1648,25 +1909,27 @@ async function drawAnnotations(out, page, p, view, r0, fonts, imgCache) {
     return imgCache[id];
   };
   const white = rgb(1, 1, 1);
+  // White covers over replaced originals go under everything the user added.
+  for (const a of visible) {
+    if (a.cover && !removed.has(a.id)) page.drawRectangle({ x: a.cover.x, y: Y(a.cover.y + a.cover.h), width: a.cover.w, height: a.cover.h, color: white });
+  }
   for (const a of visible) {
     const color = a.color ? hexToRgb(a.color) : rgb(0, 0, 0);
     switch (a.type) {
       case 'text': {
-        if (a.cover) page.drawRectangle({ x: a.cover.x, y: Y(a.cover.y + a.cover.h), width: a.cover.w, height: a.cover.h, color: white });
         if (!a.text) break;
-        const font = await getFont(a);
-        let encodable = true;
-        try { font.encodeText(a.text.replace(/\n/g, '')); } catch (e) { encodable = false; }
-        const lines = a.text.split('\n');
+        const m = measureText(a);
+        const f = await pdfFontFor(out, fonts, a, a.text, false);
+        const lines = m.lines, pitch = lineH(a) * a.size;
         if (a.bg) {
-          let w = 0;
-          if (encodable) lines.forEach(l => { w = Math.max(w, font.widthOfTextAtSize(l, a.size)); });
-          else w = measureText(a).w;
-          page.drawRectangle({ x: a.x - 1, y: Y(a.y + lines.length * a.size * LINE_H), width: w + 2, height: lines.length * a.size * LINE_H, color: white });
+          let w = a.w || 0;
+          if (f && !a.w) lines.forEach(l => { w = Math.max(w, f.font.widthOfTextAtSize(l, a.size)); });
+          else if (!a.w) w = m.w;
+          page.drawRectangle({ x: a.x - 1, y: Y(a.y + lines.length * pitch), width: w + 2, height: lines.length * pitch, color: white });
         }
-        if (encodable) {
+        if (f) {
           lines.forEach((l, i) => {
-            if (l) page.drawText(l, { x: a.x, y: Y(a.y + (i * LINE_H + TEXT_ASC) * a.size), size: a.size, font, color });
+            if (l) page.drawText(l, { x: a.x, y: Y(a.y + i * pitch + textAsc(a) * a.size), size: a.size, font: f.font, color, xSkew: f.skew });
           });
         } else {
           const r = await rasterizeTextAnnot(a);
@@ -1798,7 +2061,7 @@ async function buildPdf(pages, fresh) {
     } else {
       page = out.addPage(plan[i].page);
     }
-    await drawAnnotations(out, page, p, view, r0, fonts, imgCache);
+    await drawAnnotations(out, page, p, view, r0, fonts, imgCache, !plan[i].raster);
     page.setRotation(degrees((r0 + p.ru) % 360));
   }
   out.setProducer('PDF Editor (offline)');
@@ -1891,6 +2154,7 @@ window.onAndroidBack = () => {
   if (!$('#dialog').hidden) { dialog.cancel && dialog.cancel(); return true; }
   if (!$('#signModal').hidden) { $('#signModal').hidden = true; return true; }
   if (!$('#optModal').hidden) { $('#optModal').hidden = true; return true; }
+  if (!$('#cropModal').hidden) { $('#cropModal').hidden = true; return true; }
   if (document.body.classList.contains('reading')) { exitReading(); return true; }
   if (!$('#menu').hidden) { toggleMenu(false); return true; }
   if (!$('#pagesPanel').hidden) { $('#pagesPanel').hidden = true; return true; }
@@ -1915,7 +2179,7 @@ function pickFile(sel) {
 
 async function menuAction(m) {
   toggleMenu(false);
-  const needDoc = ['merge', 'blankpage', 'pages', 'forms', 'save', 'share', 'rename', 'close', 'convert', 'compress', 'protect', 'read', 'print'];
+  const needDoc = ['merge', 'blankpage', 'pages', 'forms', 'save', 'share', 'rename', 'close', 'convert', 'compress', 'protect', 'read', 'print', 'find', 'ocr'];
   if (needDoc.includes(m) && !S.pages.length) { toast('Open a PDF first'); return; }
   switch (m) {
     case 'open':
@@ -1950,6 +2214,8 @@ async function menuAction(m) {
     }
     case 'close': closeDocument(); break;
     case 'convert': openConvert(); break;
+    case 'find': openFind(); break;
+    case 'ocr': openOcr(); break;
     case 'compress': openCompress(); break;
     case 'protect': openProtect(); break;
     case 'read': enterReading(); break;
@@ -1959,6 +2225,15 @@ async function menuAction(m) {
 
 function init() {
   applyIcons();
+  installFontFaces();
+  const fsel = $('#propFont');
+  for (const [k, f] of Object.entries(FONTS)) {
+    const o = document.createElement('option');
+    o.value = k;
+    o.textContent = f.label;
+    o.style.fontFamily = f.css;
+    fsel.appendChild(o);
+  }
 
   // palette
   const pc = $('#propColors');
@@ -1998,14 +2273,6 @@ function init() {
     if (t.closest('[contenteditable="true"]') || t.closest('.page') || t.closest('#propbar') || t.closest('.modal')) return;
     finishEditing();
   }, true);
-  // The keyboard's own "hide" leaves the text focused-less: end editing then too.
-  document.addEventListener('focusout', e => {
-    if (!S.editing || !e.target.isContentEditable) return;
-    setTimeout(() => {
-      const a = document.activeElement;
-      if (S.editing && !(a && (a.isContentEditable || a.closest('#propbar')))) finishEditing();
-    }, 250);
-  });
   $('#propDup').onclick = duplicateSelected;
   // Keep focus in the text being edited when tapping property controls.
   $('#propbar').addEventListener('mousedown', e => { if (S.editing && e.target.tagName !== 'SELECT' && e.target.tagName !== 'INPUT') e.preventDefault(); });
@@ -2019,6 +2286,8 @@ function init() {
         case 'sign': openSignature(); break;
         case 'forms': openFormsPanel(); break;
         case 'read': enterReading(); break;
+        case 'find': openFind(); break;
+        case 'ocr': openOcr(); break;
         case 'zoomin': setZoom(S.zoom * 1.25); break;
         case 'zoomout': setZoom(S.zoom / 1.25); break;
       }

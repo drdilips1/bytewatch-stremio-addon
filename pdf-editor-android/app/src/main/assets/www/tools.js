@@ -15,6 +15,7 @@ function homeTool(key) {
     case 'annotate': withDoc(() => setTool('highlight')); break;
     case 'organize': withDoc(openPagesPanel); break;
     case 'sign': withDoc(openSignature); break;
+    case 'ocr': withDoc(openOcr); break;
     case 'convert': openConvert(); break;
     case 'compress': withDoc(openCompress); break;
     case 'protect': withDoc(openProtect); break;

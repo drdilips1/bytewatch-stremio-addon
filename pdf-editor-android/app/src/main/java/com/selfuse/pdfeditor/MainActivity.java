@@ -439,6 +439,8 @@ public class MainActivity extends Activity {
         MIME.put("pfb", "application/octet-stream");
         MIME.put("ttf", "font/ttf");
         MIME.put("txt", "text/plain");
+        MIME.put("wasm", "application/wasm");
+        MIME.put("gz", "application/gzip");
     }
 
     private class LocalClient extends WebViewClient {

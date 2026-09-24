@@ -283,3 +283,22 @@ body.night .page { background: #111; }
 #readPage { font-size: 14px; min-width: 64px; text-align: center; }
 #dialog { z-index: 65; }  /* above the busy overlay: password prompts appear while a file is loading */
 #toast { z-index: 80; }
+
+/* ---------- crop ---------- */
+#cropStage { position: relative; align-self: center; touch-action: none; max-width: 100%; }
+#cropImg { display: block; max-width: 100%; max-height: 55vh; user-select: none; -webkit-user-drag: none; }
+#cropRect { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.5); outline: 1px solid var(--sel); touch-action: none; }
+#cropRect i { position: absolute; width: 24px; height: 24px; background: #fff; border: 2px solid var(--sel); border-radius: 50%; }
+#cropRect i[data-h="nw"] { left: -3px; top: -3px; }
+#cropRect i[data-h="ne"] { right: -3px; top: -3px; }
+#cropRect i[data-h="sw"] { left: -3px; bottom: -3px; }
+#cropRect i[data-h="se"] { right: -3px; bottom: -3px; }
+#cropStage { overflow: hidden; }
+
+/* ---------- edit images / text blocks ---------- */
+.imgitem { position: absolute; border: 2px dashed rgba(217,48,37,.8); background: rgba(217,48,37,.08); border-radius: 2px; }
+.textitem { border-width: 1.5px; }
+body.tool-editimage .layer { touch-action: auto; }
+#pages.pinching { transition: none; }
+.find-hit { outline: 3px solid #f29900 !important; background: rgba(242,153,0,.18) !important; }
+#viewer { touch-action: pan-x pan-y; }

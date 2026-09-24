@@ -1,0 +1,1 @@
+Fonts: Google Fonts (Roboto, Open Sans, Lato, Dancing Script, Noto Sans Devanagari) — SIL Open Font License 1.1 / Apache 2.0

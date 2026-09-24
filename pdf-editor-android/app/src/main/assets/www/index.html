@@ -39,6 +39,7 @@
     <button data-home="protect"><span class="tg-ic" data-icon="lock"></span>Protect</button>
     <button data-home="read"><span class="tg-ic" data-icon="read"></span>Read</button>
     <button data-home="print"><span class="tg-ic" data-icon="print"></span>Print</button>
+    <button data-home="ocr"><span class="tg-ic" data-icon="ocr"></span>OCR</button>
     <button data-home="sign"><span class="tg-ic" data-icon="sign"></span>Sign</button>
     <button data-home="images"><span class="tg-ic" data-icon="image"></span>Images to PDF</button>
     <button data-home="blank"><span class="tg-ic" data-icon="blank"></span>Blank PDF</button>
@@ -60,14 +61,14 @@
     <span class="prop-val" id="propSizeVal"></span>
   </div>
   <div class="prop-group" id="propFontWrap">
-    <select id="propFont">
-      <option value="Helvetica">Sans</option>
-      <option value="Times">Serif</option>
-      <option value="Courier">Mono</option>
-    </select>
+    <select id="propFont"></select>
     <button class="chip" id="propBold"><b>B</b></button>
     <button class="chip" id="propItalic"><i>I</i></button>
     <button class="chip" id="propBg" title="White background">BG</button>
+  </div>
+  <div class="prop-group" id="propImgWrap">
+    <button class="chip" id="propReplaceImg"><span data-icon="swap"></span>Replace</button>
+    <button class="chip" id="propCropImg"><span data-icon="crop"></span>Crop</button>
   </div>
   <div class="prop-group" id="propFillWrap">
     <button class="chip" id="propFill">Fill</button>
@@ -86,6 +87,9 @@
   <button class="tool active" data-tool="select"><span data-icon="select"></span>Select</button>
   <button class="tool" data-tool="text"><span data-icon="text"></span>Add Text</button>
   <button class="tool" data-tool="edittext"><span data-icon="edittext"></span>Edit Text</button>
+  <button class="tool" data-tool="editimage"><span data-icon="imageedit"></span>Edit Images</button>
+  <button class="tool" data-action="find"><span data-icon="find"></span>Find &amp; Fix</button>
+  <button class="tool" data-action="ocr"><span data-icon="ocr"></span>OCR</button>
   <button class="tool" data-tool="draw"><span data-icon="draw"></span>Draw</button>
   <button class="tool" data-tool="highlight"><span data-icon="highlight"></span>Highlight</button>
   <button class="tool" data-tool="whiteout"><span data-icon="eraser"></span>Whiteout</button>
@@ -115,6 +119,8 @@
   <button data-menu="pages"><span data-icon="pages"></span>Organize pages</button>
   <button data-menu="forms"><span data-icon="form"></span>Fill form fields</button>
   <hr>
+  <button data-menu="find"><span data-icon="find"></span>Find &amp; replace (fix typos)…</button>
+  <button data-menu="ocr"><span data-icon="ocr"></span>OCR: recognise text in scans…</button>
   <button data-menu="convert"><span data-icon="convert"></span>Convert (JPG, PNG, Word, Text)…</button>
   <button data-menu="compress"><span data-icon="compress"></span>Compress…</button>
   <button data-menu="protect"><span data-icon="lock"></span>Protect / Unlock…</button>
@@ -205,6 +211,20 @@
   </div>
 </div>
 
+<!-- ============ Crop image ============ -->
+<div id="cropModal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-title">Crop image</div>
+    <div id="cropStage"><img id="cropImg" alt=""><div id="cropRect"><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div></div>
+    <div class="modal-actions">
+      <button class="chip" id="cropReset">Reset</button>
+      <span class="spacer"></span>
+      <button class="chip" id="cropCancel">Cancel</button>
+      <button class="chip primary" id="cropApply">Crop</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ Reading mode bar ============ -->
 <div id="readBar" hidden>
   <button class="icon-btn" id="readExit" data-icon="back" title="Exit reading"></button>
@@ -223,8 +243,10 @@
 
 <script src="lib/pdf.min.js"></script>
 <script src="lib/pdf-lib.min.js"></script>
+<script src="lib/fontkit.min.js"></script>
 <script src="icons.js"></script>
 <script src="app.js"></script>
 <script src="tools.js"></script>
+<script src="edit2.js"></script>
 </body>
 </html>

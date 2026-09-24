@@ -11,13 +11,16 @@ phone and allow "Install unknown apps" when prompted. Android 8.0+.
 
 | | |
 |---|---|
-| **Add Text** | Tap anywhere to type. Font (sans/serif/mono), size, bold, italic, colour, white background. |
-| **Edit Text** | Existing text is outlined; tap a line to rewrite it. The old text is covered and the new text is written in a matching font and size. |
+| **Add Text** | Tap anywhere to type. 8 fonts (incl. Roboto, Open Sans, Lato, handwriting, Hindi), size, bold, italic, colour, white background. Drag the round handle to make the box wider/narrower – text re-wraps. |
+| **Edit Text** | Existing text is grouped into paragraphs; tap a paragraph and the cursor goes where you tapped. Longer edits wrap inside the paragraph. Works on scanned pages after OCR. |
+| **Find & Fix** | Find & replace across the whole document to fix typos (also keyboard spell-check while typing). |
+| **OCR** | Offline text recognition (English, Hindi) for scans/photos: makes pages searchable, copyable, convertible to Word/Text and editable with Edit Text. |
+| **Edit Images** | Tap a picture that's in the PDF to move, resize, crop, replace or delete it. |
 | **Draw / Highlight** | Freehand pen and a translucent highlighter (straightens itself over a line of text). |
 | **Whiteout** | Drag a box to erase anything (any colour). |
 | **Shapes** | Box, circle, line, arrow; outline or filled. |
 | **Tick / Cross / Date** | One-tap stamps for filling in forms. |
-| **Image** | Insert photos/logos, move and resize them. |
+| **Image** | Insert photos/logos; move, resize, crop or replace them. |
 | **Sign** | Draw a signature; the last few are remembered for reuse. |
 | **Forms** | Fill real PDF form fields (text, checkboxes, dropdowns, radios), optionally flatten. |
 | **Pages** | Rotate, reorder, duplicate, delete, insert blank pages, extract selected pages to a new PDF. |
@@ -35,6 +38,11 @@ their text intact (a page is only saved as an image if its encryption type
 can't be read).
 
 While typing, tap **Done**, tap anywhere outside the text box, or press Back to finish.
+Pinch with two fingers to zoom at any time, including while typing.
+
+Hindi and other scripts that need shaping are saved as crisp images of the text
+(not selectable); Latin, Greek and Cyrillic text is saved as real text with the
+chosen font embedded.
 
 Everything you add is selectable in **Select** mode: drag to move, pull the
 round handle to resize, and use the bar above the tools to change colour/size,
@@ -45,7 +53,8 @@ duplicate or delete.
 - `app/src/main/assets/www/` – the editor UI (HTML/JS). Uses bundled
   [pdf.js](https://mozilla.github.io/pdf.js/) for rendering and
   [@cantoo/pdf-lib](https://github.com/cantoo-scribe/pdf-lib) (a pdf-lib fork that
-  adds encryption/decryption) for writing PDFs.
+  adds encryption/decryption) for writing PDFs, fontkit for embedding fonts, and
+  [tesseract.js](https://github.com/naptha/tesseract.js) for OCR. Fonts are from Google Fonts (OFL/Apache).
 - `MainActivity.java` – a WebView host that serves the assets locally, blocks
   all network requests, and bridges open/save/share to Android.
 
