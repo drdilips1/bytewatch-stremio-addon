@@ -87,7 +87,8 @@ async function torboxLibraryRaw() {
     for (const it of items) {
       const files = (it.files || []).filter((f) => AUDIO.test(f.name || f.short_name || ''));
       if (!files.length) continue;
-      out.push({ ...toBook('tb', 'tb', `${code}:${it.id}`, it.name, files), addedAt: Date.parse(it.created_at) || 0 });
+      const done = code !== 't' || !!(it.download_finished || it.download_present);
+      out.push({ ...toBook('tb', 'tb', `${code}:${it.id}`, it.name, files), addedAt: Date.parse(it.created_at) || 0, ...(done ? {} : { fetching: Number(it.progress) || 0 }) });
     }
   });
   return out.sort((a, b) => b.addedAt - a.addedAt);
@@ -99,6 +100,8 @@ async function tbDetails(book) {
   const items = await tbList(kind);
   const it = items.find((x) => String(x.id) === id);
   if (!it) throw new Error('This item is no longer in your TorBox account');
+  const done = code !== 't' || !!(it.download_finished || it.download_present);
+  const pending = done ? null : { provider: 'torbox', hash: String(it.hash || '').toLowerCase(), progress: Number(it.progress) || 0, state: it.download_state || '' };
   const files = (it.files || [])
     .filter((f) => AUDIO.test(f.name || f.short_name || ''))
     .map((f) => ({ ...f, name: f.short_name || baseName(f.name) }))
@@ -106,11 +109,17 @@ async function tbDetails(book) {
   return {
     ...book,
     description: `${files.length} audio file${files.length === 1 ? '' : 's'} in your TorBox ${kind === 'webdl' ? 'web downloads' : kind}.`,
+    fetching: pending,
     tracks: files.map((f, i) => ({
       title: f.name.replace(AUDIO, ''),
       index: i,
       // Download links expire, so they're requested right before playback.
       resolve: async () => {
+        // Still downloading on TorBox: the link would be a partial file, so report progress instead.
+        if (pending) {
+          const st = await fetchStatus(book);
+          if (!st.ready) throw pendingError(st);
+        }
         const r = await getJson(`${TB}/${kind}/requestdl?` + qs({ token: tbKey(), [param]: id, file_id: f.id, redirect: 'false' }), { fresh: true });
         if (!r?.data) throw new Error(r?.detail || 'TorBox did not return a link');
         return r.data;
@@ -178,6 +187,32 @@ async function rdAdd(link) {
 }
 
 // ---------------- shared ----------------
+function pendingError(st) {
+  const e = new Error(`${st.provider === 'torbox' ? 'TorBox' : 'Real-Debrid'} is still downloading this (${Math.round((st.progress || 0) * 100)}%)`);
+  e.pending = st;
+  return e;
+}
+
+/**
+ * Live download status of a library item: { provider, ready, progress (0..1), state }.
+ * Web/usenet downloads and anything we can't look up count as ready.
+ */
+export async function fetchStatus(book) {
+  const [src, code, id] = book.uid.split(':');
+  if (src === 'tb') {
+    if (code !== 't') return { provider: 'torbox', ready: true, progress: 1 };
+    const data = await getJson(`${TB}/torrents/mylist?` + qs({ id, bypass_cache: 'true' }), { headers: tbHeaders(), fresh: true });
+    const it = Array.isArray(data?.data) ? data.data[0] : data?.data;
+    if (!it) return { provider: 'torbox', ready: true, progress: 1 };
+    return { provider: 'torbox', ready: !!(it.download_finished || it.download_present), progress: Number(it.progress) || 0, state: it.download_state || '', hash: String(it.hash || '').toLowerCase() };
+  }
+  if (src === 'rd') {
+    const info = await getJson(`${RD}/torrents/info/${code}`, { headers: rdHeaders(), fresh: true });
+    return { provider: 'realdebrid', ready: info.status === 'downloaded', progress: (Number(info.progress) || 0) / 100, state: info.status || '', hash: String(info.hash || '').toLowerCase() };
+  }
+  return { ready: true, progress: 1 };
+}
+
 export async function verify(provider, key) {
   key = key.trim();
   if (provider === 'torbox') {

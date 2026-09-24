@@ -8,6 +8,7 @@ import { getJson, qs } from './http.js';
 import { persisted, settings } from './store.js';
 import { words } from './match.js';
 import { stripHtml } from './format.js';
+import { audibleRating } from '../sources/catalogs.js';
 
 export const PROVIDERS = {
   audible: { name: 'Audible', blurb: 'Audiobook covers, narrators, series & runtime' },
@@ -52,7 +53,7 @@ const lookups = {
           keywords: q,
           num_results: 5,
           products_sort_by: 'Relevance',
-          response_groups: 'contributors,product_desc,product_attrs,media,series,category_ladders',
+          response_groups: 'contributors,product_desc,product_attrs,media,series,category_ladders,rating',
           image_sizes: '500,1024',
         }),
       { timeout: 12000 }
@@ -71,6 +72,8 @@ const lookups = {
       runtime: p.runtime_length_min ? p.runtime_length_min * 60 : 0,
       year: (p.release_date || '').slice(0, 4),
       genres: [...new Set((p.category_ladders || []).flatMap((l) => (l.ladder || []).map((x) => x.name)).filter(Boolean))],
+      asin: p.asin,
+      ...audibleRating(p),
       source: 'Audible',
     };
   },
@@ -153,7 +156,7 @@ export function lookup(book, { fresh = false } = {}) {
   if (!key) return Promise.resolve(null);
   const hit = cache.get()[key];
   // Entries saved before genres were collected are refreshed once.
-  const stale = hit?.v && !Array.isArray(hit.v.genres);
+  const stale = hit?.v && (!Array.isArray(hit.v.genres) || (hit.v.source === 'Audible' && !hit.v.asin));
   if (!fresh && !stale && hit && (hit.v || Date.now() - hit.t < MISS_TTL)) return Promise.resolve(hit.v);
   if (pending.has(key)) return pending.get(key);
   const p = schedule(async () => {

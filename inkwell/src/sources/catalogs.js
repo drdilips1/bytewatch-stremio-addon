@@ -24,8 +24,18 @@ function fromAudible(p) {
     description: stripHtml(p.publisher_summary || p.merchandising_summary || ''),
     link: `https://www.audible.com/pd/${p.asin}`,
     genres: [...new Set((p.category_ladders || []).flatMap((l) => (l.ladder || []).map((x) => x.name)).filter(Boolean))],
+    ...audibleRating(p),
   };
 }
+
+/** Star rating and number of ratings from Audible's `rating` response group. */
+export function audibleRating(p) {
+  const r = p.rating?.overall_distribution || {};
+  const rating = Number(r.display_average_rating || r.average_rating) || 0;
+  return rating ? { rating, ratings: Number(r.num_ratings || p.rating?.num_reviews) || 0 } : {};
+}
+
+const products = (d, key = 'products') => (d?.[key] || []).filter((p) => p.title).map(fromAudible);
 
 export const audible = {
   /** Audible bestsellers for a genre (listing only). */
@@ -37,12 +47,39 @@ export const audible = {
     } catch {
       d = await run('Relevance');
     }
-    return (d.products || []).filter((p) => p.title).map(fromAudible);
+    return products(d).map((b, i) => ({ ...b, rank: i + 1 }));
   },
   async search(term) {
     if (!term.trim()) return [];
     const d = await getJson(`${AUDIBLE}?` + qs({ keywords: term, num_results: 24, products_sort_by: 'Relevance', response_groups: GROUPS, image_sizes: '500,1024' }));
     return (d.products || []).filter((p) => p.title).map(fromAudible);
+  },
+  /** Audible's "listeners also enjoyed" for an ASIN, falling back to same-author titles. */
+  async related(asin, { exclude = [] } = {}) {
+    const skip = new Set([asin, ...exclude]);
+    const sims = async (type) =>
+      products(await getJson(`${AUDIBLE}/${asin}/sims?` + qs({ similarity_type: type, num_results: 24, response_groups: GROUPS, image_sizes: '500,1024' })), 'similar_products');
+    let out = await sims('RawSimilarities').catch(() => []);
+    if (out.length < 4) out = [...out, ...(await sims('ByTheSameAuthor').catch(() => []))];
+    const seen = new Set();
+    return out.filter((b) => {
+      const k = b.uid.slice(3);
+      if (skip.has(k) || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  },
+  /** An author's best-selling titles. */
+  async byAuthor(name) {
+    if (!name) return [];
+    const run = (sort) => getJson(`${AUDIBLE}?` + qs({ author: name, num_results: 24, products_sort_by: sort, response_groups: GROUPS, image_sizes: '500,1024' }));
+    const d = await run('BestSellers').catch(() => run('Relevance'));
+    return products(d);
+  },
+  /** First Audible match for a title/author, used as the seed for related titles. */
+  async find(title, author) {
+    const d = await getJson(`${AUDIBLE}?` + qs({ title, author: author || undefined, num_results: 3, products_sort_by: 'Relevance', response_groups: GROUPS, image_sizes: '500,1024' }));
+    return products(d)[0] || null;
   },
   async details(book) {
     const d = await getJson(`${AUDIBLE}/${book.uid.slice(3)}?` + qs({ response_groups: GROUPS, image_sizes: '500,1024' }));
@@ -64,6 +101,7 @@ function fromGoogle(item) {
     year: (v.publishedDate || '').slice(0, 4),
     description: stripHtml(v.description || ''),
     subjects: (v.categories || []).slice(0, 6),
+    ...(v.averageRating ? { rating: +v.averageRating, ratings: +v.ratingsCount || 0 } : {}),
     link: v.infoLink || `https://books.google.com/books?id=${item.id}`,
   };
 }

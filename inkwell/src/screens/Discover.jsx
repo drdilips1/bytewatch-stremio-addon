@@ -7,6 +7,7 @@ import { GenreChips } from './Home.jsx';
 import { nav } from '../lib/nav.js';
 import { SourceResults } from '../components/source-results.jsx';
 import { sourceAddons } from '../sources/sourceaddons.js';
+import { RelatedRows } from '../components/related.jsx';
 
 const recent = persisted('recentSearches', []);
 let pendingQuery = '';
@@ -62,6 +63,8 @@ export function Discover() {
     .map(([src, r]) => [src, r.items.filter((b) => filter === 'all' || b.kind === filter)])
     .filter(([, items]) => items.length);
   const total = groups.reduce((a, [, i]) => a + i.length, 0);
+  // Seed for "related" rows: the top Audible hit, else the first result anywhere.
+  const seed = results.au?.items?.[0] || groups.flatMap(([, i]) => i).find((b) => b.kind !== 'text') || null;
 
   return (
     <div class="screen discover">
@@ -135,6 +138,7 @@ export function Discover() {
             </section>
           ))}
           {sourceAddons().length > 0 && (filter === 'all' || filter === 'audio') && <SourceResults query={term} title={term} />}
+          {(results.au || !pending) && seed && <RelatedRows book={seed} label={seed.title} />}
           {!pending && !total && !sourceAddons().length && (
             <Empty icon="search" title="No matches">
               Nothing found for “{term}”. Try an author's surname or a shorter title.

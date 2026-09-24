@@ -56,8 +56,12 @@ export function withMeta(book, meta) {
     cover: book.cover || meta.cover || '',
     title: cloudItem && meta.title ? meta.title : book.title,
     author: (cloudItem && meta.author) || book.author || meta.author || '',
+    rating: book.rating || meta.rating || 0,
+    ratings: book.rating ? book.ratings : meta.ratings || 0,
   };
 }
+
+const fmtCount = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(n));
 
 export function BookCard({ book: raw, wide }) {
   const meta = useMeta(raw);
@@ -71,6 +75,8 @@ export function BookCard({ book: raw, wide }) {
         <span class="kind-dot" title={book.kind}>
           <Icon name={book.kind === 'text' ? 'book' : book.kind === 'discover' ? 'sparkle' : 'headphones'} size={13} />
         </span>
+        {book.rank > 0 && <span class="rank-badge">#{book.rank}</span>}
+        {book.fetching != null && <span class="fetch-badge">{Math.round((book.fetching || 0) * 100)}%</span>}
         {pct > 0 && (
           <div class="progress-mini">
             <div style={{ width: pct + '%' }} />
@@ -79,6 +85,12 @@ export function BookCard({ book: raw, wide }) {
       </div>
       <div class="book-card-title">{book.title}</div>
       <div class="book-card-author">{book.author || ' '}</div>
+      {book.rating > 0 && (
+        <div class="book-card-rating">
+          <Icon name="star" size={11} /> {book.rating.toFixed(1)}
+          {book.ratings > 0 && <span> · {fmtCount(book.ratings)}</span>}
+        </div>
+      )}
     </button>
   );
 }

@@ -14,6 +14,7 @@ import { downloads, canDownload, downloadBook, cancelDownload, removeDownload, f
 import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
+import { RelatedRows } from '../components/related.jsx';
 
 export function Book({ book: initial }) {
   const [book, setBook] = useState(initial);
@@ -79,6 +80,12 @@ export function Book({ book: initial }) {
           {book.author && <p class="book-author">{book.author}</p>}
           <div class="book-meta">
             <SourceBadge uid={book.uid} book={book} />
+            {book.rating > 0 && (
+              <span class="rating-chip">
+                <Icon name="star" size={12} /> {book.rating.toFixed(1)}
+                {book.ratings > 0 && ` · ${book.ratings.toLocaleString()} ratings`}
+              </span>
+            )}
             {book.year && <span>{book.year}</span>}
             {book.duration > 0 && <span>{fmtDuration(book.duration)}</span>}
             {tracks.length > 1 && <span>{tracks.length} parts</span>}
@@ -280,6 +287,7 @@ export function Book({ book: initial }) {
           deps={[book.uid, authorKey]}
         />
       )}
+      {!loading && <RelatedRows book={book} />}
       <div class="footer-space" />
     </div>
   );

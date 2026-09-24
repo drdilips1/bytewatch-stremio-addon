@@ -30,6 +30,25 @@ export function useCoverColor(book) {
   return c;
 }
 
+const prepPct = (st) => Math.max(0, Math.min(100, Math.round((st.progress || 0) * 100)));
+const prepLabel = (st) => `${st.provider === 'realdebrid' ? 'Real-Debrid' : 'TorBox'} is downloading · ${prepPct(st)}%`;
+
+function PrepBar({ st }) {
+  const pct = prepPct(st);
+  return (
+    <div class="prep">
+      <div class="prep-head">
+        <span>{st.provider === 'realdebrid' ? 'Real-Debrid' : 'TorBox'} is still downloading this</span>
+        <b>{pct}%</b>
+      </div>
+      <div class="prep-track">
+        <div style={{ width: Math.max(pct, 2) + '%' }} />
+      </div>
+      <small>{st.state && !/download/i.test(st.state) ? `Status: ${st.state.replace(/_/g, ' ')} · ` : ''}Playback starts by itself when it's done — you can leave this screen.</small>
+    </div>
+  );
+}
+
 export function MiniPlayer() {
   const s = usePlayer();
   const color = useCoverColor(s.book);
@@ -41,7 +60,9 @@ export function MiniPlayer() {
       <Cover book={s.book} class="mini-cover" />
       <div class="mini-meta">
         <div class="mini-title">{s.book.title}</div>
-        <div class="mini-sub">{s.error ? <span class="err">{s.error}</span> : s.tracks[s.index]?.title || s.book.author}</div>
+        <div class="mini-sub">
+          {s.preparing ? <span class="prep-text">{prepLabel(s.preparing)}</span> : s.error ? <span class="err">{s.error}</span> : s.tracks[s.index]?.title || s.book.author}
+        </div>
       </div>
       <button
         class="icon-btn"
@@ -155,7 +176,8 @@ export function FullPlayer() {
           {s.book.author}
           {s.tracks.length > 1 && ` · Part ${s.index + 1} of ${s.tracks.length}`}
         </p>
-        {s.error && <p class="err">{s.error}</p>}
+        {s.preparing && <PrepBar st={s.preparing} />}
+        {s.error && !s.preparing && <p class="err">{s.error}</p>}
       </div>
 
       <div class="fp-scrub">

@@ -4,6 +4,7 @@
 import { createEngine } from './engine.js';
 import { progress, bookmarks, settings, summarize } from './store.js';
 import { syncProgress } from '../sources/audiobookshelf.js';
+import { fetchStatus } from '../sources/debrid.js';
 
 const state = {
   book: null,
@@ -15,6 +16,7 @@ const state = {
   duration: 0,
   rate: settings.get().speed || 1,
   error: null,
+  preparing: null, // { provider, progress (0..1), state } while TorBox / Real-Debrid is still downloading
   sleepUntil: null, // timestamp
   sleepEndOfTrack: false,
 };
@@ -65,7 +67,10 @@ const engine = createEngine({
       saveProgress(true);
     }
   },
-  error: (msg) => set({ loading: false, playing: false, error: msg }),
+  error: (msg) => {
+    set({ loading: false, playing: false, error: msg });
+    checkCloud(state.index, state.time, msg);
+  },
   remote(action) {
     const s = settings.get();
     if (action === 'next') skip(s.skipForward || 30);
@@ -98,6 +103,7 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
   const token = ++loadToken;
   const t = state.tracks[i];
   if (!t) return;
+  if (state.preparing) stopWaiting();
   set({ index: i, loading: true, error: null, time: startAt, duration: t.duration || 0 });
   try {
     let url = t.url;
@@ -118,7 +124,61 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
     if (!autoplay) set({ loading: false });
   } catch (e) {
     if (token !== loadToken || e?.name === 'AbortError') return;
+    if (e.pending) return waitForCloud(i, startAt, e.pending);
     set({ loading: false, playing: false, error: e.message || 'Playback failed' });
+  }
+}
+
+// --- still downloading on TorBox / Real-Debrid --------------------------------
+// Instead of failing on a half-downloaded file, show the download progress and
+// start playing by itself once the service has the whole file.
+let prepTimer = null;
+const isCloud = (b) => /^(tb|rd):/.test(b?.uid || '');
+
+function stopWaiting() {
+  clearTimeout(prepTimer);
+  prepTimer = null;
+  if (state.preparing) set({ preparing: null });
+}
+
+function waitForCloud(i, startAt, status) {
+  const book = state.book;
+  set({ loading: false, playing: false, error: null, preparing: status });
+  clearTimeout(prepTimer);
+  prepTimer = setTimeout(async function poll() {
+    if (state.book !== book) return;
+    let st;
+    try {
+      st = await fetchStatus(book);
+    } catch {
+      prepTimer = setTimeout(poll, 15000);
+      return;
+    }
+    if (state.book !== book) return;
+    if (st.ready) {
+      set({ preparing: null });
+      state.tracks.forEach((t) => t.resolve && (t.url = null)); // links made mid-download are partial
+      loadTrack(i, startAt);
+    } else {
+      set({ preparing: st });
+      prepTimer = setTimeout(poll, 8000);
+    }
+  }, 8000);
+}
+
+/** After a playback error on a cloud book, check whether the service is still downloading it. */
+async function checkCloud(i, startAt, msg) {
+  const book = state.book;
+  if (!isCloud(book)) return;
+  let st = null;
+  try {
+    st = await fetchStatus(book);
+  } catch {}
+  if (state.book !== book || state.index !== i) return;
+  if (st && !st.ready) return waitForCloud(i, startAt, st);
+  if (/PARSING|MALFORMED|format can.t be played|UNSUPPORTED|no supported source|cannot play/i.test(msg || '')) {
+    const more = i < state.tracks.length - 1;
+    set({ error: `This part isn't a playable audio file — it may be damaged or packed in an archive.${more ? ' Tap ⏭ to skip to the next part.' : ''}` });
   }
 }
 
@@ -127,6 +187,7 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
  * playback session (Audiobookshelf, addon streams) which is resolved here.
  */
 export async function playBook(details, { index, time, globalStart } = {}) {
+  stopWaiting();
   set({ loading: true, error: null, book: details });
   try {
     let tracks = details.tracks;
@@ -163,6 +224,7 @@ function locate(g) {
 // --- controls ---------------------------------------------------------------
 export function toggle() {
   if (!state.book) return;
+  if (state.preparing) return; // starts by itself when the download finishes
   if (state.error) return loadTrack(state.index, state.time); // retry after a failure
   if (state.playing || !engine.paused) engine.pause();
   else Promise.resolve(engine.play()).catch((e) => set({ error: e.message }));
@@ -216,6 +278,7 @@ export function stop() {
   saveProgress(true);
   loadToken++;
   Promise.resolve(engine.stop()).catch(() => {});
+  stopWaiting();
   set({ book: null, tracks: [], playing: false, loading: false, error: null, time: 0, duration: 0, sleepUntil: null, sleepEndOfTrack: false });
 }
 
