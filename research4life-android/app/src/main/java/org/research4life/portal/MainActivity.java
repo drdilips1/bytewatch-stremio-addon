@@ -1,225 +1,322 @@
 package org.research4life.portal;
 
-import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
-import android.view.View;
-import android.webkit.CookieManager;
-import android.webkit.URLUtil;
-import android.webkit.ValueCallback;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.OpenableColumns;
+import android.database.Cursor;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
+import androidx.webkit.WebViewAssetLoader;
+
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/** Hosts the bundled research app (assets/www) and exposes native storage to it. */
 public class MainActivity extends Activity {
 
-    private static final String START_URL = "https://portal.research4life.org/signin";
-    private static final int REQUEST_FILE_CHOOSER = 1;
-    private static final int REQUEST_STORAGE = 2;
+    static final String APP_HOST = "appassets.androidplatform.net";
+    private static final String APP_URL = "https://" + APP_HOST + "/assets/www/index.html";
+    private static final int REQUEST_IMPORT = 10;
+    private static final int REQUEST_PORTAL = 11;
 
     private WebView webView;
-    private ProgressBar progressBar;
-    private ValueCallback<Uri[]> filePathCallback;
-    private PendingDownload pendingDownload;
+    private WebViewAssetLoader assetLoader;
+    private final ExecutorService io = Executors.newFixedThreadPool(2);
+    private final Handler main = new Handler(Looper.getMainLooper());
 
-    private static class PendingDownload {
-        final String url, userAgent, contentDisposition, mimeType;
-
-        PendingDownload(String url, String userAgent, String contentDisposition, String mimeType) {
-            this.url = url;
-            this.userAgent = userAgent;
-            this.contentDisposition = contentDisposition;
-            this.mimeType = mimeType;
-        }
-    }
-
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        webView = new WebView(this);
+        setContentView(webView);
 
-        webView = findViewById(R.id.webview);
-        progressBar = findViewById(R.id.progress);
+        assetLoader = new WebViewAssetLoader.Builder()
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .build();
 
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
-        settings.setBuiltInZoomControls(true);
-        settings.setDisplayZoomControls(false);
-        settings.setSupportMultipleWindows(false);
-        settings.setJavaScriptCanOpenWindowsAutomatically(true);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        WebSettings s = webView.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setDatabaseEnabled(true);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(false);
+        s.setTextZoom(100);
 
-        // Sign-in and publisher access rely on cookies across several domains.
-        CookieManager cookies = CookieManager.getInstance();
-        cookies.setAcceptCookie(true);
-        cookies.setAcceptThirdPartyCookies(webView, true);
-
+        webView.addJavascriptInterface(new Bridge(), "Native");
+        webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                if (APP_HOST.equals(uri.getHost()) && uri.getPath() != null
+                        && uri.getPath().startsWith(ApiProxy.PREFIX)) {
+                    return ApiProxy.handle(uri);
+                }
+                return assetLoader.shouldInterceptRequest(uri);
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return handleUrl(request.getUrl());
-            }
-
-            @Override
-            public void onPageStarted(WebView view, String url, Bitmap favicon) {
-                progressBar.setVisibility(View.VISIBLE);
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                progressBar.setVisibility(View.GONE);
-                CookieManager.getInstance().flush();
-            }
-        });
-
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onProgressChanged(WebView view, int newProgress) {
-                progressBar.setProgress(newProgress);
-                progressBar.setVisibility(newProgress < 100 ? View.VISIBLE : View.GONE);
-            }
-
-            @Override
-            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
-                                             FileChooserParams params) {
-                if (filePathCallback != null) {
-                    filePathCallback.onReceiveValue(null);
-                }
-                filePathCallback = callback;
-                try {
-                    startActivityForResult(params.createIntent(), REQUEST_FILE_CHOOSER);
-                } catch (ActivityNotFoundException e) {
-                    filePathCallback = null;
-                    return false;
-                }
+                Uri uri = request.getUrl();
+                if (APP_HOST.equals(uri.getHost())) return false;
+                openLink(uri.toString(), null, null);
                 return true;
             }
         });
 
-        webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, length) ->
-                startDownload(new PendingDownload(url, userAgent, contentDisposition, mimeType)));
-
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
-            Uri data = getIntent().getData();
-            webView.loadUrl(data != null ? data.toString() : START_URL);
+            webView.loadUrl(APP_URL);
         }
     }
 
-    /** Keeps http(s) pages in the app; hands other schemes (mailto:, tel:, intent:) to the system. */
-    private boolean handleUrl(Uri uri) {
+    private void openLink(String url, String key, String title) {
+        Uri uri = Uri.parse(url);
         String scheme = uri.getScheme();
-        if ("http".equals(scheme) || "https".equals(scheme)) {
-            return false;
-        }
-        try {
-            Intent intent = "intent".equals(scheme)
-                    ? Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
-                    : new Intent(Intent.ACTION_VIEW, uri);
-            startActivity(intent);
-        } catch (Exception e) {
-            Toast.makeText(this, "No app can open this link", Toast.LENGTH_SHORT).show();
-        }
-        return true;
-    }
-
-    private void startDownload(PendingDownload d) {
-        if (d.url.startsWith("blob:") || d.url.startsWith("data:")) {
-            Toast.makeText(this, "This file type can't be downloaded in the app", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
-                && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
-            pendingDownload = d;
-            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_STORAGE);
-            return;
-        }
-        try {
-            String fileName = URLUtil.guessFileName(d.url, d.contentDisposition, d.mimeType);
-            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(d.url));
-            request.setMimeType(d.mimeType);
-            String cookie = CookieManager.getInstance().getCookie(d.url);
-            if (cookie != null) {
-                request.addRequestHeader("Cookie", cookie);
-            }
-            request.addRequestHeader("User-Agent", d.userAgent);
-            request.setTitle(fileName);
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
-            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-            dm.enqueue(request);
-            Toast.makeText(this, "Downloading " + fileName, Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            // Fall back to the browser if DownloadManager can't handle the URL.
+        if (!"http".equals(scheme) && !"https".equals(scheme)) {
             try {
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(d.url)));
-            } catch (ActivityNotFoundException ignored) {
-                Toast.makeText(this, "Download failed", Toast.LENGTH_SHORT).show();
+                startActivity(new Intent(Intent.ACTION_VIEW, uri));
+            } catch (ActivityNotFoundException e) {
+                toast("No app can open this link");
             }
+            return;
         }
+        Intent i = new Intent(this, PortalActivity.class);
+        i.putExtra(PortalActivity.EXTRA_URL, url);
+        if (key != null) i.putExtra(PortalActivity.EXTRA_KEY, key);
+        if (title != null) i.putExtra(PortalActivity.EXTRA_TITLE, title);
+        startActivityForResult(i, REQUEST_PORTAL);
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        if (requestCode == REQUEST_STORAGE) {
-            PendingDownload d = pendingDownload;
-            pendingDownload = null;
-            if (d != null && grantResults.length > 0
-                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startDownload(d);
-            } else {
-                Toast.makeText(this, "Storage permission is needed to download files", Toast.LENGTH_SHORT).show();
+    private void emit(JSONObject event) {
+        String js = "window.App&&App.onNative(" + event + ")";
+        main.post(() -> webView.evaluateJavascript(js, null));
+    }
+
+    private void toast(String msg) {
+        main.post(() -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
+    }
+
+    private static JSONObject event(String type, Object... kv) {
+        JSONObject o = new JSONObject();
+        try {
+            o.put("type", type);
+            for (int i = 0; i + 1 < kv.length; i += 2) o.put((String) kv[i], kv[i + 1]);
+        } catch (Exception ignored) {
+        }
+        return o;
+    }
+
+    /** Methods callable from the web app as window.Native.*. */
+    private class Bridge {
+
+        @JavascriptInterface
+        public String listPdfs() {
+            return PdfStore.list(MainActivity.this).toString();
+        }
+
+        @JavascriptInterface
+        public boolean hasPdf(String key) {
+            return PdfStore.has(MainActivity.this, key);
+        }
+
+        @JavascriptInterface
+        public long storageBytes() {
+            return PdfStore.totalBytes(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void downloadPdf(String key, String url, String title) {
+            String ua = WebSettings.getDefaultUserAgent(MainActivity.this);
+            io.execute(() -> {
+                try {
+                    PdfStore.download(MainActivity.this, key, url, title, ua);
+                    emit(event("pdfSaved", "key", key));
+                } catch (Exception e) {
+                    String reason = "NOT_PDF".equals(e.getMessage())
+                            ? "The link opened a web page, not a PDF. Try Research4Life access."
+                            : "Download failed: " + e.getMessage();
+                    emit(event("pdfFailed", "key", key, "message", reason));
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void openPdf(String key, String title) {
+            main.post(() -> {
+                if (!PdfStore.has(MainActivity.this, key)) {
+                    toast("PDF not found");
+                    return;
+                }
+                Intent i = new Intent(MainActivity.this, PdfViewerActivity.class);
+                i.putExtra(PdfViewerActivity.EXTRA_KEY, key);
+                i.putExtra(PdfViewerActivity.EXTRA_TITLE, title);
+                startActivity(i);
+            });
+        }
+
+        @JavascriptInterface
+        public void deletePdf(String key) {
+            PdfStore.delete(MainActivity.this, key);
+        }
+
+        @JavascriptInterface
+        public void openPortal(String url, String key, String title) {
+            main.post(() -> openLink(url, key.isEmpty() ? null : key, title.isEmpty() ? null : title));
+        }
+
+        @JavascriptInterface
+        public void importPdf() {
+            main.post(() -> {
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("application/pdf");
+                try {
+                    startActivityForResult(i, REQUEST_IMPORT);
+                } catch (ActivityNotFoundException e) {
+                    toast("No file picker available");
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void share(String title, String text) {
+            main.post(() -> {
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("text/plain");
+                i.putExtra(Intent.EXTRA_SUBJECT, title);
+                i.putExtra(Intent.EXTRA_TEXT, text);
+                startActivity(Intent.createChooser(i, "Share"));
+            });
+        }
+
+        @JavascriptInterface
+        public void sharePdf(String key, String title) {
+            main.post(() -> {
+                if (!PdfStore.has(MainActivity.this, key)) return;
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("application/pdf");
+                i.putExtra(Intent.EXTRA_SUBJECT, title);
+                i.putExtra(Intent.EXTRA_STREAM, PdfStore.shareUri(MainActivity.this, key));
+                i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivity(Intent.createChooser(i, "Share PDF"));
+            });
+        }
+
+        @JavascriptInterface
+        public void exportText(String fileName, String content, String mime) {
+            io.execute(() -> {
+                try {
+                    File dir = new File(getCacheDir(), "export");
+                    dir.mkdirs();
+                    File f = new File(dir, fileName.replaceAll("[^A-Za-z0-9_.-]", "_"));
+                    try (Writer w = new OutputStreamWriter(new FileOutputStream(f), StandardCharsets.UTF_8)) {
+                        w.write(content);
+                    }
+                    Uri uri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                    main.post(() -> {
+                        Intent i = new Intent(Intent.ACTION_SEND);
+                        i.setType(mime);
+                        i.putExtra(Intent.EXTRA_STREAM, uri);
+                        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(Intent.createChooser(i, "Export library"));
+                    });
+                } catch (Exception e) {
+                    toast("Export failed");
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void copy(String text) {
+            main.post(() -> {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(ClipData.newPlainText("citation", text));
+                Toast.makeText(MainActivity.this, "Copied", Toast.LENGTH_SHORT).show();
+            });
+        }
+
+        @JavascriptInterface
+        public void toast(String msg) {
+            MainActivity.this.toast(msg);
+        }
+
+        @JavascriptInterface
+        public String version() {
+            try {
+                return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            } catch (Exception e) {
+                return "";
             }
         }
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == REQUEST_FILE_CHOOSER) {
-            if (filePathCallback != null) {
-                filePathCallback.onReceiveValue(
-                        WebChromeClient.FileChooserParams.parseResult(resultCode, data));
-                filePathCallback = null;
-            }
-            return;
-        }
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_IMPORT && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri uri = data.getData();
+            String name = displayName(uri);
+            String key = "import_" + System.currentTimeMillis();
+            io.execute(() -> {
+                try {
+                    PdfStore.importFrom(this, uri, key, name);
+                    emit(event("pdfImported", "key", key, "title", name));
+                } catch (Exception e) {
+                    toast("Import failed");
+                }
+            });
+        }
+    }
+
+    private String displayName(Uri uri) {
+        try (Cursor c = getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                String n = c.getString(0);
+                if (n != null) return n.replaceAll("(?i)\\.pdf$", "");
+            }
+        } catch (Exception ignored) {
+        }
+        return "Imported PDF";
     }
 
     @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        if (intent.getData() != null) {
-            webView.loadUrl(intent.getData().toString());
-        }
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) webView.evaluateJavascript("window.App&&App.onResume()", null);
     }
 
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
+        webView.evaluateJavascript("window.App?App.back():false", value -> {
+            if (!"true".equals(value)) finish();
+        });
     }
 
     @Override
@@ -229,8 +326,8 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    protected void onPause() {
-        super.onPause();
-        CookieManager.getInstance().flush();
+    protected void onDestroy() {
+        io.shutdown();
+        super.onDestroy();
     }
 }

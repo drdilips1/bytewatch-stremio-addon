@@ -1,4 +1,4 @@
-name: Build Research4Life APK
+name: Build DermScholar APK
 
 on:
   push:
@@ -19,6 +19,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check web app syntax
+        run: |
+          node --check app/src/main/assets/www/app.js
+          node --check app/src/main/assets/www/journals.js
+
+      - name: Check journal queries against Europe PMC
+        continue-on-error: true
+        run: node tools/check-journals.mjs
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -31,23 +44,23 @@ jobs:
       - name: Build APK
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          gradle assembleDebug --no-daemon
+          gradle assembleRelease --no-daemon
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk Research4Life.apk
+        run: cp app/build/outputs/apk/release/app-release.apk DermScholar.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Research4Life-apk
-          path: research4life-android/Research4Life.apk
+          name: DermScholar-apk
+          path: research4life-android/DermScholar.apk
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="research4life-apk-${{ github.run_number }}"
-          gh release create "$TAG" Research4Life.apk \
+          TAG="dermscholar-${{ github.run_number }}"
+          gh release create "$TAG" DermScholar.apk \
             --target "${{ github.sha }}" \
-            --title "Research4Life APK (build ${{ github.run_number }})" \
-            --notes "Android app for https://portal.research4life.org/signin. Download Research4Life.apk below and open it on your phone (allow installing from unknown sources)." \
+            --title "DermScholar APK (build ${{ github.run_number }})" \
+            --notes "Dermatology research app with Research4Life access. Download DermScholar.apk below and open it on your Android phone (allow installing from unknown sources). Updates install over the previous version and keep your library." \
             --prerelease
