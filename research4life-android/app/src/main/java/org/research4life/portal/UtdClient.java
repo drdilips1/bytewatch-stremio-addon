@@ -56,13 +56,7 @@ final class UtdClient {
     private boolean triedFullPage;
     private long stageStarted;
     private long lastReport;
-    private final Runnable hardTimeout = () -> {
-        if (callback == null) return;
-        webView.stopLoading();
-        String title = webView.getTitle();
-        finish(result("stuck", "UpToDate is taking too long" + (title == null || title.isEmpty() ? "" : " (stopped at “" + title + "”)")
-                + ". Tap Show page to see what it needs, or try again."));
-    };
+    private final Runnable hardTimeout = this::onHardTimeout;
 
     @SuppressLint("SetJavaScriptEnabled")
     UtdClient(Context activity, FrameLayout host) {
@@ -255,6 +249,14 @@ final class UtdClient {
             }
             main.postDelayed(() -> poll(t), POLL_MS);
         });
+    }
+
+    private void onHardTimeout() {
+        if (callback == null) return;
+        webView.stopLoading();
+        String title = webView.getTitle();
+        finish(result("stuck", "UpToDate is taking too long" + (title == null || title.isEmpty() ? "" : " (stopped at “" + title + "”)")
+                + ". Tap Show page to see what it needs, or try again."));
     }
 
     private void finish(JSONObject o) {
