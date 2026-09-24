@@ -9,7 +9,7 @@ import java.net.URL
 
 /** Brings a document into app storage (so it survives restarts) and parses it. */
 object Loader {
-    enum class Kind { PDF, EPUB, TEXT }
+    enum class Kind { PDF, EPUB, TEXT, DOCX, HTML, MD }
 
     /** A document file in the library; [id] names its library entry. */
     data class Source(val file: File, val kind: Kind, val name: String, val id: String)
@@ -45,7 +45,7 @@ object Loader {
             conn.instanceFollowRedirects = false
             conn.connectTimeout = 20_000
             conn.readTimeout = 60_000
-            conn.setRequestProperty("User-Agent", "Paper2Audio-Android/1.0")
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36")
             val code = conn.responseCode
             if (code in 300..399) {
                 url = URL(URL(url), conn.getHeaderField("Location") ?: error("Bad redirect")).toString()
@@ -70,22 +70,50 @@ object Loader {
     }
 
     private fun sniff(file: File, name: String): Kind {
-        val head = ByteArray(4)
-        val n = file.inputStream().use { it.read(head) }
+        val head = ByteArray(2048)
+        val n = file.inputStream().use { it.read(head) }.coerceAtLeast(0)
+        val start = String(head, 0, n, Charsets.ISO_8859_1)
+        val lower = start.trimStart('\uFEFF', ' ', '\n', '\r', '\t').lowercase()
         return when {
-            n >= 4 && String(head, Charsets.ISO_8859_1) == "%PDF" -> Kind.PDF
-            n >= 2 && head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte() -> Kind.EPUB
+            start.startsWith("%PDF") -> Kind.PDF
+            start.startsWith("PK") -> runCatching {
+                java.util.zip.ZipFile(file).use { z -> if (z.getEntry("word/document.xml") != null) Kind.DOCX else Kind.EPUB }
+            }.getOrDefault(Kind.EPUB)
             name.endsWith(".pdf", true) -> Kind.PDF
+            name.endsWith(".md", true) || name.endsWith(".markdown", true) -> Kind.MD
+            lower.startsWith("<!doctype html") || lower.startsWith("<html") || "<html" in lower.take(600) -> Kind.HTML
+            name.endsWith(".html", true) || name.endsWith(".htm", true) -> Kind.HTML
             else -> Kind.TEXT
         }
     }
+
+    /** Saves pasted text (or recognized text from scans) as a new document. */
+    fun storeText(context: Context, title: String, text: String): Source {
+        val safe = title.replace(Regex("""[\\/:*?"<>|]+"""), " ").trim().ifBlank { "Pasted text" }
+        return store(context, "$safe.txt") { it.write(text.toByteArray()) }
+    }
+
+    /** Recognized text of a scanned PDF, kept next to it. */
+    fun ocrFile(pdf: File) = File(pdf.path.substringBeforeLast('.') + ".ocr.txt")
 
     fun parse(context: Context, src: Source, o: CleanOptions): Doc {
         val key = src.id
         val title = src.name.substringBeforeLast('.')
         return when (src.kind) {
-            Kind.PDF -> PdfExtractor.extract(context, src.file, o, title, key)
+            Kind.PDF -> {
+                // Scanned PDFs: use the text recognized from the page images, if any.
+                val ocr = ocrFile(src.file)
+                if (ocr.exists()) {
+                    val pdfTitle = runCatching { PdfExtractor.extract(context, src.file, o, title, key).title }.getOrDefault(title)
+                    Doc.build(pdfTitle, key, listOf(null to TextCleaner.clean(ocr.readLines(), o)))
+                } else {
+                    PdfExtractor.extract(context, src.file, o, title, key)
+                }
+            }
             Kind.EPUB -> EpubExtractor.extract(src.file, o, title, key)
+            Kind.DOCX -> DocxExtractor.extract(src.file, o, title, key)
+            Kind.HTML -> HtmlExtractor.extract(src.file, o, title, key)
+            Kind.MD -> MarkdownExtractor.extract(src.file, o, title, key)
             Kind.TEXT -> Doc.build(title, key, listOf(null to TextCleaner.clean(src.file.readLines(), o)))
         }
     }

@@ -68,21 +68,90 @@
             style="@style/P2A.Button"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="6dp"
+            android:layout_marginEnd="5dp"
             android:layout_weight="1"
             android:drawableStart="@drawable/ic_add"
-            android:text="Add file" />
+            android:text="Add" />
+
+        <Button
+            android:id="@+id/btnScan"
+            style="@style/P2A.Button.Soft"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="5dp"
+            android:layout_marginEnd="5dp"
+            android:layout_weight="1"
+            android:drawableStart="@drawable/ic_scan"
+            android:text="Scan" />
 
         <Button
             android:id="@+id/btnAddLink"
             style="@style/P2A.Button.Soft"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="5dp"
             android:layout_weight="1"
             android:drawableStart="@drawable/ic_link"
-            android:text="arXiv / link" />
+            android:text="Link" />
     </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/bg_card"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_search"
+            android:tint="?attr/p2aMuted" />
+
+        <EditText
+            android:id="@+id/filter"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@null"
+            android:hint="Search your library"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:minHeight="44dp"
+            android:singleLine="true"
+            android:textColor="?attr/p2aText"
+            android:textColorHint="?attr/p2aMuted"
+            android:textSize="15sp" />
+
+        <ImageButton
+            android:id="@+id/btnSort"
+            style="@style/P2A.Icon"
+            android:contentDescription="Sort"
+            android:src="@drawable/ic_sort" />
+    </LinearLayout>
+
+    <HorizontalScrollView
+        android:id="@+id/chipScroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipToPadding="false"
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="16dp"
+        android:scrollbars="none"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/chips"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
 
     <ProgressBar
         android:id="@+id/busyBar"
@@ -127,7 +196,7 @@
             android:gravity="center"
             android:lineSpacingMultiplier="1.3"
             android:padding="40dp"
-            android:text="Your library is empty.\n\nAdd a PDF, EPUB or text file, or paste an arXiv ID or link. You can also share a file to this app from another app."
+            android:text="Your library is empty.\n\nAdd a PDF, EPUB, Word, Markdown or text file, scan pages with the camera, paste text, or add an arXiv ID or web article link. You can also share files, links and screenshots to this app."
             android:textColor="?attr/p2aMuted"
             android:textSize="15sp" />
     </FrameLayout>

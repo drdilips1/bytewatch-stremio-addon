@@ -6,6 +6,13 @@ import android.content.res.Configuration
 
 /** Color themes. "System" follows the phone's light/dark setting. */
 object Themes {
+    /** A color from the current theme, e.g. R.attr.p2aText. */
+    fun color(context: android.content.Context, attr: Int): Int {
+        val v = android.util.TypedValue()
+        context.theme.resolveAttribute(attr, v, true)
+        return v.data
+    }
+
     class Theme(val key: String, val label: String, val style: Int)
 
     val ALL = listOf(
@@ -66,7 +73,7 @@ object Opener {
 
     private fun check(doc: Doc) {
         if (doc.paragraphs.isEmpty()) {
-            error("No readable text found. Scanned PDFs need OCR, and DRM-protected books can't be read.")
+            error("No readable text found. DRM-protected books can't be read.")
         }
     }
 
@@ -75,11 +82,19 @@ object Opener {
         Loader.parse(context, Library.source(context, item), options(context)).also(::check)
 
     /** Imports a new document into the library. Call off the main thread. */
-    fun import(context: Context, fetch: () -> Loader.Source): Pair<Library.Item, Doc> {
+    fun import(context: Context, fetch: () -> Loader.Source, progress: (String) -> Unit = {}): Pair<Library.Item, Doc> {
         val src = fetch()
         val doc = try {
-            Loader.parse(context, src, options(context)).also(::check)
+            var doc = Loader.parse(context, src, options(context))
+            // A PDF with (almost) no text layer is a scan: recognize the page images instead.
+            if (src.kind == Loader.Kind.PDF && doc.words < 25 * doc.pages.coerceAtLeast(1)) {
+                val words = Ocr.pdf(src.file, Loader.ocrFile(src.file), progress)
+                if (words > doc.words) doc = Loader.parse(context, src, options(context))
+                else Loader.ocrFile(src.file).delete()
+            }
+            doc.also(::check)
         } catch (e: Exception) {
+            Loader.ocrFile(src.file).delete()
             src.file.delete()
             throw e
         }

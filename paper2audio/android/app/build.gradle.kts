@@ -11,8 +11,10 @@ android {
         applicationId = "com.paper2audio.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 11
-        versionName = "2.0"
+        // Samsung Galaxy and nearly all current phones are 64-bit ARM; this keeps the APK small.
+        ndk { abiFilters += "arm64-v8a" }
+        versionCode = 12
+        versionName = "2.1"
     }
 
     // Sign with your own key when P2A_KEYSTORE is set (see README), so new
@@ -65,4 +67,7 @@ dependencies {
     // Google sign-in (Drive sync).
     implementation("com.google.android.gms:play-services-auth:21.2.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    // On-device text recognition for photos, camera scans and scanned PDFs (works offline).
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("androidx.core:core:1.13.1")
 }

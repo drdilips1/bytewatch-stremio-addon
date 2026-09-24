@@ -146,7 +146,7 @@ class SearchActivity : Activity() {
         scope.launch {
             try {
                 val (item, doc) = withContext(Dispatchers.IO) {
-                    val (item, doc) = Opener.import(this@SearchActivity) { Loader.download(this@SearchActivity, r.downloadUrl) }
+                    val (item, doc) = Opener.import(this@SearchActivity, { Loader.download(this@SearchActivity, r.downloadUrl) })
                     // The catalogue's title/author/summary are cleaner than what's inside many files.
                     val found = Metadata.Found(r.title, r.author, r.year?.take(4)?.toIntOrNull(), r.summary, r.coverUrl, "search")
                     val cover = r.coverUrl?.let { runCatching { Metadata.bytes(it) }.getOrNull() }

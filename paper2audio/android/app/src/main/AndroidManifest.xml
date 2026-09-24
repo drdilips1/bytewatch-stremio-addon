@@ -51,6 +51,13 @@
                 <data android:mimeType="application/pdf" />
                 <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="text/plain" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/html" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/html" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -60,6 +67,27 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <activity-alias
+            android:name=".ShareImages"
+            android:exported="true"
+            android:targetActivity=".LibraryActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity-alias>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <service
             android:name=".ReaderService"

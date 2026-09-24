@@ -6,8 +6,9 @@ the phone: no server, no account, no limits.
 ## Features
 
 - **Library** of your papers and books with thumbnails (a PDF's first page or an
-  EPUB's cover), title, author, length and listening progress. Tap to open,
-  long-press to remove. A mini player at the bottom shows what's playing.
+  EPUB's cover), title, author, length and listening progress. Search the
+  library, sort it, and group documents into **collections** (long-press a
+  document). A mini player at the bottom shows what's playing.
 - **Find** (magnifier icon): search 70,000+ free public-domain e-books from
   Project Gutenberg (popular titles shown first) and research papers on arXiv,
   and add them to the library in one tap.
@@ -16,19 +17,30 @@ the phone: no server, no account, no limits.
   hardcover.app/account/api, Hardcover. You confirm before anything changes.
 - **9 color themes**: System (follows light/dark mode), Ocean, Forest, Sunset,
   Lavender, Rose, Sepia, Midnight and Black. Tap the palette icon.
-- Open a **PDF, EPUB or text file**, share one to the app from another app, or
-  paste an **arXiv ID or link**.
+- **Add** a PDF, EPUB, Word (.docx), Markdown, text or saved web page, **paste
+  text**, or add an **arXiv ID, web article link** or file link. Web articles
+  are reduced to the article text (no menus, ads or reference lists). You can
+  also share files, links, text and screenshots to the app.
+- **Scan**: photograph printed pages with the camera (several pages in a row),
+  or pick photos and screenshots; the text is recognized on the phone with
+  Google ML Kit. **Scanned PDFs** are recognized automatically when added.
 - The same cleanup as the desktop tool: headers, footers, page numbers,
   citations, URLs, captions, equations and references are skipped; EPUB
   footnotes, contents and copyright pages are dropped.
-- **Listen now** with play/pause, previous/next paragraph, a position slider and
-  a chapter list. Reading continues with the screen off, with controls in the
+- **Reader view** that follows along, highlighting the sentence being read.
+  Tap a paragraph to listen from there; long-press it to **bookmark** it, add a
+  **note** or copy it. Bookmarks and notes sync.
+- **Listen now** with play/pause, previous/next paragraph, a position slider,
+  time left, a **table of contents** and a **sleep timer** (minutes or end of
+  chapter). Reading continues with the screen off, with controls in the
   notification and on the lock screen.
+- **Offline listening**: download the whole document's audio in advance;
+  previews for every voice.
 - **Remembers where you stopped** in each document.
 - **Save as audio file**: renders the whole document to one file in
   `Music/Paper2Audio` (MP3 for natural voices, M4A for phone voices), playable in
   any music or podcast app.
-- Speed from 0.5× to 3×.
+- Speed from 0.5× to 4×.
 
 ## Sync across devices (Google Drive)
 
@@ -136,5 +148,6 @@ vendored `app/src/main/java/com/k2fsa/sherpa/onnx/Tts.kt`.
 - Requires Android 8.0 or newer.
 - Natural voices use an unofficial Microsoft service. If Microsoft changes it,
   they may stop working until the app is updated; phone voices keep working.
-- Scanned PDFs (images only) and DRM-protected e-books can't be read.
+- DRM-protected e-books can't be read. Text recognition supports Latin-script
+  languages (English, Spanish, French, German and so on).
 - Complex multi-column PDFs can occasionally read out of order.

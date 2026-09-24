@@ -48,7 +48,7 @@ object Library {
         companion object {
             fun fromJson(o: JSONObject) = Item(
                 o.getString("id"), o.getString("title"), o.optString("author").ifBlank { null },
-                Loader.Kind.valueOf(o.getString("kind")), o.optString("sourceName"),
+                runCatching { Loader.Kind.valueOf(o.getString("kind")) }.getOrDefault(Loader.Kind.TEXT), o.optString("sourceName"),
                 o.optLong("added"), o.optLong("opened"), o.optInt("paragraphs"), o.optInt("words"),
                 o.optInt("chapters"), o.optInt("pages"),
                 o.optString("description").ifBlank { null }, o.optInt("year"),
@@ -193,6 +193,7 @@ object Library {
             save(context)
         }
         source(context, item).file.delete()
+        Loader.ocrFile(source(context, item).file).delete()
         thumb(context, item.id).delete()
         // Remembered so sync removes it from other devices too.
         val deleted = deleted(context).put(item.id, System.currentTimeMillis())
@@ -294,7 +295,8 @@ object Thumbs {
         val bitmap = when (src.kind) {
             Loader.Kind.PDF -> runCatching { pdfPage(src.file) }.getOrNull()
             Loader.Kind.EPUB -> doc.cover?.let { runCatching { decode(it) }.getOrNull() }
-            Loader.Kind.TEXT -> null
+            Loader.Kind.HTML -> runCatching { webImage(src.file)?.let { decode(it) } }.getOrNull()
+            else -> null
         } ?: tile(doc.title)
         out.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) }
         bitmap.recycle()
@@ -325,6 +327,19 @@ object Thumbs {
         val bitmap = decode(bytes) ?: error("not an image")
         out.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) }
         bitmap.recycle()
+    }
+
+    /** A web article's share image (og:image), if it names an absolute URL. */
+    private fun webImage(file: File): ByteArray? {
+        val url = HtmlExtractor.meta(org.jsoup.Jsoup.parse(file, "UTF-8"), "og:image", "twitter:image")
+            ?.takeIf { it.startsWith("http") } ?: return null
+        val client = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+        return client.newCall(okhttp3.Request.Builder().url(url).build()).execute().use { r ->
+            if (r.isSuccessful) r.body?.bytes()?.takeIf { it.size < 8_000_000 } else null
+        }
     }
 
     private fun decode(bytes: ByteArray): Bitmap? {
