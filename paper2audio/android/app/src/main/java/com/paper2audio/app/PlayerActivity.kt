@@ -134,7 +134,7 @@ class PlayerActivity : Activity() {
         btnPrev.setOnClickListener { Speaker.previous() }
         btnNext.setOnClickListener { Speaker.next() }
         btnChapters.setOnClickListener { showChapters() }
-        findViewById<ImageButton>(R.id.btnDetails).setOnClickListener { lookUpDetails() }
+        findViewById<ImageButton>(R.id.btnDetails).setOnClickListener { showDetailsMenu() }
 
         posBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
@@ -256,6 +256,18 @@ class PlayerActivity : Activity() {
                 Kokoro.install { Speaker.refreshVoices() }
             }
             .setNegativeButton("Not now", null)
+            .show()
+    }
+
+    private fun showDetailsMenu() {
+        val hasKey = !prefs.getString("hardcoverToken", null).isNullOrBlank()
+        val options = arrayOf(
+            "Look up cover and details",
+            if (hasKey) "Hardcover API key (saved ✓)" else "Add Hardcover API key",
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Book details")
+            .setItems(options) { _, which -> if (which == 0) lookUpDetails() else askHardcoverKey() }
             .show()
     }
 
