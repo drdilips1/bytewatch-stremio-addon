@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#B3261E">
+<title>PDF Editor</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- ============ Top bar ============ -->
+<header id="topbar">
+  <button class="icon-btn" id="btnMenu" title="Menu" data-icon="menu"></button>
+  <div id="docTitle">PDF Editor</div>
+  <button class="icon-btn" id="btnUndo" title="Undo" data-icon="undo" disabled></button>
+  <button class="icon-btn" id="btnRedo" title="Redo" data-icon="redo" disabled></button>
+  <button class="icon-btn" id="btnPages" title="Pages" data-icon="pages"></button>
+  <button class="icon-btn accent" id="btnSave" title="Save" data-icon="save"></button>
+</header>
+
+<!-- ============ Home screen ============ -->
+<section id="home">
+  <div class="home-logo" data-icon="logo"></div>
+  <h1>PDF Editor</h1>
+  <p class="muted">Free, offline, no watermarks, no limits.</p>
+  <button class="big-btn primary" id="homeOpen"><span data-icon="open"></span>Open PDF</button>
+  <button class="big-btn" id="homeImages"><span data-icon="image"></span>Images to PDF</button>
+  <button class="big-btn" id="homeBlank"><span data-icon="blank"></span>New blank PDF</button>
+  <p class="muted small">Tip: use “Open with → PDF Editor” from any file manager.</p>
+</section>
+
+<!-- ============ Document view ============ -->
+<main id="viewer" hidden>
+  <div id="pages"></div>
+</main>
+
+<!-- ============ Properties bar ============ -->
+<div id="propbar" hidden>
+  <div id="propColors" class="prop-group"></div>
+  <div class="prop-group" id="propSizeWrap">
+    <span class="prop-label" id="propSizeLabel">Size</span>
+    <input type="range" id="propSize" min="1" max="72" step="1">
+    <span class="prop-val" id="propSizeVal"></span>
+  </div>
+  <div class="prop-group" id="propFontWrap">
+    <select id="propFont">
+      <option value="Helvetica">Sans</option>
+      <option value="Times">Serif</option>
+      <option value="Courier">Mono</option>
+    </select>
+    <button class="chip" id="propBold"><b>B</b></button>
+    <button class="chip" id="propItalic"><i>I</i></button>
+    <button class="chip" id="propBg" title="White background">BG</button>
+  </div>
+  <div class="prop-group" id="propFillWrap">
+    <button class="chip" id="propFill">Fill</button>
+  </div>
+  <div class="prop-group" id="propSelWrap">
+    <button class="chip" id="propDup" title="Duplicate"><span data-icon="copy"></span></button>
+    <button class="chip danger" id="propDelete" title="Delete"><span data-icon="delete"></span></button>
+  </div>
+</div>
+
+<!-- ============ Bottom toolbar ============ -->
+<nav id="toolbar" hidden>
+  <button class="tool active" data-tool="select"><span data-icon="select"></span>Select</button>
+  <button class="tool" data-tool="text"><span data-icon="text"></span>Add Text</button>
+  <button class="tool" data-tool="edittext"><span data-icon="edittext"></span>Edit Text</button>
+  <button class="tool" data-tool="draw"><span data-icon="draw"></span>Draw</button>
+  <button class="tool" data-tool="highlight"><span data-icon="highlight"></span>Highlight</button>
+  <button class="tool" data-tool="whiteout"><span data-icon="eraser"></span>Whiteout</button>
+  <button class="tool" data-tool="rect"><span data-icon="rect"></span>Box</button>
+  <button class="tool" data-tool="ellipse"><span data-icon="ellipse"></span>Circle</button>
+  <button class="tool" data-tool="line"><span data-icon="line"></span>Line</button>
+  <button class="tool" data-tool="arrow"><span data-icon="arrow"></span>Arrow</button>
+  <button class="tool" data-tool="check"><span data-icon="check"></span>Tick</button>
+  <button class="tool" data-tool="cross"><span data-icon="cross"></span>Cross</button>
+  <button class="tool" data-tool="date"><span data-icon="date"></span>Date</button>
+  <button class="tool" data-action="image"><span data-icon="image"></span>Image</button>
+  <button class="tool" data-action="sign"><span data-icon="sign"></span>Sign</button>
+  <button class="tool" data-action="forms"><span data-icon="form"></span>Forms</button>
+  <button class="tool" data-action="zoomout"><span data-icon="zoomout"></span>Zoom −</button>
+  <button class="tool" data-action="zoomin"><span data-icon="zoomin"></span>Zoom +</button>
+</nav>
+
+<!-- ============ Menu ============ -->
+<div id="menuBackdrop" class="backdrop" hidden></div>
+<aside id="menu" hidden>
+  <div class="menu-head">PDF Editor</div>
+  <button data-menu="open"><span data-icon="open"></span>Open PDF…</button>
+  <button data-menu="merge"><span data-icon="merge"></span>Merge: append PDF…</button>
+  <button data-menu="images"><span data-icon="image"></span>Add images as pages…</button>
+  <button data-menu="blankpage"><span data-icon="blank"></span>Add blank page</button>
+  <button data-menu="pages"><span data-icon="pages"></span>Organize pages</button>
+  <button data-menu="forms"><span data-icon="form"></span>Fill form fields</button>
+  <hr>
+  <button data-menu="save"><span data-icon="save"></span>Save as…</button>
+  <button data-menu="share"><span data-icon="share"></span>Share</button>
+  <button data-menu="rename"><span data-icon="edittext"></span>Rename file</button>
+  <hr>
+  <button data-menu="close"><span data-icon="close"></span>Close document</button>
+</aside>
+
+<!-- ============ Pages panel ============ -->
+<section id="pagesPanel" class="sheet" hidden>
+  <header class="sheet-head">
+    <button class="icon-btn" data-close="pagesPanel" data-icon="back"></button>
+    <div class="sheet-title">Pages <span id="pagesCount" class="muted"></span></div>
+    <button class="chip" id="pgSelectAll">Select all</button>
+  </header>
+  <div id="thumbs"></div>
+  <footer class="sheet-actions">
+    <button data-pg="rotl"><span data-icon="rotl"></span>Rotate</button>
+    <button data-pg="rotr"><span data-icon="rotr"></span>Rotate</button>
+    <button data-pg="left"><span data-icon="left"></span>Move</button>
+    <button data-pg="right"><span data-icon="right"></span>Move</button>
+    <button data-pg="dup"><span data-icon="copy"></span>Duplicate</button>
+    <button data-pg="blank"><span data-icon="blank"></span>Blank</button>
+    <button data-pg="extract"><span data-icon="extract"></span>Extract</button>
+    <button data-pg="delete" class="danger"><span data-icon="delete"></span>Delete</button>
+  </footer>
+</section>
+
+<!-- ============ Forms panel ============ -->
+<section id="formsPanel" class="sheet" hidden>
+  <header class="sheet-head">
+    <button class="icon-btn" data-close="formsPanel" data-icon="back"></button>
+    <div class="sheet-title">Form fields</div>
+    <button class="chip primary" id="formsApply">Apply</button>
+  </header>
+  <div id="formsList"></div>
+  <footer class="sheet-foot">
+    <label class="check"><input type="checkbox" id="formsFlatten"> Flatten (make fields non-editable)</label>
+  </footer>
+</section>
+
+<!-- ============ Signature modal ============ -->
+<div id="signModal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-title">Signature</div>
+    <div id="savedSigs"></div>
+    <canvas id="sigPad"></canvas>
+    <div class="sig-colors">
+      <button class="swatch" data-sigcolor="#000000" style="background:#000"></button>
+      <button class="swatch" data-sigcolor="#1a3fb8" style="background:#1a3fb8"></button>
+      <button class="swatch" data-sigcolor="#b3261e" style="background:#b3261e"></button>
+      <span class="spacer"></span>
+      <button class="chip" id="sigClear">Clear</button>
+    </div>
+    <div class="modal-actions">
+      <button class="chip" id="sigCancel">Cancel</button>
+      <button class="chip primary" id="sigUse">Use signature</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Generic dialog ============ -->
+<div id="dialog" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-title" id="dlgTitle"></div>
+    <div id="dlgBody"></div>
+    <input id="dlgInput" type="text" hidden>
+    <div class="modal-actions">
+      <button class="chip" id="dlgCancel">Cancel</button>
+      <button class="chip primary" id="dlgOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="busy" hidden><div class="spinner"></div><div id="busyText">Working…</div></div>
+<div id="toast" hidden></div>
+
+<input type="file" id="filePdf" accept="application/pdf" hidden>
+<input type="file" id="fileMerge" accept="application/pdf" multiple hidden>
+<input type="file" id="fileImage" accept="image/*" hidden>
+<input type="file" id="fileImagesPages" accept="image/*" multiple hidden>
+
+<script src="lib/pdf.min.js"></script>
+<script src="lib/pdf-lib.min.js"></script>
+<script src="icons.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

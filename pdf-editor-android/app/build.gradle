@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.selfuse.pdfeditor'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.selfuse.pdfeditor'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    signingConfigs {
+        // Optional stable key (so updates install over the old app): set these env vars in CI.
+        release {
+            def ks = System.getenv('SIGNING_KEYSTORE_FILE')
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('SIGNING_STORE_PASSWORD')
+                keyAlias System.getenv('SIGNING_KEY_ALIAS')
+                keyPassword System.getenv('SIGNING_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // Personal-use build: falls back to the debug key so the APK always installs directly.
+            signingConfig System.getenv('SIGNING_KEYSTORE_FILE') ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    androidResources {
+        // Keep pdf.js cmaps/fonts uncompressed-friendly and don't drop dotfiles.
+        noCompress 'bcmap', 'pfb', 'ttf'
+    }
+}
