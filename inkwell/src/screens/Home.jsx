@@ -1,12 +1,14 @@
 import { BgImage } from '../components/bg-image.jsx';
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { Row, Cover, BookCard } from '../components/common.jsx';
+import { Row, BookCard } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, enabled } from '../sources/index.js';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore } from '../lib/store.js';
 import { greeting, fmtDuration } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
 import { GENRES } from './genres.js';
+import { waitlist, cancel, playNow } from '../lib/waitlist.js';
+import { toast, Cover } from '../components/common.jsx';
 import { getDetails } from '../sources/index.js';
 import * as player from '../lib/player.js';
 
@@ -109,6 +111,48 @@ function ContinueRow() {
   );
 }
 
+function WaitingRow() {
+  const list = useStore(waitlist);
+  if (!list.length) return null;
+  return (
+    <section class="row">
+      <header class="row-head">
+        <div>
+          <h2>
+            <Icon name="download" size={18} /> Downloading for you
+          </h2>
+          <p>Plays automatically when your debrid service finishes</p>
+        </div>
+      </header>
+      <div class="wait-list">
+        {list.map((w) => (
+          <div class={'wait-item' + (w.ready ? ' ready' : '')}>
+            <Cover book={{ title: w.bookTitle || w.title, author: w.author, cover: w.cover }} class="wait-cover" />
+            <div class="wait-meta">
+              <b>{w.bookTitle || w.title}</b>
+              <span>
+                {w.ready ? 'Ready to play' : `${Math.round((w.progress || 0) * 100)}%${w.state ? ` · ${w.state}` : ''}`} · {w.provider === 'torbox' ? 'TorBox' : 'Real-Debrid'}
+              </span>
+              <div class="progress-bar">
+                <div style={{ width: (w.ready ? 100 : Math.round((w.progress || 0) * 100)) + '%' }} />
+              </div>
+            </div>
+            {w.ready ? (
+              <button class="continue-play" aria-label="Play" onClick={() => playNow(w).catch((e) => toast(e.message))}>
+                <Icon name="play" size={16} />
+              </button>
+            ) : (
+              <button class="icon-btn" aria-label="Stop waiting" onClick={() => cancel(w.hash)}>
+                <Icon name="close" size={18} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function GenreChips() {
   return (
     <div class="genre-scroll">
@@ -149,6 +193,7 @@ export function Home() {
       </header>
 
       {enabled('ia') && <Hero />}
+      <WaitingRow />
       <ContinueRow />
       <GenreChips />
 

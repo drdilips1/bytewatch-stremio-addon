@@ -299,7 +299,9 @@ export async function prepareMagnet(provider, { magnet, hash, title }, onStatus)
     }
     if (!(it?.download_finished || it?.download_present)) {
       forget();
-      throw new Error(`Downloading on TorBox (${Math.round((it?.progress || 0) * 100)}%). It will appear under "Your TorBox" when it's ready.`);
+      const e = new Error(`Downloading on TorBox (${Math.round((it?.progress || 0) * 100)}%)`);
+      e.pending = { provider, hash: String(it?.hash || h).toLowerCase(), progress: Number(it?.progress) || 0 };
+      throw e;
     }
     if (!tbAudioCount(it)) throw new Error('That torrent has no playable audio files');
     forget();
@@ -321,7 +323,9 @@ export async function prepareMagnet(provider, { magnet, hash, title }, onStatus)
     await sleep(2500);
   }
   forget();
-  throw new Error('Downloading on Real-Debrid. It will appear under "Your Real-Debrid" when it\'s ready.');
+  const e = new Error('Downloading on Real-Debrid');
+  e.pending = { provider, hash: h, progress: 0 };
+  throw e;
 }
 
 /** Add without waiting. */

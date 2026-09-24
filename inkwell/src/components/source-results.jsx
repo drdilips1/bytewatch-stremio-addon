@@ -6,6 +6,7 @@ import { cloud, getDetails } from '../sources/index.js';
 import { settings, useStore, debrid } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import * as player from '../lib/player.js';
+import { waitlist, wait, cancel } from '../lib/waitlist.js';
 
 const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
 
@@ -77,6 +78,7 @@ function seedClass(n) {
 function SourceRow({ r, provider, book, inAccount, onChanged }) {
   const [busy, setBusy] = useState(null); // 'add' | 'play'
   const [status, setStatus] = useState('');
+  const waiting = useStore(waitlist).find((w) => w.hash === r.hash);
   const cachedFor = provider && (r.cache[provider] || (provider === 'realdebrid' && r.cache.any && !r.cache.torbox));
   const ready = !!(cachedFor || inAccount?.ready);
   const dead = !ready && !inAccount && r.seeders === 0 && !!(r.magnet || r.hash);
@@ -120,7 +122,17 @@ function SourceRow({ r, provider, book, inAccount, onChanged }) {
       setStatus('');
     } catch (e) {
       setStatus('');
-      toast(e.message);
+      if (e.pending) {
+        wait({
+          ...e.pending,
+          magnet: r.magnet,
+          title: r.title,
+          bookTitle: book?.title || '',
+          author: book?.author || r.author || '',
+          cover: book?.cover || '',
+        });
+        toast(`${e.message} — it will start playing automatically when it's ready`);
+      } else toast(e.message);
       onChanged();
     } finally {
       setBusy(null);
@@ -149,6 +161,14 @@ function SourceRow({ r, provider, book, inAccount, onChanged }) {
         <span class="chip ghost">{r.addon}</span>
       </div>
       {acct && <div class={'src-acct' + (inAccount.ready ? ' ok' : '')}>{acct}</div>}
+      {waiting && !waiting.ready && (
+        <div class="src-waiting">
+          <span class="spinner small" /> Will play when ready · {Math.round((waiting.progress || 0) * 100)}%
+          <button class="link-btn" onClick={() => cancel(waiting.hash)}>
+            Cancel
+          </button>
+        </div>
+      )}
       {dead && <div class="src-warn">No seeders — your debrid service may never finish downloading this one.</div>}
       {status && <div class="src-status">{status}</div>}
       <div class={'src-actions' + (ready || !(r.magnet || r.hash) ? ' ready' : '')}>
