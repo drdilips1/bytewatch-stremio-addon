@@ -1,0 +1,24 @@
+name: R4L probe
+on:
+  push:
+    paths: ['.github/workflows/r4l-probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe
+        run: |
+          UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36"
+          echo "=== signin page"; curl -s -A "$UA" -D h1.txt -o signin.html https://portal.research4life.org/signin; cat h1.txt | grep -iE "^HTTP|set-cookie|location|content-type"
+          wc -c signin.html; grep -oiE '<script[^>]*src="[^"]*"' signin.html | head; grep -oiE '<(form|input)[^>]*>' signin.html | head -20
+          echo "=== title"; grep -oiE '<title>[^<]*' signin.html
+          for s in $(grep -oE 'src="[^"]*\.js[^"]*"' signin.html | sed 's/src="//;s/"$//' | head -5); do
+            case "$s" in http*) u="$s";; /*) u="https://portal.research4life.org$s";; *) u="https://portal.research4life.org/$s";; esac
+            echo "--- js $u"; curl -s -A "$UA" "$u" -o app.js; wc -c app.js
+            grep -oE '"[^"]*(login|signin|auth|token|tacsgr|research4life\.org)[^"]{0,120}"' app.js | sort -u | head -60
+            grep -oE '(sessionStorage|localStorage)\.(getItem|setItem)\("[^"]*"' app.js | sort -u | head
+          done
+          echo "=== proxy doi"; curl -s -A "$UA" -o p1.html -D h2.txt "https://login.research4life.org/tacsgr1doi_org/10.1016/j.jaad.2026.06.106"; grep -iE "^HTTP|location|set-cookie" h2.txt; head -c 1500 p1.html; echo
+          echo "=== proxy host root"; curl -s -A "$UA" -o /dev/null -D h3.txt "https://login.research4life.org/tacsgr1www_sciencedirect_com/"; grep -iE "^HTTP|location" h3.txt
+          echo "=== login root"; curl -s -A "$UA" -o l.html -D h4.txt "https://login.research4life.org/"; grep -iE "^HTTP|location|set-cookie" h4.txt; head -c 1200 l.html; echo
+          echo "=== portal api guesses"; for p in api/auth/login api/login api/v1/auth/login config.json assets/config.json; do printf "%s " $p; curl -s -o /dev/null -w "%{http_code} %{content_type}\n" -A "$UA" "https://portal.research4life.org/$p"; done
