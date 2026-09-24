@@ -20,11 +20,18 @@ A dermatology research app with a Consensus-style search, built around
 - **Journals**: 50+ curated dermatology journals in five groups (leading clinical, research, open access, India and regional, subspecialty).
   - Follow journals to get a "new in your journals" feed.
   - Each journal page shows h-index and citation metrics (OpenAlex), plus latest, most-cited and review tabs, and search inside the journal.
-- **Get PDF (one tap)** on every result and paper:
+- **Get PDF (one tap)** on every result and paper. It runs in the background; the website never appears:
   1. A free copy is downloaded directly when one exists.
-  2. Otherwise the paper opens through the Research4Life access proxy (`login.research4life.org/tacsgr1doi_org/<DOI>`).
-  3. If R4L asks, the app signs in with your saved account, then finds the publisher's PDF link, saves the PDF to the library and opens the reader.
-  The page stays visible, so you can step in if a publisher needs a click.
+  2. Otherwise a hidden browser opens the paper through the Research4Life access proxy (`login.research4life.org/tacsgr1doi_org/<DOI>`).
+  3. It signs in with your saved account when asked, follows the publisher's PDF link and saves the file.
+  A small tray shows each step and ends with **Open**. If a publisher needs a human tap, the tray offers **Show page**.
+- **Mobile reader** for every PDF (pdf.js, bundled for offline use):
+  - Two-column journal pages reflow into one readable column, with headings, paragraphs and references.
+  - Figures and tables are cropped from the pages and placed in the text; tap one for a full-screen, pinch-zoom viewer that swipes through all of them.
+  - A side panel lists the contents, figures and tables.
+  - Reading settings: text size, serif/sans, light/sepia/dark theme, line spacing. Reading position is remembered.
+  - Original page layout is one tap away; scanned PDFs open in page view automatically.
+  - Open-access full text (Europe PMC) uses the same reader, with its figures and HTML tables.
 - **Research4Life session**: one browser session is kept alive while the app runs, so going back and forth doesn't log you out.
   Your R4L user ID and password can be saved once (Settings, or the first time you tap Get PDF). They're encrypted with an Android Keystore key and never leave the phone.
 
@@ -40,6 +47,9 @@ Every push that changes this folder runs **Build DermScholar APK**, which publis
 - `MainActivity` — hosts the UI, exposes `window.Native` (PDF store, sharing, export)
 - `ApiProxy` — same-origin proxy to Europe PMC and OpenAlex
 - `R4LSession` — shared R4L WebView, encrypted credentials, sign-in and PDF-finder scripts
-- `PortalActivity` — Research4Life browser; in fetch mode, automates DOI → sign-in → PDF → library
+- `PdfFetcher` — background Get PDF: DOI → R4L sign-in → publisher PDF → library, one paper at a time
+- `PortalActivity` — visible Research4Life browser (R4L tab, or Show page when a fetch needs help)
+- `assets/www/reflow.js` — PDF → mobile reading layout (columns, headings, figure and table crops)
+- `assets/www/vendor/pdfjs/` — Mozilla pdf.js 4.10.38 (Apache-2.0)
 - `PdfViewerActivity` — offline PDF reader
 - `tools/check-journals.mjs` — verifies each curated journal query returns articles

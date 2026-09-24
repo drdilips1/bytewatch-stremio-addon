@@ -25,6 +25,7 @@
     },
     copy: (t) => copyText(t), toast: (m) => toast(m), version: () => 'web',
     getPdf: () => toast('PDF download needs the Android app'),
+    cancelFetch: () => {}, showFetchPage: () => {}, openPdfPages: () => toast('Needs the Android app'),
     r4lAccount: () => JSON.stringify({ user: localStorage.getItem('ds.r4lUser') || '', saved: !!localStorage.getItem('ds.r4lUser') }),
     r4lSetCredentials: (u) => localStorage.setItem('ds.r4lUser', u),
     r4lForget: () => localStorage.removeItem('ds.r4lUser'),
@@ -80,6 +81,9 @@
     note: '<path d="M4 4h16v12l-4 4H4z"/><path d="M16 20v-4h4M8 9h8M8 13h5"/>',
     globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
     folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    dots: '<circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/>',
+    zoom: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M11 8v6M8 11h6"/>',
+    alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/>',
   };
   const icon = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ''}</svg>`;
   const LOGO = '<svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#1F4E79"/><path fill="#fff" d="M11 15c4-1.5 8-1.2 12 1v18c-3-2.2-8-2.5-12-1zM37 15c-4-1.5-8-1.2-12 1v18c3-2.2 8-2.5 12-1z"/><path fill="#F59E0B" d="M31 27a4 4 0 1 1 0 8 4 4 0 1 1 0-8zm0 2a2 2 0 1 0 0 4 2 2 0 1 0 0-4z"/><path fill="#F59E0B" d="m33.6 33.2 1.4-1.4 3.6 3.6-1.4 1.4z"/></svg>';
@@ -107,20 +111,24 @@
       if (dbp) return dbp;
       dbp = new Promise((resolve) => {
         try {
-          const req = indexedDB.open('dermscholar', 1);
-          req.onupgradeneeded = () => req.result.createObjectStore('articles', { keyPath: 'id' });
+          const req = indexedDB.open('dermscholar', 2);
+          req.onupgradeneeded = () => {
+            const d = req.result;
+            if (!d.objectStoreNames.contains('articles')) d.createObjectStore('articles', { keyPath: 'id' });
+            if (!d.objectStoreNames.contains('reflow')) d.createObjectStore('reflow', { keyPath: 'key' });
+          };
           req.onsuccess = () => resolve(req.result);
           req.onerror = () => resolve(null);
         } catch { resolve(null); }
       });
       return dbp;
     }
-    async function tx(mode, fn) {
+    async function tx(mode, fn, storeName = 'articles') {
       const d = await open();
       if (!d) { const r = fn(null); return r && typeof r === 'object' && 'result' in r ? r.result : r; }
       return new Promise((resolve, reject) => {
-        const t = d.transaction('articles', mode);
-        const r = fn(t.objectStore('articles'));
+        const t = d.transaction(storeName, mode);
+        const r = fn(t.objectStore(storeName));
         t.oncomplete = () => resolve(r && 'result' in r ? r.result : undefined);
         t.onerror = () => reject(t.error);
       });
@@ -130,6 +138,9 @@
       async get(id) { return tx('readonly', (s) => (s ? s.get(id) : { result: mem.get(id) })); },
       async put(o) { return tx('readwrite', (s) => (s ? s.put(o) : mem.set(o.id, o))); },
       async del(id) { return tx('readwrite', (s) => (s ? s.delete(id) : mem.delete(id))); },
+      async getReflow(k) { return tx('readonly', (s) => (s ? s.get(k) : { result: mem.get('r:' + k) }), 'reflow'); },
+      async putReflow(o) { return tx('readwrite', (s) => (s ? s.put(o) : mem.set('r:' + o.key, o)), 'reflow'); },
+      async delReflow(k) { return tx('readwrite', (s) => (s ? s.delete(k) : mem.delete('r:' + k)), 'reflow'); },
     };
   })();
 
@@ -137,6 +148,7 @@
   let pdfKeys = new Set();
   const cache = new Map(); // id -> article seen in results
   const searchCache = new Map(); // route key -> {results, next, hit, broad}
+  const jobs = new Map(); // article id -> {title, doi, state: running|saved|failed, message, canShow}
 
   function refreshPdfs() {
     try { pdfKeys = new Set(JSON.parse(Native.listPdfs()).map((p) => p.key)); } catch { pdfKeys = new Set(); }
@@ -347,10 +359,15 @@
 
   window.addEventListener('hashchange', render);
 
-  const TAB_OF = { home: 'search', search: 'search', a: null, read: null, journals: 'journals', j: 'journals', library: 'library', settings: null };
+  const TAB_OF = { home: 'search', search: 'search', a: null, read: null, pdf: null, journals: 'journals', j: 'journals', library: 'library', settings: null };
 
   async function render() {
     closeSheet();
+    closeDrawer();
+    closeLightbox();
+    document.body.classList.remove('reading');
+    delete document.body.dataset.rtheme;
+    applyTheme();
     const r = parseHash();
     current = r;
     const tab = TAB_OF[r.name];
@@ -363,6 +380,7 @@
         case 'search': return renderSearch(r.params);
         case 'a': return renderArticle(r.arg);
         case 'read': return renderReader(r.arg);
+        case 'pdf': return renderPdfReader(r.arg);
         case 'journals': return renderJournals();
         case 'j': return renderJournal(r.arg, r.params);
         case 'library': return renderLibrary(r.params);
@@ -457,6 +475,7 @@
 
   function pdfAction(a) {
     if (a.imported) return '';
+    if (jobs.get(a.id)?.state === 'running') return `<button class="btn xs" disabled><span class="spin"></span>Getting…</button>`;
     if (pdfKeys.has(a.id)) return `<button class="btn xs good" data-act="card-pdf" data-id="${esc(a.id)}">${icon('file')}Read PDF</button>`;
     if (!a.doi && !pdfSourceFor(a)) return '';
     return `<button class="btn xs primary" data-act="card-pdf" data-id="${esc(a.id)}">${icon('download')}Get PDF</button>`;
@@ -640,7 +659,8 @@
 
   /** Read the PDF if it's saved; otherwise fetch it (free copy first, then Research4Life). */
   async function getPdf(a, { skipAsk = false } = {}) {
-    if (pdfKeys.has(a.id)) { Native.openPdf(a.id, a.title); return; }
+    if (pdfKeys.has(a.id)) { openReader(a.id); return; }
+    if (jobs.get(a.id)?.state === 'running') { toast('Already getting this PDF'); return; }
     const free = pdfSourceFor(a);
     if (!free && !a.doi) {
       Native.copy(a.title);
@@ -653,7 +673,9 @@
       return;
     }
     if (!saved.has(a.id)) { await saveArticle(a); }
-    toast(free ? 'Downloading free PDF…' : 'Getting PDF through Research4Life…');
+    jobs.set(a.id, { title: a.title, doi: a.doi || '', state: 'running', message: free ? 'Downloading free PDF…' : 'Starting…' });
+    renderTray();
+    refreshCards();
     Native.getPdf(a.id, a.doi || '', a.title, free || '');
   }
 
@@ -687,7 +709,7 @@
     let a;
     try { a = await findArticle(id); } catch (e) { view.innerHTML = topbar('Paper') + errorBox(e); return; }
     if (current.name !== 'a' || current.arg !== id) return;
-    if (a.imported) { Native.openPdf(a.id, a.title); App.back(); return; }
+    if (a.imported) { location.replace('#pdf/' + encodeURIComponent(a.id)); return; }
 
     const s = saved.get(a.id);
     const j = journalFor(a);
@@ -774,7 +796,7 @@
       if (a.pmcid && (a.oa || a.inPMC)) cacheFullText(a).catch(() => {});
     };
     actions['get-pdf'] = () => getPdf(a);
-    actions['open-pdf'] = () => Native.openPdf(a.id, title);
+    actions['open-pdf'] = () => openReader(a.id);
     actions.reader = () => go('read/' + encodeURIComponent(a.id));
     actions.publisher = async () => {
       if (!saved.has(a.id)) await saveArticle(a);
@@ -834,21 +856,22 @@
     }
   }
 
-  // ---------------------------------------------------------------- full-text reader (JATS)
+  // ---------------------------------------------------------------- full text (JATS → reader model)
   async function fetchFullText(a) {
     const r = await fetch(`${EPMC}${a.pmcid}/fullTextXML`);
     if (!r.ok) throw new Error(r.status === 404 ? 'Full text is not available for this paper' : 'HTTP ' + r.status);
     const xml = new DOMParser().parseFromString(await r.text(), 'application/xml');
     if (xml.querySelector('parsererror')) throw new Error('Could not read the full text');
-    return jatsToHtml(xml);
+    return jatsToModel(xml, a.pmcid);
   }
   async function cacheFullText(a) {
-    const html = await fetchFullText(a);
-    await updateSaved(a.id, { fullText: html });
-    return html;
+    const model = await fetchFullText(a);
+    await updateSaved(a.id, { fullText: model });
+    return model;
   }
 
-  function jatsToHtml(xml) {
+  /** Converts Europe PMC JATS XML into the reader's model: blocks plus figures/tables. */
+  function jatsToModel(xml, pmcid) {
     const inline = (node) => {
       let out = '';
       node.childNodes.forEach((n) => {
@@ -859,66 +882,390 @@
         else if (tag === 'bold') out += `<b>${inline(n)}</b>`;
         else if (tag === 'sup' || tag === 'sub') out += `<${tag}>${inline(n)}</${tag}>`;
         else if (tag === 'xref') out += n.getAttribute('ref-type') === 'bibr' ? `<sup>${inline(n)}</sup>` : inline(n);
-        else if (['fig', 'table-wrap', 'disp-formula'].includes(tag)) { /* handled as blocks */ }
+        else if (['fig', 'table-wrap', 'disp-formula', 'label'].includes(tag)) { /* handled elsewhere */ }
         else out += inline(n);
       });
       return out;
     };
-    const table = (t) => {
+    const tableHtml = (t) => {
       const rows = $$('tr', t).map((tr) => '<tr>' + Array.from(tr.children).map((c) => {
-        const tag = c.localName === 'th' ? 'th' : 'td';
+        const tag = c.localName === 'th' || c.parentNode?.localName === 'thead' ? 'th' : 'td';
         const span = ['colspan', 'rowspan'].map((k) => (c.getAttribute(k) ? ` ${k}="${Number(c.getAttribute(k)) || 1}"` : '')).join('');
         return `<${tag}${span}>${inline(c)}</${tag}>`;
       }).join('') + '</tr>').join('');
-      return rows ? `<div class="tbl"><table>${rows}</table></div>` : '';
+      return rows ? `<table>${rows}</table>` : '';
     };
-    const block = (node, level) => {
-      let out = '';
+    const blocks = [];
+    const figures = [];
+    const addFigure = (n) => {
+      const kind = n.localName === 'table-wrap' ? 'table' : 'fig';
+      const id = `${kind}-${figures.length + 1}`;
+      const graphic = n.querySelector('graphic');
+      const href = graphic && (graphic.getAttribute('xlink:href') || graphic.getAttributeNS('http://www.w3.org/1999/xlink', 'href'));
+      const cap = $('caption', n);
+      figures.push({
+        id, kind,
+        label: $('label', n)?.textContent.trim() || (kind === 'table' ? `Table ${figures.filter((f) => f.kind === 'table').length + 1}` : `Figure ${figures.filter((f) => f.kind === 'fig').length + 1}`),
+        captionHtml: cap ? inline(cap) : '',
+        src: href && pmcid ? `https://europepmc.org/articles/${pmcid}/bin/${href.replace(/\.(tif|tiff|gif|png|jpg)$/i, '')}.jpg` : '',
+        html: kind === 'table' ? tableHtml(n) : '',
+      });
+      blocks.push({ type: kind, id });
+    };
+    const walk = (node, level) => {
       node.childNodes.forEach((n) => {
         if (n.nodeType !== 1) return;
         const tag = n.localName;
-        if (tag === 'sec') out += block(n, level + 1);
-        else if (tag === 'title') out += `<h${Math.min(level + 2, 4)}>${inline(n)}</h${Math.min(level + 2, 4)}>`;
+        if (tag === 'sec') walk(n, level + 1);
+        else if (tag === 'title') blocks.push({ type: 'h', level: Math.min(level + 1, 4), html: inline(n) });
         else if (tag === 'p') {
-          out += `<p>${inline(n)}</p>`;
-          $$(':scope > fig, :scope > table-wrap', n).forEach((f) => { out += block({ childNodes: [f] }, level); });
+          const html = inline(n).trim();
+          if (html) blocks.push({ type: 'p', html });
+          $$(':scope > fig, :scope > table-wrap', n).forEach(addFigure);
         }
-        else if (tag === 'list') out += `<ul>${$$(':scope > list-item', n).map((li) => `<li>${inline(li)}</li>`).join('')}</ul>`;
-        else if (tag === 'fig' || tag === 'table-wrap') {
-          const label = $('label', n)?.textContent || '';
-          const cap = $('caption', n);
-          out += `<figure><b>${esc(label)}</b> ${cap ? inline(cap) : ''}${tag === 'table-wrap' ? table(n) : ''}</figure>`;
-        }
-        else if (tag === 'disp-quote' || tag === 'boxed-text') out += block(n, level);
+        else if (tag === 'list') blocks.push({ type: 'list', html: `<ul>${$$(':scope > list-item', n).map((li) => `<li>${inline(li)}</li>`).join('')}</ul>` });
+        else if (tag === 'fig' || tag === 'table-wrap') addFigure(n);
+        else if (tag === 'fig-group' || tag === 'disp-quote' || tag === 'boxed-text') walk(n, level);
       });
-      return out;
     };
     const title = xml.querySelector('article-meta title-group article-title');
+    if (title) blocks.push({ type: 'title', html: inline(title) });
+    const abs = xml.querySelector('article-meta abstract');
+    if (abs) { blocks.push({ type: 'h', level: 2, html: 'Abstract' }); walk(abs, 1); }
     const body = xml.querySelector('body');
-    const refs = $$('back ref-list ref', xml).map((r) => `<li>${esc(r.textContent.replace(/\s+/g, ' ').trim())}</li>`).join('');
-    return `${title ? `<h2>${inline(title)}</h2>` : ''}${body ? block(body, 0) : '<p class="muted">This paper has no full text body in Europe PMC.</p>'}
-      ${refs ? `<h3>References</h3><ol class="refs">${refs}</ol>` : ''}`;
+    if (body) walk(body, 0);
+    else blocks.push({ type: 'p', html: '<span class="muted">This paper has no full text body in Europe PMC.</span>' });
+    const refs = $$('back ref-list ref', xml);
+    if (refs.length) {
+      blocks.push({ type: 'h', level: 2, html: 'References' });
+      refs.forEach((r) => blocks.push({ type: 'ref', html: esc(r.textContent.replace(/\s+/g, ' ').trim()) }));
+    }
+    return { v: 2, kind: 'jats', title: title?.textContent || '', blocks, figures };
   }
 
   async function renderReader(id) {
-    view.innerHTML = topbar('Full text') + skeletons(3);
+    view.innerHTML = readerTop('Full text') + readerLoading('Loading full text…');
     let a;
     try { a = await findArticle(id); } catch (e) { view.innerHTML = topbar('Full text') + errorBox(e); return; }
-    let html = saved.get(id)?.fullText;
-    if (!html) {
-      try { html = await fetchFullText(a); } catch (e) { view.innerHTML = topbar('Full text') + errorBox(e, false); return; }
-      if (saved.has(id)) updateSaved(id, { fullText: html });
+    let model = saved.get(id)?.fullText;
+    if (!model || typeof model !== 'object') {
+      try { model = await fetchFullText(a); } catch (e) { view.innerHTML = topbar('Full text') + errorBox(e, false); return; }
+      if (saved.has(id)) updateSaved(id, { fullText: model });
     }
     if (current.name !== 'read') return;
-    view.innerHTML = `${topbar(a.jAbbr || 'Full text', { right: `<button class="icon-btn" data-act="reader-save" aria-label="Save">${icon(saved.has(id) ? 'bookmarkFill' : 'bookmark')}</button>` })}
-      ${saved.has(id) ? '<div class="muted small" style="margin-top:10px">Available offline</div>' : ''}
-      <div class="reader">${html}</div>`;
-    actions['reader-save'] = async () => {
-      if (saved.has(id)) return toast('Already in your library');
-      await saveArticle(a); await updateSaved(id, { fullText: html });
-      toast('Saved for offline reading'); render();
-    };
+    showReader(model, { key: 'ft:' + id, title: a.title, article: a });
   }
+
+  // ---------------------------------------------------------------- PDF → mobile reader
+  const REFLOW_V = 3;
+  const openReader = (key) => go('pdf/' + encodeURIComponent(key));
+  let pdfDoc = null; // pdf.js document for the open reader (original-pages mode)
+
+  async function renderPdfReader(key) {
+    const s = saved.get(key);
+    const title = s?.title || 'PDF';
+    view.innerHTML = readerTop(title) + readerLoading('Opening PDF…');
+    let model = await db.getReflow(key).catch(() => null);
+    let reflowMod;
+    try {
+      reflowMod = await import('./reflow.js');
+      if (!model || model.v !== REFLOW_V) {
+        pdfDoc = await reflowMod.openPdf('/pdf/' + encodeURIComponent(key));
+        model = await reflowMod.reflow(pdfDoc, (d, t) => {
+          const el = $('#rdprog');
+          if (el) el.textContent = `Reading page ${d} of ${t}…`;
+        });
+        model.v = REFLOW_V;
+        model.key = key;
+        model.kind = 'pdf';
+        db.putReflow(model).catch(() => {});
+      }
+    } catch (e) {
+      if (current.name === 'pdf') view.innerHTML = topbar(title) + `<div class="empty">${icon('file')}<b>Couldn't prepare the mobile view</b>
+        <div>${esc(e.message || e)}</div><div class="spacer"></div><button class="btn small" data-act="rd-pages-native">Open original pages</button></div>`;
+      actions['rd-pages-native'] = () => Native.openPdfPages(key, title);
+      return;
+    }
+    if (current.name !== 'pdf' || current.arg !== key) return;
+    showReader(model, { key, title: s?.title || model.title || title, pdf: true, reflowMod, startInPages: model.scanned });
+  }
+
+  const rprefs = Object.assign({ size: 18, font: 'serif', theme: 'auto', spacing: 'normal' }, store.get('reader', {}));
+  const saveRprefs = () => store.set('reader', rprefs);
+
+  function readerTop(title) {
+    return `<div class="topbar rd-bar"><button class="icon-btn" data-act="back" aria-label="Back">${icon('back')}</button>
+      <h1>${esc(title)}</h1>
+      <button class="icon-btn" data-act="rd-drawer" aria-label="Contents and figures">${icon('list')}</button>
+      <button class="icon-btn" data-act="rd-style" aria-label="Text settings"><span style="font:700 16px/1 var(--serif)">Aa</span></button>
+      <button class="icon-btn" data-act="rd-more" aria-label="More">${icon('dots')}</button></div>
+      <div class="rd-progress"><i id="rdbar"></i></div>`;
+  }
+  const readerLoading = (msg) => `<div class="rd-loading"><div class="spinner"></div><b>Preparing mobile view</b><span id="rdprog">${esc(msg)}</span></div>`;
+
+  function figureHtml(f) {
+    const cap = f.captionHtml ?? esc(f.caption || '');
+    return `<figure class="rd-fig ${f.kind === 'table' ? 'is-table' : ''}" id="${esc(f.id)}" data-act="rd-fig" data-id="${esc(f.id)}">
+      ${f.src ? `<img src="${f.src}" alt="${esc(f.label)}" loading="lazy">` : f.html ? `<div class="rd-tbl">${f.html}</div>` : ''}
+      <figcaption><b>${esc(f.label)}</b>${cap ? ' ' + cap : ''}<span class="rd-zoom">${icon('zoom')}</span></figcaption></figure>`;
+  }
+
+  function blocksHtml(model) {
+    let out = '';
+    let refs = [];
+    let h = 0;
+    const figs = new Map(model.figures.map((f) => [f.id, f]));
+    const flush = () => { if (refs.length) { out += `<ol class="rd-refs">${refs.map((r) => `<li>${r}</li>`).join('')}</ol>`; refs = []; } };
+    for (const b of model.blocks) {
+      const inner = b.html ?? esc(b.text || '');
+      if (b.type === 'ref') { refs.push(inner.replace(/^\s*(\[\d+\]|\d+\.)\s*/, '')); continue; }
+      flush();
+      if (b.type === 'title') out += `<h1 class="rd-title">${inner}</h1>`;
+      else if (b.type === 'h') { const l = Math.min(Math.max(b.level || 3, 2), 4); out += `<h${l} class="rd-h" id="rh-${h++}">${inner}</h${l}>`; }
+      else if (b.type === 'p') out += `<p${b.small ? ' class="rd-small"' : ''}>${inner}</p>`;
+      else if (b.type === 'list') out += inner;
+      else if ((b.type === 'fig' || b.type === 'table') && figs.has(b.id)) out += figureHtml(figs.get(b.id));
+    }
+    flush();
+    return out;
+  }
+
+  function applyReaderPrefs() {
+    const el = $('.rd-page');
+    if (!el) return;
+    el.dataset.rtheme = rprefs.theme === 'auto' ? (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light') : rprefs.theme;
+    el.dataset.font = rprefs.font;
+    el.dataset.spacing = rprefs.spacing;
+    el.style.setProperty('--rsize', rprefs.size + 'px');
+    document.body.dataset.rtheme = el.dataset.rtheme;
+    // The bars and panels follow the reading theme while reading.
+    document.documentElement.dataset.theme = el.dataset.rtheme === 'dark' ? 'dark' : 'light';
+  }
+
+  function showReader(model, opts) {
+    const { key, title } = opts;
+    const figs = model.figures || [];
+    const tables = figs.filter((f) => f.kind === 'table');
+    const images = figs.filter((f) => f.kind !== 'table');
+    document.body.classList.add('reading');
+    view.innerHTML = readerTop(title) + `<div class="rd-page">
+      <article class="rd" id="rd">${blocksHtml(model)}</article>
+      <div id="rdpages" class="hidden"></div>
+      <div class="rd-end muted small">${opts.pdf ? `${model.pages || ''} pages · mobile view generated on this phone` : 'Full text from Europe PMC'}
+        ${opts.pdf ? '<br><button class="btn small" data-act="rd-toggle-pages" style="margin-top:12px">View original pages</button>' : ''}</div></div>`;
+    applyReaderPrefs();
+
+    // Reading position.
+    const posKey = 'pos.' + key;
+    const pos = store.get(posKey, 0);
+    if (pos > 0) requestAnimationFrame(() => window.scrollTo(0, pos * (document.documentElement.scrollHeight - innerHeight)));
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        if (current.name !== 'pdf' && current.name !== 'read') { window.removeEventListener('scroll', onScroll); return; }
+        const max = document.documentElement.scrollHeight - innerHeight;
+        const ratio = max > 0 ? Math.min(1, scrollY / max) : 0;
+        const bar = $('#rdbar');
+        if (bar) bar.style.width = (ratio * 100).toFixed(1) + '%';
+        store.set(posKey, ratio);
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    const headings = $$('.rd-h', $('#rd'));
+    actions['rd-drawer'] = () => openDrawer(headings, images, tables);
+    actions['rd-fig'] = (b) => {
+      const all = [...figs];
+      lightbox(all, Math.max(0, all.findIndex((f) => f.id === b.dataset.id)));
+    };
+    actions['rd-goto'] = (b) => {
+      closeDrawer();
+      const el = document.getElementById(b.dataset.target);
+      if (el) { window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - 70 }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1200); }
+    };
+    actions['rd-style'] = () => styleSheet();
+    actions['rd-toggle-pages'] = () => togglePages(opts);
+    actions['rd-more'] = () => {
+      sheet(`<h3>${esc(title.length > 70 ? title.slice(0, 68) + '…' : title)}</h3>
+        ${opts.pdf ? `<button class="opt" data-act="rd-toggle-pages">${icon('file')}${$('#rdpages').classList.contains('hidden') ? 'Original page layout' : 'Mobile reading view'}</button>
+        <button class="opt" data-act="rd-native">${icon('external')}Open in another PDF app</button>
+        <button class="opt" data-act="rd-share">${icon('share')}Share PDF</button>
+        <button class="opt" data-act="rd-redo">${icon('spark')}Rebuild mobile view</button>` : ''}
+        ${opts.article ? `<button class="opt" data-act="rd-paper">${icon('quote')}Paper details &amp; citation</button>` : ''}`);
+    };
+    actions['rd-native'] = () => { closeSheet(); Native.openPdfPages(key, title); };
+    actions['rd-share'] = () => { closeSheet(); Native.sharePdf(key, title); };
+    actions['rd-redo'] = async () => { closeSheet(); await db.delReflow(key).catch(() => {}); render(); };
+    actions['rd-paper'] = () => { closeSheet(); go('a/' + encodeURIComponent(opts.article.id)); };
+    if (opts.startInPages) togglePages(opts, true);
+  }
+
+  async function togglePages(opts, scannedNote) {
+    closeSheet(true);
+    const pages = $('#rdpages');
+    const rd = $('#rd');
+    if (!pages.classList.contains('hidden')) { pages.classList.add('hidden'); rd.classList.remove('hidden'); window.scrollTo(0, 0); return; }
+    rd.classList.add('hidden');
+    pages.classList.remove('hidden');
+    window.scrollTo(0, 0);
+    if (pages.dataset.ready) return;
+    pages.dataset.ready = '1';
+    pages.innerHTML = (scannedNote ? '<div class="muted small center" style="padding:10px">This PDF is scanned, so it shows as pages.</div>' : '') + '<div class="rd-loading"><div class="spinner"></div></div>';
+    try {
+      const mod = opts.reflowMod || await import('./reflow.js');
+      if (!pdfDoc) pdfDoc = await mod.openPdf('/pdf/' + encodeURIComponent(opts.key));
+      const first = await pdfDoc.getPage(1);
+      const vp = first.getViewport({ scale: 1 });
+      pages.innerHTML = Array.from({ length: pdfDoc.numPages }, (_, i) =>
+        `<div class="rd-pg" data-n="${i + 1}" style="aspect-ratio:${vp.width}/${vp.height}"><span>${i + 1}</span></div>`).join('');
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(async (en) => {
+          if (!en.isIntersecting || en.target.dataset.done) return;
+          en.target.dataset.done = '1';
+          const c = await mod.renderPage(pdfDoc, +en.target.dataset.n, en.target.clientWidth);
+          const img = new Image();
+          img.src = c.toDataURL('image/jpeg', 0.9);
+          img.dataset.act = 'rd-pagezoom';
+          en.target.replaceChildren(img);
+        });
+      }, { rootMargin: '600px 0px' });
+      $$('.rd-pg', pages).forEach((el) => io.observe(el));
+      actions['rd-pagezoom'] = (img) => lightbox([{ id: 'p', kind: 'fig', src: img.src, label: 'Page ' + img.parentElement.dataset.n, caption: '' }], 0);
+    } catch (e) {
+      pages.innerHTML = errorBox(e, false);
+    }
+  }
+
+  function styleSheet() {
+    const seg = (name, opts, val) => `<div class="seg wide">${opts.map(([k, l]) => `<button class="${val === k ? 'on' : ''}" data-act="rs-${name}" data-v="${k}">${l}</button>`).join('')}</div>`;
+    sheet(`<h3>Reading settings</h3>
+      <label class="field">Text size</label>
+      <div class="row" style="gap:10px"><button class="btn small" data-act="rs-size" data-v="-1" style="flex:1"><span style="font-size:13px">A−</span></button>
+        <span style="min-width:44px;text-align:center;font-weight:600">${rprefs.size}</span>
+        <button class="btn small" data-act="rs-size" data-v="1" style="flex:1"><span style="font-size:18px">A+</span></button></div>
+      <label class="field">Font</label>${seg('font', [['serif', 'Serif'], ['sans', 'Sans']], rprefs.font)}
+      <label class="field">Theme</label>${seg('theme', [['auto', 'Auto'], ['light', 'Light'], ['sepia', 'Sepia'], ['dark', 'Dark']], rprefs.theme)}
+      <label class="field">Line spacing</label>${seg('spacing', [['compact', 'Compact'], ['normal', 'Normal'], ['relaxed', 'Relaxed']], rprefs.spacing)}`);
+    const set = (k, v) => { rprefs[k] = v; saveRprefs(); applyReaderPrefs(); styleSheet(); };
+    actions['rs-size'] = (b) => set('size', Math.min(28, Math.max(14, rprefs.size + Number(b.dataset.v))));
+    actions['rs-font'] = (b) => set('font', b.dataset.v);
+    actions['rs-theme'] = (b) => set('theme', b.dataset.v);
+    actions['rs-spacing'] = (b) => set('spacing', b.dataset.v);
+  }
+
+  function openDrawer(headings, images, tables) {
+    closeDrawer();
+    const tab = store.get('drawerTab', 'toc');
+    document.body.insertAdjacentHTML('beforeend', `<div class="drawer-bg" data-act="rd-close-drawer"></div>
+      <aside class="drawer" id="drawer"><div class="drawer-head"><b>In this paper</b><button class="icon-btn" data-act="rd-close-drawer">${icon('x')}</button></div>
+      <div class="tabs drawer-tabs">
+        <button data-act="rd-dtab" data-t="toc">Contents</button>
+        <button data-act="rd-dtab" data-t="figs">Figures · ${images.length}</button>
+        <button data-act="rd-dtab" data-t="tables">Tables · ${tables.length}</button></div>
+      <div class="drawer-body" id="drawerbody"></div></aside>`);
+    const draw = (t) => {
+      store.set('drawerTab', t);
+      $$('.drawer-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === t));
+      const body = $('#drawerbody');
+      if (t === 'toc') {
+        body.innerHTML = headings.length ? headings.map((h) => `<button class="toc-item lvl-${h.tagName[1]}" data-act="rd-goto" data-target="${h.id}">${esc(h.textContent)}</button>`).join('')
+          : '<div class="empty small">No section headings found.</div>';
+      } else {
+        const list = t === 'figs' ? images : tables;
+        body.innerHTML = list.length ? `<div class="thumbs ${t}">${list.map((f) => `<button class="thumb" data-act="rd-fig" data-id="${esc(f.id)}">
+            ${f.src ? `<img src="${f.src}" alt="" loading="lazy">` : `<div class="thumb-tbl">${icon('list')}</div>`}
+            <b>${esc(f.label)}</b><span>${esc(stripTags(f.captionHtml ?? f.caption ?? '').slice(0, 90))}</span></button>`).join('')}</div>
+            <button class="opt" data-act="rd-goto-first" data-t="${t}">${icon('book')}Show ${t === 'figs' ? 'figures' : 'tables'} in the text</button>`
+          : `<div class="empty small">No ${t === 'figs' ? 'figures' : 'tables'} found in this paper.</div>`;
+      }
+    };
+    actions['rd-dtab'] = (b) => draw(b.dataset.t);
+    actions['rd-close-drawer'] = () => closeDrawer();
+    actions['rd-goto-first'] = (b) => {
+      const f = (b.dataset.t === 'figs' ? images : tables)[0];
+      if (f) actions['rd-goto']({ dataset: { target: f.id } });
+    };
+    draw(tab);
+    requestAnimationFrame(() => $('#drawer')?.classList.add('open'));
+  }
+  function closeDrawer() { $$('.drawer, .drawer-bg').forEach((e) => e.remove()); }
+
+  // Full-screen figure viewer with pinch-zoom, pan, double-tap and swipe.
+  function lightbox(list, index) {
+    closeLightbox();
+    document.body.insertAdjacentHTML('beforeend', `<div class="lb" id="lb">
+      <div class="lb-top"><span id="lbcount"></span><button class="icon-btn" data-act="lb-close" aria-label="Close">${icon('x')}</button></div>
+      <div class="lb-stage" id="lbstage"><div class="lb-inner" id="lbinner"></div></div>
+      <div class="lb-cap" id="lbcap"></div>
+      ${list.length > 1 ? `<button class="lb-nav prev" data-act="lb-prev">${icon('back')}</button><button class="lb-nav next" data-act="lb-next">${icon('back')}</button>` : ''}</div>`);
+    const stage = $('#lbstage'), inner = $('#lbinner');
+    let i = index, scale = 1, tx = 0, ty = 0;
+    const apply = () => { inner.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`; };
+    const show = () => {
+      const f = list[i];
+      scale = 1; tx = 0; ty = 0; apply();
+      inner.innerHTML = f.src ? `<img src="${f.src}" alt="">` : `<div class="rd-tbl lb-tbl">${f.html || ''}</div>`;
+      $('#lbcount').textContent = list.length > 1 ? `${f.label} · ${i + 1} of ${list.length}` : f.label;
+      $('#lbcap').innerHTML = `<b>${esc(f.label)}</b> ${f.captionHtml ?? esc(f.caption || '')}`;
+    };
+    actions['lb-close'] = () => closeLightbox();
+    actions['lb-prev'] = () => { i = (i - 1 + list.length) % list.length; show(); };
+    actions['lb-next'] = () => { i = (i + 1) % list.length; show(); };
+    const pts = new Map();
+    let start = null, lastTap = 0;
+    stage.addEventListener('pointerdown', (e) => {
+      stage.setPointerCapture(e.pointerId);
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const p = [...pts.values()];
+      start = { scale, tx, ty, p: p.map((q) => ({ ...q })), t: Date.now() };
+    });
+    stage.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId) || !start) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const p = [...pts.values()];
+      if (p.length >= 2 && start.p.length >= 2) {
+        const d0 = Math.hypot(start.p[0].x - start.p[1].x, start.p[0].y - start.p[1].y);
+        const d1 = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+        scale = Math.min(6, Math.max(1, start.scale * (d1 / (d0 || 1))));
+        const m0 = { x: (start.p[0].x + start.p[1].x) / 2, y: (start.p[0].y + start.p[1].y) / 2 };
+        const m1 = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+        tx = start.tx + (m1.x - m0.x); ty = start.ty + (m1.y - m0.y);
+        apply();
+      } else if (p.length === 1 && scale > 1) {
+        tx = start.tx + (p[0].x - start.p[0].x); ty = start.ty + (p[0].y - start.p[0].y);
+        apply();
+      }
+    });
+    const end = (e) => {
+      if (!pts.has(e.pointerId)) return;
+      const q = pts.get(e.pointerId);
+      pts.delete(e.pointerId);
+      if (start && start.p.length === 1 && pts.size === 0) {
+        const dx = q.x - start.p[0].x, dy = q.y - start.p[0].y;
+        if (scale === 1 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && list.length > 1) {
+          dx < 0 ? actions['lb-next']() : actions['lb-prev']();
+        } else if (Math.abs(dx) < 8 && Math.abs(dy) < 8 && Date.now() - start.t < 250) {
+          if (Date.now() - lastTap < 300) {
+            if (scale > 1) { scale = 1; tx = 0; ty = 0; } else {
+              const r = stage.getBoundingClientRect();
+              scale = 2.5; tx = (r.width / 2 - (q.x - r.left)) * 1.5; ty = (r.height / 2 - (q.y - r.top)) * 1.5;
+            }
+            apply(); lastTap = 0;
+          } else lastTap = Date.now();
+        }
+      }
+      if (scale <= 1.02) { scale = 1; tx = 0; ty = 0; apply(); }
+      const p = [...pts.values()];
+      start = p.length ? { scale, tx, ty, p: p.map((x) => ({ ...x })), t: Date.now() } : null;
+    };
+    stage.addEventListener('pointerup', end);
+    stage.addEventListener('pointercancel', end);
+    show();
+  }
+  function closeLightbox() { $('#lb')?.remove(); }
 
   // ---------------------------------------------------------------- journals
   const colorFor = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h} 45% 42%)`; };
@@ -1178,6 +1525,7 @@
       <div class="section"><div class="section-h"><h3>Search</h3></div>
         ${sw('derm', 'Dermatology focus by default', 'Limit results to skin-related papers')}
         ${sw('preprints', 'Include preprints', 'Show papers that are not yet peer reviewed')}
+        ${sw('autoOpen', 'Open PDFs when downloaded', 'Otherwise they just save, with an Open button')}
         <div class="setting"><div class="body"><b>Default sort</b><span>${esc(SORTS[settings.sort].label)}</span></div>
           <button class="btn small" data-act="set-sort">Change</button></div></div>
       <div class="section"><div class="section-h"><h3>Research4Life</h3></div>
@@ -1249,7 +1597,7 @@
     tab: (b) => switchTab(b.dataset.tab),
     'close-sheet': () => closeSheet(),
     open: (b) => go('a/' + encodeURIComponent(b.dataset.id)),
-    'open-imported': (b) => { const a = saved.get(b.dataset.id); Native.openPdf(a.id, a.title); },
+    'open-imported': (b) => openReader(b.dataset.id),
     'card-pdf': (b) => { const a = saved.get(b.dataset.id) || cache.get(b.dataset.id); if (a) getPdf(a); },
     'card-save': async (b) => {
       const id = b.dataset.id;
@@ -1298,6 +1646,13 @@
     const q = form.q.value.trim();
     if (q) go(searchHash(filtersFrom({ q, ...(current.name === 'search' ? { ...current.params, q } : {}) })));
   });
+  // Figures that can't load (offline, or blocked by the image host) collapse to their caption.
+  document.addEventListener('error', (e) => {
+    const img = e.target;
+    if (img.tagName !== 'IMG') return;
+    if (img.closest('.rd-fig')) img.replaceWith(Object.assign(document.createElement('div'), { className: 'rd-noimg', textContent: 'Image available when online' }));
+    else if (img.closest('.thumb')) img.replaceWith(Object.assign(document.createElement('div'), { className: 'thumb-tbl', textContent: '—' }));
+  }, true);
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && e.target.matches('.searchbox textarea')) {
       e.preventDefault();
@@ -1319,10 +1674,44 @@
     b.addEventListener('click', () => switchTab(b.dataset.tab));
   });
 
+  // ---------------------------------------------------------------- download tray
+  function renderTray() {
+    let el = $('#tray');
+    if (!jobs.size) { el?.remove(); return; }
+    if (!el) { document.body.insertAdjacentHTML('beforeend', '<div id="tray" class="tray"></div>'); el = $('#tray'); }
+    el.innerHTML = [...jobs.entries()].slice(-3).map(([key, j]) => {
+      const t = esc(j.title.length > 70 ? j.title.slice(0, 68) + '…' : j.title);
+      if (j.state === 'running') {
+        return `<div class="tray-row"><span class="spin"></span><div class="tray-body"><b>${t}</b><span>${esc(j.message)}</span></div>
+          <button class="icon-btn" data-act="tray-cancel" data-id="${esc(key)}" aria-label="Cancel">${icon('x')}</button></div>`;
+      }
+      if (j.state === 'saved') {
+        return `<div class="tray-row ok">${icon('check')}<div class="tray-body"><b>${t}</b><span>PDF saved to your library</span></div>
+          <button class="btn xs primary" data-act="tray-open" data-id="${esc(key)}">Open</button>
+          <button class="icon-btn" data-act="tray-dismiss" data-id="${esc(key)}" aria-label="Dismiss">${icon('x')}</button></div>`;
+      }
+      return `<div class="tray-row bad">${icon('alert')}<div class="tray-body"><b>${t}</b><span>${esc(j.message)}</span></div>
+        ${j.canShow ? `<button class="btn xs" data-act="tray-show" data-id="${esc(key)}">Show page</button>` : ''}
+        <button class="icon-btn" data-act="tray-dismiss" data-id="${esc(key)}" aria-label="Dismiss">${icon('x')}</button></div>`;
+    }).join('');
+  }
+  Object.assign(actions, {
+    'tray-open': (b) => { jobs.delete(b.dataset.id); renderTray(); openReader(b.dataset.id); },
+    'tray-dismiss': (b) => { jobs.delete(b.dataset.id); renderTray(); refreshCards(); },
+    'tray-cancel': (b) => { Native.cancelFetch(b.dataset.id); jobs.delete(b.dataset.id); renderTray(); refreshCards(); },
+    'tray-show': (b) => {
+      const j = jobs.get(b.dataset.id);
+      jobs.delete(b.dataset.id); renderTray(); refreshCards();
+      Native.showFetchPage(b.dataset.id, j?.doi || '', j?.title || '');
+    },
+  });
+
   // ---------------------------------------------------------------- native bridge
   window.App = {
     back() {
       if ($('.sheet')) { closeSheet(); return true; }
+      if ($('#lb')) { closeLightbox(); return true; }
+      if ($('#drawer')) { closeDrawer(); return true; }
       const name = parseHash().name;
       if (depth > 0) { depth--; window.history.back(); return true; }
       if (name !== 'home') { location.replace('#/'); return true; }
@@ -1337,12 +1726,22 @@
       }
     },
     async onNative(evt) {
-      if (evt.type === 'pdfSaved') {
+      if (evt.type === 'fetchStatus') {
+        const j = jobs.get(evt.key);
+        if (j) { j.state = 'running'; j.message = evt.message; renderTray(); }
+      } else if (evt.type === 'pdfSaved') {
         pdfKeys.add(evt.key);
-        toast('PDF saved to your library');
-        if (['a', 'library', 'search', 'j', 'home'].includes(current.name)) refreshCards();
-      } else if (evt.type === 'pdfFailed') {
-        toast(evt.message);
+        const j = jobs.get(evt.key) || { title: saved.get(evt.key)?.title || 'PDF' };
+        jobs.set(evt.key, { ...j, state: 'saved', message: 'Saved to your library' });
+        renderTray();
+        refreshCards();
+        if (settings.autoOpen && !['pdf', 'read'].includes(current.name)) openReader(evt.key);
+        setTimeout(() => { if (jobs.get(evt.key)?.state === 'saved') { jobs.delete(evt.key); renderTray(); } }, 12000);
+      } else if (evt.type === 'fetchFailed' || evt.type === 'pdfFailed') {
+        const j = jobs.get(evt.key) || { title: saved.get(evt.key)?.title || 'PDF' };
+        jobs.set(evt.key, { ...j, state: 'failed', message: evt.message, canShow: !!evt.canShow });
+        renderTray();
+        refreshCards();
       } else if (evt.type === 'pdfImported') {
         await syncPdfs();
         toast('PDF imported');

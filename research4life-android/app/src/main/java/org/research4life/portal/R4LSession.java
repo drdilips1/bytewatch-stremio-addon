@@ -60,6 +60,7 @@ final class R4LSession {
             CookieManager cm = CookieManager.getInstance();
             cm.setAcceptCookie(true);
             cm.setAcceptThirdPartyCookies(webView, true);
+            webView.addJavascriptInterface(new CredentialBridge(activity.getApplicationContext()), "DSR4L");
         } else {
             contextWrapper.setBaseContext(activity);
         }
@@ -69,16 +70,50 @@ final class R4LSession {
         return webView;
     }
 
-    /** Detaches the WebView from a closing screen without destroying the session. */
+    /** True while the given screen is the one hosting the shared WebView. */
+    static boolean isOwner(Context activity) {
+        return webView != null && contextWrapper.getBaseContext() == activity;
+    }
+
+    /**
+     * Detaches the WebView from a closing screen without destroying the session. Does nothing
+     * if another screen has already taken the WebView over.
+     */
     static void release(Context activity) {
-        if (webView == null) return;
+        if (!isOwner(activity)) return;
         if (webView.getParent() instanceof ViewGroup) {
             ((ViewGroup) webView.getParent()).removeView(webView);
         }
-        if (contextWrapper.getBaseContext() == activity) {
-            contextWrapper.setBaseContext(activity.getApplicationContext());
-        }
+        contextWrapper.setBaseContext(activity.getApplicationContext());
         CookieManager.getInstance().flush();
+    }
+
+    /** Receives credentials typed into Research4Life's own sign-in form. */
+    private static final class CredentialBridge {
+        private final Context app;
+        private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+
+        CredentialBridge(Context app) { this.app = app; }
+
+        @android.webkit.JavascriptInterface
+        public void credentials(String user, String pass) {
+            if (user == null || pass == null || user.trim().isEmpty() || pass.isEmpty()) return;
+            main.post(() -> {
+                // Only trust calls made while an R4L page (not proxied publisher content) is showing.
+                String url = webView == null ? null : webView.getUrl();
+                if (url == null) return;
+                Uri u = Uri.parse(url);
+                if (!isR4LHost(u.getHost()) || (u.getPath() != null && u.getPath().startsWith("/tacsgr1"))) return;
+                if (!user.trim().equals(username(app)) || !pass.equals(password(app))) {
+                    saveCredentials(app, user, pass);
+                    android.widget.Toast.makeText(app, "Research4Life sign-in saved on this phone", android.widget.Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void status(String s) {
+        }
     }
 
     // ------------------------------------------------------------------ URLs

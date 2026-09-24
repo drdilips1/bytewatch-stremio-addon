@@ -20,6 +20,8 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
@@ -27,7 +29,12 @@ import androidx.webkit.WebViewAssetLoader;
 
 import org.json.JSONObject;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
@@ -44,6 +51,8 @@ public class MainActivity extends Activity {
     private static final int REQUEST_PORTAL = 11;
 
     private WebView webView;
+    private FrameLayout fetchLayer;
+    private PdfFetcher fetcher;
     private WebViewAssetLoader assetLoader;
     private final ExecutorService io = Executors.newFixedThreadPool(2);
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -52,8 +61,29 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // The app UI sits on top; the Research4Life fetcher's WebView runs underneath, unseen.
+        fetchLayer = new FrameLayout(this);
         webView = new WebView(this);
-        setContentView(webView);
+        fetchLayer.addView(webView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(fetchLayer);
+        fetcher = PdfFetcher.get(this);
+        fetcher.setListener(new PdfFetcher.Listener() {
+            @Override
+            public void onStatus(String key, String stage, String message) {
+                emit(event("fetchStatus", "key", key, "stage", stage, "message", message));
+            }
+
+            @Override
+            public void onSaved(String key, String title) {
+                emit(event("pdfSaved", "key", key));
+            }
+
+            @Override
+            public void onFailed(String key, String message, boolean canShowPage) {
+                emit(event("fetchFailed", "key", key, "message", message, "canShow", canShowPage));
+            }
+        });
 
         assetLoader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
@@ -76,6 +106,9 @@ public class MainActivity extends Activity {
                 if (APP_HOST.equals(uri.getHost()) && uri.getPath() != null
                         && uri.getPath().startsWith(ApiProxy.PREFIX)) {
                     return ApiProxy.handle(uri);
+                }
+                if (APP_HOST.equals(uri.getHost()) && uri.getPath() != null && uri.getPath().startsWith("/pdf/")) {
+                    return servePdf(uri.getLastPathSegment());
                 }
                 return assetLoader.shouldInterceptRequest(uri);
             }
@@ -115,15 +148,23 @@ public class MainActivity extends Activity {
         startActivityForResult(i, REQUEST_PORTAL);
     }
 
-    /** Opens the paper through Research4Life and saves its PDF. */
+    /** Gets the paper's PDF through Research4Life in the background. */
     private void fetchViaR4L(String key, String doi, String title) {
-        Intent i = new Intent(this, PortalActivity.class);
-        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        i.putExtra(PortalActivity.EXTRA_FETCH, true);
-        i.putExtra(PortalActivity.EXTRA_DOI, doi);
-        i.putExtra(PortalActivity.EXTRA_KEY, key);
-        i.putExtra(PortalActivity.EXTRA_TITLE, title);
-        startActivityForResult(i, REQUEST_PORTAL);
+        fetcher.enqueue(key, doi, title);
+    }
+
+    /** Streams a library PDF to the in-app reader (same origin, so pdf.js can read it). */
+    private WebResourceResponse servePdf(String key) {
+        try {
+            if (key == null || !PdfStore.has(this, key)) throw new IOException("missing");
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Cache-Control", "no-store");
+            return new WebResourceResponse("application/pdf", null, 200, "OK", headers,
+                    new FileInputStream(PdfStore.file(this, key)));
+        } catch (IOException e) {
+            return new WebResourceResponse("text/plain", "UTF-8", 404, "Not found", new HashMap<>(),
+                    new ByteArrayInputStream(new byte[0]));
+        }
     }
 
     private void openViewer(String key, String title) {
@@ -203,7 +244,6 @@ public class MainActivity extends Activity {
                 try {
                     PdfStore.download(MainActivity.this, key, freeUrl, title, ua);
                     emit(event("pdfSaved", "key", key));
-                    main.post(() -> openViewer(key, title));
                 } catch (Exception e) {
                     if (hasDoi) main.post(() -> fetchViaR4L(key, doi, title));
                     else emit(event("pdfFailed", "key", key, "message", "Couldn't download the free PDF."));
@@ -232,6 +272,29 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void r4lForget() {
             R4LSession.forget(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void cancelFetch(String key) {
+            main.post(() -> fetcher.cancel(key));
+        }
+
+        /** Shows the Research4Life page where a background fetch stopped. */
+        @JavascriptInterface
+        public void showFetchPage(String key, String doi, String title) {
+            main.post(() -> {
+                String url = fetcher.lastUrl(key);
+                if (url == null && doi != null && !doi.isEmpty()) url = R4LSession.doiUrl(doi);
+                openLink(url != null ? url : R4LSession.PORTAL_URL, key, title);
+            });
+        }
+
+        /** The original page layout, rendered natively. */
+        @JavascriptInterface
+        public void openPdfPages(String key, String title) {
+            main.post(() -> {
+                if (PdfStore.has(MainActivity.this, key)) openViewer(key, title);
+            });
         }
 
         @JavascriptInterface
@@ -376,6 +439,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        fetcher.attach(this, fetchLayer);
         if (webView != null) webView.evaluateJavascript("window.App&&App.onResume()", null);
     }
 
