@@ -145,6 +145,7 @@ function toBook(item) {
     cover: `${base()}/api/items/${li.id}/cover?${qs({ token: cfg().token, width: 400 })}`,
     year: md.publishedYear || '',
     duration: li.media?.duration || 0,
+    genres: [...(md.genres || []), ...(li.media?.tags || [])],
   };
 }
 

@@ -7,7 +7,7 @@ import { clearHttpCache } from '../lib/http.js';
 import { ACCENTS } from '../lib/theme.js';
 import { APP_VERSION } from '../components/update.jsx';
 import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
-import { AccountCard, VoicesCard } from './settings-extra.jsx';
+import { AccountCard, VoicesCard, DownloadsCard } from './settings-extra.jsx';
 import { UpdateCard } from '../components/update.jsx';
 
 function Section({ icon, title, children }) {
@@ -324,40 +324,82 @@ function HardcoverCard() {
 
 function GoodreadsCard() {
   const data = useStore(goodreads);
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
+  const run = async (fn) => {
+    setBusy(true);
+    try {
+      toast(await fn());
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const counts = gr.shelves().map((s) => `${s.replace(/-/g, ' ')} ${gr.shelf(s).length}`).join(' · ');
   return (
     <>
-      <p class="muted pad-s">
-        Goodreads no longer offers an API, so import your library export: goodreads.com → My Books → Import and export → <b>Export library</b>, then pick the CSV here.
-      </p>
+      {data.userId ? (
+        <>
+          <div class="set-row">
+            <div>
+              <b>Connected · profile {data.userId}</b>
+              <small>
+                {counts || 'No books yet'}
+                {data.importedAt ? ` · synced ${new Date(data.importedAt).toLocaleString()}` : ''}
+              </small>
+            </div>
+            <button class="pill small" disabled={busy} onClick={() => run(async () => `Synced ${await gr.syncProfile()} books`)}>
+              {busy ? <span class="spinner small" /> : 'Sync'}
+            </button>
+          </div>
+          <div class="set-row">
+            <small class="muted">Shelves update automatically every hour and when you pull down to refresh.</small>
+            <button class="pill danger small" onClick={() => gr.disconnectProfile()}>
+              Disconnect
+            </button>
+          </div>
+        </>
+      ) : (
+        <form
+          class="set-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            run(async () => `Connected — ${await gr.connectProfile(link)} books from your shelves`);
+          }}
+        >
+          <p class="muted">
+            Goodreads has no app login any more, so Inkwell reads your shelves from your profile. Open Goodreads → your profile, copy the link from the address bar and paste it here.
+          </p>
+          <input placeholder="https://www.goodreads.com/user/show/12345-yourname" value={link} onInput={(e) => setLink(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} inputmode="url" />
+          <button class="btn primary" disabled={busy || !link.trim()}>
+            {busy ? <span class="spinner" /> : <Icon name="link" size={16} />} Connect Goodreads
+          </button>
+          <small class="muted">Your profile must be visible to “anyone” (Goodreads → Settings → Privacy). A private profile works too if you paste the RSS link from one of your shelf pages instead.</small>
+        </form>
+      )}
       <div class="set-row">
         <div>
-          <b>{data.books.length ? `${data.books.length} books imported` : 'No library imported'}</b>
-          {data.importedAt > 0 && <small>{gr.shelves().join(' · ')}</small>}
+          <b>Or import a CSV</b>
+          <small>My Books → Import and export → Export library</small>
         </div>
-        <div class="chips">
-          <label class="pill small">
-            {data.books.length ? 'Re-import' : 'Import CSV'}
-            <input
-              type="file"
-              accept=".csv,text/csv,text/comma-separated-values"
-              hidden
-              onChange={async (e) => {
-                const f = e.currentTarget.files?.[0];
-                if (!f) return;
-                try {
-                  toast(`Imported ${gr.importCsv(await f.text())} books`);
-                } catch (err) {
-                  toast(err.message);
-                }
-              }}
-            />
-          </label>
-          {data.books.length > 0 && (
-            <button class="pill danger small" onClick={() => goodreads.set({ books: [], importedAt: 0 })}>
-              Clear
-            </button>
-          )}
-        </div>
+        <label class="pill small">
+          Import CSV
+          <input
+            type="file"
+            accept=".csv,text/csv,text/comma-separated-values"
+            hidden
+            onChange={async (e) => {
+              const f = e.currentTarget.files?.[0];
+              if (!f) return;
+              try {
+                toast(`Imported ${gr.importCsv(await f.text())} books`);
+              } catch (err) {
+                toast(err.message);
+              }
+            }}
+          />
+        </label>
       </div>
     </>
   );
@@ -535,6 +577,9 @@ export function Settings() {
       <PreferredDebrid />
       <Section icon="puzzle" title="Addons">
         <AddonsCard />
+      </Section>
+      <Section icon="download" title="Downloads">
+        <DownloadsCard />
       </Section>
       <Section icon="headphones" title="Voices">
         <VoicesCard />

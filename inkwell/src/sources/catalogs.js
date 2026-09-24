@@ -5,7 +5,7 @@ import { getJson, qs } from '../lib/http.js';
 import { stripHtml } from '../lib/format.js';
 
 const AUDIBLE = 'https://api.audible.com/1.0/catalog/products';
-const GROUPS = 'contributors,product_desc,product_attrs,media,series,rating';
+const GROUPS = 'contributors,product_desc,product_attrs,media,series,rating,category_ladders';
 
 function fromAudible(p) {
   const img = p.product_images || {};
@@ -23,10 +23,22 @@ function fromAudible(p) {
     series: s ? `${s.title}${s.sequence ? ` #${s.sequence}` : ''}` : '',
     description: stripHtml(p.publisher_summary || p.merchandising_summary || ''),
     link: `https://www.audible.com/pd/${p.asin}`,
+    genres: [...new Set((p.category_ladders || []).flatMap((l) => (l.ladder || []).map((x) => x.name)).filter(Boolean))],
   };
 }
 
 export const audible = {
+  /** Audible bestsellers for a genre (listing only). */
+  async genre(name) {
+    const run = (sort) => getJson(`${AUDIBLE}?` + qs({ keywords: name, num_results: 40, products_sort_by: sort, response_groups: GROUPS, image_sizes: '500,1024' }));
+    let d;
+    try {
+      d = await run('BestSellers');
+    } catch {
+      d = await run('Relevance');
+    }
+    return (d.products || []).filter((p) => p.title).map(fromAudible);
+  },
   async search(term) {
     if (!term.trim()) return [];
     const d = await getJson(`${AUDIBLE}?` + qs({ keywords: term, num_results: 24, products_sort_by: 'Relevance', response_groups: GROUPS, image_sizes: '500,1024' }));

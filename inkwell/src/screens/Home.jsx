@@ -1,10 +1,10 @@
 import { BgImage } from '../components/bg-image.jsx';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Row, BookCard, withMeta } from '../components/common.jsx';
 import { useMeta } from '../lib/meta.js';
 import { Icon } from '../components/icons.jsx';
 import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, enabled } from '../sources/index.js';
-import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore } from '../lib/store.js';
+import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted } from '../lib/store.js';
 import { greeting, fmtDuration } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
 import { GENRES } from './genres.js';
@@ -14,38 +14,59 @@ import { getDetails } from '../sources/index.js';
 import * as player from '../lib/player.js';
 
 // Picks for the banner: the user's own services first; free classics only as a fallback.
-async function heroPicks() {
-  const safe = (p, tag) => p.then((r) => r.map((b) => ({ ...b, heroTag: tag }))).catch(() => []);
-  const groups = await Promise.all([
-    absSrc.connected() && enabled('abs') ? safe(absSrc.inProgress(), 'Continue on your server') : [],
-    cloud.tbConnected() && enabled('tb') ? safe(cloud.torboxLibrary(), 'In your TorBox') : [],
-    cloud.rdConnected() && enabled('rd') ? safe(cloud.realdebridLibrary(), 'In your Real-Debrid') : [],
-    hc.connected() && enabled('hc') ? safe(hc.shelf(hc.STATUS.reading), 'Reading on Hardcover') : [],
-    hc.connected() && enabled('hc') ? safe(hc.shelf(hc.STATUS.want), 'On your Want to Read') : [],
-    absSrc.connected() && enabled('abs') ? safe(absSrc.recent(), 'New on your server') : [],
-  ]);
-  // Round-robin across sources so every service shows up.
+// Shows the last banner instantly, then merges each service as it answers
+// (a slow service never holds the others back).
+const heroCache = persisted('heroCache', { items: [] });
+
+function heroSources() {
+  const list = [];
+  if (absSrc.connected() && enabled('abs')) list.push([() => absSrc.inProgress(), 'Continue on your server'], [() => absSrc.recent(), 'New on your server']);
+  if (cloud.tbConnected() && enabled('tb')) list.push([() => cloud.torboxLibrary(), 'In your TorBox']);
+  if (cloud.rdConnected() && enabled('rd')) list.push([() => cloud.realdebridLibrary(), 'In your Real-Debrid']);
+  if (hc.connected() && enabled('hc')) list.push([() => hc.shelf(hc.STATUS.reading), 'Reading on Hardcover'], [() => hc.shelf(hc.STATUS.want), 'On your Want to Read']);
+  return list;
+}
+
+function roundRobin(groups) {
   const picks = [];
   const seen = new Set();
-  for (let i = 0; picks.length < 8 && groups.some((g) => g[i]); i++) {
+  for (let i = 0; picks.length < 8 && groups.some((g) => g && g[i]); i++) {
     for (const g of groups) {
-      const b = g[i];
+      const b = g && g[i];
       if (b && !seen.has(b.uid) && picks.length < 8) {
         seen.add(b.uid);
         picks.push(b);
       }
     }
   }
-  if (picks.length) return picks;
-  return enabled('ia') ? safe(ia.popular(), 'Most loved free audiobook').then((r) => r.slice(0, 6)) : [];
+  return picks;
 }
 
 function HeroSlide({ book: raw, index, count, onDot }) {
   const meta = useMeta(raw);
   const b = withMeta(raw, meta);
   const playable = b.kind === 'audio';
+  const touch = useRef(null);
+  const swiped = useRef(false);
   return (
-    <div class="hero" onClick={() => nav.push('book', { book: b })}>
+    <div
+      class="hero"
+      onTouchStart={(e) => {
+        touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        swiped.current = false;
+      }}
+      onTouchEnd={(e) => {
+        const t = touch.current;
+        if (!t) return;
+        const dx = e.changedTouches[0].clientX - t.x;
+        const dy = e.changedTouches[0].clientY - t.y;
+        if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) {
+          swiped.current = true;
+          onDot((index + (dx < 0 ? 1 : count - 1)) % count);
+        }
+      }}
+      onClick={() => !swiped.current && nav.push('book', { book: b })}
+    >
       <div class="hero-bg" key={b.uid}>
         {b.cover && <BgImage url={b.cover} />}
       </div>
@@ -88,19 +109,62 @@ function HeroSlide({ book: raw, index, count, onDot }) {
 }
 
 function Hero() {
-  const [items, setItems] = useState(null);
+  const [items, setItems] = useState(() => (heroCache.get().items.length ? heroCache.get().items : null));
   const [i, setI] = useState(0);
+  const [paused, setPaused] = useState(0);
   useEffect(() => {
-    heroPicks().then(setItems).catch(() => setItems([]));
+    const sources = heroSources();
+    const groups = new Array(sources.length).fill(null);
+    let alive = true;
+    let pending = sources.length;
+    const publish = () => {
+      const picks = roundRobin(groups);
+      if (!alive) return;
+      if (picks.length) {
+        setItems(picks);
+        heroCache.set({ items: picks });
+      } else if (!pending) {
+        // Nothing connected (or everything failed): free classics as a fallback.
+        enabled('ia') ? ia.popular().then((r) => alive && setItems(r.slice(0, 6).map((x) => ({ ...x, heroTag: 'Most loved free audiobook' })))).catch(() => alive && setItems([])) : setItems([]);
+      }
+    };
+    if (!sources.length) return publish(), () => (alive = false);
+    sources.forEach(([load, tag], k) => {
+      // A slow service stops blocking the free fallback after 8s, but its books still join the banner when they arrive.
+      let settled = false;
+      const settle = () => {
+        if (settled) return publish();
+        settled = true;
+        pending--;
+        publish();
+      };
+      setTimeout(settle, 8000);
+      Promise.resolve()
+        .then(load)
+        .then((r) => (groups[k] = (r || []).map((x) => ({ ...x, heroTag: tag }))))
+        .catch(() => {})
+        .finally(settle);
+    });
+    return () => (alive = false);
   }, []);
   useEffect(() => {
     if (!items?.length) return;
     const t = setInterval(() => setI((x) => (x + 1) % items.length), 7000);
     return () => clearInterval(t);
-  }, [items]);
+  }, [items, paused]);
   if (!items) return <div class="hero shimmer" />;
   if (!items.length) return null;
-  return <HeroSlide book={items[i % items.length]} index={i % items.length} count={items.length} onDot={setI} />;
+  return (
+    <HeroSlide
+      book={items[i % items.length]}
+      index={i % items.length}
+      count={items.length}
+      onDot={(k) => {
+        setI(k);
+        setPaused((p) => p + 1); // restart the auto-advance timer after a manual swipe
+      }}
+    />
+  );
 }
 
 function ContinueRow() {
@@ -256,6 +320,7 @@ export function Home() {
       {enabled('gr') && grData.books.length > 0 && (
         <>
           <Row title="Currently reading" subtitle="Goodreads" icon="book" items={gr.shelf('currently-reading')} onMore={() => nav.push('shelf', { title: 'Currently reading', subtitle: 'Goodreads', load: async () => gr.shelf('currently-reading') })} />
+          <Row title="Read" subtitle="Goodreads" icon="check" items={gr.shelf('read').slice(0, 40)} />
           <Row title="Want to read" subtitle="Goodreads" icon="heart" items={gr.shelf('to-read').slice(0, 40)} onMore={() => nav.push('shelf', { title: 'Want to read', subtitle: 'Goodreads', load: async () => gr.shelf('to-read') })} />
         </>
       )}

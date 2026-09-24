@@ -52,7 +52,7 @@ const lookups = {
           keywords: q,
           num_results: 5,
           products_sort_by: 'Relevance',
-          response_groups: 'contributors,product_desc,product_attrs,media,series',
+          response_groups: 'contributors,product_desc,product_attrs,media,series,category_ladders',
           image_sizes: '500,1024',
         }),
       { timeout: 12000 }
@@ -70,6 +70,7 @@ const lookups = {
       series: p.series?.[0] ? `${p.series[0].title}${p.series[0].sequence ? ` #${p.series[0].sequence}` : ''}` : '',
       runtime: p.runtime_length_min ? p.runtime_length_min * 60 : 0,
       year: (p.release_date || '').slice(0, 4),
+      genres: [...new Set((p.category_ladders || []).flatMap((l) => (l.ladder || []).map((x) => x.name)).filter(Boolean))],
       source: 'Audible',
     };
   },
@@ -98,11 +99,12 @@ const lookups = {
       cover: hiRes((links.extraLarge || links.large || links.medium || links.thumbnail || '').replace(/&edge=curl/, '').replace(/zoom=1/, 'zoom=2')),
       description: stripHtml(v.description || ''),
       year: (v.publishedDate || '').slice(0, 4),
+      genres: v.categories || [],
       source: 'Google Books',
     };
   },
   async openlibrary(q) {
-    const d = await getJson('https://openlibrary.org/search.json?' + qs({ q, limit: 5, fields: 'key,title,author_name,cover_i,first_publish_year' }), { timeout: 12000 });
+    const d = await getJson('https://openlibrary.org/search.json?' + qs({ q, limit: 5, fields: 'key,title,author_name,cover_i,first_publish_year,subject' }), { timeout: 12000 });
     const w = (d.docs || []).find((x) => plausible(q, x.title));
     if (!w) return null;
     return {
@@ -110,6 +112,7 @@ const lookups = {
       author: (w.author_name || []).slice(0, 2).join(', '),
       cover: w.cover_i ? `https://covers.openlibrary.org/b/id/${w.cover_i}-L.jpg` : '',
       year: w.first_publish_year || '',
+      genres: (w.subject || []).slice(0, 15),
       source: 'Open Library',
     };
   },
@@ -149,7 +152,9 @@ export function lookup(book, { fresh = false } = {}) {
   const key = keyFor(q);
   if (!key) return Promise.resolve(null);
   const hit = cache.get()[key];
-  if (!fresh && hit && (hit.v || Date.now() - hit.t < MISS_TTL)) return Promise.resolve(hit.v);
+  // Entries saved before genres were collected are refreshed once.
+  const stale = hit?.v && !Array.isArray(hit.v.genres);
+  if (!fresh && !stale && hit && (hit.v || Date.now() - hit.t < MISS_TTL)) return Promise.resolve(hit.v);
   if (pending.has(key)) return pending.get(key);
   const p = schedule(async () => {
     let merged = null;
@@ -159,7 +164,9 @@ export function lookup(book, { fresh = false } = {}) {
         r = await lookups[name](q);
       } catch {}
       if (!r) continue;
+      const genres = [...new Set([...(merged?.genres || []), ...(r.genres || [])])];
       merged = merged ? { ...r, ...Object.fromEntries(Object.entries(merged).filter(([, v]) => v)) } : r;
+      merged.genres = genres;
       if (merged.cover && merged.description) break;
     }
     cache.set((c) => ({ ...c, [key]: { t: Date.now(), v: merged } }));

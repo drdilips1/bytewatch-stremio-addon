@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'preact/hooks';
 import { Grid, Empty } from '../components/common.jsx';
 import { library, progress, useStore } from '../lib/store.js';
+import { downloads } from '../lib/downloads.js';
 import { nav } from '../lib/nav.js';
 
 const TABS = [
@@ -8,12 +9,14 @@ const TABS = [
   ['saved', 'Saved'],
   ['audio', 'Audiobooks'],
   ['text', 'Ebooks'],
+  ['downloaded', 'Downloaded'],
   ['finished', 'Finished'],
 ];
 
 export function Library() {
   const lib = useStore(library);
   const prog = useStore(progress);
+  const dls = useStore(downloads);
   const [tab, setTab] = useState('progress');
   const items = useMemo(() => {
     const saved = Object.values(lib).sort((a, b) => b.addedAt - a.addedAt);
@@ -25,10 +28,14 @@ export function Library() {
         return started.filter((p) => p.finished).map((p) => p.book);
       case 'saved':
         return saved;
+      case 'downloaded':
+        return Object.values(dls)
+          .filter((d) => d.book && d.status !== 'cancelled')
+          .map((d) => d.book);
       default:
         return saved.filter((b) => b.kind === tab);
     }
-  }, [lib, prog, tab]);
+  }, [lib, prog, tab, dls]);
 
   const stats = useMemo(() => {
     const vals = Object.values(prog);

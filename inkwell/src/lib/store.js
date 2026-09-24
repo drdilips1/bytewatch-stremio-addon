@@ -63,6 +63,7 @@ export const settings = persisted('settings', {
   readerFont: 'serif',
   language: 'en',
   debridPreferred: 'torbox', // torbox | realdebrid
+  downloadTarget: 'public', // public = Downloads/Inkwell, app = private app storage
   metaProviders: { audible: true, apple: true, google: true, openlibrary: true },
   metaOrder: ['audible', 'apple', 'google', 'openlibrary'],
 });

@@ -12,6 +12,7 @@ import { audible, googleBooks } from './catalogs.js';
 import { settings } from '../lib/store.js';
 import { matches, mainTitle } from '../lib/match.js';
 import { lookup, wantsMeta } from '../lib/meta.js';
+import { applyLocal, isDownloaded } from '../lib/downloads.js';
 
 export const SOURCES = {
   ia: { name: 'Internet Archive', short: 'Archive', hue: 28, kind: 'Listen', blurb: 'LibriVox mirror, old-time radio & spoken word', impl: ia },
@@ -38,7 +39,16 @@ export function sourceOf(uid) {
 
 export async function getDetails(book) {
   const src = SOURCES[sourceOf(book.uid)];
-  const [d, meta] = await Promise.all([src.impl.details(book), wantsMeta(book) ? lookup(book).catch(() => null) : null]);
+  let d;
+  let meta;
+  try {
+    [d, meta] = await Promise.all([src.impl.details(book), wantsMeta(book) ? lookup(book).catch(() => null) : null]);
+  } catch (e) {
+    // Offline but downloaded: play from the phone anyway.
+    if (isDownloaded(book.uid)) return applyLocal({ ...book, tracks: [] });
+    throw e;
+  }
+  d = applyLocal(d);
   if (!meta) return d;
   const cloudItem = d.source === 'tb' || d.source === 'rd';
   return {

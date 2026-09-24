@@ -2595,3 +2595,55 @@ pre.sql {
   color: #fff;
   border-color: transparent;
 }
+.dl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 20px 0;
+}
+.dl-row .btn {
+  height: 42px;
+  font-size: 14px;
+}
+.dl-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #86efac;
+}
+.dl-progress {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.dl-targets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.dl-target {
+  text-align: left;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 2px solid transparent;
+}
+.dl-target.on {
+  border-color: var(--accent-2);
+}
+.dl-target:disabled {
+  opacity: 0.45;
+}
+.dl-target small {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.35;
+}

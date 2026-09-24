@@ -10,6 +10,7 @@ import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
 import { SourceResults } from '../components/source-results.jsx';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
+import { downloads, canDownload, downloadBook, cancelDownload, removeDownload, fmtBytes } from '../lib/downloads.js';
 import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
@@ -27,6 +28,7 @@ export function Book({ book: initial }) {
   const isCurrent = ps.book?.uid === book.uid;
   const [hcStatus, setHcStatus] = useState(null);
   const [listenBusy, setListenBusy] = useState(false);
+  const dl = useStore(downloads)[initial.uid];
 
   useEffect(() => {
     let alive = true;
@@ -126,6 +128,44 @@ export function Book({ book: initial }) {
           </a>
         )}
       </div>
+      {canListen && canDownload && book.source !== 'tts' && (
+        <div class="dl-row">
+          {!dl || dl.status === 'error' ? (
+            <button
+              class="btn secondary"
+              disabled={loading && !book.tracks && !book.resolveTracks}
+              onClick={() => downloadBook(book).then(() => toast('Downloaded — plays offline now')).catch((e) => e.message !== 'cancelled' && toast(e.message))}
+            >
+              <Icon name="download" size={16} /> {dl?.status === 'error' ? 'Retry download' : 'Download for offline'}
+            </button>
+          ) : dl.status === 'done' ? (
+            <>
+              <span class="dl-done">
+                <Icon name="check" size={16} /> Downloaded · {fmtBytes(dl.bytes)} · {dl.location || 'on this phone'}
+              </span>
+              <button class="link-btn" onClick={() => removeDownload(book.uid).then(() => toast('Download removed'))}>
+                Remove
+              </button>
+            </>
+          ) : (
+            <>
+              <div class="dl-progress">
+                <span>
+                  Downloading part {Math.min((dl.done || 0) + 1, dl.total || 1)} of {dl.total || '…'}
+                  {dl.currentTotal > 0 ? ` · ${Math.round((dl.current / dl.currentTotal) * 100)}%` : ''}
+                </span>
+                <div class="progress-bar">
+                  <div style={{ width: `${dl.total ? (((dl.done || 0) + (dl.currentTotal ? dl.current / dl.currentTotal : 0)) / dl.total) * 100 : 2}%` }} />
+                </div>
+              </div>
+              <button class="link-btn" onClick={() => cancelDownload(book.uid)}>
+                Cancel
+              </button>
+            </>
+          )}
+          {dl?.status === 'error' && <small class="err">{dl.error}</small>}
+        </div>
+      )}
       {pct > 0 && (
         <div class="progress-bar book-progress">
           <div style={{ width: pct + '%' }} />

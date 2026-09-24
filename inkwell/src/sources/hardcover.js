@@ -55,7 +55,17 @@ export const disconnect = () => {
 };
 
 // Depth ≤ 3: me → user_books → book, scalar/jsonb fields only.
-const BOOK = 'id title description release_year cached_image cached_contributors';
+const BOOK = 'id title description release_year cached_image cached_contributors cached_tags';
+
+// cached_tags looks like { Genre: [{ tag: 'Fantasy' }, …], Mood: […], … }
+function tagsOf(t) {
+  if (!t || typeof t !== 'object') return [];
+  return Object.values(t)
+    .flat()
+    .map((x) => (typeof x === 'string' ? x : x?.tag))
+    .filter(Boolean)
+    .slice(0, 20);
+}
 
 function toBook(b, status) {
   const img = b.cached_image?.url || (typeof b.cached_image === 'string' ? b.cached_image : '') || b.image?.url || '';
@@ -73,6 +83,7 @@ function toBook(b, status) {
     cover: img,
     year: b.release_year || '',
     description: b.description || '',
+    genres: tagsOf(b.cached_tags),
     hcStatus: status,
   };
 }

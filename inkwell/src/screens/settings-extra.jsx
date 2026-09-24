@@ -5,6 +5,8 @@ import { useStore } from '../lib/store.js';
 import * as sync from '../lib/sync.js';
 import { ttsCfg, engines as listEngines, voices as listVoices, speak, stopSpeaking, clearAudioCache, qualityLabel, RECOMMENDED } from '../lib/tts.js';
 import { CATALOG, builtinAvailable, installedIds, download as downloadVoice, remove as removeVoice } from '../lib/voices.js';
+import { downloads, canDownload, removeDownload, publicAvailable, fmtBytes } from '../lib/downloads.js';
+import { settings } from '../lib/store.js';
 
 const ago = (t) => {
   if (!t) return 'never';
@@ -402,6 +404,66 @@ export function VoicesCard() {
           Clear cache
         </button>
       </div>
+    </>
+  );
+}
+
+export function DownloadsCard() {
+  const st = useStore(settings);
+  const all = useStore(downloads);
+  const [pub, setPub] = useState(true);
+  useEffect(() => {
+    publicAvailable().then(setPub);
+  }, []);
+  if (!canDownload) return <p class="muted pad-s">Downloads work in the Android app.</p>;
+  const list = Object.entries(all).filter(([, d]) => d.book);
+  const total = list.reduce((a, [, d]) => a + (d.bytes || 0), 0);
+  const target = pub ? st.downloadTarget || 'public' : 'app';
+  return (
+    <>
+      <div class="set-row column">
+        <b>Save downloads to</b>
+        <div class="dl-targets">
+          <button class={'dl-target' + (target === 'public' ? ' on' : '')} disabled={!pub} onClick={() => settings.patch({ downloadTarget: 'public' })}>
+            <b>Phone storage</b>
+            <small>Downloads/Inkwell — visible in My Files, kept if you uninstall{!pub ? ' (needs Android 10+)' : ''}</small>
+          </button>
+          <button class={'dl-target' + (target === 'app' ? ' on' : '')} onClick={() => settings.patch({ downloadTarget: 'app' })}>
+            <b>App only</b>
+            <small>Private to Inkwell — removed together with the app</small>
+          </button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div>
+          <b>{list.length ? `${list.length} book${list.length > 1 ? 's' : ''} · ${fmtBytes(total)}` : 'No downloads yet'}</b>
+          <small>Tap “Download for offline” on any audiobook.</small>
+        </div>
+        {list.length > 0 && (
+          <button
+            class="pill danger small"
+            onClick={async () => {
+              for (const [uid] of list) await removeDownload(uid);
+              toast('All downloads removed');
+            }}
+          >
+            Delete all
+          </button>
+        )}
+      </div>
+      {list.map(([uid, d]) => (
+        <div class="set-row">
+          <div>
+            <b>{d.book.title}</b>
+            <small>
+              {d.status === 'done' ? `${fmtBytes(d.bytes)} · ${d.location || ''}` : d.status === 'error' ? `Failed: ${d.error}` : `Downloading ${d.done || 0}/${d.total || '…'}`}
+            </small>
+          </div>
+          <button class="icon-btn" aria-label="Remove download" onClick={() => removeDownload(uid)}>
+            <Icon name="trash" size={16} />
+          </button>
+        </div>
+      ))}
     </>
   );
 }
