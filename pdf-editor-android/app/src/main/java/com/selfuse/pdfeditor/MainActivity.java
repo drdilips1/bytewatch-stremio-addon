@@ -10,6 +10,13 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CancellationSignal;
+import android.os.ParcelFileDescriptor;
+import android.print.PageRange;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintDocumentInfo;
+import android.print.PrintManager;
 import android.provider.OpenableColumns;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
@@ -220,8 +227,59 @@ public class MainActivity extends Activity {
         });
     }
 
+    static String mimeFor(String name) {
+        String n = name.toLowerCase();
+        if (n.endsWith(".pdf")) return "application/pdf";
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+        if (n.endsWith(".png")) return "image/png";
+        if (n.endsWith(".zip")) return "application/zip";
+        if (n.endsWith(".txt")) return "text/plain";
+        if (n.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        return "application/octet-stream";
+    }
+
+    private void printFile(final String name) {
+        final File file = new File(getCacheDir(), "print.pdf");
+        if (!pendingSaveFile.renameTo(file)) {
+            notifyJs("onNativeSaved", false, "Could not prepare file");
+            return;
+        }
+        PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
+        if (pm == null) {
+            notifyJs("onNativeSaved", false, "Printing is not available");
+            return;
+        }
+        pm.print(name, new PrintDocumentAdapter() {
+            @Override
+            public void onLayout(PrintAttributes oldAttributes, PrintAttributes newAttributes,
+                                 CancellationSignal cancel, LayoutResultCallback callback, Bundle extras) {
+                if (cancel.isCanceled()) {
+                    callback.onLayoutCancelled();
+                    return;
+                }
+                callback.onLayoutFinished(new PrintDocumentInfo.Builder(name)
+                        .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT).build(), true);
+            }
+
+            @Override
+            public void onWrite(PageRange[] pages, ParcelFileDescriptor destination,
+                                CancellationSignal cancel, WriteResultCallback callback) {
+                try (InputStream in = new FileInputStream(file);
+                     OutputStream out = new FileOutputStream(destination.getFileDescriptor())) {
+                    copy(in, out);
+                    callback.onWriteFinished(new PageRange[]{PageRange.ALL_PAGES});
+                } catch (IOException e) {
+                    callback.onWriteFailed(e.getMessage());
+                }
+            }
+        }, null);
+        notifyJs("onNativeSaved", true, "");
+    }
+
     private void finishSave(String name, String mode) {
-        if ("share".equals(mode)) {
+        if ("print".equals(mode)) {
+            printFile(name);
+        } else if ("share".equals(mode)) {
             File shareDir = new File(getCacheDir(), "share");
             shareDir.mkdirs();
             File[] old = shareDir.listFiles();
@@ -233,7 +291,7 @@ public class MainActivity extends Activity {
             }
             Uri uri = Uri.parse("content://" + getPackageName() + ".share/" + Uri.encode(name));
             Intent send = new Intent(Intent.ACTION_SEND);
-            send.setType(name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/*");
+            send.setType(mimeFor(name));
             send.putExtra(Intent.EXTRA_STREAM, uri);
             send.setClipData(ClipData.newRawUri(name, uri));
             send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -242,7 +300,7 @@ public class MainActivity extends Activity {
         } else {
             Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
             create.addCategory(Intent.CATEGORY_OPENABLE);
-            create.setType("application/pdf");
+            create.setType(mimeFor(name));
             create.putExtra(Intent.EXTRA_TITLE, name);
             try {
                 startActivityForResult(create, REQ_SAVE_DOCUMENT);

@@ -21,12 +21,28 @@
 
 <!-- ============ Home screen ============ -->
 <section id="home">
-  <div class="home-logo" data-icon="logo"></div>
-  <h1>PDF Editor</h1>
-  <p class="muted">Free, offline, no watermarks, no limits.</p>
+  <div class="home-head">
+    <div class="home-logo" data-icon="logo"></div>
+    <div>
+      <h1>PDF Editor</h1>
+      <p class="muted">Free, offline, no watermarks, no limits.</p>
+    </div>
+  </div>
   <button class="big-btn primary" id="homeOpen"><span data-icon="open"></span>Open PDF</button>
-  <button class="big-btn" id="homeImages"><span data-icon="image"></span>Images to PDF</button>
-  <button class="big-btn" id="homeBlank"><span data-icon="blank"></span>New blank PDF</button>
+  <div class="tool-grid">
+    <button data-home="edit"><span class="tg-ic" data-icon="edittext"></span>Edit</button>
+    <button data-home="convert"><span class="tg-ic" data-icon="convert"></span>Convert</button>
+    <button data-home="compress"><span class="tg-ic" data-icon="compress"></span>Compress</button>
+    <button data-home="merge"><span class="tg-ic" data-icon="merge"></span>Merge</button>
+    <button data-home="annotate"><span class="tg-ic" data-icon="highlight"></span>Annotate</button>
+    <button data-home="organize"><span class="tg-ic" data-icon="pages"></span>Organize</button>
+    <button data-home="protect"><span class="tg-ic" data-icon="lock"></span>Protect</button>
+    <button data-home="read"><span class="tg-ic" data-icon="read"></span>Read</button>
+    <button data-home="print"><span class="tg-ic" data-icon="print"></span>Print</button>
+    <button data-home="sign"><span class="tg-ic" data-icon="sign"></span>Sign</button>
+    <button data-home="images"><span class="tg-ic" data-icon="image"></span>Images to PDF</button>
+    <button data-home="blank"><span class="tg-ic" data-icon="blank"></span>Blank PDF</button>
+  </div>
   <p class="muted small">Tip: use “Open with → PDF Editor” from any file manager.</p>
 </section>
 
@@ -56,6 +72,9 @@
   <div class="prop-group" id="propFillWrap">
     <button class="chip" id="propFill">Fill</button>
   </div>
+  <div class="prop-group" id="propDoneWrap">
+    <button class="chip primary" id="propDone"><span data-icon="check"></span>Done</button>
+  </div>
   <div class="prop-group" id="propSelWrap">
     <button class="chip" id="propDup" title="Duplicate"><span data-icon="copy"></span></button>
     <button class="chip danger" id="propDelete" title="Delete"><span data-icon="delete"></span></button>
@@ -80,6 +99,7 @@
   <button class="tool" data-action="image"><span data-icon="image"></span>Image</button>
   <button class="tool" data-action="sign"><span data-icon="sign"></span>Sign</button>
   <button class="tool" data-action="forms"><span data-icon="form"></span>Forms</button>
+  <button class="tool" data-action="read"><span data-icon="read"></span>Read</button>
   <button class="tool" data-action="zoomout"><span data-icon="zoomout"></span>Zoom −</button>
   <button class="tool" data-action="zoomin"><span data-icon="zoomin"></span>Zoom +</button>
 </nav>
@@ -94,6 +114,12 @@
   <button data-menu="blankpage"><span data-icon="blank"></span>Add blank page</button>
   <button data-menu="pages"><span data-icon="pages"></span>Organize pages</button>
   <button data-menu="forms"><span data-icon="form"></span>Fill form fields</button>
+  <hr>
+  <button data-menu="convert"><span data-icon="convert"></span>Convert (JPG, PNG, Word, Text)…</button>
+  <button data-menu="compress"><span data-icon="compress"></span>Compress…</button>
+  <button data-menu="protect"><span data-icon="lock"></span>Protect / Unlock…</button>
+  <button data-menu="read"><span data-icon="read"></span>Reading mode</button>
+  <button data-menu="print"><span data-icon="print"></span>Print…</button>
   <hr>
   <button data-menu="save"><span data-icon="save"></span>Save as…</button>
   <button data-menu="share"><span data-icon="share"></span>Share</button>
@@ -168,6 +194,25 @@
   </div>
 </div>
 
+<!-- ============ Option sheet (convert / compress / protect) ============ -->
+<div id="optModal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-title" id="optTitle"></div>
+    <div id="optBody"></div>
+    <div class="modal-actions">
+      <button class="chip" id="optCancel">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Reading mode bar ============ -->
+<div id="readBar" hidden>
+  <button class="icon-btn" id="readExit" data-icon="back" title="Exit reading"></button>
+  <div id="readPage"></div>
+  <button class="icon-btn" id="readGoto" data-icon="pages" title="Go to page"></button>
+  <button class="icon-btn" id="readNight" data-icon="night" title="Night mode"></button>
+</div>
+
 <div id="busy" hidden><div class="spinner"></div><div id="busyText">Working…</div></div>
 <div id="toast" hidden></div>
 
@@ -180,5 +225,6 @@
 <script src="lib/pdf-lib.min.js"></script>
 <script src="icons.js"></script>
 <script src="app.js"></script>
+<script src="tools.js"></script>
 </body>
 </html>

@@ -47,7 +47,7 @@ public class ShareProvider extends ContentProvider {
     @Override
     public String getType(Uri uri) {
         String n = uri.getLastPathSegment();
-        return n != null && n.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream";
+        return n == null ? "application/octet-stream" : MainActivity.mimeFor(n);
     }
 
     @Override

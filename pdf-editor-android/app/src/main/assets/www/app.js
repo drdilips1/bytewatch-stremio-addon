@@ -206,15 +206,24 @@ async function loadPdfJs(bytes) {
     fontExtraProperties: true,
     isEvalSupported: false
   });
+  let password = '';
   task.onPassword = async (update, reason) => {
     const pw = await dialog({
       title: 'Password required',
       body: reason === pdfjsLib.PasswordResponses.INCORRECT_PASSWORD ? 'Wrong password, try again.' : 'This PDF is password protected.',
       input: { type: 'password' }
     });
-    if (pw === null) task.destroy(); else update(pw);
+    if (pw === null) task.destroy(); else update(password = pw);
   };
-  return task.promise;
+  const pdf = await task.promise;
+  pdf._password = password;
+  return pdf;
+}
+
+// pdf-lib copy of a source, decrypting it with the password used to open it.
+function libLoad(si) {
+  const src = S.sources[si];
+  return PDFDocument.load(src.bytes, { updateMetadata: false, password: src.pdf._password || '' });
 }
 
 async function addSource(bytes, name) {
@@ -245,6 +254,8 @@ function resetDoc() {
   updateUndoButtons();
 }
 
+let pendingAction = null; // run after the next PDF opens (home screen tools)
+
 async function openPdf(bytes, name) {
   busy(true, 'Opening…');
   try {
@@ -254,7 +265,9 @@ async function openPdf(bytes, name) {
     S.pages = pages;
     S.name = name || 'document.pdf';
     showDocument();
+    if (pendingAction) { const a = pendingAction; pendingAction = null; setTimeout(a, 50); }
   } catch (e) {
+    pendingAction = null;
     console.error(e);
     if (!S.pages.length) showHome();
     if (e && e.name !== 'AbortException') toast('Could not open PDF: ' + (e.message || e));
@@ -310,6 +323,7 @@ async function imagesAsPages(files, newDoc) {
   busy(true, 'Adding images…');
   try {
     finishEditing();
+    if (newDoc) resetDoc();
     const pages = [];
     for (const f of files) {
       const imgId = await importImage(f);
@@ -320,7 +334,6 @@ async function imagesAsPages(files, newDoc) {
         annots: [{ id: uid(), type: 'image', imgId, x: 0, y: 0, w: W, h: H }] });
     }
     if (newDoc) {
-      resetDoc();
       S.name = 'images.pdf';
       S.pages = pages;
       S.dirty = true;
@@ -350,6 +363,8 @@ function blankPage(W, H) {
 
 // ------------------------------------------------------------------ screens
 function showHome() {
+  document.body.classList.remove('reading', 'night');
+  $('#readBar').hidden = true;
   $('#home').hidden = false;
   $('#viewer').hidden = true;
   $('#toolbar').hidden = true;
@@ -1108,7 +1123,8 @@ function setTool(tool) {
   finishEditing();
   const prevEdit = S.tool === 'edittext';
   S.tool = tool;
-  document.body.className = 'tool-' + tool;
+  document.body.classList.forEach(c => { if (c.startsWith('tool-')) document.body.classList.remove(c); });
+  document.body.classList.add('tool-' + tool);
   $$('#toolbar .tool[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
   if (tool === 'edittext' || prevEdit) renderAllLayers();
   if (tool === 'edittext') toast('Tap any highlighted text to change it');
@@ -1139,6 +1155,7 @@ function updatePropbar() {
   bar.hidden = false;
   const isAnnot = t && t.kind === 'annot';
   $('#propSelWrap').hidden = !isAnnot || !!S.editing;
+  $('#propDoneWrap').hidden = !S.editing;
   if (!t) {
     $('#propColors').hidden = $('#propSizeWrap').hidden = $('#propFontWrap').hidden = $('#propFillWrap').hidden = true;
     if (!isAnnot) bar.hidden = true;
@@ -1471,7 +1488,7 @@ async function openFormsPanel() {
     const usedSrc = [...new Set(S.pages.filter(p => p.src !== null).map(p => p.src))];
     for (const si of usedSrc) {
       let doc;
-      try { doc = await PDFDocument.load(S.sources[si].bytes, { updateMetadata: false }); } catch (e) { continue; }
+      try { doc = await libLoad(si); } catch (e) { continue; }
       const form = doc.getForm();
       for (const f of form.getFields()) {
         const name = f.getName();
@@ -1548,7 +1565,7 @@ async function applyForms() {
     formState.fields.forEach(f => { (bySrc[f.si] = bySrc[f.si] || []).push(f); });
     let failed = 0;
     for (const si of Object.keys(bySrc).map(Number)) {
-      const doc = await PDFDocument.load(S.sources[si].bytes, { updateMetadata: false });
+      const doc = await libLoad(si);
       const form = doc.getForm();
       for (const f of bySrc[si]) {
         try {
@@ -1710,12 +1727,36 @@ async function rasterizePage(out, p) {
   return page;
 }
 
+// Empty the base document's page tree so pages can be re-added in the new order.
+// Kept pages get their inherited attributes (MediaBox, Resources, ...) copied onto
+// themselves first, because the tree they inherited them from is being replaced.
+function resetPageTree(out, baseOrig, used) {
+  const { PDFName, PDFNumber } = PDFLib;
+  const INHERITED = ['Resources', 'MediaBox', 'CropBox', 'Rotate'];
+  baseOrig.forEach((pg, idx) => {
+    if (!used.has(idx)) return;
+    for (const k of INHERITED) {
+      const name = PDFName.of(k);
+      if (!pg.node.get(name)) {
+        const v = pg.node.getInheritableAttribute(name);
+        if (v) pg.node.set(name, v);
+      }
+    }
+  });
+  const rootRef = out.catalog.get(PDFName.of('Pages'));
+  const root = out.context.lookup(rootRef);
+  root.set(PDFName.of('Kids'), out.context.obj([]));
+  root.set(PDFName.of('Count'), PDFNumber.of(0));
+  out.pageCount = 0;
+  out.pageCache.invalidate();
+}
+
 async function buildPdf(pages, fresh) {
   // Load pdf-lib copies of every source we need; encrypted ones get rasterized.
   const libs = {};
   let rasterized = 0;
   for (const si of new Set(pages.filter(p => p.src !== null).map(p => p.src))) {
-    try { libs[si] = await PDFDocument.load(S.sources[si].bytes, { updateMetadata: false }); } catch (e) { libs[si] = null; }
+    try { libs[si] = await libLoad(si); } catch (e) { console.warn('pdf-lib load failed', e); libs[si] = null; }
   }
   const baseSrc = fresh ? -1 : (pages.find(p => p.src !== null && libs[p.src]) || {}).src;
   let out;
@@ -1739,7 +1780,7 @@ async function buildPdf(pages, fresh) {
     const copied = await out.copyPages(libs[si], req.map(r => r.idx));
     req.forEach((r, j) => { plan[r.i] = { page: copied[j] }; });
   }
-  for (let i = out.getPageCount() - 1; i >= 0; i--) out.removePage(i);
+  resetPageTree(out, baseOrig, used);
 
   const fonts = {}, imgCache = {};
   for (let i = 0; i < pages.length; i++) {
@@ -1780,35 +1821,52 @@ async function exportAndSave(pages, name, mode, fresh) {
   try {
     const { bytes, rasterized } = await buildPdf(pages, fresh);
     if (rasterized) toast(`${rasterized} protected page(s) were saved as images`, 4000);
-    if (hasBridge) {
-      busy(true, 'Saving…');
-      saveMode = fresh ? 'extract' : mode;
-      if (!AndroidBridge.beginFile(name)) throw new Error('storage unavailable');
-      const CH = 3 * 256 * 1024;
-      for (let i = 0; i < bytes.length; i += CH) {
-        if (!AndroidBridge.appendChunk(bytesToBase64(bytes.subarray(i, i + CH)))) throw new Error('write failed');
-      }
-      AndroidBridge.finishFile(mode);
-      // busy is cleared by onNativeSaved
-    } else {
-      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = name;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
-      if (!fresh) S.dirty = false;
-      busy(false);
-      window.__lastSaved = bytes; // used by automated tests
-    }
+    await saveBytes(bytes, name, mode, !fresh && mode === 'save');
   } catch (e) {
     console.error(e);
     busy(false);
     toast('Save failed: ' + (e.message || e), 5000);
   }
 }
+
+// Hands a finished file to Android (save dialog / share sheet / print) or downloads it in a browser.
+async function saveBytes(bytes, name, mode, marksClean) {
+  if (hasBridge) {
+    busy(true, mode === 'print' ? 'Preparing to print…' : 'Saving…');
+    saveMode = marksClean ? 'save' : 'other';
+    if (!AndroidBridge.beginFile(name)) throw new Error('storage unavailable');
+    const CH = 3 * 256 * 1024;
+    for (let i = 0; i < bytes.length; i += CH) {
+      if (!AndroidBridge.appendChunk(bytesToBase64(bytes.subarray(i, i + CH)))) throw new Error('write failed');
+    }
+    AndroidBridge.finishFile(mode);
+    // busy is cleared by onNativeSaved
+  } else {
+    const ext = name.split('.').pop().toLowerCase();
+    const url = URL.createObjectURL(new Blob([bytes], { type: MIME_BY_EXT[ext] || 'application/octet-stream' }));
+    if (mode === 'print') {
+      const w = window.open(url);
+      if (w) w.addEventListener('load', () => w.print());
+    } else {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    if (marksClean) S.dirty = false;
+    busy(false);
+    window.__lastSaved = bytes; // used by automated tests
+    window.__lastSavedName = name;
+  }
+}
+
+const MIME_BY_EXT = {
+  pdf: 'application/pdf', jpg: 'image/jpeg', png: 'image/png', zip: 'application/zip', txt: 'text/plain',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+};
 
 function outName() {
   return S.name.toLowerCase().endsWith('.pdf') ? S.name : S.name + '.pdf';
@@ -1832,6 +1890,8 @@ window.openIncoming = async name => {
 window.onAndroidBack = () => {
   if (!$('#dialog').hidden) { dialog.cancel && dialog.cancel(); return true; }
   if (!$('#signModal').hidden) { $('#signModal').hidden = true; return true; }
+  if (!$('#optModal').hidden) { $('#optModal').hidden = true; return true; }
+  if (document.body.classList.contains('reading')) { exitReading(); return true; }
   if (!$('#menu').hidden) { toggleMenu(false); return true; }
   if (!$('#pagesPanel').hidden) { $('#pagesPanel').hidden = true; return true; }
   if (!$('#formsPanel').hidden) { $('#formsPanel').hidden = true; return true; }
@@ -1855,7 +1915,7 @@ function pickFile(sel) {
 
 async function menuAction(m) {
   toggleMenu(false);
-  const needDoc = ['merge', 'blankpage', 'pages', 'forms', 'save', 'share', 'rename', 'close'];
+  const needDoc = ['merge', 'blankpage', 'pages', 'forms', 'save', 'share', 'rename', 'close', 'convert', 'compress', 'protect', 'read', 'print'];
   if (needDoc.includes(m) && !S.pages.length) { toast('Open a PDF first'); return; }
   switch (m) {
     case 'open':
@@ -1889,6 +1949,11 @@ async function menuAction(m) {
       break;
     }
     case 'close': closeDocument(); break;
+    case 'convert': openConvert(); break;
+    case 'compress': openCompress(); break;
+    case 'protect': openProtect(); break;
+    case 'read': enterReading(); break;
+    case 'print': printDoc(); break;
   }
 }
 
@@ -1925,6 +1990,22 @@ function init() {
   $('#propBg').onclick = () => { const t = propTarget(); if (t) setProp('bg', !t.a.bg); };
   $('#propFill').onclick = () => { const t = propTarget(); if (t) setProp('fill', !t.a.fill); };
   $('#propDelete').onclick = deleteSelected;
+  $('#propDone').onclick = () => { finishEditing(); S.selected = null; renderAllLayers(); updatePropbar(); };
+  // Tapping anywhere outside the text being edited (gaps, margins, bars) ends editing.
+  document.addEventListener('pointerdown', e => {
+    if (!S.editing) return;
+    const t = e.target;
+    if (t.closest('[contenteditable="true"]') || t.closest('.page') || t.closest('#propbar') || t.closest('.modal')) return;
+    finishEditing();
+  }, true);
+  // The keyboard's own "hide" leaves the text focused-less: end editing then too.
+  document.addEventListener('focusout', e => {
+    if (!S.editing || !e.target.isContentEditable) return;
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (S.editing && !(a && (a.isContentEditable || a.closest('#propbar')))) finishEditing();
+    }, 250);
+  });
   $('#propDup').onclick = duplicateSelected;
   // Keep focus in the text being edited when tapping property controls.
   $('#propbar').addEventListener('mousedown', e => { if (S.editing && e.target.tagName !== 'SELECT' && e.target.tagName !== 'INPUT') e.preventDefault(); });
@@ -1937,6 +2018,7 @@ function init() {
         case 'image': pickFile('#fileImage'); break;
         case 'sign': openSignature(); break;
         case 'forms': openFormsPanel(); break;
+        case 'read': enterReading(); break;
         case 'zoomin': setZoom(S.zoom * 1.25); break;
         case 'zoomout': setZoom(S.zoom / 1.25); break;
       }
@@ -1954,8 +2036,7 @@ function init() {
 
   // home
   $('#homeOpen').onclick = () => pickFile('#filePdf');
-  $('#homeImages').onclick = () => pickFile('#fileImagesPages');
-  $('#homeBlank').onclick = newBlankDoc;
+  $$('[data-home]').forEach(b => { b.onclick = () => homeTool(b.dataset.home); });
 
   // file inputs
   $('#filePdf').onchange = async e => {

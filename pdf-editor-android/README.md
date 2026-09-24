@@ -22,11 +22,19 @@ phone and allow "Install unknown apps" when prompted. Android 8.0+.
 | **Forms** | Fill real PDF form fields (text, checkboxes, dropdowns, radios), optionally flatten. |
 | **Pages** | Rotate, reorder, duplicate, delete, insert blank pages, extract selected pages to a new PDF. |
 | **Merge** | Append other PDFs; turn images into PDF pages. |
+| **Convert** | PDF → JPG, PNG (ZIP for several pages), Word (.docx) and Text; images → PDF. Text hidden under whiteout/edits is left out. |
+| **Compress** | Recommended / Strong shrink photos and scans but keep text selectable; Extreme turns pages into compact images. |
+| **Protect / Unlock** | AES-256 password, optionally blocking editing & copying. Save any PDF without its password or restrictions. |
+| **Read** | Full-screen reading mode with night mode and "go to page". |
+| **Print** | Straight to Android's print dialog (printers or "Save as PDF"). |
 | **Undo / Redo**, zoom, Save As, Share, "Open with" / "Share to" from any app. |
 
-Protected PDFs: password-protected files ask for the password. Files with
-owner restrictions (no editing/printing) open normally; their pages are saved
-as high-resolution images, since the restricted content cannot be rewritten.
+Protected PDFs: password-protected files ask for the password; files with
+editing/printing restrictions open normally. Both are saved decrypted with
+their text intact (a page is only saved as an image if its encryption type
+can't be read).
+
+While typing, tap **Done**, tap anywhere outside the text box, or press Back to finish.
 
 Everything you add is selectable in **Select** mode: drag to move, pull the
 round handle to resize, and use the bar above the tools to change colour/size,
@@ -36,7 +44,8 @@ duplicate or delete.
 
 - `app/src/main/assets/www/` – the editor UI (HTML/JS). Uses bundled
   [pdf.js](https://mozilla.github.io/pdf.js/) for rendering and
-  [pdf-lib](https://pdf-lib.js.org/) for writing PDFs.
+  [@cantoo/pdf-lib](https://github.com/cantoo-scribe/pdf-lib) (a pdf-lib fork that
+  adds encryption/decryption) for writing PDFs.
 - `MainActivity.java` – a WebView host that serves the assets locally, blocks
   all network requests, and bridges open/save/share to Android.
 
