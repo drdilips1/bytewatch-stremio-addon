@@ -24,6 +24,41 @@ the phone: no server, no account, no limits.
   any music or podcast app.
 - Speed from 0.5× to 3×.
 
+## Sync across devices (Google Drive)
+
+Tap the cloud icon in the library and sign in with Google. Your documents,
+thumbnails, listening positions and deletions sync through the hidden
+app-data folder of your own Google Drive (it uses your Drive storage; the app
+can't see anything else in your Drive). Sync runs when you open the app, add or
+remove a document, and leave the player; the newest listening position wins.
+
+### One-time setup
+
+Google only allows sign-in from an app it knows, identified by its package
+name and signing key. Do this once:
+
+1. **Signing key**: add the repository secrets `P2A_KEYSTORE_B64`,
+   `P2A_KEYSTORE_PASSWORD` and `P2A_KEY_ALIAS` (see *Keeping updates
+   installable* below), then let GitHub Actions build a new APK. The build log's
+   "Show signing certificate" step prints the key's SHA-1.
+2. In [Google Cloud Console](https://console.cloud.google.com/), create a project
+   (any name).
+3. **APIs & Services → Library**: enable the **Google Drive API**.
+4. **APIs & Services → OAuth consent screen** (Google Auth Platform):
+   - User type **External**, app name "Paper to Audio", your email as support
+     and developer contact.
+   - Data access / scopes: add `https://www.googleapis.com/auth/drive.appdata`.
+   - Audience: either add your Google account under **Test users**, or
+     **Publish app** (this scope doesn't need Google's verification).
+5. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   type **Android**, package name `com.paper2audio.app`, and the SHA-1 from
+   step 1.
+6. Install the new APK (uninstall the old one first this last time), then tap
+   the cloud icon and sign in. Repeat on your other devices with the same APK.
+
+If sign-in says it "isn't set up for this build", the SHA-1 or package name in
+the OAuth client doesn't match the installed APK.
+
 ## Voices
 
 - **◆ Kokoro voices (best, offline)**: an open-source AI voice model that runs

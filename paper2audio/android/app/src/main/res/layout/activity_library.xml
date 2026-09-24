@@ -36,6 +36,12 @@
         </LinearLayout>
 
         <ImageButton
+            android:id="@+id/btnSync"
+            style="@style/P2A.Icon"
+            android:contentDescription="Sync with Google Drive"
+            android:src="@drawable/ic_sync" />
+
+        <ImageButton
             android:id="@+id/btnTheme"
             style="@style/P2A.Icon"
             android:contentDescription="Theme"

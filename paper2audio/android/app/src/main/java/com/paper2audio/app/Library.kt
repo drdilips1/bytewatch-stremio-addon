@@ -77,10 +77,10 @@ object Library {
         index(context).writeText(arr.toString())
     }
 
-    fun source(context: Context, item: Item): Loader.Source {
-        val file = File(dir(context), "${item.id}.${item.kind.name.lowercase()}")
-        return Loader.Source(file, item.kind, item.sourceName, item.id)
-    }
+    fun fileName(item: Item) = "${item.id}.${item.kind.name.lowercase()}"
+
+    fun source(context: Context, item: Item): Loader.Source =
+        Loader.Source(File(dir(context), fileName(item)), item.kind, item.sourceName, item.id)
 
     /** The document open in the player (restored after the app restarts). */
     var currentId: String? = null
@@ -128,11 +128,75 @@ object Library {
         }
         source(context, item).file.delete()
         thumb(context, item.id).delete()
-        prefs(context).edit().remove("pos:${item.id}").apply()
+        // Remembered so sync removes it from other devices too.
+        val deleted = deleted(context).put(item.id, System.currentTimeMillis())
+        prefs(context).edit().remove("pos:${item.id}").remove("posAt:${item.id}")
+            .putString("deleted", deleted.toString()).apply()
         if (currentId == item.id) {
             currentId = null
             prefs(context).edit().remove("currentId").apply()
         }
+    }
+
+    private fun deleted(context: Context): JSONObject =
+        runCatching { JSONObject(prefs(context).getString("deleted", "{}")!!) }.getOrElse { JSONObject() }
+
+    class Merged(val items: List<Item>, val deleted: Set<String>, val json: JSONObject)
+
+    /**
+     * Merges the library index from another device ([remote], may be null) into
+     * this one: union of documents, newest metadata and listening position win,
+     * and deletions apply everywhere. Returns the merged index to upload.
+     */
+    fun merge(context: Context, remote: JSONObject?): Merged = synchronized(this) {
+        items(context)
+        val list = cache!!
+        val p = prefs(context)
+        val edit = p.edit()
+        val deleted = deleted(context)
+        remote?.optJSONObject("deleted")?.let { rd ->
+            rd.keys().forEach { k -> if (rd.optLong(k) > deleted.optLong(k, 0)) deleted.put(k, rd.optLong(k)) }
+        }
+        val remoteItems = remote?.optJSONArray("items")
+        for (i in 0 until (remoteItems?.length() ?: 0)) {
+            val o = remoteItems!!.getJSONObject(i)
+            val r = runCatching { Item.fromJson(o) }.getOrNull() ?: continue
+            val local = list.firstOrNull { it.id == r.id }
+            if (local == null) {
+                list.add(r)
+            } else if (r.opened > local.opened) {
+                local.title = r.title
+                local.author = r.author
+                local.opened = r.opened
+                local.paragraphs = r.paragraphs
+                local.words = r.words
+                local.chapters = r.chapters
+                local.pages = r.pages
+            }
+            val remoteAt = o.optLong("posAt", 0)
+            if (remoteAt > p.getLong("posAt:${r.id}", 0)) {
+                edit.putInt("pos:${r.id}", o.optInt("pos")).putLong("posAt:${r.id}", remoteAt)
+            }
+        }
+        val deletedIds = deleted.keys().asSequence().toSet()
+        for (gone in list.filter { it.id in deletedIds }) {
+            File(dir(context), fileName(gone)).delete()
+            thumb(context, gone.id).delete()
+            edit.remove("pos:${gone.id}").remove("posAt:${gone.id}")
+        }
+        list.removeAll { it.id in deletedIds }
+        if (currentId in deletedIds) {
+            currentId = null
+            edit.remove("currentId")
+        }
+        edit.putString("deleted", deleted.toString()).apply()
+        save(context)
+
+        val arr = JSONArray()
+        for (item in list) {
+            arr.put(item.toJson().put("pos", p.getInt("pos:${item.id}", 0)).put("posAt", p.getLong("posAt:${item.id}", 0)))
+        }
+        Merged(list.toList(), deletedIds, JSONObject().put("items", arr).put("deleted", deleted))
     }
 
     /** Listening progress, 0..100. */

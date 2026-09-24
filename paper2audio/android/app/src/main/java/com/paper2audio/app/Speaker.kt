@@ -438,7 +438,7 @@ object Speaker {
 
     private fun savePosition() {
         val d = doc ?: return
-        prefs.edit().putInt("pos:${d.key}", index).apply()
+        prefs.edit().putInt("pos:${d.key}", index).putLong("posAt:${d.key}", System.currentTimeMillis()).apply()
     }
 
     fun addListener(l: () -> Unit) {

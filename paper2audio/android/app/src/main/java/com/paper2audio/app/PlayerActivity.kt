@@ -381,6 +381,7 @@ class PlayerActivity : Activity() {
     }
 
     override fun onStop() {
+        DriveSync.request(this) // share the listening position with other devices
         Speaker.removeListener(refresh)
         Exporter.removeListener(refresh)
         Kokoro.removeListener(refresh)

@@ -11,8 +11,8 @@ android {
         applicationId = "com.paper2audio.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.5"
+        versionCode = 7
+        versionName = "1.6"
     }
 
     // Sign with your own key when P2A_KEYSTORE is set (see README), so new
@@ -62,5 +62,7 @@ dependencies {
     implementation("org.jsoup:jsoup:1.17.2")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.apache.commons:commons-compress:1.26.2")
+    // Google sign-in (Drive sync).
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }

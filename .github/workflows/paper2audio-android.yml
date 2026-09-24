@@ -49,6 +49,16 @@ jobs:
           ./gradlew assembleRelease --no-daemon --stacktrace
           cp app/build/outputs/apk/release/app-release.apk Paper2Audio.apk
 
+      - name: Show signing certificate (SHA-1 must match the Google Cloud OAuth client)
+        env:
+          HAS_KEY: ${{ secrets.P2A_KEYSTORE_B64 != '' }}
+        run: |
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          "$APKSIGNER" verify --print-certs Paper2Audio.apk | grep -i "SHA-1" || true
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::warning::No P2A_KEYSTORE_B64 secret: signed with a temporary debug key (Google sign-in won't work, and updates need an uninstall)."
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: Paper2Audio-apk

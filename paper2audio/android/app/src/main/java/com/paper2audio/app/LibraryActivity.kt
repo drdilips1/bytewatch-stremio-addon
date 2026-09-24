@@ -37,6 +37,7 @@ class LibraryActivity : Activity() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val refresh: () -> Unit = { renderMiniPlayer() }
+    private val syncRefresh: () -> Unit = { reload() }
     private val thumbs = LruCache<String, Bitmap>(40)
     private var items: List<Library.Item> = emptyList()
 
@@ -80,6 +81,7 @@ class LibraryActivity : Activity() {
         findViewById<Button>(R.id.btnAddFile).setOnClickListener { openPicker() }
         findViewById<Button>(R.id.btnAddLink).setOnClickListener { askForLink() }
         findViewById<ImageButton>(R.id.btnTheme).setOnClickListener { Themes.showPicker(this) }
+        findViewById<ImageButton>(R.id.btnSync).setOnClickListener { showSync() }
         miniPlayer.setOnClickListener { startActivity(Intent(this, PlayerActivity::class.java)) }
         miniPlay.setOnClickListener { Speaker.toggle() }
 
@@ -99,11 +101,12 @@ class LibraryActivity : Activity() {
         items = Library.items(this)
         adapter.notifyDataSetChanged()
         emptyView.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
-        summary.text = when (items.size) {
+        val count = when (items.size) {
             0 -> "Papers and books to listen to"
             1 -> "1 document"
             else -> "${items.size} documents"
         }
+        summary.text = if (DriveSync.enabled(this)) "$count · ${syncLabel()}" else count
         renderMiniPlayer()
     }
 
@@ -126,6 +129,60 @@ class LibraryActivity : Activity() {
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+
+    // ---- Google Drive sync ----
+
+    private fun syncLabel(): String {
+        DriveSync.status?.let { if (DriveSync.running || it.startsWith("Sync failed") || DriveSync.needsSignIn) return it }
+        val at = DriveSync.lastSync(this)
+        if (at == 0L) return "Not synced yet"
+        val minutes = (System.currentTimeMillis() - at) / 60_000
+        return when {
+            minutes < 1 -> "Synced just now"
+            minutes < 60 -> "Synced $minutes min ago"
+            minutes < 48 * 60 -> "Synced ${minutes / 60} h ago"
+            else -> "Synced ${minutes / (24 * 60)} days ago"
+        }
+    }
+
+    private fun signIn() {
+        GoogleAuth.signIn(
+            this,
+            onToken = { DriveSync.enable(this, it) },
+            onError = { AlertDialog.Builder(this).setTitle("Sign-in failed").setMessage(it).setPositiveButton("OK", null).show() },
+        )
+    }
+
+    private fun showSync() {
+        if (!DriveSync.enabled(this)) {
+            AlertDialog.Builder(this)
+                .setTitle("Sync with Google Drive")
+                .setMessage(
+                    "Sign in with Google to keep your library, reading positions and deletions " +
+                        "the same on all your devices.\n\nFiles are stored in a private app folder in your " +
+                        "own Google Drive (it uses your Drive storage). The app can't see anything else in your Drive."
+                )
+                .setPositiveButton("Sign in with Google") { _, _ -> signIn() }
+                .setNegativeButton("Not now", null)
+                .show()
+            return
+        }
+        val who = DriveSync.email(this)?.let { "Signed in as $it\n" } ?: ""
+        val builder = AlertDialog.Builder(this)
+            .setTitle("Google Drive sync")
+            .setMessage("$who${syncLabel()}\n\nSyncs automatically when you open the app, add or remove documents, and leave the player.")
+            .setNeutralButton("Turn off") { _, _ ->
+                DriveSync.disable(this)
+                reload()
+            }
+            .setNegativeButton("Close", null)
+        if (DriveSync.needsSignIn) {
+            builder.setPositiveButton("Sign in again") { _, _ -> signIn() }
+        } else {
+            builder.setPositiveButton("Sync now") { _, _ -> DriveSync.request(this) }
+        }
+        builder.show()
+    }
 
     // ---- Opening and importing ----
 
@@ -160,6 +217,7 @@ class LibraryActivity : Activity() {
                 withContext(Dispatchers.IO) { Library.opened(this@LibraryActivity, item, doc) }
                 Speaker.load(doc)
                 reload()
+                DriveSync.request(this@LibraryActivity)
                 openPlayer()
             } catch (e: Exception) {
                 toast(e.message ?: "Could not open that")
@@ -205,6 +263,7 @@ class LibraryActivity : Activity() {
                 Library.remove(this, item)
                 thumbs.remove(item.id)
                 reload()
+                DriveSync.request(this)
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -227,6 +286,10 @@ class LibraryActivity : Activity() {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_OPEN && resultCode == RESULT_OK) data?.data?.let(::importUri)
+        if (requestCode == GoogleAuth.REQ_AUTH) {
+            val token = if (resultCode == RESULT_OK) GoogleAuth.tokenFromResult(this, data) else null
+            if (token != null) DriveSync.enable(this, token) else toast("Google sign-in was cancelled")
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -317,11 +380,14 @@ class LibraryActivity : Activity() {
     override fun onStart() {
         super.onStart()
         Speaker.addListener(refresh)
+        DriveSync.addListener(syncRefresh)
         reload()
+        DriveSync.request(this)
     }
 
     override fun onStop() {
         Speaker.removeListener(refresh)
+        DriveSync.removeListener(syncRefresh)
         super.onStop()
     }
 
