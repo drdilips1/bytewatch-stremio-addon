@@ -2,6 +2,7 @@
 // TorBox or Real-Debrid account, and add new magnets / links to it.
 import { getJson, sendForm, qs } from '../lib/http.js';
 import { debrid } from '../lib/store.js';
+import { matches } from '../lib/match.js';
 
 const AUDIO = /\.(mp3|m4a|m4b|aac|flac|ogg|oga|opus|wav|wma|mka|mp4a)$/i;
 const TB = 'https://api.torbox.app/v1/api';
@@ -42,6 +43,7 @@ function toBook(prefix, source, id, name, files, extra = {}) {
     title,
     author,
     cover: '',
+    rawName: name,
     parts: files.length,
     ...extra,
   };
@@ -193,10 +195,6 @@ export function details(book) {
 }
 
 export async function search(term) {
-  const words = term.toLowerCase().split(/\s+/).filter((w) => w.length > 1);
   const [a, b] = await Promise.all([torboxLibrary().catch(() => []), realdebridLibrary().catch(() => [])]);
-  return [...a, ...b].filter((x) => {
-    const hay = `${x.title} ${x.author}`.toLowerCase();
-    return words.length && words.every((w) => hay.includes(w));
-  });
+  return [...a, ...b].filter((x) => matches(term, `${x.title} ${x.author} ${x.rawName || ''}`));
 }

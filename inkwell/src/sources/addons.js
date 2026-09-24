@@ -57,11 +57,14 @@ export async function install(rawUrl) {
       if (installed.length) return { name: `${installed.length} addon${installed.length > 1 ? 's' : ''}`, id: installed[0].id };
     }
     const keys = data && typeof data === 'object' ? Object.keys(data).slice(0, 6).join(', ') : typeof data;
-    lastErr = new Error(`That link returned JSON, but not an addon manifest (it has: ${keys || 'nothing'}). An addon manifest needs "id", "name" and "resources".`);
+    lastErr = new Error(`This addon uses a format Inkwell doesn't support yet (it has: ${keys || 'nothing'}).`);
+    lastErr.raw = data;
     break;
   }
   throw lastErr || new Error('Could not load that addon');
 }
+
+export const count = () => addons.get().length;
 
 export function uninstall(id) {
   addons.set((list) => list.filter((a) => a.manifest.id !== id));

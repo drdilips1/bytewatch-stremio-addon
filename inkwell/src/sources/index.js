@@ -9,6 +9,7 @@ import * as hc from './hardcover.js';
 import * as gr from './goodreads.js';
 import { settings } from '../lib/store.js';
 import { getJson, qs } from '../lib/http.js';
+import { matches, mainTitle } from '../lib/match.js';
 
 export const SOURCES = {
   ia: { name: 'Internet Archive', short: 'Archive', hue: 28, kind: 'Listen', blurb: 'LibriVox mirror, old-time radio & spoken word', impl: ia },
@@ -71,18 +72,37 @@ export function searchAll(term, onResult) {
 // Find listenable / readable copies of a book discovered elsewhere (Open Library,
 // Hardcover, Goodreads) across every connected source.
 export async function findEditions(book) {
-  const t = book.title.replace(/[:(].*$/, '').trim();
-  const author = (book.author || '').split(',')[0].split(' ').pop();
-  const q = `${t} ${author}`.trim();
+  const t = mainTitle(book.title);
+  const author = (book.author || '').split(',')[0].trim();
+  const surname = author.split(' ').pop();
   const safe = (p) => p.catch(() => []);
-  const [audio, text, server, cloudHits, addonHits] = await Promise.all([
-    enabled('ia') ? safe(ia.query(`title:(${t.replace(/[():"]/g, ' ')})${author ? ` AND creator:(${author})` : ''}`, { rows: 8 })) : [],
-    enabled('gb') ? safe(gb.search(q)) : [],
-    enabled('abs') && absSrc.connected() ? safe(absSrc.search(t)) : [],
-    (enabled('tb') && cloud.tbConnected()) || (enabled('rd') && cloud.rdConnected()) ? safe(cloud.search(t)) : [],
-    enabled('addon') ? safe(addonSrc.search(q)) : [],
+  const byTitle = (list) => list.filter((b) => matches(t, `${b.title} ${b.rawName || ''}`));
+  const plain = t.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  const [audio, text, server, cloudHits, addonHits, addonHits2] = await Promise.all([
+    enabled('ia') ? safe(ia.query(`title:(${plain})${surname ? ` AND creator:(${surname})` : ''}`, { rows: 8 })) : [],
+    enabled('gb') ? safe(gb.search(`${plain} ${surname}`.trim())) : [],
+    enabled('abs') && absSrc.connected() ? safe(absSrc.search(plain)) : [],
+    (enabled('tb') && cloud.tbConnected()) || (enabled('rd') && cloud.rdConnected()) ? safe(cloud.search(plain)) : [],
+    enabled('addon') ? safe(addonSrc.search(plain)) : [],
+    enabled('addon') && surname ? safe(addonSrc.search(`${plain} ${surname}`)) : [],
   ]);
-  return { server, cloud: cloudHits, addons: addonHits.slice(0, 12), audio, text: text.slice(0, 8) };
+  const seen = new Set();
+  const addons = [...addonHits, ...addonHits2].filter((b) => !seen.has(b.uid) && seen.add(b.uid));
+  return {
+    server: byTitle(server),
+    cloud: byTitle(cloudHits),
+    addons: addons.slice(0, 12),
+    audio,
+    text: text.slice(0, 8),
+    searched: [
+      absSrc.connected() && enabled('abs') && 'your Audiobookshelf',
+      cloud.tbConnected() && enabled('tb') && 'your TorBox files',
+      cloud.rdConnected() && enabled('rd') && 'your Real-Debrid files',
+      enabled('addon') && addonSrc.count() > 0 && `${addonSrc.count()} addon${addonSrc.count() > 1 ? 's' : ''}`,
+      enabled('ia') && 'LibriVox/Internet Archive',
+      enabled('gb') && 'Project Gutenberg',
+    ].filter(Boolean),
+  };
 }
 
 export { ia, lv, gb, ol, absSrc, addonSrc, cloud, hc, gr, enabled };

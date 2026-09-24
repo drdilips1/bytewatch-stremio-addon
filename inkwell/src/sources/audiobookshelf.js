@@ -95,7 +95,7 @@ function toBook(item) {
     kind: li.media?.numAudioFiles === 0 && li.media?.ebookFormat ? 'text' : 'audio',
     title: md.title || li.name || 'Untitled',
     author: md.authorName || (md.authors || []).map((a) => a.name).join(', '),
-    cover: li.media?.coverPath ? `${base()}/api/items/${li.id}/cover?${qs({ token: cfg().token, width: 400 })}` : '',
+    cover: `${base()}/api/items/${li.id}/cover?${qs({ token: cfg().token, width: 400 })}`,
     year: md.publishedYear || '',
     duration: li.media?.duration || 0,
   };
@@ -151,6 +151,8 @@ async function startSession(id) {
     url: (/^https?:/.test(t.contentUrl) ? t.contentUrl : base() + t.contentUrl) + (t.contentUrl.includes('?') ? '&' : '?') + qs({ token: tok }),
     duration: t.duration,
     offset: t.startOffset,
+    // Native playback sends the token as a header too (newer servers prefer it).
+    headers: { Authorization: `Bearer ${tok}` },
     index: i,
   }));
   return { tracks, sessionId: s.id, startTime: s.currentTime || 0 };

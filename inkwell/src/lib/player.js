@@ -1,11 +1,9 @@
-// Global audio engine: multi-track books, chapters, speed, sleep timer,
-// bookmarks, progress persistence and lock-screen / notification controls.
-import { MediaSession } from '@capgo/capacitor-media-session';
+// Global audiobook player: multi-track books, chapters, speed, sleep timer,
+// bookmarks, progress persistence and system media controls. Audio output is
+// delegated to an engine (native Media3 on Android, <audio> on the web).
+import { createEngine } from './engine.js';
 import { progress, bookmarks, settings, summarize } from './store.js';
 import { syncProgress } from '../sources/audiobookshelf.js';
-
-const audio = new Audio();
-audio.preload = 'auto';
 
 const state = {
   book: null,
@@ -39,6 +37,41 @@ function set(p) {
   Object.assign(state, p);
   emit();
 }
+
+// --- engine -----------------------------------------------------------------
+const engine = createEngine({
+  time(pos, dur) {
+    const t = state.tracks[state.index];
+    if (t && dur > 0) t.duration = dur;
+    set({ time: pos, duration: dur || state.duration });
+    saveProgress();
+    if (state.sleepUntil && Date.now() >= state.sleepUntil) fadeOutAndPause();
+  },
+  playing(on) {
+    set({ playing: on, ...(on ? { loading: false, error: null } : {}) });
+    if (!on) saveProgress(true);
+  },
+  waiting: () => !state.loading && set({ loading: true }),
+  ready: () => state.loading && set({ loading: false }),
+  ended() {
+    if (state.sleepEndOfTrack) {
+      set({ sleepEndOfTrack: false, playing: false });
+      saveProgress(true);
+      return;
+    }
+    if (state.index < state.tracks.length - 1) loadTrack(state.index + 1, 0);
+    else {
+      set({ playing: false });
+      saveProgress(true);
+    }
+  },
+  error: (msg) => set({ loading: false, playing: false, error: msg }),
+  remote(action) {
+    const s = settings.get();
+    if (action === 'next') skip(s.skipForward || 30);
+    else if (action === 'previous') skip(-(s.skipBack || 15));
+  },
+});
 
 // --- time helpers (global position across tracks) ---------------------------
 function trackOffset(i) {
@@ -74,18 +107,17 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
     }
     if (token !== loadToken) return;
     if (!url) throw new Error('No playable stream for this part');
-    audio.src = url;
-    audio.playbackRate = state.rate;
-    const seekOnce = () => {
-      if (startAt > 0) audio.currentTime = startAt;
-      audio.removeEventListener('loadedmetadata', seekOnce);
-    };
-    audio.addEventListener('loadedmetadata', seekOnce);
-    updateMetadata();
-    if (autoplay) await audio.play();
+    const b = state.book;
+    await engine.load(url, {
+      start: startAt,
+      autoplay,
+      rate: state.rate,
+      headers: t.headers,
+      meta: { title: t.title || b.title, artist: b.author || '', album: b.title, artwork: b.cover || '' },
+    });
+    if (!autoplay) set({ loading: false });
   } catch (e) {
-    if (token !== loadToken) return;
-    if (e.name === 'AbortError') return;
+    if (token !== loadToken || e?.name === 'AbortError') return;
     set({ loading: false, playing: false, error: e.message || 'Playback failed' });
   }
 }
@@ -110,7 +142,7 @@ export async function playBook(details, { index, time, globalStart } = {}) {
     const resume = saved && !saved.finished;
     let i = index ?? (resume ? saved.track : 0) ?? 0;
     let t = time ?? (resume ? saved.time : 0);
-    const g = globalStart ?? (index == null && time == null && !saved && serverStart ? serverStart : null);
+    const g = globalStart ?? (index == null && time == null && !resume && serverStart ? serverStart : null);
     if (g != null) ({ i, t } = locate(g));
     // Gentle rewind when resuming after a break.
     if (resume && index == null && time == null && Date.now() - saved.updatedAt > 5 * 60e3) t = Math.max(0, t - 10);
@@ -131,41 +163,45 @@ function locate(g) {
 // --- controls ---------------------------------------------------------------
 export function toggle() {
   if (!state.book) return;
-  if (audio.paused) audio.play().catch((e) => set({ error: e.message }));
-  else audio.pause();
+  if (state.error) return loadTrack(state.index, state.time); // retry after a failure
+  if (state.playing || !engine.paused) engine.pause();
+  else Promise.resolve(engine.play()).catch((e) => set({ error: e.message }));
 }
-export const pause = () => audio.pause();
+export const pause = () => engine.pause();
 export function seek(t) {
   if (!isFinite(t)) return;
-  audio.currentTime = Math.max(0, Math.min(t, (audio.duration || state.duration || t) - 0.25));
-  set({ time: audio.currentTime });
+  const d = state.duration || engine.duration;
+  const clamped = Math.max(0, d ? Math.min(t, d - 0.25) : t);
+  engine.seek(clamped);
+  set({ time: clamped });
 }
 export function seekGlobal(g) {
   const { i, t } = locate(g);
   if (i === state.index) seek(t);
-  else loadTrack(i, t, !audio.paused || state.playing);
+  else loadTrack(i, t, state.playing);
 }
 export function skip(delta) {
-  const t = audio.currentTime + delta;
+  const t = state.time + delta;
   if (t < 0 && state.index > 0) {
-    const prev = state.tracks[state.index - 1];
-    return loadTrack(state.index - 1, Math.max(0, (prev.duration || 0) + t));
+    const prevTrack = state.tracks[state.index - 1];
+    return loadTrack(state.index - 1, Math.max(0, (prevTrack.duration || 0) + t), state.playing);
   }
-  if (audio.duration && t > audio.duration && state.index < state.tracks.length - 1) return loadTrack(state.index + 1, 0);
+  const d = state.duration || engine.duration;
+  if (d && t > d && state.index < state.tracks.length - 1) return loadTrack(state.index + 1, 0, state.playing);
   seek(t);
 }
 export function next() {
   if (state.index < state.tracks.length - 1) loadTrack(state.index + 1, 0);
 }
 export function prev() {
-  if (audio.currentTime > 5 || state.index === 0) seek(0);
+  if (state.time > 5 || state.index === 0) seek(0);
   else loadTrack(state.index - 1, 0);
 }
 export function jumpTo(i, t = 0) {
   loadTrack(i, t);
 }
 export function setRate(r) {
-  audio.playbackRate = r;
+  engine.setRate(r);
   set({ rate: r });
   settings.patch({ speed: r });
 }
@@ -174,19 +210,19 @@ export function setSleep(mode) {
   else if (!mode) set({ sleepUntil: null, sleepEndOfTrack: false });
   else set({ sleepUntil: Date.now() + mode * 60e3, sleepEndOfTrack: false });
 }
+
+/** Stop playback and dismiss the player completely. */
 export function stop() {
   saveProgress(true);
-  audio.pause();
-  audio.removeAttribute('src');
-  audio.load();
-  set({ book: null, tracks: [], playing: false, time: 0, duration: 0, sleepUntil: null, sleepEndOfTrack: false });
-  MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+  loadToken++;
+  Promise.resolve(engine.stop()).catch(() => {});
+  set({ book: null, tracks: [], playing: false, loading: false, error: null, time: 0, duration: 0, sleepUntil: null, sleepEndOfTrack: false });
 }
 
 export function addBookmark(label) {
   if (!state.book) return;
   const uid = state.book.uid;
-  const bm = { track: state.index, time: audio.currentTime, global: globalTime(), label: label || `${state.tracks[state.index]?.title || 'Bookmark'}`, createdAt: Date.now() };
+  const bm = { track: state.index, time: state.time, global: globalTime(), label: label || `${state.tracks[state.index]?.title || 'Bookmark'}`, createdAt: Date.now() };
   bookmarks.set((all) => ({ ...all, [uid]: [...(all[uid] || []), bm].sort((a, b) => a.global - b.global) }));
   return bm;
 }
@@ -200,14 +236,15 @@ function saveProgress(force = false) {
   lastSave = now;
   const total = totalDuration();
   const g = globalTime();
-  const finished = state.index === state.tracks.length - 1 && audio.duration && audio.currentTime >= audio.duration - 2;
+  const d = state.duration;
+  const finished = state.index === state.tracks.length - 1 && d > 0 && state.time >= d - 2;
   const uid = state.book.uid;
   progress.set((p) => ({
     ...p,
     [uid]: {
       kind: 'audio',
       track: state.index,
-      time: audio.currentTime || 0,
+      time: state.time || 0,
       global: g,
       total,
       percent: total ? Math.min(1, g / total) : 0,
@@ -219,91 +256,18 @@ function saveProgress(force = false) {
   if (uid.startsWith('abs:')) syncProgress(uid, g, total, !!finished);
 }
 
-// --- audio element events ---------------------------------------------------
-audio.addEventListener('playing', () => {
-  set({ playing: true, loading: false, error: null });
-  MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(() => {});
-});
-audio.addEventListener('pause', () => {
-  set({ playing: false });
-  saveProgress(true);
-  MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(() => {});
-});
-audio.addEventListener('waiting', () => set({ loading: true }));
-audio.addEventListener('canplay', () => set({ loading: false }));
-audio.addEventListener('loadedmetadata', () => {
-  const t = state.tracks[state.index];
-  if (t && isFinite(audio.duration)) t.duration = audio.duration;
-  set({ duration: audio.duration || 0 });
-});
-audio.addEventListener('timeupdate', () => {
-  set({ time: audio.currentTime });
-  saveProgress();
-  if (state.sleepUntil && Date.now() >= state.sleepUntil) {
-    fadeOutAndPause();
-  }
-  if (Math.floor(audio.currentTime) % 5 === 0) updatePosition();
-});
-audio.addEventListener('ended', () => {
-  if (state.sleepEndOfTrack) {
-    set({ sleepEndOfTrack: false });
-    saveProgress(true);
-    return;
-  }
-  if (state.index < state.tracks.length - 1) loadTrack(state.index + 1, 0);
-  else {
-    set({ playing: false });
-    saveProgress(true);
-  }
-});
-audio.addEventListener('error', () => {
-  if (!audio.getAttribute('src')) return;
-  set({ loading: false, playing: false, error: 'Could not load this audio stream' });
-});
-
 function fadeOutAndPause() {
   set({ sleepUntil: null });
-  const start = audio.volume;
   let step = 0;
   const iv = setInterval(() => {
     step++;
-    audio.volume = Math.max(0, start * (1 - step / 20));
+    engine.setVolume(Math.max(0, 1 - step / 20));
     if (step >= 20) {
       clearInterval(iv);
-      audio.pause();
-      audio.volume = start;
+      engine.pause();
+      engine.setVolume(1);
     }
   }, 150);
-}
-
-// --- system media controls ----------------------------------------------------
-function updateMetadata() {
-  const b = state.book;
-  if (!b) return;
-  MediaSession.setMetadata({
-    title: state.tracks[state.index]?.title || b.title,
-    artist: b.author || '',
-    album: b.title,
-    artwork: b.cover ? [{ src: b.cover, sizes: '512x512', type: 'image/jpeg' }] : [],
-  }).catch(() => {});
-}
-function updatePosition() {
-  if (!audio.duration || !isFinite(audio.duration)) return;
-  MediaSession.setPositionState({ duration: audio.duration, position: Math.min(audio.currentTime, audio.duration), playbackRate: audio.playbackRate }).catch(() => {});
-}
-
-const handlers = {
-  play: () => audio.play(),
-  pause: () => audio.pause(),
-  seekbackward: () => skip(-(settings.get().skipBack || 15)),
-  seekforward: () => skip(settings.get().skipForward || 30),
-  previoustrack: () => prev(),
-  nexttrack: () => next(),
-  seekto: (d) => d?.seekTime != null && seek(d.seekTime),
-  stop: () => stop(),
-};
-for (const [action, fn] of Object.entries(handlers)) {
-  MediaSession.setActionHandler({ action }, fn).catch(() => {});
 }
 
 document.addEventListener('visibilitychange', () => saveProgress(true));

@@ -4,8 +4,16 @@ import { Icon } from '../components/icons.jsx';
 import { searchAll, SOURCES } from '../sources/index.js';
 import { persisted, useStore } from '../lib/store.js';
 import { GenreChips } from './Home.jsx';
+import { nav } from '../lib/nav.js';
 
 const recent = persisted('recentSearches', []);
+let pendingQuery = '';
+
+/** Jump to the Discover tab with a query already typed in. */
+export function openSearch(q) {
+  pendingQuery = q;
+  nav.tab('discover');
+}
 const FILTERS = [
   ['all', 'All'],
   ['audio', 'Listen'],
@@ -14,7 +22,11 @@ const FILTERS = [
 ];
 
 export function Discover() {
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(() => {
+    const p = pendingQuery;
+    pendingQuery = '';
+    return p;
+  });
   const [term, setTerm] = useState('');
   const [results, setResults] = useState({});
   const [pending, setPending] = useState(0);

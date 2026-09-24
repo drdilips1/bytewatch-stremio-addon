@@ -4,10 +4,12 @@ import { SOURCES, sourceOf } from '../sources/index.js';
 import { Icon } from './icons.jsx';
 import { nav } from '../lib/nav.js';
 import { progress as progressStore, useStore } from '../lib/store.js';
+import { useImage } from '../lib/image.js';
 
 export function Cover({ book, class: cls = '', eager }) {
+  const { src, failed: proxyFailed } = useImage(book?.cover || '');
   const [failed, setFailed] = useState(!book?.cover);
-  useEffect(() => setFailed(!book?.cover), [book?.cover]);
+  useEffect(() => setFailed(!book?.cover || proxyFailed), [book?.cover, proxyFailed]);
   const hue = hashHue(book?.title || '');
   return (
     <div class={'cover ' + cls} style={{ '--h': hue }}>
@@ -15,9 +17,9 @@ export function Cover({ book, class: cls = '', eager }) {
         <span class="cover-title">{book?.title}</span>
         <span class="cover-author">{book?.author}</span>
       </div>
-      {!failed && (
+      {!failed && src && (
         <img
-          src={book.cover}
+          src={src}
           alt=""
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"

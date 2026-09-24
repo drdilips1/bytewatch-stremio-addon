@@ -1986,3 +1986,45 @@ select {
 .muted a {
   color: var(--accent-2);
 }
+.mini-close {
+  width: 34px;
+  height: 34px;
+  margin-left: -4px;
+  opacity: 0.75;
+}
+.mini-player .mini-sub .err {
+  white-space: normal;
+}
+.btn.ghost-wide {
+  margin-top: 12px;
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.raw-box {
+  margin: 4px 0 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.raw-box p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.raw-box pre {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0 0 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font-size: 11.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+}

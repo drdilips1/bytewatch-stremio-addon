@@ -1,3 +1,4 @@
+import { BgImage } from '../components/bg-image.jsx';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Row, Cover, BookCard } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
@@ -26,7 +27,7 @@ function Hero() {
   return (
     <div class="hero" onClick={() => nav.push('book', { book: b })}>
       <div class="hero-bg" key={b.uid}>
-        <img src={b.cover} alt="" />
+        <BgImage url={b.cover} />
       </div>
       <div class="hero-body">
         <span class="hero-tag">

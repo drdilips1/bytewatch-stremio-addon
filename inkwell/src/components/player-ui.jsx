@@ -1,3 +1,5 @@
+import { BgImage } from './bg-image.jsx';
+import { loadImage } from '../lib/image.js';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import * as player from '../lib/player.js';
 import { Cover, toast } from './common.jsx';
@@ -19,7 +21,10 @@ export function useCoverColor(book) {
   useEffect(() => {
     if (!book || !st.dynamicColor) return setC(null);
     let alive = true;
-    coverColor(book.cover, book.title).then((col) => alive && setC(col));
+    loadImage(book.cover)
+      .catch(() => '')
+      .then((src) => coverColor(src, book.title))
+      .then((col) => alive && setC(col));
     return () => (alive = false);
   }, [book?.cover, st.dynamicColor]);
   return c;
@@ -58,6 +63,16 @@ export function MiniPlayer() {
       >
         {s.loading ? <span class="spinner" /> : <Icon name={s.playing ? 'pause' : 'play'} size={20} />}
       </button>
+      <button
+        class="icon-btn mini-close"
+        aria-label="Close player"
+        onClick={(e) => {
+          e.stopPropagation();
+          player.stop();
+        }}
+      >
+        <Icon name="close" size={18} />
+      </button>
     </div>
   );
 }
@@ -73,6 +88,8 @@ export function FullPlayer() {
   const [sheet, setSheet] = useState(null); // 'chapters' | 'speed' | 'sleep' | 'bookmarks'
   const [scrub, setScrub] = useState(null);
   const [, tick] = useState(0);
+  const [drag, setDrag] = useState(0);
+  const touch = useRef(null);
   useEffect(() => {
     if (!s.sleepUntil) return;
     const iv = setInterval(() => tick((x) => x + 1), 1000);
@@ -87,9 +104,26 @@ export function FullPlayer() {
   const sleepLeft = s.sleepUntil ? Math.max(0, (s.sleepUntil - Date.now()) / 1000) : 0;
 
   return (
-    <div class="full-player" style={color ? { '--dyn': color } : null}>
+    <div
+      class="full-player"
+      style={{ ...(color ? { '--dyn': color } : {}), transform: drag ? `translateY(${drag}px)` : undefined, transition: drag ? 'none' : undefined }}
+      onTouchStart={(e) => {
+        if (e.target.closest('input,.sheet')) return;
+        touch.current = e.touches[0].clientY;
+      }}
+      onTouchMove={(e) => {
+        if (touch.current == null) return;
+        setDrag(Math.max(0, e.touches[0].clientY - touch.current));
+      }}
+      onTouchEnd={() => {
+        if (touch.current == null) return;
+        touch.current = null;
+        if (drag > 120) nav.closeOverlay();
+        setDrag(0);
+      }}
+    >
       <div class="fp-bg">
-        {s.book.cover && <img src={s.book.cover} alt="" />}
+        {s.book.cover && <BgImage url={s.book.cover} />}
       </div>
       <header class="fp-top">
         <button class="icon-btn" onClick={() => nav.closeOverlay()} aria-label="Close player">

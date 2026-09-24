@@ -305,6 +305,7 @@ function AddonsCard() {
   const list = useStore(addons);
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
+  const [raw, setRaw] = useState(null);
   return (
     <>
       <p class="muted pad-s">
@@ -329,22 +330,50 @@ function AddonsCard() {
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
+          setRaw(null);
           try {
             const m = await addonSrc.install(url);
             toast(`Installed ${m.name}`);
             setUrl('');
           } catch (err) {
             toast(err.message || 'Install failed');
+            if (err.raw) setRaw({ message: err.message, json: JSON.stringify(err.raw, null, 2) });
           } finally {
             setBusy(false);
           }
         }}
       >
-        <input placeholder="https://…/manifest.json" value={url} onInput={(e) => setUrl(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} inputmode="url" />
+        <input placeholder="https://…/manifest.json or a JSON link" value={url} onInput={(e) => setUrl(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} inputmode="url" />
         <button class="btn primary" disabled={busy || !url}>
           {busy ? <span class="spinner" /> : <Icon name="plus" size={16} />}
         </button>
       </form>
+      {raw && (
+        <div class="raw-box">
+          <p>
+            <b>{raw.message}</b> Tap Copy and send this to the developer to get it supported:
+          </p>
+          <pre>{raw.json.length > 4000 ? raw.json.slice(0, 4000) + '\n…' : raw.json}</pre>
+          <div class="chips">
+            <button
+              class="pill small"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(raw.json);
+                  toast('Copied');
+                } catch {
+                  toast('Long-press the text to copy it');
+                }
+              }}
+            >
+              Copy
+            </button>
+            <button class="pill small ghost" onClick={() => setRaw(null)}>
+              Hide
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -475,7 +504,7 @@ export function Settings() {
       </Section>
 
       <p class="about">
-        Inkwell 1.1 · Built-in sources are free and public domain.
+        Inkwell 1.2 · Built-in sources are free and public domain.
         <br />
         Addons and servers you add are your responsibility.
       </p>

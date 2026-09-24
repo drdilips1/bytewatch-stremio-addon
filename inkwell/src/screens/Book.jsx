@@ -1,3 +1,4 @@
+import { BgImage } from '../components/bg-image.jsx';
 import { useEffect, useState } from 'preact/hooks';
 import { Cover, SourceBadge, Row, toast } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
@@ -5,6 +6,8 @@ import { getDetails, findEditions, ia, hc, sourceOf } from '../sources/index.js'
 import { library, progress, toggleLibrary, useStore } from '../lib/store.js';
 import { fmtDuration, fmtTime } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
+import { openSearch } from './Discover.jsx';
+import { mainTitle } from '../lib/match.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
 
@@ -47,7 +50,7 @@ export function Book({ book: initial }) {
   return (
     <div class="screen book" style={color ? { '--dyn': color } : null}>
       <div class="book-hero">
-        <div class="book-hero-bg">{book.cover && <img src={book.cover} alt="" />}</div>
+        <div class="book-hero-bg">{book.cover && <BgImage url={book.cover} />}</div>
         <header class="topbar transparent">
           <button class="icon-btn glass" onClick={() => nav.back()} aria-label="Back">
             <Icon name="back" />
@@ -158,8 +161,15 @@ export function Book({ book: initial }) {
           <h3 class="section-label">Where to listen or read</h3>
           {!editions ? (
             <p class="muted">Searching your server, cloud, addons and free sources…</p>
-          ) : Object.values(editions).every((l) => !l.length) ? (
-            <p class="muted">No copy found in your connected sources or free libraries. Connect Audiobookshelf, TorBox/Real-Debrid or an addon in Settings to widen the search.</p>
+          ) : ['server', 'cloud', 'addons', 'audio', 'text'].every((k) => !editions[k].length) ? (
+            <>
+              <p class="muted">
+                Not found in {editions.searched.join(', ')}. Your TorBox and Real-Debrid search only covers files already in your account, so add the book there first (Settings → TorBox → add a magnet or link) or install an addon that searches for it.
+              </p>
+              <button class="btn ghost-wide" onClick={() => openSearch(mainTitle(book.title))}>
+                <Icon name="search" size={16} /> Search everything for “{mainTitle(book.title)}”
+              </button>
+            </>
           ) : null}
         </section>
       )}
