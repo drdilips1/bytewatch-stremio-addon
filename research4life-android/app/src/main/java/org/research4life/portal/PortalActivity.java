@@ -92,7 +92,7 @@ public class PortalActivity extends Activity {
         hint.setText(articleKey != null
                 ? "PDFs you open here save to this paper"
                 : R4LSession.hasCredentials(this, provider)
-                    ? name + ": " + R4LSession.username(this, provider) + " · signed in automatically"
+                    ? name + ": login saved for " + R4LSession.username(this, provider)
                     : name + " · your sign-in is remembered");
         String url = in.getStringExtra(EXTRA_URL);
         if (url != null) {

@@ -69,6 +69,7 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(fetchLayer);
         utd = new UtdClient(this, fetchLayer);
+        utd.setStatusListener(m -> emit(event("utdStatus", "message", m)));
         fetcher = PdfFetcher.get(this);
         fetcher.setListener(new PdfFetcher.Listener() {
             @Override
@@ -299,6 +300,12 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void utdTopic(String url) {
             main.post(() -> utd.topic(url, r -> emitRaw("utdTopic", r)));
+        }
+
+        /** Shows where the background UpToDate page stopped, so the user can see what it needs. */
+        @JavascriptInterface
+        public void utdShowPage() {
+            main.post(() -> openLink(utd.currentUrl(), null, null, R4LSession.UTD));
         }
 
         /** Shows an UpToDate page in the visible browser (sign-in, graphics). */

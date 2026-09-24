@@ -200,7 +200,7 @@ final class R4LSession {
         String host = u.getHost();
         if (host == null) return null;
         if (isR4LHost(host)) return u.getPath() != null && u.getPath().startsWith("/tacsgr1") ? null : R4L;
-        if (host.equals("uptodate.com") || host.endsWith(".uptodate.com")) return UTD;
+        if (host.equals("uptodate.com") || host.endsWith(".uptodate.com") || host.endsWith("wolterskluwer.com")) return UTD;
         return null;
     }
 
@@ -266,7 +266,7 @@ final class R4LSession {
                 + "function set(el,v){var d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d.set.call(el,v);"
                 + "el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}"
                 + "var tries=0;var t=setInterval(function(){tries++;var f=fields();"
-                + "if(f&&f.user){clearInterval(t);set(f.user,U);set(f.pw,P);if(window.DSR4L)DSR4L.status('signing-in');"
+                + "if(f&&(f.user||window.__dsStep1||tries>6)){clearInterval(t);if(f.user)set(f.user,U);set(f.pw,P);if(window.DSR4L)DSR4L.status('signing-in');"
                 + "if(!AUTO)return;setTimeout(function(){var form=f.pw.form;"
                 + "var btn=(form&&form.querySelector('button[type=submit],input[type=submit],button:not([type])'))"
                 + "||[].slice.call(document.querySelectorAll('button,input[type=submit]')).filter(vis).filter(function(b){return /sign\\s*in|log\\s*in|login|submit|continue/i.test(b.textContent||b.value||'');})[0];"

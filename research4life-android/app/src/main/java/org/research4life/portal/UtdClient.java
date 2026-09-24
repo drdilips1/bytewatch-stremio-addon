@@ -26,13 +26,19 @@ final class UtdClient {
         void onResult(JSONObject result);
     }
 
+    interface StatusListener {
+        void onStatus(String message);
+    }
+
     static final String BASE = "https://www.uptodate.com";
     private static final long POLL_MS = 700;
-    private static final long TIMEOUT_MS = 30_000;
+    private static final long TIMEOUT_MS = 45_000;
+    private static final int MAX_LOGINS = 2;
 
     private final Context app;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final WebView webView;
+    private StatusListener status;
     private int token;
     private String kind;          // "search" or "topic"
     private String target;        // URL of the current request
@@ -40,8 +46,10 @@ final class UtdClient {
     private Callback callback;
     private long started;
     private int logins;
+    private boolean returnedToTarget;
+    private int continueClicks;
+    private long lastProgress;
     private String lastPayload;
-    private int stablePolls;
 
     @SuppressLint("SetJavaScriptEnabled")
     UtdClient(Context activity, FrameLayout host) {
@@ -51,7 +59,7 @@ final class UtdClient {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
-        s.setLoadsImagesAutomatically(false); // text only in the background; images load in the reader
+        CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -67,6 +75,16 @@ final class UtdClient {
             }
         });
         host.addView(webView, 0, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    void setStatusListener(StatusListener l) {
+        status = l;
+    }
+
+    /** Where the background page currently is (for "Show page"). */
+    String currentUrl() {
+        String u = webView.getUrl();
+        return u != null ? u : BASE + "/contents/search";
     }
 
     void search(String query, Callback cb) {
@@ -91,51 +109,78 @@ final class UtdClient {
         this.request = request;
         this.callback = cb;
         this.started = System.currentTimeMillis();
+        this.lastProgress = started;
         this.logins = 0;
+        this.returnedToTarget = false;
+        this.continueClicks = 0;
         this.lastPayload = null;
-        this.stablePolls = 0;
+        report("search".equals(kind) ? "Searching UpToDate…" : "Opening topic…");
         webView.stopLoading();
         webView.loadUrl(url);
         final int t = token;
         main.postDelayed(() -> poll(t), 1500);
     }
 
-    private static boolean isLoginUrl(String url) {
-        String p = Uri.parse(url).getPath();
-        return p != null && p.toLowerCase().matches(".*(login|signin|sign-in|logout).*");
+    private void report(String message) {
+        if (status != null) status.onStatus(message);
+    }
+
+    static boolean isLoginUrl(String url) {
+        if (url == null) return false;
+        Uri u = Uri.parse(url);
+        String p = u.getPath() == null ? "" : u.getPath().toLowerCase();
+        String h = u.getHost() == null ? "" : u.getHost().toLowerCase();
+        return p.matches(".*(login|signin|sign-in|logon|authorize|oauth).*")
+                || h.startsWith("login.") || h.startsWith("auth.") || h.startsWith("id.") || h.contains("wolterskluwer");
+    }
+
+    /** True when the page is the request we made (UpToDate's home page is also /contents/search). */
+    private boolean atTarget(String url) {
+        if (url == null) return false;
+        Uri u = Uri.parse(url), t = Uri.parse(target);
+        if (!String.valueOf(u.getPath()).equals(String.valueOf(t.getPath()))) return false;
+        return !"search".equals(kind) || u.getQueryParameter("search") != null;
     }
 
     private void onPage(String url) {
         if (callback == null || url == null) return;
         if (isLoginUrl(url)) {
-            if (!R4LSession.hasCredentials(app, R4LSession.UTD) || logins >= 2) {
-                finish(result("login", R4LSession.hasCredentials(app, R4LSession.UTD)
-                        ? "UpToDate didn't accept the saved login. Sign in once to continue."
-                        : "Sign in to UpToDate once to see its results here."));
-                return;
-            }
-            logins++;
-            String js = R4LSession.signInScript(R4LSession.username(app, R4LSession.UTD),
-                    R4LSession.password(app, R4LSession.UTD), true);
-            webView.evaluateJavascript(js, null);
+            signIn();
             return;
         }
-        // Signed in, but UpToDate may land on its home page instead of the request.
-        if (logins > 0 && !url.startsWith(target) && !url.contains("/contents/")) {
-            logins += 10; // only retry once
+        // Signed in, but UpToDate usually lands on its home page: go back to the request.
+        if (logins > 0 && !returnedToTarget && !atTarget(url)) {
+            returnedToTarget = true;
+            report("search".equals(kind) ? "Signed in. Searching…" : "Signed in. Opening topic…");
             webView.loadUrl(target);
         }
     }
 
-    private void poll(int t) {
-        if (t != token || callback == null) return;
-        if (System.currentTimeMillis() - started > TIMEOUT_MS) {
-            finish(result("error", "UpToDate took too long to respond. Check your connection and try again."));
+    private void signIn() {
+        if (!R4LSession.hasCredentials(app, R4LSession.UTD)) {
+            finish(result("login", "Sign in to UpToDate once to see its results here."));
             return;
         }
-        String url = webView.getUrl();
-        if (url != null && isLoginUrl(url)) {
-            main.postDelayed(() -> poll(t), POLL_MS);
+        if (logins >= MAX_LOGINS) {
+            finish(result("login", "UpToDate didn't accept the saved login. Check it in Settings, or tap Show page to sign in once."));
+            return;
+        }
+        logins++;
+        lastProgress = System.currentTimeMillis();
+        report("Signing in to UpToDate…");
+        String js = R4LSession.signInScript(R4LSession.username(app, R4LSession.UTD),
+                R4LSession.password(app, R4LSession.UTD), true);
+        // A fresh guard each attempt, so a second try on the same page still runs.
+        webView.evaluateJavascript("window.__dsSignIn=0;window.__dsStep1=0;" + js, null);
+    }
+
+    private void poll(int t) {
+        if (t != token || callback == null) return;
+        long now = System.currentTimeMillis();
+        if (now - started > TIMEOUT_MS) {
+            String title = webView.getTitle();
+            finish(result("stuck", "UpToDate stopped at “" + (title == null || title.isEmpty() ? currentUrl() : title)
+                    + "”. Tap Show page to see what it needs."));
             return;
         }
         webView.evaluateJavascript("search".equals(kind) ? SEARCH_SCRIPT : TOPIC_SCRIPT, value -> {
@@ -145,14 +190,21 @@ final class UtdClient {
                 JSONObject o = new JSONObject(json);
                 String state = o.optString("state");
                 if ("login".equals(state)) {
-                    onPage(BASE + "/login");
+                    // A sign-in form on the page (possibly a pop-up, not a /login address).
+                    if (System.currentTimeMillis() - lastProgress > 6000 || logins == 0) signIn();
                 } else if ("results".equals(state) || "ok".equals(state) || "empty".equals(state)) {
-                    // Wait until the page stops changing (results render progressively).
-                    if (json.equals(lastPayload) && ++stablePolls >= 1) {
+                    if (json.equals(lastPayload) && (logins == 0 || atTarget(webView.getUrl()))) {
                         finish(o);
                         return;
                     }
                     lastPayload = json;
+                } else if (System.currentTimeMillis() - lastProgress > 8000 && continueClicks < 2) {
+                    // Nothing recognisable yet: an interstitial ("Continue", "Accept", other session) may be waiting.
+                    continueClicks++;
+                    lastProgress = System.currentTimeMillis();
+                    webView.evaluateJavascript(CONTINUE_SCRIPT, v -> {
+                        if (v != null && v.contains("clicked")) report("Continuing past an UpToDate notice…");
+                    });
                 }
             } catch (Exception ignored) {
                 // Page not ready yet.
@@ -173,6 +225,15 @@ final class UtdClient {
         }
         if (cb != null) cb.onResult(o);
     }
+
+    /** Taps an obvious "continue" style button on an UpToDate notice page. */
+    static final String CONTINUE_SCRIPT = "(function(){"
+            + "if(document.querySelector('input[type=password]'))return 'login';"
+            + "if(!/uptodate|wolterskluwer/i.test(location.hostname))return 'none';"
+            + "var b=[].slice.call(document.querySelectorAll('button,a,input[type=submit]')).filter(function(e){return e.offsetParent!==null;})"
+            + ".filter(function(e){return /^\\s*(continue|accept|i accept|agree|i agree|proceed|ok|got it|log out other|sign out other|end other session|continue to uptodate)\\b/i.test(e.textContent||e.value||'');})[0];"
+            + "if(b){b.click();return 'clicked';}return 'none';"
+            + "})()";
 
     private static JSONObject result(String state, String message) {
         JSONObject o = new JSONObject();

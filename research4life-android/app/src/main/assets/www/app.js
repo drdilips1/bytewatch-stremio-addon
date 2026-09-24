@@ -33,6 +33,7 @@
     setCredentials: (p, u) => localStorage.setItem('ds.acc.' + p, u),
     forgetCredentials: (p) => localStorage.removeItem('ds.acc.' + p),
     utdSearch: (q) => setTimeout(() => App.onNative(window.__utdMock ? window.__utdMock('search', q) : { type: 'utdResults', state: 'error', message: 'UpToDate needs the Android app' }), 300),
+    utdShowPage: () => {},
     utdTopic: (u) => setTimeout(() => App.onNative(window.__utdMock ? window.__utdMock('topic', u) : { type: 'utdTopic', state: 'error', message: 'UpToDate needs the Android app' }), 300),
     openUpToDateAt: (u) => window.open(u, '_blank'),
     openUpToDate: (q) => window.open('https://www.uptodate.com/contents/search' + (q ? '?search=' + encodeURIComponent(q) : ''), '_blank'),
@@ -449,7 +450,7 @@
       </div>
 
       <div class="app-tiles">
-        <button class="app-tile utd" data-act="utd-open"><span class="app-ico">${icon('book')}</span><b>UpToDate</b><span>${utd.saved ? 'Signed in automatically' : 'Add your login in Settings'}</span></button>
+        <button class="app-tile utd" data-act="utd-open"><span class="app-ico">${icon('book')}</span><b>UpToDate</b><span>${utd.saved ? (store.get('utdLoggedIn', false) ? 'Signed in · search in the app' : 'Login saved · tap to search') : 'Add your login'}</span></button>
         <button class="app-tile r4l" data-act="r4l-open"><span class="app-ico">${icon('key')}</span><b>Research4Life</b><span>${account('r4l').saved ? 'Access ready' : 'Add your login'}</span></button>
       </div>
 
@@ -738,6 +739,7 @@
       const u = form.u.value.trim(); const p = form.p.value;
       if (!u || !p) { toast('Enter both user ID and password'); return; }
       if (Native.setCredentials) Native.setCredentials(provider, u, p); else Native.r4lSetCredentials(u, p);
+      if (provider === 'utd') { store.set('utdLoggedIn', false); utdCache.clear(); }
       if (provider === 'r4l') store.set('r4lAsked', true);
       closeSheet(true);
       toast(`${P.name} sign-in saved`);
@@ -1037,14 +1039,14 @@
     }
     let res = utdCache.get(q);
     if (!res) {
-      el.innerHTML = `<div class="meta-line"><span class="spin" style="vertical-align:-3px;margin-right:8px"></span>Searching UpToDate…</div>${skeletons(4)}`;
+      el.innerHTML = `<div class="meta-line"><span class="spin" style="vertical-align:-3px;margin-right:8px"></span><span id="utd-status">Searching UpToDate…</span></div>${skeletons(4)}`;
       res = await utdCall('search', q);
       if (res.state === 'cancelled') return;
       if (res.state === 'results') { utdCache.set(q, res); addHistory(q); }
     }
     if (current.name !== 'search' || filtersFrom(current.params).src !== 'utd' || filtersFrom(current.params).q.trim() !== q) return;
-    if (res.state === 'login') {
-      el.innerHTML = utdLoginCard(res.message || 'Sign in to UpToDate to see its results here.');
+    if (res.state === 'login' || res.state === 'stuck') {
+      el.innerHTML = utdLoginCard(res.message || 'Sign in to UpToDate to see its results here.', true);
       bindUtdLogin(() => render());
       return;
     }
@@ -1070,16 +1072,20 @@
       ${it.snippet ? `<p class="utd-snip">${esc(it.snippet)}</p>` : ''}</div>`;
   }
 
-  function utdLoginCard(msg) {
+  function utdLoginCard(msg, fromBackground) {
+    const acc = account('utd');
     return `<div class="utd-login">${icon('book')}<b>UpToDate</b><p>${esc(msg)}</p>
       <div class="row" style="gap:8px;justify-content:center;flex-wrap:wrap">
-        <button class="btn small primary" data-act="utd-add-login">${icon('key')}Save my login</button>
-        <button class="btn small" data-act="utd-signin-web">Sign in on UpToDate</button></div>
-      <p class="muted small">Stored encrypted on this phone; the app signs in for you in the background.</p></div>`;
+        ${fromBackground ? `<button class="btn small primary" data-act="utd-show">${icon('external')}Show page</button>` : ''}
+        <button class="btn small ${fromBackground ? '' : 'primary'}" data-act="utd-add-login">${icon('key')}${acc.saved ? 'Update login' : 'Save my login'}</button>
+        ${fromBackground ? '' : `<button class="btn small" data-act="utd-signin-web">Sign in on UpToDate</button>`}</div>
+      <p class="muted small">${fromBackground ? 'Show page opens the exact page UpToDate stopped on. Sign in or tap through it, then come back — the app retries automatically.'
+        : 'Stored encrypted on this phone; the app signs in for you in the background.'}</p></div>`;
   }
   function bindUtdLogin(then) {
     actions['utd-add-login'] = () => signInSheet('utd', () => { utdCache.clear(); then(); });
-    actions['utd-signin-web'] = () => { store.set('utdLoggedIn', true); utdCache.clear(); pendingUtdRetry = true; Native.openUpToDateAt(UTD + '/login'); };
+    actions['utd-signin-web'] = () => { utdCache.clear(); pendingUtdRetry = true; Native.openUpToDateAt(UTD + '/login'); };
+    actions['utd-show'] = () => { utdCache.clear(); pendingUtdRetry = true; Native.utdShowPage ? Native.utdShowPage() : Native.openUpToDateAt(UTD + '/login'); };
   }
   let pendingUtdRetry = false;
 
@@ -1152,8 +1158,8 @@
     if (!model) {
       const res = await utdCall('topic', url);
       if (res.state === 'cancelled' || current.name !== 'utd' || current.arg !== url) return;
-      if (res.state === 'login') {
-        view.innerHTML = topbar('UpToDate') + utdLoginCard(res.message || 'Sign in to UpToDate to read this topic here.');
+      if (res.state === 'login' || res.state === 'stuck') {
+        view.innerHTML = topbar('UpToDate') + utdLoginCard(res.message || 'Sign in to UpToDate to read this topic here.', true);
         bindUtdLogin(() => render());
         return;
       }
@@ -1931,7 +1937,7 @@
       const acc = account(p);
       const P = PROVIDERS[p];
       return `<div class="acc-card"><div class="acc-ico ${p}">${icon(p === 'utd' ? 'book' : 'key')}</div>
-        <div class="body"><b>${P.name}</b><span>${acc.saved ? 'Signed in as ' + esc(acc.user) : 'Not saved'}</span></div>
+        <div class="body"><b>${P.name}</b><span>${acc.saved ? 'Login saved: ' + esc(acc.user) + (p === 'utd' ? (store.get('utdLoggedIn', false) ? ' · signed in' : ' · not yet verified') : '') : 'Not saved'}</span></div>
         <button class="btn xs ${acc.saved ? '' : 'primary'}" data-act="acc-set" data-p="${p}">${acc.saved ? 'Change' : 'Add login'}</button>
         ${acc.saved ? `<button class="icon-btn" data-act="acc-forget" data-p="${p}" aria-label="Forget">${icon('trash')}</button>` : ''}</div>`;
     };
@@ -2187,7 +2193,13 @@
         const f = utdWait[k];
         utdWait[k] = null;
         if (f) f(evt);
-        if (evt.state === 'results' || evt.state === 'ok') store.set('utdLoggedIn', true);
+        if (evt.state === 'results' || evt.state === 'ok' || evt.state === 'empty') store.set('utdLoggedIn', true);
+        if (evt.state === 'login') store.set('utdLoggedIn', false);
+        return;
+      }
+      if (evt.type === 'utdStatus') {
+        const el = $('#utd-status') || $('#rdprog');
+        if (el) el.textContent = evt.message;
         return;
       }
       if (evt.type === 'fetchStatus') {
