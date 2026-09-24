@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Base for the dotted P2A.* styles below (they inherit from it by name). -->
+    <style name="P2A" />
+
     <style name="P2A.Button" parent="android:Widget.Material.Button">
         <item name="android:background">@drawable/bg_button</item>
         <item name="android:textColor">?attr/p2aOnAccent</item>
