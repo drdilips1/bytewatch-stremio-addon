@@ -11,25 +11,20 @@ jobs:
           B="https://www.ebi.ac.uk/europepmc/webservices/rest/search"
           c() { printf '%s  => ' "$1"; curl -sG "$B" --data-urlencode "query=$1" -d format=json -d pageSize=3 -d resultType=lite | jq -c '[.hitCount, [.resultList.result[]?.journalTitle]]'; }
           c 'vitiligo'
-          c 'vitiligo AND (MESH:"Skin Diseases" OR JOURNAL:dermatol*)'
-          c 'vitiligo AND (MESH:"Skin Diseases" OR MESH:"Skin" OR MESH:"Dermatology" OR dermatol* OR skin OR cutaneous)'
-          c 'metformin'
-          c 'metformin AND (MESH:"Skin Diseases" OR MESH:"Skin" OR MESH:"Dermatology" OR dermatol* OR skin OR cutaneous)'
-          c 'metformin AND (MESH:"Skin Diseases" OR MESH:"Skin" OR MESH:"Dermatology" OR JOURNAL:dermatol* OR TITLE:skin OR TITLE:cutaneous OR TITLE:dermatitis)'
-          c 'metformin AND (MESH:"Skin Diseases" OR MESH:"Skin" OR JOURNAL:"J Am Acad Dermatol" OR JOURNAL:"Br J Dermatol")'
-          c 'metformin AND (MESH:"Skin Diseases" OR MESH:"Skin Physiological Phenomena" OR MESH:"Dermatologic Agents" OR MESH:"Dermatology" OR MESH:"Skin")'
-          c 'ISSN:"0007-0963"'
-          c 'ISSN:"2784-8450"'
-          c 'JOURNAL:"Dermatol Surg"'; c 'JOURNAL:"Contact Dermatitis"'; c 'JOURNAL:"Acta Derm Venereol"'; c 'JOURNAL:"J Dermatol Sci"'
-          c 'JOURNAL:"Dermatol Ther"'; c 'JOURNAL:"Dermatol Clin"'; c 'JOURNAL:"JAAD Case Rep"'; c 'JOURNAL:"Skin Appendage Disord"'
-          c 'JOURNAL:"J Cutan Pathol"'; c 'JOURNAL:"Am J Dermatopathol"'; c 'JOURNAL:"Photodermatol Photoimmunol Photomed"'
-          c 'JOURNAL:"Lasers Surg Med"'; c 'JOURNAL:"Mycoses"'; c 'JOURNAL:"Lepr Rev"'; c 'JOURNAL:"Melanoma Res"'
-          c 'JOURNAL:"Skin Res Technol"'; c 'JOURNAL:"Wound Repair Regen"'; c 'JOURNAL:"An Bras Dermatol"'; c 'JOURNAL:"Dermatitis"'
-          c 'JOURNAL:"Skin Health Dis"'; c 'JOURNAL:"Actas Dermosifiliogr"'; c 'JOURNAL:"J Eur Acad Dermatol Venereol"'; c 'JOURNAL:"Indian Dermatol Online J"'
-          c 'JOURNAL:"Dermatol Ther (Heidelb)"'; c 'JOURNAL:"J Invest Dermatol"'; c 'JOURNAL:"Clin Exp Dermatol"'; c 'JOURNAL:"Pediatr Dermatol"'
-          echo "=== citations"; curl -s "https://www.ebi.ac.uk/europepmc/webservices/rest/MED/24523323/citations?format=json&pageSize=2" | jq -c '{hitCount, c:.citationList.citation[0]}'
-          echo "=== references"; curl -s "https://www.ebi.ac.uk/europepmc/webservices/rest/MED/24523323/references?format=json&pageSize=2" | jq -c '{hitCount, r:.referenceList.reference[0]}'
-          echo "=== CORS epmc"; curl -sI -H "Origin: https://appassets.androidplatform.net" "$B?query=acne&format=json&pageSize=1" | grep -i access-control
-          echo "=== CORS openalex"; curl -sI -H "Origin: https://appassets.androidplatform.net" "https://api.openalex.org/sources?search=dermatology&per_page=1" | grep -i access-control
-          echo "=== pdf render"; curl -sIL "https://europepmc.org/articles/PMC4086941?pdf=render" | grep -iE "^HTTP|content-type|location"
+          c 'vitiligo AND skin'
+          c 'vitiligo AND (skin OR cutaneous)'
+          c 'vitiligo AND (skin OR cutaneous OR dermatology OR dermatological OR dermatologic)'
+          c '(vitiligo) AND (skin OR cutaneous OR dermatology OR dermatological OR dermatologic OR dermatitis)'
+          c 'metformin AND (skin OR cutaneous OR dermatology OR dermatological OR dermatologic OR dermatitis)'
+          c 'JAK inhibitors AND (skin OR cutaneous OR dermatology OR dermatological OR dermatologic OR dermatitis)'
+          c 'JAK inhibitors'
+          c '(JAK inhibitors) AND (TITLE_ABS:skin OR TITLE_ABS:cutaneous OR TITLE_ABS:dermatolog*)'
+          c 'metformin AND MESH:"Skin Diseases"'
+          c 'metformin AND MESH:"Skin"'
+          echo "=== fulltextxml"; curl -s -o ft.xml -w "%{http_code} %{size_download}\n" "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13555258/fullTextXML"; head -c 600 ft.xml; echo
+          echo "=== CORS GET"; curl -s -D - -o /dev/null -H "Origin: https://appassets.androidplatform.net" "$B?query=acne&format=json&pageSize=1" | grep -i -E "access-control|^HTTP"
+          echo "=== pdf render UA"; curl -s -L -o r.pdf -w "%{http_code} %{content_type} %{url_effective}\n" -A "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36" "https://europepmc.org/articles/PMC13555258?pdf=render"; head -c 8 r.pdf | xxd | head -1
+          echo "=== pmc pdf"; curl -s -L -o p.pdf -w "%{http_code} %{content_type} %{url_effective}\n" -A "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36" "https://pmc.ncbi.nlm.nih.gov/articles/PMC13555258/pdf/"; head -c 8 p.pdf | xxd | head -1
+          echo "=== epmc backend pdf"; curl -s -L -o b.pdf -w "%{http_code} %{content_type}\n" "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC13555258&blobtype=pdf"; head -c 8 b.pdf | xxd | head -1
+          echo "=== unpaywall"; curl -s "https://api.unpaywall.org/v2/10.3389/fimmu.2026.1915200?email=dermscholar.app@example.com" | jq -c '{is_oa, best:.best_oa_location.url_for_pdf}'
           echo "=== openalex by issn"; curl -s "https://api.openalex.org/sources/issn:0007-0963" | jq -c '{display_name,homepage_url,is_oa,summary_stats,works_count,apc_usd}'
