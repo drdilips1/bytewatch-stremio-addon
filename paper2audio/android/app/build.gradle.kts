@@ -11,8 +11,8 @@ android {
         applicationId = "com.paper2audio.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.6"
+        versionCode = 8
+        versionName = "1.7"
     }
 
     // Sign with your own key when P2A_KEYSTORE is set (see README), so new

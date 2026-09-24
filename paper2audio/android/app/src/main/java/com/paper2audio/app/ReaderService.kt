@@ -111,6 +111,10 @@ class ReaderService : Service() {
             .setContentText(text)
             .setContentIntent(open)
             .setOngoing(Speaker.playing || Exporter.running || Kokoro.installing)
+            .apply {
+                if (Exporter.running) setProgress(100, Exporter.progress, Exporter.progress == 0)
+                else if (Kokoro.installing) setProgress(100, Kokoro.progress, Kokoro.progress == 0)
+            }
             .setOnlyAlertOnce(true)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .addAction(action(R.drawable.ic_prev, "Previous", ACTION_PREV))

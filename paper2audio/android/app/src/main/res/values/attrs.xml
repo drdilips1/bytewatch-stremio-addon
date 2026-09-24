@@ -7,4 +7,5 @@
     <attr name="p2aOnAccent" format="color" />
     <attr name="p2aText" format="color" />
     <attr name="p2aMuted" format="color" />
+    <attr name="p2aBackground" format="reference" />
 </resources>

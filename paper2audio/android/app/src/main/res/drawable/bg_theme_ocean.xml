@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ocean theme background: accent-tinted at the top, fading to the base color. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:centerY="0.45"
+        android:startColor="#C9D5F7"
+        android:centerColor="#F5F7FB"
+        android:endColor="#E5EBFA" />
+</shape>

@@ -336,9 +336,15 @@ class PlayerActivity : Activity() {
         btnExport.isEnabled = hasDoc
         btnExport.text = if (Exporter.running) "Cancel saving" else "Save audio file"
         exportProgress.visibility = if (Exporter.running) View.VISIBLE else View.GONE
+        exportProgress.isIndeterminate = Exporter.running && Exporter.progress == 0
         exportProgress.progress = Exporter.progress
-        exportStatus.text = Exporter.message ?: ""
-        exportStatus.visibility = if (Exporter.message != null) View.VISIBLE else View.GONE
+        val estimate = doc?.let {
+            val (minutes, mb) = Exporter.estimate(it, Speaker.voiceId, Speaker.speed)
+            val length = if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
+            "About $length of audio, ~$mb MB. You can leave the app while it saves."
+        }
+        exportStatus.text = Exporter.message ?: estimate ?: ""
+        exportStatus.visibility = if (exportStatus.text.isNotEmpty()) View.VISIBLE else View.GONE
         if (Speaker.voicesVersion != voicesShown) setupVoices()
         val needsKokoro = Speaker.isKokoro && !Kokoro.isInstalled()
         btnKokoro.visibility = if (needsKokoro || Kokoro.installing) View.VISIBLE else View.GONE

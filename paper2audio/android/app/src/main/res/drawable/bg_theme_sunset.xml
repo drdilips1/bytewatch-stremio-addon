@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sunset theme background: accent-tinted at the top, fading to the base color. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:centerY="0.45"
+        android:startColor="#F7D0C0"
+        android:centerColor="#FFF7F2"
+        android:endColor="#FCE9E0" />
+</shape>

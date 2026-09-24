@@ -48,6 +48,29 @@ object Exporter {
         private set
     var message: String? = null
         private set
+    /** Bytes of audio written so far, and when saving started (for size and time estimates). */
+    private var bytesOut = 0L
+    private var startedAt = 0L
+
+    /** Rough length (minutes) and size (MB) of the saved file, shown before saving. */
+    fun estimate(doc: Doc, voiceId: String, speed: Float): Pair<Int, Int> {
+        val minutes = (doc.words / (160f * speed)).toInt().coerceAtLeast(1)
+        // 48 kbit/s MP3 for Microsoft voices, 64 kbit/s AAC otherwise.
+        val kbps = if (voiceId.startsWith(Speaker.EDGE)) 48 else 64
+        val mb = (minutes * 60L * kbps / 8 / 1000).toInt().coerceAtLeast(1)
+        return minutes to mb
+    }
+
+    private fun progressMessage(pct: Int): String {
+        val parts = mutableListOf("Saving… $pct%")
+        if (bytesOut > 0) parts += "%.1f MB".format(bytesOut / 1_000_000.0)
+        val elapsed = System.currentTimeMillis() - startedAt
+        if (pct >= 2 && elapsed > 5_000) {
+            val leftMin = (elapsed * (100 - pct) / pct / 60_000).toInt()
+            parts += if (leftMin < 1) "under a minute left" else "about $leftMin min left"
+        }
+        return parts.joinToString(" · ")
+    }
     var resultUri: Uri? = null
         private set
 
@@ -74,7 +97,9 @@ object Exporter {
         val app = context.applicationContext
         running = true
         progress = 0
-        message = "Preparing…"
+        bytesOut = 0
+        startedAt = System.currentTimeMillis()
+        message = "Starting… (the first part takes a few seconds)"
         resultUri = null
         listeners.forEach { it() }
         ReaderService.start(app)
@@ -153,11 +178,12 @@ object Exporter {
                             error("Voice changed audio format mid-way")
                         }
                         w.writePcm(wav, info)
+                        bytesOut = w.bytesWritten
                     }
                     val pct = (i + 1) * 100 / chunks.size
                     update {
                         progress = pct
-                        message = "Saving audio… $pct%"
+                        message = progressMessage(pct)
                     }
                 }
                 (writer ?: error("No audio was produced")).finish()
@@ -190,18 +216,20 @@ object Exporter {
                     var written = 0
                     var lastPct = -1
                     while (written < chunks.size) {
-                        while (inFlight.size < 8 && next < chunks.size) {
+                        while (inFlight.size < 6 && next < chunks.size) {
                             val text = chunks[next++]
                             inFlight.addLast(async(Dispatchers.IO) { synthEdge(text, voice, rate) })
                         }
-                        os.write(inFlight.removeFirst().await())
+                        val part = inFlight.removeFirst().await()
+                        os.write(part)
+                        bytesOut += part.size
                         written++
                         val pct = written * 100 / chunks.size
                         if (pct != lastPct) {
                             lastPct = pct
                             update {
                                 progress = pct
-                                message = "Saving audio… $pct%"
+                                message = progressMessage(pct)
                             }
                         }
                     }
@@ -227,11 +255,12 @@ object Exporter {
                 val pcm = Kokoro.synthesize(text, voice, speed)
                 val w = writer ?: AacWriter(out.pfd.fileDescriptor, pcm.sampleRate, 1).also { writer = it }
                 w.writePcm(pcm.bytes, pcm.bytes.size)
+                bytesOut = w.bytesWritten
                 val pct = (i + 1) * 100 / doc.paragraphs.size
                 if (pct != progress) {
                     update {
                         progress = pct
-                        message = "Saving audio… $pct%"
+                        message = progressMessage(pct)
                     }
                 }
             }
@@ -370,6 +399,9 @@ class WavInfo(val sampleRate: Int, val channels: Int, val dataOffset: Long, val 
 
 /** Streams 16-bit PCM into an AAC encoder and an MP4 container. */
 class AacWriter(fd: FileDescriptor, val sampleRate: Int, val channels: Int) {
+    /** Encoded bytes written to the file so far. */
+    var bytesWritten = 0L
+        private set
     private val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
     private val muxer = MediaMuxer(fd, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
     private val info = MediaCodec.BufferInfo()
@@ -437,6 +469,7 @@ class AacWriter(fd: FileDescriptor, val sampleRate: Int, val channels: Int) {
                         buf.position(info.offset)
                         buf.limit(info.offset + info.size)
                         muxer.writeSampleData(track, buf, info)
+                        bytesWritten += info.size
                     }
                     codec.releaseOutputBuffer(idx, false)
                     if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) return
