@@ -16,6 +16,10 @@ import { Book } from './screens/Book.jsx';
 import { Browse } from './screens/Browse.jsx';
 import { Reader } from './screens/Reader.jsx';
 import { Shelf } from './screens/Shelf.jsx';
+import { PullToRefresh } from './components/pull-refresh.jsx';
+import { clearHttpCache } from './lib/http.js';
+import { cloud, hc } from './sources/index.js';
+import { toast } from './components/common.jsx';
 
 const TABS = [
   ['home', 'Home', 'home'],
@@ -28,6 +32,14 @@ const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf };
 
 export function App() {
   const [route, setRoute] = useState(nav.state());
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refresh = () => {
+    clearHttpCache();
+    cloud.forget();
+    hc.resetCache();
+    setRefreshKey((k) => k + 1);
+    toast('Refreshed');
+  };
   const st = useStore(settings);
   const ps = usePlayer();
 
@@ -57,7 +69,8 @@ export function App() {
         <span />
         <span />
       </div>
-      <main key={top?.key || route.tab} class="page">
+      <PullToRefresh onRefresh={refresh} enabled={!route.overlay && (!top || top.name === 'shelf' || top.name === 'book' || top.name === 'browse')} />
+      <main key={(top?.key || route.tab) + ':' + refreshKey} class="page">
         <Screen {...(top?.params || {})} />
       </main>
       {!inReader && (

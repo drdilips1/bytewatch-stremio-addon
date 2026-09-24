@@ -1,6 +1,7 @@
 import { BgImage } from '../components/bg-image.jsx';
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { Row, BookCard } from '../components/common.jsx';
+import { Row, BookCard, withMeta } from '../components/common.jsx';
+import { useMeta } from '../lib/meta.js';
 import { Icon } from '../components/icons.jsx';
 import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, enabled } from '../sources/index.js';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore } from '../lib/store.js';
@@ -12,28 +13,45 @@ import { toast, Cover } from '../components/common.jsx';
 import { getDetails } from '../sources/index.js';
 import * as player from '../lib/player.js';
 
-function Hero() {
-  const [items, setItems] = useState(null);
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    ia.popular().then((r) => setItems(r.slice(0, 6))).catch(() => setItems([]));
-  }, []);
-  useEffect(() => {
-    if (!items?.length) return;
-    const t = setInterval(() => setI((x) => (x + 1) % items.length), 6000);
-    return () => clearInterval(t);
-  }, [items]);
-  if (!items) return <div class="hero shimmer" />;
-  if (!items.length) return null;
-  const b = items[i];
+// Picks for the banner: the user's own services first; free classics only as a fallback.
+async function heroPicks() {
+  const safe = (p, tag) => p.then((r) => r.map((b) => ({ ...b, heroTag: tag }))).catch(() => []);
+  const groups = await Promise.all([
+    absSrc.connected() && enabled('abs') ? safe(absSrc.inProgress(), 'Continue on your server') : [],
+    cloud.tbConnected() && enabled('tb') ? safe(cloud.torboxLibrary(), 'In your TorBox') : [],
+    cloud.rdConnected() && enabled('rd') ? safe(cloud.realdebridLibrary(), 'In your Real-Debrid') : [],
+    hc.connected() && enabled('hc') ? safe(hc.shelf(hc.STATUS.reading), 'Reading on Hardcover') : [],
+    hc.connected() && enabled('hc') ? safe(hc.shelf(hc.STATUS.want), 'On your Want to Read') : [],
+    absSrc.connected() && enabled('abs') ? safe(absSrc.recent(), 'New on your server') : [],
+  ]);
+  // Round-robin across sources so every service shows up.
+  const picks = [];
+  const seen = new Set();
+  for (let i = 0; picks.length < 8 && groups.some((g) => g[i]); i++) {
+    for (const g of groups) {
+      const b = g[i];
+      if (b && !seen.has(b.uid) && picks.length < 8) {
+        seen.add(b.uid);
+        picks.push(b);
+      }
+    }
+  }
+  if (picks.length) return picks;
+  return enabled('ia') ? safe(ia.popular(), 'Most loved free audiobook').then((r) => r.slice(0, 6)) : [];
+}
+
+function HeroSlide({ book: raw, index, count, onDot }) {
+  const meta = useMeta(raw);
+  const b = withMeta(raw, meta);
+  const playable = b.kind === 'audio';
   return (
     <div class="hero" onClick={() => nav.push('book', { book: b })}>
       <div class="hero-bg" key={b.uid}>
-        <BgImage url={b.cover} />
+        {b.cover && <BgImage url={b.cover} />}
       </div>
       <div class="hero-body">
         <span class="hero-tag">
-          <Icon name="flame" size={14} /> Most loved audiobook
+          <Icon name={raw.source === 'hc' ? 'book' : raw.source === 'abs' ? 'server' : raw.source === 'ia' ? 'flame' : 'download'} size={14} /> {raw.heroTag}
         </span>
         <h2>{b.title}</h2>
         <p>{b.author}</p>
@@ -42,15 +60,22 @@ function Hero() {
             class="btn primary"
             onClick={async (e) => {
               e.stopPropagation();
+              if (!playable) return nav.push('book', { book: b });
               nav.openOverlay('player');
               player.playBook(await getDetails(b));
             }}
           >
-            <Icon name="play" size={16} /> Listen free
+            <Icon name={playable ? 'play' : 'search'} size={16} /> {playable ? 'Listen' : 'Find it'}
           </button>
           <div class="dots">
-            {items.map((_, k) => (
-              <span class={k === i ? 'on' : ''} />
+            {Array.from({ length: count }, (_, k) => (
+              <span
+                class={k === index ? 'on' : ''}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDot(k);
+                }}
+              />
             ))}
           </div>
         </div>
@@ -60,6 +85,22 @@ function Hero() {
       </div>
     </div>
   );
+}
+
+function Hero() {
+  const [items, setItems] = useState(null);
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    heroPicks().then(setItems).catch(() => setItems([]));
+  }, []);
+  useEffect(() => {
+    if (!items?.length) return;
+    const t = setInterval(() => setI((x) => (x + 1) % items.length), 7000);
+    return () => clearInterval(t);
+  }, [items]);
+  if (!items) return <div class="hero shimmer" />;
+  if (!items.length) return null;
+  return <HeroSlide book={items[i % items.length]} index={i % items.length} count={items.length} onDot={setI} />;
 }
 
 function ContinueRow() {
@@ -192,7 +233,7 @@ export function Home() {
         </button>
       </header>
 
-      {enabled('ia') && <Hero />}
+      <Hero />
       <WaitingRow />
       <ContinueRow />
       <GenreChips />

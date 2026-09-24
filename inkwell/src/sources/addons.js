@@ -4,6 +4,13 @@ import { getJson, cleanUrl } from '../lib/http.js';
 import { addons } from '../lib/store.js';
 import { isSourceManifest } from './sourceaddons.js';
 
+// Addons that no longer work (their server blocks every search) are removed on update.
+const RETIRED = /anna'?s?[\s_-]*archive|^annas?$/i;
+const isRetired = (a) => RETIRED.test(a?.manifest?.id || '') || RETIRED.test(a?.manifest?.name || '');
+const prune = (list) => list.some(isRetired) && addons.set(list.filter((a) => !isRetired(a)));
+prune(addons.get());
+addons.subscribe(prune); // also catches copies restored from sync
+
 export function normalizeUrl(u) {
   return cleanUrl(String(u || '').trim().replace(/^stremio:\/\//i, 'https://'));
 }

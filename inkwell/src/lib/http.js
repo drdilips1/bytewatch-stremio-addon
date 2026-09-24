@@ -6,9 +6,19 @@ const TTL = 10 * 60 * 1000;
 
 async function request(url, { timeout = 15000, headers, method = 'GET', body } = {}) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeout);
+  let timer;
+  // Android's native HTTP ignores abort signals, so also race a timer:
+  // a slow server then fails with a clear error instead of hanging forever.
+  const timedOut = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      ctrl.abort();
+      const e = new Error(`Timed out after ${Math.round(timeout / 1000)}s — pull down to try again`);
+      e.timeout = true;
+      reject(e);
+    }, timeout);
+  });
   try {
-    const res = await fetch(url, { method, headers, body, signal: ctrl.signal });
+    const res = await Promise.race([fetch(url, { method, headers, body, signal: ctrl.signal }), timedOut]);
     if (!res.ok) {
       let detail = '';
       try {

@@ -43,6 +43,11 @@ export async function connect(tok) {
   shelvesPromise = null;
   return u.username;
 }
+/** Forget cached shelves (pull-to-refresh). */
+export const resetCache = () => {
+  shelvesPromise = null;
+};
+
 export const disconnect = () => {
   hardcover.set({ token: '', username: '' });
   lastGood.set({ at: 0, items: [] });

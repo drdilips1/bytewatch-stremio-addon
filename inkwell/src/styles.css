@@ -2530,3 +2530,68 @@ pre.sql {
   height: 30px;
   color: inherit;
 }
+
+/* ---------- Performance: no flicker while scrolling (Android WebView) ----------
+   Animated blurred blobs and backdrop-filter force full-screen repaints on every
+   scroll frame. Replace them with a static gradient and solid bars. */
+.ambient {
+  background:
+    radial-gradient(60vmax 60vmax at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
+    radial-gradient(55vmax 55vmax at 100% 35%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 70%);
+}
+.ambient span {
+  display: none;
+}
+.tabbar,
+.topbar,
+.reader-bar,
+.reader-foot,
+.continue-card,
+.kind-dot,
+.hero-tag {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.tabbar {
+  background: color-mix(in srgb, var(--bg) 97%, #fff 3%);
+}
+.topbar {
+  background: var(--bg);
+}
+.topbar.transparent {
+  background: none;
+}
+.kind-dot {
+  background: rgba(0, 0, 0, 0.62);
+}
+.hero-tag {
+  background: rgba(0, 0, 0, 0.35);
+}
+.row-scroll,
+.hero,
+.mini-player {
+  transform: translateZ(0);
+}
+.ptr {
+  position: fixed;
+  top: calc(var(--safe-top) + 4px);
+  left: 50%;
+  z-index: 90;
+  pointer-events: none;
+}
+.ptr-dot {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--bg-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.5);
+}
+.ptr-dot.ready {
+  background: var(--grad);
+  color: #fff;
+  border-color: transparent;
+}

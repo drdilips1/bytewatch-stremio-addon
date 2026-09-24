@@ -34,7 +34,7 @@ const SECTIONS = {
   library: { store: library, merge: mergeById },
   progress: { store: progress, merge: mergeNewest },
   bookmarks: { store: bookmarks, merge: mergeBookmarks },
-  addons: { store: addons, merge: mergeAddons },
+  addons: { store: addons },
   goodreads: { store: goodreads },
   abs: { store: abs, secret: true },
   debrid: { store: debrid, secret: true },
@@ -64,10 +64,6 @@ function mergeBookmarks(local, remote) {
     out[k] = [...(out[k] || []), ...(list || []).filter((b) => !seen.has(b.createdAt))].sort((a, b) => (a.global || 0) - (b.global || 0));
   }
   return out;
-}
-function mergeAddons(local, remote) {
-  const ids = new Set(local.map((a) => a.manifest?.id));
-  return [...local, ...(remote || []).filter((a) => !ids.has(a.manifest?.id))];
 }
 
 // ---- auth -----------------------------------------------------------------------
