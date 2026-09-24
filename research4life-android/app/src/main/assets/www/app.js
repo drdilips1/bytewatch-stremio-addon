@@ -32,6 +32,9 @@
     account: (p) => JSON.stringify({ user: localStorage.getItem('ds.acc.' + p) || '', saved: !!localStorage.getItem('ds.acc.' + p) }),
     setCredentials: (p, u) => localStorage.setItem('ds.acc.' + p, u),
     forgetCredentials: (p) => localStorage.removeItem('ds.acc.' + p),
+    utdSearch: (q) => setTimeout(() => App.onNative(window.__utdMock ? window.__utdMock('search', q) : { type: 'utdResults', state: 'error', message: 'UpToDate needs the Android app' }), 300),
+    utdTopic: (u) => setTimeout(() => App.onNative(window.__utdMock ? window.__utdMock('topic', u) : { type: 'utdTopic', state: 'error', message: 'UpToDate needs the Android app' }), 300),
+    openUpToDateAt: (u) => window.open(u, '_blank'),
     openUpToDate: (q) => window.open('https://www.uptodate.com/contents/search' + (q ? '?search=' + encodeURIComponent(q) : ''), '_blank'),
   };
   function copyText(t) { navigator.clipboard?.writeText(t); toast('Copied'); }
@@ -359,11 +362,13 @@
   }
   const searchHash = (f) => 'search?' + new URLSearchParams({
     q: f.q, derm: f.derm ? 1 : 0, types: f.types.join(','), y: f.years, oa: f.oa ? 1 : 0, sort: f.sort, pp: f.preprints ? 1 : 0,
+    ...(f.src === 'utd' ? { src: 'utd' } : {}),
   });
+  const utdHash = (q) => 'search?' + new URLSearchParams({ q: q || '', src: 'utd' });
 
   window.addEventListener('hashchange', render);
 
-  const TAB_OF = { home: 'search', search: 'search', a: null, read: null, pdf: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', settings: null };
+  const TAB_OF = { home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', settings: null };
 
   async function render() {
     closeSheet();
@@ -386,6 +391,7 @@
         case 'a': return renderArticle(r.arg);
         case 'read': return renderReader(r.arg);
         case 'pdf': return renderPdfReader(r.arg);
+        case 'utd': return renderUtdTopic(r.arg);
         case 'journals': return renderJournals();
         case 'j': return renderJournal(r.arg, r.params);
         case 'ji': return renderIssue(r.arg);
@@ -491,6 +497,7 @@
       oa: p.oa === '1',
       sort: SORTS[p.sort] ? p.sort : settings.sort,
       preprints: p.pp == null ? settings.preprints : p.pp === '1',
+      src: p.src === 'utd' ? 'utd' : 'papers',
     };
   }
 
@@ -532,21 +539,27 @@
     return list.length > 2 ? `${list[0]} et al.` : list.join(', ');
   }
 
+  const sourceTabs = (f) => `<div class="seg wide src-tabs">
+      <button class="${f.src !== 'utd' ? 'on' : ''}" data-act="src" data-v="papers">${icon('search')}Papers</button>
+      <button class="${f.src === 'utd' ? 'on' : ''}" data-act="src" data-v="utd">${icon('book')}UpToDate</button></div>`;
+
   async function renderSearch(p) {
     const f = filtersFrom(p);
+    actions.src = (b) => go(b.dataset.v === 'utd' ? utdHash(f.q) : searchHash({ ...f, src: 'papers' }), { replace: true });
+    if (f.src === 'utd') return renderUtdSearch(f);
     if (!f.q.trim()) return go('', { replace: true });
     const key = searchHash(f);
     view.innerHTML = `
       ${topbar('Results', { right: `<button class="icon-btn" data-act="home" aria-label="Home">${icon('search')}</button>` })}
       <div class="spacer"></div>
       ${searchBox(f.q, true)}
+      ${sourceTabs(f)}
       <div class="scroll-x">
         <button class="chip derm ${f.derm ? 'on' : ''}" data-act="f-derm">${icon('leaf')}Dermatology</button>
         <button class="chip ${f.types.length ? 'on' : ''}" data-act="f-types">${icon('filter')}${f.types.length ? f.types.map((t) => TYPE_FILTERS[t].label).join(', ') : 'Study type'}</button>
         <button class="chip ${f.years !== 'any' ? 'on' : ''}" data-act="f-years">${icon('calendar')}${esc(YEARS[f.years])}</button>
         <button class="chip ${f.oa ? 'on' : ''}" data-act="f-oa">${icon('unlock')}Open access</button>
         <button class="chip ${f.sort !== 'relevance' ? 'on' : ''}" data-act="f-sort">${icon('sort')}${esc(SORTS[f.sort].label)}</button>
-        <button class="chip utd" data-act="utd-search" data-q="${esc(keywordTerms(f.q).join(' '))}">${icon('book')}UpToDate</button>
       </div>
       <div id="results">${skeletons(5)}</div>`;
     const ta = $('.searchbox textarea');
@@ -986,6 +999,176 @@
     showReader(model, { key: 'ft:' + id, title: a.title, article: a });
   }
 
+  // ---------------------------------------------------------------- UpToDate, inside the app
+  const UTD = 'https://www.uptodate.com';
+  const utdWait = { search: null, topic: null };
+  const utdCache = new Map();
+  function utdCall(kind, arg) {
+    return new Promise((resolve) => {
+      if (utdWait[kind]) utdWait[kind]({ state: 'cancelled' });
+      utdWait[kind] = resolve;
+      if (kind === 'search') Native.utdSearch(arg); else Native.utdTopic(arg);
+    });
+  }
+  const utdTopicHash = (url) => 'utd/' + encodeURIComponent(url);
+
+  async function renderUtdSearch(f) {
+    const q = f.q.trim();
+    const acc = account('utd');
+    view.innerHTML = `${topbar(q ? 'UpToDate' : 'UpToDate', { right: `<button class="icon-btn" data-act="utd-web" aria-label="Open website">${icon('external')}</button>` })}
+      <div class="spacer"></div>
+      ${searchBox(f.q, true).replace('Ask a research question…', 'Search UpToDate topics…')}
+      ${sourceTabs(f)}
+      <div id="results"></div>`;
+    const ta = $('.searchbox textarea');
+    ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+    actions['utd-web'] = () => Native.openUpToDateAt(UTD + '/contents/search' + (q ? '?search=' + encodeURIComponent(q) : ''));
+    const el = $('#results');
+    if (!acc.saved && !store.get('utdLoggedIn', false)) {
+      el.innerHTML = utdLoginCard('Add your UpToDate login once, and UpToDate topics show up right here in the app.');
+      bindUtdLogin(() => render());
+      return;
+    }
+    if (!q) {
+      const savedTopics = [...saved.values()].filter((a) => a.utd).sort((a, b) => b.savedAt - a.savedAt);
+      el.innerHTML = `<div class="utd-hero">${icon('book')}<div><b>Search UpToDate</b><span>Topics open here in the app, in your reading style.</span></div></div>
+        ${savedTopics.length ? `<div class="section"><div class="section-h"><h3>Saved topics</h3></div>${savedTopics.map(utdCard).join('')}</div>` : ''}`;
+      return;
+    }
+    let res = utdCache.get(q);
+    if (!res) {
+      el.innerHTML = `<div class="meta-line"><span class="spin" style="vertical-align:-3px;margin-right:8px"></span>Searching UpToDate…</div>${skeletons(4)}`;
+      res = await utdCall('search', q);
+      if (res.state === 'cancelled') return;
+      if (res.state === 'results') { utdCache.set(q, res); addHistory(q); }
+    }
+    if (current.name !== 'search' || filtersFrom(current.params).src !== 'utd' || filtersFrom(current.params).q.trim() !== q) return;
+    if (res.state === 'login') {
+      el.innerHTML = utdLoginCard(res.message || 'Sign in to UpToDate to see its results here.');
+      bindUtdLogin(() => render());
+      return;
+    }
+    if (res.state === 'empty' || (res.state === 'results' && !res.items?.length)) {
+      el.innerHTML = `<div class="empty">${icon('book')}<b>No UpToDate topics found</b><div>Try a shorter search, like a diagnosis or drug name.</div></div>`;
+      return;
+    }
+    if (res.state !== 'results') {
+      el.innerHTML = `<div class="empty">${icon('alert')}<b>Couldn't load UpToDate</b><div>${esc(res.message || 'Please try again.')}</div>
+        <div class="spacer"></div><button class="btn small" data-act="utd-retry">Try again</button></div>`;
+      actions['utd-retry'] = () => { utdCache.delete(q); render(); };
+      return;
+    }
+    el.innerHTML = `<div class="meta-line">${res.items.length} UpToDate results</div>${res.items.map((it) => utdCard(it)).join('')}`;
+  }
+
+  function utdCard(it) {
+    const url = it.url || it.utdUrl;
+    const isSaved = saved.has('utd:' + url);
+    return `<div class="card utd-card" role="button" tabindex="0" data-act="utd-topic" data-url="${esc(url)}">
+      <div class="badges" style="margin:0 0 8px"><span class="badge b-utd">${icon('book')}${esc(it.type || it.journal || 'Topic')}</span>${isSaved ? `<span class="badge b-saved">${icon('bookmarkFill')}Saved</span>` : ''}</div>
+      <p class="title main">${esc(it.title)}</p>
+      ${it.snippet ? `<p class="utd-snip">${esc(it.snippet)}</p>` : ''}</div>`;
+  }
+
+  function utdLoginCard(msg) {
+    return `<div class="utd-login">${icon('book')}<b>UpToDate</b><p>${esc(msg)}</p>
+      <div class="row" style="gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn small primary" data-act="utd-add-login">${icon('key')}Save my login</button>
+        <button class="btn small" data-act="utd-signin-web">Sign in on UpToDate</button></div>
+      <p class="muted small">Stored encrypted on this phone; the app signs in for you in the background.</p></div>`;
+  }
+  function bindUtdLogin(then) {
+    actions['utd-add-login'] = () => signInSheet('utd', () => { utdCache.clear(); then(); });
+    actions['utd-signin-web'] = () => { store.set('utdLoggedIn', true); utdCache.clear(); pendingUtdRetry = true; Native.openUpToDateAt(UTD + '/login'); };
+  }
+  let pendingUtdRetry = false;
+
+  /** Turns the topic markup extracted from UpToDate into the reader's model. */
+  function utdToModel(html, title, url) {
+    const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+    const inline = (node) => {
+      let out = '';
+      node.childNodes.forEach((n) => {
+        if (n.nodeType === 3) { out += esc(n.nodeValue); return; }
+        if (n.nodeType !== 1) return;
+        const t = n.tagName;
+        if (t === 'B' || t === 'STRONG') out += `<b>${inline(n)}</b>`;
+        else if (t === 'I' || t === 'EM') out += `<i>${inline(n)}</i>`;
+        else if (t === 'SUP' || t === 'SUB') out += `<${t.toLowerCase()}>${inline(n)}</${t.toLowerCase()}>`;
+        else if (t === 'BR') out += '<br>';
+        else if (t === 'A' && n.getAttribute('data-utd')) {
+          const u = n.getAttribute('data-utd');
+          if (/^https:\/\/([a-z]+\.)?uptodate\.com\//.test(u)) out += `<a class="utd-link" data-utd="${esc(u)}">${inline(n)}</a>`;
+          else out += inline(n);
+        } else if (t === 'IMG') { /* images become figures */ }
+        else out += inline(n);
+      });
+      return out;
+    };
+    const tableHtml = (t) => '<table>' + [...t.querySelectorAll('tr')].map((tr) => '<tr>' + [...tr.children].map((c) => {
+      const tag = c.tagName === 'TH' ? 'th' : 'td';
+      const span = ['colspan', 'rowspan'].map((k) => (c.getAttribute(k) ? ` ${k}="${Number(c.getAttribute(k)) || 1}"` : '')).join('');
+      return `<${tag}${span}>${inline(c)}</${tag}>`;
+    }).join('') + '</tr>').join('') + '</table>';
+    const blocks = [{ type: 'title', text: title }];
+    const figures = [];
+    const BLOCKY = 'P,DIV,UL,OL,TABLE,H2,H3,H4,BLOCKQUOTE,DL,IMG';
+    const walk = (node) => {
+      [...node.children].forEach((el) => {
+        const t = el.tagName;
+        if (/^H[2-4]$/.test(t)) {
+          const text = el.textContent.replace(/\s+/g, ' ').trim();
+          if (text && text !== title) blocks.push({ type: 'h', level: +t[1], text });
+        } else if (t === 'TABLE') {
+          const id = `table-${figures.length + 1}`;
+          figures.push({ id, kind: 'table', label: `Table ${figures.filter((f) => f.kind === 'table').length + 1}`, caption: '', html: tableHtml(el) });
+          blocks.push({ type: 'table', id });
+        } else if (t === 'IMG') {
+          const src = el.getAttribute('src') || '';
+          if (/^https:\/\//.test(src)) {
+            const id = `fig-${figures.length + 1}`;
+            figures.push({ id, kind: 'fig', label: `Graphic ${figures.filter((f) => f.kind === 'fig').length + 1}`, caption: '', src });
+            blocks.push({ type: 'fig', id });
+          }
+        } else if (t === 'UL' || t === 'OL') {
+          const items = [...el.children].filter((li) => li.tagName === 'LI').map((li) => `<li>${inline(li)}</li>`).join('');
+          if (items) blocks.push({ type: 'list', html: `<${t.toLowerCase()}>${items}</${t.toLowerCase()}>` });
+        } else if (el.querySelector(BLOCKY.split(',').map((x) => ':scope > ' + x.toLowerCase()).join(','))) {
+          walk(el);
+        } else {
+          const h = inline(el).replace(/^(\s|<br>)+|(\s|<br>)+$/g, '');
+          if (h.replace(/<[^>]+>/g, '').trim()) blocks.push({ type: 'p', html: h });
+        }
+      });
+    };
+    walk(doc.body.firstElementChild);
+    return { v: 1, kind: 'utd', title, url, blocks, figures };
+  }
+
+  async function renderUtdTopic(url) {
+    const key = 'utd:' + url;
+    view.innerHTML = readerTop('UpToDate') + readerLoading('Opening UpToDate topic…');
+    let model = await db.getReflow(key).catch(() => null);
+    if (!model) {
+      const res = await utdCall('topic', url);
+      if (res.state === 'cancelled' || current.name !== 'utd' || current.arg !== url) return;
+      if (res.state === 'login') {
+        view.innerHTML = topbar('UpToDate') + utdLoginCard(res.message || 'Sign in to UpToDate to read this topic here.');
+        bindUtdLogin(() => render());
+        return;
+      }
+      if (res.state !== 'ok' || !res.html) {
+        view.innerHTML = topbar('UpToDate') + `<div class="empty">${icon('alert')}<b>Couldn't open this topic</b><div>${esc(res.message || '')}</div>
+          <div class="spacer"></div><button class="btn small" data-act="utd-retry">Try again</button></div>`;
+        actions['utd-retry'] = () => render();
+        return;
+      }
+      model = { ...utdToModel(res.html, res.title || 'UpToDate topic', url), key };
+      db.putReflow(model).catch(() => {});
+    }
+    showReader(model, { key, title: model.title, utd: true, url });
+  }
+
   // ---------------------------------------------------------------- PDF → mobile reader
   const REFLOW_V = 3;
   const openReader = (key) => go('pdf/' + encodeURIComponent(key));
@@ -1149,8 +1332,21 @@
         <button class="opt" data-act="rd-native">${icon('external')}Open in another PDF app</button>
         <button class="opt" data-act="rd-share">${icon('share')}Share PDF</button>
         <button class="opt" data-act="rd-redo">${icon('spark')}Rebuild mobile view</button>` : ''}
-        ${opts.article ? `<button class="opt" data-act="rd-paper">${icon('quote')}Paper details &amp; citation</button>` : ''}`);
+        ${opts.article ? `<button class="opt" data-act="rd-paper">${icon('quote')}Paper details &amp; citation</button>` : ''}
+        ${opts.utd ? `<button class="opt" data-act="utd-save">${icon(saved.has(key) ? 'bookmarkFill' : 'bookmark')}${saved.has(key) ? 'Saved — remove from library' : 'Save to library (offline)'}</button>
+          <button class="opt" data-act="utd-refresh">${icon('spark')}Refresh from UpToDate</button>
+          <button class="opt" data-act="utd-share">${icon('share')}Share link</button>
+          <button class="opt" data-act="utd-open-web">${icon('external')}Open on UpToDate website</button>` : ''}`);
     };
+    actions['utd-save'] = async () => {
+      closeSheet();
+      if (saved.has(key)) { await db.del(key); saved.delete(key); toast('Removed from library'); return; }
+      const entry = { id: key, utd: true, utdUrl: opts.url, title, journal: 'UpToDate', jAbbr: 'UpToDate', year: '', types: [], abstract: '', authors: '', savedAt: Date.now(), status: 'unread', collections: [], notes: '' };
+      await db.put(entry); saved.set(key, entry); toast('Saved — available offline');
+    };
+    actions['utd-refresh'] = async () => { closeSheet(); await db.delReflow(key).catch(() => {}); render(); };
+    actions['utd-share'] = () => { closeSheet(); Native.share(title, `${title}\n${opts.url}`); };
+    actions['utd-open-web'] = () => { closeSheet(); Native.openUpToDateAt(opts.url); };
     actions['rd-native'] = () => { closeSheet(); Native.openPdfPages(key, title); };
     actions['rd-share'] = () => { closeSheet(); Native.sharePdf(key, title); };
     actions['rd-redo'] = async () => { closeSheet(); await db.delReflow(key).catch(() => {}); render(); };
@@ -1618,6 +1814,7 @@
 
   function libCard(a) {
     const st = { unread: '', reading: '<span class="badge b-review">Reading</span>', read: '<span class="badge">Read</span>' }[a.status] || '';
+    if (a.utd) return utdCard(a);
     return `<div class="card" role="button" tabindex="0" data-act="${a.imported ? 'open-imported' : 'open'}" data-id="${esc(a.id)}">
       <p class="title main">${esc(a.title)}</p>
       <div class="byline"><span>${esc(a.jAbbr || a.journal || '')}${a.year ? ' · ' + esc(a.year) : ''}</span>
@@ -1852,8 +2049,9 @@
     'r4l-open': () => Native.openPortal(PORTAL, '', ''),
     'acc-set': (b) => signInSheet(b.dataset.p, null),
     'acc-forget': (b) => { Native.forgetCredentials(b.dataset.p); toast(`${PROVIDERS[b.dataset.p].name} sign-in removed`); render(); },
-    'utd-open': () => Native.openUpToDate(''),
-    'utd-search': (b) => Native.openUpToDate(b.dataset.q || ''),
+    'utd-open': () => go(utdHash('')),
+    'utd-search': (b) => go(utdHash(b.dataset.q || '')),
+    'utd-topic': (b) => go(utdTopicHash(b.dataset.url)),
     'lib-offline': () => go('library?f=offline'),
     ask: (b) => go(searchHash(filtersFrom({ q: b.dataset.q }))),
     topic: (b) => go(searchHash({ ...filtersFrom({ q: b.dataset.q }), sort: 'newest', years: '2' })),
@@ -1879,6 +2077,13 @@
   };
 
   document.addEventListener('click', (e) => {
+    const link = e.target.closest('a[data-utd]');
+    if (link) {
+      e.preventDefault();
+      const u = link.dataset.utd;
+      if (/\/contents\/image/i.test(u)) Native.openUpToDateAt(u); else go(utdTopicHash(u.split('#')[0]));
+      return;
+    }
     const el = e.target.closest('[data-act]');
     if (!el) return;
     const fn = actions[el.dataset.act];
@@ -1914,7 +2119,7 @@
   }
   function switchTab(tab) {
     if (tab === 'portal') { Native.openPortal(PORTAL, '', ''); return; }
-    if (tab === 'utd') { Native.openUpToDate(''); return; }
+    if (tab === 'utd') { go(utdHash('')); return; }
     const target = { search: '', journals: 'journals', library: 'library' }[tab];
     if (parseHash().name === (target || 'home')) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     go(target);
@@ -1968,6 +2173,7 @@
       return false;
     },
     async onResume() {
+      if (pendingUtdRetry) { pendingUtdRetry = false; if (['search', 'utd'].includes(current.name)) render(); }
       const before = pdfKeys.size;
       const added = await syncPdfs();
       if (added || pdfKeys.size !== before) {
@@ -1976,6 +2182,14 @@
       }
     },
     async onNative(evt) {
+      if (evt.type === 'utdResults' || evt.type === 'utdTopic') {
+        const k = evt.type === 'utdResults' ? 'search' : 'topic';
+        const f = utdWait[k];
+        utdWait[k] = null;
+        if (f) f(evt);
+        if (evt.state === 'results' || evt.state === 'ok') store.set('utdLoggedIn', true);
+        return;
+      }
       if (evt.type === 'fetchStatus') {
         const j = jobs.get(evt.key);
         if (j) { j.state = 'running'; j.message = evt.message; renderTray(); }

@@ -34,7 +34,12 @@ A dermatology research app with a Consensus-style search, built around
   - Reading settings: text size, serif/sans, light/sepia/dark theme, line spacing. Reading position is remembered.
   - Original page layout is one tap away; scanned PDFs open in page view automatically.
   - Open-access full text (Europe PMC) uses the same reader, with its figures and HTML tables.
-- **UpToDate**: save your UpToDate login once. The app then signs you in automatically when you open UpToDate from the home screen, from a search ("UpToDate" chip) or from a paper (searches its main topic).
+- **UpToDate inside the app**: save your UpToDate login once.
+  - Search has a **Papers | UpToDate** switch. UpToDate results (topics, patient education, drug information) are listed in the app.
+  - Topics open in the app's reader, with contents, tables and graphics in the side panel and your reading theme.
+  - Links to other topics stay in the app. Topics can be saved to the library for offline reading.
+  - A hidden WebView with your session loads UpToDate in the background (`UtdClient`) and signs in automatically when asked.
+  - If UpToDate needs you to sign in by hand, the app offers it and continues afterwards.
 - **Themes**: light/dark/system mode, 8 accent colours, 5 light and 4 dark backgrounds; bundled Inter, Literata and Fraunces fonts.
   The reader has 8 reading themes plus custom text and background colours, 4 fonts, and line-spacing and margin options.
 - **Bottom bar**: Research4Life and UpToDate tabs can be shown or hidden in Settings (hidden by default).
@@ -54,7 +59,8 @@ Every push that changes this folder runs **Build DermScholar APK**, which publis
 - `ApiProxy` — same-origin proxy to Europe PMC and OpenAlex
 - `R4LSession` — shared R4L WebView, encrypted credentials, sign-in and PDF-finder scripts
 - `PdfFetcher` — background Get PDF: DOI → R4L sign-in → publisher PDF → library, one paper at a time
-- `PortalActivity` — visible Research4Life browser (R4L tab, or Show page when a fetch needs help)
+- `UtdClient` — background UpToDate search and topic reader (hidden WebView, shared cookies)
+- `PortalActivity` — visible Research4Life / UpToDate browser (R4L tab, or Show page when a fetch needs help)
 - `assets/www/reflow.js` — PDF → mobile reading layout (columns, headings, figure and table crops)
 - `assets/www/vendor/pdfjs/` — Mozilla pdf.js 4.10.38 (Apache-2.0)
 - `PdfViewerActivity` — offline PDF reader

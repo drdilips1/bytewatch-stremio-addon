@@ -53,6 +53,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private FrameLayout fetchLayer;
     private PdfFetcher fetcher;
+    private UtdClient utd;
     private WebViewAssetLoader assetLoader;
     private final ExecutorService io = Executors.newFixedThreadPool(2);
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -67,6 +68,7 @@ public class MainActivity extends Activity {
         fetchLayer.addView(webView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(fetchLayer);
+        utd = new UtdClient(this, fetchLayer);
         fetcher = PdfFetcher.get(this);
         fetcher.setListener(new PdfFetcher.Listener() {
             @Override
@@ -179,6 +181,14 @@ public class MainActivity extends Activity {
         startActivity(i);
     }
 
+    private void emitRaw(String type, JSONObject payload) {
+        try {
+            payload.put("type", type);
+        } catch (Exception ignored) {
+        }
+        emit(payload);
+    }
+
     private void emit(JSONObject event) {
         String js = "window.App&&App.onNative(" + event + ")";
         main.post(() -> webView.evaluateJavascript(js, null));
@@ -277,6 +287,24 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void forgetCredentials(String provider) {
             R4LSession.forget(MainActivity.this, provider);
+        }
+
+        /** Searches UpToDate in the background; results arrive as a utdResults event. */
+        @JavascriptInterface
+        public void utdSearch(String query) {
+            main.post(() -> utd.search(query, r -> emitRaw("utdResults", r)));
+        }
+
+        /** Loads an UpToDate topic in the background; its content arrives as a utdTopic event. */
+        @JavascriptInterface
+        public void utdTopic(String url) {
+            main.post(() -> utd.topic(url, r -> emitRaw("utdTopic", r)));
+        }
+
+        /** Shows an UpToDate page in the visible browser (sign-in, graphics). */
+        @JavascriptInterface
+        public void openUpToDateAt(String url) {
+            main.post(() -> openLink(url, null, null, R4LSession.UTD));
         }
 
         /** Opens UpToDate (signed in automatically when a login is saved), optionally searching. */

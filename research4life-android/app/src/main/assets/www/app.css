@@ -692,3 +692,26 @@ nav.bottom button.on .pill { background: var(--accent-soft); }
 .drawer { border-radius: 22px 0 0 22px; }
 label.field { display: block; margin: 16px 0 8px; font-size: 13px; color: var(--text-3); font-weight: 600; }
 .jhero-body .row { flex-wrap: wrap; }
+
+/* ---------- UpToDate in the app ---------- */
+.src-tabs { margin: 0 0 10px; }
+.src-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; }
+.src-tabs svg { width: 16px; height: 16px; }
+.b-utd { background: color-mix(in srgb, #0e7490 14%, var(--card)); color: #0e7490; }
+:root[data-theme="dark"] .b-utd { color: #67e8f9; }
+.utd-card .title.main { font-family: var(--display); font-weight: 600; font-size: 17px; }
+.utd-snip { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.utd-login { text-align: center; padding: 28px 18px; margin-top: 10px; border-radius: 22px; border: 1px solid var(--line); background:
+  radial-gradient(90% 90% at 0% 0%, color-mix(in srgb, #0e7490 16%, transparent), transparent 60%), var(--card); box-shadow: var(--shadow); }
+.utd-login > svg { width: 40px; height: 40px; margin: 0 auto 8px; color: #0e7490; }
+.utd-login > b { display: block; font: 600 20px/1.2 var(--display); }
+.utd-login > p { color: var(--text-2); margin: 8px 0 16px; }
+.utd-login .muted { margin: 14px 0 0; }
+.utd-hero { display: flex; gap: 14px; align-items: center; padding: 16px; margin-top: 4px; border-radius: 20px; color: #fff;
+  background: linear-gradient(135deg, #0e7490, #164e63); box-shadow: var(--shadow-lg); }
+.utd-hero > svg { width: 34px; height: 34px; flex: none; }
+.utd-hero b { display: block; font: 600 18px/1.2 var(--display); }
+.utd-hero span { font-size: 13px; opacity: .9; }
+.rd a.utd-link { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; cursor: pointer; }
+.rd ol { padding-left: 1.4em; }
+.rd li { margin-bottom: .35em; }
