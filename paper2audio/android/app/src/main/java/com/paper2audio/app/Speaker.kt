@@ -142,18 +142,25 @@ object Speaker {
         })
     }
 
-    /** Kokoro, then Microsoft voices, then the phone's voices with its own language on top. */
+    /**
+     * The favorite Microsoft voices (Andrew, Ava, Thomas…), then the other
+     * suggested ones, Kokoro, all remaining Microsoft voices, and phone voices.
+     */
     fun voiceOptions(): List<VoiceOption> {
         val out = ArrayList<VoiceOption>()
+        fun edge(v: EdgeTts.VoiceInfo, mark: String) {
+            val person = v.name.substringAfterLast('-').removeSuffix("Neural").removeSuffix("Multilingual")
+            val locale = Locale.forLanguageTag(v.locale).displayName
+            out += VoiceOption(EDGE + v.name, "$mark $person · $locale · ${v.gender.lowercase()} (online)")
+        }
+        val curatedCount = EdgeTts.CURATED.size
+        EdgeTts.FAVORITES.forEach { edge(it, "★") }
+        edgeVoices.take(curatedCount).drop(EdgeTts.FAVORITES.size).forEach { edge(it, "•") }
         if (Kokoro.supported) {
             val note = if (Kokoro.isInstalled()) "offline" else "one-time download"
             for (v in Kokoro.VOICES) out += VoiceOption(KOKORO + v.name, "◆ ${v.label} (Kokoro, $note)")
         }
-        for (v in edgeVoices) {
-            val person = v.name.substringAfterLast('-').removeSuffix("Neural").removeSuffix("Multilingual")
-            val locale = Locale.forLanguageTag(v.locale).displayName
-            out += VoiceOption(EDGE + v.name, "★ $person · $locale · ${v.gender.lowercase()} (natural, online)")
-        }
+        edgeVoices.drop(curatedCount).forEach { edge(it, "•") }
         val lang = Locale.getDefault().language
         val phone = tts?.voices.orEmpty()
             .filter { TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in it.features }

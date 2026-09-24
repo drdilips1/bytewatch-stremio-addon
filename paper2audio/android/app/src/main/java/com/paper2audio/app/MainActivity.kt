@@ -60,6 +60,7 @@ class MainActivity : Activity() {
     private lateinit var btnOpenAudio: Button
     private lateinit var urlInput: EditText
     private lateinit var btnKokoro: Button
+    private lateinit var btnDeleteKokoro: Button
     private lateinit var kokoroProgress: ProgressBar
     private lateinit var kokoroStatus: TextView
 
@@ -92,6 +93,7 @@ class MainActivity : Activity() {
         btnOpenAudio = findViewById(R.id.btnOpenAudio)
         urlInput = findViewById(R.id.urlInput)
         btnKokoro = findViewById(R.id.btnKokoro)
+        btnDeleteKokoro = findViewById(R.id.btnDeleteKokoro)
         kokoroProgress = findViewById(R.id.kokoroProgress)
         kokoroStatus = findViewById(R.id.kokoroStatus)
         checks = listOf(R.id.cbRefs, R.id.cbCites, R.id.cbCaptions, R.id.cbAppendix).map { findViewById(it) }
@@ -163,6 +165,18 @@ class MainActivity : Activity() {
             } catch (e: ActivityNotFoundException) {
                 toast("Open Settings › Accessibility › Text-to-speech to add voices")
             }
+        }
+
+        btnDeleteKokoro.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Delete Kokoro voices?")
+                .setMessage("This frees about 350 MB. You can download them again later.")
+                .setPositiveButton("Delete") { _, _ ->
+                    if (Speaker.isKokoro) Speaker.setVoice(Speaker.DEFAULT_VOICE)
+                    Kokoro.uninstall { Speaker.refreshVoices() }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
 
         btnKokoro.setOnClickListener {
@@ -389,6 +403,7 @@ class MainActivity : Activity() {
         if (Speaker.voicesVersion != voicesShown) setupVoices()
         val needsKokoro = Speaker.isKokoro && !Kokoro.isInstalled()
         btnKokoro.visibility = if (needsKokoro || Kokoro.installing) View.VISIBLE else View.GONE
+        btnDeleteKokoro.visibility = if (Kokoro.isInstalled() && !Kokoro.installing) View.VISIBLE else View.GONE
         btnKokoro.text = if (Kokoro.installing) "Cancel download" else "Download Kokoro voices (~350 MB)"
         kokoroProgress.visibility = if (Kokoro.installing) View.VISIBLE else View.GONE
         kokoroProgress.progress = Kokoro.progress

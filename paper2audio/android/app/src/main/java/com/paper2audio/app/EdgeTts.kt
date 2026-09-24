@@ -34,12 +34,17 @@ object EdgeTts {
     /** Characters per request; well under the service's 4096-byte limit once escaped. */
     private const val PIECE_CHARS = 1200
 
-    /** Good defaults shown before (or without) the full voice list download. */
-    val CURATED = listOf(
+    /** The most natural voices, listed first. */
+    val FAVORITES = listOf(
         VoiceInfo("en-US-AndrewMultilingualNeural", "en-US", "Male"),
         VoiceInfo("en-US-AvaMultilingualNeural", "en-US", "Female"),
+        VoiceInfo("en-GB-ThomasNeural", "en-GB", "Male"),
         VoiceInfo("en-US-EmmaMultilingualNeural", "en-US", "Female"),
         VoiceInfo("en-US-BrianMultilingualNeural", "en-US", "Male"),
+    )
+
+    /** Good defaults shown before (or without) the full voice list download. */
+    val CURATED = FAVORITES + listOf(
         VoiceInfo("en-US-AriaNeural", "en-US", "Female"),
         VoiceInfo("en-US-GuyNeural", "en-US", "Male"),
         VoiceInfo("en-GB-SoniaNeural", "en-GB", "Female"),

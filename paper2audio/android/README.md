@@ -36,8 +36,10 @@ the phone: no server, no account, no limits.
   but quality depends on the phone and is often robotic. Tap **Get more phone
   voices** to download better ones.
 
-Pick a voice from the list: ◆ Kokoro voices first, then ★ Microsoft voices,
-then phone voices.
+The voice list starts with the most natural Microsoft voices (★ Andrew, Ava,
+Thomas, Emma, Brian), then other suggested voices, the ◆ Kokoro voices, all
+remaining Microsoft voices, and finally phone voices. If you downloaded Kokoro
+and don't use it, **Delete Kokoro voices** frees about 350 MB.
 
 ## Getting the APK
 

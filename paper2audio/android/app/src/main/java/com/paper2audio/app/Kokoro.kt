@@ -138,6 +138,23 @@ object Kokoro {
         job?.cancel()
     }
 
+    /** Deletes the downloaded model to free its storage. */
+    fun uninstall(onDone: () -> Unit) {
+        if (installing) return
+        scope.launch {
+            synchronized(lock) {
+                engine?.release()
+                engine = null
+            }
+            dir.deleteRecursively()
+            archive.delete()
+            update {
+                message = null
+                onDone()
+            }
+        }
+    }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
