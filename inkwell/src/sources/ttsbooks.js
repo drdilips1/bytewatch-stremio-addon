@@ -1,8 +1,8 @@
 // Ebooks narrated by a free phone voice (see lib/tts.js). UIDs look like "tts:gb:1342".
 import * as gb from './gutenberg.js';
-import { paragraphs, buildAudiobook, nativeTts } from '../lib/tts.js';
+import { paragraphs, buildAudiobook, nativeTts, usingBuiltin } from '../lib/tts.js';
 
-export const canNarrate = () => nativeTts;
+export const canNarrate = () => usingBuiltin() || nativeTts;
 
 export async function narrate(book) {
   const base = book.uid.startsWith('tts:') ? { ...book, uid: book.uid.slice(4) } : book;

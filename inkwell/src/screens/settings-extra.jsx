@@ -4,6 +4,7 @@ import { toast } from '../components/common.jsx';
 import { useStore } from '../lib/store.js';
 import * as sync from '../lib/sync.js';
 import { ttsCfg, engines as listEngines, voices as listVoices, speak, stopSpeaking, clearAudioCache, qualityLabel, RECOMMENDED } from '../lib/tts.js';
+import { CATALOG, builtinAvailable, installedIds, download as downloadVoice, remove as removeVoice } from '../lib/voices.js';
 
 const ago = (t) => {
   if (!t) return 'never';
@@ -151,7 +152,7 @@ export function AccountCard() {
   );
 }
 
-export function VoicesCard() {
+function SystemVoices() {
   const c = useStore(ttsCfg);
   const [eng, setEng] = useState(null);
   const [vs, setVs] = useState(null);
@@ -181,9 +182,6 @@ export function VoicesCard() {
 
   return (
     <>
-      <p class="muted pad-s">
-        Free voices that run on your phone — no accounts, no API keys, no cost. Tap <b>Listen</b> on any ebook to hear it as an audiobook.
-      </p>
       <div class="set-row column">
         <b>Voice engine</b>
         <select value={c.engine} onChange={(e) => ttsCfg.patch({ engine: e.currentTarget.value, voice: '' })}>
@@ -237,7 +235,7 @@ export function VoicesCard() {
         {err && <small class="err">{err}</small>}
       </div>
       <div class="set-row column">
-        <b>Get more natural free voices</b>
+        <b>More phone voice engines</b>
         <small class="muted">Install one, open it once to download a voice, then pick it under Voice engine above.</small>
         {RECOMMENDED.map((r) => (
           <a class="voice-rec" href={r.url} target="_blank" rel="noopener">
@@ -251,6 +249,146 @@ export function VoicesCard() {
           </a>
         ))}
       </div>
+    </>
+  );
+}
+
+const SAMPLE = 'Chapter one. It was a bright cold day in April, and the clocks were striking thirteen.';
+
+function BuiltinVoices() {
+  const c = useStore(ttsCfg);
+  const [installed, setInstalled] = useState([]);
+  const [prog, setProg] = useState({}); // id -> { pct, phase }
+  const [previewing, setPreviewing] = useState('');
+  const refresh = () => installedIds().then(setInstalled);
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const get = async (v) => {
+    setProg((p) => ({ ...p, [v.id]: { pct: 0, phase: 'download' } }));
+    try {
+      await downloadVoice(v, (e) =>
+        setProg((p) => ({ ...p, [v.id]: { pct: e.total > 0 ? Math.round((e.received / e.total) * 100) : 0, phase: e.phase, mb: Math.round(e.received / 1e6) } }))
+      );
+      await refresh();
+      if (!ttsCfg.get().builtinId) ttsCfg.patch({ mode: 'builtin', builtinId: v.id, speaker: v.speakers[0][1] });
+      toast(`${v.name} is ready`);
+    } catch (e) {
+      toast(`Download failed: ${e.message}`);
+    } finally {
+      setProg((p) => {
+        const n = { ...p };
+        delete n[v.id];
+        return n;
+      });
+    }
+  };
+
+  const preview = async (v, sid) => {
+    const key = `${v.id}:${sid}`;
+    if (previewing === key) {
+      stopSpeaking();
+      return setPreviewing('');
+    }
+    setPreviewing(key);
+    try {
+      await speak(SAMPLE, { mode: 'builtin', builtinId: v.id, speaker: sid, rate: 1 });
+    } catch (e) {
+      if (e.message !== 'stopped') toast(e.message);
+    } finally {
+      setPreviewing((k) => (k === key ? '' : k));
+    }
+  };
+
+  if (!builtinAvailable) return <p class="muted pad-s">Built-in voices work in the Android app.</p>;
+
+  return (
+    <div class="voice-list">
+      {CATALOG.map((v) => {
+        const have = installed.includes(v.id);
+        const p = prog[v.id];
+        const activeVoice = c.mode === 'builtin' && c.builtinId === v.id;
+        return (
+          <div class={'voice-card' + (activeVoice ? ' active' : '')}>
+            <div class="voice-head">
+              <div>
+                <b>
+                  {v.name} {v.best && <span class="chip ready">MOST NATURAL</span>}
+                </b>
+                <small>
+                  {v.what} · {v.size}
+                </small>
+              </div>
+              {p ? (
+                <span class="voice-prog">{p.phase === 'unpack' ? 'Installing…' : `${p.pct || 0}%`}</span>
+              ) : have ? (
+                <button
+                  class="icon-btn"
+                  aria-label={`Delete ${v.name}`}
+                  onClick={async () => {
+                    await removeVoice(v.id);
+                    if (ttsCfg.get().builtinId === v.id) ttsCfg.patch({ builtinId: '' });
+                    refresh();
+                  }}
+                >
+                  <Icon name="trash" size={16} />
+                </button>
+              ) : (
+                <button class="btn primary small-btn" onClick={() => get(v)}>
+                  <Icon name="download" size={14} /> Download
+                </button>
+              )}
+            </div>
+            {p && (
+              <div class="progress-bar voice-bar">
+                <div style={{ width: (p.phase === 'unpack' ? 100 : p.pct || 2) + '%' }} />
+              </div>
+            )}
+            {have && (
+              <div class="voice-speakers">
+                {v.speakers.map(([label, sid]) => {
+                  const on = activeVoice && c.speaker === sid;
+                  const key = `${v.id}:${sid}`;
+                  return (
+                    <div class={'speaker' + (on ? ' on' : '')}>
+                      <button class="speaker-pick" onClick={() => ttsCfg.patch({ mode: 'builtin', builtinId: v.id, speaker: sid })}>
+                        {on ? <Icon name="check" size={14} /> : null} {label}
+                      </button>
+                      <button class="icon-btn tiny-play" aria-label={`Preview ${label}`} onClick={() => preview(v, sid)}>
+                        {previewing === key ? <span class="spinner small" /> : <Icon name="play" size={12} />}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function VoicesCard() {
+  const c = useStore(ttsCfg);
+  const tab = builtinAvailable && c.mode !== 'system' ? 'builtin' : builtinAvailable ? 'system' : 'system';
+  return (
+    <>
+      <p class="muted pad-s">
+        Free voices that turn any ebook into an audiobook — download one here, it then works offline. Tap <b>Listen</b> on an ebook to use it.
+      </p>
+      {builtinAvailable && (
+        <div class="segmented tight">
+          <button type="button" class={tab === 'builtin' ? 'on' : ''} onClick={() => ttsCfg.patch({ mode: 'builtin' })}>
+            Inkwell voices
+          </button>
+          <button type="button" class={tab === 'system' ? 'on' : ''} onClick={() => ttsCfg.patch({ mode: 'system' })}>
+            Phone voices
+          </button>
+        </div>
+      )}
+      {tab === 'builtin' ? <BuiltinVoices /> : <SystemVoices />}
       <div class="set-row">
         <b>Generated audio</b>
         <button

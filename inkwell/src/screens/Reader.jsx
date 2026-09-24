@@ -203,7 +203,7 @@ export function Reader({ book, readAloud: autoAloud }) {
               <div>
                 <b>Listen as an audiobook</b>
                 <small>
-                  Free voice in the player — chapters, speed, sleep timer & lock screen · ~
+                  Plays in the audiobook player — chapters, speed, sleep timer & lock screen · ~
                   {(() => {
                     const m = estimate(paragraphs(doc.html)).minutes;
                     return m >= 60 ? `${Math.round(m / 60)} h` : `${m} min`;
@@ -225,7 +225,7 @@ export function Reader({ book, readAloud: autoAloud }) {
               <small>Highlights each paragraph as it's spoken · tap any paragraph to jump</small>
             </div>
           </button>
-          <p class="muted small-note">Voices: Settings → Free voices. Install HayaiTTS or SherpaTTS for the most natural free voices.</p>
+          <p class="muted small-note">Choose or download a voice in Settings → Voices.</p>
         </div>
       )}
       {aloud && (

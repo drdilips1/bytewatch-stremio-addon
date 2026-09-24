@@ -13,10 +13,17 @@ const Native = registerPlugin('InkwellTts');
 export const nativeTts = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellTts');
 
 export const ttsCfg = persisted('voice', {
-  engine: '', // '' = phone default
-  voice: '', // '' = engine default
+  mode: 'builtin', // 'builtin' = voices downloaded in the app, 'system' = phone TTS engine
+  builtinId: '', // e.g. 'kokoro-en-v0_19'
+  speaker: 0,
+  engine: '', // system: '' = phone default
+  voice: '', // system: '' = engine default
   rate: 1,
 });
+
+import { builtinAvailable, render, playableUrl, Voices } from './voices.js';
+
+export const usingBuiltin = () => builtinAvailable && ttsCfg.get().mode === 'builtin' && !!ttsCfg.get().builtinId;
 
 /** Free engines worth installing for natural voices. */
 export const RECOMMENDED = [
@@ -61,8 +68,22 @@ export async function voices(engine = ttsCfg.get().engine) {
 export const qualityLabel = (q) => (q >= 500 ? 'Very high' : q >= 400 ? 'High' : q >= 300 ? 'Normal' : 'Low');
 
 /** Speak a short text now (preview / read along). Resolves when finished. */
-export function speak(text, opts = {}) {
+let clip = null;
+let clipN = 0;
+export async function speak(text, opts = {}) {
   const c = { ...ttsCfg.get(), ...opts };
+  if (builtinAvailable && c.mode === 'builtin' && c.builtinId) {
+    const uri = await render(c.builtinId, c.speaker, text, `voice-audio/speak/${Date.now()}-${clipN++ % 8}.wav`);
+    return new Promise((resolve, reject) => {
+      clip?.pause();
+      clip = new Audio(playableUrl(uri));
+      clip.playbackRate = c.rate || 1;
+      clip.onended = () => resolve();
+      clip.onerror = () => reject(new Error('Could not play the voice clip'));
+      clip.play().catch(reject);
+      clip._reject = reject;
+    });
+  }
   if (nativeTts) return Native.speak({ text, engine: c.engine, voice: c.voice, rate: c.rate });
   return new Promise((resolve, reject) => {
     const synth = window.speechSynthesis;
@@ -78,11 +99,17 @@ export function speak(text, opts = {}) {
 }
 
 export function stopSpeaking() {
+  if (clip) {
+    clip.pause();
+    clip._reject?.(new Error('stopped'));
+    clip = null;
+  }
   if (nativeTts) return Native.stop().catch(() => {});
   window.speechSynthesis?.cancel();
 }
 
-export const clearAudioCache = () => (nativeTts ? Native.clearCache() : Promise.resolve());
+export const clearAudioCache = () =>
+  Promise.all([nativeTts ? Native.clearCache().catch(() => {}) : null, builtinAvailable ? Voices.clearCache().catch(() => {}) : null]);
 
 // ---- text preparation ------------------------------------------------------
 /** Paragraphs from the sanitized reader HTML, tagged with chapter headings. */
@@ -166,20 +193,24 @@ const safe = (s) => String(s).replace(/[^a-z0-9._-]+/gi, '_').slice(0, 80);
 
 /** Build a playable audiobook from an ebook's text using the chosen free voice. */
 export function buildAudiobook(book, paras) {
-  if (!nativeTts) throw new Error('Listening as an audiobook works in the Android app — use Read along here');
   const c = ttsCfg.get();
-  const secs = sections(paras, 3000);
+  const builtin = usingBuiltin();
+  if (!builtin && !nativeTts) throw new Error('Listening as an audiobook works in the Android app — use Read along here');
+  // Smaller sections with built-in voices so the first audio is ready quickly.
+  const secs = sections(paras, builtin ? 1500 : 3000);
   const uid = `tts:${book.uid}`;
-  const folder = `tts/${safe(book.uid)}/${safe((c.engine || 'default') + '-' + (c.voice || 'default'))}`;
+  const voiceKey = builtin ? `${c.builtinId}-${c.speaker}` : `${c.engine || 'default'}-${c.voice || 'default'}`;
+  const folder = `${builtin ? 'voice-audio' : 'tts'}/${safe(book.uid)}/${safe(voiceKey)}`;
   const inflight = new Map();
-  // Render sections one at a time (engines handle one utterance at a time).
+  // Render sections one at a time (the voice engine handles one job at a time).
   let chain = Promise.resolve();
-  const render = (i) => {
+  const render1 = (i) => {
     if (!inflight.has(i)) {
-      const p = (chain = chain
-        .catch(() => {})
-        .then(() => Native.synthesize({ text: secs[i].text, engine: c.engine, voice: c.voice, rate: 1, path: `${folder}/${i}.wav` }))
-        .then((r) => r.uri));
+      const job = () =>
+        builtin
+          ? render(c.builtinId, c.speaker, secs[i].text, `${folder}/${i}.wav`)
+          : Native.synthesize({ text: secs[i].text, engine: c.engine, voice: c.voice, rate: 1, path: `${folder}/${i}.wav` }).then((r) => r.uri);
+      const p = (chain = chain.catch(() => {}).then(job));
       p.catch(() => inflight.delete(i));
       inflight.set(i, p);
     }
@@ -190,13 +221,15 @@ export function buildAudiobook(book, paras) {
     uid,
     source: 'tts',
     kind: 'audio',
-    narrator: 'Free phone voice',
+    narrator: builtin ? 'Built-in voice' : 'Phone voice',
     tracks: secs.map((s, i) => ({
       title: s.title,
       index: i,
       resolve: async () => {
-        const url = await render(i);
-        if (i + 1 < secs.length) render(i + 1).catch(() => {}); // prepare the next section while this one plays
+        const url = await render1(i);
+        // Prepare the next two sections while this one plays.
+        if (i + 1 < secs.length) render1(i + 1).catch(() => {});
+        if (i + 2 < secs.length) render1(i + 2).catch(() => {});
         return url;
       },
     })),

@@ -2448,3 +2448,85 @@ pre.sql {
   font-size: 10px;
   vertical-align: 2px;
 }
+.voice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 0;
+}
+.voice-card {
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.voice-card.active {
+  border-color: color-mix(in srgb, var(--accent-2) 60%, transparent);
+  box-shadow: 0 8px 24px -16px var(--accent-2);
+}
+.voice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.voice-head small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+  line-height: 1.35;
+}
+.voice-head .chip {
+  font-size: 9.5px;
+  margin-left: 6px;
+  vertical-align: 2px;
+}
+.btn.small-btn {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+  flex: none;
+}
+.voice-prog {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--accent-2);
+  flex: none;
+}
+.voice-bar {
+  margin-top: 10px;
+  height: 4px;
+}
+.voice-speakers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.speaker {
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.speaker.on {
+  background: var(--grad);
+  border-color: transparent;
+  color: #fff;
+}
+.speaker-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 4px 7px 12px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: inherit;
+}
+.icon-btn.tiny-play {
+  width: 30px;
+  height: 30px;
+  color: inherit;
+}
