@@ -108,10 +108,29 @@ public class MainActivity extends Activity {
             return;
         }
         Intent i = new Intent(this, PortalActivity.class);
+        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         i.putExtra(PortalActivity.EXTRA_URL, url);
         if (key != null) i.putExtra(PortalActivity.EXTRA_KEY, key);
         if (title != null) i.putExtra(PortalActivity.EXTRA_TITLE, title);
         startActivityForResult(i, REQUEST_PORTAL);
+    }
+
+    /** Opens the paper through Research4Life and saves its PDF. */
+    private void fetchViaR4L(String key, String doi, String title) {
+        Intent i = new Intent(this, PortalActivity.class);
+        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        i.putExtra(PortalActivity.EXTRA_FETCH, true);
+        i.putExtra(PortalActivity.EXTRA_DOI, doi);
+        i.putExtra(PortalActivity.EXTRA_KEY, key);
+        i.putExtra(PortalActivity.EXTRA_TITLE, title);
+        startActivityForResult(i, REQUEST_PORTAL);
+    }
+
+    private void openViewer(String key, String title) {
+        Intent i = new Intent(this, PdfViewerActivity.class);
+        i.putExtra(PdfViewerActivity.EXTRA_KEY, key);
+        i.putExtra(PdfViewerActivity.EXTRA_TITLE, title);
+        startActivity(i);
     }
 
     private void emit(JSONObject event) {
@@ -165,6 +184,54 @@ public class MainActivity extends Activity {
                     emit(event("pdfFailed", "key", key, "message", reason));
                 }
             });
+        }
+
+        /**
+         * One-tap PDF: tries a free copy first, then Research4Life access via the paper's DOI.
+         * Opens the reader when done.
+         */
+        @JavascriptInterface
+        public void getPdf(String key, String doi, String title, String freeUrl) {
+            boolean hasDoi = doi != null && !doi.isEmpty();
+            if (freeUrl == null || freeUrl.isEmpty()) {
+                if (hasDoi) main.post(() -> fetchViaR4L(key, doi, title));
+                else emit(event("pdfFailed", "key", key, "message", "This paper has no DOI, so it can't be fetched automatically."));
+                return;
+            }
+            String ua = WebSettings.getDefaultUserAgent(MainActivity.this);
+            io.execute(() -> {
+                try {
+                    PdfStore.download(MainActivity.this, key, freeUrl, title, ua);
+                    emit(event("pdfSaved", "key", key));
+                    main.post(() -> openViewer(key, title));
+                } catch (Exception e) {
+                    if (hasDoi) main.post(() -> fetchViaR4L(key, doi, title));
+                    else emit(event("pdfFailed", "key", key, "message", "Couldn't download the free PDF."));
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public String r4lAccount() {
+            try {
+                JSONObject o = new JSONObject();
+                o.put("user", R4LSession.username(MainActivity.this));
+                o.put("saved", R4LSession.hasCredentials(MainActivity.this));
+                return o.toString();
+            } catch (Exception e) {
+                return "{}";
+            }
+        }
+
+        @JavascriptInterface
+        public void r4lSetCredentials(String user, String pass) {
+            if (user == null || pass == null || user.trim().isEmpty() || pass.isEmpty()) return;
+            R4LSession.saveCredentials(MainActivity.this, user, pass);
+        }
+
+        @JavascriptInterface
+        public void r4lForget() {
+            R4LSession.forget(MainActivity.this);
         }
 
         @JavascriptInterface

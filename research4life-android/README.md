@@ -20,7 +20,13 @@ A dermatology research app with a Consensus-style search, built around
 - **Journals**: 50+ curated dermatology journals in five groups (leading clinical, research, open access, India and regional, subspecialty).
   - Follow journals to get a "new in your journals" feed.
   - Each journal page shows h-index and citation metrics (OpenAlex), plus latest, most-cited and review tabs, and search inside the journal.
-- **Research4Life**: an in-app browser that keeps your sign-in. Any PDF you open there is saved straight into the library, attached to the paper you came from.
+- **Get PDF (one tap)** on every result and paper:
+  1. A free copy is downloaded directly when one exists.
+  2. Otherwise the paper opens through the Research4Life access proxy (`login.research4life.org/tacsgr1doi_org/<DOI>`).
+  3. If R4L asks, the app signs in with your saved account, then finds the publisher's PDF link, saves the PDF to the library and opens the reader.
+  The page stays visible, so you can step in if a publisher needs a click.
+- **Research4Life session**: one browser session is kept alive while the app runs, so going back and forth doesn't log you out.
+  Your R4L user ID and password can be saved once (Settings, or the first time you tap Get PDF). They're encrypted with an Android Keystore key and never leave the phone.
 
 ## Getting the APK
 
@@ -33,6 +39,7 @@ Every push that changes this folder runs **Build DermScholar APK**, which publis
 - `app/src/main/assets/www/` — the app UI (HTML/CSS/JS), served locally via `WebViewAssetLoader`
 - `MainActivity` — hosts the UI, exposes `window.Native` (PDF store, sharing, export)
 - `ApiProxy` — same-origin proxy to Europe PMC and OpenAlex
-- `PortalActivity` — Research4Life/publisher browser that saves PDFs to the library
+- `R4LSession` — shared R4L WebView, encrypted credentials, sign-in and PDF-finder scripts
+- `PortalActivity` — Research4Life browser; in fetch mode, automates DOI → sign-in → PDF → library
 - `PdfViewerActivity` — offline PDF reader
 - `tools/check-journals.mjs` — verifies each curated journal query returns articles

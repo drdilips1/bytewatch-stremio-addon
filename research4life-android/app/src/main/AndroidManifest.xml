@@ -24,6 +24,7 @@
 
         <activity
             android:name=".PortalActivity"
+            android:launchMode="singleTop"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
             android:exported="false" />
 

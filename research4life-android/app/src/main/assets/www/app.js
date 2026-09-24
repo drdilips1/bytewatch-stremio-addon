@@ -24,6 +24,10 @@
       a.download = name; a.click();
     },
     copy: (t) => copyText(t), toast: (m) => toast(m), version: () => 'web',
+    getPdf: () => toast('PDF download needs the Android app'),
+    r4lAccount: () => JSON.stringify({ user: localStorage.getItem('ds.r4lUser') || '', saved: !!localStorage.getItem('ds.r4lUser') }),
+    r4lSetCredentials: (u) => localStorage.setItem('ds.r4lUser', u),
+    r4lForget: () => localStorage.removeItem('ds.r4lUser'),
   };
   function copyText(t) { navigator.clipboard?.writeText(t); toast('Copied'); }
 
@@ -451,16 +455,37 @@
     };
   }
 
+  function pdfAction(a) {
+    if (a.imported) return '';
+    if (pdfKeys.has(a.id)) return `<button class="btn xs good" data-act="card-pdf" data-id="${esc(a.id)}">${icon('file')}Read PDF</button>`;
+    if (!a.doi && !pdfSourceFor(a)) return '';
+    return `<button class="btn xs primary" data-act="card-pdf" data-id="${esc(a.id)}">${icon('download')}Get PDF</button>`;
+  }
+  function cardActions(a) {
+    const s = saved.has(a.id);
+    return `<div class="card-actions">${pdfAction(a)}
+      <button class="btn xs ${s ? 'good' : ''}" data-act="card-save" data-id="${esc(a.id)}">${icon(s ? 'bookmarkFill' : 'bookmark')}${s ? 'Saved' : 'Save'}</button></div>`;
+  }
+
   function card(a, { compact = false } = {}) {
     const finding = !compact && a.finding;
-    return `<button class="card" data-act="open" data-id="${esc(a.id)}">
+    return `<div class="card" role="button" tabindex="0" data-act="open" data-id="${esc(a.id)}">
       ${finding ? `<p class="finding">${esc(a.finding)}</p>` : ''}
       <p class="title ${finding ? '' : 'main'}">${esc(a.title)}</p>
       <div class="byline">${a.authors ? `<span>${esc(shortAuthors(a.authors))}</span>` : ''}
         <span class="${a.authors ? 'dot' : ''}">${esc(a.jAbbr || a.journal)}${a.year ? ' · ' + esc(a.year) : ''}</span>
         ${a.citedBy ? `<span class="dot">${fmt(a.citedBy)} citations</span>` : ''}</div>
-      <div class="badges">${badgesFor(a)}</div></button>`;
+      <div class="badges">${badgesFor(a)}</div>${cardActions(a)}</div>`;
   }
+  function refreshCards() {
+    if (current.name === 'a') { render(); return; }
+    $$('.card[data-id]').forEach((el) => {
+      const a = saved.get(el.dataset.id) || cache.get(el.dataset.id);
+      const row = el.querySelector('.card-actions');
+      if (a && row && !a.imported) row.outerHTML = el.dataset.act === 'open' && current.name !== 'library' ? cardActions(a) : `<div class="card-actions">${pdfAction(a)}</div>`;
+    });
+  }
+
   function shortAuthors(s) {
     const list = s.replace(/\.$/, '').split(/,\s*/);
     return list.length > 2 ? `${list[0]} et al.` : list.join(', ');
@@ -607,6 +632,55 @@
     return null;
   }
   const doiUrl = (a) => (a.doi ? `https://doi.org/${a.doi}` : null);
+  const R4L_PROXY = 'https://login.research4life.org/tacsgr1';
+
+  function r4lAccount() {
+    try { return JSON.parse(Native.r4lAccount ? Native.r4lAccount() : '{}'); } catch { return {}; }
+  }
+
+  /** Read the PDF if it's saved; otherwise fetch it (free copy first, then Research4Life). */
+  async function getPdf(a, { skipAsk = false } = {}) {
+    if (pdfKeys.has(a.id)) { Native.openPdf(a.id, a.title); return; }
+    const free = pdfSourceFor(a);
+    if (!free && !a.doi) {
+      Native.copy(a.title);
+      toast('No DOI for this paper. Title copied: paste it into Research4Life search.');
+      Native.openPortal(PORTAL, a.id, a.title);
+      return;
+    }
+    if (!free && !skipAsk && !r4lAccount().saved && !store.get('r4lAsked', false)) {
+      r4lSignInSheet(() => getPdf(a, { skipAsk: true }));
+      return;
+    }
+    if (!saved.has(a.id)) { await saveArticle(a); }
+    toast(free ? 'Downloading free PDF…' : 'Getting PDF through Research4Life…');
+    Native.getPdf(a.id, a.doi || '', a.title, free || '');
+  }
+
+  function r4lSignInSheet(then) {
+    const acc = r4lAccount();
+    sheet(`<h3>Research4Life sign-in</h3>
+      <p class="muted small" style="margin-top:-4px">Save your Research4Life user ID and password once. The app then signs in for you whenever you tap
+      <b>Get PDF</b>, so there's no website login each time. It's stored encrypted on this phone only.</p>
+      <form data-form="r4l">
+        <label class="field">User ID</label><input type="text" name="u" value="${esc(acc.user || '')}" autocomplete="username" autocapitalize="none">
+        <label class="field">Password</label><input type="password" name="p" autocomplete="current-password">
+        <div class="actions"><button type="button" class="btn" data-act="r4l-skip">${then ? 'Skip' : 'Cancel'}</button><button class="btn primary">Save</button></div>
+      </form>`);
+    const form = $('[data-form=r4l]');
+    setTimeout(() => form.u.value ? form.p.focus() : form.u.focus(), 50);
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const u = form.u.value.trim(); const p = form.p.value;
+      if (!u || !p) { toast('Enter both user ID and password'); return; }
+      Native.r4lSetCredentials(u, p);
+      store.set('r4lAsked', true);
+      closeSheet(true);
+      toast('Research4Life sign-in saved');
+      if (then) then(); else render();
+    });
+    actions['r4l-skip'] = () => { store.set('r4lAsked', true); closeSheet(true); if (then) then(); };
+  }
 
   async function renderArticle(id) {
     view.innerHTML = topbar('Paper') + skeletons(2);
@@ -635,15 +709,14 @@
         ${a.finding ? `<div class="keybox"><div class="label">${icon('spark')}Key finding</div><p>${esc(a.finding)}</p></div>` : ''}
 
         <div class="actions">
-          <button class="btn ${s ? 'good' : 'primary'}" data-act="save">${icon(s ? 'bookmarkFill' : 'bookmark')}${s ? 'Saved' : 'Save'}</button>
           ${hasPdf
-            ? `<button class="btn good" data-act="open-pdf">${icon('file')}Read PDF</button>`
-            : pdfSrc
-              ? `<button class="btn" data-act="get-pdf">${icon('download')}Save PDF</button>`
-              : `<button class="btn" data-act="r4l">${icon('key')}Get via R4L</button>`}
+            ? `<button class="btn good full big" data-act="open-pdf">${icon('file')}Read PDF<span class="sub">Saved on this phone</span></button>`
+            : pdfSrc || a.doi
+              ? `<button class="btn primary full big" data-act="get-pdf">${icon('download')}Get PDF now<span class="sub">${pdfSrc ? 'Free copy · saves to your library' : 'Through your Research4Life access'}</span></button>`
+              : `<button class="btn full" data-act="r4l">${icon('key')}Find on Research4Life</button>`}
+          <button class="btn ${s ? 'good' : ''}" data-act="save">${icon(s ? 'bookmarkFill' : 'bookmark')}${s ? 'Saved' : 'Save'}</button>
           ${canRead ? `<button class="btn" data-act="reader">${icon('book')}${s?.fullText ? 'Read offline' : 'Full text'}</button>` : ''}
-          ${a.doi ? `<button class="btn" data-act="publisher">${icon('external')}Publisher</button>` : ''}
-          ${hasPdf || pdfSrc ? `<button class="btn" data-act="r4l">${icon('key')}Research4Life</button>` : ''}
+          ${a.doi ? `<button class="btn" data-act="publisher">${icon('key')}Open via R4L</button>` : ''}
           <button class="btn" data-act="cite">${icon('quote')}Cite</button>
         </div>
 
@@ -700,17 +773,12 @@
       render();
       if (a.pmcid && (a.oa || a.inPMC)) cacheFullText(a).catch(() => {});
     };
-    actions['get-pdf'] = async (btn) => {
-      if (!saved.has(a.id)) await saveArticle(a);
-      btn.disabled = true; btn.innerHTML = `${icon('download')}Saving…`;
-      pendingPdf.set(a.id, { title, fallback: a.pmcid ? `https://pmc.ncbi.nlm.nih.gov/articles/${a.pmcid}/pdf/` : pdfSourceFor(a) });
-      Native.downloadPdf(a.id, pdfSourceFor(a), title);
-    };
+    actions['get-pdf'] = () => getPdf(a);
     actions['open-pdf'] = () => Native.openPdf(a.id, title);
     actions.reader = () => go('read/' + encodeURIComponent(a.id));
     actions.publisher = async () => {
       if (!saved.has(a.id)) await saveArticle(a);
-      Native.openPortal(doiUrl(a), a.id, title);
+      Native.openPortal(R4L_PROXY + 'doi_org/' + a.doi, a.id, title);
     };
     actions.r4l = async () => {
       if (!saved.has(a.id)) await saveArticle(a);
@@ -998,12 +1066,13 @@
 
   function libCard(a) {
     const st = { unread: '', reading: '<span class="badge b-review">Reading</span>', read: '<span class="badge">Read</span>' }[a.status] || '';
-    return `<button class="card" data-act="${a.imported ? 'open-imported' : 'open'}" data-id="${esc(a.id)}">
+    return `<div class="card" role="button" tabindex="0" data-act="${a.imported ? 'open-imported' : 'open'}" data-id="${esc(a.id)}">
       <p class="title main">${esc(a.title)}</p>
       <div class="byline"><span>${esc(a.jAbbr || a.journal || '')}${a.year ? ' · ' + esc(a.year) : ''}</span>
         ${a.notes ? `<span class="dot">${icon('note').replace('<svg', '<svg style="width:13px;height:13px;display:inline;vertical-align:-2px"')} notes</span>` : ''}</div>
       <div class="badges">${st}${badgesFor(a, { compact: true })}${a.fullText ? `<span class="badge b-review">${icon('book')}Full text offline</span>` : ''}
-        ${(a.collections || []).map((c) => `<span class="badge">${esc(c)}</span>`).join('')}</div></button>`;
+        ${(a.collections || []).map((c) => `<span class="badge">${esc(c)}</span>`).join('')}</div>
+      ${a.imported ? '' : `<div class="card-actions">${pdfAction(a)}</div>`}</div>`;
   }
 
   // ---------------------------------------------------------------- citations & export
@@ -1111,6 +1180,12 @@
         ${sw('preprints', 'Include preprints', 'Show papers that are not yet peer reviewed')}
         <div class="setting"><div class="body"><b>Default sort</b><span>${esc(SORTS[settings.sort].label)}</span></div>
           <button class="btn small" data-act="set-sort">Change</button></div></div>
+      <div class="section"><div class="section-h"><h3>Research4Life</h3></div>
+        ${(() => { const acc = r4lAccount(); return `<div class="setting"><div class="body"><b>${acc.saved ? 'Signed in as ' + esc(acc.user) : 'Not saved'}</b>
+          <span>${acc.saved ? 'The app signs in for you when you tap Get PDF.' : 'Save your R4L sign-in so Get PDF works in one tap.'}</span></div>
+          <button class="btn small" data-act="r4l-account">${acc.saved ? 'Change' : 'Save sign-in'}</button></div>
+          <div class="row" style="gap:8px;margin-top:10px"><button class="btn small" data-act="r4l-open" style="flex:1">${icon('key')}Open Research4Life</button>
+          ${acc.saved ? `<button class="btn small" data-act="r4l-forget" style="flex:1">${icon('trash')}Forget sign-in</button>` : ''}</div>`; })()}</div>
       <div class="section"><div class="section-h"><h3>Appearance</h3></div>
         <div class="seg">${['system', 'light', 'dark'].map((t) => `<button class="${settings.theme === t ? 'on' : ''}" data-act="theme" data-t="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>
       <div class="section"><div class="section-h"><h3>Storage</h3></div>
@@ -1175,6 +1250,21 @@
     'close-sheet': () => closeSheet(),
     open: (b) => go('a/' + encodeURIComponent(b.dataset.id)),
     'open-imported': (b) => { const a = saved.get(b.dataset.id); Native.openPdf(a.id, a.title); },
+    'card-pdf': (b) => { const a = saved.get(b.dataset.id) || cache.get(b.dataset.id); if (a) getPdf(a); },
+    'card-save': async (b) => {
+      const id = b.dataset.id;
+      if (saved.has(id)) { go('a/' + encodeURIComponent(id)); return; }
+      const a = cache.get(id);
+      if (!a) return;
+      await saveArticle(a);
+      b.classList.add('good');
+      b.innerHTML = `${icon('bookmarkFill')}Saved`;
+      toast('Saved to library');
+      if (a.pmcid && (a.oa || a.inPMC)) cacheFullText(a).catch(() => {});
+    },
+    'r4l-account': () => r4lSignInSheet(null),
+    'r4l-forget': () => { Native.r4lForget(); toast('Research4Life sign-in removed'); render(); },
+    'r4l-open': () => Native.openPortal(PORTAL, '', ''),
     ask: (b) => go(searchHash(filtersFrom({ q: b.dataset.q }))),
     topic: (b) => go(searchHash({ ...filtersFrom({ q: b.dataset.q }), sort: 'newest', years: '2' })),
     quick: (b) => {
@@ -1230,7 +1320,6 @@
   });
 
   // ---------------------------------------------------------------- native bridge
-  const pendingPdf = new Map();
   window.App = {
     back() {
       if ($('.sheet')) { closeSheet(); return true; }
@@ -1244,23 +1333,16 @@
       const added = await syncPdfs();
       if (added || pdfKeys.size !== before) {
         if (added) toast(`${added} PDF${added > 1 ? 's' : ''} added to your library`);
-        if (['a', 'library'].includes(current.name)) render();
+        if (current.name === 'library' && added) render(); else refreshCards();
       }
     },
     async onNative(evt) {
       if (evt.type === 'pdfSaved') {
         pdfKeys.add(evt.key);
-        pendingPdf.delete(evt.key);
-        toast('PDF saved for offline reading');
-        if (current.name === 'a' || current.name === 'library') render();
+        toast('PDF saved to your library');
+        if (['a', 'library', 'search', 'j', 'home'].includes(current.name)) refreshCards();
       } else if (evt.type === 'pdfFailed') {
-        const p = pendingPdf.get(evt.key);
-        pendingPdf.delete(evt.key);
-        if (p?.fallback) {
-          toast('Opening the PDF page. It will save to your library once it loads.');
-          Native.openPortal(p.fallback, evt.key, p.title);
-        } else toast(evt.message);
-        if (current.name === 'a') render();
+        toast(evt.message);
       } else if (evt.type === 'pdfImported') {
         await syncPdfs();
         toast('PDF imported');
