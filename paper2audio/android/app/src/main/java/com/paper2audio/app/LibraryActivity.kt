@@ -82,6 +82,7 @@ class LibraryActivity : Activity() {
         findViewById<Button>(R.id.btnAddLink).setOnClickListener { askForLink() }
         findViewById<ImageButton>(R.id.btnTheme).setOnClickListener { Themes.showPicker(this) }
         findViewById<ImageButton>(R.id.btnSync).setOnClickListener { showSync() }
+        findViewById<ImageButton>(R.id.btnFind).setOnClickListener { startActivity(Intent(this, SearchActivity::class.java)) }
         miniPlayer.setOnClickListener { startActivity(Intent(this, PlayerActivity::class.java)) }
         miniPlay.setOnClickListener { Speaker.toggle() }
 

@@ -31,6 +31,12 @@
             android:parentActivityName=".LibraryActivity" />
 
         <activity
+            android:name=".SearchActivity"
+            android:exported="false"
+            android:parentActivityName=".LibraryActivity"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".LibraryActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="true"

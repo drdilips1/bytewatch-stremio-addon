@@ -8,6 +8,12 @@ the phone: no server, no account, no limits.
 - **Library** of your papers and books with thumbnails (a PDF's first page or an
   EPUB's cover), title, author, length and listening progress. Tap to open,
   long-press to remove. A mini player at the bottom shows what's playing.
+- **Find** (magnifier icon): search 70,000+ free public-domain e-books from
+  Project Gutenberg (popular titles shown first) and research papers on arXiv,
+  and add them to the library in one tap.
+- **Book details** (ⓘ in the player): looks up the cover, author, year and
+  description on Open Library, arXiv (for papers) or, with your own API key from
+  hardcover.app/account/api, Hardcover. You confirm before anything changes.
 - **9 color themes**: System (follows light/dark mode), Ocean, Forest, Sunset,
   Lavender, Rose, Sepia, Midnight and Black. Tap the palette icon.
 - Open a **PDF, EPUB or text file**, share one to the app from another app, or

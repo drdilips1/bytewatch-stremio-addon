@@ -45,6 +45,7 @@ class PlayerActivity : Activity() {
     private lateinit var docTitle: TextView
     private lateinit var docAuthor: TextView
     private lateinit var docInfo: TextView
+    private lateinit var docDescription: TextView
     private lateinit var currentText: TextView
     private lateinit var posBar: SeekBar
     private lateinit var posLabel: TextView
@@ -81,6 +82,10 @@ class PlayerActivity : Activity() {
         docTitle = findViewById(R.id.docTitle)
         docAuthor = findViewById(R.id.docAuthor)
         docInfo = findViewById(R.id.docInfo)
+        docDescription = findViewById(R.id.docDescription)
+        docDescription.setOnClickListener {
+            docDescription.maxLines = if (docDescription.maxLines == 3) Int.MAX_VALUE else 3
+        }
         currentText = findViewById(R.id.currentText)
         posBar = findViewById(R.id.posBar)
         posLabel = findViewById(R.id.posLabel)
@@ -129,6 +134,7 @@ class PlayerActivity : Activity() {
         btnPrev.setOnClickListener { Speaker.previous() }
         btnNext.setOnClickListener { Speaker.next() }
         btnChapters.setOnClickListener { showChapters() }
+        findViewById<ImageButton>(R.id.btnDetails).setOnClickListener { lookUpDetails() }
 
         posBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
@@ -253,6 +259,76 @@ class PlayerActivity : Activity() {
             .show()
     }
 
+    private fun lookUpDetails() {
+        val item = Library.get(this, Library.currentId) ?: return
+        val token = prefs.getString("hardcoverToken", null)
+        toast("Looking up “${item.title}”…")
+        scope.launch {
+            val found = withContext(Dispatchers.IO) { runCatching { Metadata.lookup(item, token) } }
+            found.onFailure { toast("Couldn't look it up: ${it.message}") }
+            val f = found.getOrNull() ?: run {
+                if (found.isSuccess) {
+                    AlertDialog.Builder(this@PlayerActivity)
+                        .setTitle("No match found")
+                        .setMessage("Nothing matched “${item.title}”." + if (token == null) " Adding a Hardcover key can find more books." else "")
+                        .setPositiveButton("OK", null)
+                        .setNeutralButton("Hardcover key") { _, _ -> askHardcoverKey() }
+                        .show()
+                }
+                return@launch
+            }
+            val text = buildString {
+                append(f.title)
+                f.author?.let { append("\n").append(it) }
+                f.year?.let { append(" · ").append(it) }
+                f.description?.let { append("\n\n").append(it.take(500)) }
+                if (f.coverUrl != null) append("\n\n(Includes a cover image.)")
+            }
+            AlertDialog.Builder(this@PlayerActivity)
+                .setTitle("Found on ${f.source}")
+                .setMessage(text)
+                .setPositiveButton("Use these details") { _, _ -> applyDetails(item, f) }
+                .setNegativeButton("Cancel", null)
+                .setNeutralButton("Hardcover key") { _, _ -> askHardcoverKey() }
+                .show()
+        }
+    }
+
+    private fun applyDetails(item: Library.Item, f: Metadata.Found) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val cover = f.coverUrl?.let { runCatching { Metadata.bytes(it) }.getOrNull() }
+                Library.applyDetails(this@PlayerActivity, item, f, cover)
+            }
+            coverFor = null // reload the cover
+            render()
+            DriveSync.request(this@PlayerActivity)
+        }
+    }
+
+    private fun askHardcoverKey() {
+        val input = android.widget.EditText(this).apply {
+            hint = "Paste your Hardcover API key"
+            setText(prefs.getString("hardcoverToken", "") ?: "")
+            isSingleLine = true
+        }
+        val box = android.widget.FrameLayout(this).apply {
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Hardcover API key")
+            .setMessage("Get it at hardcover.app → Settings → API (hardcover.app/account/api). It's used only to look up book details and covers.")
+            .setView(box)
+            .setPositiveButton("Save") { _, _ ->
+                prefs.edit().putString("hardcoverToken", input.text.toString().trim().ifBlank { null }).apply()
+                toast("Saved. Tap ⓘ again to look up details.")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     /** Re-reads the current document, e.g. after a reading option changed. */
     private fun reparse() {
         val item = Library.get(this, Library.currentId)
@@ -305,9 +381,14 @@ class PlayerActivity : Activity() {
     private fun render() {
         val doc = Speaker.doc
         val hasDoc = doc != null && doc.paragraphs.isNotEmpty()
-        docTitle.text = doc?.title ?: ""
-        docAuthor.text = doc?.author ?: ""
-        docAuthor.visibility = if (doc?.author != null) View.VISIBLE else View.GONE
+        // Details looked up for the library item take priority over what's inside the file.
+        val item = doc?.let { Library.get(this, it.key) }
+        docTitle.text = item?.title ?: doc?.title ?: ""
+        val author = listOfNotNull(item?.author ?: doc?.author, item?.year?.takeIf { it > 0 }?.toString()).joinToString(" · ")
+        docAuthor.text = author
+        docAuthor.visibility = if (author.isNotEmpty()) View.VISIBLE else View.GONE
+        docDescription.text = item?.description ?: ""
+        docDescription.visibility = if (item?.description != null) View.VISIBLE else View.GONE
         doc?.let { loadCover(it.key) }
         docInfo.text = when {
             busy != null -> busy

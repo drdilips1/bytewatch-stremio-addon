@@ -36,6 +36,12 @@
         </LinearLayout>
 
         <ImageButton
+            android:id="@+id/btnFind"
+            style="@style/P2A.Icon"
+            android:contentDescription="Find free books and papers"
+            android:src="@drawable/ic_search" />
+
+        <ImageButton
             android:id="@+id/btnSync"
             style="@style/P2A.Icon"
             android:contentDescription="Sync with Google Drive"

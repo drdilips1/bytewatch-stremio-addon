@@ -30,6 +30,12 @@
             android:textSize="14sp" />
 
         <ImageButton
+            android:id="@+id/btnDetails"
+            style="@style/P2A.Icon"
+            android:contentDescription="Look up book details and cover"
+            android:src="@drawable/ic_info" />
+
+        <ImageButton
             android:id="@+id/btnChapters"
             style="@style/P2A.Icon"
             android:contentDescription="Chapters"
@@ -84,6 +90,19 @@
                 android:gravity="center"
                 android:textColor="?attr/p2aMuted"
                 android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/docDescription"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:lineSpacingMultiplier="1.2"
+                android:maxLines="3"
+                android:textColor="?attr/p2aMuted"
+                android:textSize="14sp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/docInfo"

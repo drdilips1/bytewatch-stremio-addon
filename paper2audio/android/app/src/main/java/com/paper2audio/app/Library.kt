@@ -29,6 +29,8 @@ object Library {
         var words: Int,
         var chapters: Int,
         var pages: Int,
+        var description: String? = null,
+        var year: Int = 0,
     ) {
         fun toJson() = JSONObject()
             .put("id", id).put("title", title).put("author", author ?: "")
@@ -36,6 +38,7 @@ object Library {
             .put("added", added).put("opened", opened)
             .put("paragraphs", paragraphs).put("words", words)
             .put("chapters", chapters).put("pages", pages)
+            .put("description", description ?: "").put("year", year)
 
         companion object {
             fun fromJson(o: JSONObject) = Item(
@@ -43,6 +46,7 @@ object Library {
                 Loader.Kind.valueOf(o.getString("kind")), o.optString("sourceName"),
                 o.optLong("added"), o.optLong("opened"), o.optInt("paragraphs"), o.optInt("words"),
                 o.optInt("chapters"), o.optInt("pages"),
+                o.optString("description").ifBlank { null }, o.optInt("year"),
             )
         }
     }
@@ -120,6 +124,19 @@ object Library {
         prefs(context).edit().putString("currentId", item.id).apply()
     }
 
+    /** Applies looked-up details (and an optional cover image) to [item]. Call off the main thread. */
+    fun applyDetails(context: Context, item: Item, found: Metadata.Found, cover: ByteArray?) {
+        cover?.let { runCatching { Thumbs.fromBytes(it, thumb(context, item.id)) } }
+        synchronized(this) {
+            item.title = found.title.ifBlank { item.title }
+            found.author?.let { item.author = it }
+            found.year?.let { item.year = it }
+            found.description?.let { item.description = it }
+            item.opened = maxOf(item.opened, System.currentTimeMillis()) // newest metadata wins in sync
+            save(context)
+        }
+    }
+
     fun remove(context: Context, item: Item) {
         synchronized(this) {
             items(context)
@@ -172,6 +189,8 @@ object Library {
                 local.words = r.words
                 local.chapters = r.chapters
                 local.pages = r.pages
+                local.description = r.description
+                local.year = r.year
             }
             val remoteAt = o.optLong("posAt", 0)
             if (remoteAt > p.getLong("posAt:${r.id}", 0)) {
@@ -248,6 +267,13 @@ object Thumbs {
             renderer.close()
             pfd.close()
         }
+    }
+
+    /** Saves a downloaded cover image as a thumbnail. */
+    fun fromBytes(bytes: ByteArray, out: File) {
+        val bitmap = decode(bytes) ?: error("not an image")
+        out.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+        bitmap.recycle()
     }
 
     private fun decode(bytes: ByteArray): Bitmap? {
