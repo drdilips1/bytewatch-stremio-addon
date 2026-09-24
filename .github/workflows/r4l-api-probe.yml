@@ -1,0 +1,26 @@
+name: R4L API probe
+on:
+  push:
+    paths: ['.github/workflows/r4l-api-probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Europe PMC
+        run: |
+          B="https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+          q() { echo "=== $1"; curl -sG "$B" --data-urlencode "query=$1" -d format=json -d pageSize=2 -d resultType=core --data-urlencode "sort=$2" | jq -c '{hit:.hitCount,next:.nextCursorMark,r:[.resultList.result[]? | {title,src:.source,id,pubYear,citedByCount,isOpenAccess,doi,pmid,pmcid,j:.journalInfo.journal.title,iso:.journalInfo.journal.isoabbreviation,issn:.journalInfo.journal.issn,essn:.journalInfo.journal.essn,pt:.pubTypeList,ft:.fullTextUrlList,abs:(.abstractText//""|.[0:250]),keys:(keys)}]}'; }
+          q 'vitiligo AND (MESH:"Skin Diseases" OR JOURNAL:dermatol*)' ''
+          q 'vitiligo AND (MESH:"Skin Diseases" OR MESH:"Dermatology")' 'CITED desc'
+          q 'psoriasis AND PUB_TYPE:"Randomized Controlled Trial"' 'P_PDATE_D desc'
+          q 'acne AND PUB_TYPE:"Meta-Analysis" AND PUB_YEAR:[2020 TO 2026] AND OPEN_ACCESS:y' ''
+          q 'melasma AND PUB_TYPE:"Systematic Review"' ''
+          q 'JOURNAL:"Journal of the American Academy of Dermatology"' 'P_PDATE_D desc'
+          q 'JOURNAL:"J Am Acad Dermatol"' 'P_PDATE_D desc'
+          q 'ISSN:"0190-9622"' 'P_PDATE_D desc'
+          q 'JOURNAL:"Indian Journal of Dermatology, Venereology and Leprology"' 'P_PDATE_D desc'
+          q 'JOURNAL:"JAMA Dermatology"' 'P_PDATE_D desc'
+          q 'JOURNAL:"British Journal of Dermatology"' 'P_PDATE_D desc'
+      - name: OpenAlex
+        run: |
+          curl -s "https://api.openalex.org/sources?search=dermatology&sort=cited_by_count:desc&per_page=60&select=display_name,issn_l,summary_stats,is_oa,homepage_url,works_count,cited_by_count,host_organization_name" | jq -c '.results[] | [.display_name,.issn_l,.summary_stats.h_index,.summary_stats."2yr_mean_citedness",.is_oa,.works_count,.host_organization_name]'
