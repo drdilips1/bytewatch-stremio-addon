@@ -1979,3 +1979,10 @@ select {
 .set-row > b {
   white-space: nowrap;
 }
+.segmented.tight {
+  margin: 0;
+}
+.set-form a,
+.muted a {
+  color: var(--accent-2);
+}

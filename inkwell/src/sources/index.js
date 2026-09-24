@@ -4,7 +4,11 @@ import * as gb from './gutenberg.js';
 import * as ol from './openlibrary.js';
 import * as absSrc from './audiobookshelf.js';
 import * as addonSrc from './addons.js';
+import * as cloud from './debrid.js';
+import * as hc from './hardcover.js';
+import * as gr from './goodreads.js';
 import { settings } from '../lib/store.js';
+import { getJson, qs } from '../lib/http.js';
 
 export const SOURCES = {
   ia: { name: 'Internet Archive', short: 'Archive', hue: 28, kind: 'Listen', blurb: 'LibriVox mirror, old-time radio & spoken word', impl: ia },
@@ -12,7 +16,11 @@ export const SOURCES = {
   gb: { name: 'Project Gutenberg', short: 'Gutenberg', hue: 150, kind: 'Read', blurb: '75,000+ free classic ebooks, read in-app', impl: gb },
   ol: { name: 'Open Library', short: 'Open Library', hue: 210, kind: 'Discover', blurb: 'Trending books, rich descriptions & covers', impl: ol },
   abs: { name: 'Audiobookshelf', short: 'My Server', hue: 265, kind: 'Listen', blurb: 'Your self-hosted audiobook server', impl: absSrc },
+  tb: { name: 'TorBox', short: 'TorBox', hue: 130, kind: 'Cloud', blurb: 'Stream audiobooks from your TorBox cloud', impl: cloud },
+  rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud },
   addon: { name: 'Addons', short: 'Addon', hue: 185, kind: 'Listen', blurb: 'Community catalog addons', impl: addonSrc },
+  hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc },
+  gr: { name: 'Goodreads', short: 'Goodreads', hue: 35, kind: 'Shelves', blurb: 'Shelves imported from your Goodreads export', impl: gr },
 };
 
 const enabled = (k) => settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
@@ -22,21 +30,35 @@ export function sourceOf(uid) {
   return p === 'addon' ? 'addon' : p;
 }
 
+async function coverFromOpenLibrary(book) {
+  try {
+    const d = await getJson('https://openlibrary.org/search.json?' + qs({ q: `${book.title} ${book.author}`.trim(), limit: 1, fields: 'cover_i' }));
+    const id = d.docs?.[0]?.cover_i;
+    return id ? `https://covers.openlibrary.org/b/id/${id}-L.jpg` : '';
+  } catch {
+    return '';
+  }
+}
+
 export async function getDetails(book) {
   const src = SOURCES[sourceOf(book.uid)];
-  return src.impl.details(book);
+  const d = await src.impl.details(book);
+  if (!d.cover && (d.source === 'tb' || d.source === 'rd')) d.cover = await coverFromOpenLibrary(d);
+  return d;
 }
 
 // Search every enabled source in parallel; results stream in per source.
 export function searchAll(term, onResult) {
   const jobs = [
-    ['ia', () => ia.search(term)],
-    ['lv', () => lv.search(term)],
-    ['gb', () => gb.search(term)],
-    ['ol', () => ol.search(term)],
-    ['abs', () => absSrc.search(term)],
-    ['addon', () => addonSrc.search(term)],
-  ].filter(([k]) => enabled(k) && (k !== 'abs' || absSrc.connected()));
+    ['abs', () => absSrc.search(term), absSrc.connected()],
+    ['tb', () => cloud.search(term).then((r) => r.filter((b) => b.source === 'tb')), cloud.tbConnected()],
+    ['rd', () => cloud.search(term).then((r) => r.filter((b) => b.source === 'rd')), cloud.rdConnected()],
+    ['addon', () => addonSrc.search(term), true],
+    ['ia', () => ia.search(term), true],
+    ['lv', () => lv.search(term), true],
+    ['gb', () => gb.search(term), true],
+    ['ol', () => ol.search(term), true],
+  ].filter(([k, , ok]) => ok && enabled(k));
   return Promise.all(
     jobs.map(([k, fn]) =>
       fn()
@@ -46,15 +68,21 @@ export function searchAll(term, onResult) {
   );
 }
 
-// Look for listenable / readable editions of a book discovered elsewhere.
+// Find listenable / readable copies of a book discovered elsewhere (Open Library,
+// Hardcover, Goodreads) across every connected source.
 export async function findEditions(book) {
   const t = book.title.replace(/[:(].*$/, '').trim();
   const author = (book.author || '').split(',')[0].split(' ').pop();
-  const [audio, text] = await Promise.all([
-    enabled('ia') ? ia.query(`title:(${t.replace(/[():"]/g, ' ')})${author ? ` AND creator:(${author})` : ''}`, { rows: 8 }).catch(() => []) : [],
-    enabled('gb') ? gb.search(`${t} ${author}`).catch(() => []) : [],
+  const q = `${t} ${author}`.trim();
+  const safe = (p) => p.catch(() => []);
+  const [audio, text, server, cloudHits, addonHits] = await Promise.all([
+    enabled('ia') ? safe(ia.query(`title:(${t.replace(/[():"]/g, ' ')})${author ? ` AND creator:(${author})` : ''}`, { rows: 8 })) : [],
+    enabled('gb') ? safe(gb.search(q)) : [],
+    enabled('abs') && absSrc.connected() ? safe(absSrc.search(t)) : [],
+    (enabled('tb') && cloud.tbConnected()) || (enabled('rd') && cloud.rdConnected()) ? safe(cloud.search(t)) : [],
+    enabled('addon') ? safe(addonSrc.search(q)) : [],
   ]);
-  return { audio, text: text.slice(0, 8) };
+  return { server, cloud: cloudHits, addons: addonHits.slice(0, 12), audio, text: text.slice(0, 8) };
 }
 
-export { ia, lv, gb, ol, absSrc, addonSrc, enabled };
+export { ia, lv, gb, ol, absSrc, addonSrc, cloud, hc, gr, enabled };

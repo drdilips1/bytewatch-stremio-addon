@@ -27,8 +27,12 @@ for Android with Capacitor.
 | Open Library | Trending lists, subjects, descriptions and covers, cross-matched to free audio and ebook editions |
 
 **Integrations**
-- **Audiobookshelf**: sign in to your own server to browse, search and stream your library. Listening progress syncs both ways.
-- **Addons**: install any catalog addon that uses the Stremio addon protocol (`manifest.json` with `/catalog`, `/meta` and `/stream`). Its catalogs appear on Home and in search.
+- **Audiobookshelf**: sign in with a password or an API key (LAN addresses such as `192.168.1.20:13378` work). Browse, search and stream your library; listening progress syncs both ways, and short-lived tokens refresh automatically.
+- **TorBox / Real-Debrid**: paste your API key to browse and stream the audiobooks already in your cloud (torrents, usenet and web downloads). Download links are requested just before playback, so they don't expire mid-book. You can also add a magnet or link to your cloud from Settings.
+- **Addons**: install catalog addons by link: a Stremio-style `manifest.json` (such as a TorBox audiobook addon), a JSON manifest hosted anywhere (jsonkeeper, gist…), or an addon collection. Catalogs appear on Home, and results show up in search.
+- **Hardcover**: connect with your API token to show your Currently Reading and Want to Read shelves, and set a book's status from its page.
+- **Goodreads**: Goodreads has no public API, so import your library export (CSV) to get your shelves.
+- For any book found through Open Library, Hardcover or Goodreads, Inkwell searches your server, cloud, addons and the free libraries for a copy you can play or read.
 
 **Player**
 - Background playback with lock-screen and notification controls (runs as a media foreground service).

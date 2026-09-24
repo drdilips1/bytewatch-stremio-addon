@@ -1,24 +1,66 @@
 // Community catalog addons speaking the Stremio addon protocol
 // (manifest.json + /catalog, /meta, /stream). Install any addon by URL.
-import { getJson } from '../lib/http.js';
+import { getJson, cleanUrl } from '../lib/http.js';
 import { addons } from '../lib/store.js';
 
 export function normalizeUrl(u) {
-  u = u.trim().replace(/^stremio:\/\//i, 'https://');
-  if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
-  if (!/manifest\.json(\?.*)?$/.test(u)) u = u.replace(/\/+$/, '') + '/manifest.json';
-  return u;
+  return cleanUrl(String(u || '').trim().replace(/^stremio:\/\//i, 'https://'));
 }
 
-const baseOf = (url) => url.replace(/\/manifest\.json(\?.*)?$/, '');
+const baseOf = (addon) => (addon.base || addon.url.replace(/\/manifest\.json(\?.*)?$/, '')).replace(/\/+$/, '');
 const enc = encodeURIComponent;
+const isManifest = (m) => m && typeof m === 'object' && m.id && m.name && (m.resources || m.catalogs);
 
+// Where the addon's /catalog, /meta and /stream routes live.
+function resolveBase(url, manifest) {
+  const hint = manifest.transportUrl || manifest.baseUrl || manifest.endpoint || manifest.url;
+  if (typeof hint === 'string' && /^https?:\/\//i.test(hint)) return hint.replace(/\/manifest\.json(\?.*)?$/, '');
+  return url.replace(/\/manifest\.json(\?.*)?$/, '');
+}
+
+function save(url, manifest) {
+  const entry = { url, base: resolveBase(url, manifest), manifest };
+  addons.set((list) => [...list.filter((a) => a.manifest.id !== manifest.id), entry]);
+  return manifest;
+}
+
+/**
+ * Install from any link: a Stremio-style manifest URL (with or without
+ * "/manifest.json"), a JSON file hosted anywhere (jsonkeeper, gist, pastebin raw…)
+ * that contains a manifest, or an addon collection ([{ transportUrl, manifest }]).
+ */
 export async function install(rawUrl) {
   const url = normalizeUrl(rawUrl);
-  const manifest = await getJson(url, { fresh: true });
-  if (!manifest?.id || !manifest?.name) throw new Error('That URL is not a valid addon manifest');
-  addons.set((list) => [...list.filter((a) => a.manifest.id !== manifest.id), { url, manifest }]);
-  return manifest;
+  if (!/^https?:\/\//i.test(url)) throw new Error('Enter an http(s) link to the addon');
+  const candidates = /manifest\.json(\?.*)?$/.test(url) ? [url] : [url, url.replace(/\/+$/, '') + '/manifest.json'];
+  let lastErr = null;
+  for (const u of candidates) {
+    let data;
+    try {
+      data = await getJson(u, { fresh: true });
+    } catch (e) {
+      lastErr = e;
+      continue;
+    }
+    if (isManifest(data)) return save(u, data);
+    const list = Array.isArray(data) ? data : Array.isArray(data?.addons) ? data.addons : null;
+    if (list) {
+      const installed = [];
+      for (const item of list) {
+        try {
+          if (typeof item === 'string') installed.push(await install(item));
+          else if (isManifest(item?.manifest) && item.transportUrl) installed.push(save(item.transportUrl, item.manifest));
+          else if (item?.transportUrl) installed.push(await install(item.transportUrl));
+          else if (isManifest(item)) installed.push(save(u, item));
+        } catch {}
+      }
+      if (installed.length) return { name: `${installed.length} addon${installed.length > 1 ? 's' : ''}`, id: installed[0].id };
+    }
+    const keys = data && typeof data === 'object' ? Object.keys(data).slice(0, 6).join(', ') : typeof data;
+    lastErr = new Error(`That link returned JSON, but not an addon manifest (it has: ${keys || 'nothing'}). An addon manifest needs "id", "name" and "resources".`);
+    break;
+  }
+  throw lastErr || new Error('Could not load that addon');
 }
 
 export function uninstall(id) {
@@ -53,7 +95,7 @@ export async function catalogRows() {
         title: c.name || `${a.manifest.name} · ${c.type}`,
         subtitle: a.manifest.name,
         load: async () => {
-          const data = await getJson(`${baseOf(a.url)}/catalog/${enc(c.type)}/${enc(c.id)}.json`);
+          const data = await getJson(`${baseOf(a)}/catalog/${enc(c.type)}/${enc(c.id)}.json`);
           return (data.metas || []).map((m) => toBook(a, m));
         },
       });
@@ -70,7 +112,7 @@ export async function search(term) {
         .filter((c) => (c.extra || []).some((e) => e.name === 'search') || (c.extraSupported || []).includes('search'))
         .map(async (c) => {
           try {
-            const data = await getJson(`${baseOf(a.url)}/catalog/${enc(c.type)}/${enc(c.id)}/search=${enc(term)}.json`);
+            const data = await getJson(`${baseOf(a)}/catalog/${enc(c.type)}/${enc(c.id)}/search=${enc(term)}.json`);
             out.push(...(data.metas || []).map((m) => toBook(a, m)));
           } catch {}
         })
@@ -88,7 +130,7 @@ function parseUid(uid) {
 }
 
 async function streams(addon, type, id) {
-  const data = await getJson(`${baseOf(addon.url)}/stream/${enc(type)}/${enc(id)}.json`, { fresh: true, timeout: 45000 });
+  const data = await getJson(`${baseOf(addon)}/stream/${enc(type)}/${enc(id)}.json`, { fresh: true, timeout: 45000 });
   return (data.streams || []).filter((s) => s.url);
 }
 
@@ -97,7 +139,7 @@ export async function details(book) {
   let meta = null;
   if (hasResource(addon.manifest, 'meta')) {
     try {
-      meta = (await getJson(`${baseOf(addon.url)}/meta/${enc(type)}/${enc(id)}.json`)).meta;
+      meta = (await getJson(`${baseOf(addon)}/meta/${enc(type)}/${enc(id)}.json`)).meta;
     } catch {}
   }
   const b = meta ? { ...book, ...toBook(addon, meta), uid: book.uid } : book;

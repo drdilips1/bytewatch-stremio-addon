@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Cover, SourceBadge, Row, toast } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
-import { getDetails, findEditions, ia, sourceOf } from '../sources/index.js';
+import { getDetails, findEditions, ia, hc, sourceOf } from '../sources/index.js';
 import { library, progress, toggleLibrary, useStore } from '../lib/store.js';
 import { fmtDuration, fmtTime } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
@@ -19,6 +19,7 @@ export function Book({ book: initial }) {
   const ps = usePlayer();
   const color = useCoverColor(book);
   const isCurrent = ps.book?.uid === book.uid;
+  const [hcStatus, setHcStatus] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -28,6 +29,7 @@ export function Book({ book: initial }) {
       .catch((e) => alive && setError(e.message))
       .finally(() => alive && setLoading(false));
     if (initial.kind === 'discover') findEditions(initial).then((e) => alive && setEditions(e));
+    if (hc.connected()) hc.getStatus(initial).then((st) => alive && setHcStatus(st?.status || 0)).catch(() => alive && setHcStatus(-1));
     return () => (alive = false);
   }, [initial.uid]);
 
@@ -124,18 +126,48 @@ export function Book({ book: initial }) {
         </div>
       )}
 
+      {hc.connected() && hcStatus !== null && hcStatus !== -1 && (
+        <section class="pad">
+          <h3 class="section-label">Hardcover</h3>
+          <div class="chips">
+            {[
+              [hc.STATUS.want, 'Want to read'],
+              [hc.STATUS.reading, 'Reading'],
+              [hc.STATUS.read, 'Read'],
+            ].map(([code, label]) => (
+              <button
+                class={'pill small' + (hcStatus === code ? ' active' : '')}
+                onClick={async () => {
+                  try {
+                    setHcStatus(await hc.setStatus(book, code));
+                    toast(`Hardcover: ${label}`);
+                  } catch (e) {
+                    toast(e.message);
+                  }
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {book.kind === 'discover' && (
         <section class="pad">
-          <h3 class="section-label">Free editions</h3>
+          <h3 class="section-label">Where to listen or read</h3>
           {!editions ? (
-            <p class="muted">Searching audio and ebook sources…</p>
-          ) : editions.audio.length + editions.text.length === 0 ? (
-            <p class="muted">No free edition found — this title may still be under copyright. Try an addon or your Audiobookshelf server.</p>
+            <p class="muted">Searching your server, cloud, addons and free sources…</p>
+          ) : Object.values(editions).every((l) => !l.length) ? (
+            <p class="muted">No copy found in your connected sources or free libraries. Connect Audiobookshelf, TorBox/Real-Debrid or an addon in Settings to widen the search.</p>
           ) : null}
         </section>
       )}
-      {editions?.audio?.length > 0 && <Row title="Listen" subtitle="Audiobook editions" icon="headphones" items={editions.audio} />}
-      {editions?.text?.length > 0 && <Row title="Read" subtitle="Ebook editions" icon="book" items={editions.text} />}
+      {editions?.server?.length > 0 && <Row title="On your server" subtitle="Audiobookshelf" icon="server" items={editions.server} />}
+      {editions?.cloud?.length > 0 && <Row title="In your cloud" subtitle="TorBox / Real-Debrid" icon="download" items={editions.cloud} />}
+      {editions?.addons?.length > 0 && <Row title="From your addons" subtitle="Addon results" icon="puzzle" items={editions.addons} />}
+      {editions?.audio?.length > 0 && <Row title="Free audiobooks" subtitle="LibriVox / Internet Archive" icon="headphones" items={editions.audio} />}
+      {editions?.text?.length > 0 && <Row title="Free ebooks" subtitle="Project Gutenberg" icon="book" items={editions.text} />}
 
       {tracks.length > 0 && (
         <section class="pad">

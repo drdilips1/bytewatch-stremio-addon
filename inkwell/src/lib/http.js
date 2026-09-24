@@ -10,7 +10,11 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body } =
   try {
     const res = await fetch(url, { method, headers, body, signal: ctrl.signal });
     if (!res.ok) {
-      const err = new Error(`HTTP ${res.status} for ${url}`);
+      let detail = '';
+      try {
+        detail = (await res.text()).slice(0, 160).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      } catch {}
+      const err = new Error(`HTTP ${res.status}${detail ? ` — ${detail}` : ''} (${url.replace(/([?&](token|apikey|api_key)=)[^&]+/gi, '$1…')})`);
       err.status = res.status;
       throw err;
     }
@@ -40,6 +44,22 @@ export async function getText(url, opts = {}) {
   const v = await res.text();
   cache.set(key, { t: Date.now(), v });
   return v;
+}
+
+// Remove whitespace and invisible characters that phone keyboards like to insert
+// (e.g. "http:// 192.168.1.2"), and add a scheme when one is missing.
+export function cleanUrl(u, defaultScheme = 'https') {
+  u = String(u || '').replace(/[\s\u200B-\u200D\uFEFF\u00A0]+/g, '');
+  if (u && !/^[a-z][a-z0-9+.-]*:\/\//i.test(u)) u = `${defaultScheme}://${u}`;
+  return u;
+}
+
+export function sendForm(url, method, params, headers = {}) {
+  return request(url, {
+    method,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
+    body: qs(params),
+  }).then((r) => (r.status === 204 ? null : r.json().catch(() => null)));
 }
 
 export function sendJson(url, method, data, headers = {}) {

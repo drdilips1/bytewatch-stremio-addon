@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Row, Cover, BookCard } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
-import { ia, gb, ol, absSrc, addonSrc, enabled } from '../sources/index.js';
-import { progress, settings, addons, abs, useStore } from '../lib/store.js';
+import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, enabled } from '../sources/index.js';
+import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore } from '../lib/store.js';
 import { greeting, fmtDuration } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
 import { GENRES } from './genres.js';
@@ -124,6 +124,9 @@ export function Home() {
   const st = useStore(settings);
   const addonList = useStore(addons);
   const absCfg = useStore(abs);
+  const deb = useStore(debrid);
+  const hcCfg = useStore(hardcover);
+  const grData = useStore(goodreads);
   const [addonRows, setAddonRows] = useState([]);
   useEffect(() => {
     if (!enabled('addon')) return setAddonRows([]);
@@ -152,6 +155,20 @@ export function Home() {
         <>
           <Row title="On your server" subtitle="Audiobookshelf · in progress" icon="server" load={absSrc.inProgress} deps={[absCfg.token]} />
           <Row title="Recently added" subtitle="Audiobookshelf" icon="server" load={absSrc.recent} deps={[absCfg.token, absCfg.libraryId]} />
+        </>
+      )}
+      {cloud.tbConnected() && enabled('tb') && <Row title="Your TorBox" subtitle="Audiobooks in your cloud" icon="download" load={cloud.torboxLibrary} deps={[deb.torbox]} />}
+      {cloud.rdConnected() && enabled('rd') && <Row title="Your Real-Debrid" subtitle="Audiobooks in your cloud" icon="download" load={cloud.realdebridLibrary} deps={[deb.realdebrid]} />}
+      {hc.connected() && enabled('hc') && (
+        <>
+          <Row title="Currently reading" subtitle="Hardcover" icon="book" load={() => hc.shelf(hc.STATUS.reading)} deps={[hcCfg.token]} />
+          <Row title="Want to read" subtitle="Hardcover" icon="heart" load={() => hc.shelf(hc.STATUS.want)} deps={[hcCfg.token]} />
+        </>
+      )}
+      {enabled('gr') && grData.books.length > 0 && (
+        <>
+          <Row title="Currently reading" subtitle="Goodreads" icon="book" items={gr.shelf('currently-reading')} />
+          <Row title="Want to read" subtitle="Goodreads" icon="heart" items={gr.shelf('to-read').slice(0, 40)} />
         </>
       )}
       {enabled('ia') && <Row title="Most listened" subtitle="LibriVox via Internet Archive" icon="headphones" load={ia.popular} deps={[]} />}

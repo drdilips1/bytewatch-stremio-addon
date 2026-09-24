@@ -34,7 +34,12 @@ export function persisted(key, initial) {
 
 function mergeDefaults(initial, saved) {
   if (initial && typeof initial === 'object' && !Array.isArray(initial) && saved && typeof saved === 'object') {
-    return { ...initial, ...saved };
+    const out = { ...initial, ...saved };
+    for (const k of Object.keys(initial)) {
+      const d = initial[k];
+      if (d && typeof d === 'object' && !Array.isArray(d) && saved[k] && typeof saved[k] === 'object') out[k] = { ...d, ...saved[k] };
+    }
+    return out;
   }
   return saved;
 }
@@ -52,7 +57,7 @@ export const settings = persisted('settings', {
   skipBack: 15,
   skipForward: 30,
   speed: 1,
-  sources: { ia: true, lv: true, gb: true, ol: true, abs: true, addons: true },
+  sources: { ia: true, lv: true, gb: true, ol: true, abs: true, addons: true, tb: true, rd: true, hc: true, gr: true },
   readerSize: 19,
   readerTheme: 'night', // night | sepia | paper | amoled
   readerFont: 'serif',
@@ -63,7 +68,7 @@ export const library = persisted('library', {}); // uid -> book summary + addedA
 export const progress = persisted('progress', {}); // uid -> { track, time, duration, percent, finished, updatedAt, book, kind }
 export const bookmarks = persisted('bookmarks', {}); // uid -> [{ track, time, label, createdAt }]
 export const addons = persisted('addons', []); // [{ url, manifest }]
-export const abs = persisted('abs', { server: '', token: '', username: '', libraryId: '' });
+export const abs = persisted('abs', { server: '', token: '', refreshToken: '', username: '', libraryId: '' });
 
 export function summarize(book) {
   const { uid, source, kind, title, author, cover, year, duration } = book;
@@ -105,3 +110,7 @@ export function importBackup(text) {
   if (data.bookmarks) bookmarks.set({ ...bookmarks.get(), ...data.bookmarks });
   if (Array.isArray(data.addons)) addons.set(data.addons);
 }
+
+export const debrid = persisted('debrid', { torbox: '', realdebrid: '' });
+export const hardcover = persisted('hardcover', { token: '', username: '' });
+export const goodreads = persisted('goodreads', { books: [], importedAt: 0 });
