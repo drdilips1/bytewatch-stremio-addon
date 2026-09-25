@@ -102,6 +102,29 @@ export async function search(term) {
   return [...best.values()];
 }
 
+/**
+ * Browse your library's catalogue without a search: newest audiobooks
+ * (or ebooks), those you can borrow right now first.
+ */
+export async function browse(format = 'audiobook') {
+  const libs = libraries();
+  if (!libs.length) return [];
+  const fmt = format === 'audiobook' ? 'audiobook-overdrive,audiobook-mp3' : 'ebook-overdrive,ebook-epub-adobe,ebook-epub-open,ebook-kindle';
+  const per = await Promise.all(
+    libs.slice(0, 4).map(async (l) => {
+      const d = await getJson(`${THUNDER}/libraries/${l.key}/media?` + qs({ format: fmt, sortBy: 'newlyadded', perPage: 40, page: 1 }), { timeout: 15000 }).catch(() => null);
+      return (d?.items || []).filter((it) => it.title).map((it) => toBook(it, l.key, l.name));
+    })
+  );
+  const seen = new Set();
+  const all = per.flat().filter((b) => {
+    const k = b.title.toLowerCase();
+    return !seen.has(k) && seen.add(k);
+  });
+  const wanted = all.filter((b) => b.libby.format === format);
+  return (wanted.length ? wanted : all).sort((a, b) => Number(b.libby.available) - Number(a.libby.available));
+}
+
 /** Copies of this book at each of your libraries: available first, audiobook first. */
 export async function availability(book) {
   const t = mainTitle(book.title);
@@ -128,14 +151,15 @@ export function describe(l) {
 // This uses Libby's own (unofficial) app interface, like other open-source
 // Libby clients: it can list your loans and holds, borrow / place holds, and
 // open a borrowed audiobook's parts for the in-app player.
-import { sendJson, getText as fetchText } from '../lib/http.js';
+import { sendJson, sendForm, getText as fetchText } from '../lib/http.js';
 import { Capacitor, CapacitorCookies } from '@capacitor/core';
 
-const SENTRY = 'https://sentry.libbyapp.com';
+// The host odmpy and other open-source Libby clients use.
+const SENTRY = 'https://sentry-read.svc.overdrive.com';
 export const libbyAccount = persisted('libbyAccount', { identity: '', cards: [], loans: [], holds: [], syncedAt: 0 });
 export const signedIn = () => !!libbyAccount.get().identity;
 
-const auth = (identity = libbyAccount.get().identity) => ({ Authorization: `Bearer ${identity}`, Accept: 'application/json' });
+const auth = (identity = libbyAccount.get().identity) => ({ Authorization: `Bearer ${identity}`, Accept: 'application/json', 'Cache-Control': 'no-cache' });
 
 async function sentry(path, { method = 'GET', body, identity } = {}) {
   const url = `${SENTRY}/${path}`;
@@ -153,62 +177,24 @@ async function newChip(identity) {
   return r.identity;
 }
 
-/** Link this app with the 8-digit code from Libby → Menu → Copy To Another Device. */
+/**
+ * Link this app with the 8-digit code Libby shows on your phone
+ * (Libby → Menu → Copy To Another Device). The code only works for about a minute.
+ */
 export async function signInWithCode(code) {
   const c = String(code || '').replace(/\D/g, '');
   if (c.length !== 8) throw new Error('Enter the 8-digit code Libby shows under "Copy To Another Device"');
-  const first = await newChip();
-  const r = await sendJson(`${SENTRY}/chip/clone/code`, 'POST', { code: c }, auth(first));
-  if (r && r.result && !/cloned/i.test(r.result)) throw new Error(`Libby said: ${r.result}`);
-  const identity = await newChip(first);
-  libbyAccount.set({ identity, cards: [], loans: [], holds: [], syncedAt: 0 });
-  const s = await syncAccount();
-  // Use the first card's library for catalogue search if none is set yet.
-  const card = s.cards[0];
-  if (card && !libby.get().key) libby.set({ key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey });
-  return s.cards.map((c) => c.library?.name || c.cardName).join(', ') || 'Libby';
-}
-
-/**
- * Libby's usual direction: this app shows a code, you enter it in the Libby app
- * (Menu → Copy To Another Device). Resolves { code, expires, wait } where wait()
- * resolves once Libby has copied your cards here.
- */
-export async function requestCode() {
   const identity = await newChip();
-  let r = null;
-  let lastErr = null;
-  for (const method of ['GET', 'POST']) {
-    try {
-      r = method === 'GET' ? await getJson(`${SENTRY}/chip/clone/code`, { headers: auth(identity), fresh: true, timeout: 15000 }) : await sendJson(`${SENTRY}/chip/clone/code`, 'POST', {}, auth(identity));
-      if (r?.code) break;
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-  const code = r?.code ? String(r.code) : '';
-  if (!code) throw new Error(`Libby didn't give this device a code${lastErr?.status ? ` (HTTP ${lastErr.status})` : ''} — use "Libby shows me a code instead" below`);
-  const expires = r.expiry ? Date.parse(r.expiry) || Date.now() + (+r.expiry || 60) * 1000 : Date.now() + 60e3;
-  let cancelled = false;
-  const wait = async () => {
-    // Poll until the other device has entered the code and cards appear here.
-    while (!cancelled && Date.now() < expires + 15e3) {
-      await new Promise((res) => setTimeout(res, 3000));
-      try {
-        const fresh = await newChip(identity);
-        const d = await getJson(`${SENTRY}/chip/sync`, { headers: auth(fresh), fresh: true, timeout: 15000 });
-        if ((d.cards || []).length) {
-          libbyAccount.set({ identity: fresh, cards: d.cards || [], loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now() });
-          const card = d.cards[0];
-          if (card && !libby.get().key) libby.set({ key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey });
-          return d.cards.map((c) => c.library?.name || c.cardName).join(', ');
-        }
-      } catch {}
-    }
-    if (!cancelled) throw new Error('The code expired — get a new one and enter it in Libby within a minute');
-    return '';
-  };
-  return { code: code.replace(/(\d{4})(\d{4})/, '$1 $2'), expires, wait, cancel: () => (cancelled = true) };
+  // Libby takes the code as a form field, not JSON.
+  await sendForm(`${SENTRY}/chip/clone/code`, 'POST', { code: c }, auth(identity)).catch((e) => {
+    throw new Error(e.status === 400 || e.status === 404 ? 'Libby didn\'t accept that code — it may have expired. Get a fresh one in Libby and type it straight away' : `Libby: ${e.message}`);
+  });
+  const d = await getJson(`${SENTRY}/chip/sync`, { headers: auth(identity), fresh: true, timeout: 20000 });
+  if (!(d?.cards || []).length) throw new Error('Libby linked, but no library cards came across — check the code and that Libby on your phone has a card');
+  libbyAccount.set({ identity, cards: d.cards, loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now() });
+  const card = d.cards[0];
+  if (!libby.get().key) libby.set({ key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey });
+  return d.cards.map((x) => x.library?.name || x.cardName).join(', ');
 }
 
 export function signOut() {
