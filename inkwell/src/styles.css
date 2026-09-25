@@ -2925,3 +2925,54 @@ pre.sql {
   color: var(--muted);
   margin-top: 2px;
 }
+
+/* Add-to-debrid / play progress on source results */
+.src-progress {
+  margin: 10px 0 2px;
+}
+.src-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-2);
+}
+.src-progress-head b {
+  font-variant-numeric: tabular-nums;
+}
+.src-progress-track {
+  position: relative;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.22);
+  overflow: hidden;
+}
+.src-progress-track div {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--grad);
+  transition: width 0.5s ease;
+}
+.src-progress-track.indeterminate div {
+  position: absolute;
+  width: 35%;
+  animation: src-indet 1.2s ease-in-out infinite;
+}
+@keyframes src-indet {
+  from {
+    left: -35%;
+  }
+  to {
+    left: 100%;
+  }
+}
+.src-waiting {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.src-waiting .src-progress {
+  flex: 1;
+}

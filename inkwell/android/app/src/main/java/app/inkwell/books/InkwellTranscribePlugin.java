@@ -300,22 +300,31 @@ public class InkwellTranscribePlugin extends Plugin {
             step = inRate / (double) SR;
         }
 
+        /**
+         * Output sample k sits at virtual input index (pos - 1), where virtual
+         * index -1 is the last sample of the previous buffer. pos stays in
+         * [0, in.length) inside the loop, so every array index is valid.
+         */
         float[] push(float[] in) {
-            if (step == 1.0) return in;
-            int cap = (int) Math.ceil((in.length + 1) / step) + 1;
+            if (in.length == 0) return in;
+            if (step == 1.0) {
+                prev = in[in.length - 1];
+                return in;
+            }
+            int cap = (int) Math.ceil(in.length / step) + 2;
             float[] out = new float[cap];
             int n = 0;
-            // index -1 refers to `prev`, the last sample of the previous buffer
-            while (pos < in.length - 1 + 1e-9 && n < cap) {
-                int i = (int) Math.floor(pos);
+            while (pos < in.length && n < cap) {
+                int i = (int) pos;
                 double f = pos - i;
-                float a = i - 1 < 0 ? prev : in[i - 1];
-                float bb = in[Math.min(i, in.length - 1)];
-                out[n++] = (float) (a + (bb - a) * f);
+                float a = i == 0 ? prev : in[i - 1];
+                float b = in[i];
+                out[n++] = (float) (a + (b - a) * f);
                 pos += step;
             }
             pos -= in.length;
-            if (in.length > 0) prev = in[in.length - 1];
+            if (pos < 0) pos = 0;
+            prev = in[in.length - 1];
             float[] r = new float[n];
             System.arraycopy(out, 0, r, 0, n);
             return r;

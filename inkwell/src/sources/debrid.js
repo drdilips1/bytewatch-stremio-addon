@@ -298,7 +298,7 @@ async function tbEnsure(magnet, hash, onStatus) {
   const items = await remember('tb-status', async () => tbList('torrents')).catch(() => []);
   let it = hash ? items.find((t) => String(t.hash || '').toLowerCase() === hash) : null;
   if (it) return (await tbOne(it.id)) || it;
-  onStatus?.('Adding to TorBox…');
+  onStatus?.('Adding to TorBox…', null);
   const r = await sendForm(`${TB}/torrents/createtorrent`, 'POST', { magnet }, tbHeaders());
   if (r && r.success === false && !/already|duplicate/i.test(`${r.error} ${r.detail}`)) throw new Error(r.detail || 'TorBox rejected the magnet');
   forget();
@@ -323,7 +323,7 @@ async function rdEnsure(magnet, hash, onStatus) {
   const list = await getJson(`${RD}/torrents?limit=200`, { headers: rdHeaders(), fresh: true });
   let t = (list || []).find((x) => String(x.hash || '').toLowerCase() === hash);
   if (!t) {
-    onStatus?.('Adding to Real-Debrid…');
+    onStatus?.('Adding to Real-Debrid…', null);
     const r = await sendForm(`${RD}/torrents/addMagnet`, 'POST', { magnet }, rdHeaders());
     if (!r?.id) throw new Error('Real-Debrid rejected the magnet');
     t = { id: r.id };
@@ -348,7 +348,7 @@ export async function prepareMagnet(provider, { magnet, hash, title }, onStatus)
     const ready = (x) => x?.download_finished || x?.download_present;
     for (let i = 0; i < 16 && !(ready(it) && tbAudioCount(it)); i++) {
       if (!ready(it) && i >= 8) break; // really downloading: hand over to "play when ready"
-      onStatus?.(ready(it) ? 'Getting the file list…' : `TorBox is fetching it… ${Math.round((it?.progress || 0) * 100)}%`);
+      onStatus?.(ready(it) ? 'Getting the file list…' : 'TorBox is fetching it…', ready(it) ? 1 : Number(it?.progress) || 0);
       await sleep(i < 6 ? 1000 : 2500);
       it = (await tbOne(it.id)) || it;
     }
@@ -375,7 +375,7 @@ export async function prepareMagnet(provider, { magnet, hash, title }, onStatus)
     } else if (/error|dead|virus|magnet_error/.test(info.status)) {
       throw new Error(`Real-Debrid could not fetch this torrent (${info.status})`);
     }
-    onStatus?.(`Real-Debrid is fetching it… ${Math.round(info.progress || 0)}%`);
+    onStatus?.('Real-Debrid is fetching it…', (Number(info.progress) || 0) / 100);
     await sleep(i < 4 ? 1000 : 2500);
   }
   forget();

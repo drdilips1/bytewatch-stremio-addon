@@ -15,7 +15,7 @@ import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
 import { RelatedRows } from '../components/related.jsx';
-import { storyshots, blinkistUrl, storyshotsSearchUrl, openUrl } from '../sources/summaries.js';
+import { storyshots, blinkistUrl, storyshotsSearchUrl, openUrl, BLINKIST_LOGIN, STORYSHOTS_HOME } from '../sources/summaries.js';
 
 export function Book({ book: initial }) {
   const [book, setBook] = useState(initial);
@@ -331,9 +331,12 @@ function Summaries({ book }) {
           </>
         ) : ss === null ? (
           <div class="sum-actions">
-            <span class="muted">No StoryShots summary found by title.</span>
-            <button class="pill ghost" onClick={() => openUrl(storyshotsSearchUrl(book))}>
-              <Icon name="search" size={14} /> Search StoryShots
+            <span class="muted">Couldn't find this summary on the StoryShots website automatically.</span>
+            <button class="pill" onClick={() => openUrl(storyshotsSearchUrl(book))}>
+              <Icon name="search" size={14} /> Find on StoryShots
+            </button>
+            <button class="pill ghost" onClick={() => openUrl(STORYSHOTS_HOME)}>
+              Sign in
             </button>
           </div>
         ) : null}
@@ -343,9 +346,12 @@ function Summaries({ book }) {
           <b>Blinkist</b>
         </div>
         <div class="sum-actions">
-          <span class="muted">Opens in the Blinkist app or site, where you're signed in.</span>
+          <span class="muted">Finds the book's Blinkist page — it opens in the Blinkist app if you have it. Sign in once and it stays signed in.</span>
           <button class="pill" onClick={() => openUrl(blinkistUrl(book))}>
-            <Icon name="external" size={14} /> Open in Blinkist
+            <Icon name="external" size={14} /> Find on Blinkist
+          </button>
+          <button class="pill ghost" onClick={() => openUrl(BLINKIST_LOGIN)}>
+            Sign in
           </button>
         </div>
       </div>

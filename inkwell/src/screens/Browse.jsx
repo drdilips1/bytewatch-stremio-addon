@@ -6,6 +6,8 @@ import { lookup } from '../lib/meta.js';
 import { settings } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { HINDI_GENRES, isHindi } from './hindi.js';
+import { SourceResults } from '../components/source-results.jsx';
+import { sourceAddons } from '../sources/sourceaddons.js';
 
 const TABS = [
   ['yours', 'For you'],
@@ -16,6 +18,7 @@ const TABS = [
 
 const HINDI_TABS = [
   ['yours', 'आपकी किताबें'],
+  ['sources', 'सोर्सेज़'],
   ['best', 'और सुझाव'],
   ['listen', 'मुफ़्त ऑडियो'],
 ];
@@ -45,10 +48,11 @@ async function yours(genre) {
 
 export function Browse({ genre }) {
   const connected = absSrc.connected() || hc.connected() || cloud.tbConnected() || cloud.rdConnected();
-  const [tab, setTab] = useState(connected ? 'yours' : 'best');
+  const [tab, setTab] = useState(genre.hindi && sourceAddons().length ? 'sources' : connected ? 'yours' : 'best');
   const [items, setItems] = useState(null);
   useEffect(() => {
     setItems(null);
+    if (tab === 'sources') return;
     const lang = settings.get().language;
     const job = genre.hindi
       ? tab === 'yours'
@@ -79,7 +83,9 @@ export function Browse({ genre }) {
           {genre.hindi
             ? tab === 'yours'
               ? 'Hindi books from your server, debrid libraries and Hardcover shelves.'
-              : tab === 'best'
+              : tab === 'sources'
+                ? 'Hindi audiobooks found by your source addons — Play or add to TorBox / Real-Debrid.'
+                : tab === 'best'
                 ? 'Top Hindi audiobooks on Audible India — open one to find it in your sources.'
                 : 'Free Hindi recordings on Internet Archive.'
             : tab === 'yours'
@@ -102,13 +108,15 @@ export function Browse({ genre }) {
         </div>
       )}
       <div class="segmented scroll">
-        {(genre.hindi ? HINDI_TABS : TABS).filter(([k]) => k !== 'yours' || connected).map(([k, label]) => (
+        {(genre.hindi ? HINDI_TABS : TABS).filter(([k]) => (k !== 'yours' || connected) && (k !== 'sources' || sourceAddons().length > 0)).map(([k, label]) => (
           <button class={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
             {label}
           </button>
         ))}
       </div>
-      {items === null ? (
+      {tab === 'sources' ? (
+        <SourceResults query={`hindi ${genre.en === 'Hindi' ? 'audiobook' : genre.en}`} heading={false} />
+      ) : items === null ? (
         <div class="grid">{Array.from({ length: 9 }, () => <Skeleton />)}</div>
       ) : items.length ? (
         <Grid items={items} />

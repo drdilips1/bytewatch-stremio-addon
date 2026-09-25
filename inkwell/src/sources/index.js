@@ -13,6 +13,7 @@ import { settings } from '../lib/store.js';
 import { matches, mainTitle } from '../lib/match.js';
 import { lookup, wantsMeta } from '../lib/meta.js';
 import { applyLocal, isDownloaded } from '../lib/downloads.js';
+import { translit, hasDevanagari } from '../lib/translit.js';
 
 export const SOURCES = {
   ia: { name: 'Internet Archive', short: 'Archive', hue: 28, kind: 'Listen', blurb: 'LibriVox mirror, old-time radio & spoken word', impl: ia },
@@ -111,8 +112,9 @@ export function searchAll(term, onResult) {
 // Find listenable / readable copies of a book discovered elsewhere (Open Library,
 // Hardcover, Goodreads) across every connected source.
 export async function findEditions(book) {
-  const t = mainTitle(book.title);
-  const author = (book.author || '').split(',')[0].trim();
+  // Hindi titles are searched in Latin letters too ("गोदान" → "godan"): most sources list them that way.
+  const t = mainTitle(hasDevanagari(book.title) ? translit(book.title) : book.title);
+  const author = translit((book.author || '').split(',')[0].trim());
   const surname = author.split(' ').pop();
   const safe = (p) => p.catch(() => []);
   const byTitle = (list) => list.filter((b) => matches(t, `${b.title} ${b.rawName || ''}`));

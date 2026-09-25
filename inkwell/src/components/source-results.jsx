@@ -7,11 +7,16 @@ import { settings, useStore, debrid } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import * as player from '../lib/player.js';
 import { waitlist, wait, cancel } from '../lib/waitlist.js';
+import { translit } from '../lib/translit.js';
 
 const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
 
 /** Results from installed source addons, with Add-to-debrid and Play actions. */
-export function SourceResults({ title = '', author = '', query = '', book = null, heading = true }) {
+export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', query: rawQuery = '', book = null, heading = true }) {
+  // Source sites list Hindi books in Latin letters.
+  const title = translit(rawTitle);
+  const author = translit(rawAuthor);
+  const query = translit(rawQuery);
   const st = useStore(settings);
   useStore(debrid);
   const [groups, setGroups] = useState({});
@@ -77,7 +82,7 @@ function seedClass(n) {
 
 function SourceRow({ r, provider, book, inAccount, onChanged }) {
   const [busy, setBusy] = useState(null); // 'add' | 'play'
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(null); // { text, pct (0..1) | null }
   const waiting = useStore(waitlist).find((w) => w.hash === r.hash);
   const cachedFor = provider && (r.cache[provider] || (provider === 'realdebrid' && r.cache.any && !r.cache.torbox));
   const ready = !!(cachedFor || inAccount?.ready);
@@ -93,6 +98,7 @@ function SourceRow({ r, provider, book, inAccount, onChanged }) {
   const add = async () => {
     if (!need()) return;
     setBusy('add');
+    setStatus({ text: `Adding to ${LABEL[provider]}…`, pct: null });
     try {
       toast(await cloud.addMagnetOnly(provider, r));
       cloud.forget();
@@ -101,16 +107,17 @@ function SourceRow({ r, provider, book, inAccount, onChanged }) {
       toast(e.message);
     } finally {
       setBusy(null);
+      setStatus(null);
     }
   };
 
   const play = async () => {
     if (!need()) return;
     setBusy('play');
-    setStatus('');
+    setStatus({ text: ready ? 'Getting it from your cloud…' : 'Contacting ' + LABEL[provider] + '…', pct: null });
     try {
-      const stub = await cloud.prepareMagnet(provider, r, setStatus);
-      setStatus('Opening…');
+      const stub = await cloud.prepareMagnet(provider, r, (text, pct) => setStatus({ text, pct }));
+      setStatus({ text: 'Opening the player…', pct: 1 });
       const details = await getDetails({
         ...stub,
         title: book?.title || stub.title,
@@ -119,9 +126,9 @@ function SourceRow({ r, provider, book, inAccount, onChanged }) {
       });
       nav.openOverlay('player');
       player.playBook(details);
-      setStatus('');
+      setStatus(null);
     } catch (e) {
-      setStatus('');
+      setStatus(null);
       if (e.pending) {
         wait({
           ...e.pending,
@@ -138,6 +145,16 @@ function SourceRow({ r, provider, book, inAccount, onChanged }) {
       setBusy(null);
     }
   };
+
+  // While it's downloading in the account, keep the progress bar moving.
+  useEffect(() => {
+    if (!inAccount || inAccount.ready) return;
+    const t = setInterval(() => {
+      cloud.forget();
+      onChanged();
+    }, 6000);
+    return () => clearInterval(t);
+  }, [inAccount?.ready, !!inAccount]);
 
   const acct = inAccount
     ? `In your ${LABEL[inAccount.provider]} · ${inAccount.ready ? 'ready to play' : `${Math.round(inAccount.progress * 100)}%${inAccount.state ? ` · ${inAccount.state}` : ''}`}`
@@ -161,16 +178,17 @@ function SourceRow({ r, provider, book, inAccount, onChanged }) {
         <span class="chip ghost">{r.addon}</span>
       </div>
       {acct && <div class={'src-acct' + (inAccount.ready ? ' ok' : '')}>{acct}</div>}
+      {inAccount && !inAccount.ready && !status && !waiting && <Progress text={`Downloading in your ${LABEL[inAccount.provider]}`} pct={inAccount.progress} />}
       {waiting && !waiting.ready && (
         <div class="src-waiting">
-          <span class="spinner small" /> Will play when ready · {Math.round((waiting.progress || 0) * 100)}%
+          <Progress text="Will play when ready" pct={waiting.progress || 0} />
           <button class="link-btn" onClick={() => cancel(waiting.hash)}>
             Cancel
           </button>
         </div>
       )}
       {dead && <div class="src-warn">No seeders — your debrid service may never finish downloading this one.</div>}
-      {status && <div class="src-status">{status}</div>}
+      {status && <Progress text={status.text} pct={status.pct} />}
       <div class={'src-actions' + (ready || !(r.magnet || r.hash) ? ' ready' : '')}>
         {!(r.magnet || r.hash) ? (
           <a class="btn primary" href={r.link} target="_blank" rel="noopener">
@@ -198,6 +216,23 @@ function SourceRow({ r, provider, book, inAccount, onChanged }) {
             </button>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Progress bar with a label; pct null shows an indeterminate (moving) bar. */
+function Progress({ text, pct }) {
+  const known = pct != null;
+  const p = known ? Math.max(0, Math.min(100, Math.round(pct * 100))) : 0;
+  return (
+    <div class="src-progress">
+      <div class="src-progress-head">
+        <span>{text}</span>
+        {known && <b>{p}%</b>}
+      </div>
+      <div class={'src-progress-track' + (known ? '' : ' indeterminate')}>
+        <div style={known ? { width: Math.max(p, 3) + '%' } : null} />
       </div>
     </div>
   );
