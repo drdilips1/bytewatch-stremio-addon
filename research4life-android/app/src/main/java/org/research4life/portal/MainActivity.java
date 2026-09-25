@@ -54,6 +54,8 @@ public class MainActivity extends Activity {
     private FrameLayout fetchLayer;
     private PdfFetcher fetcher;
     private Narrator narrator;
+    private static final String AI = "claude";
+    private AiClient aiClient;
     private volatile String receivedAtStart;
     private UtdClient utd;
     private WebViewAssetLoader assetLoader;
@@ -408,6 +410,44 @@ public class MainActivity extends Activity {
             main.post(() -> R4LSession.signOut(R4LSession.MYLOFT_ORIGINS));
         }
 
+        // ---- AI summaries (Claude, with the user's own API key)
+
+        @JavascriptInterface
+        public boolean aiHasKey() {
+            return R4LSession.hasCredentials(MainActivity.this, AI);
+        }
+
+        @JavascriptInterface
+        public void aiSetKey(String key) {
+            String k = key == null ? "" : key.trim();
+            synchronized (MainActivity.this) { aiClient = null; }
+            if (k.isEmpty()) R4LSession.forget(MainActivity.this, AI);
+            else R4LSession.saveCredentials(MainActivity.this, AI, "api", k);
+        }
+
+        @JavascriptInterface
+        public void aiAsk(String id, String title, String text, String question) {
+            io.execute(() -> {
+                try {
+                    AiClient c;
+                    synchronized (MainActivity.this) {
+                        if (aiClient == null) {
+                            String key = R4LSession.password(MainActivity.this, AI);
+                            if (key == null || key.isEmpty()) throw new AiClient.AiException("Add your Claude API key in Settings → AI summaries.");
+                            aiClient = new AiClient(key);
+                        }
+                        c = aiClient;
+                    }
+                    String answer = c.ask(title, text, question);
+                    emit(event("ai", "id", id, "state", "done", "text", answer));
+                } catch (AiClient.AiException e) {
+                    emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));
+                } catch (Exception e) {
+                    emit(event("ai", "id", id, "state", "error", "message", "Summary failed: " + e.getClass().getSimpleName()));
+                }
+            });
+        }
+
         // ---- read aloud
 
         @JavascriptInterface
@@ -433,6 +473,9 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void ttsVoice(String v) { main.post(() -> narrator.setVoice(v)); }
         @JavascriptInterface public void ttsStop() { main.post(() -> narrator.stop()); }
         @JavascriptInterface public String ttsVoices() { return narrator.voices(); }
+        @JavascriptInterface public void ttsEngine(String e) { main.post(() -> narrator.setEngine(e)); }
+        @JavascriptInterface public void ttsPreview(String v) { main.post(() -> narrator.preview(v)); }
+        @JavascriptInterface public void ttsWarm(String e) { narrator.warm(e); }
 
         @JavascriptInterface
         public String ttsStatus() {

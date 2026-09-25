@@ -40,7 +40,8 @@ final class Narrator {
     private final Handler main = new Handler(Looper.getMainLooper());
     private TextToSpeech tts;
     private boolean ready;
-    private Runnable onReady;
+    private final List<Runnable> onReady = new ArrayList<>();
+    private String engine;
     private Listener listener;
     private final List<String> items = new ArrayList<>();
     private String title = "";
@@ -60,21 +61,52 @@ final class Narrator {
 
     private void ensureTts(Runnable then) {
         if (tts != null && ready) { then.run(); return; }
-        onReady = then;
+        onReady.add(then);
         if (tts != null) return;
-        tts = new TextToSpeech(app, status -> main.post(() -> {
+        TextToSpeech.OnInitListener init = status -> main.post(() -> {
             ready = status == TextToSpeech.SUCCESS;
-            if (!ready) { emit("error"); return; }
+            if (!ready) { onReady.clear(); emit("error"); return; }
             tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                 @Override public void onStart(String id) { }
                 @Override public void onDone(String id) { main.post(() -> onDone(id)); }
                 @Override public void onError(String id) { main.post(() -> onDone(id)); }
             });
             applyVoice();
-            Runnable r = onReady;
-            onReady = null;
-            if (r != null) r.run();
-        }));
+            List<Runnable> rs = new ArrayList<>(onReady);
+            onReady.clear();
+            for (Runnable r : rs) r.run();
+            emit("voices");
+        });
+        tts = engine == null || engine.isEmpty() ? new TextToSpeech(app, init) : new TextToSpeech(app, init, engine);
+    }
+
+    /** Starts the speech engine early so the voice list is ready when the Listen sheet opens. */
+    void warm(String engineName) {
+        if (tts == null) engine = engineName;
+        main.post(() -> ensureTts(() -> { }));
+    }
+
+    /** Switches text-to-speech engine (e.g. Google vs Samsung), which brings its own voices. */
+    void setEngine(String name) {
+        String n = name == null ? "" : name;
+        if (n.equals(engine == null ? "" : engine) && tts != null) return;
+        boolean wasPlaying = playing;
+        if (tts != null) { tts.stop(); tts.shutdown(); }
+        tts = null;
+        ready = false;
+        engine = n;
+        voiceName = null;
+        ensureTts(() -> { if (wasPlaying && !items.isEmpty()) speakCurrent(); });
+    }
+
+    /** Speaks a short sample in the chosen voice (only while nothing is being read). */
+    void preview(String voice) {
+        voiceName = voice;
+        ensureTts(() -> {
+            applyVoice();
+            if (!playing) tts.speak("This is how papers will sound in this voice.", TextToSpeech.QUEUE_FLUSH, new Bundle(), "preview");
+            else speakCurrent();
+        });
     }
 
     /** items: the paragraphs to read; starts at {@code start}. */
@@ -153,11 +185,18 @@ final class Narrator {
     /** Installed voices, best-quality local English first. */
     String voices() {
         JSONArray out = new JSONArray();
+        JSONObject res = new JSONObject();
         if (tts == null || !ready) {
-            ensureTts(() -> { });
-            return out.toString();
+            main.post(() -> ensureTts(() -> { }));
+            try { res.put("ready", false).put("voices", out).put("engines", new JSONArray()); } catch (Exception ignored) { }
+            return res.toString();
         }
         try {
+            JSONArray engines = new JSONArray();
+            for (TextToSpeech.EngineInfo e : tts.getEngines()) engines.put(new JSONObject().put("name", e.name).put("label", e.label));
+            res.put("ready", true).put("engines", engines)
+                    .put("engine", engine == null || engine.isEmpty() ? tts.getDefaultEngine() : engine)
+                    .put("voices", out);
             Set<Voice> vs = tts.getVoices();
             if (vs == null) return out.toString();
             List<Voice> list = new ArrayList<>(vs);
@@ -174,11 +213,11 @@ final class Narrator {
                         .put("locale", v.getLocale().getDisplayName(Locale.ENGLISH))
                         .put("quality", v.getQuality())
                         .put("network", v.isNetworkConnectionRequired()));
-                if (out.length() >= 40) break;
+                if (out.length() >= 80) break;
             }
         } catch (Exception ignored) {
         }
-        return out.toString();
+        return res.toString();
     }
 
     private void applyVoice() {

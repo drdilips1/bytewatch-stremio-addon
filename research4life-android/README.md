@@ -42,7 +42,9 @@ A dermatology research app with a Consensus-style search, built around
   - If UpToDate needs you to sign in by hand, the app offers it and continues afterwards.
 - **MyLoft**: an in-app MyLoft browser that stays in DermScholar (app-store and app-link redirects are blocked; it presents a desktop browser so MyLoft doesn't push its app). "MyLoft" on a paper or "Try MyLoft" on a failed download remembers the paper, so a PDF downloaded in the in-app browser — or shared from the MyLoft app with **Share → DermScholar** — is saved to that paper.
 - **Multiple Research4Life accounts**: save several, pick the active one; Get PDF retries with the next account if one fails.
-- **Listen** (read aloud): the phone's text-to-speech reads papers and UpToDate topics paragraph by paragraph with highlighting, speed 0.75–2×, voice choice, "Abstract & conclusions" mode, and background playback with notification controls.
+- **Listen** (read aloud): the phone's text-to-speech reads papers and UpToDate topics paragraph by paragraph with highlighting, speed 0.75–2×, voice and speech-engine choice with preview, "Abstract & conclusions" mode, and background playback with notification controls.
+- **AI summaries** (Claude): the ✦ button in the reader, or "AI summary" on a paper, gives a structured summary (bottom line, design, key findings with numbers, clinical relevance, limitations) and answers questions about the paper. It uses your own Anthropic API key (Settings → AI & listening), stored encrypted; only the paper's text is sent. Summaries are kept on the phone.
+- **MyLoft troubleshooting**: the ⋮ menu in the MyLoft browser can switch desktop/mobile mode, reset MyLoft's data, and copy diagnostics (page errors and blocked app links) to send to the developer.
 - **Themes**: light/dark/system mode, 8 accent colours, 5 light and 4 dark backgrounds; bundled Inter, Literata and Fraunces fonts.
   The reader has 8 reading themes plus custom text and background colours, 4 fonts, and line-spacing and margin options.
 - **Bottom bar**: Research4Life and UpToDate tabs can be shown or hidden in Settings (hidden by default).

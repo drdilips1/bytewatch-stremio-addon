@@ -48,6 +48,9 @@
         ttsSeek: (k) => { clearTimeout(t); i = k; tick(); }, ttsSkip: (d) => { clearTimeout(t); i = Math.max(0, Math.min(n - 1, i + d)); tick(); },
         ttsRate: () => {}, ttsVoice: () => {}, ttsPause: () => { clearTimeout(t); t = null; },
         ttsStop: () => { clearTimeout(t); t = null; App.onNative({ type: 'tts', state: 'stopped', index: i, total: n }); },
+        aiHasKey: () => !!localStorage.getItem('ds.stub.aikey'),
+        aiSetKey: (k) => (k ? localStorage.setItem('ds.stub.aikey', k) : localStorage.removeItem('ds.stub.aikey')),
+        aiAsk: (id, title, text, q) => setTimeout(() => App.onNative({ type: 'ai', id, state: 'done', text: q ? `The paper reports **62%** clearance for: ${q}` : '## Bottom line\nA randomised trial found the drug **superior** to placebo.\n## Study design\n- RCT, 240 adults\n## Key findings\n- PASI-75 in **62%** vs 12% (p<0.001)\n## Limitations\n- 16-week follow-up only' }), 400),
         ttsVoices: () => JSON.stringify([{ name: 'en-us-x-sfg-local', locale: 'English (United States)', quality: 400, network: false }]),
         ttsStatus: () => JSON.stringify({ playing: !!t, index: i, total: n }),
       };
@@ -810,6 +813,7 @@
           <button class="btn ${s ? 'good' : ''}" data-act="save">${icon(s ? 'bookmarkFill' : 'bookmark')}${s ? 'Saved' : 'Save'}</button>
           ${canRead ? `<button class="btn" data-act="reader">${icon('book')}${s?.fullText ? 'Read offline' : 'Full text'}</button>` : ''}
           ${a.doi ? `<button class="btn" data-act="publisher">${icon('key')}Open via R4L</button>` : ''}
+          <button class="btn" data-act="ai-article" data-id="${esc(a.id)}">${icon('spark')}AI summary</button>
           <button class="btn" data-act="cite">${icon('quote')}Cite</button>
           <button class="btn" data-act="utd-search" data-q="${esc((a.mesh[0] || a.keywords[0] || a.title.split(/[:.]/)[0]).slice(0, 80))}">${icon('book')}UpToDate</button>
           ${hasPdf ? '' : `<button class="btn" data-act="myloft-open" data-id="${esc(a.id)}">${icon('globe')}MyLoft</button>`}
@@ -1162,7 +1166,9 @@
           blocks.push({ type: 'table', id });
         } else if (t === 'IMG') {
           const src = el.getAttribute('src') || '';
-          if (/^https:\/\//.test(src)) {
+          // Site logos (Wolters Kluwer, UpToDate) sit above the text; real graphics come after it.
+          const logo = /logo|wolters|kluwer|brand|sprite|icon|banner|masthead|header/i.test(src + ' ' + (el.getAttribute('alt') || ''));
+          if (/^https:\/\//.test(src) && !logo && blocks.length > 1) {
             const id = `fig-${figures.length + 1}`;
             figures.push({ id, kind: 'fig', label: `Graphic ${figures.filter((f) => f.kind === 'fig').length + 1}`, caption: '', src });
             blocks.push({ type: 'fig', id });
@@ -1228,6 +1234,7 @@
   // ---------------------------------------------------------------- read aloud
   const ttsPrefs = Object.assign({ rate: 1, voice: '', mode: 'full', captions: false, refs: false, follow: true }, store.get('tts', {}));
   const saveTts = () => store.set('tts', ttsPrefs);
+  setTimeout(() => { try { Native.ttsWarm?.(ttsPrefs.engine || ''); } catch { /* browser */ } }, 2500);
   const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2];
   let tts = { key: null, title: '', els: [], texts: [], playing: false, index: 0 };
 
@@ -1351,6 +1358,7 @@
   }
 
   function onTts(evt) {
+    if (evt.state === 'voices') { if ($('#ttsvoices')) ttsSheet(); return; }
     if (evt.state === 'stopped') { hideTtsBar(); return; }
     if (evt.state === 'error') { hideTtsBar(); toast('Text-to-speech isn’t available. Install or enable a voice in Android settings.'); return; }
     if (evt.state === 'ended') { updateTtsBar(false, evt.index); toast('Finished reading'); return; }
@@ -1359,8 +1367,13 @@
   }
 
   function ttsSheet() {
-    let voices = [];
-    try { voices = JSON.parse(Native.ttsVoices()); } catch { voices = []; }
+    let info = { ready: false, voices: [], engines: [] };
+    try { const r = JSON.parse(Native.ttsVoices()); info = Array.isArray(r) ? { ready: true, voices: r, engines: [] } : r; } catch { /* no engine */ }
+    const voices = info.voices || [];
+    const engines = info.engines || [];
+    const vname = (v) => v.name.replace(/^[a-z]{2,3}[-_][a-z]{2}[-_]x[-_]/i, '').replace(/[-_]/g, ' ');
+    const byLocale = {};
+    voices.forEach((v) => { (byLocale[v.locale] = byLocale[v.locale] || []).push(v); });
     const sw = (k, t, sub) => `<div class="setting"><div class="body"><b>${t}</b><span>${sub}</span></div>
       <label class="switch"><input type="checkbox" data-tts="${k}" ${ttsPrefs[k] ? 'checked' : ''}><span></span></label></div>`;
     sheet(`<h3>Listen</h3>
@@ -1369,17 +1382,163 @@
         <button class="${ttsPrefs.mode === 'key' ? 'on' : ''}" data-act="tts-mode" data-v="key">Abstract &amp; conclusions</button></div>
       <label class="field">Speed</label>
       <div class="seg wide">${RATES.map((r) => `<button class="${ttsPrefs.rate === r ? 'on' : ''}" data-act="tts-setrate" data-v="${r}">${r}×</button>`).join('')}</div>
-      <label class="field">Voice</label>
-      ${voices.length ? `<select id="ttsvoice"><option value="">Phone default</option>${voices.map((v) => `<option value="${esc(v.name)}" ${ttsPrefs.voice === v.name ? 'selected' : ''}>${esc(v.locale)} · ${esc(v.name.replace(/^[a-z]{2}-[a-z]{2}-x-/, ''))}${v.quality >= 400 ? ' · high quality' : ''}${v.network ? ' · online' : ''}</option>`).join('')}</select>`
-        : '<p class="muted small">Voices load when reading starts. More voices: Android Settings → Text-to-speech.</p>'}
+      <div id="ttsvoices">
+      ${engines.length > 1 ? `<label class="field">Speech engine</label>
+        <select id="ttsengine">${engines.map((e) => `<option value="${esc(e.name)}" ${info.engine === e.name ? 'selected' : ''}>${esc(e.label)}</option>`).join('')}</select>` : ''}
+      <label class="field">Voice${voices.length ? ` <span class="muted small">(${voices.length})</span>` : ''}</label>
+      ${voices.length ? `<div class="voice-row"><select id="ttsvoice"><option value="">Phone default</option>${Object.entries(byLocale).map(([loc, vs]) => `<optgroup label="${esc(loc)}">${vs.map((v) => `<option value="${esc(v.name)}" ${ttsPrefs.voice === v.name ? 'selected' : ''}>${esc(vname(v))}${v.quality >= 400 ? ' · HQ' : ''}${v.network ? ' · online' : ''}</option>`).join('')}</optgroup>`).join('')}</select>
+        <button class="btn ghost sm" data-act="tts-preview">Preview</button></div>
+        <p class="muted small">For more natural voices, pick the Google engine and install voices in Android Settings → Text-to-speech.</p>`
+        : `<p class="muted small">${info.ready ? 'This engine has no installed voices. Install some in Android Settings → Text-to-speech.' : 'Loading voices…'}</p>`}
+      </div>
       ${sw('follow', 'Follow along', 'Scroll to the paragraph being read')}
       ${sw('captions', 'Read figure captions', 'Include figure and table captions')}
       ${sw('refs', 'Read references', 'Include the reference list')}`);
     const restart = () => { if ($('#ttsbar')) ttsPlay(tts.playing ? tts.index : tts.index); };
-    actions['tts-mode'] = (b) => { ttsPrefs.mode = b.dataset.v; saveTts(); closeSheet(true); ttsPlay(0); };
+    actions['tts-mode'] = (b) => { ttsPrefs.mode = b.dataset.v; saveTts(); if ($('#ttsbar')) { closeSheet(true); ttsPlay(0); } else ttsSheet(); };
     actions['tts-setrate'] = (b) => { ttsPrefs.rate = Number(b.dataset.v); saveTts(); Native.ttsRate(ttsPrefs.rate); const r = $('#ttsrate'); if (r) r.textContent = ttsPrefs.rate + '×'; ttsSheet(); };
-    $('#ttsvoice')?.addEventListener('change', (e) => { ttsPrefs.voice = e.target.value; saveTts(); Native.ttsVoice(ttsPrefs.voice); });
+    $('#ttsvoice')?.addEventListener('change', (e) => { ttsPrefs.voice = e.target.value; saveTts(); if ($('#ttsbar')) Native.ttsVoice(ttsPrefs.voice); else Native.ttsPreview?.(ttsPrefs.voice); });
+    $('#ttsengine')?.addEventListener('change', (e) => { ttsPrefs.engine = e.target.value; ttsPrefs.voice = ''; saveTts(); Native.ttsEngine?.(ttsPrefs.engine); $('#ttsvoices').innerHTML = '<p class="muted small">Loading voices…</p>'; });
+    actions['tts-preview'] = () => Native.ttsPreview?.($('#ttsvoice')?.value || '');
+    if (!info.ready) setTimeout(() => { if ($('#ttsvoices') && !voices.length) ttsSheet(); }, 1500);
     $$('[data-tts]').forEach((inp) => inp.addEventListener('change', () => { ttsPrefs[inp.dataset.tts] = inp.checked; saveTts(); if (inp.dataset.tts !== 'follow') restart(); }));
+  }
+
+
+  // ---------------------------------------------------------------- AI summaries (Claude)
+  const aiStore = store.get('ai', {});
+  const aiPending = {};
+  const saveAi = () => {
+    const keys = Object.keys(aiStore);
+    if (keys.length > 150) keys.sort((a, b) => (aiStore[a].t || 0) - (aiStore[b].t || 0)).slice(0, keys.length - 150).forEach((k) => delete aiStore[k]);
+    store.set('ai', aiStore);
+  };
+  const aiHasKey = () => { try { return !!Native.aiHasKey?.(); } catch { return false; } };
+
+  /** Minimal Markdown (headings, bullets, bold, italics) for Claude's answers. */
+  function md(text) {
+    const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])_(.+?)_(?=[\s).,;:]|$)/g, '$1<i>$2</i>').replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s).,;:]|$)/g, '$1<i>$2</i>');
+    let out = '', list = false;
+    text.split('\n').forEach((raw) => {
+      const line = raw.trim();
+      const li = line.match(/^(?:[-*•]|\d+[.)])\s+(.*)/);
+      if (li) { if (!list) { out += '<ul>'; list = true; } out += `<li>${inline(li[1])}</li>`; return; }
+      if (list) { out += '</ul>'; list = false; }
+      if (!line) return;
+      const h = line.match(/^#{1,4}\s+(.*)/);
+      out += h ? `<h4>${inline(h[1])}</h4>` : `<p>${inline(line)}</p>`;
+    });
+    return out + (list ? '</ul>' : '');
+  }
+
+  /** Text of the paper open in the reader (captions included, references left out). */
+  function readerText() {
+    const rd = $('#rd');
+    if (!rd) return '';
+    let refs = false;
+    const parts = [];
+    $$('h1, h2, h3, h4, p, li, figcaption', rd).forEach((el) => {
+      if (el.closest('.rd-refs')) return;
+      if (/^H[2-4]$/.test(el.tagName)) refs = /^references$|^bibliography/i.test(el.textContent.trim());
+      if (refs) return;
+      if (el.tagName === 'LI' && el.querySelector('p')) return;
+      const t = el.textContent.replace(/\s+/g, ' ').trim();
+      if (t) parts.push(/^H[1-4]$/.test(el.tagName) ? `\n## ${t}` : t);
+    });
+    return parts.join('\n');
+  }
+
+  function aiKeyForm() {
+    return `<p class="small">AI summaries use <b>Claude</b> with your own Anthropic API key. Create one at <b>console.anthropic.com</b> → API keys; usage is billed to your Anthropic account (typically a few cents per paper).</p>
+      <input type="password" id="aikey" placeholder="sk-ant-…" autocomplete="off">
+      <button class="btn primary full" data-act="ai-savekey" style="margin-top:10px">Save key</button>
+      <p class="muted small">The key is encrypted with this phone's keystore. Only the text of the paper you ask about is sent to Anthropic.</p>`;
+  }
+
+  /** Summary + questions sheet for one paper. getText() returns the text to send. */
+  function aiSheet(key, title, getText) {
+    const entry = aiStore[key] || { qa: [] };
+    const renderBody = () => {
+      const e = aiStore[key] || { qa: [] };
+      if (!aiHasKey()) return aiKeyForm();
+      return `<div class="ai-meta">${icon('spark')}Claude · ${e.source === 'full' ? 'full text' : e.source === 'abstract' ? 'abstract' : 'this paper'}</div>
+        <div class="ai-body" id="aibody">${e.summary ? md(e.summary) : aiPending[key + ':'] ? '<div class="ai-wait"><div class="spinner"></div>Reading the paper…</div>' : ''}</div>
+        ${(e.qa || []).map((x) => `<div class="ai-q">${esc(x.q)}</div><div class="ai-body">${x.a ? md(x.a) : '<div class="ai-wait"><div class="spinner"></div>Thinking…</div>'}</div>`).join('')}
+        <div class="ai-ask"><input id="aiq" placeholder="Ask about this paper…" enterkeyhint="send"><button class="btn primary sm" data-act="ai-ask">Ask</button></div>
+        ${e.summary ? `<div class="row-btns"><button class="btn xs" data-act="ai-copy">${icon('file')}Copy</button><button class="btn xs" data-act="ai-redo">Regenerate</button></div>` : ''}
+        <p class="muted small">AI-generated from the paper's text. Check important details against the paper.</p>`;
+    };
+    const draw = () => {
+      // Update in place once open, so the sheet doesn't replay its opening animation.
+      if ($('#aiwrap') && aiOpen === key) $('#aiwrap').innerHTML = renderBody();
+      else {
+        sheet(`<h3>AI summary</h3><p class="muted small ai-title">${esc(title)}</p><div id="aiwrap">${renderBody()}</div>`);
+        $('.sheet').classList.add('tall');
+      }
+      $('#aiq')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') actions['ai-ask'](); });
+    };
+    const request = (question) => {
+      const text = getText();
+      if (!text || text.length < 200) { toast('Not enough text to summarise yet'); return; }
+      const e = aiStore[key] = aiStore[key] || { qa: [] };
+      e.source = text.length > 6000 ? 'full' : 'abstract';
+      e.t = Date.now();
+      const id = key + ':' + (question || '');
+      if (aiPending[id]) return;
+      aiPending[id] = (evt) => {
+        delete aiPending[id];
+        if (evt.state === 'error') {
+          if (question) e.qa = e.qa.filter((x) => !(x.q === question && !x.a));
+          toast(evt.message || 'Summary failed');
+        } else if (question) {
+          const x = e.qa.find((q) => q.q === question && !q.a);
+          if (x) x.a = evt.text;
+        } else {
+          e.summary = evt.text;
+        }
+        saveAi();
+        if ($('#aiwrap') && aiOpen === key) { draw(); if (question) $('.sheet').scrollTop = $('.sheet').scrollHeight; }
+      };
+      if (question) e.qa.push({ q: question, a: '' });
+      Native.aiAsk(id, title, text, question || '');
+    };
+    aiOpen = key;
+    actions['ai-savekey'] = () => {
+      const v = $('#aikey').value.trim();
+      if (!/^sk-ant-/.test(v)) { toast('That doesn\'t look like an Anthropic API key (sk-ant-…)'); return; }
+      Native.aiSetKey(v);
+      toast('Key saved');
+      if (!entry.summary) request(null);
+      draw();
+    };
+    actions['ai-ask'] = () => {
+      const q = $('#aiq')?.value.trim();
+      if (!q) return;
+      request(q);
+      draw();
+      $('.sheet').scrollTop = $('.sheet').scrollHeight;
+    };
+    actions['ai-redo'] = () => { delete aiStore[key].summary; request(null); draw(); };
+    actions['ai-copy'] = () => {
+      const e = aiStore[key];
+      copyText(`${title}\n\n${e.summary}${(e.qa || []).filter((x) => x.a).map((x) => `\n\nQ: ${x.q}\n${x.a}`).join('')}`);
+    };
+    if (aiHasKey() && !entry.summary) request(null);
+    draw();
+    onSheetClose = () => { aiOpen = null; };
+  }
+  let aiOpen = null;
+  function onAi(evt) {
+    const cb = aiPending[evt.id];
+    if (cb) cb(evt);
+  }
+
+  function aiSettingsCard() {
+    const has = aiHasKey();
+    return `<div class="acc-card"><div class="acc-ico ai">${icon('spark')}</div>
+      <div class="body"><b>AI summaries · Claude</b><span>${has ? 'API key saved · summaries and questions work on any paper' : 'Add your Anthropic API key to summarise papers'}</span></div>
+      <button class="btn xs ${has ? '' : 'primary'}" data-act="ai-setkey">${has ? 'Change' : 'Add key'}</button>
+      ${has ? `<button class="icon-btn" data-act="ai-forget" aria-label="Remove key">${icon('trash')}</button>` : ''}</div>`;
   }
 
   // ---------------------------------------------------------------- PDF → mobile reader
@@ -1434,6 +1593,7 @@
     return `<div class="topbar rd-bar"><button class="icon-btn" data-act="back" aria-label="Back">${icon('back')}</button>
       <h1>${esc(title)}</h1>
       <button class="icon-btn" data-act="rd-drawer" aria-label="Contents and figures">${icon('list')}</button>
+      <button class="icon-btn" data-act="ai-reader" aria-label="AI summary">${icon('spark')}</button>
       <button class="icon-btn" data-act="tts-open" aria-label="Listen">${icon('audio')}</button>
       <button class="icon-btn" data-act="rd-style" aria-label="Text settings"><span style="font:700 16px/1 var(--serif)">Aa</span></button>
       <button class="icon-btn" data-act="rd-more" aria-label="More">${icon('dots')}</button></div>
@@ -2171,6 +2331,11 @@
           <button class="btn xs" data-act="myloft-open">Open</button>
           <button class="icon-btn" data-act="myloft-signout" aria-label="Sign out of MyLoft">${icon('x')}</button></div>
         <p class="muted small">Passwords are encrypted with this phone's keystore and only sent to the provider's own sign-in page.</p></div>
+      <div class="section"><div class="section-h"><h3>AI &amp; listening</h3></div>
+        ${aiSettingsCard()}
+        <div class="acc-card"><div class="acc-ico">${icon('audio')}</div>
+          <div class="body"><b>Listen</b><span>Voice, speed and what to read aloud</span></div>
+          <button class="btn xs" data-act="tts-settings-open">Voices</button></div></div>
       <div class="section"><div class="section-h"><h3>Bottom bar</h3></div>
         ${sw('showUTD', 'Show UpToDate tab', 'Quick access from anywhere in the app')}
         ${sw('showR4L', 'Show Research4Life tab', 'Get PDF works without it; hide it if you never browse R4L')}
@@ -2290,6 +2455,16 @@
       if (pdfKeys.has(id)) go('pdf/' + encodeURIComponent(id) + '?listen=1');
       else go('read/' + encodeURIComponent(id) + '?listen=1');
     },
+    'ai-reader': () => aiSheet(tts.key || location.hash, tts.title || document.title, readerText),
+    'ai-article': (b) => {
+      const a = saved.get(b.dataset.id) || cache.get(b.dataset.id);
+      if (!a) return;
+      const text = () => [a.abstract ? `Abstract: ${a.abstract}` : '', a.journal ? `Journal: ${a.journal} ${a.year || ''}` : '', a.authors ? `Authors: ${String(a.authors).slice(0, 300)}` : ''].filter(Boolean).join('\n\n').replace(/<[^>]+>/g, ' ');
+      aiSheet(a.id, a.title, text);
+    },
+    'ai-setkey': () => { sheet(`<h3>Claude API key</h3>${aiKeyForm()}`); actions['ai-savekey'] = () => { const v = $('#aikey').value.trim(); if (!/^sk-ant-/.test(v)) { toast('That doesn\'t look like an Anthropic API key (sk-ant-…)'); return; } Native.aiSetKey(v); closeSheet(true); toast('Key saved'); render(); }; },
+    'ai-forget': () => { Native.aiSetKey(''); toast('API key removed'); render(); },
+    'tts-settings-open': () => ttsSheet(),
     'myloft-signout': () => { Native.myloftSignOut(); toast('Signed out of MyLoft in the app'); },
     'myloft-open': async (b) => {
       const id = b.dataset.id;
@@ -2448,6 +2623,7 @@
         return;
       }
       if (evt.type === 'tts') { onTts(evt); return; }
+      if (evt.type === 'ai') { onAi(evt); return; }
       if (evt.type === 'utdResults' || evt.type === 'utdTopic') {
         const k = evt.type === 'utdResults' ? 'search' : 'topic';
         const f = utdWait[k];

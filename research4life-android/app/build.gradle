@@ -10,8 +10,8 @@ android {
         applicationId 'app.dermscholar'
         minSdk 24
         targetSdk 34
-        versionCode 10
-        versionName '2.8'
+        versionCode 11
+        versionName '2.9'
     }
 
     // A fixed key so new builds install over old ones without wiping the saved library.
@@ -34,18 +34,28 @@ android {
         }
     }
 
+    packaging {
+        resources {
+            excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF', 'META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*', 'META-INF/*.kotlin_module']
+        }
+    }
+
     lint {
         checkReleaseBuilds false
         abortOnError false
     }
 
     compileOptions {
+        // The Claude SDK uses java.time; desugaring makes that work back to Android 7.
+        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 }
 
 dependencies {
-    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation 'com.anthropic:anthropic-java:2.65.0'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.2'
     implementation 'androidx.core:core:1.13.1'
 }
