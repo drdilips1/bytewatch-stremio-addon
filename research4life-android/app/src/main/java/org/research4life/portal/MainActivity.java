@@ -302,6 +302,13 @@ public class MainActivity extends Activity {
             main.post(() -> utd.topic(url, r -> emitRaw("utdTopic", r)));
         }
 
+        /** Opens MyLoft in the in-app browser; a PDF downloaded there is saved to this paper. */
+        @JavascriptInterface
+        public void openMyLoft(String key, String title) {
+            main.post(() -> openLink(R4LSession.MYLOFT_HOME, key == null || key.isEmpty() ? null : key,
+                    title == null || title.isEmpty() ? null : title, R4LSession.MYLOFT));
+        }
+
         /** Shows where the background UpToDate page stopped, so the user can see what it needs. */
         @JavascriptInterface
         public void utdShowPage() {

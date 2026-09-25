@@ -86,11 +86,13 @@ public class PortalActivity extends Activity {
         articleKey = in.getStringExtra(EXTRA_KEY);
         articleTitle = in.getStringExtra(EXTRA_TITLE);
         String p = in.getStringExtra(EXTRA_PROVIDER);
-        provider = R4LSession.UTD.equals(p) ? R4LSession.UTD : R4LSession.R4L;
-        homeButton.setText(R4LSession.UTD.equals(provider) ? "UTD" : "R4L");
-        String name = R4LSession.UTD.equals(provider) ? "UpToDate" : "Research4Life";
+        provider = R4LSession.UTD.equals(p) || R4LSession.MYLOFT.equals(p) ? p : R4LSession.R4L;
+        boolean myloft = R4LSession.MYLOFT.equals(provider);
+        homeButton.setText(R4LSession.UTD.equals(provider) ? "UTD" : myloft ? "MyLoft" : "R4L");
+        String name = R4LSession.UTD.equals(provider) ? "UpToDate" : myloft ? "MyLoft" : "Research4Life";
         hint.setText(articleKey != null
-                ? "PDFs you open here save to this paper"
+                ? (myloft ? "Find the paper in MyLoft · its PDF saves to this paper" : "PDFs you open here save to this paper")
+                : myloft ? "MyLoft · PDFs you download save to your library"
                 : R4LSession.hasCredentials(this, provider)
                     ? name + ": login saved for " + R4LSession.username(this, provider)
                     : name + " · your sign-in is remembered");
@@ -106,6 +108,7 @@ public class PortalActivity extends Activity {
     }
 
     private String homeUrl() {
+        if (R4LSession.MYLOFT.equals(provider)) return R4LSession.MYLOFT_HOME;
         return R4LSession.UTD.equals(provider) ? R4LSession.UTD_HOME : R4LSession.PORTAL_URL;
     }
 

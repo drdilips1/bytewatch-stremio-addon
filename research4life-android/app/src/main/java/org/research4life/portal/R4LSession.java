@@ -143,6 +143,9 @@ final class R4LSession {
     static final String R4L = "r4l";
     static final String UTD = "utd";
     static final String UTD_HOME = "https://www.uptodate.com/contents/search";
+    /** MyLoft is a plain in-app browser: the user signs in and finds papers themselves. */
+    static final String MYLOFT = "myloft";
+    static final String MYLOFT_HOME = "https://app.myloft.xyz/";
 
     private static SharedPreferences prefs(Context ctx, String provider) {
         return ctx.getSharedPreferences(UTD.equals(provider) ? "utd" : PREFS, Context.MODE_PRIVATE);

@@ -715,3 +715,6 @@ label.field { display: block; margin: 16px 0 8px; font-size: 13px; color: var(--
 .rd a.utd-link { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; cursor: pointer; }
 .rd ol { padding-left: 1.4em; }
 .rd li { margin-bottom: .35em; }
+
+.app-tile.myloft .app-ico { background: linear-gradient(135deg, #7c3aed, #4c1d95); }
+.app-tile.myloft { grid-column: 1 / -1; }
