@@ -10,8 +10,8 @@ android {
         applicationId 'app.dermscholar'
         minSdk 24
         targetSdk 34
-        versionCode 11
-        versionName '2.9'
+        versionCode 12
+        versionName '2.10'
     }
 
     // A fixed key so new builds install over old ones without wiping the saved library.

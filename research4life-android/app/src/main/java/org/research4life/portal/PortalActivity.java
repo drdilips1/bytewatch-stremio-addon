@@ -78,7 +78,8 @@ public class PortalActivity extends Activity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private UserAgentMetadata defaultUaMetadata;
-    private boolean identityChanged;
+    private boolean hintsChanged;
+    private java.util.Set<String> defaultRequestedWith;
     /** Recent page errors and blocked app links, so a stuck page can be reported. */
     private final Deque<String> diagnostics = new ArrayDeque<>();
     private final Runnable stuckCheck = this::checkStuck;
@@ -107,7 +108,12 @@ public class PortalActivity extends Activity {
         provider = R4LSession.UTD.equals(p) || R4LSession.MYLOFT.equals(p) ? p : R4LSession.R4L;
         boolean myloft = R4LSession.MYLOFT.equals(provider);
         homeButton.setText(R4LSession.UTD.equals(provider) ? "UTD" : myloft ? "MyLoft" : "R4L");
-        applyIdentity(myloft && !mobileMode());
+        applyIdentity(myloft ? myloftMode() : MODE_MOBILE);
+        if (myloft && !prefs().getBoolean("myloft_cache_reset_2_10", false)) {
+            // Start from a clean cache once after the 2.9 identity change, which could leave MyLoft stuck.
+            webView.clearCache(true);
+            prefs().edit().putBoolean("myloft_cache_reset_2_10", true).apply();
+        }
         String name = R4LSession.UTD.equals(provider) ? "UpToDate" : myloft ? "MyLoft" : "Research4Life";
         hint.setText(articleKey != null
                 ? (myloft ? "Find the paper in MyLoft · its PDF saves to this paper" : "PDFs you open here save to this paper")
@@ -130,23 +136,30 @@ public class PortalActivity extends Activity {
         return getSharedPreferences("portal", MODE_PRIVATE);
     }
 
-    private boolean mobileMode() {
-        return prefs().getBoolean("myloft_mobile", false);
+    /** Desktop user-agent only (worked up to sign-in in 2.8), desktop + client hints, or the phone's own identity. */
+    private static final String MODE_DESKTOP = "desktop", MODE_FULL = "full", MODE_MOBILE = "mobile";
+
+    private String myloftMode() {
+        String m = prefs().getString("myloft_mode", MODE_DESKTOP);
+        return MODE_FULL.equals(m) || MODE_MOBILE.equals(m) ? m : MODE_DESKTOP;
     }
 
     /**
      * MyLoft sends phones to its app ("/download-app", or an app link after sign-in that never
-     * comes back). Presenting as a desktop browser has to cover the user-agent string, the
-     * client hints (navigator.userAgentData and Sec-CH-UA headers) and the X-Requested-With
-     * header, which otherwise still say "Android app".
+     * comes back). "desktop" changes only the user-agent string. "full" also presents desktop
+     * client hints (navigator.userAgentData, Sec-CH-UA headers) and drops X-Requested-With; it
+     * is opt-in because MyLoft's page hung on its splash screen with it on some phones.
      */
-    private void applyIdentity(boolean desktop) {
+    private void applyIdentity(String mode) {
         android.webkit.WebSettings ws = webView.getSettings();
+        boolean desktop = !MODE_MOBILE.equals(mode);
+        boolean full = MODE_FULL.equals(mode);
         ws.setUserAgentString(desktop ? DESKTOP_UA : null);
+        if (!full && !hintsChanged) return;
         try {
             if (WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)) {
                 if (defaultUaMetadata == null) defaultUaMetadata = WebSettingsCompat.getUserAgentMetadata(ws);
-                if (desktop) {
+                if (full) {
                     UserAgentMetadata.BrandVersion chrome = new UserAgentMetadata.BrandVersion.Builder()
                             .setBrand("Google Chrome").setMajorVersion("128").setFullVersion("128.0.0.0").build();
                     UserAgentMetadata.BrandVersion chromium = new UserAgentMetadata.BrandVersion.Builder()
@@ -169,12 +182,13 @@ public class PortalActivity extends Activity {
                 }
             }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) {
-                WebSettingsCompat.setRequestedWithHeaderOriginAllowList(ws, Collections.emptySet());
+                if (defaultRequestedWith == null) defaultRequestedWith = WebSettingsCompat.getRequestedWithHeaderOriginAllowList(ws);
+                WebSettingsCompat.setRequestedWithHeaderOriginAllowList(ws, full ? Collections.emptySet() : defaultRequestedWith);
             }
         } catch (Exception e) {
             note("identity: " + e);
         }
-        identityChanged = identityChanged || desktop;
+        hintsChanged = full;
     }
 
     private void note(String line) {
@@ -187,7 +201,7 @@ public class PortalActivity extends Activity {
         if (!isMyLoft() || isFinishing()) return;
         String t = webView.getTitle();
         if (t != null && t.trim().equalsIgnoreCase("Loading...")) {
-            hint.setText("Stuck loading? Tap ⋮ → Reset MyLoft, or try mobile mode");
+            hint.setText("Stuck loading? Tap ⋮ → try another mode, or Copy diagnostics");
             note("stuck on splash at " + webView.getUrl());
         }
     }
@@ -195,16 +209,24 @@ public class PortalActivity extends Activity {
     private void showMenu(View anchor) {
         PopupMenu m = new PopupMenu(this, anchor);
         if (isMyLoft()) {
-            m.getMenu().add(0, 1, 0, mobileMode() ? "Use desktop mode" : "Use mobile mode");
+            String cur = myloftMode();
+            m.getMenu().add(0, 11, 0, (MODE_DESKTOP.equals(cur) ? "✓ " : "") + "Desktop mode (default)");
+            m.getMenu().add(0, 12, 0, (MODE_FULL.equals(cur) ? "✓ " : "") + "Full desktop mode (experimental)");
+            m.getMenu().add(0, 13, 0, (MODE_MOBILE.equals(cur) ? "✓ " : "") + "Mobile mode");
             m.getMenu().add(0, 2, 1, "Reset MyLoft (sign out, clear data)");
         }
         m.getMenu().add(0, 3, 2, "Copy address");
         m.getMenu().add(0, 4, 3, "Copy diagnostics");
         m.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
-                case 1:
-                    prefs().edit().putBoolean("myloft_mobile", !mobileMode()).apply();
-                    applyIdentity(!mobileMode());
+                case 11:
+                case 12:
+                case 13:
+                    String mode = item.getItemId() == 11 ? MODE_DESKTOP : item.getItemId() == 12 ? MODE_FULL : MODE_MOBILE;
+                    prefs().edit().putString("myloft_mode", mode).apply();
+                    applyIdentity(mode);
+                    // MyLoft's service worker caches the app shell; start clean in the new mode.
+                    webView.clearCache(true);
                     webView.loadUrl(homeUrl());
                     return true;
                 case 2:
@@ -219,7 +241,8 @@ public class PortalActivity extends Activity {
                     return true;
                 case 4:
                     StringBuilder sb = new StringBuilder("DermScholar " + provider + " · " + webView.getUrl()
-                            + "\nTitle: " + webView.getTitle() + "\nMode: " + (isMyLoft() && !mobileMode() ? "desktop" : "default"));
+                            + "\nTitle: " + webView.getTitle() + "\nMode: " + (isMyLoft() ? myloftMode() : "default")
+                            + "\nWebView: " + webView.getSettings().getUserAgentString());
                     for (String d : diagnostics) sb.append("\n").append(d);
                     copy("Diagnostics", sb.toString());
                     return true;
@@ -552,7 +575,7 @@ public class PortalActivity extends Activity {
         main.removeCallbacksAndMessages(null);
         io.shutdown();
         if (R4LSession.isOwner(this)) {
-            if (identityChanged) applyIdentity(false);
+            applyIdentity(MODE_MOBILE);
             webView.setWebViewClient(new WebViewClient());
             webView.setWebChromeClient(null);
             webView.setDownloadListener(null);
