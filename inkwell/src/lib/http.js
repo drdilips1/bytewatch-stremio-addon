@@ -30,6 +30,18 @@ export function setRelayUrl(v) {
 }
 export const isWeb = WEB;
 
+// Hosts the relay will forward to (keep in step with relay/index.ts). Anything
+// else — e.g. your own Audiobookshelf server — must allow the web app directly.
+const RELAY_ALLOWED = /^(api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|www\.blinkist\.com|itunes\.apple\.com|api\.torbox\.app|api\.real-debrid\.com|openlibrary\.org|www\.googleapis\.com|archive\.org|gutendex\.com|librivox\.org|jsonkeeper\.com|([a-z0-9-]+\.)*knaben\.(org|eu|net|cc)|[a-z0-9.-]+\.workers\.dev)$/i;
+function relayable(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && RELAY_ALLOWED.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
 const viaRelay = (url) => `${relayUrl()}?url=${encodeURIComponent(url)}`;
 const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 // Supabase checks its own Authorization header, so the service's headers travel
@@ -71,7 +83,7 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body } =
         res = await go(url, headers);
       } catch (e) {
         // In a browser a CORS block looks like a network error: try the relay once.
-        if (!WEB || e.timeout || !relayUrl() || !/^https:/i.test(url)) throw e;
+        if (!WEB || e.timeout || !relayUrl() || !relayable(url)) throw e;
         res = await relayed();
       }
     }

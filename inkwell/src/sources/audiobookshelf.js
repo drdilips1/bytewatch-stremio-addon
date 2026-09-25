@@ -1,6 +1,6 @@
 // Audiobookshelf — connect your self-hosted server: browse libraries, stream,
 // and sync listening progress back to the server.
-import { getJson, sendJson, qs, cleanUrl } from '../lib/http.js';
+import { isWeb, getJson, sendJson, qs, cleanUrl } from '../lib/http.js';
 import { abs } from '../lib/store.js';
 
 const cfg = () => abs.get();
@@ -92,6 +92,8 @@ export async function login(server, username, password) {
     res = await sendJson(server + '/login', 'POST', { username: username.trim(), password }, { 'x-return-tokens': 'true' });
   } catch (e) {
     if (e.status === 401) throw new Error('Wrong username or password');
+    if (!e.status && isWeb && /^http:/i.test(server)) throw new Error('The web app can only reach Audiobookshelf over https:// (browsers block http:// from secure pages) — use your Tailscale HTTPS address');
+    if (!e.status && isWeb) throw new Error(`${server} refused the web app — in Audiobookshelf, set ALLOW_CORS=1 and restart the server (the Android app doesn't need this)`);
     if (!e.status) throw new Error(`Can't reach ${server} — check the address and that your phone is on the same network`);
     throw e;
   }
