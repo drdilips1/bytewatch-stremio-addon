@@ -86,7 +86,7 @@ function HeroSlide({ book: raw, index, count, onDot }) {
               e.stopPropagation();
               if (!playable) return nav.push('book', { book: b });
               nav.openOverlay('player');
-              player.playBook(await getDetails(b));
+              player.openAndPlay(b, getDetails);
             }}
           >
             <Icon name={playable ? 'play' : 'search'} size={16} /> {playable ? 'Listen' : 'Find it'}
@@ -198,7 +198,7 @@ function ContinueRow() {
             onClick={async () => {
               if (p.kind === 'text') return nav.push('reader', { book: p.book });
               nav.openOverlay('player');
-              player.playBook(await getDetails(p.book));
+              player.openAndPlay(p.book, getDetails);
             }}
           >
             <Cover book={p.book} />

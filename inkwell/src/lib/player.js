@@ -16,6 +16,7 @@ const state = {
   duration: 0,
   rate: settings.get().speed || 1,
   error: null,
+  phase: '', // what's happening while loading: shown in the player
   preparing: null, // { provider, progress (0..1), state } while TorBox / Real-Debrid is still downloading
   sleepUntil: null, // timestamp
   sleepEndOfTrack: false,
@@ -50,11 +51,11 @@ const engine = createEngine({
     if (state.sleepUntil && Date.now() >= state.sleepUntil) fadeOutAndPause();
   },
   playing(on) {
-    set({ playing: on, ...(on ? { loading: false, error: null } : {}) });
+    set({ playing: on, ...(on ? { loading: false, error: null, phase: '' } : {}) });
     if (!on) saveProgress(true);
   },
-  waiting: () => !state.loading && set({ loading: true }),
-  ready: () => state.loading && set({ loading: false }),
+  waiting: () => !state.loading && set({ loading: true, phase: 'Buffering…' }),
+  ready: () => state.loading && set({ loading: false, phase: '' }),
   ended() {
     if (state.sleepEndOfTrack) {
       set({ sleepEndOfTrack: false, playing: false });
@@ -68,7 +69,7 @@ const engine = createEngine({
     }
   },
   error: (msg) => {
-    set({ loading: false, playing: false, error: msg });
+    set({ loading: false, playing: false, phase: '', error: msg });
     checkCloud(state.index, state.time, msg);
   },
   remote(action) {
@@ -104,11 +105,12 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
   const t = state.tracks[i];
   if (!t) return;
   if (state.preparing) stopWaiting();
-  set({ index: i, loading: true, error: null, time: startAt, duration: t.duration || 0 });
+  set({ index: i, loading: true, error: null, time: startAt, duration: t.duration || 0, phase: !t.url && t.resolve ? 'Getting the audio link…' : 'Connecting…' });
   try {
     let url = t.url;
     if (!url && t.resolve) {
       url = await t.resolve();
+      if (token === loadToken) set({ phase: 'Buffering… large files can take a few seconds' });
       t.url = url;
     }
     if (token !== loadToken) return;
@@ -121,11 +123,11 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
       headers: t.headers,
       meta: { title: t.title || b.title, artist: b.author || '', album: b.title, artwork: b.cover || '' },
     });
-    if (!autoplay) set({ loading: false });
+    if (!autoplay) set({ loading: false, phase: '' });
   } catch (e) {
     if (token !== loadToken || e?.name === 'AbortError') return;
     if (e.pending) return waitForCloud(i, startAt, e.pending);
-    set({ loading: false, playing: false, error: e.message || 'Playback failed' });
+    set({ loading: false, playing: false, phase: '', error: e.message || 'Playback failed' });
   }
 }
 
@@ -186,13 +188,29 @@ async function checkCloud(i, startAt, msg) {
  * Start a book. `details` comes from sources.getDetails(); tracks may need a
  * playback session (Audiobookshelf, addon streams) which is resolved here.
  */
+/**
+ * Show the player straight away while a book's details are still being
+ * fetched, so a tap on Play always gives visible feedback.
+ */
+export async function openAndPlay(book, getDetails, opts) {
+  stopWaiting();
+  set({ book, loading: true, error: null, playing: false, phase: 'Opening the book…' });
+  try {
+    const details = await getDetails(book);
+    return playBook(details, opts);
+  } catch (e) {
+    set({ loading: false, phase: '', error: e.message || String(e) });
+  }
+}
+
 export async function playBook(details, { index, time, globalStart } = {}) {
   stopWaiting();
-  set({ loading: true, error: null, book: details });
+  set({ loading: true, error: null, book: details, phase: 'Opening the book…' });
   try {
     let tracks = details.tracks;
     let serverStart = 0;
     if (!tracks?.length && details.resolveTracks) {
+      set({ phase: 'Starting a session on your server…' });
       const r = await details.resolveTracks();
       tracks = r.tracks;
       serverStart = r.startTime || 0;
@@ -209,7 +227,7 @@ export async function playBook(details, { index, time, globalStart } = {}) {
     if (resume && index == null && time == null && Date.now() - saved.updatedAt > 5 * 60e3) t = Math.max(0, t - 10);
     await loadTrack(Math.min(i, tracks.length - 1), t);
   } catch (e) {
-    set({ loading: false, error: e.message || String(e) });
+    set({ loading: false, phase: '', error: e.message || String(e) });
   }
 }
 

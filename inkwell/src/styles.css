@@ -2976,3 +2976,19 @@ pre.sql {
 .src-waiting .src-progress {
   flex: 1;
 }
+
+/* Player: what's happening while it loads */
+.loading-line {
+  margin-top: 12px;
+}
+.loading-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-2);
+}
+.loading-line .src-progress-track {
+  margin-top: 8px;
+}

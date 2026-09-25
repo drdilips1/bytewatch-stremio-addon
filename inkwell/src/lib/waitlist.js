@@ -24,11 +24,15 @@ export function cancel(hash) {
 }
 
 export async function playNow(w) {
-  const stub = await cloud.prepareMagnet(w.provider, { magnet: w.magnet, hash: w.hash, title: w.title });
-  const details = await getDetails({ ...stub, title: w.bookTitle || stub.title, author: w.author || stub.author, cover: w.cover || stub.cover });
-  cancel(w.hash);
+  const shown = { uid: 'wait:' + w.hash, source: w.provider === 'torbox' ? 'tb' : 'rd', kind: 'audio', title: w.bookTitle || w.title, author: w.author || '', cover: w.cover || '' };
   nav.openOverlay('player');
-  player.playBook(details);
+  // The player opens at once with "Opening the book…" while the link is prepared.
+  return player.openAndPlay(shown, async () => {
+    const stub = await cloud.prepareMagnet(w.provider, { magnet: w.magnet, hash: w.hash, title: w.title });
+    const details = await getDetails({ ...stub, title: w.bookTitle || stub.title, author: w.author || stub.author, cover: w.cover || stub.cover });
+    cancel(w.hash);
+    return details;
+  });
 }
 
 async function check() {

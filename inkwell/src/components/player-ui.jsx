@@ -63,7 +63,15 @@ export function MiniPlayer() {
       <div class="mini-meta">
         <div class="mini-title">{s.book.title}</div>
         <div class="mini-sub">
-          {s.preparing ? <span class="prep-text">{prepLabel(s.preparing)}</span> : s.error ? <span class="err">{s.error}</span> : s.tracks[s.index]?.title || s.book.author}
+          {s.preparing ? (
+            <span class="prep-text">{prepLabel(s.preparing)}</span>
+          ) : s.error ? (
+            <span class="err">{s.error}</span>
+          ) : s.loading && s.phase ? (
+            <span class="prep-text">{s.phase}</span>
+          ) : (
+            s.tracks[s.index]?.title || s.book.author
+          )}
         </div>
       </div>
       <button
@@ -184,6 +192,16 @@ export function FullPlayer() {
           {s.tracks.length > 1 && ` · Part ${s.index + 1} of ${s.tracks.length}`}
         </p>
         {s.preparing && <PrepBar st={s.preparing} />}
+        {!s.preparing && !s.error && s.loading && (
+          <div class="loading-line">
+            <div class="loading-head">
+              <span class="spinner small" /> {s.phase || 'Loading…'}
+            </div>
+            <div class="src-progress-track indeterminate">
+              <div />
+            </div>
+          </div>
+        )}
         {s.error && !s.preparing && <p class="err">{s.error}</p>}
       </div>
 
