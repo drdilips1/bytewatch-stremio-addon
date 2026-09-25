@@ -1,0 +1,24 @@
+name: MyLoft probe
+on:
+  push:
+    paths: ['.github/workflows/myloft-probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set +e
+          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+          curl -s -A "$UA" -L https://app.myloft.xyz/ -o app.html
+          cat app.html | head -c 4000; echo
+          for s in $(grep -oE '(src|href)="[^"]+\.js"' app.html | cut -d'"' -f2); do
+            case "$s" in http*) u="$s";; *) u="https://app.myloft.xyz/${s#/}";; esac
+            echo "##### $u"; curl -s -A "$UA" -L "$u" -o b.js; wc -c < b.js
+            grep -oE '.{0,120}(chrome\.runtime|chrome\.webstore|extensionId|isExtensionInstalled|sendMessage\().{0,120}' b.js | head -15
+            grep -oE '.{0,100}(serviceWorker|indexedDB|localforage|Notification\.requestPermission|firebase|messaging\(\)).{0,100}' b.js | sort -u | head -20
+            grep -oE '.{0,100}(isMobile|isAndroid|/android/i|Android|iPhone|userAgent).{0,120}' b.js | sort -u | head -25
+            grep -oE '.{0,120}(play\.google|itunes|apps\.apple|intent://|myloft://|app\.goo\.gl).{0,120}' b.js | sort -u | head -20
+            grep -oE '.{0,120}(window\.open\(|location\.href\s*=|location\.replace\().{0,120}' b.js | sort -u | head -30
+            grep -oE '"/[a-z-]+(/[a-z-:]+)*"' b.js | sort -u | head -80 | tr '\n' ' '; echo
+          done
+          curl -s -A "$UA" -D - -o /dev/null https://app.myloft.xyz/ngsw.json; curl -s -A "$UA" -L https://app.myloft.xyz/manifest.webmanifest | head -c 600
