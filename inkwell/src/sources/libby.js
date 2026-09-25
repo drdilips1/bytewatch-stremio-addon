@@ -154,8 +154,8 @@ export function describe(l) {
 import { sendJson, sendForm, getText as fetchText } from '../lib/http.js';
 import { Capacitor, CapacitorCookies } from '@capacitor/core';
 
-// The host odmpy and other open-source Libby clients use.
-const SENTRY = 'https://sentry-read.svc.overdrive.com';
+// Libby's account service (the one the Libby web app uses).
+const SENTRY = 'https://sentry.libbyapp.com';
 export const libbyAccount = persisted('libbyAccount', { identity: '', cards: [], loans: [], holds: [], syncedAt: 0 });
 export const signedIn = () => !!libbyAccount.get().identity;
 
@@ -191,10 +191,72 @@ export async function signInWithCode(code) {
   });
   const d = await getJson(`${SENTRY}/chip/sync`, { headers: auth(identity), fresh: true, timeout: 20000 });
   if (!(d?.cards || []).length) throw new Error('Libby linked, but no library cards came across — check the code and that Libby on your phone has a card');
-  libbyAccount.set({ identity, cards: d.cards, loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now() });
+  return linked(identity, d);
+}
+
+const toMs = (x) => {
+  if (x == null || x === '') return 0;
+  const n = +x;
+  if (Number.isFinite(n)) return n < 1e12 ? n * 1000 : n; // Unix seconds or ms
+  return Date.parse(x) || 0;
+};
+
+function linked(identity, d) {
+  libbyAccount.set({ identity, cards: d.cards || [], loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now(), mintedAt: Date.now() });
   const card = d.cards[0];
-  if (!libby.get().key) libby.set({ key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey });
-  return d.cards.map((x) => x.library?.name || x.cardName).join(', ');
+  if (card && !libby.get().key) libby.set({ key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey });
+  return d.cards.map((c) => c.library?.name || c.cardName).join(', ');
+}
+
+/**
+ * Libby's "Display Setup Code" flow: this app shows a code, you enter it on the
+ * phone that has your cards (Libby → Menu → Copy To Another Device), and this
+ * device's identity then has your cards. Calls onCode({ code, expires }) with
+ * each code (a fresh one when the last expires) and resolves with the library
+ * names once linked. Returns { done, cancel }.
+ */
+export function pairWithCode(onCode) {
+  let cancelled = false;
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+  const getCode = async (identity) => {
+    const r = await getJson(`${SENTRY}/chip/clone/code`, { headers: auth(identity), fresh: true, timeout: 15000 });
+    if (!r?.code) throw new Error("Libby didn't give this device a code — try again");
+    const expires = toMs(r.expiry) || Date.now() + 60e3;
+    onCode({ code: String(r.code).replace(/(\d{4})(\d{4})/, '$1 $2'), expires });
+    return expires;
+  };
+  const done = (async () => {
+    const identity = await newChip();
+    let expires = await getCode(identity);
+    let n = 0;
+    let fails = 0;
+    const until = Date.now() + 10 * 60e3; // give up after 10 minutes
+    while (!cancelled && Date.now() < until) {
+      await sleep(2500);
+      if (cancelled) break;
+      try {
+        // Same identity: once the phone accepts the code, its cards show up here.
+        const d = await getJson(`${SENTRY}/chip/sync`, { headers: auth(identity), fresh: true, timeout: 15000 });
+        if ((d?.cards || []).length) return linked(identity, d);
+        // Now and then also ask for a refreshed identity, in case Libby moved the cards to it.
+        if (++n % 4 === 0) {
+          const fresh = await newChip(identity).catch(() => '');
+          if (fresh) {
+            const d2 = await getJson(`${SENTRY}/chip/sync`, { headers: auth(fresh), fresh: true, timeout: 15000 });
+            if ((d2?.cards || []).length) return linked(fresh, d2);
+          }
+        }
+        fails = 0;
+      } catch (e) {
+        if (++fails >= 4) throw new Error(`Couldn't check with Libby: ${e.message}`);
+      }
+      // Keep a valid code on screen until you've entered it.
+      if (Date.now() > expires - 3000) expires = await getCode(identity).catch(() => expires + 30e3);
+    }
+    if (!cancelled) throw new Error('Nothing came through from Libby — get a new code and try again');
+    return '';
+  })();
+  return { done, cancel: () => (cancelled = true) };
 }
 
 export function signOut() {
@@ -203,6 +265,12 @@ export function signOut() {
 
 /** Cards, loans and holds. */
 export async function syncAccount() {
+  // Libby's sign-in lasts about a week: renew it every few days while it's still valid.
+  const acct = libbyAccount.get();
+  if (acct.identity && Date.now() - (acct.mintedAt || 0) > 3 * 86400e3) {
+    const fresh = await newChip(acct.identity).catch(() => '');
+    if (fresh) libbyAccount.set((a) => ({ ...a, identity: fresh, mintedAt: Date.now() }));
+  }
   const d = await sentry('chip/sync');
   const next = { ...libbyAccount.get(), cards: d.cards || [], loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now() };
   libbyAccount.set(next);

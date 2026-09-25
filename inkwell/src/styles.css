@@ -3571,11 +3571,25 @@ button.source-card:active {
 .libby-cards {
   margin: 6px 0 4px;
 }
-.libby-steps {
-  margin: 0 0 10px;
-  padding-left: 20px;
-  line-height: 1.5;
+.libby-code {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px;
+  margin: 6px 0 10px;
+  border-radius: 16px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.05));
+  text-align: center;
 }
-.libby-steps li + li {
-  margin-top: 4px;
+.libby-code b {
+  font-size: 34px;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+.libby-code small {
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
