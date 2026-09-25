@@ -94,11 +94,16 @@ async function torboxLibraryRaw() {
   return out.sort((a, b) => b.addedAt - a.addedAt);
 }
 
+// Items prepareMagnet just fetched, so opening them doesn't need another round trip.
+const tbSeen = new Map();
+
 async function tbDetails(book) {
   const [, code, id] = book.uid.split(':');
   const [kind, , param] = TB_KINDS.find(([, c]) => c === code);
-  const items = await tbList(kind);
-  const it = items.find((x) => String(x.id) === id);
+  let it = tbSeen.get(`${code}:${id}`);
+  tbSeen.delete(`${code}:${id}`);
+  if (!it && kind === 'torrents') it = await tbOne(id);
+  if (!it) it = (await tbList(kind)).find((x) => String(x.id) === id);
   if (!it) throw new Error('This item is no longer in your TorBox account');
   const done = code !== 't' || !!(it.download_finished || it.download_present);
   const pending = done ? null : { provider: 'torbox', hash: String(it.hash || '').toLowerCase(), progress: Number(it.progress) || 0, state: it.download_state || '' };
@@ -282,19 +287,34 @@ export async function torboxCached(hashes) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const tbAudioCount = (it) => (it.files || []).filter((f) => AUDIO.test(f.name || f.short_name || '')).length;
 
+// One torrent by id: much faster than listing the whole account.
+async function tbOne(id) {
+  const data = await getJson(`${TB}/torrents/mylist?` + qs({ id, bypass_cache: 'true' }), { headers: tbHeaders(), fresh: true }).catch(() => null);
+  return (Array.isArray(data?.data) ? data.data[0] : data?.data) || null;
+}
+
 async function tbEnsure(magnet, hash, onStatus) {
-  const find = async () => (await tbList('torrents')).find((t) => String(t.hash || '').toLowerCase() === hash);
-  let it = hash ? await find() : null;
-  if (!it) {
-    onStatus?.('Adding to TorBox…');
-    const r = await sendForm(`${TB}/torrents/createtorrent`, 'POST', { magnet }, tbHeaders());
-    if (r && r.success === false && !/already|duplicate/i.test(`${r.error} ${r.detail}`)) throw new Error(r.detail || 'TorBox rejected the magnet');
-    forget();
-    for (let i = 0; i < 4 && !it; i++) {
-      await sleep(1200);
-      it = await find();
+  // The (60s-cached) account list usually already knows whether we have it.
+  const items = await remember('tb-status', async () => tbList('torrents')).catch(() => []);
+  let it = hash ? items.find((t) => String(t.hash || '').toLowerCase() === hash) : null;
+  if (it) return (await tbOne(it.id)) || it;
+  onStatus?.('Adding to TorBox…');
+  const r = await sendForm(`${TB}/torrents/createtorrent`, 'POST', { magnet }, tbHeaders());
+  if (r && r.success === false && !/already|duplicate/i.test(`${r.error} ${r.detail}`)) throw new Error(r.detail || 'TorBox rejected the magnet');
+  forget();
+  const id = r?.data?.torrent_id;
+  if (id) {
+    for (let i = 0; i < 6; i++) {
+      it = await tbOne(id);
+      if (it?.files?.length || it?.download_finished || it?.download_present) break;
+      await sleep(700);
     }
-    if (!it && r?.data?.torrent_id) it = { id: r.data.torrent_id, name: r.data.name || '', files: [] };
+    return it || { id, name: r.data.name || '', files: [] };
+  }
+  // Older API responses without an id: fall back to finding it by hash.
+  for (let i = 0; i < 4 && !it; i++) {
+    await sleep(1000);
+    it = (await tbList('torrents')).find((t) => String(t.hash || '').toLowerCase() === hash);
   }
   return it;
 }
@@ -325,14 +345,14 @@ export async function prepareMagnet(provider, { magnet, hash, title }, onStatus)
 
   if (provider === 'torbox') {
     let it = await tbEnsure(m, h, onStatus);
-    for (let i = 0; i < 12; i++) {
-      if (it?.download_finished || it?.download_present) break;
-      onStatus?.(`TorBox is fetching it… ${Math.round((it?.progress || 0) * 100)}%`);
-      await sleep(2500);
-      const data = await getJson(`${TB}/torrents/mylist?` + qs({ id: it.id, bypass_cache: 'true' }), { headers: tbHeaders(), fresh: true }).catch(() => null);
-      it = (Array.isArray(data?.data) ? data.data[0] : data?.data) || it;
+    const ready = (x) => x?.download_finished || x?.download_present;
+    for (let i = 0; i < 16 && !(ready(it) && tbAudioCount(it)); i++) {
+      if (!ready(it) && i >= 8) break; // really downloading: hand over to "play when ready"
+      onStatus?.(ready(it) ? 'Getting the file list…' : `TorBox is fetching it… ${Math.round((it?.progress || 0) * 100)}%`);
+      await sleep(i < 6 ? 1000 : 2500);
+      it = (await tbOne(it.id)) || it;
     }
-    if (!(it?.download_finished || it?.download_present)) {
+    if (!ready(it)) {
       forget();
       const e = new Error(`Downloading on TorBox (${Math.round((it?.progress || 0) * 100)}%)`);
       e.pending = { provider, hash: String(it?.hash || h).toLowerCase(), progress: Number(it?.progress) || 0 };
@@ -340,6 +360,7 @@ export async function prepareMagnet(provider, { magnet, hash, title }, onStatus)
     }
     if (!tbAudioCount(it)) throw new Error('That torrent has no playable audio files');
     forget();
+    tbSeen.set(`t:${it.id}`, it);
     return toBook('tb', 'tb', `t:${it.id}`, it.name || title, it.files || []);
   }
 
@@ -355,7 +376,7 @@ export async function prepareMagnet(provider, { magnet, hash, title }, onStatus)
       throw new Error(`Real-Debrid could not fetch this torrent (${info.status})`);
     }
     onStatus?.(`Real-Debrid is fetching it… ${Math.round(info.progress || 0)}%`);
-    await sleep(2500);
+    await sleep(i < 4 ? 1000 : 2500);
   }
   forget();
   const e = new Error('Downloading on Real-Debrid');

@@ -383,7 +383,7 @@ export function VoicesCard() {
       {builtinAvailable && (
         <div class="segmented tight">
           <button type="button" class={tab === 'builtin' ? 'on' : ''} onClick={() => ttsCfg.patch({ mode: 'builtin' })}>
-            Inkwell voices
+            Built-in voices
           </button>
           <button type="button" class={tab === 'system' ? 'on' : ''} onClick={() => ttsCfg.patch({ mode: 'system' })}>
             Phone voices
@@ -426,11 +426,11 @@ export function DownloadsCard() {
         <div class="dl-targets">
           <button class={'dl-target' + (target === 'public' ? ' on' : '')} disabled={!pub} onClick={() => settings.patch({ downloadTarget: 'public' })}>
             <b>Phone storage</b>
-            <small>Downloads/Inkwell — visible in My Files, kept if you uninstall{!pub ? ' (needs Android 10+)' : ''}</small>
+            <small>Downloads/Shravaniya — visible in My Files, kept if you uninstall{!pub ? ' (needs Android 10+)' : ''}</small>
           </button>
           <button class={'dl-target' + (target === 'app' ? ' on' : '')} onClick={() => settings.patch({ downloadTarget: 'app' })}>
             <b>App only</b>
-            <small>Private to Inkwell — removed together with the app</small>
+            <small>Private to the app — removed together with the app</small>
           </button>
         </div>
       </div>

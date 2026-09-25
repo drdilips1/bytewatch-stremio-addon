@@ -57,7 +57,7 @@ function SourceOrder({ st, setSource }) {
   };
   const onMove = (e) => {
     if (!drag) return;
-    const rows = [...listRef.current.querySelectorAll('.src-row')];
+    const rows = [...listRef.current.querySelectorAll('.so-row')];
     const i = order.indexOf(drag.key);
     const h = rows[i]?.getBoundingClientRect().height || 60;
     const dy = e.clientY - drag.startY;
@@ -69,7 +69,7 @@ function SourceOrder({ st, setSource }) {
   };
   const onUp = () => setDrag(null);
   return (
-    <div class="src-order" ref={listRef} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+    <div class="so-order" ref={listRef} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
       <p class="set-note">Drag ⋮⋮ or use the arrows to choose the order of rows on Home and results in Discover.</p>
       {order.map((k, i) => {
         const s = SOURCES[k];
@@ -77,17 +77,17 @@ function SourceOrder({ st, setSource }) {
         const on = st.sources[key] !== false;
         const dragging = drag?.key === k;
         return (
-          <div class={'set-row src-row' + (dragging ? ' dragging' : '') + (on ? '' : ' off')} key={k} style={dragging ? { transform: `translateY(${drag.dy}px)` } : null}>
-            <button class="icon-btn src-grip" aria-label={`Drag ${s.name}`} onPointerDown={(e) => onDown(k, e)}>
+          <div class={'set-row so-row' + (dragging ? ' dragging' : '') + (on ? '' : ' off')} key={k} style={dragging ? { transform: `translateY(${drag.dy}px)` } : null}>
+            <button class="icon-btn so-grip" aria-label={`Drag ${s.name}`} onPointerDown={(e) => onDown(k, e)}>
               <Icon name="grip" size={20} />
             </button>
-            <div class="src-text">
+            <div class="so-text">
               <b>
-                <span class="src-num">{i + 1}</span> {s.name}
+                <span class="so-num">{i + 1}</span> {s.name}
               </b>
               <small>{s.blurb}</small>
             </div>
-            <div class="src-arrows">
+            <div class="so-arrows">
               <button class="icon-btn" aria-label={`Move ${s.name} up`} disabled={i === 0} onClick={() => move(k, -1)}>
                 <Icon name="up" size={16} />
               </button>
@@ -100,7 +100,7 @@ function SourceOrder({ st, setSource }) {
         );
       })}
       {(st.sourceOrder || []).length > 0 && (
-        <button class="pill small src-reset" onClick={() => save([])}>
+        <button class="pill small so-reset" onClick={() => save([])}>
           Reset order
         </button>
       )}
@@ -187,7 +187,7 @@ function AbsCard() {
             }
           }}
         >
-          <small class="muted">Second address — e.g. Tailscale (100.x.y.z:port or your MagicDNS name). Inkwell uses whichever address answers and switches automatically when one stops working.</small>
+          <small class="muted">Second address — e.g. Tailscale (100.x.y.z:port or your MagicDNS name). The app uses whichever address answers and switches automatically when one stops working.</small>
           <div class="btn-row">
             <input placeholder="http://100.101.102.103:13378" value={alt} onInput={(e) => setAlt(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} inputmode="url" />
             <button class="btn secondary" style={{ flex: 'none' }} disabled={busy}>
@@ -383,7 +383,7 @@ function HardcoverCard() {
       }}
     >
       <p class="muted">
-        Show your Want to Read / Currently Reading shelves and update them from Inkwell. Copy your token from{' '}
+        Show your Want to Read / Currently Reading shelves and update them from the app. Copy your token from{' '}
         <a href="https://hardcover.app/account/api" target="_blank" rel="noopener">
           hardcover.app/account/api
         </a>
@@ -444,7 +444,7 @@ function GoodreadsCard() {
           }}
         >
           <p class="muted">
-            Goodreads has no app login any more, so Inkwell reads your shelves from your profile. Open Goodreads → your profile, copy the link from the address bar and paste it here.
+            Goodreads has no app login any more, so the app reads your shelves from your profile. Open Goodreads → your profile, copy the link from the address bar and paste it here.
           </p>
           <input placeholder="https://www.goodreads.com/user/show/12345-yourname" value={link} onInput={(e) => setLink(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} inputmode="url" />
           <button class="btn primary" disabled={busy || !link.trim()}>
@@ -767,7 +767,7 @@ export function Settings() {
       </Section>
 
       <p class="about">
-        Inkwell {APP_VERSION} · Built-in sources are free and public domain.
+        श्रवणीय {APP_VERSION} · Built-in sources are free and public domain.
         <br />
         Addons and servers you add are your responsibility.
       </p>

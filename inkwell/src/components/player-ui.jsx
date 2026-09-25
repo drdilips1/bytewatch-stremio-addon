@@ -8,6 +8,8 @@ import { fmtTime } from '../lib/format.js';
 import { coverColor } from '../lib/color.js';
 import { nav } from '../lib/nav.js';
 import { bookmarks, settings, useStore } from '../lib/store.js';
+import { TranscriptView } from './transcript-view.jsx';
+import { transcriptCfg, stopTranscript } from '../lib/transcript.js';
 
 export function usePlayer() {
   const [s, setS] = useState(player.getState());
@@ -122,6 +124,7 @@ export function FullPlayer() {
   const chapters = player.chapters();
   const g = player.globalTime();
   const total = player.totalDuration();
+  const showText = useStore(transcriptCfg).open;
   const sleepLeft = s.sleepUntil ? Math.max(0, (s.sleepUntil - Date.now()) / 1000) : 0;
 
   return (
@@ -129,7 +132,7 @@ export function FullPlayer() {
       class="full-player"
       style={{ ...(color ? { '--dyn': color } : {}), transform: drag ? `translateY(${drag}px)` : undefined, transition: drag ? 'none' : undefined }}
       onTouchStart={(e) => {
-        if (e.target.closest('input,.sheet')) return;
+        if (e.target.closest('input,.sheet,.transcript')) return;
         touch.current = e.touches[0].clientY;
       }}
       onTouchMove={(e) => {
@@ -166,9 +169,13 @@ export function FullPlayer() {
         </button>
       </header>
 
-      <div class={'fp-art' + (s.playing ? ' playing' : '')}>
-        <Cover book={s.book} eager />
-      </div>
+      {showText ? (
+        <TranscriptView s={s} />
+      ) : (
+        <div class={'fp-art' + (s.playing ? ' playing' : '')}>
+          <Cover book={s.book} eager />
+        </div>
+      )}
 
       <div class="fp-meta">
         <h2>{s.tracks[s.index]?.title || s.book.title}</h2>
@@ -225,6 +232,16 @@ export function FullPlayer() {
         </button>
         <button class={'chip-btn' + (s.sleepUntil || s.sleepEndOfTrack ? ' active' : '')} onClick={() => setSheet('sleep')}>
           <Icon name="moon" size={16} /> {s.sleepUntil ? fmtTime(sleepLeft) : s.sleepEndOfTrack ? 'End of part' : 'Sleep'}
+        </button>
+        <button
+          class={'chip-btn' + (showText ? ' active' : '')}
+          onClick={() => {
+            if (showText) stopTranscript();
+            transcriptCfg.set({ open: !showText });
+          }}
+          aria-label="Transcript"
+        >
+          <Icon name="text" size={16} /> Text
         </button>
         <button class="chip-btn" onClick={() => setSheet('chapters')}>
           <Icon name="list" size={16} /> {chapters.length}

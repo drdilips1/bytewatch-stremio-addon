@@ -15,6 +15,7 @@ import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
 import { RelatedRows } from '../components/related.jsx';
+import { storyshots, blinkistUrl, storyshotsSearchUrl, openUrl } from '../sources/summaries.js';
 
 export function Book({ book: initial }) {
   const [book, setBook] = useState(initial);
@@ -287,8 +288,67 @@ export function Book({ book: initial }) {
           deps={[book.uid, authorKey]}
         />
       )}
+      {!loading && book.source !== 'ss' && <Summaries book={book} />}
       {!loading && <RelatedRows book={book} />}
       <div class="footer-space" />
     </div>
+  );
+}
+
+/** StoryShots summary (read in-app or read aloud) and a Blinkist shortcut. */
+function Summaries({ book }) {
+  const [ss, setSs] = useState(undefined); // undefined = loading, null = none
+  useEffect(() => {
+    let alive = true;
+    setSs(undefined);
+    storyshots(book).then((r) => alive && setSs(r));
+    return () => (alive = false);
+  }, [book.uid]);
+  return (
+    <section class="pad summaries">
+      <h3 class="section-label">
+        <Icon name="text" size={16} /> Book summaries
+      </h3>
+      <div class="sum-card">
+        <div class="sum-head">
+          <b>StoryShots</b>
+          {ss === undefined && <span class="spinner small" />}
+        </div>
+        {ss ? (
+          <>
+            {ss.excerpt && <p class="sum-excerpt">{ss.excerpt}</p>}
+            <div class="sum-actions">
+              <button class="pill" onClick={() => nav.push('reader', { book: ss })}>
+                <Icon name="book" size={14} /> Read summary
+              </button>
+              <button class="pill" onClick={() => nav.push('reader', { book: ss, readAloud: true })}>
+                <Icon name="headphones" size={14} /> Listen
+              </button>
+              <button class="pill ghost" onClick={() => openUrl(ss.link)}>
+                <Icon name="external" size={14} /> StoryShots
+              </button>
+            </div>
+          </>
+        ) : ss === null ? (
+          <div class="sum-actions">
+            <span class="muted">No StoryShots summary found by title.</span>
+            <button class="pill ghost" onClick={() => openUrl(storyshotsSearchUrl(book))}>
+              <Icon name="search" size={14} /> Search StoryShots
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div class="sum-card">
+        <div class="sum-head">
+          <b>Blinkist</b>
+        </div>
+        <div class="sum-actions">
+          <span class="muted">Opens in the Blinkist app or site, where you're signed in.</span>
+          <button class="pill" onClick={() => openUrl(blinkistUrl(book))}>
+            <Icon name="external" size={14} /> Open in Blinkist
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }

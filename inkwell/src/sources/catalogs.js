@@ -5,9 +5,11 @@ import { getJson, qs } from '../lib/http.js';
 import { stripHtml } from '../lib/format.js';
 
 const AUDIBLE = 'https://api.audible.com/1.0/catalog/products';
+// Audible India carries the Hindi catalogue.
+const AUDIBLE_IN = 'https://api.audible.in/1.0/catalog/products';
 const GROUPS = 'contributors,product_desc,product_attrs,media,series,rating,category_ladders';
 
-function fromAudible(p) {
+function fromAudible(p, market = '') {
   const img = p.product_images || {};
   const s = p.series?.[0];
   return {
@@ -22,7 +24,9 @@ function fromAudible(p) {
     duration: p.runtime_length_min ? p.runtime_length_min * 60 : 0,
     series: s ? `${s.title}${s.sequence ? ` #${s.sequence}` : ''}` : '',
     description: stripHtml(p.publisher_summary || p.merchandising_summary || ''),
-    link: `https://www.audible.com/pd/${p.asin}`,
+    link: `https://www.audible.${market === 'in' ? 'in' : 'com'}/pd/${p.asin}`,
+    ...(market ? { market } : {}),
+    ...(p.language ? { language: p.language } : {}),
     genres: [...new Set((p.category_ladders || []).flatMap((l) => (l.ladder || []).map((x) => x.name)).filter(Boolean))],
     ...audibleRating(p),
   };
@@ -81,9 +85,26 @@ export const audible = {
     const d = await getJson(`${AUDIBLE}?` + qs({ title, author: author || undefined, num_results: 3, products_sort_by: 'Relevance', response_groups: GROUPS, image_sizes: '500,1024' }));
     return products(d)[0] || null;
   },
+  /** Hindi audiobooks from Audible India for a topic, best sellers first. */
+  async hindi(term = '') {
+    const run = (keywords, sort) => getJson(`${AUDIBLE_IN}?` + qs({ keywords, num_results: 40, products_sort_by: sort, response_groups: GROUPS, image_sizes: '500,1024' }));
+    const toBooks = (d) => (d?.products || []).filter((p) => p.title).map((p) => fromAudible(p, 'in'));
+    const isHindi = (b) => /hindi/i.test(b.language || '') || /[\u0900-\u097F]/.test(b.title);
+    let d = await run(term || 'hindi', 'BestSellers').catch(() => run(term || 'hindi', 'Relevance'));
+    let out = toBooks(d).filter(isHindi);
+    if (out.length < 6) out = [...out, ...toBooks(d).filter((b) => !b.language && !out.includes(b))];
+    if (out.length < 6) {
+      d = await run(`hindi ${term}`.trim(), 'Relevance').catch(() => null);
+      const seen = new Set(out.map((b) => b.uid));
+      // Keyword matches can include English editions; keep only Hindi or untagged ones.
+      out = [...out, ...toBooks(d).filter((b) => !seen.has(b.uid) && (!b.language || isHindi(b)))];
+    }
+    return out.map((b, i) => ({ ...b, rank: i + 1 }));
+  },
   async details(book) {
-    const d = await getJson(`${AUDIBLE}/${book.uid.slice(3)}?` + qs({ response_groups: GROUPS, image_sizes: '500,1024' }));
-    return d.product ? { ...book, ...fromAudible(d.product) } : book;
+    const base = book.market === 'in' ? AUDIBLE_IN : AUDIBLE;
+    const d = await getJson(`${base}/${book.uid.slice(3)}?` + qs({ response_groups: GROUPS, image_sizes: '500,1024' }));
+    return d.product ? { ...book, ...fromAudible(d.product, book.market) } : book;
   },
 };
 

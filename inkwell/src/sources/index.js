@@ -94,7 +94,8 @@ export function searchAll(term, onResult) {
     ['ia', () => ia.search(term), true],
     ['lv', () => lv.search(term), true],
     ['gb', () => gb.search(term), true],
-    ['au', () => audible.search(term), true],
+    // Hindi (Devanagari) searches go to Audible India, which carries the Hindi catalogue.
+    ['au', () => (/[\u0900-\u097F]/.test(term) ? audible.hindi(term) : audible.search(term)), true],
     ['gbk', () => googleBooks.search(term), true],
     ['ol', () => ol.search(term), true],
   ].filter(([k, , ok]) => ok && enabled(k));

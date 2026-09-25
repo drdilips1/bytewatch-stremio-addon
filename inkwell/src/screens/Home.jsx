@@ -9,6 +9,8 @@ import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore
 import { greeting, fmtDuration } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
 import { GENRES } from './genres.js';
+import { HINDI_ALL } from './hindi.js';
+import { audible } from '../sources/catalogs.js';
 import { waitlist, cancel, playNow } from '../lib/waitlist.js';
 import { toast, Cover } from '../components/common.jsx';
 import { getDetails } from '../sources/index.js';
@@ -262,6 +264,9 @@ function WaitingRow() {
 export function GenreChips() {
   return (
     <div class="genre-scroll">
+      <button class="genre-chip hindi-chip" lang="hi" style={{ '--h': HINDI_ALL.hue }} onClick={() => nav.push('browse', { genre: HINDI_ALL })}>
+        हिंदी
+      </button>
       {GENRES.map((g) => (
         <button class="genre-chip" style={{ '--h': g.hue }} onClick={() => nav.push('browse', { genre: g })}>
           {g.name}
@@ -325,8 +330,8 @@ export function Home() {
       <header class="home-head">
         <div>
           <p class="eyebrow">{greeting()}</p>
-          <h1 class="brand">
-            Ink<span>well</span>
+          <h1 class="brand brand-hi" lang="hi">
+            <span>श्रवणीय</span>
           </h1>
         </div>
         <button class="icon-btn glass" onClick={() => nav.tab('discover')} aria-label="Search">
@@ -338,6 +343,16 @@ export function Home() {
       <WaitingRow />
       <ContinueRow />
       <GenreChips />
+      {enabled('au') && (
+        <Row
+          title="हिंदी ऑडियोबुक"
+          subtitle="Top Hindi audiobooks · Audible India"
+          icon="headphones"
+          load={() => audible.hindi('')}
+          deps={[]}
+          onMore={() => nav.push('browse', { genre: HINDI_ALL })}
+        />
+      )}
 
       {sourceOrder().map((k) => (
         <Fragment key={k}>{blocks[k]}</Fragment>

@@ -23,6 +23,8 @@ import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.datasource.ResolvingDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.extractor.DefaultExtractorsFactory;
 import androidx.media3.session.MediaSession;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -83,8 +85,15 @@ public class InkwellPlayerPlugin extends Plugin {
             return dataSpec.withAdditionalHeaders(new HashMap<>(requestHeaders));
         });
 
+        // Seek by bitrate in big MP3s without a seek table, so resuming mid-book
+        // doesn't have to read the file from the start.
+        DefaultExtractorsFactory extractors = new DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true).setConstantBitrateSeekingAlwaysEnabled(true);
+        // Start playing after 1s of audio instead of 2.5s; speech needs little buffer.
+        DefaultLoadControl loadControl = new DefaultLoadControl.Builder().setBufferDurationsMs(15000, 60000, 1000, 2000).build();
+
         player = new ExoPlayer.Builder(getContext())
-            .setMediaSourceFactory(new DefaultMediaSourceFactory(withHeaders))
+            .setMediaSourceFactory(new DefaultMediaSourceFactory(withHeaders, extractors))
+            .setLoadControl(loadControl)
             .setAudioAttributes(
                 new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(),
                 true

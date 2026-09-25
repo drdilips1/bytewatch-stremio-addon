@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../components/icons.jsx';
 import { gb } from '../sources/index.js';
+import { loadStoryShots } from '../sources/summaries.js';
 import { progress, settings, summarize, useStore } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { readAloud } from '../lib/readaloud.js';
@@ -85,7 +86,7 @@ export function Reader({ book, readAloud: autoAloud }) {
 
   useEffect(() => {
     let alive = true;
-    gb.loadText(book)
+    (book.source === 'ss' ? loadStoryShots(book) : gb.loadText(book))
       .then((d) => alive && setDoc(d))
       .catch((e) => alive && setError(e.message));
     return () => (alive = false);

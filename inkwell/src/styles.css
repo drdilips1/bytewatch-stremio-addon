@@ -2740,33 +2740,33 @@ pre.sql {
   font-size: 12.5px;
   margin: 0 0 6px;
 }
-.src-row {
+.so-row {
   display: flex;
   align-items: center;
   gap: 8px;
   position: relative;
   touch-action: pan-y;
 }
-.src-row.off .src-text {
+.so-row.off .so-text {
   opacity: 0.5;
 }
-.src-row.dragging {
+.so-row.dragging {
   z-index: 2;
   background: var(--surface-2, rgba(255, 255, 255, 0.08));
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
-.src-grip {
+.so-grip {
   touch-action: none;
   cursor: grab;
   color: var(--muted);
   flex: none;
 }
-.src-text {
+.so-text {
   flex: 1;
   min-width: 0;
 }
-.src-num {
+.so-num {
   display: inline-grid;
   place-items: center;
   width: 20px;
@@ -2776,34 +2776,152 @@ pre.sql {
   font-size: 11px;
   background: rgba(255, 255, 255, 0.1);
 }
-.src-arrows {
+.so-arrows {
   display: flex;
   flex: none;
 }
-.src-arrows .icon-btn {
+.so-arrows .icon-btn {
   width: 32px;
   height: 32px;
 }
-.src-arrows .icon-btn:disabled {
+.so-arrows .icon-btn:disabled {
   opacity: 0.25;
 }
-.src-reset {
+.so-reset {
   margin-top: 8px;
 }
-.src-order .src-row {
+.so-order .so-row {
   padding-top: 8px;
   padding-bottom: 8px;
   min-height: 0;
 }
-.src-order .src-text small {
+.so-order .so-text small {
   display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.src-order .src-text b {
+.so-order .so-text b {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   display: block;
+}
+
+/* Devanagari app name: no negative tracking or italics (they break conjuncts) */
+.brand-hi {
+  font-family: 'Noto Serif Devanagari', 'Noto Sans Devanagari', var(--display), serif;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+.brand-hi span {
+  font-style: normal;
+}
+.hindi-chip {
+  font-weight: 800;
+}
+.genre-en {
+  display: block;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  margin-top: -4px;
+}
+.hindi-cats {
+  margin: 4px 0 10px;
+}
+
+/* Book summaries */
+.sum-card {
+  padding: 12px 14px;
+  margin-top: 10px;
+  border-radius: 16px;
+  background: var(--surface, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+}
+.sum-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sum-excerpt {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sum-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.sum-actions .muted {
+  flex: 1 1 100%;
+  font-size: 13px;
+}
+
+/* Live transcript in the full player */
+.transcript {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 8px 0;
+  padding: 30% 4px 0;
+  -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+  overscroll-behavior: contain;
+}
+.transcript .tl {
+  margin: 0 0 14px;
+  font-family: var(--display);
+  font-size: 21px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.42);
+  transition: color 0.3s, transform 0.3s;
+  cursor: pointer;
+}
+.transcript .tl.past {
+  color: rgba(255, 255, 255, 0.28);
+}
+.transcript .tl.on {
+  color: #fff;
+}
+.transcript-pad {
+  height: 45%;
+}
+.transcript-wait {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--muted);
+}
+.transcript.empty,
+.transcript.picker {
+  padding: 16px 4px;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.transcript.picker h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+.tm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.tm-row small {
+  display: block;
+  color: var(--muted);
+  margin-top: 2px;
 }
