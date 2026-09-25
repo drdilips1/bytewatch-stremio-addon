@@ -291,6 +291,49 @@ function LibbySignIn({ busy, run, code, setCode }) {
   );
 }
 
+/** Sign in (or add another card) with a library card number and PIN. */
+function LibbyCardSignIn({ busy, run, adding = false }) {
+  useStore(libbySrc.libby);
+  const libs = libbySrc.libraries({ all: true });
+  const [lib, setLib] = useState(libs[0]?.key || '');
+  const [other, setOther] = useState('');
+  const [card, setCard] = useState('');
+  const [pin, setPin] = useState('');
+  const target = lib === '__other' || !libs.length ? other : lib;
+  return (
+    <div class="libby-cardform">
+      <p class="muted">
+        <b>{adding ? 'Add another library card' : 'Or sign in with your library card'}</b> — card number and PIN, no phone needed.
+      </p>
+      {libs.length > 0 && (
+        <select value={lib} onChange={(e) => setLib(e.currentTarget.value)}>
+          {libs.map((l) => (
+            <option value={l.key}>{l.name}</option>
+          ))}
+          <option value="__other">Another library…</option>
+        </select>
+      )}
+      {(lib === '__other' || !libs.length) && <input value={other} placeholder="Library link (libbyapp.com/library/…) or short name" onInput={(e) => setOther(e.currentTarget.value)} />}
+      <input value={card} inputmode="text" autocomplete="username" placeholder="Library card number" onInput={(e) => setCard(e.currentTarget.value)} />
+      <input value={pin} type="password" autocomplete="current-password" placeholder="PIN / password (if your library uses one)" onInput={(e) => setPin(e.currentTarget.value)} />
+      <button
+        class="btn primary"
+        disabled={busy || !target.trim() || !card.trim()}
+        onClick={() =>
+          run(async () => {
+            const names = await libbySrc.signInWithCard(target, card, pin);
+            setCard('');
+            setPin('');
+            return `Signed in: ${names}`;
+          })
+        }
+      >
+        {busy ? <span class="spinner small" /> : adding ? 'Add card' : 'Sign in'}
+      </button>
+    </div>
+  );
+}
+
 /** Libby: your public library — catalogue search, plus your account via Libby's setup code. */
 function LibbyCard() {
   const lib = useStore(libbySrc.libby);
@@ -328,8 +371,12 @@ function LibbyCard() {
           </div>
         </div>
       ) : (
-        <LibbySignIn busy={busy} run={run} code={code} setCode={setCode} />
+        <>
+          <LibbySignIn busy={busy} run={run} code={code} setCode={setCode} />
+          <LibbyCardSignIn busy={busy} run={run} />
+        </>
       )}
+      {acct.identity && <LibbyCardSignIn busy={busy} run={run} adding />}
       {libbySrc.libraries({ all: true }).length > 0 && (
         <div class="libby-cards">
           <small class="muted">Your libraries (switch off any you don't want in results):</small>

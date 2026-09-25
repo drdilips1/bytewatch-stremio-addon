@@ -3610,3 +3610,17 @@ button.source-card:active {
   font-size: 12px;
   opacity: 0.75;
 }
+.libby-cardform {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+}
+.libby-cardform p {
+  margin: 0;
+}
+.libby-cardform select,
+.libby-cardform input {
+  width: 100%;
+}

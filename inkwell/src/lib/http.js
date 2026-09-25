@@ -94,7 +94,7 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body, fe
         const text = await res.text();
         try {
           const j = JSON.parse(text);
-          detail = j.message || j.detail || j.error_description || (typeof j.error === 'string' ? j.error : '') || '';
+          detail = j.message || j.detail || j.error_description || (typeof j.error === 'string' ? j.error : '') || (typeof j.result === 'string' ? j.result : '') || '';
         } catch {}
         if (!detail) detail = text.slice(0, 160).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
       } catch {}

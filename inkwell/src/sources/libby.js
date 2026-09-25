@@ -198,53 +198,69 @@ export function describe(l) {
 }
 
 // ---------------------------------------------------------------------------
-// Your Libby account, linked with Libby's "Copy To Another Device" code.
-// This uses Libby's own (unofficial) app interface, like other open-source
-// Libby clients: it can list your loans and holds, borrow / place holds, and
-// open a borrowed audiobook's parts for the in-app player.
-import { sendJson, sendForm, getText as fetchText } from '../lib/http.js';
-import { Capacitor, CapacitorCookies } from '@capacitor/core';
+// Your Libby account. This speaks Libby's own (unofficial) app interface the way
+// open-source Libby clients do (odmpy, libbydl, libby-archiver): an identity
+// "chip", linked library cards, loans and holds, borrowing, and opening a
+// borrowed audiobook's parts for the in-app player.
+//
+// Key detail (from libby-archiver): the identity token carries your cards. After
+// cards are added to a chip (code copy or card sign-in) the token must be
+// re-minted with `v=<chip id>` — only then does Libby see them.
+import { sendJson, getText as fetchText } from '../lib/http.js';
+import { Capacitor } from '@capacitor/core';
 
-// Libby's account service (the one the Libby web app uses).
-const SENTRY = 'https://sentry.libbyapp.com';
-export const libbyAccount = persisted('libbyAccount', { identity: '', cards: [], loans: [], holds: [], syncedAt: 0 });
+const READ = 'https://sentry-read.svc.overdrive.com'; // chip, cards, sync
+const GATE = 'https://sentry.libbyapp.com'; // borrow, holds, open
+const CLIENT_VERSION = '22.1.1'; // Libby web client version baked into the chip
+const MINT = `c=d%3A${CLIENT_VERSION}&s=0`;
+const NATIVE = Capacitor.isNativePlatform();
+// Browsers don't let pages set these; the Android app sends what the Libby web app sends.
+const LIKE_LIBBY = NATIVE ? { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', Origin: 'https://libbyapp.com' } : {};
+
+export const libbyAccount = persisted('libbyAccount', { identity: '', chipId: '', cards: [], loans: [], holds: [], syncedAt: 0, mintedAt: 0 });
 export const signedIn = () => !!libbyAccount.get().identity;
 
-// Libby's own app identifies itself like this (as libbydl does); browsers don't allow setting it.
-const UA = Capacitor.isNativePlatform() ? { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) (Dewey; V22; iOS; 6.3.0-160)' } : {};
-const auth = (identity = libbyAccount.get().identity) => ({ Authorization: `Bearer ${identity}`, Accept: 'application/json', 'Cache-Control': 'no-cache', ...UA });
+const auth = (identity) => ({ Accept: 'application/json', ...LIKE_LIBBY, ...(identity ? { Authorization: `Bearer ${identity}` } : {}) });
 
-async function sentry(path, { method = 'GET', body, identity } = {}) {
-  const url = `${SENTRY}/${path}`;
+/** The claims inside an identity token (not verified — just read). */
+export function tokenClaims(jwt) {
+  try {
+    let p = String(jwt).split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    p += '='.repeat((4 - (p.length % 4)) % 4);
+    const bin = atob(p);
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+  } catch {
+    return null;
+  }
+}
+
+async function call(method, base, path, { identity, body } = {}) {
+  const url = `${base}/${path}`;
   try {
     return method === 'GET' ? await getJson(url, { headers: auth(identity), fresh: true, timeout: 20000 }) : await sendJson(url, method, body, auth(identity));
   } catch (e) {
-    if (e.status === 401 || e.status === 403) throw new Error('Libby signed this device out — copy a new code from Libby and sign in again');
+    if (identity && e.status === 401) throw Object.assign(new Error('Libby signed this device out — sign in again in Settings → Libby'), { status: 401 });
     throw e;
   }
 }
 
-async function newChip(identity) {
-  const r = await sendJson(`${SENTRY}/chip?client=dewey`, 'POST', undefined, identity ? auth(identity) : { Accept: 'application/json', ...UA });
+/** A new chip, or (with identity + chipId) a fresh token for the same chip that includes its cards. */
+async function mint(identity, chipId) {
+  const v = chipId ? `&v=${String(chipId).slice(0, 8)}` : '';
+  const r = await call('POST', READ, `chip?${MINT}${v}`, { identity });
   if (!r?.identity) throw new Error("Libby didn't answer — try again");
-  return r.identity;
+  return { identity: r.identity, chipId: r.chip?.id || tokenClaims(r.identity)?.chip?.id || chipId || '' };
 }
 
-/**
- * Link this app with the 8-digit code Libby shows on your phone
- * (Libby → Menu → Copy To Another Device). The code only works for about a minute.
- */
-export async function signInWithCode(code) {
-  const c = String(code || '').replace(/\D/g, '');
-  if (c.length !== 8) throw new Error('Enter the 8-digit code Libby shows under "Copy To Another Device"');
-  const identity = await newChip();
-  // Libby takes the code as a form field, not JSON.
-  await sendForm(`${SENTRY}/chip/clone/code`, 'POST', { code: c }, auth(identity)).catch((e) => {
-    throw new Error(e.status === 400 || e.status === 404 ? 'Libby didn\'t accept that code — it may have expired. Get a fresh one in Libby and type it straight away' : `Libby: ${e.message}`);
-  });
-  const d = await getJson(`${SENTRY}/chip/sync`, { headers: auth(identity), fresh: true, timeout: 20000 });
-  if (!(d?.cards || []).length) throw new Error('Libby linked, but no library cards came across — check the code and that Libby on your phone has a card');
-  return linked(identity, d);
+const chipCards = (identity) => tokenClaims(identity)?.chip?.cards || [];
+
+async function finish({ identity, chipId }) {
+  const d = await call('GET', READ, 'chip/sync', { identity });
+  if (!(d?.cards || []).length && !chipCards(identity).length) throw new Error("Libby linked this device, but no library cards came across");
+  libbyAccount.set({ identity, chipId, cards: d.cards || [], loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now(), mintedAt: Date.now() });
+  const card = (d.cards || [])[0];
+  if (card && !libby.get().key) libby.set((l) => ({ ...l, key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey }));
+  return (d.cards || []).map((c) => c.library?.name || c.cardName).join(', ') || 'Libby';
 }
 
 /** Libby's code expiry: a Unix time (s or ms), a date, or seconds from now. */
@@ -258,57 +274,47 @@ const expiryOf = (x) => {
   }
   return Date.parse(x) || Date.now() + 60e3;
 };
-
-function linked(identity, d) {
-  libbyAccount.set({ identity, cards: d.cards || [], loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now(), mintedAt: Date.now() });
-  const card = d.cards[0];
-  if (card && !libby.get().key) libby.set((l) => ({ ...l, key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey }));
-  return d.cards.map((c) => c.library?.name || c.cardName).join(', ');
-}
+const pretty = (code) => String(code).padStart(8, '0').replace(/(\d{4})(\d{4})/, '$1 $2');
 
 /**
  * Libby's "Display Setup Code" flow: this app shows a code, you enter it on the
- * phone that has your cards (Libby → Menu → Copy To Another Device), and this
- * device's identity then has your cards. Calls onCode({ code, expires }) with
- * each code (a fresh one when the last expires) and resolves with the library
- * names once linked. Returns { done, cancel }.
+ * phone that has your cards (Libby → Menu → Copy To Another Device). Then this
+ * chip holds your cards; re-minting its token makes them visible.
+ * Returns { done, cancel }; onCode({code, expires}) for each code shown.
  */
 export function pairWithCode(onCode, onStatus = () => {}) {
   let cancelled = false;
   const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
-  const getCode = async (identity) => {
-    const r = await getJson(`${SENTRY}/chip/clone/code`, { headers: auth(identity), fresh: true, timeout: 15000 });
-    if (!r?.code) throw new Error("Libby didn't give this device a code — try again");
-    const expires = expiryOf(r.expiry);
-    onCode({ code: String(r.code).padStart(8, '0').replace(/(\d{4})(\d{4})/, '$1 $2'), expires });
-    return expires;
-  };
   const done = (async () => {
-    let identity = await newChip();
-    let expires = await getCode(identity);
+    let chip = await mint();
+    const getCode = async () => {
+      const r = await call('GET', READ, 'chip/clone/code', { identity: chip.identity });
+      if (!r?.code) throw new Error("Libby didn't give this device a code — try again");
+      const expires = expiryOf(r.expiry);
+      onCode({ code: pretty(r.code), expires });
+      return expires;
+    };
+    let expires = await getCode();
     let fails = 0;
     let n = 0;
-    const until = Date.now() + 10 * 60e3; // give up after 10 minutes
+    const until = Date.now() + 10 * 60e3;
     while (!cancelled && Date.now() < until) {
       await sleep(3000);
       if (cancelled) break;
       n++;
       try {
-        // Like Libby clients do: check with this identity, then with a refreshed one
-        // (after the phone accepts the code the cards may only show on the latter).
-        const d = await getJson(`${SENTRY}/chip/sync`, { headers: auth(identity), fresh: true, timeout: 15000 });
-        if ((d?.cards || []).length) return linked(identity, d);
-        const fresh = await newChip(identity);
-        const d2 = await getJson(`${SENTRY}/chip/sync`, { headers: auth(fresh), fresh: true, timeout: 15000 });
-        if ((d2?.cards || []).length) return linked(fresh, d2);
-        onStatus(`Check ${n}: Libby says “${d2?.result || d?.result || 'no cards yet'}”`);
+        chip = await mint(chip.identity, chip.chipId);
+        const cards = chipCards(chip.identity);
+        if (cards.length) return await finish(chip);
+        const d = await call('GET', READ, 'chip/sync', { identity: chip.identity });
+        if ((d?.cards || []).length) return await finish(chip);
+        onStatus(`Check ${n} · no cards yet (${d?.result || '…'})`);
         fails = 0;
       } catch (e) {
-        onStatus(`Check ${n}: ${e.message}`);
+        onStatus(`Check ${n} · ${e.message}`);
         if (++fails >= 5) throw new Error(`Couldn't check with Libby: ${e.message}`);
       }
-      // Only fetch a new code once the shown one has run out.
-      if (Date.now() > expires) expires = await getCode(identity).catch(() => Date.now() + 30e3);
+      if (Date.now() > expires) expires = await getCode().catch(() => Date.now() + 30e3);
     }
     if (!cancelled) throw new Error('Nothing came through from Libby — get a new code and try again');
     return '';
@@ -316,19 +322,77 @@ export function pairWithCode(onCode, onStatus = () => {}) {
   return { done, cancel: () => (cancelled = true) };
 }
 
-export function signOut() {
-  libbyAccount.set({ identity: '', cards: [], loans: [], holds: [], syncedAt: 0 });
+/** The other direction: type the 8-digit code your Libby app shows. */
+export async function signInWithCode(code) {
+  const c = String(code || '').replace(/\D/g, '');
+  if (c.length !== 8) throw new Error('Enter the 8-digit code Libby shows');
+  const chip = await mint();
+  await call('POST', READ, 'chip/clone/code', { identity: chip.identity, body: { code: c, role: 'secondary' } }).catch((e) => {
+    throw new Error(e.status === 400 || e.status === 404 ? "Libby didn't accept that code — it may have expired" : `Libby: ${e.message}`);
+  });
+  return finish(await mint(chip.identity, chip.chipId));
 }
 
-/** Cards, loans and holds. */
-export async function syncAccount() {
-  // Libby's sign-in lasts about a week: renew it every few days while it's still valid.
+/** Library facts from OverDrive: its website id is what card sign-in needs. */
+async function libraryInfo(key) {
+  const d = await getJson(`${THUNDER}/libraries/${encodeURIComponent(key)}`, { timeout: 15000 });
+  const websiteId = d?.websiteId ?? d?.id;
+  if (!websiteId) throw new Error(`Couldn't find ${key}'s sign-in details`);
+  return { websiteId, name: d?.name || key };
+}
+
+/**
+ * Sign in with a library card number and PIN (no phone needed). Adds the card to
+ * this device's Libby account; call again for more cards.
+ */
+export async function signInWithCard(input, cardNumber, pin = '') {
+  const key = parseLibrary(input) || String(input || '').trim().toLowerCase();
+  if (!key) throw new Error('Choose or paste the library first');
+  if (!String(cardNumber || '').trim()) throw new Error('Enter your library card number');
+  const { websiteId } = await libraryInfo(key);
+  const forms = (await call('GET', READ, `auth/forms/${websiteId}`))?.forms || [];
+  const form = forms.find((f) => f.ilsName === key) || forms.find((f) => f.ilsName) || null;
+  if (!form) throw new Error("This library doesn't allow signing in here — use the code option instead");
+  const body = { ils: form.ilsName, username: String(cardNumber).trim(), password: String(pin || '') };
+  const link = async (identity) =>
+    call('POST', READ, `auth/link/${websiteId}`, { identity, body }).catch((e) => {
+      throw new Error(e.status === 401 || /credentials/i.test(e.message) ? 'The library rejected that card number or PIN' : `Libby: ${e.message}`);
+    });
+
   const acct = libbyAccount.get();
-  if (acct.identity && Date.now() - (acct.mintedAt || 0) > 3 * 86400e3) {
-    const fresh = await newChip(acct.identity).catch(() => '');
-    if (fresh) libbyAccount.set((a) => ({ ...a, identity: fresh, mintedAt: Date.now() }));
+  if (acct.identity) {
+    // Already signed in: add this card to the same account.
+    const chipId = acct.chipId || tokenClaims(acct.identity)?.chip?.id || '';
+    await link(acct.identity);
+    return finish(await mint(acct.identity, chipId));
   }
-  const d = await sentry('chip/sync');
+  // Like the Libby web app: link the card on one chip, then copy it to a second
+  // chip with a setup code (that kind of chip can also open audiobooks).
+  const primary = await mint();
+  await link(primary.identity);
+  try {
+    const code = (await call('GET', READ, 'chip/clone/code?role=primary', { identity: primary.identity }))?.code;
+    const secondary = await mint();
+    await call('POST', READ, 'chip/clone/code', { identity: secondary.identity, body: { code: String(code), role: 'secondary' } });
+    return await finish(await mint(secondary.identity, secondary.chipId));
+  } catch {
+    return finish(await mint(primary.identity, primary.chipId));
+  }
+}
+
+export function signOut() {
+  libbyAccount.set({ identity: '', chipId: '', cards: [], loans: [], holds: [], syncedAt: 0, mintedAt: 0 });
+}
+
+/** Cards, loans and holds (renewing the week-long sign-in every few days). */
+export async function syncAccount() {
+  const acct = libbyAccount.get();
+  if (acct.identity && Date.now() - (acct.mintedAt || 0) > 2 * 86400e3) {
+    const chipId = acct.chipId || tokenClaims(acct.identity)?.chip?.id || '';
+    const fresh = await mint(acct.identity, chipId).catch(() => null);
+    if (fresh) libbyAccount.set((a) => ({ ...a, identity: fresh.identity, chipId: fresh.chipId, mintedAt: Date.now() }));
+  }
+  const d = await call('GET', READ, 'chip/sync', { identity: libbyAccount.get().identity });
   const next = { ...libbyAccount.get(), cards: d.cards || [], loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now() };
   libbyAccount.set(next);
   return next;
@@ -371,77 +435,150 @@ export function loanFor(titleId) {
   return (libbyAccount.get().loans || []).find((l) => String(l.id) === String(titleId));
 }
 
+const reporting = () => ({ clientName: 'Dewey', clientVersion: CLIENT_VERSION, environment: 'charlie' });
+
 /** Borrow a title that's available now. */
-export async function borrow(titleId, format, key = libby.get().key) {
+export async function borrow(titleId, format, key = libraries()[0]?.key) {
   const card = cardFor(key);
-  if (!card) throw new Error(libbyAccount.get().identity ? `You don't have a card for this library in Libby` : 'Sign in to Libby first (Settings → Libby)');
-  const pref = card.lendingPeriods?.[format === 'audiobook' ? 'audiobook' : 'book']?.preference || [14, 'days'];
-  await sentry(`card/${card.cardId}/loan/${titleId}`, { method: 'POST', body: { period: pref[0], units: pref[1] || 'days', lucky_day: null, title_format: format === 'audiobook' ? 'audiobook' : 'ebook' } });
+  if (!card) throw new Error(signedIn() ? "You don't have a card for this library — add it in Settings → Libby" : 'Sign in to Libby first (Settings → Libby)');
+  const identity = libbyAccount.get().identity;
+  let pref = null;
+  try {
+    const p = await call('GET', GATE, `card/${card.cardId}/loan/${titleId}/periods`, { identity });
+    pref = p?.preference || p?.options?.[p.options.length - 1] || null;
+  } catch {}
+  pref ||= card.lendingPeriods?.[format === 'audiobook' ? 'audiobook' : 'book']?.preference || [14, 'days'];
+  await call('POST', GATE, `card/${card.cardId}/loan/${titleId}`, {
+    identity,
+    body: { period: pref[0], units: pref[1] || 'days', lucky_day: 0, title_format: format === 'audiobook' ? 'audiobook' : 'ebook', reporting_context: reporting() },
+  });
   await syncAccount();
   return `Borrowed with your ${card.library?.name || ''} card`.replace('  ', ' ');
 }
 
 /** Join the waitlist. */
-export async function placeHold(titleId, key = libby.get().key) {
+export async function placeHold(titleId, key = libraries()[0]?.key) {
   const card = cardFor(key);
-  if (!card) throw new Error(libbyAccount.get().identity ? `You don't have a card for this library in Libby` : 'Sign in to Libby first (Settings → Libby)');
-  await sentry(`card/${card.cardId}/hold/${titleId}`, { method: 'POST', body: { days_to_suspend: 0, email_address: '' } });
+  if (!card) throw new Error(signedIn() ? "You don't have a card for this library — add it in Settings → Libby" : 'Sign in to Libby first (Settings → Libby)');
+  await call('POST', GATE, `card/${card.cardId}/hold/${titleId}`, { identity: libbyAccount.get().identity, body: { days_to_suspend: 0, email_address: '' } });
   await syncAccount();
   return 'Hold placed — Libby will tell you when it is ready';
 }
 
-async function cookieHeader(url) {
-  if (!Capacitor.isNativePlatform()) return '';
-  try {
-    const c = await CapacitorCookies.getCookies({ url });
-    return Object.entries(c || {})
-      .map(([k, v]) => `${k}=${v}`)
-      .join('; ');
-  } catch {
-    return '';
-  }
+/** Give a loan back early. */
+export async function returnLoan(cardId, titleId) {
+  await call('DELETE', GATE, `card/${cardId}/loan/${titleId}`, { identity: libbyAccount.get().identity });
+  await syncAccount();
+  return 'Returned';
 }
 
-/** A borrowed audiobook as a playable book: parts, chapters and the cookie the audio host needs. */
+// ---- Opening a borrowed audiobook ------------------------------------------
+// The listen page embeds the book's parts ("openbook") scrambled in window.eData;
+// this reproduces the web player's decode (after libby-archiver's notes).
+
+function parseStringArray(literal) {
+  try {
+    const j = JSON.parse(literal);
+    if (Array.isArray(j) && j.every((x) => typeof x === 'string')) return j;
+  } catch {}
+  const out = [];
+  let cur = '';
+  let q = '';
+  for (let i = 0; i < literal.length; i++) {
+    const c = literal[i];
+    if (!q) {
+      if (c === '"' || c === "'") q = c;
+      else if (!/[\s,\[\]]/.test(c)) throw new Error('Unexpected audiobook page format');
+      continue;
+    }
+    if (c === q) {
+      out.push(cur);
+      cur = '';
+      q = '';
+    } else if (c === '\\') {
+      const e = literal[++i];
+      if (e === 'x') (cur += String.fromCharCode(parseInt(literal.slice(i + 1, i + 3), 16))), (i += 2);
+      else if (e === 'u') (cur += String.fromCharCode(parseInt(literal.slice(i + 1, i + 5), 16))), (i += 4);
+      else cur += { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', v: '\v', 0: '\0' }[e] ?? e;
+    } else cur += c;
+  }
+  return out;
+}
+
+export function decodeOpenbook(html, buid) {
+  const m = html.match(/window\.eData\s*=\s*(\[[\s\S]*?\])\s*;\s*SPARK\.bifocalPath/);
+  if (!m) throw new Error("Couldn't read this audiobook's parts (Libby changed its player)");
+  const key = buid.split('').reverse().join('');
+  const shifts = [...key].map((k) => parseFloat(k) || 0);
+  const data = parseStringArray(m[1]).join('"');
+  let out = '';
+  for (let a = 0; a < data.length; a++) {
+    let ch = data.charCodeAt(a);
+    const d = shifts[a % shifts.length];
+    if (d) {
+      ch += (a + d) % 94;
+      if (ch > 126) ch = (ch % 126) + 32;
+    }
+    out += String.fromCharCode(ch);
+  }
+  const bin = atob(out);
+  const json = new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+  const doc = JSON.parse(json);
+  if (!doc?.b) throw new Error("Couldn't read this audiobook's parts");
+  return doc.b;
+}
+
+/** A borrowed audiobook as a playable book: its parts and chapters. */
 export async function openLoan(book) {
   const { cardId, titleId, format } = book.libbyLoan || {};
   if (format !== 'audiobook') throw new Error('Open this one in the Libby app');
-  if (!Capacitor.isNativePlatform()) throw new Error('Libby audiobooks play in the Android app — or open it in Libby');
-  const r = await sentry(`open/audiobook/card/${cardId}/title/${titleId}`);
-  const web = r?.urls?.web;
-  const ob = r?.urls?.openbook;
-  if (!web || !ob) throw new Error("Libby didn't return this audiobook — try opening it in Libby once");
-  await fetchText(web, { fresh: true, timeout: 20000 }).catch(() => {}); // sets the audio host's session cookie
-  const book2 = await getJson(ob, { fresh: true, timeout: 20000 });
-  const cookie = await cookieHeader(web);
-  const headers = cookie ? { Cookie: cookie } : {};
+  if (!NATIVE) throw new Error('Libby audiobooks play in the Android app — or open it in Libby');
+  const acct = libbyAccount.get();
+  const card = (acct.cards || []).find((c) => String(c.cardId) === String(cardId));
+  const libKey = card?.advantageKey || libraries()[0]?.key || '';
+  const websiteId = card?.library?.websiteId || (await libraryInfo(libKey).catch(() => ({}))).websiteId || '';
+  const codex = { codex: { title: { titleId: String(titleId), slug: String(titleId) }, loan: { psnKey: `${cardId}-${titleId}`, slug: `${cardId}-${titleId}` }, library: { key: libKey, name: card?.library?.name || libKey } }, 'dewey-url': 'https://libbyapp.com', spec: 'V31' };
+  const t = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(codex)))));
+  const passport = await call('GET', GATE, `open/audiobook/card/${cardId}/title/${titleId}?t=${t}&website_id=${websiteId}`, { identity: acct.identity });
+  const web = passport?.urls?.web;
+  if (!web) throw new Error("Libby didn't open this audiobook — try again, or open it in Libby");
+  const host = new URL(web).host;
+  const buid = host.split('.')[0].replace(/^[^-]+-/, '');
+  // The signed message sets the listen site's session cookie (kept by the app), then the player page.
+  if (passport.message) await fetchText(web + '?' + passport.message, { timeout: 25000, headers: LIKE_LIBBY }).catch(() => {});
+  const html = await fetchText(web + '?kathava=' + Date.now(), { timeout: 25000, headers: { ...LIKE_LIBBY, Accept: 'text/html' } });
+  const ob = decodeOpenbook(html, buid);
+  const spine = ob.spine || [];
+  const cmpts = ob['-odread-cmpt-params'] || [];
+  const base = web.replace(/\/$/, '');
   let offset = 0;
-  const spine = book2.spine || [];
-  const tracks = spine.map((s, i) => {
-    const t = { title: `Part ${i + 1}`, url: new URL(s.path, web).href, duration: s['audio-duration'] || 0, offset, index: i, headers };
-    offset += t.duration;
-    return t;
+  const tracks = spine.map((part, i) => {
+    const cmpt = cmpts[part['-odread-spine-position'] ?? i] || '';
+    const tr = { title: `Part ${i + 1}`, url: `${base}/${part.path}${cmpt ? '?' + cmpt : ''}`, duration: part['audio-duration'] || 0, offset, index: i };
+    offset += tr.duration;
+    return tr;
   });
+  if (!tracks.length) throw new Error('This audiobook has no playable parts');
   // Table of contents: "part.mp3#123" → part index + seconds.
   const flat = [];
   const walk = (items) => (items || []).forEach((n) => (flat.push(n), walk(n.contents)));
-  walk(book2.nav?.toc);
+  walk(ob.nav?.toc);
+  const clean = (p) => decodeURIComponent(String(p || '').split('?')[0]);
   const chaptersMeta = flat
     .map((n) => {
       const [p, sec] = String(n.path || '').split('#');
-      const i = spine.findIndex((s) => s.path === p || s.path.split('?')[0] === p.split('?')[0]);
+      const i = spine.findIndex((s) => clean(s.path) === clean(p) || clean(s['-odread-original-path']) === clean(p));
       return i < 0 ? null : { title: n.title, start: tracks[i].offset + (+sec || 0) };
     })
     .filter(Boolean)
     .sort((a, b) => a.start - b.start)
     .map((c, i, all) => ({ ...c, end: all[i + 1]?.start ?? offset }));
-  if (!tracks.length) throw new Error('This audiobook has no playable parts');
   return {
     ...book,
-    title: book2.title?.main || book.title,
-    author: (book2.creator || []).filter((c) => /author/i.test(c.role || 'author')).map((c) => c.name).join(', ') || book.author,
-    narrator: (book2.creator || []).filter((c) => /narrator/i.test(c.role || '')).map((c) => c.name).join(', '),
-    description: (book2.description?.full || book2.description?.short || '').replace(/<[^>]+>/g, ' ').trim(),
+    title: ob.title?.main || book.title,
+    author: (ob.creator || []).filter((c) => /author/i.test(c.role || 'author')).map((c) => c.name).join(', ') || book.author,
+    narrator: (ob.creator || []).filter((c) => /narrator/i.test(c.role || '')).map((c) => c.name).join(', '),
+    description: (ob.description?.full || ob.description?.short || '').replace(/<[^>]+>/g, ' ').trim(),
     duration: offset,
     tracks,
     chaptersMeta: chaptersMeta.length ? chaptersMeta : undefined,
