@@ -238,6 +238,26 @@ public class MainActivity extends Activity {
         main.post(() -> webView.evaluateJavascript(js, null));
     }
 
+    /** MyLoft's app, found by package name or label (its package id isn't something we control). */
+    private Intent myLoftLaunchIntent() {
+        try {
+            android.content.pm.PackageManager pm = getPackageManager();
+            Intent q = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+            for (android.content.pm.ResolveInfo r : pm.queryIntentActivities(q, 0)) {
+                String pkg = r.activityInfo.packageName;
+                CharSequence label = r.loadLabel(pm);
+                if (pkg.equals(getPackageName())) continue;
+                if (pkg.toLowerCase(java.util.Locale.ROOT).contains("myloft")
+                        || (label != null && label.toString().toLowerCase(java.util.Locale.ROOT).contains("myloft"))) {
+                    Intent i = pm.getLaunchIntentForPackage(pkg);
+                    if (i != null) return i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
     private void toast(String msg) {
         main.post(() -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
     }
@@ -350,6 +370,26 @@ public class MainActivity extends Activity {
         public void openMyLoft(String key, String title) {
             main.post(() -> openLink(R4LSession.MYLOFT_HOME, key == null || key.isEmpty() ? null : key,
                     title == null || title.isEmpty() ? null : title, R4LSession.MYLOFT));
+        }
+
+        @JavascriptInterface
+        public boolean hasMyLoftApp() {
+            return myLoftLaunchIntent() != null;
+        }
+
+        /** Opens the installed MyLoft app; a PDF shared back from it saves to the pending paper. */
+        @JavascriptInterface
+        public boolean openMyLoftApp() {
+            Intent i = myLoftLaunchIntent();
+            if (i == null) return false;
+            main.post(() -> {
+                try {
+                    startActivity(i);
+                } catch (Exception e) {
+                    toast("Couldn't open the MyLoft app");
+                }
+            });
+            return true;
         }
 
         /** Shows where the background UpToDate page stopped, so the user can see what it needs. */

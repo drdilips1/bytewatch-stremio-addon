@@ -51,6 +51,7 @@
         aiHasKey: () => !!localStorage.getItem('ds.stub.aikey'),
         aiSetKey: (k) => (k ? localStorage.setItem('ds.stub.aikey', k) : localStorage.removeItem('ds.stub.aikey')),
         aiAsk: (id, title, text, q) => setTimeout(() => App.onNative({ type: 'ai', id, state: 'done', text: q ? `The paper reports **62%** clearance for: ${q}` : '## Bottom line\nA randomised trial found the drug **superior** to placebo.\n## Study design\n- RCT, 240 adults\n## Key findings\n- PASI-75 in **62%** vs 12% (p<0.001)\n## Limitations\n- 16-week follow-up only' }), 400),
+        hasMyLoftApp: () => true, openMyLoftApp: () => true,
         ttsVoices: () => JSON.stringify([{ name: 'en-us-x-sfg-local', locale: 'English (United States)', quality: 400, network: false }]),
         ttsStatus: () => JSON.stringify({ playing: !!t, index: i, total: n }),
       };
@@ -2469,13 +2470,26 @@
     'myloft-open': async (b) => {
       const id = b.dataset.id;
       const a = id && (saved.get(id) || cache.get(id));
-      if (!a) { Native.openMyLoft('', ''); return; }
-      if (!saved.has(a.id)) await saveArticle(a);
-      if (jobs.has(a.id)) { jobs.delete(a.id); renderTray(); }
-      Native.copy(a.title);
-      Native.setPendingPdf(a.id, a.title);
-      toast('Title copied. Find it in MyLoft — or in the MyLoft app, then Share the PDF to DermScholar.');
-      Native.openMyLoft(a.id, a.title);
+      if (a) {
+        if (!saved.has(a.id)) await saveArticle(a);
+        if (jobs.has(a.id)) { jobs.delete(a.id); renderTray(); }
+        Native.copy(a.title);
+        Native.setPendingPdf(a.id, a.title);
+      }
+      const inApp = () => Native.openMyLoft(a ? a.id : '', a ? a.title : '');
+      if (!Native.hasMyLoftApp?.()) { if (a) toast('Title copied — search for it in MyLoft'); inApp(); return; }
+      // MyLoft only fully works in its own app (its website sends phones there, and needs a browser
+      // extension on desktop), so the app is the main route; the PDF comes back through Share.
+      sheet(`<h3>Get it with MyLoft</h3>
+        ${a ? `<p class="muted small ai-title">${esc(a.title)}</p>` : ''}
+        <ol class="steps"><li>${a ? 'The title is copied. ' : ''}Search for the paper in the MyLoft app and open its PDF.</li>
+          <li>Tap <b>Share</b> (or <b>Open with</b>) and choose <b>DermScholar</b>.</li>
+          <li>${a ? 'It saves to this paper' : 'It saves to your library'} and opens here.</li></ol>
+        <button class="btn primary full" data-act="myloft-app">${icon('external')}Open the MyLoft app</button>
+        <button class="btn full" data-act="myloft-web" style="margin-top:10px">${icon('globe')}Use MyLoft's website in DermScholar</button>
+        <p class="muted small">MyLoft's website sends phones to its app, so it may not work here.</p>`);
+      actions['myloft-app'] = () => { closeSheet(true); Native.openMyLoftApp(); };
+      actions['myloft-web'] = () => { closeSheet(true); inApp(); };
     },
     'utd-search': (b) => go(utdHash(b.dataset.q || '')),
     'utd-topic': (b) => go(utdTopicHash(b.dataset.url)),

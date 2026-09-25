@@ -766,3 +766,6 @@ body.tts-on-page .rd p, body.tts-on-page .rd li { cursor: pointer; }
 .row-btns { display: flex; gap: 8px; margin-top: 10px; }
 .acc-ico.ai { background: linear-gradient(135deg, #d97757, #b85c3e); color: #fff; }
 .sheet input#aikey { width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--bg); color: inherit; }
+.steps { margin: 4px 0 16px; padding-left: 22px; line-height: 1.5; }
+.steps li { margin: 6px 0; }
+.sheet .btn.full { width: 100%; justify-content: center; }
