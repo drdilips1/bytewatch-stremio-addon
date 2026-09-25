@@ -446,11 +446,11 @@ function LibbyAction({ h }) {
       </button>
     );
   return h.libby.available ? (
-    <button class="pill active" onClick={() => act(() => libbySrc.borrow(h.libby.id, h.libby.format))}>
+    <button class="pill active" onClick={() => act(() => libbySrc.borrow(h.libby.id, h.libby.format, h.libby.key))}>
       Borrow
     </button>
   ) : (
-    <button class="pill" onClick={() => act(() => libbySrc.placeHold(h.libby.id))}>
+    <button class="pill" onClick={() => act(() => libbySrc.placeHold(h.libby.id, h.libby.key))}>
       Place hold
     </button>
   );
@@ -470,7 +470,7 @@ function LibbyCard({ book }) {
   return (
     <section class="pad libby">
       <h3 class="section-label">
-        <Icon name="library" size={16} /> At your library · {lib.name}
+        <Icon name="library" size={16} /> {libbySrc.libraries().length > 1 ? 'At your libraries' : `At your library · ${libbySrc.libraries()[0]?.name || lib.name}`}
       </h3>
       {hits === null ? (
         <p class="muted">
@@ -485,10 +485,13 @@ function LibbyCard({ book }) {
         </div>
       ) : (
         <div class="libby-list">
-          {hits.slice(0, 4).map((h) => (
+          {hits.slice(0, 8).map((h) => (
             <div class={'libby-item' + (h.libby.available ? ' ok' : '')}>
               <div>
-                <b>{h.libby.format === 'audiobook' ? 'Audiobook' : h.libby.format === 'ebook' ? 'Ebook' : h.libby.format || 'Title'}</b>
+                <b>
+                  {h.libby.format === 'audiobook' ? 'Audiobook' : h.libby.format === 'ebook' ? 'Ebook' : h.libby.format || 'Title'}
+                  {libbySrc.libraries().length > 1 && h.libby.library ? <span class="libby-lib"> · {h.libby.library}</span> : null}
+                </b>
                 <small>{libbySrc.describe(h.libby)}</small>
               </div>
               <LibbyAction h={h} />

@@ -3564,3 +3564,10 @@ button.source-card:active {
 .tabbar button {
   min-width: 0;
 }
+.libby-lib {
+  color: var(--muted);
+  font-weight: 500;
+}
+.libby-cards {
+  margin: 6px 0 4px;
+}

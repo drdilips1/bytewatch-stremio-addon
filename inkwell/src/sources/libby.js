@@ -34,9 +34,27 @@ export async function connect(input) {
 export const disconnect = () => libby.set({ key: '', name: '' });
 
 const libbyUrl = (key, title, id) => `https://libbyapp.com/search/${key}/search/query-${encodeURIComponent(title)}/page-1${id ? `/${id}` : ''}`;
-export const libraryHome = () => `https://libbyapp.com/library/${libby.get().key}`;
+export const libraryHome = () => `https://libbyapp.com/library/${libraries()[0]?.key || libby.get().key}`;
 
-function toBook(it, key) {
+/**
+ * Libraries to search: every card you've linked (minus ones switched off),
+ * or the single library set up by link when not signed in.
+ */
+export function libraries() {
+  const acct = libbyAccount.get();
+  const skip = new Set(libby.get().skip || []);
+  const seen = new Set();
+  const fromCards = (acct.cards || [])
+    .filter((c) => c.advantageKey && !seen.has(c.advantageKey) && seen.add(c.advantageKey))
+    .map((c) => ({ key: c.advantageKey, name: c.library?.name || c.cardName || c.advantageKey, cardId: c.cardId }));
+  if (fromCards.length) return fromCards.filter((l) => !skip.has(l.key));
+  const { key, name } = libby.get();
+  return key ? [{ key, name }] : [];
+}
+export const toggleLibrary = (key, on) =>
+  libby.set((l) => ({ ...l, skip: on ? (l.skip || []).filter((k) => k !== key) : [...new Set([...(l.skip || []), key])] }));
+
+function toBook(it, key, name = '') {
   const covers = it.covers || {};
   const cover = covers.cover510Wide?.href || covers.cover300Wide?.href || covers.cover150Wide?.href || '';
   const format = it.type?.id === 'audiobook' ? 'audiobook' : it.type?.id === 'ebook' ? 'ebook' : it.type?.name || '';
@@ -58,26 +76,42 @@ function toBook(it, key) {
       holds: it.holdsCount ?? null,
       waitDays: it.estimatedWaitDays ?? null,
       link: libbyUrl(key, it.title, it.id),
+      key,
+      library: name,
     },
   };
 }
 
-/** Search your library's catalogue (audiobooks and ebooks). */
-export async function search(term) {
-  const { key } = libby.get();
-  if (!key || !term.trim()) return [];
-  const d = await getJson(`${THUNDER}/libraries/${key}/media?` + qs({ query: term, perPage: 24, page: 1 }), { timeout: 15000 });
-  return (d?.items || []).filter((it) => it.title).map((it) => toBook(it, key));
+async function searchOne(lib, term, perPage = 24) {
+  const d = await getJson(`${THUNDER}/libraries/${lib.key}/media?` + qs({ query: term, perPage, page: 1 }), { timeout: 15000 });
+  return (d?.items || []).filter((it) => it.title).map((it) => toBook(it, lib.key, lib.name));
 }
 
-/** Copies of this book at your library, audiobook first. */
+/** Search all your libraries' catalogues (audiobooks and ebooks). */
+export async function search(term) {
+  const libs = libraries();
+  if (!libs.length || !term.trim()) return [];
+  const per = await Promise.all(libs.map((l) => searchOne(l, term, libs.length > 1 ? 12 : 24).catch(() => [])));
+  // One entry per title: prefer a library where it's available now.
+  const best = new Map();
+  for (const b of per.flat()) {
+    const k = `${b.libby.format}|${b.title.toLowerCase()}|${b.author.toLowerCase()}`;
+    const cur = best.get(k);
+    if (!cur || (b.libby.available && !cur.libby.available)) best.set(k, b);
+  }
+  return [...best.values()];
+}
+
+/** Copies of this book at each of your libraries: available first, audiobook first. */
 export async function availability(book) {
   const t = mainTitle(book.title);
   const author = (book.author || '').split(',')[0].trim();
-  const hits = await search(`${t} ${author.split(' ').pop() || ''}`.trim()).catch(() => []);
-  return hits
+  const q = `${t} ${author.split(' ').pop() || ''}`.trim();
+  const per = await Promise.all(libraries().map((l) => searchOne(l, q).catch(() => [])));
+  return per
+    .flat()
     .filter((b) => matches(t, b.title))
-    .sort((a, b) => (a.libby.format === 'audiobook' ? -1 : 0) - (b.libby.format === 'audiobook' ? -1 : 0) || Number(b.libby.available) - Number(a.libby.available));
+    .sort((a, b) => Number(b.libby.available) - Number(a.libby.available) || (a.libby.format === 'audiobook' ? -1 : 0) - (b.libby.format === 'audiobook' ? -1 : 0));
 }
 
 export const details = async (book) => book;
@@ -176,27 +210,28 @@ export const holdBooks = () =>
 
 function cardFor(key) {
   const cards = libbyAccount.get().cards || [];
-  return cards.find((c) => c.advantageKey === key) || cards[0];
+  return cards.find((c) => c.advantageKey === key) || (key ? null : cards[0]);
 }
 
 export function loanFor(titleId) {
+  // Title ids are per library, so a loan matches on id (any card).
   return (libbyAccount.get().loans || []).find((l) => String(l.id) === String(titleId));
 }
 
 /** Borrow a title that's available now. */
-export async function borrow(titleId, format) {
-  const card = cardFor(libby.get().key);
-  if (!card) throw new Error('Sign in to Libby first (Settings → Libby)');
+export async function borrow(titleId, format, key = libby.get().key) {
+  const card = cardFor(key);
+  if (!card) throw new Error(libbyAccount.get().identity ? `You don't have a card for this library in Libby` : 'Sign in to Libby first (Settings → Libby)');
   const pref = card.lendingPeriods?.[format === 'audiobook' ? 'audiobook' : 'book']?.preference || [14, 'days'];
   await sentry(`card/${card.cardId}/loan/${titleId}`, { method: 'POST', body: { period: pref[0], units: pref[1] || 'days', lucky_day: null, title_format: format === 'audiobook' ? 'audiobook' : 'ebook' } });
   await syncAccount();
-  return `Borrowed with ${card.library?.name || 'your card'}`;
+  return `Borrowed with your ${card.library?.name || ''} card`.replace('  ', ' ');
 }
 
 /** Join the waitlist. */
-export async function placeHold(titleId) {
-  const card = cardFor(libby.get().key);
-  if (!card) throw new Error('Sign in to Libby first (Settings → Libby)');
+export async function placeHold(titleId, key = libby.get().key) {
+  const card = cardFor(key);
+  if (!card) throw new Error(libbyAccount.get().identity ? `You don't have a card for this library in Libby` : 'Sign in to Libby first (Settings → Libby)');
   await sentry(`card/${card.cardId}/hold/${titleId}`, { method: 'POST', body: { days_to_suspend: 0, email_address: '' } });
   await syncAccount();
   return 'Hold placed — Libby will tell you when it is ready';

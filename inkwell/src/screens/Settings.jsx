@@ -268,7 +268,23 @@ function LibbyCard() {
           </div>
         </>
       )}
-      {lib.key ? (
+      {acct.identity && (acct.cards || []).length > 0 && (
+        <div class="libby-cards">
+          <small class="muted">Libraries searched (switch off any you don't want in results):</small>
+          {(acct.cards || [])
+            .filter((c, i, a) => a.findIndex((x) => x.advantageKey === c.advantageKey) === i)
+            .map((c) => (
+              <label class="set-row">
+                <div>
+                  <b>{c.library?.name || c.cardName || c.advantageKey}</b>
+                  <small>{c.cardName && c.cardName !== c.library?.name ? c.cardName : c.advantageKey}</small>
+                </div>
+                <input type="checkbox" class="switch" checked={!(lib.skip || []).includes(c.advantageKey)} onChange={(e) => libbySrc.toggleLibrary(c.advantageKey, e.currentTarget.checked)} />
+              </label>
+            ))}
+        </div>
+      )}
+      {acct.identity && (acct.cards || []).length > 0 ? null : lib.key ? (
         <div class="set-row">
           <div>
             <b>{lib.name}</b>
