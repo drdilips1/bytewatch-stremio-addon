@@ -15,7 +15,7 @@ import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
 import { RelatedRows } from '../components/related.jsx';
-import { storyshots, blinkistUrl, storyshotsSearchUrl, openUrl, BLINKIST_LOGIN, STORYSHOTS_HOME } from '../sources/summaries.js';
+import { storyshots, loadStoryShots, blinkistUrl, storyshotsSearchUrl, openUrl, BLINKIST_LOGIN, STORYSHOTS_HOME } from '../sources/summaries.js';
 
 export function Book({ book: initial }) {
   const [book, setBook] = useState(initial);
@@ -295,15 +295,37 @@ export function Book({ book: initial }) {
   );
 }
 
-/** StoryShots summary (read in-app or read aloud) and a Blinkist shortcut. */
+/** StoryShots summary shown right here (with their narration when available) and Blinkist in the in-app browser. */
 function Summaries({ book }) {
   const [ss, setSs] = useState(undefined); // undefined = loading, null = none
+  const [doc, setDoc] = useState(null); // { html, audio } | { error }
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     let alive = true;
     setSs(undefined);
-    storyshots(book).then((r) => alive && setSs(r));
+    setDoc(null);
+    setOpen(false);
+    storyshots(book).then((r) => {
+      if (!alive) return;
+      setSs(r);
+      if (r) loadStoryShots(r).then((d) => alive && setDoc(d)).catch((e) => alive && setDoc({ error: e.message }));
+    });
     return () => (alive = false);
   }, [book.uid]);
+
+  const playOriginal = () => {
+    nav.openOverlay('player');
+    player.playBook({
+      uid: 'ssa:' + ss.link,
+      source: 'ss',
+      kind: 'audio',
+      title: doc.title || ss.title,
+      author: book.author || '',
+      cover: book.cover || '',
+      tracks: doc.audio.map((url, i) => ({ title: doc.audio.length > 1 ? `Part ${i + 1}` : 'Summary', url, index: i })),
+    });
+  };
+
   return (
     <section class="pad summaries">
       <h3 class="section-label">
@@ -312,45 +334,50 @@ function Summaries({ book }) {
       <div class="sum-card">
         <div class="sum-head">
           <b>StoryShots</b>
-          {ss === undefined && <span class="spinner small" />}
+          {(ss === undefined || (ss && !doc)) && <span class="spinner small" />}
         </div>
-        {ss ? (
+        {ss && doc && !doc.error && (
           <>
-            {ss.excerpt && <p class="sum-excerpt">{ss.excerpt}</p>}
+            <div class={'sum-text reader-text' + (open ? ' open' : '')} dangerouslySetInnerHTML={{ __html: doc.html }} />
             <div class="sum-actions">
-              <button class="pill" onClick={() => nav.push('reader', { book: ss })}>
-                <Icon name="book" size={14} /> Read summary
+              <button class="pill" onClick={() => setOpen(!open)}>
+                <Icon name="book" size={14} /> {open ? 'Show less' : 'Read full summary'}
               </button>
-              <button class="pill" onClick={() => nav.push('reader', { book: ss, readAloud: true })}>
-                <Icon name="headphones" size={14} /> Listen
-              </button>
-              <button class="pill ghost" onClick={() => openUrl(ss.link)}>
-                <Icon name="external" size={14} /> StoryShots
-              </button>
+              {doc.audio?.length > 0 ? (
+                <button class="pill" onClick={playOriginal}>
+                  <Icon name="headphones" size={14} /> StoryShots audio
+                </button>
+              ) : (
+                <button class="pill ghost" onClick={() => nav.push('reader', { book: ss, readAloud: true })}>
+                  <Icon name="headphones" size={14} /> Listen (built-in voice)
+                </button>
+              )}
             </div>
           </>
-        ) : ss === null ? (
+        )}
+        {ss && doc?.error && <p class="muted">{doc.error}</p>}
+        {ss === null && <p class="muted">No StoryShots summary found for this title.</p>}
+        {ss !== undefined && (
           <div class="sum-actions">
-            <span class="muted">Couldn't find this summary on the StoryShots website automatically.</span>
-            <button class="pill" onClick={() => openUrl(storyshotsSearchUrl(book))}>
-              <Icon name="search" size={14} /> Find on StoryShots
+            <button class="pill ghost" onClick={() => openUrl(ss?.link || storyshotsSearchUrl(book), 'StoryShots')}>
+              <Icon name="external" size={14} /> {ss ? 'Open on StoryShots' : 'Search StoryShots'}
             </button>
-            <button class="pill ghost" onClick={() => openUrl(STORYSHOTS_HOME)}>
+            <button class="pill ghost" onClick={() => openUrl(STORYSHOTS_HOME, 'StoryShots')}>
               Sign in
             </button>
           </div>
-        ) : null}
+        )}
       </div>
       <div class="sum-card">
         <div class="sum-head">
           <b>Blinkist</b>
         </div>
         <div class="sum-actions">
-          <span class="muted">Finds the book's Blinkist page — it opens in the Blinkist app if you have it. Sign in once and it stays signed in.</span>
-          <button class="pill" onClick={() => openUrl(blinkistUrl(book))}>
-            <Icon name="external" size={14} /> Find on Blinkist
+          <span class="muted">Opens inside the app. Sign in once and it stays signed in.</span>
+          <button class="pill" onClick={() => openUrl(blinkistUrl(book), 'Blinkist')}>
+            <Icon name="search" size={14} /> Find on Blinkist
           </button>
-          <button class="pill ghost" onClick={() => openUrl(BLINKIST_LOGIN)}>
+          <button class="pill ghost" onClick={() => openUrl(BLINKIST_LOGIN, 'Blinkist')}>
             Sign in
           </button>
         </div>

@@ -2992,3 +2992,27 @@ pre.sql {
 .loading-line .src-progress-track {
   margin-top: 8px;
 }
+.sum-text {
+  margin-top: 8px;
+  max-height: 180px;
+  overflow: hidden;
+  position: relative;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-mask-image: linear-gradient(#000 60%, transparent);
+  mask-image: linear-gradient(#000 60%, transparent);
+}
+.sum-text.open {
+  max-height: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.sum-text h1 {
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+.sum-text h2,
+.sum-text h3 {
+  font-size: 16px;
+  margin: 14px 0 6px;
+}

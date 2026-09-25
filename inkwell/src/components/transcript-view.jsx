@@ -12,8 +12,8 @@ export function TranscriptView({ s }) {
   const userScroll = useRef(0);
   useEffect(() => subscribeTranscript(setT), []);
   useEffect(() => {
-    if (transcriptAvailable) follow(s);
-  }, [s.book?.uid, s.index, Math.floor(s.time)]);
+    if (transcriptAvailable) follow(s); // start straight away when opened
+  }, [s.book?.uid, s.index]);
 
   const segs = t?.segments || [];
   let active = -1;

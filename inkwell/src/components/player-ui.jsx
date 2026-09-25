@@ -69,6 +69,8 @@ export function MiniPlayer() {
             <span class="err">{s.error}</span>
           ) : s.loading && s.phase ? (
             <span class="prep-text">{s.phase}</span>
+          ) : s.interrupted ? (
+            <span class="prep-text">Paused for a call — tap play</span>
           ) : (
             s.tracks[s.index]?.title || s.book.author
           )}
@@ -192,6 +194,13 @@ export function FullPlayer() {
           {s.tracks.length > 1 && ` · Part ${s.index + 1} of ${s.tracks.length}`}
         </p>
         {s.preparing && <PrepBar st={s.preparing} />}
+        {s.interrupted && !s.loading && (
+          <div class="loading-line">
+            <div class="loading-head">
+              <Icon name="pause" size={16} /> Paused — a call or another app is using the audio. Tap play to continue.
+            </div>
+          </div>
+        )}
         {!s.preparing && !s.error && s.loading && (
           <div class="loading-line">
             <div class="loading-head">

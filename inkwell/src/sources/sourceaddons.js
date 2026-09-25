@@ -48,17 +48,23 @@ export function fmtSize(bytes) {
 // Per-addon rate limiting + short result cache.
 const calls = new Map();
 const cache = new Map();
-function checkRate(addon) {
+// Respect an addon's requests-per-minute by waiting for a free slot instead of
+// failing the search.
+async function takeSlot(addon) {
   const rpm = addon.manifest.rateLimit?.requestsPerMinute;
   if (!rpm) return;
-  const now = Date.now();
-  const recent = (calls.get(addon.manifest.id) || []).filter((t) => now - t < 60e3);
-  if (recent.length >= rpm) {
-    const wait = Math.ceil((60e3 - (now - recent[0])) / 1000);
-    throw new Error(`${addon.manifest.name}: too many searches, try again in ${wait}s`);
+  for (let tries = 0; tries < 30; tries++) {
+    const now = Date.now();
+    const recent = (calls.get(addon.manifest.id) || []).filter((t) => now - t < 60e3);
+    if (recent.length < rpm) {
+      recent.push(now);
+      calls.set(addon.manifest.id, recent);
+      return;
+    }
+    calls.set(addon.manifest.id, recent);
+    await new Promise((r) => setTimeout(r, Math.min(5000, 60e3 - (now - recent[0]) + 50)));
   }
-  recent.push(now);
-  calls.set(addon.manifest.id, recent);
+  throw new Error(`${addon.manifest.name}: too many searches right now — try again in a minute`);
 }
 
 function cachedFlag(v) {
@@ -73,13 +79,37 @@ function cachedFlag(v) {
 }
 
 // ---- search ------------------------------------------------------------------
-async function run(addon, { title = '', author = '', query = '' }) {
+async function run(addon, params) {
+  // Try the precise search first; if it finds nothing, widen it (title only, then
+  // the plain query) and retry once after a network hiccup.
+  const { title = '', author = '', query = '' } = params;
+  const attempts = [params];
+  if (author) attempts.push({ title, query });
+  let lastErr = null;
+  for (const p of attempts) {
+    for (let retry = 0; retry < 2; retry++) {
+      try {
+        const r = await runOnce(addon, p);
+        if (r.length) return r;
+        break;
+      } catch (e) {
+        lastErr = e;
+        if (/too many searches/.test(e.message)) throw e;
+        await new Promise((res) => setTimeout(res, 1500));
+      }
+    }
+  }
+  if (lastErr) throw lastErr;
+  return [];
+}
+
+async function runOnce(addon, { title = '', author = '', query = '' }) {
   const src = addon.manifest.adapters.source;
   const vars = { TITLE: title || query, AUTHOR: author, QUERY: query || [title, author].filter(Boolean).join(' '), LIMIT: '20' };
   const key = addon.manifest.id + '|' + JSON.stringify(vars);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.t < 10 * 60e3) return hit.v;
-  checkRate(addon);
+  await takeSlot(addon);
 
   const req = src.request || {};
   const method = (req.method || 'GET').toUpperCase();
@@ -98,7 +128,7 @@ async function run(addon, { title = '', author = '', query = '' }) {
   const threshold = addon.manifest.matching?.threshold ?? 0;
   const wanted = title || query;
 
-  const results = (Array.isArray(list) ? list : [])
+  const all = (Array.isArray(list) ? list : [])
     .map((row, i) => {
       const r = {
         key: `${addon.manifest.id}:${i}:${get(row, 'infoHash') || get(row, 'title')}`,
@@ -120,14 +150,18 @@ async function run(addon, { title = '', author = '', query = '' }) {
       r.score = wanted ? similarity(wanted, r.title) : 1;
       return r;
     })
-    .filter((r) => (r.magnet || r.hash || /^https?:/i.test(r.link)) && r.score >= Math.min(threshold, 0.9));
+    .filter((r) => r.magnet || r.hash || /^https?:/i.test(r.link));
+  // Keep close matches; if the addon's threshold would hide everything, show the best few anyway.
+  const close = all.filter((r) => r.score >= Math.min(threshold, 0.9));
+  const results = close.length ? close : all.filter((r) => r.score >= 0.34).slice(0, 8);
 
   // Mark results TorBox can stream instantly.
   const instant = await torboxCached(results.map((r) => r.hash));
   results.forEach((r) => instant.has(r.hash) && (r.cache = { ...r.cache, torbox: true, any: true }));
 
   results.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || Number(b.seeders > 0) - Number(a.seeders > 0) || b.score - a.score || b.seeders - a.seeders);
-  cache.set(key, { t: Date.now(), v: results });
+  // Only remember searches that found something, so a temporary empty answer isn't sticky.
+  if (results.length) cache.set(key, { t: Date.now(), v: results });
   return results;
 }
 

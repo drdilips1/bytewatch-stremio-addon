@@ -2,7 +2,7 @@
 // (WordPress), so they can be read — and read aloud — inside the app. Blinkist
 // has no public API, so we open the book in the Blinkist app/site where the
 // user is signed in.
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { getJson, getText } from '../lib/http.js';
 import { words, mainTitle } from '../lib/match.js';
@@ -10,9 +10,14 @@ import { stripHtml } from '../lib/format.js';
 
 const SS = 'https://www.getstoryshots.com';
 
-export async function openUrl(url) {
-  if (Capacitor.isNativePlatform()) await Browser.open({ url });
-  else window.open(url, '_blank');
+const Web = registerPlugin('InkwellWeb');
+const inAppWeb = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
+
+/** Open a page inside the app (sign-ins are remembered); external browser only as a fallback. */
+export async function openUrl(url, title = '') {
+  if (inAppWeb) return Web.open({ url, title });
+  if (Capacitor.isNativePlatform()) return Browser.open({ url });
+  window.open(url, '_blank');
 }
 
 // Blinkist has no public search page we can link to reliably, so find the book's
@@ -109,6 +114,14 @@ export async function loadStoryShots(book) {
   }
   const doc = new DOMParser().parseFromString(body, 'text/html');
   const post = { title: { rendered: title } };
+  // StoryShots' own narration, when the page embeds it.
+  const audio = [
+    ...[...doc.querySelectorAll('audio[src], audio source[src], source[type^="audio"]')].map((el) => el.getAttribute('src')),
+    ...[...doc.querySelectorAll('a[href]')].map((a) => a.getAttribute('href')).filter((h) => /\.(mp3|m4a|aac|ogg|wav)(\?|$)/i.test(h || '')),
+  ]
+    .filter(Boolean)
+    .map((u) => absolute(u))
+    .filter((u, i, arr) => u && arr.indexOf(u) === i);
   doc.querySelectorAll('script,style,link,meta,iframe,object,embed,form,button,input,noscript,svg,figure,.wp-block-buttons,.sharedaddy').forEach((n) => n.remove());
   doc.querySelectorAll('*').forEach((el) => {
     for (const a of [...el.attributes]) {
@@ -129,5 +142,5 @@ export async function loadStoryShots(book) {
     })
     .filter((h) => h.text && h.text.length < 120);
   if (!doc.body.textContent.trim()) throw new Error('StoryShots returned an empty summary — open it on their site instead');
-  return { html: doc.body.innerHTML, headings };
+  return { html: doc.body.innerHTML, headings, audio, title: h1.textContent };
 }

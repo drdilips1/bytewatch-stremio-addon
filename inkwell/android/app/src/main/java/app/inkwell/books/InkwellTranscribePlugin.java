@@ -114,6 +114,12 @@ public class InkwellTranscribePlugin extends Plugin {
 
     // ---------------------------------------------------------------- worker
 
+    private double currentPos() {
+        double p = playPos;
+        if (System.currentTimeMillis() - InkwellPlayerPlugin.lastPositionAt < 5000) p = InkwellPlayerPlugin.lastPosition;
+        return p;
+    }
+
     private boolean alive(String job) {
         return job.equals(currentJob);
     }
@@ -172,8 +178,9 @@ public class InkwellTranscribePlugin extends Plugin {
             int wn = 0;
 
             while (!outputDone && alive(job)) {
-                // Stay a bounded distance ahead of playback.
-                while (alive(job) && base >= 0 && base + fed / (double) SR > playPos + ahead) {
+                // Stay a bounded distance ahead of playback. The app's screen may be
+                // closed, so also read the position straight from the player.
+                while (alive(job) && base >= 0 && base + fed / (double) SR > currentPos() + ahead) {
                     Thread.sleep(400);
                 }
                 if (!inputDone) {

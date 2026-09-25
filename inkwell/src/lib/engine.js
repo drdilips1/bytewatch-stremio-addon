@@ -25,14 +25,21 @@ function nativeEngine(h) {
     h.time(pos, dur);
   };
   Native.addListener('progress', onSnap);
+  let suppressed = false;
   Native.addListener('state', (e) => {
     onSnap(e);
     if (e.buffering && e.playWhenReady) h.waiting();
     else h.ready();
+    // Silenced by a phone call or another app taking the audio: show it as paused.
+    const nowSuppressed = !!(e.suppressed && e.playWhenReady);
+    if (nowSuppressed !== suppressed) {
+      suppressed = nowSuppressed;
+      h.interrupted?.(suppressed);
+    }
     if (e.playing !== playing) {
       playing = e.playing;
       // A pause caused by buffering isn't a user pause.
-      if (playing || !e.playWhenReady || e.ended) h.playing(playing);
+      if (playing || !e.playWhenReady || e.ended || suppressed) h.playing(playing);
     }
   });
   Native.addListener('ended', () => {

@@ -17,6 +17,7 @@ const state = {
   rate: settings.get().speed || 1,
   error: null,
   phase: '', // what's happening while loading: shown in the player
+  interrupted: false, // paused by a phone call / another app using audio
   preparing: null, // { provider, progress (0..1), state } while TorBox / Real-Debrid is still downloading
   sleepUntil: null, // timestamp
   sleepEndOfTrack: false,
@@ -51,11 +52,16 @@ const engine = createEngine({
     if (state.sleepUntil && Date.now() >= state.sleepUntil) fadeOutAndPause();
   },
   playing(on) {
-    set({ playing: on, ...(on ? { loading: false, error: null, phase: '' } : {}) });
+    set({ playing: on, ...(on ? { loading: false, error: null, phase: '', interrupted: false } : {}) });
+    if (on) clearTimeout(resumeTimer);
     if (!on) saveProgress(true);
   },
   waiting: () => !state.loading && set({ loading: true, phase: 'Buffering…' }),
   ready: () => state.loading && set({ loading: false, phase: '' }),
+  interrupted(on) {
+    if (on) set({ playing: false, loading: false, phase: '', interrupted: true });
+    else set({ interrupted: false });
+  },
   ended() {
     if (state.sleepEndOfTrack) {
       set({ sleepEndOfTrack: false, playing: false });
@@ -240,13 +246,25 @@ function locate(g) {
 }
 
 // --- controls ---------------------------------------------------------------
+let resumeTimer = null;
+
 export function toggle() {
-  if (!state.book) return;
   if (state.preparing) return; // starts by itself when the download finishes
   if (state.error) return loadTrack(state.index, state.time); // retry after a failure
-  if (state.playing || !engine.paused) engine.pause();
-  else Promise.resolve(engine.play()).catch((e) => set({ error: e.message }));
+  if (state.playing) return engine.pause();
+  // Resuming: show it, and if nothing plays within 12s (dead connection or an
+  // expired link after a long pause or a call), reload this part at the same spot.
+  set({ loading: true, phase: state.interrupted ? 'Taking the audio back from the call…' : 'Resuming…', interrupted: false });
+  clearTimeout(resumeTimer);
+  resumeTimer = setTimeout(() => {
+    if (state.playing || !state.book || engine.paused) return; // user paused again meanwhile
+    state.tracks.forEach((t) => t.resolve && (t.url = null));
+    set({ phase: 'Reconnecting…' });
+    loadTrack(state.index, state.time);
+  }, 12000);
+  Promise.resolve(engine.play()).catch((e) => set({ loading: false, phase: '', error: e.message }));
 }
+
 export const pause = () => engine.pause();
 export function seek(t) {
   if (!isFinite(t)) return;

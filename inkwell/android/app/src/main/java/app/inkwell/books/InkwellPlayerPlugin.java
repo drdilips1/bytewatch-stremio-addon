@@ -120,6 +120,16 @@ public class InkwellPlayerPlugin extends Plugin {
             }
 
             @Override
+            public void onPlaybackSuppressionReasonChanged(int reason) {
+                emitState();
+            }
+
+            @Override
+            public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+                emitState();
+            }
+
+            @Override
             public void onPlayerError(@NonNull PlaybackException error) {
                 JSObject o = new JSObject();
                 o.put("code", error.getErrorCodeName());
@@ -224,10 +234,16 @@ public class InkwellPlayerPlugin extends Plugin {
         notifyListeners("remote", o);
     }
 
+    /** Last known playback position (s) and when it was read, for the transcript worker. */
+    static volatile double lastPosition = 0;
+    static volatile long lastPositionAt = 0;
+
     private JSObject snapshot() {
         JSObject o = new JSObject();
         if (player == null) return o;
         long dur = player.getDuration();
+        lastPosition = player.getCurrentPosition() / 1000.0;
+        lastPositionAt = System.currentTimeMillis();
         o.put("position", player.getCurrentPosition() / 1000.0);
         o.put("duration", dur == C.TIME_UNSET ? 0 : dur / 1000.0);
         o.put("buffered", player.getBufferedPosition() / 1000.0);
@@ -235,6 +251,8 @@ public class InkwellPlayerPlugin extends Plugin {
         o.put("playWhenReady", player.getPlayWhenReady());
         o.put("buffering", player.getPlaybackState() == Player.STATE_BUFFERING);
         o.put("ended", player.getPlaybackState() == Player.STATE_ENDED);
+        o.put("idle", player.getPlaybackState() == Player.STATE_IDLE);
+        o.put("suppressed", player.getPlaybackSuppressionReason() != Player.PLAYBACK_SUPPRESSION_REASON_NONE);
         return o;
     }
 
@@ -304,6 +322,9 @@ public class InkwellPlayerPlugin extends Plugin {
         onMain(call, c -> {
             if (player.getPlaybackState() == Player.STATE_IDLE) player.prepare();
             if (player.getPlaybackState() == Player.STATE_ENDED) player.seekTo(0);
+            // After a call some apps never hand audio focus back; pausing and playing
+            // again makes the player ask for focus afresh instead of staying silent.
+            if (player.getPlayWhenReady() && player.getPlaybackSuppressionReason() != Player.PLAYBACK_SUPPRESSION_REASON_NONE) player.pause();
             player.play();
             c.resolve();
         });

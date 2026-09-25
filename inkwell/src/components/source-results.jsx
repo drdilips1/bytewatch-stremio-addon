@@ -31,11 +31,17 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
     let alive = true;
     setGroups({});
     setPending(true);
-    searchSources({ title, author, query }, (name, results, error) => {
-      if (alive) setGroups((g) => ({ ...g, [name]: { results, error } }));
-    }).then(() => alive && setPending(false));
-    refreshAccount();
-    return () => (alive = false);
+    // Wait until typing settles so half-typed words don't use up the addon's search allowance.
+    const t = setTimeout(() => {
+      searchSources({ title, author, query }, (name, results, error) => {
+        if (alive) setGroups((g) => ({ ...g, [name]: { results, error } }));
+      }).then(() => alive && setPending(false));
+      refreshAccount();
+    }, query && !title ? 900 : 0);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
   }, [title, author, query, count]);
 
   if (!count) return null;

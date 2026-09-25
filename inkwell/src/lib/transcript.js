@@ -46,6 +46,34 @@ let job = '';
 let jobStart = 0;
 let installed = null;
 
+// Transcribed lines are kept per book part (last few parts, across restarts),
+// so leaving the screen or the app doesn't lose them.
+const saved = persisted('transcriptCache', { order: [], parts: {} });
+let saveTimer = null;
+function remember() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const { key, segments } = state;
+    if (!key || !segments.length) return;
+    saved.set((c) => {
+      const order = [key, ...c.order.filter((k) => k !== key)].slice(0, 4);
+      const parts = {};
+      for (const k of order) parts[k] = k === key ? segments.slice(-2500) : c.parts[k];
+      return { order, parts };
+    });
+  }, 3000);
+}
+
+/** End of the run of transcribed lines (gaps under 20s) that covers time t, or null. */
+function coveredUntil(t) {
+  const segs = state.segments;
+  let i = segs.findIndex((x) => x.end >= t - 1);
+  if (i < 0 || segs[i].start > t + 5) return null;
+  let end = segs[i].end;
+  while (i + 1 < segs.length && segs[i + 1].start - end < 20) end = Math.max(end, segs[++i].end);
+  return end;
+}
+
 export async function installedModels() {
   if (!transcriptAvailable) return [];
   const ids = await installedIds();
@@ -75,6 +103,7 @@ if (transcriptAvailable) {
     while (i > 0 && segs[i - 1].start > e.start) i--;
     segs.splice(i, 0, { start: e.start, end: e.end, text: e.text });
     set({ segments: segs.slice(), status: 'running' });
+    remember();
   });
   T.addListener('status', (e) => {
     if (e.job !== job) return;
@@ -116,16 +145,24 @@ async function startJob(ps, at) {
 export function follow(ps) {
   if (!transcriptAvailable || !ps.book) return;
   const key = `${ps.book.uid}#${ps.index}`;
+  const from = () => {
+    const c = coveredUntil(ps.time);
+    return c != null ? Math.max(0, c - 1) : Math.max(0, ps.time - 2);
+  };
   if (key !== state.key) {
     stopTranscript();
-    set({ key, segments: [], status: 'idle', error: '' });
-    return startJob(ps, Math.max(0, ps.time - 2));
+    set({ key, segments: (saved.get().parts[key] || []).slice(), status: 'idle', error: '' });
+    return startJob(ps, from());
   }
   if (state.status === 'no-model' || state.status === 'loading' || state.status === 'error') return;
-  if (state.status === 'waiting' || state.status === 'idle') return startJob(ps, Math.max(0, ps.time - 2));
-  const lastEnd = state.segments.length ? state.segments[state.segments.length - 1].end : jobStart;
-  // A jump backwards before where we started, or far past what's transcribed: start over from here.
-  if (ps.time < jobStart - 1 || (ps.time > lastEnd + 45 && ps.time > jobStart + 45)) return startJob(ps, Math.max(0, ps.time - 2));
+  if (state.status === 'waiting' || state.status === 'idle') return startJob(ps, from());
+  const segs = state.segments;
+  const frontier = segs.reduce((m, x) => (x.start >= jobStart - 1 ? Math.max(m, x.end) : m), jobStart);
+  const covered = coveredUntil(ps.time);
+  // Jumped somewhere this job won't reach soon (and that isn't transcribed yet): start from there.
+  const behind = ps.time < jobStart - 1 && (covered == null || covered < jobStart - 1);
+  const ahead = ps.time > frontier + 45 && state.status !== 'done';
+  if (behind || ahead) return startJob(ps, from());
   T.position({ pos: ps.time }).catch(() => {});
 }
 
@@ -142,4 +179,17 @@ export function restartTranscript() {
   set({ key: '', segments: [], status: 'idle' });
   const ps = player.getState();
   if (ps.book) follow(ps);
+}
+
+// Keep transcribing while the Text view is switched on, even with the player
+// screen closed (e.g. moving on to the next part).
+if (transcriptAvailable) {
+  let last = 0;
+  player.subscribe((ps) => {
+    if (!transcriptCfg.get().open || !ps.book) return;
+    const now = Date.now();
+    if (now - last < 1000 && ps.index === player.getState().index && `${ps.book.uid}#${ps.index}` === state.key) return;
+    last = now;
+    follow(ps);
+  });
 }
