@@ -1,5 +1,5 @@
 // Offline downloads: saves every part of an audiobook to the phone, then plays
-// from the local files. Location: public Downloads/Shravaniya (visible in the file
+// from the local files. Location: public Downloads/Kathava (visible in the file
 // manager) or private app storage — chosen in Settings → Downloads.
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { persisted, settings, summarize } from './store.js';
@@ -40,7 +40,7 @@ export async function downloadBook(details) {
   running.add(uid);
   const job = `${uid}:${Date.now()}`;
   const target = settings.get().downloadTarget || 'public';
-  const folder = `Shravaniya/${safe(details.author ? `${details.title} - ${details.author.split(',')[0]}` : details.title)}`;
+  const folder = `Kathava/${safe(details.author ? `${details.title} - ${details.author.split(',')[0]}` : details.title)}`;
   patch(uid, { book: summarize(details), status: 'downloading', done: 0, total: 0, bytes: 0, error: '', job, tracks: [] });
   const sub = Native.addListener('progress', (e) => {
     if (e.job === job) patch(uid, { current: e.received, currentTotal: e.total });

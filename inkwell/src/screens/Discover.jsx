@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { memo } from 'preact/compat';
 import { Grid, Empty, Skeleton } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
-import { searchAll, SOURCES, sourceRank, sourceOrder, ia, gb, ol, absSrc, cloud, hc, gr } from '../sources/index.js';
+import { searchAll, SOURCES, sourceRank, sourceOrder, ia, gb, ol, absSrc, cloud, hc, gr, lb } from '../sources/index.js';
+import { openExternal } from '../sources/summaries.js';
 import { audible, googleBooks } from '../sources/catalogs.js';
 import { settings } from '../lib/store.js';
 import { HINDI_ALL } from './hindi.js';
@@ -47,6 +48,8 @@ function openSource(k) {
       return shelf('Classics to read', 'Project Gutenberg · most downloaded', () => gb.popular(settings.get().language));
     case 'ol':
       return shelf('Trending this week', 'Open Library readers', () => ol.trending('weekly'));
+    case 'lb':
+      return lb.connected() ? openExternal(lb.libraryHome()) : setup();
     case 'hi':
       return nav.push('browse', { genre: HINDI_ALL });
     default:

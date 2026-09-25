@@ -343,9 +343,7 @@ export function Home() {
       <header class="home-head">
         <div>
           <p class="eyebrow">{greeting()}</p>
-          <h1 class="brand brand-hi" lang="hi">
-            <span>श्रवणीय</span>
-          </h1>
+          <h1 class="brand brand-wordmark">Kathava</h1>
         </div>
         <button class="icon-btn glass" onClick={() => nav.tab('discover')} aria-label="Search">
           <Icon name="search" />

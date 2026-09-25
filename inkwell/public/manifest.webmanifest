@@ -1,10 +1,10 @@
 {
-  "name": "श्रवणीय",
-  "short_name": "श्रवणीय",
+  "name": "Kathava",
+  "short_name": "Kathava",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0b0a14",
-  "theme_color": "#0b0a14",
+  "background_color": "#101012",
+  "theme_color": "#101012",
   "icons": [
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }

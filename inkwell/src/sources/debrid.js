@@ -402,6 +402,13 @@ export async function addMagnetOnly(provider, { magnet, hash, title }) {
  * Status of everything already in the user's debrid accounts, keyed by
  * info-hash: { provider, ready, progress (0..1), state, seeds }.
  */
+// One entry per hash (TorBox first, as before) plus .both = { torbox, realdebrid }.
+function setBoth(out, hash, provider, st) {
+  const cur = out.get(hash);
+  const both = { ...(cur?.both || {}), [provider]: st };
+  out.set(hash, { ...(cur && cur.provider === 'torbox' ? cur : st), both });
+}
+
 export async function accountStatus() {
   const out = new Map();
   const jobs = [];
@@ -411,7 +418,7 @@ export async function accountStatus() {
         .then((items) => {
           for (const t of items) {
             if (!t.hash) continue;
-            out.set(String(t.hash).toLowerCase(), {
+            setBoth(out, String(t.hash).toLowerCase(), 'torbox', {
               provider: 'torbox',
               ready: !!(t.download_finished || t.download_present),
               progress: Number(t.progress) || 0,
@@ -427,8 +434,8 @@ export async function accountStatus() {
       remember('rd-status', async () => getJson(`${RD}/torrents?limit=200`, { headers: rdHeaders(), fresh: true }))
         .then((items) => {
           for (const t of items || []) {
-            if (!t.hash || out.has(String(t.hash).toLowerCase())) continue;
-            out.set(String(t.hash).toLowerCase(), {
+            if (!t.hash) continue;
+            setBoth(out, String(t.hash).toLowerCase(), 'realdebrid', {
               provider: 'realdebrid',
               ready: t.status === 'downloaded',
               progress: (Number(t.progress) || 0) / 100,

@@ -5,6 +5,7 @@ import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBa
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay } from '../lib/http.js';
 import { searchSources, sourceAddons } from '../sources/sourceaddons.js';
+import * as libbySrc from '../sources/libby.js';
 import relayCode from '../../relay/index.ts?raw';
 import { ACCENTS } from '../lib/theme.js';
 import { APP_VERSION } from '../components/update.jsx';
@@ -212,6 +213,52 @@ function WebRelayCard() {
             setChecks(null);
           }}
         />
+      </div>
+    </>
+  );
+}
+
+/** Libby: your public library (borrowing happens in the Libby app with your card). */
+function LibbyCard() {
+  const lib = useStore(libbySrc.libby);
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (lib.key) {
+    return (
+      <div class="set-row">
+        <div>
+          <b>{lib.name}</b>
+          <small>Shows what your library has on every book page and in search. Borrow and listen in the Libby app with your card.</small>
+        </div>
+        <button class="pill small" onClick={() => libbySrc.disconnect()}>
+          Remove
+        </button>
+      </div>
+    );
+  }
+  return (
+    <>
+      <p class="muted">
+        Open Libby → <b>Menu</b> → your library → <b>share</b> or copy the link (it looks like libbyapp.com/library/<i>name</i>), and paste it here. You can also type the library's short name.
+      </p>
+      <div class="set-row">
+        <input value={input} placeholder="libbyapp.com/library/…" onInput={(e) => setInput(e.currentTarget.value)} />
+        <button
+          class="btn"
+          disabled={busy || !input.trim()}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              toast(`Connected to ${await libbySrc.connect(input)}`);
+            } catch (e) {
+              toast(e.message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? <span class="spinner small" /> : 'Connect'}
+        </button>
       </div>
     </>
   );
@@ -799,7 +846,7 @@ export function Settings() {
           <div class="accent-grid">
             {Object.entries(ACCENTS).map(([k, a]) => (
               <button
-                class={'accent' + (st.accent === k ? ' active' : '')}
+                class={'accent' + ((ACCENTS[st.accent] ? st.accent : 'champagne') === k ? ' active' : '')}
                 style={{ background: `linear-gradient(135deg, ${a.a}, ${a.b})` }}
                 onClick={() => settings.patch({ accent: k })}
                 aria-label={a.name}
@@ -815,6 +862,10 @@ export function Settings() {
       <Section icon="headphones" title="Playback">
         <Stepper label="Skip back" value={st.skipBack} options={[5, 10, 15, 30]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipBack: v })} />
         <Stepper label="Skip forward" value={st.skipForward} options={[10, 15, 30, 45, 60]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipForward: v })} />
+      </Section>
+
+      <Section icon="library" title="Libby">
+        <LibbyCard />
       </Section>
 
       <Section icon="sparkle" title="Sources">
@@ -881,7 +932,7 @@ export function Settings() {
       </Section>
 
       <p class="about">
-        श्रवणीय {APP_VERSION} · Built-in sources are free and public domain.
+        Kathava {APP_VERSION} · Built-in sources are free and public domain.
         <br />
         Addons and servers you add are your responsibility.
       </p>

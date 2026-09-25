@@ -36,7 +36,7 @@ export async function openDownload() {
 if (isApk && APP_VERSION !== 'dev' && Date.now() - update.get().checkedAt > 6 * 3600e3) {
   setTimeout(() => {
     checkForUpdate()
-      .then((yes) => yes && toast(`श्रवणीय ${update.get().latest} is available — see Settings`))
+      .then((yes) => yes && toast(`Kathava ${update.get().latest} is available — see Settings`))
       .catch(() => {});
   }, 4000);
 }
@@ -50,7 +50,7 @@ export function UpdateCard() {
       <section class="set-section">
         <div class="update-card">
           <div>
-            <b>श्रवणीय web app</b>
+            <b>Kathava web app</b>
             <small>Always the latest version — just reopen it.</small>
           </div>
         </div>
@@ -61,7 +61,7 @@ export function UpdateCard() {
     <section class="set-section">
       <div class={'update-card' + (avail ? ' avail' : '')}>
         <div>
-          <b>{avail ? `Update available: ${u.latest}` : `श्रवणीय ${APP_VERSION}`}</b>
+          <b>{avail ? `Update available: ${u.latest}` : `Kathava ${APP_VERSION}`}</b>
           <small>{avail ? 'Installs over this version — your data stays.' : u.checkedAt ? 'You have the latest version' : 'Check for a newer build'}</small>
         </div>
         {avail ? (

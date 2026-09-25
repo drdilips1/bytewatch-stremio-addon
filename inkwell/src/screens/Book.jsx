@@ -15,7 +15,8 @@ import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
 import { RelatedRows } from '../components/related.jsx';
-import { storyshots, loadStoryShots, blinkistPage, blinkistUrl, storyshotsSearchUrl, openUrl, BLINKIST_LOGIN, STORYSHOTS_HOME } from '../sources/summaries.js';
+import * as libbySrc from '../sources/libby.js';
+import { storyshots, loadStoryShots, blinkistPage, blinkistUrl, storyshotsSearchUrl, openUrl, openExternal, BLINKIST_LOGIN, STORYSHOTS_HOME } from '../sources/summaries.js';
 
 // Books you already have (cloud, server, addons) can still show other copies from source addons.
 const OTHER_SOURCES = new Set(['tb', 'rd', 'abs', 'addon']);
@@ -253,6 +254,7 @@ export function Book({ book: initial }) {
           ) : null}
         </section>
       )}
+      {libbySrc.connected() && book.kind !== 'text' && !['ss', 'tts'].includes(book.source) && <LibbyCard book={book} />}
       {editions?.server?.length > 0 && <Row title="On your server" subtitle="Audiobookshelf" icon="server" items={editions.server} />}
       {editions?.cloud?.length > 0 && <Row title="In your cloud" subtitle="TorBox / Real-Debrid" icon="download" items={editions.cloud} />}
       {editions?.addons?.length > 0 && <Row title="From your addons" subtitle="Addon results" icon="puzzle" items={editions.addons} />}
@@ -399,6 +401,52 @@ function Summaries({ book }) {
           </button>
         </div>
       </div>
+    </section>
+  );
+}
+
+/** Copies at your public library (Libby), with a button to borrow there. */
+function LibbyCard({ book }) {
+  const [hits, setHits] = useState(book.libby ? [book] : null);
+  useEffect(() => {
+    // Look up every format (audiobook and ebook), even when opened from a Libby result.
+    let alive = true;
+    setHits(book.libby ? [book] : null);
+    libbySrc.availability(book).then((r) => alive && setHits(r.length ? r : book.libby ? [book] : []));
+    return () => (alive = false);
+  }, [book.uid]);
+  const lib = libbySrc.libby.get();
+  return (
+    <section class="pad libby">
+      <h3 class="section-label">
+        <Icon name="library" size={16} /> At your library · {lib.name}
+      </h3>
+      {hits === null ? (
+        <p class="muted">
+          <span class="spinner small" /> Checking Libby…
+        </p>
+      ) : hits.length === 0 ? (
+        <div class="sum-actions">
+          <span class="muted">Not in your library's Libby catalogue.</span>
+          <button class="pill ghost" onClick={() => openExternal(`https://libbyapp.com/search/${lib.key}/search/query-${encodeURIComponent(book.title)}/page-1`)}>
+            <Icon name="search" size={14} /> Search in Libby
+          </button>
+        </div>
+      ) : (
+        <div class="libby-list">
+          {hits.slice(0, 4).map((h) => (
+            <div class={'libby-item' + (h.libby.available ? ' ok' : '')}>
+              <div>
+                <b>{h.libby.format === 'audiobook' ? 'Audiobook' : h.libby.format === 'ebook' ? 'Ebook' : h.libby.format || 'Title'}</b>
+                <small>{libbySrc.describe(h.libby)}</small>
+              </div>
+              <button class={'pill' + (h.libby.available ? ' active' : '')} onClick={() => openExternal(h.libby.link)}>
+                {h.libby.available ? 'Borrow' : 'Place hold'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

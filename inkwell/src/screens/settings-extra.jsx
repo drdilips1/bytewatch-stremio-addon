@@ -426,7 +426,7 @@ export function DownloadsCard() {
         <div class="dl-targets">
           <button class={'dl-target' + (target === 'public' ? ' on' : '')} disabled={!pub} onClick={() => settings.patch({ downloadTarget: 'public' })}>
             <b>Phone storage</b>
-            <small>Downloads/Shravaniya — visible in My Files, kept if you uninstall{!pub ? ' (needs Android 10+)' : ''}</small>
+            <small>Downloads/Kathava — visible in My Files, kept if you uninstall{!pub ? ' (needs Android 10+)' : ''}</small>
           </button>
           <button class={'dl-target' + (target === 'app' ? ' on' : '')} onClick={() => settings.patch({ downloadTarget: 'app' })}>
             <b>App only</b>

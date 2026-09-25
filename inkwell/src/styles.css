@@ -3125,3 +3125,186 @@ button.source-card:active {
   color: var(--muted);
   word-break: break-word;
 }
+
+/* =====================================================================
+   Kathava — refined palette: warm charcoal, muted accents, calm tags.
+   ===================================================================== */
+:root {
+  --bg: #101012;
+  --bg-2: #17171a;
+  --surface: rgba(255, 250, 240, 0.045);
+  --surface-2: rgba(255, 250, 240, 0.08);
+  --border: rgba(255, 250, 240, 0.09);
+  --text: #f3efe7;
+  --muted: #a7a197;
+  --faint: #6f6a62;
+  --shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.65);
+}
+:root[data-mode='light'] {
+  --bg: #f5f2ec;
+  --bg-2: #fffdf9;
+  --surface: rgba(40, 30, 15, 0.045);
+  --surface-2: rgba(40, 30, 15, 0.08);
+  --border: rgba(40, 30, 15, 0.1);
+  --text: #1e1b16;
+  --muted: #6b645a;
+  --faint: #9a9388;
+  --shadow: 0 18px 40px -18px rgba(60, 40, 10, 0.28);
+}
+/* Wordmark */
+.brand-wordmark {
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 30px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  background: linear-gradient(120deg, var(--text) 30%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* Genre tags: quiet, tinted outlines instead of loud gradients */
+.genre-chip {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: hsl(var(--h) 18% 50% / 0.1);
+  border: 1px solid hsl(var(--h) 22% 62% / 0.28);
+  box-shadow: none;
+}
+.genre-chip::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: hsl(var(--h) 30% 62%);
+}
+:root[data-mode='light'] .genre-chip {
+  background: hsl(var(--h) 25% 45% / 0.08);
+  border-color: hsl(var(--h) 25% 40% / 0.22);
+}
+:root[data-mode='light'] .genre-chip::before {
+  background: hsl(var(--h) 30% 42%);
+}
+/* Genre page header */
+.genre-banner {
+  color: var(--text);
+  background: linear-gradient(135deg, hsl(var(--h) 22% 30% / 0.55), hsl(var(--h) 14% 16% / 0.6)), var(--bg-2);
+  border: 1px solid hsl(var(--h) 20% 55% / 0.2);
+  box-shadow: none;
+}
+:root[data-mode='light'] .genre-banner {
+  background: linear-gradient(135deg, hsl(var(--h) 30% 88%), hsl(var(--h) 20% 94%));
+}
+.genre-banner p,
+.genre-en {
+  color: var(--muted);
+}
+/* Source tiles and badges */
+.source-card {
+  background: linear-gradient(150deg, hsl(var(--h) 18% 50% / 0.1), transparent 70%), var(--surface);
+  border: 1px solid hsl(var(--h) 18% 60% / 0.18);
+}
+.source-card em {
+  color: hsl(var(--h) 28% 66%) !important;
+}
+:root[data-mode='light'] .source-card em {
+  color: hsl(var(--h) 30% 36%) !important;
+}
+.badge {
+  color: hsl(var(--h) 30% 76%);
+  background: hsl(var(--h) 18% 50% / 0.12);
+  border-color: hsl(var(--h) 18% 60% / 0.25);
+}
+.section-label .dot {
+  background: hsl(var(--h) 28% 62%);
+  box-shadow: none;
+}
+.cover {
+  background: linear-gradient(145deg, hsl(var(--h) 18% 34%), hsl(var(--h) 14% 18%));
+}
+.rank-badge {
+  background: rgba(16, 16, 18, 0.78);
+  color: var(--accent);
+  box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+/* Dark text on the light, muted accents keeps buttons readable. */
+.btn.primary,
+.pill.active,
+.continue-play,
+.segmented button.on,
+.empty-icon,
+.reader-panel .pill.active,
+.chip.ready,
+.speaker.on,
+.play-btn {
+  color: #17140f;
+}
+.btn.primary svg,
+.segmented button.on svg,
+.continue-play svg,
+.empty-icon svg {
+  color: #17140f;
+}
+.brand-wordmark {
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 0.3em;
+}
+
+/* Per-service status on source results (TorBox and Real-Debrid side by side) */
+.src-services {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.src-services .svc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 13px;
+}
+.src-services .svc b {
+  min-width: 84px;
+}
+.src-services .svc span {
+  flex: 1;
+  color: var(--muted);
+}
+.src-services .svc.ok span {
+  color: #8fbf9a;
+}
+.src-services .svc .pill {
+  flex: none;
+}
+.libby-list {
+  display: grid;
+  gap: 8px;
+}
+.libby-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.libby-item small {
+  display: block;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.libby-item.ok small {
+  color: #8fbf9a;
+}

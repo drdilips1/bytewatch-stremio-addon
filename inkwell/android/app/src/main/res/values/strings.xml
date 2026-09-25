@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">श्रवणीय</string>
-    <string name="title_activity_main">श्रवणीय</string>
+    <string name="app_name">Kathava</string>
+    <string name="title_activity_main">Kathava</string>
     <string name="package_name">app.inkwell.books</string>
     <string name="custom_url_scheme">app.inkwell.books</string>
 </resources>
