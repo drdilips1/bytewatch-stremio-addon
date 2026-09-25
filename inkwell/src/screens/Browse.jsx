@@ -63,7 +63,7 @@ export function Browse({ genre }) {
       : tab === 'yours'
         ? yours(genre)
         : tab === 'best'
-          ? audible.genre(genre.name)
+          ? audible.genre(genre.au || genre.name)
           : tab === 'listen'
             ? genre.ia.startsWith('collection:')
               ? ia.query(genre.ia, { rows: 40 })

@@ -12,7 +12,7 @@ import { audibleRating } from '../sources/catalogs.js';
 
 export const PROVIDERS = {
   audible: { name: 'Audible', blurb: 'Audiobook covers, narrators, series & runtime' },
-  apple: { name: 'Apple Books', blurb: 'Audiobook covers & descriptions' },
+  apple: { name: 'iTunes Store / Apple Books', blurb: 'Audiobook covers & descriptions' },
   google: { name: 'Google Books', blurb: 'Covers & descriptions for most books' },
   openlibrary: { name: 'Open Library', blurb: 'Open catalogue, good for older titles' },
 };

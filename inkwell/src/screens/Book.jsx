@@ -15,7 +15,7 @@ import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
 import { RelatedRows } from '../components/related.jsx';
-import { storyshots, loadStoryShots, blinkistUrl, storyshotsSearchUrl, openUrl, BLINKIST_LOGIN, STORYSHOTS_HOME } from '../sources/summaries.js';
+import { storyshots, loadStoryShots, blinkistPage, blinkistUrl, storyshotsSearchUrl, openUrl, BLINKIST_LOGIN, STORYSHOTS_HOME } from '../sources/summaries.js';
 
 // Books you already have (cloud, server, addons) can still show other copies from source addons.
 const OTHER_SOURCES = new Set(['tb', 'rd', 'abs', 'addon']);
@@ -390,8 +390,8 @@ function Summaries({ book }) {
           <b>Blinkist</b>
         </div>
         <div class="sum-actions">
-          <span class="muted">Opens inside the app. Sign in once and it stays signed in.</span>
-          <button class="pill" onClick={() => openUrl(blinkistUrl(book), 'Blinkist')}>
+          <span class="muted">Opens inside the app. Tap Sign in here once (it's separate from Chrome) — use email and password if Google sign-in is refused.</span>
+          <button class="pill" onClick={async () => openUrl(await blinkistPage(book), 'Blinkist')}>
             <Icon name="search" size={14} /> Find on Blinkist
           </button>
           <button class="pill ghost" onClick={() => openUrl(BLINKIST_LOGIN, 'Blinkist')}>

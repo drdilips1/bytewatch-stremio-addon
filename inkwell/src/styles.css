@@ -3080,3 +3080,13 @@ pre.sql {
 .other-sources[open] summary::after {
   content: '▴';
 }
+button.source-card {
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+button.source-card:active {
+  transform: scale(0.97);
+}

@@ -27,6 +27,29 @@ const query = (book) => `${mainTitle(book.title)} ${(book.author || '').split(',
 export const blinkistUrl = (book) => siteSearch('blinkist.com', query(book));
 export const storyshotsSearchUrl = (book) => siteSearch('getstoryshots.com', `${query(book)} summary`);
 export const BLINKIST_LOGIN = 'https://www.blinkist.com/en/nc/login';
+
+const slug = (t) =>
+  mainTitle(t)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, 'and')
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+
+/**
+ * The book's own Blinkist page ("/en/books/<title>-en") when it exists,
+ * otherwise a search for it. Opened in the in-app browser.
+ */
+export async function blinkistPage(book) {
+  const url = `https://www.blinkist.com/en/books/${slug(book.title)}-en`;
+  try {
+    const html = await getText(url, { timeout: 8000, headers: BROWSER });
+    if (html && !/page (was )?not found|404/i.test(html.slice(0, 3000))) return url;
+  } catch {}
+  return blinkistUrl(book);
+}
 export const STORYSHOTS_HOME = 'https://www.getstoryshots.com/';
 
 // Their site may turn away requests that don't look like a browser.
