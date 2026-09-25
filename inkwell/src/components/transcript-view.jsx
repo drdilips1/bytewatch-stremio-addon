@@ -4,10 +4,48 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
 import * as player from '../lib/player.js';
+import { knownCharacters, CharacterCard } from './story-sheet.jsx';
+import { useStore } from '../lib/store.js';
 import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript } from '../lib/transcript.js';
+
+// Wrap known character names in tappable spans.
+function withNames(text, names, onTap) {
+  if (!names.length) return text;
+  const esc = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).sort((a, b) => b.length - a.length);
+  const re = new RegExp(`\\b(${esc.join('|')})\\b`, 'g');
+  const out = [];
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const name = m[0];
+    out.push(
+      <span
+        class="char-link"
+        onClick={(e) => {
+          e.stopPropagation();
+          onTap(name);
+        }}
+      >
+        {name}
+      </span>
+    );
+    last = m.index + name.length;
+  }
+  out.push(text.slice(last));
+  return out;
+}
 
 export function TranscriptView({ s }) {
   const [t, setT] = useState(null);
+  const chars = useStore(knownCharacters);
+  const [card, setCard] = useState(null);
+  const list = chars.uid === s.book?.uid ? chars.list : [];
+  // Full names, aliases and distinctive first names all link to the same character.
+  const lookup = new Map();
+  for (const c of list) {
+    for (const n of [c.name, ...(c.aliases || []), c.name.split(' ')[0]]) if (n && n.length > 2 && !lookup.has(n)) lookup.set(n, c);
+  }
+  const names = [...lookup.keys()];
   const box = useRef();
   const userScroll = useRef(0);
   useEffect(() => subscribeTranscript(setT), []);
@@ -61,10 +99,11 @@ export function TranscriptView({ s }) {
       )}
       {segs.map((g, i) => (
         <p data-i={i} class={'tl' + (i === active ? ' on' : i < active ? ' past' : '')} onClick={() => player.seek(g.start)}>
-          {g.text}
+          {withNames(g.text, names, (n) => setCard(lookup.get(n)))}
         </p>
       ))}
       {segs.length > 0 && t?.status === 'error' && <p class="err small">{t.error}</p>}
+      {card && <CharacterCard c={card} close={() => setCard(null)} />}
       <div class="transcript-pad" />
     </div>
   );

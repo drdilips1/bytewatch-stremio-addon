@@ -9,6 +9,7 @@ import { coverColor } from '../lib/color.js';
 import { nav } from '../lib/nav.js';
 import { bookmarks, settings, useStore } from '../lib/store.js';
 import { TranscriptView } from './transcript-view.jsx';
+import { StorySheet } from './story-sheet.jsx';
 import { transcriptCfg, stopTranscript } from '../lib/transcript.js';
 
 export function usePlayer() {
@@ -270,6 +271,9 @@ export function FullPlayer() {
         >
           <Icon name="text" size={16} /> Text
         </button>
+        <button class="chip-btn" onClick={() => setSheet('story')} aria-label="Recap and characters">
+          <Icon name="sparkle" size={16} /> Story
+        </button>
         <button class="chip-btn" onClick={() => setSheet('chapters')}>
           <Icon name="list" size={16} /> {chapters.length}
         </button>
@@ -307,6 +311,7 @@ export function FullPlayer() {
         <div class="sheet-backdrop" onClick={() => setSheet(null)}>
           <div class="sheet" onClick={(e) => e.stopPropagation()}>
             <div class="sheet-handle" />
+            {sheet === 'story' && <StorySheet close={() => setSheet(null)} />}
             {sheet === 'speed' && (
               <>
                 <h3>Playback speed</h3>

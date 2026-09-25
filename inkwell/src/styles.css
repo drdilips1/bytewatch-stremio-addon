@@ -3308,3 +3308,93 @@ button.source-card:active {
 .libby-item.ok small {
   color: #8fbf9a;
 }
+
+/* Story helper: recaps and characters */
+.story h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.story .segmented {
+  margin: 0 0 12px;
+}
+.story-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+.story-text {
+  max-height: 45vh;
+  overflow-y: auto;
+  font-size: 15.5px;
+  line-height: 1.6;
+  padding: 4px 2px;
+}
+.story-text p {
+  margin: 0 0 10px;
+}
+.timeline {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  margin-bottom: 10px;
+}
+.timeline-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.timeline-head b {
+  color: var(--text);
+  text-align: right;
+}
+.timeline input[type='range'] {
+  width: 100%;
+  margin: 10px 0 4px;
+}
+.story-search {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.char-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 6px;
+}
+.char-list li {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.char-head {
+  display: flex;
+  flex-direction: column;
+}
+.char-head span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.char-list li p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.char-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.char-card h3 {
+  margin: 4px 0;
+}

@@ -9,6 +9,7 @@ import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { App as CapApp } from '@capacitor/app';
 import { libby } from '../sources/libby.js';
+import { ai } from './ai.js';
 import { persisted, settings, library, progress, bookmarks, addons, abs, debrid, hardcover, goodreads } from './store.js';
 import { cleanUrl } from './http.js';
 import { ttsCfg } from './tts.js';
@@ -38,6 +39,7 @@ const SECTIONS = {
   addons: { store: addons },
   goodreads: { store: goodreads },
   libby: { store: libby },
+  ai: { store: ai, secret: true },
   abs: { store: abs, secret: true },
   debrid: { store: debrid, secret: true },
   hardcover: { store: hardcover, secret: true },

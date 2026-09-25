@@ -6,6 +6,7 @@ import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../source
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay } from '../lib/http.js';
 import { searchSources, sourceAddons } from '../sources/sourceaddons.js';
 import * as libbySrc from '../sources/libby.js';
+import { ai, testKey } from '../lib/ai.js';
 import relayCode from '../../relay/index.ts?raw';
 import { ACCENTS } from '../lib/theme.js';
 import { APP_VERSION } from '../components/update.jsx';
@@ -258,6 +259,40 @@ function LibbyCard() {
           }}
         >
           {busy ? <span class="spinner small" /> : 'Connect'}
+        </button>
+      </div>
+    </>
+  );
+}
+
+/** Google Gemini key for recaps and the character guide. */
+function AiCard() {
+  const cfg = useStore(ai);
+  const [key, setKey] = useState(cfg.geminiKey);
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <p class="muted">
+        Powers <b>Story</b> in the player: spoiler-free recaps and the character guide. Get a free key at <b>aistudio.google.com/apikey</b> (sign in with Google → Create API key) and paste it here.
+      </p>
+      <div class="set-row">
+        <input type="password" value={key} placeholder="Gemini API key" onInput={(e) => setKey(e.currentTarget.value)} autocomplete="off" />
+        <button
+          class="btn"
+          disabled={busy || !key.trim()}
+          onClick={async () => {
+            ai.patch({ geminiKey: key.trim() });
+            setBusy(true);
+            try {
+              toast(await testKey());
+            } catch (e) {
+              toast(e.message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? <span class="spinner small" /> : 'Save'}
         </button>
       </div>
     </>
@@ -862,6 +897,10 @@ export function Settings() {
       <Section icon="headphones" title="Playback">
         <Stepper label="Skip back" value={st.skipBack} options={[5, 10, 15, 30]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipBack: v })} />
         <Stepper label="Skip forward" value={st.skipForward} options={[10, 15, 30, 45, 60]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipForward: v })} />
+      </Section>
+
+      <Section icon="sparkle" title="AI (story helper)">
+        <AiCard />
       </Section>
 
       <Section icon="library" title="Libby">

@@ -193,3 +193,20 @@ if (transcriptAvailable) {
     follow(ps);
   });
 }
+
+/**
+ * What you've heard of this book so far (from the live transcript, if it ran):
+ * earlier parts in full, the current part up to `time`. Keeps the last maxChars.
+ */
+export function heardText(bookUid, index, time, maxChars = 14000) {
+  const parts = saved.get().parts || {};
+  const chunks = [];
+  for (let i = 0; i <= index; i++) {
+    const key = `${bookUid}#${i}`;
+    const segs = key === state.key && state.segments.length ? state.segments : parts[key] || [];
+    const upto = i < index ? segs : segs.filter((s) => s.start <= time);
+    if (upto.length) chunks.push(upto.map((s) => s.text).join(' '));
+  }
+  const all = chunks.join('\n\n');
+  return all.length > maxChars ? '…' + all.slice(-maxChars) : all;
+}
