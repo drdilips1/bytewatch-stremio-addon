@@ -10,7 +10,7 @@
 // verification" on or off: the app signs in with your project's public key and
 // sends the services' own tokens in x-relay-headers.)
 //
-// Version 2.
+// Version 3.
 
 // Only these services can be reached through the relay.
 const ALLOWED = [
@@ -28,6 +28,7 @@ const ALLOWED = [
   /^gutendex\.com$/,
   /^librivox\.org$/,
   /^jsonkeeper\.com$/,
+  /(^|\.)knaben\.(org|eu|net|cc)$/,
   /\.workers\.dev$/,
 ];
 
@@ -38,7 +39,7 @@ const CORS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Expose-Headers': '*',
   'Access-Control-Max-Age': '86400',
-  'X-Relay-Version': '2',
+  'X-Relay-Version': '3',
 };
 
 // Headers meant for Supabase or the browser, never forwarded. The service's own
@@ -60,7 +61,7 @@ Deno.serve(async (req) => {
     return new Response('Missing or bad ?url=', { status: 400, headers: CORS });
   }
   if (url.protocol !== 'https:' || !ALLOWED.some((re) => re.test(url.hostname))) {
-    return new Response('Host not allowed', { status: 403, headers: CORS });
+    return new Response(`Host not allowed: ${url.hostname}`, { status: 403, headers: CORS });
   }
   const headers = new Headers(req.headers);
   for (const h of DROP_REQUEST) headers.delete(h);
