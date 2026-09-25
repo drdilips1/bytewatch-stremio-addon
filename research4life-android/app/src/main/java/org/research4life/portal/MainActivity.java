@@ -147,7 +147,7 @@ public class MainActivity extends Activity {
 
     /**
      * A PDF shared or opened into the app ("Share → DermScholar", "Open with"). If the user just
-     * tapped "Try MyLoft" on a paper, the PDF is saved to that paper; otherwise it's imported.
+     * marked a paper as waiting for its PDF, the PDF is saved to that paper; otherwise it's imported.
      */
     private void receivePdf(Intent intent, boolean appRunning) {
         if (intent == null) return;
@@ -236,26 +236,6 @@ public class MainActivity extends Activity {
     private void emit(JSONObject event) {
         String js = "window.App&&App.onNative(" + event + ")";
         main.post(() -> webView.evaluateJavascript(js, null));
-    }
-
-    /** MyLoft's app, found by package name or label (its package id isn't something we control). */
-    private Intent myLoftLaunchIntent() {
-        try {
-            android.content.pm.PackageManager pm = getPackageManager();
-            Intent q = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
-            for (android.content.pm.ResolveInfo r : pm.queryIntentActivities(q, 0)) {
-                String pkg = r.activityInfo.packageName;
-                CharSequence label = r.loadLabel(pm);
-                if (pkg.equals(getPackageName())) continue;
-                if (pkg.toLowerCase(java.util.Locale.ROOT).contains("myloft")
-                        || (label != null && label.toString().toLowerCase(java.util.Locale.ROOT).contains("myloft"))) {
-                    Intent i = pm.getLaunchIntentForPackage(pkg);
-                    if (i != null) return i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        return null;
     }
 
     private void toast(String msg) {
@@ -365,33 +345,6 @@ public class MainActivity extends Activity {
             main.post(() -> utd.topic(url, r -> emitRaw("utdTopic", r)));
         }
 
-        /** Opens MyLoft in the in-app browser; a PDF downloaded there is saved to this paper. */
-        @JavascriptInterface
-        public void openMyLoft(String key, String title) {
-            main.post(() -> openLink(R4LSession.MYLOFT_HOME, key == null || key.isEmpty() ? null : key,
-                    title == null || title.isEmpty() ? null : title, R4LSession.MYLOFT));
-        }
-
-        @JavascriptInterface
-        public boolean hasMyLoftApp() {
-            return myLoftLaunchIntent() != null;
-        }
-
-        /** Opens the installed MyLoft app; a PDF shared back from it saves to the pending paper. */
-        @JavascriptInterface
-        public boolean openMyLoftApp() {
-            Intent i = myLoftLaunchIntent();
-            if (i == null) return false;
-            main.post(() -> {
-                try {
-                    startActivity(i);
-                } catch (Exception e) {
-                    toast("Couldn't open the MyLoft app");
-                }
-            });
-            return true;
-        }
-
         /** Shows where the background UpToDate page stopped, so the user can see what it needs. */
         @JavascriptInterface
         public void utdShowPage() {
@@ -413,7 +366,7 @@ public class MainActivity extends Activity {
             main.post(() -> openLink(url, null, null, R4LSession.UTD));
         }
 
-        /** Remembers the paper the user is fetching via MyLoft, so a PDF shared back is saved to it. */
+        /** Remembers the paper the user is fetching, so a PDF shared back to the app is saved to it. */
         @JavascriptInterface
         public void setPendingPdf(String key, String title) {
             getSharedPreferences("handoff", MODE_PRIVATE).edit()
@@ -443,11 +396,6 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void removeAccount(String provider, String user) {
             R4LSession.removeAccount(MainActivity.this, provider, user);
-        }
-
-        @JavascriptInterface
-        public void myloftSignOut() {
-            main.post(() -> R4LSession.signOut(R4LSession.MYLOFT_ORIGINS));
         }
 
         // ---- AI summaries (Claude, with the user's own API key)

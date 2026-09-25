@@ -12,11 +12,6 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
-        <!-- To find and open the MyLoft app, if installed. -->
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
     </queries>
 
     <application
@@ -36,7 +31,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- "Open with" / "Share" a PDF (e.g. from the MyLoft app) into the library. -->
+            <!-- "Open with" / "Share" a PDF from another app into the library. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

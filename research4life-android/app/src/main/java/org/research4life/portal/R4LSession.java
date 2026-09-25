@@ -143,9 +143,6 @@ final class R4LSession {
     static final String R4L = "r4l";
     static final String UTD = "utd";
     static final String UTD_HOME = "https://www.uptodate.com/contents/search";
-    /** MyLoft is a plain in-app browser: the user signs in and finds papers themselves. */
-    static final String MYLOFT = "myloft";
-    static final String MYLOFT_HOME = "https://app.myloft.xyz/";
 
     private static SharedPreferences prefs(Context ctx, String provider) {
         return ctx.getSharedPreferences(R4L.equals(provider) || provider == null ? PREFS : provider, Context.MODE_PRIVATE);
@@ -295,7 +292,6 @@ final class R4LSession {
     }
 
     static final String[] R4L_ORIGINS = {"https://portal.research4life.org", "https://login.research4life.org", "https://research4life.org"};
-    static final String[] MYLOFT_ORIGINS = {"https://app.myloft.xyz", "https://api.myloft.xyz", "https://myloft.xyz"};
 
     static String password(Context ctx, String provider) {
         SharedPreferences p = prefs(ctx, provider);

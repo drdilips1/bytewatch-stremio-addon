@@ -20,20 +20,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.SharedPreferences;
-import android.webkit.ConsoleMessage;
 import android.webkit.CookieManager;
-import android.widget.PopupMenu;
-
-import androidx.webkit.UserAgentMetadata;
-import androidx.webkit.WebSettingsCompat;
-import androidx.webkit.WebViewFeature;
-
-import java.util.ArrayDeque;
-import java.util.Collections;
-import java.util.Deque;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -77,12 +64,6 @@ public class PortalActivity extends Activity {
     private int signInRepeats;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
-    private UserAgentMetadata defaultUaMetadata;
-    private boolean hintsChanged;
-    private java.util.Set<String> defaultRequestedWith;
-    /** Recent page errors and blocked app links, so a stuck page can be reported. */
-    private final Deque<String> diagnostics = new ArrayDeque<>();
-    private final Runnable stuckCheck = this::checkStuck;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,19 +86,11 @@ public class PortalActivity extends Activity {
         articleKey = in.getStringExtra(EXTRA_KEY);
         articleTitle = in.getStringExtra(EXTRA_TITLE);
         String p = in.getStringExtra(EXTRA_PROVIDER);
-        provider = R4LSession.UTD.equals(p) || R4LSession.MYLOFT.equals(p) ? p : R4LSession.R4L;
-        boolean myloft = R4LSession.MYLOFT.equals(provider);
-        homeButton.setText(R4LSession.UTD.equals(provider) ? "UTD" : myloft ? "MyLoft" : "R4L");
-        applyIdentity(myloft ? myloftMode() : MODE_MOBILE);
-        if (myloft && !prefs().getBoolean("myloft_cache_reset_2_10", false)) {
-            // Start from a clean cache once after the 2.9 identity change, which could leave MyLoft stuck.
-            webView.clearCache(true);
-            prefs().edit().putBoolean("myloft_cache_reset_2_10", true).apply();
-        }
-        String name = R4LSession.UTD.equals(provider) ? "UpToDate" : myloft ? "MyLoft" : "Research4Life";
+        provider = R4LSession.UTD.equals(p) ? R4LSession.UTD : R4LSession.R4L;
+        homeButton.setText(R4LSession.UTD.equals(provider) ? "UTD" : "R4L");
+        String name = R4LSession.UTD.equals(provider) ? "UpToDate" : "Research4Life";
         hint.setText(articleKey != null
-                ? (myloft ? "Find the paper in MyLoft · its PDF saves to this paper" : "PDFs you open here save to this paper")
-                : myloft ? "MyLoft · PDFs you download save to your library"
+                ? "PDFs you open here save to this paper"
                 : R4LSession.hasCredentials(this, provider)
                     ? name + ": login saved for " + R4LSession.username(this, provider)
                     : name + " · your sign-in is remembered");
@@ -132,134 +105,7 @@ public class PortalActivity extends Activity {
         }
     }
 
-    private SharedPreferences prefs() {
-        return getSharedPreferences("portal", MODE_PRIVATE);
-    }
-
-    /** Desktop user-agent only (worked up to sign-in in 2.8), desktop + client hints, or the phone's own identity. */
-    private static final String MODE_DESKTOP = "desktop", MODE_FULL = "full", MODE_MOBILE = "mobile";
-
-    private String myloftMode() {
-        String m = prefs().getString("myloft_mode", MODE_DESKTOP);
-        return MODE_FULL.equals(m) || MODE_MOBILE.equals(m) ? m : MODE_DESKTOP;
-    }
-
-    /**
-     * MyLoft sends phones to its app ("/download-app", or an app link after sign-in that never
-     * comes back). "desktop" changes only the user-agent string. "full" also presents desktop
-     * client hints (navigator.userAgentData, Sec-CH-UA headers) and drops X-Requested-With; it
-     * is opt-in because MyLoft's page hung on its splash screen with it on some phones.
-     */
-    private void applyIdentity(String mode) {
-        android.webkit.WebSettings ws = webView.getSettings();
-        boolean desktop = !MODE_MOBILE.equals(mode);
-        boolean full = MODE_FULL.equals(mode);
-        ws.setUserAgentString(desktop ? DESKTOP_UA : null);
-        if (!full && !hintsChanged) return;
-        try {
-            if (WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)) {
-                if (defaultUaMetadata == null) defaultUaMetadata = WebSettingsCompat.getUserAgentMetadata(ws);
-                if (full) {
-                    UserAgentMetadata.BrandVersion chrome = new UserAgentMetadata.BrandVersion.Builder()
-                            .setBrand("Google Chrome").setMajorVersion("128").setFullVersion("128.0.0.0").build();
-                    UserAgentMetadata.BrandVersion chromium = new UserAgentMetadata.BrandVersion.Builder()
-                            .setBrand("Chromium").setMajorVersion("128").setFullVersion("128.0.0.0").build();
-                    UserAgentMetadata.BrandVersion other = new UserAgentMetadata.BrandVersion.Builder()
-                            .setBrand("Not;A=Brand").setMajorVersion("24").setFullVersion("24.0.0.0").build();
-                    WebSettingsCompat.setUserAgentMetadata(ws, new UserAgentMetadata.Builder()
-                            .setBrandVersionList(java.util.Arrays.asList(other, chrome, chromium))
-                            .setFullVersion("128.0.0.0")
-                            .setPlatform("Linux")
-                            .setPlatformVersion("6.5.0")
-                            .setArchitecture("x86")
-                            .setModel("")
-                            .setMobile(false)
-                            .setBitness(64)
-                            .setWow64(false)
-                            .build());
-                } else {
-                    WebSettingsCompat.setUserAgentMetadata(ws, defaultUaMetadata);
-                }
-            }
-            if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) {
-                if (defaultRequestedWith == null) defaultRequestedWith = WebSettingsCompat.getRequestedWithHeaderOriginAllowList(ws);
-                WebSettingsCompat.setRequestedWithHeaderOriginAllowList(ws, full ? Collections.emptySet() : defaultRequestedWith);
-            }
-        } catch (Exception e) {
-            note("identity: " + e);
-        }
-        hintsChanged = full;
-    }
-
-    private void note(String line) {
-        if (diagnostics.size() >= 30) diagnostics.removeFirst();
-        diagnostics.addLast(line);
-    }
-
-    /** MyLoft's splash ("Loading...") that never goes away: point the user at the fixes. */
-    private void checkStuck() {
-        if (!isMyLoft() || isFinishing()) return;
-        String t = webView.getTitle();
-        if (t != null && t.trim().equalsIgnoreCase("Loading...")) {
-            hint.setText("Stuck loading? Tap ⋮ → try another mode, or Copy diagnostics");
-            note("stuck on splash at " + webView.getUrl());
-        }
-    }
-
-    private void showMenu(View anchor) {
-        PopupMenu m = new PopupMenu(this, anchor);
-        if (isMyLoft()) {
-            String cur = myloftMode();
-            m.getMenu().add(0, 11, 0, (MODE_DESKTOP.equals(cur) ? "✓ " : "") + "Desktop mode (default)");
-            m.getMenu().add(0, 12, 0, (MODE_FULL.equals(cur) ? "✓ " : "") + "Full desktop mode (experimental)");
-            m.getMenu().add(0, 13, 0, (MODE_MOBILE.equals(cur) ? "✓ " : "") + "Mobile mode");
-            m.getMenu().add(0, 2, 1, "Reset MyLoft (sign out, clear data)");
-        }
-        m.getMenu().add(0, 3, 2, "Copy address");
-        m.getMenu().add(0, 4, 3, "Copy diagnostics");
-        m.setOnMenuItemClickListener(item -> {
-            switch (item.getItemId()) {
-                case 11:
-                case 12:
-                case 13:
-                    String mode = item.getItemId() == 11 ? MODE_DESKTOP : item.getItemId() == 12 ? MODE_FULL : MODE_MOBILE;
-                    prefs().edit().putString("myloft_mode", mode).apply();
-                    applyIdentity(mode);
-                    // MyLoft's service worker caches the app shell; start clean in the new mode.
-                    webView.clearCache(true);
-                    webView.loadUrl(homeUrl());
-                    return true;
-                case 2:
-                    webView.stopLoading();
-                    webView.clearCache(true);
-                    R4LSession.signOut(R4LSession.MYLOFT_ORIGINS);
-                    Toast.makeText(this, "MyLoft reset — sign in again", Toast.LENGTH_SHORT).show();
-                    webView.loadUrl(homeUrl());
-                    return true;
-                case 3:
-                    copy("Address", String.valueOf(webView.getUrl()));
-                    return true;
-                case 4:
-                    StringBuilder sb = new StringBuilder("DermScholar " + provider + " · " + webView.getUrl()
-                            + "\nTitle: " + webView.getTitle() + "\nMode: " + (isMyLoft() ? myloftMode() : "default")
-                            + "\nWebView: " + webView.getSettings().getUserAgentString());
-                    for (String d : diagnostics) sb.append("\n").append(d);
-                    copy("Diagnostics", sb.toString());
-                    return true;
-                default:
-                    return false;
-            }
-        });
-        m.show();
-    }
-
-    private void copy(String label, String text) {
-        ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText(label, text));
-        Toast.makeText(this, label + " copied", Toast.LENGTH_SHORT).show();
-    }
-
     private String homeUrl() {
-        if (R4LSession.MYLOFT.equals(provider)) return R4LSession.MYLOFT_HOME;
         return R4LSession.UTD.equals(provider) ? R4LSession.UTD_HOME : R4LSession.PORTAL_URL;
     }
 
@@ -353,15 +199,6 @@ public class PortalActivity extends Activity {
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 progressBar.setVisibility(View.VISIBLE);
                 titleView.setText(Uri.parse(url).getHost());
-                main.removeCallbacks(stuckCheck);
-                main.postDelayed(stuckCheck, 20000);
-            }
-
-            @Override
-            public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) {
-                if (request.isForMainFrame() || diagnostics.size() < 25) {
-                    note("load error " + error.getErrorCode() + " " + error.getDescription() + " · " + request.getUrl());
-                }
             }
 
             @Override
@@ -378,15 +215,6 @@ public class PortalActivity extends Activity {
             public void onProgressChanged(WebView view, int newProgress) {
                 progressBar.setProgress(newProgress);
                 progressBar.setVisibility(newProgress < 100 ? View.VISIBLE : View.GONE);
-            }
-
-            @Override
-            public boolean onConsoleMessage(ConsoleMessage m) {
-                if (m.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
-                    String msg = m.message();
-                    note("js: " + (msg.length() > 200 ? msg.substring(0, 200) : msg) + " @" + m.lineNumber());
-                }
-                return true;
             }
 
             @Override
@@ -460,9 +288,6 @@ public class PortalActivity extends Activity {
         homeButton = headerButton("R4L", v -> webView.loadUrl(homeUrl()), accent);
         bar.addView(homeButton);
         bar.addView(headerButton("↻", v -> webView.reload(), fg));
-        TextView more = headerButton("⋮", null, fg);
-        more.setOnClickListener(this::showMenu);
-        bar.addView(more);
         root.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
 
         FrameLayout frame = new FrameLayout(this);
@@ -476,65 +301,9 @@ public class PortalActivity extends Activity {
         setContentView(root);
     }
 
-    private static final String DESKTOP_UA =
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
-
-    private boolean isMyLoft() {
-        return R4LSession.MYLOFT.equals(provider);
-    }
-
-    /** Sites like MyLoft push phone users to their app; keep the user here instead. */
-    private boolean isAppStoreRedirect(Uri uri) {
-        String host = uri.getHost() == null ? "" : uri.getHost();
-        return "market".equals(uri.getScheme()) || host.equals("play.google.com") || host.endsWith(".app.goo.gl")
-                || host.equals("apps.apple.com");
-    }
-
     private boolean handleUrl(Uri uri) {
         String scheme = uri.getScheme();
-        if (isMyLoft() && isAppStoreRedirect(uri)) {
-            Toast.makeText(this, "Staying in DermScholar — sign in here, or share the PDF from the MyLoft app", Toast.LENGTH_LONG).show();
-            return true;
-        }
         if ("http".equals(scheme) || "https".equals(scheme)) return false;
-        if (isMyLoft()) {
-            String s = uri.toString();
-            note("blocked app link: " + (s.length() > 300 ? s.substring(0, 300) : s));
-            // A custom-scheme link that carries a web address (e.g. ?url= / ?redirect_url=): follow that.
-            for (String k : new String[]{"url", "redirect_url", "redirectUrl", "link"}) {
-                try {
-                    String target = uri.isHierarchical() ? uri.getQueryParameter(k) : null;
-                    if (target != null && target.startsWith("http") && !isAppStoreRedirect(Uri.parse(target))) {
-                        webView.loadUrl(target);
-                        return true;
-                    }
-                } catch (Exception ignored) {
-                }
-            }
-            // App links (intent:, myloft:) would leave DermScholar; use the web fallback if the page gives one.
-            if ("intent".equals(scheme)) {
-                try {
-                    Intent i = Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME);
-                    String fallback = i.getStringExtra("browser_fallback_url");
-                    if (fallback != null && fallback.startsWith("http") && !isAppStoreRedirect(Uri.parse(fallback))) {
-                        webView.loadUrl(fallback);
-                        return true;
-                    }
-                    // intent://host/path#Intent;scheme=https;… is just a web link wrapped for an app.
-                    Uri data = i.getData();
-                    if (data != null && ("https".equals(data.getScheme()) || "http".equals(data.getScheme()))
-                            && !isAppStoreRedirect(data)) {
-                        webView.loadUrl(data.toString());
-                        return true;
-                    }
-                } catch (Exception ignored) {
-                }
-            }
-            if (!"mailto".equals(scheme) && !"tel".equals(scheme)) {
-                Toast.makeText(this, "Staying in DermScholar", Toast.LENGTH_SHORT).show();
-                return true;
-            }
-        }
         try {
             Intent intent = "intent".equals(scheme)
                     ? Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
@@ -575,7 +344,6 @@ public class PortalActivity extends Activity {
         main.removeCallbacksAndMessages(null);
         io.shutdown();
         if (R4LSession.isOwner(this)) {
-            applyIdentity(MODE_MOBILE);
             webView.setWebViewClient(new WebViewClient());
             webView.setWebChromeClient(null);
             webView.setDownloadListener(null);

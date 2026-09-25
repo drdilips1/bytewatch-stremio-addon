@@ -34,8 +34,7 @@
     forgetCredentials: (p) => localStorage.removeItem('ds.acc.' + p),
     utdSearch: (q) => setTimeout(() => App.onNative(window.__utdMock ? window.__utdMock('search', q) : { type: 'utdResults', state: 'error', message: 'UpToDate needs the Android app' }), 300),
     utdShowPage: () => {},
-    openMyLoft: () => window.open('https://app.myloft.xyz/', '_blank'),
-    setPendingPdf: () => {}, consumeReceived: () => '', myloftSignOut: () => {},
+    setPendingPdf: () => {}, consumeReceived: () => '',
     listAccounts: (p) => JSON.stringify(JSON.parse(localStorage.getItem('ds.accs.' + p) || '[]')),
     setActiveAccount: (p, u) => localStorage.setItem('ds.accs.' + p, JSON.stringify(JSON.parse(localStorage.getItem('ds.accs.' + p) || '[]').map((a) => ({ ...a, active: a.user === u })))),
     removeAccount: (p, u) => localStorage.setItem('ds.accs.' + p, JSON.stringify(JSON.parse(localStorage.getItem('ds.accs.' + p) || '[]').filter((a) => a.user !== u))),
@@ -51,7 +50,6 @@
         aiHasKey: () => !!localStorage.getItem('ds.stub.aikey'),
         aiSetKey: (k) => (k ? localStorage.setItem('ds.stub.aikey', k) : localStorage.removeItem('ds.stub.aikey')),
         aiAsk: (id, title, text, q) => setTimeout(() => App.onNative({ type: 'ai', id, state: 'done', text: q ? `The paper reports **62%** clearance for: ${q}` : '## Bottom line\nA randomised trial found the drug **superior** to placebo.\n## Study design\n- RCT, 240 adults\n## Key findings\n- PASI-75 in **62%** vs 12% (p<0.001)\n## Limitations\n- 16-week follow-up only' }), 400),
-        hasMyLoftApp: () => true, openMyLoftApp: () => true,
         ttsVoices: () => JSON.stringify([{ name: 'en-us-x-sfg-local', locale: 'English (United States)', quality: 400, network: false }]),
         ttsStatus: () => JSON.stringify({ playing: !!t, index: i, total: n }),
       };
@@ -128,7 +126,7 @@
     get(k, d) { try { const v = localStorage.getItem('ds.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem('ds.' + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
   };
-  const settings = Object.assign({ derm: true, preprints: false, theme: 'system', sort: 'relevance', accent: 'ocean', bgLight: 'white', bgDark: 'graphite', showR4L: false, showUTD: false, showMyLoft: false }, store.get('settings', {}));
+  const settings = Object.assign({ derm: true, preprints: false, theme: 'system', sort: 'relevance', accent: 'ocean', bgLight: 'white', bgDark: 'graphite', showR4L: false, showUTD: false }, store.get('settings', {}));
   const saveSettings = () => store.set('settings', settings);
   let follows = store.get('follows', null);
   if (!follows) {
@@ -480,7 +478,6 @@
       <div class="app-tiles">
         <button class="app-tile utd" data-act="utd-open"><span class="app-ico">${icon('book')}</span><b>UpToDate</b><span>${utd.saved ? (store.get('utdLoggedIn', false) ? 'Signed in · search in the app' : 'Login saved · tap to search') : 'Add your login'}</span></button>
         <button class="app-tile r4l" data-act="r4l-open"><span class="app-ico">${icon('key')}</span><b>Research4Life</b><span>${account('r4l').saved ? 'Access ready' : 'Add your login'}</span></button>
-        <button class="app-tile myloft" data-act="myloft-open"><span class="app-ico">${icon('globe')}</span><b>MyLoft</b><span>Your institution's e-resources</span></button>
       </div>
 
       <div class="section">
@@ -817,7 +814,6 @@
           <button class="btn" data-act="ai-article" data-id="${esc(a.id)}">${icon('spark')}AI summary</button>
           <button class="btn" data-act="cite">${icon('quote')}Cite</button>
           <button class="btn" data-act="utd-search" data-q="${esc((a.mesh[0] || a.keywords[0] || a.title.split(/[:.]/)[0]).slice(0, 80))}">${icon('book')}UpToDate</button>
-          ${hasPdf ? '' : `<button class="btn" data-act="myloft-open" data-id="${esc(a.id)}">${icon('globe')}MyLoft</button>`}
         </div>
 
         ${s ? libraryPanel(s) : ''}
@@ -2327,10 +2323,6 @@
         </div></div>
       <div class="section"><div class="section-h"><h3>Accounts</h3></div>
         ${r4lAccounts()}${accRow('utd')}
-        <div class="acc-card"><div class="acc-ico myloft">${icon('globe')}</div>
-          <div class="body"><b>MyLoft</b><span>You sign in inside MyLoft; switch accounts by signing out here.</span></div>
-          <button class="btn xs" data-act="myloft-open">Open</button>
-          <button class="icon-btn" data-act="myloft-signout" aria-label="Sign out of MyLoft">${icon('x')}</button></div>
         <p class="muted small">Passwords are encrypted with this phone's keystore and only sent to the provider's own sign-in page.</p></div>
       <div class="section"><div class="section-h"><h3>AI &amp; listening</h3></div>
         ${aiSettingsCard()}
@@ -2339,8 +2331,7 @@
           <button class="btn xs" data-act="tts-settings-open">Voices</button></div></div>
       <div class="section"><div class="section-h"><h3>Bottom bar</h3></div>
         ${sw('showUTD', 'Show UpToDate tab', 'Quick access from anywhere in the app')}
-        ${sw('showR4L', 'Show Research4Life tab', 'Get PDF works without it; hide it if you never browse R4L')}
-        ${sw('showMyLoft', 'Show MyLoft tab', 'Open MyLoft from anywhere in the app')}</div>
+        ${sw('showR4L', 'Show Research4Life tab', 'Get PDF works without it; hide it if you never browse R4L')}</div>
       <div class="section"><div class="section-h"><h3>Search &amp; PDFs</h3></div>
         ${sw('derm', 'Dermatology focus by default', 'Limit results to skin-related papers')}
         ${sw('preprints', 'Include preprints', 'Show papers that are not yet peer reviewed')}
@@ -2466,31 +2457,6 @@
     'ai-setkey': () => { sheet(`<h3>Claude API key</h3>${aiKeyForm()}`); actions['ai-savekey'] = () => { const v = $('#aikey').value.trim(); if (!/^sk-ant-/.test(v)) { toast('That doesn\'t look like an Anthropic API key (sk-ant-…)'); return; } Native.aiSetKey(v); closeSheet(true); toast('Key saved'); render(); }; },
     'ai-forget': () => { Native.aiSetKey(''); toast('API key removed'); render(); },
     'tts-settings-open': () => ttsSheet(),
-    'myloft-signout': () => { Native.myloftSignOut(); toast('Signed out of MyLoft in the app'); },
-    'myloft-open': async (b) => {
-      const id = b.dataset.id;
-      const a = id && (saved.get(id) || cache.get(id));
-      if (a) {
-        if (!saved.has(a.id)) await saveArticle(a);
-        if (jobs.has(a.id)) { jobs.delete(a.id); renderTray(); }
-        Native.copy(a.title);
-        Native.setPendingPdf(a.id, a.title);
-      }
-      const inApp = () => Native.openMyLoft(a ? a.id : '', a ? a.title : '');
-      if (!Native.hasMyLoftApp?.()) { if (a) toast('Title copied — search for it in MyLoft'); inApp(); return; }
-      // MyLoft only fully works in its own app (its website sends phones there, and needs a browser
-      // extension on desktop), so the app is the main route; the PDF comes back through Share.
-      sheet(`<h3>Get it with MyLoft</h3>
-        ${a ? `<p class="muted small ai-title">${esc(a.title)}</p>` : ''}
-        <ol class="steps"><li>${a ? 'The title is copied. ' : ''}Search for the paper in the MyLoft app and open its PDF.</li>
-          <li>Tap <b>Share</b> (or <b>Open with</b>) and choose <b>DermScholar</b>.</li>
-          <li>${a ? 'It saves to this paper' : 'It saves to your library'} and opens here.</li></ol>
-        <button class="btn primary full" data-act="myloft-app">${icon('external')}Open the MyLoft app</button>
-        <button class="btn full" data-act="myloft-web" style="margin-top:10px">${icon('globe')}Use MyLoft's website in DermScholar</button>
-        <p class="muted small">MyLoft's website sends phones to its app, so it may not work here.</p>`);
-      actions['myloft-app'] = () => { closeSheet(true); Native.openMyLoftApp(); };
-      actions['myloft-web'] = () => { closeSheet(true); inApp(); };
-    },
     'utd-search': (b) => go(utdHash(b.dataset.q || '')),
     'utd-topic': (b) => go(utdTopicHash(b.dataset.url)),
     'lib-offline': () => go('library?f=offline'),
@@ -2557,12 +2523,10 @@
   function applyNav() {
     $('#nav [data-tab=portal]')?.classList.toggle('hidden', !settings.showR4L);
     $('#nav [data-tab=utd]')?.classList.toggle('hidden', !settings.showUTD);
-    $('#nav [data-tab=myloft]')?.classList.toggle('hidden', !settings.showMyLoft);
   }
   function switchTab(tab) {
     if (tab === 'portal') { Native.openPortal(PORTAL, '', ''); return; }
     if (tab === 'utd') { go(utdHash('')); return; }
-    if (tab === 'myloft') { Native.openMyLoft('', ''); return; }
     const target = { search: '', journals: 'journals', library: 'library' }[tab];
     if (parseHash().name === (target || 'home')) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     go(target);
@@ -2589,7 +2553,7 @@
           <button class="icon-btn" data-act="tray-dismiss" data-id="${esc(key)}" aria-label="Dismiss">${icon('x')}</button></div>`;
       }
       return `<div class="tray-row bad">${icon('alert')}<div class="tray-body"><b>${t}</b><span>${esc(j.message)}</span></div>
-        <button class="btn xs" data-act="myloft-open" data-id="${esc(key)}">Try MyLoft</button>
+        ${j.canShow ? `<button class="btn xs" data-act="tray-show" data-id="${esc(key)}">Show page</button>` : ''}
         <button class="icon-btn" data-act="tray-dismiss" data-id="${esc(key)}" aria-label="Dismiss">${icon('x')}</button></div>`;
     }).join('');
   }

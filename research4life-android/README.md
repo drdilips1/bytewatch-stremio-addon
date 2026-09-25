@@ -40,11 +40,9 @@ A dermatology research app with a Consensus-style search, built around
   - Links to other topics stay in the app. Topics can be saved to the library for offline reading.
   - A hidden WebView with your session loads UpToDate in the background (`UtdClient`) and signs in automatically when asked.
   - If UpToDate needs you to sign in by hand, the app offers it and continues afterwards.
-- **MyLoft**: MyLoft's website sends phones to its app and needs a browser extension on desktop, so the main route is the MyLoft app: "MyLoft" on a paper copies the title, remembers the paper and opens the MyLoft app; share the PDF from there (**Share / Open with → DermScholar**) and it saves to that paper. The in-app MyLoft browser is still available (with desktop, full-desktop and mobile modes in its ⋮ menu) but may not get past sign-in.
 - **Multiple Research4Life accounts**: save several, pick the active one; Get PDF retries with the next account if one fails.
 - **Listen** (read aloud): the phone's text-to-speech reads papers and UpToDate topics paragraph by paragraph with highlighting, speed 0.75–2×, voice and speech-engine choice with preview, "Abstract & conclusions" mode, and background playback with notification controls.
 - **AI summaries** (Claude): the ✦ button in the reader, or "AI summary" on a paper, gives a structured summary (bottom line, design, key findings with numbers, clinical relevance, limitations) and answers questions about the paper. It uses your own Anthropic API key (Settings → AI & listening), stored encrypted; only the paper's text is sent. Summaries are kept on the phone.
-- **MyLoft troubleshooting**: the ⋮ menu in the MyLoft browser can switch desktop/mobile mode, reset MyLoft's data, and copy diagnostics (page errors and blocked app links) to send to the developer.
 - **Themes**: light/dark/system mode, 8 accent colours, 5 light and 4 dark backgrounds; bundled Inter, Literata and Fraunces fonts.
   The reader has 8 reading themes plus custom text and background colours, 4 fonts, and line-spacing and margin options.
 - **Bottom bar**: Research4Life and UpToDate tabs can be shown or hidden in Settings (hidden by default).
