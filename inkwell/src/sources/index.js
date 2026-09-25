@@ -28,13 +28,14 @@ export const SOURCES = {
   addon: { name: 'Addons', short: 'Addon', hue: 185, kind: 'Listen', blurb: 'Community catalog addons', impl: addonSrc },
   hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc },
   tts: { name: 'Voice narration', short: 'Free voice', hue: 300, kind: 'Listen', blurb: 'Ebooks read aloud by a free voice', impl: ttsb, hidden: true },
+  hi: { name: 'हिंदी (Hindi)', short: 'Hindi', hue: 25, kind: 'Listings', blurb: 'Hindi section: Audible India listings and free Hindi audio — few playable sources, so off by default', impl: audible },
   gr: { name: 'Goodreads', short: 'Goodreads', hue: 35, kind: 'Shelves', blurb: 'Shelves imported from your Goodreads export', impl: gr },
 };
 
 const enabled = (k) => settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
 
 // Your own services first, then listings, then free catalogues — until the user rearranges them.
-const DEFAULT_ORDER = ['abs', 'tb', 'rd', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'ol'];
+const DEFAULT_ORDER = ['abs', 'tb', 'rd', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'ol', 'hi'];
 /** Source keys in the user's chosen order (Settings → Sources). */
 export function sourceOrder() {
   const saved = (settings.get().sourceOrder || []).filter((k) => SOURCES[k] && !SOURCES[k].hidden);

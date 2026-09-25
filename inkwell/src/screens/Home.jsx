@@ -264,9 +264,11 @@ function WaitingRow() {
 export function GenreChips() {
   return (
     <div class="genre-scroll">
-      <button class="genre-chip hindi-chip" lang="hi" style={{ '--h': HINDI_ALL.hue }} onClick={() => nav.push('browse', { genre: HINDI_ALL })}>
-        हिंदी
-      </button>
+      {enabled('hi') && (
+        <button class="genre-chip hindi-chip" lang="hi" style={{ '--h': HINDI_ALL.hue }} onClick={() => nav.push('browse', { genre: HINDI_ALL })}>
+          हिंदी
+        </button>
+      )}
       {GENRES.map((g) => (
         <button class="genre-chip" style={{ '--h': g.hue }} onClick={() => nav.push('browse', { genre: g })}>
           {g.name}
@@ -290,6 +292,17 @@ export function Home() {
   }, [addonList, st.sources]);
 
   const blocks = {
+    // Hindi section: only when switched on in Settings → Sources, in the user's chosen place.
+    hi: enabled('hi') && (
+      <Row
+        title="हिंदी ऑडियोबुक"
+        subtitle="Top Hindi audiobooks · Audible India"
+        icon="headphones"
+        load={() => audible.hindi('')}
+        deps={[]}
+        onMore={() => nav.push('browse', { genre: HINDI_ALL })}
+      />
+    ),
     abs: absSrc.connected() && enabled('abs') && (
         <>
           <Row title="On your server" subtitle="Audiobookshelf · in progress" icon="server" load={absSrc.inProgress} deps={[absCfg.token]} showErrors />
@@ -343,16 +356,6 @@ export function Home() {
       <WaitingRow />
       <ContinueRow />
       <GenreChips />
-      {enabled('au') && (
-        <Row
-          title="हिंदी ऑडियोबुक"
-          subtitle="Top Hindi audiobooks · Audible India"
-          icon="headphones"
-          load={() => audible.hindi('')}
-          deps={[]}
-          onMore={() => nav.push('browse', { genre: HINDI_ALL })}
-        />
-      )}
 
       {sourceOrder().map((k) => (
         <Fragment key={k}>{blocks[k]}</Fragment>
