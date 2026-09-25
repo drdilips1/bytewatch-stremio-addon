@@ -479,7 +479,7 @@ function LibbyCard({ book }) {
       ) : hits.length === 0 ? (
         <div class="sum-actions">
           <span class="muted">Not in your library's Libby catalogue.</span>
-          <button class="pill ghost" onClick={() => openExternal(`https://libbyapp.com/search/${lib.key}/search/query-${encodeURIComponent(book.title)}/page-1`)}>
+          <button class="pill ghost" onClick={() => openExternal(`https://libbyapp.com/search/${libbySrc.libraries()[0]?.key || lib.key}/search/query-${encodeURIComponent(book.title)}/page-1`)}>
             <Icon name="search" size={14} /> Search in Libby
           </button>
         </div>

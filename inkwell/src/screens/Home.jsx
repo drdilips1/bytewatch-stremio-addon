@@ -302,13 +302,14 @@ export function Home() {
         <>
           <Row
             title={`At ${lb.libraries().length > 1 ? 'your libraries' : lb.libraries()[0]?.name || 'your library'}`}
-            subtitle="New audiobooks in Libby · free with your card"
+            subtitle="New in Libby · tap to search the whole catalogue"
             icon="library"
             load={() => lb.browse('audiobook')}
-            deps={[libbyAcct.cards?.length, lb.libby.get().key]}
+            onMore={() => nav.push('libby')}
+            deps={[libbyAcct.cards?.length, lb.libraries().map((l) => l.key).join()]}
           />
-          {libbyAcct.loans?.length > 0 && <Row title="Your Libby loans" subtitle="Borrowed with your library card" icon="library" items={lb.loanBooks()} />}
-          {libbyAcct.holds?.length > 0 && <Row title="Libby holds" subtitle="Waiting at your library" icon="bookmark" items={lb.holdBooks()} />}
+          {libbyAcct.loans?.length > 0 && <Row title="Your Libby loans" subtitle="Borrowed with your library card" icon="library" items={lb.loanBooks()} onMore={() => nav.push('libby', { tab: 'loans' })} />}
+          {libbyAcct.holds?.length > 0 && <Row title="Libby holds" subtitle="Waiting at your library" icon="bookmark" items={lb.holdBooks()} onMore={() => nav.push('libby', { tab: 'holds' })} />}
         </>
       ) : null,
     // Hindi section: only when switched on in Settings → Sources, in the user's chosen place.

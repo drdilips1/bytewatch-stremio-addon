@@ -7,8 +7,14 @@ import { mainTitle, matches } from '../lib/match.js';
 
 const THUNDER = 'https://thunder.api.overdrive.com/v2';
 
-export const libby = persisted('libby', { key: '', name: '' });
-export const connected = () => !!libby.get().key;
+export const libby = persisted('libby', { key: '', name: '', links: [], skip: [] });
+export const connected = () => libraries().length > 0;
+
+/** Libraries added by link (the first one is `key`/`name`, the rest in `links`). */
+export function linkedLibraries() {
+  const { key, name, links = [] } = libby.get();
+  return [...(key ? [{ key, name }] : []), ...links.filter((l) => l.key !== key)];
+}
 
 /** "nypl", "https://libbyapp.com/library/nypl" or a Libby page link → "nypl". */
 export function parseLibrary(input) {
@@ -17,6 +23,7 @@ export function parseLibrary(input) {
   return m ? m[1].toLowerCase() : '';
 }
 
+/** Add a library by its Libby link or short name (you can add several). */
 export async function connect(input) {
   const key = parseLibrary(input);
   if (!key) throw new Error('Paste your library link from Libby (libbyapp.com/library/…) or its short name');
@@ -28,28 +35,41 @@ export async function connect(input) {
     if (e.status === 404) throw new Error(`Libby doesn't know a library called "${key}"`);
     throw e;
   }
-  libby.set({ key, name });
+  libby.set((l) => {
+    const skip = (l.skip || []).filter((k) => k !== key);
+    if (!l.key || l.key === key) return { ...l, key, name, skip };
+    return { ...l, skip, links: [...(l.links || []).filter((x) => x.key !== key), { key, name }] };
+  });
   return name;
 }
-export const disconnect = () => libby.set({ key: '', name: '' });
+
+/** Remove a library added by link. */
+export function removeLibrary(key) {
+  libby.set((l) => {
+    const links = (l.links || []).filter((x) => x.key !== key);
+    if (l.key !== key) return { ...l, links };
+    const [next, ...rest] = links;
+    return { ...l, key: next?.key || '', name: next?.name || '', links: rest };
+  });
+}
+export const disconnect = () => libby.set((l) => ({ ...l, key: '', name: '', links: [] }));
 
 const libbyUrl = (key, title, id) => `https://libbyapp.com/search/${key}/search/query-${encodeURIComponent(title)}/page-1${id ? `/${id}` : ''}`;
 export const libraryHome = () => `https://libbyapp.com/library/${libraries()[0]?.key || libby.get().key}`;
 
 /**
- * Libraries to search: every card you've linked (minus ones switched off),
- * or the single library set up by link when not signed in.
+ * Libraries to search: your Libby cards plus libraries added by link,
+ * minus any switched off.
  */
-export function libraries() {
+export function libraries({ all = false } = {}) {
   const acct = libbyAccount.get();
-  const skip = new Set(libby.get().skip || []);
+  const skip = new Set(all ? [] : libby.get().skip || []);
   const seen = new Set();
-  const fromCards = (acct.cards || [])
-    .filter((c) => c.advantageKey && !seen.has(c.advantageKey) && seen.add(c.advantageKey))
-    .map((c) => ({ key: c.advantageKey, name: c.library?.name || c.cardName || c.advantageKey, cardId: c.cardId }));
-  if (fromCards.length) return fromCards.filter((l) => !skip.has(l.key));
-  const { key, name } = libby.get();
-  return key ? [{ key, name }] : [];
+  const list = [
+    ...(acct.cards || []).map((c) => ({ key: c.advantageKey, name: c.library?.name || c.cardName || c.advantageKey, cardId: c.cardId, card: true })),
+    ...linkedLibraries(),
+  ].filter((l) => l.key && !seen.has(l.key) && seen.add(l.key));
+  return list.filter((l) => !skip.has(l.key));
 }
 export const toggleLibrary = (key, on) =>
   libby.set((l) => ({ ...l, skip: on ? (l.skip || []).filter((k) => k !== key) : [...new Set([...(l.skip || []), key])] }));
@@ -100,6 +120,37 @@ export async function search(term) {
     if (!cur || (b.libby.available && !cur.libby.available)) best.set(k, b);
   }
   return [...best.values()];
+}
+
+const FORMATS = {
+  audiobook: 'audiobook-overdrive,audiobook-mp3',
+  ebook: 'ebook-overdrive,ebook-epub-adobe,ebook-epub-open,ebook-kindle,ebook-pdf-adobe',
+};
+
+/**
+ * One page of the catalogue across your libraries (or one library):
+ * a search, or the newest titles when the query is empty.
+ */
+export async function catalogue({ query = '', format = 'audiobook', available = false, key = '', page = 1 } = {}) {
+  const libs = key ? libraries().filter((l) => l.key === key) : libraries();
+  if (!libs.length) return { items: [], more: false };
+  const per = await Promise.all(
+    libs.map(async (l) => {
+      const params = { perPage: 24, page, ...(query.trim() ? { query: query.trim() } : { sortBy: 'newlyadded' }), ...(FORMATS[format] ? { format: FORMATS[format] } : {}), ...(available ? { showOnlyAvailable: true } : {}) };
+      const d = await getJson(`${THUNDER}/libraries/${l.key}/media?` + qs(params), { timeout: 20000 }).catch(() => null);
+      const items = (d?.items || []).filter((it) => it.title).map((it) => toBook(it, l.key, l.name));
+      return { items, more: (d?.items || []).length >= 24 };
+    })
+  );
+  const seen = new Set();
+  const items = per
+    .flatMap((r) => r.items)
+    .filter((b) => (format === 'all' || b.libby.format === format) && (!available || b.libby.available))
+    .filter((b) => {
+      const k = `${b.libby.format}|${b.title.toLowerCase()}|${b.author.toLowerCase()}`;
+      return !seen.has(k) && seen.add(k);
+    });
+  return { items, more: per.some((r) => r.more) };
 }
 
 /**
@@ -159,7 +210,9 @@ const SENTRY = 'https://sentry.libbyapp.com';
 export const libbyAccount = persisted('libbyAccount', { identity: '', cards: [], loans: [], holds: [], syncedAt: 0 });
 export const signedIn = () => !!libbyAccount.get().identity;
 
-const auth = (identity = libbyAccount.get().identity) => ({ Authorization: `Bearer ${identity}`, Accept: 'application/json', 'Cache-Control': 'no-cache' });
+// Libby's own app identifies itself like this (as libbydl does); browsers don't allow setting it.
+const UA = Capacitor.isNativePlatform() ? { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) (Dewey; V22; iOS; 6.3.0-160)' } : {};
+const auth = (identity = libbyAccount.get().identity) => ({ Authorization: `Bearer ${identity}`, Accept: 'application/json', 'Cache-Control': 'no-cache', ...UA });
 
 async function sentry(path, { method = 'GET', body, identity } = {}) {
   const url = `${SENTRY}/${path}`;
@@ -172,7 +225,7 @@ async function sentry(path, { method = 'GET', body, identity } = {}) {
 }
 
 async function newChip(identity) {
-  const r = await sendJson(`${SENTRY}/chip?client=dewey`, 'POST', undefined, identity ? auth(identity) : { Accept: 'application/json' });
+  const r = await sendJson(`${SENTRY}/chip?client=dewey`, 'POST', undefined, identity ? auth(identity) : { Accept: 'application/json', ...UA });
   if (!r?.identity) throw new Error("Libby didn't answer — try again");
   return r.identity;
 }
@@ -194,17 +247,22 @@ export async function signInWithCode(code) {
   return linked(identity, d);
 }
 
-const toMs = (x) => {
-  if (x == null || x === '') return 0;
+/** Libby's code expiry: a Unix time (s or ms), a date, or seconds from now. */
+const expiryOf = (x) => {
+  if (x == null || x === '') return Date.now() + 60e3;
   const n = +x;
-  if (Number.isFinite(n)) return n < 1e12 ? n * 1000 : n; // Unix seconds or ms
-  return Date.parse(x) || 0;
+  if (Number.isFinite(n)) {
+    if (n > 1e12) return n;
+    if (n > 1e9) return n * 1000;
+    return Date.now() + Math.max(20, n) * 1000;
+  }
+  return Date.parse(x) || Date.now() + 60e3;
 };
 
 function linked(identity, d) {
   libbyAccount.set({ identity, cards: d.cards || [], loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now(), mintedAt: Date.now() });
   const card = d.cards[0];
-  if (card && !libby.get().key) libby.set({ key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey });
+  if (card && !libby.get().key) libby.set((l) => ({ ...l, key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey }));
   return d.cards.map((c) => c.library?.name || c.cardName).join(', ');
 }
 
@@ -215,43 +273,42 @@ function linked(identity, d) {
  * each code (a fresh one when the last expires) and resolves with the library
  * names once linked. Returns { done, cancel }.
  */
-export function pairWithCode(onCode) {
+export function pairWithCode(onCode, onStatus = () => {}) {
   let cancelled = false;
   const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
   const getCode = async (identity) => {
     const r = await getJson(`${SENTRY}/chip/clone/code`, { headers: auth(identity), fresh: true, timeout: 15000 });
     if (!r?.code) throw new Error("Libby didn't give this device a code — try again");
-    const expires = toMs(r.expiry) || Date.now() + 60e3;
-    onCode({ code: String(r.code).replace(/(\d{4})(\d{4})/, '$1 $2'), expires });
+    const expires = expiryOf(r.expiry);
+    onCode({ code: String(r.code).padStart(8, '0').replace(/(\d{4})(\d{4})/, '$1 $2'), expires });
     return expires;
   };
   const done = (async () => {
-    const identity = await newChip();
+    let identity = await newChip();
     let expires = await getCode(identity);
-    let n = 0;
     let fails = 0;
+    let n = 0;
     const until = Date.now() + 10 * 60e3; // give up after 10 minutes
     while (!cancelled && Date.now() < until) {
-      await sleep(2500);
+      await sleep(3000);
       if (cancelled) break;
+      n++;
       try {
-        // Same identity: once the phone accepts the code, its cards show up here.
+        // Like Libby clients do: check with this identity, then with a refreshed one
+        // (after the phone accepts the code the cards may only show on the latter).
         const d = await getJson(`${SENTRY}/chip/sync`, { headers: auth(identity), fresh: true, timeout: 15000 });
         if ((d?.cards || []).length) return linked(identity, d);
-        // Now and then also ask for a refreshed identity, in case Libby moved the cards to it.
-        if (++n % 4 === 0) {
-          const fresh = await newChip(identity).catch(() => '');
-          if (fresh) {
-            const d2 = await getJson(`${SENTRY}/chip/sync`, { headers: auth(fresh), fresh: true, timeout: 15000 });
-            if ((d2?.cards || []).length) return linked(fresh, d2);
-          }
-        }
+        const fresh = await newChip(identity);
+        const d2 = await getJson(`${SENTRY}/chip/sync`, { headers: auth(fresh), fresh: true, timeout: 15000 });
+        if ((d2?.cards || []).length) return linked(fresh, d2);
+        onStatus(`Check ${n}: Libby says “${d2?.result || d?.result || 'no cards yet'}”`);
         fails = 0;
       } catch (e) {
-        if (++fails >= 4) throw new Error(`Couldn't check with Libby: ${e.message}`);
+        onStatus(`Check ${n}: ${e.message}`);
+        if (++fails >= 5) throw new Error(`Couldn't check with Libby: ${e.message}`);
       }
-      // Keep a valid code on screen until you've entered it.
-      if (Date.now() > expires - 3000) expires = await getCode(identity).catch(() => expires + 30e3);
+      // Only fetch a new code once the shown one has run out.
+      if (Date.now() > expires) expires = await getCode(identity).catch(() => Date.now() + 30e3);
     }
     if (!cancelled) throw new Error('Nothing came through from Libby — get a new code and try again');
     return '';

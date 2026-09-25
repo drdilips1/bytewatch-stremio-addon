@@ -3593,3 +3593,20 @@ button.source-card:active {
   align-items: center;
   gap: 6px;
 }
+.libby-filters {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.libby-filters::-webkit-scrollbar {
+  display: none;
+}
+.libby-filters .pill {
+  flex: none;
+}
+.libby-status {
+  font-size: 12px;
+  opacity: 0.75;
+}

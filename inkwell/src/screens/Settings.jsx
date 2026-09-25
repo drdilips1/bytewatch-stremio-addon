@@ -13,6 +13,7 @@ import { APP_VERSION } from '../components/update.jsx';
 import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
 import { AccountCard, VoicesCard, DownloadsCard } from './settings-extra.jsx';
 import { UpdateCard } from '../components/update.jsx';
+import { nav } from '../lib/nav.js';
 
 function Section({ icon, title, children }) {
   return (
@@ -225,6 +226,7 @@ function LibbySignIn({ busy, run, code, setCode }) {
   const [pairing, setPairing] = useState(null); // { cancel }
   const [left, setLeft] = useState(0);
   const [manual, setManual] = useState(false);
+  const [status, setStatus] = useState('');
   useEffect(() => () => pairing?.cancel(), [pairing]);
   useEffect(() => {
     if (!shown) return;
@@ -241,7 +243,8 @@ function LibbySignIn({ busy, run, code, setCode }) {
   const start = () => {
     pairing?.cancel();
     setShown(null);
-    const p = libbySrc.pairWithCode(setShown);
+    setStatus('');
+    const p = libbySrc.pairWithCode(setShown, setStatus);
     setPairing(p);
     p.done
       .then((names) => names && toast(`Signed in: ${names}`))
@@ -263,6 +266,7 @@ function LibbySignIn({ busy, run, code, setCode }) {
             {shown ? `Enter this in Libby · ${left > 0 ? `${left}s left` : 'getting a new code…'} · ` : 'Getting a code… '}
             waiting for Libby <span class="spinner small" />
           </small>
+          {status && <small class="libby-status">{status}</small>}
           <button class="link-btn" onClick={stop}>
             Cancel
           </button>
@@ -326,43 +330,37 @@ function LibbyCard() {
       ) : (
         <LibbySignIn busy={busy} run={run} code={code} setCode={setCode} />
       )}
-      {acct.identity && (acct.cards || []).length > 0 && (
+      {libbySrc.libraries({ all: true }).length > 0 && (
         <div class="libby-cards">
-          <small class="muted">Libraries searched (switch off any you don't want in results):</small>
-          {(acct.cards || [])
-            .filter((c, i, a) => a.findIndex((x) => x.advantageKey === c.advantageKey) === i)
-            .map((c) => (
-              <label class="set-row">
-                <div>
-                  <b>{c.library?.name || c.cardName || c.advantageKey}</b>
-                  <small>{c.cardName && c.cardName !== c.library?.name ? c.cardName : c.advantageKey}</small>
-                </div>
-                <input type="checkbox" class="switch" checked={!(lib.skip || []).includes(c.advantageKey)} onChange={(e) => libbySrc.toggleLibrary(c.advantageKey, e.currentTarget.checked)} />
-              </label>
-            ))}
-        </div>
-      )}
-      {acct.identity && (acct.cards || []).length > 0 ? null : lib.key ? (
-        <div class="set-row">
-          <div>
-            <b>{lib.name}</b>
-            <small>Library used for search and availability on book pages.</small>
-          </div>
-          <button class="pill small" onClick={() => libbySrc.disconnect()}>
-            Change
+          <small class="muted">Your libraries (switch off any you don't want in results):</small>
+          {libbySrc.libraries({ all: true }).map((l) => (
+            <div class="set-row">
+              <div>
+                <b>{l.name}</b>
+                <small>{l.card ? 'Library card in Libby' : 'Added by link · catalogue only'}</small>
+              </div>
+              <div class="chips">
+                {!l.card && (
+                  <button class="pill small ghost" onClick={() => libbySrc.removeLibrary(l.key)}>
+                    Remove
+                  </button>
+                )}
+                <input type="checkbox" class="switch" checked={!(lib.skip || []).includes(l.key)} onChange={(e) => libbySrc.toggleLibrary(l.key, e.currentTarget.checked)} />
+              </div>
+            </div>
+          ))}
+          <button class="pill small" onClick={() => nav.push('libby')}>
+            <Icon name="library" size={14} /> Browse catalogue
           </button>
         </div>
-      ) : (
-        <>
-          <p class="muted">Or just search a library's catalogue: paste its Libby link (libbyapp.com/library/…) or short name.</p>
-          <div class="set-row">
-            <input value={input} placeholder="libbyapp.com/library/…" onInput={(e) => setInput(e.currentTarget.value)} />
-            <button class="btn" disabled={busy || !input.trim()} onClick={() => run(async () => `Connected to ${await libbySrc.connect(input)}`)}>
-              {busy ? <span class="spinner small" /> : 'Connect'}
-            </button>
-          </div>
-        </>
       )}
+      <p class="muted">Add a library's catalogue by its Libby link (libbyapp.com/library/…) or short name — add as many as you like.</p>
+      <div class="set-row">
+        <input value={input} placeholder="libbyapp.com/library/…" onInput={(e) => setInput(e.currentTarget.value)} />
+        <button class="btn" disabled={busy || !input.trim()} onClick={() => run(async () => { const n = await libbySrc.connect(input); setInput(''); return `Added ${n}`; })}>
+          {busy ? <span class="spinner small" /> : 'Add'}
+        </button>
+      </div>
     </>
   );
 }

@@ -15,6 +15,7 @@ import { Settings } from './screens/Settings.jsx';
 import { Book } from './screens/Book.jsx';
 import { Browse } from './screens/Browse.jsx';
 import { Reader } from './screens/Reader.jsx';
+import { LibbyBrowse } from './screens/LibbyBrowse.jsx';
 import { Shelf } from './screens/Shelf.jsx';
 import { Podcasts, Podcast } from './screens/Podcasts.jsx';
 import { PullToRefresh } from './components/pull-refresh.jsx';
@@ -30,7 +31,7 @@ const TABS = [
   ['settings', 'Settings', 'settings'],
 ];
 const ROOTS = { home: Home, discover: Discover, podcasts: Podcasts, library: Library, settings: Settings };
-const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast };
+const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast, libby: LibbyBrowse };
 
 export function App() {
   const [route, setRoute] = useState(nav.state());
@@ -72,7 +73,7 @@ export function App() {
         <span />
         <span />
       </div>
-      <PullToRefresh onRefresh={refresh} enabled={!route.overlay && (!top || top.name === 'shelf' || top.name === 'book' || top.name === 'browse')} />
+      <PullToRefresh onRefresh={refresh} enabled={!route.overlay && (!top || top.name === 'shelf' || top.name === 'libby' || top.name === 'book' || top.name === 'browse')} />
       <main key={(top?.key || route.tab) + ':' + refreshKey} class="page">
         <Screen {...(top?.params || {})} />
       </main>
