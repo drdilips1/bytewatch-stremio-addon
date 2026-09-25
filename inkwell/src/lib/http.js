@@ -60,7 +60,7 @@ function needsRelay(url) {
   }
 }
 
-async function request(url, { timeout = 15000, headers, method = 'GET', body } = {}) {
+async function request(url, { timeout = 15000, headers, method = 'GET', body, feed = false } = {}) {
   const ctrl = new AbortController();
   let timer;
   // Android's native HTTP ignores abort signals, so also race a timer:
@@ -75,7 +75,8 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body } =
   });
   try {
     const go = (u, h) => Promise.race([fetch(u, { method, headers: h, body, signal: ctrl.signal }), timedOut]);
-    const relayed = () => go(viaRelay(url), relayHeaders(headers));
+    // Podcast feeds live on countless hosts: the relay fetches those read-only (?feed=1, XML only).
+    const relayed = () => go(viaRelay(url) + (feed ? '&feed=1' : ''), relayHeaders(headers));
     let res;
     if (needsRelay(url)) res = await relayed();
     else {
@@ -83,7 +84,7 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body } =
         res = await go(url, headers);
       } catch (e) {
         // In a browser a CORS block looks like a network error: try the relay once.
-        if (!WEB || e.timeout || !relayUrl() || !relayable(url)) throw e;
+        if (!WEB || e.timeout || !relayUrl() || !(relayable(url) || (feed && /^https:/i.test(url)))) throw e;
         res = await relayed();
       }
     }

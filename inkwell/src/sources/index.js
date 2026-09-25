@@ -8,6 +8,7 @@ import * as cloud from './debrid.js';
 import * as hc from './hardcover.js';
 import * as gr from './goodreads.js';
 import * as lb from './libby.js';
+import * as pods from './podcasts.js';
 import * as ttsb from './ttsbooks.js';
 import { audible, googleBooks } from './catalogs.js';
 import { settings } from '../lib/store.js';
@@ -28,6 +29,7 @@ export const SOURCES = {
   rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud },
   addon: { name: 'Addons', short: 'Addon', hue: 185, kind: 'Listen', blurb: 'Community catalog addons', impl: addonSrc },
   hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc },
+  pod: { name: 'Podcasts', short: 'Podcast', hue: 280, kind: 'Listen', blurb: 'Podcast episodes', impl: pods, hidden: true },
   tts: { name: 'Voice narration', short: 'Free voice', hue: 300, kind: 'Listen', blurb: 'Ebooks read aloud by a free voice', impl: ttsb, hidden: true },
   lb: { name: 'Libby (your library)', short: 'Libby', hue: 200, kind: 'Library', blurb: 'Borrow ebooks & audiobooks free with your library card', impl: lb },
   hi: { name: 'हिंदी (Hindi)', short: 'Hindi', hue: 25, kind: 'Listings', blurb: 'Hindi section: Audible India listings and free Hindi audio — few playable sources, so off by default', impl: audible },

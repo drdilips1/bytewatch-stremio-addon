@@ -10,7 +10,7 @@
 // verification" on or off: the app signs in with your project's public key and
 // sends the services' own tokens in x-relay-headers.)
 //
-// Version 4.
+// Version 5.
 
 // Only these services can be reached through the relay.
 const ALLOWED = [
@@ -40,7 +40,7 @@ const CORS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Expose-Headers': '*',
   'Access-Control-Max-Age': '86400',
-  'X-Relay-Version': '4',
+  'X-Relay-Version': '5',
 };
 
 // Headers meant for Supabase or the browser, never forwarded. The service's own
@@ -61,7 +61,10 @@ Deno.serve(async (req) => {
   } catch {
     return new Response('Missing or bad ?url=', { status: 400, headers: CORS });
   }
-  if (url.protocol !== 'https:' || !ALLOWED.some((re) => re.test(url.hostname))) {
+  // Podcast feeds (?feed=1): any https host, GET only, and only XML comes back.
+  const feed = new URL(req.url).searchParams.get('feed') === '1' && req.method === 'GET';
+  const privateHost = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|\[?::1)/i.test(url.hostname);
+  if (url.protocol !== 'https:' || privateHost || (!feed && !ALLOWED.some((re) => re.test(url.hostname)))) {
     return new Response(`Host not allowed: ${url.hostname}`, { status: 403, headers: CORS });
   }
   const headers = new Headers(req.headers);
@@ -82,6 +85,11 @@ Deno.serve(async (req) => {
       body: req.method === 'GET' || req.method === 'HEAD' ? undefined : await req.arrayBuffer(),
       redirect: 'follow',
     });
+    if (feed && !/xml|rss|atom|opml/i.test(res.headers.get('content-type') || '')) {
+      // Many feeds are served as text/plain or octet-stream: peek at the start.
+      const head = (await res.clone().text()).slice(0, 400);
+      if (!/<(\?xml|rss|feed|opml)/i.test(head)) return new Response('Not a feed', { status: 403, headers: CORS });
+    }
     const out = new Headers(res.headers);
     for (const h of DROP_RESPONSE) out.delete(h);
     for (const [k, v] of Object.entries(CORS)) out.set(k, v);

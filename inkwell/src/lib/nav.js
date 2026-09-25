@@ -1,7 +1,7 @@
 // Minimal stack navigator with bottom-nav tabs, Android back button friendly.
 const listeners = new Set();
 let tab = 'home';
-const stacks = { home: [], discover: [], library: [], settings: [] };
+const stacks = { home: [], discover: [], podcasts: [], library: [], settings: [] };
 let overlay = null; // e.g. full player
 
 function emit() {
@@ -16,6 +16,7 @@ export const nav = {
     return () => listeners.delete(f);
   },
   tab(t) {
+    stacks[t] ||= [];
     if (t === tab) stacks[t] = [];
     tab = t;
     window.scrollTo(0, 0);

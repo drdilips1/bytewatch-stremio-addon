@@ -34,6 +34,9 @@ function emit() {
     subs.forEach((f) => f(snap));
   });
 }
+// Called when a book (or podcast episode) plays to the very end.
+const finishedSubs = new Set();
+export const onFinished = (f) => (finishedSubs.add(f), () => finishedSubs.delete(f));
 export const subscribe = (f) => (subs.add(f), f({ ...state }), () => subs.delete(f));
 export const getState = () => ({ ...state });
 
@@ -72,6 +75,7 @@ const engine = createEngine({
     else {
       set({ playing: false });
       saveProgress(true);
+      finishedSubs.forEach((f) => f(state.book));
     }
   },
   error: (msg) => {

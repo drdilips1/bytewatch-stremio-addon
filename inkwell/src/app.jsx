@@ -16,6 +16,7 @@ import { Book } from './screens/Book.jsx';
 import { Browse } from './screens/Browse.jsx';
 import { Reader } from './screens/Reader.jsx';
 import { Shelf } from './screens/Shelf.jsx';
+import { Podcasts, Podcast } from './screens/Podcasts.jsx';
 import { PullToRefresh } from './components/pull-refresh.jsx';
 import { clearHttpCache } from './lib/http.js';
 import { cloud, hc, gr } from './sources/index.js';
@@ -24,11 +25,12 @@ import { toast } from './components/common.jsx';
 const TABS = [
   ['home', 'Home', 'home'],
   ['discover', 'Discover', 'search'],
+  ['podcasts', 'Podcasts', 'mic'],
   ['library', 'Library', 'library'],
   ['settings', 'Settings', 'settings'],
 ];
-const ROOTS = { home: Home, discover: Discover, library: Library, settings: Settings };
-const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf };
+const ROOTS = { home: Home, discover: Discover, podcasts: Podcasts, library: Library, settings: Settings };
+const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast };
 
 export function App() {
   const [route, setRoute] = useState(nav.state());
