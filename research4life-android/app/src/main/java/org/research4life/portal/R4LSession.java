@@ -148,7 +148,7 @@ final class R4LSession {
     static final String MYLOFT_HOME = "https://app.myloft.xyz/";
 
     private static SharedPreferences prefs(Context ctx, String provider) {
-        return ctx.getSharedPreferences(UTD.equals(provider) ? "utd" : PREFS, Context.MODE_PRIVATE);
+        return ctx.getSharedPreferences(R4L.equals(provider) || provider == null ? PREFS : provider, Context.MODE_PRIVATE);
     }
 
     static String username(Context ctx) { return username(ctx, R4L); }
@@ -165,20 +165,137 @@ final class R4LSession {
         return !username(ctx, provider).isEmpty() && prefs(ctx, provider).contains("pass");
     }
 
+    /** Saves a login, makes it the active one, and keeps it in the provider's account list. */
     static void saveCredentials(Context ctx, String provider, String user, String password) {
         try {
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
             c.init(Cipher.ENCRYPT_MODE, key());
             byte[] enc = c.doFinal(password.getBytes(StandardCharsets.UTF_8));
-            prefs(ctx, provider).edit()
-                    .putString("user", user.trim())
-                    .putString("iv", Base64.encodeToString(c.getIV(), Base64.NO_WRAP))
-                    .putString("pass", Base64.encodeToString(enc, Base64.NO_WRAP))
-                    .apply();
+            String iv = Base64.encodeToString(c.getIV(), Base64.NO_WRAP);
+            String pass = Base64.encodeToString(enc, Base64.NO_WRAP);
+            prefs(ctx, provider).edit().putString("user", user.trim()).putString("iv", iv).putString("pass", pass).apply();
+            upsertAccount(ctx, provider, user.trim(), iv, pass);
         } catch (Exception ignored) {
             // Keystore unavailable: don't store the password in the clear.
         }
     }
+
+    // ------------------------------------------------------------------ multiple accounts
+
+    private static org.json.JSONArray accounts(Context ctx, String provider) {
+        SharedPreferences p = prefs(ctx, provider);
+        org.json.JSONArray arr;
+        try {
+            arr = new org.json.JSONArray(p.getString("accounts", "[]"));
+        } catch (Exception e) {
+            arr = new org.json.JSONArray();
+        }
+        // Logins saved before multi-account support live only in the active slot.
+        String user = p.getString("user", "");
+        if (!user.isEmpty() && p.contains("pass") && indexOf(arr, user) < 0) {
+            try {
+                arr.put(new org.json.JSONObject().put("user", user).put("iv", p.getString("iv", "")).put("pass", p.getString("pass", "")));
+                p.edit().putString("accounts", arr.toString()).apply();
+            } catch (Exception ignored) {
+            }
+        }
+        return arr;
+    }
+
+    private static int indexOf(org.json.JSONArray arr, String user) {
+        for (int i = 0; i < arr.length(); i++) {
+            if (user.equals(arr.optJSONObject(i).optString("user"))) return i;
+        }
+        return -1;
+    }
+
+    private static void upsertAccount(Context ctx, String provider, String user, String iv, String pass) {
+        org.json.JSONArray arr = accounts(ctx, provider);
+        try {
+            org.json.JSONObject o = new org.json.JSONObject().put("user", user).put("iv", iv).put("pass", pass);
+            int i = indexOf(arr, user);
+            if (i >= 0) arr.put(i, o); else arr.put(o);
+            prefs(ctx, provider).edit().putString("accounts", arr.toString()).apply();
+        } catch (Exception ignored) {
+        }
+    }
+
+    /** [{user, active}] for the settings screen (never includes passwords). */
+    static String listAccounts(Context ctx, String provider) {
+        org.json.JSONArray arr = accounts(ctx, provider), out = new org.json.JSONArray();
+        String active = username(ctx, provider);
+        for (int i = 0; i < arr.length(); i++) {
+            String u = arr.optJSONObject(i).optString("user");
+            try {
+                out.put(new org.json.JSONObject().put("user", u).put("active", u.equals(active)));
+            } catch (Exception ignored) {
+            }
+        }
+        return out.toString();
+    }
+
+    static int accountCount(Context ctx, String provider) {
+        return accounts(ctx, provider).length();
+    }
+
+    /** Makes a saved account the active one. */
+    static boolean setActive(Context ctx, String provider, String user) {
+        org.json.JSONArray arr = accounts(ctx, provider);
+        int i = indexOf(arr, user);
+        if (i < 0) return false;
+        org.json.JSONObject o = arr.optJSONObject(i);
+        prefs(ctx, provider).edit().putString("user", user).putString("iv", o.optString("iv")).putString("pass", o.optString("pass")).apply();
+        return true;
+    }
+
+    /** The account after the active one (wrapping), or null when there is only one. */
+    static String nextAccount(Context ctx, String provider) {
+        org.json.JSONArray arr = accounts(ctx, provider);
+        if (arr.length() < 2) return null;
+        int i = indexOf(arr, username(ctx, provider));
+        return arr.optJSONObject((i + 1) % arr.length()).optString("user");
+    }
+
+    static void removeAccount(Context ctx, String provider, String user) {
+        org.json.JSONArray arr = accounts(ctx, provider), keep = new org.json.JSONArray();
+        for (int i = 0; i < arr.length(); i++) {
+            if (!user.equals(arr.optJSONObject(i).optString("user"))) keep.put(arr.optJSONObject(i));
+        }
+        SharedPreferences.Editor e = prefs(ctx, provider).edit().putString("accounts", keep.toString());
+        if (user.equals(username(ctx, provider))) {
+            e.remove("user").remove("iv").remove("pass");
+            if (keep.length() > 0) {
+                org.json.JSONObject o = keep.optJSONObject(0);
+                e.putString("user", o.optString("user")).putString("iv", o.optString("iv")).putString("pass", o.optString("pass"));
+            }
+        }
+        e.apply();
+    }
+
+    /** Ends a site's session in the app (cookies and stored data), e.g. to switch accounts. */
+    static void signOut(String... origins) {
+        CookieManager cm = CookieManager.getInstance();
+        for (String origin : origins) {
+            String cookies = cm.getCookie(origin);
+            if (cookies != null) {
+                String host = Uri.parse(origin).getHost();
+                String domain = host.split("\\.").length > 2 ? host.substring(host.indexOf('.')) : "." + host;
+                for (String c : cookies.split(";")) {
+                    String name = c.split("=", 2)[0].trim();
+                    if (name.isEmpty()) continue;
+                    String expired = name + "=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/";
+                    cm.setCookie(origin, expired);
+                    cm.setCookie(origin, expired + "; Domain=" + domain);
+                }
+            }
+            android.webkit.WebStorage.getInstance().deleteOrigin(origin);
+        }
+        cm.flush();
+        if (webView != null) webView.loadUrl("about:blank");
+    }
+
+    static final String[] R4L_ORIGINS = {"https://portal.research4life.org", "https://login.research4life.org", "https://research4life.org"};
+    static final String[] MYLOFT_ORIGINS = {"https://app.myloft.xyz", "https://api.myloft.xyz", "https://myloft.xyz"};
 
     static String password(Context ctx, String provider) {
         SharedPreferences p = prefs(ctx, provider);
@@ -194,8 +311,11 @@ final class R4LSession {
         }
     }
 
+    /** Forgets the active login (other saved accounts stay; the next one becomes active). */
     static void forget(Context ctx, String provider) {
-        prefs(ctx, provider).edit().clear().apply();
+        String user = username(ctx, provider);
+        if (user.isEmpty()) prefs(ctx, provider).edit().clear().apply();
+        else removeAccount(ctx, provider, user);
     }
 
     /** Which saved login (if any) a page's sign-in form belongs to. */

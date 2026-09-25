@@ -53,6 +53,8 @@ public class MainActivity extends Activity {
     private WebView webView;
     private FrameLayout fetchLayer;
     private PdfFetcher fetcher;
+    private Narrator narrator;
+    private volatile String receivedAtStart;
     private UtdClient utd;
     private WebViewAssetLoader assetLoader;
     private final ExecutorService io = Executors.newFixedThreadPool(2);
@@ -130,6 +132,45 @@ public class MainActivity extends Activity {
         } else {
             webView.loadUrl(APP_URL);
         }
+        narrator = Narrator.get(this);
+        narrator.setListener((state, index, total) -> emit(event("tts", "state", state, "index", index, "total", total)));
+        receivePdf(getIntent(), false);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        receivePdf(intent, true);
+    }
+
+    /**
+     * A PDF shared or opened into the app ("Share → DermScholar", "Open with"). If the user just
+     * tapped "Try MyLoft" on a paper, the PDF is saved to that paper; otherwise it's imported.
+     */
+    private void receivePdf(Intent intent, boolean appRunning) {
+        if (intent == null) return;
+        Uri uri = null;
+        if (Intent.ACTION_VIEW.equals(intent.getAction())) uri = intent.getData();
+        else if (Intent.ACTION_SEND.equals(intent.getAction())) uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+        if (uri == null) return;
+        final Uri src = uri;
+        android.content.SharedPreferences hp = getSharedPreferences("handoff", MODE_PRIVATE);
+        String pendingKey = hp.getString("key", null);
+        boolean fresh = System.currentTimeMillis() - hp.getLong("time", 0) < 2 * 60 * 60 * 1000L;
+        String key = pendingKey != null && fresh ? pendingKey : "import_" + System.currentTimeMillis();
+        String title = pendingKey != null && fresh ? hp.getString("title", "") : displayName(src);
+        boolean attached = pendingKey != null && fresh;
+        intent.setAction(null); // don't import twice on rotation
+        io.execute(() -> {
+            try {
+                PdfStore.importFrom(this, src, key, title);
+                if (attached) hp.edit().clear().apply();
+                JSONObject ev = event("pdfReceived", "key", key, "title", title, "attached", attached);
+                if (appRunning) emit(ev); else receivedAtStart = ev.toString();
+            } catch (Exception e) {
+                toast("Couldn't import that PDF");
+            }
+        });
     }
 
     private void openLink(String url, String key, String title) {
@@ -328,6 +369,79 @@ public class MainActivity extends Activity {
                     ? R4LSession.UTD_HOME
                     : R4LSession.UTD_HOME + "?search=" + Uri.encode(query.trim());
             main.post(() -> openLink(url, null, null, R4LSession.UTD));
+        }
+
+        /** Remembers the paper the user is fetching via MyLoft, so a PDF shared back is saved to it. */
+        @JavascriptInterface
+        public void setPendingPdf(String key, String title) {
+            getSharedPreferences("handoff", MODE_PRIVATE).edit()
+                    .putString("key", key).putString("title", title).putLong("time", System.currentTimeMillis()).apply();
+        }
+
+        /** A PDF that arrived while the app was starting up (JSON event or ""). */
+        @JavascriptInterface
+        public String consumeReceived() {
+            String r = receivedAtStart;
+            receivedAtStart = null;
+            return r == null ? "" : r;
+        }
+
+        @JavascriptInterface
+        public String listAccounts(String provider) {
+            return R4LSession.listAccounts(MainActivity.this, provider);
+        }
+
+        @JavascriptInterface
+        public void setActiveAccount(String provider, String user) {
+            if (R4LSession.setActive(MainActivity.this, provider, user) && R4LSession.R4L.equals(provider)) {
+                main.post(() -> R4LSession.signOut(R4LSession.R4L_ORIGINS));
+            }
+        }
+
+        @JavascriptInterface
+        public void removeAccount(String provider, String user) {
+            R4LSession.removeAccount(MainActivity.this, provider, user);
+        }
+
+        @JavascriptInterface
+        public void myloftSignOut() {
+            main.post(() -> R4LSession.signOut(R4LSession.MYLOFT_ORIGINS));
+        }
+
+        // ---- read aloud
+
+        @JavascriptInterface
+        public void ttsStart(String title, String itemsJson, int start, float rate, String voice) {
+            main.post(() -> {
+                if (android.os.Build.VERSION.SDK_INT >= 33
+                        && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 21);
+                }
+                try {
+                    narrator.start(title, new org.json.JSONArray(itemsJson), start, rate, 1f, voice);
+                } catch (Exception e) {
+                    toast("Couldn't start reading");
+                }
+            });
+        }
+
+        @JavascriptInterface public void ttsToggle() { main.post(() -> narrator.toggle()); }
+        @JavascriptInterface public void ttsPause() { main.post(() -> narrator.pause()); }
+        @JavascriptInterface public void ttsSeek(int i) { main.post(() -> narrator.seek(i)); }
+        @JavascriptInterface public void ttsSkip(int d) { main.post(() -> narrator.skip(d)); }
+        @JavascriptInterface public void ttsRate(float r) { main.post(() -> narrator.setRate(r)); }
+        @JavascriptInterface public void ttsVoice(String v) { main.post(() -> narrator.setVoice(v)); }
+        @JavascriptInterface public void ttsStop() { main.post(() -> narrator.stop()); }
+        @JavascriptInterface public String ttsVoices() { return narrator.voices(); }
+
+        @JavascriptInterface
+        public String ttsStatus() {
+            try {
+                return new JSONObject().put("playing", narrator.isPlaying()).put("index", narrator.index())
+                        .put("total", narrator.total()).put("title", narrator.title()).toString();
+            } catch (Exception e) {
+                return "{}";
+            }
         }
 
         @JavascriptInterface

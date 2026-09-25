@@ -89,6 +89,8 @@ public class PortalActivity extends Activity {
         provider = R4LSession.UTD.equals(p) || R4LSession.MYLOFT.equals(p) ? p : R4LSession.R4L;
         boolean myloft = R4LSession.MYLOFT.equals(provider);
         homeButton.setText(R4LSession.UTD.equals(provider) ? "UTD" : myloft ? "MyLoft" : "R4L");
+        // A desktop browser identity stops MyLoft's "get the app" redirects on phones.
+        webView.getSettings().setUserAgentString(myloft ? DESKTOP_UA : null);
         String name = R4LSession.UTD.equals(provider) ? "UpToDate" : myloft ? "MyLoft" : "Research4Life";
         hint.setText(articleKey != null
                 ? (myloft ? "Find the paper in MyLoft · its PDF saves to this paper" : "PDFs you open here save to this paper")
@@ -304,9 +306,45 @@ public class PortalActivity extends Activity {
         setContentView(root);
     }
 
+    private static final String DESKTOP_UA =
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+
+    private boolean isMyLoft() {
+        return R4LSession.MYLOFT.equals(provider);
+    }
+
+    /** Sites like MyLoft push phone users to their app; keep the user here instead. */
+    private boolean isAppStoreRedirect(Uri uri) {
+        String host = uri.getHost() == null ? "" : uri.getHost();
+        return "market".equals(uri.getScheme()) || host.equals("play.google.com") || host.endsWith(".app.goo.gl")
+                || host.equals("apps.apple.com");
+    }
+
     private boolean handleUrl(Uri uri) {
         String scheme = uri.getScheme();
+        if (isMyLoft() && isAppStoreRedirect(uri)) {
+            Toast.makeText(this, "Staying in DermScholar — sign in here, or share the PDF from the MyLoft app", Toast.LENGTH_LONG).show();
+            return true;
+        }
         if ("http".equals(scheme) || "https".equals(scheme)) return false;
+        if (isMyLoft()) {
+            // App links (intent:, myloft:) would leave DermScholar; use the web fallback if the page gives one.
+            if ("intent".equals(scheme)) {
+                try {
+                    Intent i = Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME);
+                    String fallback = i.getStringExtra("browser_fallback_url");
+                    if (fallback != null && fallback.startsWith("http") && !isAppStoreRedirect(Uri.parse(fallback))) {
+                        webView.loadUrl(fallback);
+                        return true;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            if (!"mailto".equals(scheme) && !"tel".equals(scheme)) {
+                Toast.makeText(this, "Staying in DermScholar", Toast.LENGTH_SHORT).show();
+                return true;
+            }
+        }
         try {
             Intent intent = "intent".equals(scheme)
                     ? Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
@@ -347,6 +385,7 @@ public class PortalActivity extends Activity {
         main.removeCallbacksAndMessages(null);
         io.shutdown();
         if (R4LSession.isOwner(this)) {
+            webView.getSettings().setUserAgentString(null);
             webView.setWebViewClient(new WebViewClient());
             webView.setWebChromeClient(null);
             webView.setDownloadListener(null);

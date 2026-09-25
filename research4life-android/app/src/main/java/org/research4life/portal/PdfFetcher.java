@@ -49,6 +49,7 @@ final class PdfFetcher {
 
     private static final class Job {
         final String key, doi, title;
+        int accountTries;
         Job(String key, String doi, String title) { this.key = key; this.doi = doi; this.title = title; }
     }
 
@@ -146,6 +147,7 @@ final class PdfFetcher {
 
     private void attachClients() {
         webView.setWebChromeClient(null);
+        webView.getSettings().setUserAgentString(null);
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -290,6 +292,18 @@ final class PdfFetcher {
         Job j = job;
         job = null;
         saving = false;
+        // With several Research4Life accounts saved, try the paper again with the next one.
+        int accounts = R4LSession.accountCount(app, R4LSession.R4L);
+        String nextUser = R4LSession.nextAccount(app, R4LSession.R4L);
+        if (j != null && nextUser != null && j.accountTries < accounts - 1) {
+            j.accountTries++;
+            R4LSession.setActive(app, R4LSession.R4L, nextUser);
+            R4LSession.signOut(R4LSession.R4L_ORIGINS);
+            queue.addFirst(j);
+            if (listener != null) listener.onStatus(j.key, "opening", "Trying your other Research4Life account (" + nextUser + ")…");
+            main.postDelayed(this::next, 800);
+            return;
+        }
         if (listener != null && j != null) listener.onFailed(j.key, message, canShow);
         next();
     }

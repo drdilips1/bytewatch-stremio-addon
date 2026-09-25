@@ -40,7 +40,9 @@ A dermatology research app with a Consensus-style search, built around
   - Links to other topics stay in the app. Topics can be saved to the library for offline reading.
   - A hidden WebView with your session loads UpToDate in the background (`UtdClient`) and signs in automatically when asked.
   - If UpToDate needs you to sign in by hand, the app offers it and continues afterwards.
-- **MyLoft**: an in-app MyLoft browser. You sign in and find papers yourself; "Open in MyLoft" on a paper (or "Try MyLoft" when Get PDF fails) copies its title for MyLoft's search, and the PDF you download there is saved to that paper in your library.
+- **MyLoft**: an in-app MyLoft browser that stays in DermScholar (app-store and app-link redirects are blocked; it presents a desktop browser so MyLoft doesn't push its app). "MyLoft" on a paper or "Try MyLoft" on a failed download remembers the paper, so a PDF downloaded in the in-app browser — or shared from the MyLoft app with **Share → DermScholar** — is saved to that paper.
+- **Multiple Research4Life accounts**: save several, pick the active one; Get PDF retries with the next account if one fails.
+- **Listen** (read aloud): the phone's text-to-speech reads papers and UpToDate topics paragraph by paragraph with highlighting, speed 0.75–2×, voice choice, "Abstract & conclusions" mode, and background playback with notification controls.
 - **Themes**: light/dark/system mode, 8 accent colours, 5 light and 4 dark backgrounds; bundled Inter, Literata and Fraunces fonts.
   The reader has 8 reading themes plus custom text and background colours, 4 fonts, and line-spacing and margin options.
 - **Bottom bar**: Research4Life and UpToDate tabs can be shown or hidden in Settings (hidden by default).

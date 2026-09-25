@@ -35,6 +35,23 @@
     utdSearch: (q) => setTimeout(() => App.onNative(window.__utdMock ? window.__utdMock('search', q) : { type: 'utdResults', state: 'error', message: 'UpToDate needs the Android app' }), 300),
     utdShowPage: () => {},
     openMyLoft: () => window.open('https://app.myloft.xyz/', '_blank'),
+    setPendingPdf: () => {}, consumeReceived: () => '', myloftSignOut: () => {},
+    listAccounts: (p) => JSON.stringify(JSON.parse(localStorage.getItem('ds.accs.' + p) || '[]')),
+    setActiveAccount: (p, u) => localStorage.setItem('ds.accs.' + p, JSON.stringify(JSON.parse(localStorage.getItem('ds.accs.' + p) || '[]').map((a) => ({ ...a, active: a.user === u })))),
+    removeAccount: (p, u) => localStorage.setItem('ds.accs.' + p, JSON.stringify(JSON.parse(localStorage.getItem('ds.accs.' + p) || '[]').filter((a) => a.user !== u))),
+    ...(() => {
+      let t = null, i = 0, n = 0;
+      const tick = () => { App.onNative({ type: 'tts', state: 'playing', index: i, total: n }); t = setTimeout(() => { if (++i >= n) { App.onNative({ type: 'tts', state: 'ended', index: n - 1, total: n }); return; } tick(); }, 900); };
+      return {
+        ttsStart: (title, items, start) => { clearTimeout(t); n = JSON.parse(items).length; i = start; tick(); },
+        ttsToggle: () => { if (t) { clearTimeout(t); t = null; App.onNative({ type: 'tts', state: 'paused', index: i, total: n }); } else tick(); },
+        ttsSeek: (k) => { clearTimeout(t); i = k; tick(); }, ttsSkip: (d) => { clearTimeout(t); i = Math.max(0, Math.min(n - 1, i + d)); tick(); },
+        ttsRate: () => {}, ttsVoice: () => {}, ttsPause: () => { clearTimeout(t); t = null; },
+        ttsStop: () => { clearTimeout(t); t = null; App.onNative({ type: 'tts', state: 'stopped', index: i, total: n }); },
+        ttsVoices: () => JSON.stringify([{ name: 'en-us-x-sfg-local', locale: 'English (United States)', quality: 400, network: false }]),
+        ttsStatus: () => JSON.stringify({ playing: !!t, index: i, total: n }),
+      };
+    })(),
     utdTopic: (u) => setTimeout(() => App.onNative(window.__utdMock ? window.__utdMock('topic', u) : { type: 'utdTopic', state: 'error', message: 'UpToDate needs the Android app' }), 300),
     openUpToDateAt: (u) => window.open(u, '_blank'),
     openUpToDate: (q) => window.open('https://www.uptodate.com/contents/search' + (q ? '?search=' + encodeURIComponent(q) : ''), '_blank'),
@@ -93,6 +110,11 @@
     dots: '<circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/>',
     zoom: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M11 8v6M8 11h6"/>',
     alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/>',
+    audio: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/>',
+    play: '<path d="M8 5v14l11-7z" fill="currentColor"/>',
+    pause: '<path d="M7 5h3v14H7zM14 5h3v14h-3z" fill="currentColor"/>',
+    prev: '<path d="M6 5v14M18 6l-9 6 9 6z"/>',
+    next: '<path d="M18 5v14M6 6l9 6-9 6z"/>',
   };
   const icon = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ''}</svg>`;
   const LOGO = '<svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#1F4E79"/><path fill="#fff" d="M11 15c4-1.5 8-1.2 12 1v18c-3-2.2-8-2.5-12-1zM37 15c-4-1.5-8-1.2-12 1v18c3-2.2 8-2.5 12-1z"/><path fill="#F59E0B" d="M31 27a4 4 0 1 1 0 8 4 4 0 1 1 0-8zm0 2a2 2 0 1 0 0 4 2 2 0 1 0 0-4z"/><path fill="#F59E0B" d="m33.6 33.2 1.4-1.4 3.6 3.6-1.4 1.4z"/></svg>';
@@ -377,6 +399,7 @@
     closeDrawer();
     closeLightbox();
     document.body.classList.remove('reading');
+    if (!['pdf', 'read', 'utd'].includes(parseHash().name)) hideTtsBar();
     delete document.body.dataset.rtheme;
     ['--bg', '--card', '--line'].forEach((v) => document.body.style.removeProperty(v));
     applyTheme();
@@ -507,7 +530,8 @@
   function pdfAction(a) {
     if (a.imported) return '';
     if (jobs.get(a.id)?.state === 'running') return `<button class="btn xs" disabled><span class="spin"></span>Getting…</button>`;
-    if (pdfKeys.has(a.id)) return `<button class="btn xs good" data-act="card-pdf" data-id="${esc(a.id)}">${icon('file')}Read PDF</button>`;
+    if (pdfKeys.has(a.id)) return `<button class="btn xs good" data-act="card-pdf" data-id="${esc(a.id)}">${icon('file')}Read PDF</button>
+      <button class="btn xs" data-act="listen" data-id="${esc(a.id)}">${icon('audio')}Listen</button>`;
     if (!a.doi && !pdfSourceFor(a)) return '';
     return `<button class="btn xs primary" data-act="card-pdf" data-id="${esc(a.id)}">${icon('download')}Get PDF</button>`;
   }
@@ -778,7 +802,8 @@
 
         <div class="actions">
           ${hasPdf
-            ? `<button class="btn good full big" data-act="open-pdf">${icon('file')}Read PDF<span class="sub">Saved on this phone</span></button>`
+            ? `<button class="btn good full big" data-act="open-pdf">${icon('file')}Read PDF<span class="sub">Saved on this phone</span></button>
+               <button class="btn full" data-act="listen" data-id="${esc(a.id)}">${icon('audio')}Listen to this paper</button>`
             : pdfSrc || a.doi
               ? `<button class="btn primary full big" data-act="get-pdf">${icon('download')}Get PDF now<span class="sub">${pdfSrc ? 'Free copy · saves to your library' : 'Through your Research4Life access'}</span></button>`
               : `<button class="btn full" data-act="r4l">${icon('key')}Find on Research4Life</button>`}
@@ -1200,6 +1225,163 @@
     }
   }
 
+  // ---------------------------------------------------------------- read aloud
+  const ttsPrefs = Object.assign({ rate: 1, voice: '', mode: 'full', captions: false, refs: false, follow: true }, store.get('tts', {}));
+  const saveTts = () => store.set('tts', ttsPrefs);
+  const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2];
+  let tts = { key: null, title: '', els: [], texts: [], playing: false, index: 0 };
+
+  /** Paragraphs to read, in order, with the element each one highlights. */
+  function ttsItems() {
+    const rd = $('#rd');
+    if (!rd) return { els: [], texts: [] };
+    const els = [], texts = [];
+    let section = '';
+    const keyRe = /abstract|summary|conclusion|interpretation|key (finding|point)|capsule|relevance/i;
+    $$('h1, h2, h3, h4, p, li', rd).forEach((el) => {
+      if (el.closest('figure') && !ttsPrefs.captions) return;
+      if (el.closest('.rd-refs') && !ttsPrefs.refs) return;
+      if (el.tagName === 'LI' && el.closest('.rd-refs') == null && el.querySelector('p')) return;
+      if (/^H[2-4]$/.test(el.tagName)) section = el.textContent;
+      if (/^H[2-4]$/.test(el.tagName) && /^references$|^bibliography/i.test(el.textContent.trim()) && !ttsPrefs.refs) { section = 'refs'; return; }
+      if (section === 'refs' && !ttsPrefs.refs) return;
+      if (ttsPrefs.mode === 'key' && el.tagName !== 'H1' && !keyRe.test(section) && !keyRe.test(el.textContent.slice(0, 40))) return;
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('sup, .rd-zoom').forEach((x) => x.remove());
+      let text = clone.textContent.replace(/\s+/g, ' ').replace(/\[\d+(?:[–,-]\d+)*\]/g, '').trim();
+      if (text.length < 2) return;
+      // Engines cap one utterance at ~4000 characters.
+      const chunks = text.length > 3200 ? text.match(/[^.!?]{1,3000}[.!?]*\s*/g) || [text] : [text];
+      chunks.forEach((c) => { els.push(el); texts.push(c.trim()); });
+    });
+    return { els, texts };
+  }
+
+  function ttsAttach(opts) {
+    tts.key = opts.key;
+    tts.title = opts.title;
+    actions['tts-open'] = () => { if ($('#ttsbar')) ttsSheet(); else ttsPlay(firstVisible()); };
+    // While the player is open, tapping a paragraph reads from there.
+    $('#rd')?.addEventListener('click', (e) => {
+      if (!$('#ttsbar')) return;
+      const el = e.target.closest('p, h1, h2, h3, h4, li');
+      if (!el || e.target.closest('a, figure')) return;
+      const i = tts.els.indexOf(el);
+      if (i >= 0) Native.ttsSeek(i);
+    });
+    try {
+      const st = JSON.parse(Native.ttsStatus());
+      if (st.total && st.title === opts.title) { const it = ttsItems(); tts.els = it.els; tts.texts = it.texts; showTtsBar(st.playing, st.index); }
+    } catch { /* not playing */ }
+  }
+
+  function firstVisible() {
+    const it = ttsItems();
+    const i = it.els.findIndex((el) => el.getBoundingClientRect().bottom > 80);
+    return Math.max(0, i);
+  }
+
+  function ttsPlay(start) {
+    const it = ttsItems();
+    if (!it.texts.length) { toast('Nothing to read here'); return; }
+    tts.els = it.els; tts.texts = it.texts;
+    Native.ttsStart(tts.title, JSON.stringify(it.texts), Math.min(start, it.texts.length - 1), ttsPrefs.rate, ttsPrefs.voice);
+    showTtsBar(true, start);
+  }
+
+  function showTtsBar(playing, index) {
+    if (!$('#ttsbar')) {
+      document.body.insertAdjacentHTML('beforeend', `<div class="tts-bar" id="ttsbar">
+        <button class="icon-btn" data-act="tts-prev" aria-label="Previous paragraph">${icon('prev')}</button>
+        <button class="tts-play" data-act="tts-toggle" aria-label="Play or pause" id="ttsplay"></button>
+        <button class="icon-btn" data-act="tts-next" aria-label="Next paragraph">${icon('next')}</button>
+        <div class="tts-info"><b id="ttspos"></b><span id="ttssec"></span></div>
+        <button class="chip tts-rate" data-act="tts-rate" id="ttsrate">${ttsPrefs.rate}×</button>
+        <button class="icon-btn" data-act="tts-settings" aria-label="Voice and options">${icon('settings')}</button>
+        <button class="icon-btn" data-act="tts-close" aria-label="Stop">${icon('x')}</button></div>`);
+      document.body.classList.add('tts-on-page');
+    }
+    Object.assign(actions, {
+      'tts-toggle': () => Native.ttsToggle(),
+      'tts-prev': () => Native.ttsSkip(-1),
+      'tts-next': () => Native.ttsSkip(1),
+      'tts-close': () => { Native.ttsStop(); hideTtsBar(); },
+      'tts-settings': () => ttsSheet(),
+      'tts-rate': () => {
+        ttsPrefs.rate = RATES[(RATES.indexOf(ttsPrefs.rate) + 1) % RATES.length] || 1;
+        saveTts(); Native.ttsRate(ttsPrefs.rate);
+        $('#ttsrate').textContent = ttsPrefs.rate + '×';
+      },
+    });
+    updateTtsBar(playing, index);
+  }
+
+  function hideTtsBar() {
+    $('#ttsbar')?.remove();
+    document.body.classList.remove('tts-on-page');
+    $$('.tts-on').forEach((e) => e.classList.remove('tts-on'));
+  }
+
+  function updateTtsBar(playing, index) {
+    tts.playing = playing; tts.index = index;
+    const btn = $('#ttsplay');
+    if (btn) btn.innerHTML = icon(playing ? 'pause' : 'play');
+    const pos = $('#ttspos');
+    if (pos) pos.textContent = tts.texts.length ? `${Math.min(index + 1, tts.texts.length)} / ${tts.texts.length}` : '';
+    const el = tts.els[index];
+    let sec = '';
+    if (el) {
+      let n = el;
+      while (n && n.previousElementSibling !== undefined) {
+        n = n.previousElementSibling || n.parentElement?.previousElementSibling;
+        if (!n || n.id === 'rd') break;
+        if (/^H[1-4]$/.test(n.tagName)) { sec = n.textContent; break; }
+      }
+    }
+    const s = $('#ttssec');
+    if (s) s.textContent = sec || tts.title;
+    $$('.tts-on').forEach((e) => e.classList.remove('tts-on'));
+    if (el && $('#rd')?.contains(el)) {
+      el.classList.add('tts-on');
+      if (ttsPrefs.follow && playing) {
+        const r = el.getBoundingClientRect();
+        if (r.top < 90 || r.bottom > innerHeight - 110) window.scrollTo({ top: r.top + scrollY - innerHeight / 3, behavior: 'smooth' });
+      }
+    }
+  }
+
+  function onTts(evt) {
+    if (evt.state === 'stopped') { hideTtsBar(); return; }
+    if (evt.state === 'error') { hideTtsBar(); toast('Text-to-speech isn’t available. Install or enable a voice in Android settings.'); return; }
+    if (evt.state === 'ended') { updateTtsBar(false, evt.index); toast('Finished reading'); return; }
+    if (!$('#ttsbar') && ['pdf', 'read', 'utd'].includes(current.name)) showTtsBar(evt.state === 'playing', evt.index);
+    else updateTtsBar(evt.state === 'playing', evt.index);
+  }
+
+  function ttsSheet() {
+    let voices = [];
+    try { voices = JSON.parse(Native.ttsVoices()); } catch { voices = []; }
+    const sw = (k, t, sub) => `<div class="setting"><div class="body"><b>${t}</b><span>${sub}</span></div>
+      <label class="switch"><input type="checkbox" data-tts="${k}" ${ttsPrefs[k] ? 'checked' : ''}><span></span></label></div>`;
+    sheet(`<h3>Listen</h3>
+      <label class="field" style="margin-top:0">What to read</label>
+      <div class="seg wide"><button class="${ttsPrefs.mode === 'full' ? 'on' : ''}" data-act="tts-mode" data-v="full">Whole paper</button>
+        <button class="${ttsPrefs.mode === 'key' ? 'on' : ''}" data-act="tts-mode" data-v="key">Abstract &amp; conclusions</button></div>
+      <label class="field">Speed</label>
+      <div class="seg wide">${RATES.map((r) => `<button class="${ttsPrefs.rate === r ? 'on' : ''}" data-act="tts-setrate" data-v="${r}">${r}×</button>`).join('')}</div>
+      <label class="field">Voice</label>
+      ${voices.length ? `<select id="ttsvoice"><option value="">Phone default</option>${voices.map((v) => `<option value="${esc(v.name)}" ${ttsPrefs.voice === v.name ? 'selected' : ''}>${esc(v.locale)} · ${esc(v.name.replace(/^[a-z]{2}-[a-z]{2}-x-/, ''))}${v.quality >= 400 ? ' · high quality' : ''}${v.network ? ' · online' : ''}</option>`).join('')}</select>`
+        : '<p class="muted small">Voices load when reading starts. More voices: Android Settings → Text-to-speech.</p>'}
+      ${sw('follow', 'Follow along', 'Scroll to the paragraph being read')}
+      ${sw('captions', 'Read figure captions', 'Include figure and table captions')}
+      ${sw('refs', 'Read references', 'Include the reference list')}`);
+    const restart = () => { if ($('#ttsbar')) ttsPlay(tts.playing ? tts.index : tts.index); };
+    actions['tts-mode'] = (b) => { ttsPrefs.mode = b.dataset.v; saveTts(); closeSheet(true); ttsPlay(0); };
+    actions['tts-setrate'] = (b) => { ttsPrefs.rate = Number(b.dataset.v); saveTts(); Native.ttsRate(ttsPrefs.rate); const r = $('#ttsrate'); if (r) r.textContent = ttsPrefs.rate + '×'; ttsSheet(); };
+    $('#ttsvoice')?.addEventListener('change', (e) => { ttsPrefs.voice = e.target.value; saveTts(); Native.ttsVoice(ttsPrefs.voice); });
+    $$('[data-tts]').forEach((inp) => inp.addEventListener('change', () => { ttsPrefs[inp.dataset.tts] = inp.checked; saveTts(); if (inp.dataset.tts !== 'follow') restart(); }));
+  }
+
   // ---------------------------------------------------------------- PDF → mobile reader
   const REFLOW_V = 3;
   const openReader = (key) => go('pdf/' + encodeURIComponent(key));
@@ -1252,6 +1434,7 @@
     return `<div class="topbar rd-bar"><button class="icon-btn" data-act="back" aria-label="Back">${icon('back')}</button>
       <h1>${esc(title)}</h1>
       <button class="icon-btn" data-act="rd-drawer" aria-label="Contents and figures">${icon('list')}</button>
+      <button class="icon-btn" data-act="tts-open" aria-label="Listen">${icon('audio')}</button>
       <button class="icon-btn" data-act="rd-style" aria-label="Text settings"><span style="font:700 16px/1 var(--serif)">Aa</span></button>
       <button class="icon-btn" data-act="rd-more" aria-label="More">${icon('dots')}</button></div>
       <div class="rd-progress"><i id="rdbar"></i></div>`;
@@ -1383,6 +1566,8 @@
     actions['rd-redo'] = async () => { closeSheet(); await db.delReflow(key).catch(() => {}); render(); };
     actions['rd-paper'] = () => { closeSheet(); go('a/' + encodeURIComponent(opts.article.id)); };
     if (opts.startInPages) togglePages(opts, true);
+    ttsAttach(opts);
+    if (current.params.listen === '1') setTimeout(() => ttsPlay(0), 300);
   }
 
   async function togglePages(opts, scannedNote) {
@@ -1980,7 +2165,11 @@
           <p class="muted small" style="margin:12px 0 0">Reading colours and fonts for papers are in the reader's <b>Aa</b> menu.</p>
         </div></div>
       <div class="section"><div class="section-h"><h3>Accounts</h3></div>
-        ${accRow('r4l')}${accRow('utd')}
+        ${r4lAccounts()}${accRow('utd')}
+        <div class="acc-card"><div class="acc-ico myloft">${icon('globe')}</div>
+          <div class="body"><b>MyLoft</b><span>You sign in inside MyLoft; switch accounts by signing out here.</span></div>
+          <button class="btn xs" data-act="myloft-open">Open</button>
+          <button class="icon-btn" data-act="myloft-signout" aria-label="Sign out of MyLoft">${icon('x')}</button></div>
         <p class="muted small">Passwords are encrypted with this phone's keystore and only sent to the provider's own sign-in page.</p></div>
       <div class="section"><div class="section-h"><h3>Bottom bar</h3></div>
         ${sw('showUTD', 'Show UpToDate tab', 'Quick access from anywhere in the app')}
@@ -2007,6 +2196,17 @@
     actions.accent = (b) => keepScroll(() => { settings.accent = b.dataset.v; });
     actions['bg-light'] = (b) => keepScroll(() => { settings.bgLight = b.dataset.v; if (settings.theme === 'dark') settings.theme = 'light'; });
     actions['bg-dark'] = (b) => keepScroll(() => { settings.bgDark = b.dataset.v; if (settings.theme === 'light') settings.theme = 'dark'; });
+  }
+
+  function r4lAccounts() {
+    let list = [];
+    try { list = JSON.parse(Native.listAccounts ? Native.listAccounts('r4l') : '[]'); } catch { list = []; }
+    if (!list.length) { const a = account('r4l'); if (a.saved) list = [{ user: a.user, active: true }]; }
+    return `<div class="acc-card acc-multi"><div class="acc-ico r4l">${icon('key')}</div>
+      <div class="body"><b>Research4Life</b><span>${list.length ? `${list.length} account${list.length > 1 ? 's' : ''} · Get PDF tries the others if one fails` : 'Not saved'}</span></div>
+      <button class="btn xs primary" data-act="acc-add" data-p="r4l">${icon('plus')}Add</button></div>
+      ${list.map((a) => `<div class="acc-sub"><span class="acc-dot ${a.active ? 'on' : ''}"></span><b>${esc(a.user)}</b>${a.active ? '<span class="badge b-oa">Active</span>' : `<button class="btn xs" data-act="acc-use" data-u="${esc(a.user)}">Use</button>`}
+        <button class="icon-btn" data-act="acc-remove" data-u="${esc(a.user)}" aria-label="Remove">${icon('trash')}</button></div>`).join('')}`;
   }
 
   function applyTheme() {
@@ -2082,6 +2282,15 @@
     'acc-set': (b) => signInSheet(b.dataset.p, null),
     'acc-forget': (b) => { Native.forgetCredentials(b.dataset.p); toast(`${PROVIDERS[b.dataset.p].name} sign-in removed`); render(); },
     'utd-open': () => go(utdHash('')),
+    'acc-add': () => signInSheet('r4l', null),
+    'acc-use': (b) => { Native.setActiveAccount('r4l', b.dataset.u); toast(`Using ${b.dataset.u} for Research4Life`); render(); },
+    'acc-remove': (b) => { Native.removeAccount('r4l', b.dataset.u); toast('Account removed'); render(); },
+    listen: (b) => {
+      const id = b.dataset.id;
+      if (pdfKeys.has(id)) go('pdf/' + encodeURIComponent(id) + '?listen=1');
+      else go('read/' + encodeURIComponent(id) + '?listen=1');
+    },
+    'myloft-signout': () => { Native.myloftSignOut(); toast('Signed out of MyLoft in the app'); },
     'myloft-open': async (b) => {
       const id = b.dataset.id;
       const a = id && (saved.get(id) || cache.get(id));
@@ -2089,7 +2298,8 @@
       if (!saved.has(a.id)) await saveArticle(a);
       if (jobs.has(a.id)) { jobs.delete(a.id); renderTray(); }
       Native.copy(a.title);
-      toast('Title copied — paste it into MyLoft search. The PDF you download saves to this paper.');
+      Native.setPendingPdf(a.id, a.title);
+      toast('Title copied. Find it in MyLoft — or in the MyLoft app, then Share the PDF to DermScholar.');
       Native.openMyLoft(a.id, a.title);
     },
     'utd-search': (b) => go(utdHash(b.dataset.q || '')),
@@ -2229,6 +2439,15 @@
       }
     },
     async onNative(evt) {
+      if (evt.type === 'pdfReceived') {
+        await syncPdfs();
+        pdfKeys.add(evt.key);
+        if (jobs.has(evt.key)) { jobs.delete(evt.key); renderTray(); }
+        toast(evt.attached ? `PDF saved to “${(evt.title || '').slice(0, 50)}”` : 'PDF added to your library');
+        openReader(evt.key);
+        return;
+      }
+      if (evt.type === 'tts') { onTts(evt); return; }
       if (evt.type === 'utdResults' || evt.type === 'utdTopic') {
         const k = evt.type === 'utdResults' ? 'search' : 'topic';
         const f = utdWait[k];
@@ -2273,5 +2492,9 @@
   (async () => {
     try { await loadSaved(); await syncPdfs(); } catch { /* library unavailable */ }
     render();
+    try {
+      const r = Native.consumeReceived && Native.consumeReceived();
+      if (r) App.onNative(JSON.parse(r));
+    } catch { /* nothing shared */ }
   })();
 })();
