@@ -7,8 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
+          set +e
           UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36"
-          for u in https://app.myloft.xyz/ https://app.myloft.xyz/user/login https://myloft.xyz/ https://www.myloft.xyz/ https://login.myloft.xyz/; do
+          for u in https://app.myloft.xyz/ https://app.myloft.xyz/user/login https://myloft.xyz/ https://www.myloft.xyz/ ; do
             echo "=== $u"; curl -s -A "$UA" -o p.html -D h.txt -L --max-time 20 "$u"; grep -iE "^HTTP|^location|set-cookie" h.txt | cut -c1-160; wc -c < p.html; grep -oiE '<title>[^<]*' p.html
           done
           curl -s -A "$UA" -L https://app.myloft.xyz/ -o app.html
@@ -19,4 +20,7 @@ jobs:
             grep -oE '"https?://[^"]*myloft[^"]{0,80}"' b.js | sort -u | head -30
             grep -oE '[a-zA-Z0-9_.-]*proxy[a-zA-Z0-9_./-]{0,60}' b.js | sort -u | head -30
             grep -oE '"[^"]{0,60}(remote.?access|redirect_uri|shortUrl|accessUrl|resourceUrl)[^"]{0,60}"' b.js | sort -u | head -20
+            grep -oE '.{0,80}myloft\.xyz.{0,80}' b.js | sort -u | head -40
+            grep -oE '.{0,60}(doi\.org|/doi/).{0,60}' b.js | sort -u | head -10
+            grep -oE '[a-z]+Url:"[^"]{0,120}"' b.js | sort -u | head -40
           done
