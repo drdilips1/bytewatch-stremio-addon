@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Only for recording your own voice to clone it (asked when you tap Record). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- Needed on Android 11+ to see the installed text-to-speech engines. -->
     <queries>
@@ -29,6 +31,12 @@
             android:exported="false"
             android:launchMode="singleTop"
             android:parentActivityName=".LibraryActivity" />
+
+        <activity
+            android:name=".VoiceStudioActivity"
+            android:exported="false"
+            android:parentActivityName=".LibraryActivity"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".SearchActivity"
@@ -54,10 +62,6 @@
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="text/html" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
-                <data android:mimeType="image/*" />
-                <data android:mimeType="text/markdown" />
-                <data android:mimeType="text/html" />
-                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -65,6 +69,12 @@
                 <data android:mimeType="application/pdf" />
                 <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="text/plain" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/html" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="video/*" />
             </intent-filter>
         </activity>
 

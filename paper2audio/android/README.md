@@ -34,6 +34,28 @@ the phone: no server, no account, no limits.
   time left, a **table of contents** and a **sleep timer** (minutes or end of
   chapter). Reading continues with the screen off, with controls in the
   notification and on the lock screen.
+- **Voice studio** (voice icon in the library and player):
+  - **Natural on-device voices** that work offline and unlimited: Luna and Bria
+    (female) and Carter, Declan, Elliot, Felix, Grant, Hugo, Ian, James and Kit
+    (male; James and Kit British), after a one-time 98 MB download.
+  - **Clone a voice**: record 15–20 seconds (a reading script is shown) or import
+    a recording, and the app reads in that voice, on the phone. Only with the
+    speaker's permission.
+  - **Supertonic voices**: 10 on-device voices that read 31 languages,
+    including Hindi (one-time 129 MB download). Kokoro is still available.
+  - **Voice design**: describe a voice ("a calm, deep British man") and the app
+    picks and tunes the closest one; pitch control for online voices.
+  - **Stories**: a second voice reads everything in quotation marks, like an
+    audiobook with two narrators.
+- **Language aware**: the app detects each document's language on the phone
+  and offers a voice that speaks it.
+- **Transcribe audio and video** (Add › Audio or video → text, or share a
+  recording to the app): lectures, podcasts, interviews and voice notes become
+  documents, with speakers labeled (Gemini). **Dictate** text with voice typing.
+- **Translate and listen** (Options › AI): the whole document in Hindi, Spanish
+  and 24 other languages, read by a voice that speaks the language.
+- **Audiobook export**: save each chapter as its own file in a folder, with
+  title, author, track number and cover (MP3), ready for audiobook apps.
 - **AI, free with Google Gemini** (Options tab; needs a free key from
   aistudio.google.com/apikey, no card): short and long summaries of a document
   or chapter (listen to them or add them to the library), spoken explanations of
@@ -149,6 +171,15 @@ and copy `jniLibs/arm64-v8a/*.so` into `app/src/main/jniLibs/arm64-v8a/`
 (the GitHub workflow does this automatically). Without them the app still
 builds and runs, just without Kokoro voices. The version must match the
 vendored `app/src/main/java/com/k2fsa/sherpa/onnx/Tts.kt`.
+
+## Credits
+
+Voice engines run through [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
+(Apache-2.0): Pocket TTS by Kyutai (CC-BY-4.0), Supertonic by Supertone (MIT)
+and Kokoro (Apache-2.0). The Luna and Bria voices are cloned from Kyutai's
+sample recordings (MIT/Apache-2.0); the male voices from clips made with the
+Supertonic and Kokoro voices. Features inspired by VoiceStudio (no code from
+it is used).
 
 ## Limitations
 

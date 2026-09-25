@@ -28,15 +28,18 @@ import kotlin.coroutines.resume
 import kotlin.math.roundToInt
 
 /**
- * Read-aloud engine. Voices are Kokoro ("kokoro:NAME", natural, on-device after
- * a one-time download), Microsoft neural voices ("edge:NAME", natural, needs
- * internet) or the phone's own TTS voices ("sys:NAME").
+ * Read-aloud engine. Voices are Microsoft neural voices ("edge:NAME", natural,
+ * needs internet), on-device voices after a one-time download (Kokoro
+ * "kokoro:NAME", Supertonic "super:NAME", cloned "clone:ID") or the phone's own
+ * TTS voices ("sys:NAME").
  * All state changes happen on the main thread; listeners are called there too.
  */
 object Speaker {
     const val EDGE = "edge:"
     const val SYSTEM = "sys:"
     const val KOKORO = "kokoro:"
+    const val SUPER = "super:"
+    const val CLONE = "clone:"
     const val DEFAULT_VOICE = EDGE + "en-US-AndrewMultilingualNeural"
     private const val LOOKAHEAD = 3
     private const val PIECE_LOOKAHEAD = 4
@@ -73,9 +76,62 @@ object Speaker {
         private set
 
     val isEdge: Boolean get() = voiceId.startsWith(EDGE)
-    val isKokoro: Boolean get() = voiceId.startsWith(KOKORO)
+    val isLocal: Boolean get() = LocalTts.isLocal(voiceId)
     /** Voices played from generated audio files (true pause/resume). */
-    private val isStreamed: Boolean get() = isEdge || isKokoro
+    private val isStreamed: Boolean get() = isEdge || isLocal
+
+    /** Second voice for quoted dialogue ("stories"), if chosen and compatible with the main voice. */
+    val dialogueVoice: String?
+        get() = prefs.getString("dialogueVoice", null)?.takeIf { d ->
+            d != voiceId && (isEdge && d.startsWith(EDGE) || isLocal && LocalTts.isLocal(d) && LocalTts.missing(d) == null)
+        }
+
+    /** Pitch shift for online voices, in Hz (voice design). */
+    val pitch: Int get() = prefs.getInt("pitch", 0)
+
+    /** How the current document is voiced. */
+    fun voicing(d: Doc? = doc): Voicing = Voicing(voiceId, dialogueVoice, d?.lang, pitch)
+
+    fun setDialogueVoice(id: String?) {
+        prefs.edit().putString("dialogueVoice", id).apply()
+        restartAudio()
+    }
+
+    fun setPitch(hz: Int) {
+        prefs.edit().putInt("pitch", hz).apply()
+        restartAudio()
+    }
+
+    /** Re-renders from the current position after a voicing change. */
+    private fun restartAudio() {
+        pausedAt = -1
+        if (playing) play() else prewarm()
+        notifyChanged()
+    }
+
+    /** Whether voice [id] can read language [lang] ("en", "hi", …). */
+    fun voiceFits(lang: String, id: String = voiceId): Boolean = when {
+        id.startsWith(EDGE) -> "Multilingual" in id || id.removePrefix(EDGE).startsWith("$lang-")
+        id.startsWith(SUPER) -> lang in LocalTts.SUPERTONIC_LANGS
+        id.startsWith(KOKORO) || id.startsWith(CLONE) -> lang == "en"
+        else -> true // phone voices: can't tell
+    }
+
+    /** A natural voice for [lang], preferring the current voice's gender. */
+    fun suggestVoice(lang: String): String? {
+        val male = voiceOptions().firstOrNull { it.id == voiceId }?.label?.contains("male") == true &&
+            voiceOptions().firstOrNull { it.id == voiceId }?.label?.contains("female") == false
+        val candidates = edgeVoices.filter { it.locale.startsWith("$lang-") }
+        val edge = candidates.firstOrNull { (it.gender == "Male") == male } ?: candidates.firstOrNull()
+        return when {
+            edge != null -> EDGE + edge.name
+            lang in LocalTts.SUPERTONIC_LANGS -> SUPER + if (male) "M1" else "F1"
+            else -> null
+        }
+    }
+
+    /** Why the current voice can't play yet (a model to download), or null. */
+    fun missingPack(): ModelPack? = LocalTts.missing(voiceId)
 
     /** The sentence(s) being read right now, for highlighting in the reader. */
     var currentPiece: String? = null
@@ -100,11 +156,12 @@ object Speaker {
         }
         initialized = true
         app = context.applicationContext
-        Kokoro.init(app)
+        ModelPack.init(app)
+        MyVoices.init(app)
         speed = prefs.getFloat("speed", 1.0f)
         speedRendered = speed
         voiceId = prefs.getString("voice2", null) ?: DEFAULT_VOICE
-        warmUpKokoro()
+        warmUpLocal()
         pendingReady += onReady
         tts = TextToSpeech(app) { status ->
             main.post {
@@ -159,10 +216,20 @@ object Speaker {
         }
         val curatedCount = EdgeTts.CURATED.size
         EdgeTts.FAVORITES.forEach { edge(it, "★") }
+        if (LocalTts.supported) {
+            // Pocket voices: natural, on the phone; ready-made ones and the user's own.
+            val pNote = if (LocalTts.POCKET_PACK.isInstalled()) "offline" else "one-time download"
+            for (v in MyVoices.list()) {
+                val what = if (v.builtIn) v.description else "your voice"
+                out += VoiceOption(CLONE + v.id, "♥ ${v.name} · $what (English, $pNote)")
+            }
+        }
         edgeVoices.take(curatedCount).drop(EdgeTts.FAVORITES.size).forEach { edge(it, "•") }
-        if (Kokoro.supported) {
-            val note = if (Kokoro.isInstalled()) "offline" else "one-time download"
-            for (v in Kokoro.VOICES) out += VoiceOption(KOKORO + v.name, "◆ ${v.label} (Kokoro, $note)")
+        if (LocalTts.supported) {
+            val sNote = if (LocalTts.SUPERTONIC_PACK.isInstalled()) "offline" else "one-time download"
+            for (v in LocalTts.SUPERTONIC_VOICES) out += VoiceOption(SUPER + v.name, "◆ ${v.label} · 31 languages ($sNote)")
+            val kNote = if (LocalTts.KOKORO_PACK.isInstalled()) "offline" else "one-time download"
+            for (v in Kokoro.VOICES) out += VoiceOption(KOKORO + v.name, "◆ ${v.label} (Kokoro, $kNote)")
         }
         edgeVoices.drop(curatedCount).forEach { edge(it, "•") }
         val lang = Locale.getDefault().language
@@ -183,24 +250,25 @@ object Speaker {
         voiceId = id
         prefs.edit().putString("voice2", id).apply()
         if (id.startsWith(SYSTEM)) tts?.let { t -> t.voices?.firstOrNull { it.name == id.removePrefix(SYSTEM) }?.let { t.voice = it } }
-        if (!playing) warmUpKokoro() // when playing, play() below renders right away anyway
+        if (!playing) warmUpLocal() // when playing, play() below renders right away anyway
         pausedAt = -1
         if (playing) play() else prewarm()
         notifyChanged()
     }
 
-    /** Call after the Kokoro download finishes so the voice list updates. */
+    /** Call after a voice download finishes or cloned voices change, so the voice list updates. */
     fun refreshVoices() {
         voicesVersion++
-        warmUpKokoro()
+        if (voiceId.startsWith(CLONE) && MyVoices.get(voiceId.removePrefix(CLONE)) == null) setVoice(DEFAULT_VOICE)
+        warmUpLocal()
         notifyChanged()
     }
 
-    /** Loads the Kokoro model in the background so pressing Play starts quickly. */
-    private fun warmUpKokoro() {
-        val v = Kokoro.voice(voiceId.removePrefix(KOKORO)) ?: return
-        if (!isKokoro || !Kokoro.isInstalled()) return
-        scope.launch(Renderer.kokoroThread) { runCatching { Kokoro.prepare(v) } }
+    /** Loads the on-device model in the background so pressing Play starts quickly. */
+    private fun warmUpLocal() {
+        val vid = voiceId
+        if (!LocalTts.isLocal(vid) || LocalTts.missing(vid) != null) return
+        scope.launch(Renderer.localThread) { runCatching { LocalTts.prepare(vid) } }
     }
 
     fun setSpeed(value: Float) {
@@ -209,9 +277,10 @@ object Speaker {
         tts?.setSpeechRate(value)
         // Only the part above what the engine renders changes: adjust the running player.
         val p = player
-        val sameAudio = isStreamed && Renderer.engineSpeed(voiceId, value) == Renderer.engineSpeed(voiceId, speedRendered)
+        val v = voicing()
+        val sameAudio = isStreamed && Renderer.engineSpeed(v, value) == Renderer.engineSpeed(v, speedRendered)
         if (sameAudio && p != null && p.isPlaying) {
-            runCatching { p.playbackParams = p.playbackParams.setSpeed(Renderer.playbackBoost(voiceId, value)) }
+            runCatching { p.playbackParams = p.playbackParams.setSpeed(Renderer.playbackBoost(v, value)) }
         } else {
             pausedAt = -1
             if (playing) play() else prewarm()
@@ -226,7 +295,18 @@ object Speaker {
         doc = newDoc
         index = prefs.getInt("pos:${newDoc.key}", 0).coerceIn(0, maxOf(0, newDoc.paragraphs.size - 1))
         currentPiece = null
-        prewarm()
+        if (newDoc.lang == null) {
+            // Language matters for Supertonic and for suggesting a fitting voice.
+            scope.launch {
+                withContext(Dispatchers.IO) { Langs.of(newDoc) }
+                if (doc === newDoc) {
+                    if (!playing) prewarm()
+                    notifyChanged()
+                }
+            }
+        } else {
+            prewarm()
+        }
         scope.launch(Dispatchers.IO) { Renderer.trim(app) }
         notifyChanged()
     }
@@ -236,8 +316,8 @@ object Speaker {
         if (d.paragraphs.isEmpty()) return
         if (index >= d.paragraphs.size) index = 0
         lastError = null
-        if (isKokoro && !Kokoro.isInstalled()) {
-            lastError = "Download the Kokoro voices first (button under the voice list), or choose a ★ voice."
+        missingPack()?.let {
+            lastError = "Download the ${it.title} first (Options tab), or choose a ★ voice."
             notifyChanged()
             return
         }
@@ -347,7 +427,7 @@ object Speaker {
         }
     }
 
-    // ---- Kokoro and Microsoft voices: render paragraphs to files ahead of playback ----
+    // ---- Natural voices: render paragraphs to files ahead of playback ----
 
     fun ratePercent(s: Float = speed) = ((s - 1f) * 100).roundToInt().coerceIn(-50, 200)
 
@@ -357,12 +437,11 @@ object Speaker {
         val g = generation
         val vid = voiceId
         val currentSpeed = speed
-        if (isKokoro && Kokoro.voice(vid.removePrefix(KOKORO)) == null) {
-            fail("Unknown Kokoro voice")
-            return
-        }
-        val boost = Renderer.playbackBoost(vid, currentSpeed)
+        val boost = Renderer.playbackBoost(voicing(d), currentSpeed)
         session = scope.launch {
+            // Supertonic reads in the document's language: make sure it's known (fast, on the phone).
+            if (d.lang == null && LocalTts.isLocal(vid)) withContext(Dispatchers.IO) { Langs.of(d) }
+            val v = voicing(d)
             val pieces = (index until d.paragraphs.size).asSequence()
                 .flatMap { k -> Renderer.pieces(d.paragraphs[k], vid).map { k to it } }
                 .iterator()
@@ -370,7 +449,7 @@ object Speaker {
             fun fill() {
                 while (queue.size < PIECE_LOOKAHEAD && pieces.hasNext()) {
                     val (k, text) = pieces.next()
-                    queue.addLast(Triple(k, text, async { Renderer.render(app, vid, currentSpeed, text) }))
+                    queue.addLast(Triple(k, text, async { Renderer.render(app, v, currentSpeed, text) }))
                 }
             }
 
@@ -384,7 +463,7 @@ object Speaker {
                 } catch (e: Exception) {
                     if (g == generation) {
                         fail(
-                            if (vid.startsWith(KOKORO)) "Kokoro couldn't read this (${e.message})."
+                            if (LocalTts.isLocal(vid)) "The on-device voice couldn't read this (${e.message})."
                             else "Couldn't reach the natural voice service (${e.message}). Check your internet, or download the document for offline listening."
                         )
                     }
@@ -411,14 +490,16 @@ object Speaker {
     /** Renders the first pieces at the current position in the background, so Play starts at once. */
     private fun prewarm() {
         val d = doc ?: return
-        if (playing || !isStreamed || (isKokoro && !Kokoro.isInstalled())) return
+        if (playing || !isStreamed || missingPack() != null) return
+        if (d.lang == null && LocalTts.isLocal(voiceId)) return // load() prewarms once the language is known
         val vid = voiceId
+        val v = voicing(d)
         val sp = speed
         val from = index
         warmJob?.cancel()
         warmJob = scope.launch {
             val first = (from until minOf(from + 2, d.paragraphs.size)).flatMap { Renderer.pieces(d.paragraphs[it], vid) }.take(2)
-            for (text in first) runCatching { Renderer.render(app, vid, sp, text) }
+            for (text in first) runCatching { Renderer.render(app, v, sp, text) }
         }
     }
 
@@ -447,27 +528,36 @@ object Speaker {
         if (!isStreamed && !playing) tts?.stop()
     }
 
-    fun preview(text: String = PREVIEW_TEXT) {
+    /** Speaks [text] once with [voice] (default: the current voice), e.g. a voice preview. */
+    fun preview(text: String = PREVIEW_TEXT, voice: String = voiceId, pitchHz: Int = pitch) =
+        previewVoicing(text, Voicing(voice, lang = doc?.lang, pitch = pitchHz))
+
+    /** Plays a story sample: narration in the current voice, dialogue in [dialogue]. */
+    fun previewStory(text: String, dialogue: String) = previewVoicing(text, voicing().copy(dialogue = dialogue))
+
+    /** All Microsoft voices (favorites first), for voice design. */
+    val onlineVoices: List<EdgeTts.VoiceInfo> get() = edgeVoices
+
+    private fun previewVoicing(text: String, v: Voicing) {
         if (playing) pause()
-        if (!isStreamed) {
+        if (!Renderer.isStreamed(v.voiceId)) {
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle(), "preview:x")
             return
         }
-        if (isKokoro && !Kokoro.isInstalled()) {
-            lastError = "Download the Kokoro voices first."
+        (LocalTts.missing(v.voiceId) ?: v.dialogue?.let { LocalTts.missing(it) })?.let {
+            lastError = "Download the ${it.title} first."
             notifyChanged()
             return
         }
-        val vid = voiceId
         val sp = speed
         scope.launch {
             try {
-                val f = Renderer.render(app, vid, sp, text)
+                val f = Renderer.render(app, v, sp, text)
                 previewPlayer?.release()
                 previewPlayer = MediaPlayer().apply {
                     setDataSource(f.path)
                     prepare()
-                    val boost = Renderer.playbackBoost(vid, sp)
+                    val boost = Renderer.playbackBoost(v, sp)
                     if (boost > 1.01f) runCatching { playbackParams = playbackParams.setSpeed(boost) }
                     setOnCompletionListener {
                         it.release()

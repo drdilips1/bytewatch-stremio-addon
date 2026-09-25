@@ -88,9 +88,9 @@ object Loader {
     }
 
     /** Saves pasted text (or recognized text from scans) as a new document. */
-    fun storeText(context: Context, title: String, text: String): Source {
+    fun storeText(context: Context, title: String, text: String, ext: String = "txt"): Source {
         val safe = title.replace(Regex("""[\\/:*?"<>|]+"""), " ").trim().ifBlank { "Pasted text" }
-        return store(context, "$safe.txt") { it.write(text.toByteArray()) }
+        return store(context, "$safe.$ext") { it.write(text.toByteArray()) }
     }
 
     /** Recognized text of a scanned PDF, kept next to it. */

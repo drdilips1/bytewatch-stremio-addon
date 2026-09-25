@@ -46,11 +46,16 @@ object Gemini {
         system: String? = null,
         attachment: Pair<String, ByteArray>? = null,
         json: Boolean = false,
+        /** A file uploaded with [upload]: (mime type, file URI). */
+        uploaded: Pair<String, String>? = null,
     ): String {
         val key = key(context) ?: throw GeminiException("Add your free Gemini key first.")
         val parts = JSONArray()
         attachment?.let { (mime, bytes) ->
             parts.put(JSONObject().put("inlineData", JSONObject().put("mimeType", mime).put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))))
+        }
+        uploaded?.let { (mime, uri) ->
+            parts.put(JSONObject().put("fileData", JSONObject().put("mimeType", mime).put("fileUri", uri)))
         }
         parts.put(JSONObject().put("text", prompt))
         val body = JSONObject()
@@ -96,6 +101,81 @@ object Gemini {
                 }
             }
         }
+    }
+
+    /**
+     * Uploads a large file (audio, video, PDF) with the Files API, waits until Gemini
+     * has processed it, and returns its URI for [generate]. Files expire after 48 hours.
+     */
+    fun upload(context: Context, uri: android.net.Uri, mime: String, name: String, progress: (String) -> Unit): String {
+        val key = key(context) ?: throw GeminiException("Add your free Gemini key first.")
+        val cr = context.contentResolver
+        val size = cr.openFileDescriptor(uri, "r")?.use { it.statSize }?.takeIf { it > 0 }
+            ?: throw GeminiException("Couldn't read that file")
+        if (size > 2_000_000_000L) throw GeminiException("That file is larger than Gemini's 2 GB limit.")
+        val start = Request.Builder()
+            .url("https://generativelanguage.googleapis.com/upload/v1beta/files")
+            .header("x-goog-api-key", key)
+            .header("X-Goog-Upload-Protocol", "resumable")
+            .header("X-Goog-Upload-Command", "start")
+            .header("X-Goog-Upload-Header-Content-Length", size.toString())
+            .header("X-Goog-Upload-Header-Content-Type", mime)
+            .post(JSONObject().put("file", JSONObject().put("display_name", name.take(100))).toString()
+                .toRequestBody("application/json".toMediaType()))
+            .build()
+        val uploadUrl = client.newCall(start).execute().use { r ->
+            if (!r.isSuccessful) throw GeminiException("Gemini upload failed (${r.code}): ${r.body?.string()?.take(200)}")
+            r.header("X-Goog-Upload-URL") ?: throw GeminiException("Gemini upload failed (no upload address)")
+        }
+        val body = object : okhttp3.RequestBody() {
+            override fun contentType() = mime.toMediaType()
+            override fun contentLength() = size
+            override fun writeTo(sink: okio.BufferedSink) {
+                val input = cr.openInputStream(uri) ?: throw IOException("Couldn't read that file")
+                input.use {
+                    val buf = ByteArray(256 * 1024)
+                    var sent = 0L
+                    var lastPct = -1
+                    while (true) {
+                        val n = it.read(buf)
+                        if (n < 0) break
+                        sink.write(buf, 0, n)
+                        sent += n
+                        val pct = (sent * 100 / size).toInt()
+                        if (pct != lastPct) {
+                            lastPct = pct
+                            progress("Uploading to Gemini… $pct% of ${size / 1_000_000} MB")
+                        }
+                    }
+                }
+            }
+        }
+        val upload = Request.Builder().url(uploadUrl)
+            .header("X-Goog-Upload-Offset", "0")
+            .header("X-Goog-Upload-Command", "upload, finalize")
+            .post(body)
+            .build()
+        var file = client.newCall(upload).execute().use { r ->
+            val text = r.body?.string().orEmpty()
+            if (!r.isSuccessful) throw GeminiException("Gemini upload failed (${r.code}): ${text.take(200)}")
+            JSONObject(text).getJSONObject("file")
+        }
+        // Audio and video are processed before they can be used.
+        var waited = 0
+        while (file.optString("state") == "PROCESSING") {
+            if (waited > 600) throw GeminiException("Gemini took too long to process the file. Try again later.")
+            progress("Gemini is processing the file…")
+            Thread.sleep(5000)
+            waited += 5
+            val get = Request.Builder().url("$API/${file.getString("name")}").header("x-goog-api-key", key).build()
+            file = client.newCall(get).execute().use { r ->
+                val text = r.body?.string().orEmpty()
+                if (!r.isSuccessful) throw GeminiException("Gemini error ${r.code}: ${text.take(200)}")
+                JSONObject(text)
+            }
+        }
+        if (file.optString("state") == "FAILED") throw GeminiException("Gemini couldn't process that file.")
+        return file.getString("uri")
     }
 
     private fun answer(text: String): String {

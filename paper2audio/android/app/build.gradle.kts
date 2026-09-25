@@ -13,8 +13,8 @@ android {
         targetSdk = 34
         // Samsung Galaxy and nearly all current phones are 64-bit ARM; this keeps the APK small.
         ndk { abiFilters += "arm64-v8a" }
-        versionCode = 13
-        versionName = "2.2"
+        versionCode = 14
+        versionName = "3.0"
     }
 
     // Sign with your own key when P2A_KEYSTORE is set (see README), so new
@@ -69,5 +69,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     // On-device text recognition for photos, camera scans and scanned PDFs (works offline).
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // On-device language detection, to pick voices that speak the document's language.
+    implementation("com.google.mlkit:language-id:17.0.6")
     implementation("androidx.core:core:1.13.1")
 }

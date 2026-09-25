@@ -42,6 +42,8 @@ class LibraryActivity : Activity() {
         const val REQ_OPEN = 1
         const val REQ_IMAGES = 2
         const val REQ_CAMERA = 3
+        const val REQ_MEDIA = 4
+        const val REQ_DICTATE = 5
         val SORTS = arrayOf("Recently opened", "Recently added", "Title", "Author", "Progress")
     }
 
@@ -55,6 +57,8 @@ class LibraryActivity : Activity() {
     private var query = ""
     /** Camera pages captured so far in the current scan. */
     private val scanPages = ArrayList<String>()
+    /** The text box that dictation types into. */
+    private var dictateInto: EditText? = null
 
     private lateinit var list: ListView
     private lateinit var emptyView: TextView
@@ -112,6 +116,7 @@ class LibraryActivity : Activity() {
                 applyFilter()
             }
         })
+        findViewById<ImageButton>(R.id.btnVoiceStudio).setOnClickListener { startActivity(Intent(this, VoiceStudioActivity::class.java)) }
         findViewById<ImageButton>(R.id.btnTheme).setOnClickListener { Themes.showPicker(this) }
         findViewById<ImageButton>(R.id.btnSync).setOnClickListener { showSync() }
         findViewById<ImageButton>(R.id.btnFind).setOnClickListener { startActivity(Intent(this, SearchActivity::class.java)) }
@@ -331,8 +336,11 @@ class LibraryActivity : Activity() {
     }
 
     private fun importUri(uri: Uri) {
-        if (contentResolver.getType(uri)?.startsWith("image/") == true) importImages(listOf(uri)) else {
-            import("Adding to library…") { Loader.importUri(this, uri) }
+        val type = contentResolver.getType(uri).orEmpty()
+        when {
+            type.startsWith("image/") -> importImages(listOf(uri))
+            type.startsWith("audio/") || type.startsWith("video/") -> GeminiKeyDialog.withKey(this) { transcribe(uri) }
+            else -> import("Adding to library…") { Loader.importUri(this, uri) }
         }
     }
 
@@ -380,6 +388,8 @@ class LibraryActivity : Activity() {
             "Document file\nPDF, EPUB, Word, Markdown, text or saved web page",
             "Paste text",
             "Photos or screenshots\nReads the text in the images",
+            "Audio or video \u2192 text\nTranscribes lectures, podcasts, interviews and voice notes (Gemini)",
+            "Dictate\nSpeak, and it's typed for you",
         )
         AlertDialog.Builder(this)
             .setTitle("Add to library")
@@ -388,6 +398,8 @@ class LibraryActivity : Activity() {
                     0 -> openPicker()
                     1 -> askForText()
                     2 -> pickImages()
+                    3 -> GeminiKeyDialog.withKey(this) { pickMedia() }
+                    4 -> askForText(dictate = true)
                 }
             }
             .show()
@@ -464,7 +476,45 @@ class LibraryActivity : Activity() {
         importImages(uris) { scanDir().listFiles()?.forEach { it.delete() } }
     }
 
-    private fun askForText() {
+    private fun pickMedia() {
+        val intent = Intent(Intent.ACTION_GET_CONTENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("*/*")
+            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("audio/*", "video/*"))
+        @Suppress("DEPRECATION")
+        startActivityForResult(Intent.createChooser(intent, "Choose a recording"), REQ_MEDIA)
+    }
+
+    /** Transcribes a recording with Gemini and adds the text to the library. */
+    private fun transcribe(uri: Uri) {
+        var name = "Recording"
+        runCatching {
+            contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) name = c.getString(0)
+            }
+        }
+        val title = name.substringBeforeLast('.').ifBlank { "Recording" }
+        import("Getting the recording ready…") { progress ->
+            val text = Ai.transcribe(this, uri, name, progress)
+            if (text.isBlank()) error("No speech was found in that recording.")
+            Loader.storeText(this, "$title (transcript)", text)
+        }
+    }
+
+    private fun dictate(into: EditText) {
+        dictateInto = into
+        val intent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak now")
+        try {
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, REQ_DICTATE)
+        } catch (e: android.content.ActivityNotFoundException) {
+            toast("This phone has no speech recognition. Install or enable Google voice typing.")
+        }
+    }
+
+    private fun askForText(dictate: Boolean = false) {
         val d = resources.displayMetrics.density
         val clip = (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
             ?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString().orEmpty()
@@ -481,12 +531,21 @@ class LibraryActivity : Activity() {
             gravity = Gravity.TOP or Gravity.START
             if (clip.length > 40) setText(clip)
         }
+        if (dictate) body.setText("")
+        val mic = Button(this, null, 0, R.style.P2A_Button_Text).apply {
+            text = "Dictate"
+            setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_mic, 0, 0, 0)
+            compoundDrawableTintList = android.content.res.ColorStateList.valueOf(Themes.color(this@LibraryActivity, R.attr.p2aAccent))
+            setOnClickListener { dictate(body) }
+        }
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding((20 * d).toInt(), (8 * d).toInt(), (20 * d).toInt(), 0)
             addView(title)
             addView(body)
+            addView(mic)
         }
+        if (dictate) dictate(body)
         AlertDialog.Builder(this)
             .setTitle("Paste text")
             .setView(box)
@@ -612,6 +671,18 @@ class LibraryActivity : Activity() {
             importImages(uris)
         }
         if (requestCode == REQ_CAMERA) afterPhoto(resultCode == RESULT_OK)
+        if (requestCode == REQ_MEDIA && resultCode == RESULT_OK) data?.data?.let(::transcribe)
+        if (requestCode == REQ_DICTATE && resultCode == RESULT_OK) {
+            val said = data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            dictateInto?.let { box ->
+                if (!said.isNullOrBlank()) {
+                    val before = box.text.toString().trimEnd()
+                    val sentence = said.replaceFirstChar { it.uppercase() }.let { if (it.last() in ".!?") it else "$it." }
+                    box.setText(if (before.isEmpty()) sentence else "$before $sentence")
+                    box.setSelection(box.text.length)
+                }
+            }
+        }
         if (requestCode == GoogleAuth.REQ_AUTH) {
             val token = if (resultCode == RESULT_OK) GoogleAuth.tokenFromResult(this, data) else null
             if (token != null) DriveSync.enable(this, token) else toast("Google sign-in was cancelled")

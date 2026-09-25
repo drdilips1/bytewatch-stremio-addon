@@ -45,6 +45,12 @@
             android:src="@drawable/ic_info" />
 
         <ImageButton
+            android:id="@+id/btnVoiceStudio"
+            style="@style/P2A.Icon"
+            android:contentDescription="Voice studio"
+            android:src="@drawable/ic_voice" />
+
+        <ImageButton
             android:id="@+id/btnTheme"
             style="@style/P2A.Icon"
             android:contentDescription="Theme"
@@ -202,15 +208,39 @@
                         android:layout_height="wrap_content"
                         android:backgroundTint="?attr/p2aMuted" />
 
-                    <Button
-                        android:id="@+id/btnPreview"
-                        style="@style/P2A.Button.Soft"
-                        android:layout_width="wrap_content"
-                        android:layout_height="40dp"
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:drawableStart="@drawable/ic_play"
-                        android:minHeight="40dp"
-                        android:text="Preview voice" />
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnPreview"
+                            style="@style/P2A.Button.Soft"
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp"
+                            android:layout_marginEnd="8dp"
+                            android:drawableStart="@drawable/ic_play"
+                            android:minHeight="40dp"
+                            android:text="Preview" />
+
+                        <Button
+                            android:id="@+id/btnStudio"
+                            style="@style/P2A.Button.Soft"
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp"
+                            android:drawableStart="@drawable/ic_voice"
+                            android:minHeight="40dp"
+                            android:text="Voice studio" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/langHint"
+                        style="@style/P2A.Muted"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone" />
 
                     <TextView
                         android:id="@+id/speedLabel"
@@ -333,6 +363,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:text="Explain figures and tables" />
+
+                    <Button
+                        android:id="@+id/btnTranslate"
+                        style="@style/P2A.Button.Soft"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Translate and listen…" />
 
                     <CheckBox
                         android:id="@+id/cbVisuals"

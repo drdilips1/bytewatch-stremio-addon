@@ -111,11 +111,11 @@ object EdgeTts {
         }
     }
 
-    /** Returns MP3 audio (24 kHz mono) for [text]. [ratePercent] is -50..+200. */
-    fun synthesize(text: String, voice: String, ratePercent: Int): ByteArray {
+    /** Returns MP3 audio (24 kHz mono) for [text]. [ratePercent] is -50..+200; [pitchHz] shifts the voice. */
+    fun synthesize(text: String, voice: String, ratePercent: Int, pitchHz: Int = 0): ByteArray {
         val out = ByteArrayOutputStream()
         for (piece in TextCleaner.splitLong(text, PIECE_CHARS)) {
-            out.write(synthesizePiece(piece, voice, ratePercent, retryOnAuth = true))
+            out.write(synthesizePiece(piece, voice, ratePercent, pitchHz, retryOnAuth = true))
         }
         return out.toByteArray()
     }
@@ -145,7 +145,7 @@ object EdgeTts {
         return frame.copyOfRange(2 + headerLength, frame.size)
     }
 
-    private fun synthesizePiece(text: String, voice: String, ratePercent: Int, retryOnAuth: Boolean): ByteArray {
+    private fun synthesizePiece(text: String, voice: String, ratePercent: Int, pitchHz: Int, retryOnAuth: Boolean): ByteArray {
         val request = Request.Builder()
             .url(
                 "$socketBase/edge/v1?TrustedClientToken=$TOKEN&ConnectionId=${muid().lowercase(Locale.US)}" +
@@ -176,7 +176,7 @@ object EdgeTts {
                 )
                 val rate = if (ratePercent >= 0) "+$ratePercent%" else "$ratePercent%"
                 val ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
-                    "<voice name='$voice'><prosody pitch='+0Hz' rate='$rate' volume='+0%'>" +
+                    "<voice name='$voice'><prosody pitch='${if (pitchHz >= 0) "+" else ""}${pitchHz}Hz' rate='$rate' volume='+0%'>" +
                     escape(text) + "</prosody></voice></speak>"
                 webSocket.send(
                     "X-RequestId:${muid().lowercase(Locale.US)}\r\n" +
@@ -215,7 +215,7 @@ object EdgeTts {
         val code = failedResponse?.code
         if (code == 403 && retryOnAuth) {
             adjustSkew(failedResponse)
-            return synthesizePiece(text, voice, ratePercent, retryOnAuth = false)
+            return synthesizePiece(text, voice, ratePercent, pitchHz, retryOnAuth = false)
         }
         failure?.let { throw IOException(if (code != null) "Voice service error (HTTP $code)" else it.message, it) }
         val bytes = synchronized(audio) { audio.toByteArray() }

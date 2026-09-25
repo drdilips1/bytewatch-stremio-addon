@@ -21,67 +21,127 @@ import java.util.concurrent.Executors
 import kotlin.math.roundToInt
 
 /**
- * Turns text pieces into audio files for the natural voices (Microsoft and
- * Kokoro) and keeps them in a disk cache, so replaying, resuming and offline
- * listening don't need to render anything again.
+ * How a document is voiced: the main voice, an optional second voice for quoted
+ * dialogue (stories), the document's language (Supertonic) and a pitch shift in Hz
+ * (online voices).
+ */
+data class Voicing(val voiceId: String, val dialogue: String? = null, val lang: String? = null, val pitch: Int = 0) {
+    /** Identifies the audio this voicing produces, for the cache. */
+    val key: String
+        get() = listOf(
+            voiceId,
+            dialogue.orEmpty(),
+            if (voiceId.startsWith(Speaker.SUPER) || dialogue?.startsWith(Speaker.SUPER) == true) lang.orEmpty() else "",
+            if (pitch != 0 && voiceId.startsWith(Speaker.EDGE)) pitch.toString() else "",
+        ).joinToString("|").trimEnd('|')
+}
+
+/**
+ * Turns text pieces into audio files for the natural voices (Microsoft and the
+ * on-device engines) and keeps them in a disk cache, so replaying, resuming and
+ * offline listening don't need to render anything again.
  */
 object Renderer {
     private const val EDGE_MAX_SPEED = 3.0f
-    private const val KOKORO_MAX_SPEED = 2.0f
     private const val CACHE_LIMIT = 2_000_000_000L
 
-    /** Kokoro runs one generation at a time; keep its work on one thread. */
-    val kokoroThread = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    /** The on-device engines run one generation at a time; keep their work on one thread. */
+    val localThread = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
-    fun isStreamed(voiceId: String) = voiceId.startsWith(Speaker.EDGE) || voiceId.startsWith(Speaker.KOKORO)
+    fun isStreamed(voiceId: String) = voiceId.startsWith(Speaker.EDGE) || LocalTts.isLocal(voiceId)
+
+    private fun maxSpeed(voiceId: String) = if (LocalTts.isLocal(voiceId)) LocalTts.maxSpeed(voiceId) else EDGE_MAX_SPEED
 
     /** The speed the voice engine renders at; any extra is applied by the player. */
-    fun engineSpeed(voiceId: String, speed: Float) = when {
-        voiceId.startsWith(Speaker.EDGE) -> minOf(speed, EDGE_MAX_SPEED)
-        voiceId.startsWith(Speaker.KOKORO) -> minOf(speed, KOKORO_MAX_SPEED)
-        else -> speed
+    fun engineSpeed(voiceId: String, speed: Float) = if (isStreamed(voiceId)) minOf(speed, maxSpeed(voiceId)) else speed
+
+    fun engineSpeed(v: Voicing, speed: Float): Float {
+        val max = listOfNotNull(v.voiceId, v.dialogue).filter { isStreamed(it) }.minOfOrNull { maxSpeed(it) } ?: return speed
+        return minOf(speed, max)
     }
 
-    fun playbackBoost(voiceId: String, speed: Float) = speed / engineSpeed(voiceId, speed)
+    fun playbackBoost(v: Voicing, speed: Float) = speed / engineSpeed(v, speed)
 
     /** Playback pieces for one paragraph: a short first piece so every paragraph starts fast. */
     fun pieces(paragraph: String, voiceId: String): List<String> =
-        TextCleaner.pieces(paragraph, if (voiceId.startsWith(Speaker.KOKORO)) 220 else 500, firstTarget = 160)
+        TextCleaner.pieces(paragraph, if (LocalTts.isLocal(voiceId)) 220 else 500, firstTarget = 160)
 
     private fun dir(context: Context) = File(context.filesDir, "audiocache").apply { mkdirs() }
 
-    fun file(context: Context, voiceId: String, speed: Float, text: String): File {
-        val es = (engineSpeed(voiceId, speed) * 100).roundToInt()
-        val digest = MessageDigest.getInstance("SHA-1").digest("$voiceId|$es|$text".toByteArray())
-        val ext = if (voiceId.startsWith(Speaker.KOKORO)) "wav" else "mp3"
+    fun file(context: Context, v: Voicing, speed: Float, text: String): File {
+        val es = (engineSpeed(v, speed) * 100).roundToInt()
+        val digest = MessageDigest.getInstance("SHA-1").digest("${v.key}|$es|$text".toByteArray())
+        val ext = if (LocalTts.isLocal(v.voiceId)) "wav" else "mp3"
         return File(dir(context), digest.joinToString("") { "%02x".format(it) } + "." + ext)
     }
 
-    fun isCached(context: Context, voiceId: String, speed: Float, text: String) =
-        file(context, voiceId, speed, text).length() > 0
+    fun isCached(context: Context, v: Voicing, speed: Float, text: String) = file(context, v, speed, text).length() > 0
 
     /** Returns the audio for [text], rendering it if it isn't cached yet. */
-    suspend fun render(context: Context, voiceId: String, speed: Float, text: String): File {
-        val target = file(context, voiceId, speed, text)
+    suspend fun render(context: Context, v: Voicing, speed: Float, text: String): File {
+        val target = file(context, v, speed, text)
         if (target.length() > 0) {
             target.setLastModified(System.currentTimeMillis())
             return target
         }
+        val segments = v.dialogue?.let { Stories.split(text) }
+        if (segments != null && segments.size > 1) {
+            // Narration and dialogue in their own voices, joined into one file.
+            val parts = segments.map { (quoted, part) ->
+                render(context, v.copy(voiceId = if (quoted) v.dialogue else v.voiceId, dialogue = null), engineSpeed(v, speed), part)
+            }
+            withContext(Dispatchers.IO) { join(parts, target, local = LocalTts.isLocal(v.voiceId)) }
+            return target
+        }
+        val voice = if (segments?.singleOrNull()?.first == true) v.dialogue!! else v.voiceId
         val tmp = File(target.path + ".part" + System.nanoTime())
         try {
-            val es = engineSpeed(voiceId, speed)
-            if (voiceId.startsWith(Speaker.KOKORO)) {
-                val voice = Kokoro.voice(voiceId.removePrefix(Speaker.KOKORO)) ?: error("Unknown Kokoro voice")
-                withContext(kokoroThread) { Kokoro.writeWav(tmp, Kokoro.synthesize(text, voice, es)) }
+            val es = engineSpeed(v, speed)
+            if (LocalTts.isLocal(voice)) {
+                withContext(localThread) { LocalTts.writeWav(tmp, LocalTts.synthesize(voice, text, es, v.lang)) }
             } else {
                 val rate = ((es - 1f) * 100).roundToInt().coerceIn(-50, 200)
-                withContext(Dispatchers.IO) { tmp.writeBytes(EdgeTts.synthesize(text, voiceId.removePrefix(Speaker.EDGE), rate)) }
+                withContext(Dispatchers.IO) { tmp.writeBytes(EdgeTts.synthesize(text, voice.removePrefix(Speaker.EDGE), rate, v.pitch)) }
             }
             if (!tmp.renameTo(target)) error("Couldn't save audio")
         } finally {
             tmp.delete()
         }
         return target
+    }
+
+    /** Joins MP3 pieces (frames simply follow each other) or WAV pieces (same format). */
+    private fun join(parts: List<File>, target: File, local: Boolean) {
+        val tmp = File(target.path + ".part" + System.nanoTime())
+        try {
+            if (!local) {
+                tmp.outputStream().use { out -> parts.forEach { f -> f.inputStream().use { it.copyTo(out) } } }
+            } else {
+                val pcms = parts.map { LocalTts.readWav(it) }
+                val rate = pcms.first().sampleRate
+                val bytes = java.io.ByteArrayOutputStream()
+                for (p in pcms) {
+                    if (p.sampleRate == rate) bytes.write(p.bytes) else bytes.write(resample16(p, rate))
+                }
+                LocalTts.writeWav(tmp, LocalTts.Pcm(bytes.toByteArray(), rate))
+            }
+            if (!tmp.renameTo(target)) error("Couldn't save audio")
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    private fun resample16(p: LocalTts.Pcm, rate: Int): ByteArray {
+        val sb = java.nio.ByteBuffer.wrap(p.bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        val floats = FloatArray(sb.remaining()) { sb.get(it) / 32768f }
+        val out = MyVoices.resample(floats, p.sampleRate, rate)
+        val bytes = ByteArray(out.size * 2)
+        out.forEachIndexed { i, f ->
+            val s = (f.coerceIn(-1f, 1f) * 32767f).toInt()
+            bytes[2 * i] = (s and 0xff).toByte()
+            bytes[2 * i + 1] = ((s shr 8) and 0xff).toByte()
+        }
+        return bytes
     }
 
     /** Keeps the cache under its size limit by removing the least recently used audio. */
@@ -100,6 +160,55 @@ object Renderer {
 
     fun clearCache(context: Context) {
         dir(context).listFiles()?.forEach { it.delete() }
+    }
+}
+
+/**
+ * Two-voice stories: splits text into narration and quoted dialogue, using the
+ * curly quotes [TextCleaner.smartQuotes] puts into every document.
+ */
+object Stories {
+    private const val OPEN = '\u201C'
+    private const val CLOSE = '\u201D'
+
+    /** (isDialogue, text) segments in order; null when there's no dialogue at all. */
+    fun split(text: String): List<Pair<Boolean, String>>? {
+        if (OPEN !in text && CLOSE !in text) return null
+        val out = ArrayList<Pair<Boolean, String>>()
+        // A piece can start in the middle of a quotation: then its first quote mark closes.
+        val firstOpen = text.indexOf(OPEN).let { if (it < 0) Int.MAX_VALUE else it }
+        val firstClose = text.indexOf(CLOSE).let { if (it < 0) Int.MAX_VALUE else it }
+        var inQuote = firstClose < firstOpen
+        val sb = StringBuilder()
+        fun flush() {
+            val t = sb.toString().trim()
+            sb.setLength(0)
+            if (t.isEmpty()) return
+            if (t.none { it.isLetterOrDigit() } && out.isNotEmpty()) {
+                // Lone punctuation (", she said." leftovers) stays with the previous part.
+                out[out.lastIndex] = out.last().first to out.last().second + t
+                return
+            }
+            if (out.isNotEmpty() && out.last().first == inQuote) out[out.lastIndex] = inQuote to out.last().second + " " + t
+            else out += inQuote to t
+        }
+        for (c in text) {
+            when (c) {
+                OPEN -> {
+                    flush()
+                    inQuote = true
+                    sb.append(c)
+                }
+                CLOSE -> {
+                    sb.append(c)
+                    flush()
+                    inQuote = false
+                }
+                else -> sb.append(c)
+            }
+        }
+        flush()
+        return out
     }
 }
 
@@ -134,15 +243,16 @@ object OfflineDownloader {
 
     private fun allPieces(doc: Doc, voiceId: String) = doc.paragraphs.flatMap { Renderer.pieces(it, voiceId) }
 
-    /** Fraction (0..100) of [doc] already available offline with this voice and speed. */
-    fun percentCached(context: Context, doc: Doc, voiceId: String, speed: Float): Int {
-        if (!Renderer.isStreamed(voiceId)) return 0
-        val pieces = allPieces(doc, voiceId)
+    /** Fraction (0..100) of [doc] already available offline with this voicing and speed. */
+    fun percentCached(context: Context, doc: Doc, v: Voicing, speed: Float): Int {
+        if (!Renderer.isStreamed(v.voiceId)) return 0
+        val pieces = allPieces(doc, v.voiceId)
         if (pieces.isEmpty()) return 0
-        return pieces.count { Renderer.isCached(context, voiceId, speed, it) } * 100 / pieces.size
+        return pieces.count { Renderer.isCached(context, v, speed, it) } * 100 / pieces.size
     }
 
-    fun start(context: Context, doc: Doc, voiceId: String, speed: Float) {
+    fun start(context: Context, doc: Doc, v: Voicing, speed: Float) {
+        val voiceId = v.voiceId
         if (running || !Renderer.isStreamed(voiceId)) return
         val app = context.applicationContext
         running = true
@@ -154,7 +264,7 @@ object OfflineDownloader {
         job = scope.launch {
             try {
                 val pieces = allPieces(doc, voiceId)
-                val parallel = if (voiceId.startsWith(Speaker.KOKORO)) 1 else 6
+                val parallel = if (LocalTts.isLocal(voiceId)) 1 else 6
                 var done = 0
                 val started = System.currentTimeMillis()
                 coroutineScope {
@@ -163,7 +273,7 @@ object OfflineDownloader {
                     while (done < pieces.size) {
                         while (inFlight.size < parallel && next < pieces.size) {
                             val text = pieces[next++]
-                            inFlight.addLast(async { retrying { Renderer.render(app, voiceId, speed, text) } })
+                            inFlight.addLast(async { retrying { Renderer.render(app, v, speed, text) } })
                         }
                         inFlight.removeFirst().await()
                         done++

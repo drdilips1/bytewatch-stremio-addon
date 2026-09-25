@@ -119,6 +119,7 @@ class PlayerActivity : Activity() {
     private lateinit var btnVisuals: Button
     private lateinit var btnChapterSummary: Button
     private lateinit var cbVisuals: CheckBox
+    private lateinit var langHint: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Themes.apply(this)
@@ -202,6 +203,7 @@ class PlayerActivity : Activity() {
 
     private fun setupControls() {
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
+        findViewById<ImageButton>(R.id.btnVoiceStudio).setOnClickListener { startActivity(Intent(this, VoiceStudioActivity::class.java)) }
         findViewById<ImageButton>(R.id.btnTheme).setOnClickListener { Themes.showPicker(this) }
         findViewById<ImageButton>(R.id.btnDetails).setOnClickListener { showDetailsMenu() }
         findViewById<ImageButton>(R.id.btnNotes).setOnClickListener { showNotes() }
@@ -272,6 +274,7 @@ class PlayerActivity : Activity() {
         }
 
         findViewById<Button>(R.id.btnPreview).setOnClickListener { Speaker.preview() }
+        findViewById<Button>(R.id.btnStudio).setOnClickListener { startActivity(Intent(this, VoiceStudioActivity::class.java)) }
         findViewById<Button>(R.id.btnMoreVoices).setOnClickListener {
             try {
                 startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
@@ -281,18 +284,20 @@ class PlayerActivity : Activity() {
         }
 
         btnDeleteKokoro.setOnClickListener {
+            val pack = LocalTts.packFor(Speaker.voiceId) ?: return@setOnClickListener
             AlertDialog.Builder(this)
-                .setTitle("Delete Kokoro voices?")
-                .setMessage("This frees about 350 MB. You can download them again later.")
+                .setTitle("Delete the ${pack.title}?")
+                .setMessage("This frees about ${pack.sizeMb} MB. You can download it again later.")
                 .setPositiveButton("Delete") { _, _ ->
-                    if (Speaker.isKokoro) Speaker.setVoice(Speaker.DEFAULT_VOICE)
-                    Kokoro.uninstall { Speaker.refreshVoices() }
+                    Speaker.setVoice(Speaker.DEFAULT_VOICE)
+                    pack.uninstall { Speaker.refreshVoices() }
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
         }
         btnKokoro.setOnClickListener {
-            if (Kokoro.installing) Kokoro.cancelInstall() else promptKokoroDownload()
+            val active = ModelPack.active
+            if (active != null) active.cancelInstall() else LocalTts.missing(Speaker.voiceId)?.let(::promptDownload)
         }
 
         setupAi()
@@ -305,7 +310,7 @@ class PlayerActivity : Activity() {
                     toast("Phone voices already work offline. Offline download is for ★ and ◆ voices.")
                 else -> {
                     askNotificationPermission()
-                    OfflineDownloader.start(this, doc, Speaker.voiceId, Speaker.speed)
+                    OfflineDownloader.start(this, doc, Speaker.voicing(doc), Speaker.speed)
                 }
             }
         }
@@ -333,7 +338,17 @@ class PlayerActivity : Activity() {
                 Exporter.cancel()
             } else {
                 askNotificationPermission()
-                Exporter.start(this, doc, Speaker.voiceId, Speaker.speed)
+                if (doc.chapters.size > 1) {
+                    AlertDialog.Builder(this)
+                        .setTitle("Save as audio")
+                        .setItems(arrayOf(
+                            "One file",
+                            "Audiobook: one file per chapter (${doc.chapters.size} files in a folder, with cover and track numbers)",
+                        )) { _, which -> Exporter.start(this, doc, Speaker.voicing(doc), Speaker.speed, perChapter = which == 1) }
+                        .show()
+                } else {
+                    Exporter.start(this, doc, Speaker.voicing(doc), Speaker.speed)
+                }
             }
         }
         btnOpenAudio.setOnClickListener {
@@ -561,25 +576,24 @@ class PlayerActivity : Activity() {
                 Speaker.setVoice(option.id)
                 offlineFor = null
                 refreshOfflineStatus()
-                if (option.id.startsWith(Speaker.KOKORO) && !Kokoro.isInstalled() && !Kokoro.installing) {
-                    promptKokoroDownload()
-                }
+                val pack = LocalTts.missing(option.id)
+                if (pack != null && !pack.installing) promptDownload(pack)
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
     }
 
-    private fun promptKokoroDownload() {
+    private fun promptDownload(pack: ModelPack) {
         AlertDialog.Builder(this)
-            .setTitle("Download Kokoro voices?")
+            .setTitle("Download the ${pack.title}?")
             .setMessage(
-                "Kokoro voices work offline, with no limits. They need a one-time download " +
-                    "of about 300–350 MB, so Wi-Fi is best. You can keep using the app while it downloads."
+                "These voices run on your phone: they work offline, with no limits. They need a one-time download " +
+                    "of about ${pack.sizeMb} MB, so Wi-Fi is best. You can keep using the app while it downloads."
             )
             .setPositiveButton("Download") { _, _ ->
                 askNotificationPermission()
-                Kokoro.install { Speaker.refreshVoices() }
+                pack.install { Speaker.refreshVoices() }
             }
             .setNegativeButton("Not now", null)
             .show()
@@ -589,13 +603,13 @@ class PlayerActivity : Activity() {
 
     private fun refreshOfflineStatus() {
         val doc = Speaker.doc ?: return
-        val key = "${doc.key}|${Speaker.voiceId}|${Speaker.speed}"
+        val v = Speaker.voicing(doc)
+        val key = "${doc.key}|${v.key}|${Speaker.speed}"
         if (offlineFor == key && !OfflineDownloader.running) return
         offlineFor = key
-        val vid = Speaker.voiceId
         val sp = Speaker.speed
         scope.launch {
-            offlinePercent = withContext(Dispatchers.IO) { OfflineDownloader.percentCached(this@PlayerActivity, doc, vid, sp) }
+            offlinePercent = withContext(Dispatchers.IO) { OfflineDownloader.percentCached(this@PlayerActivity, doc, v, sp) }
             render()
         }
     }
@@ -843,17 +857,27 @@ class PlayerActivity : Activity() {
         btnOpenAudio.visibility =
             if (Exporter.resultUri != null && !Exporter.running && Build.VERSION.SDK_INT >= 29) View.VISIBLE else View.GONE
 
-        // Voices and Kokoro
+        // Voices and on-device voice downloads
         if (Speaker.voicesVersion != voicesShown) setupVoices()
-        val needsKokoro = Speaker.isKokoro && !Kokoro.isInstalled()
-        btnKokoro.visibility = if (needsKokoro || Kokoro.installing) View.VISIBLE else View.GONE
-        btnDeleteKokoro.visibility = if (Kokoro.isInstalled() && !Kokoro.installing) View.VISIBLE else View.GONE
-        btnKokoro.text = if (Kokoro.installing) "Cancel download" else "Download Kokoro voices (~350 MB)"
-        kokoroProgress.visibility = if (Kokoro.installing) View.VISIBLE else View.GONE
-        kokoroProgress.progress = Kokoro.progress
-        val kokoroMessage = Kokoro.message
-        kokoroStatus.visibility = if (kokoroMessage != null && (needsKokoro || Kokoro.installing)) View.VISIBLE else View.GONE
-        kokoroStatus.text = kokoroMessage ?: ""
+        val lang = doc?.lang
+        val suggestion = lang?.takeIf { !Speaker.voiceFits(it) }?.let { Speaker.suggestVoice(it) }
+        langHint.visibility = if (suggestion != null) View.VISIBLE else View.GONE
+        if (suggestion != null) {
+            val name = Speaker.voiceOptions().firstOrNull { it.id == suggestion }?.label?.substringBefore(" (")?.trimStart('★', '•', '◆', ' ')
+            langHint.text = "This document is in ${Langs.name(lang!!)}, which this voice doesn't speak. Tap to switch to $name."
+        }
+        val active = ModelPack.active
+        val needed = LocalTts.missing(Speaker.voiceId)
+        val shown = active ?: needed ?: LocalTts.packFor(Speaker.voiceId)
+        btnKokoro.visibility = if (needed != null || active != null) View.VISIBLE else View.GONE
+        btnKokoro.text = if (active != null) "Cancel download" else "Download ${needed?.title} (~${needed?.sizeMb} MB)"
+        btnDeleteKokoro.visibility = if (active == null && needed == null && shown != null) View.VISIBLE else View.GONE
+        btnDeleteKokoro.text = "Delete ${shown?.title ?: "voices"}"
+        kokoroProgress.visibility = if (active != null) View.VISIBLE else View.GONE
+        kokoroProgress.progress = active?.progress ?: 0
+        val packMessage = shown?.message
+        kokoroStatus.visibility = if (packMessage != null && (needed != null || active != null)) View.VISIBLE else View.GONE
+        kokoroStatus.text = packMessage ?: ""
 
         Speaker.lastError?.let {
             Speaker.lastError = null
@@ -888,6 +912,15 @@ class PlayerActivity : Activity() {
         findViewById<Button>(R.id.btnLongSummary).setOnClickListener { summarize(long = true, chapter = false) }
         btnChapterSummary.setOnClickListener { summarize(long = false, chapter = true) }
         btnVisuals.setOnClickListener { explainVisuals() }
+        findViewById<Button>(R.id.btnTranslate).setOnClickListener { chooseTranslation() }
+        langHint = findViewById(R.id.langHint)
+        langHint.setOnClickListener {
+            val lang = Speaker.doc?.lang ?: return@setOnClickListener
+            Speaker.suggestVoice(lang)?.let { id ->
+                Speaker.setVoice(id)
+                LocalTts.missing(id)?.let(::promptDownload)
+            }
+        }
         findViewById<Button>(R.id.btnGeminiKey).setOnClickListener { askGeminiKey(null) }
     }
 
@@ -916,49 +949,7 @@ class PlayerActivity : Activity() {
         if (Gemini.key(this) != null) then() else askGeminiKey(then)
     }
 
-    private fun askGeminiKey(then: (() -> Unit)?) {
-        val d = resources.displayMetrics.density
-        val input = EditText(this).apply {
-            hint = "Paste your Gemini API key"
-            isSingleLine = true
-            setText(Gemini.key(this@PlayerActivity) ?: "")
-        }
-        val box = FrameLayout(this).apply {
-            setPadding((20 * d).toInt(), (8 * d).toInt(), (20 * d).toInt(), 0)
-            addView(input)
-        }
-        val builder = AlertDialog.Builder(this)
-            .setTitle("Free Gemini key")
-            .setMessage(
-                "1. Tap \"Get a key\" and sign in with your Google account.\n" +
-                    "2. Tap \"Create API key\", copy it, and paste it here.\n\n" +
-                    "It's free, with no card needed. The free tier has a daily limit; when it's used up, AI " +
-                    "features pause until the next day. Nothing is ever charged.\n\n" +
-                    "On the free tier, Google may use what you send (the document's text and images) to improve its products. " +
-                    "The key stays on this phone."
-            )
-            .setView(box)
-            .setPositiveButton("Save") { _, _ ->
-                Gemini.setKey(this, input.text.toString())
-                refreshAi()
-                if (Gemini.key(this) != null) then?.invoke()
-            }
-            .setNeutralButton("Get a key") { _, _ ->
-                try {
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Gemini.KEY_PAGE)))
-                } catch (e: ActivityNotFoundException) {
-                    toast("Open ${Gemini.KEY_PAGE} in your browser")
-                }
-            }
-            .setNegativeButton("Cancel", null)
-        if (Gemini.key(this) != null) {
-            builder.setNegativeButton("Remove key") { _, _ ->
-                Gemini.setKey(this, null)
-                refreshAi()
-            }
-        }
-        builder.show()
-    }
+    private fun askGeminiKey(then: (() -> Unit)?) = GeminiKeyDialog.show(this, onChange = { refreshAi() }, then = then)
 
     private fun runAi(label: String, work: suspend ((String) -> Unit) -> Unit) {
         if (aiBusy != null) {
@@ -1010,6 +1001,46 @@ class PlayerActivity : Activity() {
         runAi("Explaining paragraph ${position + 1}…") {
             val text = withContext(Dispatchers.IO) { Ai.explain(this@PlayerActivity, doc, position) }
             showAiText("Paragraph ${position + 1}, explained", text, null)
+        }
+    }
+
+    private fun chooseTranslation() {
+        val doc = Speaker.doc ?: return
+        val names = Ai.TRANSLATE_TO.map { it.second }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Translate into")
+            .setItems(names) { _, which ->
+                val (code, name) = Ai.TRANSLATE_TO[which]
+                translate(doc, code, name)
+            }
+            .show()
+    }
+
+    private fun translate(doc: Doc, code: String, language: String) {
+        val from = Library.get(this, doc.key)
+        runAi("Translating into $language…") { progress ->
+            val text = withContext(Dispatchers.IO) { Ai.translate(this@PlayerActivity, doc, language, progress) }
+            val (item, newDoc) = withContext(Dispatchers.IO) {
+                Opener.import(this@PlayerActivity, { Loader.storeText(this@PlayerActivity, "${doc.title} ($language)", text, "md") }).also { (item, _) ->
+                    from?.collection?.let { Library.setCollection(this@PlayerActivity, item, it) }
+                    from?.let { runCatching { Library.thumb(this@PlayerActivity, it.id).copyTo(Library.thumb(this@PlayerActivity, item.id), overwrite = true) } }
+                }
+            }
+            newDoc.lang = code
+            withContext(Dispatchers.IO) { Library.opened(this@PlayerActivity, item, newDoc) }
+            Speaker.load(newDoc)
+            coverFor = null
+            DriveSync.request(this@PlayerActivity)
+            val voice = if (Speaker.voiceFits(code)) null else Speaker.suggestVoice(code)
+            if (voice != null) {
+                Speaker.setVoice(voice)
+                val label = Speaker.voiceOptions().firstOrNull { it.id == voice }?.label ?: voice
+                toast("Translated and added to your library. Voice: $label")
+                LocalTts.missing(voice)?.let(::promptDownload)
+            } else {
+                toast("Translated and added to your library")
+            }
+            if (LocalTts.missing(Speaker.voiceId) == null) Speaker.play()
         }
     }
 
@@ -1086,7 +1117,7 @@ class PlayerActivity : Activity() {
         super.onStart()
         Speaker.addListener(refresh)
         Exporter.addListener(refresh)
-        Kokoro.addListener(refresh)
+        ModelPack.addListener(refresh)
         OfflineDownloader.addListener(refresh)
         if (Speaker.sleepAt > 0) main.postDelayed(tick, 30_000)
         render()
@@ -1101,7 +1132,7 @@ class PlayerActivity : Activity() {
         DriveSync.request(this) // share the listening position with other devices
         Speaker.removeListener(refresh)
         Exporter.removeListener(refresh)
-        Kokoro.removeListener(refresh)
+        ModelPack.removeListener(refresh)
         OfflineDownloader.removeListener(refresh)
         main.removeCallbacks(tick)
         super.onStop()

@@ -3,3 +3,6 @@ __pycache__/
 .venv/
 *.mp3
 *.wav
+
+# Seed clips for the built-in voices ship with the app.
+!android/app/src/main/assets/voices/*.mp3

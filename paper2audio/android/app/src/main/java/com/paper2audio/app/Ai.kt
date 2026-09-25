@@ -100,6 +100,104 @@ object Ai {
         }
     }
 
+    // ---- Transcription (audio and video) ----
+
+    /**
+     * Turns a recording (lecture, podcast, interview, voice memo, video) into text:
+     * paragraphs, with speaker names or "Speaker 1:" when several people talk.
+     */
+    fun transcribe(context: Context, uri: android.net.Uri, name: String, progress: (String) -> Unit): String {
+        val cr = context.contentResolver
+        val mime = cr.getType(uri)?.takeIf { it.startsWith("audio/") || it.startsWith("video/") } ?: guessMime(name)
+        val size = cr.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1L
+        val prompt = "Transcribe this recording completely and accurately, in its original language. " +
+            "Write clean paragraphs: remove filler words (um, uh) and false starts, fix obvious slips, but keep the meaning and wording. " +
+            "If more than one person speaks, begin each change of speaker with their name if it is said, otherwise \"Speaker 1:\", " +
+            "\"Speaker 2:\" and so on. Mark long music or silence briefly in brackets. No timestamps, no markdown, no commentary."
+        return if (size in 1..18_000_000L) {
+            progress("Gemini is transcribing…")
+            val bytes = cr.openInputStream(uri)?.use { it.readBytes() } ?: error("Couldn't read that file")
+            Gemini.generate(context, prompt, attachment = mime to bytes)
+        } else {
+            val fileUri = Gemini.upload(context, uri, mime, name, progress)
+            progress("Gemini is transcribing… (long recordings take a few minutes)")
+            Gemini.generate(context, prompt, uploaded = mime to fileUri)
+        }
+    }
+
+    private fun guessMime(name: String) = when (name.substringAfterLast('.').lowercase()) {
+        "mp3" -> "audio/mpeg"
+        "m4a", "aac" -> "audio/aac"
+        "wav" -> "audio/wav"
+        "ogg", "opus" -> "audio/ogg"
+        "flac" -> "audio/flac"
+        "mp4", "m4v" -> "video/mp4"
+        "webm" -> "video/webm"
+        "mov" -> "video/quicktime"
+        "3gp" -> "video/3gpp"
+        else -> "audio/mpeg"
+    }
+
+    // ---- Translation ----
+
+    /** Languages offered for translation (ISO code to English name). */
+    val TRANSLATE_TO = listOf(
+        "hi" to "Hindi", "en" to "English", "bn" to "Bengali", "mr" to "Marathi", "ta" to "Tamil", "te" to "Telugu",
+        "gu" to "Gujarati", "kn" to "Kannada", "ml" to "Malayalam", "pa" to "Punjabi", "ur" to "Urdu",
+        "es" to "Spanish", "fr" to "French", "de" to "German", "it" to "Italian", "pt" to "Portuguese",
+        "ru" to "Russian", "ar" to "Arabic", "zh" to "Chinese", "ja" to "Japanese", "ko" to "Korean",
+        "tr" to "Turkish", "nl" to "Dutch", "pl" to "Polish", "id" to "Indonesian", "vi" to "Vietnamese",
+    )
+
+    /**
+     * Translates the whole document into [language], keeping chapters (as Markdown
+     * "#" headings so they become chapters again). Long documents go in parts.
+     */
+    fun translate(context: Context, doc: Doc, language: String, progress: (String) -> Unit): String {
+        val file = cacheFile(context, "translate", language, doc.title, doc.words.toString(), doc.paragraphs.hashCode().toString())
+        return cached(file) {
+            // Chapters, each as its paragraphs; a document without chapters is one part.
+            val starts = doc.chapters.map { it.start }.filter { it > 0 }.let { listOf(0) + it } + doc.paragraphs.size
+            val sections = starts.zipWithNext().map { (a, b) -> doc.paragraphs.subList(a, b) }.filter { it.isNotEmpty() }
+            val chunks = ArrayList<String>()
+            val sb = StringBuilder()
+            for ((i, sec) in sections.withIndex()) {
+                val heading = doc.chapters.firstOrNull { it.start == starts[i] }?.title
+                val text = (listOfNotNull(heading?.let { "# $it" }) + sec.drop(if (heading != null && sec.first() == heading) 1 else 0))
+                    .joinToString("\n\n")
+                if (sb.length + text.length > 24_000 && sb.isNotEmpty()) {
+                    chunks += sb.toString()
+                    sb.clear()
+                }
+                if (text.length > 24_000) {
+                    // One very long chapter: split it by paragraphs.
+                    var part = StringBuilder()
+                    for (para in text.split("\n\n")) {
+                        if (part.length + para.length > 24_000 && part.isNotEmpty()) {
+                            chunks += part.toString()
+                            part = StringBuilder()
+                        }
+                        part.append(para).append("\n\n")
+                    }
+                    if (part.isNotEmpty()) chunks += part.toString()
+                } else {
+                    sb.append(text).append("\n\n")
+                }
+            }
+            if (sb.isNotEmpty()) chunks += sb.toString()
+            val title = Gemini.generate(context, "Translate this title into $language. Reply with the translation only:\n\n${doc.title}").lines().first().trim()
+            val body = chunks.mapIndexed { i, c ->
+                progress(if (chunks.size > 1) "Translating part ${i + 1} of ${chunks.size}…" else "Translating…")
+                Gemini.generate(
+                    context,
+                    "Translate the following text into natural, fluent $language that reads well aloud. Keep every paragraph " +
+                        "and keep lines starting with # as headings (translate their text). Output only the translation.\n\n$c",
+                )
+            }
+            "# $title\n\n" + body.joinToString("\n\n")
+        }
+    }
+
     // ---- Figures, tables and equations (PDF) ----
 
     class Visual(val label: String, val kind: String, val explanation: String)

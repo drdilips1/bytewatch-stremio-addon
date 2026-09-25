@@ -191,6 +191,24 @@ object TextCleaner {
         return out.flatMap { if (it.length > hardMax) splitLong(it, hardMax) else listOf(it) }
     }
 
+    /**
+     * Straight double quotes become curly ones (“…”), so dialogue can be told apart
+     * from narration even when a sentence is read in pieces.
+     */
+    fun smartQuotes(p: String): String {
+        if ('"' !in p) return p
+        val sb = StringBuilder(p.length)
+        for ((i, c) in p.withIndex()) {
+            if (c != '"') {
+                sb.append(c)
+                continue
+            }
+            val prev = if (i == 0) ' ' else p[i - 1]
+            sb.append(if (prev.isWhitespace() || prev in "([{\u2014\u2013-/") '\u201C' else '\u201D')
+        }
+        return sb.toString()
+    }
+
     /** Splits paragraphs longer than the TTS engine accepts, at sentence boundaries. */
     fun splitLong(p: String, limit: Int = 3000): List<String> {
         if (p.length <= limit) return listOf(p)

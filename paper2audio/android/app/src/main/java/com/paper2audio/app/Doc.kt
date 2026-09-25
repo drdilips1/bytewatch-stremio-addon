@@ -16,6 +16,10 @@ class Doc(
 ) {
     val words: Int = paragraphs.sumOf { p -> p.count { it == ' ' } + 1 }
 
+    /** The detected language (ISO 639-1, e.g. "en", "hi"); see [Langs]. */
+    @Volatile
+    var lang: String? = null
+
     fun chapterAt(index: Int): Chapter? = chapters.lastOrNull { it.start <= index }
 
     companion object {
@@ -32,7 +36,7 @@ class Doc(
             for ((name, paras) in sections) {
                 if (paras.isEmpty()) continue
                 if (name != null) chapters += Chapter(name, paragraphs.size)
-                paras.forEach { paragraphs += TextCleaner.splitLong(it) }
+                paras.forEach { paragraphs += TextCleaner.splitLong(TextCleaner.smartQuotes(it)) }
             }
             return Doc(title, paragraphs, chapters, key, author?.trim()?.ifBlank { null }, cover, pages)
         }

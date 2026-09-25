@@ -48,6 +48,12 @@
             android:src="@drawable/ic_sync" />
 
         <ImageButton
+            android:id="@+id/btnVoiceStudio"
+            style="@style/P2A.Icon"
+            android:contentDescription="Voice studio"
+            android:src="@drawable/ic_voice" />
+
+        <ImageButton
             android:id="@+id/btnTheme"
             style="@style/P2A.Icon"
             android:contentDescription="Theme"
