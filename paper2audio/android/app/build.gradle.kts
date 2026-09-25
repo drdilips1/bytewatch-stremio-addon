@@ -54,7 +54,13 @@ android {
             excludes += setOf(
                 "META-INF/versions/**", "META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA",
                 "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/DEPENDENCIES",
+                // Post-quantum crypto tables from BouncyCastle; PDF reading never uses them.
+                "org/bouncycastle/pqc/**",
             )
+        }
+        // Compressed native libraries: a much smaller download (unpacked once at install).
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 }
