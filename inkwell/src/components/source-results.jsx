@@ -22,6 +22,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const [groups, setGroups] = useState({});
   const [pending, setPending] = useState(false);
   const [account, setAccount] = useState(new Map());
+  const [showDead, setShowDead] = useState(false);
   const refreshAccount = () => cloud.accountStatus().then(setAccount).catch(() => {});
   const count = sourceAddons().length;
   const provider = cloud.preferredProvider(st.debridPreferred);
@@ -47,6 +48,12 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   if (!count) return null;
   const entries = Object.entries(groups);
   const total = entries.reduce((a, [, g]) => a + g.results.length, 0);
+  // Results nobody is seeding can't be downloaded unless the service already has them.
+  const all = entries.flatMap(([, g]) => g.results);
+  const alive = (r) => r.seeders > 0 || !(r.magnet || r.hash) || r.cache?.any || account.has(r.hash);
+  const visible = showDead ? all : all.filter(alive);
+  const hiddenDead = all.length - all.filter(alive).length;
+  const shownGroups = groupResults(visible);
 
   return (
     <section class="source-results">
@@ -74,10 +81,19 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
       )}
       {!pending && !total && entries.length > 0 && <p class="muted pad-s">No source results.</p>}
       <div class="src-list">
-        {entries.flatMap(([, g]) => g.results).map((r) => (
-          <SourceRow key={r.key} r={r} provider={provider} book={book} inAccount={account.get(r.hash)} onChanged={refreshAccount} />
-        ))}
+        {shownGroups.map((g) =>
+          g.items.length === 1 ? (
+            <SourceRow key={g.items[0].key} r={g.items[0]} provider={provider} book={book} inAccount={account.get(g.items[0].hash)} onChanged={refreshAccount} />
+          ) : (
+            <SourceFolder key={g.key} g={g} provider={provider} book={book} account={account} onChanged={refreshAccount} />
+          )
+        )}
       </div>
+      {hiddenDead > 0 && (
+        <button class="btn ghost-wide" onClick={() => setShowDead(!showDead)}>
+          {showDead ? 'Hide' : 'Show'} {hiddenDead} result{hiddenDead === 1 ? '' : 's'} with no seeders
+        </button>
+      )}
     </section>
   );
 }
@@ -240,6 +256,60 @@ function Progress({ text, pct }) {
       <div class={'src-progress-track' + (known ? '' : ' indeterminate')}>
         <div style={known ? { width: Math.max(p, 3) + '%' } : null} />
       </div>
+    </div>
+  );
+}
+
+// "Book - 01.mp3", "Book - 02.mp3"… or several rows for the same torrent: one folder.
+const baseName = (t) =>
+  String(t)
+    .toLowerCase()
+    .replace(/\.(mp3|m4a|m4b|aac|flac|ogg|opus|wav)$/i, '')
+    .replace(/\b(part|pt|chapter|ch|track|disc|cd|file)\s*\d+\b/g, ' ')
+    .replace(/[\s._-]*\d{1,3}\s*(of\s*\d+)?\s*$/g, ' ')
+    .replace(/^\s*\d{1,3}[\s._-]+/, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+
+function groupResults(list) {
+  const groups = [];
+  const byKey = new Map();
+  for (const r of list) {
+    const key = (r.hash && `h:${r.hash}`) || `t:${r.addon}:${baseName(r.title)}`;
+    const alt = `t:${r.addon}:${baseName(r.title)}`;
+    let g = byKey.get(key) || byKey.get(alt);
+    if (!g) {
+      g = { key, items: [] };
+      groups.push(g);
+    }
+    byKey.set(key, g);
+    byKey.set(alt, g);
+    g.items.push(r);
+  }
+  return groups;
+}
+
+/** Several files of one book, folded into one card. */
+function SourceFolder({ g, provider, book, account, onChanged }) {
+  const [open, setOpen] = useState(false);
+  const first = g.items[0];
+  const size = g.items.reduce((a, r) => a + (r.size || 0), 0);
+  const seeds = Math.max(...g.items.map((r) => r.seeders || 0));
+  return (
+    <div class={'src-folder' + (open ? ' open' : '')}>
+      <button class="src-folder-head" onClick={() => setOpen(!open)}>
+        <Icon name="library" size={18} />
+        <span class="src-folder-title">
+          <b>{first.title.replace(/\.(mp3|m4a|m4b|aac|flac|ogg|opus)$/i, '').replace(/[\s._-]*(part|pt|chapter|ch|track|cd)?\s*\d{1,3}\s*$/i, '') || first.title}</b>
+          <small>
+            {g.items.length} files{size ? ` · ${fmtSize(size)}` : ''}
+            {seeds ? ` · ${seeds} seeds` : ''} · {first.addon}
+          </small>
+        </span>
+        <Icon name={open ? 'up' : 'down'} size={18} />
+      </button>
+      {open &&
+        g.items.map((r) => <SourceRow key={r.key} r={r} provider={provider} book={book} inAccount={account.get(r.hash)} onChanged={onChanged} />)}
     </div>
   );
 }

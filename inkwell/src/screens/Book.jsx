@@ -17,6 +17,9 @@ import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
 import { RelatedRows } from '../components/related.jsx';
 import { storyshots, loadStoryShots, blinkistUrl, storyshotsSearchUrl, openUrl, BLINKIST_LOGIN, STORYSHOTS_HOME } from '../sources/summaries.js';
 
+// Books you already have (cloud, server, addons) can still show other copies from source addons.
+const OTHER_SOURCES = new Set(['tb', 'rd', 'abs', 'addon']);
+
 export function Book({ book: initial }) {
   const [book, setBook] = useState(initial);
   const [loading, setLoading] = useState(true);
@@ -30,6 +33,7 @@ export function Book({ book: initial }) {
   const isCurrent = ps.book?.uid === book.uid;
   const [hcStatus, setHcStatus] = useState(null);
   const [listenBusy, setListenBusy] = useState(false);
+  const [showParts, setShowParts] = useState(null);
   const dl = useStore(downloads)[initial.uid];
 
   useEffect(() => {
@@ -52,6 +56,7 @@ export function Book({ book: initial }) {
   const canListen = book.kind === 'audio';
   const canRead = book.kind === 'text' && book.readUrl;
   const tracks = book.tracks || [];
+  const partsOpen = showParts ?? tracks.length <= 5;
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
   const authorKey = (book.author || '').split(',')[0].trim();
 
@@ -254,16 +259,28 @@ export function Book({ book: initial }) {
       {book.kind === 'discover' && sourceAddons().length > 0 && (
         <SourceResults title={mainTitle(book.title)} author={(book.author || '').split(',')[0].trim()} book={book} />
       )}
+      {book.kind === 'audio' && OTHER_SOURCES.has(book.source) && sourceAddons().length > 0 && !loading && (
+        <section class="pad">
+          <h3 class="section-label">
+            <Icon name="puzzle" size={16} /> Other sources
+          </h3>
+          <SourceResults title={mainTitle(book.title)} author={(book.author || '').split(',')[0].trim()} book={book} heading={false} />
+        </section>
+      )}
       {editions?.audio?.length > 0 && <Row title="Free audiobooks" subtitle="LibriVox / Internet Archive" icon="headphones" items={editions.audio} />}
       {editions?.text?.length > 0 && <Row title="Free ebooks" subtitle="Project Gutenberg" icon="book" items={editions.text} />}
 
       {tracks.length > 0 && (
         <section class="pad">
-          <h3 class="section-label">
-            {tracks.length} {tracks.length === 1 ? 'part' : 'parts'}
-          </h3>
+          <button class="section-label parts-toggle" onClick={() => setShowParts(!partsOpen)}>
+            <Icon name="library" size={16} /> {tracks.length} {tracks.length === 1 ? 'part' : 'parts'}
+            {tracks.length > 5 && <Icon name={partsOpen ? 'up' : 'down'} size={16} />}
+          </button>
           <ol class="chapter-list flat">
             {tracks.map((t, i) => {
+              // Folded: only the part you're on (or the first) is listed.
+              const here = isCurrent ? ps.index : prog?.track || 0;
+              if (!partsOpen && i !== here) return null;
               const active = isCurrent && ps.index === i;
               const done = prog && (prog.track > i || prog.finished);
               return (

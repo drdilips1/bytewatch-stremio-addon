@@ -3016,3 +3016,67 @@ pre.sql {
   font-size: 16px;
   margin: 14px 0 6px;
 }
+
+/* Multi-file source results folded into a folder */
+.src-folder {
+  border: 1px solid rgba(127, 127, 127, 0.22);
+  border-radius: 18px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.src-folder-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  background: rgba(127, 127, 127, 0.08);
+  color: inherit;
+  border: 0;
+}
+.src-folder-title {
+  flex: 1;
+  min-width: 0;
+}
+.src-folder-title b {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.src-folder-title small {
+  color: var(--muted);
+}
+.src-folder.open .src-row {
+  margin: 10px;
+}
+.parts-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: 0;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.other-sources summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+.other-sources summary::-webkit-details-marker {
+  display: none;
+}
+.other-sources summary::after {
+  content: '▾';
+  margin-left: auto;
+  opacity: 0.6;
+}
+.other-sources[open] summary::after {
+  content: '▴';
+}
