@@ -219,48 +219,76 @@ function WebRelayCard() {
   );
 }
 
-/** Libby: your public library (borrowing happens in the Libby app with your card). */
+/** Libby: your public library — catalogue search, plus your account via Libby's setup code. */
 function LibbyCard() {
   const lib = useStore(libbySrc.libby);
+  const acct = useStore(libbySrc.libbyAccount);
   const [input, setInput] = useState('');
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  if (lib.key) {
-    return (
-      <div class="set-row">
-        <div>
-          <b>{lib.name}</b>
-          <small>Shows what your library has on every book page and in search. Borrow and listen in the Libby app with your card.</small>
-        </div>
-        <button class="pill small" onClick={() => libbySrc.disconnect()}>
-          Remove
-        </button>
-      </div>
-    );
-  }
+  const run = async (fn) => {
+    setBusy(true);
+    try {
+      toast(await fn());
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <>
-      <p class="muted">
-        Open Libby → <b>Menu</b> → your library → <b>share</b> or copy the link (it looks like libbyapp.com/library/<i>name</i>), and paste it here. You can also type the library's short name.
-      </p>
-      <div class="set-row">
-        <input value={input} placeholder="libbyapp.com/library/…" onInput={(e) => setInput(e.currentTarget.value)} />
-        <button
-          class="btn"
-          disabled={busy || !input.trim()}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              toast(`Connected to ${await libbySrc.connect(input)}`);
-            } catch (e) {
-              toast(e.message);
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          {busy ? <span class="spinner small" /> : 'Connect'}
-        </button>
-      </div>
+      {acct.identity ? (
+        <div class="set-row">
+          <div>
+            <b>Signed in to Libby</b>
+            <small>
+              {(acct.cards || []).map((c) => c.library?.name || c.cardName).join(', ') || 'Your cards'} · {(acct.loans || []).length} loans · {(acct.holds || []).length} holds
+            </small>
+          </div>
+          <div class="chips">
+            <button class="pill small" disabled={busy} onClick={() => run(async () => (await libbySrc.syncAccount(), 'Libby synced'))}>
+              Sync
+            </button>
+            <button class="pill small ghost" onClick={() => libbySrc.signOut()}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p class="muted">
+            <b>Sign in with your library card:</b> in the Libby app open <b>Menu → Copy To Another Device</b>, choose to copy to another device, and enter the 8-digit code here within a minute. Then you can borrow, place holds and play borrowed audiobooks in Kathava.
+          </p>
+          <div class="set-row">
+            <input value={code} inputmode="numeric" maxlength="9" placeholder="8-digit code" onInput={(e) => setCode(e.currentTarget.value)} />
+            <button class="btn" disabled={busy || code.replace(/\D/g, '').length !== 8} onClick={() => run(async () => `Signed in: ${await libbySrc.signInWithCode(code)}`)}>
+              {busy ? <span class="spinner small" /> : 'Sign in'}
+            </button>
+          </div>
+        </>
+      )}
+      {lib.key ? (
+        <div class="set-row">
+          <div>
+            <b>{lib.name}</b>
+            <small>Library used for search and availability on book pages.</small>
+          </div>
+          <button class="pill small" onClick={() => libbySrc.disconnect()}>
+            Change
+          </button>
+        </div>
+      ) : (
+        <>
+          <p class="muted">Or just search a library's catalogue: paste its Libby link (libbyapp.com/library/…) or short name.</p>
+          <div class="set-row">
+            <input value={input} placeholder="libbyapp.com/library/…" onInput={(e) => setInput(e.currentTarget.value)} />
+            <button class="btn" disabled={busy || !input.trim()} onClick={() => run(async () => `Connected to ${await libbySrc.connect(input)}`)}>
+              {busy ? <span class="spinner small" /> : 'Connect'}
+            </button>
+          </div>
+        </>
+      )}
     </>
   );
 }

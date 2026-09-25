@@ -10,12 +10,13 @@
 // verification" on or off: the app signs in with your project's public key and
 // sends the services' own tokens in x-relay-headers.)
 //
-// Version 5.
+// Version 6.
 
 // Only these services can be reached through the relay.
 const ALLOWED = [
   /^api\.hardcover\.app$/,
   /^thunder\.api\.overdrive\.com$/,
+  /^sentry\.libbyapp\.com$/,
   /^api\.audible\.[a-z.]+$/,
   /^www\.goodreads\.com$/,
   /^(www\.)?getstoryshots\.com$/,
@@ -40,7 +41,7 @@ const CORS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Expose-Headers': '*',
   'Access-Control-Max-Age': '86400',
-  'X-Relay-Version': '5',
+  'X-Relay-Version': '6',
 };
 
 // Headers meant for Supabase or the browser, never forwarded. The service's own

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Row, BookCard, withMeta } from '../components/common.jsx';
 import { useMeta } from '../lib/meta.js';
 import { Icon } from '../components/icons.jsx';
-import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, enabled, sourceOrder, sourceRank } from '../sources/index.js';
+import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, lb, enabled, sourceOrder, sourceRank } from '../sources/index.js';
 import { Fragment } from 'preact';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted } from '../lib/store.js';
 import { greeting, fmtDuration } from '../lib/format.js';
@@ -291,7 +291,19 @@ export function Home() {
     addonSrc.catalogRows().then(setAddonRows).catch(() => setAddonRows([]));
   }, [addonList, st.sources]);
 
+  const libbyAcct = useStore(lb.libbyAccount);
+  useEffect(() => {
+    // Refresh loans quietly when Home opens (at most every 10 minutes).
+    if (lb.signedIn() && Date.now() - lb.libbyAccount.get().syncedAt > 10 * 60e3) lb.syncAccount().catch(() => {});
+  }, []);
   const blocks = {
+    lb:
+      libbyAcct.identity && enabled('lb') ? (
+        <>
+          {libbyAcct.loans?.length > 0 && <Row title="Your Libby loans" subtitle="Borrowed with your library card" icon="library" items={lb.loanBooks()} />}
+          {libbyAcct.holds?.length > 0 && <Row title="Libby holds" subtitle="Waiting at your library" icon="bookmark" items={lb.holdBooks()} />}
+        </>
+      ) : null,
     // Hindi section: only when switched on in Settings → Sources, in the user's chosen place.
     hi: enabled('hi') && (
       <Row

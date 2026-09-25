@@ -405,6 +405,57 @@ function Summaries({ book }) {
   );
 }
 
+/** Borrow / hold / play for one Libby title — in the app when signed in, else in Libby. */
+function LibbyAction({ h }) {
+  useStore(libbySrc.libbyAccount);
+  const [busy, setBusy] = useState(false);
+  const loan = libbySrc.signedIn() && libbySrc.loanFor(h.libby.id);
+  const act = async (fn) => {
+    setBusy(true);
+    try {
+      toast(await fn());
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (busy) return <span class="spinner small" />;
+  if (loan) {
+    const lb = { uid: `lbl:${loan.cardId}:${loan.id}`, source: 'lbl', kind: 'audio', title: loan.title, author: loan.firstCreatorName || '', cover: h.cover, libbyLoan: { cardId: loan.cardId, titleId: loan.id, format: h.libby.format } };
+    return h.libby.format === 'audiobook' ? (
+      <button
+        class="pill active"
+        onClick={() => {
+          nav.openOverlay('player');
+          player.openAndPlay(lb, getDetails);
+        }}
+      >
+        <Icon name="play" size={14} /> Play
+      </button>
+    ) : (
+      <button class="pill" onClick={() => openExternal(h.libby.link)}>
+        Read in Libby
+      </button>
+    );
+  }
+  if (!libbySrc.signedIn())
+    return (
+      <button class={'pill' + (h.libby.available ? ' active' : '')} onClick={() => openExternal(h.libby.link)}>
+        {h.libby.available ? 'Borrow' : 'Place hold'}
+      </button>
+    );
+  return h.libby.available ? (
+    <button class="pill active" onClick={() => act(() => libbySrc.borrow(h.libby.id, h.libby.format))}>
+      Borrow
+    </button>
+  ) : (
+    <button class="pill" onClick={() => act(() => libbySrc.placeHold(h.libby.id))}>
+      Place hold
+    </button>
+  );
+}
+
 /** Copies at your public library (Libby), with a button to borrow there. */
 function LibbyCard({ book }) {
   const [hits, setHits] = useState(book.libby ? [book] : null);
@@ -440,9 +491,7 @@ function LibbyCard({ book }) {
                 <b>{h.libby.format === 'audiobook' ? 'Audiobook' : h.libby.format === 'ebook' ? 'Ebook' : h.libby.format || 'Title'}</b>
                 <small>{libbySrc.describe(h.libby)}</small>
               </div>
-              <button class={'pill' + (h.libby.available ? ' active' : '')} onClick={() => openExternal(h.libby.link)}>
-                {h.libby.available ? 'Borrow' : 'Place hold'}
-              </button>
+              <LibbyAction h={h} />
             </div>
           ))}
         </div>

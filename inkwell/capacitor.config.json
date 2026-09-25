@@ -9,6 +9,7 @@
   },
   "plugins": {
     "CapacitorHttp": { "enabled": true },
+    "CapacitorCookies": { "enabled": true },
     "SplashScreen": {
       "launchShowDuration": 900,
       "launchAutoHide": true,
