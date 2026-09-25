@@ -219,6 +219,64 @@ function WebRelayCard() {
   );
 }
 
+/** Sign in to Libby: this app shows a code to enter in Libby (or, fallback, type Libby's code here). */
+function LibbySignIn({ busy, run, code, setCode }) {
+  const [shown, setShown] = useState(null); // { code, expires, cancel }
+  const [left, setLeft] = useState(0);
+  const [manual, setManual] = useState(false);
+  useEffect(() => () => shown?.cancel(), [shown]);
+  useEffect(() => {
+    if (!shown) return;
+    const t = setInterval(() => setLeft(Math.max(0, Math.round((shown.expires - Date.now()) / 1000))), 500);
+    return () => clearInterval(t);
+  }, [shown]);
+  const start = async () => {
+    shown?.cancel();
+    setShown(null);
+    try {
+      const r = await libbySrc.requestCode();
+      setShown(r);
+      r.wait()
+        .then((names) => names && toast(`Signed in: ${names}`))
+        .catch((e) => toast(e.message))
+        .finally(() => setShown(null));
+    } catch (e) {
+      toast(e.message);
+      setManual(true);
+    }
+  };
+  return (
+    <>
+      <p class="muted">
+        <b>Sign in with your library cards:</b> tap <b>Get code</b>, then on your phone open <b>Libby → Menu → Copy To Another Device</b> and enter the code shown here. Kathava finishes by itself.
+      </p>
+      {shown ? (
+        <div class="libby-code">
+          <b>{shown.code}</b>
+          <small>
+            Enter this in Libby · {left > 0 ? `${left}s left` : 'expired'} · waiting for Libby <span class="spinner small" />
+          </small>
+        </div>
+      ) : (
+        <button class="btn primary" onClick={start}>
+          Get code
+        </button>
+      )}
+      <button class="link-btn" onClick={() => setManual(!manual)}>
+        {manual ? 'Hide' : 'Libby shows me a code instead'}
+      </button>
+      {manual && (
+        <div class="set-row">
+          <input value={code} inputmode="numeric" maxlength="9" placeholder="8-digit code from Libby" onInput={(e) => setCode(e.currentTarget.value)} />
+          <button class="btn" disabled={busy || code.replace(/\D/g, '').length !== 8} onClick={() => run(async () => `Signed in: ${await libbySrc.signInWithCode(code)}`)}>
+            {busy ? <span class="spinner small" /> : 'Sign in'}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 /** Libby: your public library — catalogue search, plus your account via Libby's setup code. */
 function LibbyCard() {
   const lib = useStore(libbySrc.libby);
@@ -256,17 +314,7 @@ function LibbyCard() {
           </div>
         </div>
       ) : (
-        <>
-          <p class="muted">
-            <b>Sign in with your library card:</b> in the Libby app open <b>Menu → Copy To Another Device</b>, choose to copy to another device, and enter the 8-digit code here within a minute. Then you can borrow, place holds and play borrowed audiobooks in Kathava.
-          </p>
-          <div class="set-row">
-            <input value={code} inputmode="numeric" maxlength="9" placeholder="8-digit code" onInput={(e) => setCode(e.currentTarget.value)} />
-            <button class="btn" disabled={busy || code.replace(/\D/g, '').length !== 8} onClick={() => run(async () => `Signed in: ${await libbySrc.signInWithCode(code)}`)}>
-              {busy ? <span class="spinner small" /> : 'Sign in'}
-            </button>
-          </div>
-        </>
+        <LibbySignIn busy={busy} run={run} code={code} setCode={setCode} />
       )}
       {acct.identity && (acct.cards || []).length > 0 && (
         <div class="libby-cards">

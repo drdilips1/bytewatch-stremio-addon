@@ -169,6 +169,48 @@ export async function signInWithCode(code) {
   return s.cards.map((c) => c.library?.name || c.cardName).join(', ') || 'Libby';
 }
 
+/**
+ * Libby's usual direction: this app shows a code, you enter it in the Libby app
+ * (Menu → Copy To Another Device). Resolves { code, expires, wait } where wait()
+ * resolves once Libby has copied your cards here.
+ */
+export async function requestCode() {
+  const identity = await newChip();
+  let r = null;
+  let lastErr = null;
+  for (const method of ['GET', 'POST']) {
+    try {
+      r = method === 'GET' ? await getJson(`${SENTRY}/chip/clone/code`, { headers: auth(identity), fresh: true, timeout: 15000 }) : await sendJson(`${SENTRY}/chip/clone/code`, 'POST', {}, auth(identity));
+      if (r?.code) break;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  const code = r?.code ? String(r.code) : '';
+  if (!code) throw new Error(`Libby didn't give this device a code${lastErr?.status ? ` (HTTP ${lastErr.status})` : ''} — use "Libby shows me a code instead" below`);
+  const expires = r.expiry ? Date.parse(r.expiry) || Date.now() + (+r.expiry || 60) * 1000 : Date.now() + 60e3;
+  let cancelled = false;
+  const wait = async () => {
+    // Poll until the other device has entered the code and cards appear here.
+    while (!cancelled && Date.now() < expires + 15e3) {
+      await new Promise((res) => setTimeout(res, 3000));
+      try {
+        const fresh = await newChip(identity);
+        const d = await getJson(`${SENTRY}/chip/sync`, { headers: auth(fresh), fresh: true, timeout: 15000 });
+        if ((d.cards || []).length) {
+          libbyAccount.set({ identity: fresh, cards: d.cards || [], loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now() });
+          const card = d.cards[0];
+          if (card && !libby.get().key) libby.set({ key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey });
+          return d.cards.map((c) => c.library?.name || c.cardName).join(', ');
+        }
+      } catch {}
+    }
+    if (!cancelled) throw new Error('The code expired — get a new one and enter it in Libby within a minute');
+    return '';
+  };
+  return { code: code.replace(/(\d{4})(\d{4})/, '$1 $2'), expires, wait, cancel: () => (cancelled = true) };
+}
+
 export function signOut() {
   libbyAccount.set({ identity: '', cards: [], loans: [], holds: [], syncedAt: 0 });
 }

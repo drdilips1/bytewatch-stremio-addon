@@ -3571,3 +3571,24 @@ button.source-card:active {
 .libby-cards {
   margin: 6px 0 4px;
 }
+.libby-code {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.libby-code b {
+  font-size: 34px;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.libby-code small {
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
