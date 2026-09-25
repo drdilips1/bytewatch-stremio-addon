@@ -3,7 +3,8 @@ import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup } from '../lib/store.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
-import { clearHttpCache } from '../lib/http.js';
+import { clearHttpCache, isWeb, relayUrl, setRelayUrl, getJson } from '../lib/http.js';
+import relayCode from '../../relay/index.ts?raw';
 import { ACCENTS } from '../lib/theme.js';
 import { APP_VERSION } from '../components/update.jsx';
 import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
@@ -105,6 +106,84 @@ function SourceOrder({ st, setSource }) {
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * Web app only: Safari blocks some services (Hardcover, Audible, Goodreads,
+ * StoryShots), so they go through a small relay in the user's Supabase project.
+ */
+function WebRelayCard() {
+  const [state, setState] = useState(null); // null | 'testing' | 'ok' | message
+  const [url, setUrl] = useState(relayUrl());
+  const test = async () => {
+    setState('testing');
+    try {
+      const r = await getJson('https://itunes.apple.com/search?term=habit&media=audiobook&limit=1', { fresh: true, timeout: 15000 });
+      setState(Array.isArray(r?.results) ? 'ok' : 'The relay answered, but not as expected');
+    } catch (e) {
+      setState(e.message);
+    }
+  };
+  return (
+    <>
+      <p class="muted">
+        On iPhone and iPad, Safari blocks a few services — Hardcover, Audible listings, Goodreads and StoryShots — unless they go through a small relay in your
+        Supabase project. Everything else (TorBox, Real-Debrid, Audiobookshelf over https, free sources) works directly.
+      </p>
+      <div class="set-row">
+        <div>
+          <b>Relay</b>
+          <small>{state === 'ok' ? 'Working ✓' : state === 'testing' ? 'Testing…' : state || (url ? 'Not tested yet' : 'Off')}</small>
+        </div>
+        <button class="pill small" onClick={test} disabled={state === 'testing'}>
+          Test
+        </button>
+      </div>
+      <details class="relay-help">
+        <summary>Set up the relay (5 minutes, once)</summary>
+        <ol>
+          <li>
+            Tap <b>Copy relay code</b> below.
+          </li>
+          <li>
+            Open <b>supabase.com</b> → your project → <b>Edge Functions</b> → <b>Deploy a new function</b> → <b>Via Editor</b>.
+          </li>
+          <li>
+            Name it <b>relay</b>, replace the example code with the copied code, and tap <b>Deploy</b>.
+          </li>
+          <li>
+            In the function's <b>Details</b>, switch <b>off</b> “Enforce JWT verification” and save.
+          </li>
+          <li>Come back here and tap Test.</li>
+        </ol>
+        <button
+          class="btn ghost-wide"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(relayCode);
+              toast('Relay code copied');
+            } catch {
+              toast('Could not copy — long-press to select the code instead');
+            }
+          }}
+        >
+          <Icon name="upload" size={16} /> Copy relay code
+        </button>
+      </details>
+      <div class="set-row">
+        <input
+          value={url}
+          placeholder="https://<project>.supabase.co/functions/v1/relay"
+          onChange={(e) => {
+            const v = e.currentTarget.value.trim();
+            setUrl(v);
+            setRelayUrl(v || 'off');
+            setState(null);
+          }}
+        />
+      </div>
+    </>
   );
 }
 
@@ -636,6 +715,11 @@ export function Settings() {
       <h1 class="screen-title">Settings</h1>
 
       <UpdateCard />
+      {isWeb && (
+        <Section icon="link" title="Web app">
+          <WebRelayCard />
+        </Section>
+      )}
       <Section icon="server" title="Account & sync">
         <AccountCard />
       </Section>

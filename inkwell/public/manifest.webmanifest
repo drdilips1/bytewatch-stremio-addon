@@ -1,9 +1,12 @@
 {
-  "name": "Inkwell",
-  "short_name": "Inkwell",
+  "name": "श्रवणीय",
+  "short_name": "श्रवणीय",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#0b0a14",
   "theme_color": "#0b0a14",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
 }

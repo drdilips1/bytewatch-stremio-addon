@@ -1,8 +1,44 @@
 // Small fetch wrapper: timeout, JSON/text helpers and a short-lived memory cache.
 // On Android, Capacitor's native HTTP patches fetch(), so sources without CORS work too.
 
+import { Capacitor } from '@capacitor/core';
+
 const cache = new Map();
 const TTL = 10 * 60 * 1000;
+
+// ---- Web app (iPhone / iPad) --------------------------------------------------
+// Browsers block services that don't allow cross-site requests (CORS). The web
+// app sends those through a small relay (a Supabase Edge Function, see
+// inkwell/relay/). The Android app talks to everything directly.
+const WEB = !Capacitor.isNativePlatform();
+const RELAY_HOSTS = /^(api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|www\.blinkist\.com|itunes\.apple\.com)$/i;
+const DEFAULT_RELAY = import.meta.env.VITE_SUPABASE_URL ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/relay` : '';
+
+export function relayUrl() {
+  try {
+    const v = localStorage.getItem('inkwell:relayUrl');
+    if (v === 'off') return '';
+    return v || DEFAULT_RELAY;
+  } catch {
+    return DEFAULT_RELAY;
+  }
+}
+export function setRelayUrl(v) {
+  try {
+    localStorage.setItem('inkwell:relayUrl', v);
+  } catch {}
+}
+export const isWeb = WEB;
+
+const viaRelay = (url) => `${relayUrl()}?url=${encodeURIComponent(url)}`;
+function needsRelay(url) {
+  if (!WEB || !relayUrl()) return false;
+  try {
+    return RELAY_HOSTS.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
 
 async function request(url, { timeout = 15000, headers, method = 'GET', body } = {}) {
   const ctrl = new AbortController();
@@ -18,7 +54,18 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body } =
     }, timeout);
   });
   try {
-    const res = await Promise.race([fetch(url, { method, headers, body, signal: ctrl.signal }), timedOut]);
+    const go = (u) => Promise.race([fetch(u, { method, headers, body, signal: ctrl.signal }), timedOut]);
+    let res;
+    if (needsRelay(url)) res = await go(viaRelay(url));
+    else {
+      try {
+        res = await go(url);
+      } catch (e) {
+        // In a browser a CORS block looks like a network error: try the relay once.
+        if (!WEB || e.timeout || !relayUrl() || !/^https:/i.test(url)) throw e;
+        res = await go(viaRelay(url));
+      }
+    }
     if (!res.ok) {
       let detail = '';
       try {
@@ -29,7 +76,8 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body } =
         } catch {}
         if (!detail) detail = text.slice(0, 160).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
       } catch {}
-      const err = new Error(`HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
+      const relayMissing = WEB && res.status === 404 && /\/functions\/v1\/relay/.test(res.url || '') && /function/i.test(detail);
+      const err = new Error(relayMissing ? 'This service needs the web relay — see Settings → Web app' : `HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
       err.url = url.replace(/([?&](token|apikey|api_key)=)[^&]+/gi, '$1…');
       err.status = res.status;
       throw err;

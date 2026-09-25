@@ -14,7 +14,9 @@ const num = (v) => {
   const m = /(\d+)\.(\d+)\.(\d+)/.exec(v || '');
   return m ? +m[1] * 1e8 + +m[2] * 1e4 + +m[3] : 0;
 };
-export const updateAvailable = () => APP_VERSION !== 'dev' && num(update.get().latest) > num(APP_VERSION);
+// The web app is always the latest build; only the Android APK needs updating.
+const isApk = Capacitor.isNativePlatform();
+export const updateAvailable = () => isApk && APP_VERSION !== 'dev' && num(update.get().latest) > num(APP_VERSION);
 
 export async function checkForUpdate() {
   const r = await getJson(`https://api.github.com/repos/${REPO}/releases/latest`, { fresh: true });
@@ -31,7 +33,7 @@ export async function openDownload() {
 }
 
 // Check quietly on launch, at most every 6 hours.
-if (APP_VERSION !== 'dev' && Date.now() - update.get().checkedAt > 6 * 3600e3) {
+if (isApk && APP_VERSION !== 'dev' && Date.now() - update.get().checkedAt > 6 * 3600e3) {
   setTimeout(() => {
     checkForUpdate()
       .then((yes) => yes && toast(`श्रवणीय ${update.get().latest} is available — see Settings`))
@@ -42,7 +44,19 @@ if (APP_VERSION !== 'dev' && Date.now() - update.get().checkedAt > 6 * 3600e3) {
 export function UpdateCard() {
   const u = useStore(update);
   const [busy, setBusy] = useState(false);
-  const avail = APP_VERSION !== 'dev' && num(u.latest) > num(APP_VERSION);
+  const avail = isApk && APP_VERSION !== 'dev' && num(u.latest) > num(APP_VERSION);
+  if (!isApk) {
+    return (
+      <section class="set-section">
+        <div class="update-card">
+          <div>
+            <b>श्रवणीय web app</b>
+            <small>Always the latest version — just reopen it.</small>
+          </div>
+        </div>
+      </section>
+    );
+  }
   return (
     <section class="set-section">
       <div class={'update-card' + (avail ? ' avail' : '')}>

@@ -3090,3 +3090,15 @@ button.source-card {
 button.source-card:active {
   transform: scale(0.97);
 }
+.relay-help {
+  margin: 8px 0;
+}
+.relay-help summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 8px 0;
+}
+.relay-help ol {
+  padding-left: 20px;
+  line-height: 1.6;
+}
