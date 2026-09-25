@@ -3,7 +3,8 @@ import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup } from '../lib/store.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
-import { clearHttpCache, isWeb, relayUrl, setRelayUrl, getJson } from '../lib/http.js';
+import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay } from '../lib/http.js';
+import { searchSources, sourceAddons } from '../sources/sourceaddons.js';
 import relayCode from '../../relay/index.ts?raw';
 import { ACCENTS } from '../lib/theme.js';
 import { APP_VERSION } from '../components/update.jsx';
@@ -114,16 +115,39 @@ function SourceOrder({ st, setSource }) {
  * StoryShots), so they go through a small relay in the user's Supabase project.
  */
 function WebRelayCard() {
-  const [state, setState] = useState(null); // null | 'testing' | 'ok' | message
+  const [checks, setChecks] = useState(null); // [[name, ok, message]]
+  const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState(relayUrl());
-  const test = async () => {
-    setState('testing');
-    try {
-      const r = await getJson('https://itunes.apple.com/search?term=habit&media=audiobook&limit=1', { fresh: true, timeout: 15000 });
-      setState(Array.isArray(r?.results) ? 'ok' : 'The relay answered, but not as expected');
-    } catch (e) {
-      setState(e.message);
-    }
+  const deb = debrid.get();
+  const run = async () => {
+    setBusy(true);
+    const out = [];
+    const push = (name, ok, msg) => {
+      out.push([name, ok, msg]);
+      setChecks(out.slice());
+    };
+    const check = async (name, fn) => {
+      try {
+        push(name, true, (await fn()) || 'OK');
+      } catch (e) {
+        push(name, false, e.message || String(e));
+      }
+    };
+    const r = await probeRelay();
+    push('Relay', r.ok, r.ok ? `Working (v${r.version})` : r.error);
+    if (deb.torbox) await check('TorBox', () => cloud.verify('torbox', deb.torbox));
+    if (deb.realdebrid) await check('Real-Debrid', () => cloud.verify('realdebrid', deb.realdebrid));
+    if (hc.connected()) await check('Hardcover', async () => `${(await hc.counts()).reading} reading`);
+    if (absSrc.connected()) await check('Audiobookshelf', async () => `${(await absSrc.recent()).length} recent books`);
+    if (sourceAddons().length)
+      await check('Source addons', async () => {
+        const errs = [];
+        let n = 0;
+        await searchSources({ query: 'sapiens' }, (name, res, err) => (err ? errs.push(`${name}: ${err.message}`) : (n += res.length)));
+        if (errs.length && !n) throw new Error(errs.join(' · '));
+        return `${n} results${errs.length ? ` (${errs.join(' · ')})` : ''}`;
+      });
+    setBusy(false);
   };
   return (
     <>
@@ -133,15 +157,24 @@ function WebRelayCard() {
       </p>
       <div class="set-row">
         <div>
-          <b>Relay</b>
-          <small>{state === 'ok' ? 'Working ✓' : state === 'testing' ? 'Testing…' : state || (url ? 'Not tested yet' : 'Off')}</small>
+          <b>Check services</b>
+          <small>Tests the relay and each connected service from this device</small>
         </div>
-        <button class="pill small" onClick={test} disabled={state === 'testing'}>
-          Test
+        <button class="pill small" onClick={run} disabled={busy}>
+          {busy ? <span class="spinner small" /> : 'Check'}
         </button>
       </div>
+      {checks && (
+        <ul class="svc-checks">
+          {checks.map(([name, ok, msg]) => (
+            <li class={ok ? 'ok' : 'bad'}>
+              <b>{ok ? '✓' : '✗'} {name}</b> <span>{msg}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       <details class="relay-help">
-        <summary>Set up the relay (5 minutes, once)</summary>
+        <summary>Set up or update the relay (5 minutes)</summary>
         <ol>
           <li>
             Tap <b>Copy relay code</b> below.
@@ -150,12 +183,9 @@ function WebRelayCard() {
             Open <b>supabase.com</b> → your project → <b>Edge Functions</b> → <b>Deploy a new function</b> → <b>Via Editor</b>.
           </li>
           <li>
-            Name it <b>relay</b>, replace the example code with the copied code, and tap <b>Deploy</b>.
+            Name it <b>relay</b> (or open your existing <b>relay</b> → Code), replace all the code with the copied code, and tap <b>Deploy</b>.
           </li>
-          <li>
-            In the function's <b>Details</b>, switch <b>off</b> “Enforce JWT verification” and save.
-          </li>
-          <li>Come back here and tap Test.</li>
+          <li>Come back here and tap Check.</li>
         </ol>
         <button
           class="btn ghost-wide"
@@ -179,7 +209,7 @@ function WebRelayCard() {
             const v = e.currentTarget.value.trim();
             setUrl(v);
             setRelayUrl(v || 'off');
-            setState(null);
+            setChecks(null);
           }}
         />
       </div>

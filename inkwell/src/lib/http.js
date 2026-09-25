@@ -31,6 +31,14 @@ export function setRelayUrl(v) {
 export const isWeb = WEB;
 
 const viaRelay = (url) => `${relayUrl()}?url=${encodeURIComponent(url)}`;
+const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Supabase checks its own Authorization header, so the service's headers travel
+// JSON-encoded in x-relay-headers and the relay puts them back.
+const relayHeaders = (headers) => ({
+  ...(ANON ? { Authorization: `Bearer ${ANON}`, apikey: ANON } : {}),
+  'x-relay-headers': JSON.stringify(Object.fromEntries(Object.entries(headers || {}).filter(([k]) => !/^content-type$/i.test(k)))),
+  ...Object.fromEntries(Object.entries(headers || {}).filter(([k]) => /^content-type$/i.test(k))),
+});
 function needsRelay(url) {
   if (!WEB || !relayUrl()) return false;
   try {
@@ -54,16 +62,17 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body } =
     }, timeout);
   });
   try {
-    const go = (u) => Promise.race([fetch(u, { method, headers, body, signal: ctrl.signal }), timedOut]);
+    const go = (u, h) => Promise.race([fetch(u, { method, headers: h, body, signal: ctrl.signal }), timedOut]);
+    const relayed = () => go(viaRelay(url), relayHeaders(headers));
     let res;
-    if (needsRelay(url)) res = await go(viaRelay(url));
+    if (needsRelay(url)) res = await relayed();
     else {
       try {
-        res = await go(url);
+        res = await go(url, headers);
       } catch (e) {
         // In a browser a CORS block looks like a network error: try the relay once.
         if (!WEB || e.timeout || !relayUrl() || !/^https:/i.test(url)) throw e;
-        res = await go(viaRelay(url));
+        res = await relayed();
       }
     }
     if (!res.ok) {
@@ -144,3 +153,19 @@ export const qs = (params) =>
     .filter(([, v]) => v !== undefined && v !== null && v !== '')
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('&');
+
+/** Web app: is the relay deployed, and which version? */
+export async function probeRelay() {
+  const url = relayUrl();
+  if (!url) return { ok: false, error: 'Relay is switched off' };
+  try {
+    const res = await fetch(viaRelay('https://itunes.apple.com/search?term=habit&media=audiobook&limit=1'), { headers: relayHeaders({ Authorization: 'Bearer test' }) });
+    const version = res.headers.get('x-relay-version') || '1';
+    if (res.status === 404) return { ok: false, error: 'No function named "relay" in your Supabase project' };
+    if (res.status === 401) return { ok: false, error: 'Supabase refused the request (401) — redeploy the relay with the new code' };
+    if (!res.ok) return { ok: false, error: `Relay answered HTTP ${res.status}` };
+    return { ok: version >= '2', version, error: version >= '2' ? '' : 'Old relay code — copy the new code and deploy it again' };
+  } catch (e) {
+    return { ok: false, error: `Can't reach the relay (${e.message}) — copy the new code and deploy it again` };
+  }
+}

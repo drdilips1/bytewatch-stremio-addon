@@ -6,9 +6,11 @@
 // headers the browser needs. Nothing is stored or logged.
 //
 // Deploy: Supabase dashboard → Edge Functions → Deploy a new function → Via
-// Editor → name it  relay  → paste this file → Deploy. Then open the function's
-// Details and turn OFF "Enforce JWT verification" (the services' own tokens
-// travel in the Authorization header).
+// Editor → name it  relay  → paste this file → Deploy. (Works with "Enforce JWT
+// verification" on or off: the app signs in with your project's public key and
+// sends the services' own tokens in x-relay-headers.)
+//
+// Version 2.
 
 // Only these services can be reached through the relay.
 const ALLOWED = [
@@ -29,19 +31,27 @@ const ALLOWED = [
   /\.workers\.dev$/,
 ];
 
-const CORS = {
+const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': '*',
+  // "*" doesn't cover Authorization in browsers, so it's listed explicitly.
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-relay-headers, accept, user-agent',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Expose-Headers': '*',
   'Access-Control-Max-Age': '86400',
+  'X-Relay-Version': '2',
 };
 
-const DROP_REQUEST = ['host', 'origin', 'referer', 'cookie', 'content-length', 'connection', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-real-ip', 'cf-connecting-ip', 'x-client-info', 'apikey'];
+// Headers meant for Supabase or the browser, never forwarded. The service's own
+// headers (e.g. a TorBox or Hardcover token) arrive JSON-encoded in x-relay-headers.
+const DROP_REQUEST = ['host', 'origin', 'referer', 'cookie', 'content-length', 'connection', 'authorization', 'apikey', 'x-client-info', 'x-relay-headers', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port', 'x-real-ip', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor', 'baggage', 'sb-request-id'];
 const DROP_RESPONSE = ['set-cookie', 'content-encoding', 'content-length', 'transfer-encoding', 'connection'];
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
+  if (req.method === 'OPTIONS') {
+    // Echo whatever headers the browser asks to send.
+    const asked = req.headers.get('access-control-request-headers');
+    return new Response('ok', { headers: asked ? { ...CORS, 'Access-Control-Allow-Headers': `${CORS['Access-Control-Allow-Headers']}, ${asked}` } : CORS });
+  }
   const target = new URL(req.url).searchParams.get('url') || '';
   let url: URL;
   try {
@@ -54,6 +64,12 @@ Deno.serve(async (req) => {
   }
   const headers = new Headers(req.headers);
   for (const h of DROP_REQUEST) headers.delete(h);
+  try {
+    const extra = JSON.parse(req.headers.get('x-relay-headers') || '{}');
+    for (const [k, v] of Object.entries(extra)) if (typeof v === 'string') headers.set(k, v);
+  } catch {
+    // ignore malformed header bundle
+  }
   if (!headers.has('user-agent') || /deno/i.test(headers.get('user-agent') || '')) {
     headers.set('user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1');
   }

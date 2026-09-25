@@ -3102,3 +3102,26 @@ button.source-card:active {
   padding-left: 20px;
   line-height: 1.6;
 }
+.svc-checks {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 10px;
+  display: grid;
+  gap: 6px;
+  font-size: 13.5px;
+}
+.svc-checks li {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(127, 127, 127, 0.1);
+}
+.svc-checks li.ok b {
+  color: #22c55e;
+}
+.svc-checks li.bad b {
+  color: #ef4444;
+}
+.svc-checks span {
+  color: var(--muted);
+  word-break: break-word;
+}
