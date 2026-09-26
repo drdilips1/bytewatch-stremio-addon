@@ -39,6 +39,16 @@ export default {
       return json({ ok: true }, corsHeaders);
     }
 
+    // Debug: shows exactly what Bookracy returns for the first two books.
+    if (url.pathname === "/bookracy/raw") {
+      const query = (url.searchParams.get("q") || "dune").trim();
+      const response = await fetch(bookracyUrl(query, 2), { headers: BROWSER_HEADERS });
+      return new Response(await response.text(), {
+        status: response.status,
+        headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders }
+      });
+    }
+
     if (url.pathname === "/bookracy/search") {
       const query = (url.searchParams.get("q") || "").trim();
 
@@ -113,15 +123,42 @@ function addonManifest(origin) {
   };
 }
 
+function bookracyUrl(query, limit) {
+  return "https://api.bookracy.com/api/books" +
+    "?query=" + encodeURIComponent(query) +
+    "&lang=en" +
+    "&limit=" + limit;
+}
+
+function pick(obj, keys) {
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key];
+  }
+  return "";
+}
+
+// "Dune - Frank Herbert_499" -> "Dune - Frank Herbert"
+function cleanTitle(title) {
+  return String(title || "").replace(/\s*_\d+\s*$/, "").trim();
+}
+
+function extensionOf(link) {
+  const match = String(link || "").split(/[?#]/)[0].match(/\.(epub|pdf|mobi|azw3|fb2|djvu|cbz|cbr|txt)$/i);
+  return match ? match[1].toLowerCase() : "";
+}
+
+// Accepts a byte count or text such as "2.3 MB".
+function parseSize(value) {
+  if (typeof value === "number") return value;
+  const match = String(value || "").match(/([\d.]+)\s*(b|kb|mb|gb)?/i);
+  if (!match) return 0;
+  const units = { b: 1, kb: 1024, mb: 1024 ** 2, gb: 1024 ** 3 };
+  return Math.round(parseFloat(match[1]) * (units[(match[2] || "b").toLowerCase()] || 1));
+}
+
 async function searchBookracy(query) {
   try {
-    const apiUrl =
-      "https://api.bookracy.com/api/books" +
-      "?query=" + encodeURIComponent(query) +
-      "&lang=en" +
-      "&limit=20";
-
-    const response = await fetch(apiUrl, { headers: BROWSER_HEADERS });
+    const response = await fetch(bookracyUrl(query, 20), { headers: BROWSER_HEADERS });
 
     if (!response.ok) {
       const body = (await response.text()).slice(0, 200);
@@ -136,14 +173,18 @@ async function searchBookracy(query) {
 
     return {
       results: results
-        .map(book => makeResult({
-          title: book.title,
-          author: book.author,
-          url: book.link,
-          format: book.format,
-          language: book.language,
-          posted: book.year
-        }))
+        .map(book => {
+          const link = pick(book, ["link", "download_link", "download", "url"]);
+          return makeResult({
+            title: cleanTitle(book.title),
+            author: book.author,
+            url: link,
+            format: pick(book, ["format", "extension", "filetype", "file_type", "ext"]) || extensionOf(link),
+            language: book.language,
+            posted: book.year,
+            sizeBytes: parseSize(pick(book, ["filesize", "file_size", "size", "bytes"]))
+          });
+        })
         .filter(book => book.title && book.url)
     };
   } catch (error) {
@@ -187,7 +228,7 @@ async function searchGutendex(query) {
   }
 }
 
-function makeResult({ title, author, url, format, language, posted }) {
+function makeResult({ title, author, url, format, language, posted, sizeBytes }) {
   return {
     title: title || "",
     author: author || "",
@@ -195,9 +236,9 @@ function makeResult({ title, author, url, format, language, posted }) {
     url: url || "",
     magnetUrl: "",
     infoHash: "",
-    sizeBytes: 0,
+    sizeBytes: sizeBytes || 0,
     seeders: 0,
-    format: format || "",
+    format: String(format || "").toLowerCase(),
     language: language || "en",
     posted: posted ? String(posted) : "",
     debridCache: false
