@@ -140,6 +140,12 @@ export function cleanUrl(u, defaultScheme = 'https') {
   return u;
 }
 
+/** Any request, returning the response text (no caching). */
+export async function requestText(url, opts = {}) {
+  const res = await request(url, opts);
+  return res.text();
+}
+
 export function sendForm(url, method, params, headers = {}) {
   return request(url, {
     method,

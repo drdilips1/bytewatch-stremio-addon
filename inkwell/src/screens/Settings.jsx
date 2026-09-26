@@ -13,6 +13,7 @@ import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
 import { AccountCard, VoicesCard, DownloadsCard } from './settings-extra.jsx';
 import { UpdateCard } from '../components/update.jsx';
 import { nav } from '../lib/nav.js';
+import * as qb from '../sources/qbit.js';
 
 function Section({ icon, title, children }) {
   return (
@@ -265,6 +266,97 @@ function Stepper({ label, value, options, onChange, fmt = (v) => v }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/** Home server: hand cloud audiobooks to your qBittorrent, saved into Audiobookshelf's folder. */
+function QbitCard() {
+  const cfg = useStore(qb.qbit);
+  const sent = useStore(qb.qbitSent);
+  const [form, setForm] = useState({ url: cfg.url, username: cfg.username, password: cfg.password, savePath: cfg.savePath, category: cfg.category });
+  const [busy, setBusy] = useState('');
+  const [list, setList] = useState(null);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.currentTarget.value }));
+  const run = async (what, fn) => {
+    setBusy(what);
+    try {
+      toast(await fn());
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
+  const refresh = () => qb.status().then(setList).catch((e) => toast(e.message));
+  useEffect(() => {
+    if (qb.available && cfg.url && Object.keys(sent.items).length) refresh();
+  }, [cfg.url]);
+  const pct = (x) => `${Math.round((x || 0) * 100)}%`;
+  return (
+    <>
+      <p class="muted">
+        Send your TorBox / Real-Debrid audiobooks to <b>qBittorrent</b> at home (over Tailscale). It saves them into your <b>Audiobookshelf</b> library folder and downloads on its own — your phone can be off. Turn on qBittorrent's Web UI (Tools → Options → Web UI).
+        {!qb.available && ' Works in the Android app.'}
+      </p>
+      <form
+        class="set-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          qb.qbit.set((c) => ({ ...c, ...form, url: form.url.trim(), savePath: form.savePath.trim() }));
+          run('test', qb.test);
+        }}
+      >
+        <input value={form.url} placeholder="Web UI address, e.g. http://100.101.102.103:8080" autocapitalize="off" onInput={set('url')} />
+        <input value={form.username} placeholder="Web UI username" autocapitalize="off" autocomplete="username" onInput={set('username')} />
+        <input value={form.password} type="password" placeholder="Web UI password" autocomplete="current-password" onInput={set('password')} />
+        <input value={form.savePath} placeholder="Save to (your Audiobookshelf folder, e.g. /audiobooks)" autocapitalize="off" onInput={set('savePath')} />
+        <input value={form.category} placeholder="Category (optional)" autocapitalize="off" onInput={set('category')} />
+        <button class="btn primary" disabled={!!busy || !form.url.trim()}>
+          {busy === 'test' ? <span class="spinner small" /> : 'Save & test'}
+        </button>
+      </form>
+      {cfg.url && (
+        <>
+          <label class="set-row">
+            <div>
+              <b>Send new cloud audiobooks automatically</b>
+              <small>When you open the app, anything new in TorBox / Real-Debrid (added after you switch this on) goes to qBittorrent.</small>
+            </div>
+            <input type="checkbox" class="switch" checked={cfg.auto} onChange={(e) => qb.qbit.set((c) => ({ ...c, auto: e.currentTarget.checked, autoSince: e.currentTarget.checked ? Date.now() : c.autoSince }))} />
+          </label>
+          <div class="chips">
+            <button class="pill small" disabled={!!busy} onClick={() => run('all', () => qb.sendAll())}>
+              {busy === 'all' ? <span class="spinner small" /> : 'Send all not yet sent'}
+            </button>
+            <button class="pill small ghost" disabled={!!busy} onClick={refresh}>
+              Check progress
+            </button>
+          </div>
+          {list && (
+            <div class="qbit-list">
+              {list.length ? (
+                list.slice(0, 20).map((t) => (
+                  <div class="qbit-item">
+                    <div>
+                      <b>{t.name}</b>
+                      <small>
+                        {t.progress >= 1 ? 'Done' : `${pct(t.progress)} · ${t.state}`}
+                        {t.speed > 0 ? ` · ${(t.speed / 1e6).toFixed(1)} MB/s` : ''}
+                      </small>
+                    </div>
+                    <div class="progress-bar">
+                      <div style={{ width: pct(t.progress) }} />
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <small class="muted">Nothing sent yet (or removed from qBittorrent).</small>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </>
   );
 }
 
@@ -792,6 +884,9 @@ export function Settings() {
 
       <Section icon="server" title="Audiobookshelf">
         <AbsCard />
+      </Section>
+      <Section icon="server" title="Home server (qBittorrent)">
+        <QbitCard />
       </Section>
       <Section icon="download" title="TorBox">
         <DebridCard provider="torbox" label="TorBox" keyHint="torbox.app/settings" keyUrl="https://torbox.app/settings" />

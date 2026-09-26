@@ -3822,3 +3822,26 @@ button.source-card:active {
     max-height: 300px;
   }
 }
+
+/* Home server (qBittorrent) */
+.qbit-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.qbit-item b {
+  display: block;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qbit-item small {
+  color: var(--muted);
+}
+.qbit-item .progress-bar {
+  margin-top: 6px;
+}
+.qbit-send {
+  padding-top: 0;
+}

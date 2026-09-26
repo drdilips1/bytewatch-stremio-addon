@@ -6,6 +6,7 @@ import { getDetails, findEditions, ia, hc, sourceOf } from '../sources/index.js'
 import { library, progress, toggleLibrary, useStore } from '../lib/store.js';
 import { fmtDuration, fmtTime } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
+import * as qb from '../sources/qbit.js';
 import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
 import { SourceResults } from '../components/source-results.jsx';
@@ -34,6 +35,8 @@ export function Book({ book: initial }) {
   const [hcStatus, setHcStatus] = useState(null);
   const [listenBusy, setListenBusy] = useState(false);
   const [showParts, setShowParts] = useState(null);
+  const [qbBusy, setQbBusy] = useState(false);
+  useStore(qb.qbitSent);
   const dl = useStore(downloads)[initial.uid];
 
   useEffect(() => {
@@ -177,6 +180,27 @@ export function Book({ book: initial }) {
             </>
           )}
           {dl?.status === 'error' && <small class="err">{dl.error}</small>}
+        </div>
+      )}
+      {book.hash && (book.source === 'tb' || book.source === 'rd') && qb.available && (
+        <div class="pad qbit-send">
+          <button
+            class="pill"
+            disabled={qbBusy}
+            onClick={async () => {
+              if (!qb.configured()) return toast('Set up your home server first (Settings → Home server)');
+              setQbBusy(true);
+              try {
+                toast(await qb.send(book));
+              } catch (e) {
+                toast(e.message);
+              } finally {
+                setQbBusy(false);
+              }
+            }}
+          >
+            {qbBusy ? <span class="spinner small" /> : <Icon name="server" size={14} />} {qb.wasSent(book.hash) ? 'Sent to home server · send again' : 'Send to home server'}
+          </button>
         </div>
       )}
       {pct > 0 && (

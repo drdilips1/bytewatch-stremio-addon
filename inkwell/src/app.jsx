@@ -1,3 +1,4 @@
+import * as qbit from './sources/qbit.js';
 import { useEffect, useState } from 'preact/hooks';
 import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -47,6 +48,14 @@ export function App() {
   const ps = usePlayer();
 
   useEffect(() => nav.subscribe(setRoute), []);
+  useEffect(() => {
+    // Hand new cloud audiobooks to the home server, if that's switched on.
+    const go = () => qbit.autoForward().then((msg) => msg && toast(msg));
+    const t = setTimeout(go, 4000);
+    const onResume = () => document.visibilityState === 'visible' && go();
+    document.addEventListener('visibilitychange', onResume);
+    return () => (clearTimeout(t), document.removeEventListener('visibilitychange', onResume));
+  }, []);
   useEffect(() => {
     applyTheme(st);
     if (Capacitor.isNativePlatform()) {

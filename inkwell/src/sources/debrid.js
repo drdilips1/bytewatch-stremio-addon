@@ -88,7 +88,7 @@ async function torboxLibraryRaw() {
       const files = (it.files || []).filter((f) => AUDIO.test(f.name || f.short_name || ''));
       if (!files.length) continue;
       const done = code !== 't' || !!(it.download_finished || it.download_present);
-      out.push({ ...toBook('tb', 'tb', `${code}:${it.id}`, it.name, files), addedAt: Date.parse(it.created_at) || 0, ...(done ? {} : { fetching: Number(it.progress) || 0 }) });
+      out.push({ ...toBook('tb', 'tb', `${code}:${it.id}`, it.name, files, code === 't' && it.hash ? { hash: String(it.hash).toLowerCase() } : {}), addedAt: Date.parse(it.created_at) || 0, ...(done ? {} : { fetching: Number(it.progress) || 0 }) });
     }
   });
   return out.sort((a, b) => b.addedAt - a.addedAt);
@@ -113,6 +113,7 @@ async function tbDetails(book) {
     .sort(naturalSort);
   return {
     ...book,
+    ...(code === 't' && it.hash ? { hash: String(it.hash).toLowerCase() } : {}),
     description: `${files.length} audio file${files.length === 1 ? '' : 's'} in your TorBox ${kind === 'webdl' ? 'web downloads' : kind}.`,
     fetching: pending,
     tracks: files.map((f, i) => ({
@@ -151,7 +152,7 @@ async function realdebridLibraryRaw() {
   return (items || [])
     .filter((t) => t.status === 'downloaded')
     .filter((t) => AUDIO.test(t.filename) || !/\.(mkv|avi|mp4|iso|exe|apk)$/i.test(t.filename))
-    .map((t) => ({ ...toBook('rd', 'rd', t.id, t.filename, t.links || []), addedAt: Date.parse(t.added) || 0 }));
+    .map((t) => ({ ...toBook('rd', 'rd', t.id, t.filename, t.links || [], t.hash ? { hash: String(t.hash).toLowerCase() } : {}), addedAt: Date.parse(t.added) || 0 }));
 }
 
 async function rdDetails(book) {
@@ -166,6 +167,7 @@ async function rdDetails(book) {
   if (!files.length) throw new Error('No audio files in this Real-Debrid torrent');
   return {
     ...book,
+    ...(info.hash ? { hash: String(info.hash).toLowerCase() } : {}),
     description: `${files.length} audio file${files.length === 1 ? '' : 's'} in your Real-Debrid cloud.`,
     tracks: files.map((f, i) => ({
       title: f.name.replace(AUDIO, ''),

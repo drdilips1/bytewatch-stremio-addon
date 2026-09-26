@@ -5,6 +5,7 @@
 // Each synced store is a "section" with its own timestamp; lists that can be
 // edited on several devices (progress, library, bookmarks, addons) merge item
 // by item, everything else takes the newest copy.
+import { qbit, qbitSent } from '../sources/qbit.js';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { App as CapApp } from '@capacitor/app';
@@ -39,6 +40,8 @@ const SECTIONS = {
   addons: { store: addons },
   goodreads: { store: goodreads },
   podcasts: { store: podcasts },
+  qbit: { store: qbit, secret: true },
+  qbitSent: { store: qbitSent },
   ai: { store: ai, secret: true },
   abs: { store: abs, secret: true },
   debrid: { store: debrid, secret: true },
