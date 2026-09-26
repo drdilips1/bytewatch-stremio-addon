@@ -11,10 +11,6 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 
 /**
  * In-app updates: downloads the new APK itself (with progress) and opens
@@ -69,47 +65,15 @@ public class InkwellUpdatePlugin extends Plugin {
             File out = apkFile();
             File part = new File(out.getPath() + ".part");
             try {
-                String next = url;
-                HttpURLConnection c = null;
-                // Follow redirects by hand (GitHub → its file host changes host).
-                for (int hop = 0; hop < 6; hop++) {
-                    c = (HttpURLConnection) new URL(next).openConnection();
-                    c.setInstanceFollowRedirects(false);
-                    c.setConnectTimeout(20000);
-                    c.setReadTimeout(30000);
-                    c.setRequestProperty("User-Agent", "Kathava");
-                    int code = c.getResponseCode();
-                    if (code >= 300 && code < 400 && c.getHeaderField("Location") != null) {
-                        next = new URL(new URL(next), c.getHeaderField("Location")).toString();
-                        c.disconnect();
-                        continue;
-                    }
-                    if (code >= 400) throw new Exception("HTTP " + code);
-                    break;
-                }
-                long total = c.getContentLengthLong();
-                InputStream in = c.getInputStream();
-                FileOutputStream fo = new FileOutputStream(part);
-                byte[] buf = new byte[65536];
-                long done = 0;
-                int n;
-                int lastPct = -1;
-                while ((n = in.read(buf)) > 0) {
-                    fo.write(buf, 0, n);
-                    done += n;
-                    int pct = total > 0 ? (int) (done * 100 / total) : -1;
-                    if (pct != lastPct) {
-                        lastPct = pct;
-                        JSObject p = new JSObject();
-                        p.put("pct", pct);
-                        p.put("done", done);
-                        p.put("total", total);
-                        notifyListeners("progress", p);
-                    }
-                }
-                fo.close();
-                in.close();
-                if (total > 0 && done < total) throw new Exception("Download was cut short");
+                part.delete();
+                // Several connections at once: much faster where each connection is throttled.
+                long done = ParallelDownloader.fetch(url, part, 4, (d, total) -> {
+                    JSObject p = new JSObject();
+                    p.put("pct", total > 0 ? (int) (d * 100 / total) : -1);
+                    p.put("done", d);
+                    p.put("total", total);
+                    notifyListeners("progress", p);
+                });
                 if (out.exists()) out.delete();
                 if (!part.renameTo(out)) throw new Exception("Couldn't save the update");
                 JSObject r = new JSObject();
