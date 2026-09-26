@@ -18,10 +18,20 @@ const num = (v) => {
 const isApk = Capacitor.isNativePlatform();
 export const updateAvailable = () => isApk && APP_VERSION !== 'dev' && num(update.get().latest) > num(APP_VERSION);
 
+// Updates are served from GitHub Pages (a fast CDN) with the GitHub release as a fallback.
+const PAGES = 'https://drdilips1.github.io/bytewatch-stremio-addon/';
+
 export async function checkForUpdate() {
+  try {
+    const j = await getJson(`${PAGES}app/latest.json?t=${Date.now()}`, { fresh: true, timeout: 12000 });
+    if (j?.version && j.apk) {
+      update.set({ checkedAt: Date.now(), latest: j.version, url: `${new URL(j.apk, PAGES).href}?v=${j.version}`, altUrl: j.github || '', notes: '' });
+      return updateAvailable();
+    }
+  } catch {}
   const r = await getJson(`https://api.github.com/repos/${REPO}/releases/latest`, { fresh: true });
   const asset = (r.assets || []).find((a) => /\.apk$/i.test(a.name));
-  update.set({ checkedAt: Date.now(), latest: (r.tag_name || '').replace(/^inkwell-v/, ''), url: asset?.browser_download_url || r.html_url, notes: r.name || '' });
+  update.set({ checkedAt: Date.now(), latest: (r.tag_name || '').replace(/^inkwell-v/, ''), url: asset?.browser_download_url || r.html_url, altUrl: '', notes: r.name || '' });
   return updateAvailable();
 }
 
@@ -34,7 +44,7 @@ let downloadedVersion = '';
 
 /** Download the new version inside the app, then open Android's installer. */
 export async function installUpdate() {
-  const { url, latest } = update.get();
+  const { url, altUrl, latest } = update.get();
   if (!url) return;
   if (!nativeUpdater || !/\.apk($|\?)/i.test(url)) {
     // Older app or no APK asset: fall back to the browser.
@@ -45,7 +55,12 @@ export async function installUpdate() {
       run.set((r) => ({ ...r, phase: 'downloading', pct: 0, error: '', version: latest }));
       const sub = await Updater.addListener('progress', (e) => run.set((r) => ({ ...r, pct: e.pct >= 0 ? e.pct : r.pct })));
       try {
-        await Updater.download({ url });
+        await Updater.download({ url }).catch((e) => {
+          // Pages copy unavailable: fall back to the GitHub release file.
+          if (!altUrl) throw e;
+          run.set((r) => ({ ...r, pct: 0 }));
+          return Updater.download({ url: altUrl });
+        });
       } finally {
         sub.remove();
       }
