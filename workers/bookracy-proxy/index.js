@@ -289,7 +289,7 @@ function makeResult({ title, author, url, format, language, posted, sizeBytes, c
     cover: cover || "",
     description: description || "",
     publisher: publisher || "",
-    debridCache: false
+    debridCache: true
   };
 }
 
