@@ -273,7 +273,7 @@ function Stepper({ label, value, options, onChange, fmt = (v) => v }) {
 function QbitCard() {
   const cfg = useStore(qb.qbit);
   const sent = useStore(qb.qbitSent);
-  const [form, setForm] = useState({ url: cfg.url, username: cfg.username, password: cfg.password, savePath: cfg.savePath, category: cfg.category });
+  const [form, setForm] = useState({ url: cfg.url, username: cfg.username, password: cfg.password, apiKey: cfg.apiKey || '', savePath: cfg.savePath, category: cfg.category });
   const [busy, setBusy] = useState('');
   const [list, setList] = useState(null);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.currentTarget.value }));
@@ -302,13 +302,14 @@ function QbitCard() {
         class="set-form"
         onSubmit={(e) => {
           e.preventDefault();
-          qb.qbit.set((c) => ({ ...c, ...form, url: form.url.trim(), savePath: form.savePath.trim() }));
+          qb.qbit.set((c) => ({ ...c, ...form, url: form.url.trim(), apiKey: form.apiKey.trim(), savePath: form.savePath.trim() }));
           run('test', qb.test);
         }}
       >
         <input value={form.url} placeholder="Web UI address, e.g. http://100.101.102.103:8080" autocapitalize="off" onInput={set('url')} />
         <input value={form.username} placeholder="Web UI username" autocapitalize="off" autocomplete="username" onInput={set('username')} />
         <input value={form.password} type="password" placeholder="Web UI password" autocomplete="current-password" onInput={set('password')} />
+        <input value={form.apiKey} placeholder="Or API key (qBittorrent 5.2+, starts with qbt_)" autocapitalize="off" autocomplete="off" onInput={set('apiKey')} />
         <input value={form.savePath} placeholder="Save to (your Audiobookshelf folder, e.g. /audiobooks)" autocapitalize="off" onInput={set('savePath')} />
         <input value={form.category} placeholder="Category (optional)" autocapitalize="off" onInput={set('category')} />
         <button class="btn primary" disabled={!!busy || !form.url.trim()}>

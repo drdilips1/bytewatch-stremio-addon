@@ -7,7 +7,10 @@ import { persisted } from '../lib/store.js';
 import { requestText, requestFull, cleanUrl } from '../lib/http.js';
 import { magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected } from './debrid.js';
 
-export const qbit = persisted('qbit', { url: '', username: '', password: '', savePath: '', category: 'audiobooks', auto: false });
+export const qbit = persisted('qbit', { url: '', username: '', password: '', apiKey: '', savePath: '', category: 'audiobooks', auto: false });
+
+// qBittorrent 5.2+ API key (qbt_…): sent on every call, no login or cookie needed.
+const apiKey = () => String(qbit.get().apiKey || '').trim();
 // Hashes already sent (so auto-send never repeats one), newest last.
 export const qbitSent = persisted('qbitSent', { items: {} });
 
@@ -27,6 +30,7 @@ function takeSetCookie(headers) {
   if (m) session = `${m[1]}=${m[2]}`;
 }
 async function cookie() {
+  if (apiKey()) return { Authorization: `Bearer ${apiKey()}` };
   try {
     const c = await CapacitorCookies.getCookies({ url: base() });
     const found = Object.entries(c || {}).filter(([k]) => isSession(k));
@@ -36,6 +40,7 @@ async function cookie() {
 }
 
 async function login() {
+  if (apiKey()) return;
   const { username, password } = qbit.get();
   if (!username && !password) return; // Web UI set to skip login for this network
   const body = new URLSearchParams({ username, password }).toString();
@@ -68,8 +73,13 @@ async function api(path, { method = 'GET', body, contentType } = {}) {
     return await go();
   } catch (e) {
     if (e.status !== 403 && e.status !== 401) throw e;
+    if (apiKey()) throw new Error('qBittorrent rejected the API key — copy it again from the Web UI settings');
     await login();
-    return go();
+    return go().catch((e2) => {
+      if (e2.status === 401 || e2.status === 403)
+        throw new Error("Signed in, but qBittorrent didn't accept the session on the next step. Use an API key instead (qBittorrent 5.2+: Web UI settings → API key), or allow your Tailscale devices without a password (bypass authentication for 100.64.0.0/10) and leave username/password empty here.");
+      throw e2;
+    });
   }
 }
 
@@ -100,7 +110,7 @@ export async function send(book) {
   const { savePath, category } = qbit.get();
   const magnet = magnetFor(book.magnet, hash, book.rawName || book.title);
   const { body, contentType } = multipart({ urls: magnet, savepath: savePath, category, tags: 'kathava', autoTMM: savePath ? 'false' : undefined });
-  if (!session) await login();
+  if (!session && !apiKey()) await login();
   const text = await api('torrents/add', { method: 'POST', body, contentType });
   if (/fail/i.test(text)) throw new Error('qBittorrent refused it (it may already be there)');
   qbitSent.set((s) => ({ items: { ...s.items, [hash]: { title: book.title, author: book.author || '', at: Date.now() } } }));
