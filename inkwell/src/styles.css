@@ -4279,3 +4279,45 @@ textarea {
   background: var(--tint, var(--accent));
   color: var(--on-grad, #111);
 }
+
+/* Download links panel on source results */
+.links-panel {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  display: grid;
+  gap: 8px;
+}
+.links-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.links-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.link-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.link-name {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.link-name span {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link-name small {
+  color: var(--muted);
+  font-size: 11.5px;
+}

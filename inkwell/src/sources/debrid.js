@@ -486,6 +486,69 @@ export async function prepareMagnet(provider, { magnet, hash, title }, onStatus)
   throw e;
 }
 
+/**
+ * Direct download links for a result: puts it in the account (or reuses it),
+ * waits briefly until the service has it, then lists every file with a
+ * resolver for its link. TorBox can also zip the whole folder.
+ * Resolves { provider, name, files: [{ name, size, resolve }], zip? }.
+ */
+export async function downloadLinks(provider, { magnet, hash, title }, onStatus) {
+  const h = infoHash(magnet, hash);
+  const m = magnetFor(magnet, h, title);
+  if (!m) throw new Error('This result has no magnet link');
+  if (provider === 'torbox') {
+    let it = await tbEnsure(m, h, onStatus);
+    const ready = (x) => x?.download_finished || x?.download_present;
+    for (let i = 0; i < 10 && !ready(it); i++) {
+      onStatus?.('TorBox is fetching it…', Number(it?.progress) || 0);
+      await sleep(i < 5 ? 1000 : 2500);
+      it = (await tbOne(it.id)) || it;
+    }
+    forget();
+    if (!ready(it)) throw new Error(`Still downloading on TorBox (${Math.round((Number(it?.progress) || 0) * 100)}%) — links work once it's finished`);
+    const link = (extra) => async () => {
+      const r = await getJson(`${TB}/torrents/requestdl?` + qs({ token: tbKey(), torrent_id: it.id, redirect: 'false', ...extra }), { fresh: true });
+      if (!r?.data) throw new Error(r?.detail || 'TorBox did not return a link');
+      return r.data;
+    };
+    const files = (it.files || [])
+      .map((f) => ({ name: f.short_name || baseName(f.name), size: Number(f.size) || 0, resolve: link({ file_id: f.id }) }))
+      .sort(naturalSort);
+    return { provider, name: it.name || title, files, zip: files.length > 1 ? link({ zip_link: 'true' }) : null };
+  }
+  const t = await rdEnsure(m, h, onStatus);
+  for (let i = 0; i < 12; i++) {
+    const info = await getJson(`${RD}/torrents/info/${t.id}`, { headers: rdHeaders(), fresh: true });
+    if (info.status === 'waiting_files_selection') {
+      await sendForm(`${RD}/torrents/selectFiles/${t.id}`, 'POST', { files: 'all' }, rdHeaders()).catch(() => {});
+    } else if (info.status === 'downloaded') {
+      forget();
+      const selected = (info.files || []).filter((f) => f.selected).sort((a, b) => a.id - b.id);
+      const links = info.links || [];
+      // Fewer links than files: Real-Debrid packed them into archive(s).
+      const rows = links.length === selected.length ? selected.map((f, i) => ({ name: baseName(f.path), size: Number(f.bytes) || 0, link: links[i] })) : links.map((l, i) => ({ name: `${info.filename || title}${links.length > 1 ? ` (part ${i + 1})` : ''} [archive]`, size: 0, link: l }));
+      const files = rows
+        .map((f) => ({
+          name: f.name,
+          size: f.size,
+          resolve: async () => {
+            const r = await sendForm(`${RD}/unrestrict/link`, 'POST', { link: f.link }, rdHeaders());
+            if (!r?.download) throw new Error('Real-Debrid did not return a link');
+            return r.download;
+          },
+        }))
+        .sort(naturalSort);
+      return { provider, name: info.filename || title, files, zip: null };
+    } else if (/error|dead|virus|magnet_error/.test(info.status)) {
+      throw new Error(`Real-Debrid could not fetch this torrent (${info.status})`);
+    }
+    onStatus?.('Real-Debrid is fetching it…', (Number(info.progress) || 0) / 100);
+    await sleep(i < 4 ? 1000 : 2500);
+  }
+  forget();
+  throw new Error('Still downloading on Real-Debrid — links work once it has finished');
+}
+
 /** Add without waiting. */
 export async function addMagnetOnly(provider, { magnet, hash, title }) {
   const h = infoHash(magnet, hash);

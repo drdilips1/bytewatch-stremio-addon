@@ -9,6 +9,7 @@ import * as player from '../lib/player.js';
 import { waitlist, wait, cancel } from '../lib/waitlist.js';
 import { translit } from '../lib/translit.js';
 import * as qb from '../sources/qbit.js';
+import { openExternal } from '../sources/summaries.js';
 
 const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
 const SHORT = { torbox: 'TorBox', realdebrid: 'RD' };
@@ -109,6 +110,7 @@ function seedClass(n) {
 function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) {
   const [busy, setBusy] = useState(null); // 'add:<provider>' | 'play'
   const [status, setStatus] = useState(null); // { text, pct (0..1) | null }
+  const [links, setLinks] = useState(null); // { provider, name, files: [{ name, size, url?, err? }], zip, zipUrl? }
   const waiting = useStore(waitlist).find((w) => w.hash === r.hash);
   useStore(qb.qbitSent);
   useStore(qb.qbit);
@@ -176,6 +178,49 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
       } else toast(e.message);
       onChanged();
     } finally {
+      setBusy(null);
+    }
+  };
+
+  // Direct download links from TorBox / Real-Debrid for every file.
+  const getLinks = async (via) => {
+    if (!need()) return;
+    setBusy('links');
+    setLinks(null);
+    setStatus({ text: `Getting links from ${LABEL[via]}…`, pct: null });
+    try {
+      const res = await cloud.downloadLinks(via, r, (text, pct) => setStatus({ text, pct }));
+      if (!res.files.length) throw new Error(`${LABEL[via]} lists no files for this one`);
+      const files = res.files.map((f) => ({ ...f }));
+      setLinks({ ...res, files });
+      setStatus({ text: 'Preparing links…', pct: 0 });
+      // Links are fetched up front (a few at a time) so Copy works with one tap.
+      let done = 0;
+      const queue = files.slice(0, 60).map((f, i) => [f, i]);
+      const worker = async () => {
+        while (queue.length) {
+          const [f, i] = queue.shift();
+          try {
+            f.url = await f.resolve();
+          } catch (e) {
+            f.err = e.message;
+          }
+          done++;
+          setStatus({ text: 'Preparing links…', pct: done / Math.min(files.length, 60) });
+          setLinks((l) => l && { ...l, files: l.files.map((x, k) => (k === i ? { ...f } : x)) });
+        }
+      };
+      await Promise.all([worker(), worker(), worker(), worker()]);
+      if (res.zip) {
+        const zipUrl = await res.zip().catch(() => '');
+        setLinks((l) => l && { ...l, zipUrl });
+      }
+      cloud.forget();
+      onChanged();
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setStatus(null);
       setBusy(null);
     }
   };
@@ -277,9 +322,121 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
                   {busy === 'play:' + p ? <span class="spinner" /> : <Icon name="play" size={14} />} {SHORT[p]}
                 </button>
               ))}
+            {provider && (
+              <button class="btn secondary play-alt" disabled={!!busy} onClick={() => (links ? setLinks(null) : getLinks(playVia))} aria-label="Download links">
+                {busy === 'links' ? <span class="spinner" /> : <Icon name="link" size={14} />} Links
+              </button>
+            )}
           </>
         )}
       </div>
+      {links && (
+        <LinksPanel
+          links={links}
+          others={providers.filter((p) => p !== links.provider)}
+          onSwitch={(p) => getLinks(p)}
+          onClose={() => setLinks(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Older WebViews: fall back to a hidden text box.
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  }
+}
+
+/** Direct download links for one result's files. */
+function LinksPanel({ links, others, onSwitch, onClose }) {
+  const [open, setOpen] = useState(links.files.length <= 8);
+  const ready = links.files.filter((f) => f.url);
+  const copy = async (text, what) => toast((await copyText(text)) ? `${what} copied` : 'Could not copy — long-press the link instead');
+  const fileUrl = async (f) => f.url || (f.url = await f.resolve());
+  return (
+    <div class="links-panel">
+      <div class="links-head">
+        <b>Download links · {LABEL[links.provider]}</b>
+        <button class="icon-btn" aria-label="Close links" onClick={onClose}>
+          <Icon name="close" size={16} />
+        </button>
+      </div>
+      <small class="muted">Links are personal to your account and expire after a while — get fresh ones here any time.</small>
+      <div class="links-bulk">
+        {links.zipUrl && (
+          <>
+            <button class="pill small" onClick={() => copy(links.zipUrl, 'Folder .zip link')}>
+              <Icon name="link" size={14} /> Copy whole folder (.zip)
+            </button>
+            <button class="pill small ghost" onClick={() => openExternal(links.zipUrl)}>
+              <Icon name="download" size={14} /> Download .zip
+            </button>
+          </>
+        )}
+        {ready.length > 1 && (
+          <button class="pill small" onClick={() => copy(ready.map((f) => f.url).join('\n'), `${ready.length} links`)}>
+            <Icon name="link" size={14} /> Copy all {ready.length} links
+          </button>
+        )}
+        {others.map((p) => (
+          <button class="pill small ghost" onClick={() => onSwitch(p)}>
+            Use {LABEL[p]} instead
+          </button>
+        ))}
+      </div>
+      {links.files.length > 8 && (
+        <button class="link-btn" onClick={() => setOpen(!open)}>
+          {open ? 'Hide' : 'Show'} {links.files.length} files
+        </button>
+      )}
+      {open &&
+        links.files.map((f) => (
+          <div class="link-row">
+            <div class="link-name">
+              <span>{f.name}</span>
+              <small>{f.err ? f.err : f.size > 0 ? fmtSize(f.size) : f.url ? '' : 'preparing…'}</small>
+            </div>
+            <button
+              class="icon-btn"
+              aria-label={`Copy link for ${f.name}`}
+              onClick={async () => {
+                try {
+                  copy(await fileUrl(f), 'Link');
+                } catch (e) {
+                  toast(e.message);
+                }
+              }}
+            >
+              <Icon name="link" size={16} />
+            </button>
+            <button
+              class="icon-btn"
+              aria-label={`Download ${f.name}`}
+              onClick={async () => {
+                try {
+                  openExternal(await fileUrl(f));
+                } catch (e) {
+                  toast(e.message);
+                }
+              }}
+            >
+              <Icon name="download" size={16} />
+            </button>
+          </div>
+        ))}
     </div>
   );
 }
