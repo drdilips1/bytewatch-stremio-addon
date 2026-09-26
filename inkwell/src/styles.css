@@ -4105,3 +4105,93 @@ textarea {
   flex-basis: 100%;
   height: 46px;
 }
+
+/* Ask the bookseller */
+.bookseller {
+  margin: 14px 16px 6px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--tint) 22%, transparent), transparent 60%),
+    radial-gradient(120% 140% at 100% 100%, color-mix(in srgb, var(--tint-2) 16%, transparent), transparent 60%),
+    var(--surface);
+  border: 1px solid var(--border);
+}
+.bookseller-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-family: var(--display);
+  font-size: 17px;
+}
+.bookseller-head .icon {
+  color: var(--accent);
+}
+.bookseller-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.bookseller-form textarea {
+  flex: 1;
+  resize: none;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+.bookseller-form .btn {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  flex: none;
+}
+.bookseller-examples {
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.bookseller-examples .pill {
+  white-space: normal;
+  text-align: left;
+}
+.bookseller-intro {
+  margin: 12px 0 6px;
+  font-style: italic;
+  color: var(--muted);
+}
+.bookseller-results {
+  display: grid;
+  gap: 10px;
+}
+.bookseller-item {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 12px;
+  text-align: left;
+  padding: 8px;
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  border: 0;
+}
+.bookseller-item .cover {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+}
+.bookseller-item b {
+  display: block;
+  font-size: 15px;
+}
+.bookseller-item small {
+  color: var(--muted);
+}
+.bookseller-item p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}

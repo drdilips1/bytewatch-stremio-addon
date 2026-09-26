@@ -11,7 +11,7 @@ export const aiReady = () => !!ai.get().geminiKey.trim();
 const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
 const cache = persisted('aiCache', {}); // prompt key -> { t, v }
 
-async function gemini(prompt, { json = false } = {}) {
+export async function gemini(prompt, { json = false } = {}) {
   const key = ai.get().geminiKey.trim();
   if (!key) throw new Error('Add your free Gemini API key in Settings → AI first');
   const models = ai.get().model ? [ai.get().model, ...MODELS.filter((m) => m !== ai.get().model)] : MODELS;

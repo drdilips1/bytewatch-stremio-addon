@@ -10,6 +10,7 @@ import { HINDI_ALL } from './hindi.js';
 import { persisted, useStore } from '../lib/store.js';
 import { GenreChips } from './Home.jsx';
 import { nav } from '../lib/nav.js';
+import { AskBookseller } from '../components/bookseller.jsx';
 import { SourceResults } from '../components/source-results.jsx';
 import { sourceAddons } from '../sources/sourceaddons.js';
 import { RelatedRows } from '../components/related.jsx';
@@ -120,6 +121,7 @@ export function Discover() {
 
       {term.length < 2 ? (
         <>
+          <AskBookseller />
           {history.length > 0 && (
             <section class="recent">
               <h3>Recent</h3>
