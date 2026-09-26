@@ -209,8 +209,10 @@ export function describe(l) {
 import { sendJson, getText as fetchText } from '../lib/http.js';
 import { Capacitor } from '@capacitor/core';
 
-const READ = 'https://sentry-read.svc.overdrive.com'; // chip, cards, sync
-const GATE = 'https://sentry.libbyapp.com'; // borrow, holds, open
+// Everything goes through Libby's gateway: the older sentry-read.svc.overdrive.com
+// host presents a certificate for another name, which phones rightly refuse.
+const GATE = 'https://sentry.libbyapp.com';
+const READ = GATE;
 const CLIENT_VERSION = '22.1.1'; // Libby web client version baked into the chip
 const MINT = `c=d%3A${CLIENT_VERSION}&s=0`;
 const NATIVE = Capacitor.isNativePlatform();
@@ -247,7 +249,11 @@ async function call(method, base, path, { identity, body } = {}) {
 /** A new chip, or (with identity + chipId) a fresh token for the same chip that includes its cards. */
 async function mint(identity, chipId) {
   const v = chipId ? `&v=${String(chipId).slice(0, 8)}` : '';
-  const r = await call('POST', READ, `chip?${MINT}${v}`, { identity });
+  // The web client's form first; the older client=dewey form (which Libby also accepts) as a fallback.
+  const r = await call('POST', READ, `chip?${MINT}${v}`, { identity }).catch((e) => {
+    if (e.status === 401) throw e;
+    return call('POST', READ, `chip?client=dewey${v}`, { identity });
+  });
   if (!r?.identity) throw new Error("Libby didn't answer — try again");
   return { identity: r.identity, chipId: r.chip?.id || tokenClaims(r.identity)?.chip?.id || chipId || '' };
 }
