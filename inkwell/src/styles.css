@@ -4039,3 +4039,52 @@ textarea {
 .src-progress-bar > div {
   background: var(--grad);
 }
+
+/* In-app update sheet */
+.update-sheet .sheet {
+  display: grid;
+  gap: 16px;
+  padding-bottom: calc(var(--safe-bottom) + 22px);
+}
+.update-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.update-head .icon {
+  flex: none;
+  padding: 10px;
+  border-radius: 16px;
+  background: var(--grad);
+  color: var(--on-grad, #1d1b20);
+  box-sizing: content-box;
+}
+.update-head b {
+  display: block;
+  font-family: var(--display);
+  font-size: 19px;
+}
+.update-head small {
+  color: var(--muted);
+}
+.update-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 10px;
+}
+.update-progress small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+}
+.update-step p {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+.update-step .btn {
+  width: 100%;
+}
+
+.feature-spacer {
+  height: calc(var(--safe-top) + 70px);
+}

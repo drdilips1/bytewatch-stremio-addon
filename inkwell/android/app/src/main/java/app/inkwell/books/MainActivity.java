@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(InkwellDownloadsPlugin.class);
         registerPlugin(InkwellTranscribePlugin.class);
         registerPlugin(InkwellWebPlugin.class);
+        registerPlugin(InkwellUpdatePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

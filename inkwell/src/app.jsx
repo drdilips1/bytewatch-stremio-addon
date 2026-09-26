@@ -9,6 +9,7 @@ import { settings, useStore } from './lib/store.js';
 import { applyTheme } from './lib/theme.js';
 import { Icon } from './components/icons.jsx';
 import { Toaster } from './components/common.jsx';
+import { UpdatePrompt } from './components/update.jsx';
 import { MiniPlayer, FullPlayer, usePlayer } from './components/player-ui.jsx';
 import { Home } from './screens/Home.jsx';
 import { Discover } from './screens/Discover.jsx';
@@ -101,6 +102,7 @@ export function App() {
         </>
       )}
       {route.overlay === 'player' && <FullPlayer />}
+      <UpdatePrompt />
       <Toaster />
     </div>
   );

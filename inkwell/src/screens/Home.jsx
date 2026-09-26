@@ -208,7 +208,8 @@ function Hero() {
     return () => clearInterval(t);
   }, [items, paused]);
   if (!items) return <section class="feature shimmer" />;
-  if (!items.length) return null;
+  // Nothing to feature: keep room for the floating header.
+  if (!items.length) return <div class="feature-spacer" />;
   return (
     <Feature
       items={items}
