@@ -98,7 +98,52 @@ export function epubToHtml(bytes) {
 // ---- ebooks in your TorBox / Real-Debrid -------------------------------------
 
 /** Reader UIDs for cloud ebooks look like "tb:t:123#ebook" (kept apart from the item's audio progress). */
-export const isCloudEbook = (book) => /^(tb|rd):/.test(book?.uid || '') && book.uid.endsWith('#ebook');
+export const isCloudEbook = (book) => /^(tb|rd|src):/.test(book?.uid || '') && book.uid.endsWith('#ebook');
+
+// ---- direct ebook links from source addons (e.g. Bookracy) -------------------
+
+const EBOOK_FORMATS = /^(epub|pdf|mobi|azw3?|fb2|djvu|cbz|cbr|txt)$/i;
+const EBOOK_EXT = /\.(epub|pdf|mobi|azw3?|fb2|djvu|cbz|cbr|txt)(?:$|[?#&])/i;
+
+// Short stable id for a link, so reading progress survives app restarts.
+function hashStr(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+const safeDecode = (s) => {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+};
+
+/** The ebook file behind a source result's direct link, or null when it isn't an ebook. */
+export function directEbookFile(r) {
+  const link = r?.link || '';
+  if (!/^https?:/i.test(link)) return null;
+  const given = String(r.format || '').trim();
+  const fmt = (EBOOK_FORMATS.test(given) ? given : EBOOK_EXT.exec(safeDecode(link))?.[1] || '').toUpperCase();
+  if (!fmt) return null;
+  const name = `${String(r.title || 'Book').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 90)}.${fmt.toLowerCase()}`;
+  return { name, format: fmt, size: r.size || 0, resolve: async () => link };
+}
+
+/** The book to open in the reader for a source result's direct EPUB link. */
+export const directReaderBook = (r, file, book) => ({
+  uid: `src:${hashStr(r.link)}#ebook`,
+  source: 'src',
+  kind: 'text',
+  title: book?.title || r.title,
+  author: book?.author || r.author || '',
+  cover: book?.cover || '',
+  ebookName: file.name,
+  ebookFormat: file.format,
+  ebookUrl: r.link,
+  ebookFile: file,
+});
 
 /** The book to open in the reader for one ebook file of a cloud item. */
 export const cloudReaderBook = (book, file) => ({
@@ -117,6 +162,8 @@ const docs = new Map(); // uid -> parsed document (this session)
 export async function loadCloudEbook(book) {
   if (docs.has(book.uid)) return docs.get(book.uid);
   let file = book.ebookFile;
+  // Direct links (reopened from Continue): the saved link is all we need.
+  if (!file && book.ebookUrl) file = { name: book.ebookName || 'book.epub', format: book.ebookFormat || 'EPUB', resolve: async () => book.ebookUrl };
   if (!file) {
     const d = await cloudDetails({ ...book, uid: book.uid.replace(/#ebook$/, ''), kind: 'text' });
     const list = d.ebooks || [];

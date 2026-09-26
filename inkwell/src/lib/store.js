@@ -76,8 +76,10 @@ export const addons = persisted('addons', []); // [{ url, manifest }]
 export const abs = persisted('abs', { server: '', altServer: '', token: '', refreshToken: '', username: '', libraryId: '' });
 
 export function summarize(book) {
-  const { uid, source, kind, title, author, cover, year, duration } = book;
-  return { uid, source, kind, title, author, cover, year, duration };
+  const { uid, source, kind, title, author, cover, year, duration, ebookUrl, ebookName, ebookFormat } = book;
+  // Direct-link ebooks keep their link so Continue can reopen them.
+  const direct = ebookUrl ? { ebookUrl, ebookName, ebookFormat } : {};
+  return { uid, source, kind, title, author, cover, year, duration, ...direct };
 }
 
 export function toggleLibrary(book) {

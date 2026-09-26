@@ -15,9 +15,9 @@ export async function sendToKindle(book) {
   window.open(book.epubUrl, '_blank');
 }
 
-const MIME = { EPUB: 'application/epub+zip', PDF: 'application/pdf', MOBI: 'application/x-mobipocket-ebook', AZW3: 'application/vnd.amazon.ebook', AZW: 'application/vnd.amazon.ebook' };
+const MIME = { EPUB: 'application/epub+zip', PDF: 'application/pdf', MOBI: 'application/x-mobipocket-ebook', AZW3: 'application/vnd.amazon.ebook', AZW: 'application/vnd.amazon.ebook', TXT: 'text/plain' };
 
-/** Share an ebook file from TorBox / Real-Debrid: Kindle, or any reader app. */
+/** Share an ebook file (TorBox / Real-Debrid or a direct link): Kindle, or any reader app. */
 export async function shareEbook(file, book) {
   const url = await file.resolve();
   if (native) return Web.shareFile({ url, name: file.name, mime: MIME[file.format] || 'application/octet-stream', title: `Send "${book.title}" to…` });

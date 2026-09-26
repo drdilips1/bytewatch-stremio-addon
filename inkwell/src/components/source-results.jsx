@@ -10,6 +10,8 @@ import { waitlist, wait, cancel } from '../lib/waitlist.js';
 import { translit } from '../lib/translit.js';
 import * as qb from '../sources/qbit.js';
 import { openExternal } from '../sources/summaries.js';
+import { directEbookFile, directReaderBook } from '../lib/epub.js';
+import { shareEbook } from '../lib/kindle.js';
 
 const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
 const SHORT = { torbox: 'TorBox', realdebrid: 'RD' };
@@ -236,7 +238,21 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   }, [!!downloading]);
 
   const hasMagnet = !!(r.magnet || r.hash);
-  const home = hasMagnet && qb.available && qb.configured();
+  // Direct ebook links (no torrent): EPUB opens in the reader; any ebook can be saved to another app.
+  const ebook = hasMagnet ? null : directEbookFile(r);
+  const shareDirect = async () => {
+    setBusy('share');
+    setStatus({ text: 'Downloading the ebook…', pct: null });
+    try {
+      await shareEbook(ebook, { title: book?.title || r.title });
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setStatus(null);
+      setBusy(null);
+    }
+  };
+  const home =hasMagnet && qb.available && qb.configured();
   const homeHash = home ? cloud.infoHash(r.magnet, r.hash) : '';
   const sentHome = !!homeHash && qb.wasSent(homeHash);
   const sendHome = async () => {
@@ -306,7 +322,27 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
       {dead && <div class="src-warn">No seeders — your debrid service may never finish downloading this one.</div>}
       {status && <Progress text={status.text} pct={status.pct} />}
       <div class="src-actions ready">
-        {!hasMagnet ? (
+        {!hasMagnet && ebook ? (
+          <>
+            {ebook.format === 'EPUB' && (
+              <button class="btn primary" onClick={() => nav.push('reader', { book: directReaderBook(r, ebook, book) })}>
+                <Icon name="book" size={16} /> Read
+              </button>
+            )}
+            <button
+              class={ebook.format === 'EPUB' ? 'btn secondary play-alt' : 'btn primary'}
+              disabled={!!busy}
+              onClick={shareDirect}
+              aria-label="Download and open in a reader app or Kindle"
+            >
+              {busy === 'share' ? <span class="spinner" /> : <Icon name="download" size={ebook.format === 'EPUB' ? 14 : 16} />}{' '}
+              {ebook.format === 'EPUB' ? 'Save' : 'Download · open in app'}
+            </button>
+            <a class="btn secondary play-alt" href={r.link} target="_blank" rel="noopener" aria-label="Open in browser">
+              <Icon name="external" size={14} />
+            </a>
+          </>
+        ) : !hasMagnet ? (
           <a class="btn primary" href={r.link} target="_blank" rel="noopener">
             <Icon name="external" size={16} /> Open
           </a>
