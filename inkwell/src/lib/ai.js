@@ -1,52 +1,155 @@
-// Story helpers powered by Google Gemini (your own free API key): a spoiler-safe
-// recap of the story so far / the previous chapter, and a character glossary
-// that only knows what has happened up to where you are.
+// AI helpers using free services with your own key (Groq, OpenRouter or
+// Mistral): a spoiler-safe recap of the story so far / the previous chapter, a
+// character glossary that only knows what has happened up to where you are,
+// and the bookseller. If one service is busy the next one (or model) is tried.
 import { persisted } from './store.js';
 import * as player from './player.js';
 import { heardText } from './transcript.js';
 
-export const ai = persisted('ai', { geminiKey: '', model: '' });
-export const aiReady = () => !!ai.get().geminiKey.trim();
+export const ai = persisted('ai', { groqKey: '', openrouterKey: '', mistralKey: '', last: '' });
 
-const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+/** Free services, in the order they are tried. All speak the OpenAI chat format. */
+export const PROVIDERS = [
+  {
+    id: 'groq',
+    name: 'Groq',
+    keyField: 'groqKey',
+    site: 'console.groq.com/keys',
+    url: 'https://api.groq.com/openai/v1/chat/completions',
+    models: ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'llama-3.1-8b-instant'],
+    json: true,
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    keyField: 'openrouterKey',
+    site: 'openrouter.ai/keys',
+    url: 'https://openrouter.ai/api/v1/chat/completions',
+    models: ['meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-chat-v3-0324:free', 'qwen/qwen-2.5-72b-instruct:free', 'mistralai/mistral-small-3.2-24b-instruct:free'],
+    json: false,
+    headers: { 'HTTP-Referer': 'https://drdilips1.github.io/bytewatch-stremio-addon/', 'X-Title': 'Kathava' },
+  },
+  {
+    id: 'mistral',
+    name: 'Mistral',
+    keyField: 'mistralKey',
+    site: 'console.mistral.ai/api-keys',
+    url: 'https://api.mistral.ai/v1/chat/completions',
+    models: ['mistral-small-latest', 'open-mistral-nemo'],
+    json: true,
+  },
+];
+
+const keyOf = (p) => (ai.get()[p.keyField] || '').trim();
+export const aiReady = () => PROVIDERS.some(keyOf);
+
 const cache = persisted('aiCache', {}); // prompt key -> { t, v }
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function gemini(prompt, { json = false } = {}) {
-  const key = ai.get().geminiKey.trim();
-  if (!key) throw new Error('Add your free Gemini API key in Settings → AI first');
-  const models = ai.get().model ? [ai.get().model, ...MODELS.filter((m) => m !== ai.get().model)] : MODELS;
-  let last;
-  for (const model of models) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+async function call(p, model, prompt, json) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 45000);
+  try {
+    const res = await fetch(p.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keyOf(p)}`, ...(p.headers || {}) },
       body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3, ...(json ? { responseMimeType: 'application/json' } : {}) },
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        ...(json && p.json ? { response_format: { type: 'json_object' } } : {}),
       }),
     });
-    if (res.status === 404) {
-      last = new Error(`Model ${model} not available`);
-      continue;
-    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const msg = data?.error?.message || `Gemini error ${res.status}`;
-      if (res.status === 400 && /API key/i.test(msg)) throw new Error('Gemini rejected the API key — check it in Settings → AI');
-      if (res.status === 429) throw new Error('Gemini free limit reached for now — try again in a minute');
-      throw new Error(msg);
+      const e = new Error(data?.error?.message || data?.message || `${p.name} error ${res.status}`);
+      e.status = res.status;
+      throw e;
     }
-    if (ai.get().model !== model) ai.patch({ model });
-    const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('').trim();
-    if (!text) throw new Error(data.promptFeedback?.blockReason ? `Gemini declined (${data.promptFeedback.blockReason})` : 'Gemini returned nothing');
+    const text = (data.choices?.[0]?.message?.content || '').trim();
+    if (!text) throw Object.assign(new Error(`${p.name} returned nothing`), { status: 502 });
     return text;
+  } catch (e) {
+    if (e.name === 'AbortError') throw Object.assign(new Error(`${p.name} took too long`), { status: 504 });
+    if (e.status == null) e.status = 0; // network
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  throw last || new Error('No Gemini model available');
 }
 
-export async function testKey() {
-  const t = await gemini('Reply with the single word OK.');
-  return /ok/i.test(t) ? 'Gemini is working' : t.slice(0, 60);
+/** Pull the JSON object out of a reply (some models wrap it in prose or fences). */
+export function parseJson(text) {
+  const t = text.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, '');
+  try {
+    return JSON.parse(t);
+  } catch {
+    const a = t.indexOf('{');
+    const b = t.lastIndexOf('}');
+    if (a >= 0 && b > a) return JSON.parse(t.slice(a, b + 1));
+    throw new Error('bad json');
+  }
+}
+
+/**
+ * Ask the AI. Starts with the service/model that last worked; on a busy,
+ * rate-limited or failing reply it waits briefly, retries once, then moves on
+ * to the next model and the next service.
+ */
+export async function askAi(prompt, { json = false } = {}) {
+  const ready = PROVIDERS.filter(keyOf);
+  if (!ready.length) throw new Error('Add a free AI key (Groq, OpenRouter or Mistral) in Settings → AI first');
+  let order = ready.flatMap((p) => p.models.map((m) => [p, m]));
+  const last = ai.get().last;
+  const li = order.findIndex(([p, m]) => `${p.id}/${m}` === last);
+  if (li > 0) order = [order[li], ...order.filter((_, i) => i !== li)];
+  const errors = {};
+  const deadKeys = new Set();
+  let retried = false; // one short wait-and-retry per request; after that, move on at once
+  for (const [p, model] of order) {
+    if (deadKeys.has(p.id)) continue;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const text = await call(p, model, prompt, json);
+        if (json) parseJson(text); // a garbled reply counts as a failure: try the next one
+        if (ai.get().last !== `${p.id}/${model}`) ai.patch({ last: `${p.id}/${model}` });
+        return text;
+      } catch (e) {
+        errors[p.id] = e;
+        if (e.status === 401 || e.status === 403) {
+          deadKeys.add(p.id); // bad key: skip the rest of this service
+          break;
+        }
+        if (e.status === 400 || e.status === 404 || e.message === 'bad json') break; // model gone / unsupported: next model
+        if (attempt === 0 && !retried && (e.status === 503 || e.status === 502 || e.status === 500 || e.status === 0)) {
+          retried = true;
+          await wait(1500);
+          continue;
+        }
+        break; // 429 and others: next model / service straight away
+      }
+    }
+  }
+  const bad = [...deadKeys].map((id) => PROVIDERS.find((p) => p.id === id).name);
+  if (bad.length === ready.length) throw new Error(`${bad.join(' and ')} rejected the key — check it in Settings → AI`);
+  throw new Error(ready.length > 1 ? 'All AI services are busy right now — try again in a minute' : `${ready[0].name} is busy right now — try again in a minute, or add a second free service in Settings → AI`);
+}
+
+/** Check one service's key; resolves a short status line. */
+export async function testProvider(id) {
+  const p = PROVIDERS.find((x) => x.id === id);
+  let lastErr;
+  for (const model of p.models) {
+    try {
+      await call(p, model, 'Reply with the single word OK.', false);
+      return `${p.name} is working`;
+    } catch (e) {
+      lastErr = e;
+      if (e.status === 401 || e.status === 403) throw new Error(`${p.name} rejected the key`);
+    }
+  }
+  throw new Error(`${p.name}: ${lastErr?.message || 'not reachable'}`);
 }
 
 /** Where the listener is: chapter title, number, and % through the book. */
@@ -94,13 +197,13 @@ export async function recap(mode = 'story') {
   const target = mode === 'chapter' ? Math.max(0, p.current - 1) : p.current;
   const key = `recap:${p.book.uid}:${mode}:${target}`;
   return cached(key, () =>
-    gemini(
+    askAi(
       `You help someone listening to the audiobook ${bookLine(p.book)}. They are at: ${p.label}.
 ${mode === 'chapter' ? `Write a recap of the previous chapter (${p.chapters[target]?.title || `part ${target + 1}`}) only.` : 'Write "The story so far": a recap of everything up to their current position.'}
 ${RULES}
 Style: warm, clear, spoken-friendly prose (it may be read aloud), ${mode === 'chapter' ? '120–200' : '200–350'} words, no headings or bullet points, no preamble.
-${p.heard ? `Transcript of what they have heard (may contain recognition errors; trust it over your memory for this edition):\n"""${p.heard}"""` : ''}`
-    )
+${p.heard ? `Transcript of what they have heard (may contain recognition errors; trust it over your memory for this edition):\n"""${p.heard}"""` : ''}`,
+    ),
   );
 }
 
@@ -109,18 +212,18 @@ export async function characters(upToChapter) {
   const p = position(upToChapter);
   const key = `chars:${p.book.uid}:${p.at}`;
   const raw = await cached(key, () =>
-    gemini(
+    askAi(
       `List the characters of the audiobook ${bookLine(p.book)} as known to a listener who has reached: ${p.label}.
 ${RULES}
 Return JSON: {"characters":[{"name":"","aliases":[""],"role":"one short line","about":"2–3 sentences, only what is known by this point"}]}. At most 20 characters, most important first. Omit characters who have not appeared yet.
 ${p.heard ? `Transcript of what they have heard:\n"""${p.heard}"""` : ''}`,
-      { json: true }
-    )
+      { json: true },
+    ),
   );
   try {
-    const d = JSON.parse(raw);
+    const d = parseJson(raw);
     return { position: p, list: (d.characters || []).filter((c) => c && c.name) };
   } catch {
-    throw new Error('Gemini sent an unexpected reply — try again');
+    throw new Error('The AI sent an unexpected reply — try again');
   }
 }

@@ -4211,3 +4211,32 @@ textarea {
   margin: -2px 2px 4px;
   font-size: 12px;
 }
+
+/* AI keys (Settings) and the recap fallback */
+.ai-key {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.ai-key-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.ok-dot {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--accent);
+}
+.ok-dot::before {
+  content: '● ';
+}
+.err.small {
+  font-size: 12.5px;
+  margin: 4px 0 0;
+}
+.story-fallback {
+  display: grid;
+  gap: 8px;
+}

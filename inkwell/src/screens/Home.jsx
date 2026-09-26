@@ -2,7 +2,7 @@ import { BgImage } from '../components/bg-image.jsx';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Row, BookCard, withMeta } from '../components/common.jsx';
 import { useMeta } from '../lib/meta.js';
-import { picksForYou, aiReady } from '../lib/bookseller.js';
+import { picksForYou } from '../lib/bookseller.js';
 import { mainTitle } from '../lib/match.js';
 import { Icon } from '../components/icons.jsx';
 import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, enabled, sourceOrder, sourceRank } from '../sources/index.js';
@@ -23,7 +23,8 @@ import * as player from '../lib/player.js';
 // (a slow service never holds the others back).
 const heroCache = persisted('heroCache', { items: [] });
 
-// Recommendations lead the banner: AI picks from your taste (with a Gemini key)
+// Recommendations lead the banner: picks from your taste (AI with a free key,
+// otherwise Audible's "listeners also enjoyed")
 // and highly rated bestsellers you don't own; your own services follow.
 const ownedTitles = () => {
   const t = new Set();
@@ -44,7 +45,7 @@ async function topRated() {
 
 function heroSources() {
   const list = [];
-  if (aiReady()) list.push([() => picksForYou().then(notOwned), 'Picked for you', 'ai']);
+  list.push([() => picksForYou().then(notOwned), 'Picked for you', 'ai']);
   list.push([topRated, 'Top rated now', 'top']);
   if (absSrc.connected() && enabled('abs')) list.push([() => absSrc.inProgress(), 'Continue on your server', 'abs'], [() => absSrc.recent(), 'New on your server', 'abs']);
   if (cloud.tbConnected() && enabled('tb')) list.push([() => cloud.torboxLibrary(), 'In your TorBox', 'tb']);

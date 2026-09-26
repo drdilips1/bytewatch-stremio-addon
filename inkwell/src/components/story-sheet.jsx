@@ -20,7 +20,7 @@ export function StorySheet({ close }) {
         <h3>
           <Icon name="sparkle" size={18} /> Story helper
         </h3>
-        <p class="muted">Recaps and the spoiler-free character guide use Google Gemini. Add your free API key once in Settings → AI.</p>
+        <p class="muted">Recaps and the spoiler-free character guide use a free AI service (Groq, OpenRouter or Mistral). Add a free key once in Settings → AI.</p>
         <button
           class="btn primary"
           onClick={() => {
@@ -54,14 +54,21 @@ function Recap() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [reading, setReading] = useState(false);
+  const [fallback, setFallback] = useState(null); // { err, about } when the AI can't answer
   const run = async (m) => {
     setMode(m);
     setText('');
+    setFallback(null);
     setBusy(true);
     try {
       setText(await recap(m));
     } catch (e) {
-      toast(e.message);
+      // No AI right now: show the (spoiler-free) publisher description instead of nothing.
+      let about = '';
+      try {
+        about = position().book.description || '';
+      } catch {}
+      setFallback({ err: e.message, about });
     } finally {
       setBusy(false);
     }
@@ -99,6 +106,24 @@ function Recap() {
         <p class="muted">
           <span class="spinner small" /> Writing your recap…
         </p>
+      )}
+      {fallback && (
+        <div class="story-fallback">
+          <p class="err">{fallback.err}</p>
+          {fallback.about && (
+            <>
+              <p class="muted small">Meanwhile, here's what the book is about:</p>
+              <div class="story-text">
+                {fallback.about.split(/\n+/).map((p) => (
+                  <p>{p}</p>
+                ))}
+              </div>
+            </>
+          )}
+          <button class="btn ghost-wide" onClick={() => run(mode)}>
+            Try again
+          </button>
+        </div>
       )}
       {text && (
         <>

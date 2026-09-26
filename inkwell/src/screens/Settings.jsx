@@ -5,7 +5,7 @@ import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBa
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay } from '../lib/http.js';
 import { searchSources, sourceAddons } from '../sources/sourceaddons.js';
-import { ai, testKey } from '../lib/ai.js';
+import { ai, PROVIDERS as AI_PROVIDERS, testProvider } from '../lib/ai.js';
 import relayCode from '../../relay/index.ts?raw';
 import { ACCENTS } from '../lib/theme.js';
 import { APP_VERSION } from '../components/update.jsx';
@@ -221,27 +221,51 @@ function WebRelayCard() {
   );
 }
 
-/** Google Gemini key for recaps and the character guide. */
+/** Free AI keys (Groq, OpenRouter, Mistral) for the bookseller, recaps and the character guide. */
 function AiCard() {
   const cfg = useStore(ai);
-  const [key, setKey] = useState(cfg.geminiKey);
-  const [busy, setBusy] = useState(false);
   return (
     <>
       <p class="muted">
-        Powers <b>Story</b> in the player: spoiler-free recaps and the character guide. Get a free key at <b>aistudio.google.com/apikey</b> (sign in with Google → Create API key) and paste it here.
+        Powers the <b>bookseller</b>, <b>Picked for you</b> and <b>Story</b> in the player (spoiler-free recaps and characters). Add one or more free keys: if one service is busy the app switches to the next automatically.
+        Without a key the bookseller still works from the Audible catalogue.
       </p>
+      {AI_PROVIDERS.map((p) => (
+        <AiKey p={p} saved={cfg[p.keyField] || ''} />
+      ))}
+      <p class="muted small">
+        <b>Groq</b> is the fastest and most generous (recommended). <b>OpenRouter</b> gives free Llama, DeepSeek and Qwen models. <b>Mistral</b> has a free "Experiment" plan (needs phone verification). No card is needed for any of them.
+      </p>
+    </>
+  );
+}
+
+function AiKey({ p, saved }) {
+  const [key, setKey] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  const [state, setState] = useState(''); // '' | 'ok' | error text
+  return (
+    <div class="ai-key">
+      <div class="ai-key-head">
+        <b>{p.name}</b>
+        <small class="muted">free key at {p.site}</small>
+        {saved && state === 'ok' && <span class="ok-dot">Working</span>}
+      </div>
       <div class="set-row">
-        <input type="password" value={key} placeholder="Gemini API key" onInput={(e) => setKey(e.currentTarget.value)} autocomplete="off" />
+        <input type="password" value={key} placeholder={`${p.name} API key`} onInput={(e) => setKey(e.currentTarget.value)} autocomplete="off" />
         <button
           class="btn"
-          disabled={busy || !key.trim()}
+          disabled={busy || key.trim() === saved}
           onClick={async () => {
-            ai.patch({ geminiKey: key.trim() });
+            ai.patch({ [p.keyField]: key.trim() });
+            setState('');
+            if (!key.trim()) return toast(`${p.name} key removed`);
             setBusy(true);
             try {
-              toast(await testKey());
+              toast(await testProvider(p.id));
+              setState('ok');
             } catch (e) {
+              setState(e.message);
               toast(e.message);
             } finally {
               setBusy(false);
@@ -251,7 +275,8 @@ function AiCard() {
           {busy ? <span class="spinner small" /> : 'Save'}
         </button>
       </div>
-    </>
+      {state && state !== 'ok' && <p class="err small">{state}</p>}
+    </div>
   );
 }
 
@@ -1005,7 +1030,7 @@ export function Settings() {
         <Stepper label="Skip forward" value={st.skipForward} options={[10, 15, 30, 45, 60]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipForward: v })} />
       </Section>
 
-      <Section icon="sparkle" title="AI (story helper)">
+      <Section icon="sparkle" title="AI (bookseller & story helper)">
         <AiCard />
       </Section>
 
