@@ -25,7 +25,9 @@ export const PROVIDERS = [
     keyField: 'openrouterKey',
     site: 'openrouter.ai/keys',
     url: 'https://openrouter.ai/api/v1/chat/completions',
+    // OpenRouter's free line-up changes often: the live list is fetched (see freeRouterModels); these are only a fallback.
     models: ['meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-chat-v3-0324:free', 'qwen/qwen-2.5-72b-instruct:free', 'mistralai/mistral-small-3.2-24b-instruct:free'],
+    discover: () => freeRouterModels(),
     json: false,
     headers: { 'HTTP-Referer': 'https://drdilips1.github.io/bytewatch-stremio-addon/', 'X-Title': 'Kathava' },
   },
@@ -39,6 +41,48 @@ export const PROVIDERS = [
     json: true,
   },
 ];
+
+// Families that give good book answers, best first; anything else free comes after.
+const PREFER = [/^openrouter\/free$/, /deepseek-chat|deepseek-v3/, /llama-3\.3-70b|llama-4-maverick/, /qwen.*(235b|72b|32b)/, /gpt-oss/, /gemma-3-27b|gemma-3n?/, /mistral-small|mistral-nemo/, /llama/];
+const routerList = persisted('aiRouterModels', { t: 0, ids: [] });
+
+/** OpenRouter models that are free right now (public list, no key needed; cached for 12 hours). */
+async function freeRouterModels() {
+  const hit = routerList.get();
+  if (hit.ids.length && Date.now() - hit.t < 12 * 3600e3) return hit.ids;
+  const res = await fetch('https://openrouter.ai/api/v1/models');
+  if (!res.ok) throw new Error('list');
+  const { data = [] } = await res.json();
+  const rank = (id) => {
+    const i = PREFER.findIndex((r) => r.test(id));
+    return i < 0 ? PREFER.length : i;
+  };
+  const ids = data
+    .filter((m) => {
+      const free = m.id.endsWith(':free') || (Number(m.pricing?.prompt) === 0 && Number(m.pricing?.completion) === 0);
+      const text = !m.architecture?.output_modalities || m.architecture.output_modalities.includes('text');
+      return free && text && (m.context_length || 0) >= 8000;
+    })
+    .sort((a, b) => rank(a.id) - rank(b.id) || (b.context_length || 0) - (a.context_length || 0))
+    .slice(0, 6)
+    .map((m) => m.id);
+  if (ids.length) routerList.set({ t: Date.now(), ids });
+  return ids;
+}
+
+async function modelsFor(p) {
+  if (!p.discover) return p.models;
+  try {
+    const ids = await p.discover();
+    return ids.length ? ids : p.models;
+  } catch {
+    return routerList.get().ids.length ? routerList.get().ids : p.models;
+  }
+}
+
+// OpenRouter refuses free models until the account allows them in its privacy settings.
+const POLICY = /data policy|privacy|free model (publication|training)|No endpoints found matching/i;
+const policyHelp = (name) => `${name} is blocking its free models: open openrouter.ai/settings/privacy and turn on the options for free models (training / publication), then try again`;
 
 const keyOf = (p) => (ai.get()[p.keyField] || '').trim();
 export const aiReady = () => PROVIDERS.some(keyOf);
@@ -100,15 +144,16 @@ export function parseJson(text) {
 export async function askAi(prompt, { json = false } = {}) {
   const ready = PROVIDERS.filter(keyOf);
   if (!ready.length) throw new Error('Add a free AI key (Groq, OpenRouter or Mistral) in Settings → AI first');
-  let order = ready.flatMap((p) => p.models.map((m) => [p, m]));
+  let order = (await Promise.all(ready.map(async (p) => (await modelsFor(p)).map((m) => [p, m])))).flat();
   const last = ai.get().last;
   const li = order.findIndex(([p, m]) => `${p.id}/${m}` === last);
   if (li > 0) order = [order[li], ...order.filter((_, i) => i !== li)];
   const errors = {};
   const deadKeys = new Set();
+  const blocked = new Set();
   let retried = false; // one short wait-and-retry per request; after that, move on at once
   for (const [p, model] of order) {
-    if (deadKeys.has(p.id)) continue;
+    if (deadKeys.has(p.id) || blocked.has(p.id)) continue;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const text = await call(p, model, prompt, json);
@@ -121,6 +166,10 @@ export async function askAi(prompt, { json = false } = {}) {
           deadKeys.add(p.id); // bad key: skip the rest of this service
           break;
         }
+        if (POLICY.test(e.message)) {
+          blocked.add(p.id); // account setting blocks free models: no point trying others here
+          break;
+        }
         if (e.status === 400 || e.status === 404 || e.message === 'bad json') break; // model gone / unsupported: next model
         if (attempt === 0 && !retried && (e.status === 503 || e.status === 502 || e.status === 500 || e.status === 0)) {
           retried = true;
@@ -131,6 +180,7 @@ export async function askAi(prompt, { json = false } = {}) {
       }
     }
   }
+  if (blocked.size && blocked.size + deadKeys.size === ready.length) throw new Error(policyHelp(PROVIDERS.find((p) => blocked.has(p.id)).name));
   const bad = [...deadKeys].map((id) => PROVIDERS.find((p) => p.id === id).name);
   if (bad.length === ready.length) throw new Error(`${bad.join(' and ')} rejected the key — check it in Settings → AI`);
   throw new Error(ready.length > 1 ? 'All AI services are busy right now — try again in a minute' : `${ready[0].name} is busy right now — try again in a minute, or add a second free service in Settings → AI`);
@@ -140,13 +190,14 @@ export async function askAi(prompt, { json = false } = {}) {
 export async function testProvider(id) {
   const p = PROVIDERS.find((x) => x.id === id);
   let lastErr;
-  for (const model of p.models) {
+  for (const model of (await modelsFor(p)).slice(0, 4)) {
     try {
       await call(p, model, 'Reply with the single word OK.', false);
       return `${p.name} is working`;
     } catch (e) {
       lastErr = e;
       if (e.status === 401 || e.status === 403) throw new Error(`${p.name} rejected the key`);
+      if (POLICY.test(e.message)) throw new Error(policyHelp(p.name));
     }
   }
   throw new Error(`${p.name}: ${lastErr?.message || 'not reachable'}`);
