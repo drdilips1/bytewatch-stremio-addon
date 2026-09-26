@@ -324,26 +324,33 @@ export function openTracker() {
   const url = String(tracker.get().url || '').trim();
   if (!url) throw new Error('Add your tracker site address first');
   if (!canBrowse) return window.open(url, '_blank');
-  return Web.open({ url: /^https?:\/\//i.test(url) ? url : 'https://' + url, title: '', capture: true });
+  // The browser screen sends captured downloads itself (the app is paused behind it).
+  const c = qbit.get();
+  const qb = JSON.stringify({ url: cleanUrl(c.url, 'http'), apiKey: c.apiKey || '', username: c.username || '', password: c.password || '', savePath: c.savePath || '', category: c.category || '', trackers: TRACKERS });
+  return Web.open({ url: /^https?:\/\//i.test(url) ? url : 'https://' + url, title: '', capture: true, qbit: qb });
 }
 
 const nativeToast = (text) => (canBrowse ? Web.toast({ text }).catch(() => {}) : Promise.resolve());
 
-// Downloads caught in the in-app browser go straight to the home server (never a debrid service).
+// Downloads caught in the in-app browser: the browser screen already sent them to
+// qBittorrent; here we only note them so they show under "Downloads at home".
 if (canBrowse) {
   Web.addListener('captured', async (e) => {
+    if (!e.sent) return;
     try {
-      let msg;
-      if (e.type === 'magnet') msg = await sendMagnet(e.url);
-      else {
+      let hash = '';
+      let title = e.name || 'Torrent';
+      if (e.type === 'magnet') {
+        hash = infoHash(e.url, '');
+        const dn = (/[?&]dn=([^&]+)/.exec(e.url) || [])[1];
+        if (dn) title = decodeURIComponent(dn.replace(/\+/g, ' '));
+      } else {
         const bin = atob(e.data || '');
-        const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-        const file = new File([bytes], e.name || 'download.torrent', { type: 'application/x-bittorrent' });
-        msg = await sendFile(file);
+        const info = await readTorrent(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+        hash = info.hash;
+        title = info.name || title;
       }
-      nativeToast(msg);
-    } catch (err) {
-      nativeToast(err.message);
-    }
+      if (hash) qbitSent.set((s) => ({ items: { ...s.items, [hash]: { title: title.replace(/\.torrent$/i, ''), author: '', at: Date.now() } } }));
+    } catch {}
   });
 }

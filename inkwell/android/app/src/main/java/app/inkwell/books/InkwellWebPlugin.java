@@ -36,6 +36,8 @@ public class InkwellWebPlugin extends Plugin {
         i.putExtra("url", url);
         i.putExtra("title", call.getString("title", ""));
         i.putExtra("capture", call.getBoolean("capture", false));
+        // qBittorrent settings, so captured downloads are sent from the browser screen itself.
+        i.putExtra("qbit", call.getString("qbit", ""));
         getActivity().startActivity(i);
         call.resolve();
     }

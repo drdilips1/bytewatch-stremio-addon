@@ -26,6 +26,13 @@ import android.webkit.URLUtil;
 import androidx.appcompat.app.AppCompatActivity;
 import com.getcapacitor.JSObject;
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -118,11 +125,17 @@ public class InkwellWebActivity extends AppCompatActivity {
                 String scheme = u.getScheme() == null ? "" : u.getScheme();
                 if (scheme.equals("http") || scheme.equals("https")) return false; // stay inside
                 if (capture && scheme.equals("magnet")) {
-                    JSObject d = new JSObject();
-                    d.put("type", "magnet");
-                    d.put("url", u.toString());
-                    InkwellWebPlugin.captured(d);
+                    String magnet = u.toString();
                     Toast.makeText(InkwellWebActivity.this, "Sending to your home server…", Toast.LENGTH_SHORT).show();
+                    new Thread(() -> {
+                        String result = sendToQbit(null, magnet, "");
+                        JSObject d = new JSObject();
+                        d.put("type", "magnet");
+                        d.put("url", magnet);
+                        d.put("sent", result.startsWith("OK"));
+                        InkwellWebPlugin.captured(d);
+                        toast(result.startsWith("OK") ? result.substring(3) : result);
+                    }).start();
                     return true;
                 }
                 try {
@@ -167,11 +180,15 @@ public class InkwellWebActivity extends AppCompatActivity {
                         int n;
                         while ((n = in.read(buf)) > 0 && out.size() < 20_000_000) out.write(buf, 0, n);
                         in.close();
+                        byte[] bytes = out.toByteArray();
+                        String result = sendToQbit(bytes, null, name);
                         JSObject d = new JSObject();
                         d.put("type", "torrent");
                         d.put("name", name);
-                        d.put("data", Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP));
+                        d.put("data", Base64.encodeToString(bytes, Base64.NO_WRAP));
+                        d.put("sent", result.startsWith("OK"));
                         InkwellWebPlugin.captured(d);
+                        toast(result.startsWith("OK") ? result.substring(3) : result);
                     } catch (Exception e) {
                         runOnUiThread(() -> Toast.makeText(this, "Couldn't download the .torrent: " + e.getMessage(), Toast.LENGTH_LONG).show());
                     }
@@ -180,6 +197,122 @@ public class InkwellWebActivity extends AppCompatActivity {
         }
         if (state != null) web.restoreState(state);
         else if (url != null) web.loadUrl(url);
+    }
+
+    private void toast(String text) {
+        runOnUiThread(() -> Toast.makeText(this, text, Toast.LENGTH_LONG).show());
+    }
+
+    private static String enc(String v) {
+        try {
+            return URLEncoder.encode(v, "UTF-8");
+        } catch (Exception e) {
+            return v;
+        }
+    }
+
+    /**
+     * Send a .torrent (bytes) or a magnet to the user's qBittorrent Web UI, using
+     * the settings the app passed in. Returns "OK <message>" or an error message.
+     */
+    private String sendToQbit(byte[] torrent, String magnet, String name) {
+        try {
+            String raw = getIntent().getStringExtra("qbit");
+            if (raw == null || raw.isEmpty()) return "Set up your home server in Kathava first";
+            JSONObject q = new JSONObject(raw);
+            String base = q.optString("url").replaceAll("/+$", "");
+            if (!base.matches("(?i)^https?://.*")) base = "http://" + base;
+            String apiKey = q.optString("apiKey").trim();
+            String cookie = null;
+            if (apiKey.isEmpty() && !(q.optString("username").isEmpty() && q.optString("password").isEmpty())) {
+                HttpURLConnection c = (HttpURLConnection) new URL(base + "/api/v2/auth/login").openConnection();
+                c.setRequestMethod("POST");
+                c.setDoOutput(true);
+                c.setConnectTimeout(15000);
+                c.setReadTimeout(20000);
+                c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+                c.setRequestProperty("Referer", base + "/");
+                c.setRequestProperty("Origin", base);
+                OutputStream o = c.getOutputStream();
+                o.write(("username=" + enc(q.optString("username")) + "&password=" + enc(q.optString("password"))).getBytes(StandardCharsets.UTF_8));
+                o.close();
+                int code = c.getResponseCode();
+                if (code == 401 || code == 403) return "qBittorrent rejected the login";
+                Map<String, List<String>> h = c.getHeaderFields();
+                for (Map.Entry<String, List<String>> e : h.entrySet()) {
+                    if (e.getKey() == null || !e.getKey().equalsIgnoreCase("Set-Cookie")) continue;
+                    for (String v : e.getValue()) {
+                        String kv = v.split(";")[0];
+                        if (kv.startsWith("SID=") || kv.startsWith("QBT_SID")) cookie = kv;
+                    }
+                }
+            }
+            String boundary = "----kathava" + System.nanoTime();
+            ByteArrayOutputStream body = new ByteArrayOutputStream();
+            java.util.function.BiConsumer<String, String> field = (k, v) -> {
+                if (v == null || v.isEmpty()) return;
+                String part = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + k + "\"\r\n\r\n" + v + "\r\n";
+                body.write(part.getBytes(StandardCharsets.UTF_8), 0, part.getBytes(StandardCharsets.UTF_8).length);
+            };
+            if (torrent != null) {
+                String head = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"torrents\"; filename=\"" + (name == null || name.isEmpty() ? "download.torrent" : name.replace("\"", "")) + "\"\r\nContent-Type: application/x-bittorrent\r\n\r\n";
+                body.write(head.getBytes(StandardCharsets.UTF_8));
+                body.write(torrent);
+                body.write("\r\n".getBytes(StandardCharsets.UTF_8));
+            } else {
+                String m = magnet;
+                JSONArray trackers = q.optJSONArray("trackers");
+                if (trackers != null) for (int i = 0; i < trackers.length(); i++) {
+                    String t = trackers.optString(i);
+                    if (!m.contains(enc(t)) && !m.contains(t)) m += "&tr=" + enc(t);
+                }
+                field.accept("urls", m);
+            }
+            String save = q.optString("savePath");
+            field.accept("savepath", save);
+            if (!save.isEmpty()) field.accept("autoTMM", "false");
+            field.accept("category", q.optString("category"));
+            field.accept("tags", "kathava");
+            body.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+
+            HttpURLConnection c = (HttpURLConnection) new URL(base + "/api/v2/torrents/add").openConnection();
+            c.setRequestMethod("POST");
+            c.setDoOutput(true);
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(30000);
+            c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+            c.setRequestProperty("Referer", base + "/");
+            c.setRequestProperty("Origin", base);
+            if (!apiKey.isEmpty()) c.setRequestProperty("Authorization", "Bearer " + apiKey);
+            else if (cookie != null) c.setRequestProperty("Cookie", cookie);
+            OutputStream o = c.getOutputStream();
+            body.writeTo(o);
+            o.close();
+            int code = c.getResponseCode();
+            String text = "";
+            try {
+                InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
+                if (in != null) {
+                    ByteArrayOutputStream r = new ByteArrayOutputStream();
+                    byte[] b = new byte[4096];
+                    int n;
+                    while ((n = in.read(b)) > 0) r.write(b, 0, n);
+                    text = r.toString("UTF-8");
+                }
+            } catch (Exception ignored) {}
+            String label = name != null && !name.isEmpty() ? name.replaceAll("(?i)\\.torrent$", "") : "it";
+            if (code == 409) return "OK Already in qBittorrent — " + label;
+            if (code == 401 || code == 403) return "qBittorrent refused the request (HTTP " + code + ") — check the API key or login in Kathava";
+            if (code >= 400) return "qBittorrent: HTTP " + code;
+            if (text.toLowerCase().contains("fail")) return "qBittorrent didn't add " + label + " — check the save folder and that the drive is connected";
+            try {
+                JSONObject j = new JSONObject(text);
+                if (j.has("success_count") && j.optInt("success_count") == 0) return "OK Already in qBittorrent — " + label;
+            } catch (Exception ignored) {}
+            return "OK Sent to qBittorrent — " + label;
+        } catch (Exception e) {
+            return "Couldn't reach qBittorrent: " + e.getMessage();
+        }
     }
 
     @Override

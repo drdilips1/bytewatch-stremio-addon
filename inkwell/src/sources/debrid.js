@@ -224,7 +224,7 @@ async function rdDetails(book) {
 
 /** Upload a .torrent file to Real-Debrid, then pick all its files. */
 async function rdAddFile(file) {
-  const res = await fetch(`${RD}/torrents/addTorrent`, { method: 'PUT', headers: { ...rdHeaders(), 'Content-Type': 'application/x-bittorrent' }, body: new Blob([await file.arrayBuffer()], { type: 'application/x-bittorrent' }) });
+  const res = await fetch(`${RD}/torrents/addTorrent`, { method: 'PUT', headers: { ...rdHeaders(), 'Content-Type': 'application/x-bittorrent' }, body: new Uint8Array(await file.arrayBuffer()) });
   const r = await res.json().catch(() => null);
   if (!res.ok || !r?.id) throw new Error(r?.error ? `Real-Debrid: ${r.error}` : `Real-Debrid rejected the file (HTTP ${res.status})`);
   await sendForm(`${RD}/torrents/selectFiles/${r.id}`, 'POST', { files: 'all' }, rdHeaders()).catch(() => {});
