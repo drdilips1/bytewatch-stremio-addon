@@ -1,7 +1,7 @@
 // Small fetch wrapper: timeout, JSON/text helpers and a short-lived memory cache.
 // On Android, Capacitor's native HTTP patches fetch(), so sources without CORS work too.
 
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 const cache = new Map();
 const TTL = 10 * 60 * 1000;
@@ -130,6 +130,22 @@ export async function getText(url, opts = {}) {
   const v = await res.text();
   cache.set(key, { t: Date.now(), v });
   return v;
+}
+
+/** Download a file's bytes (ebooks etc.). On Android the native layer returns binary as base64. */
+export async function getBytes(url) {
+  if (Capacitor.isNativePlatform()) {
+    const r = await CapacitorHttp.request({ url, method: 'GET', responseType: 'arraybuffer', readTimeout: 120000, connectTimeout: 20000 });
+    if (r.status >= 400) throw new Error(`Download failed (HTTP ${r.status})`);
+    if (typeof r.data !== 'string') throw new Error('Download failed (unexpected reply)');
+    const bin = atob(r.data);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Download failed (HTTP ${res.status})`);
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 // Remove whitespace and invisible characters that phone keyboards like to insert

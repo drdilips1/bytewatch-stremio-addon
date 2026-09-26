@@ -7,7 +7,8 @@ import { library, progress, toggleLibrary, useStore } from '../lib/store.js';
 import { fmtDuration, fmtTime } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
 import * as qb from '../sources/qbit.js';
-import { canSendToKindle, sendToKindle } from '../lib/kindle.js';
+import { canSendToKindle, sendToKindle, shareEbook } from '../lib/kindle.js';
+import { cloudReaderBook } from '../lib/epub.js';
 import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
 import { SourceResults } from '../components/source-results.jsx';
@@ -29,7 +30,7 @@ export function Book({ book: initial }) {
   const [expanded, setExpanded] = useState(false);
   const [editions, setEditions] = useState(null);
   const saved = !!useStore(library)[initial.uid];
-  const prog = useStore(progress)[initial.uid];
+  const allProgress = useStore(progress);
   const ps = usePlayer();
   const color = useCoverColor(book);
   const isCurrent = ps.book?.uid === book.uid;
@@ -59,7 +60,12 @@ export function Book({ book: initial }) {
     player.playBook(book, opts);
   };
   const canListen = book.kind === 'audio';
-  const canRead = book.kind === 'text' && book.readUrl;
+  // Ebook files in your TorBox / Real-Debrid: EPUB opens in the reader.
+  const cloudEbooks = book.ebooks || [];
+  const cloudEpub = cloudEbooks.find((e) => e.format === 'EPUB');
+  const readBook = cloudEpub ? cloudReaderBook(book, cloudEpub) : book;
+  const canRead = book.kind === 'text' && (book.readUrl || cloudEpub);
+  const prog = allProgress[canRead ? readBook.uid : initial.uid];
   const tracks = book.tracks || [];
   const partsOpen = showParts ?? tracks.length <= 5;
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
@@ -133,7 +139,7 @@ export function Book({ book: initial }) {
           </button>
         )}
         {canRead && (
-          <button class="btn primary big" onClick={() => nav.push('reader', { book })}>
+          <button class="btn primary big" onClick={() => nav.push('reader', { book: readBook })}>
             <Icon name="book" size={18} /> {pct > 0 ? `Continue · ${pct}%` : 'Read'}
           </button>
         )}
@@ -142,10 +148,10 @@ export function Book({ book: initial }) {
             class="btn secondary big"
             disabled={listenBusy}
             onClick={async () => {
-              if (!canNarrate()) return nav.push('reader', { book, readAloud: true });
+              if (!canNarrate()) return nav.push('reader', { book: readBook, readAloud: true });
               setListenBusy(true);
               try {
-                const audio = await narrate(book);
+                const audio = await narrate(readBook);
                 nav.openOverlay('player');
                 player.playBook(audio);
               } catch (e) {
@@ -164,6 +170,7 @@ export function Book({ book: initial }) {
           </a>
         )}
       </div>
+      {cloudEbooks.length > 0 && <CloudEbooks book={book} files={cloudEbooks} />}
       {canListen && canDownload && book.source !== 'tts' && (
         <div class="dl-row">
           {!dl || dl.status === 'error' ? (
@@ -433,3 +440,43 @@ function Summaries({ book }) {
   );
 }
 
+
+/** Ebook files in the user's TorBox / Real-Debrid item. */
+function CloudEbooks({ book, files }) {
+  const [busy, setBusy] = useState('');
+  const share = async (f, i) => {
+    setBusy('s' + i);
+    try {
+      await shareEbook(f, book);
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
+  return (
+    <section class="pad cloud-ebooks">
+      <h3 class="section-label">
+        <Icon name="book" size={16} /> Ebook files
+      </h3>
+      {files.map((f, i) => (
+        <div class="cloud-ebook">
+          <span class="fmt-chip">{f.format}</span>
+          <div class="cloud-ebook-name">
+            <b>{f.name}</b>
+            {f.size > 1e5 && <small>{fmtBytes(f.size)}</small>}
+          </div>
+          {f.format === 'EPUB' && (
+            <button class="pill small" onClick={() => nav.push('reader', { book: cloudReaderBook(book, f) })}>
+              Read
+            </button>
+          )}
+          <button class="pill small ghost" disabled={busy === 's' + i} onClick={() => share(f, i)} aria-label="Send to Kindle or open in another app">
+            {busy === 's' + i ? <span class="spinner small" /> : <Icon name="upload" size={14} />} Kindle / app
+          </button>
+        </div>
+      ))}
+      <p class="muted small">"Kindle / app" opens Android's share menu: pick Kindle to send it there, or any reader app (Play Books, ReadEra, Moon+).</p>
+    </section>
+  );
+}

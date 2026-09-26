@@ -5,6 +5,9 @@ import { debrid } from '../lib/store.js';
 import { matches } from '../lib/match.js';
 
 const AUDIO = /\.(mp3|m4a|m4b|aac|flac|ogg|oga|opus|wav|wma|mka|mp4a)$/i;
+// Ebook files in the cloud: EPUB opens in the app's reader; the rest go to Kindle or another app.
+export const EBOOK = /\.(epub|pdf|mobi|azw3?|fb2|djvu|cbz|cbr)$/i;
+const fmtOf = (name) => (EBOOK.exec(name)?.[1] || '').toUpperCase();
 const TB = 'https://api.torbox.app/v1/api';
 const RD = 'https://api.real-debrid.com/rest/1.0';
 
@@ -19,10 +22,10 @@ const baseName = (p) => String(p).split('/').pop();
 // "Author - Title (Unabridged) [64kbps] {MP3}" -> "Author - Title"
 export function cleanTitle(name) {
   return String(name)
-    .replace(/\.(zip|rar|7z|m4b|mp3|epub)$/i, '')
+    .replace(/\.(zip|rar|7z|m4b|mp3|epub|pdf|mobi|azw3?)$/i, '')
     .replace(/[._]+/g, ' ')
     .replace(/[\[({][^\])}]*[\])}]/g, ' ')
-    .replace(/\b(unabridged|abridged|audiobook|audio ?book|\d{2,3} ?kbps|mp3|m4b|aac|flac|retail|vbr|cbr)\b/gi, ' ')
+    .replace(/\b(unabridged|abridged|audiobook|audio ?book|\d{2,3} ?kbps|mp3|m4b|aac|flac|retail|vbr|cbr|epub|pdf|mobi|azw3|ebook)\b/gi, ' ')
     .replace(/\s{2,}/g, ' ')
     .replace(/^[\s\-–]+|[\s\-–]+$/g, '')
     .trim() || String(name);
@@ -86,9 +89,12 @@ async function torboxLibraryRaw() {
     const [, code] = TB_KINDS[i];
     for (const it of items) {
       const files = (it.files || []).filter((f) => AUDIO.test(f.name || f.short_name || ''));
-      if (!files.length) continue;
+      const ebooks = files.length ? [] : (it.files || []).filter((f) => EBOOK.test(f.name || f.short_name || ''));
+      if (!files.length && !ebooks.length) continue;
       const done = code !== 't' || !!(it.download_finished || it.download_present);
-      out.push({ ...toBook('tb', 'tb', `${code}:${it.id}`, it.name, files, code === 't' && it.hash ? { hash: String(it.hash).toLowerCase() } : {}), addedAt: Date.parse(it.created_at) || 0, ...(done ? {} : { fetching: Number(it.progress) || 0 }) });
+      const b = toBook('tb', 'tb', `${code}:${it.id}`, it.name, files.length ? files : ebooks, code === 't' && it.hash ? { hash: String(it.hash).toLowerCase() } : {});
+      if (!files.length) Object.assign(b, { kind: 'text', format: fmtOf(ebooks[0].name || ebooks[0].short_name || '') });
+      out.push({ ...b, addedAt: Date.parse(it.created_at) || 0, ...(done ? {} : { fetching: Number(it.progress) || 0 }) });
     }
   });
   return out.sort((a, b) => b.addedAt - a.addedAt);
@@ -111,10 +117,30 @@ async function tbDetails(book) {
     .filter((f) => AUDIO.test(f.name || f.short_name || ''))
     .map((f) => ({ ...f, name: f.short_name || baseName(f.name) }))
     .sort(naturalSort);
+  const tbLink = async (f) => {
+    const r = await getJson(`${TB}/${kind}/requestdl?` + qs({ token: tbKey(), [param]: id, file_id: f.id, redirect: 'false' }), { fresh: true });
+    if (!r?.data) throw new Error(r?.detail || 'TorBox did not return a link');
+    return r.data;
+  };
+  const ebooks = (it.files || [])
+    .filter((f) => EBOOK.test(f.name || f.short_name || ''))
+    .map((f) => ({ name: f.short_name || baseName(f.name), format: fmtOf(f.short_name || f.name), size: Number(f.size) || 0, resolve: () => tbLink(f) }))
+    .sort(naturalSort);
+  if (!files.length && ebooks.length)
+    return {
+      ...book,
+      kind: 'text',
+      ...(code === 't' && it.hash ? { hash: String(it.hash).toLowerCase() } : {}),
+      description: `${ebooks.length} ebook file${ebooks.length === 1 ? '' : 's'} in your TorBox ${kind === 'webdl' ? 'web downloads' : kind}.`,
+      fetching: pending,
+      tracks: [],
+      ebooks,
+    };
   return {
     ...book,
     ...(code === 't' && it.hash ? { hash: String(it.hash).toLowerCase() } : {}),
     description: `${files.length} audio file${files.length === 1 ? '' : 's'} in your TorBox ${kind === 'webdl' ? 'web downloads' : kind}.`,
+    ebooks,
     fetching: pending,
     tracks: files.map((f, i) => ({
       title: f.name.replace(AUDIO, ''),
@@ -172,10 +198,26 @@ async function rdDetails(book) {
   const selected = (info.files || []).filter((f) => f.selected).sort((a, b) => a.id - b.id);
   // Fewer links than files means Real-Debrid packed them into one archive: nothing to stream.
   const packedLinks = (info.links || []).length > 0 && (info.links || []).length < selected.length;
-  const files = (packedLinks ? [] : selected)
-    .map((f, i) => ({ name: baseName(f.path), link: (info.links || [])[i] }))
-    .filter((f) => f.link && AUDIO.test(f.name))
+  const linked = (packedLinks ? [] : selected).map((f, i) => ({ name: baseName(f.path), link: (info.links || [])[i], size: Number(f.bytes) || 0 }));
+  const files = linked.filter((f) => f.link && AUDIO.test(f.name)).sort(naturalSort);
+  const rdLink = async (f) => {
+    const r = await sendForm(`${RD}/unrestrict/link`, 'POST', { link: f.link }, rdHeaders());
+    if (!r?.download) throw new Error('Real-Debrid did not return a link');
+    return r.download;
+  };
+  const ebooks = linked
+    .filter((f) => f.link && EBOOK.test(f.name))
+    .map((f) => ({ name: f.name, format: fmtOf(f.name), size: f.size, resolve: () => rdLink(f) }))
     .sort(naturalSort);
+  if (!files.length && ebooks.length)
+    return {
+      ...book,
+      kind: 'text',
+      ...(info.hash ? { hash: String(info.hash).toLowerCase() } : {}),
+      description: `${ebooks.length} ebook file${ebooks.length === 1 ? '' : 's'} in your Real-Debrid cloud.`,
+      tracks: [],
+      ebooks,
+    };
   if (!files.length) {
     // Same book ready in TorBox? Play that copy instead.
     const hash = String(info.hash || book.hash || '').toLowerCase();
@@ -210,6 +252,7 @@ async function rdDetails(book) {
     ...book,
     ...(info.hash ? { hash: String(info.hash).toLowerCase() } : {}),
     description: `${files.length} audio file${files.length === 1 ? '' : 's'} in your Real-Debrid cloud.`,
+    ebooks,
     tracks: files.map((f, i) => ({
       title: f.name.replace(AUDIO, ''),
       index: i,
