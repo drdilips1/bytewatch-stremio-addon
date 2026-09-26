@@ -1,3 +1,13 @@
+const BROWSER_HEADERS = {
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+  "Origin": "https://bookracy.com",
+  "Referer": "https://bookracy.com/"
+};
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
@@ -9,86 +19,184 @@ export default {
     };
 
     if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders
-      });
+      return new Response(null, { status: 204, headers: corsHeaders });
     }
 
     if (url.pathname === "/") {
       return json({
         status: "ok",
-        usage: "/bookracy/search?q=<book title or author>"
+        usage: "/bookracy/search?q=<book title or author>",
+        addon: url.origin + "/addon.json"
       }, corsHeaders);
     }
 
-    if (url.pathname === "/bookracy/search") {
-      const query = url.searchParams.get("q") || "";
+    if (url.pathname === "/addon.json") {
+      return json(addonManifest(url.origin), corsHeaders);
+    }
 
-      if (!query.trim()) {
+    if (url.pathname === "/bookracy/search") {
+      const query = (url.searchParams.get("q") || "").trim();
+
+      if (!query) {
         return json({ results: [] }, corsHeaders);
       }
 
-      try {
-        const apiUrl =
-          "https://api.bookracy.com/api/books" +
-          "?query=" + encodeURIComponent(query.trim()) +
-          "&lang=en" +
-          "&limit=20";
-
-        const response = await fetch(apiUrl, {
-          headers: {
-            "Accept": "application/json"
-          }
-        });
-
-        if (!response.ok) {
-          return json({
-            results: [],
-            error: "Bookracy API returned " + response.status
-          }, corsHeaders);
-        }
-
-        const data = await response.json();
-
-        const results = Array.isArray(data.results)
-          ? data.results
-          : [];
-
-        const normalized = results
-          .map(book => ({
-            title: book.title || "",
-            author: book.author || "",
-            narrator: "",
-            url: book.link || "",
-            magnetUrl: "",
-            infoHash: "",
-            sizeBytes: 0,
-            seeders: 0,
-            format: book.format || "",
-            language: book.language || "en",
-            posted: book.year || "",
-            debridCache: false
-          }))
-          .filter(book => book.title && book.url);
-
-        return json({
-          results: normalized
-        }, corsHeaders);
-
-      } catch (error) {
-        return json({
-          results: [],
-          error: error.message || "Bookracy request failed"
-        }, corsHeaders);
+      const bookracy = await searchBookracy(query);
+      if (bookracy.results.length) {
+        return json({ results: bookracy.results, source: "bookracy" }, corsHeaders);
       }
+
+      // Bookracy blocked or empty: fall back to Project Gutenberg (Gutendex).
+      const gutenberg = await searchGutendex(query);
+      return json({
+        results: gutenberg.results,
+        source: "gutendex",
+        bookracyError: bookracy.error || "",
+        error: gutenberg.error || undefined
+      }, corsHeaders);
     }
 
-    return json({
-      error: "Not found"
-    }, corsHeaders, 404);
+    return json({ error: "Not found" }, corsHeaders, 404);
   }
 };
+
+function addonManifest(origin) {
+  return {
+    schemaVersion: "1.0.0",
+    id: "bookracy",
+    name: "Bookracy",
+    version: "1.0.0",
+    description: "Ebook sources via Bookracy, with Project Gutenberg as a fallback. Direct download links, no debrid needed.",
+    icon: "https://bookracy.com/favicon.ico",
+    provides: ["source"],
+    contentType: "ebook",
+    rateLimit: {
+      requestsPerMinute: 10,
+      retryAfterMs: 6000
+    },
+    matching: {
+      algorithm: "fuzzy",
+      threshold: 0.4
+    },
+    adapters: {
+      source: {
+        request: {
+          method: "GET",
+          url: origin + "/bookracy/search?q={QUERY}",
+          timeout: 30000,
+          headers: {
+            Accept: "application/json"
+          }
+        },
+        response: {
+          type: "json",
+          resultsPath: "results",
+          mapping: {
+            title: "title",
+            author: "author",
+            url: "url",
+            format: "format",
+            language: "language",
+            date: "posted",
+            sizeBytes: "sizeBytes",
+            debridCache: "debridCache"
+          }
+        }
+      }
+    }
+  };
+}
+
+async function searchBookracy(query) {
+  try {
+    const apiUrl =
+      "https://api.bookracy.com/api/books" +
+      "?query=" + encodeURIComponent(query) +
+      "&lang=en" +
+      "&limit=20";
+
+    const response = await fetch(apiUrl, { headers: BROWSER_HEADERS });
+
+    if (!response.ok) {
+      const body = (await response.text()).slice(0, 200);
+      return {
+        results: [],
+        error: "Bookracy API returned " + response.status + (body ? ": " + body : "")
+      };
+    }
+
+    const data = await response.json();
+    const results = Array.isArray(data.results) ? data.results : [];
+
+    return {
+      results: results
+        .map(book => makeResult({
+          title: book.title,
+          author: book.author,
+          url: book.link,
+          format: book.format,
+          language: book.language,
+          posted: book.year
+        }))
+        .filter(book => book.title && book.url)
+    };
+  } catch (error) {
+    return { results: [], error: error.message || "Bookracy request failed" };
+  }
+}
+
+async function searchGutendex(query) {
+  try {
+    const response = await fetch(
+      "https://gutendex.com/books/?search=" + encodeURIComponent(query) + "&languages=en",
+      { headers: { "Accept": "application/json" } }
+    );
+
+    if (!response.ok) {
+      return { results: [], error: "Gutendex returned " + response.status };
+    }
+
+    const data = await response.json();
+    const books = Array.isArray(data.results) ? data.results : [];
+
+    return {
+      results: books
+        .slice(0, 20)
+        .map(book => {
+          const formats = book.formats || {};
+          const epub = formats["application/epub+zip"];
+          const authors = Array.isArray(book.authors) ? book.authors : [];
+          return makeResult({
+            title: book.title,
+            author: authors.map(a => a.name).join(", "),
+            url: epub || formats["text/html"] || "",
+            format: epub ? "epub" : "html",
+            language: (book.languages || [])[0]
+          });
+        })
+        .filter(book => book.title && book.url)
+    };
+  } catch (error) {
+    return { results: [], error: error.message || "Gutendex request failed" };
+  }
+}
+
+function makeResult({ title, author, url, format, language, posted }) {
+  return {
+    title: title || "",
+    author: author || "",
+    narrator: "",
+    url: url || "",
+    magnetUrl: "",
+    infoHash: "",
+    sizeBytes: 0,
+    seeders: 0,
+    format: format || "",
+    language: language || "en",
+    posted: posted ? String(posted) : "",
+    debridCache: false
+  };
+}
 
 function json(data, corsHeaders = {}, status = 200) {
   return new Response(JSON.stringify(data), {
