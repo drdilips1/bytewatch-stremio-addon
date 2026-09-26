@@ -487,8 +487,17 @@ class VoiceStudioActivity : Activity() {
         }
     }
 
-    private fun consentBox() = CheckBox(this, null, 0, R.style.P2A_Check).apply {
+    /**
+     * The permission checkbox. Built with the platform's checkbox style (a style-only
+     * constructor would drop the box itself), then themed like the rest of the app.
+     */
+    private fun consentBox() = CheckBox(this).apply {
         text = "This is my own voice, or I have the speaker's permission to copy it."
+        textSize = 15f
+        setTextColor(color(R.attr.p2aText))
+        buttonTintList = android.content.res.ColorStateList.valueOf(color(R.attr.p2aAccent))
+        minHeight = dp(48)
+        setPadding(dp(4), dp(6), 0, dp(6))
     }
 
     private fun recordVoice() {
