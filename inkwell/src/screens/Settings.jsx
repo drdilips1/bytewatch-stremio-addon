@@ -355,7 +355,7 @@ function QbitCard() {
                     <div>
                       <b>{t.name}</b>
                       <small>
-                        {t.progress >= 1 ? 'Done' : `${pct(t.progress)} · ${t.state}`}
+                        {t.progress >= 1 ? `Done${t.savePath ? ` · ${t.savePath}` : ''}` : `${pct(t.progress)} · ${qb.stateLabel(t.state)}`}
                         {t.speed > 0 ? ` · ${(t.speed / 1e6).toFixed(1)} MB/s` : ''}
                       </small>
                     </div>

@@ -112,10 +112,53 @@ export async function send(book) {
   const magnet = magnetFor(book.magnet, hash, book.rawName || book.title);
   const { body, contentType } = multipart({ urls: magnet, savepath: savePath, category, tags: 'kathava', autoTMM: savePath ? 'false' : undefined });
   if (!session && !apiKey()) await login();
-  const text = await api('torrents/add', { method: 'POST', body, contentType });
-  if (/fail/i.test(text)) throw new Error('qBittorrent refused it (it may already be there)');
-  qbitSent.set((s) => ({ items: { ...s.items, [hash]: { title: book.title, author: book.author || '', at: Date.now() } } }));
+  const remember = () => qbitSent.set((s) => ({ items: { ...s.items, [hash]: { title: book.title, author: book.author || '', at: Date.now() } } }));
+  let text = '';
+  try {
+    text = await api('torrents/add', { method: 'POST', body, contentType });
+  } catch (e) {
+    // 409 = nothing was added — usually because qBittorrent already has it.
+    if (e.status !== 409) throw e;
+    const have = await existing(hash);
+    if (have) {
+      remember();
+      return `Already in qBittorrent — ${describe(have)}`;
+    }
+    throw new Error("qBittorrent didn't add it (409). Check that the save folder exists and the drive is connected, then try again");
+  }
+  // "Ok." up to 5.2.2; from 5.2.3 a JSON summary ({ success_count, … }).
+  let added = !/fail/i.test(text);
+  try {
+    const j = JSON.parse(text);
+    if (j && typeof j.success_count === 'number') added = j.success_count > 0;
+  } catch {}
+  if (!added) {
+    const have = await existing(hash);
+    if (have) {
+      remember();
+      return `Already in qBittorrent — ${describe(have)}`;
+    }
+    throw new Error("qBittorrent didn't add it");
+  }
+  remember();
   return `Sent to qBittorrent${savePath ? ` → ${savePath}` : ''}`;
+}
+
+/** A torrent qBittorrent already has, or null. */
+async function existing(hash) {
+  try {
+    const list = JSON.parse((await api('torrents/info?' + new URLSearchParams({ hashes: hash }))) || '[]');
+    return list[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+const STATES = { downloading: 'downloading', stalledDL: 'waiting for peers', metaDL: 'fetching details', forcedMetaDL: 'fetching details', queuedDL: 'queued', pausedDL: 'paused', stoppedDL: 'paused', uploading: 'done, sharing', stalledUP: 'done', pausedUP: 'done', stoppedUP: 'done', queuedUP: 'done', checkingDL: 'checking', checkingUP: 'checking', error: 'error', missingFiles: 'files missing', moving: 'moving' };
+export const stateLabel = (st) => STATES[st] || st || '';
+function describe(t) {
+  const pct = Math.round((t.progress || 0) * 100);
+  return `${pct >= 100 ? 'finished' : `${pct}% · ${stateLabel(t.state)}`}${t.save_path ? ` · ${t.save_path}` : ''}`;
 }
 
 export const wasSent = (hash) => !!qbitSent.get().items[String(hash || '').toLowerCase()];
