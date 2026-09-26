@@ -94,7 +94,7 @@ async function run(addon, params) {
         break;
       } catch (e) {
         lastErr = e;
-        if (/too many searches/.test(e.message)) throw e;
+        if (e.final || /too many searches/.test(e.message)) throw e;
         await new Promise((res) => setTimeout(res, 1500));
       }
     }
@@ -122,7 +122,12 @@ async function runOnce(addon, { title = '', author = '', query = '' }) {
       : await sendJson(url, method, fill(req.body || {}, vars, false), headers);
 
   const res = src.response || {};
-  const list = at(data, res.resultsPath) || [];
+  const list = at(data, res.resultsPath);
+  // Say why nothing shows instead of failing silently (these aren't retried).
+  const why = (msg) => Object.assign(new Error(msg), { final: true });
+  const hasData = data && typeof data === 'object' && Object.keys(data).length > 0;
+  if ((list === undefined && hasData) || (list != null && !Array.isArray(list)))
+    throw why(`unexpected reply — no result list at "${res.resultsPath || '(top level)'}" (keys: ${Object.keys(data || {}).slice(0, 6).join(', ')})`);
   const map = res.mapping || {};
   const get = (row, field) => (map[field] ? at(row, map[field]) : row[field]);
   const threshold = addon.manifest.matching?.threshold ?? 0;
@@ -151,6 +156,7 @@ async function runOnce(addon, { title = '', author = '', query = '' }) {
       return r;
     })
     .filter((r) => r.magnet || r.hash || /^https?:/i.test(r.link));
+  if (list?.length && !all.length) throw why(`found ${list.length} result${list.length === 1 ? '' : 's'} but none had a magnet, info-hash or link — check the addon's mapping`);
   // Keep close matches; if the addon's threshold would hide everything, show the best few anyway.
   const close = all.filter((r) => r.score >= Math.min(threshold, 0.9));
   const results = close.length ? close : all.filter((r) => r.score >= 0.34).slice(0, 8);

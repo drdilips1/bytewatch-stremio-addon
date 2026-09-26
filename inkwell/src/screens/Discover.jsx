@@ -182,7 +182,7 @@ const Results = memo(function Results({ results, filter, setFilter, term, pendin
       {groups.map(([src, items]) => (
         <ResultGroup key={src} src={src} items={items} />
       ))}
-      {sourceAddons().length > 0 && (filter === 'all' || filter === 'audio') && <SourceResults query={term} title={term} />}
+      {sourceAddons().length > 0 && (filter === 'all' || filter === 'audio' || filter === 'text') && <SourceResults query={term} title={term} />}
       {(results.au || !pending) && seed && <RelatedRows book={seed} label={seed.title} />}
       {!pending && !total && !sourceAddons().length && (
         <Empty icon="search" title="No matches">
