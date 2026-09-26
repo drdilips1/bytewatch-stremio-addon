@@ -3845,3 +3845,24 @@ button.source-card:active {
 .qbit-send {
   padding-top: 0;
 }
+
+/* Tracker tab */
+.tracker .screen-head {
+  padding: 8px 20px 4px;
+}
+.tracker-open {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+.tracker-open .btn {
+  width: 100%;
+}
+.tracker-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tabbar button {
+  min-width: 0;
+}

@@ -2,7 +2,7 @@
 // magnet to your own qBittorrent (Web UI, e.g. over Tailscale), saved into your
 // Audiobookshelf library folder. qBittorrent then downloads it by itself, and
 // Audiobookshelf picks the finished folder up.
-import { Capacitor, CapacitorCookies } from '@capacitor/core';
+import { Capacitor, CapacitorCookies, registerPlugin } from '@capacitor/core';
 import { persisted } from '../lib/store.js';
 import { requestText, requestFull, cleanUrl } from '../lib/http.js';
 import { readTorrent } from '../lib/torrentfile.js';
@@ -312,4 +312,38 @@ export async function autoForward() {
   } catch {
     return '';
   }
+}
+
+// ---- Tracker tab: a site you sign in to, whose downloads go to qBittorrent ----
+export const tracker = persisted('tracker', { url: '' });
+const Web = registerPlugin('InkwellWeb');
+const canBrowse = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
+
+/** Open the tracker site in the in-app browser; its .torrent downloads and magnets come here. */
+export function openTracker() {
+  const url = String(tracker.get().url || '').trim();
+  if (!url) throw new Error('Add your tracker site address first');
+  if (!canBrowse) return window.open(url, '_blank');
+  return Web.open({ url: /^https?:\/\//i.test(url) ? url : 'https://' + url, title: '', capture: true });
+}
+
+const nativeToast = (text) => (canBrowse ? Web.toast({ text }).catch(() => {}) : Promise.resolve());
+
+// Downloads caught in the in-app browser go straight to the home server (never a debrid service).
+if (canBrowse) {
+  Web.addListener('captured', async (e) => {
+    try {
+      let msg;
+      if (e.type === 'magnet') msg = await sendMagnet(e.url);
+      else {
+        const bin = atob(e.data || '');
+        const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+        const file = new File([bytes], e.name || 'download.torrent', { type: 'application/x-bittorrent' });
+        msg = await sendFile(file);
+      }
+      nativeToast(msg);
+    } catch (err) {
+      nativeToast(err.message);
+    }
+  });
 }

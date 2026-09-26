@@ -20,12 +20,21 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
+import android.util.Base64;
+import android.webkit.URLUtil;
 import androidx.appcompat.app.AppCompatActivity;
+import com.getcapacitor.JSObject;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 /**
- * A small browser inside the app for services without an API (Blinkist,
- * StoryShots): sign in once and the session is kept (cookies persist), and the
- * user never leaves the app.
+ * A small browser inside the app for services without an API (StoryShots,
+ * your tracker site): sign in once and the session is kept (cookies persist),
+ * and the user never leaves the app. In "capture" mode, .torrent downloads and
+ * magnet links are handed to the app (which sends them to the home server).
  */
 public class InkwellWebActivity extends AppCompatActivity {
 
@@ -43,6 +52,7 @@ public class InkwellWebActivity extends AppCompatActivity {
         super.onCreate(state);
         String url = getIntent().getStringExtra("url");
         String heading = getIntent().getStringExtra("title");
+        boolean capture = getIntent().getBooleanExtra("capture", false);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -107,6 +117,14 @@ public class InkwellWebActivity extends AppCompatActivity {
                 Uri u = req.getUrl();
                 String scheme = u.getScheme() == null ? "" : u.getScheme();
                 if (scheme.equals("http") || scheme.equals("https")) return false; // stay inside
+                if (capture && scheme.equals("magnet")) {
+                    JSObject d = new JSObject();
+                    d.put("type", "magnet");
+                    d.put("url", u.toString());
+                    InkwellWebPlugin.captured(d);
+                    Toast.makeText(InkwellWebActivity.this, "Sending to your home server…", Toast.LENGTH_SHORT).show();
+                    return true;
+                }
                 try {
                     // intent:// and app links (e.g. "open in app") go to the installed app.
                     Intent i = scheme.equals("intent") ? Intent.parseUri(u.toString(), Intent.URI_INTENT_SCHEME) : new Intent(Intent.ACTION_VIEW, u);
@@ -120,6 +138,46 @@ public class InkwellWebActivity extends AppCompatActivity {
                 CookieManager.getInstance().flush();
             }
         });
+        if (capture) {
+            String ua = s.getUserAgentString();
+            web.setDownloadListener((dlUrl, userAgent, disposition, mime, length) -> {
+                String name = URLUtil.guessFileName(dlUrl, disposition, mime);
+                boolean torrent = (mime != null && mime.contains("bittorrent")) || name.toLowerCase().endsWith(".torrent") || dlUrl.toLowerCase().contains(".torrent");
+                if (!torrent) {
+                    Toast.makeText(this, "Only .torrent files can be sent to your home server", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                Toast.makeText(this, "Sending to your home server…", Toast.LENGTH_SHORT).show();
+                String cookie = CookieManager.getInstance().getCookie(dlUrl);
+                String referer = web.getUrl();
+                new Thread(() -> {
+                    try {
+                        HttpURLConnection c = (HttpURLConnection) new URL(dlUrl).openConnection();
+                        c.setInstanceFollowRedirects(true);
+                        c.setConnectTimeout(20000);
+                        c.setReadTimeout(30000);
+                        if (cookie != null) c.setRequestProperty("Cookie", cookie);
+                        c.setRequestProperty("User-Agent", userAgent != null ? userAgent : ua);
+                        if (referer != null) c.setRequestProperty("Referer", referer);
+                        int code = c.getResponseCode();
+                        if (code >= 400) throw new Exception("HTTP " + code);
+                        InputStream in = c.getInputStream();
+                        ByteArrayOutputStream out = new ByteArrayOutputStream();
+                        byte[] buf = new byte[16384];
+                        int n;
+                        while ((n = in.read(buf)) > 0 && out.size() < 20_000_000) out.write(buf, 0, n);
+                        in.close();
+                        JSObject d = new JSObject();
+                        d.put("type", "torrent");
+                        d.put("name", name);
+                        d.put("data", Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP));
+                        InkwellWebPlugin.captured(d);
+                    } catch (Exception e) {
+                        runOnUiThread(() -> Toast.makeText(this, "Couldn't download the .torrent: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                    }
+                }).start();
+            });
+        }
         if (state != null) web.restoreState(state);
         else if (url != null) web.loadUrl(url);
     }
