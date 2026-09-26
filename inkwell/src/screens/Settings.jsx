@@ -14,6 +14,7 @@ import { AccountCard, VoicesCard, DownloadsCard } from './settings-extra.jsx';
 import { UpdateCard } from '../components/update.jsx';
 import { nav } from '../lib/nav.js';
 import * as qb from '../sources/qbit.js';
+import { pickTorrentFile } from '../lib/torrentfile.js';
 
 function Section({ icon, title, children }) {
   return (
@@ -343,6 +344,16 @@ function QbitCard() {
             <button class="pill small" disabled={!!busy} onClick={() => run('all', () => qb.sendAll())}>
               {busy === 'all' ? <span class="spinner small" /> : 'Send all not yet sent'}
             </button>
+            <button
+              class="pill small"
+              disabled={!!busy}
+              onClick={async () => {
+                const file = await pickTorrentFile();
+                if (file) run('file', () => qb.sendFile(file));
+              }}
+            >
+              {busy === 'file' ? <span class="spinner small" /> : 'Add .torrent file'}
+            </button>
             <button class="pill small ghost" disabled={!!busy} onClick={refresh}>
               Check progress
             </button>
@@ -577,6 +588,25 @@ function DebridCard({ provider, label, keyHint, keyUrl }) {
           {busy ? <span class="spinner" /> : <Icon name="plus" size={16} />}
         </button>
       </form>
+      <button
+        class="pill small ghost torrent-file-btn"
+        disabled={busy}
+        onClick={async () => {
+          const file = await pickTorrentFile();
+          if (!file) return;
+          setBusy(true);
+          try {
+            toast(await cloud.addTorrentFile(provider, file));
+            cloud.forget();
+          } catch (err) {
+            toast(err.message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Icon name="upload" size={14} /> Add a .torrent file
+      </button>
     </>
   );
 }

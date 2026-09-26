@@ -5,6 +5,7 @@
 import { Capacitor, CapacitorCookies } from '@capacitor/core';
 import { persisted } from '../lib/store.js';
 import { requestText, requestFull, cleanUrl } from '../lib/http.js';
+import { readTorrent } from '../lib/torrentfile.js';
 import { magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected } from './debrid.js';
 
 export const qbit = persisted('qbit', { url: '', username: '', password: '', apiKey: '', savePath: '', category: 'audiobooks', auto: false });
@@ -181,6 +182,46 @@ export const stateLabel = (st) => STATES[st] || st || '';
 function describe(t) {
   const pct = Math.round((t.progress || 0) * 100);
   return `${pct >= 100 ? 'finished' : `${pct}% · ${stateLabel(t.state)}`}${t.save_path ? ` · ${t.save_path}` : ''}`;
+}
+
+/** Upload a .torrent file to qBittorrent (same folder and category as magnets). */
+export async function sendFile(file) {
+  if (!available) throw new Error('Sending to qBittorrent works in the Android app');
+  if (!configured()) throw new Error('Set up qBittorrent first (Settings → Home server)');
+  if (!file) throw new Error('No file chosen');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const { name, hash } = await readTorrent(bytes);
+  const { savePath, category } = qbit.get();
+  const form = new FormData();
+  form.append('torrents', new Blob([bytes], { type: 'application/x-bittorrent' }), file.name || 'book.torrent');
+  if (savePath) {
+    form.append('savepath', savePath);
+    form.append('autoTMM', 'false');
+  }
+  if (category) form.append('category', category);
+  form.append('tags', 'kathava');
+  if (!session && !apiKey()) await login();
+  const post = async () => {
+    const res = await fetch(base() + '/api/v2/torrents/add', { method: 'POST', headers: headersFor(await cookie()), body: form });
+    return { status: res.status, text: await res.text().catch(() => '') };
+  };
+  let r = await post();
+  if ((r.status === 401 || r.status === 403) && !apiKey()) {
+    await login();
+    r = await post();
+  }
+  const remember = () => hash && qbitSent.set((s) => ({ items: { ...s.items, [hash]: { title: name || file.name, author: '', at: Date.now() } } }));
+  if (r.status === 409 || /fail/i.test(r.text)) {
+    const have = hash ? await existing(hash) : null;
+    if (have) {
+      remember();
+      return `Already in qBittorrent — ${describe(have)}`;
+    }
+    throw new Error("qBittorrent didn't add it — check the save folder and that the drive is connected");
+  }
+  if (r.status >= 400) throw new Error(`qBittorrent: HTTP ${r.status}${r.text ? ` — ${r.text.slice(0, 80)}` : ''}`);
+  remember();
+  return `Sent “${name || file.name}” to qBittorrent${savePath ? ` → ${savePath}` : ''}`;
 }
 
 export const wasSent = (hash) => !!qbitSent.get().items[String(hash || '').toLowerCase()];

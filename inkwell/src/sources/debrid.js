@@ -142,6 +142,16 @@ async function tbAdd(link) {
   return r?.detail || 'Added to TorBox';
 }
 
+/** Upload a .torrent file to TorBox. */
+async function tbAddFile(file) {
+  const form = new FormData();
+  form.append('file', new Blob([await file.arrayBuffer()], { type: 'application/x-bittorrent' }), file.name || 'book.torrent');
+  const res = await fetch(TB + '/torrents/createtorrent', { method: 'POST', headers: tbHeaders(), body: form });
+  const r = await res.json().catch(() => null);
+  if (!res.ok || (r && r.success === false)) throw new Error(r?.detail || `TorBox rejected the file (HTTP ${res.status})`);
+  return r?.detail || 'Added to TorBox';
+}
+
 // ---------------- Real-Debrid ----------------
 const rdHeaders = () => ({ Authorization: `Bearer ${rdKey()}` });
 
@@ -196,6 +206,22 @@ async function rdDetails(book) {
       },
     })),
   };
+}
+
+/** Upload a .torrent file to Real-Debrid, then pick all its files. */
+async function rdAddFile(file) {
+  const res = await fetch(`${RD}/torrents/addTorrent`, { method: 'PUT', headers: { ...rdHeaders(), 'Content-Type': 'application/x-bittorrent' }, body: new Blob([await file.arrayBuffer()], { type: 'application/x-bittorrent' }) });
+  const r = await res.json().catch(() => null);
+  if (!res.ok || !r?.id) throw new Error(r?.error ? `Real-Debrid: ${r.error}` : `Real-Debrid rejected the file (HTTP ${res.status})`);
+  await sendForm(`${RD}/torrents/selectFiles/${r.id}`, 'POST', { files: 'all' }, rdHeaders()).catch(() => {});
+  return 'Added to Real-Debrid';
+}
+
+/** Add a .torrent file to TorBox or Real-Debrid. */
+export async function addTorrentFile(provider, file) {
+  if (!file) throw new Error('No file chosen');
+  if (!/\.torrent$/i.test(file.name || '') && file.type !== 'application/x-bittorrent') throw new Error('Choose a .torrent file');
+  return provider === 'torbox' ? tbAddFile(file) : rdAddFile(file);
 }
 
 async function rdAdd(link) {
