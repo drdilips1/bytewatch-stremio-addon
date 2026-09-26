@@ -15,7 +15,6 @@ import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
 import { RelatedRows } from '../components/related.jsx';
-import * as libbySrc from '../sources/libby.js';
 import { storyshots, loadStoryShots, blinkistPage, blinkistUrl, storyshotsSearchUrl, openUrl, openExternal, BLINKIST_LOGIN, STORYSHOTS_HOME } from '../sources/summaries.js';
 
 // Books you already have (cloud, server, addons) can still show other copies from source addons.
@@ -51,8 +50,6 @@ export function Book({ book: initial }) {
 
   const listen = (opts) => {
     if (isCurrent && !opts) return player.toggle();
-    // A library loan that didn't open has nothing to play: say so instead of a dead player.
-    if (book.libbyLoan && !book.tracks?.length) return toast(error || 'This loan is still opening — try again in a moment');
     nav.openOverlay('player');
     player.playBook(book, opts);
   };
@@ -110,11 +107,6 @@ export function Book({ book: initial }) {
           <button class="btn primary big" disabled={loading && !book.tracks} onClick={() => listen()}>
             {loading && !isCurrent ? <span class="spinner" /> : <Icon name={isCurrent && ps.playing ? 'pause' : 'play'} size={18} />}
             {isCurrent && ps.playing ? 'Pause' : pct > 0 && !prog.finished ? `Resume · ${pct}%` : 'Listen now'}
-          </button>
-        )}
-        {book.libbyLoan && (
-          <button class="btn secondary big" onClick={() => openExternal(libbySrc.libbyShelfUrl())}>
-            <Icon name="library" size={18} /> Open in Libby
           </button>
         )}
         {canRead && (
@@ -193,7 +185,7 @@ export function Book({ book: initial }) {
         </div>
       )}
 
-      {error && <p class="err pad">{book.libbyLoan ? error : `Couldn't load details: ${error}`}</p>}
+      {error && <p class="err pad">Couldn't load details: {error}</p>}
 
       {book.description && (
         <section class="pad">
@@ -261,7 +253,6 @@ export function Book({ book: initial }) {
           ) : null}
         </section>
       )}
-      {libbySrc.connected() && book.kind !== 'text' && !['ss', 'tts'].includes(book.source) && <LibbyCard book={book} />}
       {editions?.server?.length > 0 && <Row title="On your server" subtitle="Audiobookshelf" icon="server" items={editions.server} />}
       {editions?.cloud?.length > 0 && <Row title="In your cloud" subtitle="TorBox / Real-Debrid" icon="download" items={editions.cloud} />}
       {editions?.addons?.length > 0 && <Row title="From your addons" subtitle="Addon results" icon="puzzle" items={editions.addons} />}
@@ -412,100 +403,3 @@ function Summaries({ book }) {
   );
 }
 
-/** Borrow / hold / play for one Libby title — in the app when signed in, else in Libby. */
-function LibbyAction({ h }) {
-  useStore(libbySrc.libbyAccount);
-  const [busy, setBusy] = useState(false);
-  const loan = libbySrc.signedIn() && libbySrc.loanFor(h.libby.id);
-  const act = async (fn) => {
-    setBusy(true);
-    try {
-      toast(await fn());
-    } catch (e) {
-      toast(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  if (busy) return <span class="spinner small" />;
-  if (loan) {
-    const lb = { uid: `lbl:${loan.cardId}:${loan.id}`, source: 'lbl', kind: 'audio', title: loan.title, author: loan.firstCreatorName || '', cover: h.cover, libbyLoan: { cardId: loan.cardId, titleId: loan.id, format: h.libby.format } };
-    return h.libby.format === 'audiobook' ? (
-      <button
-        class="pill active"
-        onClick={() => {
-          nav.openOverlay('player');
-          player.openAndPlay(lb, getDetails)?.catch?.((e) => toast(e.message));
-        }}
-      >
-        <Icon name="play" size={14} /> Play
-      </button>
-    ) : (
-      <button class="pill" onClick={() => openExternal(h.libby.link)}>
-        Read in Libby
-      </button>
-    );
-  }
-  if (!libbySrc.signedIn())
-    return (
-      <button class={'pill' + (h.libby.available ? ' active' : '')} onClick={() => openExternal(h.libby.link)}>
-        {h.libby.available ? 'Borrow' : 'Place hold'}
-      </button>
-    );
-  return h.libby.available ? (
-    <button class="pill active" onClick={() => act(() => libbySrc.borrow(h.libby.id, h.libby.format, h.libby.key))}>
-      Borrow
-    </button>
-  ) : (
-    <button class="pill" onClick={() => act(() => libbySrc.placeHold(h.libby.id, h.libby.key))}>
-      Place hold
-    </button>
-  );
-}
-
-/** Copies at your public library (Libby), with a button to borrow there. */
-function LibbyCard({ book }) {
-  const [hits, setHits] = useState(book.libby ? [book] : null);
-  useEffect(() => {
-    // Look up every format (audiobook and ebook), even when opened from a Libby result.
-    let alive = true;
-    setHits(book.libby ? [book] : null);
-    libbySrc.availability(book).then((r) => alive && setHits(r.length ? r : book.libby ? [book] : []));
-    return () => (alive = false);
-  }, [book.uid]);
-  const lib = libbySrc.libby.get();
-  return (
-    <section class="pad libby">
-      <h3 class="section-label">
-        <Icon name="library" size={16} /> {libbySrc.libraries().length > 1 ? 'At your libraries' : `At your library · ${libbySrc.libraries()[0]?.name || lib.name}`}
-      </h3>
-      {hits === null ? (
-        <p class="muted">
-          <span class="spinner small" /> Checking Libby…
-        </p>
-      ) : hits.length === 0 ? (
-        <div class="sum-actions">
-          <span class="muted">Not in your library's Libby catalogue.</span>
-          <button class="pill ghost" onClick={() => openExternal(`https://libbyapp.com/search/${libbySrc.libraries()[0]?.key || lib.key}/search/query-${encodeURIComponent(book.title)}/page-1`)}>
-            <Icon name="search" size={14} /> Search in Libby
-          </button>
-        </div>
-      ) : (
-        <div class="libby-list">
-          {hits.slice(0, 8).map((h) => (
-            <div class={'libby-item' + (h.libby.available ? ' ok' : '')}>
-              <div>
-                <b>
-                  {h.libby.format === 'audiobook' ? 'Audiobook' : h.libby.format === 'ebook' ? 'Ebook' : h.libby.format || 'Title'}
-                  {libbySrc.libraries().length > 1 && h.libby.library ? <span class="libby-lib"> · {h.libby.library}</span> : null}
-                </b>
-                <small>{libbySrc.describe(h.libby)}</small>
-              </div>
-              <LibbyAction h={h} />
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}

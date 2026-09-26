@@ -13,7 +13,7 @@ const SS = 'https://www.getstoryshots.com';
 const Web = registerPlugin('InkwellWeb');
 const inAppWeb = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
 
-/** Open a link in the app that owns it (Libby, Blinkist…) or the browser. */
+/** Open a link in the app that owns it (Blinkist…) or the browser. */
 export async function openExternal(url) {
   if (inAppWeb) return Web.openExternal({ url }).catch(() => Browser.open({ url }));
   if (Capacitor.isNativePlatform()) return Browser.open({ url });

@@ -19,7 +19,7 @@ export function Library() {
   const dls = useStore(downloads);
   const [tab, setTab] = useState('progress');
   const items = useMemo(() => {
-    const saved = Object.values(lib).sort((a, b) => b.addedAt - a.addedAt);
+    const saved = Object.values(lib).filter((b) => !/^lbl?:/.test(b.uid || '')).sort((a, b) => b.addedAt - a.addedAt);
     const started = Object.values(prog).filter((p) => p.book).sort((a, b) => b.updatedAt - a.updatedAt);
     switch (tab) {
       case 'progress':

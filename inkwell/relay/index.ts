@@ -15,9 +15,6 @@
 // Only these services can be reached through the relay.
 const ALLOWED = [
   /^api\.hardcover\.app$/,
-  /^thunder\.api\.overdrive\.com$/,
-  /^sentry\.libbyapp\.com$/,
-  /^sentry-read\.svc\.overdrive\.com$/,
   /^api\.audible\.[a-z.]+$/,
   /^www\.goodreads\.com$/,
   /^(www\.)?getstoryshots\.com$/,

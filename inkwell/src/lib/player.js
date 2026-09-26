@@ -209,11 +209,6 @@ export async function openAndPlay(book, getDetails, opts) {
     const details = await getDetails(book);
     return playBook(details, opts);
   } catch (e) {
-    // A library loan that can't be opened shouldn't sit in the player as a dead entry.
-    if (book?.source === 'lbl') {
-      stop();
-      throw e;
-    }
     set({ loading: false, phase: '', error: e.message || String(e) });
   }
 }

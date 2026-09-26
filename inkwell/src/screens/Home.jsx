@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Row, BookCard, withMeta } from '../components/common.jsx';
 import { useMeta } from '../lib/meta.js';
 import { Icon } from '../components/icons.jsx';
-import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, lb, enabled, sourceOrder, sourceRank } from '../sources/index.js';
+import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, enabled, sourceOrder, sourceRank } from '../sources/index.js';
 import { Fragment } from 'preact';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary } from '../lib/store.js';
 import { greeting, fmtDuration, hiResCover } from '../lib/format.js';
@@ -48,7 +48,6 @@ function roundRobin(groups) {
 /** A short label for what kind of thing a banner title is. */
 function kindLabel(b) {
   if (b.source === 'pod') return 'Podcast';
-  if (b.source === 'lb' || b.source === 'lbl') return 'Library';
   if (b.kind === 'text') return 'Ebook';
   if (b.kind === 'audio') return 'Audiobook';
   return 'Book';
@@ -97,7 +96,7 @@ function FeatureSlide({ book: raw, active }) {
                 e.stopPropagation();
                 if (!playable) return nav.push('book', { book: b });
                 nav.openOverlay('player');
-                player.openAndPlay(b, getDetails)?.catch?.((e) => toast(e.message));
+                player.openAndPlay(b, getDetails);
               }}
             >
               <Icon name={playable ? 'play' : 'info'} size={18} /> {playable ? 'Listen' : 'Details'}
@@ -230,7 +229,7 @@ function ContinueRow() {
   const items = useMemo(
     () =>
       Object.entries(prog)
-        .filter(([, p]) => !p.finished && p.book)
+        .filter(([uid, p]) => !p.finished && p.book && !/^lbl?:/.test(uid))
         .sort((a, b) => b[1].updatedAt - a[1].updatedAt)
         .slice(0, 12),
     [prog]
@@ -253,7 +252,7 @@ function ContinueRow() {
             onClick={async () => {
               if (p.kind === 'text') return nav.push('reader', { book: p.book });
               nav.openOverlay('player');
-              player.openAndPlay(p.book, getDetails)?.catch?.((e) => toast(e.message));
+              player.openAndPlay(p.book, getDetails);
             }}
           >
             <Cover book={p.book} />
@@ -346,27 +345,7 @@ export function Home() {
     addonSrc.catalogRows().then(setAddonRows).catch(() => setAddonRows([]));
   }, [addonList, st.sources]);
 
-  const libbyAcct = useStore(lb.libbyAccount);
-  useEffect(() => {
-    // Refresh loans quietly when Home opens (at most every 10 minutes).
-    if (lb.signedIn() && Date.now() - lb.libbyAccount.get().syncedAt > 10 * 60e3) lb.syncAccount().catch(() => {});
-  }, []);
   const blocks = {
-    lb:
-      enabled('lb') && lb.connected() ? (
-        <>
-          <Row
-            title={`At ${lb.libraries().length > 1 ? 'your libraries' : lb.libraries()[0]?.name || 'your library'}`}
-            subtitle="New in Libby · tap to search the whole catalogue"
-            icon="library"
-            load={() => lb.browse('audiobook')}
-            onMore={() => nav.push('libby')}
-            deps={[libbyAcct.cards?.length, lb.libraries().map((l) => l.key).join()]}
-          />
-          {libbyAcct.loans?.length > 0 && <Row title="Your Libby loans" subtitle="Borrowed with your library card" icon="library" items={lb.loanBooks()} onMore={() => nav.push('libby', { tab: 'loans' })} />}
-          {libbyAcct.holds?.length > 0 && <Row title="Libby holds" subtitle="Waiting at your library" icon="bookmark" items={lb.holdBooks()} onMore={() => nav.push('libby', { tab: 'holds' })} />}
-        </>
-      ) : null,
     // Hindi section: only when switched on in Settings → Sources, in the user's chosen place.
     hi: enabled('hi') && (
       <Row

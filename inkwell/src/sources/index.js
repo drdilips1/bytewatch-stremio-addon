@@ -7,7 +7,6 @@ import * as addonSrc from './addons.js';
 import * as cloud from './debrid.js';
 import * as hc from './hardcover.js';
 import * as gr from './goodreads.js';
-import * as lb from './libby.js';
 import * as pods from './podcasts.js';
 import * as ttsb from './ttsbooks.js';
 import { audible, googleBooks } from './catalogs.js';
@@ -29,10 +28,8 @@ export const SOURCES = {
   rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud },
   addon: { name: 'Addons', short: 'Addon', hue: 185, kind: 'Listen', blurb: 'Community catalog addons', impl: addonSrc },
   hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc },
-  lbl: { name: 'Libby loans', short: 'Libby', hue: 200, kind: 'Library', blurb: 'Audiobooks you borrowed in Libby', impl: lb.loanSource, hidden: true },
   pod: { name: 'Podcasts', short: 'Podcast', hue: 280, kind: 'Listen', blurb: 'Podcast episodes', impl: pods, hidden: true },
   tts: { name: 'Voice narration', short: 'Free voice', hue: 300, kind: 'Listen', blurb: 'Ebooks read aloud by a free voice', impl: ttsb, hidden: true },
-  lb: { name: 'Libby (your library)', short: 'Libby', hue: 200, kind: 'Library', blurb: 'Borrow ebooks & audiobooks free with your library card', impl: lb },
   hi: { name: 'हिंदी (Hindi)', short: 'Hindi', hue: 25, kind: 'Listings', blurb: 'Hindi section: Audible India listings and free Hindi audio — few playable sources, so off by default', impl: audible },
   gr: { name: 'Goodreads', short: 'Goodreads', hue: 35, kind: 'Shelves', blurb: 'Shelves imported from your Goodreads export', impl: gr },
 };
@@ -40,7 +37,7 @@ export const SOURCES = {
 const enabled = (k) => settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
 
 // Your own services first, then listings, then free catalogues — until the user rearranges them.
-const DEFAULT_ORDER = ['abs', 'tb', 'rd', 'lb', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'ol', 'hi'];
+const DEFAULT_ORDER = ['abs', 'tb', 'rd', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'ol', 'hi'];
 /** Source keys in the user's chosen order (Settings → Sources). */
 export function sourceOrder() {
   const saved = (settings.get().sourceOrder || []).filter((k) => SOURCES[k] && !SOURCES[k].hidden);
@@ -102,7 +99,6 @@ export function searchAll(term, onResult) {
     ['lv', () => lv.search(term), true],
     ['gb', () => gb.search(term), true],
     // Hindi (Devanagari) searches go to Audible India, which carries the Hindi catalogue.
-    ['lb', () => lb.search(term), lb.connected()],
     ['au', () => (/[\u0900-\u097F]/.test(term) ? audible.hindi(term) : audible.search(term)), true],
     ['gbk', () => googleBooks.search(term), true],
     ['ol', () => ol.search(term), true],
@@ -153,4 +149,4 @@ export async function findEditions(book) {
   };
 }
 
-export { ia, lv, gb, ol, absSrc, addonSrc, cloud, hc, gr, lb, enabled };
+export { ia, lv, gb, ol, absSrc, addonSrc, cloud, hc, gr, enabled };

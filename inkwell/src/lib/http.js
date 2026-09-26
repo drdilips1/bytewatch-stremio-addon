@@ -11,7 +11,7 @@ const TTL = 10 * 60 * 1000;
 // app sends those through a small relay (a Supabase Edge Function, see
 // inkwell/relay/). The Android app talks to everything directly.
 const WEB = !Capacitor.isNativePlatform();
-const RELAY_HOSTS = /^(sentry\.libbyapp\.com|sentry-read\.svc\.overdrive\.com|thunder\.api\.overdrive\.com|api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|www\.blinkist\.com|itunes\.apple\.com)$/i;
+const RELAY_HOSTS = /^(api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|www\.blinkist\.com|itunes\.apple\.com)$/i;
 const DEFAULT_RELAY = import.meta.env.VITE_SUPABASE_URL ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/relay` : '';
 
 export function relayUrl() {
@@ -32,7 +32,7 @@ export const isWeb = WEB;
 
 // Hosts the relay will forward to (keep in step with relay/index.ts). Anything
 // else — e.g. your own Audiobookshelf server — must allow the web app directly.
-const RELAY_ALLOWED = /^(sentry\.libbyapp\.com|sentry-read\.svc\.overdrive\.com|thunder\.api\.overdrive\.com|api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|www\.blinkist\.com|itunes\.apple\.com|api\.torbox\.app|api\.real-debrid\.com|openlibrary\.org|www\.googleapis\.com|archive\.org|gutendex\.com|librivox\.org|jsonkeeper\.com|([a-z0-9-]+\.)*knaben\.(org|eu|net|cc)|[a-z0-9.-]+\.workers\.dev)$/i;
+const RELAY_ALLOWED = /^(api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|www\.blinkist\.com|itunes\.apple\.com|api\.torbox\.app|api\.real-debrid\.com|openlibrary\.org|www\.googleapis\.com|archive\.org|gutendex\.com|librivox\.org|jsonkeeper\.com|([a-z0-9-]+\.)*knaben\.(org|eu|net|cc)|[a-z0-9.-]+\.workers\.dev)$/i;
 function relayable(url) {
   try {
     const u = new URL(url);
