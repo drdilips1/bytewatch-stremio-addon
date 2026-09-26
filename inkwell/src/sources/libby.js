@@ -394,7 +394,10 @@ async function websiteFor(cardId, identity = libbyAccount.get().identity) {
   return { id: info?.websiteId ?? '', from: 'catalogue' };
 }
 
-const OPEN_HEADERS = NATIVE ? { 'Sec-Fetch-Site': 'same-site', 'Sec-Fetch-Mode': 'cors' } : {};
+const OPEN_HEADERS = NATIVE ? { 'Sec-Fetch-Site': 'same-site', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Dest': 'empty', Referer: 'https://libbyapp.com/' } : {};
+
+/** Where a loan lives in the Libby app (for opening it there). */
+export const libbyShelfUrl = () => 'https://libbyapp.com/shelf/loans/default';
 
 /** For Settings: what the current sign-in token carries. */
 export function tokenInfo() {
@@ -705,9 +708,18 @@ export async function openLoan(book) {
   const websiteId = (await websiteFor(cardId)).id;
   const codex = { codex: { title: { titleId: String(titleId), slug: String(titleId) }, loan: { psnKey: `${cardId}-${titleId}`, slug: `${cardId}-${titleId}` }, library: { key: libKey, name: card?.library?.name || libKey } }, 'dewey-url': 'https://libbyapp.com', spec: 'V31' };
   const t = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(codex)))));
-  const passport = await withChip((identity) => call('GET', GATE, `open/audiobook/card/${cardId}/title/${titleId}?t=${t}&website_id=${websiteId}`, { identity, timeout: 45000, headers: OPEN_HEADERS })).catch((e) => {
-    throw new Error(`Libby didn't open this audiobook: ${e.message}`);
-  });
+  const openPath = `open/audiobook/card/${cardId}/title/${titleId}?t=${t}&website_id=${websiteId}`;
+  const passport = await withChip((identity) => call('GET', GATE, openPath, { identity, timeout: 45000, headers: OPEN_HEADERS }))
+    .catch(async (e) => {
+      // "whoa" is Libby asking us to slow down: pause, refresh the sign-in, try once more.
+      if (!/whoa/i.test(e.message)) throw e;
+      await new Promise((res) => setTimeout(res, 4000));
+      const identity = await ensureChip({ force: true }).catch(() => libbyAccount.get().identity);
+      return call('GET', GATE, openPath, { identity, timeout: 45000, headers: OPEN_HEADERS });
+    })
+    .catch((e) => {
+      throw new Error(/whoa/i.test(e.message) ? 'Libby is refusing to open this book outside its own app right now ("whoa"). Use Open in Libby to listen, and try here again later.' : `Libby didn't open this audiobook: ${e.message}`);
+    });
   const web = passport?.urls?.web;
   if (!web) throw new Error("Libby didn't open this audiobook — try again, or open it in Libby");
   const host = new URL(web).host;

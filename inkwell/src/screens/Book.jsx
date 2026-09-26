@@ -51,6 +51,8 @@ export function Book({ book: initial }) {
 
   const listen = (opts) => {
     if (isCurrent && !opts) return player.toggle();
+    // A library loan that didn't open has nothing to play: say so instead of a dead player.
+    if (book.libbyLoan && !book.tracks?.length) return toast(error || 'This loan is still opening — try again in a moment');
     nav.openOverlay('player');
     player.playBook(book, opts);
   };
@@ -108,6 +110,11 @@ export function Book({ book: initial }) {
           <button class="btn primary big" disabled={loading && !book.tracks} onClick={() => listen()}>
             {loading && !isCurrent ? <span class="spinner" /> : <Icon name={isCurrent && ps.playing ? 'pause' : 'play'} size={18} />}
             {isCurrent && ps.playing ? 'Pause' : pct > 0 && !prog.finished ? `Resume · ${pct}%` : 'Listen now'}
+          </button>
+        )}
+        {book.libbyLoan && (
+          <button class="btn secondary big" onClick={() => openExternal(libbySrc.libbyShelfUrl())}>
+            <Icon name="library" size={18} /> Open in Libby
           </button>
         )}
         {canRead && (
@@ -186,7 +193,7 @@ export function Book({ book: initial }) {
         </div>
       )}
 
-      {error && <p class="err pad">Couldn't load details: {error}</p>}
+      {error && <p class="err pad">{book.libbyLoan ? error : `Couldn't load details: ${error}`}</p>}
 
       {book.description && (
         <section class="pad">
@@ -428,7 +435,7 @@ function LibbyAction({ h }) {
         class="pill active"
         onClick={() => {
           nav.openOverlay('player');
-          player.openAndPlay(lb, getDetails);
+          player.openAndPlay(lb, getDetails)?.catch?.((e) => toast(e.message));
         }}
       >
         <Icon name="play" size={14} /> Play

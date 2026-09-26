@@ -6,7 +6,7 @@ import { Icon } from '../components/icons.jsx';
 import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, lb, enabled, sourceOrder, sourceRank } from '../sources/index.js';
 import { Fragment } from 'preact';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary } from '../lib/store.js';
-import { greeting, fmtDuration } from '../lib/format.js';
+import { greeting, fmtDuration, hiResCover } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
 import { GENRES } from './genres.js';
 import { HINDI_ALL } from './hindi.js';
@@ -67,7 +67,9 @@ function FeatureSlide({ book: raw, active }) {
   ].filter(Boolean);
   return (
     <div class={'feature-slide' + (active ? ' on' : '')} aria-hidden={!active}>
-      <div class="feature-art">{b.cover ? <BgImage url={b.cover} /> : <div class="feature-art-empty" />}</div>
+      <div class="feature-art">{b.cover ? <BgImage url={hiResCover(b.cover)} /> : <div class="feature-art-empty" />}</div>
+      <div class="feature-content">
+        <div class="feature-poster">{b.cover && <BgImage url={hiResCover(b.cover)} />}</div>
       {active && (
         <div class="feature-body">
           <div class="feature-badges">
@@ -95,7 +97,7 @@ function FeatureSlide({ book: raw, active }) {
                 e.stopPropagation();
                 if (!playable) return nav.push('book', { book: b });
                 nav.openOverlay('player');
-                player.openAndPlay(b, getDetails);
+                player.openAndPlay(b, getDetails)?.catch?.((e) => toast(e.message));
               }}
             >
               <Icon name={playable ? 'play' : 'info'} size={18} /> {playable ? 'Listen' : 'Details'}
@@ -113,6 +115,7 @@ function FeatureSlide({ book: raw, active }) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -250,7 +253,7 @@ function ContinueRow() {
             onClick={async () => {
               if (p.kind === 'text') return nav.push('reader', { book: p.book });
               nav.openOverlay('player');
-              player.openAndPlay(p.book, getDetails);
+              player.openAndPlay(p.book, getDetails)?.catch?.((e) => toast(e.message));
             }}
           >
             <Cover book={p.book} />

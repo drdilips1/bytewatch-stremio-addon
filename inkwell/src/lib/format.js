@@ -56,3 +56,17 @@ export function debounce(fn, ms) {
     t = setTimeout(() => fn(...a), ms);
   };
 }
+
+/**
+ * The largest version of a cover the host offers (Audible/Amazon, Apple,
+ * Open Library, Google Books), so a big banner isn't a blown-up thumbnail.
+ */
+export function hiResCover(url) {
+  if (!url) return url;
+  let u = String(url);
+  if (/media-amazon\.com|images-amazon\.com|ssl-images-amazon/.test(u)) u = u.replace(/\._[A-Z0-9_,]+_\.(jpg|jpeg|png)/i, '._SL1200_.$1');
+  else if (/mzstatic\.com/.test(u)) u = u.replace(/\/\d+x\d+(bb|cc)?(-\d+)?\.(jpg|png|webp)$/i, '/1200x1200bb.$3');
+  else if (/covers\.openlibrary\.org/.test(u)) u = u.replace(/-(S|M)\.jpg/, '-L.jpg');
+  else if (/books\.google|googleusercontent/.test(u)) u = u.replace(/([?&])zoom=\d/, '$1zoom=0').replace(/&edge=curl/, '');
+  return u;
+}

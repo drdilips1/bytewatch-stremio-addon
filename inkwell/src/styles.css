@@ -3714,12 +3714,8 @@ button.source-card:active {
 }
 .feature-art img {
   object-fit: cover;
-  object-position: center 30%;
-  transform: scale(1.08);
-  transition: transform 9s ease-out;
-}
-.feature-slide.on .feature-art img {
-  transform: scale(1);
+  filter: blur(36px) saturate(1.25) brightness(0.62);
+  transform: scale(1.35);
 }
 .feature-art-empty {
   background: radial-gradient(120% 80% at 70% 20%, color-mix(in srgb, var(--accent) 40%, transparent), transparent), var(--bg-2);
@@ -3730,14 +3726,40 @@ button.source-card:active {
   inset: 0;
   background:
     linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0) 22%),
-    linear-gradient(0deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 88%, transparent) 26%, color-mix(in srgb, var(--bg) 25%, transparent) 55%, transparent 72%);
+    linear-gradient(0deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 80%, transparent) 22%, transparent 55%);
+}
+.feature-content {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--safe-top) + 72px) 22px 44px;
+}
+.feature-poster {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 18px;
+}
+.feature-poster img {
+  height: 100%;
+  width: auto;
+  max-height: min(330px, 76vw);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 18px;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transform: scale(0.96);
+  transition: transform 6s ease-out;
+}
+.feature-slide.on .feature-poster img {
+  transform: scale(1);
 }
 .feature-body {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 44px;
-  padding: 0 22px;
+  flex: none;
   animation: feature-in 0.6s ease both;
 }
 @keyframes feature-in {
@@ -3896,5 +3918,8 @@ button.source-card:active {
   }
   .feature-body {
     max-width: 560px;
+  }
+  .feature-poster img {
+    max-height: 300px;
   }
 }
