@@ -236,10 +236,10 @@ export function tokenClaims(jwt) {
   }
 }
 
-async function call(method, base, path, { identity, body, timeout = 25000 } = {}) {
+async function call(method, base, path, { identity, body, timeout = 25000, headers = {} } = {}) {
   const url = `${base}/${path}`;
   try {
-    return method === 'GET' ? await getJson(url, { headers: auth(identity), fresh: true, timeout }) : await sendJson(url, method, body, auth(identity));
+    return method === 'GET' ? await getJson(url, { headers: { ...auth(identity), ...headers }, fresh: true, timeout }) : await sendJson(url, method, body, { ...auth(identity), ...headers });
   } catch (e) {
     if (identity && e.status === 401) throw Object.assign(new Error('Libby signed this device out — sign in again in Settings → Libby'), { status: 401 });
     throw e;
@@ -341,7 +341,8 @@ export async function diagnose() {
   try {
     d = await call('GET', READ, 'chip/sync', { identity: acct.identity });
     say(`Sync: ${d?.result || '?'} · ${(d?.cards || []).length} cards · ${(d?.loans || []).length} loans · ${(d?.holds || []).length} holds`);
-    for (const c of d?.cards || []) say(`  card ${c.cardId} · ${c.advantageKey} · ${c.library?.name || c.cardName || ''} · website ${c.library?.websiteId ?? '?'}`);
+    for (const c of d?.cards || []) say(`  card ${c.cardId} · ${c.advantageKey} · ${c.library?.name || c.cardName || ''} · website ${c.library?.websiteId ?? c.websiteId ?? '?'}`);
+    for (const c of tokenClaims(acct.identity)?.chip?.cards || []) say(`  in sign-in: ${JSON.stringify(c).slice(0, 90)}`);
   } catch (e) {
     say(`Sync: ✗ ${err(e)}`);
   }
@@ -349,15 +350,25 @@ export async function diagnose() {
   if (loan) {
     const card = (d?.cards || []).find((c) => String(c.cardId) === String(loan.cardId));
     const key = card?.advantageKey || '';
-    const websiteId = card?.library?.websiteId || (await libraryInfo(key).catch(() => ({}))).websiteId || '';
+    const ws = await websiteFor(loan.cardId);
+    const websiteId = ws.id;
+    say(`Website id: ${websiteId || 'none'} (from ${ws.from})`);
     const codex = { codex: { title: { titleId: String(loan.id), slug: String(loan.id) }, loan: { psnKey: `${loan.cardId}-${loan.id}`, slug: `${loan.cardId}-${loan.id}` }, library: { key, name: card?.library?.name || key } }, 'dewey-url': 'https://libbyapp.com', spec: 'V31' };
     const t = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(codex)))));
     const kind = formatOf(loan) === 'audiobook' ? 'audiobook' : 'book';
-    try {
-      const r = await call('GET', GATE, `open/${kind}/card/${loan.cardId}/title/${loan.id}?t=${t}&website_id=${websiteId}`, { identity: acct.identity, timeout: 45000 });
-      say(`Open "${String(loan.title).slice(0, 30)}": ✓ ${r?.urls?.web ? 'got player link' : 'no player link'}${r?.message ? ' · message' : ''}`);
-    } catch (e) {
-      say(`Open "${String(loan.title).slice(0, 30)}": ✗ ${err(e)}`);
+    say(`Opening "${String(loan.title).slice(0, 30)}" (${kind}):`);
+    const variants = [
+      ['as the app does', `open/${kind}/card/${loan.cardId}/title/${loan.id}?t=${t}&website_id=${websiteId}`, OPEN_HEADERS],
+      ['without fetch headers', `open/${kind}/card/${loan.cardId}/title/${loan.id}?t=${t}&website_id=${websiteId}`, {}],
+      ['plain', `open/${kind}/card/${loan.cardId}/title/${loan.id}`, {}],
+    ];
+    for (const [label, path, headers] of variants) {
+      try {
+        const r = await call('GET', GATE, path, { identity: acct.identity, timeout: 45000, headers });
+        say(`  ${label}: ✓ ${r?.urls?.web ? 'got player link' : 'no player link'}${r?.message ? ' · message' : ''}`);
+      } catch (e) {
+        say(`  ${label}: ✗ ${err(e)}`);
+      }
     }
     try {
       const p = await call('GET', GATE, `card/${loan.cardId}/loan/${loan.id}/periods`, { identity: acct.identity });
@@ -368,6 +379,22 @@ export async function diagnose() {
   } else say('No loans to test opening with');
   return out;
 }
+
+/**
+ * The library "website id" for a card, which Libby needs when opening a loan.
+ * The sign-in token lists cards as [.., cardId, .., .., websiteId, library].
+ */
+async function websiteFor(cardId, identity = libbyAccount.get().identity) {
+  const entry = (tokenClaims(identity)?.chip?.cards || []).find((c) => Array.isArray(c) && String(c[1]) === String(cardId));
+  if (entry && entry[4] != null && entry[4] !== '') return { id: entry[4], from: 'sign-in' };
+  const card = (libbyAccount.get().cards || []).find((c) => String(c.cardId) === String(cardId));
+  const fromCard = card?.library?.websiteId ?? card?.websiteId;
+  if (fromCard != null) return { id: fromCard, from: 'card' };
+  const info = await libraryInfo(card?.advantageKey || libraries()[0]?.key || '').catch(() => null);
+  return { id: info?.websiteId ?? '', from: 'catalogue' };
+}
+
+const OPEN_HEADERS = NATIVE ? { 'Sec-Fetch-Site': 'same-site', 'Sec-Fetch-Mode': 'cors' } : {};
 
 /** For Settings: what the current sign-in token carries. */
 export function tokenInfo() {
@@ -451,7 +478,7 @@ export async function signInWithCode(code) {
 /** Library facts from OverDrive: its website id is what card sign-in needs. */
 async function libraryInfo(key) {
   const d = await getJson(`${THUNDER}/libraries/${encodeURIComponent(key)}`, { timeout: 15000 });
-  const websiteId = d?.websiteId ?? d?.id;
+  const websiteId = d?.websiteId ?? (Number.isFinite(+d?.id) ? d.id : undefined);
   if (!websiteId) throw new Error(`Couldn't find ${key}'s sign-in details`);
   return { websiteId, name: d?.name || key };
 }
@@ -675,10 +702,10 @@ export async function openLoan(book) {
   const acct = libbyAccount.get();
   const card = (acct.cards || []).find((c) => String(c.cardId) === String(cardId));
   const libKey = card?.advantageKey || libraries()[0]?.key || '';
-  const websiteId = card?.library?.websiteId || (await libraryInfo(libKey).catch(() => ({}))).websiteId || '';
+  const websiteId = (await websiteFor(cardId)).id;
   const codex = { codex: { title: { titleId: String(titleId), slug: String(titleId) }, loan: { psnKey: `${cardId}-${titleId}`, slug: `${cardId}-${titleId}` }, library: { key: libKey, name: card?.library?.name || libKey } }, 'dewey-url': 'https://libbyapp.com', spec: 'V31' };
   const t = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(codex)))));
-  const passport = await withChip((identity) => call('GET', GATE, `open/audiobook/card/${cardId}/title/${titleId}?t=${t}&website_id=${websiteId}`, { identity, timeout: 45000 })).catch((e) => {
+  const passport = await withChip((identity) => call('GET', GATE, `open/audiobook/card/${cardId}/title/${titleId}?t=${t}&website_id=${websiteId}`, { identity, timeout: 45000, headers: OPEN_HEADERS })).catch((e) => {
     throw new Error(`Libby didn't open this audiobook: ${e.message}`);
   });
   const web = passport?.urls?.web;
