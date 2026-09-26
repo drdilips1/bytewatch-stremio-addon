@@ -49,6 +49,11 @@ export default {
       });
     }
 
+    // Streams a Bookracy file with browser headers and a proper filename.
+    if (url.pathname === "/bookracy/download") {
+      return downloadBookracy(url.searchParams.get("url") || "", corsHeaders);
+    }
+
     if (url.pathname === "/bookracy/search") {
       const query = (url.searchParams.get("q") || "").trim();
 
@@ -56,7 +61,7 @@ export default {
         return json({ results: [] }, corsHeaders);
       }
 
-      const bookracy = await searchBookracy(query);
+      const bookracy = await searchBookracy(query, url.origin);
       if (bookracy.results.length) {
         return json({ results: bookracy.results, source: "bookracy" }, corsHeaders);
       }
@@ -115,6 +120,8 @@ function addonManifest(origin) {
             language: "language",
             date: "posted",
             sizeBytes: "sizeBytes",
+            cover: "cover",
+            description: "description",
             debridCache: "debridCache"
           }
         }
@@ -130,11 +137,45 @@ function bookracyUrl(query, limit) {
     "&limit=" + limit;
 }
 
-function pick(obj, keys) {
-  for (const key of keys) {
-    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key];
+async function downloadBookracy(link, corsHeaders) {
+  let target;
+  try {
+    target = new URL(link);
+  } catch {
+    return json({ error: "Invalid download url" }, corsHeaders, 400);
   }
-  return "";
+  if (target.protocol !== "https:" || target.hostname !== "api.bookracy.com") {
+    return json({ error: "Only Bookracy downloads are allowed" }, corsHeaders, 400);
+  }
+
+  const response = await fetch(target.toString(), {
+    headers: { ...BROWSER_HEADERS, Accept: "*/*" }
+  });
+  if (!response.ok) {
+    return json({ error: "Bookracy download returned " + response.status }, corsHeaders, 502);
+  }
+
+  const filename = decodeURIComponent(target.pathname.split("/").pop() || "book");
+  const headers = new Headers(corsHeaders);
+  headers.set("Content-Type", response.headers.get("Content-Type") || "application/octet-stream");
+  headers.set("Content-Disposition", "attachment; filename*=UTF-8''" + encodeURIComponent(filename));
+  const length = response.headers.get("Content-Length");
+  if (length) headers.set("Content-Length", length);
+
+  return new Response(response.body, { status: 200, headers });
+}
+
+const LANGUAGE_CODES = {
+  english: "en", spanish: "es", french: "fr", german: "de", italian: "it",
+  portuguese: "pt", russian: "ru", chinese: "zh", japanese: "ja", arabic: "ar",
+  hindi: "hi", dutch: "nl", polish: "pl", turkish: "tr", korean: "ko"
+};
+
+// "English" -> "en"
+function languageCode(name) {
+  const value = String(name || "").trim().toLowerCase();
+  if (!value) return "en";
+  return LANGUAGE_CODES[value] || (value.length === 2 ? value : value.slice(0, 2));
 }
 
 // "Dune - Frank Herbert_499" -> "Dune - Frank Herbert"
@@ -156,7 +197,7 @@ function parseSize(value) {
   return Math.round(parseFloat(match[1]) * (units[(match[2] || "b").toLowerCase()] || 1));
 }
 
-async function searchBookracy(query) {
+async function searchBookracy(query, origin) {
   try {
     const response = await fetch(bookracyUrl(query, 20), { headers: BROWSER_HEADERS });
 
@@ -174,15 +215,19 @@ async function searchBookracy(query) {
     return {
       results: results
         .map(book => {
-          const link = pick(book, ["link", "download_link", "download", "url"]);
+          const link = book.link || "";
           return makeResult({
             title: cleanTitle(book.title),
             author: book.author,
-            url: link,
-            format: pick(book, ["format", "extension", "filetype", "file_type", "ext"]) || extensionOf(link),
-            language: book.language,
+            // Route downloads through this worker so Bookracy sees browser headers.
+            url: link ? origin + "/bookracy/download?url=" + encodeURIComponent(link) : "",
+            format: book.book_filetype || extensionOf(link),
+            language: languageCode(book.book_lang),
             posted: book.year,
-            sizeBytes: parseSize(pick(book, ["filesize", "file_size", "size", "bytes"]))
+            sizeBytes: parseSize(book.book_size),
+            cover: book.book_image,
+            description: book.description,
+            publisher: book.publisher
           });
         })
         .filter(book => book.title && book.url)
@@ -228,7 +273,7 @@ async function searchGutendex(query) {
   }
 }
 
-function makeResult({ title, author, url, format, language, posted, sizeBytes }) {
+function makeResult({ title, author, url, format, language, posted, sizeBytes, cover, description, publisher }) {
   return {
     title: title || "",
     author: author || "",
@@ -241,6 +286,9 @@ function makeResult({ title, author, url, format, language, posted, sizeBytes })
     format: String(format || "").toLowerCase(),
     language: language || "en",
     posted: posted ? String(posted) : "",
+    cover: cover || "",
+    description: description || "",
+    publisher: publisher || "",
     debridCache: false
   };
 }
