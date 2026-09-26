@@ -8,6 +8,7 @@ import { nav } from '../lib/nav.js';
 import * as player from '../lib/player.js';
 import { waitlist, wait, cancel } from '../lib/waitlist.js';
 import { translit } from '../lib/translit.js';
+import * as qb from '../sources/qbit.js';
 
 const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
 const SHORT = { torbox: 'TorBox', realdebrid: 'RD' };
@@ -109,6 +110,8 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   const [busy, setBusy] = useState(null); // 'add:<provider>' | 'play'
   const [status, setStatus] = useState(null); // { text, pct (0..1) | null }
   const waiting = useStore(waitlist).find((w) => w.hash === r.hash);
+  useStore(qb.qbitSent);
+  useStore(qb.qbit);
   const acc = (p) => inAccount?.both?.[p] || (inAccount?.provider === p ? inAccount : null);
   const cachedOn = (p) => !!(r.cache[p] || (p === 'realdebrid' && r.cache.any && !r.cache.torbox));
   const readyOn = (p) => cachedOn(p) || !!acc(p)?.ready;
@@ -188,6 +191,19 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   }, [!!downloading]);
 
   const hasMagnet = !!(r.magnet || r.hash);
+  const home = hasMagnet && qb.available && qb.configured();
+  const homeHash = home ? cloud.infoHash(r.magnet, r.hash) : '';
+  const sentHome = !!homeHash && qb.wasSent(homeHash);
+  const sendHome = async () => {
+    setBusy('home');
+    try {
+      toast(await qb.send({ hash: homeHash, magnet: r.magnet, title: book?.title || r.title, author: book?.author || r.author || '', rawName: r.title }));
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <div class={'src-row' + (ready ? ' is-ready' : '') + (dead ? ' is-dead' : '')}>
@@ -205,7 +221,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
         {r.language && <span class="chip">{r.language}</span>}
         <span class="chip ghost">{r.addon}</span>
       </div>
-      {hasMagnet && providers.length > 0 && (
+      {hasMagnet && (providers.length > 0 || home) && (
         <div class="src-services">
           {providers.map((p) => {
             const a = acc(p);
@@ -222,6 +238,15 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
               </div>
             );
           })}
+          {home && (
+            <div class={'svc' + (sentHome ? ' ok' : '')}>
+              <b>Home server</b>
+              <span>{sentHome ? 'sent to qBittorrent' : 'qBittorrent'}</span>
+              <button class="pill small" disabled={!!busy} onClick={sendHome} aria-label="Send to your home server">
+                {busy === 'home' ? <span class="spinner small" /> : <Icon name={sentHome ? 'check' : 'plus'} size={14} />} Home
+              </button>
+            </div>
+          )}
         </div>
       )}
       {downloading && !status && !waiting && <Progress text={`Downloading in your ${LABEL[downloading[0]]}`} pct={downloading[1].progress} />}

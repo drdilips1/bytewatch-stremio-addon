@@ -298,11 +298,25 @@ function QbitCard() {
         Send your TorBox / Real-Debrid audiobooks to <b>qBittorrent</b> at home (over Tailscale). It saves them into your <b>Audiobookshelf</b> library folder and downloads on its own — your phone can be off. Turn on qBittorrent's Web UI (Tools → Options → Web UI).
         {!qb.available && ' Works in the Android app.'}
       </p>
+      {cfg.url && (
+        <div class="set-row">
+          <div>
+            <b>{cfg.version ? 'Connected' : 'Not tested yet'}</b>
+            <small>
+              {cfg.version ? `qBittorrent ${cfg.version} · ${cfg.url}` : cfg.url}
+              {cfg.version && cfg.savePath ? ` · saves to ${cfg.savePath}` : ''}
+            </small>
+          </div>
+          <button class="pill small" disabled={!!busy} onClick={() => run('test', qb.test)}>
+            {busy === 'test' ? <span class="spinner small" /> : 'Test'}
+          </button>
+        </div>
+      )}
       <form
         class="set-form"
         onSubmit={(e) => {
           e.preventDefault();
-          qb.qbit.set((c) => ({ ...c, ...form, url: form.url.trim(), apiKey: form.apiKey.trim(), savePath: form.savePath.trim() }));
+          qb.qbit.set((c) => ({ ...c, ...form, url: form.url.trim(), apiKey: form.apiKey.trim(), savePath: form.savePath.trim(), version: '' }));
           run('test', qb.test);
         }}
       >

@@ -87,8 +87,9 @@ async function api(path, { method = 'GET', body, contentType } = {}) {
 export async function test() {
   if (!available) throw new Error('Sending to qBittorrent works in the Android app');
   await login();
-  const v = await api('app/version');
-  return `Connected to qBittorrent ${v.trim()}`;
+  const v = (await api('app/version')).trim();
+  qbit.set((c) => ({ ...c, version: v, checkedAt: Date.now() }));
+  return `Connected to qBittorrent ${v}`;
 }
 
 function multipart(fields) {
