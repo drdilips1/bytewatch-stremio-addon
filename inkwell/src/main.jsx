@@ -13,11 +13,12 @@ try {
   ['inkwell:libby', 'inkwell:libbyAccount'].forEach((k) => localStorage.removeItem(k));
 } catch {}
 
-// Gemini was replaced by Groq / OpenRouter / Mistral: drop the old key.
+// Gemini and Mistral were replaced by Groq / OpenRouter: drop their old keys.
 try {
   const a = JSON.parse(localStorage.getItem('inkwell:ai') || 'null');
-  if (a && ('geminiKey' in a || 'model' in a)) {
+  if (a && ('geminiKey' in a || 'model' in a || 'mistralKey' in a)) {
     delete a.geminiKey;
+    delete a.mistralKey;
     delete a.model;
     localStorage.setItem('inkwell:ai', JSON.stringify(a));
   }

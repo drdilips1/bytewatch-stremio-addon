@@ -1,12 +1,12 @@
-// AI helpers using free services with your own key (Groq, OpenRouter or
-// Mistral): a spoiler-safe recap of the story so far / the previous chapter, a
+// AI helpers using free services with your own key (Groq or OpenRouter):
+// a spoiler-safe recap of the story so far / the previous chapter, a
 // character glossary that only knows what has happened up to where you are,
 // and the bookseller. If one service is busy the next one (or model) is tried.
 import { persisted } from './store.js';
 import * as player from './player.js';
 import { heardText } from './transcript.js';
 
-export const ai = persisted('ai', { groqKey: '', openrouterKey: '', mistralKey: '', last: '' });
+export const ai = persisted('ai', { groqKey: '', openrouterKey: '', last: '' });
 
 /** Free services, in the order they are tried. All speak the OpenAI chat format. */
 export const PROVIDERS = [
@@ -30,15 +30,6 @@ export const PROVIDERS = [
     discover: () => freeRouterModels(),
     json: false,
     headers: { 'HTTP-Referer': 'https://drdilips1.github.io/bytewatch-stremio-addon/', 'X-Title': 'Kathava' },
-  },
-  {
-    id: 'mistral',
-    name: 'Mistral',
-    keyField: 'mistralKey',
-    site: 'console.mistral.ai/api-keys',
-    url: 'https://api.mistral.ai/v1/chat/completions',
-    models: ['mistral-small-latest', 'open-mistral-nemo'],
-    json: true,
   },
 ];
 
@@ -143,7 +134,7 @@ export function parseJson(text) {
  */
 export async function askAi(prompt, { json = false } = {}) {
   const ready = PROVIDERS.filter(keyOf);
-  if (!ready.length) throw new Error('Add a free AI key (Groq, OpenRouter or Mistral) in Settings → AI first');
+  if (!ready.length) throw new Error('Add a free AI key (Groq or OpenRouter) in Settings → AI first');
   let order = (await Promise.all(ready.map(async (p) => (await modelsFor(p)).map((m) => [p, m])))).flat();
   const last = ai.get().last;
   const li = order.findIndex(([p, m]) => `${p.id}/${m}` === last);

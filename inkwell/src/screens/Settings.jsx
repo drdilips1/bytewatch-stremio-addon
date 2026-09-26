@@ -221,7 +221,7 @@ function WebRelayCard() {
   );
 }
 
-/** Free AI keys (Groq, OpenRouter, Mistral) for the bookseller, recaps and the character guide. */
+/** Free AI keys (Groq, OpenRouter) for the bookseller, recaps and the character guide. */
 function AiCard() {
   const cfg = useStore(ai);
   return (
@@ -234,7 +234,7 @@ function AiCard() {
         <AiKey p={p} saved={cfg[p.keyField] || ''} />
       ))}
       <p class="muted small">
-        <b>Groq</b> is the fastest and most generous (recommended). <b>OpenRouter</b> gives free Llama, DeepSeek and Qwen models. <b>Mistral</b> has a free "Experiment" plan (needs phone verification). No card is needed for any of them.
+        <b>Groq</b> is the fastest and most generous (recommended). <b>OpenRouter</b> gives free Llama, DeepSeek and Qwen models. No card is needed for either.
       </p>
     </>
   );

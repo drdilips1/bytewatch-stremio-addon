@@ -20,7 +20,7 @@ export function StorySheet({ close }) {
         <h3>
           <Icon name="sparkle" size={18} /> Story helper
         </h3>
-        <p class="muted">Recaps and the spoiler-free character guide use a free AI service (Groq, OpenRouter or Mistral). Add a free key once in Settings → AI.</p>
+        <p class="muted">Recaps and the spoiler-free character guide use a free AI service (Groq or OpenRouter). Add a free key once in Settings → AI.</p>
         <button
           class="btn primary"
           onClick={() => {
