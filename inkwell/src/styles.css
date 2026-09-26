@@ -1,5 +1,6 @@
 @import '@fontsource-variable/plus-jakarta-sans';
 @import '@fontsource-variable/fraunces';
+@import '@fontsource-variable/outfit';
 @import '@fontsource-variable/literata';
 
 /* ---------- Tokens ---------- */
@@ -3865,4 +3866,176 @@ button.source-card:active {
 }
 .tabbar button {
   min-width: 0;
+}
+
+
+/* =====================================================================
+   Kathava v2 — Material You-inspired: soft tonal surfaces with a faint
+   violet tint, pastel gradients, rounder shapes, Outfit for headings.
+   ===================================================================== */
+:root {
+  --bg: #131218;
+  --bg-2: #1c1a22;
+  --surface: color-mix(in srgb, var(--tint, #cbb8ff) 6%, rgba(255, 255, 255, 0.03));
+  --surface-2: color-mix(in srgb, var(--tint, #cbb8ff) 11%, rgba(255, 255, 255, 0.05));
+  --border: color-mix(in srgb, var(--tint, #cbb8ff) 16%, rgba(255, 255, 255, 0.05));
+  --text: #ece6f0;
+  --muted: #b3adbd;
+  --faint: #7f7989;
+  --radius: 24px;
+  --radius-sm: 16px;
+  --shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.7);
+  --grad: linear-gradient(120deg, var(--tint, #cbb8ff), var(--tint-2, #ffb3d0));
+  --on-grad: #1d1b20;
+  --display: 'Outfit Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;
+}
+:root[data-mode='amoled'] {
+  --bg: #000;
+  --bg-2: #0d0c10;
+}
+:root[data-mode='light'] {
+  --bg: #fdf7ff;
+  --bg-2: #ffffff;
+  --surface: color-mix(in srgb, var(--accent, #6750a4) 6%, #fff);
+  --surface-2: color-mix(in srgb, var(--accent, #6750a4) 11%, #fff);
+  --border: color-mix(in srgb, var(--accent, #6750a4) 16%, transparent);
+  --text: #1d1b20;
+  --muted: #5f5a69;
+  --faint: #8f8a99;
+  --shadow: 0 16px 36px -20px rgba(60, 40, 110, 0.35);
+}
+
+/* Soft pastel mesh behind everything */
+.ambient {
+  background:
+    radial-gradient(70vmax 55vmax at -10% -10%, color-mix(in srgb, var(--tint) 22%, transparent), transparent 70%),
+    radial-gradient(60vmax 50vmax at 110% 20%, color-mix(in srgb, var(--tint-2) 16%, transparent), transparent 70%),
+    radial-gradient(60vmax 45vmax at 50% 115%, color-mix(in srgb, var(--tint) 10%, transparent), transparent 70%);
+}
+:root[data-mode='amoled'] .ambient {
+  opacity: 0.5;
+}
+
+/* Type */
+h1,
+h2,
+h3,
+.screen-title,
+.row-head h2,
+.feature-title,
+.home-greet h1,
+.book-hero-content h1,
+.player-title,
+.brand-wordmark,
+.home-logo span {
+  font-family: var(--display);
+  letter-spacing: -0.01em;
+}
+.screen-title {
+  font-weight: 600;
+}
+.feature-title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.home-greet h1 {
+  font-weight: 600;
+}
+.home-logo span {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.section-label {
+  letter-spacing: 0.12em;
+}
+
+/* Buttons: pastel gradient with dark text, tonal secondary */
+.btn.primary,
+.pill.active,
+.feature-btn.primary,
+.segmented button.on,
+.feature-dots button.on {
+  background: var(--grad);
+  color: var(--on-grad);
+}
+.btn.primary svg,
+.pill.active svg,
+.feature-btn.primary svg {
+  color: var(--on-grad);
+}
+.btn.primary {
+  box-shadow: 0 10px 26px -12px color-mix(in srgb, var(--tint) 80%, transparent);
+}
+.btn.secondary,
+.feature-btn.ghost {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.pill {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.feature-btn {
+  border-radius: 18px;
+}
+.feature-badge {
+  background: color-mix(in srgb, var(--tint) 35%, rgba(0, 0, 0, 0.35));
+  border-color: color-mix(in srgb, var(--tint) 60%, transparent);
+  box-shadow: none;
+}
+
+/* Cards and inputs: rounder, tonal */
+.set-card,
+.src-row,
+.sum-card,
+.qbit-item,
+.continue-card {
+  border-radius: var(--radius);
+}
+.src-row .svc {
+  border-radius: 16px;
+}
+input,
+select,
+textarea {
+  border-radius: 16px;
+}
+.search-box {
+  border-radius: 999px;
+}
+.book-card-cover,
+.cover {
+  border-radius: 18px;
+}
+
+/* Tab bar: Material You style pill behind the active icon */
+.tabbar {
+  background: color-mix(in srgb, var(--bg-2) 94%, var(--tint) 6%);
+  border-top: none;
+}
+.tabbar button .icon {
+  padding: 4px 16px;
+  border-radius: 999px;
+  box-sizing: content-box;
+  transition: background 0.25s;
+}
+.tabbar button.on .icon {
+  background: color-mix(in srgb, var(--tint) 28%, transparent);
+  color: var(--text);
+  filter: none;
+}
+.tabbar button.on::before {
+  display: none;
+}
+@media (max-width: 380px) {
+  .tabbar button .icon {
+    padding: 4px 10px;
+  }
+}
+
+/* Mini player and progress: pastel */
+.progress-bar > div,
+.src-progress-bar > div {
+  background: var(--grad);
 }

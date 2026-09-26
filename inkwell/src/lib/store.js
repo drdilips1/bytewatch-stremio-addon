@@ -52,7 +52,7 @@ export function useStore(store) {
 
 export const settings = persisted('settings', {
   mode: 'dark', // dark | light | amoled
-  accent: 'champagne',
+  accent: 'lavender',
   dynamicColor: true,
   skipBack: 15,
   skipForward: 30,
