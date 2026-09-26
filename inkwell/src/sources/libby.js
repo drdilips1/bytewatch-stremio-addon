@@ -311,6 +311,64 @@ async function withChip(fn) {
   }
 }
 
+/** Step-by-step check of the Libby sign-in, for troubleshooting (no borrowing). */
+export async function diagnose() {
+  const out = [];
+  const say = (x) => out.push(x);
+  const chipOf = (jwt) => tokenClaims(jwt)?.chip || null;
+  const desc = (jwt) => {
+    const c = chipOf(jwt);
+    const exp = tokenClaims(jwt)?.exp;
+    return c ? `chip ${String(c.id || '?').slice(0, 8)} · type ${c.prbn ?? '?'} · cards ${c.cards == null ? 'none' : c.cards.length} · account ${c.ag ? 'yes' : 'no'}${exp ? ` · expires ${new Date(exp * 1000).toLocaleDateString()}` : ''}` : 'unreadable token';
+  };
+  const err = (e) => `${e.status ? e.status + ' ' : ''}${e.message}`.slice(0, 160);
+  const acct = libbyAccount.get();
+  say(`App ${NATIVE ? 'Android' : 'web'} · client ${CLIENT_VERSION} · host ${new URL(GATE).host}`);
+  if (!acct.identity) return say('Not signed in'), out;
+  say(`Signed in via: ${acct.via || 'unknown (older version)'}`);
+  say(`Saved sign-in: ${desc(acct.identity)} · saved chip id ${acct.chipId ? acct.chipId.slice(0, 8) : 'none'}`);
+  const chipId = acct.chipId || chipOf(acct.identity)?.id || '';
+  const v = chipId ? `&v=${String(chipId).slice(0, 8)}` : '';
+  for (const f of [`chip?${MINT}${v}`, `chip?client=dewey${v}`, `chip?${MINT}`]) {
+    try {
+      const r = await call('POST', READ, f, { identity: acct.identity });
+      say(`Refresh ${f.replace(/c=d%3A[\d.]+&s=0/, 'web')}: ${desc(r?.identity)}${r?.chip ? ` · reply chip cards ${r.chip.cards == null ? 'none' : r.chip.cards.length}` : ''}`);
+    } catch (e) {
+      say(`Refresh ${f.replace(/c=d%3A[\d.]+&s=0/, 'web')}: ✗ ${err(e)}`);
+    }
+  }
+  let d = null;
+  try {
+    d = await call('GET', READ, 'chip/sync', { identity: acct.identity });
+    say(`Sync: ${d?.result || '?'} · ${(d?.cards || []).length} cards · ${(d?.loans || []).length} loans · ${(d?.holds || []).length} holds`);
+    for (const c of d?.cards || []) say(`  card ${c.cardId} · ${c.advantageKey} · ${c.library?.name || c.cardName || ''} · website ${c.library?.websiteId ?? '?'}`);
+  } catch (e) {
+    say(`Sync: ✗ ${err(e)}`);
+  }
+  const loan = (d?.loans || []).find((l) => formatOf(l) === 'audiobook') || (d?.loans || [])[0];
+  if (loan) {
+    const card = (d?.cards || []).find((c) => String(c.cardId) === String(loan.cardId));
+    const key = card?.advantageKey || '';
+    const websiteId = card?.library?.websiteId || (await libraryInfo(key).catch(() => ({}))).websiteId || '';
+    const codex = { codex: { title: { titleId: String(loan.id), slug: String(loan.id) }, loan: { psnKey: `${loan.cardId}-${loan.id}`, slug: `${loan.cardId}-${loan.id}` }, library: { key, name: card?.library?.name || key } }, 'dewey-url': 'https://libbyapp.com', spec: 'V31' };
+    const t = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(codex)))));
+    const kind = formatOf(loan) === 'audiobook' ? 'audiobook' : 'book';
+    try {
+      const r = await call('GET', GATE, `open/${kind}/card/${loan.cardId}/title/${loan.id}?t=${t}&website_id=${websiteId}`, { identity: acct.identity, timeout: 45000 });
+      say(`Open "${String(loan.title).slice(0, 30)}": ✓ ${r?.urls?.web ? 'got player link' : 'no player link'}${r?.message ? ' · message' : ''}`);
+    } catch (e) {
+      say(`Open "${String(loan.title).slice(0, 30)}": ✗ ${err(e)}`);
+    }
+    try {
+      const p = await call('GET', GATE, `card/${loan.cardId}/loan/${loan.id}/periods`, { identity: acct.identity });
+      say(`Loan periods: ✓ ${JSON.stringify(p?.preference || p?.options || p).slice(0, 60)}`);
+    } catch (e) {
+      say(`Loan periods: ✗ ${err(e)}`);
+    }
+  } else say('No loans to test opening with');
+  return out;
+}
+
 /** For Settings: what the current sign-in token carries. */
 export function tokenInfo() {
   const c = tokenClaims(libbyAccount.get().identity)?.chip;
@@ -360,7 +418,7 @@ export function pairWithCode(onCode, onStatus = () => {}) {
       try {
         chip = await mint(chip.identity, chip.chipId);
         const cards = chipCards(chip.identity);
-        if (cards.length) return await finish(chip);
+        if (cards.length) return await finish(chip).then((n) => (libbyAccount.set((a) => ({ ...a, via: 'code from this app' })), n));
         const d = await call('GET', READ, 'chip/sync', { identity: chip.identity });
         if ((d?.cards || []).length) return await finish(chip);
         onStatus(`Check ${n} · no cards yet (${d?.result || '…'})`);
@@ -385,7 +443,9 @@ export async function signInWithCode(code) {
   await call('POST', READ, 'chip/clone/code', { identity: chip.identity, body: { code: c, role: 'secondary' } }).catch((e) => {
     throw new Error(e.status === 400 || e.status === 404 ? "Libby didn't accept that code — it may have expired" : `Libby: ${e.message}`);
   });
-  return finish(await mint(chip.identity, chip.chipId));
+  const names = await finish(await mint(chip.identity, chip.chipId));
+  libbyAccount.set((a) => ({ ...a, via: 'code from Libby' }));
+  return names;
 }
 
 /** Library facts from OverDrive: its website id is what card sign-in needs. */
@@ -422,17 +482,28 @@ export async function signInWithCard(input, cardNumber, pin = '') {
     return finish(await mint(acct.identity, chipId));
   }
   // Like the Libby web app: link the card on one chip, then copy it to a second
-  // chip with a setup code (that kind of chip can also open audiobooks).
+  // chip with a setup code (only that kind of chip can open audiobooks).
   const primary = await mint();
   await link(primary.identity);
-  try {
-    const code = (await call('GET', READ, 'chip/clone/code?role=primary', { identity: primary.identity }))?.code;
-    const secondary = await mint();
-    await call('POST', READ, 'chip/clone/code', { identity: secondary.identity, body: { code: String(code), role: 'secondary' } });
-    return await finish(await mint(secondary.identity, secondary.chipId));
-  } catch {
-    return finish(await mint(primary.identity, primary.chipId));
+  const ready = await mint(primary.identity, primary.chipId).catch(() => primary);
+  let why = '';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await call('GET', READ, 'chip/clone/code?role=primary', { identity: ready.identity });
+      if (!r?.code) throw new Error('no setup code');
+      const secondary = await mint();
+      await call('POST', READ, 'chip/clone/code', { identity: secondary.identity, body: { code: String(r.code), role: 'secondary' } });
+      const names = await finish(await mint(secondary.identity, secondary.chipId));
+      libbyAccount.set((a) => ({ ...a, via: 'card → copied chip' }));
+      return names;
+    } catch (e) {
+      why = e.message;
+      await new Promise((res) => setTimeout(res, 1500));
+    }
   }
+  const names = await finish(ready);
+  libbyAccount.set((a) => ({ ...a, via: `card only (copy failed: ${why})` }));
+  return names;
 }
 
 export function signOut() {

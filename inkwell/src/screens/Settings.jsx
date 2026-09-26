@@ -334,6 +334,39 @@ function LibbyCardSignIn({ busy, run, adding = false }) {
   );
 }
 
+/** Troubleshooting: run each Libby step and show what Libby answered. */
+function LibbyCheck() {
+  const [lines, setLines] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    setBusy(true);
+    setLines(null);
+    try {
+      setLines(await libbySrc.diagnose());
+    } catch (e) {
+      setLines([`Check failed: ${e.message}`]);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const text = (lines || []).join('\n');
+  return (
+    <div class="libby-check">
+      <button class="pill small ghost" disabled={busy} onClick={go}>
+        {busy ? <span class="spinner small" /> : 'Run Libby check'}
+      </button>
+      {lines && (
+        <>
+          <pre>{text}</pre>
+          <button class="pill small ghost" onClick={() => navigator.clipboard?.writeText(text).then(() => toast('Copied'), () => {})}>
+            Copy
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Libby: your public library — catalogue search, plus your account via Libby's setup code. */
 function LibbyCard() {
   const lib = useStore(libbySrc.libby);
@@ -378,6 +411,7 @@ function LibbyCard() {
         </>
       )}
       {acct.identity && <LibbyCardSignIn busy={busy} run={run} adding />}
+      <LibbyCheck />
       {libbySrc.libraries({ all: true }).length > 0 && (
         <div class="libby-cards">
           <small class="muted">Your libraries (switch off any you don't want in results):</small>

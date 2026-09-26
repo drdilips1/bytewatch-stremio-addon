@@ -3624,3 +3624,20 @@ button.source-card:active {
 .libby-cardform input {
   width: 100%;
 }
+.libby-check {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  margin-top: 12px;
+}
+.libby-check pre {
+  width: 100%;
+  margin: 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(127, 127, 127, 0.1);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
