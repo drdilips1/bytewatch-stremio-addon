@@ -6,7 +6,7 @@ import { isCloudEbook, loadCloudEbook } from '../lib/epub.js';
 import { progress, settings, summarize, useStore } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { readAloud } from '../lib/readaloud.js';
-import { paragraphs, estimate } from '../lib/tts.js';
+import { paragraphs, estimate, textBlocks } from '../lib/tts.js';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import * as player from '../lib/player.js';
 import { toast } from '../components/common.jsx';
@@ -18,7 +18,6 @@ const THEMES = [
   ['paper', 'Paper'],
 ];
 
-const BLOCKS = 'p, h1, h2, h3, h4, blockquote, li';
 
 export function Reader({ book, readAloud: autoAloud }) {
   const st = useStore(settings);
@@ -32,7 +31,14 @@ export function Reader({ book, readAloud: autoAloud }) {
   const ctl = useRef(null);
   const [aiBusy, setAiBusy] = useState('');
 
-  const blocks = () => [...(scroller.current?.querySelectorAll('.reader-text ' + BLOCKS) || [])].filter((el) => !el.querySelector(BLOCKS) && el.textContent.trim());
+  // Readable paragraphs, worked out once per book (long ebooks have thousands).
+  const blockCache = useRef(null);
+  const blocks = () => {
+    const root = scroller.current?.querySelector('.reader-text');
+    if (!root) return [];
+    if (blockCache.current?.root !== root) blockCache.current = { root, list: textBlocks(root) };
+    return blockCache.current.list;
+  };
 
   const startAloud = (from) => {
     ctl.current?.stop();
@@ -97,13 +103,32 @@ export function Reader({ book, readAloud: autoAloud }) {
     if (doc && autoAloud) setTimeout(() => startAloud(), 600);
   }, [doc]);
 
-  // Restore position once the text is rendered.
+  // The paragraph at the top of the screen (binary search: blocks are in page order).
+  const topBlock = () => {
+    const list = blocks();
+    const top = scroller.current.getBoundingClientRect().top + 60;
+    let lo = 0;
+    let hi = list.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (list[mid].getBoundingClientRect().bottom < top) lo = mid + 1;
+      else hi = mid;
+    }
+    return list.length ? lo : -1;
+  };
+
+  // Restore position once the text is rendered: to the exact paragraph when we
+  // know it (long ebooks lay out lazily, so a percentage is only approximate).
   useEffect(() => {
     if (!doc || !scroller.current) return;
     const saved = progress.get()[book.uid];
     const el = scroller.current;
     requestAnimationFrame(() => {
-      if (saved?.percent) el.scrollTop = saved.percent * (el.scrollHeight - el.clientHeight);
+      const target = saved?.anchor >= 0 ? blocks()[saved.anchor] : null;
+      if (target) {
+        target.scrollIntoView({ block: 'start' });
+        el.scrollTop -= 70;
+      } else if (saved?.percent) el.scrollTop = saved.percent * (el.scrollHeight - el.clientHeight);
     });
   }, [doc]);
 
@@ -119,7 +144,7 @@ export function Reader({ book, readAloud: autoAloud }) {
       t = setTimeout(() => {
         progress.set((all) => ({
           ...all,
-          [book.uid]: { kind: 'text', percent: p, finished: p > 0.985, updatedAt: Date.now(), book: summarize(book) },
+          [book.uid]: { kind: 'text', percent: p, anchor: topBlock(), finished: p > 0.985, updatedAt: Date.now(), book: summarize(book) },
         }));
       }, 600);
     };
@@ -159,8 +184,7 @@ export function Reader({ book, readAloud: autoAloud }) {
         onClick={(e) => {
           if (e.target.closest('a')) return;
           if (aloud) {
-            const el = e.target.closest(BLOCKS);
-            const i = el ? blocks().indexOf(el) : -1;
+            const i = blocks().findIndex((b) => b.contains(e.target));
             if (i >= 0) return startAloud(i);
           }
           const x = e.clientX / window.innerWidth;

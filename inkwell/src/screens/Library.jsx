@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'preact/hooks';
-import { Grid, Empty } from '../components/common.jsx';
+import { Grid, Empty, Cover, toast } from '../components/common.jsx';
+import { Icon } from '../components/icons.jsx';
 import { library, progress, useStore } from '../lib/store.js';
-import { downloads } from '../lib/downloads.js';
+import { downloads, removeDownload } from '../lib/downloads.js';
+import { forgetEbook } from '../lib/epub.js';
 import { nav } from '../lib/nav.js';
 
 const TABS = [
@@ -18,6 +20,7 @@ export function Library() {
   const prog = useStore(progress);
   const dls = useStore(downloads);
   const [tab, setTab] = useState('progress');
+  const [editing, setEditing] = useState(false);
   const items = useMemo(() => {
     const saved = Object.values(lib).filter((b) => !/^lbl?:/.test(b.uid || '')).sort((a, b) => b.addedAt - a.addedAt);
     const started = Object.values(prog).filter((p) => p.book).sort((a, b) => b.updatedAt - a.updatedAt);
@@ -32,8 +35,11 @@ export function Library() {
         return Object.values(dls)
           .filter((d) => d.book && d.status !== 'cancelled')
           .map((d) => d.book);
-      default:
-        return saved.filter((b) => b.kind === tab);
+      default: {
+        // Audiobooks / Ebooks: everything saved or started of that kind.
+        const seen = new Set();
+        return [...saved, ...started.map((p) => p.book)].filter((b) => b.kind === tab && !seen.has(b.uid) && seen.add(b.uid));
+      }
     }
   }, [lib, prog, tab, dls]);
 
@@ -45,7 +51,12 @@ export function Library() {
 
   return (
     <div class="screen library">
-      <h1 class="screen-title">Library</h1>
+      <div class="library-head">
+        <h1 class="screen-title">Library</h1>
+        <button class={'pill small' + (editing ? ' active' : '')} onClick={() => setEditing(!editing)}>
+          {editing ? 'Done' : 'Edit'}
+        </button>
+      </div>
       <div class="stats">
         <div>
           <b>{stats.books}</b>
@@ -67,7 +78,22 @@ export function Library() {
           </button>
         ))}
       </div>
-      {items.length ? (
+      {items.length && editing ? (
+        <div class="lib-edit">
+          {items.map((b) => (
+            <div class="lib-edit-row">
+              <Cover book={b} />
+              <div>
+                <b>{b.title}</b>
+                <small>{b.author}</small>
+              </div>
+              <button class="icon-btn" aria-label={`Remove ${b.title}`} onClick={() => remove(b, tab)}>
+                <Icon name="trash" size={18} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : items.length ? (
         <Grid items={items} />
       ) : (
         <Empty icon="library" title="Your shelf is empty">
@@ -81,4 +107,24 @@ export function Library() {
       <div class="footer-space" />
     </div>
   );
+}
+
+/** Remove a book from the library: saved copy, reading/listening history and, for ebooks, the file kept on the phone. */
+async function remove(book, tab) {
+  if (tab === 'downloaded') {
+    await removeDownload(book.uid).catch(() => {});
+    return toast('Download removed');
+  }
+  library.set((lib) => {
+    const next = { ...lib };
+    delete next[book.uid];
+    return next;
+  });
+  progress.set((all) => {
+    const next = { ...all };
+    delete next[book.uid];
+    return next;
+  });
+  if (book.kind === 'text') forgetEbook(book.uid);
+  toast(`Removed "${book.title}"`);
 }

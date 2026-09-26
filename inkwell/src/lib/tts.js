@@ -162,28 +162,44 @@ export const clearAudioCache = () =>
   Promise.all([nativeTts ? Native.clearCache().catch(() => {}) : null, builtinAvailable ? Voices.clearCache().catch(() => {}) : null]);
 
 // ---- text preparation ------------------------------------------------------
-/** Paragraphs from the sanitized reader HTML, tagged with chapter headings. */
-export function paragraphs(html) {
-  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+// Invisible characters (soft hyphens, zero-width spaces) that some ebooks are full
+// of: harmless on screen, but they break words for the voice engine.
+export const speakable = (t) =>
+  String(t || '')
+    .replace(/[\u00AD\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const BLOCK_TAGS = new Set('P DIV SECTION ARTICLE BLOCKQUOTE LI UL OL PRE H1 H2 H3 H4 H5 H6 TABLE THEAD TBODY TR TD TH FIGURE FIGCAPTION DL DD DT HR ASIDE HEADER FOOTER NAV MAIN'.split(' '));
+const PARA_TAGS = new Set(['P', 'LI', 'BLOCKQUOTE', 'PRE', 'DD', 'DT', 'TD', 'FIGCAPTION']);
+const hasBlockChild = (el) => [...el.children].some((c) => BLOCK_TAGS.has(c.tagName));
+
+/**
+ * The readable text blocks under `root`, in order: paragraphs, headings, and
+ * also plain <div>s that hold text directly (common in ebooks), without
+ * counting nested blocks twice.
+ */
+export function textBlocks(root) {
   const out = [];
   const walk = (el) => {
     for (const n of el.children) {
       const tag = n.tagName;
-      if (/^H[1-4]$/.test(tag)) {
-        const t = n.textContent.replace(/\s+/g, ' ').trim();
-        if (t) out.push({ heading: true, text: t });
-      } else if (tag === 'P' || tag === 'BLOCKQUOTE' || tag === 'LI' || tag === 'PRE') {
-        const t = n.textContent.replace(/\s+/g, ' ').trim();
-        if (t) out.push({ heading: false, text: t });
-      } else if (n.children.length) walk(n);
-      else {
-        const t = n.textContent.replace(/\s+/g, ' ').trim();
-        if (t.length > 40) out.push({ heading: false, text: t });
-      }
+      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'IMG') continue;
+      if (/^H[1-6]$/.test(tag) || !hasBlockChild(n)) {
+        const t = speakable(n.textContent);
+        // Short stray bits (page numbers, ornaments) only count inside real paragraphs.
+        if (t && (/^H[1-6]$/.test(tag) || PARA_TAGS.has(tag) || t.length > 20)) out.push(n);
+      } else walk(n);
     }
   };
-  walk(doc.body.firstChild);
+  walk(root);
   return out;
+}
+
+/** Paragraphs from the sanitized reader HTML, tagged with chapter headings. */
+export function paragraphs(html) {
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+  return textBlocks(doc.body.firstChild).map((el) => ({ heading: /^H[1-4]$/.test(el.tagName), text: speakable(el.textContent) }));
 }
 
 export function splitLong(text, max) {

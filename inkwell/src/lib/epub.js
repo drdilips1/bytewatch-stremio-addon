@@ -1,7 +1,7 @@
 // EPUB → reader HTML: unzip in the app, follow the spine (reading order) and
 // turn the chapters into one sanitized document with inline images, in the
 // same { html, headings } shape the reader uses for Gutenberg books.
-import { unzipSync, strFromU8 } from 'fflate';
+import { unzip, strFromU8 } from 'fflate';
 import { details as cloudDetails } from '../sources/debrid.js';
 import { getBytes } from './http.js';
 
@@ -19,14 +19,22 @@ function join(base, rel) {
 
 const parseXml = (text) => new DOMParser().parseFromString(text, 'application/xml');
 
-/** Returns { html, headings, title, author }. `bytes` is the EPUB file (Uint8Array). */
-export function epubToHtml(bytes) {
-  let files;
-  try {
-    files = unzipSync(bytes);
-  } catch {
-    throw new Error("This file isn't a readable EPUB");
-  }
+// Presentational attributes that squeeze or shift the text in the reader.
+const DROP_ATTRS = /^(on|style$|class$|epub:|xmlns|width$|height$|align$|valign$|border$|cellpadding$|cellspacing$|bgcolor$|color$|face$|size$|dir$|xml:)/;
+const nextFrame = () => new Promise((r) => setTimeout(r, 0));
+
+/** Unzip without blocking the app (fflate unpacks in a background worker). */
+const unzipAsync = (bytes) =>
+  new Promise((resolve, reject) =>
+    unzip(bytes, (err, files) => (err ? reject(new Error("This file isn't a readable EPUB")) : resolve(files)))
+  );
+
+/**
+ * Returns { html, headings, title, author, urls }. `bytes` is the EPUB file
+ * (Uint8Array). Works in small steps so a big book never freezes the app.
+ */
+export async function epubToHtml(bytes) {
+  const files = await unzipAsync(bytes);
   const text = (path) => (files[path] ? strFromU8(files[path]) : '');
   const container = parseXml(text('META-INF/container.xml'));
   const opfPath = container.querySelector('rootfile')?.getAttribute('full-path') || Object.keys(files).find((f) => f.endsWith('.opf'));
@@ -47,7 +55,9 @@ export function epubToHtml(bytes) {
   };
 
   const out = document.createElement('div');
-  order.forEach((m, ci) => {
+  for (let ci = 0; ci < order.length; ci++) {
+    const m = order[ci];
+    if (ci % 4 === 3) await nextFrame(); // let the app breathe between chapters
     const raw = text(m.href);
     let doc = new DOMParser().parseFromString(raw, 'application/xhtml+xml');
     if (doc.querySelector('parsererror') || !doc.body) doc = new DOMParser().parseFromString(raw, 'text/html');
@@ -66,9 +76,13 @@ export function epubToHtml(bytes) {
         el.replaceWith(img);
         return;
       }
+      if (tag === 'font' || tag === 'center' || tag === 'big' || tag === 'small') {
+        el.replaceWith(...el.childNodes); // keep the text, drop the old formatting tag
+        return;
+      }
       for (const a of [...el.attributes]) {
         const n = a.name.toLowerCase();
-        if (n.startsWith('on') || n === 'style' || n === 'class' || n.startsWith('epub:') || n === 'xmlns') el.removeAttribute(a.name);
+        if (DROP_ATTRS.test(n)) el.removeAttribute(a.name);
         if ((n === 'href' || n === 'src') && /^\s*javascript:/i.test(a.value)) el.removeAttribute(a.name);
       }
       if (tag === 'a') {
@@ -84,7 +98,7 @@ export function epubToHtml(bytes) {
     section.id = 'iw-c-' + ci;
     section.innerHTML = body.innerHTML;
     out.appendChild(section);
-  });
+  }
   const headings = [...out.querySelectorAll('h1,h2,h3')]
     .map((h, i) => {
       h.id ||= 'iw-h-' + i;
@@ -92,7 +106,7 @@ export function epubToHtml(bytes) {
     })
     .filter((h) => h.text && h.text.length < 120);
   const meta = (sel) => opf.getElementsByTagName(sel)[0]?.textContent?.trim() || '';
-  return { html: out.innerHTML, headings, title: meta('dc:title'), author: meta('dc:creator') };
+  return { html: out.innerHTML, headings, title: meta('dc:title'), author: meta('dc:creator'), urls: [...urls.values()] };
 }
 
 // ---- ebooks in your TorBox / Real-Debrid -------------------------------------
@@ -157,10 +171,54 @@ export const cloudReaderBook = (book, file) => ({
   ebookFile: file,
 });
 
-const docs = new Map(); // uid -> parsed document (this session)
+// Parsed books kept in memory: only the last two (big books hold a lot of text and images).
+const docs = new Map();
+function remember(uid, doc) {
+  docs.delete(uid);
+  docs.set(uid, doc);
+  while (docs.size > 2) {
+    const [old, d] = docs.entries().next().value;
+    docs.delete(old);
+    (d.urls || []).forEach((u) => URL.revokeObjectURL(u));
+  }
+  return doc;
+}
 
-export async function loadCloudEbook(book) {
-  if (docs.has(book.uid)) return docs.get(book.uid);
+// Downloaded EPUBs are kept on the phone (the app's cache storage), so reopening,
+// Listen and Read aloud don't download them again and work offline.
+const CACHE = 'kathava-ebooks';
+const cacheKey = (uid) => `https://kathava.local/ebook/${encodeURIComponent(uid)}`;
+async function cachedBytes(uid) {
+  try {
+    const hit = await (await caches.open(CACHE)).match(cacheKey(uid));
+    return hit ? new Uint8Array(await hit.arrayBuffer()) : null;
+  } catch {
+    return null;
+  }
+}
+async function keepBytes(uid, bytes) {
+  try {
+    await (await caches.open(CACHE)).put(cacheKey(uid), new Response(bytes, { headers: { 'Content-Type': 'application/epub+zip' } }));
+  } catch {}
+}
+export async function forgetEbook(uid) {
+  docs.delete(uid);
+  try {
+    await (await caches.open(CACHE)).delete(cacheKey(uid));
+  } catch {}
+}
+
+const loading = new Map(); // uid -> promise, so Read + Listen share one download
+
+export function loadCloudEbook(book) {
+  if (docs.has(book.uid)) return Promise.resolve(docs.get(book.uid));
+  if (!loading.has(book.uid)) loading.set(book.uid, loadEbook(book).finally(() => loading.delete(book.uid)));
+  return loading.get(book.uid);
+}
+
+async function loadEbook(book) {
+  const saved = await cachedBytes(book.uid);
+  if (saved) return remember(book.uid, await epubToHtml(saved));
   let file = book.ebookFile;
   // Direct links (reopened from Continue): the saved link is all we need.
   if (!file && book.ebookUrl) file = { name: book.ebookName || 'book.epub', format: book.ebookFormat || 'EPUB', resolve: async () => book.ebookUrl };
@@ -171,7 +229,8 @@ export async function loadCloudEbook(book) {
   }
   if (!file) throw new Error('This ebook is no longer in your cloud');
   if (file.format !== 'EPUB') throw new Error(`${file.format} files can't be opened in the reader — use Send to Kindle / Open in another app on the book page`);
-  const doc = epubToHtml(await getBytes(await file.resolve()));
-  docs.set(book.uid, doc);
-  return doc;
+  const bytes = await getBytes(await file.resolve());
+  const doc = await epubToHtml(bytes); // throws before caching if it isn't a readable EPUB
+  keepBytes(book.uid, bytes);
+  return remember(book.uid, doc);
 }

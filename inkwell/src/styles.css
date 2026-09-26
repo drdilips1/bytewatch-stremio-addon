@@ -4321,3 +4321,80 @@ textarea {
   color: var(--muted);
   font-size: 11.5px;
 }
+
+/* EPUB content: tame publisher layout (indent wrappers, fixed widths) */
+.reader-text .chapter div,
+.reader-text .chapter section {
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 0;
+  padding-right: 0;
+  max-width: 100%;
+}
+.reader-text .chapter blockquote {
+  margin: 1em 0 1em 1em;
+  padding: 0;
+}
+.reader-text .chapter blockquote blockquote {
+  margin-left: 0;
+}
+.reader-text .chapter dd {
+  margin-left: 1em;
+}
+.reader-text .chapter pre {
+  white-space: pre-wrap;
+}
+.reader-text .chapter img,
+.reader-text .chapter svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.reader-text .chapter table {
+  width: auto !important;
+}
+
+/* Library: edit mode */
+.library-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 16px;
+}
+.lib-edit {
+  display: grid;
+  gap: 8px;
+  padding: 0 16px;
+}
+.lib-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: var(--surface);
+}
+.lib-edit-row .cover {
+  width: 48px;
+  flex: none;
+}
+.lib-edit-row > div {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.lib-edit-row b,
+.lib-edit-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lib-edit-row small {
+  color: var(--muted);
+}
+/* Long ebooks: the browser skips laying out chapters that are off screen. */
+.reader-text > .chapter {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 4000px;
+}

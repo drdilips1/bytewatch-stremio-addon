@@ -2,7 +2,7 @@
 // Built-in voices render a few sentences ahead while the current one plays, so
 // there are no gaps; a clip that fails is retried once and then skipped
 // instead of stopping the reading.
-import { speak, stopSpeaking, canPrepare, prepareClip, playClip, splitLong } from './tts.js';
+import { speak, stopSpeaking, canPrepare, prepareClip, playClip, splitLong, speakable } from './tts.js';
 
 export function readAloud(elements, from, { onIndex, onDone, onError } = {}) {
   let stopped = false;
@@ -11,7 +11,7 @@ export function readAloud(elements, from, { onIndex, onDone, onError } = {}) {
   // Pieces of about a sentence or two, each tagged with its paragraph.
   const pieces = [];
   for (let k = from; k < elements.length; k++) {
-    const text = elements[k].textContent.replace(/\s+/g, ' ').trim();
+    const text = speakable(elements[k].textContent);
     if (text) for (const t of splitLong(text, 320)) pieces.push({ k, t });
   }
 
@@ -50,7 +50,7 @@ export function readAloud(elements, from, { onIndex, onDone, onError } = {}) {
     while (!stopped && i < elements.length) {
       const el = elements[i];
       onIndex?.(i, el);
-      const text = el.textContent.replace(/\s+/g, ' ').trim();
+      const text = speakable(el.textContent);
       if (text) {
         try {
           await speak(text);
