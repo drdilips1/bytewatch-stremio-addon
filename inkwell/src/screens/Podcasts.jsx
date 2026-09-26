@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../components/icons.jsx';
 import { toast, Empty, TopBar } from '../components/common.jsx';
-import { useStore, progress } from '../lib/store.js';
+import { useStore, progress, useStoreKey } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { fmtDuration } from '../lib/format.js';
 import * as player from '../lib/player.js';
@@ -23,7 +23,7 @@ export function playEpisode(ep, podcast) {
 /** One episode: play, queue, download, mark played, show notes. */
 export function EpisodeRow({ ep, podcast, showShow = false }) {
   const p = useStore(pod.podcasts);
-  const prog = useStore(progress)[ep.uid];
+  const prog = useStoreKey(progress, ep.uid);
   const dl = useStore(downloads)[ep.uid];
   const ps = usePlayer();
   const [open, setOpen] = useState(false);

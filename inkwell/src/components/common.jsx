@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { memo } from 'preact/compat';
 import { hashHue } from '../lib/format.js';
 import { SOURCES, sourceOf } from '../sources/index.js';
 import { Icon } from './icons.jsx';
 import { nav } from '../lib/nav.js';
-import { progress as progressStore, useStore } from '../lib/store.js';
+import { progress as progressStore, useStoreKey } from '../lib/store.js';
 import { useImage } from '../lib/image.js';
 import { useMeta } from '../lib/meta.js';
 
@@ -63,10 +64,12 @@ export function withMeta(book, meta) {
 
 const fmtCount = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(n));
 
-export function BookCard({ book: raw, wide }) {
+// Memoized, and it listens to its own book's progress only: saving the position of
+// the book that's playing (every few seconds) no longer re-renders every card.
+export const BookCard = memo(function BookCard({ book: raw, wide }) {
   const meta = useMeta(raw);
   const book = withMeta(raw, meta);
-  const prog = useStore(progressStore)[book.uid];
+  const prog = useStoreKey(progressStore, book.uid);
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
   return (
     <button class={'book-card' + (wide ? ' wide' : '')} onClick={() => nav.push('book', { book })}>
@@ -93,7 +96,7 @@ export function BookCard({ book: raw, wide }) {
       )}
     </button>
   );
-}
+});
 
 export function Row({ title, subtitle, load, items: given, icon, onMore, deps = [], showErrors = false, emptyText = '' }) {
   const [items, setItems] = useState(given || null);
@@ -147,13 +150,26 @@ export function Row({ title, subtitle, load, items: given, icon, onMore, deps = 
   );
 }
 
-export function Grid({ items }) {
+/** Book grid that renders a screenful first and adds more as you scroll (big libraries open instantly). */
+export function Grid({ items, step = 36 }) {
+  const [count, setCount] = useState(step);
+  const more = useRef(null);
+  useEffect(() => {
+    const el = more.current;
+    if (!el || count >= items.length) return;
+    const io = new IntersectionObserver((e) => e.some((x) => x.isIntersecting) && setCount((c) => c + step), { rootMargin: '600px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [count, items.length]);
   return (
-    <div class="grid">
-      {items.map((b) => (
-        <BookCard key={b.uid} book={b} />
-      ))}
-    </div>
+    <>
+      <div class="grid">
+        {items.slice(0, count).map((b) => (
+          <BookCard key={b.uid} book={b} />
+        ))}
+      </div>
+      {count < items.length && <div ref={more} class="grid-more" />}
+    </>
   );
 }
 

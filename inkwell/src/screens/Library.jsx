@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'preact/hooks';
+import { useMemo, useRef, useState } from 'preact/hooks';
 import { Grid, Empty, Cover, toast } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { library, progress, useStore } from '../lib/store.js';
@@ -21,7 +21,9 @@ export function Library() {
   const dls = useStore(downloads);
   const [tab, setTab] = useState('progress');
   const [editing, setEditing] = useState(false);
-  const items = useMemo(() => {
+  const [editShown, setEditShown] = useState(60);
+  const last = useRef([]);
+  const fresh = useMemo(() => {
     const saved = Object.values(lib).filter((b) => !/^lbl?:/.test(b.uid || '')).sort((a, b) => b.addedAt - a.addedAt);
     const started = Object.values(prog).filter((p) => p.book).sort((a, b) => b.updatedAt - a.updatedAt);
     switch (tab) {
@@ -42,6 +44,9 @@ export function Library() {
       }
     }
   }, [lib, prog, tab, dls]);
+  // Position saves (every few seconds while playing) give new objects for one book at
+  // most: keep the same list when nothing else changed, so the grid isn't redone.
+  const items = fresh.length === last.current.length && fresh.every((b, i) => b === last.current[i]) ? last.current : (last.current = fresh);
 
   const stats = useMemo(() => {
     const vals = Object.values(prog);
@@ -80,7 +85,7 @@ export function Library() {
       </div>
       {items.length && editing ? (
         <div class="lib-edit">
-          {items.map((b) => (
+          {items.slice(0, editShown).map((b) => (
             <div class="lib-edit-row">
               <Cover book={b} />
               <div>
@@ -92,6 +97,11 @@ export function Library() {
               </button>
             </div>
           ))}
+          {items.length > editShown && (
+            <button class="btn ghost-wide" onClick={() => setEditShown(editShown + 60)}>
+              Show more ({items.length - editShown})
+            </button>
+          )}
         </div>
       ) : items.length ? (
         <Grid items={items} />

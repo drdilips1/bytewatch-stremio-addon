@@ -63,6 +63,19 @@ export function useStore(store) {
   return v;
 }
 
+/**
+ * One entry of a keyed store (e.g. one book's progress): the component only
+ * re-renders when that entry changes, not on every save of any book.
+ */
+export function useStoreKey(store, key) {
+  const [v, setV] = useState(() => store.get()[key]);
+  useEffect(() => {
+    setV(store.get()[key]);
+    return store.subscribe((all) => setV(all[key]));
+  }, [store, key]);
+  return v;
+}
+
 export const settings = persisted('settings', {
   mode: 'dark', // dark | light | amoled
   accent: 'lavender',
