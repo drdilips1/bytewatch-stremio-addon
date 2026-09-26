@@ -14,7 +14,7 @@ export default {
 
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type"
     };
 
@@ -32,6 +32,11 @@ export default {
 
     if (url.pathname === "/addon.json") {
       return json(addonManifest(url.origin), corsHeaders);
+    }
+
+    // Debrid cache notifications from the app. Accepts GET or POST and always acknowledges.
+    if (url.pathname === "/bookracy/notify") {
+      return json({ ok: true }, corsHeaders);
     }
 
     if (url.pathname === "/bookracy/search") {
@@ -66,7 +71,7 @@ function addonManifest(origin) {
     id: "bookracy",
     name: "Bookracy",
     version: "1.0.0",
-    description: "Ebook sources via Bookracy, with Project Gutenberg as a fallback. Direct download links, no debrid needed.",
+    description: "Ebook sources via Bookracy proxy. Requires a debrid service to download.",
     icon: "https://bookracy.com/favicon.ico",
     provides: ["source"],
     contentType: "ebook",
@@ -80,6 +85,7 @@ function addonManifest(origin) {
     },
     adapters: {
       source: {
+        cacheNotifyUrl: origin + "/bookracy/notify",
         request: {
           method: "GET",
           url: origin + "/bookracy/search?q={QUERY}",
