@@ -16,7 +16,7 @@ import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
 import { RelatedRows } from '../components/related.jsx';
-import { storyshots, loadStoryShots, blinkistPage, blinkistUrl, storyshotsSearchUrl, openUrl, openExternal, BLINKIST_LOGIN, STORYSHOTS_HOME } from '../sources/summaries.js';
+import { storyshots, loadStoryShots, storyshotsSearchUrl, openUrl, openExternal, STORYSHOTS_HOME } from '../sources/summaries.js';
 
 // Books you already have (cloud, server, addons) can still show other copies from source addons.
 const OTHER_SOURCES = new Set(['tb', 'rd', 'abs', 'addon']);
@@ -336,7 +336,7 @@ export function Book({ book: initial }) {
   );
 }
 
-/** StoryShots summary shown right here (with their narration when available) and Blinkist in the in-app browser. */
+/** StoryShots summary shown right here (with their narration when available). */
 function Summaries({ book }) {
   const [ss, setSs] = useState(undefined); // undefined = loading, null = none
   const [doc, setDoc] = useState(null); // { html, audio } | { error }
@@ -408,20 +408,6 @@ function Summaries({ book }) {
             </button>
           </div>
         )}
-      </div>
-      <div class="sum-card">
-        <div class="sum-head">
-          <b>Blinkist</b>
-        </div>
-        <div class="sum-actions">
-          <span class="muted">Opens inside the app. Tap Sign in here once (it's separate from Chrome) — use email and password if Google sign-in is refused.</span>
-          <button class="pill" onClick={async () => openUrl(await blinkistPage(book), 'Blinkist')}>
-            <Icon name="search" size={14} /> Find on Blinkist
-          </button>
-          <button class="pill ghost" onClick={() => openUrl(BLINKIST_LOGIN, 'Blinkist')}>
-            Sign in
-          </button>
-        </div>
       </div>
     </section>
   );

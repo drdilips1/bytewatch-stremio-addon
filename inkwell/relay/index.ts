@@ -18,7 +18,6 @@ const ALLOWED = [
   /^api\.audible\.[a-z.]+$/,
   /^www\.goodreads\.com$/,
   /^(www\.)?getstoryshots\.com$/,
-  /^www\.blinkist\.com$/,
   /^itunes\.apple\.com$/,
   /^api\.torbox\.app$/,
   /^api\.real-debrid\.com$/,

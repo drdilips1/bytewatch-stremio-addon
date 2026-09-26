@@ -1,7 +1,5 @@
 // Book summaries. StoryShots publishes its written summaries on its website
-// (WordPress), so they can be read — and read aloud — inside the app. Blinkist
-// has no public API, so we open the book in the Blinkist app/site where the
-// user is signed in.
+// (WordPress), so they can be read — and read aloud — inside the app.
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { getJson, getText } from '../lib/http.js';
@@ -13,7 +11,7 @@ const SS = 'https://www.getstoryshots.com';
 const Web = registerPlugin('InkwellWeb');
 const inAppWeb = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
 
-/** Open a link in the app that owns it (Blinkist…) or the browser. */
+/** Open a link in the app that owns it, or the browser. */
 export async function openExternal(url) {
   if (inAppWeb) return Web.openExternal({ url }).catch(() => Browser.open({ url }));
   if (Capacitor.isNativePlatform()) return Browser.open({ url });
@@ -27,13 +25,10 @@ export async function openUrl(url, title = '') {
   window.open(url, '_blank');
 }
 
-// Blinkist has no public search page we can link to reliably, so find the book's
-// Blinkist page through a site search (it opens in the Blinkist app if installed).
+// Find a book's page on a site through a web search.
 const siteSearch = (site, q) => `https://www.google.com/search?q=${encodeURIComponent(`site:${site} ${q}`)}`;
 const query = (book) => `${mainTitle(book.title)} ${(book.author || '').split(',')[0]}`.trim();
-export const blinkistUrl = (book) => siteSearch('blinkist.com', query(book));
 export const storyshotsSearchUrl = (book) => siteSearch('getstoryshots.com', `${query(book)} summary`);
-export const BLINKIST_LOGIN = 'https://www.blinkist.com/en/nc/login';
 
 const slug = (t) =>
   mainTitle(t)
@@ -45,18 +40,6 @@ const slug = (t) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
-/**
- * The book's own Blinkist page ("/en/books/<title>-en") when it exists,
- * otherwise a search for it. Opened in the in-app browser.
- */
-export async function blinkistPage(book) {
-  const url = `https://www.blinkist.com/en/books/${slug(book.title)}-en`;
-  try {
-    const html = await getText(url, { timeout: 8000, headers: BROWSER });
-    if (html && !/page (was )?not found|404/i.test(html.slice(0, 3000))) return url;
-  } catch {}
-  return blinkistUrl(book);
-}
 export const STORYSHOTS_HOME = 'https://www.getstoryshots.com/';
 
 // Their site may turn away requests that don't look like a browser.

@@ -144,10 +144,10 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
     }
   };
 
-  const play = async () => {
+  const play = async (chosen) => {
     if (!need()) return;
-    const via = playVia;
-    setBusy('play');
+    const via = typeof chosen === 'string' ? chosen : playVia;
+    setBusy(via === playVia ? 'play' : 'play:' + via);
     setStatus({ text: readyOn(via) ? `Getting it from your ${LABEL[via]}…` : 'Contacting ' + LABEL[via] + '…', pct: null });
     try {
       const stub = await cloud.prepareMagnet(via, r, (text, pct) => setStatus({ text, pct }));
@@ -266,9 +266,18 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
             <Icon name="external" size={16} /> Open
           </a>
         ) : (
-          <button class="btn primary" disabled={!!busy} onClick={play}>
-            {busy === 'play' ? <span class="spinner" /> : <Icon name="play" size={16} />} Play{providers.length > 1 && playVia ? ` · ${SHORT[playVia]}` : ''}
-          </button>
+          <>
+            <button class="btn primary" disabled={!!busy} onClick={() => play(playVia)}>
+              {busy === 'play' ? <span class="spinner" /> : <Icon name="play" size={16} />} Play{providers.length > 1 && playVia ? ` · ${LABEL[playVia]}` : ''}
+            </button>
+            {providers
+              .filter((p) => p !== playVia)
+              .map((p) => (
+                <button class="btn secondary play-alt" disabled={!!busy} onClick={() => play(p)} aria-label={`Play through ${LABEL[p]}`}>
+                  {busy === 'play:' + p ? <span class="spinner" /> : <Icon name="play" size={14} />} {SHORT[p]}
+                </button>
+              ))}
+          </>
         )}
       </div>
     </div>

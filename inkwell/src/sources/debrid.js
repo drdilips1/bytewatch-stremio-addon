@@ -184,9 +184,23 @@ async function rdDetails(book) {
       if (tb) return tbDetails({ ...book, uid: `tb:t:${tb.id}`, source: 'tb', hash });
     }
     const packed = packedLinks || selected.some((f) => /\.(rar|zip|7z)$/i.test(f.path));
+    // Archived on Real-Debrid: TorBox keeps the separate files, so fetch it there instead.
+    if (packed && hash && tbConnected()) {
+      try {
+        const stub = await prepareMagnet('torbox', { hash, title: info.filename || book.title });
+        return tbDetails({ ...book, uid: stub.uid, source: 'tb', hash, parts: stub.parts });
+      } catch (e) {
+        if (e.pending) {
+          const err = new Error(`Real-Debrid packed this one into an archive, so it's being fetched from TorBox instead (${Math.round((e.pending.progress || 0) * 100)}%). Try again in a little while.`);
+          err.pending = e.pending;
+          throw err;
+        }
+        throw e;
+      }
+    }
     throw new Error(
       packed
-        ? 'Real-Debrid packed this one into an archive (.rar/.zip), which can’t be streamed. Play it from TorBox, or add a different version.'
+        ? 'Real-Debrid packed this one into an archive (.rar/.zip), which can’t be streamed. Connect TorBox (it keeps the files separate) or add a different version.'
         : info.status && info.status !== 'downloaded'
           ? `Real-Debrid hasn’t finished this one yet (${info.status}${info.progress != null ? ` · ${info.progress}%` : ''}).`
           : 'This Real-Debrid torrent has no audio files (it may be an ebook or a video).'
