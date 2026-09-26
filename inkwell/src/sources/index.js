@@ -1,3 +1,4 @@
+import * as se from './standardebooks.js';
 import * as ia from './archive.js';
 import * as lv from './librivox.js';
 import * as gb from './gutenberg.js';
@@ -19,6 +20,7 @@ import { translit, hasDevanagari } from '../lib/translit.js';
 export const SOURCES = {
   ia: { name: 'Internet Archive', short: 'Archive', hue: 28, kind: 'Listen', blurb: 'LibriVox mirror, old-time radio & spoken word', impl: ia },
   lv: { name: 'LibriVox', short: 'LibriVox', hue: 350, kind: 'Listen', blurb: '20,000+ volunteer-read public-domain audiobooks', impl: lv },
+  se: { name: 'Standard Ebooks', short: 'Standard Ebooks', hue: 205, kind: 'Read', blurb: 'Beautifully made free classics — read in-app or send to Kindle', impl: se },
   gb: { name: 'Project Gutenberg', short: 'Gutenberg', hue: 150, kind: 'Read', blurb: '75,000+ free classic ebooks, read in-app', impl: gb },
   ol: { name: 'Open Library', short: 'Open Library', hue: 210, kind: 'Discover', blurb: 'Trending books, rich descriptions & covers', impl: ol },
   au: { name: 'Audible catalog', short: 'Audible', hue: 32, kind: 'Discover', blurb: 'Audiobook listings with narrators, series & covers', impl: audible },
@@ -37,7 +39,7 @@ export const SOURCES = {
 const enabled = (k) => settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
 
 // Your own services first, then listings, then free catalogues — until the user rearranges them.
-const DEFAULT_ORDER = ['abs', 'tb', 'rd', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'ol', 'hi'];
+const DEFAULT_ORDER = ['abs', 'tb', 'rd', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'se', 'ol', 'hi'];
 /** Source keys in the user's chosen order (Settings → Sources). */
 export function sourceOrder() {
   const saved = (settings.get().sourceOrder || []).filter((k) => SOURCES[k] && !SOURCES[k].hidden);
@@ -98,6 +100,7 @@ export function searchAll(term, onResult) {
     ['ia', () => ia.search(term), true],
     ['lv', () => lv.search(term), true],
     ['gb', () => gb.search(term), true],
+    ['se', () => se.search(term), true],
     // Hindi (Devanagari) searches go to Audible India, which carries the Hindi catalogue.
     ['au', () => (/[\u0900-\u097F]/.test(term) ? audible.hindi(term) : audible.search(term)), true],
     ['gbk', () => googleBooks.search(term), true],

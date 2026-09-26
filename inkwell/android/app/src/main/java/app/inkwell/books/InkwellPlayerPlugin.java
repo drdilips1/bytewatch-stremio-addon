@@ -1,7 +1,12 @@
 package app.inkwell.books;
 
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -106,6 +111,7 @@ public class InkwellPlayerPlugin extends Plugin {
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
                 emitState();
+                updateSleepWatch(isPlaying);
                 if (isPlaying && !ticking) {
                     ticking = true;
                     main.post(tick);
@@ -378,9 +384,135 @@ public class InkwellPlayerPlugin extends Plugin {
         onMain(call, c -> c.resolve(snapshot()));
     }
 
+    // ------------------------------------------------------------ sleep detection
+    // While a book plays, watch the accelerometer. If the phone lies perfectly
+    // still for the chosen time, the listener has most likely fallen asleep:
+    // fade out, pause, and rewind to where the stillness began. Any movement
+    // during the fade cancels it.
+
+    private boolean sleepDetect = false;
+    private long stillMs = 15 * 60_000L;
+    private SensorManager sensors;
+    private boolean watching = false;
+    private long lastMove = 0;
+    private long moveItem = -1;
+    private long movePos = 0;
+    private float lx, ly, lz;
+    private boolean haveLast = false;
+    private boolean fading = false;
+    private float fadeFrom = 1f;
+
+    private final SensorEventListener motion = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent e) {
+            float x = e.values[0], y = e.values[1], z = e.values[2];
+            if (haveLast) {
+                float d = Math.abs(x - lx) + Math.abs(y - ly) + Math.abs(z - lz);
+                // Breathing on a mattress stays well under this; picking the phone up or turning over doesn't.
+                if (d > 0.9f) main.post(() -> moved());
+            }
+            lx = x;
+            ly = y;
+            lz = z;
+            haveLast = true;
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor s, int a) {}
+    };
+
+    private void moved() {
+        lastMove = System.currentTimeMillis();
+        if (player != null) {
+            moveItem = player.getCurrentMediaItemIndex();
+            movePos = player.getCurrentPosition();
+        }
+        if (fading) {
+            fading = false;
+            main.removeCallbacks(fadeStep);
+            if (player != null) player.setVolume(fadeFrom);
+        }
+    }
+
+    private final Runnable stillCheck = new Runnable() {
+        @Override
+        public void run() {
+            if (!watching || player == null) return;
+            if (!fading && player.isPlaying() && System.currentTimeMillis() - lastMove > stillMs) {
+                fading = true;
+                fadeFrom = player.getVolume();
+                main.post(fadeStep);
+            }
+            main.postDelayed(this, 15_000);
+        }
+    };
+
+    private int fadeTicks = 0;
+    private final Runnable fadeStep = new Runnable() {
+        @Override
+        public void run() {
+            if (!fading || player == null) return;
+            fadeTicks++;
+            player.setVolume(Math.max(0f, fadeFrom * (1f - fadeTicks / 20f)));
+            if (fadeTicks < 20) {
+                main.postDelayed(this, 1000);
+                return;
+            }
+            fadeTicks = 0;
+            fading = false;
+            player.pause();
+            player.setVolume(fadeFrom);
+            // Back to where the phone went still (a little earlier, to catch the context).
+            if (moveItem == player.getCurrentMediaItemIndex()) player.seekTo(Math.max(0, movePos - 30_000));
+            JSObject d = new JSObject();
+            d.put("position", player.getCurrentPosition() / 1000.0);
+            d.put("minutes", stillMs / 60_000);
+            notifyListeners("autosleep", d, true);
+        }
+    };
+
+    private void updateSleepWatch(boolean playing) {
+        boolean want = sleepDetect && playing;
+        if (want == watching) return;
+        if (sensors == null) sensors = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
+        Sensor acc = sensors == null ? null : sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        if (want && acc != null) {
+            haveLast = false;
+            moved();
+            sensors.registerListener(motion, acc, SensorManager.SENSOR_DELAY_NORMAL);
+            watching = true;
+            main.postDelayed(stillCheck, 15_000);
+        } else if (!want && watching) {
+            sensors.unregisterListener(motion);
+            watching = false;
+            main.removeCallbacks(stillCheck);
+            if (fading) {
+                fading = false;
+                main.removeCallbacks(fadeStep);
+                fadeTicks = 0;
+                if (player != null) player.setVolume(fadeFrom);
+            }
+        }
+    }
+
+    /** Turn sleep detection on/off; minutes = how long the phone must lie still. */
+    @PluginMethod
+    public void setSleepDetect(PluginCall call) {
+        onMain(call, c -> {
+            sleepDetect = Boolean.TRUE.equals(c.getBoolean("on", false));
+            Double m = c.getDouble("minutes", 15.0);
+            stillMs = (long) (Math.max(3.0, m == null ? 15.0 : m) * 60_000);
+            updateSleepWatch(player.isPlaying());
+            c.resolve();
+        });
+    }
+
     @Override
     protected void handleOnDestroy() {
         main.removeCallbacks(tick);
+        if (watching && sensors != null) sensors.unregisterListener(motion);
+        main.removeCallbacks(stillCheck);
+        main.removeCallbacks(fadeStep);
         if (session != null) {
             session.release();
             session = null;

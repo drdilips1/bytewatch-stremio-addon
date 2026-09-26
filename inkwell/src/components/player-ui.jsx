@@ -11,6 +11,7 @@ import { bookmarks, settings, useStore } from '../lib/store.js';
 import { TranscriptView } from './transcript-view.jsx';
 import { StorySheet } from './story-sheet.jsx';
 import { transcriptCfg, stopTranscript } from '../lib/transcript.js';
+import { sleepDetectAvailable, setSleepDetect } from '../lib/sleepdetect.js';
 
 export function usePlayer() {
   const [s, setS] = useState(player.getState());
@@ -328,6 +329,24 @@ export function FullPlayer() {
             {sheet === 'sleep' && (
               <>
                 <h3>Sleep timer</h3>
+                {sleepDetectAvailable && (
+                  <label class="set-row sleep-detect">
+                    <div>
+                      <b>Pause when I fall asleep</b>
+                      <small>If the phone lies still for {(st.sleepDetect?.minutes || 15)} minutes, the book fades out, pauses and rewinds to where you stopped moving.</small>
+                    </div>
+                    <input type="checkbox" class="switch" checked={!!st.sleepDetect?.on} onChange={(e) => setSleepDetect({ on: e.currentTarget.checked })} />
+                  </label>
+                )}
+                {sleepDetectAvailable && st.sleepDetect?.on && (
+                  <div class="chips sleep-detect-min">
+                    {[10, 15, 20, 30].map((m) => (
+                      <button class={'pill small' + ((st.sleepDetect?.minutes || 15) === m ? ' active' : '')} onClick={() => setSleepDetect({ minutes: m })}>
+                        Still {m} min
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div class="speed-grid">
                   {SLEEP.map((m) => (
                     <button

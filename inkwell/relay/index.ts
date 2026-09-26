@@ -25,6 +25,7 @@ const ALLOWED = [
   /^www\.googleapis\.com$/,
   /^archive\.org$/,
   /^gutendex\.com$/,
+  /^standardebooks\.org$/,
   /^librivox\.org$/,
   /^jsonkeeper\.com$/,
   /(^|\.)knaben\.(org|eu|net|cc)$/,

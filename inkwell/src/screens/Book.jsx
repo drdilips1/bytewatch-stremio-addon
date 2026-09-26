@@ -7,6 +7,7 @@ import { library, progress, toggleLibrary, useStore } from '../lib/store.js';
 import { fmtDuration, fmtTime } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
 import * as qb from '../sources/qbit.js';
+import { canSendToKindle, sendToKindle } from '../lib/kindle.js';
 import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
 import { SourceResults } from '../components/source-results.jsx';
@@ -36,6 +37,7 @@ export function Book({ book: initial }) {
   const [listenBusy, setListenBusy] = useState(false);
   const [showParts, setShowParts] = useState(null);
   const [qbBusy, setQbBusy] = useState(false);
+  const [kindleBusy, setKindleBusy] = useState(false);
   useStore(qb.qbitSent);
   const dl = useStore(downloads)[initial.uid];
 
@@ -110,6 +112,24 @@ export function Book({ book: initial }) {
           <button class="btn primary big" disabled={loading && !book.tracks} onClick={() => listen()}>
             {loading && !isCurrent ? <span class="spinner" /> : <Icon name={isCurrent && ps.playing ? 'pause' : 'play'} size={18} />}
             {isCurrent && ps.playing ? 'Pause' : pct > 0 && !prog.finished ? `Resume · ${pct}%` : 'Listen now'}
+          </button>
+        )}
+        {canSendToKindle(book) && (
+          <button
+            class="btn secondary big kindle-btn"
+            disabled={kindleBusy}
+            onClick={async () => {
+              setKindleBusy(true);
+              try {
+                await sendToKindle(book);
+              } catch (e) {
+                toast(e.message);
+              } finally {
+                setKindleBusy(false);
+              }
+            }}
+          >
+            {kindleBusy ? <span class="spinner" /> : <Icon name="upload" size={18} />} Send to Kindle
           </button>
         )}
         {canRead && (

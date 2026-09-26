@@ -32,7 +32,7 @@ export const isWeb = WEB;
 
 // Hosts the relay will forward to (keep in step with relay/index.ts). Anything
 // else — e.g. your own Audiobookshelf server — must allow the web app directly.
-const RELAY_ALLOWED = /^(api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|itunes\.apple\.com|api\.torbox\.app|api\.real-debrid\.com|openlibrary\.org|www\.googleapis\.com|archive\.org|gutendex\.com|librivox\.org|jsonkeeper\.com|([a-z0-9-]+\.)*knaben\.(org|eu|net|cc)|[a-z0-9.-]+\.workers\.dev)$/i;
+const RELAY_ALLOWED = /^(api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|itunes\.apple\.com|api\.torbox\.app|api\.real-debrid\.com|openlibrary\.org|www\.googleapis\.com|archive\.org|gutendex\.com|standardebooks\.org|librivox\.org|jsonkeeper\.com|([a-z0-9-]+\.)*knaben\.(org|eu|net|cc)|[a-z0-9.-]+\.workers\.dev)$/i;
 function relayable(url) {
   try {
     const u = new URL(url);

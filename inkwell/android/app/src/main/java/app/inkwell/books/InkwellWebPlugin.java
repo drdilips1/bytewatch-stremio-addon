@@ -3,6 +3,12 @@ package app.inkwell.books;
 import android.content.Intent;
 import android.net.Uri;
 import android.widget.Toast;
+import androidx.core.content.FileProvider;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -66,5 +72,64 @@ public class InkwellWebPlugin extends Plugin {
         String text = call.getString("text", "");
         getActivity().runOnUiThread(() -> Toast.makeText(getContext(), text, Toast.LENGTH_LONG).show());
         call.resolve();
+    }
+
+    /**
+     * Download a file (e.g. an EPUB) and open Android's share sheet for it —
+     * pick Kindle ("Send to Kindle") or email it to your @kindle.com address.
+     */
+    @PluginMethod
+    public void shareFile(PluginCall call) {
+        String url = call.getString("url");
+        String name = call.getString("name", "book.epub").replaceAll("[\\\\/:*?\"<>|]", " ").trim();
+        String mime = call.getString("mime", "application/epub+zip");
+        String title = call.getString("title", "Send to Kindle");
+        if (url == null) {
+            call.reject("Missing url");
+            return;
+        }
+        new Thread(() -> {
+            try {
+                String next = url;
+                HttpURLConnection c = null;
+                for (int hop = 0; hop < 6; hop++) {
+                    c = (HttpURLConnection) new URL(next).openConnection();
+                    c.setInstanceFollowRedirects(false);
+                    c.setConnectTimeout(20000);
+                    c.setReadTimeout(60000);
+                    c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) Kathava");
+                    int code = c.getResponseCode();
+                    if (code >= 300 && code < 400 && c.getHeaderField("Location") != null) {
+                        next = new URL(new URL(next), c.getHeaderField("Location")).toString();
+                        c.disconnect();
+                        continue;
+                    }
+                    if (code >= 400) throw new Exception("HTTP " + code);
+                    break;
+                }
+                File dir = new File(getContext().getCacheDir(), "share");
+                dir.mkdirs();
+                File f = new File(dir, name);
+                InputStream in = c.getInputStream();
+                FileOutputStream out = new FileOutputStream(f);
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                out.close();
+                in.close();
+                Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", f);
+                Intent send = new Intent(Intent.ACTION_SEND);
+                send.setType(mime);
+                send.putExtra(Intent.EXTRA_STREAM, uri);
+                send.putExtra(Intent.EXTRA_SUBJECT, name);
+                send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                Intent chooser = Intent.createChooser(send, title);
+                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                getActivity().startActivity(chooser);
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Couldn't get the ebook: " + e.getMessage());
+            }
+        }).start();
     }
 }

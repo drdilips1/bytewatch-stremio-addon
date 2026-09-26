@@ -4088,3 +4088,20 @@ textarea {
 .feature-spacer {
   height: calc(var(--safe-top) + 70px);
 }
+
+.sleep-detect {
+  margin-bottom: 8px;
+  padding: 0;
+}
+.sleep-detect-min {
+  margin-bottom: 14px;
+}
+
+.book-actions {
+  flex-wrap: wrap;
+}
+.book-actions .kindle-btn {
+  order: 5;
+  flex-basis: 100%;
+  height: 46px;
+}
