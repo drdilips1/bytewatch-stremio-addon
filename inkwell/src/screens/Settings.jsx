@@ -359,6 +359,7 @@ function LibbyCard() {
             <b>Signed in to Libby</b>
             <small>
               {(acct.cards || []).map((c) => c.library?.name || c.cardName).join(', ') || 'Your cards'} · {(acct.loans || []).length} loans · {(acct.holds || []).length} holds
+              {libbySrc.tokenInfo() ? ` · ${libbySrc.tokenInfo()}` : ''}
             </small>
           </div>
           <div class="chips">

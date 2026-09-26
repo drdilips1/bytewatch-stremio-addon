@@ -236,10 +236,10 @@ export function tokenClaims(jwt) {
   }
 }
 
-async function call(method, base, path, { identity, body } = {}) {
+async function call(method, base, path, { identity, body, timeout = 25000 } = {}) {
   const url = `${base}/${path}`;
   try {
-    return method === 'GET' ? await getJson(url, { headers: auth(identity), fresh: true, timeout: 20000 }) : await sendJson(url, method, body, auth(identity));
+    return method === 'GET' ? await getJson(url, { headers: auth(identity), fresh: true, timeout }) : await sendJson(url, method, body, auth(identity));
   } catch (e) {
     if (identity && e.status === 401) throw Object.assign(new Error('Libby signed this device out — sign in again in Settings → Libby'), { status: 401 });
     throw e;
@@ -264,9 +264,58 @@ async function finish({ identity, chipId }) {
   const d = await call('GET', READ, 'chip/sync', { identity });
   if (!(d?.cards || []).length && !chipCards(identity).length) throw new Error("Libby linked this device, but no library cards came across");
   libbyAccount.set({ identity, chipId, cards: d.cards || [], loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now(), mintedAt: Date.now() });
+  if (!chipCards(identity).length) await ensureChip().catch(() => {});
   const card = (d.cards || [])[0];
   if (card && !libby.get().key) libby.set((l) => ({ ...l, key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey }));
   return (d.cards || []).map((c) => c.library?.name || c.cardName).join(', ') || 'Libby';
+}
+
+/**
+ * Libby only lets a token borrow and open books when the token itself lists your
+ * cards ("missing_chip" otherwise). Re-mint until it does, trying each form Libby accepts.
+ */
+export async function ensureChip({ force = false } = {}) {
+  const acct = libbyAccount.get();
+  if (!acct.identity) throw new Error('Sign in to Libby first (Settings → Libby)');
+  if (!force && chipCards(acct.identity).length) return acct.identity;
+  const chipId = acct.chipId || tokenClaims(acct.identity)?.chip?.id || '';
+  const v = chipId ? `&v=${String(chipId).slice(0, 8)}` : '';
+  const forms = [`chip?${MINT}${v}`, `chip?client=dewey${v}`, `chip?${MINT}`, `chip?client=dewey`];
+  let best = null;
+  for (let round = 0; round < 2 && !best; round++) {
+    for (const f of forms) {
+      const r = await call('POST', READ, f, { identity: libbyAccount.get().identity }).catch(() => null);
+      if (r?.identity && tokenClaims(r.identity)?.chip?.id === (chipId || tokenClaims(r.identity)?.chip?.id)) {
+        if (chipCards(r.identity).length) {
+          best = r.identity;
+          break;
+        }
+      }
+    }
+    if (!best && round === 0) await new Promise((res) => setTimeout(res, 1500));
+  }
+  if (!best) throw new Error("Libby hasn't attached your cards to this device yet — in Settings → Libby tap Sign out, then sign in again");
+  libbyAccount.set((a) => ({ ...a, identity: best, mintedAt: Date.now() }));
+  return best;
+}
+
+/** Run a Libby action; if Libby says the token lacks cards, refresh it once and retry. */
+async function withChip(fn) {
+  await ensureChip().catch(() => {});
+  try {
+    return await fn(libbyAccount.get().identity);
+  } catch (e) {
+    if (!/missing_chip|403/.test(e.message)) throw e;
+    await ensureChip({ force: true });
+    return fn(libbyAccount.get().identity);
+  }
+}
+
+/** For Settings: what the current sign-in token carries. */
+export function tokenInfo() {
+  const c = tokenClaims(libbyAccount.get().identity)?.chip;
+  if (!c) return '';
+  return `${(c.cards || []).length} card${(c.cards || []).length === 1 ? '' : 's'} in sign-in${c.prbn ? ` · type ${c.prbn}` : ''}`;
 }
 
 /** Libby's code expiry: a Unix time (s or ms), a date, or seconds from now. */
@@ -447,16 +496,29 @@ const reporting = () => ({ clientName: 'Dewey', clientVersion: CLIENT_VERSION, e
 export async function borrow(titleId, format, key = libraries()[0]?.key) {
   const card = cardFor(key);
   if (!card) throw new Error(signedIn() ? "You don't have a card for this library — add it in Settings → Libby" : 'Sign in to Libby first (Settings → Libby)');
-  const identity = libbyAccount.get().identity;
-  let pref = null;
-  try {
-    const p = await call('GET', GATE, `card/${card.cardId}/loan/${titleId}/periods`, { identity });
-    pref = p?.preference || p?.options?.[p.options.length - 1] || null;
-  } catch {}
-  pref ||= card.lendingPeriods?.[format === 'audiobook' ? 'audiobook' : 'book']?.preference || [14, 'days'];
-  await call('POST', GATE, `card/${card.cardId}/loan/${titleId}`, {
-    identity,
-    body: { period: pref[0], units: pref[1] || 'days', lucky_day: 0, title_format: format === 'audiobook' ? 'audiobook' : 'ebook', reporting_context: reporting() },
+  const kind = format === 'audiobook' ? 'audiobook' : 'ebook';
+  await withChip(async (identity) => {
+    let pref = null;
+    try {
+      const p = await call('GET', GATE, `card/${card.cardId}/loan/${titleId}/periods`, { identity });
+      pref = p?.preference || p?.options?.[p.options.length - 1] || null;
+    } catch {}
+    pref ||= card.lendingPeriods?.[kind === 'audiobook' ? 'audiobook' : 'book']?.preference || [14, 'days'];
+    const bodies = [
+      { period: pref[0], units: pref[1] || 'days', lucky_day: 0, title_format: kind, reporting_context: reporting() },
+      { period: pref[0], units: pref[1] || 'days', lucky_day: null, title_format: kind },
+      { period: 14, units: 'days', lucky_day: null, title_format: kind },
+    ];
+    let last;
+    for (const body of bodies) {
+      try {
+        return await call('POST', GATE, `card/${card.cardId}/loan/${titleId}`, { identity, body });
+      } catch (e) {
+        last = e;
+        if (e.status !== 400) throw e;
+      }
+    }
+    throw new Error(`Libby wouldn't lend it (${last.message.replace(/^HTTP \d+ — /, '')}) — your card may be at its loan limit, or the library needs you to borrow this one in Libby`);
   });
   await syncAccount();
   return `Borrowed with your ${card.library?.name || ''} card`.replace('  ', ' ');
@@ -466,7 +528,7 @@ export async function borrow(titleId, format, key = libraries()[0]?.key) {
 export async function placeHold(titleId, key = libraries()[0]?.key) {
   const card = cardFor(key);
   if (!card) throw new Error(signedIn() ? "You don't have a card for this library — add it in Settings → Libby" : 'Sign in to Libby first (Settings → Libby)');
-  await call('POST', GATE, `card/${card.cardId}/hold/${titleId}`, { identity: libbyAccount.get().identity, body: { days_to_suspend: 0, email_address: '' } });
+  await withChip((identity) => call('POST', GATE, `card/${card.cardId}/hold/${titleId}`, { identity, body: { days_to_suspend: 0, email_address: '' } }));
   await syncAccount();
   return 'Hold placed — Libby will tell you when it is ready';
 }
@@ -545,14 +607,18 @@ export async function openLoan(book) {
   const websiteId = card?.library?.websiteId || (await libraryInfo(libKey).catch(() => ({}))).websiteId || '';
   const codex = { codex: { title: { titleId: String(titleId), slug: String(titleId) }, loan: { psnKey: `${cardId}-${titleId}`, slug: `${cardId}-${titleId}` }, library: { key: libKey, name: card?.library?.name || libKey } }, 'dewey-url': 'https://libbyapp.com', spec: 'V31' };
   const t = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(codex)))));
-  const passport = await call('GET', GATE, `open/audiobook/card/${cardId}/title/${titleId}?t=${t}&website_id=${websiteId}`, { identity: acct.identity });
+  const passport = await withChip((identity) => call('GET', GATE, `open/audiobook/card/${cardId}/title/${titleId}?t=${t}&website_id=${websiteId}`, { identity, timeout: 45000 })).catch((e) => {
+    throw new Error(`Libby didn't open this audiobook: ${e.message}`);
+  });
   const web = passport?.urls?.web;
   if (!web) throw new Error("Libby didn't open this audiobook — try again, or open it in Libby");
   const host = new URL(web).host;
   const buid = host.split('.')[0].replace(/^[^-]+-/, '');
   // The signed message sets the listen site's session cookie (kept by the app), then the player page.
-  if (passport.message) await fetchText(web + '?' + passport.message, { timeout: 25000, headers: LIKE_LIBBY }).catch(() => {});
-  const html = await fetchText(web + '?kathava=' + Date.now(), { timeout: 25000, headers: { ...LIKE_LIBBY, Accept: 'text/html' } });
+  if (passport.message) await fetchText(web + '?' + passport.message, { timeout: 45000, headers: LIKE_LIBBY }).catch(() => {});
+  const html = await fetchText(web + '?kathava=' + Date.now(), { timeout: 45000, headers: { ...LIKE_LIBBY, Accept: 'text/html' } }).catch((e) => {
+    throw new Error(`Couldn't load Libby's player page: ${e.message}`);
+  });
   const ob = decodeOpenbook(html, buid);
   const spine = ob.spine || [];
   const cmpts = ob['-odread-cmpt-params'] || [];
