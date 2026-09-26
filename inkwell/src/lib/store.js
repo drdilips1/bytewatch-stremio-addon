@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'preact/hooks';
 
 // Tiny persistent reactive store backed by localStorage.
+// Pending saves are written at once when the app is backgrounded or closed,
+// so nothing (reading position, a book just opened) is lost if Android kills it.
+const pending = new Map();
+const flushAll = () => pending.forEach((write) => write());
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushAll);
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flushAll());
+}
+
 export function persisted(key, initial) {
   let value = initial;
   try {
@@ -15,11 +24,15 @@ export function persisted(key, initial) {
       value = typeof next === 'function' ? next(value) : next;
       subs.forEach((f) => f(value));
       clearTimeout(saveTimer);
-      saveTimer = setTimeout(() => {
+      const write = () => {
+        clearTimeout(saveTimer);
+        pending.delete(key);
         try {
           localStorage.setItem('inkwell:' + key, JSON.stringify(value));
         } catch {}
-      }, 150);
+      };
+      pending.set(key, write);
+      saveTimer = setTimeout(write, 150);
     },
     patch(part) {
       store.set((v) => ({ ...v, ...part }));
@@ -62,6 +75,7 @@ export const settings = persisted('settings', {
   readerSize: 19,
   readerTheme: 'night', // night | sepia | paper | amoled
   readerFont: 'serif',
+  skipFrontMatter: true, // Listen / Read aloud skip contents, index, copyright pages
   language: 'en',
   debridPreferred: 'torbox', // torbox | realdebrid
   downloadTarget: 'public', // public = Downloads/Inkwell, app = private app storage

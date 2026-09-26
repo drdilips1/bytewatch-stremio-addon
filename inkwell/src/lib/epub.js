@@ -4,6 +4,7 @@
 import { unzip, strFromU8 } from 'fflate';
 import { details as cloudDetails } from '../sources/debrid.js';
 import { getBytes } from './http.js';
+import { textBlocks, speakable } from './tts.js';
 
 const IMG_TYPES = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
 
@@ -18,6 +19,34 @@ function join(base, rel) {
 }
 
 const parseXml = (text) => new DOMParser().parseFromString(text, 'application/xml');
+
+/** Share of an element's text that is link text (contents pages are nearly all links). */
+export function linkDense(el) {
+  const all = el.textContent.replace(/\s+/g, '').length;
+  if (!all) return false;
+  const links = [...el.querySelectorAll('a')];
+  const inLinks = links.reduce((a, l) => a + l.textContent.replace(/\s+/g, '').length, 0);
+  return (el.tagName === 'A' ? 1 : inLinks / all) >= 0.7;
+}
+
+const SKIP_TYPES = { toc: 'contents', index: 'index', 'copyright-page': 'copyright', cover: 'cover', landmarks: 'contents', loi: 'contents', lot: 'contents' };
+const SKIP_TITLE = /^\s*(table of contents|contents|index|copyright|list of (illustrations|figures|tables|maps))\s*$/i;
+
+/** Is this chapter file front/back matter to leave out of Listen and Read aloud? */
+function skipKind(body, m, guideType, docTitle) {
+  if (/\bnav\b/.test(m.props)) return 'contents';
+  if (guideType && SKIP_TYPES[guideType]) return SKIP_TYPES[guideType];
+  const top = [body, ...body.children, ...[...body.children].flatMap((c) => [...c.children])];
+  for (const el of top) {
+    const t = (el.getAttribute('epub:type') || '').toLowerCase();
+    for (const k of t.split(/\s+/)) if (SKIP_TYPES[k]) return SKIP_TYPES[k];
+  }
+  const heading = body.querySelector('h1,h2,h3')?.textContent || docTitle || '';
+  if (SKIP_TITLE.test(heading)) return /index/i.test(heading) ? 'index' : /copyright/i.test(heading) ? 'copyright' : 'contents';
+  const links = body.querySelectorAll('a').length;
+  if (links >= 5 && linkDense(body)) return 'contents';
+  return '';
+}
 
 // Presentational attributes that squeeze or shift the text in the reader.
 const DROP_ATTRS = /^(on|style$|class$|epub:|xmlns|width$|height$|align$|valign$|border$|cellpadding$|cellspacing$|bgcolor$|color$|face$|size$|dir$|xml:)/;
@@ -43,7 +72,10 @@ export async function epubToHtml(bytes) {
     throw new Error('This EPUB is DRM-protected, so it can only be opened in the store app it came from');
   const opf = parseXml(text(opfPath));
   const manifest = {};
-  opf.querySelectorAll('manifest > item').forEach((it) => (manifest[it.getAttribute('id')] = { href: join(opfPath, it.getAttribute('href') || ''), type: it.getAttribute('media-type') || '' }));
+  opf.querySelectorAll('manifest > item').forEach((it) => (manifest[it.getAttribute('id')] = { href: join(opfPath, it.getAttribute('href') || ''), type: it.getAttribute('media-type') || '', props: it.getAttribute('properties') || '' }));
+  // EPUB 2 "guide": which files are the contents, index, copyright page…
+  const guide = {};
+  opf.querySelectorAll('guide > reference').forEach((r) => (guide[join(opfPath, (r.getAttribute('href') || '').split('#')[0])] = (r.getAttribute('type') || '').toLowerCase()));
   const order = [...opf.querySelectorAll('spine > itemref')].map((r) => manifest[r.getAttribute('idref')]).filter((m) => m && /html/.test(m.type) && files[m.href]);
   if (!order.length) throw new Error('This EPUB has no readable chapters');
 
@@ -55,6 +87,7 @@ export async function epubToHtml(bytes) {
   };
 
   const out = document.createElement('div');
+  const paras = [];
   for (let ci = 0; ci < order.length; ci++) {
     const m = order[ci];
     if (ci % 4 === 3) await nextFrame(); // let the app breathe between chapters
@@ -63,6 +96,7 @@ export async function epubToHtml(bytes) {
     if (doc.querySelector('parsererror') || !doc.body) doc = new DOMParser().parseFromString(raw, 'text/html');
     const body = doc.body || doc.documentElement;
     body.querySelectorAll('script,style,link,meta,iframe,object,embed,form').forEach((n) => n.remove());
+    const skip = skipKind(body, m, guide[m.href], doc.title);
     body.querySelectorAll('*').forEach((el) => {
       const tag = el.tagName.toLowerCase();
       if (tag === 'img' || tag === 'image') {
@@ -96,7 +130,10 @@ export async function epubToHtml(bytes) {
     const section = document.createElement('section');
     section.className = 'chapter';
     section.id = 'iw-c-' + ci;
+    if (skip) section.dataset.skip = skip;
     section.innerHTML = body.innerHTML;
+    // Paragraphs for Listen, worked out here chapter by chapter (not all at once later).
+    for (const el of textBlocks(section)) paras.push({ heading: /^H[1-4]$/.test(el.tagName), text: speakable(el.textContent), skip: !!skip || linkDense(el) });
     out.appendChild(section);
   }
   const headings = [...out.querySelectorAll('h1,h2,h3')]
@@ -106,7 +143,7 @@ export async function epubToHtml(bytes) {
     })
     .filter((h) => h.text && h.text.length < 120);
   const meta = (sel) => opf.getElementsByTagName(sel)[0]?.textContent?.trim() || '';
-  return { html: out.innerHTML, headings, title: meta('dc:title'), author: meta('dc:creator'), urls: [...urls.values()] };
+  return { html: out.innerHTML, headings, paras, title: meta('dc:title'), author: meta('dc:creator'), urls: [...urls.values()] };
 }
 
 // ---- ebooks in your TorBox / Real-Debrid -------------------------------------

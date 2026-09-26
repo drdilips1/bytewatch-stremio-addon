@@ -6,7 +6,7 @@ import { isCloudEbook, loadCloudEbook } from '../lib/epub.js';
 import { progress, settings, summarize, useStore } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { readAloud } from '../lib/readaloud.js';
-import { paragraphs, estimate, textBlocks } from '../lib/tts.js';
+import { paragraphs, estimate, textBlocks, isSkippable, skipFrontMatter } from '../lib/tts.js';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import * as player from '../lib/player.js';
 import { toast } from '../components/common.jsx';
@@ -39,22 +39,26 @@ export function Reader({ book, readAloud: autoAloud }) {
     if (blockCache.current?.root !== root) blockCache.current = { root, list: textBlocks(root) };
     return blockCache.current.list;
   };
+  // What Read aloud goes through: contents / index left out when that setting is on.
+  const speakBlocks = () => {
+    const list = blocks();
+    return skipFrontMatter() ? list.filter((el) => !isSkippable(el)) : list;
+  };
 
   const startAloud = (from) => {
     ctl.current?.stop();
-    const els = blocks();
+    const els = speakBlocks();
     if (!els.length) return;
-    if (from == null) {
-      // start at the first paragraph visible on screen
-      const top = scroller.current.getBoundingClientRect().top + 80;
-      from = Math.max(0, els.findIndex((el) => el.getBoundingClientRect().bottom > top));
-    }
+    // start at the first paragraph visible on screen
+    if (from == null) from = Math.max(0, firstVisible(els));
     player.pause();
     setAloud({ playing: true, index: from });
+    let lit = null;
     ctl.current = readAloud(els, from, {
       onIndex: (i, el) => {
-        els.forEach((x) => x.classList.remove('aloud'));
+        lit?.classList.remove('aloud');
         el.classList.add('aloud');
+        lit = el;
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setAloud({ playing: true, index: i });
       },
@@ -71,7 +75,7 @@ export function Reader({ book, readAloud: autoAloud }) {
   };
   const closeAloud = () => {
     ctl.current?.stop();
-    blocks().forEach((x) => x.classList.remove('aloud'));
+    scroller.current?.querySelectorAll('.aloud').forEach((x) => x.classList.remove('aloud'));
     setAloud(null);
   };
   useEffect(() => () => ctl.current?.stop(), []);
@@ -101,11 +105,14 @@ export function Reader({ book, readAloud: autoAloud }) {
 
   useEffect(() => {
     if (doc && autoAloud) setTimeout(() => startAloud(), 600);
+    // Opening a book puts it on the shelf (Library → Ebooks, Continue on Home) right away.
+    if (doc && !progress.get()[book.uid])
+      progress.set((all) => ({ ...all, [book.uid]: { kind: 'text', percent: 0, anchor: 0, finished: false, updatedAt: Date.now(), book: summarize(book) } }));
   }, [doc]);
 
-  // The paragraph at the top of the screen (binary search: blocks are in page order).
-  const topBlock = () => {
-    const list = blocks();
+  // The first of `list` at the top of the screen. Binary search: blocks are in page
+  // order, and measuring every one would lay out the whole book.
+  const firstVisible = (list) => {
     const top = scroller.current.getBoundingClientRect().top + 60;
     let lo = 0;
     let hi = list.length - 1;
@@ -116,6 +123,7 @@ export function Reader({ book, readAloud: autoAloud }) {
     }
     return list.length ? lo : -1;
   };
+  const topBlock = () => firstVisible(blocks());
 
   // Restore position once the text is rendered: to the exact paragraph when we
   // know it (long ebooks lay out lazily, so a percentage is only approximate).
@@ -184,7 +192,7 @@ export function Reader({ book, readAloud: autoAloud }) {
         onClick={(e) => {
           if (e.target.closest('a')) return;
           if (aloud) {
-            const i = blocks().findIndex((b) => b.contains(e.target));
+            const i = speakBlocks().findIndex((b) => b.contains(e.target));
             if (i >= 0) return startAloud(i);
           }
           const x = e.clientX / window.innerWidth;
@@ -314,6 +322,13 @@ export function Reader({ book, readAloud: autoAloud }) {
               </button>
             ))}
           </div>
+          <label class="reader-toggle">
+            <input type="checkbox" checked={st.skipFrontMatter !== false} onChange={(e) => settings.patch({ skipFrontMatter: e.currentTarget.checked })} />
+            <span>
+              <b>Skip contents & index</b>
+              <small>When reading aloud or making an audiobook</small>
+            </span>
+          </label>
           <div class="reader-row themes">
             {THEMES.map(([k, label]) => (
               <button class={`theme-swatch t-${k}` + (st.readerTheme === k ? ' active' : '')} onClick={() => settings.patch({ readerTheme: k })}>

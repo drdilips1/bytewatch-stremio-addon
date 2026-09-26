@@ -4398,3 +4398,23 @@ textarea {
   content-visibility: auto;
   contain-intrinsic-size: auto 4000px;
 }
+.reader-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 2px;
+  cursor: pointer;
+}
+.reader-toggle input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+  flex: none;
+}
+.reader-toggle span {
+  display: grid;
+}
+.reader-toggle small {
+  color: var(--r-muted, var(--muted));
+  font-size: 12px;
+}

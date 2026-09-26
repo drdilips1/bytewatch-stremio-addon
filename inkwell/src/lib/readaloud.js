@@ -8,24 +8,30 @@ export function readAloud(elements, from, { onIndex, onDone, onError } = {}) {
   let stopped = false;
   let i = from;
 
-  // Pieces of about a sentence or two, each tagged with its paragraph.
+  // Pieces of about a sentence or two, each tagged with its paragraph — split
+  // as reading goes (a long book has thousands of paragraphs).
   const pieces = [];
-  for (let k = from; k < elements.length; k++) {
-    const text = speakable(elements[k].textContent);
-    if (text) for (const t of splitLong(text, 320)) pieces.push({ k, t });
-  }
+  let nextEl = from;
+  const fill = (n) => {
+    while (pieces.length <= n && nextEl < elements.length) {
+      const k = nextEl++;
+      const text = speakable(elements[k].textContent);
+      if (text) for (const t of splitLong(text, 320)) pieces.push({ k, t });
+    }
+    return n < pieces.length;
+  };
 
   (async () => {
     if (canPrepare()) {
       const ready = new Map();
       const prep = (n) => {
-        if (n >= pieces.length || ready.has(n)) return;
+        if (!fill(n) || ready.has(n)) return;
         const p = prepareClip(pieces[n].t).catch(() => prepareClip(pieces[n].t));
         p.catch(() => {});
         ready.set(n, p);
       };
       let failures = 0;
-      for (let n = 0; n < pieces.length && !stopped; n++) {
+      for (let n = 0; fill(n) && !stopped; n++) {
         if (pieces[n].k !== i || n === 0) {
           i = pieces[n].k;
           onIndex?.(i, elements[i]);

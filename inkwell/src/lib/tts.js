@@ -7,7 +7,7 @@
 //    player — chapters, speed, sleep timer and lock-screen controls all work.
 //  * Read along: the reader speaks paragraph by paragraph with highlighting.
 import { Capacitor, registerPlugin } from '@capacitor/core';
-import { persisted } from './store.js';
+import { persisted, settings } from './store.js';
 
 const Native = registerPlugin('InkwellTts');
 export const nativeTts = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellTts');
@@ -196,11 +196,26 @@ export function textBlocks(root) {
   return out;
 }
 
+/** Contents pages, the index etc.: marked in ebooks, or lines that are nearly all links. */
+export function isSkippable(el) {
+  if (el.closest('[data-skip]')) return true;
+  const all = el.textContent.replace(/\s+/g, '').length;
+  if (!all) return false;
+  const inLinks = [...el.querySelectorAll('a')].reduce((a, l) => a + l.textContent.replace(/\s+/g, '').length, 0);
+  return (el.tagName === 'A' ? all : inLinks) / all >= 0.7;
+}
+
+/** Skip contents & index when reading aloud / making an audiobook (Reader → Aa, on by default). */
+export const skipFrontMatter = () => settings.get().skipFrontMatter !== false;
+
 /** Paragraphs from the sanitized reader HTML, tagged with chapter headings. */
 export function paragraphs(html) {
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
-  return textBlocks(doc.body.firstChild).map((el) => ({ heading: /^H[1-4]$/.test(el.tagName), text: speakable(el.textContent) }));
+  return textBlocks(doc.body.firstChild).map((el) => ({ heading: /^H[1-4]$/.test(el.tagName), text: speakable(el.textContent), skip: isSkippable(el) }));
 }
+
+/** What Listen should read: skipped parts dropped when the setting is on. */
+export const listenParagraphs = (paras) => (skipFrontMatter() ? paras.filter((p) => !p.skip) : paras);
 
 export function splitLong(text, max) {
   if (text.length <= max) return [text];
@@ -270,7 +285,8 @@ export function buildAudiobook(book, paras) {
     secs.splice(0, 1, { title: secs[0].title, text: first }, { title: `${secs[0].title} ·`, text: rest.join(' ') });
   }
   const uid = `tts:${book.uid}`;
-  const voiceKey = builtin ? `${c.builtinId}-${c.speaker}` : `${c.engine || 'default'}-${c.voice || 'default'}`;
+  // The text layout (v2) and the skip setting are part of the key, so cached audio never belongs to other text.
+  const voiceKey = `${builtin ? `${c.builtinId}-${c.speaker}` : `${c.engine || 'default'}-${c.voice || 'default'}`}-v2${skipFrontMatter() ? '-skip' : ''}`;
   const folder = `${builtin ? 'voice-audio' : 'tts'}/${safe(book.uid)}/${safe(voiceKey)}`;
   const inflight = new Map();
   // Render sections one at a time (the voice engine handles one job at a time).

@@ -36,7 +36,15 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 public class InkwellVoicesPlugin extends Plugin {
 
     private final ExecutorService downloads = Executors.newSingleThreadExecutor();
-    private final ExecutorService synth = Executors.newSingleThreadExecutor();
+    // Voice rendering runs at background priority (its engine threads inherit it),
+    // so the screen always gets the CPU first and the app never feels stuck.
+    private final ExecutorService synth = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(() -> {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
+            r.run();
+        }, "kathava-voice");
+        return t;
+    });
     private OfflineTts tts;
     private String loadedId = null;
 
