@@ -15,6 +15,13 @@ export default {
       });
     }
 
+    if (url.pathname === "/") {
+      return json({
+        status: "ok",
+        usage: "/bookracy/search?q=<book title or author>"
+      }, corsHeaders);
+    }
+
     if (url.pathname === "/bookracy/search") {
       const query = url.searchParams.get("q") || "";
 
