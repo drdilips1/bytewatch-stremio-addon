@@ -346,6 +346,9 @@ function QbitCard() {
             <button class="pill small ghost" disabled={!!busy} onClick={refresh}>
               Check progress
             </button>
+            <button class="pill small ghost" disabled={!!busy} onClick={() => run('fix', async () => { const m = await qb.fixStuck(); setTimeout(refresh, 3000); return m; })}>
+              {busy === 'fix' ? <span class="spinner small" /> : 'Fix stuck downloads'}
+            </button>
           </div>
           {list && (
             <div class="qbit-list">

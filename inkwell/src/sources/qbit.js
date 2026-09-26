@@ -102,6 +102,28 @@ function multipart(fields) {
   return { body, contentType: `multipart/form-data; boundary=${boundary}` };
 }
 
+// Well-known public trackers. A magnet with only an info-hash makes qBittorrent
+// hunt for peers through DHT alone, which often leaves it stuck at
+// "Downloading metadata"; trackers let it find peers straight away.
+const TRACKERS = [
+  'udp://tracker.opentrackr.org:1337/announce',
+  'udp://open.stealth.si:80/announce',
+  'udp://tracker.torrent.eu.org:451/announce',
+  'udp://exodus.desync.com:6969/announce',
+  'udp://open.demonii.com:1337/announce',
+  'udp://explodie.org:6969/announce',
+  'udp://tracker.dler.org:6969/announce',
+  'udp://tracker.openbittorrent.com:6969/announce',
+  'udp://tracker.tiny-vps.com:6969/announce',
+  'https://tracker.tamersunion.org:443/announce',
+  'http://tracker.opentrackr.org:1337/announce',
+];
+export function withTrackers(magnet) {
+  const have = new Set([...String(magnet).matchAll(/[?&]tr=([^&]+)/g)].map((m) => decodeURIComponent(m[1])));
+  const extra = TRACKERS.filter((t) => !have.has(t)).map((t) => '&tr=' + encodeURIComponent(t)).join('');
+  return magnet + extra;
+}
+
 /** Add one cloud item (needs its info-hash) to qBittorrent. */
 export async function send(book) {
   if (!available) throw new Error('Sending to qBittorrent works in the Android app');
@@ -109,7 +131,7 @@ export async function send(book) {
   const hash = String(book.hash || '').toLowerCase();
   if (!hash) throw new Error('Only torrents can be sent (this item has no magnet)');
   const { savePath, category } = qbit.get();
-  const magnet = magnetFor(book.magnet, hash, book.rawName || book.title);
+  const magnet = withTrackers(magnetFor(book.magnet, hash, book.rawName || book.title));
   const { body, contentType } = multipart({ urls: magnet, savepath: savePath, category, tags: 'kathava', autoTMM: savePath ? 'false' : undefined });
   if (!session && !apiKey()) await login();
   const remember = () => qbitSent.set((s) => ({ items: { ...s.items, [hash]: { title: book.title, author: book.author || '', at: Date.now() } } }));
@@ -198,6 +220,28 @@ export async function status() {
   return list
     .map((t) => ({ hash: t.hash, name: t.name, progress: t.progress, state: t.state, eta: t.eta, speed: t.dlspeed, savePath: t.save_path }))
     .sort((a, b) => (qbitSent.get().items[b.hash]?.at || 0) - (qbitSent.get().items[a.hash]?.at || 0));
+}
+
+/**
+ * Unstick what we've sent: add trackers and re-announce (stuck at metadata /
+ * no peers), and re-check torrents in an error or missing-files state.
+ */
+export async function fixStuck() {
+  const hashes = Object.keys(qbitSent.get().items);
+  if (!hashes.length) return 'Nothing sent yet';
+  const list = JSON.parse((await api('torrents/info?' + new URLSearchParams({ hashes: hashes.join('|') }))) || '[]');
+  if (!list.length) return 'None of the sent torrents are in qBittorrent any more';
+  const form = (fields) => ({ method: 'POST', body: new URLSearchParams(fields).toString(), contentType: 'application/x-www-form-urlencoded' });
+  const urls = TRACKERS.join('\n');
+  for (const t of list) await api('torrents/addTrackers', form({ hash: t.hash, urls })).catch(() => {});
+  const all = list.map((t) => t.hash).join('|');
+  await api('torrents/reannounce', form({ hashes: all })).catch(() => {});
+  const broken = list.filter((t) => /error|missingFiles/i.test(t.state));
+  if (broken.length) await api('torrents/recheck', form({ hashes: broken.map((t) => t.hash).join('|') })).catch(() => {});
+  // Paused/stopped ones: start them again (5.x uses start, older versions resume).
+  const stopped = list.filter((t) => /^(paused|stopped)DL$/.test(t.state)).map((t) => t.hash).join('|');
+  if (stopped) await api('torrents/start', form({ hashes: stopped })).catch(() => api('torrents/resume', form({ hashes: stopped })).catch(() => {}));
+  return `Added trackers to ${list.length} torrent${list.length === 1 ? '' : 's'}${broken.length ? ` · re-checking ${broken.length} with errors` : ''}`;
 }
 
 // Auto-send: when the app opens (at most every 15 minutes), forward new cloud audiobooks.
