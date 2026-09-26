@@ -5,7 +5,7 @@ import { useMeta } from '../lib/meta.js';
 import { Icon } from '../components/icons.jsx';
 import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, lb, enabled, sourceOrder, sourceRank } from '../sources/index.js';
 import { Fragment } from 'preact';
-import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted } from '../lib/store.js';
+import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary } from '../lib/store.js';
 import { greeting, fmtDuration } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
 import { GENRES } from './genres.js';
@@ -45,15 +45,86 @@ function roundRobin(groups) {
   return picks;
 }
 
-function HeroSlide({ book: raw, index, count, onDot }) {
+/** A short label for what kind of thing a banner title is. */
+function kindLabel(b) {
+  if (b.source === 'pod') return 'Podcast';
+  if (b.source === 'lb' || b.source === 'lbl') return 'Library';
+  if (b.kind === 'text') return 'Ebook';
+  if (b.kind === 'audio') return 'Audiobook';
+  return 'Book';
+}
+
+/** One banner slide: full-bleed artwork, badge, big title, details and actions. */
+function FeatureSlide({ book: raw, active }) {
   const meta = useMeta(raw);
   const b = withMeta(raw, meta);
+  const saved = !!useStore(library)[b.uid];
   const playable = b.kind === 'audio';
+  const bits = [
+    (meta?.genres || [])[0],
+    b.year || meta?.year,
+    b.duration ? fmtDuration(b.duration) : '',
+  ].filter(Boolean);
+  return (
+    <div class={'feature-slide' + (active ? ' on' : '')} aria-hidden={!active}>
+      <div class="feature-art">{b.cover ? <BgImage url={b.cover} /> : <div class="feature-art-empty" />}</div>
+      {active && (
+        <div class="feature-body">
+          <div class="feature-badges">
+            <span class="feature-badge">{kindLabel(b)}</span>
+            {raw.heroTag && <span class="feature-from">{raw.heroTag}</span>}
+          </div>
+          <h2 class="feature-title">{b.title}</h2>
+          {b.author && <p class="feature-author">{b.author}</p>}
+          {(bits.length > 0 || b.rating > 0) && (
+            <p class="feature-meta">
+              {bits.map((x, k) => (
+                <span key={k}>{x}</span>
+              ))}
+              {b.rating > 0 && (
+                <span class="feature-rating">
+                  <Icon name="star" size={13} fill /> {Number(b.rating).toFixed(1)}
+                </span>
+              )}
+            </p>
+          )}
+          <div class="feature-actions">
+            <button
+              class="feature-btn primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!playable) return nav.push('book', { book: b });
+                nav.openOverlay('player');
+                player.openAndPlay(b, getDetails);
+              }}
+            >
+              <Icon name={playable ? 'play' : 'info'} size={18} /> {playable ? 'Listen' : 'Details'}
+            </button>
+            <button
+              class={'feature-btn ghost' + (saved ? ' saved' : '')}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleLibrary(b);
+                toast(saved ? 'Removed from library' : 'Saved to library');
+              }}
+            >
+              <Icon name={saved ? 'check' : 'plus'} size={18} /> {saved ? 'Saved' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Feature({ items, index, onDot }) {
   const touch = useRef(null);
   const swiped = useRef(false);
+  const count = items.length;
+  const cur = items[index];
   return (
-    <div
-      class="hero"
+    <section
+      class="feature"
       onTouchStart={(e) => {
         touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
         swiped.current = false;
@@ -68,46 +139,25 @@ function HeroSlide({ book: raw, index, count, onDot }) {
           onDot((index + (dx < 0 ? 1 : count - 1)) % count);
         }
       }}
-      onClick={() => !swiped.current && nav.push('book', { book: b })}
+      onClick={() => !swiped.current && nav.push('book', { book: cur })}
     >
-      <div class="hero-bg" key={b.uid}>
-        {b.cover && <BgImage url={b.cover} />}
-      </div>
-      <div class="hero-body">
-        <span class="hero-tag">
-          <Icon name={raw.source === 'hc' ? 'book' : raw.source === 'abs' ? 'server' : raw.source === 'ia' ? 'flame' : 'download'} size={14} /> {raw.heroTag}
-        </span>
-        <h2>{b.title}</h2>
-        <p>{b.author}</p>
-        <div class="hero-actions">
+      {items.map((b, k) => (
+        <FeatureSlide key={b.uid} book={b} active={k === index} />
+      ))}
+      <div class="feature-dots">
+        {items.map((_, k) => (
           <button
-            class="btn primary"
-            onClick={async (e) => {
+            key={k}
+            class={k === index ? 'on' : ''}
+            aria-label={`Show ${k + 1} of ${count}`}
+            onClick={(e) => {
               e.stopPropagation();
-              if (!playable) return nav.push('book', { book: b });
-              nav.openOverlay('player');
-              player.openAndPlay(b, getDetails);
+              onDot(k);
             }}
-          >
-            <Icon name={playable ? 'play' : 'search'} size={16} /> {playable ? 'Listen' : 'Find it'}
-          </button>
-          <div class="dots">
-            {Array.from({ length: count }, (_, k) => (
-              <span
-                class={k === index ? 'on' : ''}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDot(k);
-                }}
-              />
-            ))}
-          </div>
-        </div>
+          />
+        ))}
       </div>
-      <div class="hero-cover" key={'c' + b.uid}>
-        <Cover book={b} eager />
-      </div>
-    </div>
+    </section>
   );
 }
 
@@ -155,13 +205,12 @@ function Hero() {
     const t = setInterval(() => setI((x) => (x + 1) % items.length), 7000);
     return () => clearInterval(t);
   }, [items, paused]);
-  if (!items) return <div class="hero shimmer" />;
+  if (!items) return <section class="feature shimmer" />;
   if (!items.length) return null;
   return (
-    <HeroSlide
-      book={items[i % items.length]}
+    <Feature
+      items={items}
       index={i % items.length}
-      count={items.length}
       onDot={(k) => {
         setI(k);
         setPaused((p) => p + 1); // restart the auto-advance timer after a manual swipe
@@ -169,6 +218,9 @@ function Hero() {
     />
   );
 }
+
+/** Date line under the greeting, e.g. "Friday, 26 September". */
+const today = () => new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
 
 function ContinueRow() {
   const prog = useStore(progress);
@@ -360,10 +412,23 @@ export function Home() {
   };
   return (
     <div class="screen home">
-      <header class="home-head">
-        <div>
-          <p class="eyebrow">{greeting()}</p>
-          <h1 class="brand brand-wordmark">Kathava</h1>
+      <header class="home-top">
+        <div class="home-logo">
+          <svg viewBox="0 0 512 512" aria-hidden="true">
+            <defs>
+              <linearGradient id="kv-gold" gradientUnits="userSpaceOnUse" x1="120" y1="110" x2="400" y2="410">
+                <stop offset="0" stop-color="#f1e2bd" />
+                <stop offset="1" stop-color="#b8935a" />
+              </linearGradient>
+            </defs>
+            <g fill="none" stroke="url(#kv-gold)" stroke-linecap="round">
+              <line x1="160" y1="136" x2="160" y2="376" stroke-width="48" />
+              <path d="M222 190 a 90 90 0 0 1 0 132" stroke-width="32" />
+              <path d="M278 146 a 150 150 0 0 1 0 220" stroke-width="32" opacity="0.8" />
+              <path d="M334 104 a 210 210 0 0 1 0 304" stroke-width="32" opacity="0.55" />
+            </g>
+          </svg>
+          <span>Kathava</span>
         </div>
         <button class="icon-btn glass" onClick={() => nav.tab('discover')} aria-label="Search">
           <Icon name="search" />
@@ -371,6 +436,11 @@ export function Home() {
       </header>
 
       <Hero />
+
+      <div class="home-greet">
+        <h1>{greeting()}</h1>
+        <p>{today()}</p>
+      </div>
       <WaitingRow />
       <ContinueRow />
       <GenreChips />
