@@ -304,11 +304,16 @@ public class InkwellWebActivity extends AppCompatActivity {
             if (code == 409) return "OK Already in qBittorrent — " + label;
             if (code == 401 || code == 403) return "qBittorrent refused the request (HTTP " + code + ") — check the API key or login in Kathava";
             if (code >= 400) return "qBittorrent: HTTP " + code;
-            if (text.toLowerCase().contains("fail")) return "qBittorrent didn't add " + label + " — check the save folder and that the drive is connected";
+            // 5.2.3+: a JSON summary ({"success_count":1,"failure_count":0,…}); older: "Ok." / "Fails."
             try {
                 JSONObject j = new JSONObject(text);
-                if (j.has("success_count") && j.optInt("success_count") == 0) return "OK Already in qBittorrent — " + label;
+                if (j.has("success_count")) {
+                    if (j.optInt("success_count") > 0) return "OK Sent to qBittorrent — " + label;
+                    if (j.optInt("failure_count") > 0) return "qBittorrent didn't add " + label + " — check the save folder and that the drive is connected";
+                    return "OK Already in qBittorrent — " + label;
+                }
             } catch (Exception ignored) {}
+            if (text.trim().equalsIgnoreCase("Fails.")) return "qBittorrent didn't add " + label + " — check the save folder and that the drive is connected";
             return "OK Sent to qBittorrent — " + label;
         } catch (Exception e) {
             return "Couldn't reach qBittorrent: " + e.getMessage();

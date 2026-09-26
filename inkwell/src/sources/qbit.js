@@ -150,7 +150,7 @@ export async function send(book) {
     throw new Error("qBittorrent didn't add it (409). Check that the save folder exists and the drive is connected, then try again");
   }
   // "Ok." up to 5.2.2; from 5.2.3 a JSON summary ({ success_count, … }).
-  let added = !/fail/i.test(text);
+  let added = !/^\s*fails\.?\s*$/i.test(text);
   try {
     const j = JSON.parse(text);
     if (j && typeof j.success_count === 'number') added = j.success_count > 0;
@@ -221,7 +221,12 @@ export async function sendFile(file) {
     r = await post();
   }
   const remember = () => hash && qbitSent.set((s) => ({ items: { ...s.items, [hash]: { title: name || file.name, author: '', at: Date.now() } } }));
-  if (r.status === 409 || /fail/i.test(r.text)) {
+  let refused = r.status === 409 || /^\s*fails\.?\s*$/i.test(r.text);
+  try {
+    const j = JSON.parse(r.text);
+    if (j && typeof j.success_count === 'number') refused = j.success_count === 0;
+  } catch {}
+  if (refused) {
     const have = hash ? await existing(hash) : null;
     if (have) {
       remember();
