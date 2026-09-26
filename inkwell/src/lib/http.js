@@ -146,6 +146,12 @@ export async function requestText(url, opts = {}) {
   return res.text();
 }
 
+/** Any request, returning { status, text, headers } (no caching). */
+export async function requestFull(url, opts = {}) {
+  const res = await request(url, opts);
+  return { status: res.status, text: await res.text().catch(() => ''), headers: res.headers };
+}
+
 export function sendForm(url, method, params, headers = {}) {
   return request(url, {
     method,

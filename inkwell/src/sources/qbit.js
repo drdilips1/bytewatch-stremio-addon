@@ -4,7 +4,7 @@
 // Audiobookshelf picks the finished folder up.
 import { Capacitor, CapacitorCookies } from '@capacitor/core';
 import { persisted } from '../lib/store.js';
-import { requestText, cleanUrl } from '../lib/http.js';
+import { requestText, requestFull, cleanUrl } from '../lib/http.js';
 import { magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected } from './debrid.js';
 
 export const qbit = persisted('qbit', { url: '', username: '', password: '', savePath: '', category: 'audiobooks', auto: false });
@@ -18,29 +18,41 @@ const base = () => cleanUrl(qbit.get().url, 'http').replace(/\/+$/, '');
 // qBittorrent refuses API calls whose Referer/Origin don't match its own address.
 const headersFor = (extra = {}) => ({ Referer: base() + '/', Origin: base(), ...extra });
 
-let sid = '';
+// The session cookie: "SID" up to qBittorrent 5.1, "QBT_SID_<port>" from 5.2.
+let session = '';
+const isSession = (k) => k === 'SID' || /^QBT_SID/i.test(k);
+function takeSetCookie(headers) {
+  const raw = headers?.get?.('set-cookie') || '';
+  const m = /((?:QBT_)?SID[^=;,\s]*)=([^;,\s]+)/i.exec(raw);
+  if (m) session = `${m[1]}=${m[2]}`;
+}
 async function cookie() {
   try {
     const c = await CapacitorCookies.getCookies({ url: base() });
-    if (c?.SID) sid = c.SID;
+    const found = Object.entries(c || {}).filter(([k]) => isSession(k));
+    if (found.length) session = found.map(([k, v]) => `${k}=${v}`).join('; ');
   } catch {}
-  return sid ? { Cookie: `SID=${sid}` } : {};
+  return session ? { Cookie: session } : {};
 }
 
 async function login() {
   const { username, password } = qbit.get();
   if (!username && !password) return; // Web UI set to skip login for this network
   const body = new URLSearchParams({ username, password }).toString();
-  const text = await requestText(base() + '/api/v2/auth/login', {
+  const r = await requestFull(base() + '/api/v2/auth/login', {
     method: 'POST',
     timeout: 15000,
     headers: headersFor({ 'Content-Type': 'application/x-www-form-urlencoded' }),
     body,
   }).catch((e) => {
+    if (e.status === 401) throw new Error('qBittorrent rejected the username or password');
     if (e.status === 403) throw new Error('qBittorrent has temporarily banned this device after failed logins — wait a while, or check the Web UI settings');
     throw new Error(`Couldn't reach qBittorrent at ${base()} — is Tailscale on and the Web UI enabled? (${e.message})`);
   });
-  if (!/ok/i.test(text)) throw new Error('qBittorrent rejected the username or password');
+  takeSetCookie(r.headers);
+  // Success is "Ok." (up to 5.1) or an empty 204 reply (5.2 and later).
+  if (r.status === 204 || /^\s*ok/i.test(r.text)) return;
+  throw new Error('qBittorrent rejected the username or password');
 }
 
 /** Call the Web API, signing in first (and again once if the session expired). */
@@ -55,7 +67,7 @@ async function api(path, { method = 'GET', body, contentType } = {}) {
   try {
     return await go();
   } catch (e) {
-    if (e.status !== 403) throw e;
+    if (e.status !== 403 && e.status !== 401) throw e;
     await login();
     return go();
   }
@@ -88,7 +100,7 @@ export async function send(book) {
   const { savePath, category } = qbit.get();
   const magnet = magnetFor(book.magnet, hash, book.rawName || book.title);
   const { body, contentType } = multipart({ urls: magnet, savepath: savePath, category, tags: 'kathava', autoTMM: savePath ? 'false' : undefined });
-  if (!sid) await login().catch((e) => { throw e; });
+  if (!session) await login();
   const text = await api('torrents/add', { method: 'POST', body, contentType });
   if (/fail/i.test(text)) throw new Error('qBittorrent refused it (it may already be there)');
   qbitSent.set((s) => ({ items: { ...s.items, [hash]: { title: book.title, author: book.author || '', at: Date.now() } } }));
