@@ -274,7 +274,7 @@ function Stepper({ label, value, options, onChange, fmt = (v) => v }) {
 function QbitCard() {
   const cfg = useStore(qb.qbit);
   const sent = useStore(qb.qbitSent);
-  const [form, setForm] = useState({ url: cfg.url, username: cfg.username, password: cfg.password, apiKey: cfg.apiKey || '', savePath: cfg.savePath, category: cfg.category });
+  const [form, setForm] = useState({ url: cfg.url, lanUrl: cfg.lanUrl || '', username: cfg.username, password: cfg.password, apiKey: cfg.apiKey || '', savePath: cfg.savePath, category: cfg.category });
   const [busy, setBusy] = useState('');
   const [list, setList] = useState(null);
   const [magnet, setMagnet] = useState('');
@@ -300,12 +300,13 @@ function QbitCard() {
         Send your TorBox / Real-Debrid audiobooks to <b>qBittorrent</b> at home (over Tailscale). It saves them into your <b>Audiobookshelf</b> library folder and downloads on its own — your phone can be off. Turn on qBittorrent's Web UI (Tools → Options → Web UI).
         {!qb.available && ' Works in the Android app.'}
       </p>
-      {cfg.url && (
+      {(cfg.url || cfg.lanUrl) && (
         <div class="set-row">
           <div>
             <b>{cfg.version ? 'Connected' : 'Not tested yet'}</b>
             <small>
-              {cfg.version ? `qBittorrent ${cfg.version} · ${cfg.url}` : cfg.url}
+              {cfg.version ? `qBittorrent ${cfg.version} · ${qb.addressInUse() || cfg.url || cfg.lanUrl}` : cfg.url || cfg.lanUrl}
+              {cfg.version && cfg.lanUrl && qb.addressInUse() ? (qb.addressInUse().includes(cfg.lanUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')) ? ' (home Wi-Fi)' : ' (Tailscale)') : ''}
               {cfg.version && cfg.savePath ? ` · saves to ${cfg.savePath}` : ''}
             </small>
           </div>
@@ -318,21 +319,23 @@ function QbitCard() {
         class="set-form"
         onSubmit={(e) => {
           e.preventDefault();
-          qb.qbit.set((c) => ({ ...c, ...form, url: form.url.trim(), apiKey: form.apiKey.trim(), savePath: form.savePath.trim(), version: '' }));
+          qb.qbit.set((c) => ({ ...c, ...form, url: form.url.trim(), lanUrl: form.lanUrl.trim(), apiKey: form.apiKey.trim(), savePath: form.savePath.trim(), version: '' }));
           run('test', qb.test);
         }}
       >
-        <input value={form.url} placeholder="Web UI address, e.g. http://100.101.102.103:8080" autocapitalize="off" onInput={set('url')} />
+        <input value={form.lanUrl} placeholder="At home (Wi-Fi), e.g. http://192.168.1.20:8080" autocapitalize="off" onInput={set('lanUrl')} />
+        <input value={form.url} placeholder="Away (Tailscale), e.g. http://100.101.102.103:8080" autocapitalize="off" onInput={set('url')} />
+        <small class="muted qbit-hint">Kathava uses the home address when it answers (no Tailscale needed on your Wi-Fi) and the Tailscale one everywhere else. Fill in either or both.</small>
         <input value={form.username} placeholder="Web UI username" autocapitalize="off" autocomplete="username" onInput={set('username')} />
         <input value={form.password} type="password" placeholder="Web UI password" autocomplete="current-password" onInput={set('password')} />
         <input value={form.apiKey} placeholder="Or API key (qBittorrent 5.2+, starts with qbt_)" autocapitalize="off" autocomplete="off" onInput={set('apiKey')} />
         <input value={form.savePath} placeholder="Save to (your Audiobookshelf folder, e.g. /audiobooks)" autocapitalize="off" onInput={set('savePath')} />
         <input value={form.category} placeholder="Category (optional)" autocapitalize="off" onInput={set('category')} />
-        <button class="btn primary" disabled={!!busy || !form.url.trim()}>
+        <button class="btn primary" disabled={!!busy || !(form.url.trim() || form.lanUrl.trim())}>
           {busy === 'test' ? <span class="spinner small" /> : 'Save & test'}
         </button>
       </form>
-      {cfg.url && (
+      {(cfg.url || cfg.lanUrl) && (
         <>
           <label class="set-row">
             <div>

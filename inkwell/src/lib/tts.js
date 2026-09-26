@@ -70,6 +70,7 @@ export const qualityLabel = (q) => (q >= 500 ? 'Very high' : q >= 400 ? 'High' :
 /** Speak a short text now (preview / read along). Resolves when finished. */
 let clip = null;
 let clipN = 0;
+export let stopGen = 0;
 export async function speak(text, opts = {}) {
   const c = { ...ttsCfg.get(), ...opts };
   if (builtinAvailable && c.mode === 'builtin' && c.builtinId) {
@@ -98,12 +99,61 @@ export async function speak(text, opts = {}) {
   });
 }
 
+/** Built-in voice: render text to a clip ahead of time; resolves the file URI. */
+export const canPrepare = () => builtinAvailable && ttsCfg.get().mode === 'builtin' && !!ttsCfg.get().builtinId;
+let prepChain = Promise.resolve();
+export function prepareClip(text) {
+  const c = ttsCfg.get();
+  const path = `voice-audio/speak/${Date.now()}-${clipN++ % 16}.wav`;
+  // The voice engine renders one clip at a time: queue the requests.
+  const job = prepChain.catch(() => {}).then(() => render(c.builtinId, c.speaker, text, path));
+  prepChain = job;
+  return job;
+}
+
+/** Play a prepared clip; resolves when it ends (with a safety timeout if the end is never reported). */
+export function playClip(uri, words = 20) {
+  const c = ttsCfg.get();
+  return new Promise((resolve, reject) => {
+    clip?.pause();
+    const a = new Audio(playableUrl(uri));
+    clip = a;
+    a.playbackRate = c.rate || 1;
+    let guard = null;
+    const done = () => {
+      clearTimeout(guard);
+      resolve();
+    };
+    const arm = () => {
+      clearTimeout(guard);
+      const secs = isFinite(a.duration) && a.duration > 0 ? a.duration / (c.rate || 1) : words / 2;
+      guard = setTimeout(done, (secs + 6) * 1000);
+    };
+    a.onloadedmetadata = arm;
+    a.onended = done;
+    a.onerror = () => {
+      clearTimeout(guard);
+      reject(new Error('Could not play the voice clip'));
+    };
+    a._reject = (e) => {
+      clearTimeout(guard);
+      reject(e);
+    };
+    arm();
+    a.play().catch((e) => {
+      clearTimeout(guard);
+      reject(e);
+    });
+  });
+}
+
 export function stopSpeaking() {
   if (clip) {
     clip.pause();
     clip._reject?.(new Error('stopped'));
     clip = null;
   }
+  stopGen++;
   if (nativeTts) return Native.stop().catch(() => {});
   window.speechSynthesis?.cancel();
 }
@@ -136,7 +186,7 @@ export function paragraphs(html) {
   return out;
 }
 
-function splitLong(text, max) {
+export function splitLong(text, max) {
   if (text.length <= max) return [text];
   const parts = [];
   let cur = '';
@@ -198,6 +248,11 @@ export function buildAudiobook(book, paras) {
   if (!builtin && !nativeTts) throw new Error('Listening as an audiobook works in the Android app — use Read along here');
   // Smaller sections with built-in voices so the first audio is ready quickly.
   const secs = sections(paras, builtin ? 1500 : 3000);
+  // Built-in voices: make the very first section short so playback starts within seconds.
+  if (builtin && secs.length && secs[0].text.length > 400) {
+    const [first, ...rest] = splitLong(secs[0].text, 350);
+    secs.splice(0, 1, { title: secs[0].title, text: first }, { title: `${secs[0].title} ·`, text: rest.join(' ') });
+  }
   const uid = `tts:${book.uid}`;
   const voiceKey = builtin ? `${c.builtinId}-${c.speaker}` : `${c.engine || 'default'}-${c.voice || 'default'}`;
   const folder = `${builtin ? 'voice-audio' : 'tts'}/${safe(book.uid)}/${safe(voiceKey)}`;
@@ -228,8 +283,7 @@ export function buildAudiobook(book, paras) {
       resolve: async () => {
         const url = await render1(i);
         // Prepare the next two sections while this one plays.
-        if (i + 1 < secs.length) render1(i + 1).catch(() => {});
-        if (i + 2 < secs.length) render1(i + 2).catch(() => {});
+        for (let k = 1; k <= 3; k++) if (i + k < secs.length) render1(i + k).catch(() => {});
         return url;
       },
     })),

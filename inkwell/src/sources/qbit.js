@@ -8,17 +8,49 @@ import { requestText, requestFull, cleanUrl } from '../lib/http.js';
 import { readTorrent } from '../lib/torrentfile.js';
 import { infoHash, magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected } from './debrid.js';
 
-export const qbit = persisted('qbit', { url: '', username: '', password: '', apiKey: '', savePath: '', category: 'audiobooks', auto: false });
+export const qbit = persisted('qbit', { url: '', lanUrl: '', username: '', password: '', apiKey: '', savePath: '', category: 'audiobooks', auto: false });
 
 // qBittorrent 5.2+ API key (qbt_…): sent on every call, no login or cookie needed.
 const apiKey = () => String(qbit.get().apiKey || '').trim();
 // Hashes already sent (so auto-send never repeats one), newest last.
 export const qbitSent = persisted('qbitSent', { items: {} });
 
-export const configured = () => !!qbit.get().url;
+export const configured = () => !!(qbit.get().url || qbit.get().lanUrl);
 export const available = Capacitor.isNativePlatform();
 
-const base = () => cleanUrl(qbit.get().url, 'http').replace(/\/+$/, '');
+const clean = (u) => (u ? cleanUrl(u, 'http').replace(/\/+$/, '') : '');
+// The address in use: the home Wi-Fi one when it answers, else the Tailscale one.
+let current = '';
+let pickedAt = 0;
+const base = () => current || clean(qbit.get().url) || clean(qbit.get().lanUrl);
+
+/** Is anything answering at this Web UI address (any HTTP reply counts)? */
+async function answers(u, ms = 2500) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    await Promise.race([fetch(u + '/api/v2/app/version', { signal: ctrl.signal, headers: { Referer: u + '/', Origin: u } }), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** Choose the address to use (re-checked every few minutes or when the network changes). */
+export async function pickAddress(force = false) {
+  const lan = clean(qbit.get().lanUrl);
+  const remote = clean(qbit.get().url);
+  if (!lan) return (current = remote);
+  if (!force && current && Date.now() - pickedAt < 3 * 60e3) return current;
+  pickedAt = Date.now();
+  if (await answers(lan)) return (current = lan);
+  return (current = remote || lan);
+}
+if (typeof navigator !== 'undefined' && navigator.connection?.addEventListener) navigator.connection.addEventListener('change', () => (pickedAt = 0));
+window.addEventListener?.('online', () => (pickedAt = 0));
+export const addressInUse = () => current;
 // qBittorrent refuses API calls whose Referer/Origin don't match its own address.
 const headersFor = (extra = {}) => ({ Referer: base() + '/', Origin: base(), ...extra });
 
@@ -41,6 +73,7 @@ async function cookie() {
 }
 
 async function login() {
+  await pickAddress();
   if (apiKey()) return;
   const { username, password } = qbit.get();
   if (!username && !password) return; // Web UI set to skip login for this network
@@ -53,7 +86,7 @@ async function login() {
   }).catch((e) => {
     if (e.status === 401) throw new Error('qBittorrent rejected the username or password');
     if (e.status === 403) throw new Error('qBittorrent has temporarily banned this device after failed logins — wait a while, or check the Web UI settings');
-    throw new Error(`Couldn't reach qBittorrent at ${base()} — is Tailscale on and the Web UI enabled? (${e.message})`);
+    throw new Error(`Couldn't reach qBittorrent at ${base()} — are you on home Wi-Fi or is Tailscale on, and is the Web UI enabled? (${e.message})`);
   });
   takeSetCookie(r.headers);
   // Success is "Ok." (up to 5.1) or an empty 204 reply (5.2 and later).
@@ -63,6 +96,7 @@ async function login() {
 
 /** Call the Web API, signing in first (and again once if the session expired). */
 async function api(path, { method = 'GET', body, contentType } = {}) {
+  await pickAddress();
   const go = async () =>
     requestText(base() + '/api/v2/' + path, {
       method,
@@ -87,10 +121,12 @@ async function api(path, { method = 'GET', body, contentType } = {}) {
 /** Check the connection; resolves with qBittorrent's version. */
 export async function test() {
   if (!available) throw new Error('Sending to qBittorrent works in the Android app');
+  await pickAddress(true);
   await login();
   const v = (await api('app/version')).trim();
   qbit.set((c) => ({ ...c, version: v, checkedAt: Date.now() }));
-  return `Connected to qBittorrent ${v}`;
+  const via = qbit.get().lanUrl && current === clean(qbit.get().lanUrl) ? 'home Wi-Fi' : qbit.get().lanUrl ? 'Tailscale' : '';
+  return `Connected to qBittorrent ${v}${via ? ` via ${via}` : ''}`;
 }
 
 function multipart(fields) {
@@ -210,6 +246,7 @@ export async function sendFile(file) {
   }
   if (category) form.append('category', category);
   form.append('tags', 'kathava');
+  await pickAddress();
   if (!session && !apiKey()) await login();
   const post = async () => {
     const res = await fetch(base() + '/api/v2/torrents/add', { method: 'POST', headers: headersFor(await cookie()), body: form });
@@ -325,13 +362,13 @@ const Web = registerPlugin('InkwellWeb');
 const canBrowse = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
 
 /** Open the tracker site in the in-app browser; its .torrent downloads and magnets come here. */
-export function openTracker() {
+export async function openTracker() {
   const url = String(tracker.get().url || '').trim();
   if (!url) throw new Error('Add your tracker site address first');
   if (!canBrowse) return window.open(url, '_blank');
   // The browser screen sends captured downloads itself (the app is paused behind it).
   const c = qbit.get();
-  const qb = JSON.stringify({ url: cleanUrl(c.url, 'http'), apiKey: c.apiKey || '', username: c.username || '', password: c.password || '', savePath: c.savePath || '', category: c.category || '', trackers: TRACKERS });
+  const qb = JSON.stringify({ url: await pickAddress(true), apiKey: c.apiKey || '', username: c.username || '', password: c.password || '', savePath: c.savePath || '', category: c.category || '', trackers: TRACKERS });
   return Web.open({ url: /^https?:\/\//i.test(url) ? url : 'https://' + url, title: '', capture: true, qbit: qb });
 }
 
