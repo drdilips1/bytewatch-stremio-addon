@@ -6,7 +6,7 @@ import { Capacitor, CapacitorCookies } from '@capacitor/core';
 import { persisted } from '../lib/store.js';
 import { requestText, requestFull, cleanUrl } from '../lib/http.js';
 import { readTorrent } from '../lib/torrentfile.js';
-import { magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected } from './debrid.js';
+import { infoHash, magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected } from './debrid.js';
 
 export const qbit = persisted('qbit', { url: '', username: '', password: '', apiKey: '', savePath: '', category: 'audiobooks', auto: false });
 
@@ -182,6 +182,16 @@ export const stateLabel = (st) => STATES[st] || st || '';
 function describe(t) {
   const pct = Math.round((t.progress || 0) * 100);
   return `${pct >= 100 ? 'finished' : `${pct}% · ${stateLabel(t.state)}`}${t.save_path ? ` · ${t.save_path}` : ''}`;
+}
+
+/** Send a pasted magnet link. */
+export async function sendMagnet(magnet) {
+  if (!/^magnet:\?/i.test(magnet)) throw new Error('Paste a magnet link (magnet:?…), or tap + with the box empty to pick a .torrent file');
+  const hash = infoHash(magnet, '');
+  if (!hash) throw new Error("That magnet link doesn't have a valid hash");
+  const dn = (/[?&]dn=([^&]+)/.exec(magnet) || [])[1];
+  const title = dn ? decodeURIComponent(dn.replace(/\+/g, ' ')) : 'Torrent';
+  return send({ hash, magnet, title, rawName: title });
 }
 
 /** Upload a .torrent file to qBittorrent (same folder and category as magnets). */

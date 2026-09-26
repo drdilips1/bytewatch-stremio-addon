@@ -277,6 +277,7 @@ function QbitCard() {
   const [form, setForm] = useState({ url: cfg.url, username: cfg.username, password: cfg.password, apiKey: cfg.apiKey || '', savePath: cfg.savePath, category: cfg.category });
   const [busy, setBusy] = useState('');
   const [list, setList] = useState(null);
+  const [magnet, setMagnet] = useState('');
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.currentTarget.value }));
   const run = async (what, fn) => {
     setBusy(what);
@@ -340,19 +341,28 @@ function QbitCard() {
             </div>
             <input type="checkbox" class="switch" checked={cfg.auto} onChange={(e) => qb.qbit.set((c) => ({ ...c, auto: e.currentTarget.checked, autoSince: e.currentTarget.checked ? Date.now() : c.autoSince }))} />
           </label>
+          <form
+            class="set-form inline"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const m = magnet.trim();
+              if (!m) {
+                const file = await pickTorrentFile();
+                if (file) run('add', () => qb.sendFile(file));
+                return;
+              }
+              await run('add', () => qb.sendMagnet(m));
+              setMagnet('');
+            }}
+          >
+            <input placeholder="Magnet — or tap + for a .torrent file" value={magnet} onInput={(e) => setMagnet(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} />
+            <button class="btn primary" disabled={!!busy} aria-label={magnet.trim() ? 'Send' : 'Choose a .torrent file'}>
+              {busy === 'add' ? <span class="spinner" /> : <Icon name="plus" size={16} />}
+            </button>
+          </form>
           <div class="chips">
             <button class="pill small" disabled={!!busy} onClick={() => run('all', () => qb.sendAll())}>
               {busy === 'all' ? <span class="spinner small" /> : 'Send all not yet sent'}
-            </button>
-            <button
-              class="pill small"
-              disabled={!!busy}
-              onClick={async () => {
-                const file = await pickTorrentFile();
-                if (file) run('file', () => qb.sendFile(file));
-              }}
-            >
-              {busy === 'file' ? <span class="spinner small" /> : 'Add .torrent file'}
             </button>
             <button class="pill small ghost" disabled={!!busy} onClick={refresh}>
               Check progress
@@ -571,6 +581,21 @@ function DebridCard({ provider, label, keyHint, keyUrl }) {
         class="set-form inline"
         onSubmit={async (e) => {
           e.preventDefault();
+          // Empty box: + picks a .torrent file instead.
+          if (!link.trim()) {
+            const file = await pickTorrentFile();
+            if (!file) return;
+            setBusy(true);
+            try {
+              toast(await cloud.addTorrentFile(provider, file));
+              cloud.forget();
+            } catch (err) {
+              toast(err.message);
+            } finally {
+              setBusy(false);
+            }
+            return;
+          }
           setBusy(true);
           try {
             toast(await cloud.addLink(provider, link));
@@ -583,30 +608,11 @@ function DebridCard({ provider, label, keyHint, keyUrl }) {
           }
         }}
       >
-        <input placeholder="Add a magnet or link to your cloud" value={link} onInput={(e) => setLink(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} />
-        <button class="btn primary" disabled={busy || !link.trim()} aria-label="Add">
+        <input placeholder="Magnet or link — or tap + for a .torrent file" value={link} onInput={(e) => setLink(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} />
+        <button class="btn primary" disabled={busy} aria-label={link.trim() ? 'Add' : 'Choose a .torrent file'}>
           {busy ? <span class="spinner" /> : <Icon name="plus" size={16} />}
         </button>
       </form>
-      <button
-        class="pill small ghost torrent-file-btn"
-        disabled={busy}
-        onClick={async () => {
-          const file = await pickTorrentFile();
-          if (!file) return;
-          setBusy(true);
-          try {
-            toast(await cloud.addTorrentFile(provider, file));
-            cloud.forget();
-          } catch (err) {
-            toast(err.message);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <Icon name="upload" size={14} /> Add a .torrent file
-      </button>
     </>
   );
 }
