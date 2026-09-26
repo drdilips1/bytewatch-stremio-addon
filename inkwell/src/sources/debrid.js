@@ -160,11 +160,28 @@ async function rdDetails(book) {
   const info = await getJson(`${RD}/torrents/info/${id}`, { headers: rdHeaders(), fresh: true });
   // Links map 1:1 onto the selected files, in file order.
   const selected = (info.files || []).filter((f) => f.selected).sort((a, b) => a.id - b.id);
-  const files = selected
+  // Fewer links than files means Real-Debrid packed them into one archive: nothing to stream.
+  const packedLinks = (info.links || []).length > 0 && (info.links || []).length < selected.length;
+  const files = (packedLinks ? [] : selected)
     .map((f, i) => ({ name: baseName(f.path), link: (info.links || [])[i] }))
     .filter((f) => f.link && AUDIO.test(f.name))
     .sort(naturalSort);
-  if (!files.length) throw new Error('No audio files in this Real-Debrid torrent');
+  if (!files.length) {
+    // Same book ready in TorBox? Play that copy instead.
+    const hash = String(info.hash || book.hash || '').toLowerCase();
+    if (hash && tbConnected()) {
+      const tb = (await tbList('torrents').catch(() => [])).find((t) => String(t.hash || '').toLowerCase() === hash && (t.download_finished || t.download_present));
+      if (tb) return tbDetails({ ...book, uid: `tb:t:${tb.id}`, source: 'tb', hash });
+    }
+    const packed = packedLinks || selected.some((f) => /\.(rar|zip|7z)$/i.test(f.path));
+    throw new Error(
+      packed
+        ? 'Real-Debrid packed this one into an archive (.rar/.zip), which can’t be streamed. Play it from TorBox, or add a different version.'
+        : info.status && info.status !== 'downloaded'
+          ? `Real-Debrid hasn’t finished this one yet (${info.status}${info.progress != null ? ` · ${info.progress}%` : ''}).`
+          : 'This Real-Debrid torrent has no audio files (it may be an ebook or a video).'
+    );
+  }
   return {
     ...book,
     ...(info.hash ? { hash: String(info.hash).toLowerCase() } : {}),
