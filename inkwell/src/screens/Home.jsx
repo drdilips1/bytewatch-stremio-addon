@@ -2,6 +2,8 @@ import { BgImage } from '../components/bg-image.jsx';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Row, BookCard, withMeta } from '../components/common.jsx';
 import { useMeta } from '../lib/meta.js';
+import { picksForYou, aiReady } from '../lib/bookseller.js';
+import { mainTitle } from '../lib/match.js';
 import { Icon } from '../components/icons.jsx';
 import { ia, gb, ol, absSrc, addonSrc, cloud, hc, gr, enabled, sourceOrder, sourceRank } from '../sources/index.js';
 import { Fragment } from 'preact';
@@ -21,22 +23,44 @@ import * as player from '../lib/player.js';
 // (a slow service never holds the others back).
 const heroCache = persisted('heroCache', { items: [] });
 
+// Recommendations lead the banner: AI picks from your taste (with a Gemini key)
+// and highly rated bestsellers you don't own; your own services follow.
+const ownedTitles = () => {
+  const t = new Set();
+  for (const b of Object.values(library.get())) t.add(mainTitle(b.title || '').toLowerCase());
+  for (const p of Object.values(progress.get())) if (p.book?.title) t.add(mainTitle(p.book.title).toLowerCase());
+  return t;
+};
+const notOwned = (list) => {
+  const owned = ownedTitles();
+  return (list || []).filter((b) => b?.title && !owned.has(mainTitle(b.title).toLowerCase()));
+};
+async function topRated() {
+  const r = await audible.genre('bestsellers');
+  return notOwned(r)
+    .filter((b) => (b.rating || 0) >= 4.5 && (b.ratings || 0) >= 200)
+    .slice(0, 10);
+}
+
 function heroSources() {
   const list = [];
+  if (aiReady()) list.push([() => picksForYou().then(notOwned), 'Picked for you', 'ai']);
+  list.push([topRated, 'Top rated now', 'top']);
   if (absSrc.connected() && enabled('abs')) list.push([() => absSrc.inProgress(), 'Continue on your server', 'abs'], [() => absSrc.recent(), 'New on your server', 'abs']);
   if (cloud.tbConnected() && enabled('tb')) list.push([() => cloud.torboxLibrary(), 'In your TorBox', 'tb']);
   if (cloud.rdConnected() && enabled('rd')) list.push([() => cloud.realdebridLibrary(), 'In your Real-Debrid', 'rd']);
   if (hc.connected() && enabled('hc')) list.push([() => hc.shelf(hc.STATUS.reading), 'Reading on Hardcover', 'hc'], [() => hc.shelf(hc.STATUS.want), 'On your Want to Read', 'hc']);
-  return list.sort((a, b) => sourceRank(a[2]) - sourceRank(b[2]));
+  const rank = (k) => (k === 'ai' ? -2 : k === 'top' ? -1 : sourceRank(k));
+  return list.sort((a, b) => rank(a[2]) - rank(b[2]));
 }
 
 function roundRobin(groups) {
   const picks = [];
   const seen = new Set();
-  for (let i = 0; picks.length < 8 && groups.some((g) => g && g[i]); i++) {
+  for (let i = 0; picks.length < 10 && groups.some((g) => g && g[i]); i++) {
     for (const g of groups) {
       const b = g && g[i];
-      if (b && !seen.has(b.uid) && picks.length < 8) {
+      if (b && !seen.has(b.uid) && picks.length < 10) {
         seen.add(b.uid);
         picks.push(b);
       }
@@ -49,7 +73,7 @@ function roundRobin(groups) {
 function kindLabel(b) {
   if (b.source === 'pod') return 'Podcast';
   if (b.kind === 'text') return 'Ebook';
-  if (b.kind === 'audio') return 'Audiobook';
+  if (b.kind === 'audio' || b.source === 'au') return 'Audiobook';
   return 'Book';
 }
 
@@ -77,6 +101,7 @@ function FeatureSlide({ book: raw, active }) {
           </div>
           <h2 class="feature-title">{b.title}</h2>
           {b.author && <p class="feature-author">{b.author}</p>}
+          {raw.why && <p class="feature-why">{raw.why}</p>}
           {(bits.length > 0 || b.rating > 0) && (
             <p class="feature-meta">
               {bits.map((x, k) => (
