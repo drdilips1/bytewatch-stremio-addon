@@ -346,7 +346,7 @@ class LibraryActivity : Activity() {
 
     private fun fetch(text: String) {
         if (text.isBlank()) return
-        import("Downloading…") { Loader.download(this, text) }
+        import("Downloading…") { progress -> Loader.download(this, text, progress) }
     }
 
     /** Recognizes the text in photos, screenshots or camera pages and adds it as one document. */
@@ -385,7 +385,7 @@ class LibraryActivity : Activity() {
 
     private fun showAddMenu() {
         val options = arrayOf(
-            "Document file\nPDF, EPUB, Word, Markdown, text or saved web page",
+            "Document file\nPDF, EPUB, Word, PowerPoint, Markdown, text or saved web page",
             "Paste text",
             "Photos or screenshots\nReads the text in the images",
             "Audio or video \u2192 text\nTranscribes lectures, podcasts, interviews and voice notes (Gemini)",
@@ -622,7 +622,7 @@ class LibraryActivity : Activity() {
         }
         AlertDialog.Builder(this)
             .setTitle("Add from a link")
-            .setMessage("Enter an arXiv ID, a web article link, or a link to a PDF, EPUB or Word file.")
+            .setMessage("Enter an arXiv ID, a web article or YouTube link, or a link to a PDF, EPUB, Word or PowerPoint file.")
             .setView(box)
             .setPositiveButton("Add") { _, _ -> fetch(input.text.toString()) }
             .setNegativeButton("Cancel", null)
@@ -653,6 +653,7 @@ class LibraryActivity : Activity() {
                 arrayOf(
                     "application/pdf", "application/epub+zip", "text/plain", "text/markdown", "text/html",
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
                     "application/octet-stream",
                 ),
             )

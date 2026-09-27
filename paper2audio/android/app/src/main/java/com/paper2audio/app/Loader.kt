@@ -9,7 +9,7 @@ import java.net.URL
 
 /** Brings a document into app storage (so it survives restarts) and parses it. */
 object Loader {
-    enum class Kind { PDF, EPUB, TEXT, DOCX, HTML, MD }
+    enum class Kind { PDF, EPUB, TEXT, DOCX, HTML, MD, PPTX }
 
     /** A document file in the library; [id] names its library entry. */
     data class Source(val file: File, val kind: Kind, val name: String, val id: String)
@@ -32,8 +32,12 @@ object Loader {
         }
     }
 
-    fun download(context: Context, text: String): Source {
+    fun download(context: Context, text: String, progress: (String) -> Unit = {}): Source {
         val trimmed = text.trim()
+        if (YouTube.idOf(trimmed) != null) {
+            val (title, transcript) = YouTube.transcript(context, trimmed, progress)
+            return storeText(context, title, transcript)
+        }
         val arxiv = ARXIV.find(trimmed)
         var url = if (arxiv != null) "https://arxiv.org/pdf/${arxiv.groupValues[1]}" else trimmed
         require(url.startsWith("http://") || url.startsWith("https://")) {
@@ -77,7 +81,13 @@ object Loader {
         return when {
             start.startsWith("%PDF") -> Kind.PDF
             start.startsWith("PK") -> runCatching {
-                java.util.zip.ZipFile(file).use { z -> if (z.getEntry("word/document.xml") != null) Kind.DOCX else Kind.EPUB }
+                java.util.zip.ZipFile(file).use { z ->
+                    when {
+                        z.getEntry("word/document.xml") != null -> Kind.DOCX
+                        z.getEntry("ppt/presentation.xml") != null -> Kind.PPTX
+                        else -> Kind.EPUB
+                    }
+                }
             }.getOrDefault(Kind.EPUB)
             name.endsWith(".pdf", true) -> Kind.PDF
             name.endsWith(".md", true) || name.endsWith(".markdown", true) -> Kind.MD
@@ -128,6 +138,7 @@ object Loader {
             }
             Kind.EPUB -> EpubExtractor.extract(src.file, o, title, key)
             Kind.DOCX -> DocxExtractor.extract(src.file, o, title, key)
+            Kind.PPTX -> PptxExtractor.extract(src.file, o, title, key)
             Kind.HTML -> HtmlExtractor.extract(src.file, o, title, key)
             Kind.MD -> MarkdownExtractor.extract(src.file, o, title, key)
             Kind.TEXT -> Doc.build(title, key, listOf(null to TextCleaner.clean(src.file.readLines(), o)))

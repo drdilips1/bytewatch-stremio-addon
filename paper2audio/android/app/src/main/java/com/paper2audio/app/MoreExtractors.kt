@@ -203,3 +203,75 @@ object MarkdownExtractor {
         return t
     }
 }
+
+/**
+ * PowerPoint (.pptx) as a lecture: each slide becomes a chapter ("Slide 3: Title"),
+ * with its bullet points read as sentences and then the speaker notes.
+ */
+object PptxExtractor {
+    private val SLIDE_NUMBER = Regex("""slide(\d+)\.xml$""")
+
+    fun extract(file: File, o: CleanOptions, name: String, key: String): Doc {
+        ZipFile(file).use { zip ->
+            fun read(path: String) = zip.getEntry(path)?.let { e -> zip.getInputStream(e).use { it.readBytes().toString(Charsets.UTF_8) } }
+            fun xml(path: String) = read(path)?.let { Jsoup.parse(it, "", Parser.xmlParser()) }
+
+            // Slide order comes from presentation.xml and its relationships.
+            val rels = xml("ppt/_rels/presentation.xml.rels")?.getElementsByTag("Relationship")
+                ?.associate { it.attr("Id") to it.attr("Target") }.orEmpty()
+            val ordered = xml("ppt/presentation.xml")?.getElementsByTag("p:sldId")?.mapNotNull { rels[it.attr("r:id")] }
+                ?.map { "ppt/" + it.removePrefix("/ppt/").removePrefix("./") }
+                .orEmpty()
+            val slides = ordered.ifEmpty {
+                zip.entries().asSequence().map { it.name }.filter { SLIDE_NUMBER.containsMatchIn(it) && it.startsWith("ppt/slides/") }
+                    .sortedBy { SLIDE_NUMBER.find(it)!!.groupValues[1].toInt() }.toList()
+            }
+            val core = read("docProps/core.xml")?.let { Jsoup.parse(it, "", Parser.xmlParser()) }
+            var title = core?.getElementsByTag("dc:title")?.text()?.trim()?.ifBlank { null }
+            val author = core?.getElementsByTag("dc:creator")?.text()?.trim()?.ifBlank { null }
+
+            val sections = ArrayList<Pair<String?, List<String>>>()
+            for ((i, path) in slides.withIndex()) {
+                val slide = xml(path) ?: continue
+                var slideTitle: String? = null
+                val points = ArrayList<String>()
+                for (sp in slide.getElementsByTag("p:sp")) {
+                    val ph = sp.getElementsByTag("p:ph").firstOrNull()?.attr("type")
+                    val paras = sp.getElementsByTag("a:p").map { p -> p.getElementsByTag("a:t").joinToString("") { it.wholeText() }.trim() }
+                        .filter { it.isNotEmpty() }
+                    if (ph == "title" || ph == "ctrTitle") slideTitle = paras.joinToString(" ")
+                    else if (ph != "sldNum" && ph != "dt" && ph != "ftr") points += paras
+                }
+                // Tables on slides: one sentence per row.
+                for (row in slide.getElementsByTag("a:tr")) {
+                    val cells = row.getElementsByTag("a:tc").map { c -> c.getElementsByTag("a:t").joinToString(" ") { it.wholeText() }.trim() }
+                    if (cells.any { it.isNotEmpty() }) points += cells.filter { it.isNotEmpty() }.joinToString(", ")
+                }
+                if (title == null && slideTitle != null) title = slideTitle
+                // Speaker notes, through the slide's relationships.
+                val relPath = path.replace("slides/", "slides/_rels/") + ".rels"
+                val notesTarget = xml(relPath)?.getElementsByTag("Relationship")
+                    ?.firstOrNull { it.attr("Type").endsWith("/notesSlide") }?.attr("Target")
+                val notes = notesTarget?.let { t -> xml("ppt/" + t.removePrefix("../")) }?.getElementsByTag("p:sp")?.toList()
+                    ?.filter { it.getElementsByTag("p:ph").firstOrNull()?.attr("type") == "body" }
+                    ?.flatMap { sp -> sp.getElementsByTag("a:p").map { p -> p.getElementsByTag("a:t").joinToString("") { it.wholeText() }.trim() } }
+                    ?.filter { it.isNotEmpty() }.orEmpty()
+                val heading = "Slide ${i + 1}" + (slideTitle?.let { ": $it" } ?: "")
+                val lines = ArrayList<String>()
+                lines += heading
+                lines += ""
+                for (pt in points) {
+                    lines += if (pt.last() in ".!?:;") pt else "$pt."
+                    lines += ""
+                }
+                if (notes.isNotEmpty()) {
+                    lines += "Speaker notes."
+                    lines += ""
+                    notes.forEach { lines += it; lines += "" }
+                }
+                sections += heading to TextCleaner.clean(lines, o.copy(skipCaptions = false))
+            }
+            return Doc.build(title ?: name, key, sections.filter { it.second.isNotEmpty() }, author)
+        }
+    }
+}

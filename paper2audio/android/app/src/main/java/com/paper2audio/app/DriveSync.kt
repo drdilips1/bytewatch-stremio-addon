@@ -237,6 +237,7 @@ object DriveSync {
             "epub" -> "application/epub+zip"
             "jpg" -> "image/jpeg"
             "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
             "html" -> "text/html"
             "json" -> "application/json"
             else -> "text/plain"
