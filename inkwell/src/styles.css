@@ -4511,3 +4511,7 @@ textarea {
   cursor: pointer;
   font: inherit;
 }
+.set-form.inline .label-input {
+  flex: 0 0 72px;
+  width: 72px;
+}

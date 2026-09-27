@@ -179,6 +179,38 @@ function SearchAddress() {
           Save
         </button>
       </form>
+      <FilteredAddress />
     </div>
+  );
+}
+
+/** A second search address with your site's own filters on, shown as an extra button on each result. */
+function FilteredAddress() {
+  const tr = useStore(qb.tracker);
+  const [v, setV] = useState(tr.search2 || '');
+  const [label, setLabel] = useState(tr.label2 || '');
+  const ok = !v.trim() || v.includes('{q}');
+  const changed = v.trim() !== (tr.search2 || '') || label.trim() !== (tr.label2 || '');
+  return (
+    <>
+      <small class="muted">
+        Filtered search (optional) — the same, but copied with your site's filters turned on. Each result then gets two buttons: this one first, and the plain search if it finds nothing.
+      </small>
+      <form
+        class="set-form inline"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!ok) return toast('Put {q} where the search words go');
+          qb.tracker.set((t) => ({ ...t, search2: v.trim(), label2: label.trim().slice(0, 12) }));
+          toast(v.trim() ? 'Saved' : 'Filtered search removed');
+        }}
+      >
+        <input class="label-input" value={label} placeholder="Label" maxLength={12} onInput={(e) => setLabel(e.currentTarget.value)} />
+        <input value={v} placeholder="https://…/search?text={q}&…" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setV(e.currentTarget.value)} />
+        <button class="btn primary" disabled={!changed}>
+          Save
+        </button>
+      </form>
+    </>
   );
 }

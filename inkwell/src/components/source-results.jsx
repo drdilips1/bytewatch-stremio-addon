@@ -10,6 +10,8 @@ import { waitlist, wait, cancel } from '../lib/waitlist.js';
 import { translit } from '../lib/translit.js';
 import * as qb from '../sources/qbit.js';
 import { cleanTitle } from '../sources/debrid.js';
+
+const trackerWords = (name) => cleanTitle(name).replace(/\s[-–:]\s/g, ' ');
 import { openExternal } from '../sources/summaries.js';
 import { directEbookFile, directReaderBook } from '../lib/epub.js';
 import { shareEbook } from '../lib/kindle.js';
@@ -56,6 +58,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   if (!count) return null;
   // Your tracker (Tracker tab): open a search for this book there.
   const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
+  const trackerFilter = trackerSite ? qb.trackerFilterLabel() : '';
   const entries = Object.entries(groups);
   const total = entries.reduce((a, [, g]) => a + g.results.length, 0);
   // Results nobody is seeding can't be downloaded unless the service already has them.
@@ -273,6 +276,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   };
   const home = hasMagnet && qb.available && qb.configured();
   const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
+  const trackerFilter = trackerSite ? qb.trackerFilterLabel() : '';
   const homeHash = home ? cloud.infoHash(r.magnet, r.hash) : '';
   const sentHome = !!homeHash && qb.wasSent(homeHash);
   const sendHome = async () => {
@@ -301,9 +305,14 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
         {hasMagnet && <span class={'chip seeds ' + seedClass(r.seeders)}>{r.seeders} seed{r.seeders === 1 ? '' : 's'}</span>}
         {r.language && <span class="chip">{r.language}</span>}
         <span class="chip ghost">{r.addon}</span>
+        {trackerSite && trackerFilter && (
+          <button class="chip tracker-chip" onClick={() => qb.openTracker(trackerWords(r.title), true).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} (${trackerFilter}) for this`}>
+            <Icon name="search" size={12} /> {trackerFilter}
+          </button>
+        )}
         {trackerSite && (
-          <button class="chip tracker-chip" onClick={() => qb.openTracker(cleanTitle(r.title)).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} for this`}>
-            <Icon name="search" size={12} /> {trackerSite}
+          <button class="chip tracker-chip" onClick={() => qb.openTracker(trackerWords(r.title)).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} for this`}>
+            <Icon name="search" size={12} /> {trackerFilter ? 'All' : trackerSite}
           </button>
         )}
       </div>

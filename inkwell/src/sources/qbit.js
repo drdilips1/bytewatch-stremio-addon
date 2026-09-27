@@ -434,19 +434,24 @@ export function autoForwardSoon() {
 export const tracker = persisted('tracker', { url: '', search: '' });
 
 /** Your tracker's search page for [query], if you've set its search address ({q} = the words). */
-export function trackerSearchUrl(query) {
-  const { url, search } = tracker.get();
-  const tpl = String(search || '').trim();
+export function trackerSearchUrl(query, filtered = false) {
+  const { url, search, search2 } = tracker.get();
+  const tpl = String((filtered ? search2 : search) || '').trim();
   if (tpl.includes('{q}')) return tpl.replace('{q}', encodeURIComponent(query));
   return String(url || '').trim();
 }
+/** Your own short name for the second, filtered search address (e.g. "FL"), or '' if none is saved. */
+export const trackerFilterLabel = () => {
+  const t = tracker.get();
+  return String(t.search2 || '').includes('{q}') ? String(t.label2 || '').trim() || 'Filtered' : '';
+};
 export const trackerName = () => String(tracker.get().url || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 const Web = registerPlugin('InkwellWeb');
 const canBrowse = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
 
 /** Open the tracker site in the in-app browser; its .torrent downloads and magnets come here. */
-export async function openTracker(query = '') {
-  const url = query ? trackerSearchUrl(query) : String(tracker.get().url || '').trim();
+export async function openTracker(query = '', filtered = false) {
+  const url = query ? trackerSearchUrl(query, filtered) : String(tracker.get().url || '').trim();
   if (!url) throw new Error('Add your tracker site address first');
   if (!canBrowse) return window.open(url, '_blank');
   // The browser screen sends captured downloads itself (the app is paused behind it).
