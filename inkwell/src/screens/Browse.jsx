@@ -19,13 +19,36 @@ const THIS_YEAR = new Date().getFullYear();
 const YEARS = [THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2, THIS_YEAR - 3, THIS_YEAR - 4, 'all'];
 const norm = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
-/** For you: your own books in the genre, then Audible's popular, well-rated titles you don't have. */
-async function forYou(genre, connected) {
-  const [mine, pool] = await Promise.all([connected ? yours(genre).catch(() => []) : [], audible.pool(genre.au || genre.name).catch(() => [])]);
-  const have = new Set([...mine, ...Object.values(library.get() || {})].map((b) => norm(b?.title)));
+// Your own books per genre, kept for the session: going back to a genre is instant.
+const mineCache = new Map();
+const yoursCached = (genre) => {
+  const key = genre.name;
+  const hit = mineCache.get(key);
+  if (hit && Date.now() - hit.t < 10 * 60e3) return hit.p;
+  const p = yours(genre).catch(() => []);
+  mineCache.set(key, { t: Date.now(), p });
+  return p;
+};
+
+/**
+ * For you: your own books in the genre, then Audible's popular, well-rated titles you don't
+ * have. Calls onUpdate as each part arrives, so the page fills in without waiting for the
+ * slowest service.
+ */
+function forYou(genre, connected, onUpdate) {
+  let mine = connected ? null : [];
+  let pool = null;
   const score = (b) => (b.rating || 4) * Math.log10((b.ratings || 0) + 10) + (b.released > Date.now() - 730 * 864e5 ? 1.5 : 0);
-  const picks = pool.filter((b) => !have.has(norm(b.title))).sort((a, b) => score(b) - score(a)).slice(0, 36).map(({ rank, ...b }) => b);
-  return { mine, picks };
+  const emit = () => {
+    const have = new Set([...(mine || []), ...Object.values(library.get() || {})].map((b) => norm(b?.title)));
+    const picks = (pool || []).filter((b) => !have.has(norm(b.title))).sort((a, b) => score(b) - score(a)).slice(0, 36).map(({ rank, ...b }) => b);
+    onUpdate({ mine: mine || [], picks, loadingMine: mine === null, loadingPicks: pool === null });
+  };
+  const jobs = [
+    audible.pool(genre.au || genre.name).catch(() => []).then((r) => ((pool = r), emit())),
+    connected ? yoursCached(genre).then((r) => ((mine = r), emit())) : null,
+  ];
+  return Promise.all(jobs);
 }
 
 const HINDI_TABS = [
@@ -41,7 +64,7 @@ const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r
 async function yours(genre) {
   const fits = (b) => (genre.hindi ? isHindi(b) : true);
   const hits = (list) => list.filter((b) => fits(b) && ((b.genres || []).some((g) => genre.match.test(g)) || genre.match.test(b.title)));
-  const safe = (p) => within(p.catch(() => []), 12000).then((r) => r || []);
+  const safe = (p) => within(p.catch(() => []), 8000).then((r) => r || []);
   const [server, shelves, tb, rd] = await Promise.all([
     absSrc.connected() && enabled('abs') ? safe(absSrc.all()) : [],
     hc.connected() && enabled('hc') ? safe(hc.allShelves()) : [],
@@ -50,7 +73,7 @@ async function yours(genre) {
   ]);
   // Debrid files have no genres of their own: borrow them from metadata lookups (cached).
   const files = [...tb, ...rd].slice(0, 80);
-  const metas = await within(Promise.all(files.map((b) => lookup(b).catch(() => null))), 20000);
+  const metas = await within(Promise.all(files.map((b) => lookup(b).catch(() => null))), 10000);
   const cloudHits = files
     .map((b, i) => ({ ...b, genres: metas?.[i]?.genres || [], cover: b.cover || metas?.[i]?.cover || '', title: metas?.[i]?.title || b.title, author: metas?.[i]?.author || b.author }))
     .filter((b) => fits(b) && (b.genres.some((g) => genre.match.test(g)) || (genre.hindi && genre.match.test(b.title))));
@@ -66,20 +89,22 @@ export function Browse({ genre }) {
   useEffect(() => {
     setItems(null);
     if (tab === 'sources') return;
+    let alive = true;
+    if (!genre.hindi && tab === 'yours') {
+      forYou(genre, connected, (r) => alive && (r.picks.length || r.mine.length || (!r.loadingMine && !r.loadingPicks)) && setItems(r));
+      return () => (alive = false);
+    }
     const job = genre.hindi
       ? tab === 'yours'
-        ? yours(genre)
+        ? yoursCached(genre)
         : tab === 'best'
           ? audible.hindi(genre.au).then((r) => (genre.en === 'Hindi' && r.length > 14 ? r.slice(10) : r)) // hub: Top Shows row has the first ten
           : ia.hindi(genre.ia)
-      : tab === 'yours'
-        ? forYou(genre, connected)
-        : tab === 'best'
+      : tab === 'best'
           ? audible.genre(genre.au || genre.name)
           : tab === 'trend'
             ? audible.trending(genre.au || genre.name)
             : audible.bestOf(genre.au || genre.name, year);
-    let alive = true;
     job.then((r) => alive && setItems(r)).catch(() => alive && setItems([]));
     return () => (alive = false);
   }, [tab, genre, year]);
@@ -149,6 +174,11 @@ export function Browse({ genre }) {
                 <h3 class="section-label pad">In your collection</h3>
                 <Grid items={items.mine} />
               </>
+            )}
+            {items.loadingMine && (
+              <p class="muted pad loading-line">
+                <span class="spinner small" /> Checking your server and libraries…
+              </p>
             )}
             {items.picks.length > 0 && (
               <>
