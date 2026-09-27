@@ -124,6 +124,22 @@ class LibraryActivity : Activity() {
         miniPlay.setOnClickListener { Speaker.toggle() }
 
         handleIntent(intent)
+        // Tap "Library" for the version, updates and AI settings.
+        findViewById<TextView>(R.id.libraryTitle).setOnClickListener { showAbout() }
+        Updater.checkDaily(this, scope)
+    }
+
+    private fun showAbout() {
+        AlertDialog.Builder(this)
+            .setTitle("Paper to Audio ${Updater.currentName(this)}")
+            .setItems(arrayOf("Check for updates", "AI settings (Grok or Gemini)", "Voice studio")) { _, which ->
+                when (which) {
+                    0 -> Updater.checkNow(this, scope)
+                    1 -> AiKeyDialog.show(this)
+                    else -> startActivity(Intent(this, VoiceStudioActivity::class.java))
+                }
+            }
+            .show()
     }
 
     private fun rounded(view: View, radiusDp: Int) {

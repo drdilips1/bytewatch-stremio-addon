@@ -51,6 +51,11 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
           cp app/build/outputs/apk/release/app-release.apk Paper2Audio.apk
+          # For the in-app "Update available" check.
+          CODE=$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | grep -oE '[0-9]+')
+          NAME=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | cut -d'"' -f2)
+          printf '{"versionCode": %s, "versionName": "%s"}\n' "$CODE" "$NAME" > version.json
+          cat version.json
 
       - name: Show signing certificate (SHA-1 must match the Google Cloud OAuth client)
         env:
@@ -74,7 +79,9 @@ jobs:
           name: Paper to Audio – Android app (latest build)
           prerelease: true
           overwrite_files: true
-          files: paper2audio/android/Paper2Audio.apk
+          files: |
+            paper2audio/android/Paper2Audio.apk
+            paper2audio/android/version.json
           body: |
             Latest build of the Paper to Audio Android app. Open this page on your phone and
             tap **Paper2Audio.apk** to install or update (updates install over the old app).

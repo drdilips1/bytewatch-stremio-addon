@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Only for recording your own voice to clone it (asked when you tap Record). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Installing app updates downloaded from inside the app (Android asks the user first). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Needed on Android 11+ to see the installed text-to-speech engines. -->
     <queries>

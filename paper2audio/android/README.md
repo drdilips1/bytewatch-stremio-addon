@@ -5,71 +5,75 @@ the phone: no server, no account, no limits.
 
 ## Features
 
-- **Library** of your papers and books with thumbnails (a PDF's first page or an
-  EPUB's cover), title, author, length and listening progress. Search the
-  library, sort it, and group documents into **collections** (long-press a
-  document). A mini player at the bottom shows what's playing.
-- **Find** (magnifier icon): search 70,000+ free public-domain e-books from
-  Project Gutenberg (popular titles shown first) and research papers on arXiv,
-  and add them to the library in one tap.
-- **Book details** (ⓘ in the player): looks up the cover, author, year and
-  description on Open Library, arXiv (for papers) or, with your own API key from
-  hardcover.app/account/api, Hardcover. You confirm before anything changes.
-- **9 color themes**: System (follows light/dark mode), Ocean, Forest, Sunset,
-  Lavender, Rose, Sepia, Midnight and Black. Tap the palette icon.
-- **Add** a PDF, EPUB, Word (.docx), Markdown, text or saved web page, **paste
-  text**, or add an **arXiv ID, web article link** or file link. Web articles
-  are reduced to the article text (no menus, ads or reference lists). You can
-  also share files, links, text and screenshots to the app.
-- **Scan**: photograph printed pages with the camera (several pages in a row),
-  or pick photos and screenshots; the text is recognized on the phone with
-  Google ML Kit. **Scanned PDFs** are recognized automatically when added.
-- The same cleanup as the desktop tool: headers, footers, page numbers,
-  citations, URLs, captions, equations and references are skipped; EPUB
-  footnotes, contents and copyright pages are dropped.
-- **Reader view** that follows along, highlighting the sentence being read.
-  Tap a paragraph to listen from there; long-press it to **bookmark** it, add a
-  **note** or copy it. Bookmarks and notes sync.
-- **Listen now** with play/pause, previous/next paragraph, a position slider,
-  time left, a **table of contents** and a **sleep timer** (minutes or end of
-  chapter). Reading continues with the screen off, with controls in the
-  notification and on the lock screen.
-- **Voice studio** (voice icon in the library and player):
-  - **Natural on-device voices** that work offline and unlimited: Luna and Bria
-    (female) and Carter, Declan, Elliot, Felix, Grant, Hugo, Ian and James
-    (male; James British), after a one-time 98 MB download.
-  - **Clone a voice**: record 15–20 seconds (a reading script is shown) or import
-    a recording, and the app reads in that voice, on the phone. Only with the
-    speaker's permission.
-  - **Supertonic voices**: 10 on-device voices that read 31 languages,
-    including Hindi (one-time 129 MB download). Kokoro is still available.
-  - **Voice design**: describe a voice ("a calm, deep British man") and the app
-    picks and tunes the closest one; pitch control for online voices.
-  - **Stories**: a second voice reads everything in quotation marks, like an
-    audiobook with two narrators.
-- **Language aware**: the app detects each document's language on the phone
-  and offers a voice that speaks it.
-- **Transcribe audio and video** (Add › Audio or video → text, or share a
-  recording to the app): lectures, podcasts, interviews and voice notes become
-  documents, with speakers labeled (Gemini). **Dictate** text with voice typing.
-- **Translate and listen** (Options › AI): the whole document in Hindi, Spanish
-  and 24 other languages, read by a voice that speaks the language.
-- **Audiobook export**: save each chapter as its own file in a folder, with
-  title, author, track number and cover (MP3), ready for audiobook apps.
-- **AI, free with Google Gemini** (Options tab; needs a free key from
-  aistudio.google.com/apikey, no card): short and long summaries of a document
-  or chapter (listen to them or add them to the library), spoken explanations of
-  a PDF's **figures, tables and equations** read where the text first mentions
-  them, and **Explain with AI** for any paragraph (long-press it). The free tier
-  has a daily limit and never charges; Google may use what's sent to improve its
-  products.
-- **Offline listening**: download the whole document's audio in advance;
-  previews for every voice.
-- **Remembers where you stopped** in each document.
-- **Save as audio file**: renders the whole document to one file in
-  `Music/Paper2Audio` (MP3 for natural voices, M4A for phone voices), playable in
-  any music or podcast app.
-- Speed from 0.5× to 4×.
+**Anything to audio**
+- **Add** a PDF, EPUB, Word (.docx), **PowerPoint** (.pptx, read as a lecture:
+  slides, bullets and speaker notes), Markdown, text or saved web page; **paste
+  text**; or add an **arXiv ID, web article, YouTube video** (its captions) or
+  file link. Share files, links, text, screenshots, audio and video to the app.
+- **Scan** printed pages with the camera, or photos and screenshots; **scanned
+  PDFs** are recognized page by page (mixed PDFs work too), all on the phone.
+- **Transcribe audio and video** (lectures, podcasts, interviews, voice notes)
+  into documents with speakers labeled (Gemini). **Dictate** text.
+
+**Understands papers**
+- Finds the **title, authors, sections, figure and table captions**; removes
+  running headers and footers, page numbers, publisher banners, DOIs, emails,
+  citations and references.
+- **Smart chapters**: Introduction, Methods, Results, Discussion, Limitations,
+  Conclusion. In Contents, **choose what to play**, e.g. *Skip Methods* or
+  *Only Results and Discussion*; finished sections are ticked.
+- **Paper-aware narration**: *View Figure 3* appears while the paragraph that
+  mentions it is read, showing the page (zoomable) with its caption. AI can
+  explain every figure and table (tables summarized, not read cell by cell),
+  read where the text mentions them.
+- **Says it properly**: "HR 0.72, 95% CI 0.54–0.96, p=0.03" is read as "the
+  hazard ratio was 0.72, 95 percent confidence interval from 0.54 to 0.96, a
+  p-value of 0.03"; units, ranges, symbols, Greek letters, Fig./Eq./e.g. and
+  ALL-CAPS headings too. **Medical mode** reads doses, routes and trial terms in
+  full (BID, PO, q8h, ITT, RCT, AE…).
+
+**Listening**
+- One **continuous stream**: every sentence trimmed and joined with natural
+  pauses, so it sounds like one audiobook; voice changes continue from the
+  sentence you were on.
+- **⏮/⏭ step one sentence** (hold for a paragraph); position remembered to the
+  sentence. **Speaking styles**: Standard, Academic, Conversational,
+  Storytelling, Lecture. Speed 0.5× to 4×, sleep timer, reader view with the
+  sentence highlighted, bookmarks and notes, lock-screen controls.
+- **Download** a document's audio for offline listening (10 requests at a
+  time), then **save it as an audio file** almost instantly, or as an
+  **audiobook** (one file per chapter with cover, author and track numbers).
+
+**Voices** (Voice studio)
+- ★ Microsoft natural voices online; ♥ natural **on-device voices** (Luna,
+  Bria, Carter, Declan, Elliot, Felix, Grant, Hugo, Ian, James) offline;
+  **clone a voice** from 15–20 seconds of recording (with permission);
+  ◆ **Supertonic** (31 languages, including Hindi) and Kokoro offline.
+- **Voice design** (describe a voice) and pitch; **language-aware** voice
+  suggestions.
+- **Full cast**: a voice per character in stories (from "said Maya" and "he
+  asked"), and per speaker in podcasts and transcripts.
+
+**AI** (Options › AI; Grok with your own xAI key, which is paid per use, or
+free Gemini)
+- **5-minute briefing** before listening: what it's about, the question, how,
+  main findings, limitations, implications; then *Listen to full text*.
+- **Explain as you listen**: Explain the sentence being read, like I'm 10, at
+  medical-professor level, give an example, why it matters, what terms mean.
+- **Ask this document**: a chat whose answers cite **[Section ¶N]**; tap a
+  citation to jump there. Voice questions; history kept.
+- **Study mode**: 10 key points, flashcards (export to Anki), **Test me** quiz
+  with score, viva and short-answer questions, revision summary, mind map,
+  glossary.
+- **Podcast mode**: a host and an expert discuss the document in two voices.
+- Summaries (document or chapter) and **translate and listen** in 26 languages.
+
+**Library**
+- Thumbnails, progress, search, sort and **collections**; **Find** free books
+  (Project Gutenberg) and arXiv papers; book details from Open Library, arXiv
+  or Hardcover; 9 color themes; **Google Drive sync**.
+- **Updates inside the app**: it checks daily and installs new versions over
+  the current one (tap *Library* › Check for updates).
 
 ## Sync across devices (Google Drive)
 

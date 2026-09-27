@@ -456,7 +456,13 @@
                         style="@style/P2A.CardTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Listen offline" />
+                        android:text="Download" />
+
+                    <TextView
+                        style="@style/P2A.Muted"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Download makes the audio ahead of time for offline listening. Saving as a file puts it in Music/Paper2Audio for other apps; after a download it's almost instant." />
 
                     <TextView
                         android:id="@+id/offlineStatus"
@@ -488,25 +494,6 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Clear downloaded audio" />
-                </LinearLayout>
-
-                <!-- Save audio -->
-                <LinearLayout
-                    style="@style/P2A.Card"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <TextView
-                        style="@style/P2A.CardTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Save as audio file" />
-
-                    <TextView
-                        style="@style/P2A.Muted"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="One audio file of the whole document in Music/Paper2Audio, for any music or podcast app." />
 
                     <Button
                         android:id="@+id/btnExport"
@@ -515,7 +502,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:drawableStart="@drawable/ic_save"
-                        android:text="Save audio file" />
+                        android:text="Save as an audio file (MP3/M4A)" />
 
                     <ProgressBar
                         android:id="@+id/exportProgress"
