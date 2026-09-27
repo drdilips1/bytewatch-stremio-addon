@@ -63,7 +63,9 @@ export function sourceOf(uid) {
 }
 
 export async function getDetails(book) {
-  const src = SOURCES[sourceOf(book.uid)];
+  const src = SOURCES[sourceOf(book.uid || '')];
+  // No source to ask (e.g. a direct ebook link): show what we already know.
+  if (!src?.impl?.details) return applyLocal({ ...book });
   let d;
   let meta;
   try {

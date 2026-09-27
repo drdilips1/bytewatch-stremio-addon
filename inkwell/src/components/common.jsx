@@ -39,8 +39,9 @@ export function Cover({ book, class: cls = '', eager }) {
 }
 
 export function SourceBadge({ uid, book }) {
-  const key = sourceOf(uid);
-  const s = SOURCES[key];
+  const key = sourceOf(uid || '');
+  // Books from places without a source entry (e.g. direct ebook links) get a plain badge.
+  const s = SOURCES[key] || { short: book?.addon || (book?.kind === 'text' ? 'Ebook' : 'Book'), hue: 210 };
   const label = key === 'addon' ? book?.addonName || s.short : book?.via === 'lv' ? 'LibriVox' : s.short;
   return (
     <span class="badge" style={{ '--h': key === 'ia' && book?.via === 'lv' ? SOURCES.lv.hue : s.hue }}>
@@ -84,6 +85,9 @@ export class Guard extends Component {
   }
 }
 
+// Ebooks read in the app from TorBox / Real-Debrid / a direct link open straight in the reader.
+const isReaderEbook = (b) => b?.kind === 'text' && /#ebook$/.test(b?.uid || '');
+
 const str = (v) => (v == null ? '' : typeof v === 'string' ? v : Array.isArray(v) ? v.filter((x) => typeof x === 'string').join(', ') : typeof v === 'object' ? String(v.name || v.title || '') : String(v));
 
 /** A book card that can't break its grid: bad data shows a plain placeholder. */
@@ -114,7 +118,7 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
   const prog = useStoreKey(progressStore, book.uid);
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
   return (
-    <button class={'book-card' + (wide ? ' wide' : '')} onClick={() => nav.push('book', { book })}>
+    <button class={'book-card' + (wide ? ' wide' : '')} onClick={() => (isReaderEbook(book) ? nav.push('reader', { book }) : nav.push('book', { book }))}>
       <div class="book-card-cover">
         <Cover book={book} />
         <span class="kind-dot" title={book.kind}>

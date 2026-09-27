@@ -3827,8 +3827,12 @@ button.source-card:active {
 /* Home server (qBittorrent) */
 .qbit-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* long names can't widen the list past the card */
   gap: 10px;
   margin-top: 12px;
+}
+.qbit-item {
+  min-width: 0;
 }
 .qbit-item b {
   display: block;
@@ -3842,6 +3846,8 @@ button.source-card:active {
 }
 .qbit-item .progress-bar {
   margin-top: 6px;
+  height: 3px;
+  max-width: 100%;
 }
 .qbit-send {
   padding-top: 0;
