@@ -4554,3 +4554,34 @@ textarea {
 .set-section.open {
   margin-bottom: 18px;
 }
+.tracker-last {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13px;
+}
+.tracker-last .icon {
+  color: var(--good, #4ade80);
+}
+.tracker-last.bad .icon {
+  color: #f87171;
+}
+.tracker-last small {
+  color: var(--faint);
+}
+.tracker-change {
+  margin: 10px 0 4px;
+}
+.set-form.inline input {
+  min-width: 0;
+}
+.set-form.inline .btn {
+  width: auto;
+  min-width: 48px;
+  padding: 0 14px;
+}

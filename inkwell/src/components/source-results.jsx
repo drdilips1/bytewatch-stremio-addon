@@ -56,7 +56,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   }, [title, author, query, count]);
 
   if (!count) return null;
-  // Your tracker (Tracker tab): open a search for this book there.
+  // Your tracker (Settings → Tracker): open a search for this book there.
   const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
   const trackerFilter = trackerSite ? qb.trackerFilterLabel() : '';
   const entries = Object.entries(groups);
@@ -306,7 +306,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
         {r.language && <span class="chip">{r.language}</span>}
         <span class="chip ghost">{r.addon}</span>
         {trackerSite && trackerFilter && (
-          <button class="chip tracker-chip" onClick={() => qb.openTracker(trackerWords(r.title), true).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} (${trackerFilter}) for this`}>
+          <button class="chip tracker-chip" onClick={() => qb.openTracker(trackerWords(r.title), true, qb.isEbookName(`${r.title} ${r.format || ''}`)).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} (${trackerFilter}) for this`}>
             <Icon name="search" size={12} /> {trackerFilter}
           </button>
         )}

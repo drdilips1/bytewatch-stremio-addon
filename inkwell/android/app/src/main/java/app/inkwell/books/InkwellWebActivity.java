@@ -48,6 +48,12 @@ public class InkwellWebActivity extends AppCompatActivity {
     private WebView web;
     private TextView title;
     private ProgressBar bar;
+    /** A strip under the top bar saying what happened to the last download (a toast is easy to miss). */
+    private TextView note;
+    private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable hideNote = () -> {
+        if (note != null) note.setVisibility(View.GONE);
+    };
 
     private int dp(int v) {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics());
@@ -104,6 +110,13 @@ public class InkwellWebActivity extends AppCompatActivity {
         bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         bar.setMax(100);
         root.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)));
+        note = new TextView(this);
+        note.setTextColor(Color.WHITE);
+        note.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        note.setPadding(dp(16), dp(10), dp(16), dp(10));
+        note.setVisibility(View.GONE);
+        note.setOnClickListener(v -> note.setVisibility(View.GONE));
+        root.addView(note, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         web = new WebView(this);
         root.addView(web, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -142,15 +155,17 @@ public class InkwellWebActivity extends AppCompatActivity {
                 if (scheme.equals("http") || scheme.equals("https")) return false; // stay inside
                 if (capture && scheme.equals("magnet")) {
                     String magnet = u.toString();
-                    Toast.makeText(InkwellWebActivity.this, "Sending to your home server…", Toast.LENGTH_SHORT).show();
+                    showNote("Sending to your home server…", 0);
                     new Thread(() -> {
-                        String result = sendToQbit(null, magnet, "");
+                        String dn = Uri.parse(magnet).getQueryParameter("dn");
+                        String result = sendToQbit(null, magnet, "", looksLikeEbook(dn == null ? "" : dn));
                         JSObject d = new JSObject();
                         d.put("type", "magnet");
                         d.put("url", magnet);
                         d.put("sent", result.startsWith("OK"));
+                        d.put("message", result.startsWith("OK") ? result.substring(3) : result);
                         InkwellWebPlugin.captured(d);
-                        toast(result.startsWith("OK") ? result.substring(3) : result);
+                        report(result);
                     }).start();
                     return true;
                 }
@@ -176,7 +191,7 @@ public class InkwellWebActivity extends AppCompatActivity {
                     Toast.makeText(this, "Only .torrent files can be sent to your home server", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                Toast.makeText(this, "Sending to your home server…", Toast.LENGTH_SHORT).show();
+                showNote("Getting the .torrent…", 0);
                 String cookie = CookieManager.getInstance().getCookie(dlUrl);
                 String referer = web.getUrl();
                 new Thread(() -> {
@@ -197,16 +212,19 @@ public class InkwellWebActivity extends AppCompatActivity {
                         while ((n = in.read(buf)) > 0 && out.size() < 20_000_000) out.write(buf, 0, n);
                         in.close();
                         byte[] bytes = out.toByteArray();
-                        String result = sendToQbit(bytes, null, name);
+                        if (bytes.length == 0 || bytes[0] != 'd') throw new Exception("the site sent a web page, not a .torrent — are you signed in?");
+                        showNote("Sending to your home server…", 0);
+                        String result = sendToQbit(bytes, null, name, torrentIsEbook(bytes));
                         JSObject d = new JSObject();
                         d.put("type", "torrent");
                         d.put("name", name);
                         d.put("data", Base64.encodeToString(bytes, Base64.NO_WRAP));
                         d.put("sent", result.startsWith("OK"));
+                        d.put("message", result.startsWith("OK") ? result.substring(3) : result);
                         InkwellWebPlugin.captured(d);
-                        toast(result.startsWith("OK") ? result.substring(3) : result);
+                        report(result);
                     } catch (Exception e) {
-                        runOnUiThread(() -> Toast.makeText(this, "Couldn't download the .torrent: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                        report("Couldn't get the .torrent: " + e.getMessage());
                     }
                 }).start();
             });
@@ -217,6 +235,40 @@ public class InkwellWebActivity extends AppCompatActivity {
 
     private void toast(String text) {
         runOnUiThread(() -> Toast.makeText(this, text, Toast.LENGTH_LONG).show());
+    }
+
+    /** Show [text] in the strip; hide it after [ms] (0 = keep until replaced or tapped). */
+    private void showNote(String text, int ms) {
+        runOnUiThread(() -> {
+            ui.removeCallbacks(hideNote);
+            boolean bad = text.startsWith("Couldn't") || text.startsWith("qBittorrent") || text.startsWith("Set up");
+            note.setBackgroundColor(Color.parseColor(bad ? "#7f1d1d" : "#27233a"));
+            note.setText(text);
+            note.setVisibility(View.VISIBLE);
+            if (ms > 0) ui.postDelayed(hideNote, ms);
+        });
+    }
+
+    /** The outcome of a send: success fades after a while, a problem stays until tapped. */
+    private void report(String result) {
+        boolean ok = result.startsWith("OK");
+        String text = ok ? "✓ " + result.substring(3) : result;
+        showNote(text, ok ? 8000 : 0);
+        toast(text);
+    }
+
+    private static final java.util.regex.Pattern AUDIO = java.util.regex.Pattern.compile("\\.(m4b|m4a|mp3|flac|aac|ogg|opus|wma|aax)\\b");
+    private static final java.util.regex.Pattern EBOOK = java.util.regex.Pattern.compile("\\.(epub|pdf|mobi|azw3?|kfx|fb2|djvu|cbz|cbr)\\b|\\b(epub|ebook|e-book)\\b");
+
+    /** A torrent whose files are books to read (no audio files in it). */
+    static boolean torrentIsEbook(byte[] torrent) {
+        String t = new String(torrent, StandardCharsets.ISO_8859_1).toLowerCase(java.util.Locale.ROOT);
+        return !AUDIO.matcher(t).find() && EBOOK.matcher(t).find();
+    }
+
+    static boolean looksLikeEbook(String name) {
+        String t = name.toLowerCase(java.util.Locale.ROOT);
+        return !AUDIO.matcher(t).find() && !t.contains("audiobook") && EBOOK.matcher(t).find();
     }
 
     private static String enc(String v) {
@@ -231,7 +283,7 @@ public class InkwellWebActivity extends AppCompatActivity {
      * Send a .torrent (bytes) or a magnet to the user's qBittorrent Web UI, using
      * the settings the app passed in. Returns "OK <message>" or an error message.
      */
-    private String sendToQbit(byte[] torrent, String magnet, String name) {
+    private String sendToQbit(byte[] torrent, String magnet, String name, boolean ebook) {
         try {
             String raw = getIntent().getStringExtra("qbit");
             if (raw == null || raw.isEmpty()) return "Set up your home server in Kathava first";
@@ -284,7 +336,10 @@ public class InkwellWebActivity extends AppCompatActivity {
                 }
                 field.accept("urls", m);
             }
-            String save = q.optString("savePath");
+            // Ebooks go to their own folder when one is set, not the audiobook folder.
+            String ebookPath = q.optString("ebookPath").trim();
+            boolean toEbooks = ebook && !ebookPath.isEmpty();
+            String save = toEbooks ? ebookPath : q.optString("savePath");
             field.accept("savepath", save);
             if (!save.isEmpty()) field.accept("autoTMM", "false");
             field.accept("category", q.optString("category"));
@@ -316,7 +371,7 @@ public class InkwellWebActivity extends AppCompatActivity {
                     text = r.toString("UTF-8");
                 }
             } catch (Exception ignored) {}
-            String label = name != null && !name.isEmpty() ? name.replaceAll("(?i)\\.torrent$", "") : "it";
+            String label = (name != null && !name.isEmpty() ? name.replaceAll("(?i)\\.torrent$", "") : "it") + (toEbooks ? " (ebooks folder)" : "");
             if (code == 409) return "OK Already in qBittorrent — " + label;
             if (code == 401 || code == 403) return "qBittorrent refused the request (HTTP " + code + ") — check the API key or login in Kathava";
             if (code >= 400) return "qBittorrent: HTTP " + code;

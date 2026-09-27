@@ -15,6 +15,7 @@ import { UpdateCard } from '../components/update.jsx';
 import { nav } from '../lib/nav.js';
 import * as qb from '../sources/qbit.js';
 import { QbitListActions } from '../components/qbit-actions.jsx';
+import { TrackerCard } from './Tracker.jsx';
 import { pickTorrentFile } from '../lib/torrentfile.js';
 
 // Which sections are open; kept while the app runs so going back to Settings keeps them.
@@ -312,7 +313,7 @@ function Stepper({ label, value, options, onChange, fmt = (v) => v }) {
 function QbitCard() {
   const cfg = useStore(qb.qbit);
   const sent = useStore(qb.qbitSent);
-  const [form, setForm] = useState({ url: cfg.url, lanUrl: cfg.lanUrl || '', username: cfg.username, password: cfg.password, apiKey: cfg.apiKey || '', savePath: cfg.savePath, category: cfg.category });
+  const [form, setForm] = useState({ url: cfg.url, lanUrl: cfg.lanUrl || '', username: cfg.username, password: cfg.password, apiKey: cfg.apiKey || '', savePath: cfg.savePath, ebookPath: cfg.ebookPath || '', category: cfg.category });
   const [busy, setBusy] = useState('');
   const [list, setList] = useState(null);
   const [magnet, setMagnet] = useState('');
@@ -357,7 +358,7 @@ function QbitCard() {
         class="set-form"
         onSubmit={(e) => {
           e.preventDefault();
-          qb.qbit.set((c) => ({ ...c, ...form, url: form.url.trim(), lanUrl: form.lanUrl.trim(), apiKey: form.apiKey.trim(), savePath: form.savePath.trim(), version: '' }));
+          qb.qbit.set((c) => ({ ...c, ...form, url: form.url.trim(), lanUrl: form.lanUrl.trim(), apiKey: form.apiKey.trim(), savePath: form.savePath.trim(), ebookPath: form.ebookPath.trim(), version: '' }));
           run('test', qb.test);
         }}
       >
@@ -368,6 +369,8 @@ function QbitCard() {
         <input value={form.password} type="password" placeholder="Web UI password" autocomplete="current-password" onInput={set('password')} />
         <input value={form.apiKey} placeholder="Or API key (qBittorrent 5.2+, starts with qbt_)" autocapitalize="off" autocomplete="off" onInput={set('apiKey')} />
         <input value={form.savePath} placeholder="Save to (your Audiobookshelf folder, e.g. /audiobooks)" autocapitalize="off" onInput={set('savePath')} />
+        <input value={form.ebookPath} placeholder="Ebooks to (optional, e.g. /ebooks)" autocapitalize="off" onInput={set('ebookPath')} />
+        <small class="muted qbit-hint">Ebook torrents (EPUB, PDF, MOBI… and no audio files) go here instead of the audiobook folder. Leave empty to keep everything in one folder.</small>
         <input value={form.category} placeholder="Category (optional)" autocapitalize="off" onInput={set('category')} />
         <button class="btn primary" disabled={!!busy || !(form.url.trim() || form.lanUrl.trim())}>
           {busy === 'test' ? <span class="spinner small" /> : 'Save & test'}
@@ -983,6 +986,9 @@ export function Settings() {
       </Section>
       <Section icon="server" title="Home server (qBittorrent)">
         <QbitCard />
+      </Section>
+      <Section icon="external" title="Tracker">
+        <TrackerCard />
       </Section>
       <Section icon="download" title="TorBox">
         <DebridCard provider="torbox" label="TorBox" keyHint="torbox.app/settings" keyUrl="https://torbox.app/settings" />

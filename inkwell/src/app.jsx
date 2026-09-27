@@ -1,5 +1,4 @@
 import * as qbit from './sources/qbit.js';
-import { Tracker } from './screens/Tracker.jsx';
 import { useEffect, useState } from 'preact/hooks';
 import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -30,10 +29,9 @@ const TABS = [
   ['discover', 'Discover', 'search'],
   ['podcasts', 'Podcasts', 'mic'],
   ['library', 'Library', 'library'],
-  ['tracker', 'Tracker', 'download'],
   ['settings', 'Settings', 'settings'],
 ];
-const ROOTS = { home: Home, discover: Discover, podcasts: Podcasts, library: Library, tracker: Tracker, settings: Settings };
+const ROOTS = { home: Home, discover: Discover, podcasts: Podcasts, library: Library, tracker: Settings, settings: Settings }; // tracker: the old tab, now in Settings
 const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast };
 
 export function App() {

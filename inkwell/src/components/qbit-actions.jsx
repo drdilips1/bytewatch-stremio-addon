@@ -26,7 +26,7 @@ export function QbitListActions({ list, busy, run, refresh, setList }) {
           class="pill small ghost"
           disabled={!!busy}
           onClick={() => {
-            qb.clearList();
+            qb.clearList((list || []).map((t) => t.hash));
             setList([]);
             toast('List cleared');
           }}

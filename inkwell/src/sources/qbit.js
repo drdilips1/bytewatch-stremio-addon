@@ -8,7 +8,7 @@ import { requestText, requestFull, cleanUrl } from '../lib/http.js';
 import { readTorrent } from '../lib/torrentfile.js';
 import { infoHash, magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected, hasAudio, forget as forgetCloud } from './debrid.js';
 
-export const qbit = persisted('qbit', { url: '', lanUrl: '', username: '', password: '', apiKey: '', savePath: '', category: 'audiobooks', auto: false });
+export const qbit = persisted('qbit', { url: '', lanUrl: '', username: '', password: '', apiKey: '', savePath: '', ebookPath: '', category: 'audiobooks', auto: false });
 
 // qBittorrent 5.2+ API key (qbt_…): sent on every call, no login or cookie needed.
 const apiKey = () => String(qbit.get().apiKey || '').trim();
@@ -161,13 +161,31 @@ export function withTrackers(magnet) {
   return magnet + extra;
 }
 
+const AUDIO_NAME = /\b(m4b|m4a|mp3|flac|aac|opus|audiobook|audio ?book|unabridged|narrated)\b/i;
+const EBOOK_NAME = /\b(epub|pdf|mobi|azw3?|ebook|e-book)\b/i;
+/** A name/format that reads as an ebook (and not an audiobook). */
+export const isEbookName = (text) => EBOOK_NAME.test(text || '') && !AUDIO_NAME.test(text || '');
+/** A .torrent whose files are books to read: ebook files and no audio files. */
+function torrentIsEbook(bytes) {
+  let t = '';
+  for (let i = 0; i < bytes.length; i += 8192) t += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  t = t.toLowerCase();
+  return !/\.(m4b|m4a|mp3|flac|aac|ogg|opus|wma|aax)\b/.test(t) && /\.(epub|pdf|mobi|azw3?|kfx|fb2|djvu|cbz|cbr)\b/.test(t);
+}
+/** Where a download goes: ebooks to the ebooks folder when one is set, the rest to the audiobook folder. */
+function folderFor(ebook) {
+  const { savePath, ebookPath } = qbit.get();
+  return ebook && ebookPath ? ebookPath : savePath;
+}
+
 /** Add one cloud item (needs its info-hash) to qBittorrent. */
 export async function send(book) {
   if (!available) throw new Error('Sending to qBittorrent works in the Android app');
   if (!configured()) throw new Error('Set up qBittorrent first (Settings → Home server)');
   const hash = String(book.hash || '').toLowerCase();
   if (!hash) throw new Error('Only torrents can be sent (this item has no magnet)');
-  const { savePath, category } = qbit.get();
+  const { category } = qbit.get();
+  const savePath = folderFor(book.ebook ?? isEbookName(`${book.rawName || ''} ${book.title || ''} ${book.format || ''}`));
   const magnet = withTrackers(magnetFor(book.magnet, hash, book.rawName || book.title));
   const { body, contentType } = multipart({ urls: magnet, savepath: savePath, category, tags: 'kathava', autoTMM: savePath ? 'false' : undefined });
   if (!session && !apiKey()) await login();
@@ -237,7 +255,8 @@ export async function sendFile(file) {
   if (!file) throw new Error('No file chosen');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const { name, hash } = await readTorrent(bytes);
-  const { savePath, category } = qbit.get();
+  const { category } = qbit.get();
+  const savePath = folderFor(torrentIsEbook(bytes));
   const form = new FormData();
   form.append('torrents', new Blob([bytes], { type: 'application/x-bittorrent' }), file.name || 'book.torrent');
   if (savePath) {
@@ -292,12 +311,20 @@ export async function unsent() {
 // What the list shows: sent after the last "Clear list", and not removed.
 const listed = () => {
   const { items, clearedAt = 0 } = qbitSent.get();
-  return Object.keys(items).filter((h) => (items[h]?.at || 0) > clearedAt && !items[h]?.removed);
+  return Object.keys(items).filter((h) => (items[h]?.at || 0) > clearedAt && !items[h]?.removed && !items[h]?.hidden);
 };
 
-/** Hide everything sent so far from the list (it's still remembered, so nothing is sent twice). */
-export function clearList() {
-  qbitSent.set((s) => ({ ...s, clearedAt: Date.now() }));
+/**
+ * Hide everything sent so far from the list (it's still remembered, so nothing is sent twice).
+ * [shown] = hashes on screen right now; each one is marked hidden, so it stays gone
+ * whatever its timestamp says.
+ */
+export function clearList(shown = []) {
+  qbitSent.set((s) => {
+    const items = { ...s.items };
+    for (const h of [...Object.keys(items), ...shown.map((x) => String(x).toLowerCase())]) items[h] = { ...(items[h] || { title: '' }), hidden: true };
+    return { ...s, items, clearedAt: Date.now() };
+  });
 }
 
 /** Broken downloads: qBittorrent can't find their files, or reports an error. */
@@ -325,7 +352,9 @@ export async function status() {
   const hashes = listed();
   if (!hashes.length) return [];
   const text = await api('torrents/info?' + new URLSearchParams({ hashes: hashes.slice(-50).join('|') }));
-  const list = JSON.parse(text || '[]');
+  // Only what we sent (and haven't cleared): qBittorrent can answer with every torrent it has.
+  const want = new Set(hashes);
+  const list = JSON.parse(text || '[]').filter((t) => want.has(String(t.hash || '').toLowerCase()));
   return list
     .map((t) => ({ hash: t.hash, name: t.name, progress: t.progress, state: t.state, eta: t.eta, speed: t.dlspeed, savePath: t.save_path }))
     .sort((a, b) => (qbitSent.get().items[b.hash]?.at || 0) - (qbitSent.get().items[a.hash]?.at || 0));
@@ -396,7 +425,6 @@ export function autoForward({ force = false } = {}) {
   return running;
 }
 
-const EBOOK_NAME = /\b(epub|pdf|mobi|azw3?|ebook)\b/i;
 
 /**
  * You added a result to TorBox / Real-Debrid in the app: with auto-send on, send
@@ -434,9 +462,9 @@ export function autoForwardSoon() {
 export const tracker = persisted('tracker', { url: '', search: '' });
 
 /** Your tracker's search page for [query], if you've set its search address ({q} = the words). */
-export function trackerSearchUrl(query, filtered = false) {
-  const { url, search, search2 } = tracker.get();
-  const tpl = String((filtered ? search2 : search) || '').trim();
+export function trackerSearchUrl(query, filtered = false, ebook = false) {
+  const { url, search, search2, search3 } = tracker.get();
+  const tpl = String((filtered ? (ebook && search3) || search2 : search) || '').trim();
   if (tpl.includes('{q}')) return tpl.replace('{q}', encodeURIComponent(query));
   return String(url || '').trim();
 }
@@ -450,15 +478,18 @@ const Web = registerPlugin('InkwellWeb');
 const canBrowse = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
 
 /** Open the tracker site in the in-app browser; its .torrent downloads and magnets come here. */
-export async function openTracker(query = '', filtered = false) {
-  const url = query ? trackerSearchUrl(query, filtered) : String(tracker.get().url || '').trim();
+export async function openTracker(query = '', filtered = false, ebook = false) {
+  const url = query ? trackerSearchUrl(query, filtered, ebook) : String(tracker.get().url || '').trim();
   if (!url) throw new Error('Add your tracker site address first');
   if (!canBrowse) return window.open(url, '_blank');
   // The browser screen sends captured downloads itself (the app is paused behind it).
   const c = qbit.get();
-  const qb = JSON.stringify({ url: await pickAddress(true), apiKey: c.apiKey || '', username: c.username || '', password: c.password || '', savePath: c.savePath || '', category: c.category || '', trackers: TRACKERS });
+  const qb = JSON.stringify({ url: await pickAddress(true), apiKey: c.apiKey || '', username: c.username || '', password: c.password || '', savePath: c.savePath || '', ebookPath: c.ebookPath || '', category: c.category || '', trackers: TRACKERS });
   return Web.open({ url: /^https?:\/\//i.test(url) ? url : 'https://' + url, title: '', capture: true, qbit: qb });
 }
+
+/** What happened to the last download tapped in the tracker browser. */
+export const lastCapture = persisted('qbitLastCapture', { at: 0, ok: true, text: '' });
 
 const nativeToast = (text) => (canBrowse ? Web.toast({ text }).catch(() => {}) : Promise.resolve());
 
@@ -466,6 +497,7 @@ const nativeToast = (text) => (canBrowse ? Web.toast({ text }).catch(() => {}) :
 // qBittorrent; here we only note them so they show under "Downloads at home".
 if (canBrowse) {
   Web.addListener('captured', async (e) => {
+    lastCapture.set({ at: Date.now(), ok: !!e.sent, text: e.message || (e.sent ? 'Sent to qBittorrent' : "Didn't reach qBittorrent") });
     if (!e.sent) return;
     try {
       let hash = '';

@@ -72,7 +72,7 @@ function mergeSent(local, remote) {
   const items = { ...(remote?.items || {}) };
   for (const [h, v] of Object.entries(local?.items || {})) {
     const r = items[h];
-    items[h] = !r ? v : { ...r, ...v, at: Math.max(v?.at || 0, r?.at || 0), removed: !!(v?.removed || r?.removed) || undefined };
+    items[h] = !r ? v : { ...r, ...v, at: Math.max(v?.at || 0, r?.at || 0), removed: !!(v?.removed || r?.removed) || undefined, hidden: !!(v?.hidden || r?.hidden) || undefined };
   }
   return { ...remote, ...local, items, clearedAt: Math.max(local?.clearedAt || 0, remote?.clearedAt || 0) };
 }
