@@ -340,7 +340,11 @@ class PlayerActivity : Activity() {
                     toast("Phone voices already work offline. Offline download is for ★ and ◆ voices.")
                 else -> {
                     askNotificationPermission()
-                    OfflineDownloader.start(this, doc, Speaker.plan(doc), Speaker.renderSpeed)
+                    val sp = Speaker.renderSpeed
+                    scope.launch {
+                        val plan = withContext(Dispatchers.Default) { Speaker.plan(doc) }
+                        OfflineDownloader.start(this@PlayerActivity, doc, plan, sp)
+                    }
                 }
             }
         }
@@ -638,9 +642,10 @@ class PlayerActivity : Activity() {
         if (offlineFor == key && !OfflineDownloader.running) return
         offlineFor = key
         val sp = Speaker.renderSpeed
-        val plan = Speaker.plan(doc)
         scope.launch {
-            offlinePercent = withContext(Dispatchers.IO) { OfflineDownloader.percentCached(this@PlayerActivity, doc, plan, sp) }
+            offlinePercent = withContext(Dispatchers.Default) {
+                OfflineDownloader.percentCached(this@PlayerActivity, doc, Speaker.plan(doc), sp)
+            }
             render()
         }
     }

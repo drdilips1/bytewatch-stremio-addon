@@ -363,7 +363,6 @@ object Speaker {
         doc = newDoc
         index = prefs.getInt("pos:${newDoc.key}", 0).coerceIn(0, maxOf(0, newDoc.paragraphs.size - 1))
         pieceIndex = prefs.getInt("pc:${newDoc.key}", 0).coerceAtLeast(0)
-        scriptSpeakers = Cast.scriptSpeakers(newDoc)
         currentPiece = null
         if (newDoc.lang == null) {
             // Language matters for Supertonic and for suggesting a fitting voice.
@@ -532,9 +531,15 @@ object Speaker {
         restartAudio()
     }
 
+    // Cast state is also read by offline download and saving, off the main thread.
+    @Volatile
     private var castFor: String? = null
-    private val castVoices = HashMap<String, String>()
-    private var scriptSpeakers: List<String> = emptyList()
+    private val castVoices = java.util.concurrent.ConcurrentHashMap<String, String>()
+    /** Speakers of each script/transcript document (by document object: chapter files are separate documents). */
+    private val speakersByDoc = java.util.Collections.synchronizedMap(java.util.WeakHashMap<Doc, List<String>>())
+
+    private fun speakersOf(d: Doc): List<String> = speakersByDoc.getOrPut(d) { Cast.scriptSpeakers(d) }
+    @Volatile
     private var castText = ""
 
     /** Voices for extra speakers, in the same family as [main] (online, cloned, Supertonic or Kokoro). */
@@ -561,6 +566,7 @@ object Speaker {
     }
 
     /** The voice for [speaker]: the first script speaker is the main voice; others get distinct voices. */
+    @Synchronized
     private fun castVoice(d: Doc, speaker: String): String {
         if (castFor != d.key + voiceId) {
             castFor = d.key + voiceId
@@ -570,6 +576,7 @@ object Speaker {
         castVoices[speaker]?.let { return it }
         val main = voiceId
         val used = castVoices.values.toSet() + main
+        val scriptSpeakers = speakersOf(d)
         val voice = if (scriptSpeakers.isNotEmpty() && speaker == scriptSpeakers.first()) main else {
             if (scriptSpeakers.isNotEmpty() && speaker == scriptSpeakers.getOrNull(1) && dialogueVoice != null) {
                 dialogueVoice!!
@@ -591,7 +598,8 @@ object Speaker {
     /** The pieces of paragraph [k], each with its voice. */
     private fun piecesOf(d: Doc, k: Int, vid: String): List<Piece> {
         val para = d.paragraphs[k]
-        val script = scriptSpeakers.takeIf { it.isNotEmpty() }?.let { Cast.scriptLine(para) }?.takeIf { it.first in scriptSpeakers }
+        val speakers = speakersOf(d)
+        val script = speakers.takeIf { it.isNotEmpty() }?.let { Cast.scriptLine(para) }?.takeIf { it.first in speakers }
         val segments: List<Pair<String, String>> = when {
             !isStreamed -> listOf(para to vid)
             // "Host: …": the label isn't read; the speaker's voice reads the rest.
@@ -614,7 +622,6 @@ object Speaker {
 
     private fun pieceSequence(d: Doc, fromParagraph: Int, fromPiece: Int, vid: String) = sequence {
         val skip = skipped(d)
-        scriptSpeakers = Cast.scriptSpeakers(d)
         for (k in fromParagraph until d.paragraphs.size) {
             if (isSkipped(d, k, skip)) continue
             val ps = piecesOf(d, k, vid)

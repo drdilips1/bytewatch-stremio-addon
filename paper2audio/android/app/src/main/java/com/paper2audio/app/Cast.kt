@@ -53,11 +53,13 @@ object Cast {
             }
             val after = parts.getOrNull(i + 1)?.takeIf { !it.first }?.second.orEmpty()
             val before = parts.getOrNull(i - 1)?.takeIf { !it.first }?.second.orEmpty()
+            // The previous named speaker: "he said" right after them is usually the other person.
+            val previous = out.lastOrNull { it.speaker != null && it.speaker != "?" && it.speaker != "he" && it.speaker != "she" }?.speaker
             val speaker = AFTER_NAME.find(after)?.groupValues?.get(1)?.takeIf { it !in NOT_NAMES }
                 ?: AFTER_NAME_FIRST.find(after)?.groupValues?.get(1)?.takeIf { it !in NOT_NAMES }
-                ?: AFTER_PRONOUN.find(after)?.groupValues?.get(1)?.lowercase()?.let { lastName(parts, i) ?: it }
+                ?: AFTER_PRONOUN.find(after)?.groupValues?.get(1)?.lowercase()?.let { lastName(parts, i, previous) ?: it }
                 ?: BEFORE_NAME.find(before)?.groupValues?.get(1)?.takeIf { it !in NOT_NAMES }
-                ?: BEFORE_PRONOUN.find(before)?.groupValues?.get(1)?.lowercase()?.let { lastName(parts, i) ?: it }
+                ?: BEFORE_PRONOUN.find(before)?.groupValues?.get(1)?.lowercase()?.let { lastName(parts, i, previous) ?: it }
                 ?: "?"
             out += Segment(text, speaker)
         }
@@ -75,10 +77,10 @@ object Cast {
     private val NAME = Regex("""\b([A-Z][a-z]{1,15})\b""")
 
     /** The last character named in the narration before quote [i] ("Tom looked up. “No,” he said" -> Tom). */
-    private fun lastName(parts: List<Pair<Boolean, String>>, i: Int): String? {
+    private fun lastName(parts: List<Pair<Boolean, String>>, i: Int, exclude: String?): String? {
         for (k in i - 1 downTo 0) {
             if (parts[k].first) continue
-            val names = NAME.findAll(parts[k].second).map { it.value }.filter { it !in NOT_NAMES }.toList()
+            val names = NAME.findAll(parts[k].second).map { it.value }.filter { it !in NOT_NAMES && it != exclude }.toList()
             if (names.isNotEmpty()) return names.last()
         }
         return null

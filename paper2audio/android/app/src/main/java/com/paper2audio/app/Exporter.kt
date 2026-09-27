@@ -162,7 +162,7 @@ object Exporter {
         if (!Renderer.isStreamed(voiceId)) return export(app, doc, voiceId.removePrefix(Speaker.SYSTEM), speed)
         if (LocalTts.isLocal(voiceId) && doc.lang == null) doc.lang = Langs.of(doc)
         // The same pieces and voices as listening, so downloaded audio is reused (instant).
-        val plan = withContext(Dispatchers.Main) { Speaker.plan(doc) }
+        val plan = Speaker.plan(doc)
         return exportPieces(app, doc, plan, speed, mp3 = voiceId.startsWith(Speaker.EDGE))
     }
 
