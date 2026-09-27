@@ -32,6 +32,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const [pending, setPending] = useState(false);
   const [account, setAccount] = useState(new Map());
   const [showDead, setShowDead] = useState(false);
+  const [showLoose, setShowLoose] = useState(false);
   const refreshAccount = () => cloud.accountStatus().then(setAccount).catch(() => {});
   const count = sourceAddons().length;
   const provider = cloud.preferredProvider(st.debridPreferred);
@@ -61,11 +62,14 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
   const trackerFilter = trackerSite ? qb.trackerFilterLabel() : '';
   const entries = Object.entries(groups);
-  const total = entries.reduce((a, [, g]) => a + g.results.length, 0);
+  const total = entries.reduce((a, [, g]) => a + g.results.filter((r) => !r.loose).length, 0);
   // Results nobody is seeding can't be downloaded unless the service already has them.
   // Audiobook sources (torrents your debrid / home server can fetch) first; plain
   // download links (e.g. ebook sites) after. Order within each kind is kept.
-  const all = entries.flatMap(([, g]) => g.results).sort((a, b) => Number(!(a.magnet || a.hash)) - Number(!(b.magnet || b.hash)));
+  // Results that may be a different book (see sameBook in sourceaddons.js) wait behind a button.
+  const everything = entries.flatMap(([, g]) => g.results);
+  const looseCount = everything.filter((r) => r.loose).length;
+  const all = everything.filter((r) => showLoose || !r.loose).sort((a, b) => Number(!(a.magnet || a.hash)) - Number(!(b.magnet || b.hash)));
   const alive = (r) => r.seeders > 0 || !(r.magnet || r.hash) || r.cache?.any || account.has(r.hash);
   const visible = showDead ? all : all.filter(alive);
   const hiddenDead = all.length - all.filter(alive).length;
@@ -88,7 +92,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           <Icon name="link" size={16} /> Connect TorBox or Real-Debrid to play these
         </button>
       )}
-      {pending && !total && (
+      {pending && !total && !looseCount && (
         <p class="muted pad-s">
           <span class="spinner small" /> Searching {sourceAddons().map((a) => a.manifest.name).join(', ')}…
         </p>
@@ -100,7 +104,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           </p>
         ) : null
       )}
-      {!pending && !total && entries.length > 0 && <p class="muted pad-s">No source results.</p>}
+      {!pending && !total && entries.length > 0 && <p class="muted pad-s">{looseCount ? 'No results that are clearly this book.' : 'No source results.'}</p>}
       <div class="src-list">
         {shownGroups.map((g) =>
           g.items.length === 1 || g.key.startsWith('h:') ? (
@@ -110,6 +114,11 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           )
         )}
       </div>
+      {looseCount > 0 && (
+        <button class="btn ghost-wide" onClick={() => setShowLoose(!showLoose)}>
+          {showLoose ? 'Hide' : 'Show'} {looseCount} loose match{looseCount === 1 ? '' : 'es'} (may be other books)
+        </button>
+      )}
       {hiddenDead > 0 && (
         <button class="btn ghost-wide" onClick={() => setShowDead(!showDead)}>
           {showDead ? 'Hide' : 'Show'} {hiddenDead} result{hiddenDead === 1 ? '' : 's'} with no seeders

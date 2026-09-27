@@ -173,33 +173,50 @@ async function runOnce(addon, { title = '', author = '', query = '' }) {
   return results;
 }
 
-// First and last names of the book's author(s): "Vivek H. Murthy, Jane Doe" -> vivek, murthy, jane, doe
-// (initials and titles like "Dr" / "PhD" left out). Either name is enough for a match.
+// The book's author(s) as first and last names: "Vivek H. Murthy, Jane Doe" ->
+// { last: [murthy, doe], first: [vivek, jane] } (initials and "Dr" / "PhD" left out).
 const NOT_NAMES = new Set(['phd', 'md', 'mrs', 'jr', 'sr', 'prof', 'dr']);
-const surnames = (author) =>
-  String(author)
-    .split(/,|&|\band\b|;/)
-    .flatMap((a) => {
-      const w = words(a).filter((x) => x.length >= 3 && !NOT_NAMES.has(x));
-      return w.length ? [w[0], w[w.length - 1]] : [];
-    })
-    .filter((w, i, all) => all.indexOf(w) === i);
+function names(author) {
+  const last = [];
+  const first = [];
+  for (const a of String(author).split(/,|&|\band\b|;/)) {
+    const w = words(a).filter((x) => x.length >= 3 && !NOT_NAMES.has(x));
+    if (!w.length) continue;
+    last.push(w[w.length - 1]);
+    if (w.length > 1) first.push(w[0]);
+  }
+  return { last, first };
+}
+
+// Release details that say nothing about which book it is.
+const NOISE = /^(\d+|\d+kbps|kbps|mp3|m4b|m4a|aac|flac|opus|epub|pdf|mobi|azw3|audiobook|audio|book|ebook|unabridged|abridged|retail|vbr|cbr|read|narrated|english|eng|web|dl|rip|cd|part|pt|vol|volume|edition|complete|series|full|cast)$/;
 
 /**
- * Results that are really this book: every word of the title must be there, and the author's
- * first or last name too — except for long, distinctive titles, which match on their own when close enough.
- * ("Together" by Vivek Murthy no longer brings up "Blake's 7 Together Again".)
+ * How surely a result is this book (from a book page, where title and author are known):
+ * - title + the author's last name: yes
+ * - title + only the first name: yes if the rest of the name is just release details
+ *   ("Together (Vivek) MP3"), not other words ("Together Again – Vivek's Show")
+ * - a long title (3+ words) with every word present: yes, even without the author
+ * Anything else is marked loose: hidden behind "Show loose matches", never lost.
  */
 function sameBook(list, title, author) {
   const t = mainTitle(title);
-  const names = surnames(author);
-  const long = words(t).length >= 3;
-  return list.filter((r) => {
+  const tw = new Set(words(t));
+  const { last, first } = names(author);
+  const long = tw.size >= 3;
+  return list.map((r) => {
     const text = `${r.title} ${r.author || ''} ${r.narrator || ''}`;
-    if (!matches(t, text)) return false;
-    const hay = new Set(words(text));
-    if (names.some((n) => hay.has(n))) return true;
-    return long && r.score >= 0.6;
+    let ok = false;
+    if (matches(t, text)) {
+      const hay = new Set(words(text));
+      if (last.some((n) => hay.has(n))) ok = true;
+      else if (long && r.score >= 0.6) ok = true;
+      else if (first.some((n) => hay.has(n))) {
+        const rest = words(r.title).filter((w) => !tw.has(w) && !first.includes(w) && !NOISE.test(w));
+        ok = rest.length <= 1;
+      }
+    }
+    return ok ? r : { ...r, loose: true };
   });
 }
 
