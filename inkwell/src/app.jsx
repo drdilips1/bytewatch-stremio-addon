@@ -57,7 +57,9 @@ export function App() {
     const t = setTimeout(go, 4000);
     const onResume = () => document.visibilityState === 'visible' && go();
     document.addEventListener('visibilitychange', onResume);
-    return () => (clearTimeout(t), document.removeEventListener('visibilitychange', onResume));
+    // Also every 5 minutes while the app is open (auto-send runs at most every 3).
+    const iv = setInterval(() => document.visibilityState === 'visible' && go(), 5 * 60e3);
+    return () => (clearTimeout(t), clearInterval(iv), document.removeEventListener('visibilitychange', onResume));
   }, []);
   useEffect(() => {
     applyTheme(st);

@@ -140,6 +140,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
     setStatus({ text: `Adding to ${LABEL[p]}…`, pct: null });
     try {
       toast(await cloud.addMagnetOnly(p, r));
+      qb.autoForwardSoon(); // auto-send to the home server, if that's on
       cloud.forget();
       setTimeout(onChanged, 1500);
     } catch (e) {
@@ -157,6 +158,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
     setStatus({ text: readyOn(via) ? `Getting it from your ${LABEL[via]}…` : 'Contacting ' + LABEL[via] + '…', pct: null });
     try {
       const stub = await cloud.prepareMagnet(via, r, (text, pct) => setStatus({ text, pct }));
+      qb.autoForwardSoon();
       setStatus({ text: 'Opening the player…', pct: 1 });
       const details = await getDetails({
         ...stub,
@@ -194,6 +196,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
     setStatus({ text: `Getting links from ${LABEL[via]}…`, pct: null });
     try {
       const res = await cloud.downloadLinks(via, r, (text, pct) => setStatus({ text, pct }));
+      qb.autoForwardSoon();
       if (!res.files.length) throw new Error(`${LABEL[via]} lists no files for this one`);
       const files = res.files.map((f) => ({ ...f }));
       setLinks({ ...res, files });

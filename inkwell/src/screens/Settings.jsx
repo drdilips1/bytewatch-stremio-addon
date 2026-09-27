@@ -370,6 +370,7 @@ function QbitCard() {
             </div>
             <input type="checkbox" class="switch" checked={cfg.auto} onChange={(e) => qb.qbit.set((c) => ({ ...c, auto: e.currentTarget.checked, autoSince: e.currentTarget.checked ? Date.now() : c.autoSince }))} />
           </label>
+          {cfg.auto && <AutoSendStatus />}
           <form
             class="set-form inline"
             onSubmit={async (e) => {
@@ -615,6 +616,7 @@ function DebridCard({ provider, label, keyHint, keyUrl }) {
             setBusy(true);
             try {
               toast(await cloud.addTorrentFile(provider, file));
+              qb.autoForwardSoon();
               cloud.forget();
             } catch (err) {
               toast(err.message);
@@ -626,6 +628,7 @@ function DebridCard({ provider, label, keyHint, keyUrl }) {
           setBusy(true);
           try {
             toast(await cloud.addLink(provider, link));
+            qb.autoForwardSoon();
             cloud.forget();
             setLink('');
           } catch (err) {
@@ -1107,3 +1110,32 @@ export function Settings() {
   );
 }
 
+
+/** Last auto-send check, so you can see it's working (or why it isn't). */
+function AutoSendStatus() {
+  const a = useStore(qb.autoLast);
+  const [busy, setBusy] = useState(false);
+  const when = a.at ? new Date(a.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  return (
+    <div class="auto-status">
+      <small class={a.error ? 'err' : 'muted'}>
+        {!a.at ? 'Not checked yet — happens when the app opens.' : a.error ? `Last check ${when}: couldn't send — ${a.error}` : `Last check ${when}: ${a.sent ? `sent ${a.sent}` : 'nothing new'}.`}
+      </small>
+      <button
+        class="pill small ghost"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const m = await qb.autoForward({ force: true });
+            toast(m || (qb.autoLast.get().error ? `Couldn't send: ${qb.autoLast.get().error}` : 'Nothing new to send'));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? <span class="spinner small" /> : 'Check now'}
+      </button>
+    </div>
+  );
+}

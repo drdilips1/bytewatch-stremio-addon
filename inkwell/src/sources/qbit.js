@@ -6,7 +6,7 @@ import { Capacitor, CapacitorCookies, registerPlugin } from '@capacitor/core';
 import { persisted } from '../lib/store.js';
 import { requestText, requestFull, cleanUrl } from '../lib/http.js';
 import { readTorrent } from '../lib/torrentfile.js';
-import { infoHash, magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected, hasAudio } from './debrid.js';
+import { infoHash, magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected, hasAudio, forget as forgetCloud } from './debrid.js';
 
 export const qbit = persisted('qbit', { url: '', lanUrl: '', username: '', password: '', apiKey: '', savePath: '', category: 'audiobooks', auto: false });
 
@@ -171,7 +171,7 @@ export async function send(book) {
   const magnet = withTrackers(magnetFor(book.magnet, hash, book.rawName || book.title));
   const { body, contentType } = multipart({ urls: magnet, savepath: savePath, category, tags: 'kathava', autoTMM: savePath ? 'false' : undefined });
   if (!session && !apiKey()) await login();
-  const remember = () => qbitSent.set((s) => ({ items: { ...s.items, [hash]: { title: book.title, author: book.author || '', at: Date.now() } } }));
+  const remember = () => qbitSent.set((s) => ({ ...s, items: { ...s.items, [hash]: { title: book.title, author: book.author || '', at: Date.now() } } }));
   let text = '';
   try {
     text = await api('torrents/add', { method: 'POST', body, contentType });
@@ -257,7 +257,7 @@ export async function sendFile(file) {
     await login();
     r = await post();
   }
-  const remember = () => hash && qbitSent.set((s) => ({ items: { ...s.items, [hash]: { title: name || file.name, author: '', at: Date.now() } } }));
+  const remember = () => hash && qbitSent.set((s) => ({ ...s, items: { ...s.items, [hash]: { title: name || file.name, author: '', at: Date.now() } } }));
   let refused = r.status === 409 || /^\s*fails\.?\s*$/i.test(r.text);
   try {
     const j = JSON.parse(r.text);
@@ -284,7 +284,8 @@ export const wasSent = (hash) => !!known(hash) && !known(hash).skipped;
 export async function unsent() {
   const lists = await Promise.all([tbConnected() ? torboxLibrary().catch(() => []) : [], rdConnected() ? realdebridLibrary().catch(() => []) : []]);
   const seen = new Set();
-  return lists.flat().filter((b) => b.hash && !b.fetching && !known(b.hash) && !seen.has(b.hash) && seen.add(b.hash));
+  // Items the debrid service is still fetching count: qBittorrent downloads the torrent itself.
+  return lists.flat().filter((b) => b.hash && !known(b.hash) && !seen.has(b.hash) && seen.add(b.hash));
 }
 
 
@@ -352,31 +353,57 @@ export async function fixStuck() {
   return `Added trackers to ${list.length} torrent${list.length === 1 ? '' : 's'}${broken.length ? ` · re-checking ${broken.length} with errors` : ''}`;
 }
 
-// Auto-send: when the app opens (at most every 15 minutes), forward new cloud audiobooks.
+// Auto-send: forward new cloud audiobooks to qBittorrent. Runs when the app opens or
+// comes back, every few minutes while it's open, and right after you add something
+// to TorBox / Real-Debrid in the app. A failed attempt is retried at the next chance.
+export const autoLast = persisted('qbitAutoLast', { at: 0, sent: 0, error: '' });
 let lastAuto = 0;
-export async function autoForward() {
+let running = null;
+const friendly = (m) =>
+  /failed to fetch|network|timed? ?out|connect|unreachable/i.test(m) ? "couldn't reach qBittorrent — is Tailscale on, or are you on home Wi-Fi? Retrying when you come back to the app" : m;
+
+export function autoForward({ force = false } = {}) {
   const cfg = qbit.get();
-  if (!available || !cfg.url || !cfg.auto || Date.now() - lastAuto < 15 * 60e3) return '';
-  lastAuto = Date.now();
-  try {
-    // Only items added to your cloud after auto-send was switched on.
-    const fresh = (await unsent()).filter((b) => (b.addedAt || 0) >= (cfg.autoSince || 0));
-    // Audiobooks only: ebooks in the cloud stay there.
-    const list = [];
-    for (const b of fresh) {
-      const audio = await hasAudio(b).catch(() => null);
-      if (audio) list.push(b);
-      // Remember ebooks as handled (hidden from the list) so they aren't checked again.
-      else if (audio === false) qbitSent.set((st) => ({ ...st, items: { ...st.items, [b.hash]: { title: b.title, at: Date.now(), removed: true, skipped: 'ebook' } } }));
+  if (!available || !configured() || !cfg.auto) return Promise.resolve('');
+  if (running) return running;
+  if (!force && Date.now() - lastAuto < 3 * 60e3) return Promise.resolve('');
+  running = (async () => {
+    try {
+      // Only items added to your cloud after auto-send was switched on. Items still
+      // downloading on the debrid service count too: qBittorrent fetches the torrent itself.
+      const fresh = (await unsent()).filter((b) => (b.addedAt || 0) >= (cfg.autoSince || 0));
+      // Audiobooks only: ebooks in the cloud stay there.
+      const list = [];
+      for (const b of fresh) {
+        const audio = await hasAudio(b).catch(() => null);
+        if (audio) list.push(b);
+        // Remember ebooks as handled (hidden from the list) so they aren't checked again.
+        else if (audio === false) qbitSent.set((st) => ({ ...st, items: { ...st.items, [b.hash]: { title: b.title, at: Date.now(), removed: true, skipped: 'ebook' } } }));
+      }
+      let ok = 0;
+      let err = '';
+      for (const b of list) await send(b).then(() => ok++, (e) => (err = e.message || String(e)));
+      if (ok === list.length) lastAuto = Date.now(); // a failed send is retried at the next chance
+      autoLast.set({ at: Date.now(), sent: ok, error: ok < list.length ? friendly(err) : '' });
+      return ok ? `Sent ${ok} new audiobook${ok === 1 ? '' : 's'} to qBittorrent` : '';
+    } catch (e) {
+      autoLast.set({ at: Date.now(), sent: 0, error: friendly(e.message || String(e)) });
+      return ''; // not counted: tried again when the app comes back
+    } finally {
+      running = null;
     }
-    if (!list.length) return '';
-    await login();
-    let ok = 0;
-    for (const b of list) await send(b).then(() => ok++, () => {});
-    return ok ? `Sent ${ok} new audiobook${ok === 1 ? '' : 's'} to qBittorrent` : '';
-  } catch {
-    return '';
-  }
+  })();
+  return running;
+}
+
+/** After adding something to TorBox / Real-Debrid in the app: forward it once it shows up there. */
+export function autoForwardSoon() {
+  if (!available || !qbit.get().auto) return;
+  for (const ms of [8000, 30000, 90000])
+    setTimeout(() => {
+      forgetCloud(); // fresh TorBox / Real-Debrid lists, so the new item is seen
+      autoForward({ force: true }).catch(() => {});
+    }, ms);
 }
 
 // ---- Tracker tab: a site you sign in to, whose downloads go to qBittorrent ----
@@ -415,7 +442,7 @@ if (canBrowse) {
         hash = info.hash;
         title = info.name || title;
       }
-      if (hash) qbitSent.set((s) => ({ items: { ...s.items, [hash]: { title: title.replace(/\.torrent$/i, ''), author: '', at: Date.now() } } }));
+      if (hash) qbitSent.set((s) => ({ ...s, items: { ...s.items, [hash]: { title: title.replace(/\.torrent$/i, ''), author: '', at: Date.now() } } }));
     } catch {}
   });
 }

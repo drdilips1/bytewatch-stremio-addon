@@ -4450,3 +4450,14 @@ textarea {
 .book-card.broken {
   opacity: 0.6;
 }
+.auto-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  margin: -4px 0 8px;
+}
+.auto-status small {
+  flex: 1;
+  line-height: 1.35;
+}
