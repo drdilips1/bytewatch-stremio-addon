@@ -272,7 +272,7 @@ object Ai {
             chapters += Chapter("Figures and tables explained", paragraphs.size)
             paragraphs += rest.flatMap { TextCleaner.splitLong(it) }
         }
-        return Doc(doc.title, paragraphs, chapters, doc.key, doc.author, doc.cover, doc.pages)
+        return Doc(doc.title, paragraphs, chapters, doc.key, doc.author, doc.cover, doc.pages, doc.figures).also { it.lang = doc.lang }
     }
 
     private fun reference(label: String): Regex? {

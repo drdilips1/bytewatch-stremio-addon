@@ -579,6 +579,17 @@
         android:paddingEnd="14dp"
         android:paddingBottom="10dp">
 
+        <Button
+            android:id="@+id/btnFigure"
+            style="@style/P2A.Button.Soft"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="6dp"
+            android:minHeight="36dp"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
         <SeekBar
             android:id="@+id/posBar"
             android:layout_width="match_parent"

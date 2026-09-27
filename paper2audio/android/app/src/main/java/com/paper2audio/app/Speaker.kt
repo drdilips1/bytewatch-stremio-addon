@@ -149,6 +149,31 @@ object Speaker {
         }
     }
 
+    // ---- Sections: skipping and finished ----
+
+    /** Titles of the chapters the listener chose to skip in the current document. */
+    fun skipped(d: Doc? = doc): Set<String> =
+        d?.let { prefs.getStringSet("skip:${it.key}", emptySet()) }.orEmpty()
+
+    fun setSkipped(titles: Set<String>) {
+        val d = doc ?: return
+        prefs.edit().putStringSet("skip:${d.key}", titles).apply()
+        restartAudio()
+    }
+
+    /** Chapters listened to the end (audiobook progress). */
+    fun finished(d: Doc? = doc): Set<String> =
+        d?.let { prefs.getStringSet("done:${it.key}", emptySet()) }.orEmpty()
+
+    private fun markFinished(d: Doc, chapter: Chapter?) {
+        chapter ?: return
+        val done = finished(d)
+        if (chapter.title !in done) prefs.edit().putStringSet("done:${d.key}", done + chapter.title).apply()
+    }
+
+    private fun isSkipped(d: Doc, paragraph: Int, skip: Set<String>): Boolean =
+        skip.isNotEmpty() && d.chapterAt(paragraph)?.title in skip
+
     /** Why the current voice can't play yet (a model to download), or null. */
     fun missingPack(): ModelPack? = LocalTts.missing(voiceId)
 
@@ -453,9 +478,14 @@ object Speaker {
     private fun enqueueSystem() {
         val d = doc ?: return
         val t = tts ?: return
-        val last = minOf(index + LOOKAHEAD, d.paragraphs.size - 1)
+        val skip = skipped(d)
+        var last = minOf(index + LOOKAHEAD, d.paragraphs.size - 1)
         while (queuedUpTo < last) {
             queuedUpTo++
+            if (isSkipped(d, queuedUpTo, skip)) {
+                last = minOf(last + 1, d.paragraphs.size - 1)
+                continue
+            }
             t.speak(Speech.normalize(d.paragraphs[queuedUpTo], medical), TextToSpeech.QUEUE_ADD, Bundle(), "$generation:$queuedUpTo")
         }
     }
@@ -491,7 +521,9 @@ object Speaker {
     private class Piece(val paragraph: Int, val index: Int, val text: String, val lastInParagraph: Boolean)
 
     private fun pieceSequence(d: Doc, fromParagraph: Int, fromPiece: Int, vid: String) = sequence {
+        val skip = skipped(d)
         for (k in fromParagraph until d.paragraphs.size) {
+            if (isSkipped(d, k, skip)) continue
             val ps = Renderer.pieces(d.paragraphs[k], vid)
             val first = if (k == fromParagraph) fromPiece.coerceIn(0, maxOf(0, ps.size - 1)) else 0
             for (j in first until ps.size) yield(Piece(k, j, ps[j], j == ps.size - 1))
@@ -585,6 +617,7 @@ object Speaker {
                 playing = false
                 starting = false
                 currentPiece = null
+                markFinished(d, d.chapterAt(index))
                 // Finished: the next Play starts from the beginning of the last paragraph.
                 pieceIndex = 0
                 stopAll()
@@ -614,6 +647,7 @@ object Speaker {
     private fun moveTo(k: Int) {
         val d = doc
         val oldChapter = d?.chapterAt(index)
+        if (d != null && k > index && d.chapterAt(k) != oldChapter) markFinished(d, oldChapter)
         index = k
         savePosition()
         if (sleepEndOfChapter && d != null && d.chapterAt(k) != oldChapter) {

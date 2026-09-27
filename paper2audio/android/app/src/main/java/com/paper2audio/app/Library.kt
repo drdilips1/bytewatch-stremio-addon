@@ -194,6 +194,7 @@ object Library {
         }
         source(context, item).file.delete()
         Loader.ocrFile(source(context, item).file).delete()
+        Loader.ocrPagesFile(source(context, item).file).delete()
         File(dir(context), "${item.id}.ai.json").delete()
         thumb(context, item.id).delete()
         // Remembered so sync removes it from other devices too.

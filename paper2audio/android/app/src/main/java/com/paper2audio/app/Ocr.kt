@@ -34,46 +34,40 @@ object Ocr {
     }
 
     /**
-     * Renders each page of a scanned PDF and recognizes its text into [out].
-     * Returns the number of words found.
+     * Recognizes the text of the given [pages] (1-based) of a PDF, rendering each
+     * page as an image. Returns page number to text; pages without text are left out.
      */
-    fun pdf(file: File, out: File, progress: (String) -> Unit): Int {
+    fun pdfPages(file: File, pages: List<Int>, progress: (String) -> Unit): Map<Int, String> {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
         val renderer = PdfRenderer(pfd)
-        val tmp = File(out.path + ".part")
-        var words = 0
+        val out = LinkedHashMap<Int, String>()
         try {
-            tmp.bufferedWriter().use { w ->
-                for (i in 0 until renderer.pageCount) {
-                    progress("Reading scanned page ${i + 1} of ${renderer.pageCount}…")
-                    val bmp = renderer.openPage(i).use { page ->
-                        // About 200 dpi for a letter-size page: sharp enough for small print.
-                        val width = 1700
-                        val height = (width.toLong() * page.height / page.width.coerceAtLeast(1)).toInt().coerceIn(1, width * 3)
-                        Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
-                            it.eraseColor(Color.WHITE)
-                            page.render(it, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
-                        }
+            for ((n, pageNo) in pages.withIndex()) {
+                if (pageNo < 1 || pageNo > renderer.pageCount) continue
+                progress("Reading scanned page ${n + 1} of ${pages.size}…")
+                val bmp = renderer.openPage(pageNo - 1).use { page ->
+                    // About 200 dpi for a letter-size page: sharp enough for small print.
+                    val width = 1700
+                    val height = (width.toLong() * page.height / page.width.coerceAtLeast(1)).toInt().coerceIn(1, width * 3)
+                    Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
+                        it.eraseColor(Color.WHITE)
+                        page.render(it, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
                     }
-                    val text = try {
-                        toLines(Tasks.await(recognizer.process(InputImage.fromBitmap(bmp, 0))))
-                    } finally {
-                        bmp.recycle()
-                    }
-                    words += text.split(Regex("""\s+""")).count { it.isNotEmpty() }
-                    w.write(text)
-                    w.write("\n\n")
                 }
+                val text = try {
+                    toLines(Tasks.await(recognizer.process(InputImage.fromBitmap(bmp, 0))))
+                } finally {
+                    bmp.recycle()
+                }
+                if (text.isNotBlank()) out[pageNo] = text
             }
-            if (!tmp.renameTo(out)) error("Could not save the recognized text")
         } finally {
-            tmp.delete()
             renderer.close()
             pfd.close()
             recognizer.close()
         }
-        return words
+        return out
     }
 
     /** One line per recognized line, with a blank line between blocks (paragraphs). */

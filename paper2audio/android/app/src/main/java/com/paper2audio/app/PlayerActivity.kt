@@ -79,6 +79,7 @@ class PlayerActivity : Activity() {
     private lateinit var btnPlay: ImageButton
     private lateinit var btnNext: ImageButton
     private lateinit var btnStyle: Button
+    private lateinit var btnFigure: Button
     private lateinit var btnSleep: Button
     private lateinit var btnSpeed: Button
     private lateinit var btnChapters: ImageButton
@@ -234,6 +235,13 @@ class PlayerActivity : Activity() {
         findViewById<CheckBox>(R.id.cbMedical).apply {
             isChecked = Speaker.medical
             setOnCheckedChangeListener { _, on -> Speaker.setMedical(on) }
+        }
+        btnFigure = findViewById(R.id.btnFigure)
+        btnFigure.setOnClickListener {
+            val doc = Speaker.doc ?: return@setOnClickListener
+            val item = Library.get(this, doc.key) ?: return@setOnClickListener
+            val figs = figuresIn(doc, Speaker.index)
+            if (figs.size == 1) FigureViewer.show(this, scope, Library.source(this, item).file, figs[0]) else showFigures()
         }
         btnStyle = findViewById(R.id.btnStyle)
         btnStyle.setOnClickListener { chooseStyle() }
@@ -636,14 +644,47 @@ class PlayerActivity : Activity() {
 
     private fun showDetailsMenu() {
         val hasKey = !prefs.getString("hardcoverToken", null).isNullOrBlank()
-        val options = arrayOf(
+        val isPdf = Library.get(this, Library.currentId)?.kind == Loader.Kind.PDF
+        val options = listOfNotNull(
             "Look up cover and details",
             if (hasKey) "Hardcover API key (saved ✓)" else "Add Hardcover API key",
+            if (isPdf) "Figures and tables" else null,
+            if (isPdf) "Text recognition on all pages (for scans or garbled text)" else null,
         )
         AlertDialog.Builder(this)
-            .setTitle("Book details")
-            .setItems(options) { _, which -> if (which == 0) lookUpDetails() else askHardcoverKey() }
+            .setTitle("Document")
+            .setItems(options.toTypedArray()) { _, which ->
+                when (which) {
+                    0 -> lookUpDetails()
+                    1 -> askHardcoverKey()
+                    2 -> showFigures()
+                    else -> recognizeAllPages()
+                }
+            }
             .show()
+    }
+
+    private fun recognizeAllPages() {
+        val item = Library.get(this, Library.currentId) ?: return
+        busy = "Reading the pages with text recognition…"
+        render()
+        scope.launch {
+            try {
+                val n = withContext(Dispatchers.IO) {
+                    Opener.recognizeScannedPages(this@PlayerActivity, Library.source(this@PlayerActivity, item).file, all = true) { text ->
+                        runOnUiThread { busy = text; render() }
+                    }
+                }
+                busy = null
+                toast(if (n > 0) "Recognized text on $n pages" else "No text was found on the page images")
+                reparse()
+                DriveSync.request(this@PlayerActivity)
+            } catch (e: Exception) {
+                busy = null
+                render()
+                toast("Text recognition failed: ${e.message}")
+            }
+        }
     }
 
     private fun lookUpDetails() {
@@ -747,13 +788,86 @@ class PlayerActivity : Activity() {
             return
         }
         val current = doc.chapters.indexOfLast { it.start <= Speaker.index }
+        val skip = Speaker.skipped()
+        val done = Speaker.finished()
+        val labels = doc.chapters.map { ch ->
+            val mark = when {
+                ch.title in skip -> "\u2298 " // skipped
+                ch.title in done -> "\u2713 " // finished
+                else -> "    "
+            }
+            mark + ch.title + if (ch.title in skip) "  (skipped)" else ""
+        }
         AlertDialog.Builder(this)
             .setTitle("Contents")
-            .setSingleChoiceItems(doc.chapters.map { it.title }.toTypedArray(), current) { d, i ->
+            .setSingleChoiceItems(labels.toTypedArray(), current) { d, i ->
                 d.dismiss()
                 lastUserScroll = 0
                 Speaker.seek(doc.chapters[i].start)
                 showTab(options = false)
+            }
+            .setPositiveButton("Choose what to play", { _, _ -> chooseSections(doc) })
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    /** Pick sections to play: checkboxes, plus shortcuts like "Skip Methods". */
+    private fun chooseSections(doc: Doc) {
+        val titles = doc.chapters.map { it.title }
+        val skip = Speaker.skipped().toMutableSet()
+        val checked = BooleanArray(titles.size) { titles[it] !in skip }
+        val kinds = doc.chapters.map { it.kind }
+        AlertDialog.Builder(this)
+            .setTitle("Play these sections")
+            .setMultiChoiceItems(titles.toTypedArray(), checked) { _, i, on -> checked[i] = on }
+            .setPositiveButton("Save") { _, _ ->
+                Speaker.setSkipped(titles.filterIndexed { i, _ -> !checked[i] }.toSet())
+            }
+            .setNeutralButton("Shortcuts") { _, _ ->
+                val presets = arrayOf("Play everything", "Skip Methods", "Only Results and Discussion", "Only Abstract and Conclusion", "Skip References-like parts")
+                AlertDialog.Builder(this)
+                    .setTitle("Shortcuts")
+                    .setItems(presets) { _, which ->
+                        val keep: (String?) -> Boolean = when (which) {
+                            0 -> { _ -> true }
+                            1 -> { k -> k != "Methods" }
+                            2 -> { k -> k == "Results" || k == "Discussion" }
+                            3 -> { k -> k == "Abstract" || k == "Conclusion" }
+                            else -> { k -> k != "References" }
+                        }
+                        // Parts without a recognized kind (the title, front matter) follow the first shortcut rule only.
+                        val newSkip = titles.filterIndexed { i, _ ->
+                            val k = kinds[i]
+                            if (which == 0) false else if (k == null) which == 2 || which == 3 else !keep(k)
+                        }.toSet()
+                        Speaker.setSkipped(newSkip)
+                        if (which != 0 && kinds.none { it != null }) toast("This document's sections have no standard names, so the shortcut can't find them.")
+                    }
+                    .show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Figures mentioned in paragraph [index] (e.g. "as shown in Figure 3"). */
+    private fun figuresIn(doc: Doc, index: Int): List<Figure> {
+        if (doc.figures.isEmpty()) return emptyList()
+        val p = doc.paragraphs.getOrNull(index) ?: return emptyList()
+        return doc.figures.filter { f ->
+            val m = Regex("""(?i)^(figure|table|supplementary figure|supplementary table)\s*(S?\d+[a-z]?)$""").find(f.label) ?: return@filter false
+            val word = if (m.groupValues[1].lowercase().contains("table")) "(?:tables?|tab\\.)" else "(?:figs?\\.?|figures?)"
+            Regex("""(?i)\b$word\s*${Regex.escape(m.groupValues[2])}\b""").containsMatchIn(p)
+        }
+    }
+
+    private fun showFigures() {
+        val doc = Speaker.doc ?: return
+        val item = Library.get(this, doc.key) ?: return
+        if (doc.figures.isEmpty()) return toast("No figures or tables were found in this document")
+        AlertDialog.Builder(this)
+            .setTitle("Figures and tables")
+            .setItems(doc.figures.map { "${it.label} \u00B7 page ${it.page}\n${it.caption.take(80)}" }.toTypedArray()) { _, i ->
+                FigureViewer.show(this, scope, Library.source(this, item).file, doc.figures[i])
             }
             .show()
     }
@@ -839,6 +953,10 @@ class PlayerActivity : Activity() {
         btnChapters.alpha = if (doc != null && doc.chapters.size > 1) 1f else 0.35f
         btnSpeed.text = speedLabelOf(Speaker.speed)
         btnStyle.text = "Style: ${Speaker.style.label}"
+        // "View Figure 3" while the paragraph that mentions it is being read.
+        val figs = doc?.let { figuresIn(it, Speaker.index) }.orEmpty()
+        btnFigure.visibility = if (figs.isNotEmpty()) View.VISIBLE else View.GONE
+        if (figs.isNotEmpty()) btnFigure.text = "View " + figs.joinToString(", ") { it.label }
         btnSleep.text = when {
             Speaker.sleepEndOfChapter -> "Chapter end"
             Speaker.sleepAt > 0 -> "${((Speaker.sleepAt - System.currentTimeMillis()) / 60_000 + 1).coerceAtLeast(1)} min"

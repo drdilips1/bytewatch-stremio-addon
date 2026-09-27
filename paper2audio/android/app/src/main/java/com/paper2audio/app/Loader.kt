@@ -93,21 +93,37 @@ object Loader {
         return store(context, "$safe.$ext") { it.write(text.toByteArray()) }
     }
 
-    /** Recognized text of a scanned PDF, kept next to it. */
+    /** Recognized text of a scanned PDF, kept next to it (older app versions). */
     fun ocrFile(pdf: File) = File(pdf.path.substringBeforeLast('.') + ".ocr.txt")
+
+    /** Recognized text of scanned pages of a PDF: {"3": "text", …}. */
+    fun ocrPagesFile(pdf: File) = File(pdf.path.substringBeforeLast('.') + ".ocr.json")
+
+    fun ocrPages(pdf: File): Map<Int, String> {
+        val f = ocrPagesFile(pdf)
+        if (!f.exists()) return emptyMap()
+        val o = runCatching { org.json.JSONObject(f.readText()) }.getOrNull() ?: return emptyMap()
+        return o.keys().asSequence().mapNotNull { k -> k.toIntOrNull()?.let { it to o.getString(k) } }.toMap()
+    }
+
+    fun saveOcrPages(pdf: File, pages: Map<Int, String>) {
+        val o = org.json.JSONObject()
+        for ((k, v) in pages) o.put(k.toString(), v)
+        ocrPagesFile(pdf).writeText(o.toString())
+    }
 
     fun parse(context: Context, src: Source, o: CleanOptions): Doc {
         val key = src.id
         val title = src.name.substringBeforeLast('.')
         return when (src.kind) {
             Kind.PDF -> {
-                // Scanned PDFs: use the text recognized from the page images, if any.
+                // Scanned PDFs (from before per-page recognition): the whole text was recognized.
                 val ocr = ocrFile(src.file)
                 if (ocr.exists()) {
                     val pdfTitle = runCatching { PdfExtractor.extract(context, src.file, o, title, key).title }.getOrDefault(title)
                     Doc.build(pdfTitle, key, listOf(null to TextCleaner.clean(ocr.readLines(), o)))
                 } else {
-                    PdfExtractor.extract(context, src.file, o, title, key)
+                    PdfExtractor.extract(context, src.file, o, title, key, ocrPages(src.file))
                 }
             }
             Kind.EPUB -> EpubExtractor.extract(src.file, o, title, key)

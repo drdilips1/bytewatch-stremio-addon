@@ -85,20 +85,29 @@ object Opener {
         return if (visuals.isNullOrEmpty()) doc else Ai.withVisuals(doc, visuals)
     }
 
+    /**
+     * Scanned pages (almost no text layer) are read with text recognition; with
+     * [all], every page is (for PDFs whose text layer is garbled). Call off the main thread.
+     */
+    fun recognizeScannedPages(context: Context, pdf: java.io.File, all: Boolean, progress: (String) -> Unit): Int {
+        val words = PdfExtractor.wordsPerPage(context, pdf)
+        val pages = words.indices.filter { all || words[it] < 15 }.map { it + 1 }
+        if (pages.isEmpty()) return 0
+        val found = Ocr.pdfPages(pdf, pages, progress)
+        // Keep what was recognized before for pages not redone now.
+        val merged = if (all) found else Loader.ocrPages(pdf) + found
+        if (merged.isNotEmpty()) Loader.saveOcrPages(pdf, merged) else Loader.ocrPagesFile(pdf).delete()
+        return found.size
+    }
+
     /** Imports a new document into the library. Call off the main thread. */
     fun import(context: Context, fetch: () -> Loader.Source, progress: (String) -> Unit = {}): Pair<Library.Item, Doc> {
         val src = fetch()
         val doc = try {
-            var doc = Loader.parse(context, src, options(context))
-            // A PDF with (almost) no text layer is a scan: recognize the page images instead.
-            if (src.kind == Loader.Kind.PDF && doc.words < 25 * doc.pages.coerceAtLeast(1)) {
-                val words = Ocr.pdf(src.file, Loader.ocrFile(src.file), progress)
-                if (words > doc.words) doc = Loader.parse(context, src, options(context))
-                else Loader.ocrFile(src.file).delete()
-            }
-            doc.also(::check)
+            if (src.kind == Loader.Kind.PDF) recognizeScannedPages(context, src.file, all = false, progress)
+            Loader.parse(context, src, options(context)).also(::check)
         } catch (e: Exception) {
-            Loader.ocrFile(src.file).delete()
+            Loader.ocrPagesFile(src.file).delete()
             src.file.delete()
             throw e
         }
