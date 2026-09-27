@@ -12,7 +12,6 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
@@ -487,17 +486,14 @@ class VoiceStudioActivity : Activity() {
         }
     }
 
-    /**
-     * The permission checkbox. Built with the platform's checkbox style (a style-only
-     * constructor would drop the box itself), then themed like the rest of the app.
-     */
-    private fun consentBox() = CheckBox(this).apply {
-        text = "This is my own voice, or I have the speaker's permission to copy it."
-        textSize = 15f
-        setTextColor(color(R.attr.p2aText))
-        buttonTintList = android.content.res.ColorStateList.valueOf(color(R.attr.p2aAccent))
-        minHeight = dp(48)
-        setPadding(dp(4), dp(6), 0, dp(6))
+    /** Asks the user to confirm they may clone this voice, with explicit buttons (no easy-to-miss checkbox). */
+    private fun confirmPermission(then: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle("Whose voice is this?")
+            .setMessage("Only clone your own voice, or a voice whose owner has given you permission.")
+            .setPositiveButton("My voice / I have permission") { _, _ -> then() }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun recordVoice() {
@@ -516,42 +512,57 @@ class VoiceStudioActivity : Activity() {
         box.addFull(level)
         val status = muted("Tap Start, then read.")
         box.addFull(status, 4)
-        val consent = consentBox()
-        box.addFull(consent)
         var recorder: VoiceRecorder? = null
         var samples: FloatArray? = null
         val dialog = AlertDialog.Builder(this)
             .setTitle("Record your voice")
             .setView(android.widget.ScrollView(this).apply { addView(box) })
             .setPositiveButton("Start", null)
+            .setNeutralButton("Redo", null)
             .setNegativeButton("Cancel") { _, _ -> recorder?.stop() }
             .setCancelable(false)
             .show()
         val action = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+        val redo = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+        redo.visibility = View.GONE
+        redo.setOnClickListener {
+            samples = null
+            action.text = "Start"
+            action.performClick()
+        }
         action.setOnClickListener {
             when {
                 action.text == "Stop" -> {
                     samples = recorder!!.stop()
+                    level.progress = 0
                     val secs = (samples?.size ?: 0) / MyVoices.RATE
-                    status.text = "Recorded $secs seconds. Tap Save, or Start again to redo it."
+                    status.text = "Recorded $secs seconds. Tap Save, or Redo to record again."
                     action.text = "Save"
+                    redo.visibility = View.VISIBLE
                 }
                 samples != null && action.text == "Save" -> {
-                    if (!consent.isChecked) return@setOnClickListener toast("Please confirm the permission checkbox")
-                    dialog.dismiss()
-                    askName { name -> saveVoice(name, samples!!, MyVoices.RATE) }
+                    val recorded = samples!!
+                    confirmPermission {
+                        dialog.dismiss()
+                        askName { name -> saveVoice(name, recorded, MyVoices.RATE) }
+                    }
                 }
                 else -> {
                     samples = null
+                    redo.visibility = View.GONE
                     recorder = VoiceRecorder { peak, secs ->
                         runOnUiThread {
+                            if (action.text != "Stop") return@runOnUiThread // already stopped
+                            if (recorder?.isRunning == false) {
+                                action.performClick() // reached the maximum length
+                                return@runOnUiThread
+                            }
                             level.progress = (peak * 140).toInt().coerceAtMost(100)
                             status.text = "Recording… ${secs.toInt()} s" + when {
                                 secs < MyVoices.MIN_SECONDS + 6 -> ""
                                 secs >= MyVoices.MAX_SECONDS -> " (that's plenty: tap Stop)"
                                 else -> " (tap Stop when you finish)"
                             }
-                            if (recorder?.isRunning == false && action.text == "Stop") action.performClick()
                         }
                     }
                     try {
@@ -578,31 +589,25 @@ class VoiceStudioActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         val uri = data?.data
         if (requestCode != REQ_IMPORT || resultCode != RESULT_OK || uri == null) return
-        val consent = consentBox()
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(8), dp(22), 0)
-            addView(muted("Best: 10–25 seconds of one person speaking clearly, without music or other voices. Only the first 25 seconds of speech are used."))
-            addFull(consent)
-        }
-        val dialog = AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle("Clone this recording?")
-            .setView(box)
-            .setPositiveButton("Continue", null)
+            .setMessage(
+                "Best: 10–25 seconds of one person speaking clearly, without music or other voices. " +
+                    "Only the first 25 seconds of speech are used.\n\n" +
+                    "Only clone your own voice, or a voice whose owner has given you permission."
+            )
+            .setPositiveButton("My voice / I have permission") { _, _ -> importNamed(uri) }
             .setNegativeButton("Cancel", null)
             .show()
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            if (!consent.isChecked) return@setOnClickListener toast("Please confirm the permission checkbox")
-            dialog.dismiss()
-            askName { name ->
-                scope.launch {
-                    try {
-                        val ref = withContext(Dispatchers.IO) { MyVoices.decode(this@VoiceStudioActivity, uri) }
-                        saveVoice(name, ref.samples, ref.sampleRate)
-                    } catch (e: Exception) {
-                        toast("Couldn't read that recording: ${e.message}")
-                    }
-                }
+    }
+
+    private fun importNamed(uri: android.net.Uri) = askName { name ->
+        scope.launch {
+            try {
+                val ref = withContext(Dispatchers.IO) { MyVoices.decode(this@VoiceStudioActivity, uri) }
+                saveVoice(name, ref.samples, ref.sampleRate)
+            } catch (e: Exception) {
+                toast("Couldn't read that recording: ${e.message}")
             }
         }
     }
