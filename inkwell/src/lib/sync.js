@@ -189,9 +189,9 @@ export async function signOut() {
   account.patch({ userId: '', accessToken: '', refreshToken: '', expiresAt: 0, lastSync: 0, status: '' });
 }
 
-async function token() {
+async function token(force = false) {
   if (!signedIn()) throw new Error('Not signed in');
-  if (Date.now() < cfg().expiresAt - 60e3) return cfg().accessToken;
+  if (!force && Date.now() < cfg().expiresAt - 60e3) return cfg().accessToken;
   const r = await api('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: cfg().refreshToken } });
   saveSession(r);
   return r.access_token;
@@ -232,9 +232,18 @@ export function syncNow({ first = false } = {}) {
   syncing = (async () => {
     try {
       account.patch({ status: 'Syncing…' });
-      const tok = await token();
+      let tok = await token();
       const uid = cfg().userId;
-      const rows = await api(`/rest/v1/user_data?select=data,updated_at&user_id=eq.${uid}`, { token: tok });
+      const read = () => api(`/rest/v1/user_data?select=data,updated_at&user_id=eq.${uid}`, { token: tok });
+      let rows;
+      try {
+        rows = await read();
+      } catch (e) {
+        // The sign-in pass ran out early (phone clock off, or the phone slept): renew it and retry once.
+        if (e.status !== 401 && !/jwt/i.test(e.message)) throw e;
+        tok = await token(true);
+        rows = await read();
+      }
       if (rows?.[0]?.data) apply(rows[0].data);
       await api('/rest/v1/user_data', {
         method: 'POST',
