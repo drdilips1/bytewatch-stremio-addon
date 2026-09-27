@@ -101,10 +101,15 @@ if (nativeUpdater) {
 
 export const openDownload = installUpdate;
 
-// Check on launch (at most hourly) and pop the update sheet when there's a new version.
+// Check on every launch and whenever the app comes back to the screen (at most every
+// 10 minutes), and pop the update sheet when there's a new version. Android usually
+// resumes the app rather than restarting it, so a launch-only check could miss updates.
 if (isApk && APP_VERSION !== 'dev') {
   run.set((r) => ({ ...r, phase: 'idle', pct: 0, error: '' }));
-  if (Date.now() - update.get().checkedAt > 3600e3) setTimeout(() => checkForUpdate().catch(() => {}), 3000);
+  setTimeout(() => checkForUpdate().catch(() => {}), 3000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && Date.now() - update.get().checkedAt > 10 * 60e3 && run.get().phase === 'idle') checkForUpdate().catch(() => {});
+  });
 }
 
 /** The pop-up offering a new version. */
