@@ -5,12 +5,15 @@ import { library, progress, useStore, forgetBook } from '../lib/store.js';
 import { downloads, removeDownload } from '../lib/downloads.js';
 import { forgetEbook } from '../lib/epub.js';
 import { nav } from '../lib/nav.js';
+import { podcasts } from '../sources/podcasts.js';
+import { ShowGrid } from './Podcasts.jsx';
 
 const TABS = [
   ['progress', 'In progress'],
   ['saved', 'Saved'],
   ['audio', 'Audiobooks'],
   ['text', 'Ebooks'],
+  ['podcasts', 'Podcasts'],
   ['downloaded', 'Downloaded'],
   ['finished', 'Finished'],
 ];
@@ -19,6 +22,7 @@ export function Library() {
   const lib = useStore(library);
   const prog = useStore(progress);
   const dls = useStore(downloads);
+  const pods = useStore(podcasts);
   const [tab, setTab] = useState('progress');
   const [editing, setEditing] = useState(false);
   const [editShown, setEditShown] = useState(60);
@@ -35,6 +39,9 @@ export function Library() {
         return started.filter((p) => p.finished).map((p) => p.book);
       case 'saved':
         return saved;
+      case 'podcasts':
+        // Episodes you've started and not finished.
+        return started.filter((p) => !p.finished && p.book.source === 'pod').map((p) => p.book);
       case 'downloaded':
         return Object.values(dls || {})
           .filter((d) => d && ok(d.book) && d.status !== 'cancelled')
@@ -42,7 +49,7 @@ export function Library() {
       default: {
         // Audiobooks / Ebooks: everything saved or started of that kind.
         const seen = new Set();
-        return [...saved, ...started.map((p) => p.book)].filter((b) => b.kind === tab && !seen.has(b.uid) && seen.add(b.uid));
+        return [...saved, ...started.map((p) => p.book)].filter((b) => b.kind === tab && b.source !== 'pod' && !seen.has(b.uid) && seen.add(b.uid));
       }
     }
   }, [lib, prog, tab, dls]);
@@ -85,7 +92,30 @@ export function Library() {
           </button>
         ))}
       </div>
-      {items.length && editing ? (
+      {tab === 'podcasts' ? (
+        <div class="lib-pods">
+          {items.length > 0 && (
+            <>
+              <h3 class="section-label pad">Episodes in progress</h3>
+              <Grid items={items} />
+            </>
+          )}
+          <h3 class="section-label pad">Your shows</h3>
+          {pods.subs.length ? (
+            <div class="pad">
+              <ShowGrid shows={pods.subs} />
+            </div>
+          ) : (
+            <Empty icon="mic" title="No shows yet">
+              Follow podcasts from the{' '}
+              <a href="#" onClick={(e) => (e.preventDefault(), nav.tab('podcasts'))}>
+                Podcasts tab
+              </a>
+              .
+            </Empty>
+          )}
+        </div>
+      ) : items.length && editing ? (
         <div class="lib-edit">
           {items.slice(0, editShown).map((b) => (
             <div class="lib-edit-row">

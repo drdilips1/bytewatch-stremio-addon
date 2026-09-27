@@ -18,11 +18,11 @@ import { applyLocal, isDownloaded } from '../lib/downloads.js';
 import { translit, hasDevanagari } from '../lib/translit.js';
 
 export const SOURCES = {
-  ia: { name: 'Internet Archive', short: 'Archive', hue: 28, kind: 'Listen', blurb: 'LibriVox mirror, old-time radio & spoken word', impl: ia },
-  lv: { name: 'LibriVox', short: 'LibriVox', hue: 350, kind: 'Listen', blurb: '20,000+ volunteer-read public-domain audiobooks', impl: lv },
-  se: { name: 'Standard Ebooks', short: 'Standard Ebooks', hue: 205, kind: 'Read', blurb: 'Beautifully made free classics — read in-app or send to Kindle', impl: se },
-  gb: { name: 'Project Gutenberg', short: 'Gutenberg', hue: 150, kind: 'Read', blurb: '75,000+ free classic ebooks, read in-app', impl: gb },
-  ol: { name: 'Open Library', short: 'Open Library', hue: 210, kind: 'Discover', blurb: 'Trending books, rich descriptions & covers', impl: ol },
+  ia: { name: 'Internet Archive', short: 'Archive', hue: 28, kind: 'Listen', blurb: 'LibriVox mirror, old-time radio & spoken word', impl: ia, hidden: true, free: true },
+  lv: { name: 'LibriVox', short: 'LibriVox', hue: 350, kind: 'Listen', blurb: '20,000+ volunteer-read public-domain audiobooks', impl: lv, hidden: true, free: true },
+  se: { name: 'Standard Ebooks', short: 'Standard Ebooks', hue: 205, kind: 'Read', blurb: 'Beautifully made free classics — read in-app or send to Kindle', impl: se, hidden: true, free: true },
+  gb: { name: 'Project Gutenberg', short: 'Gutenberg', hue: 150, kind: 'Read', blurb: '75,000+ free classic ebooks, read in-app', impl: gb, hidden: true, free: true },
+  ol: { name: 'Open Library', short: 'Open Library', hue: 210, kind: 'Discover', blurb: 'Trending books, rich descriptions & covers', impl: ol, hidden: true, free: true },
   au: { name: 'Audible catalog', short: 'Audible', hue: 32, kind: 'Discover', blurb: 'Audiobook listings with narrators, series & covers', impl: audible },
   gbk: { name: 'Google Books', short: 'Google Books', hue: 220, kind: 'Discover', blurb: 'Listings for almost every book in print', impl: googleBooks },
   abs: { name: 'Audiobookshelf', short: 'My Server', hue: 265, kind: 'Listen', blurb: 'Your self-hosted audiobook server', impl: absSrc },
@@ -36,14 +36,16 @@ export const SOURCES = {
   gr: { name: 'Goodreads', short: 'Goodreads', hue: 35, kind: 'Shelves', blurb: 'Shelves imported from your Goodreads export', impl: gr },
 };
 
-const enabled = (k) => settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
+// Free public-domain catalogues (LibriVox, Internet Archive, Gutenberg, Standard Ebooks,
+// Open Library) are switched off for good.
+const enabled = (k) => !SOURCES[k]?.free && settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
 
 // Your own services first, then listings, then free catalogues — until the user rearranges them.
 const DEFAULT_ORDER = ['abs', 'tb', 'rd', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'se', 'ol', 'hi'];
 /** Source keys in the user's chosen order (Settings → Sources). */
 export function sourceOrder() {
   const saved = (settings.get().sourceOrder || []).filter((k) => SOURCES[k] && !SOURCES[k].hidden);
-  const rest = DEFAULT_ORDER.filter((k) => !saved.includes(k));
+  const rest = DEFAULT_ORDER.filter((k) => !saved.includes(k) && !SOURCES[k]?.hidden);
   // Keep newly added sources near their default neighbours.
   for (const k of rest) {
     const i = DEFAULT_ORDER.indexOf(k);

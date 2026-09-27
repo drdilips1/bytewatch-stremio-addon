@@ -180,8 +180,9 @@ export function lookup(book, { fresh = false } = {}) {
 }
 
 // Sources whose items benefit from lookups.
-const ENRICH = new Set(['tb', 'rd', 'addon', 'gr']);
-export const wantsMeta = (book) => !!book && ENRICH.has(book.source) && (!book.cover || book.source === 'tb' || book.source === 'rd');
+const ENRICH = new Set(['tb', 'rd', 'addon', 'gr', 'abs', 'hc', 'gbk']);
+// Also looked up when a card has no rating yet, so ratings show on every thumbnail.
+export const wantsMeta = (book) => !!book && ENRICH.has(book.source) && (!book.cover || book.source === 'tb' || book.source === 'rd' || !book.rating);
 
 /** Hook: enriched fields for cards (cover / tidy title / author). */
 export function useMeta(book) {

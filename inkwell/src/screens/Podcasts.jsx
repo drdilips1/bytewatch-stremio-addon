@@ -257,7 +257,7 @@ export function Podcasts() {
   );
 }
 
-function ShowGrid({ shows, small }) {
+export function ShowGrid({ shows, small }) {
   return (
     <div class={'show-grid' + (small ? ' small' : '')}>
       {shows.map((s) => (

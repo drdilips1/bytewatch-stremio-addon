@@ -5014,3 +5014,169 @@ textarea {
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.7));
   color: #fff;
 }
+/* Ratings row on the book page (Audible, Goodreads, awards) */
+.ratings-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.rt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px 5px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 1;
+  backdrop-filter: blur(8px);
+}
+.rt b {
+  font-weight: 800;
+}
+.rt small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.rt-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 800 13px/1 Georgia, serif;
+  color: #fff;
+}
+.rt-audible .rt-logo {
+  background: #f7991c;
+}
+.rt-audible b {
+  color: #fbbf24;
+}
+.rt-goodreads .rt-logo {
+  background: #e9e5cd;
+  color: #553b08;
+}
+.rt-goodreads b {
+  color: #e9d8a6;
+}
+.rt-award {
+  padding-left: 8px;
+}
+.rt-trophy {
+  font-size: 14px;
+}
+.rt-audie b {
+  color: #fcd34d;
+  font-weight: 700;
+}
+.rt-earphones b {
+  color: #93c5fd;
+  font-weight: 700;
+}
+:root[data-mode='light'] .rt {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+:root[data-mode='light'] .rt-audible b {
+  color: #b45309;
+}
+:root[data-mode='light'] .rt-goodreads b {
+  color: #6b4d12;
+}
+:root[data-mode='light'] .rt-audie b {
+  color: #a16207;
+}
+:root[data-mode='light'] .rt-earphones b {
+  color: #1d4ed8;
+}
+/* Rating on the cover of every card */
+.rating-badge {
+  position: absolute;
+  left: 7px;
+  bottom: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fde68a;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(6px);
+  line-height: 1.2;
+}
+.rating-badge .icon {
+  color: #fbbf24;
+}
+.book-card-rating {
+  font-size: 11.5px;
+  color: var(--faint);
+}
+/* Greeting in the top bar, next to the logo */
+.home-logo {
+  padding: 6px 16px 6px 8px;
+}
+.home-logo svg {
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+.home-hello {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+.home-hello b {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 16px;
+  color: #f4f1fb;
+  white-space: nowrap;
+}
+.home-hello small {
+  font-size: 11.5px;
+  color: rgba(244, 241, 251, 0.7);
+  white-space: nowrap;
+}
+.links-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 10px 0 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.links-toggle span {
+  flex: 1;
+}
+.links-toggle small {
+  margin-left: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+.links-toggle .icon:last-child {
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+.links-toggle.open .icon:last-child {
+  transform: rotate(180deg);
+}

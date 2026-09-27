@@ -125,6 +125,11 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
           <Icon name={book.kind === 'text' ? 'book' : book.kind === 'discover' ? 'sparkle' : 'headphones'} size={13} />
         </span>
         {book.rank > 0 && <span class="rank-badge">#{book.rank}</span>}
+        {book.rating > 0 && (
+          <span class="rating-badge">
+            <Icon name="star" size={10} fill /> {book.rating.toFixed(1)}
+          </span>
+        )}
         {book.fetching != null && <span class="fetch-badge">{Math.round((book.fetching || 0) * 100)}%</span>}
         {pct > 0 && (
           <div class="progress-mini">
@@ -134,12 +139,7 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
       </div>
       <div class="book-card-title">{book.title}</div>
       <div class="book-card-author">{book.author || ' '}</div>
-      {book.rating > 0 && (
-        <div class="book-card-rating">
-          <Icon name="star" size={11} /> {book.rating.toFixed(1)}
-          {book.ratings > 0 && <span> · {fmtCount(book.ratings)}</span>}
-        </div>
-      )}
+      {book.ratings > 0 && <div class="book-card-rating">{fmtCount(book.ratings)} ratings</div>}
     </button>
   );
 });

@@ -55,7 +55,6 @@ const HINDI_TABS = [
   ['yours', 'आपकी किताबें'],
   ['sources', 'सोर्सेज़'],
   ['best', 'और सुझाव'],
-  ['listen', 'मुफ़्त ऑडियो'],
 ];
 
 const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r(null), ms))]);

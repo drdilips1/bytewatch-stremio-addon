@@ -32,6 +32,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const [account, setAccount] = useState(new Map());
   const [showDead, setShowDead] = useState(false);
   const [showLoose, setShowLoose] = useState(false);
+  const [showLinks, setShowLinks] = useState(false);
   // Already on your Audiobookshelf server? Say so before anything is added or downloaded again.
   const [onServer, setOnServer] = useState(null);
   useEffect(() => {
@@ -79,7 +80,11 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const alive = (r) => r.seeders > 0 || !(r.magnet || r.hash) || r.cache?.any || account.has(r.hash);
   const visible = showDead ? all : all.filter(alive);
   const hiddenDead = all.length - all.filter(alive).length;
-  const shownGroups = groupResults(visible);
+  // Torrents (audiobooks) first; plain download links (mostly ebooks) fold away under a button.
+  const isLink = (g) => !g.items.some((r) => r.magnet || r.hash);
+  const allGroups = groupResults(visible);
+  const linkGroups = allGroups.filter(isLink);
+  const shownGroups = allGroups.filter((g) => !isLink(g));
 
   return (
     <section class="source-results">
@@ -129,6 +134,28 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           )
         )}
       </div>
+      {linkGroups.length > 0 && (
+        <>
+          <button class={'links-toggle' + (showLinks ? ' open' : '')} onClick={() => setShowLinks(!showLinks)}>
+            <Icon name="book" size={16} />
+            <span>
+              Ebooks & download links <small>{linkGroups.length}</small>
+            </span>
+            <Icon name="down" size={16} />
+          </button>
+          {showLinks && (
+            <div class="src-list">
+              {linkGroups.map((g) =>
+                g.items.length === 1 ? (
+                  <SourceRow key={g.items[0].key} r={g.items[0]} provider={provider} providers={providers} book={book} inAccount={account.get(g.items[0].hash)} onChanged={refreshAccount} />
+                ) : (
+                  <SourceFolder key={g.key} g={g} provider={provider} providers={providers} book={book} account={account} onChanged={refreshAccount} />
+                )
+              )}
+            </div>
+          )}
+        </>
+      )}
       {looseCount > 0 && (
         <button class="btn ghost-wide" onClick={() => setShowLoose(!showLoose)}>
           {showLoose ? 'Hide' : 'Show'} {looseCount} loose match{looseCount === 1 ? '' : 'es'} (may be other books)

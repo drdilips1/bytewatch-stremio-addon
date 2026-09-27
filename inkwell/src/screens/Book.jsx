@@ -12,6 +12,7 @@ import { cloudReaderBook } from '../lib/epub.js';
 import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
 import { SourceResults } from '../components/source-results.jsx';
+import { useRatings } from '../lib/ratings.js';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import { nativeReader } from '../lib/tts.js';
 import { downloads, canDownload, downloadBook, cancelDownload, removeDownload, fmtBytes } from '../lib/downloads.js';
@@ -98,12 +99,6 @@ export function Book({ book: initial }) {
           {book.author && <p class="book-author">{book.author}</p>}
           <div class="book-meta">
             <SourceBadge uid={book.uid} book={book} />
-            {book.rating > 0 && (
-              <span class="rating-chip">
-                <Icon name="star" size={12} /> {book.rating.toFixed(1)}
-                {book.ratings > 0 && ` · ${book.ratings.toLocaleString()} ratings`}
-              </span>
-            )}
             {book.year && <span>{book.year}</span>}
             {book.duration > 0 && <span>{fmtDuration(book.duration)}</span>}
             {tracks.length > 1 && <span>{tracks.length} parts</span>}
@@ -111,6 +106,7 @@ export function Book({ book: initial }) {
             {book.series && <span>{book.series}</span>}
             {book.language && <span>{book.language}</span>}
           </div>
+          <RatingsRow book={book} />
         </div>
       </div>
 
@@ -384,8 +380,11 @@ function Summaries({ book }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   useEffect(() => {
-    setSum(savedSummary(book));
+    const have = savedSummary(book);
+    setSum(have);
     setErr('');
+    // Written straight away when an AI service is set up (then kept, so only once per book).
+    if (!have && aiReady()) make();
   }, [book.uid]);
   const make = async () => {
     setBusy(true);
@@ -487,5 +486,37 @@ function CloudEbooks({ book, files }) {
       ))}
       <p class="muted small">"Kindle / app" opens Android's share menu: pick Kindle to send it there, or any reader app (Play Books, ReadEra, Moon+).</p>
     </section>
+  );
+}
+
+const fmtK = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(n));
+
+/** Ratings across services and awards, as a row of badges. */
+function RatingsRow({ book }) {
+  const { audible, goodreads, awards } = useRatings(book);
+  if (!audible && !goodreads && !awards.length) return null;
+  return (
+    <div class="ratings-row">
+      {audible && (
+        <span class="rt rt-audible" title="Audible rating">
+          <span class="rt-logo">a</span>
+          <b>{audible.rating.toFixed(1)}</b>
+          {audible.count > 0 && <small>{fmtK(audible.count)}</small>}
+        </span>
+      )}
+      {goodreads && (
+        <a class="rt rt-goodreads" href={goodreads.url || undefined} target="_blank" rel="noopener" title="Goodreads rating">
+          <span class="rt-logo">g</span>
+          <b>{goodreads.rating.toFixed(2)}</b>
+          {goodreads.count > 0 && <small>{fmtK(goodreads.count)}</small>}
+        </a>
+      )}
+      {awards.map((a) => (
+        <span class={'rt rt-award rt-' + a.kind} title={a.label}>
+          <span class="rt-trophy">{a.kind === 'audie' ? '🏆' : '🎧'}</span>
+          <b>{a.label}</b>
+        </span>
+      ))}
+    </div>
   );
 }

@@ -267,7 +267,7 @@ function Hero() {
 }
 
 /** Date line under the greeting, e.g. "Friday, 26 September". */
-const today = () => new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+const today = () => new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
 
 function ContinueRow() {
   const prog = useStore(progress);
@@ -452,7 +452,10 @@ export function Home() {
             <path d="M136 400 L256 112 L376 400" fill="none" stroke="url(#ah-brand)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" />
             <path d="M170 300 h26 l14 -34 l20 70 l22 -96 l22 112 l18 -52 h30 l14 22 h24" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
-          <span>Audiohub</span>
+          <div class="home-hello">
+            <b>{greeting()}</b>
+            <small>{today()}</small>
+          </div>
         </div>
         <button class="icon-btn glass" onClick={() => nav.tab('discover')} aria-label="Search">
           <Icon name="search" />
@@ -461,10 +464,6 @@ export function Home() {
 
       <Hero />
 
-      <div class="home-greet">
-        <h1>{greeting()}</h1>
-        <p>{today()}</p>
-      </div>
       <WaitingRow />
       <ContinueRow />
       <GenreChips />
