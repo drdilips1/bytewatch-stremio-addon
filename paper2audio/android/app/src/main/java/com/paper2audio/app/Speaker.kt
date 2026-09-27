@@ -87,7 +87,15 @@ object Speaker {
     val pitch: Int get() = prefs.getInt("pitch", 0)
 
     /** How the current document is voiced. */
-    fun voicing(d: Doc? = doc): Voicing = Voicing(voiceId, dialogueVoice, d?.lang, pitch)
+    fun voicing(d: Doc? = doc): Voicing = Voicing(voiceId, dialogueVoice, d?.lang, pitch, medical)
+
+    /** Medical mode: dosing, routes and clinical-trial abbreviations are read in full. */
+    val medical: Boolean get() = prefs.getBoolean("medical", false)
+
+    fun setMedical(on: Boolean) {
+        prefs.edit().putBoolean("medical", on).apply()
+        restartAudio()
+    }
 
     fun setDialogueVoice(id: String?) {
         prefs.edit().putString("dialogueVoice", id).apply()
@@ -448,7 +456,7 @@ object Speaker {
         val last = minOf(index + LOOKAHEAD, d.paragraphs.size - 1)
         while (queuedUpTo < last) {
             queuedUpTo++
-            t.speak(d.paragraphs[queuedUpTo], TextToSpeech.QUEUE_ADD, Bundle(), "$generation:$queuedUpTo")
+            t.speak(Speech.normalize(d.paragraphs[queuedUpTo], medical), TextToSpeech.QUEUE_ADD, Bundle(), "$generation:$queuedUpTo")
         }
     }
 

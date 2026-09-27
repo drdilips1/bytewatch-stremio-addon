@@ -513,6 +513,13 @@
                         android:text="What to read" />
 
                     <CheckBox
+                        android:id="@+id/cbMedical"
+                        style="@style/P2A.Check"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Medical mode: read doses, routes and trial terms in full (BID → twice daily)" />
+
+                    <CheckBox
                         android:id="@+id/cbRefs"
                         style="@style/P2A.Check"
                         android:layout_width="match_parent"

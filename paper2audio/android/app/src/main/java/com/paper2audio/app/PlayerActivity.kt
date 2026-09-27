@@ -231,6 +231,10 @@ class PlayerActivity : Activity() {
             toast("Next paragraph")
             true
         }
+        findViewById<CheckBox>(R.id.cbMedical).apply {
+            isChecked = Speaker.medical
+            setOnCheckedChangeListener { _, on -> Speaker.setMedical(on) }
+        }
         btnStyle = findViewById(R.id.btnStyle)
         btnStyle.setOnClickListener { chooseStyle() }
         btnChapters.setOnClickListener { showChapters() }

@@ -25,7 +25,14 @@ import kotlin.math.roundToInt
  * dialogue (stories), the document's language (Supertonic) and a pitch shift in Hz
  * (online voices).
  */
-data class Voicing(val voiceId: String, val dialogue: String? = null, val lang: String? = null, val pitch: Int = 0) {
+data class Voicing(
+    val voiceId: String,
+    val dialogue: String? = null,
+    val lang: String? = null,
+    val pitch: Int = 0,
+    /** Read dosing and clinical abbreviations in full (see [Speech]). */
+    val medical: Boolean = false,
+) {
     /** Identifies the audio this voicing produces, for the cache. */
     val key: String
         get() = listOf(
@@ -33,7 +40,8 @@ data class Voicing(val voiceId: String, val dialogue: String? = null, val lang: 
             dialogue.orEmpty(),
             if (voiceId.startsWith(Speaker.SUPER) || dialogue?.startsWith(Speaker.SUPER) == true) lang.orEmpty() else "",
             if (pitch != 0 && voiceId.startsWith(Speaker.EDGE)) pitch.toString() else "",
-        ).joinToString("|").trimEnd('|')
+            "s${Speech.VERSION}" + if (medical) "m" else "",
+        ).joinToString("|")
 }
 
 /**
@@ -98,13 +106,15 @@ object Renderer {
         }
         val voice = if (segments?.singleOrNull()?.first == true) v.dialogue!! else v.voiceId
         val tmp = File(target.path + ".part" + System.nanoTime())
+        // What the voice is given: numbers, units, symbols and abbreviations spelled out.
+        val spoken = Speech.normalize(text, v.medical).ifBlank { text }
         try {
             val es = engineSpeed(v, speed)
             if (LocalTts.isLocal(voice)) {
-                withContext(localThread) { LocalTts.writeWav(tmp, LocalTts.synthesize(voice, text, es, v.lang)) }
+                withContext(localThread) { LocalTts.writeWav(tmp, LocalTts.synthesize(voice, spoken, es, v.lang)) }
             } else {
                 val rate = ((es - 1f) * 100).roundToInt().coerceIn(-50, 200)
-                withContext(Dispatchers.IO) { tmp.writeBytes(EdgeTts.synthesize(text, voice.removePrefix(Speaker.EDGE), rate, v.pitch)) }
+                withContext(Dispatchers.IO) { tmp.writeBytes(EdgeTts.synthesize(spoken, voice.removePrefix(Speaker.EDGE), rate, v.pitch)) }
             }
             if (!tmp.renameTo(target)) error("Couldn't save audio")
         } finally {
