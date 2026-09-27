@@ -88,7 +88,8 @@ export const settings = persisted('settings', {
   readerSize: 19,
   readerTheme: 'night', // night | sepia | paper | amoled
   readerFont: 'serif',
-  skipFrontMatter: true, // Listen / Read aloud skip contents, index, copyright pages
+  skipFrontMatter: true,
+  kindleEmail: '', // Send to Kindle by e-mail // Listen / Read aloud skip contents, index, copyright pages
   language: 'en',
   debridPreferred: 'torbox', // torbox | realdebrid
   downloadTarget: 'public', // public = Downloads/Inkwell, app = private app storage

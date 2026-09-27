@@ -985,6 +985,9 @@ export function Settings() {
       <Section icon="download" title="Downloads">
         <DownloadsCard />
       </Section>
+      <Section icon="upload" title="Send to Kindle">
+        <KindleCard />
+      </Section>
       <Section icon="headphones" title="Voices">
         <VoicesCard />
       </Section>
@@ -1137,5 +1140,38 @@ function AutoSendStatus() {
         {busy ? <span class="spinner small" /> : 'Check now'}
       </button>
     </div>
+  );
+}
+
+/** Your Kindle's e-mail address: Kindle buttons then open your e-mail app, addressed and with the book attached. */
+function KindleCard() {
+  const st = useStore(settings);
+  const [v, setV] = useState(st.kindleEmail || '');
+  const ok = !v.trim() || /^[^\s@]+@(free\.)?kindle\.(com|cn)$/i.test(v.trim());
+  return (
+    <>
+      <p class="muted">
+        Enter your Kindle's e-mail address. Kindle buttons then open your e-mail app with the book attached and the address filled in — just tap Send. Without it, they open the share menu
+        (pick the Kindle app there).
+      </p>
+      <p class="muted small">
+        Find the address and allow your own e-mail: <b>amazon.com → Manage Your Content and Devices → Preferences → Personal Document Settings</b>. Add the e-mail you send from to the
+        "Approved Personal Document E-mail List". EPUB and PDF work.
+      </p>
+      <form
+        class="set-form inline"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!ok) return toast('That doesn\'t look like a Kindle address (…@kindle.com)');
+          settings.patch({ kindleEmail: v.trim() });
+          toast(v.trim() ? 'Saved — Kindle buttons will e-mail books there' : 'Removed');
+        }}
+      >
+        <input type="email" value={v} placeholder="yourname@kindle.com" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setV(e.currentTarget.value)} />
+        <button class="btn primary" disabled={v.trim() === (st.kindleEmail || '')}>
+          Save
+        </button>
+      </form>
+    </>
   );
 }

@@ -84,52 +84,65 @@ public class InkwellWebPlugin extends Plugin {
         String name = call.getString("name", "book.epub").replaceAll("[\\\\/:*?\"<>|]", " ").trim();
         String mime = call.getString("mime", "application/epub+zip");
         String title = call.getString("title", "Send to Kindle");
+        // Optional: your Kindle's e-mail address — opens your e-mail app with the book attached.
+        String email = call.getString("email", "");
         if (url == null) {
             call.reject("Missing url");
             return;
         }
         new Thread(() -> {
             try {
-                String next = url;
-                HttpURLConnection c = null;
-                for (int hop = 0; hop < 6; hop++) {
-                    c = (HttpURLConnection) new URL(next).openConnection();
-                    c.setInstanceFollowRedirects(false);
-                    c.setConnectTimeout(20000);
-                    c.setReadTimeout(60000);
-                    c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) Kathava");
-                    int code = c.getResponseCode();
-                    if (code >= 300 && code < 400 && c.getHeaderField("Location") != null) {
-                        next = new URL(new URL(next), c.getHeaderField("Location")).toString();
-                        c.disconnect();
-                        continue;
-                    }
-                    if (code >= 400) throw new Exception("HTTP " + code);
-                    break;
-                }
                 File dir = new File(getContext().getCacheDir(), "share");
+                //noinspection ResultOfMethodCallIgnored
                 dir.mkdirs();
                 File f = new File(dir, name);
-                InputStream in = c.getInputStream();
-                FileOutputStream out = new FileOutputStream(f);
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                out.close();
-                in.close();
+                //noinspection ResultOfMethodCallIgnored
+                f.delete();
+                // Same downloader as updates: follows redirects, has timeouts, several connections.
+                ParallelDownloader.fetch(url, f, 2, null);
+                if (looksLikeWebPage(f)) {
+                    //noinspection ResultOfMethodCallIgnored
+                    f.delete();
+                    throw new Exception("the link gave a web page instead of the ebook file — try opening it in the browser");
+                }
                 Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", f);
                 Intent send = new Intent(Intent.ACTION_SEND);
                 send.setType(mime);
                 send.putExtra(Intent.EXTRA_STREAM, uri);
                 send.putExtra(Intent.EXTRA_SUBJECT, name);
                 send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                if (email != null && !email.isEmpty()) {
+                    // Only e-mail apps, addressed to the Kindle.
+                    send.putExtra(Intent.EXTRA_EMAIL, new String[] { email });
+                    send.putExtra(Intent.EXTRA_TEXT, "Sent from Kathava");
+                    send.setSelector(new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")));
+                }
                 Intent chooser = Intent.createChooser(send, title);
                 chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                getActivity().startActivity(chooser);
-                call.resolve();
-            } catch (Exception e) {
+                getActivity().runOnUiThread(() -> {
+                    try {
+                        getActivity().startActivity(chooser);
+                        call.resolve();
+                    } catch (Throwable t) {
+                        call.reject("Couldn't open the share menu: " + t.getMessage());
+                    }
+                });
+            } catch (Throwable e) {
                 call.reject("Couldn't get the ebook: " + e.getMessage());
             }
         }).start();
+    }
+
+    /** A download that is really an HTML page (login, captcha, error) rather than the file. */
+    private static boolean looksLikeWebPage(File f) {
+        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+            byte[] head = new byte[256];
+            int n = in.read(head);
+            if (n <= 0) return true;
+            String s = new String(head, 0, n, java.nio.charset.StandardCharsets.ISO_8859_1).trim().toLowerCase(java.util.Locale.ROOT);
+            return s.startsWith("<!doctype html") || s.startsWith("<html") || s.startsWith("<head");
+        } catch (Exception e) {
+            return false;
+        }
     }
 }
