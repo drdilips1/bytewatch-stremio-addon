@@ -2,12 +2,10 @@ package com.paper2audio.app
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import kotlinx.coroutines.CancellationException
@@ -18,13 +16,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArraySet
-import kotlin.coroutines.resume
 import kotlin.math.roundToInt
 
 /**
@@ -104,9 +101,23 @@ object Speaker {
 
     /** Re-renders from the current position after a voicing change. */
     private fun restartAudio() {
-        pausedAt = -1
-        if (playing) play() else prewarm()
+        if (playing) {
+            stopAll()
+            play()
+        } else {
+            stopAll()
+            prewarm()
+        }
         notifyChanged()
+    }
+
+    fun setStyle(value: Style) {
+        if (value == style) return
+        style = value
+        prefs.edit().putString("style", value.name).apply()
+        tts?.setSpeechRate(renderSpeed)
+        speedRendered = renderSpeed
+        restartAudio()
     }
 
     /** Whether voice [id] can read language [lang] ("en", "hi", …). */
@@ -148,10 +159,20 @@ object Speaker {
     // Phone TTS playback state.
     private var queuedUpTo = -1
 
-    // Kokoro / Microsoft voice playback state.
+    // Natural voice playback state: one continuous audio stream per session.
     private var session: Job? = null
-    private var player: MediaPlayer? = null
-    private var pausedAt = -1
+    private var stream: AudioStream? = null
+
+    /** Which piece (about a sentence) of the current paragraph is being read. */
+    var pieceIndex = 0
+        private set
+
+    /** Speaking style (pace and pauses). */
+    var style: Style = Style.STANDARD
+        private set
+
+    /** The speed audio is rendered at: the chosen speed times the style's pace. */
+    val renderSpeed: Float get() = speed * style.rate
 
     fun init(context: Context, onReady: () -> Unit) {
         if (initialized) {
@@ -163,7 +184,8 @@ object Speaker {
         ModelPack.init(app)
         MyVoices.init(app)
         speed = prefs.getFloat("speed", 1.0f)
-        speedRendered = speed
+        style = Style.of(prefs.getString("style", null))
+        speedRendered = renderSpeed
         voiceId = prefs.getString("voice2", null) ?: DEFAULT_VOICE
         // A cloned voice that no longer exists (deleted, or a retired ready-made one) falls back to the default.
         if (voiceId.startsWith(CLONE) && MyVoices.get(voiceId.removePrefix(CLONE)) == null) voiceId = DEFAULT_VOICE
@@ -191,7 +213,7 @@ object Speaker {
 
     private fun configureSystem() {
         val t = tts ?: return
-        t.setSpeechRate(speed)
+        t.setSpeechRate(renderSpeed)
         if (voiceId.startsWith(SYSTEM)) t.voices?.firstOrNull { it.name == voiceId.removePrefix(SYSTEM) }?.let { t.voice = it }
         t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(id: String) {
@@ -256,10 +278,10 @@ object Speaker {
         voiceId = id
         prefs.edit().putString("voice2", id).apply()
         if (id.startsWith(SYSTEM)) tts?.let { t -> t.voices?.firstOrNull { it.name == id.removePrefix(SYSTEM) }?.let { t.voice = it } }
-        pausedAt = -1
+        // Always stop the old voice first, so it can never keep going under the new name;
+        // then continue from the sentence being read.
+        stopAll()
         if (playing) {
-            // Always stop the old voice first, so it can never keep going under the new name.
-            stopAll()
             play()
         } else {
             warmUpLocal()
@@ -286,18 +308,18 @@ object Speaker {
     fun setSpeed(value: Float) {
         speed = value
         prefs.edit().putFloat("speed", value).apply()
-        tts?.setSpeechRate(value)
-        // Only the part above what the engine renders changes: adjust the running player.
-        val p = player
+        tts?.setSpeechRate(renderSpeed)
+        // Only the part above what the engine renders changes: adjust the running stream.
+        val s = stream
         val v = voicing()
-        val sameAudio = isStreamed && Renderer.engineSpeed(v, value) == Renderer.engineSpeed(v, speedRendered)
-        if (sameAudio && p != null && p.isPlaying) {
-            runCatching { p.playbackParams = p.playbackParams.setSpeed(Renderer.playbackBoost(v, value)) }
+        val sameAudio = isStreamed && Renderer.engineSpeed(v, renderSpeed) == Renderer.engineSpeed(v, speedRendered)
+        if (sameAudio && s != null) {
+            s.setBoost(Renderer.playbackBoost(v, renderSpeed))
         } else {
-            pausedAt = -1
+            stopAll()
             if (playing) play() else prewarm()
         }
-        speedRendered = value
+        speedRendered = renderSpeed
         notifyChanged()
     }
 
@@ -306,6 +328,7 @@ object Speaker {
         stopAll()
         doc = newDoc
         index = prefs.getInt("pos:${newDoc.key}", 0).coerceIn(0, maxOf(0, newDoc.paragraphs.size - 1))
+        pieceIndex = prefs.getInt("pc:${newDoc.key}", 0).coerceAtLeast(0)
         currentPiece = null
         if (newDoc.lang == null) {
             // Language matters for Supertonic and for suggesting a fitting voice.
@@ -336,13 +359,8 @@ object Speaker {
             return
         }
         if (isStreamed) {
-            val p = player
-            if (p != null && pausedAt == index) {
-                p.start()
-                pausedAt = -1
-            } else {
-                startStreaming()
-            }
+            val s = stream
+            if (s != null && session?.isActive == true) s.resume() else startStreaming()
         } else {
             if (!systemReady) {
                 lastError = "This phone has no working text-to-speech engine. Pick a ★ natural voice instead."
@@ -354,29 +372,25 @@ object Speaker {
             enqueueSystem()
         }
         playing = true
-        speedRendered = speed
+        speedRendered = renderSpeed
         ReaderService.start(app)
         notifyChanged()
     }
 
     fun pause() {
         playing = false
-        val p = player
-        if (isStreamed && p != null && p.isPlaying) {
-            p.pause()
-            pausedAt = index
-        } else {
-            stopAll()
-        }
+        val s = stream
+        if (isStreamed && s != null && session?.isActive == true) s.pause() else stopAll()
         notifyChanged()
     }
 
     fun toggle() = if (playing) pause() else play()
 
-    fun seek(i: Int) {
+    fun seek(i: Int, piece: Int = 0) {
         val d = doc ?: return
         index = i.coerceIn(0, maxOf(0, d.paragraphs.size - 1))
-        pausedAt = -1
+        pieceIndex = piece.coerceAtLeast(0)
+        stopAll()
         savePosition()
         currentPiece = null
         if (playing) play() else {
@@ -389,6 +403,24 @@ object Speaker {
 
     fun previous() = seek(index - 1)
 
+    /** Steps back one sentence (to the previous paragraph's last one at a paragraph start). */
+    fun previousSentence() {
+        val d = doc ?: return
+        if (!isStreamed) return previous()
+        when {
+            pieceIndex > 0 -> seek(index, pieceIndex - 1)
+            index > 0 -> seek(index - 1, Renderer.pieces(d.paragraphs[index - 1], voiceId).size - 1)
+            else -> seek(0)
+        }
+    }
+
+    fun nextSentence() {
+        val d = doc ?: return
+        if (!isStreamed) return next()
+        val count = Renderer.pieces(d.paragraphs[index], voiceId).size
+        if (pieceIndex + 1 < count) seek(index, pieceIndex + 1) else seek(index + 1)
+    }
+
     private fun stopAll() {
         generation++
         tts?.stop()
@@ -397,9 +429,8 @@ object Speaker {
         // Pending warm-ups for the old voice would hold up the on-device engine.
         warmJob?.cancel()
         starting = false
-        player?.release()
-        player = null
-        pausedAt = -1
+        stream?.release()
+        stream = null
     }
 
     private fun fail(message: String) {
@@ -429,6 +460,7 @@ object Speaker {
     private fun handleStart(id: String) {
         val idx = parse(id) ?: return
         if (idx != index) moveTo(idx)
+        pieceIndex = 0
         currentPiece = doc?.paragraphs?.getOrNull(idx)
         notifyChanged()
     }
@@ -448,66 +480,106 @@ object Speaker {
 
     fun ratePercent(s: Float = speed) = ((s - 1f) * 100).roundToInt().coerceIn(-50, 200)
 
+    private class Piece(val paragraph: Int, val index: Int, val text: String, val lastInParagraph: Boolean)
+
+    private fun pieceSequence(d: Doc, fromParagraph: Int, fromPiece: Int, vid: String) = sequence {
+        for (k in fromParagraph until d.paragraphs.size) {
+            val ps = Renderer.pieces(d.paragraphs[k], vid)
+            val first = if (k == fromParagraph) fromPiece.coerceIn(0, maxOf(0, ps.size - 1)) else 0
+            for (j in first until ps.size) yield(Piece(k, j, ps[j], j == ps.size - 1))
+        }
+    }
+
+    /** The pause after a piece: longer after paragraphs, longest after headings. */
+    private fun pauseAfter(d: Doc, p: Piece): Int = when {
+        !p.lastInParagraph -> style.sentencePause
+        d.chapters.any { it.start == p.paragraph } && d.paragraphs[p.paragraph].length < 150 -> style.headingPause
+        else -> style.paragraphPause
+    }
+
     private fun startStreaming() {
         stopAll()
         val d = doc ?: return
         val g = generation
         val vid = voiceId
-        val currentSpeed = speed
-        val boost = Renderer.playbackBoost(voicing(d), currentSpeed)
+        val currentSpeed = renderSpeed
         starting = true
         session = scope.launch {
             // Supertonic reads in the document's language: make sure it's known (fast, on the phone).
             if (d.lang == null && LocalTts.isLocal(vid)) withContext(Dispatchers.IO) { Langs.of(d) }
             val v = voicing(d)
-            val pieces = (index until d.paragraphs.size).asSequence()
-                .flatMap { k -> Renderer.pieces(d.paragraphs[k], vid).map { k to it } }
-                .iterator()
-            val queue = ArrayDeque<Triple<Int, String, Deferred<File>>>()
+            val out = AudioStream(app, Renderer.playbackBoost(v, currentSpeed))
+            if (!playing) out.pause()
+            stream = out
+            val pieces = pieceSequence(d, index, pieceIndex, vid).iterator()
+            val queue = ArrayDeque<Pair<Piece, Deferred<Pcm16>>>()
+            suspend fun load(p: Piece): Pcm16 {
+                val file = try {
+                    Renderer.render(app, v, currentSpeed, p.text)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Renderer.render(app, v, currentSpeed, p.text) // one more try: networks drop requests
+                }
+                return withContext(Dispatchers.Default) { AudioDecode.load(file) }
+            }
             fun fill() {
                 while (queue.size < PIECE_LOOKAHEAD && pieces.hasNext()) {
-                    val (k, text) = pieces.next()
-                    queue.addLast(Triple(k, text, async { Renderer.render(app, v, currentSpeed, text) }))
+                    val p = pieces.next()
+                    queue.addLast(p to async { load(p) })
                 }
             }
 
-            while (true) {
-                fill()
-                val (k, text, pending) = queue.removeFirstOrNull() ?: break
-                val file = try {
-                    try {
+            // Follows what is being heard: highlight, position, sleep at end of chapter.
+            val follow = launch {
+                var shown: Piece? = null
+                while (true) {
+                    val p = out.currentTag() as Piece?
+                    if (p != null && p !== shown && g == generation) {
+                        shown = p
+                        starting = false
+                        if (p.paragraph != index) moveTo(p.paragraph)
+                        pieceIndex = p.index
+                        currentPiece = p.text
+                        savePosition()
+                        notifyChanged()
+                    }
+                    delay(60)
+                }
+            }
+
+            try {
+                while (true) {
+                    fill()
+                    val (piece, pending) = queue.removeFirstOrNull() ?: break
+                    val pcm = try {
                         pending.await()
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        Renderer.render(app, v, currentSpeed, text) // one more try: networks drop requests
+                        if (g == generation) {
+                            fail(
+                                if (LocalTts.isLocal(vid)) "The on-device voice couldn't read this (${e.message})."
+                                else "Couldn't reach the natural voice service (${e.message}). Check your internet, or download the document for offline listening."
+                            )
+                        }
+                        return@launch
                     }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    if (g == generation) {
-                        fail(
-                            if (LocalTts.isLocal(vid)) "The on-device voice couldn't read this (${e.message})."
-                            else "Couldn't reach the natural voice service (${e.message}). Check your internet, or download the document for offline listening."
-                        )
-                    }
-                    return@launch
+                    if (g != generation) return@launch
+                    fill() // keep rendering ahead while this piece plays
+                    out.write(pcm, piece, pauseAfter(d, piece))
                 }
-                if (g != generation) return@launch
-                if (k != index) moveTo(k) else savePosition()
-                currentPiece = text
-                starting = false
-                notifyChanged()
-                if (!playing) return@launch // sleep timer or end of chapter stopped us
-                fill() // keep rendering ahead while this piece plays
-                playFile(file, boost)
-                player?.release()
-                player = null
+                out.drain()
+            } finally {
+                follow.cancel()
             }
             if (g == generation) {
                 playing = false
                 starting = false
                 currentPiece = null
+                // Finished: the next Play starts from the beginning of the last paragraph.
+                pieceIndex = 0
+                stopAll()
                 notifyChanged()
             }
         }
@@ -520,12 +592,13 @@ object Speaker {
         if (d.lang == null && LocalTts.isLocal(voiceId)) return // load() prewarms once the language is known
         val vid = voiceId
         val v = voicing(d)
-        val sp = speed
+        val sp = renderSpeed
         val from = index
+        val fromPiece = pieceIndex
         warmJob?.cancel()
         warmJob = scope.launch {
-            val first = (from until minOf(from + 2, d.paragraphs.size)).flatMap { Renderer.pieces(d.paragraphs[it], vid) }.take(2)
-            for (text in first) runCatching { Renderer.render(app, v, sp, text) }
+            val first = pieceSequence(d, from, fromPiece, vid).take(2).toList()
+            for (p in first) runCatching { Renderer.render(app, v, sp, p.text) }
         }
     }
 
@@ -575,7 +648,7 @@ object Speaker {
             notifyChanged()
             return
         }
-        val sp = speed
+        val sp = renderSpeed
         scope.launch {
             try {
                 val f = Renderer.render(app, v, sp, text)
@@ -627,36 +700,10 @@ object Speaker {
         notifyChanged()
     }
 
-    private suspend fun playFile(file: File, boost: Float) = suspendCancellableCoroutine { cont ->
-        val mp = MediaPlayer()
-        mp.setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build()
-        )
-        mp.setWakeMode(app, PowerManager.PARTIAL_WAKE_LOCK)
-        mp.setOnCompletionListener { if (cont.isActive) cont.resume(Unit) }
-        mp.setOnErrorListener { _, _, _ ->
-            if (cont.isActive) cont.resume(Unit) // skip a paragraph that won't play
-            true
-        }
-        try {
-            mp.setDataSource(file.path)
-            mp.prepare()
-        } catch (e: Exception) {
-            mp.release()
-            cont.resume(Unit)
-            return@suspendCancellableCoroutine
-        }
-        if (boost > 1.01f) runCatching { mp.playbackParams = mp.playbackParams.setSpeed(boost) }
-        player = mp
-        mp.start()
-    }
-
     private fun savePosition() {
         val d = doc ?: return
-        prefs.edit().putInt("pos:${d.key}", index).putLong("posAt:${d.key}", System.currentTimeMillis()).apply()
+        prefs.edit().putInt("pos:${d.key}", index).putInt("pc:${d.key}", pieceIndex)
+            .putLong("posAt:${d.key}", System.currentTimeMillis()).apply()
     }
 
     fun addListener(l: () -> Unit) {

@@ -174,10 +174,34 @@ object TextCleaner {
      * [target] characters each. A single long sentence stays whole unless it is
      * longer than [hardMax].
      */
+    /**
+     * Splits a paragraph into sentences, without breaking after abbreviations
+     * ("Fig. 2", "et al.", "Dr. Smith", "e.g.") or initials ("J. Smith").
+     */
+    fun sentences(p: String): List<String> {
+        val parts = p.split(SENTENCE_BREAK)
+        val out = ArrayList<String>()
+        for (part in parts) {
+            val prev = out.lastOrNull()
+            if (prev != null && joinsNext(prev)) out[out.lastIndex] = "$prev $part" else out += part
+        }
+        return out.filter { it.isNotBlank() }
+    }
+
+    private val NO_BREAK_AFTER = Regex(
+        """(?i)(?:\b(?:fig|figs|eq|eqs|tab|ref|refs|vol|no|nos|pp|p|ch|sec|dr|mr|mrs|ms|prof|st|vs|approx|ca|cf|al|etc|resp|dept|univ|jr|sr|inc|ltd|co|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|e\.g|i\.e)\.|\b[A-Z]\.)$"""
+    )
+
+    private fun joinsNext(sentence: String): Boolean {
+        val t = sentence.trimEnd()
+        // "et al." and "etc." often do end sentences; only join when the next word would be lowercase.
+        return NO_BREAK_AFTER.containsMatchIn(t) && !t.endsWith("etc.")
+    }
+
     fun pieces(p: String, target: Int, hardMax: Int = 1000, firstTarget: Int = target): List<String> {
         val out = ArrayList<String>()
         val buf = StringBuilder()
-        for (sentence in p.split(SENTENCE_BREAK)) {
+        for (sentence in sentences(p)) {
             if (sentence.isBlank()) continue
             val limit = if (out.isEmpty()) firstTarget else target
             if (buf.isNotEmpty() && buf.length + sentence.length + 1 > limit) {

@@ -259,6 +259,15 @@
                         android:thumbTint="?attr/p2aAccent" />
 
                     <Button
+                        android:id="@+id/btnStyle"
+                        style="@style/P2A.Button.Soft"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:layout_marginTop="6dp"
+                        android:minHeight="40dp"
+                        android:text="Style: Standard" />
+
+                    <Button
                         android:id="@+id/btnKokoro"
                         style="@style/P2A.Button"
                         android:layout_width="match_parent"

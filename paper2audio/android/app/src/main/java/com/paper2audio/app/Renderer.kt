@@ -62,9 +62,12 @@ object Renderer {
 
     fun playbackBoost(v: Voicing, speed: Float) = speed / engineSpeed(v, speed)
 
-    /** Playback pieces for one paragraph: a short first piece so every paragraph starts fast. */
+    /**
+     * Playback pieces for one paragraph: about one sentence each (very short ones
+     * joined), so playback starts fast and can step back a sentence at a time.
+     */
     fun pieces(paragraph: String, voiceId: String): List<String> =
-        TextCleaner.pieces(paragraph, if (LocalTts.isLocal(voiceId)) 220 else 500, firstTarget = 160)
+        TextCleaner.pieces(paragraph, 50, hardMax = if (LocalTts.isLocal(voiceId)) 300 else 900)
 
     private fun dir(context: Context) = File(context.filesDir, "audiocache").apply { mkdirs() }
 

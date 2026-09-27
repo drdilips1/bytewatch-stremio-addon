@@ -78,6 +78,7 @@ class PlayerActivity : Activity() {
     private lateinit var btnPrev: ImageButton
     private lateinit var btnPlay: ImageButton
     private lateinit var btnNext: ImageButton
+    private lateinit var btnStyle: Button
     private lateinit var btnSleep: Button
     private lateinit var btnSpeed: Button
     private lateinit var btnChapters: ImageButton
@@ -217,8 +218,21 @@ class PlayerActivity : Activity() {
             askNotificationPermission()
             Speaker.toggle()
         }
-        btnPrev.setOnClickListener { Speaker.previous() }
-        btnNext.setOnClickListener { Speaker.next() }
+        // Tap: one sentence back or forward. Hold: a whole paragraph.
+        btnPrev.setOnClickListener { Speaker.previousSentence() }
+        btnNext.setOnClickListener { Speaker.nextSentence() }
+        btnPrev.setOnLongClickListener {
+            Speaker.previous()
+            toast("Previous paragraph")
+            true
+        }
+        btnNext.setOnLongClickListener {
+            Speaker.next()
+            toast("Next paragraph")
+            true
+        }
+        btnStyle = findViewById(R.id.btnStyle)
+        btnStyle.setOnClickListener { chooseStyle() }
         btnChapters.setOnClickListener { showChapters() }
         btnSleep.setOnClickListener { showSleepTimer() }
         btnSpeed.setOnClickListener { showSpeeds() }
@@ -310,7 +324,7 @@ class PlayerActivity : Activity() {
                     toast("Phone voices already work offline. Offline download is for ★ and ◆ voices.")
                 else -> {
                     askNotificationPermission()
-                    OfflineDownloader.start(this, doc, Speaker.voicing(doc), Speaker.speed)
+                    OfflineDownloader.start(this, doc, Speaker.voicing(doc), Speaker.renderSpeed)
                 }
             }
         }
@@ -344,10 +358,10 @@ class PlayerActivity : Activity() {
                         .setItems(arrayOf(
                             "One file",
                             "Audiobook: one file per chapter (${doc.chapters.size} files in a folder, with cover and track numbers)",
-                        )) { _, which -> Exporter.start(this, doc, Speaker.voicing(doc), Speaker.speed, perChapter = which == 1) }
+                        )) { _, which -> Exporter.start(this, doc, Speaker.voicing(doc), Speaker.renderSpeed, perChapter = which == 1) }
                         .show()
                 } else {
-                    Exporter.start(this, doc, Speaker.voicing(doc), Speaker.speed)
+                    Exporter.start(this, doc, Speaker.voicing(doc), Speaker.renderSpeed)
                 }
             }
         }
@@ -604,10 +618,10 @@ class PlayerActivity : Activity() {
     private fun refreshOfflineStatus() {
         val doc = Speaker.doc ?: return
         val v = Speaker.voicing(doc)
-        val key = "${doc.key}|${v.key}|${Speaker.speed}"
+        val key = "${doc.key}|${v.key}|${Speaker.renderSpeed}"
         if (offlineFor == key && !OfflineDownloader.running) return
         offlineFor = key
-        val sp = Speaker.speed
+        val sp = Speaker.renderSpeed
         scope.launch {
             offlinePercent = withContext(Dispatchers.IO) { OfflineDownloader.percentCached(this@PlayerActivity, doc, v, sp) }
             render()
@@ -787,7 +801,7 @@ class PlayerActivity : Activity() {
                 if (Speaker.isLocal) "Starting the voice… (on-device voices take a few seconds the first time)" else "Starting the voice…"
             doc != null -> {
                 val chapters = if (doc.chapters.size > 1) " · ${doc.chapters.size} chapters" else ""
-                "%,d words$chapters · ${format((doc.words / (160 * Speaker.speed)).toInt())}".format(doc.words)
+                "%,d words$chapters · ${format((doc.words / (160 * Speaker.renderSpeed)).toInt())}".format(doc.words)
             }
             else -> ""
         }
@@ -811,7 +825,7 @@ class PlayerActivity : Activity() {
                 posLabel.text = positionLabel(Speaker.index)
             }
             val left = doc.words.toLong() * (doc.paragraphs.size - Speaker.index) / doc.paragraphs.size.coerceAtLeast(1)
-            timeLabel.text = "${format((left / (160 * Speaker.speed)).toInt())} left"
+            timeLabel.text = "${format((left / (160 * Speaker.renderSpeed)).toInt())} left"
         } else {
             posLabel.text = ""
             timeLabel.text = ""
@@ -820,6 +834,7 @@ class PlayerActivity : Activity() {
         btnPlay.setImageResource(if (Speaker.playing) R.drawable.ic_pause else R.drawable.ic_play)
         btnChapters.alpha = if (doc != null && doc.chapters.size > 1) 1f else 0.35f
         btnSpeed.text = speedLabelOf(Speaker.speed)
+        btnStyle.text = "Style: ${Speaker.style.label}"
         btnSleep.text = when {
             Speaker.sleepEndOfChapter -> "Chapter end"
             Speaker.sleepAt > 0 -> "${((Speaker.sleepAt - System.currentTimeMillis()) / 60_000 + 1).coerceAtLeast(1)} min"
@@ -851,7 +866,7 @@ class PlayerActivity : Activity() {
         exportProgress.isIndeterminate = Exporter.running && Exporter.progress == 0
         exportProgress.progress = Exporter.progress
         val estimate = doc?.let {
-            val (minutes, mb) = Exporter.estimate(it, Speaker.voiceId, Speaker.speed)
+            val (minutes, mb) = Exporter.estimate(it, Speaker.voiceId, Speaker.renderSpeed)
             "About ${format(minutes)} of audio, ~$mb MB. You can leave the app while it saves."
         }
         exportStatus.text = Exporter.message ?: estimate ?: ""
@@ -896,6 +911,17 @@ class PlayerActivity : Activity() {
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+
+    private fun chooseStyle() {
+        val styles = Style.entries
+        AlertDialog.Builder(this)
+            .setTitle("Speaking style")
+            .setSingleChoiceItems(styles.map { "${it.label} \u2014 ${it.note}" }.toTypedArray(), styles.indexOf(Speaker.style)) { d, which ->
+                Speaker.setStyle(styles[which])
+                d.dismiss()
+            }
+            .show()
+    }
 
     // ---- AI (Google Gemini, free tier) ----
 

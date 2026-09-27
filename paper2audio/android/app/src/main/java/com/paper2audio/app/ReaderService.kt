@@ -49,8 +49,8 @@ class ReaderService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_TOGGLE -> Speaker.toggle()
-            ACTION_NEXT -> Speaker.next()
-            ACTION_PREV -> Speaker.previous()
+            ACTION_NEXT -> Speaker.nextSentence()
+            ACTION_PREV -> Speaker.previousSentence()
             ACTION_CLOSE -> {
                 Speaker.pause()
                 if (!Exporter.running && ModelPack.active == null) {
