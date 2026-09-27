@@ -48,11 +48,17 @@ object Gemini {
         json: Boolean = false,
         /** A file uploaded with [upload]: (mime type, file URI). */
         uploaded: Pair<String, String>? = null,
+        /** JPEG or PNG images, e.g. rendered pages. */
+        images: List<ByteArray> = emptyList(),
     ): String {
         val key = key(context) ?: throw GeminiException("Add your free Gemini key first.")
         val parts = JSONArray()
         attachment?.let { (mime, bytes) ->
             parts.put(JSONObject().put("inlineData", JSONObject().put("mimeType", mime).put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))))
+        }
+        for (img in images) {
+            val mime = if (img.size > 3 && img[0] == 0x89.toByte() && img[1] == 'P'.code.toByte()) "image/png" else "image/jpeg"
+            parts.put(JSONObject().put("inlineData", JSONObject().put("mimeType", mime).put("data", Base64.encodeToString(img, Base64.NO_WRAP))))
         }
         uploaded?.let { (mime, uri) ->
             parts.put(JSONObject().put("fileData", JSONObject().put("mimeType", mime).put("fileUri", uri)))

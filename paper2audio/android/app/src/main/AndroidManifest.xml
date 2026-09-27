@@ -39,6 +39,17 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".ChatActivity"
+            android:exported="false"
+            android:parentActivityName=".PlayerActivity"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".StudyActivity"
+            android:exported="false"
+            android:parentActivityName=".PlayerActivity" />
+
+        <activity
             android:name=".SearchActivity"
             android:exported="false"
             android:parentActivityName=".LibraryActivity"

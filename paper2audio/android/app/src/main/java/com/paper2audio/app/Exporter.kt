@@ -159,13 +159,91 @@ object Exporter {
     }
 
     private suspend fun exportOne(app: Context, doc: Doc, v: Voicing, speed: Float, voiceId: String): Pair<Uri, String> {
-        return if (voiceId.startsWith(Speaker.EDGE)) {
-            exportEdge(app, doc, v, speed)
-        } else if (LocalTts.isLocal(voiceId)) {
-            exportLocal(app, doc, v.copy(lang = v.lang ?: Langs.of(doc)), speed)
-        } else {
-            export(app, doc, voiceId.removePrefix(Speaker.SYSTEM), speed)
+        if (!Renderer.isStreamed(voiceId)) return export(app, doc, voiceId.removePrefix(Speaker.SYSTEM), speed)
+        if (LocalTts.isLocal(voiceId) && doc.lang == null) doc.lang = Langs.of(doc)
+        // The same pieces and voices as listening, so downloaded audio is reused (instant).
+        val plan = withContext(Dispatchers.Main) { Speaker.plan(doc) }
+        return exportPieces(app, doc, plan, speed, mp3 = voiceId.startsWith(Speaker.EDGE))
+    }
+
+    /**
+     * Saves [plan]'s pieces as one file. Online voices: the MP3 pieces joined (with tags).
+     * On-device voices: trimmed pieces with natural pauses, encoded as AAC (M4A).
+     */
+    private suspend fun exportPieces(context: Context, doc: Doc, plan: List<Pair<String, Voicing>>, speed: Float, mp3: Boolean): Pair<Uri, String> {
+        if (plan.isEmpty()) error("Nothing to read")
+        val local = LocalTts.isLocal(plan.first().second.voiceId)
+        plan.map { it.second.voiceId }.distinct().forEach { id -> LocalTts.missing(id)?.let { error("Download the ${it.title} first") } }
+        val out = createOutput(context, doc.title, if (mp3) "mp3" else "m4a", if (mp3) "audio/mpeg" else "audio/mp4")
+        var writer: AacWriter? = null
+        var ok = false
+        try {
+            ParcelFileDescriptor.AutoCloseOutputStream(out.pfd).buffered().use { os ->
+                if (mp3) tags?.let { os.write(Id3.tag(it)) }
+                coroutineScope {
+                    val parallel = if (local) 1 else 10
+                    val inFlight = ArrayDeque<kotlinx.coroutines.Deferred<File>>()
+                    var next = 0
+                    var done = 0
+                    val pause = ShortArray(24000 * 280 / 1000)
+                    while (done < plan.size) {
+                        while (inFlight.size < parallel && next < plan.size) {
+                            val (text, v) = plan[next++]
+                            inFlight.addLast(async(Dispatchers.IO) { renderRetrying(context, v, speed, text) })
+                        }
+                        val file = inFlight.removeFirst().await()
+                        if (mp3) {
+                            file.inputStream().use { it.copyTo(os) }
+                            bytesOut += file.length()
+                        } else {
+                            val pcm = withContext(Dispatchers.Default) { AudioDecode.load(file) }
+                            val w = writer ?: AacWriter(out.pfd.fileDescriptor, pcm.sampleRate, 1).also { writer = it }
+                            val samples = if (pcm.sampleRate == w.sampleRate) pcm.samples else AudioStream.resample(pcm.samples, pcm.sampleRate, w.sampleRate)
+                            w.writePcm(toBytes(samples), samples.size * 2)
+                            w.writePcm(toBytes(pause), pause.size * 2)
+                            bytesOut = partBytes + w.bytesWritten
+                        }
+                        done++
+                        val pct = done * 100 / plan.size
+                        if (overall(pct) != progress) {
+                            update {
+                                progress = overall(pct)
+                                message = progressMessage(progress)
+                            }
+                        }
+                    }
+                }
+                if (!mp3) (writer ?: error("No audio was produced")).finish()
+            }
+            ok = true
+        } finally {
+            if (!ok) runCatching { writer?.release() }
+            runCatching { out.pfd.close() }
+            if (ok) out.commit() else out.discard()
         }
+        return out.uri to out.where
+    }
+
+    private fun toBytes(s: ShortArray): ByteArray {
+        val b = ByteArray(s.size * 2)
+        for (i in s.indices) {
+            b[2 * i] = (s[i].toInt() and 0xff).toByte()
+            b[2 * i + 1] = ((s[i].toInt() shr 8) and 0xff).toByte()
+        }
+        return b
+    }
+
+    private suspend fun renderRetrying(context: Context, v: Voicing, speed: Float, text: String): File {
+        var wait = 2_000L
+        repeat(3) {
+            try {
+                return Renderer.render(context, v, speed, text)
+            } catch (e: IOException) {
+                delay(wait)
+                wait *= 2
+            }
+        }
+        return Renderer.render(context, v, speed, text) // last try; its error is reported
     }
 
     /** One document per chapter (text before the first chapter joins it), titled "01 Chapter". */
@@ -254,119 +332,6 @@ object Exporter {
             tts.shutdown()
         }
     }
-
-    private suspend fun exportEdge(context: Context, doc: Doc, v: Voicing, speed: Float): Pair<Uri, String> {
-        val voice = v.voiceId.removePrefix(Speaker.EDGE)
-        // Each request is one round trip of at most ~1100 characters (the service
-        // renders long text piece by piece anyway), and several run at once.
-        val chunks = group(doc.paragraphs.flatMap { TextCleaner.pieces(it, 1100, 1100) }, 1100)
-        val rate = Speaker.ratePercent(speed)
-        val out = createOutput(context, doc.title, "mp3", "audio/mpeg")
-        var ok = false
-        try {
-            ParcelFileDescriptor.AutoCloseOutputStream(out.pfd).buffered().use { os ->
-                tags?.let { os.write(Id3.tag(it)) }
-                coroutineScope {
-                    // Keep up to 8 requests in flight, writing results in order.
-                    val inFlight = ArrayDeque<kotlinx.coroutines.Deferred<ByteArray>>()
-                    var next = 0
-                    var written = 0
-                    var lastPct = -1
-                    while (written < chunks.size) {
-                        while (inFlight.size < 6 && next < chunks.size) {
-                            val text = chunks[next++]
-                            inFlight.addLast(async(Dispatchers.IO) {
-                                if (v.dialogue != null) synthVoicing(context, v, speed, text) else synthEdge(text, voice, rate, v.pitch)
-                            })
-                        }
-                        val part = inFlight.removeFirst().await()
-                        os.write(part)
-                        bytesOut += part.size
-                        written++
-                        val pct = written * 100 / chunks.size
-                        if (pct != lastPct) {
-                            lastPct = pct
-                            update {
-                                progress = overall(pct)
-                                message = progressMessage(progress)
-                            }
-                        }
-                    }
-                }
-            }
-            ok = true
-        } finally {
-            runCatching { out.pfd.close() }
-            if (ok) out.commit() else out.discard()
-        }
-        return out.uri to out.where
-    }
-
-    private suspend fun exportLocal(context: Context, doc: Doc, v: Voicing, speed: Float): Pair<Uri, String> {
-        LocalTts.missing(v.voiceId)?.let { error("Download the ${it.title} first") }
-        val es = Renderer.engineSpeed(v, speed)
-        val out = createOutput(context, doc.title, "m4a", "audio/mp4")
-        var writer: AacWriter? = null
-        var ok = false
-        try {
-            for ((i, text) in doc.paragraphs.withIndex()) {
-                coroutineContext.ensureActive()
-                val pcm = if (v.dialogue != null) {
-                    LocalTts.readWav(File(synthVoicingFile(context, v, speed, text)))
-                } else {
-                    withContext(Renderer.localThread) { LocalTts.synthesize(v.voiceId, text, es, v.lang) }
-                }
-                if (writer != null && pcm.sampleRate != writer!!.sampleRate) error("Voice changed audio format mid-way")
-                val w = writer ?: AacWriter(out.pfd.fileDescriptor, pcm.sampleRate, 1).also { writer = it }
-                w.writePcm(pcm.bytes, pcm.bytes.size)
-                bytesOut = partBytes + w.bytesWritten
-                val pct = (i + 1) * 100 / doc.paragraphs.size
-                if (overall(pct) != progress) {
-                    update {
-                        progress = overall(pct)
-                        message = progressMessage(progress)
-                    }
-                }
-            }
-            (writer ?: error("No audio was produced")).finish()
-            ok = true
-        } finally {
-            if (!ok) runCatching { writer?.release() }
-            runCatching { out.pfd.close() }
-            if (ok) out.commit() else out.discard()
-        }
-        return out.uri to out.where
-    }
-
-    private suspend fun synthEdge(text: String, voice: String, rate: Int, pitch: Int): ByteArray {
-        var wait = 2_000L
-        repeat(3) {
-            try {
-                return EdgeTts.synthesize(text, voice, rate, pitch)
-            } catch (e: IOException) {
-                delay(wait)
-                wait *= 2
-            }
-        }
-        return EdgeTts.synthesize(text, voice, rate, pitch) // last try; its error is reported
-    }
-
-    /** Two-voice stories: renders through [Renderer], which splits narration and dialogue. */
-    private suspend fun synthVoicingFile(context: Context, v: Voicing, speed: Float, text: String): String {
-        var wait = 2_000L
-        repeat(3) {
-            try {
-                return Renderer.render(context, v, speed, text).path
-            } catch (e: IOException) {
-                delay(wait)
-                wait *= 2
-            }
-        }
-        return Renderer.render(context, v, speed, text).path
-    }
-
-    private suspend fun synthVoicing(context: Context, v: Voicing, speed: Float, text: String): ByteArray =
-        File(synthVoicingFile(context, v, speed, text)).readBytes()
 
     /** Fewer, larger requests are much faster than one per paragraph. */
     private fun group(paragraphs: List<String>, limit: Int = 3000): List<String> {

@@ -6,6 +6,12 @@ import android.content.res.Configuration
 
 /** Color themes. "System" follows the phone's light/dark setting. */
 object Themes {
+    /** The theme's page background (a gradient), for screens built in code. */
+    fun backgroundOf(context: android.content.Context): android.graphics.drawable.Drawable? {
+        val a = context.obtainStyledAttributes(intArrayOf(R.attr.p2aBackground))
+        return try { a.getDrawable(0) } finally { a.recycle() }
+    }
+
     /** A color from the current theme, e.g. R.attr.p2aText. */
     fun color(context: android.content.Context, attr: Int): Int {
         val v = android.util.TypedValue()

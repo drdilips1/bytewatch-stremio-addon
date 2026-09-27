@@ -254,18 +254,15 @@ object OfflineDownloader {
         listeners.forEach { it() }
     }
 
-    private fun allPieces(doc: Doc, voiceId: String) = doc.paragraphs.flatMap { Renderer.pieces(it, voiceId) }
-
-    /** Fraction (0..100) of [doc] already available offline with this voicing and speed. */
-    fun percentCached(context: Context, doc: Doc, v: Voicing, speed: Float): Int {
-        if (!Renderer.isStreamed(v.voiceId)) return 0
-        val pieces = allPieces(doc, v.voiceId)
-        if (pieces.isEmpty()) return 0
-        return pieces.count { Renderer.isCached(context, v, speed, it) } * 100 / pieces.size
+    /** Fraction (0..100) of [doc] already available offline with the current voices and speed. */
+    fun percentCached(context: Context, doc: Doc, plan: List<Pair<String, Voicing>>, speed: Float): Int {
+        if (plan.isEmpty() || !Renderer.isStreamed(plan.first().second.voiceId)) return 0
+        return plan.count { (text, v) -> Renderer.isCached(context, v, speed, text) } * 100 / plan.size
     }
 
-    fun start(context: Context, doc: Doc, v: Voicing, speed: Float) {
-        val voiceId = v.voiceId
+    /** Renders every piece of [plan] (from [Speaker.plan]) into the audio cache. */
+    fun start(context: Context, doc: Doc, plan: List<Pair<String, Voicing>>, speed: Float) {
+        val voiceId = plan.firstOrNull()?.second?.voiceId ?: return
         if (running || !Renderer.isStreamed(voiceId)) return
         val app = context.applicationContext
         running = true
@@ -276,8 +273,9 @@ object OfflineDownloader {
         ReaderService.start(app)
         job = scope.launch {
             try {
-                val pieces = allPieces(doc, voiceId)
-                val parallel = if (LocalTts.isLocal(voiceId)) 1 else 6
+                val pieces = plan
+                // Online voices: many requests at once (the service answers each in about a second).
+                val parallel = if (LocalTts.isLocal(voiceId)) 1 else 10
                 var done = 0
                 val started = System.currentTimeMillis()
                 coroutineScope {
@@ -285,7 +283,7 @@ object OfflineDownloader {
                     var next = 0
                     while (done < pieces.size) {
                         while (inFlight.size < parallel && next < pieces.size) {
-                            val text = pieces[next++]
+                            val (text, v) = pieces[next++]
                             inFlight.addLast(async { retrying { Renderer.render(app, v, speed, text) } })
                         }
                         inFlight.removeFirst().await()

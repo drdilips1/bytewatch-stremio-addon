@@ -357,7 +357,7 @@ class VoiceStudioActivity : Activity() {
         toast("Finding a voice…")
         scope.launch {
             val pick = withContext(Dispatchers.IO) {
-                if (Gemini.key(this@VoiceStudioActivity) != null) runCatching { designWithGemini(description) }.getOrNull() else null
+                if (Llm.ready(this@VoiceStudioActivity)) runCatching { designWithGemini(description) }.getOrNull() else null
             } ?: designLocally(description)
             val (id, pitch, why) = pick
             val name = Speaker.voiceOptions().firstOrNull { it.id == id }?.label ?: id.substringAfter(':')
@@ -378,7 +378,7 @@ class VoiceStudioActivity : Activity() {
     private fun designWithGemini(description: String): Triple<String, Int, String?> {
         val options = Speaker.voiceOptions().filter { !it.id.startsWith(Speaker.SYSTEM) }
         val list = options.joinToString("\n") { "${it.id} = ${it.label}" }
-        val answer = Gemini.generate(
+        val answer = Llm.generate(
             this,
             "Pick the voice that best matches this description: \"$description\".\n\nAvailable voices (id = description):\n$list\n\n" +
                 "Voices marked 'online' can also be shifted in pitch by -40 to +40 Hz (negative is deeper). " +
@@ -419,21 +419,28 @@ class VoiceStudioActivity : Activity() {
         val favorites = EdgeTts.FAVORITES.filter { it.locale == locale && (gender == null || it.gender == gender) }
         val any = Speaker.onlineVoices.filter { it.locale == locale && (gender == null || it.gender == gender) }
         val pick = favorites.firstOrNull() ?: any.firstOrNull() ?: EdgeTts.FAVORITES.first { gender == null || it.gender == gender }
-        val note = "Tip: add a free Gemini key (player › Options › AI) for smarter matches."
-        return Triple(Speaker.EDGE + pick.name, pitch, if (Gemini.key(this) == null) note else null)
+        val note = "Tip: set up AI (player › Options › AI) for smarter matches."
+        return Triple(Speaker.EDGE + pick.name, pitch, if (!Llm.ready(this)) note else null)
     }
 
     // ---- Stories ----
 
     private fun buildStories() {
         val c = card(
-            "Stories: a second voice for dialogue",
-            "Narration is read by your main voice and everything in quotation marks by a second voice, " +
-                "like an audiobook with two narrators.",
+            "Stories: voices for dialogue",
+            "Narration is read by your main voice and quoted dialogue by other voices, like an audiobook cast. " +
+                "Podcasts and transcripts (\u201CHost: …\u201D, \u201CSpeaker 2: …\u201D) always get a voice per speaker.",
         )
+        c.addFull(android.widget.Switch(this).apply {
+            text = "Full cast: a different voice for each character (he/she guessed from the story)"
+            textSize = 15f
+            setTextColor(color(R.attr.p2aText))
+            isChecked = Speaker.fullCast
+            setOnCheckedChangeListener { _, on -> Speaker.setFullCast(on) }
+        }, 6)
         val current = Speaker.dialogueVoice
         val label = current?.let { id -> Speaker.voiceOptions().firstOrNull { it.id == id }?.label ?: id } ?: "Off"
-        c.addFull(muted("Dialogue voice: $label"), 4)
+        c.addFull(muted(if (Speaker.fullCast) "Main dialogue voice (first extra speaker in podcasts): $label" else "Dialogue voice: $label"), 4)
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         row.addView(button(if (current == null) "Choose a voice" else "Change", onClick = { chooseDialogue() }),
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(5) })

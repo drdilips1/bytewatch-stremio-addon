@@ -99,6 +99,7 @@ object Speaker {
 
     fun setDialogueVoice(id: String?) {
         prefs.edit().putString("dialogueVoice", id).apply()
+        castFor = null
         restartAudio()
     }
 
@@ -362,6 +363,7 @@ object Speaker {
         doc = newDoc
         index = prefs.getInt("pos:${newDoc.key}", 0).coerceIn(0, maxOf(0, newDoc.paragraphs.size - 1))
         pieceIndex = prefs.getInt("pc:${newDoc.key}", 0).coerceAtLeast(0)
+        scriptSpeakers = Cast.scriptSpeakers(newDoc)
         currentPiece = null
         if (newDoc.lang == null) {
             // Language matters for Supertonic and for suggesting a fitting voice.
@@ -442,7 +444,7 @@ object Speaker {
         if (!isStreamed) return previous()
         when {
             pieceIndex > 0 -> seek(index, pieceIndex - 1)
-            index > 0 -> seek(index - 1, Renderer.pieces(d.paragraphs[index - 1], voiceId).size - 1)
+            index > 0 -> seek(index - 1, piecesOf(d, index - 1, voiceId).size - 1)
             else -> seek(0)
         }
     }
@@ -450,7 +452,7 @@ object Speaker {
     fun nextSentence() {
         val d = doc ?: return
         if (!isStreamed) return next()
-        val count = Renderer.pieces(d.paragraphs[index], voiceId).size
+        val count = piecesOf(d, index, voiceId).size
         if (pieceIndex + 1 < count) seek(index, pieceIndex + 1) else seek(index + 1)
     }
 
@@ -518,16 +520,113 @@ object Speaker {
 
     fun ratePercent(s: Float = speed) = ((s - 1f) * 100).roundToInt().coerceIn(-50, 200)
 
-    private class Piece(val paragraph: Int, val index: Int, val text: String, val lastInParagraph: Boolean)
+    /** One piece of reading (about a sentence) and the voice that reads it. */
+    class Piece(val paragraph: Int, val index: Int, val text: String, val lastInParagraph: Boolean, val voice: String)
+
+    /** Full cast: a voice per character in stories (instead of one dialogue voice). */
+    val fullCast: Boolean get() = prefs.getBoolean("fullCast", false)
+
+    fun setFullCast(on: Boolean) {
+        prefs.edit().putBoolean("fullCast", on).apply()
+        castFor = null
+        restartAudio()
+    }
+
+    private var castFor: String? = null
+    private val castVoices = HashMap<String, String>()
+    private var scriptSpeakers: List<String> = emptyList()
+    private var castText = ""
+
+    /** Voices for extra speakers, in the same family as [main] (online, cloned, Supertonic or Kokoro). */
+    private fun pool(main: String, male: Boolean): List<String> = when {
+        main.startsWith(EDGE) -> (if (male) listOf(
+            "en-US-AndrewMultilingualNeural", "en-US-BrianMultilingualNeural", "en-GB-ThomasNeural", "en-US-GuyNeural", "en-GB-RyanNeural",
+        ) else listOf(
+            "en-US-AvaMultilingualNeural", "en-US-EmmaMultilingualNeural", "en-US-AriaNeural", "en-GB-SoniaNeural", "en-AU-NatashaNeural",
+        )).map { EDGE + it }
+        main.startsWith(CLONE) -> MyVoices.BUILT_IN.filter { it.description.startsWith(if (male) "male" else "female") }.map { CLONE + it.id }
+        main.startsWith(SUPER) -> LocalTts.SUPERTONIC_VOICES.filter { it.name.startsWith(if (male) "M" else "F") }.map { SUPER + it.name }
+        main.startsWith(KOKORO) -> Kokoro.VOICES.filter { (it.name[1] == 'm') == male }.map { KOKORO + it.name }
+        else -> emptyList()
+    }
+
+    /** Whether voice [id] sounds male (best guess from its name or description). */
+    private fun isMale(id: String): Boolean = when {
+        id.startsWith(EDGE) -> (EdgeTts.CURATED.firstOrNull { EDGE + it.name == id }?.gender
+            ?: edgeVoices.firstOrNull { EDGE + it.name == id }?.gender) == "Male"
+        id.startsWith(CLONE) -> MyVoices.get(id.removePrefix(CLONE))?.description?.startsWith("male") == true
+        id.startsWith(SUPER) -> id.removePrefix(SUPER).startsWith("M")
+        id.startsWith(KOKORO) -> id.removePrefix(KOKORO).getOrNull(1) == 'm'
+        else -> false
+    }
+
+    /** The voice for [speaker]: the first script speaker is the main voice; others get distinct voices. */
+    private fun castVoice(d: Doc, speaker: String): String {
+        if (castFor != d.key + voiceId) {
+            castFor = d.key + voiceId
+            castVoices.clear()
+            castText = d.paragraphs.take(400).joinToString(" ")
+        }
+        castVoices[speaker]?.let { return it }
+        val main = voiceId
+        val used = castVoices.values.toSet() + main
+        val voice = if (scriptSpeakers.isNotEmpty() && speaker == scriptSpeakers.first()) main else {
+            if (scriptSpeakers.isNotEmpty() && speaker == scriptSpeakers.getOrNull(1) && dialogueVoice != null) {
+                dialogueVoice!!
+            } else {
+                val gender = Cast.genderOf(speaker, castText, castVoices.keys + scriptSpeakers)
+                val male = when (gender) {
+                    "male" -> true
+                    "female" -> false
+                    else -> !isMale(main) // unknown: contrast with the narrator
+                }
+                val candidates = pool(main, male).filter { LocalTts.missing(it) == null }
+                candidates.firstOrNull { it !in used } ?: candidates.firstOrNull { it != main } ?: dialogueVoice ?: main
+            }
+        }
+        castVoices[speaker] = voice
+        return voice
+    }
+
+    /** The pieces of paragraph [k], each with its voice. */
+    private fun piecesOf(d: Doc, k: Int, vid: String): List<Piece> {
+        val para = d.paragraphs[k]
+        val script = scriptSpeakers.takeIf { it.isNotEmpty() }?.let { Cast.scriptLine(para) }?.takeIf { it.first in scriptSpeakers }
+        val segments: List<Pair<String, String>> = when {
+            !isStreamed -> listOf(para to vid)
+            // "Host: …": the label isn't read; the speaker's voice reads the rest.
+            script != null -> listOf(script.second to castVoice(d, script.first))
+            fullCast || dialogueVoice != null -> Cast.storySegments(para).map { s ->
+                s.text to when {
+                    s.speaker == null -> vid
+                    fullCast -> castVoice(d, s.speaker)
+                    else -> dialogueVoice!!
+                }
+            }
+            else -> listOf(para to vid)
+        }
+        val out = ArrayList<Piece>()
+        for ((text, voice) in segments) for (t in Renderer.pieces(text, voice)) out += Piece(k, out.size, t, false, voice)
+        if (out.isEmpty()) return emptyList()
+        out[out.lastIndex] = out.last().let { Piece(it.paragraph, it.index, it.text, true, it.voice) }
+        return out
+    }
 
     private fun pieceSequence(d: Doc, fromParagraph: Int, fromPiece: Int, vid: String) = sequence {
         val skip = skipped(d)
+        scriptSpeakers = Cast.scriptSpeakers(d)
         for (k in fromParagraph until d.paragraphs.size) {
             if (isSkipped(d, k, skip)) continue
-            val ps = Renderer.pieces(d.paragraphs[k], vid)
+            val ps = piecesOf(d, k, vid)
             val first = if (k == fromParagraph) fromPiece.coerceIn(0, maxOf(0, ps.size - 1)) else 0
-            for (j in first until ps.size) yield(Piece(k, j, ps[j], j == ps.size - 1))
+            for (j in first until ps.size) yield(ps[j])
         }
+    }
+
+    /** Every piece of [d] with its voicing, for offline download and saving audio. */
+    fun plan(d: Doc): List<Pair<String, Voicing>> {
+        val base = voicing(d).copy(dialogue = null)
+        return pieceSequence(d, 0, 0, voiceId).map { it.text to base.copy(voiceId = it.voice) }.toList()
     }
 
     /** The pause after a piece: longer after paragraphs, longest after headings. */
@@ -553,13 +652,15 @@ object Speaker {
             stream = out
             val pieces = pieceSequence(d, index, pieceIndex, vid).iterator()
             val queue = ArrayDeque<Pair<Piece, Deferred<Pcm16>>>()
+            val base = v.copy(dialogue = null)
             suspend fun load(p: Piece): Pcm16 {
+                val pv = base.copy(voiceId = p.voice)
                 val file = try {
-                    Renderer.render(app, v, currentSpeed, p.text)
+                    Renderer.render(app, pv, currentSpeed, p.text)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Renderer.render(app, v, currentSpeed, p.text) // one more try: networks drop requests
+                    Renderer.render(app, pv, currentSpeed, p.text) // one more try: networks drop requests
                 }
                 return withContext(Dispatchers.Default) { AudioDecode.load(file) }
             }
@@ -632,14 +733,14 @@ object Speaker {
         if (playing || !isStreamed || missingPack() != null) return
         if (d.lang == null && LocalTts.isLocal(voiceId)) return // load() prewarms once the language is known
         val vid = voiceId
-        val v = voicing(d)
+        val v = voicing(d).copy(dialogue = null)
         val sp = renderSpeed
         val from = index
         val fromPiece = pieceIndex
         warmJob?.cancel()
         warmJob = scope.launch {
             val first = pieceSequence(d, from, fromPiece, vid).take(2).toList()
-            for (p in first) runCatching { Renderer.render(app, v, sp, p.text) }
+            for (p in first) runCatching { Renderer.render(app, v.copy(voiceId = p.voice), sp, p.text) }
         }
     }
 

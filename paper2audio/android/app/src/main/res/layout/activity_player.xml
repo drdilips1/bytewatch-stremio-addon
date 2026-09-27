@@ -324,7 +324,7 @@
                         style="@style/P2A.CardTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="AI (free, with Google Gemini)" />
+                        android:text="AI" />
 
                     <TextView
                         android:id="@+id/aiStatus"
@@ -332,15 +332,56 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content" />
 
-                    <LinearLayout
+                    <Button
+                        android:id="@+id/btnBriefing"
+                        style="@style/P2A.Button"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
+                        android:text="5-minute briefing" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnAsk"
+                            style="@style/P2A.Button.Soft"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="5dp"
+                            android:layout_weight="1"
+                            android:text="Ask this document" />
+
+                        <Button
+                            android:id="@+id/btnStudy"
+                            style="@style/P2A.Button.Soft"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="5dp"
+                            android:layout_weight="1"
+                            android:text="Study mode" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnPodcast"
+                        style="@style/P2A.Button.Soft"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Podcast: two hosts discuss it" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
                         android:orientation="horizontal">
 
                         <Button
                             android:id="@+id/btnShortSummary"
-                            style="@style/P2A.Button"
+                            style="@style/P2A.Button.Soft"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginEnd="5dp"
@@ -402,7 +443,7 @@
                         style="@style/P2A.Button.Text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Gemini key" />
+                        android:text="AI settings (Grok or Gemini)" />
                 </LinearLayout>
 
                 <!-- Offline -->
@@ -579,16 +620,32 @@
         android:paddingEnd="14dp"
         android:paddingBottom="10dp">
 
-        <Button
-            android:id="@+id/btnFigure"
-            style="@style/P2A.Button.Soft"
+        <LinearLayout
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
+            android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
             android:layout_marginBottom="6dp"
-            android:minHeight="36dp"
-            android:textSize="13sp"
-            android:visibility="gone" />
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnExplainNow"
+                style="@style/P2A.Button.Soft"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:minHeight="36dp"
+                android:text="Explain"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/btnFigure"
+                style="@style/P2A.Button.Soft"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:minHeight="36dp"
+                android:textSize="13sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <SeekBar
             android:id="@+id/posBar"
@@ -649,7 +706,7 @@
                 style="@style/P2A.Icon"
                 android:layout_width="56dp"
                 android:layout_height="56dp"
-                android:contentDescription="Previous paragraph"
+                android:contentDescription="Previous sentence (hold for previous paragraph)"
                 android:padding="12dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_prev" />
@@ -673,7 +730,7 @@
                 style="@style/P2A.Icon"
                 android:layout_width="56dp"
                 android:layout_height="56dp"
-                android:contentDescription="Next paragraph"
+                android:contentDescription="Next sentence (hold for next paragraph)"
                 android:padding="12dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_next" />

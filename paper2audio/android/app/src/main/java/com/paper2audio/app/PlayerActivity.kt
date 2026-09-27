@@ -236,6 +236,10 @@ class PlayerActivity : Activity() {
             isChecked = Speaker.medical
             setOnCheckedChangeListener { _, on -> Speaker.setMedical(on) }
         }
+        findViewById<Button>(R.id.btnExplainNow).setOnClickListener {
+            val doc = Speaker.doc ?: return@setOnClickListener
+            explainMenu(Speaker.index, Speaker.currentPiece?.takeIf { it != doc.paragraphs.getOrNull(Speaker.index) })
+        }
         btnFigure = findViewById(R.id.btnFigure)
         btnFigure.setOnClickListener {
             val doc = Speaker.doc ?: return@setOnClickListener
@@ -336,7 +340,7 @@ class PlayerActivity : Activity() {
                     toast("Phone voices already work offline. Offline download is for ★ and ◆ voices.")
                 else -> {
                     askNotificationPermission()
-                    OfflineDownloader.start(this, doc, Speaker.voicing(doc), Speaker.renderSpeed)
+                    OfflineDownloader.start(this, doc, Speaker.plan(doc), Speaker.renderSpeed)
                 }
             }
         }
@@ -451,7 +455,7 @@ class PlayerActivity : Activity() {
     private fun paragraphMenu(position: Int) {
         val item = Library.get(this, Library.currentId)
         val text = Speaker.doc?.paragraphs?.getOrNull(position) ?: return
-        val options = mutableListOf("Play from here", "Add bookmark", "Add note…", "Copy text", "Explain with AI")
+        val options = mutableListOf("Play from here", "Add bookmark", "Add note…", "Copy text", "Explain or ask AI…")
         AlertDialog.Builder(this)
             .setTitle("Paragraph ${position + 1}")
             .setItems(options.toTypedArray()) { _, which ->
@@ -471,7 +475,7 @@ class PlayerActivity : Activity() {
                         getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("paragraph", text))
                         toast("Copied")
                     }
-                    4 -> explainParagraph(position)
+                    4 -> explainMenu(position, null)
                 }
             }
             .show()
@@ -630,12 +634,13 @@ class PlayerActivity : Activity() {
     private fun refreshOfflineStatus() {
         val doc = Speaker.doc ?: return
         val v = Speaker.voicing(doc)
-        val key = "${doc.key}|${v.key}|${Speaker.renderSpeed}"
+        val key = "${doc.key}|${v.key}|${Speaker.fullCast}|${Speaker.skipped()}|${Speaker.renderSpeed}"
         if (offlineFor == key && !OfflineDownloader.running) return
         offlineFor = key
         val sp = Speaker.renderSpeed
+        val plan = Speaker.plan(doc)
         scope.launch {
-            offlinePercent = withContext(Dispatchers.IO) { OfflineDownloader.percentCached(this@PlayerActivity, doc, v, sp) }
+            offlinePercent = withContext(Dispatchers.IO) { OfflineDownloader.percentCached(this@PlayerActivity, doc, plan, sp) }
             render()
         }
     }
@@ -1072,6 +1077,12 @@ class PlayerActivity : Activity() {
             }
         }
         findViewById<Button>(R.id.btnGeminiKey).setOnClickListener { askGeminiKey(null) }
+        findViewById<Button>(R.id.btnBriefing).setOnClickListener { briefing() }
+        findViewById<Button>(R.id.btnAsk).setOnClickListener { openChat() }
+        findViewById<Button>(R.id.btnStudy).setOnClickListener {
+            if (Speaker.doc != null) withKey { startActivity(Intent(this, StudyActivity::class.java)) }
+        }
+        findViewById<Button>(R.id.btnPodcast).setOnClickListener { podcast() }
     }
 
     private fun refreshAi() {
@@ -1086,8 +1097,8 @@ class PlayerActivity : Activity() {
         aiProgress.visibility = if (aiBusy != null) View.VISIBLE else View.GONE
         aiStatus.text = when {
             aiBusy != null -> aiBusy
-            Gemini.key(this) == null -> "Summaries, figure and table explanations, and \"Explain with AI\" " +
-                "(long-press a paragraph). Needs a free Gemini key: tap a button to set it up."
+            !Llm.ready(this) -> "Briefings, summaries, questions, study tools, podcasts, figure explanations and \"Explain\" " +
+                "(long-press a paragraph). Needs a Grok key or a free Gemini key: tap any button to set it up."
             visuals != null -> "${visuals.size} figures, tables and equations explained" +
                 if (cbVisuals.isChecked) "; they're read where the text first mentions them." else "."
             else -> "Long-press a paragraph in the reader and choose \"Explain with AI\" for a plain-language explanation."
@@ -1096,10 +1107,10 @@ class PlayerActivity : Activity() {
 
     /** Asks for the key if it's missing, then runs [then]. */
     private fun withKey(then: () -> Unit) {
-        if (Gemini.key(this) != null) then() else askGeminiKey(then)
+        if (Llm.ready(this)) then() else askGeminiKey(then)
     }
 
-    private fun askGeminiKey(then: (() -> Unit)?) = GeminiKeyDialog.show(this, onChange = { refreshAi() }, then = then)
+    private fun askGeminiKey(then: (() -> Unit)?) = AiKeyDialog.show(this, onChange = { refreshAi() }, then = then)
 
     private fun runAi(label: String, work: suspend ((String) -> Unit) -> Unit) {
         if (aiBusy != null) {
@@ -1146,12 +1157,58 @@ class PlayerActivity : Activity() {
         }
     }
 
-    private fun explainParagraph(position: Int) {
+    /** Explain a paragraph (or the [sentence] being read) in one of several ways, or ask about it. */
+    private fun explainMenu(position: Int, sentence: String?) {
         val doc = Speaker.doc ?: return
-        runAi("Explaining paragraph ${position + 1}…") {
-            val text = withContext(Dispatchers.IO) { Ai.explain(this@PlayerActivity, doc, position) }
-            showAiText("Paragraph ${position + 1}, explained", text, null)
+        val modes = Ai.Explain.entries
+        val labels = modes.map { it.label } + "Ask a question about this…"
+        AlertDialog.Builder(this)
+            .setTitle(if (sentence != null) "\u201C${sentence.take(70)}${if (sentence.length > 70) "…" else ""}\u201D" else "Paragraph ${position + 1}")
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which == modes.size) {
+                    openChat("About \u201C${(sentence ?: doc.paragraphs[position]).take(160)}\u201D (¶${position + 1}): ")
+                    return@setItems
+                }
+                val mode = modes[which]
+                runAi("${mode.label}…") {
+                    val text = withContext(Dispatchers.IO) { Ai.explain(this@PlayerActivity, doc, position, mode, sentence) }
+                    showAiText(mode.label, text, null)
+                }
+            }
+            .show()
+    }
+
+    private fun openChat(prefill: String? = null) {
+        if (Speaker.doc == null) return
+        withKey {
+            startActivity(Intent(this, ChatActivity::class.java).apply { prefill?.let { putExtra("prefill", it) } })
         }
+    }
+
+    private fun briefing() {
+        val doc = Speaker.doc ?: return
+        val item = Library.get(this, doc.key)
+        runAi("Preparing a 5-minute briefing…") { progress ->
+            val text = withContext(Dispatchers.IO) { Ai.briefing(this@PlayerActivity, doc, item, progress) }
+            showAiText("Briefing: ${doc.title}", text, item, playFull = true)
+        }
+    }
+
+    private fun podcast() {
+        val doc = Speaker.doc ?: return
+        val item = Library.get(this, doc.key) ?: return
+        val lengths = arrayOf("About 5 minutes", "About 10 minutes", "About 20 minutes")
+        AlertDialog.Builder(this)
+            .setTitle("Podcast: two hosts discuss it")
+            .setItems(lengths) { _, which ->
+                val minutes = intArrayOf(5, 10, 20)[which]
+                runAi("Writing a ${minutes}-minute podcast…") { progress ->
+                    val script = withContext(Dispatchers.IO) { Ai.podcast(this@PlayerActivity, doc, item, minutes, progress) }
+                    addSummary("Podcast: ${doc.title}", script, item)
+                    toast("Two voices: the host is your main voice; the expert uses the dialogue voice from Voice studio (or a matching one).")
+                }
+            }
+            .show()
     }
 
     private fun chooseTranslation() {
@@ -1198,7 +1255,7 @@ class PlayerActivity : Activity() {
         val doc = Speaker.doc ?: return
         val item = Library.get(this, doc.key) ?: return
         runAi("Gemini is looking at the figures and tables… (up to a minute or two)") {
-            val n = withContext(Dispatchers.IO) { Ai.explainVisuals(this@PlayerActivity, item) }
+            val n = withContext(Dispatchers.IO) { Ai.explainVisuals(this@PlayerActivity, item, doc) }
             prefs.edit().putBoolean("aiVisuals", true).apply()
             cbVisuals.isChecked = true // reparses with the explanations inserted
             reparse()
@@ -1211,7 +1268,7 @@ class PlayerActivity : Activity() {
      * Shows an AI answer. "Listen" reads it now; for summaries, "Add to library" keeps it as
      * its own document (with the offline, speed and save-audio features).
      */
-    private fun showAiText(title: String, text: String, item: Library.Item?) {
+    private fun showAiText(title: String, text: String, item: Library.Item?, playFull: Boolean = false) {
         val d = resources.displayMetrics.density
         val view = ScrollView(this).apply {
             addView(TextView(this@PlayerActivity).apply {
@@ -1227,7 +1284,13 @@ class PlayerActivity : Activity() {
             .setTitle(title)
             .setView(view)
             .setPositiveButton("Listen", null)
-            .setNegativeButton("Close") { _, _ -> Speaker.stopPreview() }
+            .setNegativeButton(if (playFull) "Listen to full text" else "Close") { _, _ ->
+                Speaker.stopPreview()
+                if (playFull) {
+                    showTab(options = false)
+                    Speaker.play()
+                }
+            }
             .setOnCancelListener { Speaker.stopPreview() }
         if (item != null) builder.setNeutralButton("Add to library") { _, _ -> Speaker.stopPreview(); addSummary(title, text, item) }
         val dialog = builder.show()
