@@ -44,6 +44,7 @@ jobs:
       - name: Build APK
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
+          bash tools/fetch-sherpa.sh
           gradle assembleRelease --no-daemon
 
       - name: Rename APK

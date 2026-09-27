@@ -19,13 +19,16 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Reads a document aloud with the phone's text-to-speech engine, one paragraph at a time, so the
- * app can highlight the paragraph being read. A foreground service keeps it playing in the
- * background, with lock-screen, notification and headset controls.
+ * Reads a document aloud one paragraph at a time, so the app can highlight the paragraph being
+ * read. Two engines:
+ *  - the phone's text-to-speech (paragraphs are queued ahead, so there are no silent gaps);
+ *  - on-device neural voices (NeuralEngine), when the chosen voice is "neural:…".
+ * A foreground service keeps it playing in the background, with lock-screen, notification and
+ * headset controls.
  *
  * Items are plain strings, or {t, voice, pitch} objects (the two speakers of an AI discussion).
  */
-final class Narrator {
+final class Narrator implements NeuralEngine.Host {
 
     interface Listener {
         void onState(String state, int index, int total);
@@ -43,6 +46,7 @@ final class Narrator {
         }
     }
 
+    private static final int QUEUE_AHEAD = 2;
     private static Narrator instance;
 
     static Narrator get(Context ctx) {
@@ -69,6 +73,16 @@ final class Narrator {
     private float appliedPitch = -1;
     private int stopAfter = -1;
     private long sleepAt;
+    private long lastTransition;
+    // Android TTS queue: utterance ids are "<generation>:<index>" so stale callbacks are ignored.
+    private int generation;
+    private int queuedTo = -1;
+    // Neural voices
+    private NeuralEngine neural;
+    private int neuralGen = -1;
+    private boolean useNeural;
+    private boolean previewing;
+
     private final Runnable sleepTask = () -> {
         sleepAt = 0;
         pause();
@@ -83,6 +97,13 @@ final class Narrator {
         listener = l;
     }
 
+    private NeuralEngine neural() {
+        if (neural == null) neural = new NeuralEngine(app, this);
+        return neural;
+    }
+
+    // ------------------------------------------------------------------ Android TTS setup
+
     private void ensureTts(Runnable then) {
         if (tts != null && ready) { then.run(); return; }
         onReady.add(then);
@@ -91,11 +112,10 @@ final class Narrator {
             ready = status == TextToSpeech.SUCCESS;
             if (!ready) { onReady.clear(); emit("error"); return; }
             tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                @Override public void onStart(String id) { }
-                @Override public void onDone(String id) { main.post(() -> onDone(id)); }
-                @Override public void onError(String id) { main.post(() -> onDone(id)); }
+                @Override public void onStart(String id) { main.post(() -> onUtteranceStart(id)); }
+                @Override public void onDone(String id) { main.post(() -> onUtteranceDone(id)); }
+                @Override public void onError(String id) { main.post(() -> onUtteranceDone(id)); }
             });
-            applyVoice(null, pitch);
             List<Runnable> rs = new ArrayList<>(onReady);
             onReady.clear();
             for (Runnable r : rs) r.run();
@@ -114,33 +134,27 @@ final class Narrator {
     void setEngine(String name) {
         String n = name == null ? "" : name;
         if (n.equals(engine == null ? "" : engine) && tts != null) return;
-        boolean wasPlaying = playing;
+        boolean wasPlaying = playing && !useNeural;
         if (tts != null) { tts.stop(); tts.shutdown(); }
         tts = null;
         ready = false;
         engine = n;
-        voiceName = null;
+        if (!NeuralEngine.isNeural(voiceName)) voiceName = null;
         appliedVoice = null;
-        ensureTts(() -> { if (wasPlaying && !items.isEmpty()) speakCurrent(); });
+        ensureTts(() -> { if (wasPlaying && !items.isEmpty()) speakFrom(index); });
     }
 
-    /** Speaks a short sample in the chosen voice (only while nothing is being read). */
-    void preview(String voice) {
-        voiceName = voice;
-        ensureTts(() -> {
-            applyVoice(voice, pitch);
-            if (!playing) tts.speak("This is how your documents will sound in this voice.", TextToSpeech.QUEUE_FLUSH, new Bundle(), "preview");
-            else speakCurrent();
-        });
-    }
+    // ------------------------------------------------------------------ public controls
 
     /** items: the paragraphs to read; starts at {@code start}. */
     void start(String title, JSONArray paragraphs, int start, float rate, float pitch, String voice) {
+        haltOutput();
         items.clear();
         for (int i = 0; i < paragraphs.length(); i++) {
             JSONObject o = paragraphs.optJSONObject(i);
             if (o != null) {
-                items.add(new Item(o.optString("t"), o.optString("voice", null), (float) o.optDouble("pitch", 0)));
+                String v = o.optString("voice", "");
+                items.add(new Item(o.optString("t"), v.isEmpty() ? null : v, (float) o.optDouble("pitch", 0)));
             } else {
                 items.add(new Item(paragraphs.optString(i), null, 0));
             }
@@ -152,28 +166,40 @@ final class Narrator {
         this.pitch = pitch > 0 ? pitch : 1f;
         this.voiceName = voice;
         this.stopAfter = -1;
+        this.previewing = false;
+        playing = true;
+        startService();
+        speakFrom(index);
+    }
+
+    /** Speaks a short sample in the chosen voice (only while nothing is being read). */
+    void preview(String voice) {
+        if (playing && !items.isEmpty()) { setVoice(voice); return; }
+        String sample = "This is how your documents will sound in this voice.";
+        if (NeuralEngine.isNeural(voice)) {
+            previewing = true;
+            neuralGen = neural().play(new String[]{sample}, new String[]{voice}, 0, rate);
+            return;
+        }
         ensureTts(() -> {
-            playing = true;
-            startService();
-            speakCurrent();
+            applyVoice(voice, pitch);
+            tts.speak(sample, TextToSpeech.QUEUE_FLUSH, new Bundle(), "preview");
         });
     }
 
     void pause() {
         if (!playing) return;
         playing = false;
-        if (tts != null) tts.stop();
+        haltOutput();
         emit("paused");
         updateService();
     }
 
     void resume() {
         if (playing || items.isEmpty()) return;
-        ensureTts(() -> {
-            playing = true;
-            startService();
-            speakCurrent();
-        });
+        playing = true;
+        startService();
+        speakFrom(index);
     }
 
     void toggle() {
@@ -183,7 +209,7 @@ final class Narrator {
     void seek(int i) {
         if (items.isEmpty()) return;
         index = Math.max(0, Math.min(i, items.size() - 1));
-        if (playing) speakCurrent(); else { emit("paused"); updateService(); }
+        if (playing) speakFrom(index); else { emit("paused"); updateService(); }
     }
 
     void skip(int delta) {
@@ -192,14 +218,15 @@ final class Narrator {
 
     void setRate(float r) {
         rate = r;
+        if (useNeural && playing) { neural().setRate(r); return; }
         if (tts != null) tts.setSpeechRate(rate);
-        if (playing) speakCurrent();
+        if (playing) speakFrom(index);
     }
 
     void setVoice(String name) {
         voiceName = name;
         appliedVoice = null;
-        if (playing) speakCurrent();
+        if (playing) speakFrom(index);
     }
 
     /** Line under the title in the notification and on the lock screen (the current section). */
@@ -232,7 +259,8 @@ final class Narrator {
         main.removeCallbacks(sleepTask);
         sleepAt = 0;
         stopAfter = -1;
-        if (tts != null) tts.stop();
+        haltOutput();
+        if (neural != null) neural.abandonFocus();
         items.clear();
         emit("stopped");
         app.stopService(new Intent(app, NarratorService.class));
@@ -245,10 +273,170 @@ final class Narrator {
     int total() { return items.size(); }
     int stopAfterIndex() { return stopAfter; }
 
-    /** Engines and installed voices, best-quality local English first. */
+    /**
+     * Media buttons arriving right as one paragraph ends and the next starts are usually
+     * headphones pausing on their own when the audio stream stops, not the listener.
+     */
+    boolean nearTransition() {
+        return System.currentTimeMillis() - lastTransition < 1500;
+    }
+
+    // ------------------------------------------------------------------ playback
+
+    private void haltOutput() {
+        generation++;
+        queuedTo = -1;
+        if (tts != null) tts.stop();
+        if (neural != null) neural.stop();
+        neuralGen = -1;
+    }
+
+    private void speakFrom(int i) {
+        haltOutput();
+        index = i;
+        lastTransition = System.currentTimeMillis();
+        useNeural = NeuralEngine.isNeural(voiceName) || (!items.isEmpty() && NeuralEngine.isNeural(items.get(0).voice));
+        if (useNeural) {
+            String[] texts = new String[items.size()];
+            String[] voices = new String[items.size()];
+            for (int k = 0; k < items.size(); k++) {
+                Item it = items.get(k);
+                texts[k] = it.text;
+                voices[k] = NeuralEngine.isNeural(it.voice) ? it.voice : voiceName;
+            }
+            previewing = false;
+            neuralGen = neural().play(texts, voices, i, rate);
+            emit("playing");
+            updateService();
+            return;
+        }
+        final int gen = generation;
+        ensureTts(() -> {
+            if (gen != generation || !playing) return;
+            enqueue(i, TextToSpeech.QUEUE_FLUSH);
+            topUp();
+            emit("playing");
+            updateService();
+        });
+    }
+
+    /** Keeps the next paragraphs queued so the engine never goes silent between them. */
+    private void topUp() {
+        int limit = items.size() - 1;
+        if (stopAfter >= 0) limit = Math.min(limit, stopAfter);
+        while (queuedTo < Math.min(limit, index + QUEUE_AHEAD)) enqueue(queuedTo + 1, TextToSpeech.QUEUE_ADD);
+    }
+
+    private void enqueue(int i, int mode) {
+        Item it = items.get(i);
+        applyVoice(it.voice, it.pitch);
+        tts.speak(it.text, mode, new Bundle(), generation + ":" + i);
+        queuedTo = i;
+    }
+
+    private int parse(String id) {
+        int c = id == null ? -1 : id.indexOf(':');
+        if (c < 0) return -1;
+        try {
+            if (Integer.parseInt(id.substring(0, c)) != generation) return -1;
+            return Integer.parseInt(id.substring(c + 1));
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    private void onUtteranceStart(String id) {
+        int i = parse(id);
+        if (i < 0 || !playing) return;
+        lastTransition = System.currentTimeMillis();
+        index = i;
+        emit("playing");
+        updateService();
+        topUp();
+    }
+
+    private void onUtteranceDone(String id) {
+        int i = parse(id);
+        if (i < 0 || !playing) return;
+        lastTransition = System.currentTimeMillis();
+        finishedThrough(i);
+    }
+
+    /** Called when paragraph {@code i} has been read and nothing more is queued after it. */
+    private void finishedThrough(int i) {
+        if (stopAfter >= 0 && i >= stopAfter) {
+            stopAfter = -1;
+            haltOutput();
+            index = Math.min(i + 1, items.size() - 1);
+            playing = false;
+            emit("sleep");
+            updateService();
+            return;
+        }
+        if (i >= items.size() - 1) {
+            haltOutput();
+            playing = false;
+            emit("ended");
+            updateService();
+        }
+    }
+
+    // ------------------------------------------------------------------ NeuralEngine.Host (called on engine threads)
+
+    @Override
+    public void onItemStart(int gen, int item) {
+        main.post(() -> {
+            if (gen != neuralGen || previewing || !playing) return;
+            lastTransition = System.currentTimeMillis();
+            index = item;
+            emit("playing");
+            updateService();
+        });
+    }
+
+    @Override
+    public void onItemsDone(int gen, int lastItem) {
+        main.post(() -> {
+            if (gen != neuralGen) return;
+            if (previewing) { previewing = false; return; }
+            if (!playing) return;
+            lastTransition = System.currentTimeMillis();
+            finishedThrough(lastItem < 0 ? index : lastItem);
+        });
+    }
+
+    @Override
+    public void onBuffering(int gen) {
+        main.post(() -> { if (gen == neuralGen && playing && !previewing) emit("buffering"); });
+    }
+
+    @Override
+    public void onError(int gen, String message) {
+        main.post(() -> {
+            if (gen != neuralGen) return;
+            previewing = false;
+            if (listener != null) listener.onState("error:" + message, index, items.size());
+            pause();
+        });
+    }
+
+    @Override
+    public void onFocusLost() {
+        main.post(this::pause);
+    }
+
+    @Override
+    public int stopAfter() {
+        return stopAfter;
+    }
+
+    // ------------------------------------------------------------------ voices
+
+    /** Engines and installed voices, best-quality local English first; plus neural voice packs. */
     String voices() {
         JSONArray out = new JSONArray();
         JSONObject res = new JSONObject();
+        try { res.put("neural", VoiceStore.catalog(app)); } catch (Exception ignored) { }
         if (tts == null || !ready) {
             main.post(() -> ensureTts(() -> { }));
             try { res.put("ready", false).put("voices", out).put("engines", new JSONArray()); } catch (Exception ignored) { }
@@ -290,8 +478,8 @@ final class Narrator {
         tts.setSpeechRate(rate);
         float p = itemPitch > 0 ? itemPitch : pitch;
         if (p != appliedPitch) { tts.setPitch(p); appliedPitch = p; }
-        String want = itemVoice != null && !itemVoice.isEmpty() ? itemVoice : voiceName;
-        if (want == null) want = "";
+        String want = itemVoice != null && !itemVoice.isEmpty() && !NeuralEngine.isNeural(itemVoice) ? itemVoice : voiceName;
+        if (want == null || NeuralEngine.isNeural(want)) want = "";
         if (want.equals(appliedVoice)) return;
         appliedVoice = want;
         if (!want.isEmpty()) {
@@ -303,35 +491,6 @@ final class Narrator {
             }
         }
         tts.setLanguage(Locale.getDefault().getLanguage().equals("en") ? Locale.getDefault() : Locale.US);
-    }
-
-    private void speakCurrent() {
-        if (tts == null || items.isEmpty()) return;
-        Item it = items.get(index);
-        applyVoice(it.voice, it.pitch);
-        tts.speak(it.text, TextToSpeech.QUEUE_FLUSH, new Bundle(), "p" + index);
-        emit("playing");
-        updateService();
-    }
-
-    private void onDone(String id) {
-        if (!playing || !("p" + index).equals(id)) return;
-        if (stopAfter >= 0 && index >= stopAfter) {
-            stopAfter = -1;
-            if (index + 1 < items.size()) index++;
-            playing = false;
-            emit("sleep");
-            updateService();
-            return;
-        }
-        if (index + 1 >= items.size()) {
-            playing = false;
-            emit("ended");
-            updateService();
-            return;
-        }
-        index++;
-        speakCurrent();
     }
 
     private void emit(String state) {

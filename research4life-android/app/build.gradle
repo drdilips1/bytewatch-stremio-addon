@@ -10,8 +10,10 @@ android {
         applicationId 'app.dermscholar'
         minSdk 24
         targetSdk 34
-        versionCode 15
-        versionName '3.0'
+        versionCode 16
+        versionName '3.1'
+        // Neural voices ship native code for phones (64- and 32-bit ARM).
+        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }
     }
 
     // A fixed key so new builds install over old ones without wiping the saved library.
@@ -35,6 +37,8 @@ android {
     }
 
     packaging {
+        // Compress native libraries in the APK (keeps the download smaller).
+        jniLibs { useLegacyPackaging true }
         resources {
             excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF', 'META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*', 'META-INF/*.kotlin_module']
         }
@@ -58,6 +62,10 @@ dependencies {
     implementation 'com.anthropic:anthropic-java:2.65.0'
     // On-device text recognition for photos and scanned PDFs (Latin scripts, model bundled).
     implementation 'com.google.mlkit:text-recognition:16.0.1'
+    // On-device neural text-to-speech (Kokoro, Piper). The AAR is fetched by tools/fetch-sherpa.sh.
+    implementation files('libs/sherpa-onnx-1.13.8.aar')
+    // Unpacks downloaded voice packs (.tar.bz2).
+    implementation 'org.apache.commons:commons-compress:1.27.1'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.2'
     implementation 'androidx.core:core:1.13.1'
 }

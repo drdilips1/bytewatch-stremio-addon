@@ -45,6 +45,19 @@ public class NarratorService extends Service {
         }
         session = new MediaSession(this, "DermScholarReader");
         session.setCallback(new MediaSession.Callback() {
+            @Override
+            public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
+                android.view.KeyEvent ev = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                Narrator n = Narrator.get(NarratorService.this);
+                if (ev != null && ev.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+                    int code = ev.getKeyCode();
+                    // Earbuds often send "pause" by themselves when audio briefly stops between paragraphs.
+                    if ((code == android.view.KeyEvent.KEYCODE_MEDIA_PAUSE || code == android.view.KeyEvent.KEYCODE_MEDIA_STOP)
+                            && n.isPlaying() && n.nearTransition()) return true;
+                    if (code == android.view.KeyEvent.KEYCODE_MEDIA_PLAY && n.isPlaying()) return true;
+                }
+                return super.onMediaButtonEvent(mediaButtonIntent);
+            }
             @Override public void onPlay() { Narrator.get(NarratorService.this).resume(); }
             @Override public void onPause() { Narrator.get(NarratorService.this).pause(); }
             @Override public void onSkipToNext() { Narrator.get(NarratorService.this).skip(1); }
@@ -54,7 +67,16 @@ public class NarratorService extends Service {
             @Override public void onStop() { Narrator.get(NarratorService.this).stop(); }
         });
         session.setActive(true);
+        registerReceiver(noisy, new android.content.IntentFilter(android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY));
     }
+
+    /** Headphones unplugged / Bluetooth disconnected: pause instead of playing out loud. */
+    private final android.content.BroadcastReceiver noisy = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(android.content.Context c, Intent i) {
+            Narrator.get(NarratorService.this).pause();
+        }
+    };
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -130,6 +152,7 @@ public class NarratorService extends Service {
     @Override
     public void onDestroy() {
         running = null;
+        try { unregisterReceiver(noisy); } catch (Exception ignored) { }
         if (session != null) {
             session.setActive(false);
             session.release();

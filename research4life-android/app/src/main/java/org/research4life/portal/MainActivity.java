@@ -646,6 +646,50 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void ttsEngine(String e) { main.post(() -> narrator.setEngine(e)); }
         @JavascriptInterface public void ttsPreview(String v) { main.post(() -> narrator.preview(v)); }
         @JavascriptInterface public void ttsWarm(String e) { narrator.warm(e); }
+
+        // ---- natural (neural) voices
+        private final java.util.Set<String> downloading = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+
+        @JavascriptInterface
+        public void voiceDownload(String id) {
+            if (!downloading.add(id)) return;
+            new Thread(() -> {
+                try {
+                    final long[] last = {0};
+                    VoiceStore.download(MainActivity.this, id, (pct, stage) -> {
+                        long now = System.currentTimeMillis();
+                        if (now - last[0] < 400 && pct < 100) return;
+                        last[0] = now;
+                        emit(event("voiceProgress", "id", id, "pct", pct, "stage", stage));
+                    });
+                    emit(event("voiceReady", "id", id));
+                } catch (Throwable e) {
+                    emit(event("voiceError", "id", id, "message", e.getMessage() == null ? "Download failed" : e.getMessage()));
+                } finally {
+                    downloading.remove(id);
+                }
+            }, "voice-download").start();
+        }
+
+        @JavascriptInterface
+        public void voiceDelete(String id) {
+            io.execute(() -> VoiceStore.delete(MainActivity.this, id));
+        }
+
+        @JavascriptInterface
+        public String voiceCatalog() {
+            return VoiceStore.catalog(MainActivity.this).toString();
+        }
+
+        @JavascriptInterface
+        public long voiceCacheBytes() {
+            return NeuralEngine.cacheBytes(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void voiceClearCache() {
+            io.execute(() -> NeuralEngine.clearCache(MainActivity.this));
+        }
         @JavascriptInterface public void ttsSleep(int minutes) { main.post(() -> narrator.sleepIn(minutes)); }
         @JavascriptInterface public void ttsStopAfter(int index) { main.post(() -> narrator.stopAfter(index)); }
         @JavascriptInterface public void ttsSubtitle(String s) { main.post(() -> narrator.setSubtitle(s)); }
