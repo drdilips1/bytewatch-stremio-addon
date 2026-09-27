@@ -19,8 +19,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
@@ -98,40 +96,12 @@ public class InkwellVoicesPlugin extends Plugin {
         downloads.execute(() -> {
             File tmp = new File(getContext().getCacheDir(), id + ".tar.bz2.part");
             try {
-                // 1. download (follows GitHub's redirects across hosts)
-                String current = url;
-                HttpURLConnection conn = null;
-                for (int i = 0; i < 6; i++) {
-                    conn = (HttpURLConnection) new URL(current).openConnection();
-                    conn.setInstanceFollowRedirects(false);
-                    conn.setConnectTimeout(20000);
-                    conn.setReadTimeout(60000);
-                    conn.setRequestProperty("User-Agent", "Inkwell/1.0 (Android)");
-                    int code = conn.getResponseCode();
-                    if (code >= 300 && code < 400 && conn.getHeaderField("Location") != null) {
-                        current = new URL(new URL(current), conn.getHeaderField("Location")).toString();
-                        conn.disconnect();
-                        continue;
-                    }
-                    if (code != 200) throw new Exception("Download failed (HTTP " + code + ")");
-                    break;
-                }
-                long total = conn.getContentLengthLong();
-                long got = 0;
-                long lastEmit = 0;
-                try (InputStream in = new BufferedInputStream(conn.getInputStream()); OutputStream out = new FileOutputStream(tmp)) {
-                    byte[] buf = new byte[1 << 16];
-                    int n;
-                    while ((n = in.read(buf)) > 0) {
-                        out.write(buf, 0, n);
-                        got += n;
-                        long now = System.currentTimeMillis();
-                        if (now - lastEmit > 400) {
-                            lastEmit = now;
-                            progress(id, "download", got, total);
-                        }
-                    }
-                }
+                // 1. download over several connections at once (like a download manager):
+                //    many networks throttle each single connection to GitHub's file servers.
+                //    Follows GitHub's redirects; falls back to one stream without range support.
+                //noinspection ResultOfMethodCallIgnored
+                tmp.delete();
+                ParallelDownloader.fetch(url, tmp, 6, (got, total) -> progress(id, "download", got, total));
                 // 2. unpack; archives contain a single top-level folder
                 progress(id, "unpack", 0, 0);
                 File target = new File(voicesDir(), id);
