@@ -28,8 +28,8 @@ const heroCache = persisted('heroCache', { items: [] });
 // and highly rated bestsellers you don't own; your own services follow.
 const ownedTitles = () => {
   const t = new Set();
-  for (const b of Object.values(library.get())) t.add(mainTitle(b.title || '').toLowerCase());
-  for (const p of Object.values(progress.get())) if (p.book?.title) t.add(mainTitle(p.book.title).toLowerCase());
+  for (const b of Object.values(library.get())) if (b?.title) t.add(mainTitle(b.title).toLowerCase());
+  for (const p of Object.values(progress.get())) if (p?.book?.title) t.add(mainTitle(p.book.title).toLowerCase());
   return t;
 };
 const notOwned = (list) => {

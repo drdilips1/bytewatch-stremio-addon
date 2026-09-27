@@ -8,7 +8,7 @@ import { nav } from './lib/nav.js';
 import { settings, useStore } from './lib/store.js';
 import { applyTheme } from './lib/theme.js';
 import { Icon } from './components/icons.jsx';
-import { Toaster } from './components/common.jsx';
+import { Toaster, Guard } from './components/common.jsx';
 import { UpdatePrompt } from './components/update.jsx';
 import { MiniPlayer, FullPlayer, usePlayer } from './components/player-ui.jsx';
 import { Home } from './screens/Home.jsx';
@@ -86,7 +86,9 @@ export function App() {
       </div>
       <PullToRefresh onRefresh={refresh} enabled={!route.overlay && (!top || top.name === 'shelf' || top.name === 'book' || top.name === 'browse')} />
       <main key={(top?.key || route.tab) + ':' + refreshKey} class="page">
-        <Screen {...(top?.params || {})} />
+        <Guard key={(top?.key || route.tab) + ':' + refreshKey} fallback={(e, retry) => <ScreenError error={e} retry={retry} />}>
+          <Screen {...(top?.params || {})} />
+        </Guard>
       </main>
       {!inReader && (
         <>
@@ -104,6 +106,26 @@ export function App() {
       {route.overlay === 'player' && <FullPlayer />}
       <UpdatePrompt />
       <Toaster />
+    </div>
+  );
+}
+
+/** Shown instead of a screen that failed, with the error so it can be reported. */
+function ScreenError({ error, retry }) {
+  const text = `${error?.message || error}\n${String(error?.stack || '').split('\n').slice(0, 6).join('\n')}`;
+  return (
+    <div class="screen screen-error">
+      <h2>This screen hit a problem</h2>
+      <p class="muted">The rest of the app still works. Please send this to the developer:</p>
+      <pre>{text}</pre>
+      <div class="chips">
+        <button class="pill" onClick={() => navigator.clipboard?.writeText(text).then(() => toast('Copied'), () => toast('Long-press the text to copy'))}>
+          Copy
+        </button>
+        <button class="pill ghost" onClick={retry}>
+          Try again
+        </button>
+      </div>
     </div>
   );
 }

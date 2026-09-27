@@ -4418,3 +4418,21 @@ textarea {
   color: var(--r-muted, var(--muted));
   font-size: 12px;
 }
+
+/* Error guard fallbacks */
+.screen-error {
+  padding: calc(var(--safe-top) + 24px) 20px 24px;
+}
+.screen-error pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.book-card.broken {
+  opacity: 0.6;
+}

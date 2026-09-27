@@ -110,12 +110,73 @@ export function summarize(book) {
 }
 
 export function toggleLibrary(book) {
+  const had = !!library.get()[book.uid];
+  if (had) markRemoved(book.uid, { lib: true });
   library.set((lib) => {
     const next = { ...lib };
-    if (next[book.uid]) delete next[book.uid];
+    if (had) delete next[book.uid];
     else next[book.uid] = { ...summarize(book), addedAt: Date.now() };
     return next;
   });
+}
+
+// ---- removals & data hygiene -----------------------------------------------------
+// Removed books are remembered (uid -> { lib, prog } times) and synced, so another
+// device's copy doesn't bring them back. A newer save / reading session wins again.
+export const removedBooks = persisted('removedBooks', {});
+
+function markRemoved(uid, { lib = false, prog = false }) {
+  const now = Date.now();
+  removedBooks.set((r) => {
+    const next = { ...r, [uid]: { ...(r[uid] || {}), ...(lib ? { lib: now } : {}), ...(prog ? { prog: now } : {}) } };
+    const keys = Object.keys(next);
+    if (keys.length > 500) keys.slice(0, keys.length - 500).forEach((k) => delete next[k]);
+    return next;
+  });
+}
+
+const validBook = (b) => !!b && typeof b === 'object' && typeof b.uid === 'string' && b.uid.length > 0;
+
+/** Saved books without malformed entries (e.g. a null from an old sync) or removed ones. */
+export function cleanLibrary(lib) {
+  const gone = removedBooks.get();
+  const out = {};
+  for (const [k, b] of Object.entries(lib || {})) if (validBook(b) && !((gone[k]?.lib || 0) >= (b.addedAt || 0))) out[k] = b;
+  return out;
+}
+
+/** Reading/listening history, cleaned the same way. */
+export function cleanProgress(all) {
+  const gone = removedBooks.get();
+  const out = {};
+  for (const [k, p] of Object.entries(all || {})) if (p && typeof p === 'object' && validBook(p.book) && !((gone[k]?.prog || 0) >= (p.updatedAt || 0))) out[k] = p;
+  return out;
+}
+
+/** Remove a book from the library and its history (Library → Edit). */
+export function forgetBook(uid) {
+  markRemoved(uid, { lib: true, prog: true });
+  library.set((lib) => {
+    const next = { ...lib };
+    delete next[uid];
+    return next;
+  });
+  progress.set((all) => {
+    const next = { ...all };
+    delete next[uid];
+    return next;
+  });
+}
+
+/** Merge per-book removal times, keeping the latest of each. */
+export function mergeRemoved(local, remote) {
+  const out = { ...local };
+  for (const [k, v] of Object.entries(remote || {})) {
+    if (!v || typeof v !== 'object') continue;
+    const cur = out[k] || {};
+    out[k] = { lib: Math.max(cur.lib || 0, v.lib || 0) || undefined, prog: Math.max(cur.prog || 0, v.prog || 0) || undefined };
+  }
+  return out;
 }
 
 export function exportBackup() {

@@ -15,15 +15,17 @@ export function tasteProfile(limit = 40) {
   const seen = new Set();
   const out = [];
   const add = (b, note) => {
-    if (!b?.title) return;
+    if (!b?.title || typeof b.title !== 'string') return;
+    const author = typeof b.author === 'string' ? b.author : Array.isArray(b.author) ? b.author.join(', ') : '';
     const k = mainTitle(b.title).toLowerCase();
     if (seen.has(k)) return;
     seen.add(k);
-    out.push(`${mainTitle(b.title)}${b.author ? ` — ${b.author.split(',')[0]}` : ''}${note ? ` (${note})` : ''}`);
+    out.push(`${mainTitle(b.title)}${author ? ` — ${author.split(',')[0]}` : ''}${note ? ` (${note})` : ''}`);
   };
-  const prog = Object.values(progress.get()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const prog = Object.values(progress.get()).filter((p) => p?.book).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   prog.forEach((p) => add(p.book, p.finished ? 'finished' : 'listening'));
   Object.values(library.get())
+    .filter(Boolean)
     .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
     .forEach((b) => add(b, 'saved'));
   return out.slice(0, limit);
@@ -59,8 +61,8 @@ const LENGTH = /(?:under|less than|shorter than|max(?:imum)?|up to|below)\s*(\d+
 
 function ownedSet() {
   const t = new Set();
-  for (const b of Object.values(library.get())) if (b.title) t.add(mainTitle(b.title).toLowerCase());
-  for (const p of Object.values(progress.get())) if (p.book?.title) t.add(mainTitle(p.book.title).toLowerCase());
+  for (const b of Object.values(library.get())) if (b?.title) t.add(mainTitle(b.title).toLowerCase());
+  for (const p of Object.values(progress.get())) if (p?.book?.title) t.add(mainTitle(p.book.title).toLowerCase());
   return t;
 }
 
@@ -100,7 +102,7 @@ async function catalogueAnswer(request) {
   }
   if (books.length < 4) {
     // Fall back to what the listener has been enjoying lately.
-    const recent = Object.values(progress.get()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]?.book;
+    const recent = Object.values(progress.get()).filter((p) => p?.book).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]?.book;
     if (recent) books = [...books, ...(await alsoEnjoyed(recent))];
   }
   const seen = new Set();
@@ -164,6 +166,7 @@ export async function picksForYou() {
   const hit = recCache.get().__alsoLiked;
   if (hit && Date.now() - hit.t < 24 * 3600e3) return hit.v;
   const recent = Object.values(progress.get())
+    .filter((p) => p?.book)
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
     .map((p) => p.book)
     .filter(Boolean)

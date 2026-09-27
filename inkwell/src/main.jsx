@@ -1,7 +1,7 @@
 import { render } from 'preact';
 import { App } from './app.jsx';
 import './styles.css';
-import { settings } from './lib/store.js';
+import { settings, library, progress, cleanLibrary, cleanProgress } from './lib/store.js';
 
 // New look (v2): move everyone onto the pastel Lavender accent once; later choices stick.
 try {
@@ -22,6 +22,16 @@ try {
     delete a.model;
     localStorage.setItem('inkwell:ai', JSON.stringify(a));
   }
+} catch {}
+
+// Drop malformed entries (e.g. a null left by an old sync) that broke the Library screen.
+try {
+  const lib = library.get();
+  const cleanLib = cleanLibrary(lib);
+  if (Object.keys(cleanLib).length !== Object.keys(lib || {}).length) library.set(cleanLib);
+  const prog = progress.get();
+  const cleanProg = cleanProgress(prog);
+  if (Object.keys(cleanProg).length !== Object.keys(prog || {}).length) progress.set(cleanProg);
 } catch {}
 
 render(<App />, document.getElementById('app'));

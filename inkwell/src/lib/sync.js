@@ -11,7 +11,7 @@ import { Browser } from '@capacitor/browser';
 import { App as CapApp } from '@capacitor/app';
 import { podcasts } from '../sources/podcasts.js';
 import { ai } from './ai.js';
-import { persisted, settings, library, progress, bookmarks, addons, abs, debrid, hardcover, goodreads } from './store.js';
+import { persisted, settings, library, progress, bookmarks, addons, abs, debrid, hardcover, goodreads, removedBooks, mergeRemoved, cleanLibrary, cleanProgress } from './store.js';
 import { cleanUrl } from './http.js';
 import { ttsCfg } from './tts.js';
 
@@ -34,8 +34,10 @@ export const account = persisted('account', {
 
 const SECTIONS = {
   settings: { store: settings },
-  library: { store: library, merge: mergeById },
-  progress: { store: progress, merge: mergeNewest },
+  // Removals first, so the merges below can drop books removed on any device.
+  removedBooks: { store: removedBooks, merge: mergeRemoved },
+  library: { store: library, merge: (l, r) => cleanLibrary(mergeById(l, r)) },
+  progress: { store: progress, merge: (l, r) => cleanProgress(mergeNewest(l, r)) },
   bookmarks: { store: bookmarks, merge: mergeBookmarks },
   addons: { store: addons },
   goodreads: { store: goodreads },

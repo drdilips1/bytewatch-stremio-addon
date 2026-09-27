@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'preact/hooks';
 import { Grid, Empty, Cover, toast } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
-import { library, progress, useStore } from '../lib/store.js';
+import { library, progress, useStore, forgetBook } from '../lib/store.js';
 import { downloads, removeDownload } from '../lib/downloads.js';
 import { forgetEbook } from '../lib/epub.js';
 import { nav } from '../lib/nav.js';
@@ -24,8 +24,10 @@ export function Library() {
   const [editShown, setEditShown] = useState(60);
   const last = useRef([]);
   const fresh = useMemo(() => {
-    const saved = Object.values(lib).filter((b) => !/^lbl?:/.test(b.uid || '')).sort((a, b) => b.addedAt - a.addedAt);
-    const started = Object.values(prog).filter((p) => p.book).sort((a, b) => b.updatedAt - a.updatedAt);
+    // Defensive: skip anything malformed rather than failing the whole screen.
+    const ok = (b) => b && typeof b === 'object' && typeof b.uid === 'string';
+    const saved = Object.values(lib || {}).filter((b) => ok(b) && !/^lbl?:/.test(b.uid)).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+    const started = Object.values(prog || {}).filter((p) => p && ok(p.book)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     switch (tab) {
       case 'progress':
         return started.filter((p) => !p.finished).map((p) => p.book);
@@ -34,8 +36,8 @@ export function Library() {
       case 'saved':
         return saved;
       case 'downloaded':
-        return Object.values(dls)
-          .filter((d) => d.book && d.status !== 'cancelled')
+        return Object.values(dls || {})
+          .filter((d) => d && ok(d.book) && d.status !== 'cancelled')
           .map((d) => d.book);
       default: {
         // Audiobooks / Ebooks: everything saved or started of that kind.
@@ -49,7 +51,7 @@ export function Library() {
   const items = fresh.length === last.current.length && fresh.every((b, i) => b === last.current[i]) ? last.current : (last.current = fresh);
 
   const stats = useMemo(() => {
-    const vals = Object.values(prog);
+    const vals = Object.values(prog || {}).filter((p) => p && typeof p === 'object');
     const seconds = vals.reduce((a, p) => a + (p.global || 0), 0);
     return { books: vals.length, hours: Math.round(seconds / 360) / 10, done: vals.filter((p) => p.finished).length };
   }, [prog]);
@@ -125,16 +127,7 @@ async function remove(book, tab) {
     await removeDownload(book.uid).catch(() => {});
     return toast('Download removed');
   }
-  library.set((lib) => {
-    const next = { ...lib };
-    delete next[book.uid];
-    return next;
-  });
-  progress.set((all) => {
-    const next = { ...all };
-    delete next[book.uid];
-    return next;
-  });
+  forgetBook(book.uid);
   if (book.kind === 'text') forgetEbook(book.uid);
   toast(`Removed "${book.title}"`);
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { memo } from 'preact/compat';
+import { Component } from 'preact';
 import { hashHue } from '../lib/format.js';
 import { SOURCES, sourceOf } from '../sources/index.js';
 import { Icon } from './icons.jsx';
@@ -64,11 +65,52 @@ export function withMeta(book, meta) {
 
 const fmtCount = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(n));
 
+/**
+ * Keeps one broken piece (a book with odd data, a screen that fails) from taking
+ * the whole app down: shows `fallback(error, retry)` instead.
+ */
+export class Guard extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  componentDidCatch(error) {
+    console.error(error);
+    this.setState({ error });
+  }
+  render({ children, fallback }, { error }) {
+    if (!error) return children;
+    return fallback ? fallback(error, () => this.setState({ error: null })) : null;
+  }
+}
+
+const str = (v) => (v == null ? '' : typeof v === 'string' ? v : Array.isArray(v) ? v.filter((x) => typeof x === 'string').join(', ') : typeof v === 'object' ? String(v.name || v.title || '') : String(v));
+
+/** A book card that can't break its grid: bad data shows a plain placeholder. */
+function SafeCard({ book, wide }) {
+  return (
+    <Guard
+      fallback={() => (
+        <div class="book-card broken">
+          <div class="book-card-cover">
+            <div class="cover" />
+          </div>
+          <div class="book-card-title">{str(book?.title) || 'Untitled'}</div>
+        </div>
+      )}
+    >
+      <BookCard book={book} wide={wide} />
+    </Guard>
+  );
+}
+
 // Memoized, and it listens to its own book's progress only: saving the position of
 // the book that's playing (every few seconds) no longer re-renders every card.
 export const BookCard = memo(function BookCard({ book: raw, wide }) {
   const meta = useMeta(raw);
-  const book = withMeta(raw, meta);
+  const merged = withMeta(raw, meta);
+  // Data from many sources: make sure what we print is plain text / numbers.
+  const book = { ...merged, title: str(merged.title), author: str(merged.author), rating: Number(merged.rating) || 0, ratings: Number(merged.ratings) || 0 };
   const prog = useStoreKey(progressStore, book.uid);
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
   return (
@@ -144,7 +186,7 @@ export function Row({ title, subtitle, load, items: given, icon, onMore, deps = 
         )}
       </header>
       <div class="row-scroll">
-        {items ? items.map((b) => <BookCard key={b.uid} book={b} />) : Array.from({ length: 6 }, (_, i) => <Skeleton key={i} />)}
+        {items ? items.map((b) => <SafeCard key={b.uid} book={b} />) : Array.from({ length: 6 }, (_, i) => <Skeleton key={i} />)}
       </div>
     </section>
   );
@@ -165,7 +207,7 @@ export function Grid({ items, step = 36 }) {
     <>
       <div class="grid">
         {items.slice(0, count).map((b) => (
-          <BookCard key={b.uid} book={b} />
+          <SafeCard key={b.uid} book={b} />
         ))}
       </div>
       {count < items.length && <div ref={more} class="grid-more" />}
