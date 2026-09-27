@@ -130,7 +130,7 @@ function SourceOrder({ st, setSource }) {
 
 /**
  * Web app only: Safari blocks some services (Hardcover, Audible, Goodreads,
- * StoryShots), so they go through a small relay in the user's Supabase project.
+ * and similar), so they go through a small relay in the user's Supabase project.
  */
 function WebRelayCard() {
   const [checks, setChecks] = useState(null); // [[name, ok, message]]
@@ -170,7 +170,7 @@ function WebRelayCard() {
   return (
     <>
       <p class="muted">
-        On iPhone and iPad, Safari blocks a few services — Hardcover, Audible listings, Goodreads and StoryShots — unless they go through a small relay in your
+        On iPhone and iPad, Safari blocks a few services — Hardcover, Audible listings and Goodreads — unless they go through a small relay in your
         Supabase project. Everything else (TorBox, Real-Debrid, Audiobookshelf over https, free sources) works directly.
       </p>
       <div class="set-row">

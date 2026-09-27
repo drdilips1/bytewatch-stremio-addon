@@ -4659,3 +4659,36 @@ textarea {
   display: block;
   height: 100%;
 }
+/* Key ideas card */
+.sum-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sum-head small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.sum-about {
+  margin: 10px 0 8px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.sum-ideas {
+  margin: 0 0 12px;
+  padding-left: 22px;
+  color: var(--muted);
+  line-height: 1.7;
+  font-size: 14px;
+}
+.sum-ideas li::marker {
+  color: var(--accent-2);
+  font-weight: 700;
+}
+.sum-actions .btn {
+  flex: 1;
+}
+.summaries .sum-head {
+  align-items: flex-start;
+  text-align: left;
+}

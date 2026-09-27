@@ -267,7 +267,7 @@ function ContinueRow() {
   const items = useMemo(
     () =>
       Object.entries(prog)
-        .filter(([uid, p]) => !p.finished && p.book && !/^lbl?:/.test(uid))
+        .filter(([uid, p]) => !p.finished && p.book && !/^(lbl?|sum):/.test(uid))
         .sort((a, b) => b[1].updatedAt - a[1].updatedAt)
         .slice(0, 12),
     [prog]

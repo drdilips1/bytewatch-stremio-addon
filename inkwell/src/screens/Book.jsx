@@ -19,7 +19,7 @@ import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
 import { usePlayer, useCoverColor } from '../components/player-ui.jsx';
 import { RelatedRows } from '../components/related.jsx';
-import { storyshots, loadStoryShots, storyshotsSearchUrl, openUrl, openExternal, STORYSHOTS_HOME } from '../sources/summaries.js';
+import { openUrl, openExternal, keyIdeas, savedSummary, summaryBook, aiReady } from '../sources/summaries.js';
 
 // Books you already have (cloud, server, addons) can still show other copies from source addons.
 const OTHER_SOURCES = new Set(['tb', 'rd', 'abs', 'addon']);
@@ -369,90 +369,84 @@ export function Book({ book: initial }) {
           deps={[book.uid, authorKey]}
         />
       )}
-      {!loading && book.source !== 'ss' && <Summaries book={book} />}
+      {!loading && book.source !== 'sum' && <Summaries book={book} />}
       {!loading && <RelatedRows book={book} />}
       <div class="footer-space" />
     </div>
   );
 }
 
-/** StoryShots summary shown right here (with their narration when available). */
+/** Key ideas (Tanga / Blinkist style): made by your AI service on request, then kept. */
 function Summaries({ book }) {
-  const [ss, setSs] = useState(undefined); // undefined = loading, null = none
-  const [doc, setDoc] = useState(null); // { html, audio } | { error }
-  const [open, setOpen] = useState(false);
+  const [sum, setSum] = useState(() => savedSummary(book));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
   useEffect(() => {
-    let alive = true;
-    setSs(undefined);
-    setDoc(null);
-    setOpen(false);
-    storyshots(book).then((r) => {
-      if (!alive) return;
-      setSs(r);
-      if (r) loadStoryShots(r).then((d) => alive && setDoc(d)).catch((e) => alive && setDoc({ error: e.message }));
-    });
-    return () => (alive = false);
+    setSum(savedSummary(book));
+    setErr('');
   }, [book.uid]);
-
-  const playOriginal = () => {
-    nav.openOverlay('player');
-    player.playBook({
-      uid: 'ssa:' + ss.link,
-      source: 'ss',
-      kind: 'audio',
-      title: doc.title || ss.title,
-      author: book.author || '',
-      cover: book.cover || '',
-      tracks: doc.audio.map((url, i) => ({ title: doc.audio.length > 1 ? `Part ${i + 1}` : 'Summary', url, index: i })),
-    });
+  const make = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      setSum(await keyIdeas(book));
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
   };
-
+  const sb = summaryBook(book);
   return (
     <section class="pad summaries">
       <h3 class="section-label">
-        <Icon name="text" size={16} /> Book summaries
+        <Icon name="text" size={16} /> Key ideas
       </h3>
       <div class="sum-card">
-        <div class="sum-head">
-          <b>StoryShots</b>
-          {(ss === undefined || (ss && !doc)) && <span class="spinner small" />}
-        </div>
-        {ss && doc && !doc.error && (
+        {sum ? (
           <>
-            <div class={'sum-text reader-text' + (open ? ' open' : '')} dangerouslySetInnerHTML={{ __html: doc.html }} />
+            <div class="sum-head">
+              <b>{sum.tagline || 'The book in a few minutes'}</b>
+              <small>
+                {sum.ideas.length} key ideas · {sum.minutes} min read
+              </small>
+            </div>
+            <p class="sum-about">{sum.about}</p>
+            <ol class="sum-ideas">
+              {sum.ideas.map((i) => (
+                <li>{i.title}</li>
+              ))}
+            </ol>
             <div class="sum-actions">
-              <button class="pill" onClick={() => setOpen(!open)}>
-                <Icon name="book" size={14} /> {open ? 'Show less' : 'Read full summary'}
+              <button class="btn primary" onClick={() => nav.push('reader', { book: sb })}>
+                <Icon name="book" size={16} /> Read
               </button>
-              {doc.audio?.length > 0 ? (
-                <button class="pill" onClick={playOriginal}>
-                  <Icon name="headphones" size={14} /> StoryShots audio
-                </button>
-              ) : (
-                <button class="pill ghost" onClick={() => nav.push('reader', { book: ss, readAloud: true })}>
-                  <Icon name="headphones" size={14} /> Listen (built-in voice)
-                </button>
-              )}
+              <button class="btn secondary" onClick={() => nav.push('reader', { book: sb, readAloud: true })}>
+                <Icon name="headphones" size={16} /> Listen
+              </button>
             </div>
           </>
-        )}
-        {ss && doc?.error && <p class="muted">{doc.error}</p>}
-        {ss === null && <p class="muted">No StoryShots summary found for this title.</p>}
-        {ss !== undefined && (
-          <div class="sum-actions">
-            <button class="pill ghost" onClick={() => openUrl(ss?.link || storyshotsSearchUrl(book), 'StoryShots')}>
-              <Icon name="external" size={14} /> {ss ? 'Open on StoryShots' : 'Search StoryShots'}
+        ) : aiReady() ? (
+          <>
+            <p class="muted">The main ideas of this book in about 10 minutes — to read, or to listen to with your voice.</p>
+            {err && <p class="err">{err}</p>}
+            <button class="btn primary" disabled={busy} onClick={make}>
+              {busy ? <span class="spinner" /> : <Icon name="sparkle" size={16} />} {busy ? 'Writing the summary…' : 'Get key ideas'}
             </button>
-            <button class="pill ghost" onClick={() => openUrl(STORYSHOTS_HOME, 'StoryShots')}>
-              Sign in
+          </>
+        ) : (
+          <p class="muted">
+            Key ideas are written by a free AI service —{' '}
+            <button class="link-btn" onClick={() => nav.tab('settings')}>
+              add a Groq key in Settings → AI
             </button>
-          </div>
+            .
+          </p>
         )}
       </div>
     </section>
   );
 }
-
 
 /** Ebook files in the user's TorBox / Real-Debrid item. */
 function CloudEbooks({ book, files }) {
