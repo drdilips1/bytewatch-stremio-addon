@@ -5,6 +5,7 @@ import { useStore } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { pickTorrentFile } from '../lib/torrentfile.js';
 import * as qb from '../sources/qbit.js';
+import { QbitListActions } from '../components/qbit-actions.jsx';
 
 const pct = (x) => `${Math.round((x || 0) * 100)}%`;
 
@@ -114,6 +115,9 @@ export function Tracker() {
               <button class="pill small ghost" disabled={!!busy} onClick={() => run('fix', async () => { const m = await qb.fixStuck(); setTimeout(refresh, 3000); return m; })}>
                 {busy === 'fix' ? <span class="spinner small" /> : 'Fix stuck'}
               </button>
+            </div>
+            <div class="chips tracker-list-actions">
+              <QbitListActions list={list} busy={busy} run={run} refresh={refresh} setList={setList} />
             </div>
             {!list ? (
               <div class="spinner" />

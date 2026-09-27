@@ -14,6 +14,7 @@ import { AccountCard, VoicesCard, DownloadsCard } from './settings-extra.jsx';
 import { UpdateCard } from '../components/update.jsx';
 import { nav } from '../lib/nav.js';
 import * as qb from '../sources/qbit.js';
+import { QbitListActions } from '../components/qbit-actions.jsx';
 import { pickTorrentFile } from '../lib/torrentfile.js';
 
 function Section({ icon, title, children }) {
@@ -389,15 +390,13 @@ function QbitCard() {
             </button>
           </form>
           <div class="chips">
-            <button class="pill small" disabled={!!busy} onClick={() => run('all', () => qb.sendAll())}>
-              {busy === 'all' ? <span class="spinner small" /> : 'Send all not yet sent'}
-            </button>
             <button class="pill small ghost" disabled={!!busy} onClick={refresh}>
               Check progress
             </button>
             <button class="pill small ghost" disabled={!!busy} onClick={() => run('fix', async () => { const m = await qb.fixStuck(); setTimeout(refresh, 3000); return m; })}>
               {busy === 'fix' ? <span class="spinner small" /> : 'Fix stuck downloads'}
             </button>
+            <QbitListActions list={list} busy={busy} run={run} refresh={refresh} setList={setList} />
           </div>
           {list && (
             <div class="qbit-list">
@@ -1107,3 +1106,4 @@ export function Settings() {
     </div>
   );
 }
+

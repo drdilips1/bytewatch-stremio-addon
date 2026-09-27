@@ -285,28 +285,41 @@ export async function unsent() {
   return lists.flat().filter((b) => b.hash && !b.fetching && !wasSent(b.hash) && !seen.has(b.hash) && seen.add(b.hash));
 }
 
-/** Send everything not sent yet; returns a summary line. */
-export async function sendAll(onProgress) {
-  const list = await unsent();
-  if (!list.length) return 'Nothing new to send';
-  await login();
-  let ok = 0;
-  let failed = 0;
-  for (const [i, b] of list.entries()) {
-    try {
-      await send(b);
-      ok++;
-    } catch {
-      failed++;
-    }
-    onProgress?.(i + 1, list.length);
-  }
-  return `Sent ${ok} to qBittorrent${failed ? ` · ${failed} failed` : ''}`;
+
+// What the list shows: sent after the last "Clear list", and not removed.
+const listed = () => {
+  const { items, clearedAt = 0 } = qbitSent.get();
+  return Object.keys(items).filter((h) => (items[h]?.at || 0) > clearedAt && !items[h]?.removed);
+};
+
+/** Hide everything sent so far from the list (it's still remembered, so nothing is sent twice). */
+export function clearList() {
+  qbitSent.set((s) => ({ ...s, clearedAt: Date.now() }));
+}
+
+/** Broken downloads: qBittorrent can't find their files, or reports an error. */
+export const isBroken = (t) => t.progress < 1 && /missingFiles|error/i.test(t.state || '');
+
+/**
+ * Remove broken torrents from qBittorrent. Only the torrent entry goes — files
+ * already on disk are never deleted.
+ */
+export async function removeBroken(list) {
+  const bad = list.filter(isBroken).map((t) => t.hash);
+  if (!bad.length) return 'Nothing broken to remove';
+  const form = new URLSearchParams({ hashes: bad.join('|'), deleteFiles: 'false' }).toString();
+  await api('torrents/delete', { method: 'POST', body: form, contentType: 'application/x-www-form-urlencoded' });
+  qbitSent.set((s) => {
+    const items = { ...s.items };
+    for (const h of bad) if (items[h]) items[h] = { ...items[h], removed: true };
+    return { ...s, items };
+  });
+  return `Removed ${bad.length} broken download${bad.length === 1 ? '' : 's'} from qBittorrent (files kept)`;
 }
 
 /** Progress of what we've sent, straight from qBittorrent. */
 export async function status() {
-  const hashes = Object.keys(qbitSent.get().items);
+  const hashes = listed();
   if (!hashes.length) return [];
   const text = await api('torrents/info?' + new URLSearchParams({ hashes: hashes.slice(-50).join('|') }));
   const list = JSON.parse(text || '[]');
