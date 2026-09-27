@@ -6,6 +6,8 @@ import { Capacitor, CapacitorCookies, registerPlugin } from '@capacitor/core';
 import { persisted } from '../lib/store.js';
 import { requestText, requestFull, cleanUrl } from '../lib/http.js';
 import { readTorrent } from '../lib/torrentfile.js';
+import * as absSrc from './audiobookshelf.js';
+import { words, matches, mainTitle } from '../lib/match.js';
 import { infoHash, magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected, hasAudio, forget as forgetCloud } from './debrid.js';
 
 export const qbit = persisted('qbit', { url: '', lanUrl: '', username: '', password: '', apiKey: '', savePath: '', ebookPath: '', category: 'audiobooks', auto: false });
@@ -189,6 +191,39 @@ export function ebookFolder() {
 /** Where a download goes: ebooks to the ebooks folder, the rest to the audiobook folder. */
 function folderFor(ebook) {
   return (ebook && ebookFolder()) || qbit.get().savePath;
+}
+
+// Your Audiobookshelf library, looked up at most every 10 minutes.
+let absList = null;
+let absAt = 0;
+async function absBooks() {
+  if (!absSrc.connected()) return [];
+  if (!absList || Date.now() - absAt > 10 * 60e3) {
+    absList = await absSrc.all().catch(() => absList || []);
+    absAt = Date.now();
+  }
+  return absList;
+}
+
+/**
+ * The Audiobookshelf book that is this same book, if your server already has it
+ * (so it isn't downloaded twice). Every word of the server book's title must be in the
+ * torrent's name, plus the author's first or last name unless the title is long.
+ */
+export async function onServer(book) {
+  const text = `${book.title || ''} ${book.author || ''} ${book.rawName || ''}`;
+  const hay = new Set(words(text));
+  for (const a of await absBooks()) {
+    if (a.kind === 'text') continue;
+    const t = mainTitle(a.title);
+    if (!words(t).length || !matches(t, text)) continue;
+    const names = String(a.author || '').split(/,|&|\band\b/).flatMap((n) => {
+      const w = words(n).filter((x) => x.length >= 3);
+      return w.length ? [w[0], w[w.length - 1]] : [];
+    });
+    if (names.some((n) => hay.has(n)) || (!names.length && words(t).length >= 2) || words(t).length >= 3) return a;
+  }
+  return null;
 }
 
 /** Add one cloud item (needs its info-hash) to qBittorrent. */
@@ -418,6 +453,11 @@ export function autoForward({ force = false } = {}) {
       const list = [];
       for (const b of fresh) {
         const audio = await hasAudio(b).catch(() => null);
+        // Already on your Audiobookshelf server: don't download it again.
+        if (audio && (await onServer(b).catch(() => null))) {
+          qbitSent.set((st) => ({ ...st, items: { ...st.items, [b.hash]: { title: b.title, at: Date.now(), removed: true, skipped: 'on-server' } } }));
+          continue;
+        }
         if (audio) list.push(b);
         // Remember ebooks as handled (hidden from the list) so they aren't checked again.
         else if (audio === false) qbitSent.set((st) => ({ ...st, items: { ...st.items, [b.hash]: { title: b.title, at: Date.now(), removed: true, skipped: 'ebook' } } }));
@@ -450,6 +490,11 @@ export async function autoSendAdded({ hash, magnet, title, author, rawName, form
   const h = String(hash || '').toLowerCase() || infoHash(magnet, '');
   if (!h || known(h)) return '';
   if (EBOOK_NAME.test(`${rawName || ''} ${format || ''}`)) return '';
+  const have = await onServer({ title, author, rawName }).catch(() => null);
+  if (have) {
+    qbitSent.set((st) => ({ ...st, items: { ...st.items, [h]: { title, at: Date.now(), removed: true, skipped: 'on-server' } } }));
+    return `Already on your Audiobookshelf (“${have.title}”) — not sent home again`;
+  }
   try {
     await send({ hash: h, magnet, title, author: author || '', rawName });
     autoLast.set({ at: Date.now(), sent: 1, error: '' });

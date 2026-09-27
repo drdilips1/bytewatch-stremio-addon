@@ -70,26 +70,46 @@ function SourceOrder({ st, setSource }) {
     next.splice(j, 0, ...next.splice(i, 1));
     save(next);
   };
-  const onDown = (k, e) => {
-    e.preventDefault();
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    setDrag({ key: k, startY: e.clientY, dy: 0 });
+  // Dragging: follow the finger (or mouse) on the whole page while the grip is held, and
+  // stop the page from scrolling meanwhile. Touch events, because Android cancels pointer
+  // drags as soon as it decides the finger is scrolling.
+  const live = useRef(null);
+  live.current = { order, move };
+  const startDrag = (k, y0) => {
+    let startY = y0;
+    const rowH = () => listRef.current?.querySelector('.so-row')?.getBoundingClientRect().height || 60;
+    setDrag({ key: k, dy: 0 });
+    const onMoveY = (y) => {
+      const dy = y - startY;
+      const h = rowH();
+      const shift = Math.round(dy / h);
+      if (shift) {
+        live.current.move(k, shift);
+        startY += shift * h;
+      }
+      setDrag({ key: k, dy: y - startY });
+    };
+    const touchMove = (e) => {
+      e.preventDefault();
+      onMoveY(e.touches[0].clientY);
+    };
+    const mouseMove = (e) => onMoveY(e.clientY);
+    const end = () => {
+      document.removeEventListener('touchmove', touchMove);
+      document.removeEventListener('touchend', end);
+      document.removeEventListener('touchcancel', end);
+      document.removeEventListener('mousemove', mouseMove);
+      document.removeEventListener('mouseup', end);
+      setDrag(null);
+    };
+    document.addEventListener('touchmove', touchMove, { passive: false });
+    document.addEventListener('touchend', end);
+    document.addEventListener('touchcancel', end);
+    document.addEventListener('mousemove', mouseMove);
+    document.addEventListener('mouseup', end);
   };
-  const onMove = (e) => {
-    if (!drag) return;
-    const rows = [...listRef.current.querySelectorAll('.so-row')];
-    const i = order.indexOf(drag.key);
-    const h = rows[i]?.getBoundingClientRect().height || 60;
-    const dy = e.clientY - drag.startY;
-    const shift = Math.round(dy / h);
-    if (shift) {
-      move(drag.key, shift);
-      setDrag({ ...drag, startY: drag.startY + shift * h, dy: dy - shift * h });
-    } else setDrag({ ...drag, dy });
-  };
-  const onUp = () => setDrag(null);
   return (
-    <div class="so-order" ref={listRef} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+    <div class="so-order" ref={listRef}>
       <p class="set-note">Drag ⋮⋮ or use the arrows to choose the order of rows on Home and results in Discover.</p>
       {order.map((k, i) => {
         const s = SOURCES[k];
@@ -98,7 +118,15 @@ function SourceOrder({ st, setSource }) {
         const dragging = drag?.key === k;
         return (
           <div class={'set-row so-row' + (dragging ? ' dragging' : '') + (on ? '' : ' off')} key={k} style={dragging ? { transform: `translateY(${drag.dy}px)` } : null}>
-            <button class="icon-btn so-grip" aria-label={`Drag ${s.name}`} onPointerDown={(e) => onDown(k, e)}>
+            <button
+              class="icon-btn so-grip"
+              aria-label={`Drag ${s.name}`}
+              onTouchStart={(e) => startDrag(k, e.touches[0].clientY)}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                startDrag(k, e.clientY);
+              }}
+            >
               <Icon name="grip" size={20} />
             </button>
             <div class="so-text">

@@ -32,6 +32,13 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const [account, setAccount] = useState(new Map());
   const [showDead, setShowDead] = useState(false);
   const [showLoose, setShowLoose] = useState(false);
+  // Already on your Audiobookshelf server? Say so before anything is added or downloaded again.
+  const [onServer, setOnServer] = useState(null);
+  useEffect(() => {
+    setOnServer(null);
+    if (!title || book?.source === 'abs') return;
+    qb.onServer({ title, author }).then(setOnServer).catch(() => {});
+  }, [title, author]);
   const refreshAccount = () => cloud.accountStatus().then(setAccount).catch(() => {});
   const count = sourceAddons().length;
   const provider = cloud.preferredProvider(st.debridPreferred);
@@ -80,6 +87,15 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
         <h3 class="section-label">
           <Icon name="puzzle" size={16} /> Sources {total > 0 && <small>{total}</small>}
         </h3>
+      )}
+      {onServer && (
+        <button class="on-server" onClick={() => nav.push('book', { book: onServer })}>
+          <Icon name="check" size={16} />
+          <span>
+            <b>Already on your Audiobookshelf</b>
+            <small>{onServer.title} — open it there instead of adding it again</small>
+          </span>
+        </button>
       )}
       {trackerSite && (title || query) && (
         <button class="pill small ghost tracker-jump" onClick={() => qb.openTracker([title || query, author].filter(Boolean).join(' ')).catch((e) => toast(e.message))}>
@@ -289,6 +305,8 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   const homeHash = home ? cloud.infoHash(r.magnet, r.hash) : '';
   const sentHome = !!homeHash && qb.wasSent(homeHash);
   const sendHome = async () => {
+    const have = await qb.onServer({ title: book?.title || r.title, author: book?.author || r.author || '', rawName: r.title }).catch(() => null);
+    if (have && !confirm(`Your Audiobookshelf already has “${have.title}”. Send it home again anyway?`)) return;
     setBusy('home');
     try {
       toast(await qb.send({ hash: homeHash, magnet: r.magnet, title: book?.title || r.title, author: book?.author || r.author || '', rawName: r.title }));

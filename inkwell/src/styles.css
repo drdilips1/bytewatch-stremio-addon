@@ -4692,3 +4692,34 @@ textarea {
   align-items: flex-start;
   text-align: left;
 }
+.on-server {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(134, 239, 172, 0.35);
+  background: rgba(134, 239, 172, 0.08);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.on-server .icon {
+  color: #86efac;
+  flex: none;
+}
+.on-server span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.on-server small {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
