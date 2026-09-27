@@ -173,16 +173,21 @@ async function runOnce(addon, { title = '', author = '', query = '' }) {
   return results;
 }
 
-// Surnames of the book's author(s): "Vivek H. Murthy, Jane Doe" -> ["murthy", "doe"].
+// First and last names of the book's author(s): "Vivek H. Murthy, Jane Doe" -> vivek, murthy, jane, doe
+// (initials and titles like "Dr" / "PhD" left out). Either name is enough for a match.
+const NOT_NAMES = new Set(['phd', 'md', 'mrs', 'jr', 'sr', 'prof', 'dr']);
 const surnames = (author) =>
   String(author)
     .split(/,|&|\band\b|;/)
-    .map((a) => words(a).pop())
-    .filter((w) => w && w.length >= 3);
+    .flatMap((a) => {
+      const w = words(a).filter((x) => x.length >= 3 && !NOT_NAMES.has(x));
+      return w.length ? [w[0], w[w.length - 1]] : [];
+    })
+    .filter((w, i, all) => all.indexOf(w) === i);
 
 /**
  * Results that are really this book: every word of the title must be there, and the author's
- * name too — except for long, distinctive titles, which match on their own when close enough.
+ * first or last name too — except for long, distinctive titles, which match on their own when close enough.
  * ("Together" by Vivek Murthy no longer brings up "Blake's 7 Together Again".)
  */
 function sameBook(list, title, author) {
