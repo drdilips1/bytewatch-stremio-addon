@@ -1,0 +1,22 @@
+name: TTS probe
+on:
+  push:
+    paths: ['.github/workflows/tts-probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set +e
+          echo "== HF aar list"; curl -s "https://huggingface.co/api/models/csukuangfj2/sherpa-onnx-libs/tree/main/android/aar" | python3 -c "import json,sys; [print(x['path'], x.get('size'), x.get('lfs',{}).get('size')) for x in json.load(sys.stdin)[-6:]]"
+          echo "== latest release"; curl -s https://api.github.com/repos/k2-fsa/sherpa-onnx/releases/latest | python3 -c "import json,sys; r=json.load(sys.stdin); print(r['tag_name']); [print(' ',a['name'],a['size']//1000000,'MB') for a in r['assets'] if 'android' in a['name'] or a['name'].endswith('.aar')]"
+          echo "== tts-models"; curl -s "https://api.github.com/repos/k2-fsa/sherpa-onnx/releases/tags/tts-models" | python3 -c "
+          import json,sys; r=json.load(sys.stdin); a=r['assets']; print(len(a),'assets')
+          for x in a:
+            n=x['name']
+            if any(k in n for k in ['kokoro','en_US','en_GB','kitten','matcha-icefall-en','piper-hi','vits-piper-hi']): print(' ',n,x['size']//1000000,'MB')
+          "
+          V=$(curl -s https://api.github.com/repos/k2-fsa/sherpa-onnx/releases/latest | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'].lstrip('v'))")
+          echo "== aar $V"; curl -sL -o s.aar "https://huggingface.co/csukuangfj2/sherpa-onnx-libs/resolve/main/android/aar/sherpa-onnx-$V.aar"; ls -l s.aar; unzip -l s.aar | head -40
+          mkdir x && cd x && unzip -q ../s.aar && unzip -q classes.jar -d cls && ls cls/com/k2fsa/sherpa/onnx | grep -i tts
+          for c in OfflineTts OfflineTtsConfig OfflineTtsModelConfig OfflineTtsVitsModelConfig OfflineTtsKokoroModelConfig GeneratedAudio GenerationConfig; do javap -cp cls com.k2fsa.sherpa.onnx.$c | grep -v "component\|copy\|equals\|hashCode\|toString"; done
