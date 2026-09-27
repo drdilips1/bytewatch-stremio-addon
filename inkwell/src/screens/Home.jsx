@@ -443,19 +443,16 @@ export function Home() {
         <div class="home-logo">
           <svg viewBox="0 0 512 512" aria-hidden="true">
             <defs>
-              <linearGradient id="kv-gold" gradientUnits="userSpaceOnUse" x1="120" y1="110" x2="400" y2="410">
-                <stop offset="0" stop-color="#f1e2bd" />
-                <stop offset="1" stop-color="#b8935a" />
+              <linearGradient id="ah-brand" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#7cf0ff" />
+                <stop offset=".5" stop-color="#a78bfa" />
+                <stop offset="1" stop-color="#ff7ab6" />
               </linearGradient>
             </defs>
-            <g fill="none" stroke="url(#kv-gold)" stroke-linecap="round">
-              <line x1="160" y1="136" x2="160" y2="376" stroke-width="48" />
-              <path d="M222 190 a 90 90 0 0 1 0 132" stroke-width="32" />
-              <path d="M278 146 a 150 150 0 0 1 0 220" stroke-width="32" opacity="0.8" />
-              <path d="M334 104 a 210 210 0 0 1 0 304" stroke-width="32" opacity="0.55" />
-            </g>
+            <path d="M136 400 L256 112 L376 400" fill="none" stroke="url(#ah-brand)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M170 300 h26 l14 -34 l20 70 l22 -96 l22 112 l18 -52 h30 l14 22 h24" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
-          <span>Kathava</span>
+          <span>Audiohub</span>
         </div>
         <button class="icon-btn glass" onClick={() => nav.tab('discover')} aria-label="Search">
           <Icon name="search" />

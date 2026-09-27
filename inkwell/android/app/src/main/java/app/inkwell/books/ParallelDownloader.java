@@ -20,7 +20,7 @@ public final class ParallelDownloader {
         void onProgress(long done, long total);
     }
 
-    private static final String UA = "Kathava";
+    private static final String UA = "Audiohub";
 
     private ParallelDownloader() {}
 

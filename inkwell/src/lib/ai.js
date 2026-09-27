@@ -29,7 +29,7 @@ export const PROVIDERS = [
     models: ['meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-chat-v3-0324:free', 'qwen/qwen-2.5-72b-instruct:free', 'mistralai/mistral-small-3.2-24b-instruct:free'],
     discover: () => freeRouterModels(),
     json: false,
-    headers: { 'HTTP-Referer': 'https://drdilips1.github.io/bytewatch-stremio-addon/', 'X-Title': 'Kathava' },
+    headers: { 'HTTP-Referer': 'https://drdilips1.github.io/bytewatch-stremio-addon/', 'X-Title': 'Audiohub' },
   },
 ];
 

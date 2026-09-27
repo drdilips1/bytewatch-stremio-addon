@@ -114,7 +114,7 @@ public class InkwellWebPlugin extends Plugin {
                 if (email != null && !email.isEmpty()) {
                     // Only e-mail apps, addressed to the Kindle.
                     send.putExtra(Intent.EXTRA_EMAIL, new String[] { email });
-                    send.putExtra(Intent.EXTRA_TEXT, "Sent from Kathava");
+                    send.putExtra(Intent.EXTRA_TEXT, "Sent from Audiohub");
                     send.setSelector(new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")));
                 }
                 Intent chooser = Intent.createChooser(send, title);

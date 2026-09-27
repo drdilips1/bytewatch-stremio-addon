@@ -392,7 +392,7 @@ function QbitCard() {
       >
         <input value={form.lanUrl} placeholder="At home (Wi-Fi), e.g. http://192.168.1.20:8080" autocapitalize="off" onInput={set('lanUrl')} />
         <input value={form.url} placeholder="Away (Tailscale), e.g. http://100.101.102.103:8080" autocapitalize="off" onInput={set('url')} />
-        <small class="muted qbit-hint">Kathava uses the home address when it answers (no Tailscale needed on your Wi-Fi) and the Tailscale one everywhere else. Fill in either or both.</small>
+        <small class="muted qbit-hint">Audiohub uses the home address when it answers (no Tailscale needed on your Wi-Fi) and the Tailscale one everywhere else. Fill in either or both.</small>
         <input value={form.username} placeholder="Web UI username" autocapitalize="off" autocomplete="username" onInput={set('username')} />
         <input value={form.password} type="password" placeholder="Web UI password" autocomplete="current-password" onInput={set('password')} />
         <input value={form.apiKey} placeholder="Or API key (qBittorrent 5.2+, starts with qbt_)" autocapitalize="off" autocomplete="off" onInput={set('apiKey')} />
@@ -1168,7 +1168,7 @@ export function Settings() {
       </Section>
 
       <p class="about">
-        Kathava {APP_VERSION} · Built-in sources are free and public domain.
+        Audiohub {APP_VERSION} · Built-in sources are free and public domain.
         <br />
         Addons and servers you add are your responsibility.
       </p>

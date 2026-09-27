@@ -1,4 +1,4 @@
-// Kathava web relay — a Supabase Edge Function named "relay".
+// Audiohub web relay — a Supabase Edge Function named "relay".
 //
 // Browsers (Safari on iPhone / iPad) block requests to services that don't
 // allow cross-site calls (Hardcover, Audible, Goodreads, StoryShots, …). The web
