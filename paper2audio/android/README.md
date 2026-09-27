@@ -36,8 +36,8 @@ the phone: no server, no account, no limits.
   notification and on the lock screen.
 - **Voice studio** (voice icon in the library and player):
   - **Natural on-device voices** that work offline and unlimited: Luna and Bria
-    (female) and Carter, Declan, Elliot, Felix, Grant, Hugo, Ian, James and Kit
-    (male; James and Kit British), after a one-time 98 MB download.
+    (female) and Carter, Declan, Elliot, Felix, Grant, Hugo, Ian and James
+    (male; James British), after a one-time 98 MB download.
   - **Clone a voice**: record 15–20 seconds (a reading script is shown) or import
     a recording, and the app reads in that voice, on the phone. Only with the
     speaker's permission.

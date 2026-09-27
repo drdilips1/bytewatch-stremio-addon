@@ -165,6 +165,8 @@ object Speaker {
         speed = prefs.getFloat("speed", 1.0f)
         speedRendered = speed
         voiceId = prefs.getString("voice2", null) ?: DEFAULT_VOICE
+        // A cloned voice that no longer exists (deleted, or a retired ready-made one) falls back to the default.
+        if (voiceId.startsWith(CLONE) && MyVoices.get(voiceId.removePrefix(CLONE)) == null) voiceId = DEFAULT_VOICE
         warmUpLocal()
         pendingReady += onReady
         tts = TextToSpeech(app) { status ->

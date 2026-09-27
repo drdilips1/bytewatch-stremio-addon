@@ -57,7 +57,6 @@ object MyVoices {
         Voice("hugo", "Hugo", 0, 0f, true, "male · US"),
         Voice("ian", "Ian", 0, 0f, true, "male · US, lighter"),
         Voice("james", "James", 0, 0f, true, "male · British"),
-        Voice("kit", "Kit", 0, 0f, true, "male · British"),
     )
 
     class Ref(val samples: FloatArray, val sampleRate: Int)
