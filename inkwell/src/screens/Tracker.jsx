@@ -65,9 +65,10 @@ export function Tracker() {
                 <button class="btn primary big" onClick={() => run('open', qb.openTracker)}>
                   <Icon name="external" size={18} /> Open {tr.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}
                 </button>
-                <button class="link-btn" onClick={() => qb.tracker.set({ url: '' })}>
+                <button class="link-btn" onClick={() => qb.tracker.set({ url: '', search: '' })}>
                   Change site
                 </button>
+                <SearchAddress />
               </div>
             ) : (
               <form
@@ -145,6 +146,39 @@ export function Tracker() {
         </>
       )}
       <div class="footer-space" />
+    </div>
+  );
+}
+
+/**
+ * Optional: the site's search address, so book pages can open a search for that
+ * book ("Search on your tracker"). Copy the address of a search results page and
+ * put {q} where the search words are.
+ */
+function SearchAddress() {
+  const tr = useStore(qb.tracker);
+  const [v, setV] = useState(tr.search || '');
+  const ok = !v.trim() || v.includes('{q}');
+  return (
+    <div class="tracker-search">
+      <small class="muted">
+        Search address (optional) — lets book pages open a search here. Search for any word on your site, copy the address of the results page, paste it below and replace that word with{' '}
+        <b>{'{q}'}</b>.
+      </small>
+      <form
+        class="set-form inline"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!ok) return toast('Put {q} where the search words go');
+          qb.tracker.set((t) => ({ ...t, search: v.trim() }));
+          toast(v.trim() ? 'Saved — book pages can search your site now' : 'Search address removed');
+        }}
+      >
+        <input value={v} placeholder="https://…/search?text={q}" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setV(e.currentTarget.value)} />
+        <button class="btn primary" disabled={v.trim() === (tr.search || '')}>
+          Save
+        </button>
+      </form>
     </div>
   );
 }

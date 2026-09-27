@@ -53,6 +53,8 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   }, [title, author, query, count]);
 
   if (!count) return null;
+  // Your tracker (Tracker tab): open a search for this book there.
+  const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
   const entries = Object.entries(groups);
   const total = entries.reduce((a, [, g]) => a + g.results.length, 0);
   // Results nobody is seeding can't be downloaded unless the service already has them.
@@ -70,6 +72,11 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
         <h3 class="section-label">
           <Icon name="puzzle" size={16} /> Sources {total > 0 && <small>{total}</small>}
         </h3>
+      )}
+      {trackerSite && (title || query) && (
+        <button class="pill small ghost tracker-jump" onClick={() => qb.openTracker([title || query, author].filter(Boolean).join(' ')).catch((e) => toast(e.message))}>
+          <Icon name="search" size={14} /> Search on {trackerSite}
+        </button>
       )}
       {!provider && (
         <button class="btn ghost-wide" onClick={() => nav.tab('settings')}>
@@ -134,13 +141,19 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
     return false;
   };
 
+  // Auto-send (Settings > Home server): what you add here goes to qBittorrent too.
+  const autoSend = () =>
+    qb
+      .autoSendAdded({ hash: cloud.infoHash(r.magnet, r.hash), magnet: r.magnet, title: book?.title || r.title, author: book?.author || r.author || '', rawName: r.title, format: r.format })
+      .then((m) => m && toast(m));
+
   const add = async (p) => {
     if (!need()) return;
     setBusy('add:' + p);
     setStatus({ text: `Adding to ${LABEL[p]}…`, pct: null });
     try {
       toast(await cloud.addMagnetOnly(p, r));
-      qb.autoForwardSoon(); // auto-send to the home server, if that's on
+      autoSend(); // auto-send to the home server, if that's on
       cloud.forget();
       setTimeout(onChanged, 1500);
     } catch (e) {
@@ -158,7 +171,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
     setStatus({ text: readyOn(via) ? `Getting it from your ${LABEL[via]}…` : 'Contacting ' + LABEL[via] + '…', pct: null });
     try {
       const stub = await cloud.prepareMagnet(via, r, (text, pct) => setStatus({ text, pct }));
-      qb.autoForwardSoon();
+      autoSend();
       setStatus({ text: 'Opening the player…', pct: 1 });
       const details = await getDetails({
         ...stub,
@@ -196,7 +209,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
     setStatus({ text: `Getting links from ${LABEL[via]}…`, pct: null });
     try {
       const res = await cloud.downloadLinks(via, r, (text, pct) => setStatus({ text, pct }));
-      qb.autoForwardSoon();
+      autoSend();
       if (!res.files.length) throw new Error(`${LABEL[via]} lists no files for this one`);
       const files = res.files.map((f) => ({ ...f }));
       setLinks({ ...res, files });

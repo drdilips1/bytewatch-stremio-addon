@@ -173,11 +173,12 @@ export async function requestFull(url, opts = {}) {
   return { status: res.status, text: await res.text().catch(() => ''), headers: res.headers };
 }
 
-export function sendForm(url, method, params, headers = {}) {
+export function sendForm(url, method, params, headers = {}, { timeout } = {}) {
   return request(url, {
     method,
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
     body: qs(params),
+    ...(timeout ? { timeout } : {}),
   }).then((r) => (r.status === 204 ? null : r.json().catch(() => null)));
 }
 

@@ -396,6 +396,30 @@ export function autoForward({ force = false } = {}) {
   return running;
 }
 
+const EBOOK_NAME = /\b(epub|pdf|mobi|azw3?|ebook)\b/i;
+
+/**
+ * You added a result to TorBox / Real-Debrid in the app: with auto-send on, send
+ * its magnet to qBittorrent right away (no need to wait for the debrid service to
+ * list the files). Ebooks are left out.
+ */
+export async function autoSendAdded({ hash, magnet, title, author, rawName, format }) {
+  const cfg = qbit.get();
+  if (!available || !configured() || !cfg.auto) return '';
+  const h = String(hash || '').toLowerCase() || infoHash(magnet, '');
+  if (!h || known(h)) return '';
+  if (EBOOK_NAME.test(`${rawName || ''} ${format || ''}`)) return '';
+  try {
+    await send({ hash: h, magnet, title, author: author || '', rawName });
+    autoLast.set({ at: Date.now(), sent: 1, error: '' });
+    return 'Also sent to your home server (qBittorrent)';
+  } catch (e) {
+    autoLast.set({ at: Date.now(), sent: 0, error: friendly(e.message || String(e)) });
+    autoForwardSoon(); // try again shortly
+    return '';
+  }
+}
+
 /** After adding something to TorBox / Real-Debrid in the app: forward it once it shows up there. */
 export function autoForwardSoon() {
   if (!available || !qbit.get().auto) return;
@@ -407,13 +431,22 @@ export function autoForwardSoon() {
 }
 
 // ---- Tracker tab: a site you sign in to, whose downloads go to qBittorrent ----
-export const tracker = persisted('tracker', { url: '' });
+export const tracker = persisted('tracker', { url: '', search: '' });
+
+/** Your tracker's search page for [query], if you've set its search address ({q} = the words). */
+export function trackerSearchUrl(query) {
+  const { url, search } = tracker.get();
+  const tpl = String(search || '').trim();
+  if (tpl.includes('{q}')) return tpl.replace('{q}', encodeURIComponent(query));
+  return String(url || '').trim();
+}
+export const trackerName = () => String(tracker.get().url || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 const Web = registerPlugin('InkwellWeb');
 const canBrowse = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
 
 /** Open the tracker site in the in-app browser; its .torrent downloads and magnets come here. */
-export async function openTracker() {
-  const url = String(tracker.get().url || '').trim();
+export async function openTracker(query = '') {
+  const url = query ? trackerSearchUrl(query) : String(tracker.get().url || '').trim();
   if (!url) throw new Error('Add your tracker site address first');
   if (!canBrowse) return window.open(url, '_blank');
   // The browser screen sends captured downloads itself (the app is paused behind it).

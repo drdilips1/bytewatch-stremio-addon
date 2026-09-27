@@ -413,7 +413,23 @@ async function tbEnsure(magnet, hash, onStatus) {
   let it = hash ? items.find((t) => String(t.hash || '').toLowerCase() === hash) : null;
   if (it) return (await tbOne(it.id)) || it;
   onStatus?.('Adding to TorBox…', null);
-  const r = await sendForm(`${TB}/torrents/createtorrent`, 'POST', { magnet }, tbHeaders());
+  let r;
+  try {
+    // TorBox can take a while to answer for torrents it doesn't have cached.
+    r = await sendForm(`${TB}/torrents/createtorrent`, 'POST', { magnet }, tbHeaders(), { timeout: 60000 });
+  } catch (e) {
+    if (!e.timeout) throw e;
+    // Slow answer, but it usually did add it: look for it before giving up.
+    for (let i = 0; i < 3; i++) {
+      await sleep(2000);
+      const found = hash && (await tbList('torrents').catch(() => [])).find((t) => String(t.hash || '').toLowerCase() === hash);
+      if (found) {
+        forget();
+        return (await tbOne(found.id)) || found;
+      }
+    }
+    throw new Error('TorBox is slow to answer — it may still be adding it. Check again in a minute.');
+  }
   if (r && r.success === false && !/already|duplicate/i.test(`${r.error} ${r.detail}`)) throw new Error(r.detail || 'TorBox rejected the magnet');
   forget();
   const id = r?.data?.torrent_id;
