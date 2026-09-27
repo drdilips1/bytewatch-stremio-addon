@@ -6,7 +6,7 @@ import { Capacitor, CapacitorCookies, registerPlugin } from '@capacitor/core';
 import { persisted } from '../lib/store.js';
 import { requestText, requestFull, cleanUrl } from '../lib/http.js';
 import { readTorrent } from '../lib/torrentfile.js';
-import { infoHash, magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected } from './debrid.js';
+import { infoHash, magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected, hasAudio } from './debrid.js';
 
 export const qbit = persisted('qbit', { url: '', lanUrl: '', username: '', password: '', apiKey: '', savePath: '', category: 'audiobooks', auto: false });
 
@@ -276,13 +276,15 @@ export async function sendFile(file) {
   return `Sent “${name || file.name}” to qBittorrent${savePath ? ` → ${savePath}` : ''}`;
 }
 
-export const wasSent = (hash) => !!qbitSent.get().items[String(hash || '').toLowerCase()];
+const known = (hash) => qbitSent.get().items[String(hash || '').toLowerCase()];
+/** Sent to qBittorrent (ebooks auto-send skipped don't count). */
+export const wasSent = (hash) => !!known(hash) && !known(hash).skipped;
 
 /** All torrent-based audiobooks in your clouds that haven't been sent yet. */
 export async function unsent() {
   const lists = await Promise.all([tbConnected() ? torboxLibrary().catch(() => []) : [], rdConnected() ? realdebridLibrary().catch(() => []) : []]);
   const seen = new Set();
-  return lists.flat().filter((b) => b.hash && !b.fetching && !wasSent(b.hash) && !seen.has(b.hash) && seen.add(b.hash));
+  return lists.flat().filter((b) => b.hash && !b.fetching && !known(b.hash) && !seen.has(b.hash) && seen.add(b.hash));
 }
 
 
@@ -358,7 +360,15 @@ export async function autoForward() {
   lastAuto = Date.now();
   try {
     // Only items added to your cloud after auto-send was switched on.
-    const list = (await unsent()).filter((b) => (b.addedAt || 0) >= (cfg.autoSince || 0));
+    const fresh = (await unsent()).filter((b) => (b.addedAt || 0) >= (cfg.autoSince || 0));
+    // Audiobooks only: ebooks in the cloud stay there.
+    const list = [];
+    for (const b of fresh) {
+      const audio = await hasAudio(b).catch(() => null);
+      if (audio) list.push(b);
+      // Remember ebooks as handled (hidden from the list) so they aren't checked again.
+      else if (audio === false) qbitSent.set((st) => ({ ...st, items: { ...st.items, [b.hash]: { title: b.title, at: Date.now(), removed: true, skipped: 'ebook' } } }));
+    }
     if (!list.length) return '';
     await login();
     let ok = 0;

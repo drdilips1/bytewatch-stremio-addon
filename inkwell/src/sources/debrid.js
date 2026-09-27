@@ -332,6 +332,18 @@ export async function verify(provider, key) {
 
 export const addLink = (provider, link) => (provider === 'torbox' ? tbAdd(link.trim()) : rdAdd(link.trim()));
 
+/**
+ * Is this cloud item an audiobook (has audio files)? TorBox items already list
+ * their files; Real-Debrid's list has only a name, so its file list is checked.
+ * Used to keep ebooks out of auto-send to qBittorrent.
+ */
+export async function hasAudio(book) {
+  if (book.kind === 'text' || EBOOK.test(book.rawName || '')) return false;
+  if (book.uid?.startsWith('tb:')) return book.kind === 'audio';
+  const info = await getJson(`${RD}/torrents/info/${book.uid.slice(3)}`, { headers: rdHeaders(), fresh: true });
+  return (info.files || []).some((f) => AUDIO.test(f.path || ''));
+}
+
 export function details(book) {
   return book.uid.startsWith('tb:') ? tbDetails(book) : rdDetails(book);
 }
