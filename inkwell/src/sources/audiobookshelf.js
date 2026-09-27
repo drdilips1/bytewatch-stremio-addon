@@ -1,6 +1,6 @@
 // Audiobookshelf — connect your self-hosted server: browse libraries, stream,
 // and sync listening progress back to the server.
-import { isWeb, getJson, sendJson, qs, cleanUrl } from '../lib/http.js';
+import { isWeb, getJson, sendJson, qs, cleanUrl, getBytes } from '../lib/http.js';
 import { abs } from '../lib/store.js';
 
 const cfg = () => abs.get();
@@ -151,17 +151,22 @@ function toBook(item) {
   };
 }
 
+// The main library, plus the ebooks library when one is chosen (Settings → Audiobookshelf).
+const libIds = () => [...new Set([cfg().libraryId, cfg().ebookLibraryId].filter(Boolean))];
+async function fromLibraries(path, pick) {
+  const lists = await Promise.all(libIds().map((id) => call(`/api/libraries/${id}${path}`).then(pick).catch(() => [])));
+  return lists.flat().map(toBook);
+}
+
 export async function recent() {
   if (!connected() || !cfg().libraryId) return [];
-  const data = await call(`/api/libraries/${cfg().libraryId}/items?` + qs({ limit: 30, sort: 'addedAt', desc: 1, minified: 1 }));
-  return (data.results || []).map(toBook);
+  return fromLibraries('/items?' + qs({ limit: 30, sort: 'addedAt', desc: 1, minified: 1 }), (d) => d.results || []);
 }
 
 /** Whole library (up to 500 items), newest first. */
 export async function all() {
   if (!connected() || !cfg().libraryId) return [];
-  const data = await call(`/api/libraries/${cfg().libraryId}/items?` + qs({ limit: 500, sort: 'addedAt', desc: 1, minified: 1 }));
-  return (data.results || []).map(toBook);
+  return fromLibraries('/items?' + qs({ limit: 500, sort: 'addedAt', desc: 1, minified: 1 }), (d) => d.results || []);
 }
 
 export async function inProgress() {
@@ -172,8 +177,7 @@ export async function inProgress() {
 
 export async function search(term) {
   if (!connected() || !cfg().libraryId || !term.trim()) return [];
-  const data = await call(`/api/libraries/${cfg().libraryId}/search?` + qs({ q: term, limit: 25 }));
-  return (data.book || data.podcast || []).map(toBook);
+  return fromLibraries('/search?' + qs({ q: term, limit: 25 }), (d) => d.book || d.podcast || []);
 }
 
 export async function details(book) {
@@ -189,10 +193,54 @@ export async function details(book) {
     narrator: md.narratorName,
     series: md.seriesName,
     chaptersMeta: (li.media?.chapters || []).map((c) => ({ title: c.title, start: c.start, end: c.end })),
+    // Its ebook file (EPUB opens in the reader; any format can go to Kindle / another app).
+    ebooks: ebookOf(li),
     tracks: null, // resolved at play time through a playback session
     resolveTracks: () => startSession(id),
     link: `${base()}/item/${id}`,
   };
+}
+
+function ebookOf(li) {
+  const f = li.media?.ebookFile;
+  if (!f) return [];
+  const format = String(f.ebookFormat || (f.metadata?.ext || '').replace('.', '') || 'epub').toUpperCase();
+  const url = `${base()}/api/items/${li.id}/ebook?` + qs({ token: cfg().token });
+  return [{ name: f.metadata?.filename || `${li.media?.metadata?.title || 'Book'}.${format.toLowerCase()}`, format, size: f.metadata?.size || 0, url, resolve: async () => url }];
+}
+
+/** Libraries with their folders, for choosing where ebooks go. */
+export async function bookLibraries() {
+  return (await libraries()).filter((l) => l.mediaType === 'book');
+}
+
+/**
+ * Put an ebook from a link into your Audiobookshelf ebooks library (its first folder):
+ * the phone downloads it and uploads it to the server, which adds it to the library.
+ */
+export async function uploadEbook({ url, name, title, author }) {
+  if (!connected()) throw new Error('Connect Audiobookshelf first (Settings → Audiobookshelf)');
+  const libs = await bookLibraries();
+  const lib = libs.find((l) => l.id === cfg().ebookLibraryId) || libs.find((l) => /e-?books?/i.test(l.name)) || libs.find((l) => l.id === cfg().libraryId);
+  const folder = lib?.folders?.[0];
+  if (!lib || !folder) throw new Error('No Audiobookshelf library to put it in — choose an ebooks library in Settings → Audiobookshelf');
+  const bytes = await getBytes(url);
+  if (bytes.length < 1000 || (bytes[0] === 0x3c && /<html|<!doctype/i.test(new TextDecoder().decode(bytes.slice(0, 200))))) throw new Error('That link gave a web page, not the ebook file');
+  await resolveServer();
+  const form = new FormData();
+  form.append('title', title || name.replace(/\.[^.]+$/, ''));
+  if (author) form.append('author', author);
+  form.append('library', lib.id);
+  form.append('folder', folder.id);
+  form.append('0', new Blob([bytes]), name);
+  const res = await fetch(base() + '/api/upload', { method: 'POST', headers: auth(), body: form });
+  if (res.status === 401) throw new Error('Audiobookshelf session expired — please sign in again');
+  if (res.status === 403) throw new Error('Your Audiobookshelf user may not upload — enable "Can upload" for it in Audiobookshelf');
+  if (!res.ok) {
+    const why = (await res.text().catch(() => '')).slice(0, 80);
+    throw new Error(`Audiobookshelf: HTTP ${res.status}${why ? ` — ${why}` : ''}`);
+  }
+  return `Added to “${lib.name}” on Audiobookshelf — it appears after the server scans it`;
 }
 
 async function startSession(id) {

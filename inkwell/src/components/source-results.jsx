@@ -2,7 +2,8 @@ import { useEffect, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
 import { searchSources, sourceAddons, fmtSize } from '../sources/sourceaddons.js';
-import { cloud, getDetails } from '../sources/index.js';
+import { cloud, getDetails, absSrc } from '../sources/index.js';
+import { addLink } from '../sources/debrid.js';
 import { settings, useStore, debrid } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import * as player from '../lib/player.js';
@@ -102,7 +103,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
       {!pending && !total && entries.length > 0 && <p class="muted pad-s">No source results.</p>}
       <div class="src-list">
         {shownGroups.map((g) =>
-          g.items.length === 1 ? (
+          g.items.length === 1 || g.key.startsWith('h:') ? (
             <SourceRow key={g.items[0].key} r={g.items[0]} provider={provider} providers={providers} book={book} inAccount={account.get(g.items[0].hash)} onChanged={refreshAccount} />
           ) : (
             <SourceFolder key={g.key} g={g} provider={provider} providers={providers} book={book} account={account} onChanged={refreshAccount} />
@@ -274,6 +275,23 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
       setBusy(null);
     }
   };
+  // Direct ebook links can also go to your TorBox (web download) or your Audiobookshelf ebooks library.
+  const keepDirect = async (where) => {
+    setBusy(where);
+    if (where === 'abs') setStatus({ text: 'Downloading, then adding to Audiobookshelf…', pct: null });
+    try {
+      toast(
+        where === 'tb'
+          ? await addLink('torbox', r.link)
+          : await absSrc.uploadEbook({ url: r.link, name: ebook.name, title: book?.title || r.title, author: book?.author || r.author || '' })
+      );
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setStatus(null);
+      setBusy(null);
+    }
+  };
   const home = hasMagnet && qb.available && qb.configured();
   const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
   const trackerFilter = trackerSite ? qb.trackerFilterLabel() : '';
@@ -351,6 +369,28 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
           <button class="link-btn" onClick={() => cancel(waiting.hash)}>
             Cancel
           </button>
+        </div>
+      )}
+      {ebook && (cloud.tbConnected() || absSrc.connected()) && (
+        <div class="src-services">
+          {cloud.tbConnected() && (
+            <div class="svc">
+              <b>TorBox</b>
+              <span>keep a copy in your cloud</span>
+              <button class="pill small" disabled={!!busy} onClick={() => keepDirect('tb')} aria-label="Add to TorBox">
+                {busy === 'tb' ? <span class="spinner small" /> : <Icon name="plus" size={14} />} TorBox
+              </button>
+            </div>
+          )}
+          {absSrc.connected() && (
+            <div class="svc">
+              <b>Home server</b>
+              <span>Audiobookshelf ebooks</span>
+              <button class="pill small" disabled={!!busy} onClick={() => keepDirect('abs')} aria-label="Add to your Audiobookshelf ebooks library">
+                {busy === 'abs' ? <span class="spinner small" /> : <Icon name="plus" size={14} />} Server
+              </button>
+            </div>
+          )}
         </div>
       )}
       {dead && <div class="src-warn">No seeders — your debrid service may never finish downloading this one.</div>}
@@ -539,12 +579,15 @@ const baseName = (t) =>
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
 
+// Torrents are grouped only by info-hash (the same torrent listed twice shows as one card;
+// different torrents with the same name stay separate). Direct files of one book — part 1,
+// part 2… — fold into one card.
 function groupResults(list) {
   const groups = [];
   const byKey = new Map();
   for (const r of list) {
-    const key = (r.hash && `h:${r.hash}`) || `t:${r.addon}:${baseName(r.title)}`;
-    const alt = `t:${r.addon}:${baseName(r.title)}`;
+    const key = r.hash ? `h:${String(r.hash).toLowerCase()}` : `t:${r.addon}:${baseName(r.title)}`;
+    const alt = r.hash ? key : `t:${r.addon}:${baseName(r.title)}`;
     let g = byKey.get(key) || byKey.get(alt);
     if (!g) {
       g = { key, items: [] };

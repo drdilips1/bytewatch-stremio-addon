@@ -490,6 +490,24 @@ function AbsCard() {
             </button>
           )}
         </div>
+        <div class="set-row">
+          <div>
+            <b>Ebooks library</b>
+            <small>Its ebooks show in the app too (Read, Kindle); ebook links from source results can be added to it.</small>
+          </div>
+          {libs ? (
+            <select value={cfg.ebookLibraryId || ''} onChange={(e) => abs.patch({ ebookLibraryId: e.currentTarget.value })}>
+              <option value="">Same as above</option>
+              {libs.filter((l) => l.mediaType === 'book').map((l) => (
+                <option value={l.id}>{l.name}</option>
+              ))}
+            </select>
+          ) : (
+            <button class="pill small" onClick={() => absSrc.libraries().then(setLibs).catch((e) => toast(e.message))}>
+              Choose…
+            </button>
+          )}
+        </div>
         <form
           class="set-form"
           onSubmit={async (e) => {

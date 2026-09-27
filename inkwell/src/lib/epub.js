@@ -265,6 +265,8 @@ export const cloudReaderBook = (book, file) => ({
   cover: book.cover,
   ebookName: file.name,
   ebookFile: file,
+  // A plain link (Audiobookshelf): lets the book reopen from Continue after a restart.
+  ...(file.url ? { ebookUrl: file.url, ebookFormat: file.format } : {}),
 });
 
 // Parsed books kept in memory: only the last two (big books hold a lot of text and images).

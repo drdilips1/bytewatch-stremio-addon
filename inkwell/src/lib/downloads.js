@@ -110,5 +110,5 @@ export const publicAvailable = () => (canDownload ? Native.publicAvailable().the
 
 export function fmtBytes(n) {
   if (!n) return '0 MB';
-  return n > 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${Math.round(n / 1e6)} MB`;
+  return n > 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n < 1e7 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.round(n / 1e6)} MB`;
 }

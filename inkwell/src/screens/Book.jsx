@@ -174,63 +174,73 @@ export function Book({ book: initial }) {
         )}
       </div>
       {cloudEbooks.length > 0 && <CloudEbooks book={book} files={cloudEbooks} />}
-      {canListen && canDownload && book.source !== 'tts' && (
-        <div class="dl-row">
-          {!dl || dl.status === 'error' ? (
-            <button
-              class="btn secondary"
-              disabled={loading && !book.tracks && !book.resolveTracks}
-              onClick={() => downloadBook(book).then(() => toast('Downloaded — plays offline now')).catch((e) => e.message !== 'cancelled' && toast(e.message))}
-            >
-              <Icon name="download" size={16} /> {dl?.status === 'error' ? 'Retry download' : 'Download for offline'}
-            </button>
-          ) : dl.status === 'done' ? (
-            <>
-              <span class="dl-done">
-                <Icon name="check" size={16} /> Downloaded · {fmtBytes(dl.bytes)} · {dl.location || 'on this phone'}
-              </span>
-              <button class="link-btn" onClick={() => removeDownload(book.uid).then(() => toast('Download removed'))}>
-                Remove
-              </button>
-            </>
-          ) : (
-            <>
-              <div class="dl-progress">
-                <span>
-                  Downloading part {Math.min((dl.done || 0) + 1, dl.total || 1)} of {dl.total || '…'}
-                  {dl.currentTotal > 0 ? ` · ${Math.round((dl.current / dl.currentTotal) * 100)}%` : ''}
+      {((canListen && canDownload && book.source !== 'tts') || (book.hash && (book.source === 'tb' || book.source === 'rd') && qb.available)) && (
+        <div class="book-tools">
+          {canListen && canDownload && book.source !== 'tts' &&
+            (!dl || dl.status === 'error' ? (
+              <button
+                class="tool"
+                disabled={loading && !book.tracks && !book.resolveTracks}
+                onClick={() => downloadBook(book).then(() => toast('Downloaded — plays offline now')).catch((e) => e.message !== 'cancelled' && toast(e.message))}
+              >
+                <span class="tool-icon">
+                  <Icon name="download" size={18} />
                 </span>
-                <div class="progress-bar">
-                  <div style={{ width: `${dl.total ? (((dl.done || 0) + (dl.currentTotal ? dl.current / dl.currentTotal : 0)) / dl.total) * 100 : 2}%` }} />
-                </div>
-              </div>
-              <button class="link-btn" onClick={() => cancelDownload(book.uid)}>
-                Cancel
+                <span class="tool-text">
+                  <b>{dl?.status === 'error' ? 'Retry download' : 'Offline'}</b>
+                  <small>{dl?.status === 'error' ? dl.error || 'Download failed' : 'Save to this phone'}</small>
+                </span>
               </button>
-            </>
+            ) : dl.status === 'done' ? (
+              <button class="tool done" onClick={() => confirm('Remove the download from this phone?') && removeDownload(book.uid).then(() => toast('Download removed'))}>
+                <span class="tool-icon">
+                  <Icon name="check" size={18} />
+                </span>
+                <span class="tool-text">
+                  <b>On this phone</b>
+                  <small>{fmtBytes(dl.bytes)} · tap to remove</small>
+                </span>
+              </button>
+            ) : (
+              <button class="tool busy" onClick={() => confirm('Stop downloading?') && cancelDownload(book.uid)}>
+                <span class="tool-icon">
+                  <span class="spinner small" />
+                </span>
+                <span class="tool-text">
+                  <b>
+                    Part {Math.min((dl.done || 0) + 1, dl.total || 1)} of {dl.total || '…'}
+                    {dl.currentTotal > 0 ? ` · ${Math.round((dl.current / dl.currentTotal) * 100)}%` : ''}
+                  </b>
+                  <span class="progress-bar">
+                    <span style={{ width: `${dl.total ? (((dl.done || 0) + (dl.currentTotal ? dl.current / dl.currentTotal : 0)) / dl.total) * 100 : 2}%` }} />
+                  </span>
+                </span>
+              </button>
+            ))}
+          {book.hash && (book.source === 'tb' || book.source === 'rd') && qb.available && (
+            <button
+              class={'tool' + (qb.wasSent(book.hash) ? ' done' : '')}
+              disabled={qbBusy}
+              onClick={async () => {
+                if (!qb.configured()) return toast('Set up your home server first (Settings → Home server)');
+                if (qb.wasSent(book.hash) && !confirm('Already sent to your home server. Send it again?')) return;
+                setQbBusy(true);
+                try {
+                  toast(await qb.send(book));
+                } catch (e) {
+                  toast(e.message);
+                } finally {
+                  setQbBusy(false);
+                }
+              }}
+            >
+              <span class="tool-icon">{qbBusy ? <span class="spinner small" /> : <Icon name={qb.wasSent(book.hash) ? 'check' : 'server'} size={18} />}</span>
+              <span class="tool-text">
+                <b>Home server</b>
+                <small>{qb.wasSent(book.hash) ? 'Sent · tap to resend' : 'Send to qBittorrent'}</small>
+              </span>
+            </button>
           )}
-          {dl?.status === 'error' && <small class="err">{dl.error}</small>}
-        </div>
-      )}
-      {book.hash && (book.source === 'tb' || book.source === 'rd') && qb.available && (
-        <div class="pad qbit-send">
-          <button
-            class="pill"
-            disabled={qbBusy}
-            onClick={async () => {
-              if (!qb.configured()) return toast('Set up your home server first (Settings → Home server)');
-              setQbBusy(true);
-              try {
-                toast(await qb.send(book));
-              } catch (e) {
-                toast(e.message);
-              } finally {
-                setQbBusy(false);
-              }
-            }}
-          >
-            {qbBusy ? <span class="spinner small" /> : <Icon name="server" size={14} />} {qb.wasSent(book.hash) ? 'Sent to home server · send again' : 'Send to home server'}
-          </button>
         </div>
       )}
       {pct > 0 && (

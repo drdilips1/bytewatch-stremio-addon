@@ -4589,3 +4589,73 @@ textarea {
   padding: 0 20px 12px;
   flex-wrap: wrap;
 }
+/* Book page: offline + home server as a matched pair of tiles */
+.book-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 14px 20px 0;
+}
+.book-tools .tool {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.book-tools .tool:disabled {
+  opacity: 0.6;
+}
+.tool-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--accent-2);
+}
+.tool.done .tool-icon {
+  background: rgba(134, 239, 172, 0.14);
+  color: #86efac;
+}
+.tool-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.tool-text b {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tool-text small {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tool-text .progress-bar {
+  display: block;
+  height: 3px;
+  margin-top: 4px;
+}
+.tool-text .progress-bar > span {
+  background: var(--grad);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
