@@ -56,7 +56,9 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const entries = Object.entries(groups);
   const total = entries.reduce((a, [, g]) => a + g.results.length, 0);
   // Results nobody is seeding can't be downloaded unless the service already has them.
-  const all = entries.flatMap(([, g]) => g.results);
+  // Audiobook sources (torrents your debrid / home server can fetch) first; plain
+  // download links (e.g. ebook sites) after. Order within each kind is kept.
+  const all = entries.flatMap(([, g]) => g.results).sort((a, b) => Number(!(a.magnet || a.hash)) - Number(!(b.magnet || b.hash)));
   const alive = (r) => r.seeders > 0 || !(r.magnet || r.hash) || r.cache?.any || account.has(r.hash);
   const visible = showDead ? all : all.filter(alive);
   const hiddenDead = all.length - all.filter(alive).length;
