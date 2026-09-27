@@ -10,8 +10,8 @@ android {
         applicationId 'app.dermscholar'
         minSdk 24
         targetSdk 34
-        versionCode 14
-        versionName '2.12'
+        versionCode 15
+        versionName '3.0'
     }
 
     // A fixed key so new builds install over old ones without wiping the saved library.
@@ -56,6 +56,8 @@ android {
 dependencies {
     implementation 'androidx.webkit:webkit:1.12.1'
     implementation 'com.anthropic:anthropic-java:2.65.0'
+    // On-device text recognition for photos and scanned PDFs (Latin scripts, model bundled).
+    implementation 'com.google.mlkit:text-recognition:16.0.1'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.2'
     implementation 'androidx.core:core:1.13.1'
 }

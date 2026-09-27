@@ -19,14 +19,28 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Reads a paper aloud with the phone's text-to-speech engine, one paragraph at a time, so the
+ * Reads a document aloud with the phone's text-to-speech engine, one paragraph at a time, so the
  * app can highlight the paragraph being read. A foreground service keeps it playing in the
- * background with notification controls.
+ * background, with lock-screen, notification and headset controls.
+ *
+ * Items are plain strings, or {t, voice, pitch} objects (the two speakers of an AI discussion).
  */
 final class Narrator {
 
     interface Listener {
         void onState(String state, int index, int total);
+    }
+
+    private static final class Item {
+        final String text;
+        final String voice;
+        final float pitch;
+
+        Item(String text, String voice, float pitch) {
+            this.text = text;
+            this.voice = voice;
+            this.pitch = pitch;
+        }
     }
 
     private static Narrator instance;
@@ -43,13 +57,23 @@ final class Narrator {
     private final List<Runnable> onReady = new ArrayList<>();
     private String engine;
     private Listener listener;
-    private final List<String> items = new ArrayList<>();
+    private final List<Item> items = new ArrayList<>();
     private String title = "";
+    private String subtitle = "";
     private int index;
     private boolean playing;
     private float rate = 1f;
     private float pitch = 1f;
     private String voiceName;
+    private String appliedVoice;
+    private float appliedPitch = -1;
+    private int stopAfter = -1;
+    private long sleepAt;
+    private final Runnable sleepTask = () -> {
+        sleepAt = 0;
+        pause();
+        emit("sleep");
+    };
 
     private Narrator(Context app) {
         this.app = app;
@@ -71,7 +95,7 @@ final class Narrator {
                 @Override public void onDone(String id) { main.post(() -> onDone(id)); }
                 @Override public void onError(String id) { main.post(() -> onDone(id)); }
             });
-            applyVoice();
+            applyVoice(null, pitch);
             List<Runnable> rs = new ArrayList<>(onReady);
             onReady.clear();
             for (Runnable r : rs) r.run();
@@ -96,6 +120,7 @@ final class Narrator {
         ready = false;
         engine = n;
         voiceName = null;
+        appliedVoice = null;
         ensureTts(() -> { if (wasPlaying && !items.isEmpty()) speakCurrent(); });
     }
 
@@ -103,8 +128,8 @@ final class Narrator {
     void preview(String voice) {
         voiceName = voice;
         ensureTts(() -> {
-            applyVoice();
-            if (!playing) tts.speak("This is how papers will sound in this voice.", TextToSpeech.QUEUE_FLUSH, new Bundle(), "preview");
+            applyVoice(voice, pitch);
+            if (!playing) tts.speak("This is how your documents will sound in this voice.", TextToSpeech.QUEUE_FLUSH, new Bundle(), "preview");
             else speakCurrent();
         });
     }
@@ -112,14 +137,22 @@ final class Narrator {
     /** items: the paragraphs to read; starts at {@code start}. */
     void start(String title, JSONArray paragraphs, int start, float rate, float pitch, String voice) {
         items.clear();
-        for (int i = 0; i < paragraphs.length(); i++) items.add(paragraphs.optString(i));
+        for (int i = 0; i < paragraphs.length(); i++) {
+            JSONObject o = paragraphs.optJSONObject(i);
+            if (o != null) {
+                items.add(new Item(o.optString("t"), o.optString("voice", null), (float) o.optDouble("pitch", 0)));
+            } else {
+                items.add(new Item(paragraphs.optString(i), null, 0));
+            }
+        }
         this.title = title == null ? "" : title;
+        this.subtitle = "";
         this.index = Math.max(0, Math.min(start, items.size() - 1));
         this.rate = rate > 0 ? rate : 1f;
         this.pitch = pitch > 0 ? pitch : 1f;
         this.voiceName = voice;
+        this.stopAfter = -1;
         ensureTts(() -> {
-            applyVoice();
             playing = true;
             startService();
             speakCurrent();
@@ -138,8 +171,8 @@ final class Narrator {
         if (playing || items.isEmpty()) return;
         ensureTts(() -> {
             playing = true;
+            startService();
             speakCurrent();
-            updateService();
         });
     }
 
@@ -150,7 +183,7 @@ final class Narrator {
     void seek(int i) {
         if (items.isEmpty()) return;
         index = Math.max(0, Math.min(i, items.size() - 1));
-        if (playing) speakCurrent(); else emit("paused");
+        if (playing) speakCurrent(); else { emit("paused"); updateService(); }
     }
 
     void skip(int delta) {
@@ -165,12 +198,40 @@ final class Narrator {
 
     void setVoice(String name) {
         voiceName = name;
-        applyVoice();
+        appliedVoice = null;
         if (playing) speakCurrent();
+    }
+
+    /** Line under the title in the notification and on the lock screen (the current section). */
+    void setSubtitle(String s) {
+        subtitle = s == null ? "" : s;
+        updateService();
+    }
+
+    /** Sleep timer: pause after {@code minutes} (0 cancels). */
+    void sleepIn(int minutes) {
+        main.removeCallbacks(sleepTask);
+        sleepAt = 0;
+        if (minutes > 0) {
+            sleepAt = System.currentTimeMillis() + minutes * 60_000L;
+            main.postDelayed(sleepTask, minutes * 60_000L);
+        }
+    }
+
+    /** Pause once paragraph {@code i} has been read (end of section / chapter); -1 cancels. */
+    void stopAfter(int i) {
+        stopAfter = i;
+    }
+
+    long sleepRemainingMs() {
+        return sleepAt == 0 ? 0 : Math.max(0, sleepAt - System.currentTimeMillis());
     }
 
     void stop() {
         playing = false;
+        main.removeCallbacks(sleepTask);
+        sleepAt = 0;
+        stopAfter = -1;
         if (tts != null) tts.stop();
         items.clear();
         emit("stopped");
@@ -179,10 +240,12 @@ final class Narrator {
 
     boolean isPlaying() { return playing; }
     String title() { return title; }
+    String subtitle() { return subtitle; }
     int index() { return index; }
     int total() { return items.size(); }
+    int stopAfterIndex() { return stopAfter; }
 
-    /** Installed voices, best-quality local English first. */
+    /** Engines and installed voices, best-quality local English first. */
     String voices() {
         JSONArray out = new JSONArray();
         JSONObject res = new JSONObject();
@@ -198,7 +261,7 @@ final class Narrator {
                     .put("engine", engine == null || engine.isEmpty() ? tts.getDefaultEngine() : engine)
                     .put("voices", out);
             Set<Voice> vs = tts.getVoices();
-            if (vs == null) return out.toString();
+            if (vs == null) return res.toString();
             List<Voice> list = new ArrayList<>(vs);
             list.sort((a, b) -> {
                 boolean ea = a.getLocale().getLanguage().equals("en"), eb = b.getLocale().getLanguage().equals("en");
@@ -211,23 +274,30 @@ final class Narrator {
                 out.put(new JSONObject()
                         .put("name", v.getName())
                         .put("locale", v.getLocale().getDisplayName(Locale.ENGLISH))
+                        .put("lang", v.getLocale().toLanguageTag())
                         .put("quality", v.getQuality())
                         .put("network", v.isNetworkConnectionRequired()));
-                if (out.length() >= 80) break;
+                if (out.length() >= 120) break;
             }
         } catch (Exception ignored) {
         }
         return res.toString();
     }
 
-    private void applyVoice() {
+    /** Sets the voice and pitch only when they change (switching voices has a small cost). */
+    private void applyVoice(String itemVoice, float itemPitch) {
         if (tts == null || !ready) return;
         tts.setSpeechRate(rate);
-        tts.setPitch(pitch);
-        if (voiceName != null && !voiceName.isEmpty()) {
+        float p = itemPitch > 0 ? itemPitch : pitch;
+        if (p != appliedPitch) { tts.setPitch(p); appliedPitch = p; }
+        String want = itemVoice != null && !itemVoice.isEmpty() ? itemVoice : voiceName;
+        if (want == null) want = "";
+        if (want.equals(appliedVoice)) return;
+        appliedVoice = want;
+        if (!want.isEmpty()) {
             try {
                 for (Voice v : tts.getVoices()) {
-                    if (v.getName().equals(voiceName)) { tts.setVoice(v); return; }
+                    if (v.getName().equals(want)) { tts.setVoice(v); return; }
                 }
             } catch (Exception ignored) {
             }
@@ -237,15 +307,23 @@ final class Narrator {
 
     private void speakCurrent() {
         if (tts == null || items.isEmpty()) return;
-        String text = items.get(index);
-        Bundle params = new Bundle();
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, params, "p" + index);
+        Item it = items.get(index);
+        applyVoice(it.voice, it.pitch);
+        tts.speak(it.text, TextToSpeech.QUEUE_FLUSH, new Bundle(), "p" + index);
         emit("playing");
         updateService();
     }
 
     private void onDone(String id) {
         if (!playing || !("p" + index).equals(id)) return;
+        if (stopAfter >= 0 && index >= stopAfter) {
+            stopAfter = -1;
+            if (index + 1 < items.size()) index++;
+            playing = false;
+            emit("sleep");
+            updateService();
+            return;
+        }
         if (index + 1 >= items.size()) {
             playing = false;
             emit("ended");
@@ -262,8 +340,12 @@ final class Narrator {
 
     private void startService() {
         Intent i = new Intent(app, NarratorService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) app.startForegroundService(i);
-        else app.startService(i);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) app.startForegroundService(i);
+            else app.startService(i);
+        } catch (Exception ignored) {
+            // Starting a foreground service from the background can be refused; playback continues.
+        }
     }
 
     private void updateService() {

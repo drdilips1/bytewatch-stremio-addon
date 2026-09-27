@@ -49,14 +49,20 @@ public class MainActivity extends Activity {
     private static final String APP_URL = "https://" + APP_HOST + "/assets/www/index.html";
     private static final int REQUEST_IMPORT = 10;
     private static final int REQUEST_PORTAL = 11;
+    private static final int REQUEST_IMPORT_PDF = 12;
+    private static final int REQUEST_CAMERA = 13;
+    private Uri cameraUri;
 
     private WebView webView;
     private FrameLayout fetchLayer;
     private PdfFetcher fetcher;
     private Narrator narrator;
     private static final String AI = "claude";
-    private AiClient aiClient;
-    private volatile String receivedAtStart;
+    private LlmProvider llm;
+    private String llmModel;
+    /** Things shared into the app before the web app was ready to hear about them. */
+    private final java.util.List<String> startEvents = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    private volatile boolean webReady;
     private UtdClient utd;
     private WebViewAssetLoader assetLoader;
     private final ExecutorService io = Executors.newFixedThreadPool(2);
@@ -117,6 +123,9 @@ public class MainActivity extends Activity {
                 if (APP_HOST.equals(uri.getHost()) && uri.getPath() != null && uri.getPath().startsWith("/pdf/")) {
                     return servePdf(uri.getLastPathSegment());
                 }
+                if (APP_HOST.equals(uri.getHost()) && uri.getPath() != null && uri.getPath().startsWith(DocInbox.PREFIX)) {
+                    return DocInbox.serve(MainActivity.this, uri.getLastPathSegment());
+                }
                 return assetLoader.shouldInterceptRequest(uri);
             }
 
@@ -136,43 +145,70 @@ public class MainActivity extends Activity {
         }
         narrator = Narrator.get(this);
         narrator.setListener((state, index, total) -> emit(event("tts", "state", state, "index", index, "total", total)));
-        receivePdf(getIntent(), false);
+        receiveIntent(getIntent(), false);
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        receivePdf(intent, true);
+        receiveIntent(intent, true);
     }
 
     /**
-     * A PDF shared or opened into the app ("Share → DermScholar", "Open with"). If the user just
-     * marked a paper as waiting for its PDF, the PDF is saved to that paper; otherwise it's imported.
+     * Anything shared or opened into the app ("Share → DermScholar", "Open with"): PDFs go to the
+     * PDF library (or to the paper the user marked as waiting for its PDF); other documents and
+     * images go to the import inbox; shared text or a link is handed to the web app to read.
      */
-    private void receivePdf(Intent intent, boolean appRunning) {
+    private void receiveIntent(Intent intent, boolean appRunning) {
         if (intent == null) return;
+        String action = intent.getAction();
         Uri uri = null;
-        if (Intent.ACTION_VIEW.equals(intent.getAction())) uri = intent.getData();
-        else if (Intent.ACTION_SEND.equals(intent.getAction())) uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+        if (Intent.ACTION_VIEW.equals(action)) uri = intent.getData();
+        else if (Intent.ACTION_SEND.equals(action)) uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+        if (uri == null && Intent.ACTION_SEND.equals(action)) {
+            CharSequence text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+            if (text != null && text.length() > 0) {
+                String subject = intent.getStringExtra(Intent.EXTRA_SUBJECT);
+                intent.setAction(null);
+                deliver(event("sharedText", "text", text.toString(), "subject", subject == null ? "" : subject), appRunning);
+            }
+            return;
+        }
         if (uri == null) return;
-        final Uri src = uri;
-        android.content.SharedPreferences hp = getSharedPreferences("handoff", MODE_PRIVATE);
-        String pendingKey = hp.getString("key", null);
-        boolean fresh = System.currentTimeMillis() - hp.getLong("time", 0) < 2 * 60 * 60 * 1000L;
-        String key = pendingKey != null && fresh ? pendingKey : "import_" + System.currentTimeMillis();
-        String title = pendingKey != null && fresh ? hp.getString("title", "") : displayName(src);
-        boolean attached = pendingKey != null && fresh;
         intent.setAction(null); // don't import twice on rotation
+        handleIncoming(uri, intent.getType(), appRunning);
+    }
+
+    private void handleIncoming(Uri src, String typeHint, boolean appRunning) {
         io.execute(() -> {
+            String name = DocInbox.displayName(this, src);
+            String mime = DocInbox.mimeOf(this, src, name, typeHint);
             try {
-                PdfStore.importFrom(this, src, key, title);
-                if (attached) hp.edit().clear().apply();
-                JSONObject ev = event("pdfReceived", "key", key, "title", title, "attached", attached);
-                if (appRunning) emit(ev); else receivedAtStart = ev.toString();
+                if (mime.equals("application/pdf") || name.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) {
+                    android.content.SharedPreferences hp = getSharedPreferences("handoff", MODE_PRIVATE);
+                    String pendingKey = hp.getString("key", null);
+                    boolean attached = pendingKey != null && System.currentTimeMillis() - hp.getLong("time", 0) < 2 * 60 * 60 * 1000L;
+                    String key = attached ? pendingKey : "import_" + System.currentTimeMillis();
+                    String title = attached ? hp.getString("title", "") : name.replaceAll("(?i)\\.pdf$", "");
+                    PdfStore.importFrom(this, src, key, title);
+                    if (attached) hp.edit().clear().apply();
+                    deliver(event("pdfReceived", "key", key, "title", title, "attached", attached), appRunning);
+                } else {
+                    String key = "doc_" + System.currentTimeMillis();
+                    DocInbox.copy(this, src, key);
+                    DocInbox.remember(this, key, mime);
+                    deliver(event("docReceived", "key", key, "name", name, "mime", mime), appRunning);
+                }
             } catch (Exception e) {
-                toast("Couldn't import that PDF");
+                toast("Couldn't import " + name + (e.getMessage() != null ? ": " + e.getMessage() : ""));
             }
         });
+    }
+
+    /** Sends an event to the web app now, or keeps it until the web app asks (cold start). */
+    private void deliver(JSONObject ev, boolean appRunning) {
+        if (appRunning && webReady) emit(ev);
+        else startEvents.add(ev.toString());
     }
 
     private void openLink(String url, String key, String title) {
@@ -236,6 +272,25 @@ public class MainActivity extends Activity {
     private void emit(JSONObject event) {
         String js = "window.App&&App.onNative(" + event + ")";
         main.post(() -> webView.evaluateJavascript(js, null));
+    }
+
+    private synchronized void recordUsage(String model, LlmProvider.Result r) {
+        android.content.SharedPreferences ap = getSharedPreferences("ai", MODE_PRIVATE);
+        try {
+            JSONObject all = new JSONObject(ap.getString("usage", "{}"));
+            String month = new java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.ROOT).format(new java.util.Date());
+            JSONObject m = all.optJSONObject(month);
+            if (m == null) { m = new JSONObject(); all.put(month, m); }
+            org.json.JSONArray row = m.optJSONArray(model);
+            if (row == null) row = new org.json.JSONArray("[0,0,0,0]");
+            row.put(0, row.optLong(0) + r.inputTokens);
+            row.put(1, row.optLong(1) + r.outputTokens);
+            row.put(2, row.optLong(2) + r.cachedTokens);
+            row.put(3, row.optLong(3) + 1);
+            m.put(model, row);
+            ap.edit().putString("usage", all.toString()).apply();
+        } catch (Exception ignored) {
+        }
     }
 
     private void toast(String msg) {
@@ -373,12 +428,114 @@ public class MainActivity extends Activity {
                     .putString("key", key).putString("title", title).putLong("time", System.currentTimeMillis()).apply();
         }
 
-        /** A PDF that arrived while the app was starting up (JSON event or ""). */
+        /** Things shared into the app while it was starting (JSON array of events). */
         @JavascriptInterface
         public String consumeReceived() {
-            String r = receivedAtStart;
-            receivedAtStart = null;
-            return r == null ? "" : r;
+            webReady = true;
+            org.json.JSONArray out = new org.json.JSONArray();
+            synchronized (startEvents) {
+                for (String e : startEvents) {
+                    try { out.put(new JSONObject(e)); } catch (Exception ignored) { }
+                }
+                startEvents.clear();
+            }
+            return out.toString();
+        }
+
+        // ---- documents: import, web pages, OCR
+
+        @JavascriptInterface
+        public void pickDocument(boolean imagesOnly) {
+            main.post(() -> {
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                if (imagesOnly) {
+                    i.setType("image/*");
+                } else {
+                    i.setType("*/*");
+                    i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                            "application/pdf", "application/epub+zip",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "text/plain", "text/markdown", "text/x-markdown", "text/html", "image/*",
+                            "application/octet-stream"});
+                }
+                try {
+                    startActivityForResult(i, REQUEST_IMPORT);
+                } catch (ActivityNotFoundException e) {
+                    toast("No file picker available");
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void takePhoto() {
+            main.post(() -> {
+                try {
+                    File dir = new File(getCacheDir(), "camera");
+                    dir.mkdirs();
+                    File f = new File(dir, "page.jpg");
+                    cameraUri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                    Intent i = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+                    i.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, cameraUri);
+                    i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivityForResult(i, REQUEST_CAMERA);
+                } catch (Exception e) {
+                    toast("No camera app available");
+                }
+            });
+        }
+
+        /** Downloads a web page (or a PDF link) for the reader; answers with a "pageFetched" event. */
+        @JavascriptInterface
+        public void fetchPage(String id, String url) {
+            io.execute(() -> {
+                String key = "web_" + System.currentTimeMillis();
+                try {
+                    String type = DocInbox.fetch(MainActivity.this, url, key);
+                    if (type.toLowerCase(java.util.Locale.ROOT).contains("pdf")) {
+                        File f = DocInbox.file(MainActivity.this, key);
+                        PdfStore.importFrom(MainActivity.this, Uri.fromFile(f), key, url.replaceAll(".*/", "").replaceAll("(?i)\\.pdf.*$", ""));
+                        DocInbox.delete(MainActivity.this, key);
+                        emit(event("pageFetched", "id", id, "key", key, "pdf", true));
+                    } else {
+                        emit(event("pageFetched", "id", id, "key", key, "url", DocInbox.finalUrl(MainActivity.this, key), "type", type));
+                    }
+                } catch (Exception e) {
+                    emit(event("pageFetched", "id", id, "error", e.getMessage() == null ? "Couldn't open that page" : e.getMessage()));
+                }
+            });
+        }
+
+        /** Text recognition on an imported image; answers with an "ocr" event. */
+        @JavascriptInterface
+        public void ocrImport(String id, String key) {
+            io.execute(() -> {
+                try {
+                    JSONObject r = Ocr.recognize(MainActivity.this, DocInbox.file(MainActivity.this, key));
+                    emit(event("ocr", "id", id, "result", r));
+                } catch (Throwable e) {
+                    emit(event("ocr", "id", id, "error", "Text recognition failed: " + e.getMessage()));
+                }
+            });
+        }
+
+        /** Text recognition on a page image rendered by the web app (data: URL). */
+        @JavascriptInterface
+        public void ocrPage(String id, String dataUrl) {
+            io.execute(() -> {
+                try {
+                    String b64 = dataUrl.substring(dataUrl.indexOf(',') + 1);
+                    byte[] bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
+                    emit(event("ocr", "id", id, "result", Ocr.recognize(bytes)));
+                } catch (Throwable e) {
+                    emit(event("ocr", "id", id, "error", "Text recognition failed: " + e.getMessage()));
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void deleteImport(String key) {
+            DocInbox.delete(MainActivity.this, key);
         }
 
         @JavascriptInterface
@@ -408,30 +565,55 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void aiSetKey(String key) {
             String k = key == null ? "" : key.trim();
-            synchronized (MainActivity.this) { aiClient = null; }
+            synchronized (MainActivity.this) { llm = null; }
             if (k.isEmpty()) R4LSession.forget(MainActivity.this, AI);
             else R4LSession.saveCredentials(MainActivity.this, AI, "api", k);
         }
 
         @JavascriptInterface
-        public void aiAsk(String id, String title, String text, String question) {
+        public String aiModel() {
+            return getSharedPreferences("ai", MODE_PRIVATE).getString("model", ClaudeProvider.DEFAULT_MODEL);
+        }
+
+        @JavascriptInterface
+        public void aiSetModel(String model) {
+            getSharedPreferences("ai", MODE_PRIVATE).edit().putString("model", model).apply();
+            synchronized (MainActivity.this) { llm = null; }
+        }
+
+        /** Tokens used per month and model, for the usage panel: {"2026-09": {"claude-opus-5": [in, out, cached, calls]}}. */
+        @JavascriptInterface
+        public String aiUsage() {
+            return getSharedPreferences("ai", MODE_PRIVATE).getString("usage", "{}");
+        }
+
+        /**
+         * Runs one AI task (prompts are written by the web app). Answers with an "ai" event
+         * {id, state: done|error, text|message}.
+         */
+        @JavascriptInterface
+        public void aiRun(String id, String system, String document, String task, int maxTokens, String jsonSchema) {
             io.execute(() -> {
                 try {
-                    AiClient c;
+                    LlmProvider p;
                     synchronized (MainActivity.this) {
-                        if (aiClient == null) {
+                        String model = aiModel();
+                        if (llm == null || !model.equals(llmModel)) {
                             String key = R4LSession.password(MainActivity.this, AI);
-                            if (key == null || key.isEmpty()) throw new AiClient.AiException("Add your Claude API key in Settings → AI summaries.");
-                            aiClient = new AiClient(key);
+                            if (key == null || key.isEmpty()) throw new LlmProvider.AiException("Add your Claude API key in Settings → AI.");
+                            llm = new ClaudeProvider(key, model);
+                            llmModel = model;
                         }
-                        c = aiClient;
+                        p = llm;
                     }
-                    String answer = c.ask(title, text, question);
-                    emit(event("ai", "id", id, "state", "done", "text", answer));
-                } catch (AiClient.AiException e) {
+                    LlmProvider.Result r = p.complete(system, document, task, maxTokens,
+                            jsonSchema == null || jsonSchema.isEmpty() ? null : jsonSchema);
+                    recordUsage(llmModel, r);
+                    emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model));
+                } catch (LlmProvider.AiException e) {
                     emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));
                 } catch (Exception e) {
-                    emit(event("ai", "id", id, "state", "error", "message", "Summary failed: " + e.getClass().getSimpleName()));
+                    emit(event("ai", "id", id, "state", "error", "message", "AI request failed: " + e.getClass().getSimpleName()));
                 }
             });
         }
@@ -464,12 +646,17 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void ttsEngine(String e) { main.post(() -> narrator.setEngine(e)); }
         @JavascriptInterface public void ttsPreview(String v) { main.post(() -> narrator.preview(v)); }
         @JavascriptInterface public void ttsWarm(String e) { narrator.warm(e); }
+        @JavascriptInterface public void ttsSleep(int minutes) { main.post(() -> narrator.sleepIn(minutes)); }
+        @JavascriptInterface public void ttsStopAfter(int index) { main.post(() -> narrator.stopAfter(index)); }
+        @JavascriptInterface public void ttsSubtitle(String s) { main.post(() -> narrator.setSubtitle(s)); }
+        @JavascriptInterface public long ttsSleepLeft() { return narrator.sleepRemainingMs(); }
 
         @JavascriptInterface
         public String ttsStatus() {
             try {
                 return new JSONObject().put("playing", narrator.isPlaying()).put("index", narrator.index())
-                        .put("total", narrator.total()).put("title", narrator.title()).toString();
+                        .put("total", narrator.total()).put("title", narrator.title())
+                        .put("sleepMs", narrator.sleepRemainingMs()).put("stopAfter", narrator.stopAfterIndex()).toString();
             } catch (Exception e) {
                 return "{}";
             }
@@ -552,7 +739,7 @@ public class MainActivity extends Activity {
                 i.addCategory(Intent.CATEGORY_OPENABLE);
                 i.setType("application/pdf");
                 try {
-                    startActivityForResult(i, REQUEST_IMPORT);
+                    startActivityForResult(i, REQUEST_IMPORT_PDF);
                 } catch (ActivityNotFoundException e) {
                     toast("No file picker available");
                 }
@@ -634,18 +821,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_IMPORT && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            Uri uri = data.getData();
-            String name = displayName(uri);
-            String key = "import_" + System.currentTimeMillis();
-            io.execute(() -> {
-                try {
-                    PdfStore.importFrom(this, uri, key, name);
-                    emit(event("pdfImported", "key", key, "title", name));
-                } catch (Exception e) {
-                    toast("Import failed");
-                }
-            });
+        if ((requestCode == REQUEST_IMPORT || requestCode == REQUEST_IMPORT_PDF)
+                && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            handleIncoming(data.getData(), data.getType(), true);
+        } else if (requestCode == REQUEST_CAMERA && resultCode == RESULT_OK && cameraUri != null) {
+            handleIncoming(cameraUri, "image/jpeg", true);
         }
     }
 
