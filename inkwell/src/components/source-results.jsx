@@ -337,10 +337,10 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
               onClick={shareDirect}
               aria-label="Download and open in a reader app or Kindle"
             >
-              {busy === 'share' ? <span class="spinner" /> : <Icon name="download" size={ebook.format === 'EPUB' ? 14 : 16} />}{' '}
-              {ebook.format === 'EPUB' ? 'Save' : 'Download · open in app'}
+              {busy === 'share' ? <span class="spinner" /> : <Icon name="upload" size={ebook.format === 'EPUB' ? 14 : 16} />}{' '}
+              {ebook.format === 'EPUB' ? 'Kindle' : 'Kindle / open in app'}
             </button>
-            <a class="btn secondary play-alt" href={r.link} target="_blank" rel="noopener" aria-label="Open in browser">
+            <a class="btn secondary play-alt src-web" href={r.link} target="_blank" rel="noopener" aria-label="Open in browser">
               <Icon name="external" size={14} />
             </a>
           </>

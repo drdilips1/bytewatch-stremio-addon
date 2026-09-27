@@ -4,7 +4,7 @@ import { toast } from '../components/common.jsx';
 import { useStore } from '../lib/store.js';
 import * as sync from '../lib/sync.js';
 import { ttsCfg, engines as listEngines, voices as listVoices, speak, stopSpeaking, clearAudioCache, qualityLabel, RECOMMENDED } from '../lib/tts.js';
-import { CATALOG, builtinAvailable, installedIds, download as downloadVoice, remove as removeVoice } from '../lib/voices.js';
+import { CATALOG, builtinAvailable, installedIds, download as downloadVoice, remove as removeVoice, activeDownload, follow as followDownload } from '../lib/voices.js';
 import { downloads, canDownload, removeDownload, publicAvailable, fmtBytes } from '../lib/downloads.js';
 import { settings } from '../lib/store.js';
 
@@ -263,16 +263,26 @@ function BuiltinVoices() {
   const [prog, setProg] = useState({}); // id -> { pct, phase }
   const [previewing, setPreviewing] = useState('');
   const refresh = () => installedIds().then(setInstalled);
+  const onProg = (id) => (e) => setProg((p) => ({ ...p, [id]: { pct: e.total > 0 ? Math.round((e.received / e.total) * 100) : 0, phase: e.phase, mb: Math.round(e.received / 1e6) } }));
   useEffect(() => {
     refresh();
+    // A download that kept going while the app was closed: show it and follow it.
+    activeDownload().then((a) => {
+      const v = a && CATALOG.find((x) => x.id === a.id);
+      if (!v) return;
+      onProg(v.id)(a);
+      finish(v, followDownload(v.id, onProg(v.id)));
+    });
   }, []);
 
-  const get = async (v) => {
+  const get = (v) => {
     setProg((p) => ({ ...p, [v.id]: { pct: 0, phase: 'download' } }));
+    finish(v, downloadVoice(v, onProg(v.id)));
+  };
+
+  const finish = async (v, job) => {
     try {
-      await downloadVoice(v, (e) =>
-        setProg((p) => ({ ...p, [v.id]: { pct: e.total > 0 ? Math.round((e.received / e.total) * 100) : 0, phase: e.phase, mb: Math.round(e.received / 1e6) } }))
-      );
+      await job;
       await refresh();
       if (!ttsCfg.get().builtinId) ttsCfg.patch({ mode: 'builtin', builtinId: v.id, speaker: v.speakers[0][1] });
       toast(`${v.name} is ready`);

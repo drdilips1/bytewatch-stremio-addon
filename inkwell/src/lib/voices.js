@@ -84,7 +84,36 @@ export async function installedIds() {
 
 export function download(voice, onProgress) {
   const h = Voices.addListener('progress', (e) => e.id === voice.id && onProgress?.(e));
-  return Voices.download({ id: voice.id, url: voice.url }).finally(() => h.then((x) => x.remove()));
+  return Voices.download({ id: voice.id, url: voice.url })
+    .catch((e) => (e?.message === 'ALREADY' ? follow(voice.id, onProgress) : Promise.reject(e)))
+    .finally(() => h.then((x) => x.remove()));
+}
+
+/** A voice download still running in the background (e.g. the app was closed and reopened). */
+export async function activeDownload() {
+  if (!builtinAvailable) return null;
+  try {
+    const a = await Voices.active();
+    return a?.id ? a : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Follow a running download until it finishes; resolves when the voice is ready. */
+export function follow(id, onProgress) {
+  return new Promise((resolve, reject) => {
+    const h = Voices.addListener('progress', (e) => e.id === id && onProgress?.(e));
+    const done = (ok) => {
+      clearInterval(t);
+      h.then((x) => x.remove());
+      ok ? resolve() : reject(new Error('The download stopped — tap Download to try again'));
+    };
+    const t = setInterval(async () => {
+      if (await activeDownload()) return;
+      done((await installedIds()).includes(id));
+    }, 2000);
+  });
 }
 
 export const remove = (id) => Voices.remove({ id });

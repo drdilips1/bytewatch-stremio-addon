@@ -2182,7 +2182,15 @@ select {
   color: #fda4af;
 }
 .src-actions.ready {
-  grid-template-columns: 1fr auto;
+  /* Main action fills the row; extra actions (RD, Links, Kindle, browser) sit beside it */
+  display: flex;
+  flex-wrap: wrap;
+}
+.src-actions.ready > .btn:first-child {
+  flex: 1 1 140px;
+}
+.src-actions.ready > .btn:not(:first-child) {
+  flex: 0 0 auto;
 }
 .btn.icon-only {
   width: 48px;

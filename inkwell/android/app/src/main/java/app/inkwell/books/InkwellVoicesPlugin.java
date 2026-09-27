@@ -92,7 +92,17 @@ public class InkwellVoicesPlugin extends Plugin {
             call.reject("Missing voice id or url");
             return;
         }
+        if (id.equals(activeId)) {
+            call.reject("ALREADY"); // the app was reopened mid-download: the screen just follows along
+            return;
+        }
         call.setKeepAlive(true);
+        activeId = id;
+        activePhase = "download";
+        activeGot = 0;
+        activeTotal = 0;
+        // Keep going when the app is closed: foreground service with a progress notification.
+        BackgroundWorkService.start(getContext(), "Downloading voice");
         downloads.execute(() -> {
             File tmp = new File(getContext().getCacheDir(), id + ".tar.bz2.part");
             try {
@@ -148,11 +158,40 @@ public class InkwellVoicesPlugin extends Plugin {
                 call.reject(ex.getMessage() != null ? ex.getMessage() : ex.toString());
             } finally {
                 call.setKeepAlive(false);
+                activeId = null;
+                BackgroundWorkService.stop(getContext());
             }
         });
     }
 
+    // The download in progress (survives the screen being reopened).
+    private volatile String activeId = null;
+    private volatile String activePhase = "";
+    private volatile long activeGot = 0;
+    private volatile long activeTotal = 0;
+    private int lastNotePct = -2;
+
+    @PluginMethod
+    public void active(PluginCall call) {
+        JSObject o = new JSObject();
+        if (activeId != null) {
+            o.put("id", activeId);
+            o.put("phase", activePhase);
+            o.put("received", activeGot);
+            o.put("total", activeTotal);
+        }
+        call.resolve(o);
+    }
+
     private void progress(String id, String phase, long got, long total) {
+        activePhase = phase;
+        activeGot = got;
+        activeTotal = total;
+        int pct = "download".equals(phase) && total > 0 ? (int) (got * 100 / total) : -1;
+        if (pct != lastNotePct && !"done".equals(phase)) {
+            lastNotePct = pct;
+            BackgroundWorkService.update(getContext(), "unpack".equals(phase) ? "Unpacking voice…" : "Downloading voice", pct);
+        }
         JSObject o = new JSObject();
         o.put("id", id);
         o.put("phase", phase);

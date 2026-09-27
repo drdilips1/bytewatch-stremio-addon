@@ -49,6 +49,12 @@
             </intent-filter>
         </service>
 
+        <!-- Keeps long downloads (voices) going when you leave the app -->
+        <service
+            android:name=".BackgroundWorkService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -77,5 +83,6 @@
     <!-- Background audiobook playback with lock-screen / notification controls -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>
