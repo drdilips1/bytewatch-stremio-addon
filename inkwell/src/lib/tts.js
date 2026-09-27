@@ -285,8 +285,8 @@ export function buildAudiobook(book, paras) {
     secs.splice(0, 1, { title: secs[0].title, text: first }, { title: `${secs[0].title} ·`, text: rest.join(' ') });
   }
   const uid = `tts:${book.uid}`;
-  // The text layout (v2) and the skip setting are part of the key, so cached audio never belongs to other text.
-  const voiceKey = `${builtin ? `${c.builtinId}-${c.speaker}` : `${c.engine || 'default'}-${c.voice || 'default'}`}-v2${skipFrontMatter() ? '-skip' : ''}`;
+  // The text layout (v3) and the skip setting are part of the key, so cached audio never belongs to other text.
+  const voiceKey = `${builtin ? `${c.builtinId}-${c.speaker}` : `${c.engine || 'default'}-${c.voice || 'default'}`}-v3${skipFrontMatter() ? '-skip' : ''}`;
   const folder = `${builtin ? 'voice-audio' : 'tts'}/${safe(book.uid)}/${safe(voiceKey)}`;
   const inflight = new Map();
   // Render sections one at a time (the voice engine handles one job at a time).

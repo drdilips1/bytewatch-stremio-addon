@@ -32,6 +32,63 @@ export function linkDense(el) {
 const SKIP_TYPES = { toc: 'contents', index: 'index', 'copyright-page': 'copyright', cover: 'cover', landmarks: 'contents', loi: 'contents', lot: 'contents' };
 const SKIP_TITLE = /^\s*(table of contents|contents|index|copyright|list of (illustrations|figures|tables|maps))\s*$/i;
 
+// ---- where the actual book starts ------------------------------------------------
+const START_HEADING = /^\s*(chapter|part|book)\s+(1|one|i)\b|^\s*(prologue|chapter\s*1)\b|^\s*(1|i|one)\s*$/i;
+const plain = (html) => html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim();
+
+/**
+ * Index (in reading order) of the first page of the book proper. Uses the book's
+ * own marker when it has one (EPUB 3 "bodymatter" landmark, EPUB 2 guide "text"),
+ * otherwise the first page headed Chapter 1 / Part One / Prologue, otherwise the
+ * first long page of text. 0 when unsure — nothing is skipped then.
+ */
+function findBodyStart(order, manifest, guide, files, opfPath, text) {
+  const indexOf = (href) => order.findIndex((m) => m.href === href.split('#')[0]);
+  // Front matter is rarely more than a dozen pages (or 40% of a short book).
+  const maxFront = Math.min(order.length - 1, Math.max(12, Math.floor(order.length * 0.4)));
+  const sane = (i) => i > 0 && i <= maxFront;
+  // EPUB 3 landmarks in the navigation document
+  const nav = Object.values(manifest).find((m) => /\bnav\b/.test(m.props));
+  if (nav && files[nav.href]) {
+    const doc = new DOMParser().parseFromString(text(nav.href), 'application/xhtml+xml');
+    for (const a of doc.querySelectorAll('a')) {
+      const types = `${a.getAttribute('epub:type') || ''} ${a.closest('li')?.getAttribute('epub:type') || ''}`;
+      if (/\bbodymatter\b/.test(types)) {
+        const i = indexOf(join(nav.href, a.getAttribute('href') || ''));
+        if (sane(i)) return i;
+      }
+    }
+  }
+  // EPUB 2 guide
+  for (const [href, type] of Object.entries(guide)) {
+    if (type === 'text' || type === 'start') {
+      const i = indexOf(href);
+      if (sane(i)) return i;
+    }
+  }
+  // Heading that says Chapter 1 / Part One / Prologue
+  const limit = maxFront + 1;
+  for (let i = 0; i < limit; i++) {
+    const raw = text(order[i].href);
+    const h = /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/i.exec(raw);
+    const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(raw);
+    if ((h && START_HEADING.test(plain(h[1]))) || (title && START_HEADING.test(plain(title[1])))) return sane(i) ? i : 0;
+  }
+  // First long page of text (title, copyright, dedication pages are short)
+  for (let i = 0; i < limit; i++) {
+    const t = plain(text(order[i].href));
+    if (t.length > 2500 && !/copyright|all rights reserved|isbn/i.test(t.slice(0, 600))) return sane(i) ? i : 0;
+  }
+  return 0;
+}
+
+const BACK_TITLE = /^\s*(also by|by the same author|praise for|about the publisher|other (books|titles) by|more from|newsletter|discover more)\b/i;
+/** Publisher pages at the back ("Also by…", "Praise for…"): left out of Listen too. */
+function backMatter(body, docTitle) {
+  const heading = body.querySelector('h1,h2,h3')?.textContent || docTitle || '';
+  return BACK_TITLE.test(heading) ? 'back' : '';
+}
+
 /** Is this chapter file front/back matter to leave out of Listen and Read aloud? */
 function skipKind(body, m, guideType, docTitle) {
   if (/\bnav\b/.test(m.props)) return 'contents';
@@ -78,6 +135,8 @@ export async function epubToHtml(bytes) {
   opf.querySelectorAll('guide > reference').forEach((r) => (guide[join(opfPath, (r.getAttribute('href') || '').split('#')[0])] = (r.getAttribute('type') || '').toLowerCase()));
   const order = [...opf.querySelectorAll('spine > itemref')].map((r) => manifest[r.getAttribute('idref')]).filter((m) => m && /html/.test(m.type) && files[m.href]);
   if (!order.length) throw new Error('This EPUB has no readable chapters');
+  // Where the book itself starts (Chapter 1 / Prologue…): pages before it are front matter.
+  const bodyStart = findBodyStart(order, manifest, guide, files, opfPath, text);
 
   const urls = new Map(); // image path -> blob URL
   const imageUrl = (path) => {
@@ -96,7 +155,7 @@ export async function epubToHtml(bytes) {
     if (doc.querySelector('parsererror') || !doc.body) doc = new DOMParser().parseFromString(raw, 'text/html');
     const body = doc.body || doc.documentElement;
     body.querySelectorAll('script,style,link,meta,iframe,object,embed,form').forEach((n) => n.remove());
-    const skip = skipKind(body, m, guide[m.href], doc.title);
+    const skip = skipKind(body, m, guide[m.href], doc.title) || (ci < bodyStart ? 'front' : '') || backMatter(body, doc.title);
     body.querySelectorAll('*').forEach((el) => {
       const tag = el.tagName.toLowerCase();
       if (tag === 'img' || tag === 'image') {
