@@ -271,7 +271,9 @@ let pushTimer = null;
 for (const [k, s] of Object.entries(SECTIONS)) {
   s.store.subscribe(() => {
     if (applying) return;
-    stamps.set((st) => ({ ...st, [k]: Date.now() }));
+    // Newer than anything seen so far, even if another device's clock runs ahead of this one's:
+    // otherwise a copy stamped "in the future" would undo every change made here.
+    stamps.set((st) => ({ ...st, [k]: Math.max(Date.now(), (st[k] || 0) + 1) }));
     if (!signedIn()) return;
     clearTimeout(pushTimer);
     pushTimer = setTimeout(() => syncNow().catch(() => {}), 8000);
