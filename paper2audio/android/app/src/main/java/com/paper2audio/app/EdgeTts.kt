@@ -208,7 +208,8 @@ object EdgeTts {
             }
         })
 
-        if (!done.await(90, TimeUnit.SECONDS)) {
+        // Normally a few seconds; give up sooner than before so a stuck request gets retried.
+        if (!done.await(45, TimeUnit.SECONDS)) {
             ws.cancel()
             throw IOException("The voice service timed out")
         }

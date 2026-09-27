@@ -783,6 +783,8 @@ class PlayerActivity : Activity() {
         }
         docInfo.text = when {
             busy != null -> busy
+            Speaker.starting && Speaker.playing ->
+                if (Speaker.isLocal) "Starting the voice… (on-device voices take a few seconds the first time)" else "Starting the voice…"
             doc != null -> {
                 val chapters = if (doc.chapters.size > 1) " · ${doc.chapters.size} chapters" else ""
                 "%,d words$chapters · ${format((doc.words / (160 * Speaker.speed)).toInt())}".format(doc.words)

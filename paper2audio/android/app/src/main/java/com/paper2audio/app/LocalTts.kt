@@ -113,13 +113,20 @@ object LocalTts {
             }
             else -> {
                 val ref = MyVoices.reference(name) ?: error("That voice was deleted")
+                val spoken = TextCleaner.endSentence(text)
                 tts.generateWithConfig(
-                    text,
+                    spoken,
                     GenerationConfig(
                         referenceAudio = ref.samples,
                         referenceSampleRate = ref.sampleRate,
                         numSteps = 5,
-                        extra = mapOf("temperature" to "0.7", "chunk_size" to "15"),
+                        extra = mapOf(
+                            "temperature" to "0.7",
+                            "chunk_size" to "15",
+                            // Stops a sentence whose end the model misses from running on as babble.
+                            "max_frames" to maxFrames(spoken).toString(),
+                            "frames_after_eos" to "2",
+                        ),
                     ),
                 )
             }
@@ -127,6 +134,9 @@ object LocalTts {
         if (audio.samples.isEmpty()) error("The voice produced no audio")
         Pcm(toPcm16(audio.samples), audio.sampleRate)
     }
+
+    /** At most ~1.6x the expected length (12.5 frames a second, ~15 characters a second). */
+    internal fun maxFrames(text: String) = (text.length / 1.2 * 1.3 + 12).toInt().coerceIn(20, 500)
 
     private fun engineFor(voiceId: String): OfflineTts {
         val key = when {

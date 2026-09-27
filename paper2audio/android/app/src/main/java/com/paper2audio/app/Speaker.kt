@@ -133,6 +133,10 @@ object Speaker {
     /** Why the current voice can't play yet (a model to download), or null. */
     fun missingPack(): ModelPack? = LocalTts.missing(voiceId)
 
+    /** True from pressing Play until the first audio is ready (loading a voice can take a few seconds). */
+    var starting = false
+        private set
+
     /** The sentence(s) being read right now, for highlighting in the reader. */
     var currentPiece: String? = null
         private set
@@ -250,9 +254,15 @@ object Speaker {
         voiceId = id
         prefs.edit().putString("voice2", id).apply()
         if (id.startsWith(SYSTEM)) tts?.let { t -> t.voices?.firstOrNull { it.name == id.removePrefix(SYSTEM) }?.let { t.voice = it } }
-        if (!playing) warmUpLocal() // when playing, play() below renders right away anyway
         pausedAt = -1
-        if (playing) play() else prewarm()
+        if (playing) {
+            // Always stop the old voice first, so it can never keep going under the new name.
+            stopAll()
+            play()
+        } else {
+            warmUpLocal()
+            prewarm()
+        }
         notifyChanged()
     }
 
@@ -317,6 +327,8 @@ object Speaker {
         if (index >= d.paragraphs.size) index = 0
         lastError = null
         missingPack()?.let {
+            stopAll()
+            playing = false
             lastError = "Download the ${it.title} first (Options tab), or choose a ★ voice."
             notifyChanged()
             return
@@ -380,6 +392,9 @@ object Speaker {
         tts?.stop()
         session?.cancel()
         session = null
+        // Pending warm-ups for the old voice would hold up the on-device engine.
+        warmJob?.cancel()
+        starting = false
         player?.release()
         player = null
         pausedAt = -1
@@ -438,6 +453,7 @@ object Speaker {
         val vid = voiceId
         val currentSpeed = speed
         val boost = Renderer.playbackBoost(voicing(d), currentSpeed)
+        starting = true
         session = scope.launch {
             // Supertonic reads in the document's language: make sure it's known (fast, on the phone).
             if (d.lang == null && LocalTts.isLocal(vid)) withContext(Dispatchers.IO) { Langs.of(d) }
@@ -457,7 +473,13 @@ object Speaker {
                 fill()
                 val (k, text, pending) = queue.removeFirstOrNull() ?: break
                 val file = try {
-                    pending.await()
+                    try {
+                        pending.await()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Renderer.render(app, v, currentSpeed, text) // one more try: networks drop requests
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -472,6 +494,7 @@ object Speaker {
                 if (g != generation) return@launch
                 if (k != index) moveTo(k) else savePosition()
                 currentPiece = text
+                starting = false
                 notifyChanged()
                 if (!playing) return@launch // sleep timer or end of chapter stopped us
                 fill() // keep rendering ahead while this piece plays
@@ -481,6 +504,7 @@ object Speaker {
             }
             if (g == generation) {
                 playing = false
+                starting = false
                 currentPiece = null
                 notifyChanged()
             }

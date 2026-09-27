@@ -192,6 +192,21 @@ object TextCleaner {
     }
 
     /**
+     * Pocket TTS (cloned voices) can run on with garbled speech after text that
+     * doesn't end a sentence, like headings ("Summary") or numbered titles
+     * ("1. Introduction"). Ending every piece with punctuation fixes that.
+     */
+    fun endSentence(text: String): String {
+        var t = text.trim()
+        t = NUMBERED_TITLE.replace(t, "$1 ") // "1. Introduction" -> "1 Introduction"
+        if (t.isNotEmpty() && t.last() !in SENTENCE_ENDINGS) t += "."
+        return t
+    }
+
+    private val NUMBERED_TITLE = Regex("""^(\d+(?:\.\d+)*)\.\s+""")
+    private const val SENTENCE_ENDINGS = ".!?\u2026:;\"\u201D')"
+
+    /**
      * Straight double quotes become curly ones (“…”), so dialogue can be told apart
      * from narration even when a sentence is read in pieces.
      */
