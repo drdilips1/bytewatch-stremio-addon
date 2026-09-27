@@ -21,6 +21,7 @@ function fromAudible(p, market = '') {
     narrator: (p.narrators || []).map((a) => a.name).slice(0, 2).join(', '),
     cover: img['500'] || img['1024'] || '',
     year: (p.release_date || '').slice(0, 4),
+    released: p.release_date ? Date.parse(p.release_date) || 0 : 0,
     duration: p.runtime_length_min ? p.runtime_length_min * 60 : 0,
     series: s ? `${s.title}${s.sequence ? ` #${s.sequence}` : ''}` : '',
     description: stripHtml(p.publisher_summary || p.merchandising_summary || ''),
@@ -39,6 +40,7 @@ export function audibleRating(p) {
   return rating ? { rating, ratings: Number(r.num_ratings || p.rating?.num_reviews) || 0 } : {};
 }
 
+const pools = new Map();
 const products = (d, key = 'products') => (d?.[key] || []).filter((p) => p.title).map(fromAudible);
 
 export const audible = {
@@ -84,6 +86,42 @@ export const audible = {
   async find(title, author) {
     const d = await getJson(`${AUDIBLE}?` + qs({ title, author: author || undefined, num_results: 3, products_sort_by: 'Relevance', response_groups: GROUPS, image_sizes: '500,1024' }));
     return products(d)[0] || null;
+  },
+  /**
+   * A genre's popular titles: a few pages of Audible best sellers (cached for the session),
+   * the pool that Trending, Best of and For you pick from.
+   */
+  pool(name) {
+    const key = String(name).toLowerCase();
+    if (!pools.has(key)) {
+      const page = (n) =>
+        getJson(`${AUDIBLE}?` + qs({ keywords: name, num_results: 50, page: n, products_sort_by: 'BestSellers', response_groups: GROUPS, image_sizes: '500,1024' }))
+          .then((d) => products(d))
+          .catch(() => []);
+      const job = Promise.all([page(1), page(2), page(3)]).then((pages) => {
+        const seen = new Set();
+        const out = pages.flat().filter((b) => !seen.has(b.uid) && seen.add(b.uid)).map((b, i) => ({ ...b, rank: i + 1 }));
+        if (!out.length) pools.delete(key); // try again next time
+        return out;
+      });
+      pools.set(key, job);
+    }
+    return pools.get(key);
+  },
+  /** Popular right now: best sellers released in the last 18 months, in best-seller order. */
+  async trending(name) {
+    const since = Date.now() - 548 * 864e5;
+    const all = await this.pool(name);
+    const fresh = all.filter((b) => b.released && b.released >= since);
+    const out = fresh.length >= 8 ? fresh : [...fresh, ...all.filter((b) => !fresh.includes(b))].slice(0, 40);
+    return out.map((b, i) => ({ ...b, rank: i + 1 }));
+  },
+  /** The best-rated popular titles of a year ('all' = any year): high rating with plenty of ratings. */
+  async bestOf(name, year = 'all') {
+    const all = await this.pool(name);
+    const inYear = year === 'all' ? all : all.filter((b) => b.year === String(year));
+    const score = (b) => (b.rating || 0) * Math.log10((b.ratings || 0) + 10);
+    return inYear.filter((b) => (b.rating || 0) >= 4 || !b.rating).sort((a, b) => score(b) - score(a)).map(({ rank, ...b }) => b);
   },
   /** Hindi audiobooks from Audible India for a topic, best sellers first. */
   async hindi(term = '') {

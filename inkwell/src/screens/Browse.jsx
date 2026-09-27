@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
 import { TopBar, Grid, Skeleton, Empty, Row } from '../components/common.jsx';
-import { ia, gb, ol, absSrc, cloud, hc, enabled } from '../sources/index.js';
+import { ia, absSrc, cloud, hc, enabled } from '../sources/index.js';
 import { audible } from '../sources/catalogs.js';
 import { lookup } from '../lib/meta.js';
-import { settings } from '../lib/store.js';
+import { library } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { HINDI_GENRES, isHindi } from './hindi.js';
 import { SourceResults } from '../components/source-results.jsx';
@@ -12,9 +12,21 @@ import { sourceAddons } from '../sources/sourceaddons.js';
 const TABS = [
   ['yours', 'For you'],
   ['best', 'Bestsellers'],
-  ['listen', 'Free audio'],
-  ['read', 'Free ebooks'],
+  ['trend', 'Trending'],
+  ['top', 'Best of'],
 ];
+const THIS_YEAR = new Date().getFullYear();
+const YEARS = [THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2, THIS_YEAR - 3, THIS_YEAR - 4, 'all'];
+const norm = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** For you: your own books in the genre, then Audible's popular, well-rated titles you don't have. */
+async function forYou(genre, connected) {
+  const [mine, pool] = await Promise.all([connected ? yours(genre).catch(() => []) : [], audible.pool(genre.au || genre.name).catch(() => [])]);
+  const have = new Set([...mine, ...Object.values(library.get() || {})].map((b) => norm(b?.title)));
+  const score = (b) => (b.rating || 4) * Math.log10((b.ratings || 0) + 10) + (b.released > Date.now() - 730 * 864e5 ? 1.5 : 0);
+  const picks = pool.filter((b) => !have.has(norm(b.title))).sort((a, b) => score(b) - score(a)).slice(0, 36).map(({ rank, ...b }) => b);
+  return { mine, picks };
+}
 
 const HINDI_TABS = [
   ['yours', 'आपकी किताबें'],
@@ -48,12 +60,12 @@ async function yours(genre) {
 
 export function Browse({ genre }) {
   const connected = absSrc.connected() || hc.connected() || cloud.tbConnected() || cloud.rdConnected();
-  const [tab, setTab] = useState(genre.hindi && sourceAddons().length ? 'sources' : connected ? 'yours' : 'best');
+  const [tab, setTab] = useState(genre.hindi && sourceAddons().length ? 'sources' : genre.hindi && !connected ? 'best' : 'yours');
   const [items, setItems] = useState(null);
+  const [year, setYear] = useState(THIS_YEAR - 1);
   useEffect(() => {
     setItems(null);
     if (tab === 'sources') return;
-    const lang = settings.get().language;
     const job = genre.hindi
       ? tab === 'yours'
         ? yours(genre)
@@ -61,18 +73,16 @@ export function Browse({ genre }) {
           ? audible.hindi(genre.au).then((r) => (genre.en === 'Hindi' && r.length > 14 ? r.slice(10) : r)) // hub: Top Shows row has the first ten
           : ia.hindi(genre.ia)
       : tab === 'yours'
-        ? yours(genre)
+        ? forYou(genre, connected)
         : tab === 'best'
           ? audible.genre(genre.au || genre.name)
-          : tab === 'listen'
-            ? genre.ia.startsWith('collection:')
-              ? ia.query(genre.ia, { rows: 40 })
-              : ia.query(`collection:librivoxaudio AND subject:(${genre.ia})`, { rows: 40 })
-            : gb.byTopic(genre.gb, lang).catch(() => ol.subject(genre.ol));
+          : tab === 'trend'
+            ? audible.trending(genre.au || genre.name)
+            : audible.bestOf(genre.au || genre.name, year);
     let alive = true;
     job.then((r) => alive && setItems(r)).catch(() => alive && setItems([]));
     return () => (alive = false);
-  }, [tab, genre]);
+  }, [tab, genre, year]);
   return (
     <div class="screen" style={{ '--h': genre.hue }}>
       <TopBar title={genre.name} />
@@ -89,10 +99,14 @@ export function Browse({ genre }) {
                 ? 'Top Hindi audiobooks on Audible India — open one to find it in your sources.'
                 : 'Free Hindi recordings on Internet Archive.'
             : tab === 'yours'
-            ? 'From your server, debrid libraries and Hardcover shelves.'
+            ? connected
+              ? "Your books in this genre, then popular, well-rated picks from Audible you don't have yet."
+              : "Popular, well-rated picks from Audible — open one to find it in your debrid or addons."
             : tab === 'best'
               ? 'Top audiobooks — open one to find it in your debrid or addons.'
-              : 'Free public-domain classics.'}
+              : tab === 'trend'
+                ? 'Popular new releases from the last year and a half.'
+                : `The best-rated popular titles${year === 'all' ? ' of all time' : ` released in ${year}`}.`}
         </p>
       </div>
       {genre.en === 'Hindi' && enabled('au') && (
@@ -108,16 +122,44 @@ export function Browse({ genre }) {
         </div>
       )}
       <div class="segmented scroll">
-        {(genre.hindi ? HINDI_TABS : TABS).filter(([k]) => (k !== 'yours' || connected) && (k !== 'sources' || sourceAddons().length > 0)).map(([k, label]) => (
+        {(genre.hindi ? HINDI_TABS : TABS).filter(([k]) => (k !== 'yours' || connected || !genre.hindi) && (k !== 'sources' || sourceAddons().length > 0)).map(([k, label]) => (
           <button class={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
             {label}
           </button>
         ))}
       </div>
+      {tab === 'top' && !genre.hindi && (
+        <div class="chips year-chips">
+          {YEARS.map((y) => (
+            <button class={'pill small' + (year === y ? ' active' : '')} onClick={() => setYear(y)}>
+              {y === 'all' ? 'All time' : y}
+            </button>
+          ))}
+        </div>
+      )}
       {tab === 'sources' ? (
         <SourceResults query={`hindi ${genre.en === 'Hindi' ? 'audiobook' : genre.en}`} heading={false} />
       ) : items === null ? (
         <div class="grid">{Array.from({ length: 9 }, () => <Skeleton />)}</div>
+      ) : items.mine ? (
+        items.mine.length || items.picks.length ? (
+          <>
+            {items.mine.length > 0 && (
+              <>
+                <h3 class="section-label pad">In your collection</h3>
+                <Grid items={items.mine} />
+              </>
+            )}
+            {items.picks.length > 0 && (
+              <>
+                <h3 class="section-label pad">Recommended for you</h3>
+                <Grid items={items.picks} />
+              </>
+            )}
+          </>
+        ) : (
+          <Empty title="Nothing here yet">Try Bestsellers or another genre.</Empty>
+        )
       ) : items.length ? (
         <Grid items={items} />
       ) : (

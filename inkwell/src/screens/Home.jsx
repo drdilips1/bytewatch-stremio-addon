@@ -40,7 +40,7 @@ async function topRated() {
   const r = await audible.genre('bestsellers');
   return notOwned(r)
     .filter((b) => (b.rating || 0) >= 4.5 && (b.ratings || 0) >= 200)
-    .slice(0, 10);
+    .slice(0, 30);
 }
 
 function heroSources() {
@@ -53,6 +53,16 @@ function heroSources() {
   if (hc.connected() && enabled('hc')) list.push([() => hc.shelf(hc.STATUS.reading), 'Reading on Hardcover', 'hc'], [() => hc.shelf(hc.STATUS.want), 'On your Want to Read', 'hc']);
   const rank = (k) => (k === 'ai' ? -2 : k === 'top' ? -1 : sourceRank(k));
   return list.sort((a, b) => rank(a[2]) - rank(b[2]));
+}
+
+/** Shuffle, with books the banner showed last time moved to the back — each refresh brings new ones. */
+function freshFirst(list, shown) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return [...a.filter((b) => !shown.has(b.uid)), ...a.filter((b) => shown.has(b.uid))];
 }
 
 function roundRobin(groups) {
@@ -196,6 +206,7 @@ function Hero() {
   useEffect(() => {
     const sources = heroSources();
     const groups = new Array(sources.length).fill(null);
+    const shown = new Set((heroCache.get().items || []).map((b) => b.uid));
     let alive = true;
     let pending = sources.length;
     const publish = () => {
@@ -222,7 +233,7 @@ function Hero() {
       setTimeout(settle, 8000);
       Promise.resolve()
         .then(load)
-        .then((r) => (groups[k] = (r || []).map((x) => ({ ...x, heroTag: tag }))))
+        .then((r) => (groups[k] = freshFirst(r || [], shown).map((x) => ({ ...x, heroTag: tag }))))
         .catch(() => {})
         .finally(settle);
     });

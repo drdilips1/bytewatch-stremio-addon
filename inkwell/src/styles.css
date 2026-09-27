@@ -4585,3 +4585,7 @@ textarea {
   min-width: 48px;
   padding: 0 14px;
 }
+.year-chips {
+  padding: 0 20px 12px;
+  flex-wrap: wrap;
+}

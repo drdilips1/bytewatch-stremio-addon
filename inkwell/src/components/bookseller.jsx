@@ -4,28 +4,29 @@ import { Cover } from './common.jsx';
 import { nav } from '../lib/nav.js';
 import { fmtDuration } from '../lib/format.js';
 import { askBookseller, aiReady } from '../lib/bookseller.js';
+import { persisted, useStore } from '../lib/store.js';
 
 const EXAMPLES = ['Atmospheric sci-fi under 12 hours that feels like Project Hail Mary', 'A cosy mystery with a great narrator', 'Big-idea non-fiction like Sapiens, but shorter', 'Something funny for a long drive'];
 
 /** Ask for books in plain words, like talking to a bookseller. */
+// The last question and its answer stay (also across restarts), so opening a pick and
+// coming back shows the same list. A request keeps going if you leave the screen.
+const last = persisted('bookseller', { q: '', res: null, err: '', busy: false });
+last.set((v) => ({ ...v, busy: false }));
+
 export function AskBookseller() {
-  const [q, setQ] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [res, setRes] = useState(null);
-  const [err, setErr] = useState('');
+  const { res, err, busy } = useStore(last);
+  const [q, setQ] = useState(last.get().q);
   const ask = async (text) => {
     const t = (text ?? q).trim();
     if (!t) return;
     setQ(t);
-    setBusy(true);
-    setErr('');
-    setRes(null);
+    last.set({ q: t, res: null, err: '', busy: true });
     try {
-      setRes(await askBookseller(t));
+      const r = await askBookseller(t);
+      last.set({ q: t, res: r, err: '', busy: false });
     } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
+      last.set({ q: t, res: null, err: e.message, busy: false });
     }
   };
   return (
@@ -88,6 +89,15 @@ export function AskBookseller() {
             ) : (
               <p class="muted">Couldn't find those in the catalogue — try asking differently.</p>
             )}
+            <button
+              class="link-btn bookseller-clear"
+              onClick={() => {
+                setQ('');
+                last.set({ q: '', res: null, err: '', busy: false });
+              }}
+            >
+              Clear
+            </button>
           </div>
         )}
       </>
