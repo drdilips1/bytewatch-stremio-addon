@@ -41,8 +41,25 @@ A dermatology research app with a Consensus-style search, built around
   - A hidden WebView with your session loads UpToDate in the background (`UtdClient`) and signs in automatically when asked.
   - If UpToDate needs you to sign in by hand, the app offers it and continues afterwards.
 - **Multiple Research4Life accounts**: save several, pick the active one; Get PDF retries with the next account if one fails.
-- **Listen** (read aloud): the phone's text-to-speech reads papers and UpToDate topics paragraph by paragraph with highlighting, speed 0.75–2×, voice and speech-engine choice with preview, "Abstract & conclusions" mode, and background playback with notification controls.
-- **AI summaries** (Claude): the ✦ button in the reader, or "AI summary" on a paper, gives a structured summary (bottom line, design, key findings with numbers, clinical relevance, limitations) and answers questions about the paper. It uses your own Anthropic API key (Settings → AI & listening), stored encrypted; only the paper's text is sent. Summaries are kept on the phone.
+- **Listen to anything** (Import → Understand → Listen → Ask → Learn → Review):
+  - **Add document**: PDF, EPUB, Word (.docx), text, Markdown, a web link, pasted text, or a **photo of a page**. In any app, **Share → DermScholar** sends a page, link, text or file straight in ("Read anything").
+  - Everything is parsed into one reading model (`docs.js`): title, author, chapters/sections, paragraphs, lists, tables, figures and captions. Web pages lose their ads and menus; scanned PDFs and photos go through **on-device text recognition** (ML Kit) with running headers, footers and page numbers removed, two-column pages put back in order, and hyphenated words rejoined. The original file is kept.
+  - **Smart narration** (`speech.js`): statistics ("p less than 0.001", "95 percent confidence interval"), units ("milligrams per kilogram per day"), symbols, abbreviations and clinical shorthand are read the way a person would say them. Citation numbers are dropped.
+  - **Skip controls**: references, appendix, acknowledgements/funding/disclosures, figure captions and citation numbers, each on or off.
+  - **Audiobook player**: cover, section, elapsed/remaining time, seek bar, 15 s back / 30 s forward, previous/next section, speed 0.5–4×, sleep timer (minutes or end of section), bookmarks with context (and AI-suggested titles), section list, AI **Explain** and **Ask** while listening. Resumes exactly where you stopped. Plays in the background with lock-screen, notification and Bluetooth/headset controls (Android media session).
+  - Home shows **Continue listening**, **Recently added** and a prominent **Add document** button. The library filters by type (papers, books, articles, study material, documents) and shows duration and listening progress.
+- **AI studio** (Claude, your own API key): for any document —
+  - **Quick Brief** (1–3 min), **5-minute summary** and **Key takeaways**, each playable as audio.
+  - **Ask this document**: answers grounded in the text with tappable **¶ citations** that jump to the passage.
+  - **Tap-to-explain**: long-press a paragraph or select a sentence → simple / detailed / expert explanation, example, define terms, summarise or translate (17 languages, read aloud with a matching voice). Also highlight, note, copy, share, listen from here.
+  - **Study mode**: flashcards (Anki export), a "Test me" quiz with explanations and sources, viva and short-answer questions (with spoken practice), glossary and revision notes.
+  - **AI Discussion**: a two-voice host/expert conversation about the document, always labelled as AI-generated.
+  - AI section titles for poorly formatted documents, and AI clean-up of text-recognition errors.
+  - Model choice (Claude Opus 5 / Sonnet 5 / Haiku 4.5), explanation level, and a monthly usage and cost estimate. The document text is cached by the API so follow-up questions are cheap; every answer is saved on the phone.
+- **My notes**: highlights, notes and saved AI explanations from every document in one place, with an AI summary of all your notes and Markdown export.
+- **Search your library**: titles, authors, the full text of every document on the phone, notes and AI summaries, with passages that open at the right paragraph.
+- **Privacy**: documents, notes and positions stay in app-private storage; nothing leaves the phone unless you use an AI feature, and then only that document's text goes to Anthropic over HTTPS. The API key and logins are encrypted with the Android Keystore.
+- **Architecture**: prompts live in the web app; the native side talks to an `LlmProvider` (Claude today), `Narrator` (Android TTS), `Ocr` (ML Kit) and `DocInbox` (imports), so providers can be swapped.
 - **Themes**: light/dark/system mode, 8 accent colours, 5 light and 4 dark backgrounds; bundled Inter, Literata and Fraunces fonts.
   The reader has 8 reading themes plus custom text and background colours, 4 fonts, and line-spacing and margin options.
 - **Bottom bar**: Research4Life and UpToDate tabs can be shown or hidden in Settings (hidden by default).

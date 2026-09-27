@@ -34,7 +34,12 @@
     forgetCredentials: (p) => localStorage.removeItem('ds.acc.' + p),
     utdSearch: (q) => setTimeout(() => App.onNative(window.__utdMock ? window.__utdMock('search', q) : { type: 'utdResults', state: 'error', message: 'UpToDate needs the Android app' }), 300),
     utdShowPage: () => {},
-    setPendingPdf: () => {}, consumeReceived: () => '',
+    setPendingPdf: () => {}, consumeReceived: () => '[]',
+    pickDocument: () => toast('Needs the Android app'), takePhoto: () => toast('Needs the Android app'),
+    fetchPage: (id) => setTimeout(() => App.onNative(window.__pageMock ? window.__pageMock(id) : { type: 'pageFetched', id, error: 'Needs the Android app' }), 200),
+    ocrImport: (id) => setTimeout(() => App.onNative(window.__ocrMock ? { type: 'ocr', id, result: window.__ocrMock() } : { type: 'ocr', id, error: 'Needs the Android app' }), 200),
+    ocrPage: (id) => setTimeout(() => App.onNative(window.__ocrMock ? { type: 'ocr', id, result: window.__ocrMock() } : { type: 'ocr', id, error: 'Needs the Android app' }), 200),
+    deleteImport: () => {},
     listAccounts: (p) => JSON.stringify(JSON.parse(localStorage.getItem('ds.accs.' + p) || '[]')),
     setActiveAccount: (p, u) => localStorage.setItem('ds.accs.' + p, JSON.stringify(JSON.parse(localStorage.getItem('ds.accs.' + p) || '[]').map((a) => ({ ...a, active: a.user === u })))),
     removeAccount: (p, u) => localStorage.setItem('ds.accs.' + p, JSON.stringify(JSON.parse(localStorage.getItem('ds.accs.' + p) || '[]').filter((a) => a.user !== u))),
@@ -49,7 +54,15 @@
         ttsStop: () => { clearTimeout(t); t = null; App.onNative({ type: 'tts', state: 'stopped', index: i, total: n }); },
         aiHasKey: () => !!localStorage.getItem('ds.stub.aikey'),
         aiSetKey: (k) => (k ? localStorage.setItem('ds.stub.aikey', k) : localStorage.removeItem('ds.stub.aikey')),
-        aiAsk: (id, title, text, q) => setTimeout(() => App.onNative({ type: 'ai', id, state: 'done', text: q ? `The paper reports **62%** clearance for: ${q}` : '## Bottom line\nA randomised trial found the drug **superior** to placebo.\n## Study design\n- RCT, 240 adults\n## Key findings\n- PASI-75 in **62%** vs 12% (p<0.001)\n## Limitations\n- 16-week follow-up only' }), 400),
+        aiRun: (id, system, doc, task, max, schema) => setTimeout(() => {
+          const text = window.__aiMock ? window.__aiMock(task, schema, doc) : 'AI needs the Android app';
+          App.onNative({ type: 'ai', id, state: 'done', text });
+        }, 300),
+        aiModel: () => localStorage.getItem('ds.stub.model') || 'claude-opus-5',
+        aiSetModel: (m) => localStorage.setItem('ds.stub.model', m),
+        aiUsage: () => JSON.stringify({ [new Date().toISOString().slice(0, 7)]: { 'claude-opus-5': [120000, 8000, 300000, 6] } }),
+        ttsSleep: () => {}, ttsStopAfter: () => {}, ttsSubtitle: () => {}, ttsSleepLeft: () => 0,
+        ttsPreview: () => {}, ttsEngine: () => {}, ttsWarm: () => {},
         ttsVoices: () => JSON.stringify([{ name: 'en-us-x-sfg-local', locale: 'English (United States)', quality: 400, network: false }]),
         ttsStatus: () => JSON.stringify({ playing: !!t, index: i, total: n }),
       };
@@ -117,11 +130,26 @@
     pause: '<path d="M7 5h3v14H7zM14 5h3v14h-3z" fill="currentColor"/>',
     prev: '<path d="M6 5v14M18 6l-9 6 9 6z"/>',
     next: '<path d="M18 5v14M6 6l9 6-9 6z"/>',
+    back15: '<path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6"/><path d="M4 4v4.6h4.6"/><text x="12.2" y="15.6" font-size="7.5" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none">15</text>',
+    fwd30: '<path d="M20 12a8 8 0 1 1-2.3-5.7L20 8.6"/><path d="M20 4v4.6h-4.6"/><text x="11.8" y="15.6" font-size="7.5" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none">30</text>',
+    camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+    link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+    type: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
+    moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+    chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8M8 13h5"/>',
+    cards: '<rect x="3" y="7" width="13" height="13" rx="2"/><path d="M8 4h11a2 2 0 0 1 2 2v11"/>',
+    mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+    people: '<circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M14 20c.3-2.8 1.8-5 4-5 2.3 0 4 2 4 5"/>',
+    highlight: '<path d="m15 4 5 5-9 9H6v-5z"/><path d="M4 21h16"/>',
+    translate: '<path d="M4 5h9M8.5 3v2c0 4-2 7-5 9M6 9c1.5 2.5 3.5 4 6 5"/><path d="m12 21 4.5-10 4.5 10M13.5 18h6"/>',
+    school: '<path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11v5c3 2.5 9 2.5 12 0v-5M22 9v6"/>',
   };
   const icon = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ''}</svg>`;
   const LOGO = '<svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#1F4E79"/><path fill="#fff" d="M11 15c4-1.5 8-1.2 12 1v18c-3-2.2-8-2.5-12-1zM37 15c-4-1.5-8-1.2-12 1v18c3-2.2 8-2.5 12-1z"/><path fill="#F59E0B" d="M31 27a4 4 0 1 1 0 8 4 4 0 1 1 0-8zm0 2a2 2 0 1 0 0 4 2 2 0 1 0 0-4z"/><path fill="#F59E0B" d="m33.6 33.2 1.4-1.4 3.6 3.6-1.4 1.4z"/></svg>';
 
   // ---------------------------------------------------------------- local state
+  // Extension points filled in by studio.js (import, player, AI studio, study, notes).
+  const ext = { routes: {}, events: {} };
   const store = {
     get(k, d) { try { const v = localStorage.getItem('ds.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem('ds.' + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
@@ -174,6 +202,7 @@
       async getReflow(k) { return tx('readonly', (s) => (s ? s.get(k) : { result: mem.get('r:' + k) }), 'reflow'); },
       async putReflow(o) { return tx('readwrite', (s) => (s ? s.put(o) : mem.set('r:' + o.key, o)), 'reflow'); },
       async delReflow(k) { return tx('readwrite', (s) => (s ? s.delete(k) : mem.delete('r:' + k)), 'reflow'); },
+      async allReflow() { return (await tx('readonly', (s) => (s ? s.getAll() : { result: [...mem.entries()].filter(([k]) => String(k).startsWith('r:')).map(([, v]) => v) }), 'reflow')) || []; },
     };
   })();
 
@@ -394,14 +423,16 @@
 
   window.addEventListener('hashchange', render);
 
-  const TAB_OF = { home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', settings: null };
+  const TAB_OF = { home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
 
   async function render() {
     closeSheet();
     closeDrawer();
     closeLightbox();
     document.body.classList.remove('reading');
-    if (!['pdf', 'read', 'utd'].includes(parseHash().name)) hideTtsBar();
+    ext.closePlayer?.();
+    // Outside the reader the mini player stays while something is playing.
+    $$('.tts-on').forEach((e) => e.classList.remove('tts-on'));
     delete document.body.dataset.rtheme;
     ['--bg', '--card', '--line'].forEach((v) => document.body.style.removeProperty(v));
     applyTheme();
@@ -424,7 +455,9 @@
         case 'ji': return renderIssue(r.arg);
         case 'library': return renderLibrary(r.params);
         case 'settings': return renderSettings();
-        default: return renderHome();
+        default:
+          if (ext.routes[r.name]) return ext.routes[r.name](r.arg, r.params);
+          return renderHome();
       }
     } catch (e) {
       view.innerHTML = errorBox(e);
@@ -457,6 +490,7 @@
     view.innerHTML = `
       <div class="home-top"><div class="brand">${LOGO}<span>DermScholar</span></div>
         <button class="icon-btn" data-act="settings" aria-label="Settings">${icon('settings')}</button></div>
+      ${ext.homeTop ? ext.homeTop() : ''}
       <section class="hero-card">
         <div class="hero-greet">${greet}</div>
         <h2>Evidence from dermatology research, <em>in seconds.</em></h2>
@@ -1229,96 +1263,182 @@
   }
 
   // ---------------------------------------------------------------- read aloud
-  const ttsPrefs = Object.assign({ rate: 1, voice: '', mode: 'full', captions: false, refs: false, follow: true }, store.get('tts', {}));
+  // Narration engine: builds the spoken paragraphs from the open document (cleaned by speech.js,
+  // with the user's skip settings), tracks sections and time, remembers where each document was
+  // left, and can also play AI-written scripts (summaries, the two-voice discussion).
+  const ttsPrefs = Object.assign({ rate: 1, voice: '', voice2: '', mode: 'full', follow: true }, store.get('tts', {}));
+  ttsPrefs.skip = Object.assign({ refs: true, appendix: true, acknowledgements: true, captions: true, citations: true }, ttsPrefs.skip || {});
+  if (typeof ttsPrefs.captions === 'boolean') { ttsPrefs.skip.captions = !ttsPrefs.captions; delete ttsPrefs.captions; }
+  if (typeof ttsPrefs.refs === 'boolean') { ttsPrefs.skip.refs = !ttsPrefs.refs; delete ttsPrefs.refs; }
   const saveTts = () => store.set('tts', ttsPrefs);
   setTimeout(() => { try { Native.ttsWarm?.(ttsPrefs.engine || ''); } catch { /* browser */ } }, 2500);
-  const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2];
-  let tts = { key: null, title: '', els: [], texts: [], playing: false, index: 0 };
+  let speech = null;
+  const speechReady = import('./speech.js').then((m) => { speech = m; return m; }).catch(() => null);
+  const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
+  let tts = { key: null, title: '', els: [], texts: [], secs: [], heads: [], cum: [0], playing: false, index: 0, script: null, active: false };
+  const cps = () => (speech ? speech.CHARS_PER_SEC : 14.5) * (ttsPrefs.rate || 1);
 
-  /** Paragraphs to read, in order, with the element each one highlights. */
+  function spoken(text) {
+    if (speech) return speech.speakable(text, { citations: !ttsPrefs.skip.citations });
+    return text.replace(/\[\d+(?:[–,-]\d+)*\]/g, '');
+  }
+
+  /** Paragraphs to read, in order, with the element each one highlights and its section. */
   function ttsItems() {
     const rd = $('#rd');
-    if (!rd) return { els: [], texts: [] };
-    const els = [], texts = [];
+    const out = { els: [], texts: [], secs: [], heads: [] };
+    if (!rd) return out;
     let section = '';
-    const keyRe = /abstract|summary|conclusion|interpretation|key (finding|point)|capsule|relevance/i;
-    $$('h1, h2, h3, h4, p, li', rd).forEach((el) => {
-      if (el.closest('figure') && !ttsPrefs.captions) return;
-      if (el.closest('.rd-refs') && !ttsPrefs.refs) return;
-      if (el.tagName === 'LI' && el.closest('.rd-refs') == null && el.querySelector('p')) return;
-      if (/^H[2-4]$/.test(el.tagName)) section = el.textContent;
-      if (/^H[2-4]$/.test(el.tagName) && /^references$|^bibliography/i.test(el.textContent.trim()) && !ttsPrefs.refs) { section = 'refs'; return; }
-      if (section === 'refs' && !ttsPrefs.refs) return;
+    let skipLevel = 0; // inside a skipped section (references, appendix…) until a heading at this level or above
+    const keyRe = /abstract|summary|conclusion|interpretation|key (finding|point|takeaway)|capsule|relevance|bottom line/i;
+    const skipHeading = (t) => Object.entries(speech?.SKIPPABLE || {}).some(([k, v]) => v.heading && ttsPrefs.skip[k] && v.heading.test(t.trim()));
+    $$('h1, h2, h3, h4, p, li, figcaption', rd).forEach((el) => {
+      if (el.closest('.rd-refs')) { if (ttsPrefs.skip.refs) return; }
+      if (el.tagName === 'FIGCAPTION') { if (ttsPrefs.skip.captions) return; }
+      else if (el.closest('figure')) return;
+      if (el.tagName === 'LI' && !el.closest('.rd-refs') && el.querySelector('p')) return;
+      const isHead = /^H[1-4]$/.test(el.tagName);
+      if (isHead && el.tagName !== 'H1') {
+        const level = +el.tagName[1];
+        if (skipLevel && level <= skipLevel) skipLevel = 0;
+        if (!skipLevel && skipHeading(el.textContent)) { skipLevel = level; return; }
+        section = el.textContent.trim();
+      }
+      if (skipLevel) return;
       if (ttsPrefs.mode === 'key' && el.tagName !== 'H1' && !keyRe.test(section) && !keyRe.test(el.textContent.slice(0, 40))) return;
       const clone = el.cloneNode(true);
-      clone.querySelectorAll('sup, .rd-zoom').forEach((x) => x.remove());
-      let text = clone.textContent.replace(/\s+/g, ' ').replace(/\[\d+(?:[–,-]\d+)*\]/g, '').trim();
+      clone.querySelectorAll('sup, .rd-zoom, .rd-ai').forEach((x) => x.remove());
+      let text = clone.textContent.replace(/\s+/g, ' ').trim();
       if (text.length < 2) return;
+      text = spoken(text);
+      if (isHead && !/[.!?:]$/.test(text)) text += '.';
       // Engines cap one utterance at ~4000 characters.
       const chunks = text.length > 3200 ? text.match(/[^.!?]{1,3000}[.!?]*\s*/g) || [text] : [text];
-      chunks.forEach((c) => { els.push(el); texts.push(c.trim()); });
+      chunks.forEach((c, ci) => {
+        if (isHead && ci === 0) out.heads.push(out.texts.length);
+        out.els.push(el); out.texts.push(c.trim()); out.secs.push(section || tts.title);
+      });
     });
-    return { els, texts };
+    return out;
+  }
+
+  function setItems(it) {
+    tts.els = it.els; tts.texts = it.texts; tts.secs = it.secs; tts.heads = it.heads;
+    tts.cum = [0];
+    it.texts.forEach((t) => tts.cum.push(tts.cum[tts.cum.length - 1] + t.length));
   }
 
   function ttsAttach(opts) {
     tts.key = opts.key;
     tts.title = opts.title;
-    actions['tts-open'] = () => { if ($('#ttsbar')) ttsSheet(); else ttsPlay(firstVisible()); };
-    // While the player is open, tapping a paragraph reads from there.
+    tts.route = location.hash;
+    actions['tts-open'] = () => { if ($('#ttsbar') && !tts.script) ext.openPlayer?.(); else ttsPlay(); };
+    // While listening, tapping a paragraph reads from there.
     $('#rd')?.addEventListener('click', (e) => {
-      if (!$('#ttsbar')) return;
+      if (!$('#ttsbar') || tts.script) return;
       const el = e.target.closest('p, h1, h2, h3, h4, li');
-      if (!el || e.target.closest('a, figure')) return;
+      if (!el || e.target.closest('a, figure, .rd-ai')) return;
       const i = tts.els.indexOf(el);
       if (i >= 0) Native.ttsSeek(i);
     });
     try {
       const st = JSON.parse(Native.ttsStatus());
-      if (st.total && st.title === opts.title) { const it = ttsItems(); tts.els = it.els; tts.texts = it.texts; showTtsBar(st.playing, st.index); }
+      if (st.total && st.title === opts.title) { setItems(ttsItems()); tts.script = null; showTtsBar(st.playing, st.index); }
     } catch { /* not playing */ }
   }
 
   function firstVisible() {
-    const it = ttsItems();
-    const i = it.els.findIndex((el) => el.getBoundingClientRect().bottom > 80);
+    const i = tts.els.findIndex((el) => el.getBoundingClientRect().bottom > 80);
     return Math.max(0, i);
   }
 
-  function ttsPlay(start) {
+  /** Reads the open document; with no start, resumes where it was left (or from the screen). */
+  async function ttsPlay(start) {
+    await speechReady;
     const it = ttsItems();
     if (!it.texts.length) { toast('Nothing to read here'); return; }
-    tts.els = it.els; tts.texts = it.texts;
-    Native.ttsStart(tts.title, JSON.stringify(it.texts), Math.min(start, it.texts.length - 1), ttsPrefs.rate, ttsPrefs.voice);
+    tts.script = null;
+    setItems(it);
+    if (start == null) {
+      const saved = store.get('ttspos.' + tts.key, null);
+      if (saved && saved.i > 0 && saved.i < it.texts.length - 1 && saved.n === it.texts.length) { start = saved.i; toast('Resuming where you left off'); }
+      else start = firstVisible();
+    }
+    start = Math.max(0, Math.min(start, it.texts.length - 1));
+    tts.active = true;
+    Native.ttsStart(tts.title, JSON.stringify(it.texts), start, ttsPrefs.rate, ttsPrefs.voice);
+    store.set('lastListen', { key: tts.key, title: tts.title, route: tts.route || location.hash, t: Date.now() });
     showTtsBar(true, start);
   }
+
+  /**
+   * Plays AI-written audio (a spoken summary, the two-person discussion). lines: [{t, speaker?, voice?, pitch?}].
+   * It is always labelled as AI-generated, never as the document's own text.
+   */
+  async function ttsPlayScript(label, lines, { title = tts.title } = {}) {
+    await speechReady;
+    if (!lines.length) return;
+    tts.script = { label, lines };
+    tts.els = []; tts.texts = lines.map((l) => l.t); tts.secs = lines.map((l) => l.speaker || label); tts.heads = [];
+    tts.cum = [0];
+    lines.forEach((l) => tts.cum.push(tts.cum[tts.cum.length - 1] + l.t.length));
+    tts.active = true;
+    Native.ttsStart(`${title} · ${label}`, JSON.stringify(lines.map((l) => ({ t: spoken(l.t), voice: l.voice || '', pitch: l.pitch || 0 }))), 0, ttsPrefs.rate, ttsPrefs.voice);
+    showTtsBar(true, 0);
+  }
+
+  /** Index reached by moving `sec` seconds from the current paragraph (±). */
+  function indexAfterSeconds(sec) {
+    const target = tts.cum[tts.index] + sec * cps();
+    if (sec < 0) {
+      let i = tts.index;
+      while (i > 0 && tts.cum[i] > target) i--;
+      return Math.min(i, Math.max(0, tts.index - 1));
+    }
+    let i = tts.index;
+    while (i < tts.texts.length - 1 && tts.cum[i + 1] <= target) i++;
+    return Math.max(i, Math.min(tts.texts.length - 1, tts.index + 1));
+  }
+  const sectionStart = (i) => { let s = 0; for (const h of tts.heads) if (h <= i) s = h; return s; };
+  const sectionEnd = (i) => { const n = tts.heads.find((h) => h > i); return (n == null ? tts.texts.length : n) - 1; };
+  const nextSection = (i) => tts.heads.find((h) => h > i) ?? i;
+  const prevSection = (i) => { const s = sectionStart(i); return i - s > 1 ? s : sectionStart(Math.max(0, s - 1)); };
+  const ttsTimes = (i = tts.index) => {
+    const total = tts.cum[tts.cum.length - 1] / cps();
+    const done = tts.cum[Math.min(i, tts.texts.length)] / cps();
+    return { done, total, left: Math.max(0, total - done) };
+  };
 
   function showTtsBar(playing, index) {
     if (!$('#ttsbar')) {
       document.body.insertAdjacentHTML('beforeend', `<div class="tts-bar" id="ttsbar">
-        <button class="icon-btn" data-act="tts-prev" aria-label="Previous paragraph">${icon('prev')}</button>
         <button class="tts-play" data-act="tts-toggle" aria-label="Play or pause" id="ttsplay"></button>
-        <button class="icon-btn" data-act="tts-next" aria-label="Next paragraph">${icon('next')}</button>
-        <div class="tts-info"><b id="ttspos"></b><span id="ttssec"></span></div>
+        <button class="tts-info" data-act="tts-player" aria-label="Open player"><b id="ttssec"></b><span id="ttspos"></span></button>
+        <button class="icon-btn" data-act="tts-back" aria-label="Back 15 seconds">${icon('back15')}</button>
+        <button class="icon-btn" data-act="tts-fwd" aria-label="Forward 30 seconds">${icon('fwd30')}</button>
         <button class="chip tts-rate" data-act="tts-rate" id="ttsrate">${ttsPrefs.rate}×</button>
-        <button class="icon-btn" data-act="tts-settings" aria-label="Voice and options">${icon('settings')}</button>
-        <button class="icon-btn" data-act="tts-close" aria-label="Stop">${icon('x')}</button></div>`);
+        <button class="icon-btn" data-act="tts-close" aria-label="Stop">${icon('x')}</button>
+        <i class="tts-prog" id="ttsprog"></i></div>`);
       document.body.classList.add('tts-on-page');
     }
-    Object.assign(actions, {
-      'tts-toggle': () => Native.ttsToggle(),
-      'tts-prev': () => Native.ttsSkip(-1),
-      'tts-next': () => Native.ttsSkip(1),
-      'tts-close': () => { Native.ttsStop(); hideTtsBar(); },
-      'tts-settings': () => ttsSheet(),
-      'tts-rate': () => {
-        ttsPrefs.rate = RATES[(RATES.indexOf(ttsPrefs.rate) + 1) % RATES.length] || 1;
-        saveTts(); Native.ttsRate(ttsPrefs.rate);
-        $('#ttsrate').textContent = ttsPrefs.rate + '×';
-      },
-    });
     updateTtsBar(playing, index);
   }
+  const ttsActions = {
+    'tts-toggle': () => Native.ttsToggle(),
+    'tts-prev': () => Native.ttsSkip(-1),
+    'tts-next': () => Native.ttsSkip(1),
+    'tts-back': () => Native.ttsSeek(indexAfterSeconds(-15)),
+    'tts-fwd': () => Native.ttsSeek(indexAfterSeconds(30)),
+    'tts-close': () => { Native.ttsStop(); hideTtsBar(); },
+    'tts-settings': () => ttsSheet(),
+    'tts-player': () => ext.openPlayer?.(),
+    'tts-rate': () => {
+      ttsPrefs.rate = RATES[(RATES.indexOf(ttsPrefs.rate) + 1) % RATES.length] || 1;
+      saveTts(); Native.ttsRate(ttsPrefs.rate);
+      $$('.js-rate').forEach((e) => { e.textContent = ttsPrefs.rate + '×'; });
+      const r = $('#ttsrate'); if (r) r.textContent = ttsPrefs.rate + '×';
+    },
+  };
 
   function hideTtsBar() {
     $('#ttsbar')?.remove();
@@ -1326,40 +1446,41 @@
     $$('.tts-on').forEach((e) => e.classList.remove('tts-on'));
   }
 
+  let lastSec = '';
   function updateTtsBar(playing, index) {
     tts.playing = playing; tts.index = index;
     const btn = $('#ttsplay');
     if (btn) btn.innerHTML = icon(playing ? 'pause' : 'play');
-    const pos = $('#ttspos');
-    if (pos) pos.textContent = tts.texts.length ? `${Math.min(index + 1, tts.texts.length)} / ${tts.texts.length}` : '';
-    const el = tts.els[index];
-    let sec = '';
-    if (el) {
-      let n = el;
-      while (n && n.previousElementSibling !== undefined) {
-        n = n.previousElementSibling || n.parentElement?.previousElementSibling;
-        if (!n || n.id === 'rd') break;
-        if (/^H[1-4]$/.test(n.tagName)) { sec = n.textContent; break; }
-      }
-    }
+    const sec = tts.script ? `AI · ${tts.script.label}` : (tts.secs[index] || tts.title);
     const s = $('#ttssec');
-    if (s) s.textContent = sec || tts.title;
+    if (s) s.textContent = tts.script ? `${tts.title} — ${tts.script.label}` : (sec === tts.title ? tts.title : sec);
+    const t = ttsTimes(index);
+    const pos = $('#ttspos');
+    if (pos && speech) pos.textContent = `${speech.clock(t.done)} / ${speech.clock(t.total)} · ${speech.duration(t.left)} left`;
+    const prog = $('#ttsprog');
+    if (prog) prog.style.width = (t.total ? (100 * t.done) / t.total : 0).toFixed(1) + '%';
+    if (sec !== lastSec) { lastSec = sec; try { Native.ttsSubtitle?.(tts.script ? 'AI-generated · ' + tts.script.label : sec); } catch { /* browser */ } }
     $$('.tts-on').forEach((e) => e.classList.remove('tts-on'));
+    const el = tts.els[index];
     if (el && $('#rd')?.contains(el)) {
       el.classList.add('tts-on');
-      if (ttsPrefs.follow && playing) {
+      if (ttsPrefs.follow && playing && !$('#player')) {
         const r = el.getBoundingClientRect();
-        if (r.top < 90 || r.bottom > innerHeight - 110) window.scrollTo({ top: r.top + scrollY - innerHeight / 3, behavior: 'smooth' });
+        if (r.top < 90 || r.bottom > innerHeight - 130) window.scrollTo({ top: r.top + scrollY - innerHeight / 3, behavior: 'smooth' });
       }
     }
+    if (!tts.script && tts.key && tts.texts.length) store.set('ttspos.' + tts.key, { i: index, n: tts.texts.length, t: Date.now() });
+    ext.onTtsUpdate?.();
   }
 
   function onTts(evt) {
     if (evt.state === 'voices') { if ($('#ttsvoices')) ttsSheet(); return; }
-    if (evt.state === 'stopped') { hideTtsBar(); return; }
-    if (evt.state === 'error') { hideTtsBar(); toast('Text-to-speech isn’t available. Install or enable a voice in Android settings.'); return; }
-    if (evt.state === 'ended') { updateTtsBar(false, evt.index); toast('Finished reading'); return; }
-    if (!$('#ttsbar') && ['pdf', 'read', 'utd'].includes(current.name)) showTtsBar(evt.state === 'playing', evt.index);
+    if (evt.state === 'stopped') { tts.active = false; hideTtsBar(); ext.onTtsUpdate?.(); return; }
+    if (evt.state === 'error') { tts.active = false; hideTtsBar(); toast('Text-to-speech isn’t available. Install or enable a voice in Android settings.'); return; }
+    if (evt.state === 'ended') { updateTtsBar(false, evt.index); if (!tts.script && tts.key) store.set('ttspos.' + tts.key, { i: 0, n: tts.texts.length, t: Date.now(), done: true }); toast('Finished'); return; }
+    if (evt.state === 'sleep') { updateTtsBar(false, evt.index); toast('Sleep timer — paused'); return; }
+    if (!tts.active) return;
+    if (!$('#ttsbar')) showTtsBar(evt.state === 'playing', evt.index);
     else updateTtsBar(evt.state === 'playing', evt.index);
   }
 
@@ -1371,52 +1492,90 @@
     const vname = (v) => v.name.replace(/^[a-z]{2,3}[-_][a-z]{2}[-_]x[-_]/i, '').replace(/[-_]/g, ' ');
     const byLocale = {};
     voices.forEach((v) => { (byLocale[v.locale] = byLocale[v.locale] || []).push(v); });
-    const sw = (k, t, sub) => `<div class="setting"><div class="body"><b>${t}</b><span>${sub}</span></div>
-      <label class="switch"><input type="checkbox" data-tts="${k}" ${ttsPrefs[k] ? 'checked' : ''}><span></span></label></div>`;
-    sheet(`<h3>Listen</h3>
+    const voiceSelect = (id, val, none) => `<select id="${id}"><option value="">${none}</option>${Object.entries(byLocale).map(([loc, vs]) => `<optgroup label="${esc(loc)}">${vs.map((v) => `<option value="${esc(v.name)}" ${val === v.name ? 'selected' : ''}>${esc(vname(v))}${v.quality >= 400 ? ' · HQ' : ''}${v.network ? ' · online' : ''}</option>`).join('')}</optgroup>`).join('')}</select>`;
+    const sw = (k, t, sub, on) => `<div class="setting"><div class="body"><b>${t}</b><span>${sub}</span></div>
+      <label class="switch"><input type="checkbox" data-tts="${k}" ${on ? 'checked' : ''}><span></span></label></div>`;
+    const S = speech?.SKIPPABLE || {};
+    sheet(`<h3>Listening</h3>
       <label class="field" style="margin-top:0">What to read</label>
-      <div class="seg wide"><button class="${ttsPrefs.mode === 'full' ? 'on' : ''}" data-act="tts-mode" data-v="full">Whole paper</button>
+      <div class="seg wide"><button class="${ttsPrefs.mode === 'full' ? 'on' : ''}" data-act="tts-mode" data-v="full">Everything</button>
         <button class="${ttsPrefs.mode === 'key' ? 'on' : ''}" data-act="tts-mode" data-v="key">Abstract &amp; conclusions</button></div>
       <label class="field">Speed</label>
-      <div class="seg wide">${RATES.map((r) => `<button class="${ttsPrefs.rate === r ? 'on' : ''}" data-act="tts-setrate" data-v="${r}">${r}×</button>`).join('')}</div>
+      <div class="rates">${RATES.map((r) => `<button class="${ttsPrefs.rate === r ? 'on' : ''}" data-act="tts-setrate" data-v="${r}">${r}×</button>`).join('')}</div>
       <div id="ttsvoices">
       ${engines.length > 1 ? `<label class="field">Speech engine</label>
         <select id="ttsengine">${engines.map((e) => `<option value="${esc(e.name)}" ${info.engine === e.name ? 'selected' : ''}>${esc(e.label)}</option>`).join('')}</select>` : ''}
       <label class="field">Voice${voices.length ? ` <span class="muted small">(${voices.length})</span>` : ''}</label>
-      ${voices.length ? `<div class="voice-row"><select id="ttsvoice"><option value="">Phone default</option>${Object.entries(byLocale).map(([loc, vs]) => `<optgroup label="${esc(loc)}">${vs.map((v) => `<option value="${esc(v.name)}" ${ttsPrefs.voice === v.name ? 'selected' : ''}>${esc(vname(v))}${v.quality >= 400 ? ' · HQ' : ''}${v.network ? ' · online' : ''}</option>`).join('')}</optgroup>`).join('')}</select>
+      ${voices.length ? `<div class="voice-row">${voiceSelect('ttsvoice', ttsPrefs.voice, 'Phone default')}
         <button class="btn ghost sm" data-act="tts-preview">Preview</button></div>
+        <label class="field">Second voice <span class="muted small">(AI Discussion)</span></label>
+        <div class="voice-row">${voiceSelect('ttsvoice2', ttsPrefs.voice2, 'Automatic')}<button class="btn ghost sm" data-act="tts-preview2">Preview</button></div>
         <p class="muted small">For more natural voices, pick the Google engine and install voices in Android Settings → Text-to-speech.</p>`
         : `<p class="muted small">${info.ready ? 'This engine has no installed voices. Install some in Android Settings → Text-to-speech.' : 'Loading voices…'}</p>`}
       </div>
-      ${sw('follow', 'Follow along', 'Scroll to the paragraph being read')}
-      ${sw('captions', 'Read figure captions', 'Include figure and table captions')}
-      ${sw('refs', 'Read references', 'Include the reference list')}`);
-    const restart = () => { if ($('#ttsbar')) ttsPlay(tts.playing ? tts.index : tts.index); };
-    actions['tts-mode'] = (b) => { ttsPrefs.mode = b.dataset.v; saveTts(); if ($('#ttsbar')) { closeSheet(true); ttsPlay(0); } else ttsSheet(); };
-    actions['tts-setrate'] = (b) => { ttsPrefs.rate = Number(b.dataset.v); saveTts(); Native.ttsRate(ttsPrefs.rate); const r = $('#ttsrate'); if (r) r.textContent = ttsPrefs.rate + '×'; ttsSheet(); };
+      <label class="field">Skip while reading</label>
+      ${Object.entries(S).map(([k, v]) => sw('skip.' + k, v.label, ttsPrefs.skip[k] ? 'Skipped' : 'Read aloud', ttsPrefs.skip[k])).join('')}
+      ${sw('follow', 'Follow along', 'Scroll to the paragraph being read', ttsPrefs.follow)}`);
+    $('.sheet').classList.add('tall');
+    const restart = () => { if ($('#ttsbar') && !tts.script) ttsPlay(tts.index); };
+    actions['tts-mode'] = (b) => { ttsPrefs.mode = b.dataset.v; saveTts(); if ($('#ttsbar') && !tts.script) { closeSheet(true); ttsPlay(0); } else ttsSheet(); };
+    actions['tts-setrate'] = (b) => { ttsPrefs.rate = Number(b.dataset.v); saveTts(); Native.ttsRate(ttsPrefs.rate); $$('.js-rate, #ttsrate').forEach((e) => { e.textContent = ttsPrefs.rate + '×'; }); ttsSheet(); };
     $('#ttsvoice')?.addEventListener('change', (e) => { ttsPrefs.voice = e.target.value; saveTts(); if ($('#ttsbar')) Native.ttsVoice(ttsPrefs.voice); else Native.ttsPreview?.(ttsPrefs.voice); });
-    $('#ttsengine')?.addEventListener('change', (e) => { ttsPrefs.engine = e.target.value; ttsPrefs.voice = ''; saveTts(); Native.ttsEngine?.(ttsPrefs.engine); $('#ttsvoices').innerHTML = '<p class="muted small">Loading voices…</p>'; });
+    $('#ttsvoice2')?.addEventListener('change', (e) => { ttsPrefs.voice2 = e.target.value; saveTts(); if (!$('#ttsbar')) Native.ttsPreview?.(ttsPrefs.voice2); });
+    $('#ttsengine')?.addEventListener('change', (e) => { ttsPrefs.engine = e.target.value; ttsPrefs.voice = ''; ttsPrefs.voice2 = ''; saveTts(); Native.ttsEngine?.(ttsPrefs.engine); $('#ttsvoices').innerHTML = '<p class="muted small">Loading voices…</p>'; });
     actions['tts-preview'] = () => Native.ttsPreview?.($('#ttsvoice')?.value || '');
+    actions['tts-preview2'] = () => Native.ttsPreview?.($('#ttsvoice2')?.value || '');
     if (!info.ready) setTimeout(() => { if ($('#ttsvoices') && !voices.length) ttsSheet(); }, 1500);
-    $$('[data-tts]').forEach((inp) => inp.addEventListener('change', () => { ttsPrefs[inp.dataset.tts] = inp.checked; saveTts(); if (inp.dataset.tts !== 'follow') restart(); }));
+    $$('[data-tts]').forEach((inp) => inp.addEventListener('change', () => {
+      const k = inp.dataset.tts;
+      if (k.startsWith('skip.')) ttsPrefs.skip[k.slice(5)] = inp.checked; else ttsPrefs[k] = inp.checked;
+      saveTts();
+      if (k !== 'follow') { restart(); ttsSheet(); }
+    }));
   }
 
+  /** Installed voices, for choosing the two speakers of an AI discussion. */
+  function voiceList() {
+    try { const r = JSON.parse(Native.ttsVoices()); return (Array.isArray(r) ? r : r.voices) || []; } catch { return []; }
+  }
 
-  // ---------------------------------------------------------------- AI summaries (Claude)
-  const aiStore = store.get('ai', {});
+  // ---------------------------------------------------------------- AI core
+  // Every AI feature goes through ai(): prompts are written here in the web app, the native
+  // side only sends them to the configured provider (see LlmProvider.java).
   const aiPending = {};
-  const saveAi = () => {
-    const keys = Object.keys(aiStore);
-    if (keys.length > 150) keys.sort((a, b) => (aiStore[a].t || 0) - (aiStore[b].t || 0)).slice(0, keys.length - 150).forEach((k) => delete aiStore[k]);
-    store.set('ai', aiStore);
-  };
+  let aiSeq = 0;
   const aiHasKey = () => { try { return !!Native.aiHasKey?.(); } catch { return false; } };
+  const AI_SYSTEM = 'You are a careful reading and study companion. Work only from the document you are given; '
+    + 'if the answer is not in it, say so plainly instead of guessing. Keep numbers, doses and statistics exactly as written. '
+    + 'Write in plain Markdown: short "## " headings, "- " bullets and **bold** for key facts. No tables and no preamble.';
 
-  /** Minimal Markdown (headings, bullets, bold, italics) for Claude's answers. */
+  function ai(task, { doc = '', system = AI_SYSTEM, schema = null, max = 8000 } = {}) {
+    return new Promise((resolve, reject) => {
+      if (!aiHasKey()) { reject(new Error('NO_KEY')); return; }
+      const id = 'ai' + (++aiSeq) + '_' + Date.now();
+      aiPending[id] = (evt) => (evt.state === 'done' ? resolve(evt.text) : reject(new Error(evt.message || 'AI request failed')));
+      Native.aiRun(id, system, doc, task, max, schema ? JSON.stringify(schema) : '');
+    });
+  }
+  function onAi(evt) {
+    const cb = aiPending[evt.id];
+    delete aiPending[evt.id];
+    if (cb) cb(evt);
+  }
+  /** Lenient JSON parse for structured answers. */
+  function aiJson(text) {
+    try { return JSON.parse(text); } catch { /* fall through */ }
+    const m = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    if (m) return JSON.parse(m[0]);
+    throw new Error('The AI answer was not in the expected format');
+  }
+
+  /** Minimal Markdown (headings, bullets, bold, italics) plus [¶n] source links. */
   function md(text) {
-    const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])_(.+?)_(?=[\s).,;:]|$)/g, '$1<i>$2</i>').replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s).,;:]|$)/g, '$1<i>$2</i>');
+    const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])_(.+?)_(?=[\s).,;:]|$)/g, '$1<i>$2</i>').replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s).,;:]|$)/g, '$1<i>$2</i>')
+      .replace(/\[¶\s?(\d+)(?:\s*[-–,]\s*¶?\s?(\d+))*\]/g, (m0) => [...m0.matchAll(/\d+/g)].map((n) => `<button class="src" data-act="src-jump" data-b="${n[0]}">¶${n[0]}</button>`).join(''));
     let out = '', list = false;
-    text.split('\n').forEach((raw) => {
+    String(text).split('\n').forEach((raw) => {
       const line = raw.trim();
       const li = line.match(/^(?:[-*•]|\d+[.)])\s+(.*)/);
       if (li) { if (!list) { out += '<ul>'; list = true; } out += `<li>${inline(li[1])}</li>`; return; }
@@ -1428,120 +1587,45 @@
     return out + (list ? '</ul>' : '');
   }
 
-  /** Text of the paper open in the reader (captions included, references left out). */
-  function readerText() {
-    const rd = $('#rd');
-    if (!rd) return '';
-    let refs = false;
+  /** Document text for the AI, each part tagged [¶n] with its block number so answers can cite it. */
+  function modelText(model, { maxChars = 700000 } = {}) {
     const parts = [];
-    $$('h1, h2, h3, h4, p, li, figcaption', rd).forEach((el) => {
-      if (el.closest('.rd-refs')) return;
-      if (/^H[2-4]$/.test(el.tagName)) refs = /^references$|^bibliography/i.test(el.textContent.trim());
-      if (refs) return;
-      if (el.tagName === 'LI' && el.querySelector('p')) return;
-      const t = el.textContent.replace(/\s+/g, ' ').trim();
-      if (t) parts.push(/^H[1-4]$/.test(el.tagName) ? `\n## ${t}` : t);
-    });
-    return parts.join('\n');
-  }
-
-  function aiKeyForm() {
-    return `<p class="small">AI summaries use <b>Claude</b> with your own Anthropic API key. Create one at <b>console.anthropic.com</b> → API keys; usage is billed to your Anthropic account (typically a few cents per paper).</p>
-      <input type="password" id="aikey" placeholder="sk-ant-…" autocomplete="off">
-      <button class="btn primary full" data-act="ai-savekey" style="margin-top:10px">Save key</button>
-      <p class="muted small">The key is encrypted with this phone's keystore. Only the text of the paper you ask about is sent to Anthropic.</p>`;
-  }
-
-  /** Summary + questions sheet for one paper. getText() returns the text to send. */
-  function aiSheet(key, title, getText) {
-    const entry = aiStore[key] || { qa: [] };
-    const renderBody = () => {
-      const e = aiStore[key] || { qa: [] };
-      if (!aiHasKey()) return aiKeyForm();
-      return `<div class="ai-meta">${icon('spark')}Claude · ${e.source === 'full' ? 'full text' : e.source === 'abstract' ? 'abstract' : 'this paper'}</div>
-        <div class="ai-body" id="aibody">${e.summary ? md(e.summary) : aiPending[key + ':'] ? '<div class="ai-wait"><div class="spinner"></div>Reading the paper…</div>' : ''}</div>
-        ${(e.qa || []).map((x) => `<div class="ai-q">${esc(x.q)}</div><div class="ai-body">${x.a ? md(x.a) : '<div class="ai-wait"><div class="spinner"></div>Thinking…</div>'}</div>`).join('')}
-        <div class="ai-ask"><input id="aiq" placeholder="Ask about this paper…" enterkeyhint="send"><button class="btn primary sm" data-act="ai-ask">Ask</button></div>
-        ${e.summary ? `<div class="row-btns"><button class="btn xs" data-act="ai-copy">${icon('file')}Copy</button><button class="btn xs" data-act="ai-redo">Regenerate</button></div>` : ''}
-        <p class="muted small">AI-generated from the paper's text. Check important details against the paper.</p>`;
-    };
-    const draw = () => {
-      // Update in place once open, so the sheet doesn't replay its opening animation.
-      if ($('#aiwrap') && aiOpen === key) $('#aiwrap').innerHTML = renderBody();
-      else {
-        sheet(`<h3>AI summary</h3><p class="muted small ai-title">${esc(title)}</p><div id="aiwrap">${renderBody()}</div>`);
-        $('.sheet').classList.add('tall');
+    let len = 0;
+    const figs = new Map((model.figures || []).map((f) => [f.id, f]));
+    const txt = (b) => (b.text ?? (b.html || '').replace(/<\/(li|p|tr)>/g, '\n').replace(/<\/t[dh]>/g, ' | ').replace(/<[^>]+>/g, '')).replace(/[ \t]+/g, ' ').trim();
+    model.blocks.forEach((b, i) => {
+      if (len > maxChars) return;
+      let s = '';
+      if (b.type === 'title') s = `# ${txt(b)}`;
+      else if (b.type === 'h') s = `\n## ${txt(b)} [¶${i}]`;
+      else if (b.type === 'p' || b.type === 'list' || b.type === 'ref') s = `[¶${i}] ${txt(b)}`;
+      else if ((b.type === 'fig' || b.type === 'table') && figs.has(b.id)) {
+        const f = figs.get(b.id);
+        s = `[¶${i}] ${f.label}: ${f.caption || ''}${f.html ? '\n' + txt({ html: f.html }) : ''}`;
       }
-      $('#aiq')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') actions['ai-ask'](); });
-    };
-    const request = (question) => {
-      const text = getText();
-      if (!text || text.length < 200) { toast('Not enough text to summarise yet'); return; }
-      const e = aiStore[key] = aiStore[key] || { qa: [] };
-      e.source = text.length > 6000 ? 'full' : 'abstract';
-      e.t = Date.now();
-      const id = key + ':' + (question || '');
-      if (aiPending[id]) return;
-      aiPending[id] = (evt) => {
-        delete aiPending[id];
-        if (evt.state === 'error') {
-          if (question) e.qa = e.qa.filter((x) => !(x.q === question && !x.a));
-          toast(evt.message || 'Summary failed');
-        } else if (question) {
-          const x = e.qa.find((q) => q.q === question && !q.a);
-          if (x) x.a = evt.text;
-        } else {
-          e.summary = evt.text;
-        }
-        saveAi();
-        if ($('#aiwrap') && aiOpen === key) { draw(); if (question) $('.sheet').scrollTop = $('.sheet').scrollHeight; }
-      };
-      if (question) e.qa.push({ q: question, a: '' });
-      Native.aiAsk(id, title, text, question || '');
-    };
-    aiOpen = key;
-    actions['ai-savekey'] = () => {
-      const v = $('#aikey').value.trim();
-      if (!/^sk-ant-/.test(v)) { toast('That doesn\'t look like an Anthropic API key (sk-ant-…)'); return; }
-      Native.aiSetKey(v);
-      toast('Key saved');
-      if (!entry.summary) request(null);
-      draw();
-    };
-    actions['ai-ask'] = () => {
-      const q = $('#aiq')?.value.trim();
-      if (!q) return;
-      request(q);
-      draw();
-      $('.sheet').scrollTop = $('.sheet').scrollHeight;
-    };
-    actions['ai-redo'] = () => { delete aiStore[key].summary; request(null); draw(); };
-    actions['ai-copy'] = () => {
-      const e = aiStore[key];
-      copyText(`${title}\n\n${e.summary}${(e.qa || []).filter((x) => x.a).map((x) => `\n\nQ: ${x.q}\n${x.a}`).join('')}`);
-    };
-    if (aiHasKey() && !entry.summary) request(null);
-    draw();
-    onSheetClose = () => { aiOpen = null; };
-  }
-  let aiOpen = null;
-  function onAi(evt) {
-    const cb = aiPending[evt.id];
-    if (cb) cb(evt);
+      if (s) { parts.push(s); len += s.length; }
+    });
+    return { text: parts.join('\n'), truncated: len > maxChars };
   }
 
-  function aiSettingsCard() {
-    const has = aiHasKey();
-    return `<div class="acc-card"><div class="acc-ico ai">${icon('spark')}</div>
-      <div class="body"><b>AI summaries · Claude</b><span>${has ? 'API key saved · summaries and questions work on any paper' : 'Add your Anthropic API key to summarise papers'}</span></div>
-      <button class="btn xs ${has ? '' : 'primary'}" data-act="ai-setkey">${has ? 'Change' : 'Add key'}</button>
-      ${has ? `<button class="icon-btn" data-act="ai-forget" aria-label="Remove key">${icon('trash')}</button>` : ''}</div>`;
+  function jumpToBlock(i) {
+    const el = $(`#rd [data-b="${i}"]`);
+    if (!el) return false;
+    closeSheet(true);
+    ext.closePlayer?.();
+    window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - 90, behavior: 'smooth' });
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1600);
+    return true;
   }
+  ttsActions['src-jump'] = (b) => { if (!jumpToBlock(b.dataset.b)) toast('Open the document to see this passage'); };
+
 
   // ---------------------------------------------------------------- PDF → mobile reader
   const REFLOW_V = 3;
   const openReader = (key) => go('pdf/' + encodeURIComponent(key));
   let pdfDoc = null; // pdf.js document for the open reader (original-pages mode)
+  let readerState = null; // {model, opts} of the open reader
 
   async function renderPdfReader(key) {
     const s = saved.get(key);
@@ -1610,17 +1694,18 @@
     let refs = [];
     let h = 0;
     const figs = new Map(model.figures.map((f) => [f.id, f]));
-    const flush = () => { if (refs.length) { out += `<ol class="rd-refs">${refs.map((r) => `<li>${r}</li>`).join('')}</ol>`; refs = []; } };
-    for (const b of model.blocks) {
+    const flush = () => { if (refs.length) { out += `<ol class="rd-refs">${refs.join('')}</ol>`; refs = []; } };
+    model.blocks.forEach((b, i) => {
       const inner = b.html ?? esc(b.text || '');
-      if (b.type === 'ref') { refs.push(inner.replace(/^\s*(\[\d+\]|\d+\.)\s*/, '')); continue; }
+      const ai = b.ai ? ' <span class="rd-ai" title="Title written by AI">✦</span>' : '';
+      if (b.type === 'ref') { refs.push(`<li data-b="${i}">${inner.replace(/^\s*(\[\d+\]|\d+\.)\s*/, '')}</li>`); return; }
       flush();
-      if (b.type === 'title') out += `<h1 class="rd-title">${inner}</h1>`;
-      else if (b.type === 'h') { const l = Math.min(Math.max(b.level || 3, 2), 4); out += `<h${l} class="rd-h" id="rh-${h++}">${inner}</h${l}>`; }
-      else if (b.type === 'p') out += `<p${b.small ? ' class="rd-small"' : ''}>${inner}</p>`;
-      else if (b.type === 'list') out += inner;
-      else if ((b.type === 'fig' || b.type === 'table') && figs.has(b.id)) out += figureHtml(figs.get(b.id));
-    }
+      if (b.type === 'title') out += `<h1 class="rd-title" data-b="${i}">${inner}</h1>`;
+      else if (b.type === 'h') { const l = Math.min(Math.max(b.level || 3, 2), 4); out += `<h${l} class="rd-h" id="rh-${h++}" data-b="${i}">${inner}${ai}</h${l}>`; }
+      else if (b.type === 'p') out += `<p data-b="${i}"${b.small ? ' class="rd-small"' : ''}${b.quote ? ' class="rd-quote"' : ''}>${inner}</p>`;
+      else if (b.type === 'list') out += inner.replace(/^<(ul|ol)/, `<$1 data-b="${i}"`);
+      else if ((b.type === 'fig' || b.type === 'table') && figs.has(b.id)) out += figureHtml(figs.get(b.id)).replace('<figure ', `<figure data-b="${i}" `);
+    });
     flush();
     return out;
   }
@@ -1653,6 +1738,7 @@
 
   function showReader(model, opts) {
     const { key, title } = opts;
+    readerState = { model, opts };
     const figs = model.figures || [];
     const tables = figs.filter((f) => f.kind === 'table');
     const images = figs.filter((f) => f.kind !== 'table');
@@ -1660,7 +1746,7 @@
     view.innerHTML = readerTop(title) + `<div class="rd-page">
       <article class="rd" id="rd">${blocksHtml(model)}</article>
       <div id="rdpages" class="hidden"></div>
-      <div class="rd-end muted small">${opts.pdf ? `${model.pages || ''} pages · mobile view generated on this phone` : 'Full text from Europe PMC'}
+      <div class="rd-end muted small">${opts.pdf ? `${model.pages || ''} pages · mobile view generated on this phone${model.ocr ? ' by text recognition' : ''}` : opts.doc ? esc(opts.endNote || 'Imported document · the original is kept on this phone') : opts.utd ? 'UpToDate topic' : 'Full text from Europe PMC'}
         ${opts.pdf ? '<br><button class="btn small" data-act="rd-toggle-pages" style="margin-top:12px">View original pages</button>' : ''}</div></div>`;
     applyReaderPrefs();
 
@@ -1704,6 +1790,7 @@
         <button class="opt" data-act="rd-share">${icon('share')}Share PDF</button>
         <button class="opt" data-act="rd-redo">${icon('spark')}Rebuild mobile view</button>` : ''}
         ${opts.article ? `<button class="opt" data-act="rd-paper">${icon('quote')}Paper details &amp; citation</button>` : ''}
+        ${ext.readerMenu ? ext.readerMenu(opts, model) : ''}
         ${opts.utd ? `<button class="opt" data-act="utd-save">${icon(saved.has(key) ? 'bookmarkFill' : 'bookmark')}${saved.has(key) ? 'Saved — remove from library' : 'Save to library (offline)'}</button>
           <button class="opt" data-act="utd-refresh">${icon('spark')}Refresh from UpToDate</button>
           <button class="opt" data-act="utd-share">${icon('share')}Share link</button>
@@ -1724,7 +1811,9 @@
     actions['rd-paper'] = () => { closeSheet(); go('a/' + encodeURIComponent(opts.article.id)); };
     if (opts.startInPages) togglePages(opts, true);
     ttsAttach(opts);
-    if (current.params.listen === '1') setTimeout(() => ttsPlay(0), 300);
+    ext.onReader?.(model, opts);
+    if (current.params.listen === '1') setTimeout(() => ttsPlay(), 300);
+    else if (current.params.b) setTimeout(() => jumpToBlock(current.params.b), 250);
   }
 
   async function togglePages(opts, scannedNote) {
@@ -2154,22 +2243,25 @@
     if (filter === 'unread') items = items.filter((a) => a.status !== 'read');
     if (filter === 'read') items = items.filter((a) => a.status === 'read');
     if (filter === 'pdf') items = items.filter((a) => pdfKeys.has(a.id));
-    if (filter === 'offline') items = items.filter((a) => pdfKeys.has(a.id) || a.fullText);
+    if (filter === 'offline') items = items.filter((a) => pdfKeys.has(a.id) || a.fullText || a.doc);
+    if (filter.startsWith('t-')) items = items.filter((a) => (a.docType || (a.utd ? 'document' : 'paper')) === filter.slice(2));
     if (coll) items = items.filter((a) => (a.collections || []).includes(coll));
     if (q) items = items.filter((a) => [a.title, a.authors, a.journal, a.notes, ...(a.keywords || [])].join(' ').toLowerCase().includes(q));
     const nav = (patch) => go('library?' + new URLSearchParams(Object.fromEntries(Object.entries({ f: filter, c: coll, q: p.q || '', ...patch }).filter(([, v]) => v))), { replace: true });
 
     view.innerHTML = `${topbar(`Library · ${saved.size}`, { back: false, right: `<button class="icon-btn" data-act="settings" aria-label="Settings">${icon('settings')}</button>` })}
       <label class="search-inline">${icon('search')}<input id="lq" placeholder="Search titles, notes, authors" value="${esc(p.q || '')}" autocomplete="off"></label>
+      ${ext.libraryTop ? ext.libraryTop(p) : ''}
       <div class="scroll-x" style="margin-top:8px">
-        ${[['all', 'All'], ['unread', 'To read'], ['read', 'Read'], ['offline', 'Offline'], ['pdf', 'PDFs']].map(([k, l]) => `<button class="chip ${filter === k ? 'on' : ''}" data-act="lf" data-v="${k}">${l}</button>`).join('')}
+        ${[['all', 'All'], ['unread', 'To read'], ['read', 'Read'], ['offline', 'Offline'], ['pdf', 'PDFs'], ['t-paper', 'Papers'], ['t-book', 'Books'], ['t-article', 'Articles'], ['t-notes', 'Study material'], ['t-document', 'Documents']].map(([k, l]) => `<button class="chip ${filter === k ? 'on' : ''}" data-act="lf" data-v="${k}">${l}</button>`).join('')}
       </div>
       <div class="scroll-x" style="margin-top:8px">
         ${collections.map((c) => `<button class="chip ${coll === c ? 'on' : ''}" data-act="lc" data-v="${esc(c)}">${icon('folder')}${esc(c)}</button>`).join('')}
         <button class="chip" data-act="new-collection">${icon('plus')}Collection</button>
       </div>
       <div class="lib-tools">
-        <button class="btn small" data-act="import">${icon('upload')}Import PDF</button>
+        <button class="btn small primary" data-act="add-doc">${icon('plus')}Add document</button>
+        <button class="btn small" data-act="go-notes">${icon('note')}My notes</button>
         <button class="btn small" data-act="export" ${saved.size ? '' : 'disabled'}>${icon('download')}Export</button>
       </div>
       <div id="lib">${items.length ? items.map((a) => libCard(a)).join('') : `<div class="empty">${icon('bookmark')}<b>${saved.size ? 'Nothing matches' : 'Your library is empty'}</b>
@@ -2194,6 +2286,7 @@
         ${a.notes ? `<span class="dot">${icon('note').replace('<svg', '<svg style="width:13px;height:13px;display:inline;vertical-align:-2px"')} notes</span>` : ''}</div>
       <div class="badges">${st}${badgesFor(a, { compact: true })}${a.fullText ? `<span class="badge b-review">${icon('book')}Full text offline</span>` : ''}
         ${(a.collections || []).map((c) => `<span class="badge">${esc(c)}</span>`).join('')}</div>
+      ${ext.cardExtra ? ext.cardExtra(a) : ''}
       ${a.imported ? '' : `<div class="card-actions">${pdfAction(a)}</div>`}</div>`;
   }
 
@@ -2324,11 +2417,7 @@
       <div class="section"><div class="section-h"><h3>Accounts</h3></div>
         ${r4lAccounts()}${accRow('utd')}
         <p class="muted small">Passwords are encrypted with this phone's keystore and only sent to the provider's own sign-in page.</p></div>
-      <div class="section"><div class="section-h"><h3>AI &amp; listening</h3></div>
-        ${aiSettingsCard()}
-        <div class="acc-card"><div class="acc-ico">${icon('audio')}</div>
-          <div class="body"><b>Listen</b><span>Voice, speed and what to read aloud</span></div>
-          <button class="btn xs" data-act="tts-settings-open">Voices</button></div></div>
+      ${ext.settingsSection ? ext.settingsSection() : ''}
       <div class="section"><div class="section-h"><h3>Bottom bar</h3></div>
         ${sw('showUTD', 'Show UpToDate tab', 'Quick access from anywhere in the app')}
         ${sw('showR4L', 'Show Research4Life tab', 'Get PDF works without it; hide it if you never browse R4L')}</div>
@@ -2409,6 +2498,7 @@
 
   // ---------------------------------------------------------------- global actions
   const actions = {
+    ...ttsActions,
     back: () => App.back(),
     home: () => go(''),
     settings: () => go('settings'),
@@ -2416,7 +2506,7 @@
     tab: (b) => switchTab(b.dataset.tab),
     'close-sheet': () => closeSheet(),
     open: (b) => go('a/' + encodeURIComponent(b.dataset.id)),
-    'open-imported': (b) => openReader(b.dataset.id),
+    'open-imported': (b) => (saved.get(b.dataset.id)?.doc ? go('doc/' + encodeURIComponent(b.dataset.id)) : openReader(b.dataset.id)),
     'card-pdf': (b) => { const a = saved.get(b.dataset.id) || cache.get(b.dataset.id); if (a) getPdf(a); },
     'card-save': async (b) => {
       const id = b.dataset.id;
@@ -2447,15 +2537,6 @@
       if (pdfKeys.has(id)) go('pdf/' + encodeURIComponent(id) + '?listen=1');
       else go('read/' + encodeURIComponent(id) + '?listen=1');
     },
-    'ai-reader': () => aiSheet(tts.key || location.hash, tts.title || document.title, readerText),
-    'ai-article': (b) => {
-      const a = saved.get(b.dataset.id) || cache.get(b.dataset.id);
-      if (!a) return;
-      const text = () => [a.abstract ? `Abstract: ${a.abstract}` : '', a.journal ? `Journal: ${a.journal} ${a.year || ''}` : '', a.authors ? `Authors: ${String(a.authors).slice(0, 300)}` : ''].filter(Boolean).join('\n\n').replace(/<[^>]+>/g, ' ');
-      aiSheet(a.id, a.title, text);
-    },
-    'ai-setkey': () => { sheet(`<h3>Claude API key</h3>${aiKeyForm()}`); actions['ai-savekey'] = () => { const v = $('#aikey').value.trim(); if (!/^sk-ant-/.test(v)) { toast('That doesn\'t look like an Anthropic API key (sk-ant-…)'); return; } Native.aiSetKey(v); closeSheet(true); toast('Key saved'); render(); }; },
-    'ai-forget': () => { Native.aiSetKey(''); toast('API key removed'); render(); },
     'tts-settings-open': () => ttsSheet(),
     'utd-search': (b) => go(utdHash(b.dataset.q || '')),
     'utd-topic': (b) => go(utdTopicHash(b.dataset.url)),
@@ -2592,7 +2673,7 @@
       }
     },
     async onNative(evt) {
-      if (evt.type === 'pdfReceived') {
+      if (evt.type === 'pdfReceived' || evt.type === 'pdfImported') {
         await syncPdfs();
         pdfKeys.add(evt.key);
         if (jobs.has(evt.key)) { jobs.delete(evt.key); renderTray(); }
@@ -2632,12 +2713,22 @@
         jobs.set(evt.key, { ...j, state: 'failed', message: evt.message, canShow: !!evt.canShow });
         renderTray();
         refreshCards();
-      } else if (evt.type === 'pdfImported') {
-        await syncPdfs();
-        toast('PDF imported');
-        if (current.name === 'library') render(); else go('library');
+      } else if (ext.events[evt.type]) {
+        ext.events[evt.type](evt);
       }
     },
+  };
+
+  // ---------------------------------------------------------------- shared with studio.js
+  window.DS = {
+    Native, ext, $, $$, esc, icon, md, sheet, closeSheet, toast, store, db, go, render, actions, settings, saveSettings,
+    topbar, errorBox, coverStyle, hueFor, saveArticle, openReader, showReader, readerTop, readerLoading, lightbox,
+    ttsPlay, ttsPlayScript, ttsSheet, ttsPrefs, saveTts, ttsTimes, indexAfterSeconds, sectionStart, sectionEnd, nextSection, prevSection,
+    voiceList, RATES, ai, aiJson, aiHasKey, modelText, jumpToBlock, copyText, syncPdfs, refreshPdfs, stripTags,
+    speechReady, REFLOW_V,
+    get tts() { return tts; }, get speech() { return speech; }, get saved() { return saved; }, get cache() { return cache; },
+    get current() { return current; }, get reader() { return readerState; }, get pdfKeys() { return pdfKeys; },
+    set onSheetClose(f) { onSheetClose = f; },
   };
 
   // ---------------------------------------------------------------- start
@@ -2648,7 +2739,8 @@
     render();
     try {
       const r = Native.consumeReceived && Native.consumeReceived();
-      if (r) App.onNative(JSON.parse(r));
+      const list = r ? JSON.parse(r) : [];
+      for (const e of Array.isArray(list) ? list : [list]) await App.onNative(e);
     } catch { /* nothing shared */ }
   })();
 })();
