@@ -937,3 +937,17 @@ body.player-open .toast { z-index: 33; }
 .section .opt svg { width: 20px; height: 20px; color: var(--text-2); flex: none; }
 .section .opt.on { border-color: var(--accent); background: var(--accent-soft); }
 .section .opt.on svg { color: var(--accent); }
+/* natural voices */
+.nv-list { display: flex; flex-direction: column; gap: 8px; }
+.nv { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; background: var(--card); }
+.nv.on { border-color: var(--accent); background: var(--accent-soft); }
+.nv-h { display: flex; align-items: center; gap: 10px; }
+.nv-h > div { flex: 1; min-width: 0; }
+.nv-h b { display: block; font-size: 14.5px; }
+.nv-h span { display: block; font-size: 12px; color: var(--text-3); }
+.nv .chips-wrap { margin-top: 8px; gap: 6px; }
+.nv .chip small { color: var(--text-3); font-weight: 500; margin-left: 2px; }
+.nv .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.nv .chip.on small { color: rgba(255, 255, 255, .8); }
+.nv .prog { margin-top: 8px; }
+.nv-pct { font-size: 12px; font-weight: 600; color: var(--accent); white-space: nowrap; }

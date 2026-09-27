@@ -389,9 +389,11 @@ final class NeuralEngine {
 
     // ------------------------------------------------------------------ audio focus
 
-    private final AudioManager.OnAudioFocusChangeListener focusListener = change -> {
+    private final AudioManager.OnAudioFocusChangeListener focusListener = this::onFocusChange;
+
+    private void onFocusChange(int change) {
         if (change == AudioManager.AUDIOFOCUS_LOSS || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) host.onFocusLost();
-    };
+    }
 
     private void requestFocus() {
         AudioManager am = (AudioManager) app.getSystemService(Context.AUDIO_SERVICE);

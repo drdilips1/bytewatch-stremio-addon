@@ -11,6 +11,11 @@
   const THIS_YEAR = new Date().getFullYear();
 
   const hasNative = typeof window.Native !== 'undefined';
+  const stubVoices = () => JSON.stringify([
+    { id: 'kokoro-en', label: 'Studio voices (Kokoro)', desc: '11 very natural US and UK voices.', sizeMb: 103, lang: 'en', type: 'kokoro', installed: !!localStorage.getItem('ds.stub.voice.kokoro-en'),
+      speakers: ['Default|female|US', 'Bella|female|US', 'Nicole|female|US', 'Sarah|female|US', 'Sky|female|US', 'Adam|male|US', 'Michael|male|US', 'Emma|female|UK', 'Isabella|female|UK', 'George|male|UK', 'Lewis|male|UK'].map((x) => { const [name, gender, accent] = x.split('|'); return { name, gender, accent }; }) },
+    { id: 'piper-ryan', label: 'Ryan', desc: 'Warm US male narrator.', sizeMb: 34, lang: 'en', type: 'vits', installed: !!localStorage.getItem('ds.stub.voice.piper-ryan'), speakers: [] },
+    { id: 'piper-priyamvada', label: 'Priyamvada (Hindi)', desc: 'Hindi female voice.', sizeMb: 21, lang: 'hi', type: 'vits', installed: false, speakers: [] }]);
   const Native = hasNative ? window.Native : {
     listPdfs: () => '[]', hasPdf: () => false, storageBytes: () => 0,
     downloadPdf: () => toast('PDF download needs the Android app'),
@@ -63,7 +68,10 @@
         aiUsage: () => JSON.stringify({ [new Date().toISOString().slice(0, 7)]: { 'claude-opus-5': [120000, 8000, 300000, 6] } }),
         ttsSleep: () => {}, ttsStopAfter: () => {}, ttsSubtitle: () => {}, ttsSleepLeft: () => 0,
         ttsPreview: () => {}, ttsEngine: () => {}, ttsWarm: () => {},
-        ttsVoices: () => JSON.stringify([{ name: 'en-us-x-sfg-local', locale: 'English (United States)', quality: 400, network: false }]),
+        ttsVoices: () => JSON.stringify({ ready: true, engines: [], voices: [{ name: 'en-us-x-sfg-local', locale: 'English (United States)', quality: 400, network: false }], neural: JSON.parse(stubVoices()) }),
+        voiceCatalog: () => stubVoices(),
+        voiceDownload: (id) => { let p = 0; const t = setInterval(() => { p += 25; if (p <= 100) App.onNative({ type: 'voiceProgress', id, pct: p, stage: p < 100 ? 'Downloading' : 'Unpacking' }); else { clearInterval(t); localStorage.setItem('ds.stub.voice.' + id, '1'); App.onNative({ type: 'voiceReady', id }); } }, 150); },
+        voiceDelete: (id) => localStorage.removeItem('ds.stub.voice.' + id),
         ttsStatus: () => JSON.stringify({ playing: !!t, index: i, total: n }),
       };
     })(),
@@ -1271,6 +1279,25 @@
   if (typeof ttsPrefs.captions === 'boolean') { ttsPrefs.skip.captions = !ttsPrefs.captions; delete ttsPrefs.captions; }
   if (typeof ttsPrefs.refs === 'boolean') { ttsPrefs.skip.refs = !ttsPrefs.refs; delete ttsPrefs.refs; }
   const saveTts = () => store.set('tts', ttsPrefs);
+  const voiceDownloads = {}; // id -> {pct, stage} while a natural voice downloads
+  function onVoiceEvent(evt) {
+    if (evt.type === 'voiceProgress') {
+      voiceDownloads[evt.id] = { pct: evt.pct, stage: evt.stage };
+      const t = $('#vp-' + evt.id); if (t) t.textContent = `${evt.stage} ${evt.pct}%`;
+      const bar = $('#vpb-' + evt.id); if (bar) bar.style.width = evt.pct + '%';
+      return;
+    }
+    delete voiceDownloads[evt.id];
+    if (evt.type === 'voiceReady') {
+      if (!String(ttsPrefs.voice || '').startsWith('neural:')) {
+        ttsPrefs.voice = `neural:${evt.id}#${evt.id === 'kokoro-en' ? 3 : 0}`;
+        saveTts();
+        if ($('#ttsbar')) Native.ttsVoice(ttsPrefs.voice);
+      }
+      toast('Natural voice ready — now reading with it');
+    } else toast(evt.message || 'Voice download failed');
+    if ($('#ttsvoices')) { const y = $('.sheet').scrollTop; ttsSheet(); $('.sheet').scrollTop = y; }
+  }
   setTimeout(() => { try { Native.ttsWarm?.(ttsPrefs.engine || ''); } catch { /* browser */ } }, 2500);
   let speech = null;
   const speechReady = import('./speech.js').then((m) => { speech = m; return m; }).catch(() => null);
@@ -1477,6 +1504,8 @@
     if (evt.state === 'voices') { if ($('#ttsvoices')) ttsSheet(); return; }
     if (evt.state === 'stopped') { tts.active = false; hideTtsBar(); ext.onTtsUpdate?.(); return; }
     if (evt.state === 'error') { tts.active = false; hideTtsBar(); toast('Text-to-speech isn’t available. Install or enable a voice in Android settings.'); return; }
+    if (String(evt.state).startsWith('error:')) { updateTtsBar(false, evt.index); toast(evt.state.slice(6)); return; }
+    if (evt.state === 'buffering') { const p = $('#ttspos'); if (p) p.textContent = 'Preparing the voice…'; return; }
     if (evt.state === 'ended') { updateTtsBar(false, evt.index); if (!tts.script && tts.key) store.set('ttspos.' + tts.key, { i: 0, n: tts.texts.length, t: Date.now(), done: true }); toast('Finished'); return; }
     if (evt.state === 'sleep') { updateTtsBar(false, evt.index); toast('Sleep timer — paused'); return; }
     if (!tts.active) return;
@@ -1496,6 +1525,24 @@
     const sw = (k, t, sub, on) => `<div class="setting"><div class="body"><b>${t}</b><span>${sub}</span></div>
       <label class="switch"><input type="checkbox" data-tts="${k}" ${on ? 'checked' : ''}><span></span></label></div>`;
     const S = speech?.SKIPPABLE || {};
+    const packs = info.neural || [];
+    const cur = ttsPrefs.voice || '';
+    const neuralHtml = packs.length ? `<label class="field">Natural voices <span class="muted small">· AI voices that run on this phone, free and offline</span></label>
+      <div class="nv-list">${packs.map((p) => {
+        const dl = voiceDownloads[p.id];
+        const sel = cur.startsWith('neural:' + p.id + '#');
+        const speakers = p.speakers?.length ? p.speakers : [{ name: p.label.replace(/\s*\(.*\)/, ''), gender: '', accent: '' }];
+        return `<div class="nv ${p.installed ? 'ok' : ''} ${sel ? 'on' : ''}"><div class="nv-h"><div><b>${esc(p.label)}</b><span>${esc(p.desc)}</span></div>
+          ${p.installed ? `<button class="icon-btn" data-act="nv-del" data-id="${esc(p.id)}" aria-label="Delete voice">${icon('trash')}</button>`
+            : dl ? `<span class="nv-pct" id="vp-${esc(p.id)}">${dl.stage || 'Downloading'} ${dl.pct || 0}%</span>`
+            : `<button class="btn xs primary" data-act="nv-get" data-id="${esc(p.id)}">${icon('download')}${p.sizeMb} MB</button>`}</div>
+          ${dl && !p.installed ? `<div class="prog"><i id="vpb-${esc(p.id)}" style="width:${dl.pct || 0}%"></i></div>` : ''}
+          ${p.installed ? `<div class="chips-wrap">${speakers.map((sp, k) => {
+            const v = `neural:${p.id}#${k}`;
+            return `<button class="chip ${cur === v ? 'on' : ''}" data-act="nv-use" data-v="${esc(v)}">${cur === v ? icon('check') : ''}${esc(sp.name)}${sp.gender ? ` <small>${sp.gender === 'female' ? '♀' : '♂'} ${esc(sp.accent)}</small>` : ''}</button>`;
+          }).join('')}</div>` : ''}</div>`;
+      }).join('')}</div>
+      ${cur.startsWith('neural:') ? `<button class="btn xs" data-act="nv-phone" style="margin-top:6px">Use the phone's own voice instead</button>` : ''}` : '';
     sheet(`<h3>Listening</h3>
       <label class="field" style="margin-top:0">What to read</label>
       <div class="seg wide"><button class="${ttsPrefs.mode === 'full' ? 'on' : ''}" data-act="tts-mode" data-v="full">Everything</button>
@@ -1503,10 +1550,12 @@
       <label class="field">Speed</label>
       <div class="rates">${RATES.map((r) => `<button class="${ttsPrefs.rate === r ? 'on' : ''}" data-act="tts-setrate" data-v="${r}">${r}×</button>`).join('')}</div>
       <div id="ttsvoices">
+      ${neuralHtml}
+      <label class="field">Phone voices</label>
       ${engines.length > 1 ? `<label class="field">Speech engine</label>
         <select id="ttsengine">${engines.map((e) => `<option value="${esc(e.name)}" ${info.engine === e.name ? 'selected' : ''}>${esc(e.label)}</option>`).join('')}</select>` : ''}
       <label class="field">Voice${voices.length ? ` <span class="muted small">(${voices.length})</span>` : ''}</label>
-      ${voices.length ? `<div class="voice-row">${voiceSelect('ttsvoice', ttsPrefs.voice, 'Phone default')}
+      ${voices.length ? `<div class="voice-row">${voiceSelect('ttsvoice', cur.startsWith('neural:') ? '' : ttsPrefs.voice, cur.startsWith('neural:') ? 'Phone default (not in use)' : 'Phone default')}
         <button class="btn ghost sm" data-act="tts-preview">Preview</button></div>
         <label class="field">Second voice <span class="muted small">(AI Discussion)</span></label>
         <div class="voice-row">${voiceSelect('ttsvoice2', ttsPrefs.voice2, 'Automatic')}<button class="btn ghost sm" data-act="tts-preview2">Preview</button></div>
@@ -1524,6 +1573,22 @@
     $('#ttsvoice2')?.addEventListener('change', (e) => { ttsPrefs.voice2 = e.target.value; saveTts(); if (!$('#ttsbar')) Native.ttsPreview?.(ttsPrefs.voice2); });
     $('#ttsengine')?.addEventListener('change', (e) => { ttsPrefs.engine = e.target.value; ttsPrefs.voice = ''; ttsPrefs.voice2 = ''; saveTts(); Native.ttsEngine?.(ttsPrefs.engine); $('#ttsvoices').innerHTML = '<p class="muted small">Loading voices…</p>'; });
     actions['tts-preview'] = () => Native.ttsPreview?.($('#ttsvoice')?.value || '');
+    const keepScroll = () => { const y = $('.sheet')?.scrollTop || 0; ttsSheet(); const sh = $('.sheet'); if (sh) sh.scrollTop = y; };
+    actions['nv-get'] = (b) => { voiceDownloads[b.dataset.id] = { pct: 0, stage: 'Starting' }; Native.voiceDownload?.(b.dataset.id); keepScroll(); };
+    actions['nv-use'] = (b) => {
+      ttsPrefs.voice = b.dataset.v; saveTts();
+      if ($('#ttsbar')) Native.ttsVoice(ttsPrefs.voice); else Native.ttsPreview?.(ttsPrefs.voice);
+      keepScroll();
+    };
+    actions['nv-phone'] = () => { ttsPrefs.voice = ''; saveTts(); if ($('#ttsbar')) Native.ttsVoice(''); keepScroll(); };
+    actions['nv-del'] = (b) => {
+      const id = b.dataset.id;
+      Native.voiceDelete?.(id);
+      if ((ttsPrefs.voice || '').startsWith('neural:' + id + '#')) { ttsPrefs.voice = ''; saveTts(); if ($('#ttsbar')) Native.ttsVoice(''); }
+      if ((ttsPrefs.voice2 || '').startsWith('neural:' + id + '#')) { ttsPrefs.voice2 = ''; saveTts(); }
+      toast('Voice deleted');
+      setTimeout(keepScroll, 300);
+    };
     actions['tts-preview2'] = () => Native.ttsPreview?.($('#ttsvoice2')?.value || '');
     if (!info.ready) setTimeout(() => { if ($('#ttsvoices') && !voices.length) ttsSheet(); }, 1500);
     $$('[data-tts]').forEach((inp) => inp.addEventListener('change', () => {
@@ -2682,6 +2747,7 @@
         return;
       }
       if (evt.type === 'tts') { onTts(evt); return; }
+      if (evt.type === 'voiceProgress' || evt.type === 'voiceReady' || evt.type === 'voiceError') { onVoiceEvent(evt); return; }
       if (evt.type === 'ai') { onAi(evt); return; }
       if (evt.type === 'utdResults' || evt.type === 'utdTopic') {
         const k = evt.type === 'utdResults' ? 'search' : 'topic';

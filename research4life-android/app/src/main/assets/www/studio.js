@@ -674,8 +674,20 @@ Stay faithful to the document. When a speaker adds general background that isn't
     }
   }
   function discussionVoices() {
-    const voices = D.voiceList().filter((v) => !v.network);
     const v1 = D.ttsPrefs.voice || '';
+    if (v1.startsWith('neural:')) {
+      // Natural voices: Kokoro has several speakers, so pair a contrasting one; otherwise use another downloaded voice.
+      const m = v1.match(/^neural:([^#]+)#(\d+)/);
+      if (m && m[1] === 'kokoro-en') {
+        const female = [0, 1, 2, 3, 4, 7, 8].includes(+m[2]);
+        return [v1, `neural:kokoro-en#${female ? 5 : 3}`];
+      }
+      let packs = [];
+      try { packs = JSON.parse(Native.voiceCatalog?.() || '[]').filter((p) => p.installed); } catch { packs = []; }
+      const other = packs.find((p) => m && p.id !== m[1] && p.lang === 'en');
+      return [v1, other ? `neural:${other.id}#${other.id === 'kokoro-en' ? 5 : 0}` : v1];
+    }
+    const voices = D.voiceList().filter((v) => !v.network);
     let v2 = D.ttsPrefs.voice2 || '';
     if (!v2) {
       const base = voices.find((v) => v.name === v1) || voices[0];
@@ -690,7 +702,7 @@ Stay faithful to the document. When a speaker adds general background that isn't
     'disc-play': () => {
       const d = entryFor(hubState.key).discussion;
       const [v1, v2] = discussionVoices();
-      const lines = d.lines.map((l) => ({ t: l.text, speaker: l.speaker, voice: l.speaker === 'Host' ? v1 : v2, pitch: v2 ? 0 : (l.speaker === 'Host' ? 1.05 : 0.85) }));
+      const lines = d.lines.map((l) => ({ t: l.text, speaker: l.speaker, voice: l.speaker === 'Host' ? v1 : v2, pitch: v2 && v2 !== v1 ? 0 : (l.speaker === 'Host' ? 1.05 : 0.85) }));
       closeSheet(true);
       D.ttsPlayScript('AI Discussion', lines, { title: hubState?.title || D.tts.title });
     },
