@@ -4,7 +4,7 @@
 // the magnet to the user's TorBox or Real-Debrid account to stream it.
 import { getJson, sendJson } from '../lib/http.js';
 import { addons } from '../lib/store.js';
-import { words } from '../lib/match.js';
+import { words, matches, mainTitle } from '../lib/match.js';
 import { infoHash, torboxCached } from './debrid.js';
 
 export const isSourceManifest = (m) => !!(m && typeof m === 'object' && m.id && m.name && m.adapters?.source?.request?.url);
@@ -159,7 +159,9 @@ async function runOnce(addon, { title = '', author = '', query = '' }) {
   if (list?.length && !all.length) throw why(`found ${list.length} result${list.length === 1 ? '' : 's'} but none had a magnet, info-hash or link — check the addon's mapping`);
   // Keep close matches; if the addon's threshold would hide everything, show the best few anyway.
   const close = all.filter((r) => r.score >= Math.min(threshold, 0.9));
-  const results = close.length ? close : all.filter((r) => r.score >= 0.34).slice(0, 8);
+  let results = close.length ? close : all.filter((r) => r.score >= 0.34).slice(0, 8);
+  // From a book page (title and author known), keep only results for that book.
+  if (title && author) results = sameBook(results, title, author);
 
   // Mark results TorBox can stream instantly.
   const instant = await torboxCached(results.map((r) => r.hash));
@@ -169,6 +171,31 @@ async function runOnce(addon, { title = '', author = '', query = '' }) {
   // Only remember searches that found something, so a temporary empty answer isn't sticky.
   if (results.length) cache.set(key, { t: Date.now(), v: results });
   return results;
+}
+
+// Surnames of the book's author(s): "Vivek H. Murthy, Jane Doe" -> ["murthy", "doe"].
+const surnames = (author) =>
+  String(author)
+    .split(/,|&|\band\b|;/)
+    .map((a) => words(a).pop())
+    .filter((w) => w && w.length >= 3);
+
+/**
+ * Results that are really this book: every word of the title must be there, and the author's
+ * name too — except for long, distinctive titles, which match on their own when close enough.
+ * ("Together" by Vivek Murthy no longer brings up "Blake's 7 Together Again".)
+ */
+function sameBook(list, title, author) {
+  const t = mainTitle(title);
+  const names = surnames(author);
+  const long = words(t).length >= 3;
+  return list.filter((r) => {
+    const text = `${r.title} ${r.author || ''} ${r.narrator || ''}`;
+    if (!matches(t, text)) return false;
+    const hay = new Set(words(text));
+    if (names.some((n) => hay.has(n))) return true;
+    return long && r.score >= 0.6;
+  });
 }
 
 /** Search all installed source addons; `onResult(addonName, results, error)` per addon. */
