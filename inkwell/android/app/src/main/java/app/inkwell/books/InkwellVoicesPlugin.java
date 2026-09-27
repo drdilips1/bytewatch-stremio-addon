@@ -6,13 +6,6 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import com.k2fsa.sherpa.onnx.GeneratedAudio;
-import com.k2fsa.sherpa.onnx.OfflineTts;
-import com.k2fsa.sherpa.onnx.OfflineTtsConfig;
-import com.k2fsa.sherpa.onnx.OfflineTtsKittenModelConfig;
-import com.k2fsa.sherpa.onnx.OfflineTtsKokoroModelConfig;
-import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig;
-import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -43,8 +36,6 @@ public class InkwellVoicesPlugin extends Plugin {
         }, "kathava-voice");
         return t;
     });
-    private OfflineTts tts;
-    private String loadedId = null;
 
     private File voicesDir() {
         File d = new File(getContext().getFilesDir(), "voices");
@@ -73,11 +64,7 @@ public class InkwellVoicesPlugin extends Plugin {
     public void remove(PluginCall call) {
         String id = call.getString("id", "");
         synth.execute(() -> {
-            if (id.equals(loadedId) && tts != null) {
-                tts.release();
-                tts = null;
-                loadedId = null;
-            }
+            SherpaVoice.releaseIf(id);
             deleteTree(new File(voicesDir(), id));
             call.resolve();
         });
@@ -202,64 +189,15 @@ public class InkwellVoicesPlugin extends Plugin {
 
     // -------------------------------------------------------------- synthesis
 
-    private OfflineTts load(PluginCall c) throws Exception {
-        String id = c.getString("id", "");
-        if (tts != null && id.equals(loadedId)) return tts;
-        if (tts != null) {
-            tts.release();
-            tts = null;
-            loadedId = null;
-        }
-        File dir = new File(voicesDir(), id);
-        if (!new File(dir, ".ready").exists()) throw new Exception("This voice isn't downloaded yet");
-        String type = c.getString("type", "vits");
-        String model = new File(dir, c.getString("model", "model.onnx")).getAbsolutePath();
-        String tokens = new File(dir, "tokens.txt").getAbsolutePath();
-        File espeak = new File(dir, "espeak-ng-data");
-        String dataDir = espeak.exists() ? espeak.getAbsolutePath() : "";
-
-        OfflineTtsModelConfig mc = new OfflineTtsModelConfig();
-        mc.setNumThreads(Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors())));
-        mc.setProvider("cpu");
-        mc.setDebug(false);
-        if ("kokoro".equals(type)) {
-            OfflineTtsKokoroModelConfig k = new OfflineTtsKokoroModelConfig();
-            k.setModel(model);
-            k.setVoices(new File(dir, "voices.bin").getAbsolutePath());
-            k.setTokens(tokens);
-            k.setDataDir(dataDir);
-            String lexicon = c.getString("lexicon", "");
-            if (lexicon != null && !lexicon.isEmpty()) {
-                StringBuilder sb = new StringBuilder();
-                for (String part : lexicon.split(",")) {
-                    if (sb.length() > 0) sb.append(',');
-                    sb.append(new File(dir, part.trim()).getAbsolutePath());
-                }
-                k.setLexicon(sb.toString());
-            }
-            String lang = c.getString("lang", "");
-            if (lang != null) k.setLang(lang);
-            mc.setKokoro(k);
-        } else if ("kitten".equals(type)) {
-            OfflineTtsKittenModelConfig k = new OfflineTtsKittenModelConfig();
-            k.setModel(model);
-            k.setVoices(new File(dir, "voices.bin").getAbsolutePath());
-            k.setTokens(tokens);
-            k.setDataDir(dataDir);
-            mc.setKitten(k);
-        } else {
-            OfflineTtsVitsModelConfig v = new OfflineTtsVitsModelConfig();
-            v.setModel(model);
-            v.setTokens(tokens);
-            v.setDataDir(dataDir);
-            mc.setVits(v);
-        }
-        OfflineTtsConfig cfg = new OfflineTtsConfig();
-        cfg.setModel(mc);
-        cfg.setMaxNumSentences(2);
-        tts = new OfflineTts(null, cfg);
-        loadedId = id;
-        return tts;
+    private static SherpaVoice.Spec specOf(PluginCall c) {
+        SherpaVoice.Spec s = new SherpaVoice.Spec();
+        s.id = c.getString("id", "");
+        s.type = c.getString("type", "vits");
+        s.model = c.getString("model", "model.onnx");
+        s.lexicon = c.getString("lexicon", "");
+        s.lang = c.getString("lang", "");
+        s.speaker = c.getInt("speaker", 0);
+        return s;
     }
 
     /** Render text to a WAV file in the cache folder; resolves { uri }. */
@@ -279,21 +217,10 @@ public class InkwellVoicesPlugin extends Plugin {
         }
         synth.execute(() -> {
             try {
-                OfflineTts t = load(call);
-                File parent = out.getParentFile();
-                //noinspection ResultOfMethodCallIgnored
-                if (parent != null) parent.mkdirs();
-                int sid = call.getInt("speaker", 0);
-                float speed = call.getFloat("speed", 1f);
-                GeneratedAudio audio = t.generate(call.getString("text", ""), sid, speed);
-                if (audio.getSamples().length == 0) throw new Exception("The voice produced no audio for this text");
-                File tmp = new File(out.getAbsolutePath() + ".tmp");
-                if (!audio.save(tmp.getAbsolutePath())) throw new Exception("Could not save the audio file");
-                //noinspection ResultOfMethodCallIgnored
-                tmp.renameTo(out);
+                double secs = SherpaVoice.render(getContext(), specOf(call), call.getString("text", ""), call.getFloat("speed", 1f), out);
                 JSObject o = new JSObject();
                 o.put("uri", "file://" + out.getAbsolutePath());
-                o.put("seconds", audio.getSamples().length / (double) audio.getSampleRate());
+                o.put("seconds", secs);
                 call.resolve(o);
             } catch (Throwable ex) {
                 call.reject(ex.getMessage() != null ? ex.getMessage() : ex.toString());
@@ -317,11 +244,6 @@ public class InkwellVoicesPlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
-        synth.execute(() -> {
-            if (tts != null) {
-                tts.release();
-                tts = null;
-            }
-        });
+        synth.execute(SherpaVoice::release);
     }
 }

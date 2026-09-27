@@ -2,6 +2,7 @@ import { render } from 'preact';
 import { App } from './app.jsx';
 import './styles.css';
 import { settings, library, progress, cleanLibrary, cleanProgress } from './lib/store.js';
+import { ttsCfg, nativeReader } from './lib/tts.js';
 
 // New look (v2): move everyone onto the pastel Lavender accent once; later choices stick.
 try {
@@ -32,6 +33,15 @@ try {
   const prog = progress.get();
   const cleanProg = cleanProgress(prog);
   if (Object.keys(cleanProg).length !== Object.keys(prog || {}).length) progress.set(cleanProg);
+} catch {}
+
+// Reading aloud: switch to Microsoft's natural voices once (as in Paper to Audio);
+// the offline voice stays as the fallback and can be chosen again in Settings.
+try {
+  if (!localStorage.getItem('inkwell:edgeDefault')) {
+    localStorage.setItem('inkwell:edgeDefault', '1');
+    if (nativeReader) ttsCfg.patch({ mode: 'edge' });
+  }
 } catch {}
 
 render(<App />, document.getElementById('app'));

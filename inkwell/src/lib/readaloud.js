@@ -2,9 +2,74 @@
 // Built-in voices render a few sentences ahead while the current one plays, so
 // there are no gaps; a clip that fails is retried once and then skipped
 // instead of stopping the reading.
-import { speak, stopSpeaking, canPrepare, prepareClip, playClip, splitLong, speakable } from './tts.js';
+import { speak, stopSpeaking, canPrepare, prepareClip, playClip, splitLong, speakable, blockText, nativeReader, Reader, voiceSpec, ttsCfg } from './tts.js';
 
-export function readAloud(elements, from, { onIndex, onDone, onError } = {}) {
+// ---- Android: the native engine reads by itself (screen off, app closed) ----------
+// The reader only hands over the paragraphs and follows along for highlighting.
+
+/** Follow the native engine: calls onIndex when the paragraph changes. Returns a controller. */
+function follow(elements, { onIndex, onDone, onError, onState } = {}) {
+  let last = -1;
+  let alive = true;
+  const handle = Reader.addListener('state', (st) => {
+    if (!alive) return;
+    onState?.(st);
+    if (st.active && st.para !== last && elements[st.para]) {
+      last = st.para;
+      onIndex?.(st.para, elements[st.para]);
+    }
+    if (st.finished) onDone?.();
+    if (st.error && !st.playing && !st.finished) onError?.(new Error(st.error));
+  });
+  const ctl = {
+    native: true,
+    get index() {
+      return Math.max(0, last);
+    },
+    pause: () => Reader.pause().catch(() => {}),
+    resume: () => Reader.resume().catch(() => {}),
+    seek: (i) => Reader.seek({ para: i }).catch(() => {}),
+    setRate: (r) => Reader.setRate({ rate: r }).catch(() => {}),
+    /** Stop reading. */
+    stop() {
+      alive = false;
+      handle.then((h) => h.remove());
+      return Reader.stop().catch(() => {});
+    },
+    /** Stop following (leaving the reader) but keep reading. */
+    detach() {
+      alive = false;
+      handle.then((h) => h.remove());
+    },
+  };
+  return ctl;
+}
+
+function nativeReadAloud(elements, from, handlers, meta) {
+  const paras = elements.map((el) => blockText(el));
+  const chapters = [];
+  elements.forEach((el, i) => /^H[1-3]$/.test(el.tagName) && chapters.push({ para: i, title: speakable(el.textContent).slice(0, 80) }));
+  const ctl = follow(elements, handlers);
+  Reader.start({ uid: meta?.uid || '', title: meta?.title || '', paras, from, chapters, rate: ttsCfg.get().rate || 1, voice: voiceSpec() }).catch((e) => handlers.onError?.(e));
+  return ctl;
+}
+
+/**
+ * If the native engine is already reading this book (e.g. the reader was left and
+ * reopened, or the app was closed), follow it instead of starting over.
+ */
+export async function attachAloud(uid, elements, handlers) {
+  if (!nativeReader) return null;
+  const st = await Reader.status().catch(() => null);
+  if (!st?.active || st.uid !== uid) return null;
+  const ctl = follow(elements, handlers);
+  handlers.onState?.(st);
+  if (elements[st.para]) handlers.onIndex?.(st.para, elements[st.para]);
+  return ctl;
+}
+
+export function readAloud(elements, from, { onIndex, onDone, onError } = {}, meta = {}) {
+  if (nativeReader) return nativeReadAloud(elements, from, { onIndex, onDone, onError }, meta);
   let stopped = false;
   let i = from;
 

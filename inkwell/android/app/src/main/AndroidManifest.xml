@@ -49,6 +49,12 @@
             </intent-filter>
         </service>
 
+        <!-- Reading aloud keeps going with the screen off / app closed -->
+        <service
+            android:name=".ReadAloudService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <!-- Keeps long downloads (voices) going when you leave the app -->
         <service
             android:name=".BackgroundWorkService"

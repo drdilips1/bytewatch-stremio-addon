@@ -13,7 +13,8 @@ const Native = registerPlugin('InkwellTts');
 export const nativeTts = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellTts');
 
 export const ttsCfg = persisted('voice', {
-  mode: 'builtin', // 'builtin' = voices downloaded in the app, 'system' = phone TTS engine
+  mode: 'edge', // 'edge' = Microsoft natural voices (online), 'builtin' = voices downloaded in the app, 'system' = phone TTS engine
+  edgeVoice: 'en-US-AndrewMultilingualNeural',
   builtinId: '', // e.g. 'kokoro-en-v0_19'
   speaker: 0,
   engine: '', // system: '' = phone default
@@ -21,7 +22,42 @@ export const ttsCfg = persisted('voice', {
   rate: 1,
 });
 
-import { builtinAvailable, render, playableUrl, Voices } from './voices.js';
+import { builtinAvailable, render, playableUrl, Voices, byId } from './voices.js';
+
+// ---- the native reading engine (Android): reads by itself, screen off / app closed ----
+export const Reader = registerPlugin('InkwellReadAloud');
+export const nativeReader = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellReadAloud');
+
+/** Microsoft neural voices (online, natural, fast), the same as the Paper to Audio app. */
+export const EDGE_VOICES = [
+  ['en-US-AndrewMultilingualNeural', 'Andrew', 'US · male · warm narrator'],
+  ['en-US-AvaMultilingualNeural', 'Ava', 'US · female · expressive'],
+  ['en-US-EmmaMultilingualNeural', 'Emma', 'US · female · clear'],
+  ['en-US-BrianMultilingualNeural', 'Brian', 'US · male · casual'],
+  ['en-GB-ThomasNeural', 'Thomas', 'British · male'],
+  ['en-GB-SoniaNeural', 'Sonia', 'British · female'],
+  ['en-GB-RyanNeural', 'Ryan', 'British · male'],
+  ['en-US-AriaNeural', 'Aria', 'US · female'],
+  ['en-US-GuyNeural', 'Guy', 'US · male'],
+  ['en-IN-NeerjaNeural', 'Neerja', 'Indian English · female'],
+  ['en-IN-PrabhatNeural', 'Prabhat', 'Indian English · male'],
+  ['en-AU-NatashaNeural', 'Natasha', 'Australian · female'],
+  ['en-AU-WilliamNeural', 'William', 'Australian · male'],
+  ['hi-IN-SwaraNeural', 'Swara', 'Hindi · female'],
+  ['hi-IN-MadhurNeural', 'Madhur', 'Hindi · male'],
+];
+
+/** The voice for the native engine, with its fallbacks (offline voice, then the phone's). */
+export function voiceSpec(c = ttsCfg.get()) {
+  const v = c.builtinId ? byId(c.builtinId) : null;
+  return {
+    engine: c.mode === 'builtin' && !c.builtinId ? 'system' : c.mode || 'edge',
+    edgeVoice: c.edgeVoice || 'en-US-AndrewMultilingualNeural',
+    systemEngine: c.engine || '',
+    systemVoice: c.voice || '',
+    builtin: v ? { id: v.id, type: v.type, model: v.model, lexicon: v.lexicon || '', lang: v.lang || '', speaker: c.speaker || 0 } : null,
+  };
+}
 
 export const usingBuiltin = () => builtinAvailable && ttsCfg.get().mode === 'builtin' && !!ttsCfg.get().builtinId;
 
@@ -164,11 +200,31 @@ export const clearAudioCache = () =>
 // ---- text preparation ------------------------------------------------------
 // Invisible characters (soft hyphens, zero-width spaces) that some ebooks are full
 // of: harmless on screen, but they break words for the voice engine.
-export const speakable = (t) =>
-  String(t || '')
-    .replace(/[\u00AD\u200B-\u200D\u2060\uFEFF]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+// Also the cleanup from Paper to Audio: citation marks like [12], web links, and
+// abbreviations said the way a narrator would.
+const SPOKEN = [
+  [/\be\.g\./gi, 'for example'],
+  [/\bi\.e\./gi, 'that is'],
+  [/\bet al\./gi, 'and colleagues'],
+  [/\bvs\./gi, 'versus'],
+  [/\s?\[\d+(?:[,–-]\s*\d+)*\]/g, ''],
+  [/https?:\/\/\S+|www\.\S+/g, ''],
+  [/ﬁ/g, 'fi'],
+  [/ﬂ/g, 'fl'],
+];
+export const speakable = (t) => {
+  let s = String(t || '').replace(/[\u00AD\u200B-\u200D\u2060\uFEFF]/g, '');
+  for (const [re, to] of SPOKEN) s = s.replace(re, to);
+  return s.replace(/\s+([,.;:])/g, '$1').replace(/\s+/g, ' ').trim();
+};
+
+/** What to read for a block: its text without footnote reference numbers (<sup>). */
+export function blockText(el) {
+  if (!el.querySelector?.('sup')) return speakable(el.textContent);
+  const c = el.cloneNode(true);
+  c.querySelectorAll('sup').forEach((x) => x.remove());
+  return speakable(c.textContent);
+}
 
 const BLOCK_TAGS = new Set('P DIV SECTION ARTICLE BLOCKQUOTE LI UL OL PRE H1 H2 H3 H4 H5 H6 TABLE THEAD TBODY TR TD TH FIGURE FIGCAPTION DL DD DT HR ASIDE HEADER FOOTER NAV MAIN'.split(' '));
 const PARA_TAGS = new Set(['P', 'LI', 'BLOCKQUOTE', 'PRE', 'DD', 'DT', 'TD', 'FIGCAPTION']);

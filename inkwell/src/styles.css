@@ -4461,3 +4461,31 @@ textarea {
   flex: 1;
   line-height: 1.35;
 }
+
+/* Microsoft voices list (Settings → Voices) */
+.voice-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.voice-row.on {
+  border-color: color-mix(in srgb, var(--accent-2) 60%, transparent);
+}
+.voice-row .speaker-pick {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 1px;
+  padding: 6px 4px;
+  text-align: left;
+}
+.voice-row .speaker-pick small {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+}

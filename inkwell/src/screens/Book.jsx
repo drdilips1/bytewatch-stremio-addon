@@ -13,6 +13,7 @@ import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
 import { SourceResults } from '../components/source-results.jsx';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
+import { nativeReader } from '../lib/tts.js';
 import { downloads, canDownload, downloadBook, cancelDownload, removeDownload, fmtBytes } from '../lib/downloads.js';
 import { sourceAddons } from '../sources/sourceaddons.js';
 import * as player from '../lib/player.js';
@@ -148,7 +149,9 @@ export function Book({ book: initial }) {
             class="btn secondary big"
             disabled={listenBusy}
             onClick={async () => {
-              if (!canNarrate()) return nav.push('reader', { book: readBook, readAloud: true });
+              // Android: the native engine reads in the reader (keeps going screen-off);
+              // elsewhere, without a voice set up, read along in the browser.
+              if (nativeReader || !canNarrate()) return nav.push('reader', { book: readBook, readAloud: true });
               setListenBusy(true);
               try {
                 const audio = await narrate(readBook);

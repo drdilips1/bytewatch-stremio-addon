@@ -5,8 +5,8 @@ import { loadStoryShots } from '../sources/summaries.js';
 import { isCloudEbook, loadCloudEbook } from '../lib/epub.js';
 import { progress, settings, summarize, useStore } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
-import { readAloud } from '../lib/readaloud.js';
-import { paragraphs, estimate, textBlocks, isSkippable, skipFrontMatter } from '../lib/tts.js';
+import { readAloud, attachAloud } from '../lib/readaloud.js';
+import { paragraphs, estimate, textBlocks, isSkippable, skipFrontMatter, nativeReader } from '../lib/tts.js';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import * as player from '../lib/player.js';
 import { toast } from '../components/common.jsx';
@@ -45,40 +45,63 @@ export function Reader({ book, readAloud: autoAloud }) {
     return skipFrontMatter() ? list.filter((el) => !isSkippable(el)) : list;
   };
 
+  // Highlight + follow the paragraph being read (from either engine).
+  const lit = useRef(null);
+  const aloudHandlers = () => ({
+    onIndex: (i, el) => {
+      lit.current?.classList.remove('aloud');
+      el.classList.add('aloud');
+      lit.current = el;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setAloud((a) => ({ playing: a?.playing ?? true, index: i }));
+    },
+    // Native engine: pause/play from the notification or lock screen shows here too.
+    onState: (st) => st.active && setAloud((a) => ({ playing: st.playing, index: a?.index ?? st.para })),
+    onDone: () => setAloud((a) => a && { ...a, playing: false }),
+    onError: (e) => {
+      toast('Voice unavailable: ' + (e?.message || e));
+      setAloud((a) => a && { ...a, playing: false });
+    },
+  });
+
   const startAloud = (from) => {
-    ctl.current?.stop();
     const els = speakBlocks();
     if (!els.length) return;
     // start at the first paragraph visible on screen
     if (from == null) from = Math.max(0, firstVisible(els));
+    from = Math.min(Math.max(0, from), els.length - 1);
+    // Native engine already reading this book: just move.
+    if (ctl.current?.native) {
+      ctl.current.seek(from);
+      ctl.current.resume();
+      setAloud({ playing: true, index: from });
+      return;
+    }
+    ctl.current?.stop();
     player.pause();
     setAloud({ playing: true, index: from });
-    let lit = null;
-    ctl.current = readAloud(els, from, {
-      onIndex: (i, el) => {
-        lit?.classList.remove('aloud');
-        el.classList.add('aloud');
-        lit = el;
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setAloud({ playing: true, index: i });
-      },
-      onDone: () => setAloud((a) => a && { ...a, playing: false }),
-      onError: (e) => {
-        toast('Phone voice unavailable: ' + (e?.message || e));
-        setAloud(null);
-      },
-    });
+    ctl.current = readAloud(els, from, aloudHandlers(), { uid: book.uid, title: book.title });
   };
   const pauseAloud = () => {
-    ctl.current?.stop();
+    if (ctl.current?.native) ctl.current.pause();
+    else ctl.current?.stop();
     setAloud((a) => a && { ...a, playing: false });
+  };
+  const playAloud = (i) => {
+    if (ctl.current?.native) {
+      ctl.current.resume();
+      setAloud((a) => a && { ...a, playing: true });
+    } else startAloud(i);
   };
   const closeAloud = () => {
     ctl.current?.stop();
+    ctl.current = null;
     scroller.current?.querySelectorAll('.aloud').forEach((x) => x.classList.remove('aloud'));
     setAloud(null);
   };
-  useEffect(() => () => ctl.current?.stop(), []);
+  // Leaving the reader: the native engine keeps reading (notification controls);
+  // the in-page reader stops.
+  useEffect(() => () => (ctl.current?.native ? ctl.current.detach() : ctl.current?.stop()), []);
 
   const listenAsAudiobook = async () => {
     setAiBusy('book');
@@ -104,7 +127,13 @@ export function Reader({ book, readAloud: autoAloud }) {
   }, [book.uid]);
 
   useEffect(() => {
-    if (doc && autoAloud) setTimeout(() => startAloud(), 600);
+    if (!doc) return;
+    // Already being read aloud (reader reopened / app came back): follow along.
+    setTimeout(async () => {
+      const attached = await attachAloud(book.uid, speakBlocks(), aloudHandlers());
+      if (attached) ctl.current = attached;
+      else if (autoAloud) startAloud();
+    }, 400);
     // Opening a book puts it on the shelf (Library → Ebooks, Continue on Home) right away.
     if (doc && !progress.get()[book.uid])
       progress.set((all) => ({ ...all, [book.uid]: { kind: 'text', percent: 0, anchor: 0, finished: false, updatedAt: Date.now(), book: summarize(book) } }));
@@ -113,6 +142,7 @@ export function Reader({ book, readAloud: autoAloud }) {
   // The first of `list` at the top of the screen. Binary search: blocks are in page
   // order, and measuring every one would lay out the whole book.
   const firstVisible = (list) => {
+    if (!scroller.current) return -1; // reader already closed
     const top = scroller.current.getBoundingClientRect().top + 60;
     let lo = 0;
     let hi = list.length - 1;
@@ -152,7 +182,7 @@ export function Reader({ book, readAloud: autoAloud }) {
       t = setTimeout(() => {
         progress.set((all) => ({
           ...all,
-          [book.uid]: { kind: 'text', percent: p, anchor: topBlock(), finished: p > 0.985, updatedAt: Date.now(), book: summarize(book) },
+          [book.uid]: { kind: 'text', percent: p, anchor: topBlock() >= 0 ? topBlock() : all[book.uid]?.anchor ?? 0, finished: p > 0.985, updatedAt: Date.now(), book: summarize(book) },
         }));
       }, 600);
     };
@@ -231,7 +261,7 @@ export function Reader({ book, readAloud: autoAloud }) {
       {panel === 'listen' && doc && (
         <div class="reader-panel">
           <h3>Listen to this book</h3>
-          {canNarrate() && (
+          {canNarrate() && !nativeReader && (
             <button class="listen-opt ai" disabled={!!aiBusy} onClick={listenAsAudiobook}>
               {aiBusy ? <span class="spinner" /> : <Icon name="headphones" size={18} />}
               <div>
@@ -255,8 +285,12 @@ export function Reader({ book, readAloud: autoAloud }) {
           >
             <Icon name="book" size={18} />
             <div>
-              <b>Read along here</b>
-              <small>Highlights each paragraph as it's spoken · tap any paragraph to jump</small>
+              <b>{nativeReader ? 'Listen' : 'Read along here'}</b>
+              <small>
+                {nativeReader
+                  ? 'Natural voice · keeps going with the screen off or the app closed · highlights as it reads'
+                  : "Highlights each paragraph as it's spoken · tap any paragraph to jump"}
+              </small>
             </div>
           </button>
           <p class="muted small-note">Choose or download a voice in Settings → Voices.</p>
@@ -267,13 +301,13 @@ export function Reader({ book, readAloud: autoAloud }) {
           <button class="icon-btn" onClick={() => startAloud(Math.max(0, aloud.index - 1))} aria-label="Previous paragraph">
             <Icon name="prev" size={20} />
           </button>
-          <button class="play-btn small" onClick={() => (aloud.playing ? pauseAloud() : startAloud(aloud.index))} aria-label={aloud.playing ? 'Pause' : 'Play'}>
+          <button class="play-btn small" onClick={() => (aloud.playing ? pauseAloud() : playAloud(aloud.index))} aria-label={aloud.playing ? 'Pause' : 'Play'}>
             <Icon name={aloud.playing ? 'pause' : 'play'} size={20} />
           </button>
           <button class="icon-btn" onClick={() => startAloud(aloud.index + 1)} aria-label="Next paragraph">
             <Icon name="next" size={20} />
           </button>
-          <span class="aloud-label">Reading along · tap any paragraph to jump</span>
+          <span class="aloud-label">{nativeReader ? 'Keeps reading with the screen off · tap a paragraph to jump' : 'Reading along · tap any paragraph to jump'}</span>
           <button class="icon-btn" onClick={closeAloud} aria-label="Stop reading aloud">
             <Icon name="close" size={18} />
           </button>

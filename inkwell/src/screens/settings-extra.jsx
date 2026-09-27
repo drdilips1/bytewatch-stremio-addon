@@ -3,7 +3,7 @@ import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/common.jsx';
 import { useStore } from '../lib/store.js';
 import * as sync from '../lib/sync.js';
-import { ttsCfg, engines as listEngines, voices as listVoices, speak, stopSpeaking, clearAudioCache, qualityLabel, RECOMMENDED } from '../lib/tts.js';
+import { ttsCfg, engines as listEngines, voices as listVoices, speak, stopSpeaking, clearAudioCache, qualityLabel, RECOMMENDED, nativeReader, Reader, EDGE_VOICES, voiceSpec } from '../lib/tts.js';
 import { CATALOG, builtinAvailable, installedIds, download as downloadVoice, remove as removeVoice, activeDownload, follow as followDownload } from '../lib/voices.js';
 import { downloads, canDownload, removeDownload, publicAvailable, fmtBytes } from '../lib/downloads.js';
 import { settings } from '../lib/store.js';
@@ -382,25 +382,81 @@ function BuiltinVoices() {
   );
 }
 
+/** Microsoft natural voices (online): pick one, hear a preview. */
+function EdgeVoices() {
+  const c = useStore(ttsCfg);
+  const [previewing, setPreviewing] = useState('');
+  const preview = async (id) => {
+    if (previewing === id) {
+      Reader.stop().catch(() => {});
+      return setPreviewing('');
+    }
+    setPreviewing(id);
+    try {
+      await Reader.start({ uid: 'voice-preview', title: 'Voice preview', paras: [SAMPLE], from: 0, rate: c.rate || 1, voice: { ...voiceSpec(), engine: 'edge', edgeVoice: id } });
+      const h = await Reader.addListener('state', (st) => {
+        if (st.uid !== 'voice-preview' || st.finished || !st.active || (!st.playing && st.error)) {
+          if (st.error) toast(st.error);
+          setPreviewing('');
+          h.remove();
+        }
+      });
+    } catch (e) {
+      toast(e.message);
+      setPreviewing('');
+    }
+  };
+  return (
+    <>
+      <p class="muted small pad-s">
+        Very natural and quick to start — they need internet. Without internet, reading switches to your downloaded voice (or the phone's). Free; the text being read is sent to Microsoft to
+        be spoken.
+      </p>
+      <div class="voice-list">
+        {EDGE_VOICES.map(([id, name, what]) => {
+          const on = c.mode === 'edge' && (c.edgeVoice || EDGE_VOICES[0][0]) === id;
+          return (
+            <div class={'voice-row' + (on ? ' on' : '')}>
+              <button class="speaker-pick" onClick={() => ttsCfg.patch({ mode: 'edge', edgeVoice: id })}>
+                <b>{name}</b>
+                <small>{what}</small>
+              </button>
+              {on && <span class="ok-dot">In use</span>}
+              <button class="icon-btn" aria-label={`Preview ${name}`} onClick={() => preview(id)}>
+                <Icon name={previewing === id ? 'pause' : 'play'} size={16} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 export function VoicesCard() {
   const c = useStore(ttsCfg);
-  const tab = builtinAvailable && c.mode !== 'system' ? 'builtin' : builtinAvailable ? 'system' : 'system';
+  const tab = nativeReader && (c.mode === 'edge' || !c.mode) ? 'edge' : builtinAvailable && c.mode !== 'system' ? 'builtin' : 'system';
   return (
     <>
       <p class="muted pad-s">
-        Free voices that turn any ebook into an audiobook — download one here, it then works offline. Tap <b>Listen</b> on an ebook to use it.
+        Voices that read your ebooks aloud. Tap <b>Listen</b> on an ebook to use them; on Android reading keeps going with the screen off.
       </p>
       {builtinAvailable && (
         <div class="segmented tight">
+          {nativeReader && (
+            <button type="button" class={tab === 'edge' ? 'on' : ''} onClick={() => ttsCfg.patch({ mode: 'edge' })}>
+              Microsoft
+            </button>
+          )}
           <button type="button" class={tab === 'builtin' ? 'on' : ''} onClick={() => ttsCfg.patch({ mode: 'builtin' })}>
-            Built-in voices
+            Offline voices
           </button>
           <button type="button" class={tab === 'system' ? 'on' : ''} onClick={() => ttsCfg.patch({ mode: 'system' })}>
             Phone voices
           </button>
         </div>
       )}
-      {tab === 'builtin' ? <BuiltinVoices /> : <SystemVoices />}
+      {tab === 'edge' ? <EdgeVoices /> : tab === 'builtin' ? <BuiltinVoices /> : <SystemVoices />}
       <div class="set-row">
         <b>Generated audio</b>
         <button

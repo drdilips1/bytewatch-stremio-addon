@@ -14,6 +14,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(InkwellTranscribePlugin.class);
         registerPlugin(InkwellWebPlugin.class);
         registerPlugin(InkwellUpdatePlugin.class);
+        registerPlugin(InkwellReadAloudPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
