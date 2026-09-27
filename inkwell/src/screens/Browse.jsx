@@ -176,7 +176,7 @@ export function Browse({ genre }) {
               </>
             )}
             {items.loadingMine && (
-              <p class="muted pad loading-line">
+              <p class="muted pad browse-loading">
                 <span class="spinner small" /> Checking your server and libraries…
               </p>
             )}

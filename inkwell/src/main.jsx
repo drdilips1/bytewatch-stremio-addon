@@ -4,9 +4,9 @@ import './styles.css';
 import { settings, library, progress, cleanLibrary, cleanProgress } from './lib/store.js';
 import { ttsCfg, nativeReader } from './lib/tts.js';
 
-// New look (v2): move everyone onto the pastel Lavender accent once; later choices stick.
+// Audiohub look (v3): everyone moves onto the brand accent and Aurora theme once; later choices stick.
 try {
-  if ((settings.get().themeV || 0) < 2) settings.set((s) => ({ ...s, accent: 'lavender', themeV: 2 }));
+  if ((settings.get().themeV || 0) < 3) settings.set((s) => ({ ...s, accent: 'audiohub', palette: s.mode === 'light' ? 'default' : 'aurora', themeV: 3 }));
 } catch {}
 
 // Libby was removed: forget its saved sign-in and library links.

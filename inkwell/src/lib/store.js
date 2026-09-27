@@ -78,7 +78,10 @@ export function useStoreKey(store, key) {
 
 export const settings = persisted('settings', {
   mode: 'dark', // dark | light | amoled
-  accent: 'lavender',
+  accent: 'audiohub',
+  palette: 'default', // colour theme (see PALETTES in theme.js)
+  playerBg: 'cover', // cover | living | plain | photo | wall:<name>
+  playerDim: 0.45, // how much the player background is darkened (0–0.8)
   dynamicColor: true,
   skipBack: 15,
   skipForward: 30,

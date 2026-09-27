@@ -7,7 +7,8 @@ import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay } from '../lib
 import { searchSources, sourceAddons } from '../sources/sourceaddons.js';
 import { ai, PROVIDERS as AI_PROVIDERS, testProvider } from '../lib/ai.js';
 import relayCode from '../../relay/index.ts?raw';
-import { ACCENTS } from '../lib/theme.js';
+import { ACCENTS, PALETTES } from '../lib/theme.js';
+import { WALLPAPERS, wallpaperUrl, saveCustom, useCustomWallpaper } from '../lib/wallpaper.js';
 import { APP_VERSION } from '../components/update.jsx';
 import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
 import { AccountCard, VoicesCard, DownloadsCard } from './settings-extra.jsx';
@@ -1076,12 +1077,29 @@ export function Settings() {
             ))}
           </div>
         </div>
+        {st.mode !== 'amoled' && (
+          <div class="set-row column">
+            <b>Theme</b>
+            <div class="palette-grid">
+              {PALETTES.filter((p) => p.light === (st.mode === 'light')).map((p) => (
+                <button
+                  class={'palette' + ((st.palette || 'default') === p.id ? ' active' : '')}
+                  style={{ background: `linear-gradient(160deg, ${p.swatch[0]} 45%, ${p.swatch[1]})`, color: p.light ? '#1b1b1f' : '#f1eef8' }}
+                  onClick={() => settings.patch({ palette: p.id })}
+                >
+                  <span class="palette-dot" />
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div class="set-row column">
           <b>Accent</b>
           <div class="accent-grid">
             {Object.entries(ACCENTS).map(([k, a]) => (
               <button
-                class={'accent' + ((ACCENTS[st.accent] ? st.accent : 'champagne') === k ? ' active' : '')}
+                class={'accent' + ((ACCENTS[st.accent] ? st.accent : 'audiohub') === k ? ' active' : '')}
                 style={{ background: `linear-gradient(135deg, ${a.a}, ${a.b})` }}
                 onClick={() => settings.patch({ accent: k })}
                 aria-label={a.name}
@@ -1092,6 +1110,7 @@ export function Settings() {
           </div>
         </div>
         <Toggle label="Dynamic colour" hint="Tint the player and book pages from the cover art" on={st.dynamicColor} onChange={(v) => settings.patch({ dynamicColor: v })} />
+        <PlayerBackgroundPicker st={st} />
       </Section>
 
       <Section icon="headphones" title="Playback">
@@ -1237,5 +1256,71 @@ function KindleCard() {
         </button>
       </form>
     </>
+  );
+}
+
+/** Settings → Appearance: what's behind the full-screen player. */
+function PlayerBackgroundPicker({ st }) {
+  const cur = st.playerBg || 'cover';
+  const custom = useCustomWallpaper(true);
+  const pick = (v) => settings.patch({ playerBg: v });
+  const tiles = [
+    ['cover', 'Cover art', null, 'fx-cover'],
+    ['living', 'Living colour', null, 'fx-living'],
+    ['plain', 'Plain', null, 'fx-plain'],
+    ...WALLPAPERS.map(([id, name]) => [`wall:${id}`, name, wallpaperUrl(id, true)]),
+  ];
+  return (
+    <div class="set-row column">
+      <div>
+        <b>Player background</b>
+        <small>Behind the full-screen player</small>
+      </div>
+      <div class="wall-grid">
+        {tiles.map(([v, name, img, fx]) => (
+          <button class={'wall-tile' + (cur === v ? ' active' : '') + (fx ? ' ' + fx : '')} onClick={() => pick(v)} aria-label={name}>
+            {img && <img src={img} alt="" loading="lazy" />}
+            <span>{name}</span>
+          </button>
+        ))}
+        <label class={'wall-tile photo' + (cur === 'photo' ? ' active' : '')}>
+          {custom ? <img src={custom} alt="" /> : <Icon name="plus" size={22} />}
+          <span>{custom ? 'Your photo' : 'Add photo'}</span>
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={async (e) => {
+              const f = e.currentTarget.files?.[0];
+              if (!f) return;
+              try {
+                await saveCustom(f);
+                pick('photo');
+                toast('Your photo is the player background now');
+              } catch (err) {
+                toast("Couldn't use that picture: " + err.message);
+              }
+            }}
+          />
+          {custom && cur !== 'photo' && (
+            <button
+              class="wall-use"
+              onClick={(e) => {
+                e.preventDefault();
+                pick('photo');
+              }}
+            >
+              Use
+            </button>
+          )}
+        </label>
+      </div>
+      {(cur.startsWith('wall:') || cur === 'photo') && (
+        <div class="dim-row">
+          <small>Darken</small>
+          <input type="range" min="0" max="0.8" step="0.05" value={st.playerDim ?? 0.45} onInput={(e) => settings.patch({ playerDim: +e.currentTarget.value })} />
+        </div>
+      )}
+    </div>
   );
 }

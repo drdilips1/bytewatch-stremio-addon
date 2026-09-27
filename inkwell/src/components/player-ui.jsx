@@ -1,4 +1,5 @@
 import { BgImage } from './bg-image.jsx';
+import { wallpaperUrl, useCustomWallpaper } from '../lib/wallpaper.js';
 import { loadImage } from '../lib/image.js';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import * as player from '../lib/player.js';
@@ -158,9 +159,7 @@ export function FullPlayer() {
         setDrag(0);
       }}
     >
-      <div class="fp-bg">
-        {s.book.cover && <BgImage url={s.book.cover} />}
-      </div>
+      <PlayerBackground book={s.book} st={st} />
       <header class="fp-top">
         <button class="icon-btn" onClick={() => nav.closeOverlay()} aria-label="Close player">
           <Icon name="down" />
@@ -455,4 +454,31 @@ export function Waveform({ playing }) {
       <i />
     </span>
   );
+}
+
+/** The full player's backdrop, as chosen in Settings → Appearance. */
+function PlayerBackground({ book, st }) {
+  const kind = st.playerBg || 'cover';
+  const custom = useCustomWallpaper(kind === 'photo');
+  const dim = Math.max(0, Math.min(0.85, st.playerDim ?? 0.45));
+  const wall = kind.startsWith('wall:') ? wallpaperUrl(kind.slice(5)) : kind === 'photo' ? custom : '';
+  if (wall) {
+    return (
+      <div class="fp-bg fp-wall">
+        <img src={wall} alt="" />
+        <div class="fp-dim" style={{ background: `rgba(4, 3, 10, ${dim})` }} />
+      </div>
+    );
+  }
+  if (kind === 'living') {
+    return (
+      <div class="fp-bg fp-living">
+        <span />
+        <span />
+        <span />
+      </div>
+    );
+  }
+  if (kind === 'plain') return <div class="fp-bg fp-plain" />;
+  return <div class="fp-bg">{book.cover && <BgImage url={book.cover} />}</div>;
 }
