@@ -209,10 +209,15 @@ function Hero() {
     const shown = new Set((heroCache.get().items || []).map((b) => b.uid));
     let alive = true;
     let pending = sources.length;
+    let lastIds = '';
     const publish = () => {
       const picks = roundRobin(groups);
       if (!alive) return;
       if (picks.length) {
+        // Same books as already shown: leave the banner (and its timer) alone.
+        const ids = picks.map((b) => b.uid).join('|');
+        if (ids === lastIds) return;
+        lastIds = ids;
         setItems(picks);
         heroCache.set({ items: picks });
       } else if (!pending) {
@@ -239,11 +244,13 @@ function Hero() {
     });
     return () => (alive = false);
   }, []);
+  // One steady timer: books arriving from slower services don't restart it.
+  const count = useRef(0);
+  count.current = items?.length || 0;
   useEffect(() => {
-    if (!items?.length) return;
-    const t = setInterval(() => setI((x) => (x + 1) % items.length), 7000);
+    const t = setInterval(() => count.current && setI((x) => (x + 1) % count.current), 7000);
     return () => clearInterval(t);
-  }, [items, paused]);
+  }, [paused]);
   if (!items) return <section class="feature shimmer" />;
   // Nothing to feature: keep room for the floating header.
   if (!items.length) return <div class="feature-spacer" />;

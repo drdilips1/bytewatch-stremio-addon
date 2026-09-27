@@ -2,8 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
 import { searchSources, sourceAddons, fmtSize } from '../sources/sourceaddons.js';
-import { cloud, getDetails, absSrc } from '../sources/index.js';
-import { addLink } from '../sources/debrid.js';
+import { cloud, getDetails } from '../sources/index.js';
 import { settings, useStore, debrid } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import * as player from '../lib/player.js';
@@ -284,23 +283,6 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
       setBusy(null);
     }
   };
-  // Direct ebook links can also go to your TorBox (web download) or your Audiobookshelf ebooks library.
-  const keepDirect = async (where) => {
-    setBusy(where);
-    if (where === 'abs') setStatus({ text: 'Downloading, then adding to Audiobookshelf…', pct: null });
-    try {
-      toast(
-        where === 'tb'
-          ? await addLink('torbox', r.link)
-          : await absSrc.uploadEbook({ url: r.link, name: ebook.name, title: book?.title || r.title, author: book?.author || r.author || '' })
-      );
-    } catch (e) {
-      toast(e.message);
-    } finally {
-      setStatus(null);
-      setBusy(null);
-    }
-  };
   const home = hasMagnet && qb.available && qb.configured();
   const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
   const trackerFilter = trackerSite ? qb.trackerFilterLabel() : '';
@@ -378,28 +360,6 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
           <button class="link-btn" onClick={() => cancel(waiting.hash)}>
             Cancel
           </button>
-        </div>
-      )}
-      {ebook && (cloud.tbConnected() || absSrc.connected()) && (
-        <div class="src-services">
-          {cloud.tbConnected() && (
-            <div class="svc">
-              <b>TorBox</b>
-              <span>keep a copy in your cloud</span>
-              <button class="pill small" disabled={!!busy} onClick={() => keepDirect('tb')} aria-label="Add to TorBox">
-                {busy === 'tb' ? <span class="spinner small" /> : <Icon name="plus" size={14} />} TorBox
-              </button>
-            </div>
-          )}
-          {absSrc.connected() && (
-            <div class="svc">
-              <b>Home server</b>
-              <span>Audiobookshelf ebooks</span>
-              <button class="pill small" disabled={!!busy} onClick={() => keepDirect('abs')} aria-label="Add to your Audiobookshelf ebooks library">
-                {busy === 'abs' ? <span class="spinner small" /> : <Icon name="plus" size={14} />} Server
-              </button>
-            </div>
-          )}
         </div>
       )}
       {dead && <div class="src-warn">No seeders — your debrid service may never finish downloading this one.</div>}

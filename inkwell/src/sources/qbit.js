@@ -172,10 +172,23 @@ function torrentIsEbook(bytes) {
   t = t.toLowerCase();
   return !/\.(m4b|m4a|mp3|flac|aac|ogg|opus|wma|aax)\b/.test(t) && /\.(epub|pdf|mobi|azw3?|kfx|fb2|djvu|cbz|cbr)\b/.test(t);
 }
-/** Where a download goes: ebooks to the ebooks folder when one is set, the rest to the audiobook folder. */
-function folderFor(ebook) {
+/**
+ * The ebooks folder: the one you set, or else an "Ebooks" folder next to the audiobook
+ * folder on the same drive (/audiobooks -> /ebooks, /Volumes/My Book/Audiobooks -> /Volumes/My Book/Ebooks).
+ */
+export function ebookFolder() {
   const { savePath, ebookPath } = qbit.get();
-  return ebook && ebookPath ? ebookPath : savePath;
+  if (String(ebookPath || '').trim()) return ebookPath.trim();
+  const p = String(savePath || '').trim().replace(/[\\/]+$/, '');
+  const m = /^(.*[\\/])([^\\/]+)$/.exec(p);
+  if (!m) return '';
+  const name = m[2];
+  const sibling = /^[A-Z]/.test(name) ? (name === name.toUpperCase() ? 'EBOOKS' : 'Ebooks') : 'ebooks';
+  return m[1] + sibling;
+}
+/** Where a download goes: ebooks to the ebooks folder, the rest to the audiobook folder. */
+function folderFor(ebook) {
+  return (ebook && ebookFolder()) || qbit.get().savePath;
 }
 
 /** Add one cloud item (needs its info-hash) to qBittorrent. */
@@ -484,7 +497,7 @@ export async function openTracker(query = '', filtered = false, ebook = false) {
   if (!canBrowse) return window.open(url, '_blank');
   // The browser screen sends captured downloads itself (the app is paused behind it).
   const c = qbit.get();
-  const qb = JSON.stringify({ url: await pickAddress(true), apiKey: c.apiKey || '', username: c.username || '', password: c.password || '', savePath: c.savePath || '', ebookPath: c.ebookPath || '', category: c.category || '', trackers: TRACKERS });
+  const qb = JSON.stringify({ url: await pickAddress(true), apiKey: c.apiKey || '', username: c.username || '', password: c.password || '', savePath: c.savePath || '', ebookPath: ebookFolder(), category: c.category || '', trackers: TRACKERS });
   return Web.open({ url: /^https?:\/\//i.test(url) ? url : 'https://' + url, title: '', capture: true, qbit: qb });
 }
 

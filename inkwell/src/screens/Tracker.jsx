@@ -47,7 +47,7 @@ export function TrackerCard() {
       <div class="set-row">
         <div>
           <b>{name}</b>
-          <small>Downloads you tap there go to qBittorrent — ebooks to the ebooks folder if you set one.</small>
+          <small>Downloads you tap there go to qBittorrent — ebooks to your ebooks folder.</small>
         </div>
         <button class="pill small" onClick={() => qb.openTracker().catch((e) => toast(e.message))}>
           <Icon name="external" size={14} /> Open

@@ -369,8 +369,8 @@ function QbitCard() {
         <input value={form.password} type="password" placeholder="Web UI password" autocomplete="current-password" onInput={set('password')} />
         <input value={form.apiKey} placeholder="Or API key (qBittorrent 5.2+, starts with qbt_)" autocapitalize="off" autocomplete="off" onInput={set('apiKey')} />
         <input value={form.savePath} placeholder="Save to (your Audiobookshelf folder, e.g. /audiobooks)" autocapitalize="off" onInput={set('savePath')} />
-        <input value={form.ebookPath} placeholder="Ebooks to (optional, e.g. /ebooks)" autocapitalize="off" onInput={set('ebookPath')} />
-        <small class="muted qbit-hint">Ebook torrents (EPUB, PDF, MOBI… and no audio files) go here instead of the audiobook folder. Leave empty to keep everything in one folder.</small>
+        <input value={form.ebookPath} placeholder={`Ebooks to${qb.ebookFolder() ? ` (default ${qb.ebookFolder()})` : ', e.g. /ebooks'}`} autocapitalize="off" onInput={set('ebookPath')} />
+        <small class="muted qbit-hint">Ebook torrents (EPUB, PDF, MOBI… with no audio files) go to this folder, not the audiobook folder. Left empty, they go to an Ebooks folder next to your audiobook folder.</small>
         <input value={form.category} placeholder="Category (optional)" autocapitalize="off" onInput={set('category')} />
         <button class="btn primary" disabled={!!busy || !(form.url.trim() || form.lanUrl.trim())}>
           {busy === 'test' ? <span class="spinner small" /> : 'Save & test'}
@@ -493,7 +493,7 @@ function AbsCard() {
         <div class="set-row">
           <div>
             <b>Ebooks library</b>
-            <small>Its ebooks show in the app too (Read, Kindle); ebook links from source results can be added to it.</small>
+            <small>Optional: a library of ebooks on your server to show in the app too (Read, Kindle).</small>
           </div>
           {libs ? (
             <select value={cfg.ebookLibraryId || ''} onChange={(e) => abs.patch({ ebookLibraryId: e.currentTarget.value })}>
