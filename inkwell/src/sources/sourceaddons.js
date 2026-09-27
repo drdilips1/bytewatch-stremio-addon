@@ -95,7 +95,9 @@ async function run(addon, params) {
       } catch (e) {
         lastErr = e;
         if (e.final || /too many searches/.test(e.message)) throw e;
-        await new Promise((res) => setTimeout(res, 1500));
+        // A slow site gets no second go (that doubled the wait); a dropped connection does.
+        if (e.timeout || retry) break;
+        await new Promise((res) => setTimeout(res, 800));
       }
     }
   }
@@ -115,7 +117,7 @@ async function runOnce(addon, { title = '', author = '', query = '' }) {
   const method = (req.method || 'GET').toUpperCase();
   const url = fill(req.url, vars, true);
   const headers = req.headers || {};
-  const timeout = req.timeout || 30000;
+  const timeout = req.timeout || 20000;
   const data =
     method === 'GET'
       ? await getJson(url, { headers, timeout, fresh: true })
@@ -162,10 +164,6 @@ async function runOnce(addon, { title = '', author = '', query = '' }) {
   let results = close.length ? close : all.filter((r) => r.score >= 0.34).slice(0, 8);
   // From a book page (title and author known), keep only results for that book.
   if (title && author) results = sameBook(results, title, author);
-
-  // Mark results TorBox can stream instantly.
-  const instant = await torboxCached(results.map((r) => r.hash));
-  results.forEach((r) => instant.has(r.hash) && (r.cache = { ...r.cache, torbox: true, any: true }));
 
   results.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || Number(b.seeders > 0) - Number(a.seeders > 0) || b.score - a.score || b.seeders - a.seeders);
   // Only remember searches that found something, so a temporary empty answer isn't sticky.
@@ -225,8 +223,20 @@ export function searchSources(params, onResult) {
   return Promise.all(
     sourceAddons().map((a) =>
       run(a, params)
-        .then((r) => onResult(a.manifest.name, r, null))
+        .then((r) => {
+          // Show results straight away; which ones TorBox can stream instantly is filled in after.
+          onResult(a.manifest.name, r, null);
+          return markInstant(r).then((marked) => marked && onResult(a.manifest.name, marked, null));
+        })
         .catch((e) => onResult(a.manifest.name, [], e))
     )
   );
+}
+
+/** The results again with TorBox's instant (cached) ones marked and moved up, or null if none. */
+async function markInstant(results) {
+  const instant = await Promise.race([torboxCached(results.map((r) => r.hash)), new Promise((r) => setTimeout(() => r(new Set()), 8000))]);
+  if (!instant.size) return null;
+  const out = results.map((r) => (instant.has(r.hash) ? { ...r, cache: { ...r.cache, torbox: true, any: true } } : r));
+  return out.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || Number(b.seeders > 0) - Number(a.seeders > 0) || b.score - a.score || b.seeders - a.seeders);
 }
