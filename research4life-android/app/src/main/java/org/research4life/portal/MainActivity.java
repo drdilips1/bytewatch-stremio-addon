@@ -57,7 +57,6 @@ public class MainActivity extends Activity {
     private FrameLayout fetchLayer;
     private PdfFetcher fetcher;
     private Narrator narrator;
-    private static final String AI = "claude";
     private LlmProvider llm;
     private String llmModel;
     /** Things shared into the app before the web app was ready to hear about them. */
@@ -555,33 +554,75 @@ public class MainActivity extends Activity {
             R4LSession.removeAccount(MainActivity.this, provider, user);
         }
 
-        // ---- AI summaries (Claude, with the user's own API key)
+        // ---- AI (Groq or Claude, with the user's own API key)
+
+        private String provider() {
+            return getSharedPreferences("ai", MODE_PRIVATE).getString("provider", "groq");
+        }
+
+        private String defaultModel(String provider) {
+            return "claude".equals(provider) ? ClaudeProvider.DEFAULT_MODEL : GroqProvider.DEFAULT_MODEL;
+        }
+
+        @JavascriptInterface
+        public String aiProvider() {
+            return provider();
+        }
+
+        @JavascriptInterface
+        public void aiSetProvider(String p) {
+            getSharedPreferences("ai", MODE_PRIVATE).edit().putString("provider", "claude".equals(p) ? "claude" : "groq").apply();
+            synchronized (MainActivity.this) { llm = null; }
+        }
 
         @JavascriptInterface
         public boolean aiHasKey() {
-            return R4LSession.hasCredentials(MainActivity.this, AI);
+            return R4LSession.hasCredentials(MainActivity.this, provider());
         }
 
+        @JavascriptInterface
+        public boolean aiHasKeyFor(String p) {
+            return R4LSession.hasCredentials(MainActivity.this, "claude".equals(p) ? "claude" : "groq");
+        }
+
+        /** Saves a key for the provider it belongs to (gsk_… Groq, sk-ant-… Claude) and makes that provider active. */
         @JavascriptInterface
         public void aiSetKey(String key) {
             String k = key == null ? "" : key.trim();
             synchronized (MainActivity.this) { llm = null; }
-            if (k.isEmpty()) R4LSession.forget(MainActivity.this, AI);
-            else R4LSession.saveCredentials(MainActivity.this, AI, "api", k);
+            if (k.isEmpty()) { R4LSession.forget(MainActivity.this, provider()); return; }
+            String p = k.startsWith("sk-ant-") ? "claude" : "groq";
+            R4LSession.saveCredentials(MainActivity.this, p, "api", k);
+            aiSetProvider(p);
         }
 
         @JavascriptInterface
         public String aiModel() {
-            return getSharedPreferences("ai", MODE_PRIVATE).getString("model", ClaudeProvider.DEFAULT_MODEL);
+            String p = provider();
+            return getSharedPreferences("ai", MODE_PRIVATE).getString("model." + p, defaultModel(p));
         }
 
         @JavascriptInterface
         public void aiSetModel(String model) {
-            getSharedPreferences("ai", MODE_PRIVATE).edit().putString("model", model).apply();
+            getSharedPreferences("ai", MODE_PRIVATE).edit().putString("model." + provider(), model).apply();
             synchronized (MainActivity.this) { llm = null; }
         }
 
-        /** Tokens used per month and model, for the usage panel: {"2026-09": {"claude-opus-5": [in, out, cached, calls]}}. */
+        /** Models the Groq key can use; answers with an "aiModels" event. */
+        @JavascriptInterface
+        public void aiListModels() {
+            io.execute(() -> {
+                try {
+                    String key = R4LSession.password(MainActivity.this, "groq");
+                    if (key == null || key.isEmpty()) throw new LlmProvider.AiException("No Groq key");
+                    emit(event("aiModels", "models", new org.json.JSONArray(new GroqProvider(key, null).listModels())));
+                } catch (Exception e) {
+                    emit(event("aiModels", "error", e.getMessage()));
+                }
+            });
+        }
+
+        /** Tokens used per month and model, for the usage panel: {"2026-09": {"model": [in, out, cached, calls]}}. */
         @JavascriptInterface
         public String aiUsage() {
             return getSharedPreferences("ai", MODE_PRIVATE).getString("usage", "{}");
@@ -597,18 +638,22 @@ public class MainActivity extends Activity {
                 try {
                     LlmProvider p;
                     synchronized (MainActivity.this) {
+                        String prov = provider();
                         String model = aiModel();
-                        if (llm == null || !model.equals(llmModel)) {
-                            String key = R4LSession.password(MainActivity.this, AI);
-                            if (key == null || key.isEmpty()) throw new LlmProvider.AiException("Add your Claude API key in Settings → AI.");
-                            llm = new ClaudeProvider(key, model);
-                            llmModel = model;
+                        String tag = prov + "|" + model;
+                        if (llm == null || !tag.equals(llmModel)) {
+                            String key = R4LSession.password(MainActivity.this, prov);
+                            if (key == null || key.isEmpty()) {
+                                throw new LlmProvider.AiException("Add your " + ("claude".equals(prov) ? "Claude" : "Groq") + " API key in Settings → AI.");
+                            }
+                            llm = "claude".equals(prov) ? new ClaudeProvider(key, model) : new GroqProvider(key, model);
+                            llmModel = tag;
                         }
                         p = llm;
                     }
                     LlmProvider.Result r = p.complete(system, document, task, maxTokens,
                             jsonSchema == null || jsonSchema.isEmpty() ? null : jsonSchema);
-                    recordUsage(llmModel, r);
+                    recordUsage(r.model, r);
                     emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model));
                 } catch (LlmProvider.AiException e) {
                     emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));

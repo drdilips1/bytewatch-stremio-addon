@@ -368,13 +368,6 @@
     }
     return parts.join('\n');
   }
-  function docForAi() {
-    const model = D.reader?.model;
-    if (!model) return '';
-    const t = D.modelText(model);
-    return t.text.length < 400000 ? t.text : '';
-  }
-
   function paraSheet(el, selected) {
     const text = selected || (el ? el.textContent.replace(/\s+/g, ' ').trim() : '');
     if (!text) return;
@@ -398,12 +391,12 @@
       const lang = bt.dataset.lang || aiPrefs.lang;
       const out = $('#exout');
       out.innerHTML = '<div class="ai-wait"><div class="spinner"></div>Thinking…</div>';
-      const doc = docForAi();
-      const task = `${doc ? '' : `Context from the document "${D.reader?.opts.title || ''}":\n${contextFor(el)}\n\n`}Passage${b !== '' ? ` [¶${b}]` : ''}:\n"""${text}"""\n\n`
+      const model = D.reader?.model;
+      const task = `${model ? '' : `Context from the document "${D.reader?.opts.title || ''}":\n${contextFor(el)}\n\n`}Passage${b !== '' ? ` [¶${b}]` : ''}:\n"""${text}"""\n\n`
         + (k === 'translate' ? `Translate the passage into ${lang}. Give only the translation, keeping numbers and names.` : EXPLAIN[k][1])
         + ` Reader level: ${LEVELS[aiPrefs.level]}. Base it on the document; if you add general background, say so.`;
       try {
-        const ans = await D.ai(task, { doc, max: 3000 });
+        const ans = await D.ai(task, model ? { docModel: model, focus: 'query', query: text, max: 3000 } : { max: 3000 });
         lastAnswer = { mode: k, text: ans, lang };
         out.innerHTML = `<div class="ai-body">${md(ans)}</div>
           <div class="row-btns"><button class="btn xs" data-act="ex-listen">${icon('audio')}Read aloud</button>
@@ -487,27 +480,34 @@
   };
   const entryFor = (key) => (aiStore[key] = aiStore[key] || { qa: [] });
 
+  const provider = () => { try { return Native.aiProvider?.() || 'groq'; } catch { return 'groq'; } };
   function keyPrompt() {
-    return `<div class="key-prompt">${icon('spark')}<div><b>Add your Claude API key</b><span>AI features use your own Anthropic key. Create one at console.anthropic.com → API keys.</span></div>
-      <input type="password" id="aikey" placeholder="sk-ant-…" autocomplete="off"><button class="btn primary full" data-act="ai-savekey" style="margin-top:8px">Save key</button>
-      <p class="muted small">Stored encrypted on this phone. Only the text of the document you use AI on is sent to Anthropic, which doesn't train on API data.</p></div>`;
+    const groq = provider() === 'groq';
+    return `<div class="key-prompt">${icon('spark')}<div><b>Add your ${groq ? 'Groq' : 'Claude'} API key</b><span>${groq
+      ? 'AI features run on Groq with your own key. Create one free at <b>console.groq.com/keys</b> (it starts with gsk_).'
+      : 'AI features use your own Anthropic key. Create one at <b>console.anthropic.com</b> → API keys.'}</span></div>
+      <input type="password" id="aikey" placeholder="${groq ? 'gsk_…' : 'sk-ant-…'}" autocomplete="off"><button class="btn primary full" data-act="ai-savekey" style="margin-top:8px">Save key</button>
+      <p class="muted small">Stored encrypted on this phone. Only the text of the document you use AI on is sent to ${groq ? 'Groq' : 'Anthropic'}.</p></div>`;
   }
   actions['ai-savekey'] = () => {
     const v = $('#aikey')?.value.trim() || '';
-    if (!/^sk-ant-/.test(v)) { toast('That doesn\'t look like an Anthropic API key (sk-ant-…)'); return; }
+    if (!/^(gsk_|sk-ant-)/.test(v)) { toast('That doesn\'t look like a Groq (gsk_…) or Anthropic (sk-ant-…) key'); return; }
     Native.aiSetKey(v);
     toast('Key saved');
     if (hubState) drawHub(); else closeSheet(true);
     if (D.current.name === 'settings') render();
+    if (/^gsk_/.test(v)) Native.aiListModels?.();
   };
 
   /** Where the AI's text comes from: the open reader, a stored model, or an abstract. */
   async function sourceFor(key, fallback) {
-    if (D.reader && D.reader.opts.key === key) return { ...D.modelText(D.reader.model), type: D.reader.model.docType || 'paper', title: D.reader.opts.title };
+    if (D.reader && D.reader.opts.key === key) return { model: D.reader.model, text: '', type: D.reader.model.docType || 'paper', title: D.reader.opts.title };
     const model = await db.getReflow(key).catch(() => null);
-    if (model) return { ...D.modelText(model), type: model.docType || 'paper', title: model.title };
+    if (model) return { model, text: '', type: model.docType || 'paper', title: model.title };
     return fallback ? fallback() : null;
   }
+  /** Options for D.ai() that send this source (whole, or excerpts when the account limit is small). */
+  const docOpts = (src, extra = {}) => (src.model ? { docModel: src.model, ...extra } : { doc: src.text, ...extra });
 
   const TYPE_HINT = {
     paper: 'This is a research paper: distinguish background, methods, results and discussion, and give effect sizes, sample sizes and statistics.',
@@ -597,7 +597,7 @@ Follow the document's own structure with "## " sections. Keep key numbers exact.
     e['busy_' + tab] = true;
     drawHub();
     try {
-      const out = await D.ai(TASKS[tab].prompt(src.type) + (src.truncated ? '\n(Note: only the first part of a very long document was provided.)' : ''), { doc: src.text, max: TASKS[tab].max });
+      const out = await D.ai(TASKS[tab].prompt(src.type), docOpts(src, { focus: 'summary', max: TASKS[tab].max }));
       e[tab] = out; e.t = Date.now();
       saveStudio();
     } catch (err) {
@@ -632,7 +632,7 @@ Follow the document's own structure with "## " sections. Keep key numbers exact.
       $('.sheet').scrollTop = $('.sheet').scrollHeight;
       const where = hubState.context ? `\nThe reader is currently at this passage while listening:\n${hubState.context}\n` : '';
       try {
-        turn.a = await D.ai(`${history ? 'Earlier in this conversation:\n' + history + '\n\n' : ''}${where}Question: ${q}\n\nAnswer from the document only, at a ${LEVELS[aiPrefs.level]} level. After each claim cite the supporting passage as [¶n]. If the document doesn't say, answer "The document doesn't say" and stop. If the user asks for an example or a simple explanation, you may add general background but say it's not from the document.`, { doc: src.text, max: 3000 });
+        turn.a = await D.ai(`${history ? 'Earlier in this conversation:\n' + history + '\n\n' : ''}${where}Question: ${q}\n\nAnswer from the document only, at a ${LEVELS[aiPrefs.level]} level. After each claim cite the supporting passage as [¶n]. If the document doesn't say, answer "The document doesn't say" and stop. If the user asks for an example or a simple explanation, you may add general background but say it's not from the document.`, docOpts(src, { focus: 'query', query: q + ' ' + (hubState.context || ''), max: 3000 }));
       } catch (err) {
         e.qa = e.qa.filter((x) => x !== turn);
         toast(aiNeedsKey(err) ? 'Add your Claude API key first' : err.message);
@@ -662,7 +662,7 @@ Follow the document's own structure with "## " sections. Keep key numbers exact.
     try {
       const out = await D.ai(`Write a natural, engaging two-person audio discussion (about 8–10 minutes spoken, 1200–1500 words) between a Host and an Expert about this document. ${TYPE_HINT[src.type]}
 The Host introduces the document (title, authors, what kind of document it is), asks the questions a smart listener would ask and summarises; the Expert explains the important concepts, the key findings with their numbers, why it matters, the limitations and the practical implications.
-Stay faithful to the document. When a speaker adds general background that isn't in the document, they say so. Never invent results. Keep turns short and conversational, like a podcast. Plain text only in each turn.`, { doc: src.text, schema: DISC_SCHEMA, max: 6000 });
+Stay faithful to the document. When a speaker adds general background that isn't in the document, they say so. Never invent results. Keep turns short and conversational, like a podcast. Plain text only in each turn.`, docOpts(src, { focus: 'summary', schema: DISC_SCHEMA, max: 6000 }));
       e.discussion = D.aiJson(out);
       e.t = Date.now();
       saveStudio();
@@ -716,7 +716,7 @@ Stay faithful to the document. When a speaker adds general background that isn't
     busy('Adding section titles', 'Reading the document…');
     try {
       const schema = { type: 'object', additionalProperties: false, required: ['sections'], properties: { sections: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['before', 'title'], properties: { before: { type: 'integer' }, title: { type: 'string' } } } } } };
-      const out = D.aiJson(await D.ai('Split this document into sensible sections (roughly every 3–10 minutes of reading) and give each a short, specific, informative title (e.g. "Treatment outcomes and adverse effects", not "Section 2"). For each, give "before": the ¶ number of the first paragraph of that section.', { doc: D.modelText(model).text, schema, max: 3000 }));
+      const out = D.aiJson(await D.ai('Split this document into sensible sections (roughly every 3–10 minutes of reading) and give each a short, specific, informative title (e.g. "Treatment outcomes and adverse effects", not "Section 2"). For each, give "before": the ¶ number of the first paragraph of that section.', { docModel: model, focus: 'summary', schema, max: 3000 }));
       const at = new Map(out.sections.filter((s) => model.blocks[s.before]).map((s) => [s.before, s.title]));
       const blocks = [];
       model.blocks.forEach((b, i) => { if (at.has(i)) blocks.push({ type: 'h', level: 2, text: at.get(i), ai: true }); blocks.push(b); });
@@ -774,15 +774,18 @@ Stay faithful to the document. When a speaker adds general background that isn't
     if (!src) return false;
     e.busy_study = true;
     if (hubState) drawHub();
+    // Accounts with a small answer allowance (Groq free tier) get a smaller set that fits.
+    const cap = D.aiMaxCap();
+    const n = (k) => (cap < 6000 ? Math.max(3, Math.round(k * Math.max(0.35, cap / 8000))) : k);
     try {
       const out = await D.ai(`Create study material from this document, for a ${LEVELS[aiPrefs.level].toLowerCase()} learner. ${TYPE_HINT[src.type]}
-- flashcards: 15 cards (front: a question or term; back: a short answer).
-- mcqs: 10 multiple-choice questions, each with exactly 4 options, "answer" = index 0–3 of the correct option, a one-sentence explanation, and "source" = the ¶ number where the answer is.
-- viva: 6 oral-exam questions with model answers.
-- short: 6 short-answer questions with answers.
-- glossary: up to 15 key terms with definitions.
+- flashcards: ${n(15)} cards (front: a question or term; back: a short answer).
+- mcqs: ${n(10)} multiple-choice questions, each with exactly 4 options, "answer" = index 0–3 of the correct option, a one-sentence explanation, and "source" = the ¶ number where the answer is.
+- viva: ${n(6)} oral-exam questions with model answers.
+- short: ${n(6)} short-answer questions with answers.
+- glossary: up to ${n(15)} key terms with definitions.
 - notes: revision notes in Markdown ("## " headings and "- " bullets, key numbers in **bold**).
-Use only the document; vary difficulty.`, { doc: src.text, schema: STUDY_SCHEMA, max: 16000 });
+Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schema: STUDY_SCHEMA, max: 16000 }));
       e.study = D.aiJson(out);
       e.t = Date.now();
       saveStudio();
@@ -1147,11 +1150,20 @@ Use only the document; vary difficulty.`, { doc: src.text, schema: STUDY_SCHEMA,
   };
 
   // ================================================================ settings
-  const MODELS = [
-    ['claude-opus-5', 'Claude Opus 5', 'Best quality', [5, 25]],
-    ['claude-sonnet-5', 'Claude Sonnet 5', 'Faster, lower cost', [2, 10]],
-    ['claude-haiku-4-5', 'Claude Haiku 4.5', 'Fastest, lowest cost', [1, 5]],
-  ];
+  // [id, name, note, [$ in, $ out per million tokens]]
+  const MODELS = {
+    groq: [
+      ['openai/gpt-oss-120b', 'GPT-OSS 120B', 'Best quality on Groq (default)', [0.15, 0.6]],
+      ['openai/gpt-oss-20b', 'GPT-OSS 20B', 'Fastest, lowest cost', [0.075, 0.3]],
+      ['qwen/qwen3.8-27b', 'Qwen 3.8 27B', 'Alternative model', [0.8, 4]],
+    ],
+    claude: [
+      ['claude-opus-5', 'Claude Opus 5', 'Best quality', [5, 25]],
+      ['claude-sonnet-5', 'Claude Sonnet 5', 'Faster, lower cost', [2, 10]],
+      ['claude-haiku-4-5', 'Claude Haiku 4.5', 'Fastest, lowest cost', [1, 5]],
+    ],
+  };
+  const priceOf = (model) => [...MODELS.groq, ...MODELS.claude].find((x) => x[0] === model || String(model).startsWith(x[0]))?.[3] || [0, 0];
   function usageLine() {
     let u = {};
     try { u = JSON.parse(Native.aiUsage?.() || '{}'); } catch { u = {}; }
@@ -1159,34 +1171,47 @@ Use only the document; vary difficulty.`, { doc: src.text, schema: STUDY_SCHEMA,
     const m = u[month] || {};
     let cost = 0, calls = 0, tokens = 0;
     for (const [model, row] of Object.entries(m)) {
-      const price = (MODELS.find((x) => x[0] === model) || MODELS[0])[3];
-      cost += (row[0] * price[0] + row[1] * price[1] + row[2] * price[0] * 0.1) / 1e6;
+      const price = priceOf(model);
+      cost += (row[0] * price[0] + row[1] * price[1] + row[2] * price[0] * 0.5) / 1e6;
       calls += row[3];
       tokens += row[0] + row[1] + row[2];
     }
-    return calls ? `${calls} requests this month · ${(tokens / 1000).toFixed(0)}k tokens · about $${cost.toFixed(2)}` : 'No AI use this month';
+    return calls ? `${calls} requests this month · ${(tokens / 1000).toFixed(0)}k tokens · ${provider() === 'groq' ? `≈ $${cost.toFixed(2)} at paid rates · free on Groq's free tier` : `about $${cost.toFixed(2)}`}` : 'No AI use this month';
   }
+  ext.events.aiModels = (evt) => {
+    if (evt.models) { store.set('groqModels', evt.models.map((m) => m.id)); if (D.current.name === 'settings') render(); }
+  };
   ext.settingsSection = () => {
+    const prov = provider();
     const has = D.aiHasKey();
-    const model = (() => { try { return Native.aiModel?.() || 'claude-opus-5'; } catch { return 'claude-opus-5'; } })();
+    const model = (() => { try { return Native.aiModel?.() || MODELS[prov][0][0]; } catch { return MODELS[prov][0][0]; } })();
+    let list = MODELS[prov];
+    if (prov === 'groq') {
+      const live = store.get('groqModels', null);
+      if (live?.length) list = [...list.filter((x) => live.includes(x[0])), ...live.filter((id) => !list.some((x) => x[0] === id)).map((id) => [id, id, 'Available to your key', priceOf(id)])];
+    }
     return `<div class="section"><div class="section-h"><h3>AI</h3></div>
-      <div class="acc-card"><div class="acc-ico ai">${icon('spark')}</div>
-        <div class="body"><b>Claude</b><span>${has ? 'API key saved · ' + esc(usageLine()) : 'Add your Anthropic API key to use AI features'}</span></div>
+      <div class="seg wide" style="margin-bottom:10px">${[['groq', 'Groq'], ['claude', 'Claude']].map(([k, l]) => `<button class="${prov === k ? 'on' : ''}" data-act="set-provider" data-v="${k}">${l}</button>`).join('')}</div>
+      <div class="acc-card"><div class="acc-ico ai ${prov}">${icon('spark')}</div>
+        <div class="body"><b>${prov === 'groq' ? 'Groq' : 'Claude (Anthropic)'}</b><span>${has ? 'API key saved · ' + esc(usageLine()) : `Add your ${prov === 'groq' ? 'Groq' : 'Anthropic'} API key to use AI features`}</span></div>
         <button class="btn xs ${has ? '' : 'primary'}" data-act="set-aikey">${has ? 'Change' : 'Add key'}</button>
         ${has ? `<button class="icon-btn" data-act="ai-forget" aria-label="Remove key">${icon('trash')}</button>` : ''}</div>
-      <label class="field">AI model</label>
-      ${MODELS.map(([id, name, sub, p]) => `<button class="opt ${model === id ? 'on' : ''}" data-act="set-model" data-v="${id}">${icon('spark')}<span>${name}<small>${sub} · $${p[0]}/$${p[1]} per million tokens in/out</small></span>${model === id ? icon('check') : ''}</button>`).join('')}
+      ${prov === 'groq' ? '<p class="muted small">Groq is very fast and has a free tier (about 8,000 tokens a minute, 200,000 a day). When a document is bigger than that, the app sends the most relevant parts — the answer says so.</p>' : ''}
+      <label class="field">Model ${prov === 'groq' && has ? `<button class="linkish" data-act="groq-refresh">refresh list</button>` : ''}</label>
+      ${list.map(([id, name, sub, p]) => `<button class="opt ${model === id ? 'on' : ''}" data-act="set-model" data-v="${esc(id)}">${icon('spark')}<span>${esc(name)}<small>${esc(sub)}${p[0] ? ` · $${p[0]}/$${p[1]} per million tokens in/out` : ''}</small></span>${model === id ? icon('check') : ''}</button>`).join('')}
       <label class="field">Explanation level</label>
       <div class="seg wide">${Object.entries(LEVELS).map(([k, l]) => `<button class="${aiPrefs.level === k ? 'on' : ''}" data-act="set-level" data-v="${k}">${l}</button>`).join('')}</div>
-      <p class="muted small">Documents are sent once and cached by Anthropic for a few minutes, so follow-up questions cost much less. Answers are saved on this phone and reused.</p></div>
+      <p class="muted small">Answers are saved on this phone and reused, so nothing is generated twice.</p></div>
       <div class="section"><div class="section-h"><h3>Listening</h3></div>
-        <div class="acc-card"><div class="acc-ico">${icon('audio')}</div><div class="body"><b>Voices, speed &amp; skipping</b><span>${D.ttsPrefs.rate}× · skips ${Object.entries(D.ttsPrefs.skip).filter(([, v]) => v).length} kinds of content</span></div>
+        <div class="acc-card"><div class="acc-ico">${icon('audio')}</div><div class="body"><b>Voices, speed &amp; skipping</b><span>${String(D.ttsPrefs.voice || '').startsWith('neural:') ? 'Natural voice' : 'Phone voice'} · ${D.ttsPrefs.rate}× · skips ${Object.entries(D.ttsPrefs.skip).filter(([, v]) => v).length} kinds of content</span></div>
           <button class="btn xs" data-act="tts-settings-open">Open</button></div></div>
       <div class="section"><div class="section-h"><h3>Privacy</h3></div>
-        <p class="small">Your documents, notes and audio positions stay on this phone in app-private storage; PDFs and imports are deleted when you delete them. Nothing is uploaded unless you use an AI feature — then only that document's text goes to Anthropic over an encrypted connection, under their API terms (no training on API data). Your API key and logins are encrypted with the phone's keystore.</p></div>`;
+        <p class="small">Your documents, notes and audio positions stay on this phone in app-private storage; PDFs, imports and voice packs are deleted when you delete them. Nothing is uploaded unless you use an AI feature — then only that document's text goes to ${prov === 'groq' ? 'Groq' : 'Anthropic'} over an encrypted connection, under their API terms. Natural voices run entirely on the phone. Your API keys and logins are encrypted with the phone's keystore.</p></div>`;
   };
   Object.assign(actions, {
-    'set-aikey': () => sheet(`<h3>Claude API key</h3>${keyPrompt()}`),
+    'set-aikey': () => sheet(`<h3>${provider() === 'groq' ? 'Groq' : 'Claude'} API key</h3>${keyPrompt()}`),
+    'set-provider': (b) => { Native.aiSetProvider?.(b.dataset.v); if (b.dataset.v === 'groq' && Native.aiHasKeyFor?.('groq')) Native.aiListModels?.(); render(); },
+    'groq-refresh': () => { Native.aiListModels?.(); toast('Checking which models your key can use…'); },
     'ai-forget': () => { Native.aiSetKey(''); toast('API key removed'); render(); },
     'set-model': (b) => { Native.aiSetModel?.(b.dataset.v); render(); },
     'set-level': (b) => { aiPrefs.level = b.dataset.v; saveAiPrefs(); render(); },

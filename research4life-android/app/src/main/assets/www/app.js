@@ -60,10 +60,16 @@
         aiHasKey: () => !!localStorage.getItem('ds.stub.aikey'),
         aiSetKey: (k) => (k ? localStorage.setItem('ds.stub.aikey', k) : localStorage.removeItem('ds.stub.aikey')),
         aiRun: (id, system, doc, task, max, schema) => setTimeout(() => {
+          const fail = window.__aiFail && window.__aiFail(task, doc, max);
+          if (fail) { App.onNative({ type: 'ai', id, state: 'error', message: fail }); return; }
           const text = window.__aiMock ? window.__aiMock(task, schema, doc) : 'AI needs the Android app';
           App.onNative({ type: 'ai', id, state: 'done', text });
         }, 300),
-        aiModel: () => localStorage.getItem('ds.stub.model') || 'claude-opus-5',
+        aiModel: () => localStorage.getItem('ds.stub.model') || 'openai/gpt-oss-120b',
+        aiProvider: () => localStorage.getItem('ds.stub.provider') || 'groq',
+        aiSetProvider: (p) => localStorage.setItem('ds.stub.provider', p),
+        aiHasKeyFor: () => !!localStorage.getItem('ds.stub.aikey'),
+        aiListModels: () => setTimeout(() => App.onNative({ type: 'aiModels', models: [{ id: 'openai/gpt-oss-120b' }, { id: 'openai/gpt-oss-20b' }, { id: 'qwen/qwen3.8-27b' }] }), 100),
         aiSetModel: (m) => localStorage.setItem('ds.stub.model', m),
         aiUsage: () => JSON.stringify({ [new Date().toISOString().slice(0, 7)]: { 'claude-opus-5': [120000, 8000, 300000, 6] } }),
         ttsSleep: () => {}, ttsStopAfter: () => {}, ttsSubtitle: () => {}, ttsSleepLeft: () => 0,
@@ -1614,13 +1620,55 @@
     + 'if the answer is not in it, say so plainly instead of guessing. Keep numbers, doses and statistics exactly as written. '
     + 'Write in plain Markdown: short "## " headings, "- " bullets and **bold** for key facts. No tables and no preamble.';
 
-  function ai(task, { doc = '', system = AI_SYSTEM, schema = null, max = 8000 } = {}) {
+  function aiRaw(task, { doc = '', system = AI_SYSTEM, schema = null, max = 8000 } = {}) {
     return new Promise((resolve, reject) => {
       if (!aiHasKey()) { reject(new Error('NO_KEY')); return; }
       const id = 'ai' + (++aiSeq) + '_' + Date.now();
       aiPending[id] = (evt) => (evt.state === 'done' ? resolve(evt.text) : reject(new Error(evt.message || 'AI request failed')));
       Native.aiRun(id, system, doc, task, max, schema ? JSON.stringify(schema) : '');
     });
+  }
+
+  /** What this AI account can take per request (learned from "too large" answers), per model. */
+  const aiLimitKey = () => { try { return 'aiLimit.' + (Native.aiProvider?.() || '') + '.' + (Native.aiModel?.() || ''); } catch { return 'aiLimit'; } };
+  const aiMaxCap = () => store.get(aiLimitKey(), null)?.maxCap || Infinity;
+
+  /**
+   * Runs an AI task. Pass the document as docModel (preferred) or doc text. When the account's
+   * per-minute limit is too small for the whole document (Groq's free tier), the most relevant
+   * excerpts are sent instead: abstract/conclusions for summaries, matching paragraphs for questions.
+   */
+  async function ai(task, { doc = '', docModel = null, query = '', focus = 'summary', system = AI_SYSTEM, schema = null, max = 8000 } = {}) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const lim = store.get(aiLimitKey(), null);
+      const budget = lim?.chars || Infinity;
+      const maxTok = Math.min(max, lim?.maxCap || max);
+      let text = doc;
+      let part = 1;
+      if (docModel) {
+        const t = modelText(docModel, { maxChars: budget === Infinity ? 700000 : budget, query, focus });
+        text = t.text; part = t.fraction;
+      } else if (budget !== Infinity && doc.length > budget) {
+        text = doc.slice(0, budget); part = budget / doc.length;
+      }
+      const note = part < 0.995 ? `\n\n(Note: the full document is too long for this AI account's limit, so you are seeing selected excerpts — about ${Math.max(1, Math.round(part * 100))}% of the text. If the answer might be in the parts you can't see, say so.)` : '';
+      try {
+        const out = await aiRaw(task + note, { doc: text, system, schema, max: maxTok });
+        ai.lastPartial = part;
+        return out;
+      } catch (e) {
+        const m = String(e.message).match(/^TOO_LARGE:(\d+):(\d+)/);
+        if (!m) throw e;
+        const limit = +m[1], requested = +m[2];
+        // The request counts input plus the answer's token allowance; keep room for both.
+        const maxCap = Math.min(maxTok, Math.max(800, Math.floor(limit * 0.4)));
+        const inputTok = Math.max(1, requested - maxTok);
+        const charsPerTok = Math.max(2.5, (text.length + task.length + system.length) / inputTok);
+        const chars = Math.max(1500, Math.floor((limit - maxCap - 700) * charsPerTok * 0.9 - task.length - system.length));
+        store.set(aiLimitKey(), { chars, maxCap, limit });
+      }
+    }
+    throw new Error("This is too large for your AI account's per-minute limit, even as excerpts. Try a shorter request, or a paid tier.");
   }
   function onAi(evt) {
     const cb = aiPending[evt.id];
@@ -1653,24 +1701,63 @@
   }
 
   /** Document text for the AI, each part tagged [¶n] with its block number so answers can cite it. */
-  function modelText(model, { maxChars = 700000 } = {}) {
-    const parts = [];
-    let len = 0;
+  function modelText(model, { maxChars = 700000, query = '', focus = 'summary' } = {}) {
     const figs = new Map((model.figures || []).map((f) => [f.id, f]));
     const txt = (b) => (b.text ?? (b.html || '').replace(/<\/(li|p|tr)>/g, '\n').replace(/<\/t[dh]>/g, ' | ').replace(/<[^>]+>/g, '')).replace(/[ \t]+/g, ' ').trim();
+    const parts = [];
+    let section = '';
+    let firstInSection = false;
     model.blocks.forEach((b, i) => {
-      if (len > maxChars) return;
       let s = '';
-      if (b.type === 'title') s = `# ${txt(b)}`;
-      else if (b.type === 'h') s = `\n## ${txt(b)} [¶${i}]`;
-      else if (b.type === 'p' || b.type === 'list' || b.type === 'ref') s = `[¶${i}] ${txt(b)}`;
+      let kind = 'p';
+      if (b.type === 'title') { s = `# ${txt(b)}`; kind = 'title'; }
+      else if (b.type === 'h') { s = `\n## ${txt(b)} [¶${i}]`; kind = 'h'; section = txt(b).toLowerCase(); firstInSection = true; }
+      else if (b.type === 'p' || b.type === 'list') s = `[¶${i}] ${txt(b)}`;
+      else if (b.type === 'ref') { s = `[¶${i}] ${txt(b)}`; kind = 'ref'; }
       else if ((b.type === 'fig' || b.type === 'table') && figs.has(b.id)) {
         const f = figs.get(b.id);
         s = `[¶${i}] ${f.label}: ${f.caption || ''}${f.html ? '\n' + txt({ html: f.html }) : ''}`;
+        kind = 'fig';
       }
-      if (s) { parts.push(s); len += s.length; }
+      if (!s) return;
+      parts.push({ i, s, kind, section, first: kind !== 'h' && firstInSection });
+      if (kind !== 'h') firstInSection = false;
     });
-    return { text: parts.join('\n'), truncated: len > maxChars };
+    const total = parts.reduce((n, p) => n + p.s.length + 1, 0);
+    if (total <= maxChars) return { text: parts.map((p) => p.s).join('\n'), truncated: false, fraction: 1 };
+
+    // Too long: keep the parts that matter most for this task, in document order.
+    const words = (t) => (t.toLowerCase().match(/[a-z0-9α-ω]{4,}/g) || []).filter((w) => !/^(that|this|with|from|were|have|which|what|about|their|there|these|those|also|than|into|does|when|where|paper|study|document)$/.test(w));
+    const qWords = new Set(words(query));
+    const keyRe = /abstract|summary|conclusion|discussion|results|findings|key|interpretation|limitation|purpose|objective|introduction|background/;
+    parts.forEach((p, n) => {
+      let score = 1 - n / parts.length * 0.5; // earlier text slightly first
+      if (p.kind === 'title' || p.kind === 'h') score += 10;
+      if (p.kind === 'ref') score -= 5;
+      if (focus === 'query' && qWords.size) {
+        const w = words(p.s);
+        const hits = w.filter((x) => qWords.has(x)).length;
+        score += hits * 3 + (hits ? 2 : 0);
+        if (/abstract|summary|conclusion/.test(p.section)) score += 1.5;
+      } else {
+        if (keyRe.test(p.section)) score += /abstract|summary|conclusion/.test(p.section) ? 5 : 2.5;
+        if (p.first) score += 2;
+        if (p.kind === 'fig') score += 0.5;
+      }
+      p.score = score;
+    });
+    const chosen = new Set();
+    let used = 0;
+    for (const p of [...parts].sort((a, b) => b.score - a.score)) {
+      if (used + p.s.length + 1 > maxChars) continue;
+      chosen.add(p.i); used += p.s.length + 1;
+    }
+    let out = '';
+    let gap = false;
+    for (const p of parts) {
+      if (chosen.has(p.i)) { if (gap && out) out += '\n[…]\n'; out += p.s + '\n'; gap = false; } else gap = true;
+    }
+    return { text: out.trim(), truncated: true, fraction: used / total };
   }
 
   function jumpToBlock(i) {
@@ -2790,7 +2877,7 @@
     Native, ext, $, $$, esc, icon, md, sheet, closeSheet, toast, store, db, go, render, actions, settings, saveSettings,
     topbar, errorBox, coverStyle, hueFor, saveArticle, openReader, showReader, readerTop, readerLoading, lightbox,
     ttsPlay, ttsPlayScript, ttsSheet, ttsPrefs, saveTts, ttsTimes, indexAfterSeconds, sectionStart, sectionEnd, nextSection, prevSection,
-    voiceList, RATES, ai, aiJson, aiHasKey, modelText, jumpToBlock, copyText, syncPdfs, refreshPdfs, stripTags,
+    voiceList, RATES, ai, aiJson, aiHasKey, aiMaxCap, modelText, jumpToBlock, copyText, syncPdfs, refreshPdfs, stripTags,
     speechReady, REFLOW_V,
     get tts() { return tts; }, get speech() { return speech; }, get saved() { return saved; }, get cache() { return cache; },
     get current() { return current; }, get reader() { return readerState; }, get pdfKeys() { return pdfKeys; },

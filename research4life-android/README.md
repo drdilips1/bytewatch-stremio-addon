@@ -49,18 +49,19 @@ A dermatology research app with a Consensus-style search, built around
   - **Natural voices on the phone** (sherpa-onnx): download **Kokoro studio voices** (11 US/UK voices, 103 MB) or **Piper** voices (≈20–35 MB each, including Hindi) once in Listening settings; they then run offline and free. Speech is generated a sentence ahead and streamed without gaps, every clip is cached (replays and offline listening cost nothing), and speed changes instantly without regenerating. The AI Discussion pairs two contrasting natural voices automatically.
   - **Audiobook player**: cover, section, elapsed/remaining time, seek bar, 15 s back / 30 s forward, previous/next section, speed 0.5–4×, sleep timer (minutes or end of section), bookmarks with context (and AI-suggested titles), section list, AI **Explain** and **Ask** while listening. Resumes exactly where you stopped. Plays in the background with lock-screen, notification and Bluetooth/headset controls (Android media session).
   - Home shows **Continue listening**, **Recently added** and a prominent **Add document** button. The library filters by type (papers, books, articles, study material, documents) and shows duration and listening progress.
-- **AI studio** (Claude, your own API key): for any document —
+- **AI studio** (Groq by default, or Claude — your own API key): for any document —
   - **Quick Brief** (1–3 min), **5-minute summary** and **Key takeaways**, each playable as audio.
   - **Ask this document**: answers grounded in the text with tappable **¶ citations** that jump to the passage.
   - **Tap-to-explain**: long-press a paragraph or select a sentence → simple / detailed / expert explanation, example, define terms, summarise or translate (17 languages, read aloud with a matching voice). Also highlight, note, copy, share, listen from here.
   - **Study mode**: flashcards (Anki export), a "Test me" quiz with explanations and sources, viva and short-answer questions (with spoken practice), glossary and revision notes.
   - **AI Discussion**: a two-voice host/expert conversation about the document, always labelled as AI-generated.
   - AI section titles for poorly formatted documents, and AI clean-up of text-recognition errors.
-  - Model choice (Claude Opus 5 / Sonnet 5 / Haiku 4.5), explanation level, and a monthly usage and cost estimate. The document text is cached by the API so follow-up questions are cheap; every answer is saved on the phone.
+  - **Groq** (fast, free tier): GPT-OSS 120B by default, GPT-OSS 20B or Qwen, or any chat model your key can use (listed live). Structured answers (study sets, discussions) use Groq's strict JSON mode. On the free tier (≈8K tokens/minute) documents that don't fit are sent as the most relevant excerpts — abstract and conclusions for summaries, matching paragraphs for questions — and the app learns your account's limit; answers note when they're based on excerpts.
+  - **Claude** (Opus 5 / Sonnet 5 / Haiku 4.5) remains available as a second provider. Explanation level and a monthly usage/cost estimate in Settings; every answer is saved on the phone.
 - **My notes**: highlights, notes and saved AI explanations from every document in one place, with an AI summary of all your notes and Markdown export.
 - **Search your library**: titles, authors, the full text of every document on the phone, notes and AI summaries, with passages that open at the right paragraph.
 - **Privacy**: documents, notes and positions stay in app-private storage; nothing leaves the phone unless you use an AI feature, and then only that document's text goes to Anthropic over HTTPS. The API key and logins are encrypted with the Android Keystore.
-- **Architecture**: prompts live in the web app; the native side talks to an `LlmProvider` (Claude today), `Narrator` (Android TTS), `Ocr` (ML Kit) and `DocInbox` (imports), so providers can be swapped.
+- **Architecture**: prompts live in the web app; the native side talks to an `LlmProvider` (`GroqProvider`, `ClaudeProvider`), `Narrator` (Android TTS), `Ocr` (ML Kit) and `DocInbox` (imports), so providers can be swapped.
 - **Themes**: light/dark/system mode, 8 accent colours, 5 light and 4 dark backgrounds; bundled Inter, Literata and Fraunces fonts.
   The reader has 8 reading themes plus custom text and background colours, 4 fonts, and line-spacing and margin options.
 - **Bottom bar**: Research4Life and UpToDate tabs can be shown or hidden in Settings (hidden by default).
