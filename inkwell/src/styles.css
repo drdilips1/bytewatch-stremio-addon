@@ -4515,3 +4515,42 @@ textarea {
   flex: 0 0 72px;
   width: 72px;
 }
+/* Collapsible settings groups */
+.set-section {
+  margin-bottom: 10px;
+}
+.set-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.set-head span {
+  flex: 1;
+}
+.set-head .icon:first-child {
+  color: var(--accent-2);
+}
+.set-head .icon:last-child {
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+.set-section.open .set-head .icon:last-child {
+  transform: rotate(180deg);
+}
+.set-section.open .set-head {
+  margin-bottom: 8px;
+}
+.set-section.open {
+  margin-bottom: 18px;
+}

@@ -17,13 +17,25 @@ import * as qb from '../sources/qbit.js';
 import { QbitListActions } from '../components/qbit-actions.jsx';
 import { pickTorrentFile } from '../lib/torrentfile.js';
 
+// Which sections are open; kept while the app runs so going back to Settings keeps them.
+const openSections = new Set();
+
+/** A settings group that stays collapsed until you tap its title. */
 function Section({ icon, title, children }) {
+  const [open, setOpen] = useState(openSections.has(title));
+  const toggle = () => {
+    if (open) openSections.delete(title);
+    else openSections.add(title);
+    setOpen(!open);
+  };
   return (
-    <section class="set-section">
-      <h3>
-        <Icon name={icon} size={18} /> {title}
-      </h3>
-      <div class="set-card">{children}</div>
+    <section class={'set-section' + (open ? ' open' : '')}>
+      <button class="set-head" aria-expanded={open} onClick={toggle}>
+        <Icon name={icon} size={20} />
+        <span>{title}</span>
+        <Icon name="down" size={18} />
+      </button>
+      {open && <div class="set-card">{children}</div>}
     </section>
   );
 }

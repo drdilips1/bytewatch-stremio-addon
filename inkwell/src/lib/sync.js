@@ -43,7 +43,7 @@ const SECTIONS = {
   goodreads: { store: goodreads },
   podcasts: { store: podcasts },
   qbit: { store: qbit, secret: true },
-  qbitSent: { store: qbitSent },
+  qbitSent: { store: qbitSent, merge: mergeSent },
   ai: { store: ai, secret: true },
   abs: { store: abs, secret: true },
   debrid: { store: debrid, secret: true },
@@ -65,6 +65,16 @@ function mergeNewest(local, remote) {
   const out = { ...local };
   for (const [k, v] of Object.entries(remote || {})) if (!out[k] || (v?.updatedAt || 0) > (out[k]?.updatedAt || 0)) out[k] = v;
   return out;
+}
+// Sent-to-qBittorrent list: keep every hash from both sides, and the latest "Clear list"
+// from either device, so a cleared list doesn't come back from an older copy.
+function mergeSent(local, remote) {
+  const items = { ...(remote?.items || {}) };
+  for (const [h, v] of Object.entries(local?.items || {})) {
+    const r = items[h];
+    items[h] = !r ? v : { ...r, ...v, at: Math.max(v?.at || 0, r?.at || 0), removed: !!(v?.removed || r?.removed) || undefined };
+  }
+  return { ...remote, ...local, items, clearedAt: Math.max(local?.clearedAt || 0, remote?.clearedAt || 0) };
 }
 function mergeBookmarks(local, remote) {
   const out = { ...local };

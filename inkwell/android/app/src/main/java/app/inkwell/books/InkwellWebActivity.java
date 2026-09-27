@@ -83,6 +83,22 @@ public class InkwellWebActivity extends AppCompatActivity {
         title.setSingleLine(true);
         title.setText(heading != null ? heading : "");
         top.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        // Copy this page's address, e.g. a search results page to use as the tracker's search address.
+        TextView copy = new TextView(this);
+        copy.setText("Copy link");
+        copy.setTextColor(Color.WHITE);
+        copy.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        copy.setGravity(android.view.Gravity.CENTER);
+        copy.setPadding(dp(12), 0, dp(12), 0);
+        copy.setContentDescription("Copy page address");
+        copy.setOnClickListener(v -> {
+            String u = web != null ? web.getUrl() : null;
+            if (u == null || u.isEmpty()) return;
+            android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("Page address", u));
+            android.widget.Toast.makeText(this, "Page address copied", android.widget.Toast.LENGTH_SHORT).show();
+        });
+        top.addView(copy, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)));
         root.addView(top);
 
         bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
