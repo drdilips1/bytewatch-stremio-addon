@@ -9,6 +9,7 @@ import * as player from '../lib/player.js';
 import { waitlist, wait, cancel } from '../lib/waitlist.js';
 import { translit } from '../lib/translit.js';
 import * as qb from '../sources/qbit.js';
+import { cleanTitle } from '../sources/debrid.js';
 import { openExternal } from '../sources/summaries.js';
 import { directEbookFile, directReaderBook } from '../lib/epub.js';
 import { shareEbook } from '../lib/kindle.js';
@@ -270,7 +271,8 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
       setBusy(null);
     }
   };
-  const home =hasMagnet && qb.available && qb.configured();
+  const home = hasMagnet && qb.available && qb.configured();
+  const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
   const homeHash = home ? cloud.infoHash(r.magnet, r.hash) : '';
   const sentHome = !!homeHash && qb.wasSent(homeHash);
   const sendHome = async () => {
@@ -299,6 +301,11 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
         {hasMagnet && <span class={'chip seeds ' + seedClass(r.seeders)}>{r.seeders} seed{r.seeders === 1 ? '' : 's'}</span>}
         {r.language && <span class="chip">{r.language}</span>}
         <span class="chip ghost">{r.addon}</span>
+        {trackerSite && (
+          <button class="chip tracker-chip" onClick={() => qb.openTracker(cleanTitle(r.title)).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} for this`}>
+            <Icon name="search" size={12} /> {trackerSite}
+          </button>
+        )}
       </div>
       {hasMagnet && (providers.length > 0 || home) && (
         <div class="src-services">

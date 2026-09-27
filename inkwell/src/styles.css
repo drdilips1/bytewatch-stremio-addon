@@ -4501,3 +4501,13 @@ textarea {
 .tracker-jump {
   margin: 0 0 10px;
 }
+.tracker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
