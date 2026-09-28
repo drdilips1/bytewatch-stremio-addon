@@ -90,16 +90,39 @@ function limited(fn) {
     running < 3 ? go() : waiting.push(go);
   });
 }
+// Goodreads has its own queue, so nothing else can hold it up.
+let grRunning = 0;
+const grWaiting = [];
+function grLimited(fn) {
+  return new Promise((resolve, reject) => {
+    const go = () => {
+      grRunning++;
+      fn()
+        .then(resolve, reject)
+        .finally(() => {
+          grRunning--;
+          grWaiting.length && grWaiting.shift()();
+        });
+    };
+    grRunning < 4 ? go() : grWaiting.push(go);
+  });
+}
 
 /** Goodreads average rating via its search suggestions: { rating, count, url } or null. */
 export const goodreads = (raw) => {
   const book = norm(raw);
-  return cached('gr4', book, () =>
-    limited(async () => {
-      const q = `${book.title} ${firstAuthor(book.author)}`.trim();
-      const list = await getJson('https://www.goodreads.com/book/auto_complete?' + qs({ format: 'json', q }), { timeout: 10000 });
+  return cached('gr5', book, () =>
+    grLimited(async () => {
+      const ask = async (q) => {
+        const list = await getJson('https://www.goodreads.com/book/auto_complete?' + qs({ format: 'json', q }), { timeout: 12000 });
+        return Array.isArray(list) ? list : [];
+      };
+      const author = firstAuthor(book.author);
+      let list = await ask(`${book.title} ${author}`.trim());
+      // Nothing for title + author: the title alone (the author check below still applies).
+      if (!list.length && author) list = await ask(book.title);
       // The main edition: the matching entry with the most ratings.
-      const hit = (Array.isArray(list) ? list : [])
+      const hit = list
         .filter((x) => sameBook(book, x.bookTitleBare || x.title || '', x.author?.name || '') && notCompanion(book, x.bookTitleBare || x.title))
         .sort((a, b) => (Number(b.ratingsCount) || 0) - (Number(a.ratingsCount) || 0))[0];
       const rating = Number(hit?.avgRating) || 0;
@@ -153,18 +176,13 @@ export const hardcoverStars = (raw) => {
   );
 };
 
-const TILE = `tile4-${MARKET}`;
-/** The rating to show on a tile: Audible, else Goodreads. Only a real "no rating" is remembered. */
+const TILE = 'tile5-gr';
+/** The rating to show on a tile: Goodreads. Only a real "no rating" is remembered. */
 export const tileRating = (book) =>
   cached(TILE, book, async () => {
-    const a = await audibleStars(book);
-    if (a) return a;
     const g = await goodreads(book);
-    if (g) return g;
-    const h = await hardcoverStars(book);
-    if (h) return h;
-    if (a === undefined || g === undefined || h === undefined) throw new Error('not reachable'); // ask again next time
-    return null;
+    if (g === undefined) throw new Error('not reachable'); // ask again next time
+    return g;
   });
 
 /** Hook for tiles: { rating, count, url, from } once known. */
@@ -222,17 +240,12 @@ export function useRatings(book) {
         if (v) setR((x) => ({ ...x, [key]: v }));
         else if (v === undefined && tries > 0) timers.push(setTimeout(() => get(fn, key, tries - 1), 8000));
       });
-    get(audibleStars, 'audible');
-    get(goodreads, 'goodreads');
-    // Neither Audible nor Goodreads knows it: Hardcover's reader rating instead.
-    Promise.all([audibleStars(book), goodreads(book)]).then(async ([a, g]) => {
-      if (a || g || !alive) return;
-      const h = await hardcoverStars(book);
+    // Goodreads only. When it has nothing, say why, so a missing rating can be explained.
+    goodreads(book).then(function done(v, tries = 2) {
       if (!alive) return;
-      if (h) return setR((x) => ({ ...x, hardcover: h }));
-      // Nothing anywhere: say why, so a missing rating can be explained (and fixed).
-      const parts = [['Audible', `au6-${MARKET}`], ['Goodreads', 'gr4'], ...(hcSrc.connected() ? [['Hardcover', 'hc2']] : [])];
-      setR((x) => ({ ...x, why: parts.map(([n, k]) => `${n}: ${whyNoRating(k, norm(book)) || 'no answer'}`).join(' · ') }));
+      if (v) return setR((x) => ({ ...x, goodreads: v }));
+      if (v === undefined && tries > 0) return timers.push(setTimeout(() => goodreads(book).then((w) => done(w, tries - 1)), 8000));
+      setR((x) => ({ ...x, why: `Goodreads: ${whyNoRating('gr5', norm(book)) || 'no answer'}` }));
     });
     return () => {
       alive = false;
