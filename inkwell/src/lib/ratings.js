@@ -11,7 +11,7 @@ const cache = persisted('ratingsCache', {}); // key -> { t, v }
 // Server and torrent names carry extras: "Kelly Rimmer - The Things We Cannot Say",
 // authors as "Rolf Dobelli/Eric Conger/…" (author/narrator). Look ratings up by the plain
 // title and the first author.
-const AUTHOR_SPLIT = /\s*(?:,|&|;|\/|\|\band\b)\s*/;
+const AUTHOR_SPLIT = /\s*(?:,|&|;|\/|\||\band\b)\s*/;
 const firstAuthor = (a) => String(a || '').split(AUTHOR_SPLIT).map((x) => x.trim()).filter(Boolean)[0] || '';
 function plainTitle(b) {
   let t = mainTitle(b?.title).replace(/\b(unabridged|abridged|audiobook|audio ?book)\b/gi, ' ').replace(/\s+/g, ' ').trim();
@@ -28,11 +28,22 @@ const HIT_TTL = 30 * 864e5;
 const MISS_TTL = 864e5;
 const keyFor = (b) => `${words(plainTitle(b)).join(' ')}|${words(firstAuthor(b.author)).slice(-1)[0] || ''}`;
 
+// Why a lookup came back empty (shown on the book page when there's no rating at all).
+const why = new Map(); // `${kind}:${key}` -> text
+export const whyNoRating = (kind, book) => why.get(`${kind}:${keyFor(book)}`) || '';
+
 async function cached(kind, book, fn) {
   const key = `${kind}:${keyFor(book)}`;
   const hit = cache.get()[key];
-  if (hit && Date.now() - hit.t < (hit.v ? HIT_TTL : MISS_TTL)) return hit.v;
-  const v = await fn().catch(() => undefined);
+  if (hit && Date.now() - hit.t < (hit.v ? HIT_TTL : MISS_TTL)) {
+    if (!hit.v) why.set(key, 'not found');
+    return hit.v;
+  }
+  const v = await fn().catch((e) => {
+    why.set(key, e?.status ? `HTTP ${e.status}` : /timed out/i.test(e?.message || '') ? 'timed out' : e?.message || 'failed');
+    return undefined;
+  });
+  if (v === null) why.set(key, 'not found');
   if (v === undefined) return undefined; // network trouble: not remembered, tried again next time
   cache.set((c) => {
     const next = { ...c, [key]: { t: Date.now(), v } };
@@ -83,7 +94,7 @@ function limited(fn) {
 /** Goodreads average rating via its search suggestions: { rating, count, url } or null. */
 export const goodreads = (raw) => {
   const book = norm(raw);
-  return cached('gr3', book, () =>
+  return cached('gr4', book, () =>
     limited(async () => {
       const q = `${book.title} ${firstAuthor(book.author)}`.trim();
       const list = await getJson('https://www.goodreads.com/book/auto_complete?' + qs({ format: 'json', q }), { timeout: 10000 });
@@ -114,23 +125,24 @@ async function audibleIn(market, book) {
       .filter((x) => x.rating && sameBook(book, x.p.title || '', (x.p.authors || []).map((a) => a.name).join(' ')) && notCompanion(book, x.p.title))
       .sort((a, b) => b.count - a.count)[0];
   const author = firstAuthor(book.author);
-  let best = pick(await run({ title: book.title, author: author || undefined }));
-  // Title + author found nothing (author spelt differently, co-authors…): try a keyword search.
-  if (!best) best = pick(await run({ keywords: `${book.title} ${author}`.trim() }));
+  // Keyword search first (the same search the rest of the app uses), then title + author.
+  let best = pick(await run({ keywords: `${book.title} ${author}`.trim() }));
+  if (!best) best = pick(await run({ title: book.title, author: author || undefined }).catch(() => null));
+  if (!best && author) best = pick(await run({ keywords: book.title }).catch(() => null));
   return best ? { rating: best.rating, count: best.count, story: best.story, narration: best.narration, url: `https://www.audible.${market}/pd/${best.p.asin}`, from: STORE_NAME[market] } : null;
 }
 
 /** Audible (audible.com) stars and rating count for a book: { rating, count, url } or null. */
 export const audibleStars = (raw) => {
   const book = norm(raw);
-  return cached(`au5-${MARKET}`, book, () => limited(() => audibleIn('com', book)));
+  return cached(`au6-${MARKET}`, book, () => limited(() => audibleIn('com', book)));
 };
 
 /** Hardcover's reader rating (needs your Hardcover token): the fallback when Audible and Goodreads have nothing. */
 export const hardcoverStars = (raw) => {
   const book = norm(raw);
   if (!hcSrc.connected()) return Promise.resolve(null);
-  return cached('hc1', book, () =>
+  return cached('hc2', book, () =>
     limited(async () => {
       const docs = await hcSrc.searchRated(`${book.title} ${firstAuthor(book.author)}`.trim());
       const hit = docs
@@ -141,7 +153,7 @@ export const hardcoverStars = (raw) => {
   );
 };
 
-const TILE = `tile3-${MARKET}`;
+const TILE = `tile4-${MARKET}`;
 /** The rating to show on a tile: Audible, else Goodreads. Only a real "no rating" is remembered. */
 export const tileRating = (book) =>
   cached(TILE, book, async () => {
@@ -201,7 +213,7 @@ export function useRatings(book) {
   useEffect(() => {
     if (!book?.title) return;
     let alive = true;
-    setR({ audible: null, goodreads: null, hardcover: null });
+    setR({ audible: null, goodreads: null, hardcover: null, why: '' });
     const timers = [];
     // A service that couldn't be reached (undefined) is asked again a little later.
     const get = (fn, key, tries = 2) =>
@@ -213,7 +225,15 @@ export function useRatings(book) {
     get(audibleStars, 'audible');
     get(goodreads, 'goodreads');
     // Neither Audible nor Goodreads knows it: Hardcover's reader rating instead.
-    Promise.all([audibleStars(book), goodreads(book)]).then(([a, g]) => !a && !g && get(hardcoverStars, 'hardcover'));
+    Promise.all([audibleStars(book), goodreads(book)]).then(async ([a, g]) => {
+      if (a || g || !alive) return;
+      const h = await hardcoverStars(book);
+      if (!alive) return;
+      if (h) return setR((x) => ({ ...x, hardcover: h }));
+      // Nothing anywhere: say why, so a missing rating can be explained (and fixed).
+      const parts = [['Audible', `au6-${MARKET}`], ['Goodreads', 'gr4'], ...(hcSrc.connected() ? [['Hardcover', 'hc2']] : [])];
+      setR((x) => ({ ...x, why: parts.map(([n, k]) => `${n}: ${whyNoRating(k, norm(book)) || 'no answer'}`).join(' · ') }));
+    });
     return () => {
       alive = false;
       timers.forEach(clearTimeout);

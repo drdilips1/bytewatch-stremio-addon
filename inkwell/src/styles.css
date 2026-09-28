@@ -5373,3 +5373,9 @@ button.rt {
 .rt-hardcover b {
   color: #a5b4fc;
 }
+.ratings-why {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  color: var(--faint);
+  text-align: center;
+}

@@ -55,8 +55,11 @@ function toBook(prefix, source, id, name, files, extra = {}) {
 // ---------------- TorBox ----------------
 const tbHeaders = () => ({ Authorization: `Bearer ${tbKey()}` });
 
-async function tbList(kind) {
-  const data = await getJson(`${TB}/${kind}/mylist?bypass_cache=true`, { headers: tbHeaders(), fresh: true });
+// TorBox answers much faster from its own cache; skip it only right after something
+// changed (you added an item in the app, or pulled to refresh).
+let tbStale = false;
+async function tbList(kind, bypass = tbStale) {
+  const data = await getJson(`${TB}/${kind}/mylist${bypass ? '?bypass_cache=true' : ''}`, { headers: tbHeaders(), fresh: true });
   return Array.isArray(data?.data) ? data.data : [];
 }
 
@@ -77,13 +80,18 @@ const remember = (key, fn) => {
   memo[key] = { t: Date.now(), p };
   return p;
 };
-export const forget = () => Object.keys(memo).forEach((k) => delete memo[k]);
+export const forget = () => {
+  Object.keys(memo).forEach((k) => delete memo[k]);
+  tbStale = true;
+};
 
 export const torboxLibrary = () => (tbConnected() ? remember('tb', torboxLibraryRaw) : Promise.resolve([]));
 export const realdebridLibrary = () => (rdConnected() ? remember('rd', realdebridLibraryRaw) : Promise.resolve([]));
 
 async function torboxLibraryRaw() {
-  const lists = await Promise.all(TB_KINDS.map(([k]) => tbList(k).catch(() => [])));
+  const bypass = tbStale;
+  const lists = await Promise.all(TB_KINDS.map(([k]) => tbList(k, bypass).catch(() => [])));
+  tbStale = false;
   const out = [];
   lists.forEach((items, i) => {
     const [, code] = TB_KINDS[i];
@@ -109,7 +117,7 @@ async function tbDetails(book) {
   let it = tbSeen.get(`${code}:${id}`);
   tbSeen.delete(`${code}:${id}`);
   if (!it && kind === 'torrents') it = await tbOne(id);
-  if (!it) it = (await tbList(kind)).find((x) => String(x.id) === id);
+  if (!it) it = (await tbList(kind, true)).find((x) => String(x.id) === id);
   if (!it) throw new Error('This item is no longer in your TorBox account');
   const done = code !== 't' || !!(it.download_finished || it.download_present);
   const pending = done ? null : { provider: 'torbox', hash: String(it.hash || '').toLowerCase(), progress: Number(it.progress) || 0, state: it.download_state || '' };

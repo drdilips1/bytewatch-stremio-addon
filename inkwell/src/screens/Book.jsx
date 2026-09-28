@@ -497,8 +497,8 @@ const fmtK = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1000 ? (n / 10
 
 /** Ratings across services and awards, as a row of badges: "4.6 (1.2k)"; tap one for its reviews. */
 function RatingsRow({ book }) {
-  const { audible, goodreads, hardcover, awards } = useRatings(book);
-  if (!audible && !goodreads && !hardcover && !awards.length) return null;
+  const { audible, goodreads, hardcover, awards, why } = useRatings(book);
+  if (!audible && !goodreads && !hardcover && !awards.length) return why ? <p class="ratings-why">No ratings found — {why}</p> : null;
   const Badge = ({ r, cls, logo, digits }) => (
     <button class={'rt ' + cls} title={`${r.from} — ${r.count.toLocaleString()} ratings. Tap for reviews`} onClick={() => r.url && openExternal(r.url)}>
       <span class="rt-logo">{logo}</span>

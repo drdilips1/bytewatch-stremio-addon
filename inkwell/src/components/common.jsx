@@ -5,7 +5,7 @@ import { hashHue } from '../lib/format.js';
 import { SOURCES, sourceOf } from '../sources/index.js';
 import { Icon } from './icons.jsx';
 import { nav } from '../lib/nav.js';
-import { progress as progressStore, useStoreKey } from '../lib/store.js';
+import { progress as progressStore, useStoreKey, persisted } from '../lib/store.js';
 import { useImage } from '../lib/image.js';
 import { useMeta } from '../lib/meta.js';
 import { useTileRating } from '../lib/ratings.js';
@@ -158,17 +158,27 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
   );
 });
 
-export function Row({ title, subtitle, load, items: given, icon, onMore, deps = [], showErrors = false, emptyText = '' }) {
-  const [items, setItems] = useState(given || null);
+// Last contents of slow rows (your cloud, your server), shown at once on the next open.
+const rowCache = persisted('rowCache', {});
+const ROW_KEEP = ['uid', 'source', 'kind', 'title', 'author', 'narrator', 'cover', 'year', 'duration', 'addedAt', 'hash', 'format', 'fetching', 'genres'];
+const slim = (b) => Object.fromEntries(ROW_KEEP.filter((k) => b?.[k] !== undefined).map((k) => [k, b[k]]));
+
+export function Row({ title, subtitle, load, items: given, icon, onMore, deps = [], showErrors = false, emptyText = '', cacheKey = '' }) {
+  const [items, setItems] = useState(() => given || (cacheKey && rowCache.get()[cacheKey]) || null);
   const [error, setError] = useState(null);
   useEffect(() => {
     if (given) return setItems(given);
     let alive = true;
-    setItems(null);
+    const last = cacheKey && rowCache.get()[cacheKey];
+    setItems(last || null);
     setError(null);
     load()
-      .then((r) => alive && setItems(r))
-      .catch((e) => alive && setError(e));
+      .then((r) => {
+        if (!alive) return;
+        setItems(r);
+        if (cacheKey && Array.isArray(r)) rowCache.set((c) => ({ ...c, [cacheKey]: r.slice(0, 24).map(slim) }));
+      })
+      .catch((e) => alive && !last && setError(e)); // keep showing the last list if a refresh fails
     return () => (alive = false);
   }, deps);
   // Integration rows (your server, cloud, shelves) show what went wrong instead of vanishing.
