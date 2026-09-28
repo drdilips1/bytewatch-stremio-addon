@@ -77,18 +77,8 @@ export const goodreads = (book) =>
     })
   );
 
-/** Your Audible store, from the phone's time zone (India → audible.in); audible.com otherwise. */
-export const MARKET = (() => {
-  try {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-    if (/Kolkata|Calcutta/.test(tz)) return 'in';
-    if (/London|Dublin/.test(tz)) return 'co.uk';
-    if (/^Australia\//.test(tz)) return 'com.au';
-    if (/Toronto|Vancouver|Edmonton|Winnipeg|Halifax|Montreal/.test(tz)) return 'ca';
-    if (/Berlin|Vienna|Zurich/.test(tz)) return 'de';
-  } catch {}
-  return 'com';
-})();
+/** Ratings come from Audible US (audible.com). */
+export const MARKET = 'com';
 const STORE_NAME = { in: 'Audible India', 'co.uk': 'Audible UK', 'com.au': 'Audible Australia', ca: 'Audible Canada', de: 'Audible Germany', com: 'Audible' };
 
 async function audibleIn(market, book) {
@@ -107,14 +97,10 @@ async function audibleIn(market, book) {
   return best ? { rating: best.rating, count: best.count, url: `https://www.audible.${market}/pd/${best.p.asin}`, from: STORE_NAME[market] } : null;
 }
 
-/** Audible stars and rating count for a book (your store first, then audible.com): { rating, count, url } or null. */
+/** Audible (audible.com) stars and rating count for a book: { rating, count, url } or null. */
 export const audibleStars = (book) =>
   cached(`au3-${MARKET}`, book, () =>
-    limited(async () => {
-      const mine = await audibleIn(MARKET, book);
-      if (mine || MARKET === 'com') return mine;
-      return audibleIn('com', book);
-    })
+    limited(() => audibleIn('com', book))
   );
 
 /** The rating to show on a tile: Audible, else Goodreads. */
