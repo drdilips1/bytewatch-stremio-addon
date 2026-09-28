@@ -111,6 +111,7 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
   return (
     <div class="screen ask">
       <TopBar
+        ask={false}
         title={title}
         right={
           msgs.length > 0 && (

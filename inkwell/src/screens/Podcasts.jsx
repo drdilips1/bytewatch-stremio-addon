@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../components/icons.jsx';
-import { toast, Empty, TopBar } from '../components/common.jsx';
+import { toast, Empty, TopBar, AskButton } from '../components/common.jsx';
 import { useStore, progress, useStoreKey } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { fmtDuration } from '../lib/format.js';
@@ -143,6 +143,7 @@ export function Podcasts() {
       <header class="pod-head">
         <h1 class="screen-title">Podcasts</h1>
         <div class="pod-tools">
+          <AskButton />
           <button class="icon-btn" aria-label="Refresh" disabled={busy} onClick={refresh}>
             {busy ? <span class="spinner small" /> : <Icon name="down" size={18} />}
           </button>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../components/icons.jsx';
-import { toast } from '../components/common.jsx';
+import { toast, AskButton } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup } from '../lib/store.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl } from '../lib/http.js';
@@ -1034,7 +1034,10 @@ export function Settings() {
   const setSource = (k, v) => settings.patch({ sources: { ...st.sources, [k]: v } });
   return (
     <div class="screen settings">
-      <h1 class="screen-title">Settings</h1>
+      <div class="screen-head">
+        <h1 class="screen-title">Settings</h1>
+        <AskButton />
+      </div>
 
       <UpdateCard />
       {isWeb && (

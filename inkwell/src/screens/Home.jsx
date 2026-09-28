@@ -1,7 +1,7 @@
 import { BgImage } from '../components/bg-image.jsx';
 import { rankForYou } from '../lib/taste.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Row, BookCard, withMeta } from '../components/common.jsx';
+import { Row, BookCard, withMeta, AskButton } from '../components/common.jsx';
 import { useTileRating } from '../lib/ratings.js';
 import { openExternal } from '../sources/summaries.js';
 import { useMeta } from '../lib/meta.js';
@@ -465,9 +465,12 @@ export function Home() {
             <small>{today()}</small>
           </div>
         </div>
-        <button class="icon-btn glass" onClick={() => nav.tab('discover')} aria-label="Search">
-          <Icon name="search" />
-        </button>
+        <div class="home-top-actions">
+          <AskButton glass />
+          <button class="icon-btn glass" onClick={() => nav.tab('discover')} aria-label="Search">
+            <Icon name="search" />
+          </button>
+        </div>
       </header>
 
       <Hero />

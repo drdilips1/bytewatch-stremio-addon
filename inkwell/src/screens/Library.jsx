@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'preact/hooks';
-import { Grid, Empty, Cover, toast } from '../components/common.jsx';
+import { Grid, Empty, Cover, toast, AskButton } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { library, progress, useStore, forgetBook } from '../lib/store.js';
 import { downloads, removeDownload } from '../lib/downloads.js';
@@ -68,12 +68,10 @@ export function Library() {
       <div class="library-head">
         <h1 class="screen-title">Library</h1>
         <div class="library-head-actions">
-          <button class="pill small" onClick={() => nav.push('ask', {})}>
-            ✨ Ask my books
-          </button>
           <button class={'pill small' + (editing ? ' active' : '')} onClick={() => setEditing(!editing)}>
             {editing ? 'Done' : 'Edit'}
           </button>
+          <AskButton />
         </div>
       </div>
       <div class="stats">

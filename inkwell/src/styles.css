@@ -5933,3 +5933,24 @@ button.rt {
   color: var(--text);
   font-size: 13px;
 }
+/* ✨ Ask AI in every screen's top corner */
+.screen-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 14px;
+}
+.screen-head .screen-title {
+  flex: 1;
+  min-width: 0;
+}
+.topbar-right,
+.home-top-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.ask-btn {
+  color: var(--dyn, var(--accent));
+}

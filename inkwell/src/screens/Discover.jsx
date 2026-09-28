@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { memo } from 'preact/compat';
-import { Grid, Empty, Skeleton } from '../components/common.jsx';
+import { Grid, Empty, Skeleton, AskButton } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { searchAll, SOURCES, sourceRank, sourceOrder, ia, gb, ol, absSrc, cloud, hc, gr } from '../sources/index.js';
 import { openExternal } from '../sources/summaries.js';
@@ -100,7 +100,10 @@ export function Discover() {
 
   return (
     <div class="screen discover">
-      <h1 class="screen-title">Discover</h1>
+      <div class="screen-head">
+        <h1 class="screen-title">Discover</h1>
+        <AskButton />
+      </div>
       <div class="search-box">
         <Icon name="search" size={20} />
         <input

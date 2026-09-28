@@ -254,7 +254,20 @@ export function Skeleton() {
   );
 }
 
-export function TopBar({ title, back = true, right, transparent }) {
+/** ✨ Ask AI, in the top corner of every screen: about this book, or about all your books. */
+export function AskButton({ book = null }) {
+  return (
+    <button
+      class="icon-btn ask-btn glass"
+      aria-label={book ? 'Ask AI about this book' : 'Ask AI about your books'}
+      onClick={() => nav.push('ask', book ? { book, description: book.description || '' } : {})}
+    >
+      <Icon name="sparkle" size={20} />
+    </button>
+  );
+}
+
+export function TopBar({ title, back = true, right, transparent, ask = true }) {
   return (
     <header class={'topbar' + (transparent ? ' transparent' : '')}>
       {back ? (
@@ -265,7 +278,10 @@ export function TopBar({ title, back = true, right, transparent }) {
         <span />
       )}
       <h1>{title}</h1>
-      <div class="topbar-right">{right}</div>
+      <div class="topbar-right">
+        {right}
+        {ask && <AskButton />}
+      </div>
     </header>
   );
 }
