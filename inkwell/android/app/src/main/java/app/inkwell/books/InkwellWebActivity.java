@@ -129,6 +129,10 @@ public class InkwellWebActivity extends AppCompatActivity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
+        // Pinch to zoom (small print on tracker pages), without the old +/- buttons.
+        s.setSupportZoom(true);
+        s.setBuiltInZoomControls(true);
+        s.setDisplayZoomControls(false);
         // Look like regular Chrome so sign-in pages (incl. Google) accept the browser.
         s.setUserAgentString(s.getUserAgentString().replace("; wv)", ")").replaceAll("Version/[\\d.]+ ", ""));
         CookieManager cm = CookieManager.getInstance();
