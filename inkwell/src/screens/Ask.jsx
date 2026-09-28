@@ -7,6 +7,8 @@ import { MODES, STARTERS, LIBRARY_ASKS, ask, quiz, threadFor, clearThread, heari
 import { keyIdeas, summaryBook } from '../sources/summaries.js';
 import { mainTitle } from '../lib/match.js';
 import { usePlayer } from '../components/player-ui.jsx';
+import { useStore } from '../lib/store.js';
+import { canListen, listen, speakAnswer, stopAnswer, voiceLang, LANGS } from '../lib/voiceask.js';
 
 /**
  * Ask AI about one book (params.book) or about your whole library (no book).
@@ -19,6 +21,15 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
   const [busy, setBusy] = useState('');
   const endRef = useRef(null);
   const ps = usePlayer();
+  const lang = useStore(voiceLang);
+  const [speaking, setSpeaking] = useState(-1); // index of the answer being read aloud
+  const say = (i, t) => {
+    stopAnswer();
+    if (speaking === i) return setSpeaking(-1);
+    setSpeaking(i);
+    speakAnswer(t, () => setSpeaking((x) => (x === i ? -1 : x)));
+  };
+  useEffect(() => () => stopAnswer(), []);
   const where = hearing(book);
   const opts = { description, genres, mode };
 
@@ -29,7 +40,7 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
       toast('Add a free AI key in Settings → AI first');
       return nav.tab('settings');
     }
-    const shown = extra.where ? `🎧 ${q} (at ${extra.where.label})` : q;
+    const shown = extra.where ? `🎧 ${q} (at ${extra.where.label})` : extra.voice ? `🎙 ${q}` : q;
     const before = msgs;
     setMsgs([...before, { role: 'user', text: shown }]);
     setText('');
@@ -38,6 +49,8 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
     try {
       const a = await ask(book, q, { ...opts, ...extra, msgs: before });
       setMsgs([...before, { role: 'user', text: shown }, { role: 'ai', text: a }]);
+      // Asked by voice: answer by voice too.
+      if (extra.voice) say(before.length + 1, a);
     } catch (e) {
       setMsgs([...before, { role: 'user', text: shown }, { role: 'ai', text: e.message, error: true }]);
     } finally {
@@ -75,6 +88,17 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
     }
   };
   const pick = (q) => (/^quiz me/i.test(q) ? runQuiz() : run(q));
+  const voice = async () => {
+    if (busy) return;
+    stopAnswer();
+    setSpeaking(-1);
+    try {
+      const heard = (await listen(book ? `Ask about ${mainTitle(book.title)}` : 'Ask about your books')).trim();
+      if (heard) run(heard, { voice: true });
+    } catch (e) {
+      toast(e.message || 'Voice input failed');
+    }
+  };
 
   useEffect(() => {
     if (question) run(question);
@@ -159,8 +183,15 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
       </div>
 
       <div class="ask-thread pad">
-        {msgs.map((m) => (
-          <div class={'ask-msg ' + m.role + (m.error ? ' err' : '')}>{m.quiz ? <Quiz questions={m.quiz} /> : m.role === 'ai' ? <Answer text={m.text} /> : m.text}</div>
+        {msgs.map((m, i) => (
+          <div class={'ask-msg ' + m.role + (m.error ? ' err' : '')}>
+            {m.quiz ? <Quiz questions={m.quiz} /> : m.role === 'ai' ? <Answer text={m.text} /> : m.text}
+            {m.role === 'ai' && !m.quiz && !m.error && m.text && (
+              <button class={'ask-speak' + (speaking === i ? ' on' : '')} onClick={() => say(i, m.text)} aria-label={speaking === i ? 'Stop reading' : 'Read aloud'}>
+                {speaking === i ? '■ Stop' : '🔊 Listen'}
+              </button>
+            )}
+          </div>
         ))}
         {busy && busy !== 'blinks' && (
           <div class="ask-msg ai typing">
@@ -179,6 +210,16 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
           run(text);
         }}
       >
+        {canListen() && (
+          <>
+            <button type="button" class="ask-lang" onClick={() => voiceLang.set(lang === 'hi-IN' ? 'en-IN' : 'hi-IN')} title={LANGS.find(([k]) => k === lang)?.[1]}>
+              {lang === 'hi-IN' ? 'हिं' : 'EN'}
+            </button>
+            <button type="button" class="ask-mic" disabled={!!busy} onClick={voice} aria-label="Ask by voice">
+              🎙
+            </button>
+          </>
+        )}
         <input value={text} onInput={(e) => setText(e.currentTarget.value)} placeholder={book ? 'Ask anything about this book…' : 'Ask anything about your books…'} />
         <button class="ask-send" disabled={!text.trim() || !!busy} aria-label="Send">
           ➤

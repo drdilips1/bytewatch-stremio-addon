@@ -96,7 +96,7 @@ Use what you know about this book and the description below. You don't have the 
 ${desc ? `Description: """${desc}"""\n` : ''}${genres.length ? `Genres: ${genres.slice(0, 6).join(', ')}\n` : ''}`;
 }
 
-const STYLE = 'Answer in clear, warm, plain English. Use short paragraphs, and bullet points ("- ") or numbered lists where they help. Use **bold** for key terms. Keep it under about 250 words unless the question asks for more.';
+const STYLE = 'Reply in the language the reader used (English, Hindi or Hinglish). Answer in clear, warm, plain language. Use short paragraphs, and bullet points ("- ") or numbered lists where they help. Use **bold** for key terms. Keep it under about 250 words unless the question asks for more.';
 
 /**
  * Ask a question. `msgs` is the conversation so far ({ role: 'user'|'ai', text }).
