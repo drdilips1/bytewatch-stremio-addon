@@ -127,12 +127,21 @@ async function run(addon, params, onSlow) {
   return [];
 }
 
-async function runOnce(addon, { title = '', author = '', query = '' }, retry = 0) {
-  const src = addon.manifest.adapters.source;
+// The same search already on its way (the book page refreshing, a second list) shares
+// that request instead of sending another to a slow site.
+const inflight = new Map();
+function runOnce(addon, p, retry = 0) {
+  const { title = '', author = '', query = '' } = p;
   const vars = { TITLE: title || query, AUTHOR: author, QUERY: query || [title, author].filter(Boolean).join(' '), LIMIT: '20' };
   const key = addon.manifest.id + '|' + JSON.stringify(vars);
   const hit = remembered(key);
-  if (hit) return hit;
+  if (hit) return Promise.resolve(hit);
+  if (!inflight.has(key)) inflight.set(key, searchOnce(addon, vars, key, p, retry).finally(() => inflight.delete(key)));
+  return inflight.get(key);
+}
+
+async function searchOnce(addon, vars, key, { title = '', author = '', query = '' }, retry) {
+  const src = addon.manifest.adapters.source;
   await takeSlot(addon);
 
   const req = src.request || {};
