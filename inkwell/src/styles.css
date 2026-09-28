@@ -5504,7 +5504,7 @@ button.rt {
   font-size: 11.5px;
   color: var(--muted);
 }
-/* Book page: smaller cover, quiet "find details" link, boxed section headings */
+/* Book page: smaller cover, quiet "find details" link, light section headings */
 .book .book-cover {
   width: min(47vw, 188px);
   margin-bottom: 18px;
@@ -5518,43 +5518,44 @@ button.rt {
 .fix-bottom {
   margin-top: 8px;
 }
+/* Section headings: a thin divider above and a short accent bar before the title */
+.book .section-label,
+.book .src-head,
+.book .row .row-head {
+  margin: 26px 16px 12px;
+  padding: 18px 0 0;
+  border-top: 1px solid var(--border);
+}
 .book .section-label {
-  margin: 28px 16px 12px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--dyn, var(--accent));
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--text);
 }
+.book .section-label::before,
+.book .row .row-head h2::before {
+  content: '';
+  flex: none;
+  width: 3px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--dyn, var(--accent));
+}
 .book .pad .section-label,
-.book .source-results .section-label {
+.book .source-results .section-label,
+.book .src-head {
   margin-left: 0;
   margin-right: 0;
-}
-.book .src-head {
-  margin: 28px 0 12px;
-  padding: 8px 10px 8px 14px;
-  border-radius: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--dyn, var(--accent));
 }
 .book .src-head .section-label {
   margin: 0;
   padding: 0;
-  background: none;
   border: 0;
 }
-.book .row .row-head {
-  margin: 28px 16px 12px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--dyn, var(--accent));
-}
 .book .row .row-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 16px;
 }
 
