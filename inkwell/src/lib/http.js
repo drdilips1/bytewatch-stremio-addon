@@ -25,9 +25,13 @@ export function relayUrl() {
 }
 export function setRelayUrl(v) {
   try {
-    localStorage.setItem('inkwell:relayUrl', v);
+    // Empty (or the built-in address) means "use the built-in relay".
+    if (!v || v === DEFAULT_RELAY) localStorage.removeItem('inkwell:relayUrl');
+    else localStorage.setItem('inkwell:relayUrl', v);
+    localStorage.removeItem('inkwell:relayVer');
   } catch {}
 }
+export const defaultRelayUrl = () => DEFAULT_RELAY;
 export const isWeb = WEB;
 
 // The relay's code version, as it last answered (v8 takes the pre-check-free form).
@@ -277,16 +281,10 @@ export async function probeRelay() {
     seen.push(`${how}: HTTP ${res.status}${v ? '' : ' (from Supabase, not the relay)'}`);
     if (res.status === 503 || res.status === 540) return { ok: false, error: `Supabase answered ${res.status} — your project may be paused: open supabase.com and restore it` };
   }
-  const host = (() => {
-    try {
-      return new URL(url).host;
-    } catch {
-      return 'the relay';
-    }
-  })();
+  const host = url.replace(/^https?:\/\//, '');
   const all = seen.join(' · ');
   if (/HTTP 404/.test(all) && !/Load failed|Failed to fetch/i.test(all))
-    return { ok: false, error: `Supabase says there's no function named "relay" at ${host} — deploy it (steps below) and check the address at the bottom` };
+    return { ok: false, error: `Supabase says there's nothing at ${host}${url !== DEFAULT_RELAY && DEFAULT_RELAY ? ' — this browser uses its own relay address: tap "Use built-in address" below' : ' — deploy the relay (steps below)'}` };
   if (/HTTP 401/.test(all)) return { ok: false, error: 'Supabase refused the request (401): open the relay function in Supabase and turn off "Verify JWT", then Check again' };
   return { ok: false, error: `Can't reach the relay at ${host} (${all}). Copy the new relay code (v8) below and deploy it again; if it still fails, a content blocker, iCloud Private Relay or "Limit IP address tracking" may be blocking supabase.co` };
 }

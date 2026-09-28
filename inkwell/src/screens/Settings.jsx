@@ -3,7 +3,7 @@ import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup } from '../lib/store.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
-import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay } from '../lib/http.js';
+import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl } from '../lib/http.js';
 import { searchSources, sourceAddons } from '../sources/sourceaddons.js';
 import { ai, PROVIDERS as AI_PROVIDERS, testProvider } from '../lib/ai.js';
 import relayCode from '../../relay/index.ts?raw';
@@ -254,12 +254,25 @@ function WebRelayCard() {
           placeholder="https://<project>.supabase.co/functions/v1/relay"
           onChange={(e) => {
             const v = e.currentTarget.value.trim();
-            setUrl(v);
-            setRelayUrl(v || 'off');
+            setRelayUrl(v);
+            setUrl(relayUrl());
             setChecks(null);
           }}
         />
       </div>
+      {defaultRelayUrl() && url !== defaultRelayUrl() && (
+        <button
+          class="btn ghost-wide"
+          onClick={() => {
+            setRelayUrl('');
+            setUrl(relayUrl());
+            setChecks(null);
+            toast('Using the built-in relay address — tap Check');
+          }}
+        >
+          Use built-in address
+        </button>
+      )}
     </>
   );
 }
