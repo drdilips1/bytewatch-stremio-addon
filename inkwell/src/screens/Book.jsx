@@ -1,5 +1,5 @@
 import { BgImage } from '../components/bg-image.jsx';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Cover, SourceBadge, Row, toast } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { getDetails, findEditions, ia, hc, sourceOf } from '../sources/index.js';
@@ -12,7 +12,7 @@ import { cloudReaderBook } from '../lib/epub.js';
 import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
 import { SourceResults } from '../components/source-results.jsx';
-import { useRatings } from '../lib/ratings.js';
+import { useRatings, useGoodreads } from '../lib/ratings.js';
 import { myRatings, rateKey, rateBook, clearRating, VERDICTS, PARTS, REASONS } from '../lib/taste.js';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import { nativeReader } from '../lib/tts.js';
@@ -31,6 +31,7 @@ export function Book({ book: initial }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(false);
+  const gr = useGoodreads(book);
   const [editions, setEditions] = useState(null);
   const saved = !!useStore(library)[initial.uid];
   const allProgress = useStore(progress);
@@ -253,18 +254,8 @@ export function Book({ book: initial }) {
 
       {error && <p class="err pad">Couldn't load details: {error}</p>}
 
-      {book.description && (
-        <section class="pad">
-          <p class={'description' + (expanded ? ' open' : '')} onClick={() => setExpanded(!expanded)}>
-            {book.description}
-          </p>
-          {book.description.length > 280 && (
-            <button class="link-btn" onClick={() => setExpanded(!expanded)}>
-              {expanded ? 'Show less' : 'Read more'}
-            </button>
-          )}
-        </section>
-      )}
+      <Description text={bestDescription(book.description, gr?.description)} expanded={expanded} setExpanded={setExpanded} />
+      {gr && <GoodreadsCard gr={gr} />}
 
       {book.metaSource && <p class="muted pad meta-credit">Details from {book.metaSource}</p>}
       {book.subjects?.length > 0 && (
@@ -585,6 +576,77 @@ function MyRating({ book }) {
           <p class="muted small">Your ratings shape the picks in For you and on Home. Narrators you mark weak are kept out.</p>
         </div>
       )}
+    </section>
+  );
+}
+
+// Listings often carry a shortened blurb ("…and…"); Goodreads has the full description.
+function bestDescription(own, fromGr) {
+  const a = String(own || '').trim();
+  const b = String(fromGr || '').trim();
+  if (!b) return a;
+  const cut = /(\.\.\.|…)\s*$/.test(a);
+  return !a || cut || b.length > a.length * 1.15 ? b : a;
+}
+
+/** The description, 5 lines at first; "Read more" only when there's more to show. */
+function Description({ text, expanded, setExpanded }) {
+  const ref = useRef(null);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (el && !expanded) setMore(el.scrollHeight > el.clientHeight + 4);
+  }, [text, expanded]);
+  if (!text) return null;
+  return (
+    <section class="pad">
+      <p ref={ref} class={'description' + (expanded ? ' open' : '')} onClick={() => more && setExpanded(!expanded)}>
+        {text}
+      </p>
+      {(more || expanded) && (
+        <button class="link-btn" onClick={() => setExpanded(!expanded)}>
+          {expanded ? 'Show less' : 'Read more'}
+        </button>
+      )}
+    </section>
+  );
+}
+
+/** Goodreads: the work's rating, genres, and links to rate the book or read reviews there. */
+function GoodreadsCard({ gr }) {
+  return (
+    <section class="gr-card pad">
+      <div class="gr-head">
+        <span class="gr-logo">g</span>
+        <b>Goodreads</b>
+        {gr.rating > 0 && (
+          <span class="gr-score">
+            <Icon name="star" size={14} fill /> {gr.rating.toFixed(2)}
+            <small>
+              {gr.count > 0 && ` · ${fmtK(gr.count)} ratings`}
+              {gr.reviews > 0 && ` · ${fmtK(gr.reviews)} reviews`}
+            </small>
+          </span>
+        )}
+      </div>
+      {gr.genres?.length > 0 && (
+        <div class="gr-genres">
+          <span class="muted">Genres</span>
+          {gr.genres.map((g) => (
+            <button class="gr-genre" onClick={() => openExternal(g.url)}>
+              {g.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <div class="gr-actions">
+        <button class="pill small" onClick={() => openExternal(gr.url)}>
+          ☆ Rate this book
+        </button>
+        <button class="pill small" onClick={() => openExternal(gr.url)}>
+          Reviews on Goodreads ↗
+        </button>
+      </div>
     </section>
   );
 }

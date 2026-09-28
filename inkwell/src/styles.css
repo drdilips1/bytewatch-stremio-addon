@@ -5379,3 +5379,65 @@ button.rt {
   color: var(--faint);
   text-align: center;
 }
+.description.open {
+  display: block;
+  -webkit-line-clamp: none;
+  overflow: visible;
+}
+/* Goodreads card on the book page */
+.gr-card {
+  margin: 18px 16px 4px;
+  padding: 14px 14px 12px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.gr-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gr-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 800 13px/1 Georgia, serif;
+  color: #382110;
+  background: #f4f1ea;
+}
+.gr-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-weight: 800;
+  color: #fbbf24;
+}
+.gr-score small {
+  color: var(--muted);
+  font-weight: 600;
+}
+.gr-genres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 12px;
+  font-size: 13.5px;
+}
+.gr-genre {
+  padding: 2px 0;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 2px solid #409d69;
+  background: none;
+}
+.gr-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}

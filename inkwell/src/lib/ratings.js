@@ -1,7 +1,8 @@
 // Ratings and awards for a book page: Audible (stars and count), Goodreads (average
 // rating), and awards named in the description (Audie Awards, AudioFile Earphones).
 import { useEffect, useState } from 'preact/hooks';
-import { getJson, qs } from './http.js';
+import { getJson, getText, qs } from './http.js';
+import { stripHtml } from './format.js';
 import { persisted } from './store.js';
 import { words, mainTitle } from './match.js';
 import * as hcSrc from '../sources/hardcover.js';
@@ -108,10 +109,67 @@ function grLimited(fn) {
   });
 }
 
+// ---- the book's own Goodreads page ---------------------------------------------
+// Search suggestions carry one edition's numbers (a minor edition can show "4.24 (144)");
+// the book page has the whole work's rating, the full description and the genres.
+const grPages = persisted('grPages', {}); // url -> { t, v } (last 80 pages)
+const PAGE_TTL = 14 * 864e5;
+
+export function parseGoodreadsPage(html, url = '') {
+  const out = {};
+  try {
+    const ld = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/i.exec(html);
+    const j = ld && JSON.parse(ld[1]);
+    const a = j?.aggregateRating;
+    if (a) Object.assign(out, { rating: Number(a.ratingValue) || 0, count: Number(a.ratingCount) || 0, reviews: Number(a.reviewCount) || 0 });
+    if (j?.numberOfPages) out.pages = Number(j.numberOfPages) || 0;
+  } catch {}
+  try {
+    const nd = /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/i.exec(html);
+    const st = nd && JSON.parse(nd[1])?.props?.pageProps?.apolloState;
+    if (st) {
+      const id = (/\/book\/show\/(\d+)/.exec(url) || [])[1];
+      const books = Object.values(st).filter((o) => o?.__typename === 'Book');
+      const b = books.find((o) => id && String(o.legacyId) === id) || books.find((o) => o.bookGenres?.length) || books[0];
+      if (b) {
+        const d = b['description({"stripped":true})'] || b.description || '';
+        if (d) out.description = stripHtml(d).slice(0, 6000);
+        out.genres = (b.bookGenres || [])
+          .map((g) => g?.genre)
+          .filter((g) => g?.name)
+          .map((g) => ({ name: g.name, url: g.webUrl || `https://www.goodreads.com/genres/${encodeURIComponent(g.name.toLowerCase())}` }))
+          .slice(0, 10);
+        const w = b.work?.__ref ? st[b.work.__ref] : null;
+        if (w?.stats?.averageRating) Object.assign(out, { rating: Number(w.stats.averageRating) || out.rating, count: Number(w.stats.ratingsCount) || out.count, reviews: Number(w.stats.textReviewsCount) || out.reviews });
+        if (b.details?.numPages) out.pages = b.details.numPages;
+      }
+    }
+  } catch {}
+  return out;
+}
+
+/** The Goodreads page for a book URL: { rating, count, reviews, description, genres[], pages } or null. */
+export async function goodreadsPage(url) {
+  if (!url) return null;
+  const hit = grPages.get()[url];
+  if (hit && Date.now() - hit.t < PAGE_TTL) return hit.v;
+  const html = await getText(url, { timeout: 15000 }).catch(() => null);
+  if (!html) return null;
+  const v = parseGoodreadsPage(html, url);
+  if (!v.rating && !v.description) return null;
+  grPages.set((c) => {
+    const next = { ...c, [url]: { t: Date.now(), v } };
+    const keys = Object.keys(next);
+    if (keys.length > 80) keys.sort((x, y) => next[x].t - next[y].t).slice(0, keys.length - 80).forEach((k) => delete next[k]);
+    return next;
+  });
+  return v;
+}
+
 /** Goodreads average rating via its search suggestions: { rating, count, url } or null. */
 export const goodreads = (raw) => {
   const book = norm(raw);
-  return cached('gr5', book, () =>
+  return cached('gr6', book, () =>
     grLimited(async () => {
       const ask = async (q) => {
         const list = await getJson('https://www.goodreads.com/book/auto_complete?' + qs({ format: 'json', q }), { timeout: 12000 });
@@ -125,8 +183,13 @@ export const goodreads = (raw) => {
       const hit = list
         .filter((x) => sameBook(book, x.bookTitleBare || x.title || '', x.author?.name || '') && notCompanion(book, x.bookTitleBare || x.title))
         .sort((a, b) => (Number(b.ratingsCount) || 0) - (Number(a.ratingsCount) || 0))[0];
-      const rating = Number(hit?.avgRating) || 0;
-      return rating ? { rating, count: Number(hit.ratingsCount) || 0, url: hit.bookUrl ? `https://www.goodreads.com${hit.bookUrl.split('?')[0]}` : '', from: 'Goodreads' } : null;
+      if (!hit) return null;
+      const url = hit.bookUrl ? `https://www.goodreads.com${hit.bookUrl.split('?')[0]}` : '';
+      // The whole work's rating from the book page (the suggestion has one edition's numbers).
+      const page = await goodreadsPage(url).catch(() => null);
+      const rating = page?.rating || Number(hit.avgRating) || 0;
+      const count = page?.rating ? page.count || 0 : Number(hit.ratingsCount) || 0;
+      return rating ? { rating, count, reviews: page?.reviews || 0, url, from: 'Goodreads' } : null;
     })
   );
 };
@@ -176,7 +239,7 @@ export const hardcoverStars = (raw) => {
   );
 };
 
-const TILE = 'tile5-gr';
+const TILE = 'tile6-gr';
 /** The rating to show on a tile: Goodreads. Only a real "no rating" is remembered. */
 export const tileRating = (book) =>
   cached(TILE, book, async () => {
@@ -245,7 +308,7 @@ export function useRatings(book) {
       if (!alive) return;
       if (v) return setR((x) => ({ ...x, goodreads: v }));
       if (v === undefined && tries > 0) return timers.push(setTimeout(() => goodreads(book).then((w) => done(w, tries - 1)), 8000));
-      setR((x) => ({ ...x, why: `Goodreads: ${whyNoRating('gr5', norm(book)) || 'no answer'}` }));
+      setR((x) => ({ ...x, why: `Goodreads: ${whyNoRating('gr6', norm(book)) || 'no answer'}` }));
     });
     return () => {
       alive = false;
@@ -253,4 +316,19 @@ export function useRatings(book) {
     };
   }, [book?.uid, book?.title]);
   return { ...r, awards: awardsFrom(book?.description) };
+}
+
+/** Hook: the book's Goodreads page (description, genres, work rating, link) once found. */
+export function useGoodreads(book) {
+  const [page, setPage] = useState(null);
+  useEffect(() => {
+    setPage(null);
+    if (!book?.title || book.source === 'pod' || book.source === 'sum') return;
+    let alive = true;
+    goodreads(book)
+      .then((g) => (g?.url ? goodreadsPage(g.url).then((p) => alive && setPage(p ? { ...p, url: g.url, rating: p.rating || g.rating, count: p.count || g.count } : { url: g.url, rating: g.rating, count: g.count, genres: [] })) : null))
+      .catch(() => {});
+    return () => (alive = false);
+  }, [book?.uid, book?.title]);
+  return page;
 }
