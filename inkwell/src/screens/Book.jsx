@@ -318,10 +318,10 @@ export function Book({ book: initial }) {
       {editions?.server?.length > 0 && <Row title="On your server" subtitle="Audiobookshelf" icon="server" items={editions.server} />}
       {editions?.cloud?.length > 0 && <Row title="In your cloud" subtitle="TorBox / Real-Debrid" icon="download" items={editions.cloud} />}
       {editions?.addons?.length > 0 && <Row title="From your addons" subtitle="Addon results" icon="puzzle" items={editions.addons} />}
-      {book.kind === 'discover' && sourceAddons().length > 0 && (
+      {book.kind === 'discover' && sourceAddons().length > 0 && !loading && (
         <SourceResults title={mainTitle(book.title)} author={(book.author || '').split(',')[0].trim()} book={book} />
       )}
-      {((book.kind === 'audio' && OTHER_SOURCES.has(book.source)) || book.kind === 'text') && sourceAddons().length > 0 && (
+      {((book.kind === 'audio' && OTHER_SOURCES.has(book.source)) || book.kind === 'text') && sourceAddons().length > 0 && !loading && (
         <section class="pad">
           <h3 class="section-label">
             <Icon name="puzzle" size={16} /> Sources
