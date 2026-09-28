@@ -1,9 +1,10 @@
 // Voice for Ask AI: speak a question (Google's speech input on Android — very good
 // with Indian English and Hindi; the browser's speech recognition on the web) and
-// hear the answer read aloud with the voice chosen in Settings → Voices.
+// hear the answer read aloud — in its own voice (chosen on the Ask screen), or the one
+// in Settings → Voices.
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { persisted } from './store.js';
-import { speak, stopSpeaking } from './tts.js';
+import { speak, stopSpeaking, ttsCfg, nativeReader, Reader, voiceSpec, EDGE_VOICES } from './tts.js';
 
 const Listen = registerPlugin('InkwellListen');
 const native = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellListen');
@@ -14,6 +15,13 @@ export const LANGS = [
   ['hi-IN', 'हिंदी'],
 ];
 export const voiceLang = persisted('askVoiceLang', 'en-IN');
+
+// The voice answers are read in (Android): Microsoft's natural voices, Indian ones first.
+// '' = the same as Settings → Voices.
+export const askVoice = persisted('askVoice', '');
+export const canPickVoice = nativeReader;
+const indian = (id) => /-IN-/.test(id);
+export const ASK_VOICES = [...EDGE_VOICES.filter(([id]) => indian(id)), ...EDGE_VOICES.filter(([id]) => !indian(id))];
 export const canListen = () => native || !!WebSR;
 
 /** Listen once; resolves the recognised text ('' if nothing was said). */
@@ -45,9 +53,40 @@ const plain = (t) =>
     .trim();
 
 let run = 0;
+let readerOn = false;
+// The Microsoft voice to use, if any: the Ask screen's pick, else Settings' when it's a Microsoft voice.
+function edgeVoice() {
+  if (!nativeReader) return '';
+  const c = ttsCfg.get();
+  return askVoice.get() || (c.mode === 'edge' || !c.mode ? c.edgeVoice || EDGE_VOICES[0][0] : '');
+}
+
 /** Read an answer aloud, a few sentences at a time (so it starts quickly). */
 export async function speakAnswer(text, onDone) {
   const my = ++run;
+  const edge = edgeVoice();
+  if (edge) {
+    // The read-aloud engine plays the whole answer, paragraph by paragraph.
+    const paras = plain(text).split('\n').map((x) => x.trim()).filter(Boolean);
+    const done = () => {
+      if (my !== run) return;
+      readerOn = false;
+      onDone?.();
+    };
+    try {
+      readerOn = true;
+      await Reader.start({ uid: 'ask-answer', title: 'Ask AI', paras, from: 0, rate: ttsCfg.get().rate || 1, voice: { ...voiceSpec(), engine: 'edge', edgeVoice: edge } });
+      const h = await Reader.addListener('state', (st) => {
+        if (st.uid !== 'ask-answer' || st.finished || !st.active || (!st.playing && st.error) || my !== run) {
+          h.remove();
+          done();
+        }
+      });
+    } catch {
+      done();
+    }
+    return;
+  }
   const parts = [];
   let cur = '';
   for (const s of plain(text).split(/(?<=[.!?])\s+|\n/)) {
@@ -70,5 +109,9 @@ export async function speakAnswer(text, onDone) {
 }
 export function stopAnswer() {
   run++;
+  if (readerOn) {
+    readerOn = false;
+    Reader.stop().catch(() => {});
+  }
   stopSpeaking();
 }

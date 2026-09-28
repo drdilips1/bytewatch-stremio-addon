@@ -8,7 +8,7 @@ import { keyIdeas, summaryBook } from '../sources/summaries.js';
 import { mainTitle } from '../lib/match.js';
 import { usePlayer } from '../components/player-ui.jsx';
 import { useStore } from '../lib/store.js';
-import { canListen, listen, speakAnswer, stopAnswer, voiceLang, LANGS } from '../lib/voiceask.js';
+import { canListen, listen, speakAnswer, stopAnswer, voiceLang, LANGS, askVoice, canPickVoice, ASK_VOICES } from '../lib/voiceask.js';
 
 /**
  * Ask AI about one book (params.book) or about your whole library (no book).
@@ -22,6 +22,7 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
   const endRef = useRef(null);
   const ps = usePlayer();
   const lang = useStore(voiceLang);
+  const voiceId = useStore(askVoice);
   const [speaking, setSpeaking] = useState(-1); // index of the answer being read aloud
   const say = (i, t) => {
     stopAnswer();
@@ -145,6 +146,26 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
               <span>Themes, contradictions, what to read next</span>
             </div>
           </div>
+        )}
+        {canPickVoice && (
+          <label class="ask-voice">
+            🔊 Answer voice
+            <select
+              value={voiceId}
+              onChange={(e) => {
+                stopAnswer();
+                setSpeaking(-1);
+                askVoice.set(e.currentTarget.value);
+              }}
+            >
+              <option value="">Same as Settings → Voices</option>
+              {ASK_VOICES.map(([id, name, desc]) => (
+                <option value={id}>
+                  {name} — {desc}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
         <p class="muted small ask-note">
           Answers use what the AI knows about {book ? 'the book' : 'your books'} and {book ? 'its description' : 'your listening history'} — it doesn't have the audio or text itself, and will say when it isn't sure.

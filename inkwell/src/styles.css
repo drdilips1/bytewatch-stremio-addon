@@ -5914,3 +5914,22 @@ button.rt {
   font-weight: 700;
   font-size: 12px;
 }
+.ask-voice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ask-voice select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+}
