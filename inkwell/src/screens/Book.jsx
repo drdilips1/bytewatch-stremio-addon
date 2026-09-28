@@ -409,7 +409,7 @@ function Summaries({ book }) {
             <div class="sum-head">
               <b>{sum.tagline || 'The book in a few minutes'}</b>
               <small>
-                {sum.ideas.length} key ideas · {sum.minutes} min read
+                {sum.ideas.length} key ideas · {sum.minutes} min read{sum.fromDescription ? ' · from the publisher’s description' : ''}
               </small>
             </div>
             <p class="sum-about">{sum.about}</p>

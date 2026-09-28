@@ -45,18 +45,22 @@ export async function keyIdeas(book, { fresh = false } = {}) {
   if (hit && !fresh) return hit.data;
   const title = mainTitle(book.title);
   const author = book.author || '';
+  const about = String(book.description || '').replace(/\s+/g, ' ').trim().slice(0, 2500);
   const prompt = `Write a book summary of "${title}"${author ? ` by ${author}` : ''} in the style of Blinkist key ideas.
-Reply with JSON only:
-{"known": true|false, "tagline": "one line hook", "about": "2-3 sentences on what the book is about", "forWho": "who should read it, one sentence",
- "ideas": [{"title": "short idea title", "text": "140-200 words explaining the idea with the book's own examples"}],
+${about ? `The publisher's description:\n"""${about}"""\n` : ''}Reply with JSON only:
+{"known": true|false, "basis": "knowledge" | "description", "tagline": "one line hook", "about": "2-3 sentences on what the book is about", "forWho": "who should read it, one sentence",
+ "ideas": [{"title": "short idea title", "text": "140-200 words explaining the idea"}],
  "quote": "a short memorable line from or about the book", "takeaway": "the one thing to remember, 1-2 sentences"}
 Give 7 to 10 ideas, in the order the book presents them. Plain, warm, clear English. For fiction, summarise the story and its themes without inventing plot details.
-If you don't know this specific book well, reply {"known": false} and nothing else — never make a summary up.`;
+If you know this book well, use what you know ("basis": "knowledge", with the book's own examples).
+If you don't, but the description above says enough, give 4 to 6 ideas based only on the description and the book's subject ("basis": "description") — don't invent examples, quotes or chapters.
+Only if neither is possible, reply {"known": false}.`;
   const data = parseJson(await askAi(prompt, { json: true }));
-  if (!data || data.known === false || !Array.isArray(data.ideas) || data.ideas.length < 3) throw new Error("The AI doesn't know this book well enough to summarise it");
+  if (!data || data.known === false || !Array.isArray(data.ideas) || data.ideas.length < 3)
+    throw new Error(about ? "Couldn't write key ideas for this book — tap to try again" : "The AI doesn't know this book, and there's no description to go on");
   const ideas = data.ideas.filter((i) => i && i.title && i.text).slice(0, 12);
   const wordsCount = [data.about, ...ideas.map((i) => i.text), data.takeaway].join(' ').split(/\s+/).length;
-  const out = { tagline: data.tagline || '', about: data.about || '', forWho: data.forWho || '', ideas, quote: data.quote || '', takeaway: data.takeaway || '', minutes: Math.max(3, Math.round(wordsCount / 220)) };
+  const out = { fromDescription: data.basis === 'description', tagline: data.tagline || '', about: data.about || '', forWho: data.forWho || '', ideas, quote: data.quote || '', takeaway: data.takeaway || '', minutes: Math.max(3, Math.round(wordsCount / 220)) };
   store.set((all) => {
     const next = { ...all, [key]: { at: Date.now(), data: out } };
     const keys = Object.keys(next).sort((a, b) => next[b].at - next[a].at);

@@ -10,8 +10,21 @@ import { waitlist, wait, cancel } from '../lib/waitlist.js';
 import { translit } from '../lib/translit.js';
 import * as qb from '../sources/qbit.js';
 import { cleanTitle } from '../sources/debrid.js';
+import { mainTitle } from '../lib/match.js';
 
-const trackerWords = (name) => cleanTitle(name).replace(/\s[-–:]\s/g, ' ');
+// Search words for your tracker: the book's main title and the author's surname (what a
+// tracker's search matches best). Without a book (Discover search), the torrent's own
+// name, cut down to its title part.
+const trackerWords = (name, book) => {
+  if (book?.title) {
+    const surname = String(book.author || '').split(',')[0].trim().split(/\s+/).pop() || '';
+    return `${mainTitle(book.title)} ${surname}`.trim();
+  }
+  const clean = cleanTitle(name).replace(/\b(19|20)\d{2}\b/g, ' ');
+  const parts = clean.split(/\s[-–]\s/).map((x) => x.trim()).filter(Boolean);
+  // "Author - Title" or "Title - Author": keep both short parts, drop anything after.
+  return mainTitle(parts.slice(0, 2).join(' ')).split(/\s+/).slice(0, 8).join(' ');
+};
 import { openExternal } from '../sources/summaries.js';
 import { directEbookFile, directReaderBook } from '../lib/epub.js';
 import { shareEbook } from '../lib/kindle.js';
@@ -360,12 +373,12 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
         {r.language && <span class="chip">{r.language}</span>}
         <span class="chip ghost">{r.addon}</span>
         {trackerSite && trackerFilter && (
-          <button class="chip tracker-chip" onClick={() => qb.openTracker(trackerWords(r.title), true, qb.isEbookName(`${r.title} ${r.format || ''}`)).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} (${trackerFilter}) for this`}>
+          <button class="chip tracker-chip" onClick={() => qb.openTracker(trackerWords(r.title, book), true, qb.isEbookName(`${r.title} ${r.format || ''}`)).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} (${trackerFilter}) for this`}>
             <Icon name="search" size={12} /> {trackerFilter}
           </button>
         )}
         {trackerSite && (
-          <button class="chip tracker-chip" onClick={() => qb.openTracker(trackerWords(r.title)).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} for this`}>
+          <button class="chip tracker-chip" onClick={() => qb.openTracker(trackerWords(r.title, book)).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} for this`}>
             <Icon name="search" size={12} /> {trackerFilter ? 'All' : trackerSite}
           </button>
         )}
