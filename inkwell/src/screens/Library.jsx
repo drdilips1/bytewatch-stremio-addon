@@ -67,9 +67,14 @@ export function Library() {
     <div class="screen library">
       <div class="library-head">
         <h1 class="screen-title">Library</h1>
-        <button class={'pill small' + (editing ? ' active' : '')} onClick={() => setEditing(!editing)}>
-          {editing ? 'Done' : 'Edit'}
-        </button>
+        <div class="library-head-actions">
+          <button class="pill small" onClick={() => nav.push('ask', {})}>
+            ✨ Ask my books
+          </button>
+          <button class={'pill small' + (editing ? ' active' : '')} onClick={() => setEditing(!editing)}>
+            {editing ? 'Done' : 'Edit'}
+          </button>
+        </div>
       </div>
       <div class="stats">
         <div>

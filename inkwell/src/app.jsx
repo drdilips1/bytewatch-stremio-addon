@@ -1,4 +1,5 @@
 import * as qbit from './sources/qbit.js';
+import { Ask } from './screens/Ask.jsx';
 import { useEffect, useState } from 'preact/hooks';
 import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -32,7 +33,7 @@ const TABS = [
   ['settings', 'Settings', 'settings'],
 ];
 const ROOTS = { home: Home, discover: Discover, podcasts: Podcasts, library: Library, tracker: Settings, settings: Settings }; // tracker: the old tab, now in Settings
-const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast };
+const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast, ask: Ask };
 
 export function App() {
   const [route, setRoute] = useState(nav.state());

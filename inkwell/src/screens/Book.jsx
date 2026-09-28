@@ -11,6 +11,7 @@ import { canSendToKindle, sendToKindle, shareEbook } from '../lib/kindle.js';
 import { cloudReaderBook } from '../lib/epub.js';
 import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
+import { MODES, STARTERS } from '../lib/askbook.js';
 import { setFix } from '../lib/meta.js';
 import { audible as audibleCat, googleBooks } from '../sources/catalogs.js';
 import { SourceResults } from '../components/source-results.jsx';
@@ -259,7 +260,7 @@ export function Book({ book: initial }) {
 
       <Description text={bestDescription(book.description, gr?.description)} expanded={expanded} setExpanded={setExpanded} />
       {gr && <GoodreadsCard gr={gr} />}
-      {!loading && book.source !== 'sum' && book.source !== 'pod' && <Summaries book={book} description={bestDescription(book.description, gr?.description)} />}
+      {book.source !== 'sum' && book.source !== 'pod' && <AskCard book={book} description={bestDescription(book.description, gr?.description)} genres={(gr?.genres || []).map((g) => g.name)} />}
 
       {book.metaSource && <p class="muted pad meta-credit">Details from {book.metaSource}</p>}
       {book.subjects?.length > 0 && (
@@ -739,5 +740,37 @@ function FixDetails({ book, onFixed }) {
         Cancel
       </button>
     </div>
+  );
+}
+
+/** Ask AI about this book: a few quick questions and the six modes; one tap opens the full screen. */
+function AskCard({ book, description, genres }) {
+  const open = (extra = {}) => nav.push('ask', { book, description, genres, ...extra });
+  return (
+    <section class="pad ask-card-wrap">
+      <h3 class="section-label">
+        <Icon name="sparkle" size={16} /> Ask AI
+      </h3>
+      <div class="ask-card">
+        <p class="muted small">Ask anything about this book</p>
+        <div class="ask-card-qs">
+          {STARTERS.map((q) => (
+            <button class="ask-q" onClick={() => open({ question: q })}>
+              💡 {q}
+            </button>
+          ))}
+        </div>
+        <div class="ask-card-modes">
+          {MODES.map((m) => (
+            <button class="ask-chip" onClick={() => open({ mode: m.id })}>
+              {m.icon} {m.label}
+            </button>
+          ))}
+        </div>
+        <button class="btn primary ask-open" onClick={() => open()}>
+          <Icon name="sparkle" size={16} /> Ask a question
+        </button>
+      </div>
+    </section>
   );
 }
