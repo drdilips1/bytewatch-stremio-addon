@@ -5192,3 +5192,51 @@ button.rt {
   font-weight: 700;
   color: rgba(253, 230, 138, 0.8);
 }
+/* Sources header with the tracker shortcut on the right */
+.src-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.src-head .section-label {
+  margin: 0;
+}
+.tracker-mini {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.tracker-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: var(--grad);
+  color: var(--on-grad, #1d1b20);
+  font: 800 14px/1 var(--display, inherit);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.tracker-pill {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.src-errors {
+  margin: 4px 0 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--faint);
+}

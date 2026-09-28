@@ -101,10 +101,17 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
 
   return (
     <section class="source-results">
-      {heading && (
-        <h3 class="section-label">
-          <Icon name="puzzle" size={16} /> Sources {total > 0 && <small>{total}</small>}
-        </h3>
+      {(heading || trackerSite) && (
+        <div class="src-head">
+          {heading ? (
+            <h3 class="section-label">
+              <Icon name="puzzle" size={16} /> Sources {total > 0 && <small>{total}</small>}
+            </h3>
+          ) : (
+            <span />
+          )}
+          {trackerSite && (title || query) && <TrackerMini site={trackerSite} filter={trackerFilter} words={title ? trackerWords('', { title, author }) : query} ebook={qb.isEbookName(query)} />}
+        </div>
       )}
       {onServer && (
         <button class="on-server" onClick={() => nav.push('book', { book: onServer })}>
@@ -113,11 +120,6 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
             <b>Already on your Audiobookshelf</b>
             <small>{onServer.title} — open it there instead of adding it again</small>
           </span>
-        </button>
-      )}
-      {trackerSite && (title || query) && (
-        <button class="pill small ghost tracker-jump" onClick={() => qb.openTracker([title || query, author].filter(Boolean).join(' ')).catch((e) => toast(e.message))}>
-          <Icon name="search" size={14} /> Search on {trackerSite}
         </button>
       )}
       {!provider && (
@@ -130,12 +132,13 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           <span class="spinner small" /> Searching {sourceAddons().map((a) => a.manifest.name).join(', ')}…
         </p>
       )}
-      {entries.map(([name, g]) =>
-        g.error ? (
-          <p class="muted pad-s err-soft">
-            {name}: {g.error.message}
-          </p>
-        ) : null
+      {entries.some(([, g]) => g.error) && (
+        <p class="src-errors">
+          {entries
+            .filter(([, g]) => g.error)
+            .map(([name, g]) => `${name} ${friendlyError(g.error)}`)
+            .join(' · ')}
+        </p>
       )}
       {!pending && !total && entries.length > 0 && <p class="muted pad-s">{looseCount ? 'No results that are clearly this book.' : 'No source results.'}</p>}
       <div class="src-list">
@@ -648,6 +651,37 @@ function SourceFolder({ g, provider, providers, book, account, onChanged }) {
       </button>
       {open &&
         g.items.map((r) => <SourceRow key={r.key} r={r} provider={provider} providers={providers} book={book} inAccount={account.get(r.hash)} onChanged={onChanged} />)}
+    </div>
+  );
+}
+
+/** A short, plain reason a source gave nothing. */
+function friendlyError(e) {
+  const m = String(e?.message || e || '');
+  if (/resolve host|no address associated|ENOTFOUND|getaddrinfo/i.test(m)) return "couldn't be reached — check the internet connection (a VPN's DNS can cause this)";
+  if (/timed? ?out/i.test(m)) return "didn't answer in time";
+  if (/failed to fetch|load failed|network/i.test(m)) return "couldn't be reached";
+  if (/too many searches/i.test(m)) return 'is busy — try again in a minute';
+  return m.replace(/^[^:]+:\s*/, '').slice(0, 90);
+}
+
+/** Your tracker, always at hand next to "Sources": a round badge with its initial, plus filtered / plain search. */
+function TrackerMini({ site, filter, words, ebook }) {
+  const name = site.replace(/^www\./, '');
+  const open = (filtered) => qb.openTracker(words, filtered, ebook).catch((e) => toast(e.message));
+  return (
+    <div class="tracker-mini" title={`Search ${name} for "${words}"`}>
+      <button class="tracker-dot" onClick={() => open(!!filter)} aria-label={`Search ${name}`}>
+        {name[0].toUpperCase()}
+      </button>
+      {filter && (
+        <button class="tracker-pill" onClick={() => open(true)}>
+          {filter}
+        </button>
+      )}
+      <button class="tracker-pill" onClick={() => open(false)}>
+        All
+      </button>
     </div>
   );
 }
