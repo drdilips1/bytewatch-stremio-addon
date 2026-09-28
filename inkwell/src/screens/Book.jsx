@@ -324,7 +324,7 @@ export function Book({ book: initial }) {
       {((book.kind === 'audio' && OTHER_SOURCES.has(book.source)) || book.kind === 'text') && sourceAddons().length > 0 && (
         <section class="pad">
           <h3 class="section-label">
-            <Icon name="puzzle" size={16} /> Other sources
+            <Icon name="puzzle" size={16} /> Sources
           </h3>
           <SourceResults title={mainTitle(book.title)} author={(book.author || '').split(',')[0].trim()} book={book} heading={false} />
         </section>
