@@ -259,7 +259,7 @@ export function Book({ book: initial }) {
 
       <Description text={bestDescription(book.description, gr?.description)} expanded={expanded} setExpanded={setExpanded} />
       {gr && <GoodreadsCard gr={gr} />}
-      {!loading && book.source !== 'sum' && book.source !== 'pod' && <Summaries book={book} />}
+      {!loading && book.source !== 'sum' && book.source !== 'pod' && <Summaries book={book} description={bestDescription(book.description, gr?.description)} />}
 
       {book.metaSource && <p class="muted pad meta-credit">Details from {book.metaSource}</p>}
       {book.subjects?.length > 0 && (
@@ -373,7 +373,7 @@ export function Book({ book: initial }) {
 }
 
 /** Blinks (Blinkist-style key ideas): made by your AI service, then kept. */
-function Summaries({ book }) {
+function Summaries({ book, description }) {
   const [sum, setSum] = useState(() => savedSummary(book));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -388,7 +388,7 @@ function Summaries({ book }) {
     setBusy(true);
     setErr('');
     try {
-      setSum(await keyIdeas(book));
+      setSum(await keyIdeas(book, { description }));
     } catch (e) {
       setErr(e.message);
     } finally {

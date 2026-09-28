@@ -132,13 +132,16 @@ export function parseJson(text) {
  * rate-limited or failing reply it waits briefly, retries once, then moves on
  * to the next model and the next service.
  */
-export async function askAi(prompt, { json = false } = {}) {
+export async function askAi(prompt, { json = false, skip = [] } = {}) {
   const ready = PROVIDERS.filter(keyOf);
   if (!ready.length) throw new Error('Add a free AI key (Groq or OpenRouter) in Settings → AI first');
   let order = (await Promise.all(ready.map(async (p) => (await modelsFor(p)).map((m) => [p, m])))).flat();
   const last = ai.get().last;
   const li = order.findIndex(([p, m]) => `${p.id}/${m}` === last);
   if (li > 0) order = [order[li], ...order.filter((_, i) => i !== li)];
+  // Skip models whose answer wasn't usable (e.g. "I don't know this book"), if others exist.
+  const rest = order.filter(([p, m]) => !skip.includes(`${p.id}/${m}`));
+  if (rest.length) order = rest;
   const errors = {};
   const deadKeys = new Set();
   const blocked = new Set();
