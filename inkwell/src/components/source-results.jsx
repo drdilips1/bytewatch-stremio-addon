@@ -109,6 +109,8 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const allGroups = groupResults(visible);
   const linkGroups = allGroups.filter(isLink);
   const shownGroups = allGroups.filter((g) => !isLink(g));
+  // The heading counts what's listed under it (audiobook results), not the folded-away links.
+  const audioCount = shownGroups.length;
 
   return (
     <section class="source-results">
@@ -116,7 +118,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
         <div class="src-head">
           {heading ? (
             <h3 class="section-label">
-              <Icon name="puzzle" size={16} /> Sources {total > 0 && <small>{total}</small>}
+              <Icon name="puzzle" size={16} /> Sources {audioCount > 0 && <small>{audioCount}</small>}
             </h3>
           ) : (
             <span />
@@ -171,6 +173,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           </button>
         </p>
       )}
+      {!pending && total > 0 && !shownGroups.length && linkGroups.length > 0 && <p class="muted pad-s">No audiobook results — only ebooks & download links (below).</p>}
       {!pending && !total && entries.length > 0 && <p class="muted pad-s">{looseCount ? 'No results that are clearly this book.' : 'No source results.'}</p>}
       <div class="src-list">
         {shownGroups.map((g) =>
