@@ -111,7 +111,7 @@ export function Book({ book: initial }) {
             {book.language && <span>{book.language}</span>}
           </div>
           <RatingsRow book={book} />
-          {!loading && book.source !== 'pod' && book.source !== 'sum' && <FixDetails book={book} onFixed={(f) => setBook((b) => ({ ...b, ...f }))} />}
+          {!loading && !book.cover && book.source !== 'pod' && book.source !== 'sum' && <FixDetails book={book} onFixed={(f) => setBook((b) => ({ ...b, ...f }))} />}
         </div>
       </div>
 
@@ -367,6 +367,11 @@ export function Book({ book: initial }) {
         />
       )}
       {!loading && <RelatedRows book={book} />}
+      {!loading && book.cover && book.source !== 'pod' && book.source !== 'sum' && (
+        <div class="pad fix-bottom">
+          <FixDetails book={book} onFixed={(f) => setBook((b) => ({ ...b, ...f }))} />
+        </div>
+      )}
       <div class="footer-space" />
     </div>
   );
@@ -686,7 +691,7 @@ function FixDetails({ book, onFixed }) {
     return (
       <div class="fix-row">
         <button class="link-btn fix-link" onClick={start}>
-          <Icon name="search" size={14} /> {book.cover ? 'Wrong cover or details? Find them' : 'Find cover & details'}
+          <Icon name="search" size={14} /> {book.cover ? 'Details look wrong? Find the right cover & details' : 'Find cover & details'}
         </button>
         {book.fixed && (
           <button

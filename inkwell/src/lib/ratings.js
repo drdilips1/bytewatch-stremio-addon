@@ -72,7 +72,12 @@ const sameBook = (book, title, author) => {
 
 // Companion products that share the title (and have their own, different ratings).
 const COMPANION = /\b(summary|summaries|workbook|study guide|analysis|companion|conversation starters|trivia|quiz|key takeaways|cliff ?notes|lesson plans?)\b/i;
-const notCompanion = (book, title) => COMPANION.test(book.title || '') || !COMPANION.test(title || '');
+// Collections and box sets ("Deep Work … 4 Books Collection Set") carry the set's own, unrelated rating.
+const COLLECTION = /\b(collection|box(ed)?[ -]?set|\d+\s*(books?|volumes?|titles?)\b|books?\s*\d+\s*[-–]\s*\d+|bundle|omnibus|complete series|anthology|set of)\b/i;
+const notCompanion = (book, title) =>
+  (COMPANION.test(book.title || '') || !COMPANION.test(title || '')) && (COLLECTION.test(book.title || '') || !COLLECTION.test(title || ''));
+// The candidate whose own main title is exactly the book's comes first; then the most ratings.
+const exactTitle = (book, title) => words(mainTitle(title)).join(' ') === words(mainTitle(book.title)).join(' ');
 
 // Few requests at a time: a screen of tiles shouldn't flood Audible or Goodreads.
 let running = 0;
@@ -202,7 +207,7 @@ async function goodreadsSearch(q) {
 /** Goodreads average rating via its search suggestions: { rating, count, url } or null. */
 export const goodreads = (raw) => {
   const book = norm(raw);
-  return cached('gr7', book, () =>
+  return cached('gr8', book, () =>
     grLimited(async () => {
       const ask = async (q) => {
         const list = await getJson('https://www.goodreads.com/book/auto_complete?' + qs({ format: 'json', q }), { timeout: 12000 });
@@ -212,7 +217,7 @@ export const goodreads = (raw) => {
       const pick = (list) =>
         list
           .filter((x) => sameBook(book, x.bookTitleBare || x.title || '', x.author?.name || '') && notCompanion(book, x.bookTitleBare || x.title))
-          .sort((a, b) => (Number(b.ratingsCount) || 0) - (Number(a.ratingsCount) || 0))[0];
+          .sort((a, b) => Number(exactTitle(book, b.bookTitleBare || b.title)) - Number(exactTitle(book, a.bookTitleBare || a.title)) || (Number(b.ratingsCount) || 0) - (Number(a.ratingsCount) || 0))[0];
       const author = firstAuthor(book.author);
       const last = words(author).slice(-1)[0] || '';
       // Title + author, title + surname, title alone (the author check still applies),
@@ -253,7 +258,7 @@ async function audibleIn(market, book) {
         return { p, rating: Number(r.display_average_rating || r.average_rating) || 0, count: Number(r.num_ratings) || 0, story: part(p.rating?.story_distribution), narration: part(p.rating?.performance_distribution) };
       })
       .filter((x) => x.rating && sameBook(book, x.p.title || '', (x.p.authors || []).map((a) => a.name).join(' ')) && notCompanion(book, x.p.title))
-      .sort((a, b) => b.count - a.count)[0];
+      .sort((a, b) => Number(exactTitle(book, b.p.title)) - Number(exactTitle(book, a.p.title)) || b.count - a.count)[0];
   const author = firstAuthor(book.author);
   // Keyword search first (the same search the rest of the app uses), then title + author.
   let best = pick(await run({ keywords: `${book.title} ${author}`.trim() }));
@@ -265,7 +270,7 @@ async function audibleIn(market, book) {
 /** Audible (audible.com) stars and rating count for a book: { rating, count, url } or null. */
 export const audibleStars = (raw) => {
   const book = norm(raw);
-  return cached(`au6-${MARKET}`, book, () => limited(() => audibleIn('com', book)));
+  return cached(`au7-${MARKET}`, book, () => limited(() => audibleIn('com', book)));
 };
 
 /** Hardcover's reader rating (needs your Hardcover token): the fallback when Audible and Goodreads have nothing. */
@@ -283,7 +288,7 @@ export const hardcoverStars = (raw) => {
   );
 };
 
-const TILE = 'tile7-gr';
+const TILE = 'tile8-gr';
 /** The rating to show on a tile: Goodreads. Only a real "no rating" is remembered. */
 export const tileRating = (book) =>
   cached(TILE, book, async () => {
@@ -354,7 +359,7 @@ export function useRatings(book) {
       if (!alive) return;
       if (v) return setR((x) => ({ ...x, goodreads: v }));
       if (v === undefined && tries > 0) return timers.push(setTimeout(() => goodreads(book).then((w) => done(w, tries - 1)), 8000));
-      setR((x) => ({ ...x, why: `Goodreads: ${whyNoRating('gr7', norm(book)) || 'no answer'}` }));
+      setR((x) => ({ ...x, why: `Goodreads: ${whyNoRating('gr8', norm(book)) || 'no answer'}` }));
     });
     return () => {
       alive = false;
