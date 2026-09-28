@@ -5,10 +5,14 @@
 // app sends only those requests here; this function forwards them and adds the
 // headers the browser needs. Nothing is stored or logged.
 //
-// Deploy: Supabase dashboard → Edge Functions → Deploy a new function → Via
-// Editor → name it  relay  → paste this file → Deploy. (Works with "Enforce JWT
-// verification" on or off: the app signs in with your project's public key and
-// sends the services' own tokens in x-relay-headers.)
+// Deploy either way (same code):
+//  • Supabase dashboard → Edge Functions → Deploy a new function → Via Editor →
+//    name it  relay  → paste this file → Deploy.
+//  • Cloudflare (works best for Safari / iPhone: no gateway in front): dash.cloudflare.com
+//    → Workers & Pages → Create → Worker → Deploy → Edit code → paste this file → Deploy,
+//    then put the worker's address (https://….workers.dev) in the app's relay box.
+// (On Supabase it works with "Enforce JWT verification" on or off: the app signs in
+// with your project's public key and sends the services' own tokens along.)
 //
 // Version 8: also takes one POST with a text body (?env=1) carrying the method,
 // headers and body, so browsers skip the CORS pre-check (Safari / iPhone).
@@ -33,7 +37,7 @@ const ALLOWED = [
   /\.workers\.dev$/,
 ];
 
-const CORS: Record<string, string> = {
+const CORS = {
   'Access-Control-Allow-Origin': '*',
   // "*" doesn't cover Authorization in browsers, so it's listed explicitly.
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-relay-headers, accept, user-agent',
@@ -48,14 +52,14 @@ const CORS: Record<string, string> = {
 const DROP_REQUEST = ['host', 'origin', 'referer', 'cookie', 'content-length', 'connection', 'authorization', 'apikey', 'x-client-info', 'x-relay-headers', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port', 'x-real-ip', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor', 'baggage', 'sb-request-id'];
 const DROP_RESPONSE = ['set-cookie', 'content-encoding', 'content-length', 'transfer-encoding', 'connection'];
 
-Deno.serve(async (req) => {
+async function handle(req) {
   if (req.method === 'OPTIONS') {
     // Echo whatever headers the browser asks to send.
     const asked = req.headers.get('access-control-request-headers');
     return new Response('ok', { headers: asked ? { ...CORS, 'Access-Control-Allow-Headers': `${CORS['Access-Control-Allow-Headers']}, ${asked}` } : CORS });
   }
   const target = new URL(req.url).searchParams.get('url') || '';
-  let url: URL;
+  let url;
   try {
     url = new URL(target);
   } catch {
@@ -70,7 +74,7 @@ Deno.serve(async (req) => {
   const headers = new Headers(req.headers);
   for (const h of DROP_REQUEST) headers.delete(h);
   let method = req.method;
-  let body: BodyInit | undefined;
+  let body;
   if (new URL(req.url).searchParams.get('env') === '1' && req.method === 'POST') {
     // The pre-check-free form: { method, headers, body } as text.
     headers.delete('content-type');
@@ -109,4 +113,9 @@ Deno.serve(async (req) => {
   } catch (e) {
     return new Response(`Relay could not reach ${url.hostname}: ${e instanceof Error ? e.message : e}`, { status: 502, headers: CORS });
   }
-});
+}
+
+// Supabase Edge Function (Deno) …
+if (typeof Deno !== 'undefined' && Deno.serve) Deno.serve(handle);
+// … or Cloudflare Worker (paste this same code into a Worker and deploy).
+export default { fetch: handle };

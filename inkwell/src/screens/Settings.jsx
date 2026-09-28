@@ -234,6 +234,11 @@ function WebRelayCard() {
           </li>
           <li>Come back here and tap Check.</li>
         </ol>
+        <p class="muted">
+          <b>Safari or iPhone still failing?</b> Supabase's gateway can refuse Safari. Run the same relay on Cloudflare instead (free): <b>dash.cloudflare.com</b> →{' '}
+          <b>Workers &amp; Pages</b> → <b>Create</b> → <b>Worker</b> → name it <b>audiohub-relay</b> → <b>Deploy</b> → <b>Edit code</b> → replace everything with the copied
+          relay code → <b>Deploy</b>. Then paste the worker's address (…<b>.workers.dev</b>) into the box below and tap Check.
+        </p>
         <button
           class="btn ghost-wide"
           onClick={async () => {
