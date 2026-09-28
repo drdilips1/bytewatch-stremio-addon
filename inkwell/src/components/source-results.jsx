@@ -692,8 +692,13 @@ function SourceFolder({ g, provider, providers, book, account, onChanged }) {
   );
 }
 
+const ago = (t) => {
+  const h = Math.round((Date.now() - t) / 3600e3);
+  return h < 1 ? 'earlier' : h < 48 ? `${h} hour${h === 1 ? '' : 's'} ago` : `${Math.round(h / 24)} days ago`;
+};
 /** A short, plain reason a source gave nothing. */
 function friendlyError(e) {
+  if (e?.older) return `didn't answer — showing what it found ${ago(e.older)}`;
   const m = String(e?.message || e || '');
   if (/resolve host|no address associated|ENOTFOUND|getaddrinfo/i.test(m)) return "couldn't be reached — check the internet connection (a VPN's DNS can cause this)";
   if (/timed? ?out/i.test(m)) return "didn't answer in time";

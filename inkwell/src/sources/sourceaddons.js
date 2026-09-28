@@ -55,13 +55,23 @@ function remembered(key) {
   const hit = cache.get(key) || saved.get()[key];
   return hit && Date.now() - hit.t < (cache.has(key) ? 10 * 60e3 : SAVED_TTL) ? hit.v : null;
 }
+// When a site doesn't answer: what it found for the same search before (up to 30 days old).
+function fallback(addon, attempts) {
+  for (const p of attempts) {
+    const { title = '', author = '', query = '' } = p;
+    const vars = { TITLE: title || query, AUTHOR: author, QUERY: query || [title, author].filter(Boolean).join(' '), LIMIT: '20' };
+    const hit = saved.get()[addon.manifest.id + '|' + JSON.stringify(vars)];
+    if (hit && Date.now() - hit.t < 30 * 86400e3 && hit.v?.length) return Object.assign([...hit.v], { older: hit.t });
+  }
+  return null;
+}
 function remember(key, v) {
   const e = { t: Date.now(), v };
   cache.set(key, e);
   saved.set((c) => {
     const next = { ...c, [key]: e };
     const keys = Object.keys(next);
-    if (keys.length > 40) keys.sort((a, b) => next[a].t - next[b].t).slice(0, keys.length - 40).forEach((k) => delete next[k]);
+    if (keys.length > 80) keys.sort((a, b) => next[a].t - next[b].t).slice(0, keys.length - 80).forEach((k) => delete next[k]);
     return next;
   });
 }
@@ -123,7 +133,11 @@ async function run(addon, params, onSlow) {
       }
     }
   }
-  if (lastErr) throw lastErr;
+  if (lastErr) {
+    const old = fallback(addon, attempts);
+    if (old) return old;
+    throw lastErr;
+  }
   return [];
 }
 
@@ -262,6 +276,8 @@ export function searchSources(params, onResult, only = null) {
         run(a, params, () => onResult(a.manifest.name, [], null, true))
           .then((r) => {
             // Show results straight away; which ones TorBox can stream instantly is filled in after.
+            // Didn't answer, but found this book before: show that, and say so.
+            if (r.older) return onResult(a.manifest.name, r, Object.assign(new Error('older'), { older: r.older }));
             onResult(a.manifest.name, r, null);
             return markInstant(r).then((marked) => marked && onResult(a.manifest.name, marked, null));
           })
