@@ -105,7 +105,9 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const visible = showDead ? all : all.filter(alive);
   const hiddenDead = all.length - all.filter(alive).length;
   // Torrents (audiobooks) first; plain download links (mostly ebooks) fold away under a button.
-  const isLink = (g) => !g.items.some((r) => r.magnet || r.hash);
+  // Only real ebooks fold away; an audiobook page link (no magnet) stays in the main list with an Open button.
+  const ebookLink = (r) => !(r.magnet || r.hash) && !!(directEbookFile(r) || qb.isEbookName(`${r.title} ${r.format || ''} ${r.link || ''}`));
+  const isLink = (g) => g.items.every(ebookLink);
   const allGroups = groupResults(visible);
   const linkGroups = allGroups.filter(isLink);
   const shownGroups = allGroups.filter((g) => !isLink(g));
@@ -173,7 +175,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           </button>
         </p>
       )}
-      {!pending && total > 0 && !shownGroups.length && linkGroups.length > 0 && <p class="muted pad-s">No audiobook results — only ebooks & download links (below).</p>}
+      {!pending && total > 0 && !shownGroups.length && linkGroups.length > 0 && <p class="muted pad-s">No audiobook results — only ebooks (below).</p>}
       {!pending && !total && entries.length > 0 && <p class="muted pad-s">{looseCount ? 'No results that are clearly this book.' : 'No source results.'}</p>}
       <div class="src-list">
         {shownGroups.map((g) =>
@@ -189,7 +191,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           <button class={'links-toggle' + (showLinks ? ' open' : '')} onClick={() => setShowLinks(!showLinks)}>
             <Icon name="book" size={16} />
             <span>
-              Ebooks & download links <small>{linkGroups.length}</small>
+              Ebooks <small>{linkGroups.length}</small>
             </span>
             <Icon name="down" size={16} />
           </button>
