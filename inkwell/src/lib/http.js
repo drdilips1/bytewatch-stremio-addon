@@ -76,7 +76,21 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body, fe
   try {
     const go = (u, h) => Promise.race([fetch(u, { method, headers: h, body, signal: ctrl.signal }), timedOut]);
     // Podcast feeds live on countless hosts: the relay fetches those read-only (?feed=1, XML only).
-    const relayed = () => go(viaRelay(url) + (feed ? '&feed=1' : ''), relayHeaders(headers));
+    const relayed = async () => {
+      const u = viaRelay(url) + (feed ? '&feed=1' : '');
+      // A plain GET with no extra headers skips the browser's CORS pre-check, which
+      // Safari (every iPhone browser) is fussiest about. Works while the relay has
+      // "Verify JWT" off; otherwise Supabase says 401 and we send the key as before.
+      if (method === 'GET' && !Object.keys(headers || {}).length) {
+        try {
+          const r = await go(u, undefined);
+          if (r.status !== 401) return r;
+        } catch (e) {
+          if (e.timeout) throw e;
+        }
+      }
+      return go(u, relayHeaders(headers));
+    };
     let res;
     if (needsRelay(url)) res = await relayed();
     else {
@@ -205,14 +219,36 @@ export const qs = (params) =>
 export async function probeRelay() {
   const url = relayUrl();
   if (!url) return { ok: false, error: 'Relay is switched off' };
-  try {
-    const res = await fetch(viaRelay('https://itunes.apple.com/search?term=habit&media=audiobook&limit=1'), { headers: relayHeaders({ Authorization: 'Bearer test' }) });
+  const test = viaRelay('https://itunes.apple.com/search?term=habit&media=audiobook&limit=1');
+  const verdict = (res, how) => {
     const version = res.headers.get('x-relay-version') || '1';
     if (res.status === 404) return { ok: false, error: 'No function named "relay" in your Supabase project' };
-    if (res.status === 401) return { ok: false, error: 'Supabase refused the request (401) — redeploy the relay with the new code' };
+    if (res.status === 401) return { ok: false, error: 'Supabase refused the request (401) — in the relay\'s settings, turn off "Verify JWT", or redeploy the relay with the new code' };
+    if (res.status === 503 || res.status === 540) return { ok: false, error: `Supabase answered ${res.status} — your project may be paused: open supabase.com and restore it` };
     if (!res.ok) return { ok: false, error: `Relay answered HTTP ${res.status}` };
-    return { ok: version >= '2', version, error: version >= '2' ? '' : 'Old relay code — copy the new code and deploy it again' };
+    return { ok: version >= '2', version, how, error: version >= '2' ? '' : 'Old relay code — copy the new code and deploy it again' };
+  };
+  let plainErr = '';
+  try {
+    // The way most requests go: plain, no pre-check.
+    const res = await fetch(test);
+    if (res.status !== 401) return verdict(res, 'plain');
   } catch (e) {
-    return { ok: false, error: `Can't reach the relay (${e.message}) — copy the new code and deploy it again` };
+    plainErr = e.message;
+  }
+  try {
+    return verdict(await fetch(test, { headers: relayHeaders({ Authorization: 'Bearer test' }) }), 'key');
+  } catch (e) {
+    const where = (() => {
+      try {
+        return new URL(url).host;
+      } catch {
+        return 'the relay';
+      }
+    })();
+    return {
+      ok: false,
+      error: `Can't reach ${where} (${plainErr || e.message}). Check the relay address below, that the Supabase project isn't paused, and that no content blocker, VPN or Private DNS is blocking supabase.co`,
+    };
   }
 }
