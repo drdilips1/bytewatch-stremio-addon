@@ -5367,3 +5367,9 @@ button.rt {
   margin-top: -4px;
   font-size: 12px;
 }
+.rt-hardcover .rt-logo {
+  background: #6366f1;
+}
+.rt-hardcover b {
+  color: #a5b4fc;
+}

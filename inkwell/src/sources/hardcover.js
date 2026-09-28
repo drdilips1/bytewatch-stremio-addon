@@ -143,6 +143,12 @@ export async function knownStatus(book) {
   return hit ? hit.hcStatus : 0;
 }
 
+/** Books matching a search, with Hardcover's own reader ratings (for the ratings fallback). */
+export async function searchRated(q) {
+  const d = await gql('query S($q: String!) { search(query: $q, query_type: "Book", per_page: 5, page: 1) { results } }', { q });
+  return (d.search?.results?.hits || []).map((h) => h.document).filter(Boolean);
+}
+
 async function findBookId(book) {
   if (book.uid.startsWith('hc:')) return +book.uid.slice(3);
   const d = await gql('query S($q: String!) { search(query: $q, query_type: "Book", per_page: 1, page: 1) { results } }', {

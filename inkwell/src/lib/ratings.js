@@ -4,6 +4,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { getJson, qs } from './http.js';
 import { persisted } from './store.js';
 import { words, mainTitle } from './match.js';
+import * as hcSrc from '../sources/hardcover.js';
 
 const cache = persisted('ratingsCache', {}); // key -> { t, v }
 
@@ -125,7 +126,22 @@ export const audibleStars = (raw) => {
   return cached(`au5-${MARKET}`, book, () => limited(() => audibleIn('com', book)));
 };
 
-const TILE = `tile2-${MARKET}`;
+/** Hardcover's reader rating (needs your Hardcover token): the fallback when Audible and Goodreads have nothing. */
+export const hardcoverStars = (raw) => {
+  const book = norm(raw);
+  if (!hcSrc.connected()) return Promise.resolve(null);
+  return cached('hc1', book, () =>
+    limited(async () => {
+      const docs = await hcSrc.searchRated(`${book.title} ${firstAuthor(book.author)}`.trim());
+      const hit = docs
+        .filter((d) => Number(d.rating) > 0 && sameBook(book, d.title || '', (d.author_names || []).join(' ')) && notCompanion(book, d.title))
+        .sort((a, b) => (Number(b.ratings_count) || 0) - (Number(a.ratings_count) || 0))[0];
+      return hit ? { rating: Number(hit.rating), count: Number(hit.ratings_count) || 0, url: hit.slug ? `https://hardcover.app/books/${hit.slug}` : '', from: 'Hardcover' } : null;
+    })
+  );
+};
+
+const TILE = `tile3-${MARKET}`;
 /** The rating to show on a tile: Audible, else Goodreads. Only a real "no rating" is remembered. */
 export const tileRating = (book) =>
   cached(TILE, book, async () => {
@@ -133,7 +149,9 @@ export const tileRating = (book) =>
     if (a) return a;
     const g = await goodreads(book);
     if (g) return g;
-    if (a === undefined || g === undefined) throw new Error('not reachable'); // ask again next time
+    const h = await hardcoverStars(book);
+    if (h) return h;
+    if (a === undefined || g === undefined || h === undefined) throw new Error('not reachable'); // ask again next time
     return null;
   });
 
@@ -179,11 +197,11 @@ export function awardsFrom(text) {
 
 /** Hook: { audible, goodreads, awards } for a book page (each filled in when known). */
 export function useRatings(book) {
-  const [r, setR] = useState({ audible: null, goodreads: null });
+  const [r, setR] = useState({ audible: null, goodreads: null, hardcover: null });
   useEffect(() => {
     if (!book?.title) return;
     let alive = true;
-    setR({ audible: null, goodreads: null });
+    setR({ audible: null, goodreads: null, hardcover: null });
     const timers = [];
     // A service that couldn't be reached (undefined) is asked again a little later.
     const get = (fn, key, tries = 2) =>
@@ -194,6 +212,8 @@ export function useRatings(book) {
       });
     get(audibleStars, 'audible');
     get(goodreads, 'goodreads');
+    // Neither Audible nor Goodreads knows it: Hardcover's reader rating instead.
+    Promise.all([audibleStars(book), goodreads(book)]).then(([a, g]) => !a && !g && get(hardcoverStars, 'hardcover'));
     return () => {
       alive = false;
       timers.forEach(clearTimeout);

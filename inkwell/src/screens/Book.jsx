@@ -497,8 +497,8 @@ const fmtK = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1000 ? (n / 10
 
 /** Ratings across services and awards, as a row of badges: "4.6 (1.2k)"; tap one for its reviews. */
 function RatingsRow({ book }) {
-  const { audible, goodreads, awards } = useRatings(book);
-  if (!audible && !goodreads && !awards.length) return null;
+  const { audible, goodreads, hardcover, awards } = useRatings(book);
+  if (!audible && !goodreads && !hardcover && !awards.length) return null;
   const Badge = ({ r, cls, logo, digits }) => (
     <button class={'rt ' + cls} title={`${r.from} — ${r.count.toLocaleString()} ratings. Tap for reviews`} onClick={() => r.url && openExternal(r.url)}>
       <span class="rt-logo">{logo}</span>
@@ -510,6 +510,7 @@ function RatingsRow({ book }) {
     <div class="ratings-row">
       {audible && <Badge r={audible} cls="rt-audible" logo="a" digits={1} />}
       {goodreads && <Badge r={goodreads} cls="rt-goodreads" logo="g" digits={2} />}
+      {hardcover && <Badge r={hardcover} cls="rt-hardcover" logo="h" digits={1} />}
       {audible?.story > 0 && audible?.narration > 0 && (
         <span class="rt rt-parts" title="Audible listeners rate the story and the narrator's performance separately">
           Story <b>{audible.story.toFixed(1)}</b> · Narration <b>{audible.narration.toFixed(1)}</b>
