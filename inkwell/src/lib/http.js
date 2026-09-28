@@ -254,7 +254,8 @@ export const qs = (params) =>
 export async function probeRelay() {
   const url = relayUrl();
   if (!url) return { ok: false, error: 'Relay is switched off' };
-  const target = 'https://itunes.apple.com/search?term=habit&media=audiobook&limit=1';
+  // Open Library: generous with shared addresses (Apple rate-limits Cloudflare's).
+  const target = 'https://openlibrary.org/search.json?q=habit&limit=1&fields=title';
   const key = ANON ? `&apikey=${encodeURIComponent(ANON)}` : '';
   const version = (res) => Number(res.headers.get('x-relay-version')) || 0;
   const tries = [
@@ -272,7 +273,8 @@ export async function probeRelay() {
       continue;
     }
     const v = version(res);
-    if (v && res.ok) {
+    // The relay answered (whatever the service behind it said): it works.
+    if (v) {
       rememberRelayVersion(v);
       // Works — but Safari / iPhone need the pre-check-free form (v8).
       if (v < 8) return { ok: true, version: v, how, error: '', note: 'Works here. For Safari and iPhone, copy the new relay code (v8) below and deploy it again' };
