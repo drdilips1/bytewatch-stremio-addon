@@ -4,7 +4,6 @@ import { useEffect, useState } from 'preact/hooks';
 import { getJson, qs } from './http.js';
 import { persisted } from './store.js';
 import { words, mainTitle } from './match.js';
-import { audible } from '../sources/catalogs.js';
 
 const cache = persisted('ratingsCache', {}); // key -> { t, v }
 const HIT_TTL = 30 * 864e5;
@@ -26,31 +25,116 @@ async function cached(kind, book, fn) {
   return v;
 }
 
+// Every word of the book's main title in the candidate's title, and an author name in common.
 const sameBook = (book, title, author) => {
   const want = words(mainTitle(book.title));
   const got = new Set(words(title));
-  if (!want.length || want.filter((w) => got.has(w)).length / want.length < 0.8) return false;
-  const surnames = String(book.author || '').split(/,|&|\band\b/).map((a) => words(a).slice(-1)[0]).filter(Boolean);
+  if (!want.length || want.some((w) => !got.has(w))) return false;
+  const names = String(book.author || '')
+    .split(/,|&|\band\b/)
+    .flatMap((a) => {
+      const w = words(a).filter((x) => x.length >= 3);
+      return w.length ? [w[0], w[w.length - 1]] : [];
+    });
   const have = words(author || '');
-  return !surnames.length || surnames.some((n) => have.includes(n));
+  return !names.length || names.some((n) => have.includes(n));
 };
+
+// Companion products that share the title (and have their own, different ratings).
+const COMPANION = /\b(summary|summaries|workbook|study guide|analysis|companion|conversation starters|trivia|quiz|key takeaways|cliff ?notes|lesson plans?)\b/i;
+const notCompanion = (book, title) => COMPANION.test(book.title || '') || !COMPANION.test(title || '');
+
+// Few requests at a time: a screen of tiles shouldn't flood Audible or Goodreads.
+let running = 0;
+const waiting = [];
+function limited(fn) {
+  return new Promise((resolve, reject) => {
+    const go = () => {
+      running++;
+      fn()
+        .then(resolve, reject)
+        .finally(() => {
+          running--;
+          waiting.length && waiting.shift()();
+        });
+    };
+    running < 3 ? go() : waiting.push(go);
+  });
+}
 
 /** Goodreads average rating via its search suggestions: { rating, count, url } or null. */
 export const goodreads = (book) =>
-  cached('gr', book, async () => {
-    const q = `${mainTitle(book.title)} ${String(book.author || '').split(',')[0]}`.trim();
-    const list = await getJson('https://www.goodreads.com/book/auto_complete?' + qs({ format: 'json', q }), { timeout: 10000 });
-    const hit = (Array.isArray(list) ? list : []).find((x) => sameBook(book, x.bookTitleBare || x.title || '', x.author?.name || ''));
-    const rating = Number(hit?.avgRating) || 0;
-    return rating ? { rating, count: Number(hit.ratingsCount) || 0, url: hit.bookUrl ? `https://www.goodreads.com${hit.bookUrl}` : '' } : null;
-  });
+  cached('gr2', book, () =>
+    limited(async () => {
+      const q = `${mainTitle(book.title)} ${String(book.author || '').split(',')[0]}`.trim();
+      const list = await getJson('https://www.goodreads.com/book/auto_complete?' + qs({ format: 'json', q }), { timeout: 10000 });
+      // The main edition: the matching entry with the most ratings.
+      const hit = (Array.isArray(list) ? list : [])
+        .filter((x) => sameBook(book, x.bookTitleBare || x.title || '', x.author?.name || '') && notCompanion(book, x.bookTitleBare || x.title))
+        .sort((a, b) => (Number(b.ratingsCount) || 0) - (Number(a.ratingsCount) || 0))[0];
+      const rating = Number(hit?.avgRating) || 0;
+      return rating ? { rating, count: Number(hit.ratingsCount) || 0, url: hit.bookUrl ? `https://www.goodreads.com${hit.bookUrl.split('?')[0]}` : '', from: 'Goodreads' } : null;
+    })
+  );
 
-/** Audible stars for a book that came from elsewhere: { rating, count } or null. */
+/** Your Audible store, from the phone's time zone (India → audible.in); audible.com otherwise. */
+export const MARKET = (() => {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    if (/Kolkata|Calcutta/.test(tz)) return 'in';
+    if (/London|Dublin/.test(tz)) return 'co.uk';
+    if (/^Australia\//.test(tz)) return 'com.au';
+    if (/Toronto|Vancouver|Edmonton|Winnipeg|Halifax|Montreal/.test(tz)) return 'ca';
+    if (/Berlin|Vienna|Zurich/.test(tz)) return 'de';
+  } catch {}
+  return 'com';
+})();
+const STORE_NAME = { in: 'Audible India', 'co.uk': 'Audible UK', 'com.au': 'Audible Australia', ca: 'Audible Canada', de: 'Audible Germany', com: 'Audible' };
+
+async function audibleIn(market, book) {
+  const d = await getJson(
+    `https://api.audible.${market}/1.0/catalog/products?` +
+      qs({ title: mainTitle(book.title), author: String(book.author || '').split(',')[0] || undefined, num_results: 10, products_sort_by: 'Relevance', response_groups: 'contributors,rating,product_attrs' }),
+    { timeout: 10000 }
+  );
+  const best = (d?.products || [])
+    .map((p) => {
+      const r = p.rating?.overall_distribution || {};
+      return { p, rating: Number(r.display_average_rating || r.average_rating) || 0, count: Number(r.num_ratings) || 0 };
+    })
+    .filter((x) => x.rating && sameBook(book, x.p.title || '', (x.p.authors || []).map((a) => a.name).join(' ')) && notCompanion(book, x.p.title))
+    .sort((a, b) => b.count - a.count)[0];
+  return best ? { rating: best.rating, count: best.count, url: `https://www.audible.${market}/pd/${best.p.asin}`, from: STORE_NAME[market] } : null;
+}
+
+/** Audible stars and rating count for a book (your store first, then audible.com): { rating, count, url } or null. */
 export const audibleStars = (book) =>
-  cached('au', book, async () => {
-    const p = await audible.find(mainTitle(book.title), String(book.author || '').split(',')[0]);
-    return p && p.rating && sameBook(book, p.title, p.author) ? { rating: p.rating, count: p.ratings || 0 } : null;
+  cached(`au3-${MARKET}`, book, () =>
+    limited(async () => {
+      const mine = await audibleIn(MARKET, book);
+      if (mine || MARKET === 'com') return mine;
+      return audibleIn('com', book);
+    })
+  );
+
+/** The rating to show on a tile: Audible, else Goodreads. */
+export const tileRating = (book) =>
+  cached(`tile-${MARKET}`, book, async () => (await audibleStars(book)) || (await goodreads(book)));
+
+/** Hook for tiles: { rating, count, url, from } once known. */
+export function useTileRating(book) {
+  const [r, setR] = useState(() => {
+    const hit = book?.title ? cache.get()[`tile-${MARKET}:${keyFor(book)}`] : null;
+    return hit?.v || null;
   });
+  useEffect(() => {
+    if (!book?.title || book.source === 'pod' || book.source === 'sum') return;
+    let alive = true;
+    tileRating(book).then((v) => alive && setR(v || null));
+    return () => (alive = false);
+  }, [book?.uid, book?.title]);
+  return r;
+}
 
 /** Awards the description mentions: Audie Awards (winner / finalist, with year) and AudioFile's Earphones Award. */
 export function awardsFrom(text) {
@@ -73,10 +157,10 @@ export function useRatings(book) {
   useEffect(() => {
     if (!book?.title) return;
     let alive = true;
-    setR({ audible: book.rating ? { rating: book.rating, count: book.ratings || 0 } : null, goodreads: null });
-    if (!book.rating) audibleStars(book).then((v) => alive && v && setR((x) => ({ ...x, audible: v })));
+    setR({ audible: null, goodreads: null });
+    audibleStars(book).then((v) => alive && v && setR((x) => ({ ...x, audible: v })));
     goodreads(book).then((v) => alive && v && setR((x) => ({ ...x, goodreads: v })));
     return () => (alive = false);
-  }, [book?.uid, book?.title, book?.rating]);
+  }, [book?.uid, book?.title]);
   return { ...r, awards: awardsFrom(book?.description) };
 }

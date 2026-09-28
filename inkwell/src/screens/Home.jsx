@@ -1,6 +1,8 @@
 import { BgImage } from '../components/bg-image.jsx';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Row, BookCard, withMeta } from '../components/common.jsx';
+import { useTileRating } from '../lib/ratings.js';
+import { openExternal } from '../sources/summaries.js';
 import { useMeta } from '../lib/meta.js';
 import { picksForYou } from '../lib/bookseller.js';
 import { mainTitle } from '../lib/match.js';
@@ -93,6 +95,7 @@ function FeatureSlide({ book: raw, active }) {
   const meta = useMeta(raw);
   const b = withMeta(raw, meta);
   const saved = !!useStore(library)[b.uid];
+  const rt = useTileRating(active ? b : null);
   const playable = b.kind === 'audio';
   const bits = [
     (meta?.genres || [])[0],
@@ -113,14 +116,20 @@ function FeatureSlide({ book: raw, active }) {
           <h2 class="feature-title">{b.title}</h2>
           {b.author && <p class="feature-author">{b.author}</p>}
           {raw.why && <p class="feature-why">{raw.why}</p>}
-          {(bits.length > 0 || b.rating > 0) && (
+          {(bits.length > 0 || rt) && (
             <p class="feature-meta">
               {bits.map((x, k) => (
                 <span key={k}>{x}</span>
               ))}
-              {b.rating > 0 && (
-                <span class="feature-rating">
-                  <Icon name="star" size={13} fill /> {Number(b.rating).toFixed(1)}
+              {rt && (
+                <span
+                  class="feature-rating"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (rt.url) openExternal(rt.url);
+                  }}
+                >
+                  <Icon name="star" size={13} fill /> {rt.rating.toFixed(1)} ({rt.count.toLocaleString()})
                 </span>
               )}
             </p>

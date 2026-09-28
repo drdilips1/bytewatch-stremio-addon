@@ -491,26 +491,21 @@ function CloudEbooks({ book, files }) {
 
 const fmtK = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(n));
 
-/** Ratings across services and awards, as a row of badges. */
+/** Ratings across services and awards, as a row of badges: "4.6 (1.2k)"; tap one for its reviews. */
 function RatingsRow({ book }) {
   const { audible, goodreads, awards } = useRatings(book);
   if (!audible && !goodreads && !awards.length) return null;
+  const Badge = ({ r, cls, logo, digits }) => (
+    <button class={'rt ' + cls} title={`${r.from} — ${r.count.toLocaleString()} ratings. Tap for reviews`} onClick={() => r.url && openExternal(r.url)}>
+      <span class="rt-logo">{logo}</span>
+      <b>{r.rating.toFixed(digits)}</b>
+      {r.count > 0 && <small>({fmtK(r.count)})</small>}
+    </button>
+  );
   return (
     <div class="ratings-row">
-      {audible && (
-        <span class="rt rt-audible" title="Audible rating">
-          <span class="rt-logo">a</span>
-          <b>{audible.rating.toFixed(1)}</b>
-          {audible.count > 0 && <small>{fmtK(audible.count)}</small>}
-        </span>
-      )}
-      {goodreads && (
-        <a class="rt rt-goodreads" href={goodreads.url || undefined} target="_blank" rel="noopener" title="Goodreads rating">
-          <span class="rt-logo">g</span>
-          <b>{goodreads.rating.toFixed(2)}</b>
-          {goodreads.count > 0 && <small>{fmtK(goodreads.count)}</small>}
-        </a>
-      )}
+      {audible && <Badge r={audible} cls="rt-audible" logo="a" digits={1} />}
+      {goodreads && <Badge r={goodreads} cls="rt-goodreads" logo="g" digits={2} />}
       {awards.map((a) => (
         <span class={'rt rt-award rt-' + a.kind} title={a.label}>
           <span class="rt-trophy">{a.kind === 'audie' ? '🏆' : '🎧'}</span>

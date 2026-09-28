@@ -5180,3 +5180,15 @@ textarea {
 .links-toggle.open .icon:last-child {
   transform: rotate(180deg);
 }
+button.rt {
+  font: inherit;
+  cursor: pointer;
+}
+.rating-badge {
+  cursor: pointer;
+}
+.rating-badge small {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(253, 230, 138, 0.8);
+}

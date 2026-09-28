@@ -8,6 +8,8 @@ import { nav } from '../lib/nav.js';
 import { progress as progressStore, useStoreKey } from '../lib/store.js';
 import { useImage } from '../lib/image.js';
 import { useMeta } from '../lib/meta.js';
+import { useTileRating } from '../lib/ratings.js';
+import { openExternal } from '../sources/summaries.js';
 
 export function Cover({ book, class: cls = '', eager }) {
   const { src, failed: proxyFailed } = useImage(book?.cover || '');
@@ -116,6 +118,8 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
   // Data from many sources: make sure what we print is plain text / numbers.
   const book = { ...merged, title: str(merged.title), author: str(merged.author), rating: Number(merged.rating) || 0, ratings: Number(merged.ratings) || 0 };
   const prog = useStoreKey(progressStore, book.uid);
+  // Same careful lookup everywhere (your Audible store, else Goodreads), not whatever rating a listing carried.
+  const rt = useTileRating(book);
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
   return (
     <button class={'book-card' + (wide ? ' wide' : '')} onClick={() => (isReaderEbook(book) ? nav.push('reader', { book }) : nav.push('book', { book }))}>
@@ -125,9 +129,18 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
           <Icon name={book.kind === 'text' ? 'book' : book.kind === 'discover' ? 'sparkle' : 'headphones'} size={13} />
         </span>
         {book.rank > 0 && <span class="rank-badge">#{book.rank}</span>}
-        {book.rating > 0 && (
-          <span class="rating-badge">
-            <Icon name="star" size={10} fill /> {book.rating.toFixed(1)}
+        {rt && (
+          <span
+            class="rating-badge"
+            role="link"
+            title={`${rt.from}: ${rt.rating.toFixed(1)} from ${rt.count.toLocaleString()} ratings — tap for reviews`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (rt.url) openExternal(rt.url);
+            }}
+          >
+            <Icon name="star" size={10} fill /> {rt.rating.toFixed(1)}
+            {rt.count > 0 && <small> ({fmtCount(rt.count)})</small>}
           </span>
         )}
         {book.fetching != null && <span class="fetch-badge">{Math.round((book.fetching || 0) * 100)}%</span>}
@@ -139,7 +152,6 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
       </div>
       <div class="book-card-title">{book.title}</div>
       <div class="book-card-author">{book.author || ' '}</div>
-      {book.ratings > 0 && <div class="book-card-rating">{fmtCount(book.ratings)} ratings</div>}
     </button>
   );
 });
