@@ -139,9 +139,20 @@ export function logout() {
   active = '';
 }
 
+let libNames = {};
 export async function libraries() {
   const data = await call('/api/libraries', { fresh: true });
-  return data.libraries || [];
+  const libs = data.libraries || [];
+  libNames = Object.fromEntries(libs.map((l) => [l.id, l.name]));
+  return libs;
+}
+
+/** Why a list came back empty: which library, on which address. */
+export function emptyHint() {
+  const name = libNames[cfg().libraryId];
+  if (!name) libraries().catch(() => {}); // learn the names for next time
+  const where = base().replace(/^https?:\/\//, '');
+  return `No books in ${name ? `the library “${name}”` : 'the chosen library'} on ${where}. If that's the wrong library, pick your audiobook library in Settings → Audiobookshelf.`;
 }
 
 function toBook(item) {

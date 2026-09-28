@@ -193,7 +193,7 @@ export function Row({ title, subtitle, load, items: given, icon, onMore, deps = 
             {subtitle && <p>{subtitle}</p>}
           </div>
         </header>
-        <p class={'row-note' + (error ? ' bad' : '')}>{error ? `Couldn't load: ${error.message || error}` : emptyText}</p>
+        <p class={'row-note' + (error ? ' bad' : '')}>{error ? `Couldn't load: ${error.message || error}` : typeof emptyText === 'function' ? emptyText() : emptyText}</p>
       </section>
     );
   }

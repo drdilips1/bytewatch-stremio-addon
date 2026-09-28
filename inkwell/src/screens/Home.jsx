@@ -413,7 +413,7 @@ export function Home() {
     abs: absSrc.connected() && enabled('abs') && (
         <>
           <Row title="On your server" subtitle="Audiobookshelf · in progress" icon="server" load={absSrc.inProgress} deps={[absCfg.token]} showErrors />
-          <Row title="Recently added" subtitle="Audiobookshelf" icon="server" cacheKey="absRecent" load={absSrc.recent} deps={[absCfg.token, absCfg.libraryId]} onMore={() => nav.push('shelf', { title: 'Audiobookshelf', subtitle: 'Your whole library', load: absSrc.all })} showErrors emptyText="Your Audiobookshelf library looks empty." />
+          <Row title="Recently added" subtitle="Audiobookshelf" icon="server" cacheKey="absRecent" load={absSrc.recent} deps={[absCfg.token, absCfg.libraryId]} onMore={() => nav.push('shelf', { title: 'Audiobookshelf', subtitle: 'Your whole library', load: absSrc.all })} showErrors emptyText={absSrc.emptyHint} />
         </>
       ),
     tb: cloud.tbConnected() && enabled('tb') && <Row title="Your TorBox" subtitle="Audiobooks in your cloud" icon="download" cacheKey="tb" load={cloud.torboxLibrary} deps={[deb.torbox]} onMore={() => nav.push('shelf', { title: 'Your TorBox', subtitle: 'Audiobooks in your TorBox cloud', load: cloud.torboxLibrary })} showErrors emptyText="No audiobooks in your TorBox yet." />,
