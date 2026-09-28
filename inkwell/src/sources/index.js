@@ -13,7 +13,7 @@ import * as ttsb from './ttsbooks.js';
 import { audible, googleBooks } from './catalogs.js';
 import { settings } from '../lib/store.js';
 import { matches, mainTitle } from '../lib/match.js';
-import { lookup, wantsMeta } from '../lib/meta.js';
+import { lookup, wantsMeta, fixFor } from '../lib/meta.js';
 import { applyLocal, isDownloaded } from '../lib/downloads.js';
 import { translit, hasDevanagari } from '../lib/translit.js';
 
@@ -78,6 +78,21 @@ export async function getDetails(book) {
     throw e;
   }
   d = applyLocal(d);
+  // Details you picked yourself win.
+  const fix = fixFor(book.uid);
+  if (fix)
+    return {
+      ...d,
+      title: fix.title || d.title,
+      author: fix.author || d.author,
+      cover: fix.cover || d.cover || '',
+      description: fix.description || d.description,
+      narrator: d.narrator || fix.narrator || '',
+      year: d.year || fix.year || '',
+      genres: d.genres?.length ? d.genres : fix.genres || [],
+      metaSource: fix.source,
+      fixed: true,
+    };
   if (!meta) return d;
   const cloudItem = d.source === 'tb' || d.source === 'rd';
   return {

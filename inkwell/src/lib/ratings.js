@@ -26,7 +26,7 @@ function plainTitle(b) {
 }
 const norm = (b) => ({ ...b, title: plainTitle(b), author: String(b?.author || '').split(AUTHOR_SPLIT).filter(Boolean).join(', ') });
 const HIT_TTL = 30 * 864e5;
-const MISS_TTL = 864e5;
+const MISS_TTL = 6 * 3600e3;
 const keyFor = (b) => `${words(plainTitle(b)).join(' ')}|${words(firstAuthor(b.author)).slice(-1)[0] || ''}`;
 
 // Why a lookup came back empty (shown on the book page when there's no rating at all).
@@ -145,6 +145,22 @@ export function parseGoodreadsPage(html, url = '') {
       }
     }
   } catch {}
+  // Fallbacks from the visible page: genre buttons and the description block.
+  if (!out.genres?.length) {
+    const seen = new Set();
+    out.genres = [...String(html).matchAll(/href="(https:\/\/www\.goodreads\.com\/genres\/[^"]+)"[^>]*>\s*<span class="Button__labelItem">([^<]+)</g)]
+      .map((m) => ({ url: m[1], name: stripHtml(m[2]).trim() }))
+      .filter((g) => g.name && !seen.has(g.name) && seen.add(g.name))
+      .slice(0, 10);
+  }
+  if (!out.description) {
+    const d = /data-testid="description"[\s\S]*?<span class="Formatted">([\s\S]*?)<\/span>/.exec(html);
+    if (d) out.description = stripHtml(d[1]).slice(0, 6000);
+  }
+  if (!out.rating) {
+    const r = /"averageRating":([\d.]+),"ratingsCount":(\d+)/.exec(html);
+    if (r) Object.assign(out, { rating: Number(r[1]), count: Number(r[2]) });
+  }
   return out;
 }
 
@@ -166,23 +182,51 @@ export async function goodreadsPage(url) {
   return v;
 }
 
+/** Goodreads' full search page, as suggestion-like entries. */
+async function goodreadsSearch(q) {
+  const html = await getText('https://www.goodreads.com/search?' + qs({ q }), { timeout: 15000 });
+  const dec = (t) => stripHtml(t || '').trim();
+  return String(html)
+    .split(/itemtype=["']http:\/\/schema\.org\/Book["']/)
+    .slice(1, 12)
+    .map((row) => {
+      const url = (/href="(\/book\/show\/[^"?]+)/.exec(row) || [])[1];
+      const title = dec((/itemprop=['"]name['"][^>]*>([^<]+)</.exec(row) || [])[1]);
+      const author = dec((/class="authorName"[^>]*>\s*<span itemprop="name">([^<]+)</.exec(row) || [])[1]);
+      const m = /([\d.]+) avg rating\s*(?:&mdash;|—|-)\s*([\d,]+) rating/.exec(row);
+      return url && title ? { bookTitleBare: title, author: { name: author }, avgRating: m?.[1] || '0', ratingsCount: m ? Number(m[2].replace(/,/g, '')) : 0, bookUrl: url } : null;
+    })
+    .filter(Boolean);
+}
+
 /** Goodreads average rating via its search suggestions: { rating, count, url } or null. */
 export const goodreads = (raw) => {
   const book = norm(raw);
-  return cached('gr6', book, () =>
+  return cached('gr7', book, () =>
     grLimited(async () => {
       const ask = async (q) => {
         const list = await getJson('https://www.goodreads.com/book/auto_complete?' + qs({ format: 'json', q }), { timeout: 12000 });
         return Array.isArray(list) ? list : [];
       };
-      const author = firstAuthor(book.author);
-      let list = await ask(`${book.title} ${author}`.trim());
-      // Nothing for title + author: the title alone (the author check below still applies).
-      if (!list.length && author) list = await ask(book.title);
       // The main edition: the matching entry with the most ratings.
-      const hit = list
-        .filter((x) => sameBook(book, x.bookTitleBare || x.title || '', x.author?.name || '') && notCompanion(book, x.bookTitleBare || x.title))
-        .sort((a, b) => (Number(b.ratingsCount) || 0) - (Number(a.ratingsCount) || 0))[0];
+      const pick = (list) =>
+        list
+          .filter((x) => sameBook(book, x.bookTitleBare || x.title || '', x.author?.name || '') && notCompanion(book, x.bookTitleBare || x.title))
+          .sort((a, b) => (Number(b.ratingsCount) || 0) - (Number(a.ratingsCount) || 0))[0];
+      const author = firstAuthor(book.author);
+      const last = words(author).slice(-1)[0] || '';
+      // Title + author, title + surname, title alone (the author check still applies),
+      // then Goodreads' full search page.
+      const tries = [...new Set([`${book.title} ${author}`.trim(), `${book.title} ${last}`.trim(), book.title])];
+      let hit = null;
+      let failed = 0;
+      for (const q of tries) {
+        const list = await ask(q).catch(() => (failed++, []));
+        hit = pick(list);
+        if (hit) break;
+      }
+      if (!hit) hit = pick(await goodreadsSearch(`${book.title} ${author}`.trim()).catch(() => (failed++, [])));
+      if (!hit && failed > tries.length) throw new Error('Goodreads not reachable'); // try again later
       if (!hit) return null;
       const url = hit.bookUrl ? `https://www.goodreads.com${hit.bookUrl.split('?')[0]}` : '';
       // The whole work's rating from the book page (the suggestion has one edition's numbers).
@@ -239,7 +283,7 @@ export const hardcoverStars = (raw) => {
   );
 };
 
-const TILE = 'tile6-gr';
+const TILE = 'tile7-gr';
 /** The rating to show on a tile: Goodreads. Only a real "no rating" is remembered. */
 export const tileRating = (book) =>
   cached(TILE, book, async () => {
@@ -303,12 +347,14 @@ export function useRatings(book) {
         if (v) setR((x) => ({ ...x, [key]: v }));
         else if (v === undefined && tries > 0) timers.push(setTimeout(() => get(fn, key, tries - 1), 8000));
       });
-    // Goodreads only. When it has nothing, say why, so a missing rating can be explained.
+    // Audible's rating too, as a second badge (book page only; tiles use Goodreads).
+    audibleStars(book).then((v) => alive && v && setR((x) => ({ ...x, audible: v })));
+    // When Goodreads has nothing, say why, so a missing rating can be explained.
     goodreads(book).then(function done(v, tries = 2) {
       if (!alive) return;
       if (v) return setR((x) => ({ ...x, goodreads: v }));
       if (v === undefined && tries > 0) return timers.push(setTimeout(() => goodreads(book).then((w) => done(w, tries - 1)), 8000));
-      setR((x) => ({ ...x, why: `Goodreads: ${whyNoRating('gr6', norm(book)) || 'no answer'}` }));
+      setR((x) => ({ ...x, why: `Goodreads: ${whyNoRating('gr7', norm(book)) || 'no answer'}` }));
     });
     return () => {
       alive = false;

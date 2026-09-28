@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
 import { searchSources, sourceAddons, fmtSize } from '../sources/sourceaddons.js';
@@ -59,10 +59,14 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   // Every connected service, preferred one first.
   const providers = [provider, cloud.tbConnected() && 'torbox', cloud.rdConnected() && 'realdebrid'].filter((p, i, a) => p && a.indexOf(p) === i);
 
+  const lastQuery = useRef(query);
   useEffect(() => {
     if (!count || !(title || query)) return;
     let alive = true;
-    setGroups({});
+    // A refined title (details loaded) keeps what's already shown until new results arrive;
+    // a new search (typed query) starts clean.
+    if (lastQuery.current !== query) setGroups({});
+    lastQuery.current = query;
     setPending(true);
     // Wait until typing settles so half-typed words don't use up the addon's search allowance.
     const t = setTimeout(() => {

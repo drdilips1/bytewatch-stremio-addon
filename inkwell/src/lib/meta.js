@@ -18,6 +18,17 @@ export const PROVIDERS = {
 };
 
 const cache = persisted('metaCache', {});
+// Details you picked yourself ("Find cover & details" on a book page): uid -> meta.
+export const metaFixes = persisted('metaFixes', {});
+export const fixFor = (uid) => (uid && metaFixes.get()[uid]) || null;
+export function setFix(uid, meta) {
+  metaFixes.set((all) => {
+    const next = { ...all };
+    if (meta) next[uid] = { ...meta, fixed: true };
+    else delete next[uid];
+    return next;
+  });
+}
 const MISS_TTL = 3 * 24 * 3600e3;
 
 /** Turn a release name into a search string: drop brackets, formats, uploader noise. */
@@ -185,8 +196,10 @@ export const wantsMeta = (book) => !!book && ENRICH.has(book.source) && (!book.c
 
 /** Hook: enriched fields for cards (cover / tidy title / author). */
 export function useMeta(book) {
-  const [meta, setMeta] = useState(() => (wantsMeta(book) ? cache.get()[keyFor(queryFor(book))]?.v || null : null));
+  const [meta, setMeta] = useState(() => fixFor(book?.uid) || (wantsMeta(book) ? cache.get()[keyFor(queryFor(book))]?.v || null : null));
   useEffect(() => {
+    const fix = fixFor(book?.uid);
+    if (fix) return setMeta(fix);
     if (!wantsMeta(book)) return setMeta(null);
     let alive = true;
     lookup(book).then((m) => alive && setMeta(m));

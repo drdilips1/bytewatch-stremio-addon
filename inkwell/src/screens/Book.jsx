@@ -11,6 +11,8 @@ import { canSendToKindle, sendToKindle, shareEbook } from '../lib/kindle.js';
 import { cloudReaderBook } from '../lib/epub.js';
 import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
+import { setFix } from '../lib/meta.js';
+import { audible as audibleCat, googleBooks } from '../sources/catalogs.js';
 import { SourceResults } from '../components/source-results.jsx';
 import { useRatings, useGoodreads } from '../lib/ratings.js';
 import { myRatings, rateKey, rateBook, clearRating, VERDICTS, PARTS, REASONS } from '../lib/taste.js';
@@ -109,6 +111,7 @@ export function Book({ book: initial }) {
             {book.language && <span>{book.language}</span>}
           </div>
           <RatingsRow book={book} />
+          {!loading && book.source !== 'pod' && book.source !== 'sum' && <FixDetails book={book} onFixed={(f) => setBook((b) => ({ ...b, ...f }))} />}
         </div>
       </div>
 
@@ -256,6 +259,7 @@ export function Book({ book: initial }) {
 
       <Description text={bestDescription(book.description, gr?.description)} expanded={expanded} setExpanded={setExpanded} />
       {gr && <GoodreadsCard gr={gr} />}
+      {!loading && book.source !== 'sum' && book.source !== 'pod' && <Summaries book={book} />}
 
       {book.metaSource && <p class="muted pad meta-credit">Details from {book.metaSource}</p>}
       {book.subjects?.length > 0 && (
@@ -316,7 +320,7 @@ export function Book({ book: initial }) {
       {book.kind === 'discover' && sourceAddons().length > 0 && (
         <SourceResults title={mainTitle(book.title)} author={(book.author || '').split(',')[0].trim()} book={book} />
       )}
-      {((book.kind === 'audio' && OTHER_SOURCES.has(book.source)) || book.kind === 'text') && sourceAddons().length > 0 && !loading && (
+      {((book.kind === 'audio' && OTHER_SOURCES.has(book.source)) || book.kind === 'text') && sourceAddons().length > 0 && (
         <section class="pad">
           <h3 class="section-label">
             <Icon name="puzzle" size={16} /> Other sources
@@ -362,14 +366,13 @@ export function Book({ book: initial }) {
           deps={[book.uid, authorKey]}
         />
       )}
-      {!loading && book.source !== 'sum' && <Summaries book={book} />}
       {!loading && <RelatedRows book={book} />}
       <div class="footer-space" />
     </div>
   );
 }
 
-/** Key ideas (Tanga / Blinkist style): made by your AI service on request, then kept. */
+/** Blinks (Blinkist-style key ideas): made by your AI service, then kept. */
 function Summaries({ book }) {
   const [sum, setSum] = useState(() => savedSummary(book));
   const [busy, setBusy] = useState(false);
@@ -396,7 +399,7 @@ function Summaries({ book }) {
   return (
     <section class="pad summaries">
       <h3 class="section-label">
-        <Icon name="text" size={16} /> Key ideas
+        <Icon name="text" size={16} /> Blinks
       </h3>
       <div class="sum-card">
         {sum ? (
@@ -404,7 +407,7 @@ function Summaries({ book }) {
             <div class="sum-head">
               <b>{sum.tagline || 'The book in a few minutes'}</b>
               <small>
-                {sum.ideas.length} key ideas · {sum.minutes} min read{sum.fromDescription ? ' · from the publisher’s description' : ''}
+                {sum.ideas.length} blinks · {sum.minutes} min read{sum.fromDescription ? ' · from the publisher’s description' : ''}
               </small>
             </div>
             <p class="sum-about">{sum.about}</p>
@@ -427,12 +430,12 @@ function Summaries({ book }) {
             <p class="muted">The main ideas of this book in about 10 minutes — to read, or to listen to with your voice.</p>
             {err && <p class="err">{err}</p>}
             <button class="btn primary" disabled={busy} onClick={make}>
-              {busy ? <span class="spinner" /> : <Icon name="sparkle" size={16} />} {busy ? 'Writing the summary…' : 'Get key ideas'}
+              {busy ? <span class="spinner" /> : <Icon name="sparkle" size={16} />} {busy ? 'Writing the blinks…' : 'Get blinks'}
             </button>
           </>
         ) : (
           <p class="muted">
-            Key ideas are written by a free AI service —{' '}
+            Blinks are written by a free AI service —{' '}
             <button class="link-btn" onClick={() => nav.tab('settings')}>
               add a Groq key in Settings → AI
             </button>
@@ -488,8 +491,8 @@ const fmtK = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1000 ? (n / 10
 
 /** Ratings across services and awards, as a row of badges: "4.6 (1.2k)"; tap one for its reviews. */
 function RatingsRow({ book }) {
-  const { goodreads, awards, why } = useRatings(book);
-  if (!goodreads && !awards.length) return why ? <p class="ratings-why">No rating found — {why}</p> : null;
+  const { goodreads, audible, awards, why } = useRatings(book);
+  if (!goodreads && !audible && !awards.length) return why ? <p class="ratings-why">No rating found — {why}</p> : null;
   const Badge = ({ r, cls, logo, digits }) => (
     <button class={'rt ' + cls} title={`${r.from} — ${r.count.toLocaleString()} ratings. Tap for reviews`} onClick={() => r.url && openExternal(r.url)}>
       <span class="rt-logo">{logo}</span>
@@ -500,6 +503,7 @@ function RatingsRow({ book }) {
   return (
     <div class="ratings-row">
       {goodreads && <Badge r={goodreads} cls="rt-goodreads" logo="g" digits={2} />}
+      {audible && <Badge r={audible} cls="rt-audible" logo="a" digits={1} />}
       {awards.map((a) => (
         <span class={'rt rt-award rt-' + a.kind} title={a.label}>
           <span class="rt-trophy">{a.kind === 'audie' ? '🏆' : '🎧'}</span>
@@ -648,5 +652,87 @@ function GoodreadsCard({ gr }) {
         </button>
       </div>
     </section>
+  );
+}
+
+/** Missing or wrong cover / title? Search Audible and Google Books and pick the right one. */
+function FixDetails({ book, onFixed }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [list, setList] = useState(null);
+  const search = async (term) => {
+    if (!term.trim()) return;
+    setBusy(true);
+    setList(null);
+    const [a, g] = await Promise.all([audibleCat.search(term).catch(() => []), googleBooks.search(term).catch(() => [])]);
+    setList([...a.slice(0, 8), ...g.slice(0, 6)].filter((b) => b.title));
+    setBusy(false);
+  };
+  const start = () => {
+    const term = `${mainTitle(book.title)} ${(book.author || '').split(',')[0]}`.trim();
+    setQ(term);
+    setOpen(true);
+    search(term);
+  };
+  const pick = (m) => {
+    const fix = { title: m.title, author: m.author, cover: m.cover, description: m.description || '', narrator: m.narrator || '', year: m.year || '', genres: m.genres || m.subjects || [], source: m.source === 'au' ? 'Audible' : 'Google Books' };
+    setFix(book.uid, fix);
+    onFixed({ ...fix, metaSource: fix.source, fixed: true });
+    setOpen(false);
+    toast('Details saved for this book');
+  };
+  if (!open)
+    return (
+      <div class="fix-row">
+        <button class="link-btn fix-link" onClick={start}>
+          <Icon name="search" size={14} /> {book.cover ? 'Wrong cover or details? Find them' : 'Find cover & details'}
+        </button>
+        {book.fixed && (
+          <button
+            class="link-btn fix-link"
+            onClick={() => {
+              setFix(book.uid, null);
+              toast('Back to the original details — reopen the book to see them');
+            }}
+          >
+            Undo
+          </button>
+        )}
+      </div>
+    );
+  return (
+    <div class="fix-panel">
+      <form
+        class="set-form inline"
+        onSubmit={(e) => {
+          e.preventDefault();
+          search(q);
+        }}
+      >
+        <input value={q} onInput={(e) => setQ(e.currentTarget.value)} placeholder="Title and author" />
+        <button class="btn primary" disabled={busy}>
+          {busy ? <span class="spinner small" /> : 'Search'}
+        </button>
+      </form>
+      {list && !list.length && <p class="muted small">Nothing found — try fewer words.</p>}
+      <div class="fix-list">
+        {(list || []).map((m) => (
+          <button class="fix-item" onClick={() => pick(m)}>
+            {m.cover ? <img src={m.cover} alt="" loading="lazy" /> : <span class="fix-nocover" />}
+            <span>
+              <b>{m.title}</b>
+              <small>
+                {m.author}
+                {m.year ? ` · ${m.year}` : ''} · {m.source === 'au' ? 'Audible' : 'Google Books'}
+              </small>
+            </span>
+          </button>
+        ))}
+      </div>
+      <button class="link-btn" onClick={() => setOpen(false)}>
+        Cancel
+      </button>
+    </div>
   );
 }

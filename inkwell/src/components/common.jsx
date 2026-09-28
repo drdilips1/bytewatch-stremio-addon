@@ -55,6 +55,7 @@ export function SourceBadge({ uid, book }) {
 // Debrid/addon items borrow cover + tidy title/author from metadata providers.
 export function withMeta(book, meta) {
   if (!meta) return book;
+  if (meta.fixed) return { ...book, cover: meta.cover || book.cover || '', title: meta.title || book.title, author: meta.author || book.author || '' };
   const cloudItem = book.source === 'tb' || book.source === 'rd';
   return {
     ...book,

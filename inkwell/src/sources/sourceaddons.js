@@ -3,7 +3,7 @@
 // JSON response into results carrying a magnet link / info-hash. Inkwell hands
 // the magnet to the user's TorBox or Real-Debrid account to stream it.
 import { getJson, sendJson } from '../lib/http.js';
-import { addons } from '../lib/store.js';
+import { addons, persisted } from '../lib/store.js';
 import { words, matches, mainTitle } from '../lib/match.js';
 import { infoHash, torboxCached } from './debrid.js';
 
@@ -48,6 +48,23 @@ export function fmtSize(bytes) {
 // Per-addon rate limiting + short result cache.
 const calls = new Map();
 const cache = new Map();
+// Results survive restarts for a few hours, so reopening a book shows its sources at once.
+const saved = persisted('sourceCache', {}); // key -> { t, v }
+const SAVED_TTL = 6 * 3600e3;
+function remembered(key) {
+  const hit = cache.get(key) || saved.get()[key];
+  return hit && Date.now() - hit.t < (cache.has(key) ? 10 * 60e3 : SAVED_TTL) ? hit.v : null;
+}
+function remember(key, v) {
+  const e = { t: Date.now(), v };
+  cache.set(key, e);
+  saved.set((c) => {
+    const next = { ...c, [key]: e };
+    const keys = Object.keys(next);
+    if (keys.length > 40) keys.sort((a, b) => next[a].t - next[b].t).slice(0, keys.length - 40).forEach((k) => delete next[k]);
+    return next;
+  });
+}
 // Respect an addon's requests-per-minute by waiting for a free slot instead of
 // failing the search.
 async function takeSlot(addon) {
@@ -109,8 +126,8 @@ async function runOnce(addon, { title = '', author = '', query = '' }) {
   const src = addon.manifest.adapters.source;
   const vars = { TITLE: title || query, AUTHOR: author, QUERY: query || [title, author].filter(Boolean).join(' '), LIMIT: '20' };
   const key = addon.manifest.id + '|' + JSON.stringify(vars);
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.t < 10 * 60e3) return hit.v;
+  const hit = remembered(key);
+  if (hit) return hit;
   await takeSlot(addon);
 
   const req = src.request || {};
@@ -167,7 +184,7 @@ async function runOnce(addon, { title = '', author = '', query = '' }) {
 
   results.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || Number(b.seeders > 0) - Number(a.seeders > 0) || b.score - a.score || b.seeders - a.seeders);
   // Only remember searches that found something, so a temporary empty answer isn't sticky.
-  if (results.length) cache.set(key, { t: Date.now(), v: results });
+  if (results.length) remember(key, results);
   return results;
 }
 

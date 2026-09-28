@@ -57,7 +57,7 @@ If you don't, but the description above says enough, give 4 to 6 ideas based onl
 Only if neither is possible, reply {"known": false}.`;
   const data = parseJson(await askAi(prompt, { json: true }));
   if (!data || data.known === false || !Array.isArray(data.ideas) || data.ideas.length < 3)
-    throw new Error(about ? "Couldn't write key ideas for this book — tap to try again" : "The AI doesn't know this book, and there's no description to go on");
+    throw new Error(about ? "Couldn’t write blinks for this book — tap to try again" : "The AI doesn't know this book, and there's no description to go on");
   const ideas = data.ideas.filter((i) => i && i.title && i.text).slice(0, 12);
   const wordsCount = [data.about, ...ideas.map((i) => i.text), data.takeaway].join(' ').split(/\s+/).length;
   const out = { fromDescription: data.basis === 'description', tagline: data.tagline || '', about: data.about || '', forWho: data.forWho || '', ideas, quote: data.quote || '', takeaway: data.takeaway || '', minutes: Math.max(3, Math.round(wordsCount / 220)) };
@@ -75,7 +75,7 @@ export const summaryBook = (book) => ({
   uid: 'sum:' + keyFor(book),
   source: 'sum',
   kind: 'text',
-  title: `${mainTitle(book.title)} · key ideas`,
+  title: `${mainTitle(book.title)} · blinks`,
   author: book.author || '',
   cover: book.cover || '',
   sumOf: { title: book.title, author: book.author || '' },
@@ -97,5 +97,5 @@ export async function loadSummary(book) {
     ...s.ideas.map((i, k) => ({ id: `sum-${k}`, text: `${k + 1}. ${i.title}`, level: 2 })),
     ...(s.takeaway ? [{ id: 'sum-end', text: 'Final takeaway', level: 2 }] : []),
   ];
-  return { html: parts.join('\n'), headings, title: `${title} · key ideas` };
+  return { html: parts.join('\n'), headings, title: `${title} · blinks` };
 }
