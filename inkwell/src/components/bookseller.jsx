@@ -4,15 +4,33 @@ import { Cover } from './common.jsx';
 import { nav } from '../lib/nav.js';
 import { fmtDuration } from '../lib/format.js';
 import { askBookseller, aiReady } from '../lib/bookseller.js';
-import { persisted, useStore } from '../lib/store.js';
+import { useStore } from '../lib/store.js';
 
 const EXAMPLES = ['Atmospheric sci-fi under 12 hours that feels like Project Hail Mary', 'A cosy mystery with a great narrator', 'Big-idea non-fiction like Sapiens, but shorter', 'Something funny for a long drive'];
 
 /** Ask for books in plain words, like talking to a bookseller. */
-// The last question and its answer stay (also across restarts), so opening a pick and
-// coming back shows the same list. A request keeps going if you leave the screen.
-const last = persisted('bookseller', { q: '', res: null, err: '', busy: false });
-last.set((v) => ({ ...v, busy: false }));
+// The last question and its answer stay while the app is open, so opening a pick and
+// coming back shows the same list; a fresh start of the app starts clean. A request
+// keeps going if you leave the screen.
+function memoryStore(initial) {
+  let value = initial;
+  const subs = new Set();
+  return {
+    get: () => value,
+    set(next) {
+      value = typeof next === 'function' ? next(value) : next;
+      subs.forEach((f) => f(value));
+    },
+    subscribe(f) {
+      subs.add(f);
+      return () => subs.delete(f);
+    },
+  };
+}
+const last = memoryStore({ q: '', res: null, err: '', busy: false });
+try {
+  localStorage.removeItem('inkwell:bookseller'); // the saved copy from the previous version
+} catch {}
 
 export function AskBookseller() {
   const { res, err, busy } = useStore(last);
