@@ -153,7 +153,7 @@ async function searchOnce(addon, vars, key, { title = '', author = '', query = '
   const data =
     method === 'GET'
       ? await getJson(url, { headers, timeout, fresh: true })
-      : await sendJson(url, method, fill(req.body || {}, vars, false), headers);
+      : await sendJson(url, method, fill(req.body || {}, vars, false), headers, { timeout });
 
   const res = src.response || {};
   const list = at(data, res.resultsPath);

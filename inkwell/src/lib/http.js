@@ -231,9 +231,10 @@ export function sendForm(url, method, params, headers = {}, { timeout } = {}) {
   }).then((r) => (r.status === 204 ? null : r.json().catch(() => null)));
 }
 
-export function sendJson(url, method, data, headers = {}) {
+export function sendJson(url, method, data, headers = {}, { timeout } = {}) {
   return request(url, {
     method,
+    ...(timeout ? { timeout } : {}),
     headers: { 'Content-Type': 'application/json', ...headers },
     body: data === undefined ? undefined : JSON.stringify(data),
   }).then((r) => (r.status === 204 ? null : r.json().catch(() => null)));
