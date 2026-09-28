@@ -13,6 +13,7 @@ import { openSearch } from './Discover.jsx';
 import { mainTitle } from '../lib/match.js';
 import { SourceResults } from '../components/source-results.jsx';
 import { useRatings } from '../lib/ratings.js';
+import { myRatings, rateKey, rateBook, clearRating, VERDICTS, PARTS, REASONS } from '../lib/taste.js';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import { nativeReader } from '../lib/tts.js';
 import { downloads, canDownload, downloadBook, cancelDownload, removeDownload, fmtBytes } from '../lib/downloads.js';
@@ -246,6 +247,8 @@ export function Book({ book: initial }) {
           <div style={{ width: pct + '%' }} />
         </div>
       )}
+
+      {!loading && book.source !== 'sum' && book.source !== 'pod' && <MyRating book={book} />}
 
       {error && <p class="err pad">Couldn't load details: {error}</p>}
 
@@ -506,6 +509,11 @@ function RatingsRow({ book }) {
     <div class="ratings-row">
       {audible && <Badge r={audible} cls="rt-audible" logo="a" digits={1} />}
       {goodreads && <Badge r={goodreads} cls="rt-goodreads" logo="g" digits={2} />}
+      {audible?.story > 0 && audible?.narration > 0 && (
+        <span class="rt rt-parts" title="Audible listeners rate the story and the narrator's performance separately">
+          Story <b>{audible.story.toFixed(1)}</b> · Narration <b>{audible.narration.toFixed(1)}</b>
+        </span>
+      )}
       {awards.map((a) => (
         <span class={'rt rt-award rt-' + a.kind} title={a.label}>
           <span class="rt-trophy">{a.kind === 'audie' ? '🏆' : '🎧'}</span>
@@ -513,5 +521,75 @@ function RatingsRow({ book }) {
         </span>
       ))}
     </div>
+  );
+}
+
+/** Your own verdict: how you found it, the story and the narration, and why if it didn't work. Feeds your picks. */
+function MyRating({ book }) {
+  const all = useStore(myRatings);
+  const mine = all[rateKey(book)];
+  const r = mine?.verdict ? mine : null;
+  const [open, setOpen] = useState(false);
+  const down = r && (r.verdict === 'dislike' || r.verdict === 'dnf');
+  const Chips = ({ label, field, options }) => (
+    <div class="myrate-row">
+      <span class="myrate-label">{label}</span>
+      <div class="chips">
+        {options.map(([k, text]) => (
+          <button class={'pill small' + (r?.[field] === k ? ' active' : '')} onClick={() => rateBook(book, { [field]: r?.[field] === k ? '' : k })}>
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <section class="myrate pad">
+      <div class="myrate-head">
+        <h3>Your verdict</h3>
+        {r && (
+          <button class="link-btn" onClick={() => (clearRating(book), setOpen(false))}>
+            Clear
+          </button>
+        )}
+      </div>
+      <div class="myrate-verdicts">
+        {VERDICTS.map(([k, emoji, label]) => (
+          <button
+            class={'myrate-v' + (r?.verdict === k ? ' on' : '')}
+            title={label}
+            onClick={() => {
+              rateBook(book, { verdict: k });
+              setOpen(true);
+            }}
+          >
+            <span class="myrate-emoji">{emoji}</span>
+            <small>{label}</small>
+          </button>
+        ))}
+      </div>
+      {r && (open || r.story || r.narration || r.reasons?.length) && (
+        <div class="myrate-more">
+          <Chips label="Story" field="story" options={PARTS} />
+          {book.kind !== 'text' && <Chips label="Narration" field="narration" options={PARTS} />}
+          {down && (
+            <div class="myrate-row">
+              <span class="myrate-label">Why</span>
+              <div class="chips">
+                {REASONS.map((x) => {
+                  const on = (r.reasons || []).includes(x);
+                  return (
+                    <button class={'pill small' + (on ? ' active' : '')} onClick={() => rateBook(book, { reasons: on ? r.reasons.filter((y) => y !== x) : [...(r.reasons || []), x] })}>
+                      {x}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <p class="muted small">Your ratings shape the picks in For you and on Home. Narrators you mark weak are kept out.</p>
+        </div>
+      )}
+    </section>
   );
 }

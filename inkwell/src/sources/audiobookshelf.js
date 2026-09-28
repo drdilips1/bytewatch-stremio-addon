@@ -222,11 +222,30 @@ async function startSession(id) {
     url: (/^https?:/.test(t.contentUrl) ? t.contentUrl : base() + t.contentUrl) + (t.contentUrl.includes('?') ? '&' : '?') + qs({ token: tok }),
     duration: t.duration,
     offset: t.startOffset,
+    server: /^https?:/.test(t.contentUrl) ? '' : base(), // which address the link points at (for switching)
     // Native playback sends the token as a header too (newer servers prefer it).
     headers: { Authorization: `Bearer ${tok}` },
     index: i,
   }));
   return { tracks, sessionId: s.id, startTime: s.currentTime || 0 };
+}
+
+/**
+ * Playback on one address failed or stalled: if the other address answers, point the
+ * book's audio links at it. Returns the new address, or '' when there's nothing to switch to.
+ */
+export async function switchTracks(tracks) {
+  if (!cfg().altServer || !tracks?.some((t) => t.server)) return '';
+  const now = await resolveServer(true);
+  let moved = false;
+  for (const t of tracks) {
+    if (t.server && t.server !== now && t.url?.startsWith(t.server)) {
+      t.url = now + t.url.slice(t.server.length);
+      t.server = now;
+      moved = true;
+    }
+  }
+  return moved ? now : '';
 }
 
 export async function syncProgress(uid, currentTime, duration, isFinished = false) {

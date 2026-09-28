@@ -7,6 +7,7 @@ import { aiReady, askAi, parseJson } from './ai.js';
 import { library, progress, persisted } from './store.js';
 import { audible, googleBooks } from '../sources/catalogs.js';
 import { matches, mainTitle } from './match.js';
+import { myRatings } from './taste.js';
 
 const recCache = persisted('booksellerCache', {}); // key -> { t, v }
 
@@ -22,6 +23,19 @@ export function tasteProfile(limit = 40) {
     seen.add(k);
     out.push(`${mainTitle(b.title)}${author ? ` — ${author.split(',')[0]}` : ''}${note ? ` (${note})` : ''}`);
   };
+  // Your own verdicts first: the strongest signal of what you do and don't want.
+  const NOTE = { love: 'loved it', like: 'liked it', ok: 'it was OK', dislike: 'disliked it', dnf: "didn't finish it" };
+  const verdictNote = (r) => {
+    const bits = [NOTE[r.verdict]];
+    if (r.story) bits.push(`story ${r.story}`);
+    if (r.narration) bits.push(`narration ${r.narration}`);
+    if (r.reasons?.length) bits.push(`because: ${r.reasons.join(', ').toLowerCase()}`);
+    return bits.filter(Boolean).join('; ');
+  };
+  Object.values(myRatings.get())
+    .filter((r) => r?.verdict)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .forEach((r) => add(r, verdictNote(r)));
   const prog = Object.values(progress.get()).filter((p) => p?.book).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   prog.forEach((p) => add(p.book, p.finished ? 'finished' : 'listening'));
   Object.values(library.get())
@@ -37,6 +51,7 @@ A customer asks: "${request}"
 What they already own or have listened to (use this to understand their taste; do NOT recommend these):
 ${taste.length ? taste.map((t) => '- ' + t).join('\n') : '- (nothing yet)'}
 
+Lean towards what they loved; steer clear of books like the ones they disliked or didn't finish (note their reasons), and of narrators whose narration they rated weak.
 Recommend ${count} real, published books that best fit the request. Respect every constraint in the request (length, mood, genre, era, "like X", etc.). Audiobook length means the unabridged audiobook's runtime in hours (estimate if unsure). Prefer highly regarded, well-reviewed books. Mix well-known picks with a couple of lesser-known gems.
 
 Reply as JSON only:

@@ -3,7 +3,7 @@
 // delegated to an engine (native Media3 on Android, <audio> on the web).
 import { createEngine } from './engine.js';
 import { progress, bookmarks, settings, summarize } from './store.js';
-import { syncProgress } from '../sources/audiobookshelf.js';
+import { syncProgress, switchTracks } from '../sources/audiobookshelf.js';
 import { fetchStatus } from '../sources/debrid.js';
 
 const state = {
@@ -48,6 +48,8 @@ function set(p) {
 // --- engine -----------------------------------------------------------------
 const engine = createEngine({
   time(pos, dur) {
+    // A new link reports 0 until it has jumped to the resume point: don't lose the spot.
+    if (loadingAt && loadingAt.at > 1 && pos < 0.5) return;
     const t = state.tracks[state.index];
     if (t && dur > 0) t.duration = dur;
     set({ time: pos, duration: dur || state.duration });
@@ -55,12 +57,26 @@ const engine = createEngine({
     if (state.sleepUntil && Date.now() >= state.sleepUntil) fadeOutAndPause();
   },
   playing(on) {
+    if (on) loadingAt = null;
     set({ playing: on, ...(on ? { loading: false, error: null, phase: '', interrupted: false } : {}) });
-    if (on) clearTimeout(resumeTimer);
+    if (on) clearTimeout(resumeTimer), clearTimeout(stallTimer), (stallTimer = null);
     if (!on) saveProgress(true);
   },
-  waiting: () => !state.loading && set({ loading: true, phase: 'Buffering…' }),
-  ready: () => state.loading && set({ loading: false, phase: '' }),
+  waiting() {
+    if (!state.loading) set({ loading: true, phase: 'Buffering…' });
+    // Stuck buffering on your server (e.g. you left home Wi‑Fi): try its other address.
+    // (Android reports buffering many times a second: start the clock once.)
+    if (isAbs(state.book) && !stallTimer)
+      stallTimer = setTimeout(() => {
+        stallTimer = null;
+        if (state.loading && !state.error) trySwitch();
+      }, 12000);
+  },
+  ready() {
+    clearTimeout(stallTimer);
+    stallTimer = null;
+    if (state.loading) set({ loading: false, phase: '' });
+  },
   interrupted(on) {
     if (on) set({ playing: false, loading: false, phase: '', interrupted: true });
     else set({ interrupted: false });
@@ -78,7 +94,12 @@ const engine = createEngine({
       finishedSubs.forEach((f) => f(state.book));
     }
   },
-  error: (msg) => {
+  error: async (msg) => {
+    clearTimeout(stallTimer);
+    stallTimer = null;
+    const token = loadToken;
+    if (isAbs(state.book) && (await trySwitch())) return;
+    if (token !== loadToken) return; // something else started loading meanwhile
     set({ loading: false, playing: false, phase: '', error: msg });
     checkCloud(state.index, state.time, msg);
   },
@@ -88,6 +109,31 @@ const engine = createEngine({
     else if (action === 'previous') skip(-(s.skipBack || 15));
   },
 });
+
+// --- Audiobookshelf: carry on from the same second on the server's other address ---
+const isAbs = (b) => (b?.uid || '').startsWith('abs:');
+let stallTimer = null;
+let lastSwitch = 0;
+let switching = null;
+let loadingAt = null; // { index, at } from starting a part until it plays
+function trySwitch() {
+  if (switching) return switching; // the error and the failed start both ask: switch once
+  if (Date.now() - lastSwitch < 20000) return Promise.resolve(false); // don't bounce between addresses
+  lastSwitch = Date.now();
+  const book = state.book;
+  const i = loadingAt?.index ?? state.index;
+  const at = loadingAt?.at ?? state.time;
+  switching = switchTracks(state.tracks)
+    .catch(() => '')
+    .then((moved) => {
+      if (!moved || state.book !== book) return false;
+      set({ error: null, phase: 'Switching to ' + moved.replace(/^https?:\/\//, '') + '…' });
+      loadTrack(i, at, true);
+      return true;
+    })
+    .finally(() => (switching = null));
+  return switching;
+}
 
 // --- time helpers (global position across tracks) ---------------------------
 function trackOffset(i) {
@@ -115,6 +161,7 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
   const t = state.tracks[i];
   if (!t) return;
   if (state.preparing) stopWaiting();
+  loadingAt = { index: i, at: startAt };
   set({ index: i, loading: true, error: null, time: startAt, duration: t.duration || 0, phase: !t.url && t.resolve ? 'Getting the audio link…' : 'Connecting…' });
   try {
     let url = t.url;
@@ -137,6 +184,8 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
   } catch (e) {
     if (token !== loadToken || e?.name === 'AbortError') return;
     if (e.pending) return waitForCloud(i, startAt, e.pending);
+    if (isAbs(state.book) && (await trySwitch())) return;
+    if (token !== loadToken) return;
     set({ loading: false, playing: false, phase: '', error: e.message || 'Playback failed' });
   }
 }
@@ -264,6 +313,7 @@ export function toggle() {
     if (state.playing || !state.book || engine.paused) return; // user paused again meanwhile
     state.tracks.forEach((t) => t.resolve && (t.url = null));
     set({ phase: 'Reconnecting…' });
+    if (isAbs(state.book)) return trySwitch().then((ok) => ok || loadTrack(state.index, state.time));
     loadTrack(state.index, state.time);
   }, 12000);
   Promise.resolve(engine.play()).catch((e) => set({ loading: false, phase: '', error: e.message }));
@@ -274,6 +324,7 @@ export function seek(t) {
   if (!isFinite(t)) return;
   const d = state.duration || engine.duration;
   const clamped = Math.max(0, d ? Math.min(t, d - 0.25) : t);
+  loadingAt = null;
   engine.seek(clamped);
   set({ time: clamped });
 }

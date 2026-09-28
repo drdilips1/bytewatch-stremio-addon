@@ -1,4 +1,5 @@
 import { BgImage } from '../components/bg-image.jsx';
+import { rankForYou } from '../lib/taste.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Row, BookCard, withMeta } from '../components/common.jsx';
 import { useTileRating } from '../lib/ratings.js';
@@ -40,14 +41,12 @@ const notOwned = (list) => {
 };
 async function topRated() {
   const r = await audible.genre('bestsellers');
-  return notOwned(r)
-    .filter((b) => (b.rating || 0) >= 4.5 && (b.ratings || 0) >= 200)
-    .slice(0, 30);
+  return rankForYou(notOwned(r).filter((b) => (b.rating || 0) >= 4.5 && (b.ratings || 0) >= 200)).slice(0, 30);
 }
 
 function heroSources() {
   const list = [];
-  list.push([() => picksForYou().then(notOwned), 'Picked for you', 'ai']);
+  list.push([() => picksForYou().then((r) => rankForYou(notOwned(r))), 'Picked for you', 'ai']);
   list.push([topRated, 'Top rated now', 'top']);
   if (absSrc.connected() && enabled('abs')) list.push([() => absSrc.inProgress(), 'Continue on your server', 'abs'], [() => absSrc.recent(), 'New on your server', 'abs']);
   if (cloud.tbConnected() && enabled('tb')) list.push([() => cloud.torboxLibrary(), 'In your TorBox', 'tb']);

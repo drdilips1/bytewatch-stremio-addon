@@ -90,16 +90,17 @@ async function audibleIn(market, book) {
   const best = (d?.products || [])
     .map((p) => {
       const r = p.rating?.overall_distribution || {};
-      return { p, rating: Number(r.display_average_rating || r.average_rating) || 0, count: Number(r.num_ratings) || 0 };
+      const part = (x) => Number(x?.display_average_rating || x?.average_rating) || 0;
+      return { p, rating: Number(r.display_average_rating || r.average_rating) || 0, count: Number(r.num_ratings) || 0, story: part(p.rating?.story_distribution), narration: part(p.rating?.performance_distribution) };
     })
     .filter((x) => x.rating && sameBook(book, x.p.title || '', (x.p.authors || []).map((a) => a.name).join(' ')) && notCompanion(book, x.p.title))
     .sort((a, b) => b.count - a.count)[0];
-  return best ? { rating: best.rating, count: best.count, url: `https://www.audible.${market}/pd/${best.p.asin}`, from: STORE_NAME[market] } : null;
+  return best ? { rating: best.rating, count: best.count, story: best.story, narration: best.narration, url: `https://www.audible.${market}/pd/${best.p.asin}`, from: STORE_NAME[market] } : null;
 }
 
 /** Audible (audible.com) stars and rating count for a book: { rating, count, url } or null. */
 export const audibleStars = (book) =>
-  cached(`au3-${MARKET}`, book, () =>
+  cached(`au4-${MARKET}`, book, () =>
     limited(() => audibleIn('com', book))
   );
 

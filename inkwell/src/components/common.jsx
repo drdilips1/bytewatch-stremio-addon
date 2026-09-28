@@ -129,6 +129,7 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
           <Icon name={book.kind === 'text' ? 'book' : book.kind === 'discover' ? 'sparkle' : 'headphones'} size={13} />
         </span>
         {book.rank > 0 && <span class="rank-badge">#{book.rank}</span>}
+        {!(book.rank > 0) && book.match > 0 && <span class={'match-badge' + (book.match >= 80 ? ' hi' : '')}>{book.match}% match</span>}
         {rt && (
           <span
             class="rating-badge"
@@ -152,6 +153,7 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
       </div>
       <div class="book-card-title">{book.title}</div>
       <div class="book-card-author">{book.author || ' '}</div>
+      {typeof book.why === 'string' && book.why && <div class="book-card-why">{book.why}</div>}
     </button>
   );
 });

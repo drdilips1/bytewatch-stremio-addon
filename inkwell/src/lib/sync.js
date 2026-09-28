@@ -14,6 +14,7 @@ import { ai } from './ai.js';
 import { persisted, settings, library, progress, bookmarks, addons, abs, debrid, hardcover, goodreads, removedBooks, mergeRemoved, cleanLibrary, cleanProgress } from './store.js';
 import { cleanUrl } from './http.js';
 import { ttsCfg } from './tts.js';
+import { myRatings } from './taste.js';
 
 const BAKED_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const BAKED_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -41,6 +42,7 @@ const SECTIONS = {
   bookmarks: { store: bookmarks, merge: mergeBookmarks },
   addons: { store: addons },
   goodreads: { store: goodreads },
+  myRatings: { store: myRatings, merge: mergeNewest },
   podcasts: { store: podcasts },
   qbit: { store: qbit, secret: true },
   qbitSent: { store: qbitSent, merge: mergeSent },

@@ -37,7 +37,12 @@ function fromAudible(p, market = '') {
 export function audibleRating(p) {
   const r = p.rating?.overall_distribution || {};
   const rating = Number(r.display_average_rating || r.average_rating) || 0;
-  return rating ? { rating, ratings: Number(r.num_ratings || p.rating?.num_reviews) || 0 } : {};
+  if (!rating) return {};
+  // Audible also rates the story and the narrator's performance separately.
+  const part = (d) => Number(d?.display_average_rating || d?.average_rating) || 0;
+  const story = part(p.rating.story_distribution);
+  const narration = part(p.rating.performance_distribution);
+  return { rating, ratings: Number(r.num_ratings || p.rating?.num_reviews) || 0, ...(story ? { story } : {}), ...(narration ? { narration } : {}) };
 }
 
 const pools = new Map();

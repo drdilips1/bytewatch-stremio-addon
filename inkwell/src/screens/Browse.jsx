@@ -3,11 +3,12 @@ import { TopBar, Grid, Skeleton, Empty, Row } from '../components/common.jsx';
 import { ia, absSrc, cloud, hc, enabled } from '../sources/index.js';
 import { audible } from '../sources/catalogs.js';
 import { lookup } from '../lib/meta.js';
-import { library } from '../lib/store.js';
+import { useStore } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { HINDI_GENRES, isHindi } from './hindi.js';
 import { SourceResults } from '../components/source-results.jsx';
 import { sourceAddons } from '../sources/sourceaddons.js';
+import { rankForYou, fitsHours, HOURS, hoursPick } from '../lib/taste.js';
 
 const TABS = [
   ['yours', 'For you'],
@@ -38,10 +39,11 @@ const yoursCached = (genre) => {
 function forYou(genre, connected, onUpdate) {
   let mine = connected ? null : [];
   let pool = null;
-  const score = (b) => (b.rating || 4) * Math.log10((b.ratings || 0) + 10) + (b.released > Date.now() - 730 * 864e5 ? 1.5 : 0);
   const emit = () => {
-    const have = new Set([...(mine || []), ...Object.values(library.get() || {})].map((b) => norm(b?.title)));
-    const picks = (pool || []).filter((b) => !have.has(norm(b.title))).sort((a, b) => score(b) - score(a)).slice(0, 36).map(({ rank, ...b }) => b);
+    const have = new Set((mine || []).map((b) => norm(b?.title)));
+    // Ranked by your taste (your ratings, what you finish, authors and narrators you like),
+    // with poorly rated or poorly narrated titles and anything you already know left out.
+    const picks = rankForYou((pool || []).filter((b) => !have.has(norm(b.title)))).map(({ rank, ...b }) => b);
     onUpdate({ mine: mine || [], picks, loadingMine: mine === null, loadingPicks: pool === null });
   };
   const jobs = [
@@ -85,6 +87,8 @@ export function Browse({ genre }) {
   const [tab, setTab] = useState(genre.hindi && sourceAddons().length ? 'sources' : genre.hindi && !connected ? 'best' : 'yours');
   const [items, setItems] = useState(null);
   const [year, setYear] = useState(THIS_YEAR - 1);
+  const hours = useStore(hoursPick);
+  const fit = (list) => (hours && !genre.hindi ? list.filter((b) => fitsHours(b, hours)) : list);
   useEffect(() => {
     setItems(null);
     if (tab === 'sources') return;
@@ -161,17 +165,26 @@ export function Browse({ genre }) {
           ))}
         </div>
       )}
+      {!genre.hindi && tab !== 'sources' && (
+        <div class="chips year-chips hours-chips" title="How long a listen you're after">
+          {HOURS.map(([k, label]) => (
+            <button class={'pill small' + (hours === k ? ' active' : '')} onClick={() => hoursPick.set(k)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       {tab === 'sources' ? (
         <SourceResults query={`hindi ${genre.en === 'Hindi' ? 'audiobook' : genre.en}`} heading={false} />
       ) : items === null ? (
         <div class="grid">{Array.from({ length: 9 }, () => <Skeleton />)}</div>
       ) : items.mine ? (
-        items.mine.length || items.picks.length ? (
+        fit(items.mine).length || fit(items.picks).length ? (
           <>
-            {items.mine.length > 0 && (
+            {fit(items.mine).length > 0 && (
               <>
                 <h3 class="section-label pad">In your collection</h3>
-                <Grid items={items.mine} />
+                <Grid items={fit(items.mine)} />
               </>
             )}
             {items.loadingMine && (
@@ -179,21 +192,22 @@ export function Browse({ genre }) {
                 <span class="spinner small" /> Checking your server and libraries…
               </p>
             )}
-            {items.picks.length > 0 && (
+            {fit(items.picks).length > 0 && (
               <>
                 <h3 class="section-label pad">Recommended for you</h3>
-                <Grid items={items.picks} />
+                <p class="muted pad small browse-hint">Sorted by how well each fits your taste. Rate books you've heard (on their page) to sharpen it.</p>
+                <Grid items={fit(items.picks)} />
               </>
             )}
           </>
         ) : (
-          <Empty title="Nothing here yet">Try Bestsellers or another genre.</Empty>
+          <Empty title="Nothing here yet">{hours ? 'Nothing that length here — try another length.' : 'Try Bestsellers or another genre.'}</Empty>
         )
-      ) : items.length ? (
-        <Grid items={items} />
+      ) : fit(items).length ? (
+        <Grid items={fit(items)} />
       ) : (
         <Empty title="Nothing here yet">
-          {tab === 'yours' ? `None of your books are tagged with this genre yet. Try ${genre.hindi ? 'Audible India' : 'Bestsellers'}.` : 'Try another tab or genre.'}
+          {hours && !genre.hindi ? 'Nothing that length here — try another length.' : tab === 'yours' ? `None of your books are tagged with this genre yet. Try ${genre.hindi ? 'Audible India' : 'Bestsellers'}.` : 'Try another tab or genre.'}
         </Empty>
       )}
       <div class="footer-space" />
