@@ -96,9 +96,10 @@ function cachedFlag(v) {
 }
 
 // ---- search ------------------------------------------------------------------
-async function run(addon, params) {
+async function run(addon, params, onSlow) {
   // Try the precise search first; if it finds nothing, widen it (title only, then
-  // the plain query) and retry once after a network hiccup.
+  // the plain query). A dropped connection or a slow site (often a free server
+  // waking up, or a busy search for a popular title) gets one more, longer go.
   const { title = '', author = '', query = '' } = params;
   const attempts = [params];
   if (author) attempts.push({ title, query });
@@ -106,14 +107,18 @@ async function run(addon, params) {
   for (const p of attempts) {
     for (let retry = 0; retry < 2; retry++) {
       try {
-        const r = await runOnce(addon, p);
+        const r = await runOnce(addon, p, retry);
         if (r.length) return r;
         break;
       } catch (e) {
         lastErr = e;
         if (e.final || /too many searches/.test(e.message)) throw e;
-        // A slow site gets no second go (that doubled the wait); a dropped connection does.
-        if (e.timeout || retry) break;
+        // Twice too slow: say so rather than make you wait through a wider search too.
+        if (retry) {
+          if (e.timeout) throw e;
+          break;
+        }
+        if (e.timeout) onSlow?.();
         await new Promise((res) => setTimeout(res, 800));
       }
     }
@@ -122,7 +127,7 @@ async function run(addon, params) {
   return [];
 }
 
-async function runOnce(addon, { title = '', author = '', query = '' }) {
+async function runOnce(addon, { title = '', author = '', query = '' }, retry = 0) {
   const src = addon.manifest.adapters.source;
   const vars = { TITLE: title || query, AUTHOR: author, QUERY: query || [title, author].filter(Boolean).join(' '), LIMIT: '20' };
   const key = addon.manifest.id + '|' + JSON.stringify(vars);
@@ -134,7 +139,8 @@ async function runOnce(addon, { title = '', author = '', query = '' }) {
   const method = (req.method || 'GET').toUpperCase();
   const url = fill(req.url, vars, true);
   const headers = req.headers || {};
-  const timeout = req.timeout || 20000;
+  // Torrent search sites can take a while; the second go waits longer.
+  const timeout = Math.max(req.timeout || 0, retry ? 60000 : 30000);
   const data =
     method === 'GET'
       ? await getJson(url, { headers, timeout, fresh: true })
@@ -235,18 +241,23 @@ function sameBook(list, title, author) {
   });
 }
 
-/** Search all installed source addons; `onResult(addonName, results, error)` per addon. */
-export function searchSources(params, onResult) {
+/**
+ * Search the installed source addons (all, or just those named in `only`).
+ * `onResult(addonName, results, error, slow)` per addon; `slow` means it's still trying.
+ */
+export function searchSources(params, onResult, only = null) {
   return Promise.all(
-    sourceAddons().map((a) =>
-      run(a, params)
-        .then((r) => {
-          // Show results straight away; which ones TorBox can stream instantly is filled in after.
-          onResult(a.manifest.name, r, null);
-          return markInstant(r).then((marked) => marked && onResult(a.manifest.name, marked, null));
-        })
-        .catch((e) => onResult(a.manifest.name, [], e))
-    )
+    sourceAddons()
+      .filter((a) => !only || only.includes(a.manifest.name))
+      .map((a) =>
+        run(a, params, () => onResult(a.manifest.name, [], null, true))
+          .then((r) => {
+            // Show results straight away; which ones TorBox can stream instantly is filled in after.
+            onResult(a.manifest.name, r, null);
+            return markInstant(r).then((marked) => marked && onResult(a.manifest.name, marked, null));
+          })
+          .catch((e) => onResult(a.manifest.name, [], e))
+      )
   );
 }
 

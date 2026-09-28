@@ -5909,3 +5909,8 @@ button.rt {
   color: var(--text);
   background: color-mix(in srgb, var(--accent) 24%, var(--surface));
 }
+.src-retry {
+  color: var(--dyn, var(--accent));
+  font-weight: 700;
+  font-size: 12px;
+}

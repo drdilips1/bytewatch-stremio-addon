@@ -60,9 +60,21 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const providers = [provider, cloud.tbConnected() && 'torbox', cloud.rdConnected() && 'realdebrid'].filter((p, i, a) => p && a.indexOf(p) === i);
 
   const lastQuery = useRef(query);
+  const mounted = useRef(true);
+  useEffect(() => () => (mounted.current = false), []);
+  const search = (only = null) => {
+    setPending(true);
+    const q = lastQuery.current;
+    return searchSources(
+      { title, author, query },
+      (name, results, error, slow) => {
+        if (mounted.current && lastQuery.current === q) setGroups((g) => ({ ...g, [name]: { results, error, slow } }));
+      },
+      only
+    ).then(() => mounted.current && lastQuery.current === q && setPending(false));
+  };
   useEffect(() => {
     if (!count || !(title || query)) return;
-    let alive = true;
     // A refined title (details loaded) keeps what's already shown until new results arrive;
     // a new search (typed query) starts clean.
     if (lastQuery.current !== query) setGroups({});
@@ -70,15 +82,10 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
     setPending(true);
     // Wait until typing settles so half-typed words don't use up the addon's search allowance.
     const t = setTimeout(() => {
-      searchSources({ title, author, query }, (name, results, error) => {
-        if (alive) setGroups((g) => ({ ...g, [name]: { results, error } }));
-      }).then(() => alive && setPending(false));
+      search();
       refreshAccount();
     }, query && !title ? 900 : 0);
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
+    return () => clearTimeout(t);
   }, [title, author, query, count]);
 
   if (!count) return null;
@@ -136,12 +143,32 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           <span class="spinner small" /> Searching {sourceAddons().map((a) => a.manifest.name).join(', ')}…
         </p>
       )}
+      {entries.some(([, g]) => g.slow) && (
+        <p class="src-errors">
+          <span class="spinner small" />{' '}
+          {entries
+            .filter(([, g]) => g.slow)
+            .map(([name]) => name)
+            .join(', ')}{' '}
+          slow to answer — still trying…
+        </p>
+      )}
       {entries.some(([, g]) => g.error) && (
         <p class="src-errors">
           {entries
             .filter(([, g]) => g.error)
             .map(([name, g]) => `${name} ${friendlyError(g.error)}`)
-            .join(' · ')}
+            .join(' · ')}{' '}
+          <button
+            class="link-btn src-retry"
+            onClick={() => {
+              const failed = entries.filter(([, g]) => g.error).map(([name]) => name);
+              setGroups((g) => Object.fromEntries(Object.entries(g).map(([k, v]) => [k, failed.includes(k) ? { results: [], error: null } : v])));
+              search(failed);
+            }}
+          >
+            Try again
+          </button>
         </p>
       )}
       {!pending && !total && entries.length > 0 && <p class="muted pad-s">{looseCount ? 'No results that are clearly this book.' : 'No source results.'}</p>}
