@@ -23,9 +23,14 @@ async function reachable(url) {
 }
 
 /** Pick the address that currently answers (cached for a minute). */
+// The web app (an https page) can't use plain http:// addresses: browsers block them.
+const usable = (u) => !(isWeb && typeof location !== 'undefined' && location.protocol === 'https:' && /^http:/i.test(u || ''));
+
 export async function resolveServer(force = false) {
   const { server, altServer } = cfg();
-  if (!altServer) return (active = trim(server));
+  const both = [server, altServer].filter(Boolean);
+  const ok = both.filter(usable);
+  if (ok.length <= 1) return (active = trim(ok[0] || server));
   if (!force && active && Date.now() - checkedAt < 60e3) return active;
   checkedAt = Date.now();
   const order = active === trim(altServer) ? [altServer, server] : [server, altServer];
@@ -52,6 +57,8 @@ async function call(path, { method = 'GET', body, fresh } = {}) {
   const run = () =>
     method === 'GET' ? getJson(base() + path, { headers: auth(), fresh }) : sendJson(base() + path, method, body, auth());
   await resolveServer();
+  if (!usable(base()))
+    throw new Error("The web app can't use an http:// Audiobookshelf address — add your https (Tailscale) address in Settings → Audiobookshelf (as the main or the second address)");
   try {
     return await run();
   } catch (e) {
@@ -62,6 +69,8 @@ async function call(path, { method = 'GET', body, fresh } = {}) {
     }
     if (e.status === 401 && cfg().refreshToken && (await refresh())) return run();
     if (e.status === 401) throw new Error('Audiobookshelf session expired — please sign in again');
+    if (!e.status && isWeb)
+      throw new Error(`Can't reach ${base().replace(/^https?:\/\//, '')} from the web app — is Tailscale on here, and was Audiobookshelf started with ALLOW_CORS=1?`);
     throw e;
   }
 }
@@ -153,25 +162,29 @@ function toBook(item) {
 
 // The main library, plus the ebooks library when one is chosen (Settings → Audiobookshelf).
 const libIds = () => [...new Set([cfg().libraryId, cfg().ebookLibraryId].filter(Boolean))];
-// strict: a library that can't be reached is an error, not an empty list.
+// A library that can't be reached is skipped; if none can be reached, that's an error
+// (not an empty list). strict: any unreachable library is an error.
 async function fromLibraries(path, pick, strict = false) {
-  const lists = await Promise.all(
-    libIds().map((id) => {
-      const p = call(`/api/libraries/${id}${path}`).then(pick);
-      return strict ? p : p.catch(() => []);
-    })
-  );
-  return lists.flat().map(toBook);
+  const res = await Promise.allSettled(libIds().map((id) => call(`/api/libraries/${id}${path}`).then(pick)));
+  const bad = res.filter((r) => r.status === 'rejected');
+  if (bad.length && (strict || bad.length === res.length)) throw bad[0].reason;
+  return res.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])).map(toBook);
+}
+
+// No library chosen yet (e.g. signed in on another device): pick the audiobook library.
+async function ensureLibrary() {
+  if (!cfg().libraryId) await pickLibrary();
+  return !!cfg().libraryId;
 }
 
 export async function recent() {
-  if (!connected() || !cfg().libraryId) return [];
+  if (!connected() || !(await ensureLibrary())) return [];
   return fromLibraries('/items?' + qs({ limit: 30, sort: 'addedAt', desc: 1, minified: 1 }), (d) => d.results || []);
 }
 
 /** Whole library (up to 500 items), newest first. */
 export async function all({ strict = false } = {}) {
-  if (!connected() || !cfg().libraryId) return [];
+  if (!connected() || !(await ensureLibrary())) return [];
   return fromLibraries('/items?' + qs({ limit: 500, sort: 'addedAt', desc: 1, minified: 1 }), (d) => d.results || [], strict);
 }
 
@@ -182,7 +195,7 @@ export async function inProgress() {
 }
 
 export async function search(term, { strict = false } = {}) {
-  if (!connected() || !cfg().libraryId || !term.trim()) return [];
+  if (!connected() || !term.trim() || !(await ensureLibrary())) return [];
   return fromLibraries('/search?' + qs({ q: term, limit: 25 }), (d) => d.book || d.podcast || [], strict);
 }
 
