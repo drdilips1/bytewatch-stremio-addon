@@ -199,29 +199,53 @@ let absAt = 0;
 async function absBooks() {
   if (!absSrc.connected()) return [];
   if (!absList || Date.now() - absAt > 10 * 60e3) {
-    absList = await absSrc.all().catch(() => absList || []);
-    absAt = Date.now();
+    try {
+      absList = await absSrc.all({ strict: true });
+      absAt = Date.now();
+    } catch {
+      // An older copy of the list is fine; with none, we can't tell what you have.
+      if (!absList) throw absDown();
+    }
   }
   return absList;
+}
+const absDown = () => Object.assign(new Error("Couldn't reach your Audiobookshelf to check for duplicates"), { absDown: true });
+
+// This server book is the same book as the torrent: every word of its title in the
+// torrent's name, plus the author's first or last name unless the title is long.
+function sameAs(a, text, hay) {
+  if (a.kind === 'text') return false;
+  const t = mainTitle(a.title);
+  if (!words(t).length || !matches(t, text)) return false;
+  const names = String(a.author || '').split(/,|&|\band\b/).flatMap((n) => {
+    const w = words(n).filter((x) => x.length >= 3);
+    return w.length ? [w[0], w[w.length - 1]] : [];
+  });
+  return names.some((n) => hay.has(n)) || (!names.length && words(t).length >= 2) || words(t).length >= 3;
 }
 
 /**
  * The Audiobookshelf book that is this same book, if your server already has it
- * (so it isn't downloaded twice). Every word of the server book's title must be in the
- * torrent's name, plus the author's first or last name unless the title is long.
+ * (so it isn't downloaded twice). Checks your newest 500 books, then asks the server
+ * itself (so older books in a big library count too). Throws when the server can't
+ * be reached, so callers hold off instead of sending a possible duplicate.
  */
 export async function onServer(book) {
   const text = `${book.title || ''} ${book.author || ''} ${book.rawName || ''}`;
   const hay = new Set(words(text));
-  for (const a of await absBooks()) {
-    if (a.kind === 'text') continue;
-    const t = mainTitle(a.title);
-    if (!words(t).length || !matches(t, text)) continue;
-    const names = String(a.author || '').split(/,|&|\band\b/).flatMap((n) => {
-      const w = words(n).filter((x) => x.length >= 3);
-      return w.length ? [w[0], w[w.length - 1]] : [];
+  const hit = (await absBooks()).find((a) => sameAs(a, text, hay));
+  if (hit) return hit;
+  if (!absSrc.connected()) return null;
+  // Torrent names often read "Author - Title (2021) [MP3]": search the whole title, then each part.
+  const q = mainTitle(book.title || '').trim();
+  const parts = q.split(/\s+[-–—|]\s+/).map((x) => x.trim()).filter((x) => x.length >= 4);
+  const queries = [...new Set([q, ...parts])].filter((x) => x && x.length <= 90).slice(0, 3);
+  for (const term of queries) {
+    const found = await absSrc.search(term, { strict: true }).catch((e) => {
+      throw e.status ? e : absDown();
     });
-    if (names.some((n) => hay.has(n)) || (!names.length && words(t).length >= 2) || words(t).length >= 3) return a;
+    const hit = found.find((a) => sameAs(a, text, hay));
+    if (hit) return hit;
   }
   return null;
 }
@@ -451,10 +475,21 @@ export function autoForward({ force = false } = {}) {
       const fresh = (await unsent()).filter((b) => (b.addedAt || 0) >= (cfg.autoSince || 0));
       // Audiobooks only: ebooks in the cloud stay there.
       const list = [];
+      let held = '';
       for (const b of fresh) {
         const audio = await hasAudio(b).catch(() => null);
         // Already on your Audiobookshelf server: don't download it again.
-        if (audio && (await onServer(b).catch(() => null))) {
+        // Server not answering: hold it for the next check rather than risk a duplicate.
+        let have = null;
+        if (audio) {
+          try {
+            have = await onServer(b);
+          } catch (e) {
+            held = e.message;
+            continue;
+          }
+        }
+        if (have) {
           qbitSent.set((st) => ({ ...st, items: { ...st.items, [b.hash]: { title: b.title, at: Date.now(), removed: true, skipped: 'on-server' } } }));
           continue;
         }
@@ -465,8 +500,8 @@ export function autoForward({ force = false } = {}) {
       let ok = 0;
       let err = '';
       for (const b of list) await send(b).then(() => ok++, (e) => (err = e.message || String(e)));
-      if (ok === list.length) lastAuto = Date.now(); // a failed send is retried at the next chance
-      autoLast.set({ at: Date.now(), sent: ok, error: ok < list.length ? friendly(err) : '' });
+      if (ok === list.length && !held) lastAuto = Date.now(); // a failed or held send is retried at the next chance
+      autoLast.set({ at: Date.now(), sent: ok, error: ok < list.length ? friendly(err) : held ? `${held} — waiting before sending` : '' });
       return ok ? `Sent ${ok} new audiobook${ok === 1 ? '' : 's'} to qBittorrent` : '';
     } catch (e) {
       autoLast.set({ at: Date.now(), sent: 0, error: friendly(e.message || String(e)) });
@@ -490,7 +525,14 @@ export async function autoSendAdded({ hash, magnet, title, author, rawName, form
   const h = String(hash || '').toLowerCase() || infoHash(magnet, '');
   if (!h || known(h)) return '';
   if (EBOOK_NAME.test(`${rawName || ''} ${format || ''}`)) return '';
-  const have = await onServer({ title, author, rawName }).catch(() => null);
+  let have = null;
+  try {
+    have = await onServer({ title, author, rawName });
+  } catch (e) {
+    autoLast.set({ at: Date.now(), sent: 0, error: `${e.message} — waiting before sending` });
+    autoForwardSoon(); // checked and sent once your server answers
+    return 'Not sent home yet: waiting for your Audiobookshelf to answer, so a book you already have isn’t downloaded twice';
+  }
   if (have) {
     qbitSent.set((st) => ({ ...st, items: { ...st.items, [h]: { title, at: Date.now(), removed: true, skipped: 'on-server' } } }));
     return `Already on your Audiobookshelf (“${have.title}”) — not sent home again`;

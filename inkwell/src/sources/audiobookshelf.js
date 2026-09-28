@@ -153,8 +153,14 @@ function toBook(item) {
 
 // The main library, plus the ebooks library when one is chosen (Settings → Audiobookshelf).
 const libIds = () => [...new Set([cfg().libraryId, cfg().ebookLibraryId].filter(Boolean))];
-async function fromLibraries(path, pick) {
-  const lists = await Promise.all(libIds().map((id) => call(`/api/libraries/${id}${path}`).then(pick).catch(() => [])));
+// strict: a library that can't be reached is an error, not an empty list.
+async function fromLibraries(path, pick, strict = false) {
+  const lists = await Promise.all(
+    libIds().map((id) => {
+      const p = call(`/api/libraries/${id}${path}`).then(pick);
+      return strict ? p : p.catch(() => []);
+    })
+  );
   return lists.flat().map(toBook);
 }
 
@@ -164,9 +170,9 @@ export async function recent() {
 }
 
 /** Whole library (up to 500 items), newest first. */
-export async function all() {
+export async function all({ strict = false } = {}) {
   if (!connected() || !cfg().libraryId) return [];
-  return fromLibraries('/items?' + qs({ limit: 500, sort: 'addedAt', desc: 1, minified: 1 }), (d) => d.results || []);
+  return fromLibraries('/items?' + qs({ limit: 500, sort: 'addedAt', desc: 1, minified: 1 }), (d) => d.results || [], strict);
 }
 
 export async function inProgress() {
@@ -175,9 +181,9 @@ export async function inProgress() {
   return (data.libraryItems || []).map(toBook);
 }
 
-export async function search(term) {
+export async function search(term, { strict = false } = {}) {
   if (!connected() || !cfg().libraryId || !term.trim()) return [];
-  return fromLibraries('/search?' + qs({ q: term, limit: 25 }), (d) => d.book || d.podcast || []);
+  return fromLibraries('/search?' + qs({ q: term, limit: 25 }), (d) => d.book || d.podcast || [], strict);
 }
 
 export async function details(book) {

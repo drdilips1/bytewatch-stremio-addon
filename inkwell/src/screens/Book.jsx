@@ -221,8 +221,9 @@ export function Book({ book: initial }) {
               onClick={async () => {
                 if (!qb.configured()) return toast('Set up your home server first (Settings → Home server)');
                 if (qb.wasSent(book.hash) && !confirm('Already sent to your home server. Send it again?')) return;
-                const have = !qb.wasSent(book.hash) && (await qb.onServer(book).catch(() => null));
-                if (have && !confirm(`Your Audiobookshelf already has “${have.title}”. Send it home again anyway?`)) return;
+                const have = !qb.wasSent(book.hash) && (await qb.onServer(book).catch(() => 'down'));
+                if (have === 'down' && !confirm("Couldn't reach your Audiobookshelf to check whether you already have this. Send it home anyway?")) return;
+                if (have && have !== 'down' && !confirm(`Your Audiobookshelf already has “${have.title}”. Send it home again anyway?`)) return;
                 setQbBusy(true);
                 try {
                   toast(await qb.send(book));
