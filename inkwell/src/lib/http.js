@@ -30,6 +30,20 @@ export function setRelayUrl(v) {
 }
 export const isWeb = WEB;
 
+// The relay's code version, as it last answered (v8 takes the pre-check-free form).
+export function relayVersion() {
+  try {
+    return Number(localStorage.getItem('inkwell:relayVer')) || 0;
+  } catch {
+    return 0;
+  }
+}
+function rememberRelayVersion(v) {
+  try {
+    localStorage.setItem('inkwell:relayVer', String(Number(v) || 0));
+  } catch {}
+}
+
 // Hosts the relay will forward to (keep in step with relay/index.ts). Anything
 // else — e.g. your own Audiobookshelf server — must allow the web app directly.
 const RELAY_ALLOWED = /^(api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|itunes\.apple\.com|api\.torbox\.app|api\.real-debrid\.com|openlibrary\.org|www\.googleapis\.com|archive\.org|gutendex\.com|standardebooks\.org|librivox\.org|jsonkeeper\.com|([a-z0-9-]+\.)*knaben\.(org|eu|net|cc)|[a-z0-9.-]+\.workers\.dev)$/i;
@@ -74,22 +88,39 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body, fe
     }, timeout);
   });
   try {
-    const go = (u, h) => Promise.race([fetch(u, { method, headers: h, body, signal: ctrl.signal }), timedOut]);
+    const go = (u, h, m = method, b = body) => Promise.race([fetch(u, { method: m, headers: h, body: b, signal: ctrl.signal }), timedOut]);
     // Podcast feeds live on countless hosts: the relay fetches those read-only (?feed=1, XML only).
     const relayed = async () => {
       const u = viaRelay(url) + (feed ? '&feed=1' : '');
-      // A plain GET with no extra headers skips the browser's CORS pre-check, which
-      // Safari (every iPhone browser) is fussiest about. Works while the relay has
-      // "Verify JWT" off; otherwise Supabase says 401 and we send the key as before.
-      if (method === 'GET' && !Object.keys(headers || {}).length) {
+      const fromRelay = (r) => {
+        const v = r.headers.get('x-relay-version');
+        if (v) rememberRelayVersion(v);
+        return !!v;
+      };
+      // Relay v8+: one POST with a text body and the public key in the address. Browsers
+      // send that without a CORS pre-check, which Safari (every iPhone browser) is
+      // fussiest about. The service's own method, headers and body travel inside it.
+      if (relayVersion() >= 8 && (body == null || typeof body === 'string')) {
         try {
-          const r = await go(u, undefined);
-          if (r.status !== 401) return r;
+          const r = await go(`${u}&env=1${ANON ? `&apikey=${encodeURIComponent(ANON)}` : ''}`, { 'Content-Type': 'text/plain' }, 'POST', JSON.stringify({ method, headers: headers || {}, body: body ?? null }));
+          if (fromRelay(r)) return r;
         } catch (e) {
           if (e.timeout) throw e;
         }
       }
-      return go(u, relayHeaders(headers));
+      // A plain GET also skips the pre-check. Only trusted if the relay itself answered
+      // (Supabase's gateway may refuse a request without the key).
+      if (method === 'GET' && !Object.keys(headers || {}).length) {
+        try {
+          const r = await go(`${u}${ANON ? `&apikey=${encodeURIComponent(ANON)}` : ''}`, undefined);
+          if (fromRelay(r)) return r;
+        } catch (e) {
+          if (e.timeout) throw e;
+        }
+      }
+      const r = await go(u, relayHeaders(headers));
+      fromRelay(r);
+      return r;
     };
     let res;
     if (needsRelay(url)) res = await relayed();
@@ -219,36 +250,43 @@ export const qs = (params) =>
 export async function probeRelay() {
   const url = relayUrl();
   if (!url) return { ok: false, error: 'Relay is switched off' };
-  const test = viaRelay('https://itunes.apple.com/search?term=habit&media=audiobook&limit=1');
-  const verdict = (res, how) => {
-    const version = res.headers.get('x-relay-version') || '1';
-    if (res.status === 404) return { ok: false, error: 'No function named "relay" in your Supabase project' };
-    if (res.status === 401) return { ok: false, error: 'Supabase refused the request (401) — in the relay\'s settings, turn off "Verify JWT", or redeploy the relay with the new code' };
+  const target = 'https://itunes.apple.com/search?term=habit&media=audiobook&limit=1';
+  const key = ANON ? `&apikey=${encodeURIComponent(ANON)}` : '';
+  const version = (res) => Number(res.headers.get('x-relay-version')) || 0;
+  const tries = [
+    ['text', () => fetch(`${viaRelay(target)}&env=1${key}`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ method: 'GET', headers: {}, body: null }) })],
+    ['plain', () => fetch(viaRelay(target) + key)],
+    ['key', () => fetch(viaRelay(target), { headers: relayHeaders({}) })],
+  ];
+  const seen = [];
+  for (const [how, run] of tries) {
+    let res;
+    try {
+      res = await run();
+    } catch (e) {
+      seen.push(`${how}: ${e.message}`);
+      continue;
+    }
+    const v = version(res);
+    if (v && res.ok) {
+      rememberRelayVersion(v);
+      // Works — but Safari / iPhone need the pre-check-free form (v8).
+      if (v < 8) return { ok: true, version: v, how, error: '', note: 'Works here. For Safari and iPhone, copy the new relay code (v8) below and deploy it again' };
+      return { ok: true, version: v, how, error: '' };
+    }
+    seen.push(`${how}: HTTP ${res.status}${v ? '' : ' (from Supabase, not the relay)'}`);
     if (res.status === 503 || res.status === 540) return { ok: false, error: `Supabase answered ${res.status} — your project may be paused: open supabase.com and restore it` };
-    if (!res.ok) return { ok: false, error: `Relay answered HTTP ${res.status}` };
-    return { ok: version >= '2', version, how, error: version >= '2' ? '' : 'Old relay code — copy the new code and deploy it again' };
-  };
-  let plainErr = '';
-  try {
-    // The way most requests go: plain, no pre-check.
-    const res = await fetch(test);
-    if (res.status !== 401) return verdict(res, 'plain');
-  } catch (e) {
-    plainErr = e.message;
   }
-  try {
-    return verdict(await fetch(test, { headers: relayHeaders({ Authorization: 'Bearer test' }) }), 'key');
-  } catch (e) {
-    const where = (() => {
-      try {
-        return new URL(url).host;
-      } catch {
-        return 'the relay';
-      }
-    })();
-    return {
-      ok: false,
-      error: `Can't reach ${where} (${plainErr || e.message}). Check the relay address below, that the Supabase project isn't paused, and that no content blocker, VPN or Private DNS is blocking supabase.co`,
-    };
-  }
+  const host = (() => {
+    try {
+      return new URL(url).host;
+    } catch {
+      return 'the relay';
+    }
+  })();
+  const all = seen.join(' · ');
+  if (/HTTP 404/.test(all) && !/Load failed|Failed to fetch/i.test(all))
+    return { ok: false, error: `Supabase says there's no function named "relay" at ${host} — deploy it (steps below) and check the address at the bottom` };
+  if (/HTTP 401/.test(all)) return { ok: false, error: 'Supabase refused the request (401): open the relay function in Supabase and turn off "Verify JWT", then Check again' };
+  return { ok: false, error: `Can't reach the relay at ${host} (${all}). Copy the new relay code (v8) below and deploy it again; if it still fails, a content blocker, iCloud Private Relay or "Limit IP address tracking" may be blocking supabase.co` };
 }

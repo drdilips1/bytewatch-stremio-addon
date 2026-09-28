@@ -181,7 +181,7 @@ function WebRelayCard() {
       }
     };
     const r = await probeRelay();
-    push('Relay', r.ok, r.ok ? `Working (v${r.version})` : r.error);
+    push('Relay', r.ok, r.ok ? `Working (v${r.version})${r.note ? ` — ${r.note}` : ''}` : r.error);
     if (deb.torbox) await check('TorBox', () => cloud.verify('torbox', deb.torbox));
     if (deb.realdebrid) await check('Real-Debrid', () => cloud.verify('realdebrid', deb.realdebrid));
     if (hc.connected()) await check('Hardcover', async () => `${(await hc.counts()).reading} reading`);

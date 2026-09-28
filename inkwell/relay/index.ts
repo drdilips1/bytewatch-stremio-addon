@@ -10,7 +10,8 @@
 // verification" on or off: the app signs in with your project's public key and
 // sends the services' own tokens in x-relay-headers.)
 //
-// Version 7.
+// Version 8: also takes one POST with a text body (?env=1) carrying the method,
+// headers and body, so browsers skip the CORS pre-check (Safari / iPhone).
 
 // Only these services can be reached through the relay.
 const ALLOWED = [
@@ -37,9 +38,9 @@ const CORS: Record<string, string> = {
   // "*" doesn't cover Authorization in browsers, so it's listed explicitly.
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-relay-headers, accept, user-agent',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Expose-Headers': '*',
+  'Access-Control-Expose-Headers': 'X-Relay-Version, Content-Type, Content-Disposition, *',
   'Access-Control-Max-Age': '86400',
-  'X-Relay-Version': '7',
+  'X-Relay-Version': '8',
 };
 
 // Headers meant for Supabase or the browser, never forwarded. The service's own
@@ -61,29 +62,41 @@ Deno.serve(async (req) => {
     return new Response('Missing or bad ?url=', { status: 400, headers: CORS });
   }
   // Podcast feeds (?feed=1): any https host, GET only, and only XML comes back.
-  const feed = new URL(req.url).searchParams.get('feed') === '1' && req.method === 'GET';
+  const feed = new URL(req.url).searchParams.get('feed') === '1';
   const privateHost = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|\[?::1)/i.test(url.hostname);
   if (url.protocol !== 'https:' || privateHost || (!feed && !ALLOWED.some((re) => re.test(url.hostname)))) {
     return new Response(`Host not allowed: ${url.hostname}`, { status: 403, headers: CORS });
   }
   const headers = new Headers(req.headers);
   for (const h of DROP_REQUEST) headers.delete(h);
-  try {
-    const extra = JSON.parse(req.headers.get('x-relay-headers') || '{}');
-    for (const [k, v] of Object.entries(extra)) if (typeof v === 'string') headers.set(k, v);
-  } catch {
-    // ignore malformed header bundle
+  let method = req.method;
+  let body: BodyInit | undefined;
+  if (new URL(req.url).searchParams.get('env') === '1' && req.method === 'POST') {
+    // The pre-check-free form: { method, headers, body } as text.
+    headers.delete('content-type');
+    try {
+      const env = JSON.parse(await req.text());
+      method = String(env.method || 'GET').toUpperCase();
+      for (const [k, v] of Object.entries(env.headers || {})) if (typeof v === 'string') headers.set(k, v);
+      if (typeof env.body === 'string' && method !== 'GET' && method !== 'HEAD') body = env.body;
+    } catch {
+      return new Response('Bad relay envelope', { status: 400, headers: CORS });
+    }
+  } else {
+    try {
+      const extra = JSON.parse(req.headers.get('x-relay-headers') || '{}');
+      for (const [k, v] of Object.entries(extra)) if (typeof v === 'string') headers.set(k, v);
+    } catch {
+      // ignore malformed header bundle
+    }
+    body = req.method === 'GET' || req.method === 'HEAD' ? undefined : await req.arrayBuffer();
   }
   if (!headers.has('user-agent') || /deno/i.test(headers.get('user-agent') || '')) {
     headers.set('user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1');
   }
   try {
-    const res = await fetch(url, {
-      method: req.method,
-      headers,
-      body: req.method === 'GET' || req.method === 'HEAD' ? undefined : await req.arrayBuffer(),
-      redirect: 'follow',
-    });
+    if (feed && method !== 'GET') return new Response('Feeds are read-only', { status: 403, headers: CORS });
+    const res = await fetch(url, { method, headers, body, redirect: 'follow' });
     if (feed && !/xml|rss|atom|opml/i.test(res.headers.get('content-type') || '')) {
       // Many feeds are served as text/plain or octet-stream: peek at the start.
       const head = (await res.clone().text()).slice(0, 400);
