@@ -703,7 +703,9 @@ function friendlyError(e) {
   if (/resolve host|no address associated|ENOTFOUND|getaddrinfo/i.test(m)) return "couldn't be reached — check the internet connection (a VPN's DNS can cause this)";
   if (/timed? ?out/i.test(m)) return "didn't answer in time";
   if (/failed to fetch|load failed|network/i.test(m)) return "couldn't be reached";
-  if (/too many searches/i.test(m)) return 'is busy — try again in a minute';
+  if (/too many searches/i.test(m) || e?.status === 429) return 'is busy (too many searches) — try again in a minute';
+  if (e?.status === 403 || /cloudflare|attention required|just a moment/i.test(m)) return "blocked the search (its Cloudflare protection) — try again later";
+  if (e?.status >= 500) return `is down right now (server error ${e.status}) — try again later`;
   return m.replace(/^[^:]+:\s*/, '').slice(0, 90);
 }
 

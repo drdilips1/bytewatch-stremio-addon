@@ -12,6 +12,8 @@ import { Icon } from './components/icons.jsx';
 import { Toaster, Guard } from './components/common.jsx';
 import { UpdatePrompt } from './components/update.jsx';
 import { MiniPlayer, FullPlayer, usePlayer } from './components/player-ui.jsx';
+import * as player from './lib/player.js';
+import { logError } from './lib/report.js';
 import { Home } from './screens/Home.jsx';
 import { Discover } from './screens/Discover.jsx';
 import { Library } from './screens/Library.jsx';
@@ -34,6 +36,13 @@ const TABS = [
   ['settings', 'Settings', 'settings'],
 ];
 const ROOTS = { home: Home, discover: Discover, podcasts: Podcasts, library: Library, tracker: Settings, settings: Settings }; // tracker: the old tab, now in Settings
+// Playback errors go in the problem-report log (Settings → Report a problem).
+let lastPlayerError = '';
+player.subscribe((s) => {
+  if (s.error && s.error !== lastPlayerError) logError('player', `${s.error}${s.book?.title ? ` — “${s.book.title}”` : ''}`);
+  lastPlayerError = s.error || '';
+});
+
 // App shortcuts (long-press the icon, or Google Assistant): app.inkwell.books://drive and ://ask.
 function openShortcut(url) {
   const m = /^app\.inkwell\.books:\/\/(drive|ask)/.exec(url || '');

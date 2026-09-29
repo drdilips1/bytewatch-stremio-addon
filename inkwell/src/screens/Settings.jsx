@@ -10,6 +10,7 @@ import relayCode from '../../relay/index.ts?raw';
 import { ACCENTS, PALETTES } from '../lib/theme.js';
 import { WALLPAPERS, wallpaperUrl, saveCustom, useCustomWallpaper } from '../lib/wallpaper.js';
 import { APP_VERSION } from '../components/update.jsx';
+import { ReportCard } from '../components/report.jsx';
 import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
 import { AccountCard, VoicesCard, DownloadsCard } from './settings-extra.jsx';
 import { UpdateCard } from '../components/update.jsx';
@@ -1205,6 +1206,10 @@ export function Settings() {
             Clear
           </button>
         </div>
+      </Section>
+
+      <Section icon="sparkle" title="Report a problem">
+        <ReportCard />
       </Section>
 
       <p class="about">

@@ -145,7 +145,9 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body, fe
           const j = JSON.parse(text);
           detail = j.message || j.detail || j.error_description || (typeof j.error === 'string' ? j.error : '') || (typeof j.result === 'string' ? j.result : '') || '';
         } catch {}
-        if (!detail) detail = text.slice(0, 160).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        // A web page instead of an API answer (e.g. Cloudflare's error page): use its title, not a scrap of HTML.
+        if (!detail && /<(!doctype|html|head|script)/i.test(text)) detail = (/<title[^>]*>([^<]*)/i.exec(text)?.[1] || 'the site sent an error page').replace(/\s+/g, ' ').trim().slice(0, 90);
+        if (!detail) detail = text.slice(0, 160).replace(/<[^>]*>?/g, ' ').replace(/\s+/g, ' ').trim();
       } catch {}
       const relayMissing = WEB && res.status === 404 && /\/functions\/v1\/relay/.test(res.url || '') && /function/i.test(detail);
       const err = new Error(relayMissing ? 'This service needs the web relay — see Settings → Web app' : `HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);

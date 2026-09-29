@@ -74,6 +74,27 @@ public class InkwellWebPlugin extends Plugin {
         call.resolve();
     }
 
+    /** Share plain text through Android's share sheet (e.g. a problem report into the Claude app). */
+    @PluginMethod
+    public void shareText(PluginCall call) {
+        String text = call.getString("text", "");
+        String title = call.getString("title", "Share");
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, text);
+        send.putExtra(Intent.EXTRA_SUBJECT, call.getString("subject", "Audiohub"));
+        Intent chooser = Intent.createChooser(send, title);
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getActivity().runOnUiThread(() -> {
+            try {
+                getContext().startActivity(chooser);
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Could not open the share sheet: " + e.getMessage());
+            }
+        });
+    }
+
     /**
      * Download a file (e.g. an EPUB) and open Android's share sheet for it —
      * pick Kindle ("Send to Kindle") or email it to your @kindle.com address.

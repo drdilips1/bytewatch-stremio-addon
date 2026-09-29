@@ -4,6 +4,7 @@
 // the magnet to the user's TorBox or Real-Debrid account to stream it.
 import { getJson, sendJson } from '../lib/http.js';
 import { addons, persisted } from '../lib/store.js';
+import { logError } from '../lib/report.js';
 import { words, matches, mainTitle } from '../lib/match.js';
 import { infoHash, torboxCached } from './debrid.js';
 
@@ -281,7 +282,10 @@ export function searchSources(params, onResult, only = null) {
             onResult(a.manifest.name, r, null);
             return markInstant(r).then((marked) => marked && onResult(a.manifest.name, marked, null));
           })
-          .catch((e) => onResult(a.manifest.name, [], e))
+          .catch((e) => {
+            logError(`source ${a.manifest.name}`, `${e.status ? `HTTP ${e.status} ` : ''}${e.message}`);
+            onResult(a.manifest.name, [], e);
+          })
       )
   );
 }
