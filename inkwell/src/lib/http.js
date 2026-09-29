@@ -12,7 +12,7 @@ const TTL = 10 * 60 * 1000;
 // inkwell/relay/). The Android app talks to everything directly.
 const WEB = !Capacitor.isNativePlatform();
 const RELAY_HOSTS = /^(api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|itunes\.apple\.com)$/i;
-const DEFAULT_RELAY = import.meta.env.VITE_SUPABASE_URL ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/relay` : '';
+const DEFAULT_RELAY = import.meta.env.VITE_RELAY_URL || (import.meta.env.VITE_SUPABASE_URL ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/relay` : '');
 
 export function relayUrl() {
   try {
