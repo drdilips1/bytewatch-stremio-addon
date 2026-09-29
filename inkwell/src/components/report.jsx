@@ -8,7 +8,7 @@ import { aiReady } from '../lib/ai.js';
 import * as sync from '../lib/sync.js';
 import * as cloud from '../sources/debrid.js';
 import * as qb from '../sources/qbit.js';
-import { sourceAddons } from '../sources/sourceaddons.js';
+import { sourceAddons, recentSearches } from '../sources/sourceaddons.js';
 import { buildReport, shareReport, githubIssueUrl, recentErrors, clearErrors, copyText } from '../lib/report.js';
 
 // What's set up — names and hosts only, never keys or passwords.
@@ -28,6 +28,10 @@ function setupLines() {
     `Sources: ${sourceAddons().map((x) => x.manifest.name).join(', ') || 'none'}`,
     `AI key: ${aiReady() ? 'yes' : 'no'} · Account: ${sync.signedIn() ? 'signed in' : 'not signed in'}`,
     ...(isWeb ? [`Web relay: ${host(relayUrl()) || 'off'}`] : []),
+    'Last source searches:',
+    ...(recentSearches().length
+      ? recentSearches().map((s) => `  ${s.name}: ${s.reply}, ${s.usable} usable, ${s.kept} shown${s.loose ? `, ${s.loose} loose` : ''} — ${s.url}`)
+      : ['  (none since the app opened)']),
   ];
 }
 

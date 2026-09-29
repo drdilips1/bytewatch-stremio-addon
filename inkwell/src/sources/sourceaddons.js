@@ -4,7 +4,7 @@
 // the magnet to the user's TorBox or Real-Debrid account to stream it.
 import { getJson, sendJson } from '../lib/http.js';
 import { addons, persisted } from '../lib/store.js';
-import { logError } from '../lib/report.js';
+import { logError, redact } from '../lib/report.js';
 import { words, matches, mainTitle } from '../lib/match.js';
 import { infoHash, torboxCached } from './debrid.js';
 
@@ -213,10 +213,25 @@ async function searchOnce(addon, vars, key, { title = '', author = '', query = '
   if (title && author) results = sameBook(results, title, author);
 
   results.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || Number(b.seeders > 0) - Number(a.seeders > 0) || b.score - a.score || b.seeders - a.seeders);
+  // For "Report a problem": what was asked and how many came back / were kept.
+  noteSearch(addon, url, {
+    reply: data == null ? 'empty reply' : Array.isArray(list) ? `${list.length} results` : 'no result list',
+    usable: all.length,
+    kept: results.filter((r) => !r.loose).length,
+    loose: results.filter((r) => r.loose).length,
+  });
   // Only remember searches that found something, so a temporary empty answer isn't sticky.
   if (results.length) remember(key, results);
   return results;
 }
+
+// The last few searches per source, for Settings → Report a problem.
+const searchLog = [];
+function noteSearch(addon, url, info) {
+  searchLog.push({ t: Date.now(), name: addon.manifest.name, url: redact(url), ...info });
+  if (searchLog.length > 12) searchLog.shift();
+}
+export const recentSearches = () => searchLog.slice();
 
 // The book's author(s) as first and last names: "Vivek H. Murthy, Jane Doe" ->
 // { last: [murthy, doe], first: [vivek, jane] } (initials and "Dr" / "PhD" left out).
