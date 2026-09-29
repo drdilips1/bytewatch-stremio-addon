@@ -32,6 +32,9 @@ export const account = persisted('account', {
   syncKeys: true, // also sync TorBox / Real-Debrid / ABS / Hardcover credentials
   status: '',
 });
+// The app's own sync server is built in: a device that saved an empty one earlier
+// (or never had it) gets it back, so nobody is ever asked to set up a server.
+if (BAKED_URL && (!account.get().url || !account.get().anonKey)) account.patch({ url: account.get().url || BAKED_URL, anonKey: account.get().anonKey || BAKED_KEY });
 
 const SECTIONS = {
   settings: { store: settings },
