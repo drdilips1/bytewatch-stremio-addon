@@ -137,6 +137,16 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body, fe
         res = await relayed();
       }
     }
+    // Android: a site behind Cloudflare that refuses the phone (403 / 429 / 503 / 52x error
+    // pages — e.g. Knaben) often answers the relay fine, as it does for the web app. Try it once.
+    if (!WEB && !res.ok && (res.status === 403 || res.status === 429 || res.status === 503 || res.status >= 520) && relayUrl() && relayable(url)) {
+      try {
+        const r = await relayed();
+        if (r.ok) res = r;
+      } catch (e) {
+        if (e.timeout) throw e;
+      }
+    }
     if (!res.ok) {
       let detail = '';
       try {
