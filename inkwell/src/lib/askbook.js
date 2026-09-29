@@ -102,7 +102,7 @@ const STYLE = 'Reply in the language the reader used (English, Hindi or Hinglish
  * Ask a question. `msgs` is the conversation so far ({ role: 'user'|'ai', text }).
  * Returns the answer text and saves the thread.
  */
-export async function ask(book, question, { msgs = [], description = '', genres = [], mode = '', where = null } = {}) {
+export async function ask(book, question, { msgs = [], description = '', genres = [], mode = '', where = null, drive = false } = {}) {
   const history = msgs
     .slice(-6)
     .map((m) => `${m.role === 'user' ? 'Reader' : 'You'}: ${m.quiz ? '(a quiz)' : m.text}`)
@@ -112,7 +112,10 @@ export async function ask(book, question, { msgs = [], description = '', genres 
     const taste = tasteProfile(40);
     if (taste.length) extra.push(`Books this reader owns, has read or is reading:\n${taste.map((t) => '- ' + t).join('\n')}\nConnect to these specifically where it makes sense.`);
   }
-  if (where) extra.push(`The reader is listening right now at ${where.label}. Answer about the part of the book around this point as best you know it; say if you can't be sure exactly what is said there.`);
+  if (where && drive) extra.push(`The reader is listening right now at ${where.label}. If the question is about what they're hearing, answer about that part of the book as best you know it.`);
+  else if (where) extra.push(`The reader is listening right now at ${where.label}. Answer about the part of the book around this point as best you know it; say if you can't be sure exactly what is said there.`);
+  // Driving: the answer is only heard, so keep it short and easy to follow by ear.
+  if (drive) extra.push('The reader is driving and will only hear your answer read aloud: reply in 2–5 short spoken sentences (under 90 words), no lists, headings or symbols.');
   const prompt = `${context(book, { description, genres })}
 ${extra.join('\n\n')}
 ${history ? `Conversation so far:\n${history}\n` : ''}

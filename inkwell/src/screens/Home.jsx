@@ -2,6 +2,7 @@ import { BgImage } from '../components/bg-image.jsx';
 import { rankForYou } from '../lib/taste.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Row, BookCard, withMeta, AskButton } from '../components/common.jsx';
+import { openDrive } from '../components/drive-mode.jsx';
 import { useTileRating } from '../lib/ratings.js';
 import { openExternal } from '../sources/summaries.js';
 import { useMeta } from '../lib/meta.js';
@@ -466,6 +467,9 @@ export function Home() {
           </div>
         </div>
         <div class="home-top-actions">
+          <button class="icon-btn glass drive-btn" onClick={() => openDrive()} aria-label="Driving mode">
+            🚗
+          </button>
           <AskButton glass />
           <button class="icon-btn glass" onClick={() => nav.tab('discover')} aria-label="Search">
             <Icon name="search" />

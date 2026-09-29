@@ -4,4 +4,8 @@
     <string name="title_activity_main">Audiohub</string>
     <string name="package_name">app.inkwell.books</string>
     <string name="custom_url_scheme">app.inkwell.books</string>
+    <string name="shortcut_ask">Ask AI</string>
+    <string name="shortcut_ask_long">Ask AI about this book</string>
+    <string name="shortcut_drive">Driving mode</string>
+    <string name="shortcut_drive_long">Driving mode</string>
 </resources>

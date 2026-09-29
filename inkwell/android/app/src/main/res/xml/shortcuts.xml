@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the app icon (or ask Google Assistant) for these. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="ask_drive"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_ask"
+        android:shortcutLongLabel="@string/shortcut_ask_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="app.inkwell.books://ask"
+            android:targetPackage="app.inkwell.books"
+            android:targetClass="app.inkwell.books.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="drive"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_drive"
+        android:shortcutLongLabel="@string/shortcut_drive_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="app.inkwell.books://drive"
+            android:targetPackage="app.inkwell.books"
+            android:targetClass="app.inkwell.books.MainActivity" />
+    </shortcut>
+</shortcuts>

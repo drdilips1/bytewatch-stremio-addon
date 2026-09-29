@@ -9,6 +9,7 @@ import { fmtTime } from '../lib/format.js';
 import { coverColor } from '../lib/color.js';
 import { nav } from '../lib/nav.js';
 import { bookmarks, settings, useStore } from '../lib/store.js';
+import { openDrive } from './drive-mode.jsx';
 import { TranscriptView } from './transcript-view.jsx';
 import { StorySheet } from './story-sheet.jsx';
 import { transcriptCfg, stopTranscript } from '../lib/transcript.js';
@@ -270,6 +271,9 @@ export function FullPlayer() {
           aria-label="Transcript"
         >
           <Icon name="text" size={16} /> Text
+        </button>
+        <button class="chip-btn" onClick={() => openDrive()} aria-label="Driving mode">
+          🚗 Drive
         </button>
         <button class="chip-btn" onClick={() => setSheet('story')} aria-label="Recap and characters">
           <Icon name="sparkle" size={16} /> Story

@@ -1,5 +1,6 @@
 import * as qbit from './sources/qbit.js';
 import { Ask } from './screens/Ask.jsx';
+import { DriveMode, openDrive } from './components/drive-mode.jsx';
 import { useEffect, useState } from 'preact/hooks';
 import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -33,6 +34,18 @@ const TABS = [
   ['settings', 'Settings', 'settings'],
 ];
 const ROOTS = { home: Home, discover: Discover, podcasts: Podcasts, library: Library, tracker: Settings, settings: Settings }; // tracker: the old tab, now in Settings
+// App shortcuts (long-press the icon, or Google Assistant): app.inkwell.books://drive and ://ask.
+function openShortcut(url) {
+  const m = /^app\.inkwell\.books:\/\/(drive|ask)/.exec(url || '');
+  if (m) setTimeout(() => openDrive(m[1] === 'ask'), 300);
+}
+if (Capacitor.isNativePlatform()) {
+  CapApp.addListener('appUrlOpen', ({ url }) => openShortcut(url));
+  CapApp.getLaunchUrl()
+    .then((r) => openShortcut(r?.url))
+    .catch(() => {});
+}
+
 const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast, ask: Ask };
 
 export function App() {
@@ -105,6 +118,7 @@ export function App() {
         </>
       )}
       {route.overlay === 'player' && <FullPlayer />}
+      {route.overlay === 'drive' && <DriveMode />}
       <UpdatePrompt />
       <Toaster />
     </div>

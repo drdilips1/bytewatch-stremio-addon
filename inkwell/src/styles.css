@@ -5954,3 +5954,155 @@ button.rt {
 .ask-btn {
   color: var(--dyn, var(--accent));
 }
+
+/* ---------- Driving mode: huge targets, one-tap voice ---------- */
+.drive {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: calc(var(--safe-top) + 12px) 16px calc(var(--safe-bottom, 0px) + 16px);
+  background: #07060d;
+  color: #fff;
+}
+.drive-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.drive-exit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+}
+.drive-now {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.drive-now > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.drive-now b {
+  font-size: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drive-now small {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drive-cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  flex: none;
+}
+.drive-controls {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr;
+  gap: 12px;
+}
+.drive-controls button {
+  display: grid;
+  place-items: center;
+  min-height: 110px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.drive-controls .drive-play {
+  background: var(--accent);
+  color: #0b0a12;
+}
+.drive-ask {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 28px;
+  background: linear-gradient(160deg, rgba(124, 240, 255, 0.16), rgba(167, 139, 250, 0.2));
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  color: #fff;
+  text-align: center;
+  overflow: hidden;
+}
+.drive-ask b {
+  font-size: 22px;
+  line-height: 1.25;
+}
+.drive-mic {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 46px;
+}
+.drive-ask.listening {
+  border-color: #ff6b8b;
+}
+.drive-ask.listening .drive-mic {
+  background: #ff6b8b;
+  animation: drive-pulse 1.2s ease-in-out infinite;
+}
+.drive-ask.speaking {
+  border-color: var(--accent);
+}
+@keyframes drive-pulse {
+  50% {
+    transform: scale(1.1);
+  }
+}
+.drive-said {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.drive-answer {
+  font-size: 17px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.9);
+  max-height: 34vh;
+  overflow: hidden;
+}
+.drive-opts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.drive-opts label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.drive-lang {
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-weight: 700;
+}
+.drive-btn { font-size: 19px; }

@@ -37,6 +37,15 @@
                 <data android:scheme="app.inkwell.books" android:host="auth" />
             </intent-filter>
 
+            <!-- App shortcuts: Driving mode, and Ask AI by voice straight away -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="app.inkwell.books" android:host="drive" />
+                <data android:scheme="app.inkwell.books" android:host="ask" />
+            </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+
         </activity>
 
         <!-- Background audiobook playback (Media3) -->
