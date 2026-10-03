@@ -35,6 +35,8 @@ object Library {
         var notes: String = "[]",
         /** Optional collection (folder) name. */
         var collection: String? = null,
+        /** Where it was downloaded from, so other devices can fetch it again (account sync). */
+        var url: String? = null,
     ) {
         fun toJson() = JSONObject()
             .put("id", id).put("title", title).put("author", author ?: "")
@@ -43,7 +45,7 @@ object Library {
             .put("paragraphs", paragraphs).put("words", words)
             .put("chapters", chapters).put("pages", pages)
             .put("description", description ?: "").put("year", year)
-            .put("notes", JSONArray(notes)).put("collection", collection ?: "")
+            .put("notes", JSONArray(notes)).put("collection", collection ?: "").put("url", url ?: "")
 
         companion object {
             fun fromJson(o: JSONObject) = Item(
@@ -53,6 +55,7 @@ object Library {
                 o.optInt("chapters"), o.optInt("pages"),
                 o.optString("description").ifBlank { null }, o.optInt("year"),
                 o.optJSONArray("notes")?.toString() ?: "[]", o.optString("collection").ifBlank { null },
+                o.optString("url").ifBlank { null },
             )
         }
     }
@@ -184,6 +187,32 @@ object Library {
         save(context)
     }
 
+    /** Remembers the link [item] came from (for fetching it on other devices). */
+    fun setUrl(context: Context, item: Item, url: String?) = synchronized(this) {
+        item.url = url?.trim()?.takeIf { it.startsWith("http") }
+        save(context)
+    }
+
+    /** Whether this device has [item]'s file (documents synced from another device may not, yet). */
+    fun hasFile(context: Context, item: Item) = source(context, item).file.exists()
+
+    /**
+     * Downloads [item]'s file again from the link it came from, e.g. a document added on another
+     * device. Call off the main thread.
+     */
+    fun refetch(context: Context, item: Item) {
+        val url = item.url ?: error(
+            "“${item.title}” was added on another device from a file. Add the same file here too, " +
+                "or turn on Google Drive backup (Account) on both devices to copy files."
+        )
+        val src = Loader.download(context, url)
+        val target = File(dir(context), fileName(item))
+        if (!src.file.renameTo(target)) {
+            src.file.copyTo(target, overwrite = true)
+            src.file.delete()
+        }
+    }
+
     fun collections(context: Context): List<String> = items(context).mapNotNull { it.collection }.distinct().sorted()
 
     fun remove(context: Context, item: Item) {
@@ -245,7 +274,10 @@ object Library {
                 local.year = r.year
                 local.collection = r.collection
             }
-            if (local != null) local.notes = mergeNotes(local.notes, r.notes)
+            if (local != null) {
+                local.notes = mergeNotes(local.notes, r.notes)
+                if (local.url == null) local.url = r.url
+            }
             val remoteAt = o.optLong("posAt", 0)
             if (remoteAt > p.getLong("posAt:${r.id}", 0)) {
                 edit.putInt("pos:${r.id}", o.optInt("pos")).putLong("posAt:${r.id}", remoteAt)

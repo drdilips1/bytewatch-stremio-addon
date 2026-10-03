@@ -85,7 +85,11 @@ object Opener {
 
     /** Parses a library item and loads it into the player. Call off the main thread. */
     fun parse(context: Context, item: Library.Item): Doc {
+        // Synced from another device: fetch the file from where it came from.
+        if (!Library.hasFile(context, item)) Library.refetch(context, item)
         val doc = Loader.parse(context, Library.source(context, item), options(context)).also(::check)
+        val thumb = Library.thumb(context, item.id)
+        if (!thumb.exists()) runCatching { Thumbs.make(context, Library.source(context, item), doc, thumb) }
         // Spoken explanations of figures and tables, if made with Gemini and switched on.
         val visuals = if (prefs(context).getBoolean("aiVisuals", true)) Ai.visuals(context, item) else null
         return if (visuals.isNullOrEmpty()) doc else Ai.withVisuals(doc, visuals)
@@ -107,7 +111,7 @@ object Opener {
     }
 
     /** Imports a new document into the library. Call off the main thread. */
-    fun import(context: Context, fetch: () -> Loader.Source, progress: (String) -> Unit = {}): Pair<Library.Item, Doc> {
+    fun import(context: Context, fetch: () -> Loader.Source, progress: (String) -> Unit = {}, url: String? = null): Pair<Library.Item, Doc> {
         val src = fetch()
         val doc = try {
             if (src.kind == Loader.Kind.PDF) recognizeScannedPages(context, src.file, all = false, progress)
@@ -117,6 +121,8 @@ object Opener {
             src.file.delete()
             throw e
         }
-        return Library.add(context, src, doc) to doc
+        val item = Library.add(context, src, doc)
+        if (url != null) Library.setUrl(context, item, url)
+        return item to doc
     }
 }

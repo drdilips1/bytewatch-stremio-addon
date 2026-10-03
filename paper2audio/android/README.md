@@ -52,7 +52,13 @@ the phone: no server, no account, no limits.
 - **Voice design** (describe a voice) and pitch; **language-aware** voice
   suggestions.
 - **Full cast**: a voice per character in stories (from "said Maya" and "he
-  asked"), and per speaker in podcasts and transcripts.
+  asked"), and per speaker in podcasts and transcripts. Choose several voices
+  for male characters and several for female characters (Voice studio).
+- **One voice list** (player › Voice): grouped by kind, searchable, with a
+  preview button; downloaded Kokoro and Supertonic voices are listed in Voice
+  studio with *Use* buttons.
+- Cloning removes background noise from the recording first (a 0.5 MB
+  on-device model), which is what made cloned voices mumble.
 
 **AI** (Options › AI; Grok with your own xAI key, which is paid per use, or
 free Gemini)
@@ -69,11 +75,16 @@ free Gemini)
 - Summaries (document or chapter) and **translate and listen** in 26 languages.
 
 **Library**
-- Thumbnails, progress, search, sort and **collections**; **Find** free books
-  (Project Gutenberg) and arXiv papers; book details from Open Library, arXiv
-  or Hardcover; 9 color themes; **Google Drive sync**.
-- **Updates inside the app**: it checks daily and installs new versions over
-  the current one (tap *Library* › Check for updates).
+- Thumbnails, progress, search, sort and **collections**; **Find** books on
+  **Bookracy** (including recent ones), free classics (Project Gutenberg) and
+  arXiv papers; book details from Open Library, arXiv or Hardcover; 9 color
+  themes.
+- **Account and sync**: sign in with email and password (the same account as
+  Inkwell) to sync the library, listening positions, bookmarks, collections and
+  voice settings; documents added from a link, Find or Bookracy download again
+  on your other devices. Optional Google Drive backup copies your own files too.
+- **Updates inside the app**: checked every time the app opens; a banner on the
+  library says when a new version is ready (also ⋮ › Check for updates).
 
 ## Sync across devices (Google Drive)
 

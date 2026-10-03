@@ -29,15 +29,23 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Finds free books (Project Gutenberg) and papers (arXiv) and adds them to the library. */
+/** Finds books (Bookracy), free classics (Project Gutenberg) and papers (arXiv) and adds them to the library. */
 class SearchActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val covers = LruCache<String, Bitmap>(60)
     private var results: List<Metadata.Result> = emptyList()
-    private var papers = false
+    private companion object {
+        const val BOOKRACY = 0
+        const val CLASSICS = 1
+        const val PAPERS = 2
+    }
+
+    private var mode = BOOKRACY
+    private val papers get() = mode == PAPERS
     private var searchJob: Job? = null
 
     private lateinit var query: EditText
+    private lateinit var tabBookracy: Button
     private lateinit var tabBooks: Button
     private lateinit var tabPapers: Button
     private lateinit var busy: ProgressBar
@@ -50,6 +58,7 @@ class SearchActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_search)
         query = findViewById(R.id.query)
+        tabBookracy = findViewById(R.id.tabBookracy)
         tabBooks = findViewById(R.id.tabBooks)
         tabPapers = findViewById(R.id.tabPapers)
         busy = findViewById(R.id.busy)
@@ -63,11 +72,12 @@ class SearchActivity : Activity() {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) search()
             actionId == EditorInfo.IME_ACTION_SEARCH
         }
-        tabBooks.setOnClickListener { setMode(false) }
-        tabPapers.setOnClickListener { setMode(true) }
+        tabBookracy.setOnClickListener { setMode(BOOKRACY) }
+        tabBooks.setOnClickListener { setMode(CLASSICS) }
+        tabPapers.setOnClickListener { setMode(PAPERS) }
         list.adapter = adapter
         list.setOnItemClickListener { _, _, position, _ -> results.getOrNull(position)?.let(::confirmAdd) }
-        setMode(false)
+        setMode(getSharedPreferences("p2a", MODE_PRIVATE).getInt("findMode", BOOKRACY))
     }
 
     private fun color(attr: Int): Int {
@@ -76,22 +86,31 @@ class SearchActivity : Activity() {
         return v.data
     }
 
-    private fun setMode(paperMode: Boolean) {
-        papers = paperMode
-        val (on, off) = if (papers) tabPapers to tabBooks else tabBooks to tabPapers
-        on.setBackgroundResource(R.drawable.bg_button)
-        on.setTextColor(color(R.attr.p2aOnAccent))
-        off.setBackgroundResource(R.drawable.bg_button_soft)
-        off.setTextColor(color(R.attr.p2aText))
-        query.hint = if (papers) "Topic, title or author of a paper" else "Title or author of a classic book"
-        sourceNote.text = if (papers) {
-            "Research papers from arXiv (free, open access)."
-        } else {
-            "70,000+ free public-domain e-books from Project Gutenberg. Newer copyrighted books aren't available here."
+    private fun setMode(m: Int) {
+        mode = m.coerceIn(BOOKRACY, PAPERS)
+        getSharedPreferences("p2a", MODE_PRIVATE).edit().putInt("findMode", mode).apply()
+        for ((i, tab) in listOf(tabBookracy, tabBooks, tabPapers).withIndex()) {
+            val on = i == mode
+            tab.setBackgroundResource(if (on) R.drawable.bg_button else R.drawable.bg_button_soft)
+            tab.setTextColor(color(if (on) R.attr.p2aOnAccent else R.attr.p2aText))
+        }
+        query.hint = when (mode) {
+            BOOKRACY -> "Title or author of any book"
+            CLASSICS -> "Title or author of a classic book"
+            else -> "Topic, title or author of a paper"
+        }
+        sourceNote.text = when (mode) {
+            BOOKRACY -> "Books from Bookracy, including recent ones, as EPUB or PDF."
+            CLASSICS -> "70,000+ free public-domain e-books from Project Gutenberg."
+            else -> "Research papers from arXiv (free, open access)."
         }
         results = emptyList()
         adapter.notifyDataSetChanged()
-        if (papers && query.text.isBlank()) showEmpty("Search arXiv for a topic, title or author.") else search()
+        when {
+            mode != CLASSICS && query.text.isBlank() ->
+                showEmpty(if (mode == BOOKRACY) "Search Bookracy for a title or author." else "Search arXiv for a topic, title or author.")
+            else -> search()
+        }
     }
 
     private fun showEmpty(text: String?) {
@@ -101,16 +120,20 @@ class SearchActivity : Activity() {
 
     private fun search() {
         val q = query.text.toString()
-        if (papers && q.isBlank()) return
+        if (mode != CLASSICS && q.isBlank()) return
         getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(query.windowToken, 0)
         searchJob?.cancel()
         busy.visibility = View.VISIBLE
         showEmpty(null)
-        val paperMode = papers
+        val m = mode
         searchJob = scope.launch {
             try {
                 val found = withContext(Dispatchers.IO) {
-                    if (paperMode) Metadata.searchArxiv(q) else Metadata.searchGutenberg(q)
+                    when (m) {
+                        BOOKRACY -> Metadata.searchBookracy(q)
+                        CLASSICS -> Metadata.searchGutenberg(q)
+                        else -> Metadata.searchArxiv(q)
+                    }
                 }
                 results = found
                 adapter.notifyDataSetChanged()
@@ -146,7 +169,7 @@ class SearchActivity : Activity() {
         scope.launch {
             try {
                 val (item, doc) = withContext(Dispatchers.IO) {
-                    val (item, doc) = Opener.import(this@SearchActivity, { Loader.download(this@SearchActivity, r.downloadUrl) })
+                    val (item, doc) = Opener.import(this@SearchActivity, { Loader.download(this@SearchActivity, r.downloadUrl) }, url = r.downloadUrl)
                     // The catalogue's title/author/summary are cleaner than what's inside many files.
                     val found = Metadata.Found(r.title, r.author, r.year?.take(4)?.toIntOrNull(), r.summary, r.coverUrl, "search")
                     val cover = r.coverUrl?.let { runCatching { Metadata.bytes(it) }.getOrNull() }

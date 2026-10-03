@@ -71,8 +71,8 @@ class AudioStream(context: Context, boost: Float) {
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build()
             )
-            // About a second of buffer: smooth, yet pausing and seeking stay instant.
-            .setBufferSizeInBytes(maxOf(min * 2, sampleRate * 2))
+            // About two seconds of buffer: rides out a busy moment, yet pausing and seeking stay instant.
+            .setBufferSizeInBytes(maxOf(min * 2, sampleRate * 4))
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
         track = t

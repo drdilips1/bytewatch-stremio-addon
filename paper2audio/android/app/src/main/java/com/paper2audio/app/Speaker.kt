@@ -40,6 +40,8 @@ object Speaker {
     const val DEFAULT_VOICE = EDGE + "en-US-AndrewMultilingualNeural"
     private const val LOOKAHEAD = 3
     private const val PIECE_LOOKAHEAD = 4
+    /** Online voices render in parallel: keep more sentences on the way. */
+    private const val EDGE_LOOKAHEAD = 7
 
     data class VoiceOption(val id: String, val label: String)
 
@@ -188,6 +190,7 @@ object Speaker {
     private var warmJob: Job? = null
 
     /** Bumped on every restart so callbacks from stopped audio are ignored. */
+    @Volatile
     private var generation = 0
 
     // Phone TTS playback state.
@@ -321,6 +324,21 @@ object Speaker {
             warmUpLocal()
             prewarm()
         }
+        notifyChanged()
+    }
+
+    /** Picks up reading settings that changed in the background (synced from another device). */
+    fun reloadSettings() {
+        if (!initialized) return
+        castFor = null
+        val sp = prefs.getFloat("speed", speed)
+        if (sp != speed) setSpeed(sp)
+        val st = Style.of(prefs.getString("style", null))
+        if (st != style) setStyle(st)
+        val v = prefs.getString("voice2", null) ?: DEFAULT_VOICE
+        val usable = !(v.startsWith(CLONE) && MyVoices.get(v.removePrefix(CLONE)) == null) && LocalTts.missing(v) == null
+        if (v != voiceId && usable) setVoice(v)
+        voicesVersion++
         notifyChanged()
     }
 
@@ -542,8 +560,21 @@ object Speaker {
     @Volatile
     private var castText = ""
 
-    /** Voices for extra speakers, in the same family as [main] (online, cloned, Supertonic or Kokoro). */
-    private fun pool(main: String, male: Boolean): List<String> = when {
+    /** The voices the listener chose for male and female characters (full cast); empty: automatic. */
+    fun castChoice(male: Boolean): List<String> =
+        prefs.getString(if (male) "castMale" else "castFemale", null)?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
+
+    fun setCastVoices(male: List<String>, female: List<String>) {
+        prefs.edit().putString("castMale", male.joinToString("\n")).putString("castFemale", female.joinToString("\n")).apply()
+        castFor = null
+        restartAudio()
+    }
+
+    /** Voices for extra speakers: the listener's choice, else voices in the same family as [main]. */
+    private fun pool(main: String, male: Boolean): List<String> =
+        castChoice(male).filter { !it.startsWith(SYSTEM) }.ifEmpty { defaultPool(main, male) }
+
+    private fun defaultPool(main: String, male: Boolean): List<String> = when {
         main.startsWith(EDGE) -> (if (male) listOf(
             "en-US-AndrewMultilingualNeural", "en-US-BrianMultilingualNeural", "en-GB-ThomasNeural", "en-US-GuyNeural", "en-GB-RyanNeural",
         ) else listOf(
@@ -568,8 +599,9 @@ object Speaker {
     /** The voice for [speaker]: the first script speaker is the main voice; others get distinct voices. */
     @Synchronized
     private fun castVoice(d: Doc, speaker: String): String {
-        if (castFor != d.key + voiceId) {
-            castFor = d.key + voiceId
+        val castKey = d.key + voiceId + castChoice(true) + castChoice(false)
+        if (castFor != castKey) {
+            castFor = castKey
             castVoices.clear()
             castText = d.paragraphs.take(400).joinToString(" ")
         }
@@ -588,7 +620,10 @@ object Speaker {
                     else -> !isMale(main) // unknown: contrast with the narrator
                 }
                 val candidates = pool(main, male).filter { LocalTts.missing(it) == null }
-                candidates.firstOrNull { it !in used } ?: candidates.firstOrNull { it != main } ?: dialogueVoice ?: main
+                // A fresh voice while there are some; then the least used one, so many characters share evenly.
+                candidates.firstOrNull { it !in used }
+                    ?: candidates.filter { it != main }.minByOrNull { c -> castVoices.values.count { it == c } }
+                    ?: dialogueVoice ?: main
             }
         }
         castVoices[speaker] = voice
@@ -657,26 +692,9 @@ object Speaker {
             val out = AudioStream(app, Renderer.playbackBoost(v, currentSpeed))
             if (!playing) out.pause()
             stream = out
-            val pieces = pieceSequence(d, index, pieceIndex, vid).iterator()
-            val queue = ArrayDeque<Pair<Piece, Deferred<Pcm16>>>()
             val base = v.copy(dialogue = null)
-            suspend fun load(p: Piece): Pcm16 {
-                val pv = base.copy(voiceId = p.voice)
-                val file = try {
-                    Renderer.render(app, pv, currentSpeed, p.text)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Renderer.render(app, pv, currentSpeed, p.text) // one more try: networks drop requests
-                }
-                return withContext(Dispatchers.Default) { AudioDecode.load(file) }
-            }
-            fun fill() {
-                while (queue.size < PIECE_LOOKAHEAD && pieces.hasNext()) {
-                    val p = pieces.next()
-                    queue.addLast(p to async { load(p) })
-                }
-            }
+            val from = index
+            val fromPiece = pieceIndex
 
             // Follows what is being heard: highlight, position, sleep at end of chapter.
             val follow = launch {
@@ -696,41 +714,70 @@ object Speaker {
                 }
             }
 
+            var failure: Exception? = null
             try {
-                while (true) {
-                    fill()
-                    val (piece, pending) = queue.removeFirstOrNull() ?: break
-                    val pcm = try {
-                        pending.await()
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        if (g == generation) {
-                            fail(
-                                if (LocalTts.isLocal(vid)) "The on-device voice couldn't read this (${e.message})."
-                                else "Couldn't reach the natural voice service (${e.message}). Check your internet, or download the document for offline listening."
-                            )
+                // Planning, rendering and feeding the audio all happen off the main thread, so a busy
+                // screen (or working out a novel's cast) can never starve the audio and cause a gap.
+                withContext(Dispatchers.Default) {
+                    val pieces = pieceSequence(d, from, fromPiece, vid).iterator()
+                    val queue = ArrayDeque<Pair<Piece, List<Deferred<Pcm16>>>>()
+                    val lookahead = if (LocalTts.isLocal(vid)) PIECE_LOOKAHEAD else EDGE_LOOKAHEAD
+                    var first = true
+                    suspend fun load(p: Piece, text: String): Pcm16 {
+                        val pv = base.copy(voiceId = p.voice)
+                        val file = try {
+                            Renderer.render(app, pv, currentSpeed, text)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Renderer.render(app, pv, currentSpeed, text) // one more try: networks drop requests
                         }
-                        return@launch
+                        return AudioDecode.load(file)
                     }
-                    if (g != generation) return@launch
-                    fill() // keep rendering ahead while this piece plays
-                    out.write(pcm, piece, pauseAfter(d, piece))
+                    fun fill() {
+                        while (queue.size < lookahead && pieces.hasNext()) {
+                            val p = pieces.next()
+                            // The very first sentence is spoken in two halves when it's long, so sound starts sooner.
+                            val parts = if (first) Renderer.quickStart(p.text, p.voice) else listOf(p.text)
+                            first = false
+                            queue.addLast(p to parts.map { t -> async(Dispatchers.IO) { load(p, t) } })
+                        }
+                    }
+                    while (true) {
+                        fill()
+                        val (piece, pending) = queue.removeFirstOrNull() ?: break
+                        for ((k, part) in pending.withIndex()) {
+                            val pcm = part.await()
+                            if (g != generation) return@withContext
+                            fill() // keep rendering ahead while this piece plays
+                            out.write(pcm, piece, if (k == pending.lastIndex) pauseAfter(d, piece) else 0)
+                        }
+                    }
+                    out.drain()
                 }
-                out.drain()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failure = e
             } finally {
                 follow.cancel()
             }
-            if (g == generation) {
-                playing = false
-                starting = false
-                currentPiece = null
-                markFinished(d, d.chapterAt(index))
-                // Finished: the next Play starts from the beginning of the last paragraph.
-                pieceIndex = 0
-                stopAll()
-                notifyChanged()
+            if (g != generation) return@launch
+            if (failure != null) {
+                fail(
+                    if (LocalTts.isLocal(vid)) "The on-device voice couldn't read this (${failure.message})."
+                    else "Couldn't reach the natural voice service (${failure.message}). Check your internet, or download the document for offline listening."
+                )
+                return@launch
             }
+            playing = false
+            starting = false
+            currentPiece = null
+            markFinished(d, d.chapterAt(index))
+            // Finished: the next Play starts from the beginning of the last paragraph.
+            pieceIndex = 0
+            stopAll()
+            notifyChanged()
         }
     }
 
@@ -745,9 +792,11 @@ object Speaker {
         val from = index
         val fromPiece = pieceIndex
         warmJob?.cancel()
-        warmJob = scope.launch {
-            val first = pieceSequence(d, from, fromPiece, vid).take(2).toList()
-            for (p in first) runCatching { Renderer.render(app, v.copy(voiceId = p.voice), sp, p.text) }
+        warmJob = scope.launch(Dispatchers.IO) {
+            val first = pieceSequence(d, from, fromPiece, vid).take(3).toList()
+            // Same parts as playback renders, so pressing Play finds them ready.
+            first.firstOrNull()?.let { p -> Renderer.quickStart(p.text, p.voice).forEach { t -> runCatching { Renderer.render(app, v.copy(voiceId = p.voice), sp, t) } } }
+            for (p in first.drop(1)) runCatching { Renderer.render(app, v.copy(voiceId = p.voice), sp, p.text) }
         }
     }
 
@@ -770,8 +819,15 @@ object Speaker {
     private const val PREVIEW_TEXT =
         "Hello! This is how I will sound reading your papers and books aloud. Choose the voice you like best."
 
+    private var castPreview: Job? = null
+    private var castStream: AudioStream? = null
+
     /** Stops a voice preview or a spoken AI answer. */
     fun stopPreview() {
+        castPreview?.cancel()
+        castPreview = null
+        castStream?.release()
+        castStream = null
         previewPlayer?.let { runCatching { it.stop() }; it.release() }
         previewPlayer = null
         if (!isStreamed && !playing) tts?.stop()
@@ -783,6 +839,48 @@ object Speaker {
 
     /** Plays a story sample: narration in the current voice, dialogue in [dialogue]. */
     fun previewStory(text: String, dialogue: String) = previewVoicing(text, voicing().copy(dialogue = dialogue))
+
+    /** Plays a story sample with the full cast: narration in the reading voice, each character in a cast voice. */
+    fun previewCast(text: String) {
+        if (playing) pause()
+        stopPreview()
+        val main = voiceId
+        val segments = Cast.storySegments(text)
+        val speakers = segments.mapNotNull { it.speaker }.distinct()
+        val assigned = HashMap<String, String>()
+        for (sp in speakers) {
+            val male = when (Cast.genderOf(sp, text, speakers.toSet())) {
+                "male" -> true
+                "female" -> false
+                else -> !isMale(main)
+            }
+            val candidates = pool(main, male).filter { LocalTts.missing(it) == null }
+            assigned[sp] = candidates.firstOrNull { it !in assigned.values && it != main } ?: candidates.firstOrNull() ?: main
+        }
+        val sp = renderSpeed
+        val lang = doc?.lang
+        val out = AudioStream(app, 1f)
+        castStream = out
+        castPreview = scope.launch {
+            try {
+                for (seg in segments) {
+                    val v = Voicing(seg.speaker?.let { assigned[it] } ?: main, lang = lang, pitch = pitch)
+                    val f = Renderer.render(app, v, sp, seg.text)
+                    val pcm = withContext(Dispatchers.Default) { AudioDecode.load(f) }
+                    out.write(pcm, seg, style.sentencePause)
+                }
+                out.drain()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = "Couldn't play the sample (${e.message})."
+                notifyChanged()
+            } finally {
+                out.release()
+                if (castStream === out) castStream = null
+            }
+        }
+    }
 
     /** All Microsoft voices (favorites first), for voice design. */
     val onlineVoices: List<EdgeTts.VoiceInfo> get() = edgeVoices

@@ -163,7 +163,8 @@ object Exporter {
         if (LocalTts.isLocal(voiceId) && doc.lang == null) doc.lang = Langs.of(doc)
         // The same pieces and voices as listening, so downloaded audio is reused (instant).
         val plan = Speaker.plan(doc)
-        return exportPieces(app, doc, plan, speed, mp3 = voiceId.startsWith(Speaker.EDGE))
+        // MP3 pieces can simply be joined; a cast that mixes in on-device voices is re-encoded instead.
+        return exportPieces(app, doc, plan, speed, mp3 = plan.all { it.second.voiceId.startsWith(Speaker.EDGE) })
     }
 
     /**
@@ -172,7 +173,7 @@ object Exporter {
      */
     private suspend fun exportPieces(context: Context, doc: Doc, plan: List<Pair<String, Voicing>>, speed: Float, mp3: Boolean): Pair<Uri, String> {
         if (plan.isEmpty()) error("Nothing to read")
-        val local = LocalTts.isLocal(plan.first().second.voiceId)
+        val local = plan.any { LocalTts.isLocal(it.second.voiceId) }
         plan.map { it.second.voiceId }.distinct().forEach { id -> LocalTts.missing(id)?.let { error("Download the ${it.title} first") } }
         val out = createOutput(context, doc.title, if (mp3) "mp3" else "m4a", if (mp3) "audio/mpeg" else "audio/mp4")
         var writer: AacWriter? = null

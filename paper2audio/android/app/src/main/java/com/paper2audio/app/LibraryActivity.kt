@@ -73,6 +73,8 @@ class LibraryActivity : Activity() {
     private lateinit var chips: LinearLayout
     private lateinit var chipScroll: View
     private lateinit var emptyText: CharSequence
+    private lateinit var updateBanner: TextView
+    private val accountRefresh: () -> Unit = { reload() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Themes.apply(this)
@@ -118,25 +120,42 @@ class LibraryActivity : Activity() {
         })
         findViewById<ImageButton>(R.id.btnVoiceStudio).setOnClickListener { startActivity(Intent(this, VoiceStudioActivity::class.java)) }
         findViewById<ImageButton>(R.id.btnTheme).setOnClickListener { Themes.showPicker(this) }
-        findViewById<ImageButton>(R.id.btnSync).setOnClickListener { showSync() }
+        findViewById<ImageButton>(R.id.btnSync).setOnClickListener { showAccount() }
+        findViewById<ImageButton>(R.id.btnMenu).setOnClickListener { showMenu() }
+        updateBanner = findViewById(R.id.updateBanner)
+        updateBanner.setOnClickListener { Updater.update(this, scope) }
         findViewById<ImageButton>(R.id.btnFind).setOnClickListener { startActivity(Intent(this, SearchActivity::class.java)) }
         miniPlayer.setOnClickListener { startActivity(Intent(this, PlayerActivity::class.java)) }
         miniPlay.setOnClickListener { Speaker.toggle() }
 
         handleIntent(intent)
-        // Tap "Library" for the version, updates and AI settings.
-        findViewById<TextView>(R.id.libraryTitle).setOnClickListener { showAbout() }
-        Updater.checkDaily(this, scope)
+        findViewById<TextView>(R.id.libraryTitle).setOnClickListener { showMenu() }
+        Updater.checkOnStart(this, scope) { r ->
+            updateBanner.text = "Update ready: version ${r.name}. Tap to install (your library and voices stay)."
+            updateBanner.visibility = View.VISIBLE
+        }
     }
 
-    private fun showAbout() {
+    private fun showMenu() {
+        val who = if (Account.signedIn(this)) "Signed in as ${Account.email(this) ?: "you"}" else "Sign in to sync your library"
+        val options = arrayOf(
+            "Account and sync\n$who",
+            "Check for updates\nYou have version ${Updater.currentName(this)}",
+            "Find books\nBookracy, free classics and research papers",
+            "Voice studio\nVoices, cloning, full cast",
+            "Theme",
+            "AI settings\nGrok or Gemini",
+        )
         AlertDialog.Builder(this)
             .setTitle("Paper to Audio ${Updater.currentName(this)}")
-            .setItems(arrayOf("Check for updates", "AI settings (Grok or Gemini)", "Voice studio")) { _, which ->
+            .setItems(options) { _, which ->
                 when (which) {
-                    0 -> Updater.checkNow(this, scope)
-                    1 -> AiKeyDialog.show(this)
-                    else -> startActivity(Intent(this, VoiceStudioActivity::class.java))
+                    0 -> showAccount()
+                    1 -> Updater.checkNow(this, scope)
+                    2 -> startActivity(Intent(this, SearchActivity::class.java))
+                    3 -> startActivity(Intent(this, VoiceStudioActivity::class.java))
+                    4 -> Themes.showPicker(this)
+                    else -> AiKeyDialog.show(this)
                 }
             }
             .show()
@@ -226,7 +245,11 @@ class LibraryActivity : Activity() {
             1 -> "1 document"
             else -> "${allItems.size} documents"
         }
-        summary.text = if (DriveSync.enabled(this)) "$count · ${syncLabel()}" else count
+        summary.text = when {
+            Account.signedIn(this) -> "$count · ${accountLabel()}"
+            DriveSync.enabled(this) -> "$count · ${syncLabel()}"
+            else -> count
+        }
         renderMiniPlayer()
     }
 
@@ -249,6 +272,143 @@ class LibraryActivity : Activity() {
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+
+    // ---- Account (email and password, or Google) ----
+
+    private fun ago(at: Long): String {
+        if (at == 0L) return "Not synced yet"
+        val minutes = (System.currentTimeMillis() - at) / 60_000
+        return when {
+            minutes < 1 -> "Synced just now"
+            minutes < 60 -> "Synced $minutes min ago"
+            minutes < 48 * 60 -> "Synced ${minutes / 60} h ago"
+            else -> "Synced ${minutes / (24 * 60)} days ago"
+        }
+    }
+
+    private fun accountLabel(): String = Account.status ?: ago(Account.lastSync(this))
+
+    private fun showAccount() {
+        if (Account.signedIn(this)) {
+            val d = resources.displayMetrics.density
+            val box = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding((22 * d).toInt(), (8 * d).toInt(), (22 * d).toInt(), 0)
+            }
+            box.addView(TextView(this).apply {
+                text = "Signed in as ${Account.email(this@LibraryActivity) ?: "you"}\n${accountLabel()}\n\n" +
+                    "Your library, listening positions, bookmarks, collections and voice settings sync with your other " +
+                    "devices (and the same account works in Inkwell). Documents added from a link, Find or Bookracy " +
+                    "download again on your other devices by themselves."
+                textSize = 14f
+            })
+            box.addView(Button(this, null, 0, R.style.P2A_Button_Text).apply {
+                text = if (DriveSync.enabled(this@LibraryActivity)) "Google Drive file backup: on" else "Also copy files you added from this phone (Google Drive)…"
+                setOnClickListener { showSync() }
+            })
+            AlertDialog.Builder(this)
+                .setTitle("Account")
+                .setView(box)
+                .setPositiveButton("Sync now") { _, _ -> Account.request(this) }
+                .setNeutralButton("Sign out") { _, _ ->
+                    Account.signOut(this)
+                    reload()
+                }
+                .setNegativeButton("Close", null)
+                .show()
+            return
+        }
+        val d = resources.displayMetrics.density
+        val email = EditText(this).apply {
+            hint = "Email"
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+            setText(Account.email(this@LibraryActivity).orEmpty())
+        }
+        val password = EditText(this).apply {
+            hint = "Password"
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        val note = TextView(this).apply {
+            text = "One account keeps your library, listening positions and voice settings the same on all your " +
+                "devices. Already use Inkwell? Sign in with the same email and password."
+            textSize = 13.5f
+        }
+        val status = TextView(this).apply {
+            textSize = 13.5f
+            visibility = View.GONE
+            setTextColor(Themes.color(this@LibraryActivity, R.attr.p2aAccent))
+        }
+        val google = Button(this, null, 0, R.style.P2A_Button_Soft).apply {
+            text = "Continue with Google"
+            visibility = View.GONE
+            setOnClickListener {
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Account.googleUrl()))) }
+                    .onFailure { toast("No browser found") }
+            }
+        }
+        val forgot = Button(this, null, 0, R.style.P2A_Button_Text).apply { text = "Forgot password?" }
+        val drive = Button(this, null, 0, R.style.P2A_Button_Text).apply { text = "Google Drive backup instead…" }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((22 * d).toInt(), (8 * d).toInt(), (22 * d).toInt(), 0)
+            addView(note)
+            addView(email)
+            addView(password)
+            addView(status)
+            addView(google, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = (8 * d).toInt()
+            })
+            addView(forgot)
+            addView(drive)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Sign in")
+            .setView(android.widget.ScrollView(this).apply { addView(box) })
+            .setPositiveButton("Sign in", null)
+            .setNeutralButton("Create account", null)
+            .setNegativeButton("Cancel", null)
+            .show()
+        scope.launch {
+            if (withContext(Dispatchers.IO) { Account.googleAvailable() }) google.visibility = View.VISIBLE
+        }
+        fun attempt(label: String, work: () -> String) {
+            val e = email.text.toString().trim()
+            if (!e.contains('@')) {
+                status.text = "Enter your email address"
+                status.visibility = View.VISIBLE
+                return
+            }
+            status.text = label
+            status.visibility = View.VISIBLE
+            scope.launch {
+                try {
+                    val msg = withContext(Dispatchers.IO) { work() }
+                    if (Account.signedIn(this@LibraryActivity)) {
+                        dialog.dismiss()
+                        toast(msg)
+                        reload()
+                    } else {
+                        status.text = msg
+                    }
+                } catch (ex: Exception) {
+                    status.text = ex.message ?: "Couldn't reach the account server. Check your internet."
+                }
+            }
+        }
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            attempt("Signing in…") { Account.signIn(this, email.text.toString(), password.text.toString()) }
+        }
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            attempt("Creating your account…") { Account.signUp(this, email.text.toString(), password.text.toString()) }
+        }
+        forgot.setOnClickListener { attempt("Sending…") { Account.resetPassword(email.text.toString()) } }
+        drive.setOnClickListener {
+            dialog.dismiss()
+            showSync()
+        }
+    }
 
     // ---- Google Drive sync ----
 
@@ -276,7 +436,7 @@ class LibraryActivity : Activity() {
     private fun showSync() {
         if (!DriveSync.enabled(this)) {
             AlertDialog.Builder(this)
-                .setTitle("Sync with Google Drive")
+                .setTitle("Google Drive backup")
                 .setMessage(
                     "Sign in with Google to keep your library, reading positions and deletions " +
                         "the same on all your devices.\n\nFiles are stored in a private app folder in your " +
@@ -329,13 +489,13 @@ class LibraryActivity : Activity() {
         }
     }
 
-    private fun import(label: String, after: (Library.Item) -> Unit = {}, fetch: (progress: (String) -> Unit) -> Loader.Source) {
+    private fun import(label: String, after: (Library.Item) -> Unit = {}, url: String? = null, fetch: (progress: (String) -> Unit) -> Loader.Source) {
         setBusy(label)
         val progress: (String) -> Unit = { text -> runOnUiThread { setBusy(text) } }
         scope.launch {
             try {
                 val (item, doc) = withContext(Dispatchers.IO) {
-                    Opener.import(this@LibraryActivity, { fetch(progress) }, progress).also { after(it.first) }
+                    Opener.import(this@LibraryActivity, { fetch(progress) }, progress, url).also { after(it.first) }
                 }
                 thumbs.remove(item.id)
                 withContext(Dispatchers.IO) { Library.opened(this@LibraryActivity, item, doc) }
@@ -362,7 +522,9 @@ class LibraryActivity : Activity() {
 
     private fun fetch(text: String) {
         if (text.isBlank()) return
-        import("Downloading…") { progress -> Loader.download(this, text, progress) }
+        // An arXiv ID is remembered as its PDF link, so other devices can fetch it too.
+        val link = text.trim().let { t -> Metadata.ARXIV_ID.find(t)?.let { "https://arxiv.org/pdf/${it.groupValues[1]}" } ?: t }
+        import("Downloading…", url = link) { progress -> Loader.download(this, text, progress) }
     }
 
     /** Recognizes the text in photos, screenshots or camera pages and adds it as one document. */
@@ -401,6 +563,7 @@ class LibraryActivity : Activity() {
 
     private fun showAddMenu() {
         val options = arrayOf(
+            "Find a book\nSearch Bookracy, free classics and research papers",
             "Document file\nPDF, EPUB, Word, PowerPoint, Markdown, text or saved web page",
             "Paste text",
             "Photos or screenshots\nReads the text in the images",
@@ -411,11 +574,12 @@ class LibraryActivity : Activity() {
             .setTitle("Add to library")
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> openPicker()
-                    1 -> askForText()
-                    2 -> pickImages()
-                    3 -> GeminiKeyDialog.withKey(this) { pickMedia() }
-                    4 -> askForText(dictate = true)
+                    0 -> startActivity(Intent(this, SearchActivity::class.java))
+                    1 -> openPicker()
+                    2 -> askForText()
+                    3 -> pickImages()
+                    4 -> GeminiKeyDialog.withKey(this) { pickMedia() }
+                    5 -> askForText(dictate = true)
                 }
             }
             .show()
@@ -712,6 +876,18 @@ class LibraryActivity : Activity() {
     }
 
     private fun handleIntent(intent: Intent?) {
+        val data = intent?.data
+        if (data?.scheme == "paper2audio") {
+            scope.launch {
+                try {
+                    toast(withContext(Dispatchers.IO) { Account.handleRedirect(this@LibraryActivity, data) })
+                    reload()
+                } catch (e: Exception) {
+                    toast(e.message ?: "Google sign-in failed")
+                }
+            }
+            return
+        }
         when (intent?.action) {
             Intent.ACTION_VIEW -> intent.data?.let(::importUri)
             Intent.ACTION_SEND -> {
@@ -808,6 +984,7 @@ class LibraryActivity : Activity() {
         super.onStart()
         Speaker.addListener(refresh)
         DriveSync.addListener(syncRefresh)
+        Account.addListener(accountRefresh)
         reload()
         DriveSync.request(this)
     }
@@ -815,6 +992,7 @@ class LibraryActivity : Activity() {
     override fun onStop() {
         Speaker.removeListener(refresh)
         DriveSync.removeListener(syncRefresh)
+        Account.removeListener(accountRefresh)
         super.onStop()
     }
 

@@ -85,7 +85,7 @@ class PlayerActivity : Activity() {
     private lateinit var btnChapters: ImageButton
     private lateinit var speedLabel: TextView
     private lateinit var speedBar: SeekBar
-    private lateinit var voiceSpinner: Spinner
+    private lateinit var voiceButton: Button
     private lateinit var checks: List<CheckBox>
     private lateinit var btnExport: Button
     private lateinit var exportProgress: ProgressBar
@@ -103,6 +103,7 @@ class PlayerActivity : Activity() {
 
     private var voices: List<Speaker.VoiceOption> = emptyList()
     private var voicesShown = -1
+    private var voiceShownFor: String? = null
     private var busy: String? = null
     private var userSeeking = false
     private var coverFor: String? = null
@@ -149,7 +150,7 @@ class PlayerActivity : Activity() {
         btnChapters = findViewById(R.id.btnChapters)
         speedLabel = findViewById(R.id.speedLabel)
         speedBar = findViewById(R.id.speedBar)
-        voiceSpinner = findViewById(R.id.voiceSpinner)
+        voiceButton = findViewById(R.id.voiceButton)
         btnExport = findViewById(R.id.btnExport)
         exportProgress = findViewById(R.id.exportProgress)
         exportStatus = findViewById(R.id.exportStatus)
@@ -597,24 +598,18 @@ class PlayerActivity : Activity() {
 
     private fun setupVoices() {
         voicesShown = Speaker.voicesVersion
-        voices = Speaker.voiceOptions()
-        voiceSpinner.onItemSelectedListener = null
-        voiceSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, voices.map { it.label }).apply {
-            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        }
-        voiceSpinner.setSelection(voices.indexOfFirst { it.id == Speaker.voiceId }.coerceAtLeast(0), false)
-        voiceSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val option = voices.getOrNull(position) ?: return
-                if (option.id == Speaker.voiceId) return
-                Speaker.setVoice(option.id)
+        voiceShownFor = Speaker.voiceId
+        voiceButton.text = "Voice: " + VoicePicker.label(Speaker.voiceId) + "  ▾"
+        voiceButton.setOnClickListener {
+            VoicePicker.pickOne(this, "Reading voice", Speaker.voiceId) { id ->
+                if (id == Speaker.voiceId) return@pickOne
+                Speaker.setVoice(id)
                 offlineFor = null
                 refreshOfflineStatus()
-                val pack = LocalTts.missing(option.id)
+                setupVoices()
+                val pack = LocalTts.missing(id)
                 if (pack != null && !pack.installing) promptDownload(pack)
             }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
     }
 
@@ -1007,7 +1002,7 @@ class PlayerActivity : Activity() {
             if (Exporter.resultUri != null && !Exporter.running && Build.VERSION.SDK_INT >= 29) View.VISIBLE else View.GONE
 
         // Voices and on-device voice downloads
-        if (Speaker.voicesVersion != voicesShown) setupVoices()
+        if (Speaker.voicesVersion != voicesShown || Speaker.voiceId != voiceShownFor) setupVoices()
         val lang = doc?.lang
         val suggestion = lang?.takeIf { !Speaker.voiceFits(it) }?.let { Speaker.suggestVoice(it) }
         langHint.visibility = if (suggestion != null) View.VISIBLE else View.GONE

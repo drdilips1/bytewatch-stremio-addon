@@ -39,22 +39,38 @@
         android:paddingEnd="16dp">
 
         <Button
-            android:id="@+id/tabBooks"
+            android:id="@+id/tabBookracy"
             style="@style/P2A.Button"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="6dp"
+            android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:text="Free books" />
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="Books" />
+
+        <Button
+            android:id="@+id/tabBooks"
+            style="@style/P2A.Button.Soft"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:layout_weight="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="Classics" />
 
         <Button
             android:id="@+id/tabPapers"
             style="@style/P2A.Button.Soft"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="4dp"
             android:layout_weight="1"
-            android:text="Papers (arXiv)" />
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="Papers" />
     </LinearLayout>
 
     <LinearLayout

@@ -77,6 +77,20 @@ object Renderer {
     fun pieces(paragraph: String, voiceId: String): List<String> =
         TextCleaner.pieces(paragraph, 50, hardMax = if (LocalTts.isLocal(voiceId)) 300 else 900)
 
+    /**
+     * The first sentence after pressing Play, in one or two parts: a long sentence is split at a
+     * comma or semicolon, so the first words are heard after rendering only the first half.
+     */
+    fun quickStart(text: String, voiceId: String): List<String> {
+        val limit = if (LocalTts.isLocal(voiceId)) 90 else 140
+        if (text.length <= limit) return listOf(text)
+        val cut = Regex("""[,;:\u2014]\s""").findAll(text)
+            .map { it.range.first + 1 }
+            .filter { it in 30..(text.length - 25) }
+            .minByOrNull { kotlin.math.abs(it - limit * 2 / 3) } ?: return listOf(text)
+        return listOf(text.substring(0, cut).trim(), text.substring(cut).trim())
+    }
+
     private fun dir(context: Context) = File(context.filesDir, "audiocache").apply { mkdirs() }
 
     fun file(context: Context, v: Voicing, speed: Float, text: String): File {

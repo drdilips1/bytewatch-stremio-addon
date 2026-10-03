@@ -200,6 +200,78 @@ object Metadata {
     }
 
     /** Research papers from arXiv. */
+    /** The Bookracy search proxy (Cloudflare Worker in workers/bookracy-proxy). */
+    private const val BOOKRACY_PROXY = "https://bookracy-proxy.drdilipgreat.workers.dev"
+    /** Formats this app can read aloud. */
+    private val READABLE = setOf("epub", "pdf", "txt", "html", "htm", "md", "docx")
+
+    /**
+     * Books from Bookracy, including recent ones (EPUB and PDF), through the proxy; straight from
+     * Bookracy's API if the proxy can't be reached.
+     */
+    fun searchBookracy(query: String): List<Result> {
+        if (query.isBlank()) return emptyList()
+        val q = java.net.URLEncoder.encode(query.trim(), "UTF-8")
+        val viaProxy = runCatching { parseBookracyProxy(get("$BOOKRACY_PROXY/bookracy/search?q=$q")) }
+        viaProxy.getOrNull()?.takeIf { it.isNotEmpty() }?.let { return it }
+        val direct = runCatching { parseBookracyApi(getBrowser("https://api.bookracy.com/api/books?query=$q&lang=en&limit=30")) }
+        return direct.getOrNull() ?: viaProxy.getOrThrow()
+    }
+
+    private fun fileFormat(f: String?, url: String): String =
+        f?.lowercase()?.trim()?.ifBlank { null } ?: url.substringBefore('?').substringAfterLast('.', "").lowercase()
+
+    internal fun parseBookracyProxy(json: String): List<Result> {
+        val arr = JSONObject(json).optJSONArray("results") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val b = arr.getJSONObject(i)
+            val url = b.optString("url").ifBlank { null } ?: return@mapNotNull null
+            val fmt = fileFormat(b.optString("format"), url)
+            if (fmt.isNotEmpty() && fmt !in READABLE) return@mapNotNull null
+            val size = b.optLong("sizeBytes").takeIf { it > 0 }?.let { " · %.1f MB".format(it / 1_048_576.0) }.orEmpty()
+            Result(
+                clean(b.optString("title")) ?: return@mapNotNull null,
+                clean(b.optString("author")),
+                listOfNotNull(clean(b.optString("posted")), fmt.uppercase().ifBlank { null }).joinToString(" · ") + size,
+                clean(b.optString("description"))?.take(1200),
+                b.optString("cover").takeIf { it.startsWith("http") },
+                url,
+            )
+        }
+    }
+
+    internal fun parseBookracyApi(json: String): List<Result> {
+        val arr = JSONObject(json).optJSONArray("results") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val b = arr.getJSONObject(i)
+            val link = b.optString("link").ifBlank { null } ?: return@mapNotNull null
+            val fmt = fileFormat(b.optString("book_filetype"), link)
+            if (fmt.isNotEmpty() && fmt !in READABLE) return@mapNotNull null
+            Result(
+                clean(b.optString("title")?.replace(Regex("""\s*_\d+\s*$"""), "")) ?: return@mapNotNull null,
+                clean(b.optString("author")),
+                listOfNotNull(clean(b.optString("year")), fmt.uppercase().ifBlank { null }).joinToString(" · "),
+                clean(b.optString("description"))?.take(1200),
+                b.optString("book_image").takeIf { it.startsWith("http") },
+                "$BOOKRACY_PROXY/bookracy/download?url=" + java.net.URLEncoder.encode(link, "UTF-8"),
+            )
+        }
+    }
+
+    /** Some sites only answer requests that look like they come from a browser on their own pages. */
+    private fun getBrowser(url: String): String {
+        val request = Request.Builder().url(url)
+            .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36")
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Origin", "https://bookracy.com")
+            .header("Referer", "https://bookracy.com/")
+            .build()
+        client.newCall(request).execute().use { r ->
+            if (!r.isSuccessful) throw IOException("HTTP ${r.code} from ${r.request.url.host}")
+            return r.body!!.string()
+        }
+    }
+
     fun searchArxiv(query: String): List<Result> {
         val terms = query.trim().split(WS).filter { it.isNotBlank() }.joinToString("+AND+") { "all:" + java.net.URLEncoder.encode(it, "UTF-8") }
         if (terms.isEmpty()) return emptyList()
