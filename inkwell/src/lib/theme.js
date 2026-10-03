@@ -1,6 +1,8 @@
 // Accent pairs for gradients. The pastel set follows Material You's tonal
 // palettes; `l`/`lb` are the deeper tones used on light backgrounds.
 export const ACCENTS = {
+  // Warm orange on clean black / white — the default look.
+  studio: { name: 'Studio orange', a: '#f7991c', b: '#ff7a00', l: '#c45f00', lb: '#b84d00' },
   audiohub: { name: 'Audiohub', a: '#8fe9ff', b: '#f7a6d8', l: '#0e7490', lb: '#be185d' },
   orchid: { name: 'Orchid', a: '#dcb0ff', b: '#ff9fd2', l: '#7e22ce', lb: '#be185d' },
   sunset: { name: 'Sunset', a: '#ffb57a', b: '#ff86a8', l: '#c2410c', lb: '#be123c' },
@@ -26,7 +28,7 @@ export const ACCENTS = {
 const LEGACY = { aurora: 'dusk', sunset: 'terracotta', ocean: 'slate', forest: 'sage', rose: 'rosewood', ember: 'terracotta', gold: 'champagne', ice: 'slate' };
 
 export function applyTheme(st) {
-  const a = ACCENTS[st.accent] || ACCENTS[LEGACY[st.accent]] || ACCENTS.audiohub;
+  const a = ACCENTS[st.accent] || ACCENTS[LEGACY[st.accent]] || ACCENTS.studio;
   const root = document.documentElement;
   const light = st.mode === 'light';
   root.dataset.mode = st.mode;
@@ -44,6 +46,8 @@ export function applyTheme(st) {
 
 /** Whole-app colour themes. Dark ones apply in Dark mode, light ones in Light mode. */
 export const PALETTES = [
+  { id: 'studio', name: 'Studio', light: false, bg: '#121212', swatch: ['#121212', '#f7991c'] },
+  { id: 'studio', name: 'Studio', light: true, bg: '#ffffff', swatch: ['#ffffff', '#f7991c'] },
   { id: 'default', name: 'Classic', light: false, bg: '#131218', swatch: ['#131218', '#262330'] },
   { id: 'midnight', name: 'Midnight', light: false, bg: '#0b1020', swatch: ['#0b1020', '#1b2745'] },
   { id: 'aurora', name: 'Aurora', light: false, bg: '#0d0b1f', swatch: ['#0d0b1f', '#2a1c52'] },

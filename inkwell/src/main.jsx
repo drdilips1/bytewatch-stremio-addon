@@ -4,9 +4,10 @@ import './styles.css';
 import { settings, library, progress, cleanLibrary, cleanProgress } from './lib/store.js';
 import { ttsCfg, nativeReader } from './lib/tts.js';
 
-// Audiohub look (v3): everyone moves onto the brand accent and Aurora theme once; later choices stick.
+// Studio look (v4): everyone moves onto the orange-on-black/white Studio theme once;
+// later choices (Settings → Appearance) stick.
 try {
-  if ((settings.get().themeV || 0) < 3) settings.set((s) => ({ ...s, accent: 'audiohub', palette: s.mode === 'light' ? 'default' : 'aurora', themeV: 3 }));
+  if ((settings.get().themeV || 0) < 4) settings.set((s) => ({ ...s, accent: 'studio', palette: 'studio', themeV: 4 }));
 } catch {}
 
 // Libby was removed: forget its saved sign-in and library links.

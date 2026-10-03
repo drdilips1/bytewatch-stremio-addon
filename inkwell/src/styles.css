@@ -6431,3 +6431,107 @@ button.rt {
 .book .gr-card .gr-score {
   display: none;
 }
+
+/* =====================================================================
+   Studio look (default): clean neutral black / white, warm orange accent,
+   one crisp sans-serif everywhere, flatter cards and squarer corners.
+   ===================================================================== */
+:root[data-palette='studio'] {
+  --display: var(--font);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --card-r: 12px;
+  --grad: linear-gradient(90deg, #f7991c, #ff7a00);
+  --on-grad: #111;
+}
+:root[data-mode='dark'][data-palette='studio'] {
+  --bg: #121212;
+  --bg-2: #1b1b1b;
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-2: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.1);
+  --text: #f2f2f2;
+  --muted: #a6a6a6;
+  --faint: #707070;
+}
+:root[data-mode='amoled'][data-palette='studio'] {
+  --text: #f2f2f2;
+  --muted: #a6a6a6;
+  --faint: #707070;
+  --border: rgba(255, 255, 255, 0.1);
+}
+:root[data-mode='light'][data-palette='studio'] {
+  --bg: #ffffff;
+  --bg-2: #f7f7f7;
+  --surface: rgba(0, 0, 0, 0.04);
+  --surface-2: rgba(0, 0, 0, 0.07);
+  --border: rgba(0, 0, 0, 0.1);
+  --text: #121212;
+  --muted: #5c5c5c;
+  --faint: #8a8a8a;
+}
+/* No colour washes behind screens: calm, neutral backgrounds */
+:root[data-palette='studio'] .ambient {
+  display: none;
+}
+/* Headings: bold sans, no serif */
+:root[data-palette='studio'] .screen-title,
+:root[data-palette='studio'] .book .book-hero h1 {
+  font-family: var(--font);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+/* Buttons: solid orange with dark text, like a store's "Buy" button */
+:root[data-palette='studio'] .btn.primary,
+:root[data-palette='studio'] .book .book-actions .btn.primary {
+  background: var(--grad);
+  color: #111;
+  border-radius: 10px;
+  box-shadow: none;
+}
+:root[data-palette='studio'] .btn.secondary,
+:root[data-palette='studio'] .btn.ghost-wide {
+  border-radius: 10px;
+}
+:root[data-palette='studio'] .pill.active,
+:root[data-palette='studio'] .segmented button.on {
+  background: #f7991c;
+  color: #111;
+}
+/* Tab bar: plain, active tab in orange */
+:root[data-palette='studio'] .tabbar {
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  border-top: 1px solid var(--border);
+}
+:root[data-palette='studio'] .tabbar button.on {
+  color: #f7991c;
+}
+:root[data-palette='studio'] .tabbar button.on .icon {
+  background: none;
+}
+/* Book page under Studio: the cover colour stays in the backdrop only */
+:root[data-palette='studio'] .book .ask-open {
+  background: var(--surface-2);
+}
+:root[data-palette='studio'] .stats-strip .stat b .icon {
+  color: #f7991c;
+}
+/* Studio, light: header buttons as clean light circles, not frosted grey */
+:root[data-mode='light'][data-palette='studio'] .icon-btn.glass,
+:root[data-mode='light'][data-palette='studio'] .home-top .home-logo {
+  background: #f2f2f2;
+  color: #121212;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+:root[data-mode='light'][data-palette='studio'] .home-hello b,
+:root[data-mode='light'][data-palette='studio'] .home-hello small {
+  color: #121212;
+}
+:root[data-mode='light'][data-palette='studio'] .home-hello small {
+  opacity: 0.6;
+}
+:root[data-mode='light'] .book .book-hero-bg::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.78) 55%, rgba(255, 255, 255, 0.9) 100%);
+}
