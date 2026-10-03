@@ -19,6 +19,8 @@ export const voiceLang = persisted('askVoiceLang', 'en-IN');
 // The voice answers are read in (Android): Microsoft's natural voices, Indian ones first.
 // '' = the same as Settings → Voices.
 export const askVoice = persisted('askVoice', '');
+// Read every answer aloud (on by default); answers to spoken questions are always read.
+export const autoRead = persisted('askAutoRead', true);
 export const canPickVoice = nativeReader;
 const indian = (id) => /-IN-/.test(id);
 export const ASK_VOICES = [...EDGE_VOICES.filter(([id]) => indian(id)), ...EDGE_VOICES.filter(([id]) => !indian(id))];

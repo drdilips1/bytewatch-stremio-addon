@@ -6819,3 +6819,9 @@ button.rt {
 .row-head .row-shuffle + .see-all {
   margin-left: 6px;
 }
+.ask-autoread {
+  justify-content: space-between;
+}
+.ask-autoread input {
+  flex: none;
+}

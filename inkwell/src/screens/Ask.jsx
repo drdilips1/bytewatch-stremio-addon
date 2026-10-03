@@ -8,7 +8,8 @@ import { keyIdeas, summaryBook } from '../sources/summaries.js';
 import { mainTitle } from '../lib/match.js';
 import { usePlayer } from '../components/player-ui.jsx';
 import { useStore } from '../lib/store.js';
-import { canListen, listen, speakAnswer, stopAnswer, voiceLang, LANGS, askVoice, canPickVoice, ASK_VOICES } from '../lib/voiceask.js';
+import * as player from '../lib/player.js';
+import { canListen, listen, speakAnswer, stopAnswer, voiceLang, LANGS, askVoice, canPickVoice, ASK_VOICES, autoRead } from '../lib/voiceask.js';
 
 /**
  * Ask AI about one book (params.book) or about your whole library (no book).
@@ -23,6 +24,7 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
   const ps = usePlayer();
   const lang = useStore(voiceLang);
   const voiceId = useStore(askVoice);
+  const readAloud = useStore(autoRead);
   const [speaking, setSpeaking] = useState(-1); // index of the answer being read aloud
   const say = (i, t) => {
     stopAnswer();
@@ -50,8 +52,11 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
     try {
       const a = await ask(book, q, { ...opts, ...extra, msgs: before });
       setMsgs([...before, { role: 'user', text: shown }, { role: 'ai', text: a }]);
-      // Asked by voice: answer by voice too.
-      if (extra.voice) say(before.length + 1, a);
+      // Answers are read aloud (always for spoken questions); the audiobook pauses meanwhile.
+      if (extra.voice || autoRead.get()) {
+        if (player.getState().playing) player.pause();
+        say(before.length + 1, a);
+      }
     } catch (e) {
       setMsgs([...before, { role: 'user', text: shown }, { role: 'ai', text: e.message, error: true }]);
     } finally {
@@ -168,6 +173,10 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
             </select>
           </label>
         )}
+        <label class="ask-voice ask-autoread">
+          🔊 Read answers aloud
+          <input type="checkbox" class="switch" checked={readAloud} onChange={(e) => (autoRead.set(e.currentTarget.checked), e.currentTarget.checked || (stopAnswer(), setSpeaking(-1)))} />
+        </label>
         <p class="muted small ask-note">
           Answers use what the AI knows about {book ? 'the book' : 'your books'} and {book ? 'its description' : 'your listening history'} — it doesn't have the audio or text itself, and will say when it isn't sure.
         </p>
