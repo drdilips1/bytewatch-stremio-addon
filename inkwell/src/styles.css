@@ -6344,3 +6344,90 @@ button.rt {
 .book #where-to-get {
   scroll-margin-top: calc(var(--safe-top) + 12px);
 }
+
+/* --- Design v2, pass 1b: a visible change --- */
+/* Serif titles (Apple Books feel) */
+.book .book-hero h1 {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Noto Serif', Georgia, serif;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.book .book-hero {
+  padding-bottom: 56px;
+}
+.book .book-cover {
+  width: min(58vw, 230px);
+  border-radius: 12px;
+}
+/* The content sits on a rounded panel that slides over the cover backdrop */
+.book-body {
+  position: relative;
+  margin-top: -32px;
+  padding-top: 8px;
+  border-radius: 28px 28px 0 0;
+  background: var(--bg);
+  box-shadow: 0 -12px 32px -16px rgba(0, 0, 0, 0.45);
+}
+.book-body::before {
+  content: '';
+  display: block;
+  width: 40px;
+  height: 4px;
+  margin: 4px auto 0;
+  border-radius: 2px;
+  background: var(--border);
+}
+/* Stats strip: rating · length · year */
+.stats-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  margin: 16px 16px 0;
+}
+.stats-strip .stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 4px;
+  color: var(--text);
+  text-align: center;
+}
+.stats-strip .stat + .stat {
+  border-left: 1px solid var(--border);
+}
+.stats-strip .stat b {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 17px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.stats-strip .stat b .icon {
+  color: #f5b301;
+}
+.stats-strip .stat small {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.book .book-actions {
+  padding-top: 18px;
+}
+/* Let the cover colour run to the panel edge, so the panel visibly slides over it */
+.book .book-hero-bg::after {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--dyn) 25%, transparent) 0%, transparent 55%, rgba(0, 0, 0, 0.18) 100%);
+}
+:root[data-mode='light'] .book .book-hero-bg::after {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--dyn) 20%, transparent) 0%, rgba(255, 255, 255, 0.35) 100%);
+}
+.book-body {
+  margin-top: -36px;
+  box-shadow: 0 -10px 30px -10px rgba(0, 0, 0, 0.5);
+}
+/* The strip already shows the rating: the Goodreads card keeps genres and links */
+.book .gr-card .gr-score {
+  display: none;
+}

@@ -164,12 +164,8 @@ export function Book({ book: initial }) {
           )}
           <div class="book-meta">
             <SourceBadge uid={book.uid} book={book} />
-            {book.duration > 0 && <span>{fmtDuration(book.duration)}</span>}
-            {book.year && <span>{book.year}</span>}
-            {tracks.length > 1 && <span>{tracks.length} parts</span>}
             {book.series && <span>{book.series}</span>}
           </div>
-          <RatingsRow book={book} />
           {!loading &&
             !book.cover &&
             book.source !== "pod" &&
@@ -182,6 +178,8 @@ export function Book({ book: initial }) {
         </div>
       </div>
 
+      <div class="book-body">
+      <StatsStrip book={book} tracks={tracks} />
       <div class="book-actions">
         {book.kind === "discover" && (
           <button
@@ -610,6 +608,7 @@ export function Book({ book: initial }) {
       )}
       {!loading && <RelatedRows book={book} />}
       <div class="footer-space" />
+      </div>
       {menu && (
         <BookMenu
           book={book}
@@ -783,35 +782,50 @@ const fmtK = (n) =>
       : String(n);
 
 /** Ratings across services and awards, as a row of badges: "4.6 (1.2k)"; tap one for its reviews. */
-function RatingsRow({ book }) {
-  const { goodreads, audible, awards, why } = useRatings(book);
-  if (!goodreads && !audible && !awards.length)
-    return why ? <p class="ratings-why">No rating found — {why}</p> : null;
-  const Badge = ({ r, cls, logo, digits }) => (
-    <button
-      class={"rt " + cls}
-      title={`${r.from} — ${r.count.toLocaleString()} ratings. Tap for reviews`}
-      onClick={() => r.url && openExternal(r.url)}
-    >
-      <span class="rt-logo">{logo}</span>
-      <b>{r.rating.toFixed(digits)}</b>
-      {r.count > 0 && <small>({fmtK(r.count)})</small>}
-    </button>
-  );
-  return (
-    <div class="ratings-row">
-      {goodreads && (
-        <Badge r={goodreads} cls="rt-goodreads" logo="g" digits={2} />
-      )}
-      {audible && <Badge r={audible} cls="rt-audible" logo="a" digits={1} />}
-      {awards.map((a) => (
-        <span class={"rt rt-award rt-" + a.kind} title={a.label}>
-          <span class="rt-trophy">{a.kind === "audie" ? "🏆" : "🎧"}</span>
-          <b>{a.label}</b>
-        </span>
-      ))}
-    </div>
-  );
+/** Rating · length · year in one strip, Apple Books style. Tap the rating for reviews. */
+function StatsStrip({ book, tracks }) {
+  const { goodreads, audible } = useRatings(book);
+  const r = goodreads || audible;
+  const cells = [];
+  if (r)
+    cells.push(
+      <button class="stat" onClick={() => r.url && openExternal(r.url)}>
+        <b>
+          {r.rating.toFixed(goodreads ? 2 : 1)} <Icon name="star" size={13} fill />
+        </b>
+        <small>{r.count > 0 ? `${fmtK(r.count)} ratings` : r.from}</small>
+      </button>,
+    );
+  if (book.duration > 0)
+    cells.push(
+      <div class="stat">
+        <b>{fmtDuration(book.duration)}</b>
+        <small>Length</small>
+      </div>,
+    );
+  if (tracks.length > 1)
+    cells.push(
+      <div class="stat">
+        <b>{tracks.length}</b>
+        <small>Parts</small>
+      </div>,
+    );
+  if (book.year)
+    cells.push(
+      <div class="stat">
+        <b>{book.year}</b>
+        <small>Released</small>
+      </div>,
+    );
+  if (book.language && cells.length < 4)
+    cells.push(
+      <div class="stat">
+        <b>{String(book.language).slice(0, 10)}</b>
+        <small>Language</small>
+      </div>,
+    );
+  if (!cells.length) return null;
+  return <div class="stats-strip">{cells}</div>;
 }
 
 /** Your own verdict: how you found it, the story and the narration, and why if it didn't work. Feeds your picks. */
