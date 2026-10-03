@@ -6128,3 +6128,219 @@ button.rt {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* =====================================================================
+   Design v2 — "calm & premium" (Apple Books / Audible feel).
+   One rhythm: 8-pt spacing, one card style, quiet sentence-case headings,
+   one accent (the cover colour, --dyn) on the book page.
+   ===================================================================== */
+:root {
+  --card-r: 20px;
+  --gap: 16px;
+  --section-gap: 32px;
+}
+
+/* --- Book page: hero --- */
+.book .book-hero {
+  padding: calc(var(--safe-top) + 64px) 24px 8px;
+}
+.book .book-hero-bg::after {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--dyn) 22%, transparent) 0%, transparent 40%, var(--bg) 96%);
+}
+.book .book-cover {
+  width: min(52vw, 210px);
+  margin: 0 auto 24px;
+  border-radius: 14px;
+  box-shadow: 0 24px 48px -20px color-mix(in srgb, var(--dyn) 60%, #000), 0 8px 24px -12px rgba(0, 0, 0, 0.55);
+}
+.book .book-hero h1 {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  max-width: 22ch;
+  margin: 0 auto;
+}
+.book .book-author {
+  margin: 8px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+.book-narrator {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.book .book-meta {
+  margin-top: 12px;
+  gap: 6px 10px;
+  font-size: 12.5px;
+}
+.book .book-meta span:not(.badge)::before {
+  margin-right: 10px;
+}
+.book .ratings-row {
+  margin-top: 14px;
+  justify-content: center;
+}
+.book .ratings-row .rt {
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  border-color: transparent;
+}
+
+/* --- Book page: one clear main action --- */
+.book .book-actions {
+  padding: 20px 20px 0;
+  gap: 10px;
+}
+.book .book-actions .btn.big {
+  min-height: 52px;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.book .book-actions .btn.primary {
+  flex: 1;
+  background: var(--dyn, var(--accent));
+  color: #fff;
+  box-shadow: 0 12px 28px -14px var(--dyn, var(--accent));
+}
+:root[data-mode='light'] .book .book-actions .btn.primary {
+  color: #fff;
+}
+.book .book-actions .btn.secondary {
+  background: var(--surface-2);
+  border: 0;
+}
+
+/* --- Book page: calm sections and one card style --- */
+.book .description {
+  margin: 28px 0 4px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text);
+  opacity: 0.85;
+}
+.book .section-label,
+.book .src-head,
+.book .row .row-head {
+  margin: var(--section-gap) 20px 12px;
+  padding: 0;
+  border: 0;
+}
+.book .pad .section-label,
+.book .source-results .section-label,
+.book .src-head {
+  margin-left: 0;
+  margin-right: 0;
+}
+.book .src-head .section-label {
+  margin: 0;
+}
+.book .section-label {
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.book .section-label::before,
+.book .row .row-head h2::before {
+  display: none;
+}
+.book .section-label .icon {
+  display: none;
+}
+.book .row .row-head h2 {
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+.book .gr-card,
+.book .myrate,
+.book .ask-card {
+  margin-left: 16px;
+  margin-right: 16px;
+  padding: 16px;
+  border-radius: var(--card-r);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.book .gr-card {
+  margin-top: 24px;
+}
+.book .myrate {
+  margin-top: var(--section-gap);
+}
+.book .ask-card-wrap .ask-card {
+  margin: 0;
+}
+
+/* Ask AI card: compact — two quiet questions and one button */
+.book .ask-q {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 12px 2px;
+  font-weight: 600;
+}
+.book .ask-q::after {
+  content: '›';
+  margin-left: auto;
+  color: var(--faint);
+  font-size: 20px;
+  line-height: 1;
+}
+.book .ask-card-qs {
+  gap: 0;
+  margin-bottom: 14px;
+}
+.book .ask-open {
+  min-height: 46px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--dyn, var(--accent)) 18%, var(--surface-2));
+  color: var(--text);
+  box-shadow: none;
+}
+
+/* ⋯ menu */
+.book-menu h3 {
+  margin: 4px 0 14px;
+  font-size: 17px;
+}
+.menu-block {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.menu-block > b {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.menu-block .fix-link {
+  font-size: 14px;
+  color: var(--accent);
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+}
+.menu-item.quiet {
+  justify-content: center;
+  color: var(--muted);
+}
+.menu-block .fix-row {
+  justify-content: flex-start;
+}
+.book #where-to-get {
+  scroll-margin-top: calc(var(--safe-top) + 12px);
+}

@@ -23,7 +23,7 @@ import { canSendToKindle, sendToKindle, shareEbook } from "../lib/kindle.js";
 import { cloudReaderBook } from "../lib/epub.js";
 import { openSearch } from "./Discover.jsx";
 import { mainTitle } from "../lib/match.js";
-import { MODES, STARTERS } from "../lib/askbook.js";
+import { STARTERS } from "../lib/askbook.js";
 import { setFix } from "../lib/meta.js";
 import { audible as audibleCat, googleBooks } from "../sources/catalogs.js";
 import { SourceResults } from "../components/source-results.jsx";
@@ -80,6 +80,7 @@ export function Book({ book: initial }) {
   const [showParts, setShowParts] = useState(null);
   const [qbBusy, setQbBusy] = useState(false);
   const [kindleBusy, setKindleBusy] = useState(false);
+  const [menu, setMenu] = useState(false);
   useStore(qb.qbitSent);
   const dl = useStore(downloads)[initial.uid];
 
@@ -143,20 +144,30 @@ export function Book({ book: initial }) {
             >
               <Icon name="heart" fill={saved} />
             </button>
+            {book.source !== "pod" && (
+              <button
+                class="icon-btn glass"
+                aria-label="More"
+                onClick={() => setMenu(true)}
+              >
+                <Icon name="more" stroke={3.2} />
+              </button>
+            )}
           </div>
         </header>
         <div class="book-hero-content">
           <Cover book={book} class="book-cover" eager />
           <h1>{book.title}</h1>
           {book.author && <p class="book-author">{book.author}</p>}
+          {book.narrator && (
+            <p class="book-narrator">Narrated by {book.narrator}</p>
+          )}
           <div class="book-meta">
             <SourceBadge uid={book.uid} book={book} />
-            {book.year && <span>{book.year}</span>}
             {book.duration > 0 && <span>{fmtDuration(book.duration)}</span>}
+            {book.year && <span>{book.year}</span>}
             {tracks.length > 1 && <span>{tracks.length} parts</span>}
-            {book.narrator && <span>Narrated by {book.narrator}</span>}
             {book.series && <span>{book.series}</span>}
-            {book.language && <span>{book.language}</span>}
           </div>
           <RatingsRow book={book} />
           {!loading &&
@@ -172,6 +183,18 @@ export function Book({ book: initial }) {
       </div>
 
       <div class="book-actions">
+        {book.kind === "discover" && (
+          <button
+            class="btn primary big"
+            onClick={() =>
+              document
+                .getElementById("where-to-get")
+                ?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+          >
+            <Icon name="headphones" size={18} /> Where to get it
+          </button>
+        )}
         {canListen && (
           <button
             class="btn primary big"
@@ -253,11 +276,6 @@ export function Book({ book: initial }) {
             )}{" "}
             Listen
           </button>
-        )}
-        {book.link && (
-          <a class="btn ghost" href={book.link} target="_blank" rel="noopener">
-            <Icon name="external" size={16} />
-          </a>
         )}
       </div>
       {cloudEbooks.length > 0 && (
@@ -409,10 +427,6 @@ export function Book({ book: initial }) {
         </div>
       )}
 
-      {!loading && book.source !== "sum" && book.source !== "pod" && (
-        <MyRating book={book} />
-      )}
-
       {error && <p class="err pad">Couldn't load details: {error}</p>}
 
       <Description
@@ -432,7 +446,7 @@ export function Book({ book: initial }) {
       {book.metaSource && (
         <p class="muted pad meta-credit">Details from {book.metaSource}</p>
       )}
-      {book.subjects?.length > 0 && (
+      {book.subjects?.length > 0 && !gr?.genres?.length && (
         <div class="chips pad">
           {book.subjects.slice(0, 8).map((s) => (
             <span class="pill small">{s}</span>
@@ -440,35 +454,8 @@ export function Book({ book: initial }) {
         </div>
       )}
 
-      {hc.connected() && hcStatus !== null && (
-        <section class="pad">
-          <h3 class="section-label">Hardcover</h3>
-          <div class="chips">
-            {[
-              [hc.STATUS.want, "Want to read"],
-              [hc.STATUS.reading, "Reading"],
-              [hc.STATUS.read, "Read"],
-            ].map(([code, label]) => (
-              <button
-                class={"pill small" + (hcStatus === code ? " active" : "")}
-                onClick={async () => {
-                  try {
-                    setHcStatus(await hc.setStatus(book, code));
-                    toast(`Hardcover: ${label}`);
-                  } catch (e) {
-                    toast(e.message);
-                  }
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
       {book.kind === "discover" && (
-        <section class="pad">
+        <section class="pad" id="where-to-get">
           <h3 class="section-label">Where to listen or read</h3>
           {!editions ? (
             <p class="muted">
@@ -479,7 +466,7 @@ export function Book({ book: initial }) {
             ) && !sourceAddons().length ? (
             <>
               <p class="muted">
-                Not found in {editions.searched.join(", ")}. Your TorBox and
+                Not found{editions.searched.length ? ` in ${editions.searched.join(", ")}` : ""}. Your TorBox and
                 Real-Debrid search only covers files already in your account, so
                 add the book there first (Settings → TorBox → add a magnet or
                 link) or install an addon that searches for it.
@@ -618,19 +605,20 @@ export function Book({ book: initial }) {
           deps={[book.uid, authorKey]}
         />
       )}
+      {!loading && book.source !== "sum" && book.source !== "pod" && (
+        <MyRating book={book} />
+      )}
       {!loading && <RelatedRows book={book} />}
-      {!loading &&
-        book.cover &&
-        book.source !== "pod" &&
-        book.source !== "sum" && (
-          <div class="pad fix-bottom">
-            <FixDetails
-              book={book}
-              onFixed={(f) => setBook((b) => ({ ...b, ...f }))}
-            />
-          </div>
-        )}
       <div class="footer-space" />
+      {menu && (
+        <BookMenu
+          book={book}
+          onClose={() => setMenu(false)}
+          onFixed={(f) => setBook((b) => ({ ...b, ...f }))}
+          hcStatus={hcStatus}
+          setHcStatus={setHcStatus}
+        />
+      )}
     </div>
   );
 }
@@ -993,6 +981,70 @@ function GoodreadsCard({ gr }) {
   );
 }
 
+/** ⋯ More: the things you need now and then — fix details, Hardcover shelf, web page. */
+function BookMenu({ book, onClose, onFixed, hcStatus, setHcStatus }) {
+  return (
+    <div class="sheet-backdrop" onClick={onClose}>
+      <div class="sheet book-menu" onClick={(e) => e.stopPropagation()}>
+        <div class="sheet-handle" />
+        <h3>{mainTitle(book.title)}</h3>
+        {book.source !== "sum" && (
+          <div class="menu-block">
+            <b>Cover & details</b>
+            <FixDetails
+              book={book}
+              onFixed={(f) => {
+                onFixed(f);
+                onClose();
+              }}
+            />
+          </div>
+        )}
+        {hc.connected() && hcStatus !== null && (
+          <div class="menu-block">
+            <b>Hardcover shelf</b>
+            <div class="chips">
+              {[
+                [hc.STATUS.want, "Want to read"],
+                [hc.STATUS.reading, "Reading"],
+                [hc.STATUS.read, "Read"],
+              ].map(([code, label]) => (
+                <button
+                  class={"pill small" + (hcStatus === code ? " active" : "")}
+                  onClick={async () => {
+                    try {
+                      setHcStatus(await hc.setStatus(book, code));
+                      toast(`Hardcover: ${label}`);
+                    } catch (e) {
+                      toast(e.message);
+                    }
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {book.link && (
+          <button
+            class="menu-item"
+            onClick={() => {
+              openExternal(book.link);
+              onClose();
+            }}
+          >
+            <Icon name="external" size={18} /> Open the web page
+          </button>
+        )}
+        <button class="menu-item quiet" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Missing or wrong cover / title? Search Audible and Google Books and pick the right one. */
 function FixDetails({ book, onFixed }) {
   const [open, setOpen] = useState(false);
@@ -1039,7 +1091,7 @@ function FixDetails({ book, onFixed }) {
         <button class="link-btn fix-link" onClick={start}>
           <Icon name="search" size={14} />{" "}
           {book.cover
-            ? "Details look wrong? Find the right cover & details"
+            ? "Wrong cover or details? Find the right ones"
             : "Find cover & details"}
         </button>
         {book.fixed && (
@@ -1114,18 +1166,13 @@ function AskCard({ book, description, genres }) {
         <Icon name="sparkle" size={16} /> Ask AI
       </h3>
       <div class="ask-card">
-        <p class="muted small">Ask anything about this book</p>
+        <p class="muted small">
+          Summaries, key ideas, a quiz, or anything you're curious about.
+        </p>
         <div class="ask-card-qs">
-          {STARTERS.map((q) => (
+          {STARTERS.slice(0, 2).map((q) => (
             <button class="ask-q" onClick={() => open({ question: q })}>
-              💡 {q}
-            </button>
-          ))}
-        </div>
-        <div class="ask-card-modes">
-          {MODES.map((m) => (
-            <button class="ask-chip" onClick={() => open({ mode: m.id })}>
-              {m.icon} {m.label}
+              {q}
             </button>
           ))}
         </div>
