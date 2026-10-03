@@ -154,7 +154,6 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
       </div>
       <div class="book-card-title">{book.title}</div>
       <div class="book-card-author">{book.author || ' '}</div>
-      {typeof book.why === 'string' && book.why && <div class="book-card-why">{book.why}</div>}
     </button>
   );
 });
