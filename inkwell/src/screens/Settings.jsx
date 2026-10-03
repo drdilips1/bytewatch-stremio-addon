@@ -1046,10 +1046,12 @@ export function Settings() {
           <WebRelayCard />
         </Section>
       )}
+      <p class="set-group">Account</p>
       <Section icon="server" title="Account & sync">
         <AccountCard />
       </Section>
 
+      <p class="set-group">Where your books are</p>
       <Section icon="server" title="Audiobookshelf">
         <AbsCard />
       </Section>
@@ -1075,6 +1077,7 @@ export function Settings() {
       <Section icon="upload" title="Send to Kindle">
         <KindleCard />
       </Section>
+      <p class="set-group">Voices & book info</p>
       <Section icon="headphones" title="Voices">
         <VoicesCard />
       </Section>
@@ -1088,6 +1091,7 @@ export function Settings() {
         <GoodreadsCard />
       </Section>
 
+      <p class="set-group">App</p>
       <Section icon="palette" title="Appearance">
         <div class="set-row">
           <b>Mode</b>
@@ -1208,6 +1212,7 @@ export function Settings() {
         </div>
       </Section>
 
+      <p class="set-group">Help</p>
       <Section icon="sparkle" title="Report a problem">
         <ReportCard />
       </Section>

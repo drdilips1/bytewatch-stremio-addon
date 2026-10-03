@@ -6535,3 +6535,128 @@ button.rt {
 :root[data-mode='light'] .book .book-hero-bg::after {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.78) 55%, rgba(255, 255, 255, 0.9) 100%);
 }
+
+/* =====================================================================
+   Design v2, pass 2: Settings as grouped lists, Library and Discover
+   in the same calm style, sentence-case headings everywhere.
+   ===================================================================== */
+/* Settings: group headings and joined rows (like phone settings) */
+.set-group {
+  margin: 26px 20px 8px 24px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.settings .set-section {
+  margin-bottom: 0;
+}
+.settings .set-section .set-head {
+  border-radius: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 15px 16px;
+}
+/* first row after a heading: rounded top; last row before a heading (or the end): rounded bottom */
+.settings .set-group + .set-section .set-head,
+.settings .update-card + .set-section .set-head {
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+}
+.settings .set-section:has(+ .set-group) .set-head,
+.settings .set-section:has(+ .about) .set-head,
+.settings .set-section:last-of-type .set-head {
+  border-bottom: 0;
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+.settings .set-section.open .set-head {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.settings .set-section.open .set-card {
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  margin: 0;
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+.settings .set-head .icon:first-child {
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+/* Library: stats as one quiet strip (like the book page) */
+.library .stats {
+  gap: 0;
+  margin: 4px 16px 8px;
+  padding: 12px 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.library .stats div {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.library .stats div + div {
+  border-left: 1px solid var(--border);
+}
+.library .stats b {
+  font-family: var(--font);
+  font-size: 22px;
+  font-weight: 800;
+  background: none;
+  color: var(--text);
+}
+
+/* Headings everywhere: sentence case, bold, quiet (no shouting capitals) */
+:root[data-palette='studio'] .section-label {
+  text-transform: none;
+  letter-spacing: -0.01em;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+}
+:root[data-palette='studio'] .row-head h2 {
+  font-family: var(--font);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+/* Genre chips: plain, with the coloured dot as the only colour */
+:root[data-palette='studio'] .discover .chip,
+:root[data-palette='studio'] .genre-chip {
+  background: var(--surface);
+}
+
+/* Studio: player — orange play button and progress, tidy chips */
+:root[data-palette='studio'] .play-btn {
+  background: var(--grad);
+  color: #111;
+}
+:root[data-palette='studio'] .play-btn.big {
+  box-shadow: 0 16px 36px -14px rgba(247, 153, 28, 0.7);
+}
+:root[data-palette='studio'] .chip-btn {
+  border-radius: 10px;
+}
+:root[data-palette='studio'] .chip-btn.active {
+  background: #f7991c;
+  color: #111;
+}
+:root[data-palette='studio'] input[type='range'] {
+  accent-color: #f7991c;
+}
+:root[data-palette='studio'] .mini-player {
+  border-radius: 12px;
+}
+:root[data-palette='studio'] .fp-scrub input[type='range']::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, #f7991c var(--pct), rgba(255, 255, 255, 0.2) var(--pct));
+}
+:root[data-palette='studio'] .fp-scrub input[type='range']::-moz-range-track {
+  background: linear-gradient(90deg, #f7991c var(--pct), rgba(255, 255, 255, 0.2) var(--pct));
+}
