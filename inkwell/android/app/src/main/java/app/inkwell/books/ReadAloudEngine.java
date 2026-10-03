@@ -180,6 +180,15 @@ public final class ReadAloudEngine {
         for (int i = 0; i < paras.size(); i++) {
             String t = paras.get(i) == null ? "" : paras.get(i).trim();
             if (t.isEmpty()) continue;
+            // The very first piece is kept short (about a sentence) so the voice starts
+            // within a second or two; the rest render while it plays.
+            if (list.isEmpty() && i >= from && t.length() > 160) {
+                List<String> first = EdgeTts.splitLong(t, 160);
+                list.add(new Piece(i, first.get(0)));
+                String rest = t.substring(Math.min(t.length(), t.indexOf(first.get(0)) + first.get(0).length())).trim();
+                if (!rest.isEmpty()) for (String s : EdgeTts.splitLong(rest, max)) list.add(new Piece(i, s));
+                continue;
+            }
             for (String s : EdgeTts.splitLong(t, max)) list.add(new Piece(i, s));
         }
         pieces = list;

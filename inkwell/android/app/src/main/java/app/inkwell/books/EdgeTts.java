@@ -41,7 +41,9 @@ public final class EdgeTts {
     static String socketBase = "wss://" + BASE;
 
     private static final OkHttpClient client = new OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
+        // Short: if Microsoft's service doesn't connect quickly, fall back to the offline
+        // voice instead of leaving the listener waiting.
+        .connectTimeout(7, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build();
 
