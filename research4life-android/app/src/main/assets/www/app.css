@@ -953,3 +953,14 @@ body.player-open .toast { z-index: 33; }
 .nv-pct { font-size: 12px; font-weight: 600; color: var(--accent); white-space: nowrap; }
 .acc-ico.ai.groq { background: linear-gradient(135deg, #f55036, #c2361f); }
 .linkish { border: 0; background: none; color: var(--accent); font-size: 12px; font-weight: 600; padding: 0 0 0 6px; }
+/* podcast */
+.pod-hero { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 16px; background: linear-gradient(135deg, var(--violet-soft), var(--accent-soft)); }
+.pod-hero > svg { width: 28px; height: 28px; color: var(--violet); flex: none; margin-top: 2px; }
+.pod-hero b { display: block; font-size: 15px; margin-bottom: 4px; }
+.pod-hero span { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+.pod-title { font: 650 17px/1.35 var(--display); text-align: center; margin: 12px 0 2px; }
+.script p[data-act] { cursor: pointer; border-radius: 8px; padding: 2px 4px; margin: 0 -4px 10px; }
+.script p[data-act]:active { background: var(--accent-soft); }
+.ai-ask .mic { width: 44px; padding: 0; justify-content: center; }
+.ai-ask .mic svg { width: 20px; height: 20px; }
+.seg.wide button small { font-size: 11px; color: var(--text-3); }

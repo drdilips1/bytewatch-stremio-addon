@@ -55,7 +55,8 @@
         ttsStart: (title, items, start) => { clearTimeout(t); n = JSON.parse(items).length; i = start; tick(); },
         ttsToggle: () => { if (t) { clearTimeout(t); t = null; App.onNative({ type: 'tts', state: 'paused', index: i, total: n }); } else tick(); },
         ttsSeek: (k) => { clearTimeout(t); i = k; tick(); }, ttsSkip: (d) => { clearTimeout(t); i = Math.max(0, Math.min(n - 1, i + d)); tick(); },
-        ttsRate: () => {}, ttsVoice: () => {}, ttsPause: () => { clearTimeout(t); t = null; },
+        ttsRate: () => {}, ttsVoice: () => {}, ttsPause: () => { clearTimeout(t); t = null; App.onNative({ type: 'tts', state: 'paused', index: i, total: n }); },
+        listen: () => setTimeout(() => App.onNative(window.__speechMock ? { type: 'speech', text: window.__speechMock() } : { type: 'speech', error: 'Voice input needs the Android app' }), 200),
         ttsStop: () => { clearTimeout(t); t = null; App.onNative({ type: 'tts', state: 'stopped', index: i, total: n }); },
         aiHasKey: () => !!localStorage.getItem('ds.stub.aikey'),
         aiSetKey: (k) => (k ? localStorage.setItem('ds.stub.aikey', k) : localStorage.removeItem('ds.stub.aikey')),
@@ -1408,16 +1409,21 @@
    * Plays AI-written audio (a spoken summary, the two-person discussion). lines: [{t, speaker?, voice?, pitch?}].
    * It is always labelled as AI-generated, never as the document's own text.
    */
-  async function ttsPlayScript(label, lines, { title = tts.title } = {}) {
+  async function ttsPlayScript(label, lines, { title = tts.title, start = 0, meta = {} } = {}) {
     await speechReady;
     if (!lines.length) return;
-    tts.script = { label, lines };
-    tts.els = []; tts.texts = lines.map((l) => l.t); tts.secs = lines.map((l) => l.speaker || label); tts.heads = [];
+    tts.script = { label, lines, title, meta };
+    tts.title = title;
+    tts.els = []; tts.texts = lines.map((l) => l.t);
+    // Lines with topics (a podcast's segments) work as chapters; otherwise the speaker shows.
+    tts.secs = lines.map((l) => l.topic || l.speaker || label);
+    tts.heads = lines.map((l, i) => (l.topic && (i === 0 || lines[i - 1].topic !== l.topic) ? i : -1)).filter((i) => i >= 0);
     tts.cum = [0];
     lines.forEach((l) => tts.cum.push(tts.cum[tts.cum.length - 1] + l.t.length));
     tts.active = true;
-    Native.ttsStart(`${title} · ${label}`, JSON.stringify(lines.map((l) => ({ t: spoken(l.t), voice: l.voice || '', pitch: l.pitch || 0 }))), 0, ttsPrefs.rate, ttsPrefs.voice);
-    showTtsBar(true, 0);
+    start = Math.max(0, Math.min(start, lines.length - 1));
+    Native.ttsStart(`${title} · ${label}`, JSON.stringify(lines.map((l) => ({ t: spoken(l.t), voice: l.voice || '', pitch: l.pitch || 0 }))), start, ttsPrefs.rate, ttsPrefs.voice);
+    showTtsBar(true, start);
   }
 
   /** Index reached by moving `sec` seconds from the current paragraph (±). */
@@ -1503,6 +1509,7 @@
       }
     }
     if (!tts.script && tts.key && tts.texts.length) store.set('ttspos.' + tts.key, { i: index, n: tts.texts.length, t: Date.now() });
+    if (tts.script?.meta?.podcast) store.set('podpos.' + tts.script.meta.podcast, { i: index, n: tts.texts.length, t: Date.now() });
     ext.onTtsUpdate?.();
   }
 
@@ -1512,6 +1519,14 @@
     if (evt.state === 'error') { tts.active = false; hideTtsBar(); toast('Text-to-speech isn’t available. Install or enable a voice in Android settings.'); return; }
     if (String(evt.state).startsWith('error:')) { updateTtsBar(false, evt.index); toast(evt.state.slice(6)); return; }
     if (evt.state === 'buffering') { const p = $('#ttspos'); if (p) p.textContent = 'Preparing the voice…'; return; }
+    if (evt.state === 'ended' && tts.script?.meta?.resume) {
+      // An answer to the listener's question has finished: carry on where they interrupted.
+      const r = tts.script.meta.resume;
+      toast('Back to where you were');
+      if (r.doc) { ttsPlay(r.index); return; }
+      ttsPlayScript(r.label, r.lines, { title: r.title, start: r.index, meta: r.meta || {} });
+      return;
+    }
     if (evt.state === 'ended') { updateTtsBar(false, evt.index); if (!tts.script && tts.key) store.set('ttspos.' + tts.key, { i: 0, n: tts.texts.length, t: Date.now(), done: true }); toast('Finished'); return; }
     if (evt.state === 'sleep') { updateTtsBar(false, evt.index); toast('Sleep timer — paused'); return; }
     if (!tts.active) return;

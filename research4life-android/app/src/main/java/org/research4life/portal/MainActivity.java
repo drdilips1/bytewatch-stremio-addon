@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_PORTAL = 11;
     private static final int REQUEST_IMPORT_PDF = 12;
     private static final int REQUEST_CAMERA = 13;
+    private static final int REQUEST_SPEECH = 14;
     private Uri cameraUri;
 
     private WebView webView;
@@ -692,6 +693,21 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void ttsPreview(String v) { main.post(() -> narrator.preview(v)); }
         @JavascriptInterface public void ttsWarm(String e) { narrator.warm(e); }
 
+        /** Asks a question by voice (Android's speech recognizer); answers with a "speech" event. */
+        @JavascriptInterface
+        public void listen() {
+            main.post(() -> {
+                Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                i.putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Ask about what you just heard");
+                try {
+                    startActivityForResult(i, REQUEST_SPEECH);
+                } catch (ActivityNotFoundException e) {
+                    emit(event("speech", "error", "Voice input isn't available on this phone"));
+                }
+            });
+        }
+
         // ---- natural (neural) voices
         private final java.util.Set<String> downloading = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
 
@@ -913,6 +929,11 @@ public class MainActivity extends Activity {
         if ((requestCode == REQUEST_IMPORT || requestCode == REQUEST_IMPORT_PDF)
                 && resultCode == RESULT_OK && data != null && data.getData() != null) {
             handleIncoming(data.getData(), data.getType(), true);
+        } else if (requestCode == REQUEST_SPEECH) {
+            java.util.ArrayList<String> heard = resultCode == RESULT_OK && data != null
+                    ? data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS) : null;
+            if (heard != null && !heard.isEmpty()) emit(event("speech", "text", heard.get(0)));
+            else emit(event("speech", "error", ""));
         } else if (requestCode == REQUEST_CAMERA && resultCode == RESULT_OK && cameraUri != null) {
             handleIncoming(cameraUri, "image/jpeg", true);
         }
