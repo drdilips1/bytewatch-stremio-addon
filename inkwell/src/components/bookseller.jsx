@@ -6,7 +6,7 @@ import { fmtDuration } from '../lib/format.js';
 import { askBookseller, aiReady } from '../lib/bookseller.js';
 import { useStore } from '../lib/store.js';
 
-const EXAMPLES = ['Atmospheric sci-fi under 12 hours that feels like Project Hail Mary', 'A cosy mystery with a great narrator', 'Big-idea non-fiction like Sapiens, but shorter', 'Something funny for a long drive'];
+const EXAMPLES = ['Atmospheric sci-fi under 12 hours that feels like Project Hail Mary', 'A cosy mystery with a great narrator', 'Big-idea non-fiction like Sapiens, but shorter', 'Something funny for a long drive', "I'm exhausted: fascinating but not demanding", 'I have 40 minutes and want something that makes me think'];
 
 /** Ask for books in plain words, like talking to a bookseller. */
 // The last question and its answer stay while the app is open, so opening a pick and

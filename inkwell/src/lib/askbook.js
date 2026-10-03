@@ -50,11 +50,40 @@ export const MODES = [
 ];
 
 export const STARTERS = ['What is this book about?', 'What are the 5 most important ideas?', 'Is this book worth my time?', 'Give me a practical summary'];
+// While listening: one tap asks about the part you're hearing (the player's companion row).
+export const COMPANION = [
+  ['explain', '🧠', 'Explain', 'Explain what is being said at this point in simple words, with one real-life example.'],
+  ['challenge', '🔍', 'Challenge', "Challenge what the author argues around this point: the claim, the evidence given, the strongest support, the strongest criticism, and what remains uncertain. Mention related research or books."],
+  ['rabbit', '🐇', 'Rabbit hole', 'Take me down a 5-minute rabbit hole on the most interesting idea at this point: what is actually known, myths vs evidence, key thinkers, and related books or documentaries.'],
+  ['related', '📚', 'Related', 'Which other books (especially ones in my library) discuss the idea at this point, and how do they agree or disagree?'],
+];
+
+// "Remember this": ideas you save while listening, kept as cards and searchable by Ask my books.
+export const ideas = persisted('savedIdeas', []);
+export async function rememberHere(book) {
+  const where = hearing(book);
+  let text = '';
+  try {
+    text = (await askAi(`${context(book, { description: book?.description || '' })}
+The reader is listening at ${where?.label || 'the current point'} and wants to remember the idea being discussed there.
+In one or two plain sentences, state that key idea so it is useful to re-read weeks later. If unsure of the exact passage, state the book's closest key idea and say "around here".`)).trim();
+  } catch {
+    text = '';
+  }
+  const card = { t: Date.now(), uid: book?.uid || '', title: mainTitle(book?.title || ''), author: book?.author || '', where: where?.label || '', text: text || `Saved at ${where?.label || 'this point'}` };
+  ideas.set((list) => [card, ...(list || [])].slice(0, 300));
+  return card;
+}
+export const forgetIdea = (t) => ideas.set((list) => (list || []).filter((c) => c.t !== t));
+
 export const LIBRARY_ASKS = [
+  'What ideas have I saved, grouped by theme?',
   'What common themes run through my books?',
   'Which books in my library disagree with each other?',
   'What should I read next, based on my books?',
   'Sum up what my books say about living well',
+  'Debate: pick two of my books that disagree and give each side its strongest case',
+  'Which idea comes up again and again across my books?',
 ];
 
 // Conversations, per book (newest 30 books, last 30 messages each).
@@ -81,13 +110,19 @@ export function hearing(book) {
   return { chapter: ch?.title || '', time: g, label: `${ch?.title ? `${ch.title}, ` : ''}${fmtTime(g)}` };
 }
 
+function savedIdeas() {
+  const list = (ideas.get() || []).slice(0, 60);
+  if (!list.length) return '';
+  return `Ideas the reader saved while listening ("Remember this"):\n${list.map((c) => `- [${c.title}${c.where ? `, ${c.where}` : ''}] ${c.text}`).join('\n')}\n`;
+}
+
 function context(book, { description = '', genres = [] } = {}) {
   if (!book) {
     const taste = tasteProfile(60);
     return `You are a thoughtful reading companion who knows this reader's library well.
 The reader's books (with how they felt, where known):
 ${taste.length ? taste.map((t) => '- ' + t).join('\n') : '- (no books yet)'}
-Answer about these books using what you know of them. Name the books you draw on. If a book isn't one you know, say so.`;
+${savedIdeas()}Answer about these books using what you know of them. Name the books you draw on. If a book isn't one you know, say so.`;
   }
   const title = mainTitle(book.title);
   const desc = String(description || book.description || '').replace(/\s+/g, ' ').trim().slice(0, 1800);

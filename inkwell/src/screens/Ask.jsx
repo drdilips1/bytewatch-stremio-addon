@@ -3,7 +3,7 @@ import { TopBar, Cover, toast } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { nav } from '../lib/nav.js';
 import { aiReady } from '../lib/ai.js';
-import { MODES, STARTERS, LIBRARY_ASKS, ask, quiz, threadFor, clearThread, hearing } from '../lib/askbook.js';
+import { MODES, STARTERS, LIBRARY_ASKS, ask, quiz, threadFor, clearThread, hearing, ideas, forgetIdea } from '../lib/askbook.js';
 import { keyIdeas, summaryBook } from '../sources/summaries.js';
 import { mainTitle } from '../lib/match.js';
 import { usePlayer } from '../components/player-ui.jsx';
@@ -14,7 +14,7 @@ import { canListen, listen, speakAnswer, stopAnswer, voiceLang, LANGS, askVoice,
  * Ask AI about one book (params.book) or about your whole library (no book).
  * params: { book, description, genres, mode, question }
  */
-export function Ask({ book = null, description = '', genres = [], mode: startMode = '', question = '' }) {
+export function Ask({ book = null, description = '', genres = [], mode: startMode = '', question = '', here = false }) {
   const [msgs, setMsgs] = useState(() => threadFor(book));
   const [mode, setMode] = useState(startMode);
   const [text, setText] = useState('');
@@ -102,7 +102,7 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
   };
 
   useEffect(() => {
-    if (question) run(question);
+    if (question) run(question, here && where ? { where } : {});
     else if (msgs.length) scrollEnd();
   }, []);
 
@@ -203,6 +203,8 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
           </button>
         )}
       </div>
+
+      {!book && <SavedIdeas />}
 
       <div class="ask-thread pad">
         {msgs.map((m, i) => (
@@ -326,6 +328,36 @@ function Quiz({ questions }) {
           {score} / {questions.length} {score === questions.length ? '— perfect! 🎉' : score >= questions.length / 2 ? '— nicely done' : '— worth another listen'}
         </p>
       )}
+    </div>
+  );
+}
+
+/** Ideas saved with "Remember" in the player: a quiet, foldable list (Ask my books also reads them). */
+function SavedIdeas() {
+  const list = useStore(ideas) || [];
+  const [open, setOpen] = useState(false);
+  if (!list.length) return null;
+  return (
+    <div class="pad saved-ideas">
+      <button class="links-toggle" onClick={() => setOpen(!open)}>
+        <span>
+          💾 Saved ideas <small>{list.length}</small>
+        </span>
+        <Icon name={open ? 'up' : 'down'} size={16} />
+      </button>
+      {open &&
+        list.map((c) => (
+          <div class="idea-card">
+            <p>{c.text}</p>
+            <small>
+              {c.title}
+              {c.where ? ` · ${c.where}` : ''}
+            </small>
+            <button class="link-btn" onClick={() => forgetIdea(c.t)}>
+              Remove
+            </button>
+          </div>
+        ))}
     </div>
   );
 }

@@ -10,6 +10,8 @@ import { coverColor } from '../lib/color.js';
 import { nav } from '../lib/nav.js';
 import { bookmarks, settings, useStore } from '../lib/store.js';
 import { openDrive } from './drive-mode.jsx';
+import { COMPANION, rememberHere } from '../lib/askbook.js';
+import { aiReady } from '../lib/ai.js';
 import { TranscriptView } from './transcript-view.jsx';
 import { StorySheet } from './story-sheet.jsx';
 import { transcriptCfg, stopTranscript } from '../lib/transcript.js';
@@ -255,6 +257,8 @@ export function FullPlayer() {
         </button>
       </div>
 
+      <Companion book={s.book} />
+
       <div class="fp-actions">
         <button class="chip-btn" onClick={() => setSheet('speed')}>
           <b>{s.rate}×</b> Speed
@@ -485,4 +489,49 @@ function PlayerBackground({ book, st }) {
   }
   if (kind === 'plain') return <div class="fp-bg fp-plain" />;
   return <div class="fp-bg">{book.cover && <BgImage url={book.cover} />}</div>;
+}
+
+/**
+ * The AI companion while listening: Ask / Explain / Challenge / Rabbit hole / Related
+ * about the part you're hearing (the book pauses; the mini player brings you back),
+ * and Remember to keep the idea as a card.
+ */
+function Companion({ book }) {
+  const [saving, setSaving] = useState(false);
+  if (!book || book.source === 'pod') return null;
+  const go = (question) => {
+    if (!aiReady()) {
+      toast('Add a free AI key in Settings → AI first');
+      return;
+    }
+    player.pause();
+    nav.closeOverlay();
+    nav.push('ask', { book, description: book.description || '', question, here: !!question });
+  };
+  const remember = async () => {
+    setSaving(true);
+    player.addBookmark('Remembered idea');
+    try {
+      const card = await rememberHere(book);
+      toast(`💾 Saved: ${card.text.slice(0, 90)}${card.text.length > 90 ? '…' : ''}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div class="fp-companion">
+      <button class="comp-btn" onClick={() => go('')}>
+        <span>✨</span>Ask
+      </button>
+      {COMPANION.map(([id, icon, label, q]) => (
+        <button class="comp-btn" key={id} onClick={() => go(q)}>
+          <span>{icon}</span>
+          {label}
+        </button>
+      ))}
+      <button class="comp-btn" disabled={saving} onClick={remember}>
+        <span>{saving ? '…' : '💾'}</span>Remember
+      </button>
+    </div>
+  );
 }

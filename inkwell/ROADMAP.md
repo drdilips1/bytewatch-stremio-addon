@@ -50,6 +50,27 @@ Like Apple Books / Audible: breathing room, big covers, soft cards, one accent c
   tidy row.
 - Light and dark both checked; screenshots of every screen before/after for approval.
 
+## Ideas from Grok (only what the app doesn't have yet)
+Built (waiting for the next build):
+- Player "AI companion" row: ✨ Ask · 🧠 Explain · 🔍 Challenge · 🐇 Rabbit hole · 📚 Related · 💾 Remember —
+  about the part you're hearing; the book pauses and the mini player brings you back.
+- 💾 Remember this → saved idea cards (Ask my books → Saved ideas), and Ask my books answers from them.
+- Book-vs-book debate and "idea that keeps coming up" questions in Ask my books.
+- Mood requests for the bookseller ("I'm exhausted…", "I have 40 minutes…").
+
+Possible next (medium):
+- PDF / web page / Word → listen (text extraction + the read-aloud voices); EPUB already works.
+- Research paper → two-voice "podcast" (AI writes a host/expert script, two Microsoft voices read it).
+- Listening modes by time of day / time available (picks from your library).
+- Auto-resume after an answer in the normal Ask screen (Driving mode already does it).
+
+Hard or not realistic right now:
+- "AI Director" (different acted voices per character, ambience) — needs the book's text and studio-grade
+  voice acting; only possible for ebooks, and results would be uneven.
+- Dynamic compression of an audiobook (70% / 40% / 12 minutes) — the app has the audio, not the text,
+  so it can't cut the recording itself; AI summaries ("Blinks") already cover the short versions.
+- Knowledge graph / visual concept map across books — large; Saved ideas + Ask my books is the first step.
+
 ## Other ideas
 - Add Google Gemini as a third free AI option (often better Hindi/Hinglish than Groq).
 - Driving mode: a "🎙 Ask" button in the playback notification / lock screen (native work).
