@@ -45,6 +45,45 @@ async function topRated() {
   return rankForYou(notOwned(r).filter((b) => (b.rating || 0) >= 4.5 && (b.ratings || 0) >= 200)).slice(0, 30);
 }
 
+// Store-style rows: picks for you, new releases, this month's top titles.
+async function recommendedForYou() {
+  const r = await picksForYou().catch(() => []);
+  const noRank = ({ rank, ...b }) => b;
+  return (r.length ? rankForYou(notOwned(r)).slice(0, 24) : await topRated()).map(noRank);
+}
+async function newReleases() {
+  const now = Date.now();
+  const since = now - 120 * 864e5;
+  const all = await audible.pool('bestsellers');
+  return notOwned(all.filter((b) => b.released && b.released >= since && b.released <= now))
+    .sort((a, b) => b.released - a.released)
+    .slice(0, 24)
+    .map(({ rank, ...b }) => b);
+}
+async function topThisMonth() {
+  const r = await audible.genre('bestsellers');
+  return r.slice(0, 20).map((b, i) => ({ ...b, rank: i + 1 }));
+}
+
+/** Explore categories: colourful tiles, two rows that scroll sideways. */
+function CategoryTiles() {
+  const list = [...(enabled('hi') ? [{ ...HINDI_ALL, name: 'हिंदी', hindi: true }] : []), ...GENRES];
+  return (
+    <section class="cat-section">
+      <div class="row-head">
+        <h2>Explore categories</h2>
+      </div>
+      <div class="cat-grid">
+        {list.map((g) => (
+          <button class="cat-tile" style={{ '--h': g.hue }} lang={g.hindi ? 'hi' : undefined} onClick={() => nav.push('browse', { genre: g.hindi ? HINDI_ALL : g })}>
+            <span>{g.name}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function heroSources() {
   const list = [];
   list.push([() => picksForYou().then((r) => rankForYou(notOwned(r))), 'Picked for you', 'ai']);
@@ -481,7 +520,10 @@ export function Home() {
 
       <WaitingRow />
       <ContinueRow />
-      <GenreChips />
+      <Row title="Recommended for you" subtitle="From your listening and ratings" icon="sparkle" cacheKey="homeRec" load={recommendedForYou} deps={[]} />
+      <Row title="New releases" subtitle="Popular audiobooks out in the last few months" icon="flame" cacheKey="homeNew" load={newReleases} deps={[]} />
+      <Row title="Top titles this month" subtitle="Best sellers right now" icon="star" cacheKey="homeTop" load={topThisMonth} deps={[]} />
+      <CategoryTiles />
 
       {sourceOrder().map((k) => (
         <Fragment key={k}>{blocks[k]}</Fragment>
