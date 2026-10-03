@@ -46,7 +46,14 @@ export function audibleRating(p) {
 }
 
 const pools = new Map();
-const products = (d, key = 'products') => (d?.[key] || []).filter((p) => p.title).map(fromAudible);
+// English listings only (Hindi allowed): no German, Chinese, Spanish… editions or titles in other scripts.
+const OTHER_SCRIPT = /[\u0400-\u04FF\u0590-\u06FF\u0E00-\u0E7F\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]/;
+export const wantedLanguage = (lang, title = '') => {
+  if (OTHER_SCRIPT.test(title)) return false;
+  const l = String(lang || '').toLowerCase();
+  return !l || /^(en|english|hi|hindi)\b/.test(l) || l.startsWith('en-') || l.startsWith('en_');
+};
+const products = (d, key = 'products') => (d?.[key] || []).filter((p) => p.title && wantedLanguage(p.language, p.title)).map(fromAudible);
 
 export const audible = {
   /** Audible bestsellers for a genre (listing only). */
@@ -63,7 +70,7 @@ export const audible = {
   async search(term) {
     if (!term.trim()) return [];
     const d = await getJson(`${AUDIBLE}?` + qs({ keywords: term, num_results: 24, products_sort_by: 'Relevance', response_groups: GROUPS, image_sizes: '500,1024' }));
-    return (d.products || []).filter((p) => p.title).map(fromAudible);
+    return (d.products || []).filter((p) => p.title && wantedLanguage(p.language, p.title)).map(fromAudible);
   },
   /** Audible's "listeners also enjoyed" for an ASIN, falling back to same-author titles. */
   async related(asin, { exclude = [] } = {}) {
@@ -173,8 +180,8 @@ function fromGoogle(item) {
 export const googleBooks = {
   async search(term) {
     if (!term.trim()) return [];
-    const d = await getJson('https://www.googleapis.com/books/v1/volumes?' + qs({ q: term, maxResults: 24, printType: 'books', orderBy: 'relevance' }));
-    return (d.items || []).filter((i) => i.volumeInfo?.title).map(fromGoogle);
+    const d = await getJson('https://www.googleapis.com/books/v1/volumes?' + qs({ q: term, maxResults: 24, printType: 'books', orderBy: 'relevance', langRestrict: 'en' }));
+    return (d.items || []).filter((i) => i.volumeInfo?.title && wantedLanguage(i.volumeInfo.language, i.volumeInfo.title)).map(fromGoogle);
   },
   async details(book) {
     const d = await getJson(`https://www.googleapis.com/books/v1/volumes/${book.uid.slice(4)}`);
