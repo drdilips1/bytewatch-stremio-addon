@@ -956,41 +956,35 @@ function Description({ text, expanded, setExpanded }) {
   );
 }
 
-/** Goodreads: the work's rating, genres, and links to rate the book or read reviews there. */
+/** Goodreads, as a small tile: rating, top genres, and links to rate or read reviews there. */
 function GoodreadsCard({ gr }) {
   return (
-    <section class="gr-card pad">
-      <div class="gr-head">
+    <section class="gr-card gr-tile">
+      <button class="gr-main" onClick={() => openExternal(gr.url)}>
         <span class="gr-logo">g</span>
-        <b>Goodreads</b>
-        {gr.rating > 0 && (
-          <span class="gr-score">
-            <Icon name="star" size={14} fill /> {gr.rating.toFixed(2)}
+        <span class="gr-text">
+          <b>Goodreads</b>
+          {gr.rating > 0 ? (
             <small>
+              <Icon name="star" size={12} fill /> {gr.rating.toFixed(2)}
               {gr.count > 0 && ` · ${fmtK(gr.count)} ratings`}
               {gr.reviews > 0 && ` · ${fmtK(gr.reviews)} reviews`}
             </small>
-          </span>
-        )}
-      </div>
+          ) : (
+            <small>Reviews and ratings</small>
+          )}
+        </span>
+        <Icon name="external" size={16} />
+      </button>
       {gr.genres?.length > 0 && (
         <div class="gr-genres">
-          <span class="muted">Genres</span>
-          {gr.genres.map((g) => (
+          {gr.genres.slice(0, 5).map((g) => (
             <button class="gr-genre" onClick={() => openExternal(g.url)}>
               {g.name}
             </button>
           ))}
         </div>
       )}
-      <div class="gr-actions">
-        <button class="pill small" onClick={() => openExternal(gr.url)}>
-          ☆ Rate this book
-        </button>
-        <button class="pill small" onClick={() => openExternal(gr.url)}>
-          Reviews on Goodreads ↗
-        </button>
-      </div>
     </section>
   );
 }

@@ -6427,10 +6427,7 @@ button.rt {
   margin-top: -36px;
   box-shadow: 0 -10px 30px -10px rgba(0, 0, 0, 0.5);
 }
-/* The strip already shows the rating: the Goodreads card keeps genres and links */
-.book .gr-card .gr-score {
-  display: none;
-}
+
 
 /* =====================================================================
    Studio look (default): clean neutral black / white, warm orange accent,
@@ -6659,4 +6656,55 @@ button.rt {
 }
 :root[data-palette='studio'] .fp-scrub input[type='range']::-moz-range-track {
   background: linear-gradient(90deg, #f7991c var(--pct), rgba(255, 255, 255, 0.2) var(--pct));
+}
+
+/* Goodreads as a small tile */
+.book .gr-tile {
+  padding: 12px 14px;
+}
+.gr-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  color: var(--text);
+  text-align: left;
+}
+.gr-main > .icon {
+  color: var(--faint);
+}
+.gr-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.gr-text b {
+  font-size: 15px;
+}
+.gr-text small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.gr-text small .icon {
+  color: #f5b301;
+}
+.gr-tile .gr-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0 44px;
+}
+.gr-tile .gr-genre {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 0;
 }
