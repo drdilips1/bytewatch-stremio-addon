@@ -33,6 +33,23 @@ Noted while building; to pick up after Saturday.
 
 Recommended: Google + Email code + Email/password + "Skip for now".
 
+## Design overhaul (planned) — "calm & premium", whole app, Book page first
+Like Apple Books / Audible: breathing room, big covers, soft cards, one accent colour.
+- **One design system**: a single spacing scale (8-pt), 3 text sizes per screen (title / body / caption),
+  one card style, one button style (filled primary, quiet secondary), one accent colour (cover colour only
+  on the book page and player). Remove one-off styles that grew over time.
+- **Fewer things on screen**: badges, chips and emojis only where they carry meaning; secondary actions
+  move into a "⋯" menu.
+- **Book page** (top to bottom): large cover on a soft blurred backdrop → title, author, narrator, length
+  → one primary action (Play / Get it) → ratings as one quiet line (Goodreads ★ + Audible) → description
+  with "More" → Ask AI as one compact card → Where to listen (sources) → More like this. Fix details,
+  Hardcover and similar go into the ⋯ menu.
+- **Home / Library / Discover / Settings**: consistent headers, same row/card sizes, quieter section
+  titles, Settings as grouped lists (like iOS Settings).
+- **Player**: bigger cover, cleaner control row, secondary chips (Speed, Sleep, Text, Story, Drive) in one
+  tidy row.
+- Light and dark both checked; screenshots of every screen before/after for approval.
+
 ## Other ideas
 - Add Google Gemini as a third free AI option (often better Hindi/Hinglish than Groq).
 - Driving mode: a "🎙 Ask" button in the playback notification / lock screen (native work).
