@@ -520,9 +520,9 @@ export function Home() {
 
       <WaitingRow />
       <ContinueRow />
-      <Row title="Recommended for you" subtitle="From your listening and ratings" icon="sparkle" cacheKey="homeRec" load={recommendedForYou} deps={[]} />
-      <Row title="New releases" subtitle="Popular audiobooks out in the last few months" icon="flame" cacheKey="homeNew" load={newReleases} deps={[]} />
-      <Row title="Top titles this month" subtitle="Best sellers right now" icon="star" cacheKey="homeTop" load={topThisMonth} deps={[]} />
+      <Row title="Recommended for you" subtitle="From your listening and ratings" icon="sparkle" cacheKey="homeRec" shuffle load={recommendedForYou} deps={[]} />
+      <Row title="New releases" subtitle="Popular audiobooks out in the last few months" icon="flame" cacheKey="homeNew" shuffle load={newReleases} deps={[]} />
+      <Row title="Top titles this month" subtitle="Best sellers right now" icon="star" cacheKey="homeTop" shuffle load={topThisMonth} deps={[]} />
       <CategoryTiles />
 
       {sourceOrder().map((k) => (

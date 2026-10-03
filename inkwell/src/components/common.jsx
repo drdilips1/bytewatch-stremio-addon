@@ -163,7 +163,8 @@ const rowCache = persisted('rowCache', {});
 const ROW_KEEP = ['uid', 'source', 'kind', 'title', 'author', 'narrator', 'cover', 'year', 'duration', 'addedAt', 'hash', 'format', 'fetching', 'genres'];
 const slim = (b) => Object.fromEntries(ROW_KEEP.filter((k) => b?.[k] !== undefined).map((k) => [k, b[k]]));
 
-export function Row({ title, subtitle, load, items: given, icon, onMore, deps = [], showErrors = false, emptyText = '', cacheKey = '' }) {
+export function Row({ title, subtitle, load, items: given, icon, onMore, deps = [], showErrors = false, emptyText = '', cacheKey = '', shuffle = false }) {
+  const scroller = useRef(null);
   const [items, setItems] = useState(() => given || (cacheKey && rowCache.get()[cacheKey]) || null);
   const [error, setError] = useState(null);
   useEffect(() => {
@@ -207,13 +208,31 @@ export function Row({ title, subtitle, load, items: given, icon, onMore, deps = 
           </h2>
           {subtitle && <p>{subtitle}</p>}
         </div>
+        {shuffle && items?.length > 2 && (
+          <button
+            class="icon-btn row-shuffle"
+            aria-label={`Shuffle ${title}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              const next = [...items];
+              for (let i = next.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [next[i], next[j]] = [next[j], next[i]];
+              }
+              setItems(next);
+              if (scroller.current) scroller.current.scrollLeft = 0;
+            }}
+          >
+            <Icon name="shuffle" size={18} />
+          </button>
+        )}
         {onMore && (
           <span class="link-btn see-all">
             See all{items ? ` ${items.length}` : ''} ›
           </span>
         )}
       </header>
-      <div class="row-scroll">
+      <div class="row-scroll" ref={scroller}>
         {items ? items.map((b) => <SafeCard key={b.uid} book={b} />) : Array.from({ length: 6 }, (_, i) => <Skeleton key={i} />)}
       </div>
     </section>

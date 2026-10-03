@@ -6810,3 +6810,12 @@ button.rt {
   margin-top: 4px;
   font-size: 12px;
 }
+.row-head .row-shuffle {
+  margin-left: auto;
+  width: 36px;
+  height: 36px;
+  color: var(--muted);
+}
+.row-head .row-shuffle + .see-all {
+  margin-left: 6px;
+}
