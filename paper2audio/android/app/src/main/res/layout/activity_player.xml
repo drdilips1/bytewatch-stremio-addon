@@ -53,8 +53,8 @@
         <ImageButton
             android:id="@+id/btnTheme"
             style="@style/P2A.Icon"
-            android:contentDescription="Theme"
-            android:src="@drawable/ic_palette" />
+            android:contentDescription="Car mode: big buttons and voice commands"
+            android:src="@drawable/ic_car" />
     </LinearLayout>
 
     <!-- Header -->
@@ -322,6 +322,7 @@
 
                 <!-- AI -->
                 <LinearLayout
+                    android:id="@+id/aiCard"
                     style="@style/P2A.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
@@ -345,6 +346,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
                         android:text="5-minute briefing" />
+
+                    <Button
+                        android:id="@+id/btnVersions"
+                        style="@style/P2A.Button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Other versions: Essential, Deep, Teach me, Challenge me…" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -626,9 +635,23 @@
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
                 android:layout_marginEnd="8dp"
+                android:drawableStart="@drawable/ic_sparkle"
                 android:minHeight="36dp"
-                android:text="Explain"
+                android:paddingStart="12dp"
+                android:paddingEnd="14dp"
+                android:text="Ask AI"
                 android:textSize="13sp" />
+
+            <ImageButton
+                android:id="@+id/btnAskVoice"
+                style="@style/P2A.Icon"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_button_soft"
+                android:contentDescription="Ask AI by voice"
+                android:padding="8dp"
+                android:src="@drawable/ic_mic" />
 
             <Button
                 android:id="@+id/btnFigure"

@@ -42,6 +42,7 @@ object Account {
     /** Reading and voice settings that follow the account. */
     private val SETTINGS = listOf(
         "voice2", "speed", "style", "pitch", "medical", "fullCast", "castMale", "castFemale", "dialogueVoice", "theme",
+        "groqKey", "geminiKey", "aiProvider", "aiLevel", "skipFront", "speakAnswers", "resumeAfterAnswer", "tasteProfile",
     )
 
     var running = false

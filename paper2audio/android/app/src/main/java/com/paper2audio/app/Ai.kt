@@ -7,7 +7,7 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * AI features, through [Llm] (Grok or Gemini): briefings, summaries, explanations,
+ * AI features, through [Llm] (Groq or Gemini): briefings, summaries, explanations,
  * questions about a document, study material, podcast scripts, figure and table
  * explanations and translation. Transcription always uses Gemini (it takes audio).
  */
@@ -16,8 +16,8 @@ object Ai {
         "no markdown, no asterisks, no bullet symbols, no headings marked with #, no tables, no LaTeX, no emojis. " +
         "Say math and symbols in words. Do not start with a preamble like \"Here is\"; begin directly."
 
-    /** Per request, input is kept below the free tier's per-minute token limit. */
-    private const val CHUNK_CHARS = 350_000
+    /** Per request, input is kept below the AI's per-minute token limit (Gemini's free tier is far larger than Groq's). */
+    private fun limit(context: Context) = Llm.inputChars(context)
 
     private fun cacheFile(context: Context, vararg parts: String): File {
         val md = MessageDigest.getInstance("SHA-1").digest((listOf(Llm.name(context)) + parts).joinToString("\u0000").toByteArray())
@@ -50,9 +50,9 @@ object Ai {
             } else {
                 "a short summary of about 200 to 300 words with the main point and the most important takeaways"
             }
-            val source = if (text.length <= CHUNK_CHARS) text else {
+            val source = if (text.length <= limit(context)) text else {
                 // Too long for one request: summarize each part, then summarize the summaries.
-                val chunks = chunk(paras)
+                val chunks = chunk(paras, limit(context))
                 chunks.mapIndexed { i, c ->
                     progress("Reading part ${i + 1} of ${chunks.size}…")
                     Llm.generate(
@@ -73,11 +73,11 @@ object Ai {
         }
     }
 
-    private fun chunk(paras: List<String>): List<String> {
+    private fun chunk(paras: List<String>, max: Int): List<String> {
         val out = ArrayList<String>()
         val sb = StringBuilder()
         for (p in paras) {
-            if (sb.length + p.length > CHUNK_CHARS && sb.isNotEmpty()) {
+            if (sb.length + p.length > max && sb.isNotEmpty()) {
                 out += sb.toString()
                 sb.clear()
             }
@@ -119,6 +119,68 @@ object Ai {
         }
     }
 
+    // ---- Ask anything while listening ----
+
+    /**
+     * Answers [question] about [doc] for someone listening at paragraph [index]: what was just read
+     * is the main context, plus the passages of the whole text that relate to the question. The
+     * answer is short and written to be heard. [family] keeps it simple enough for children.
+     */
+    fun askWhileListening(context: Context, doc: Doc, index: Int, question: String, family: Boolean = false): String {
+        val at = index.coerceIn(0, maxOf(0, doc.paragraphs.size - 1))
+        val recent = doc.paragraphs.subList((at - 4).coerceAtLeast(0), (at + 1).coerceAtMost(doc.paragraphs.size)).joinToString("\n\n")
+        val related = numbered(doc, question, (limit(context) - recent.length - 2_000).coerceAtLeast(4_000))
+        val where = doc.chapterAt(at)?.title?.let { " The listener is in the part \"$it\"." } ?: ""
+        return Llm.generate(
+            context,
+            "Someone is listening to \"${doc.title}\"" + (doc.author?.let { " by $it" } ?: "") + " and asks a question." + where +
+                "\n\nWhat they just heard:\n\n$recent\n\nRelated passages from the whole text (numbered):\n\n$related\n\n" +
+                "Their question: $question\n\n" +
+                "Answer helpfully in about 60 to 160 words. Use the text when it answers the question and say so; use general " +
+                "knowledge when the question goes beyond it. Don't give away later plot twists in fiction unless asked." +
+                if (family) " Explain so that a 10-year-old understands, with simple words and an everyday comparison." else "",
+            system = SPOKEN,
+        )
+    }
+
+    /**
+     * The characters of a story and whether each is a man or a woman, for the full cast:
+     * {"Hermione": "female", "Hagrid": "male"}. Cached per book.
+     */
+    fun characters(context: Context, doc: Doc): Map<String, String> {
+        val sample = doc.paragraphs.filter { '\u201C' in it }.joinToString("\n\n").take(limit(context) - 2_000)
+        if (sample.length < 500) return emptyMap()
+        val file = cacheFile(context, "characters", doc.title, doc.author.orEmpty())
+        val json = cached(file) {
+            Llm.generate(
+                context,
+                "List the characters who speak in this story" + (doc.author?.let { " (\"${doc.title}\" by $it)" } ?: "") +
+                    ", with each one's gender. Use the names exactly as the text uses them for speakers (first names " +
+                    "or surnames as they appear, include both forms if both are used). Return only JSON: " +
+                    "{\"characters\":{\"Name\":\"male\" or \"female\"}}.\n\nDialogue from the story:\n\n$sample",
+                json = true,
+            )
+        }
+        val o = JSONObject(cleanJson(json)).optJSONObject("characters") ?: return emptyMap()
+        return o.keys().asSequence().associateWith { o.optString(it).lowercase() }.filterValues { it == "male" || it == "female" }
+    }
+
+    /** A short spoken recap of a chapter that just ended, with one question to think about (AI immersion). */
+    fun chapterRecap(context: Context, doc: Doc, chapter: Chapter): String {
+        val i = doc.chapters.indexOf(chapter)
+        val end = doc.chapters.getOrNull(i + 1)?.start ?: doc.paragraphs.size
+        val text = doc.paragraphs.subList(chapter.start, end).joinToString("\n\n").take(limit(context) - 2_000)
+        val file = cacheFile(context, "recap", doc.title, chapter.title, text.length.toString())
+        return cached(file) {
+            Llm.generate(
+                context,
+                "The listener just finished the chapter \"${chapter.title}\" of \"${doc.title}\". In about 60 to 90 words, " +
+                    "recap its key points, then ask one thought-provoking question for them to think about as the book goes on.\n\n$text",
+                system = SPOKEN,
+            )
+        }
+    }
+
     // ---- Briefing ----
 
     /**
@@ -147,8 +209,8 @@ object Ai {
     /** The document's text, condensed in parts first when it is too long for one request. */
     private fun condensed(context: Context, doc: Doc, progress: (String) -> Unit): String {
         val text = doc.paragraphs.joinToString("\n\n")
-        if (text.length <= CHUNK_CHARS) return text
-        val chunks = chunk(doc.paragraphs)
+        if (text.length <= limit(context)) return text
+        val chunks = chunk(doc.paragraphs, limit(context))
         return chunks.mapIndexed { i, c ->
             progress("Reading part ${i + 1} of ${chunks.size}…")
             Llm.generate(
@@ -178,7 +240,7 @@ object Ai {
      */
     fun ask(context: Context, doc: Doc, question: String): String {
         val past = history(context, doc)
-        val source = numbered(doc, question, CHUNK_CHARS)
+        val source = numbered(doc, question, limit(context))
         val convo = past.takeLast(6).joinToString("\n\n") { "Question: ${it.question}\nAnswer: ${it.answer}" }
         val answer = Llm.generate(
             context,
@@ -407,11 +469,11 @@ object Ai {
 
     /**
      * Asks the AI to look at the PDF's figures, tables and key equations and saves the
-     * explanations. Gemini reads the PDF itself; Grok gets the pages with figures as images.
+     * explanations. Gemini reads the PDF itself; Groq gets the pages with figures as images.
      */
     fun explainVisuals(context: Context, item: Library.Item, doc: Doc): Int {
         val pdf = Library.source(context, item).file
-        val grok = Llm.provider(context) == Llm.GROK
+        val grok = Llm.provider(context) == Llm.GROQ
         if (!grok && pdf.length() > 18_000_000) throw Gemini.GeminiException("This PDF is too large for free Gemini (the limit is about 18 MB).")
         val prompt = "Look at every figure, table and important numbered equation in this PDF. For each one, write an explanation " +
             "to be read aloud to someone listening to the paper who cannot see it: what it shows, how to read it, " +
@@ -426,7 +488,7 @@ object Ai {
                 val bmp = FigureViewer.renderPage(pdf, page, 1300)
                 java.io.ByteArrayOutputStream().also { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, it); bmp.recycle() }.toByteArray()
             }
-            Grok.generate(context, prompt.replace("in this PDF", "on these pages of a PDF"), images = images, json = true)
+            Groq.generate(context, prompt.replace("in this PDF", "on these pages of a PDF"), images = images, json = true)
         } else {
             Gemini.generate(context, prompt, attachment = "application/pdf" to pdf.readBytes(), json = true)
         }

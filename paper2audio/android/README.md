@@ -60,8 +60,31 @@ the phone: no server, no account, no limits.
 - Cloning removes background noise from the recording first (a 0.5 MB
   on-device model), which is what made cloned voices mumble.
 
-**AI** (Options › AI; Grok with your own xAI key, which is paid per use, or
-free Gemini)
+**Screens**: a bottom bar with Home (continue listening, recent books, quick
+ways in), Library, Ask AI, Discover and Settings (sections that open and close:
+account, appearance/themes, playback, voices, AI, updates).
+
+**Listening anywhere**: lock-screen, headphone, car-stereo and watch controls
+(media session); calls and navigation prompts pause the book; unplugging
+headphones pauses. **Car mode**: huge buttons, the screen stays on, tap anywhere
+and say "pause", "go back", "next chapter", "faster", or ask a question.
+Books skip their front and back matter (contents, copyright, preface, index…)
+and start at the introduction. **Family listening** style: slower and clearer.
+
+**AI** (Settings › AI; free Groq key, or free Gemini). Three levels: 🟢 Pure
+audiobook (no AI), 🔵 AI-assisted, 🟣 AI immersion (a recap and a question at
+the end of every chapter).
+- **Ask AI** by voice or text about what you're hearing: the answer is shown and
+  read aloud (pause it any time), then the book carries on.
+- **One book, several versions**: ⚡ Essential (~90 min), 🧠 Deep understanding
+  (~3 h), 📝 Chapter summaries, 🎓 Teach me, 🧐 Challenge me; each becomes its own
+  audiobook in the library.
+- **Ask your library**: "What have I learned about consciousness?", "Which books
+  disagree?" (the AI keeps a short digest of each document).
+- **Discover**: learns your reading taste (editable) and recommends what to read
+  next, with one tap to find it.
+- **Cinematic full cast**: AI identifies the characters and their genders; each
+  keeps their voice for the whole book and the author's other books.
 - **5-minute briefing** before listening: what it's about, the question, how,
   main findings, limitations, implications; then *Listen to full text*.
 - **Explain as you listen**: Explain the sentence being read, like I'm 10, at

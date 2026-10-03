@@ -37,7 +37,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /** Home screen: the user's documents with thumbnails, details and progress. */
-class LibraryActivity : Activity() {
+class LibraryActivity : Activity(), PagesHost {
     private companion object {
         const val REQ_OPEN = 1
         const val REQ_IMAGES = 2
@@ -47,7 +47,11 @@ class LibraryActivity : Activity() {
         val SORTS = arrayOf("Recently opened", "Recently added", "Title", "Author", "Progress")
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    override val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private lateinit var tabBar: LinearLayout
+    private lateinit var pages: FrameLayout
+    private var tab = Tabs.HOME
+    private val pageViews = HashMap<Int, Page>()
     private val refresh: () -> Unit = { renderMiniPlayer() }
     private val syncRefresh: () -> Unit = { reload() }
     private val thumbs = LruCache<String, Bitmap>(40)
@@ -74,7 +78,10 @@ class LibraryActivity : Activity() {
     private lateinit var chipScroll: View
     private lateinit var emptyText: CharSequence
     private lateinit var updateBanner: TextView
-    private val accountRefresh: () -> Unit = { reload() }
+    private val accountRefresh: () -> Unit = {
+        reload()
+        if (tab == Tabs.SETTINGS) pageViews[Tabs.SETTINGS]?.refresh()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Themes.apply(this)
@@ -128,6 +135,9 @@ class LibraryActivity : Activity() {
         miniPlayer.setOnClickListener { startActivity(Intent(this, PlayerActivity::class.java)) }
         miniPlay.setOnClickListener { Speaker.toggle() }
 
+        tabBar = findViewById(R.id.tabBar)
+        pages = findViewById(R.id.pages)
+        setupTabs()
         handleIntent(intent)
         findViewById<TextView>(R.id.libraryTitle).setOnClickListener { showMenu() }
         Updater.checkOnStart(this, scope) { r ->
@@ -135,6 +145,69 @@ class LibraryActivity : Activity() {
             updateBanner.visibility = View.VISIBLE
         }
     }
+
+    // ---- Tabs: Home, Library, Ask AI, Discover, Settings ----
+
+    private fun setupTabs() {
+        pageViews[Tabs.HOME] = HomePage(this, this)
+        pageViews[Tabs.ASK] = AskPage(this, this)
+        pageViews[Tabs.DISCOVER] = DiscoverPage(this, this)
+        pageViews[Tabs.SETTINGS] = SettingsPage(this, this)
+        for ((_, page) in pageViews) {
+            page.view.visibility = View.GONE
+            pages.addView(page.view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        val d = resources.displayMetrics.density
+        for (i in Tabs.LABELS.indices) {
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                isClickable = true
+                setPadding(0, (4 * d).toInt(), 0, (2 * d).toInt())
+                setOnClickListener { showTab(i) }
+            }
+            item.addView(ImageView(this).apply {
+                setImageResource(Tabs.ICONS[i])
+                setPadding((14 * d).toInt(), (4 * d).toInt(), (14 * d).toInt(), (4 * d).toInt())
+            }, LinearLayout.LayoutParams((56 * d).toInt(), (32 * d).toInt()))
+            item.addView(TextView(this).apply {
+                text = Tabs.LABELS[i]
+                textSize = 12f
+                gravity = Gravity.CENTER
+            })
+            tabBar.addView(item, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        tab = getSharedPreferences("p2a", MODE_PRIVATE).getInt("tab", Tabs.HOME)
+        showTab(tab)
+    }
+
+    override fun showTab(tab: Int) {
+        this.tab = tab
+        getSharedPreferences("p2a", MODE_PRIVATE).edit().putInt("tab", tab).apply()
+        findViewById<View>(R.id.libraryPage).visibility = if (tab == Tabs.LIBRARY) View.VISIBLE else View.GONE
+        for ((i, page) in pageViews) {
+            page.view.visibility = if (i == tab) View.VISIBLE else View.GONE
+            if (i == tab) page.refresh()
+        }
+        val accent = Themes.color(this, R.attr.p2aAccent)
+        val muted = Themes.color(this, R.attr.p2aMuted)
+        for (i in 0 until tabBar.childCount) {
+            val item = tabBar.getChildAt(i) as LinearLayout
+            val on = i == tab
+            val icon = item.getChildAt(0) as ImageView
+            icon.imageTintList = android.content.res.ColorStateList.valueOf(if (on) accent else muted)
+            icon.setBackgroundResource(if (on) R.drawable.bg_chip else 0)
+            (item.getChildAt(1) as TextView).setTextColor(if (on) Themes.color(this, R.attr.p2aText) else muted)
+        }
+    }
+
+    override fun openItem(item: Library.Item) = open(item)
+
+    override fun bindCover(view: ImageView, id: String) = bindThumb(view, id)
+
+    fun startUpdate() = Updater.update(this, scope)
+
+    fun checkUpdates() = Updater.checkNow(this, scope)
 
     private fun showMenu() {
         val who = if (Account.signedIn(this)) "Signed in as ${Account.email(this) ?: "you"}" else "Sign in to sync your library"
@@ -144,7 +217,7 @@ class LibraryActivity : Activity() {
             "Find books\nBookracy, free classics and research papers",
             "Voice studio\nVoices, cloning, full cast",
             "Theme",
-            "AI settings\nGrok or Gemini",
+            "AI settings\nGroq or Gemini (free)",
         )
         AlertDialog.Builder(this)
             .setTitle("Paper to Audio ${Updater.currentName(this)}")
@@ -288,7 +361,7 @@ class LibraryActivity : Activity() {
 
     private fun accountLabel(): String = Account.status ?: ago(Account.lastSync(this))
 
-    private fun showAccount() {
+    override fun showAccount() {
         if (Account.signedIn(this)) {
             val d = resources.displayMetrics.density
             val box = LinearLayout(this).apply {
@@ -561,7 +634,7 @@ class LibraryActivity : Activity() {
         return if (line.length <= 60) line else line.take(57).substringBeforeLast(' ') + "…"
     }
 
-    private fun showAddMenu() {
+    override fun showAddMenu() {
         val options = arrayOf(
             "Find a book\nSearch Bookracy, free classics and research papers",
             "Document file\nPDF, EPUB, Word, PowerPoint, Markdown, text or saved web page",
@@ -985,6 +1058,9 @@ class LibraryActivity : Activity() {
         Speaker.addListener(refresh)
         DriveSync.addListener(syncRefresh)
         Account.addListener(accountRefresh)
+        Library.loadCurrentId(this)
+        (pageViews[Tabs.ASK] as? AskPage)?.attach()
+        pageViews[tab]?.refresh()
         reload()
         DriveSync.request(this)
     }
@@ -993,6 +1069,7 @@ class LibraryActivity : Activity() {
         Speaker.removeListener(refresh)
         DriveSync.removeListener(syncRefresh)
         Account.removeListener(accountRefresh)
+        (pageViews[Tabs.ASK] as? AskPage)?.detach()
         super.onStop()
     }
 

@@ -33,51 +33,8 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingStart="16dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="16dp">
-
-        <Button
-            android:id="@+id/tabBookracy"
-            style="@style/P2A.Button"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="4dp"
-            android:layout_weight="1"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:text="Books" />
-
-        <Button
-            android:id="@+id/tabBooks"
-            style="@style/P2A.Button.Soft"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
-            android:layout_weight="1"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:text="Classics" />
-
-        <Button
-            android:id="@+id/tabPapers"
-            style="@style/P2A.Button.Soft"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:layout_weight="1"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:text="Papers" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:layout_marginEnd="16dp"
         android:background="@drawable/bg_card"
         android:gravity="center_vertical"
@@ -103,6 +60,49 @@
             style="@style/P2A.Icon"
             android:contentDescription="Search"
             android:src="@drawable/ic_search" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="16dp">
+
+        <Button
+            android:id="@+id/tabBookracy"
+            style="@style/P2A.Button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="4dp"
+            android:layout_weight="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="Books" />
+
+        <Button
+            android:id="@+id/tabBooks"
+            style="@style/P2A.Button.Soft"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_weight="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="Free classics" />
+
+        <Button
+            android:id="@+id/tabPapers"
+            style="@style/P2A.Button.Soft"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_weight="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="Papers" 
+            android:visibility="gone" />
     </LinearLayout>
 
     <TextView

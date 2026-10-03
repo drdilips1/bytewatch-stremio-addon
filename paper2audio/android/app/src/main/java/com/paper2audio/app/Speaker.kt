@@ -154,9 +154,22 @@ object Speaker {
 
     // ---- Sections: skipping and finished ----
 
-    /** Titles of the chapters the listener chose to skip in the current document. */
-    fun skipped(d: Doc? = doc): Set<String> =
-        d?.let { prefs.getStringSet("skip:${it.key}", emptySet()) }.orEmpty()
+    /** Skip contents, copyright, preface, index and the like (on by default). */
+    val skipFront: Boolean get() = prefs.getBoolean("skipFront", true)
+
+    fun setSkipFront(on: Boolean) {
+        prefs.edit().putBoolean("skipFront", on).apply()
+        restartAudio()
+    }
+
+    /** Titles of the chapters skipped in the current document: the listener's choice plus front and back matter. */
+    fun skipped(d: Doc? = doc): Set<String> {
+        d ?: return emptySet()
+        val chosen = prefs.getStringSet("skip:${d.key}", emptySet()).orEmpty()
+        val auto = if (skipFront) FrontMatter.skippable(d) else emptySet()
+        // Never skip everything (e.g. a document whose only heading is "Notes").
+        return if (auto.isEmpty() || auto.size >= d.chapters.size) chosen else chosen + auto
+    }
 
     fun setSkipped(titles: Set<String>) {
         val d = doc ?: return
@@ -174,8 +187,11 @@ object Speaker {
         if (chapter.title !in done) prefs.edit().putStringSet("done:${d.key}", done + chapter.title).apply()
     }
 
-    private fun isSkipped(d: Doc, paragraph: Int, skip: Set<String>): Boolean =
-        skip.isNotEmpty() && d.chapterAt(paragraph)?.title in skip
+    private fun isSkipped(d: Doc, paragraph: Int, skip: Set<String>): Boolean {
+        val chapter = d.chapterAt(paragraph)
+        if (chapter == null) return skipFront && FrontMatter.leadingIsFrontMatter(d)
+        return skip.isNotEmpty() && chapter.title in skip
+    }
 
     /** Why the current voice can't play yet (a model to download), or null. */
     fun missingPack(): ModelPack? = LocalTts.missing(voiceId)
@@ -380,6 +396,7 @@ object Speaker {
         stopAll()
         doc = newDoc
         index = prefs.getInt("pos:${newDoc.key}", 0).coerceIn(0, maxOf(0, newDoc.paragraphs.size - 1))
+        learnCharacters(newDoc)
         pieceIndex = prefs.getInt("pc:${newDoc.key}", 0).coerceAtLeast(0)
         currentPiece = null
         if (newDoc.lang == null) {
@@ -425,8 +442,47 @@ object Speaker {
         }
         playing = true
         speedRendered = renderSpeed
+        requestFocus()
         ReaderService.start(app)
         notifyChanged()
+    }
+
+    // ---- Audio focus: phone calls, navigation prompts and other apps pause the book ----
+
+    private var focusRequest: android.media.AudioFocusRequest? = null
+    private var resumeOnFocus = false
+
+    private fun requestFocus() {
+        val am = app.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        val req = focusRequest ?: android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            // Spoken word: pause rather than play quietly under a navigation prompt.
+            .setWillPauseWhenDucked(true)
+            .setOnAudioFocusChangeListener({ change ->
+                when (change) {
+                    android.media.AudioManager.AUDIOFOCUS_LOSS -> {
+                        resumeOnFocus = false
+                        if (playing) pause()
+                    }
+                    android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                        if (playing) {
+                            resumeOnFocus = true
+                            pause()
+                        }
+                    }
+                    android.media.AudioManager.AUDIOFOCUS_GAIN -> if (resumeOnFocus) {
+                        resumeOnFocus = false
+                        play()
+                    }
+                }
+            }, main)
+            .build().also { focusRequest = it }
+        runCatching { am.requestAudioFocus(req) }
     }
 
     fun pause() {
@@ -546,6 +602,7 @@ object Speaker {
     fun setFullCast(on: Boolean) {
         prefs.edit().putBoolean("fullCast", on).apply()
         castFor = null
+        doc?.let(::learnCharacters)
         restartAudio()
     }
 
@@ -596,6 +653,36 @@ object Speaker {
         else -> false
     }
 
+    /** Characters' genders found by the AI, per document (see [Ai.characters]). */
+    private val aiGenders = java.util.concurrent.ConcurrentHashMap<String, Map<String, String>>()
+
+    /**
+     * Voices stay with their characters across the whole book and the author's other books
+     * (all of a series), remembered by author.
+     */
+    private fun castMemoryKey(d: Doc) = "castMap:" + (d.author?.lowercase()?.trim() ?: d.key)
+
+    private fun rememberedCast(d: Doc): Map<String, String> = runCatching {
+        val o = org.json.JSONObject(prefs.getString(castMemoryKey(d), "{}")!!)
+        o.keys().asSequence().associateWith { o.getString(it) }
+    }.getOrDefault(emptyMap())
+
+    private fun rememberCast(d: Doc, speaker: String, voice: String) {
+        if (speaker == "he" || speaker == "she" || speaker == "?") return
+        val o = runCatching { org.json.JSONObject(prefs.getString(castMemoryKey(d), "{}")!!) }.getOrDefault(org.json.JSONObject())
+        o.put(speaker, voice)
+        prefs.edit().putString(castMemoryKey(d), o.toString()).apply()
+    }
+
+    /** Asks the AI (once per book, in the background) who the characters are and whether they're men or women. */
+    private fun learnCharacters(d: Doc) {
+        if (!fullCast || aiGenders.containsKey(d.key) || AiLevel.of(app) == AiLevel.PURE || !Llm.ready(app)) return
+        aiGenders[d.key] = emptyMap()
+        scope.launch(Dispatchers.IO) {
+            runCatching { Ai.characters(app, d) }.onSuccess { aiGenders[d.key] = it }
+        }
+    }
+
     /** The voice for [speaker]: the first script speaker is the main voice; others get distinct voices. */
     @Synchronized
     private fun castVoice(d: Doc, speaker: String): String {
@@ -606,6 +693,13 @@ object Speaker {
             castText = d.paragraphs.take(400).joinToString(" ")
         }
         castVoices[speaker]?.let { return it }
+        // The voice this character had before (earlier in the book, or in another book of the series).
+        rememberedCast(d)[speaker]?.takeIf { v ->
+            v != voiceId && LocalTts.missing(v) == null && (v in pool(voiceId, true) || v in pool(voiceId, false))
+        }?.let { v ->
+            castVoices[speaker] = v
+            return v
+        }
         val main = voiceId
         val used = castVoices.values.toSet() + main
         val scriptSpeakers = speakersOf(d)
@@ -613,7 +707,7 @@ object Speaker {
             if (scriptSpeakers.isNotEmpty() && speaker == scriptSpeakers.getOrNull(1) && dialogueVoice != null) {
                 dialogueVoice!!
             } else {
-                val gender = Cast.genderOf(speaker, castText, castVoices.keys + scriptSpeakers)
+                val gender = aiGenders[d.key]?.get(speaker) ?: Cast.genderOf(speaker, castText, castVoices.keys + scriptSpeakers)
                 val male = when (gender) {
                     "male" -> true
                     "female" -> false
@@ -627,6 +721,7 @@ object Speaker {
             }
         }
         castVoices[speaker] = voice
+        rememberCast(d, speaker, voice)
         return voice
     }
 
@@ -810,6 +905,21 @@ object Speaker {
         if (sleepEndOfChapter && d != null && d.chapterAt(k) != oldChapter) {
             sleepEndOfChapter = false
             pause()
+            return
+        }
+        // AI immersion: a short recap and a question after each chapter, then the book goes on.
+        if (d != null && oldChapter != null && d.chapterAt(k) != oldChapter && k > oldChapter.start && playing &&
+            AiLevel.of(app) == AiLevel.IMMERSION && Llm.ready(app) && oldChapter.title !in skipped(d)
+        ) {
+            pause()
+            scope.launch {
+                val recap = runCatching { withContext(Dispatchers.IO) { Ai.chapterRecap(app, d, oldChapter) } }.getOrNull()
+                if (recap == null || doc !== d) {
+                    if (doc === d) play()
+                    return@launch
+                }
+                speakAnswer("That was ${oldChapter.title}. $recap") { if (doc === d) play() }
+            }
         }
     }
 
@@ -879,6 +989,85 @@ object Speaker {
                 out.release()
                 if (castStream === out) castStream = null
             }
+        }
+    }
+
+    // ---- Spoken AI answers ----
+
+    private var answerJob: Job? = null
+    private var answerStream: AudioStream? = null
+    /** An AI answer is being read aloud. */
+    var answering = false
+        private set
+    var answerPaused = false
+        private set
+
+    /**
+     * Reads an AI answer aloud in the reading voice (or the default online voice when the
+     * reading voice is a phone voice), pausing the book first. [onDone] runs only when the
+     * whole answer was heard (not when it is stopped).
+     */
+    fun speakAnswer(text: String, onDone: () -> Unit = {}) {
+        stopAnswer()
+        stopPreview()
+        if (playing) pause()
+        val vid = voiceId.takeIf { Renderer.isStreamed(it) && LocalTts.missing(it) == null } ?: DEFAULT_VOICE
+        val v = Voicing(vid, lang = doc?.lang, pitch = pitch, medical = medical)
+        val sp = renderSpeed
+        val parts = text.split('\n').map { it.trim() }.filter { it.isNotEmpty() }.flatMap { Renderer.pieces(it, vid) }
+        if (parts.isEmpty()) return
+        val out = AudioStream(app, Renderer.playbackBoost(v, sp))
+        answerStream = out
+        answering = true
+        answerPaused = false
+        notifyChanged()
+        answerJob = scope.launch {
+            var heard = false
+            try {
+                withContext(Dispatchers.Default) {
+                    val pending = parts.map { t -> async(Dispatchers.IO) { AudioDecode.load(Renderer.render(app, v, sp, t)) } }
+                    for (p in pending) out.write(p.await(), p, style.sentencePause)
+                    out.drain()
+                }
+                heard = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = "Couldn't read the answer aloud (${e.message})."
+            } finally {
+                out.release()
+                if (answerStream === out) {
+                    answerStream = null
+                    answering = false
+                    answerPaused = false
+                }
+                notifyChanged()
+            }
+            if (heard) onDone()
+        }
+    }
+
+    fun pauseAnswer() {
+        answerStream?.pause()
+        answerPaused = true
+        notifyChanged()
+    }
+
+    fun resumeAnswer() {
+        answerStream?.resume()
+        answerPaused = false
+        notifyChanged()
+    }
+
+    fun stopAnswer() {
+        answerJob?.cancel()
+        answerJob = null
+        answerStream?.release()
+        answerStream = null
+        if (answering) {
+            answering = false
+            answerPaused = false
+            notifyChanged()
         }
     }
 

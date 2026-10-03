@@ -29,7 +29,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Finds books (Bookracy), free classics (Project Gutenberg) and papers (arXiv) and adds them to the library. */
+/**
+ * Finds books (Bookracy) and free classics (Project Gutenberg) and adds them to the library.
+ * Both are searched at once, so switching tabs shows results immediately.
+ */
 class SearchActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val covers = LruCache<String, Bitmap>(60)
@@ -77,7 +80,27 @@ class SearchActivity : Activity() {
         tabPapers.setOnClickListener { setMode(PAPERS) }
         list.adapter = adapter
         list.setOnItemClickListener { _, _, position, _ -> results.getOrNull(position)?.let(::confirmAdd) }
-        setMode(getSharedPreferences("p2a", MODE_PRIVATE).getInt("findMode", BOOKRACY))
+        intent.getStringExtra("q")?.takeIf { it.isNotBlank() }?.let { query.setText(it) }
+        setMode(getSharedPreferences("p2a", MODE_PRIVATE).getInt("findMode", BOOKRACY).coerceAtMost(CLASSICS))
+    }
+
+    /** Results per tab: (query, results or error). */
+    private val found = HashMap<Int, Pair<String, Result<List<Metadata.Result>>>>()
+    private val running = HashMap<Int, Job>()
+
+    private fun showFound(m: Int) {
+        val (_, r) = found[m] ?: return
+        busy.visibility = View.GONE
+        r.onSuccess { list0 ->
+            results = list0
+            adapter.notifyDataSetChanged()
+            list.setSelection(0)
+            showEmpty(if (list0.isEmpty()) "Nothing found. Try other words." else null)
+        }.onFailure { e ->
+            results = emptyList()
+            adapter.notifyDataSetChanged()
+            showEmpty("Couldn't search right now (${e.message}). Check your internet and try again.")
+        }
     }
 
     private fun color(attr: Int): Int {
@@ -89,7 +112,7 @@ class SearchActivity : Activity() {
     private fun setMode(m: Int) {
         mode = m.coerceIn(BOOKRACY, PAPERS)
         getSharedPreferences("p2a", MODE_PRIVATE).edit().putInt("findMode", mode).apply()
-        for ((i, tab) in listOf(tabBookracy, tabBooks, tabPapers).withIndex()) {
+        for ((i, tab) in listOf(tabBookracy, tabBooks).withIndex()) {
             val on = i == mode
             tab.setBackgroundResource(if (on) R.drawable.bg_button else R.drawable.bg_button_soft)
             tab.setTextColor(color(if (on) R.attr.p2aOnAccent else R.attr.p2aText))
@@ -101,8 +124,13 @@ class SearchActivity : Activity() {
         }
         sourceNote.text = when (mode) {
             BOOKRACY -> "Books from Bookracy, including recent ones, as EPUB or PDF."
-            CLASSICS -> "70,000+ free public-domain e-books from Project Gutenberg."
+            CLASSICS -> "70,000+ free public-domain e-books from Project Gutenberg (this source can take a few seconds)."
             else -> "Research papers from arXiv (free, open access)."
+        }
+        val q = query.text.toString().trim()
+        if (found[mode]?.first == q) {
+            showFound(mode)
+            return
         }
         results = emptyList()
         adapter.notifyDataSetChanged()
@@ -119,32 +147,30 @@ class SearchActivity : Activity() {
     }
 
     private fun search() {
-        val q = query.text.toString()
+        val q = query.text.toString().trim()
         if (mode != CLASSICS && q.isBlank()) return
         getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(query.windowToken, 0)
-        searchJob?.cancel()
+        found[mode]?.let { (fq, _) ->
+            if (fq == q) {
+                showFound(mode)
+                return
+            }
+        }
+        results = emptyList()
+        adapter.notifyDataSetChanged()
         busy.visibility = View.VISIBLE
         showEmpty(null)
-        val m = mode
-        searchJob = scope.launch {
-            try {
-                val found = withContext(Dispatchers.IO) {
-                    when (m) {
-                        BOOKRACY -> Metadata.searchBookracy(q)
-                        CLASSICS -> Metadata.searchGutenberg(q)
-                        else -> Metadata.searchArxiv(q)
-                    }
+        // Search both sources together; whichever tab is shown fills as soon as its results arrive.
+        for (m in listOf(BOOKRACY, CLASSICS)) {
+            if (m == BOOKRACY && q.isBlank()) continue
+            if (found[m]?.first == q) continue
+            running[m]?.cancel()
+            running[m] = scope.launch {
+                val r = withContext(Dispatchers.IO) {
+                    runCatching { if (m == BOOKRACY) Metadata.searchBookracy(q) else Metadata.searchGutenberg(q) }
                 }
-                results = found
-                adapter.notifyDataSetChanged()
-                list.setSelection(0)
-                if (found.isEmpty()) showEmpty("Nothing found. Try other words.")
-            } catch (e: Exception) {
-                results = emptyList()
-                adapter.notifyDataSetChanged()
-                showEmpty("Couldn't search right now (${e.message}). Check your internet and try again.")
-            } finally {
-                busy.visibility = View.GONE
+                found[m] = q to r
+                if (mode == m && query.text.toString().trim() == q) showFound(m)
             }
         }
     }

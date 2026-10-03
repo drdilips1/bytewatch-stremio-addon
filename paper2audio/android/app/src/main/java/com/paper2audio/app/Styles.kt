@@ -17,7 +17,8 @@ enum class Style(
     ACADEMIC("Academic", "clear and measured, with room between sections", 0.97f, 260, 600, 1000),
     CONVERSATIONAL("Conversational", "lighter and a little quicker", 1.06f, 140, 360, 650),
     STORYTELLING("Storytelling", "unhurried, for novels and stories", 0.95f, 300, 700, 1100),
-    LECTURE("Lecture", "slower, with long pauses, like a class", 0.92f, 380, 850, 1400);
+    LECTURE("Lecture", "slower, with long pauses, like a class", 0.92f, 380, 850, 1400),
+    FAMILY("Family listening", "slower and clear, for listening with children; Ask AI explains unusual words simply", 0.88f, 320, 800, 1300);
 
     companion object {
         fun of(name: String?) = entries.firstOrNull { it.name == name } ?: STANDARD

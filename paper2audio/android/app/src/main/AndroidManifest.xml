@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Installing app updates downloaded from inside the app (Android asks the user first). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- "Keep playing with the screen locked": lets the user exempt the app from battery limits. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Needed on Android 11+ to see the installed text-to-speech engines. -->
     <queries>
@@ -45,6 +47,13 @@
             android:exported="false"
             android:parentActivityName=".PlayerActivity"
             android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".CarModeActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:parentActivityName=".PlayerActivity" />
 
         <activity
             android:name=".StudyActivity"

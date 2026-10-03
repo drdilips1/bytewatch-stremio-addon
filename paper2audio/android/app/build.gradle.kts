@@ -13,8 +13,8 @@ android {
         targetSdk = 34
         // Samsung Galaxy and nearly all current phones are 64-bit ARM; this keeps the APK small.
         ndk { abiFilters += "arm64-v8a" }
-        versionCode = 19
-        versionName = "5.0"
+        versionCode = 20
+        versionName = "6.0"
     }
 
     // Sign with your own key when P2A_KEYSTORE is set (see README), so new
