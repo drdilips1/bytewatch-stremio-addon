@@ -707,7 +707,7 @@ public class MainActivity extends Activity {
             synchronized (MainActivity.this) { llm = null; }
             if (k.isEmpty()) { R4LSession.forget(MainActivity.this, provider()); return; }
             String p = k.startsWith("sk-ant-") ? "claude" : k.startsWith("gsk_") ? "groq" : k.startsWith("AIza") ? "gemini"
-                    : known(selected) ? selected : provider();
+                    : known(selected == null || selected.isEmpty() ? provider() : selected);
             R4LSession.saveCredentials(MainActivity.this, p, "api", k);
             aiSetProvider(p);
         }
