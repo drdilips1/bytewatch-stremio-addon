@@ -1336,6 +1336,9 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
       <label class="field">Explanation level</label>
       <div class="seg wide">${Object.entries(LEVELS).map(([k, l]) => `<button class="${aiPrefs.level === k ? 'on' : ''}" data-act="set-level" data-v="${k}">${l}</button>`).join('')}</div>
       <p class="muted small">Answers are saved on this phone and reused, so nothing is generated twice.</p></div>
+      ${Native.openMyLoftApp ? `<div class="section"><div class="section-h"><h3>MyLOFT</h3></div>
+        <div class="acc-card"><div class="acc-ico">${icon('key')}</div><div class="body"><b>Your institution's access</b><span>${Native.hasMyLoftApp?.() ? 'MyLOFT app found' : 'MyLOFT app not found yet: choose it from your apps'}. Papers come back by Share → DermScholar.</span></div>
+          <button class="btn xs" data-act="myloft-open">Open</button><button class="btn xs" data-act="myloft-pick">Choose app</button></div></div>` : ''}
       <div class="section"><div class="section-h"><h3>Listening</h3></div>
         <div class="acc-card"><div class="acc-ico">${icon('audio')}</div><div class="body"><b>Voices, speed &amp; skipping</b><span>${String(D.ttsPrefs.voice || '').startsWith('neural:') ? 'Natural voice' : 'Phone voice'} · ${D.ttsPrefs.rate}× · skips ${Object.entries(D.ttsPrefs.skip).filter(([, v]) => v).length} kinds of content</span></div>
           <button class="btn xs" data-act="tts-settings-open">Open</button></div></div>

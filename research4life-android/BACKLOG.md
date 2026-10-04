@@ -23,3 +23,4 @@ Status: 🟡 noted · 🔵 in progress · ✅ done locally (waiting for "Build n
 | 14 | Request | **In-app updates**: the app checks for a new version, shows what's new and installs it with one tap (no GitHub download). | 🟡 roadmap |
 | 15 | Request | **APK small enough to attach in chat** (under 30 MB), e.g. trim bundled assets. | 🟡 roadmap |
 | 16 | Bug | **MyLOFT opened the Play Store ("won't work on this phone") although MyLOFT is installed.** The app didn't recognise the installed MyLOFT by name. | ✅ ready, not built: "Choose MyLOFT from your apps" picker (remembered), wider name matching; Play Store only as a last option |
+| 17 | Bug | **MyLOFT hard to find in DermScholar.** | ✅ ready, not built: **MyLOFT** button on every paper next to Get PDF; MyLOFT section in Settings (Open · Choose app) |

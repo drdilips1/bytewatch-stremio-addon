@@ -757,19 +757,21 @@
       ${!has && Native.listApps ? '<button class="btn full" style="margin-top:8px" data-act="myloft-go">Get MyLOFT from the Play Store</button>' : ''}
       ${b.r4lAnyway && a ? `<button class="btn full" style="margin-top:8px" data-act="myloft-r4l">Try Research4Life anyway</button>` : ''}`);
     actions['myloft-go'] = () => { closeSheet(true); Native.openMyLoftApp?.(); };
-    // Pick the installed MyLOFT app once (its name differs between phones); remembered from then on.
-    actions['myloft-pick'] = () => {
-      let apps = [];
-      try { apps = JSON.parse(Native.listApps() || '[]'); } catch { apps = []; }
-      apps.sort((x, y) => (/loft/i.test(y.label) - /loft/i.test(x.label)) || x.label.localeCompare(y.label));
-      const rows = (f) => apps.filter((x) => !f || (x.label + ' ' + x.pkg).toLowerCase().includes(f.toLowerCase()))
-        .map((x) => `<button class="opt" data-act="myloft-set" data-pkg="${esc(x.pkg)}">${icon('external')}<span>${esc(x.label)}<small>${esc(x.pkg)}</small></span></button>`).join('') || '<p class="muted small">No app matches.</p>';
-      sheet(`<h3>Which app is MyLOFT?</h3><input type="search" id="app-filter" placeholder="Type to filter, e.g. loft"><div id="app-list">${rows('')}</div>`);
-      $('#app-filter')?.addEventListener('input', (e) => { $('#app-list').innerHTML = rows(e.target.value); });
-      actions['myloft-set'] = (b) => { Native.setMyLoftApp(b.dataset.pkg); closeSheet(true); toast('Saved. Opening it…'); Native.openMyLoftApp?.(); };
-    };
     actions['myloft-r4l'] = () => { closeSheet(true); if (a) D.getPdf(a, { skipAsk: true }); };
   };
+
+  // Pick the installed MyLOFT app once (its name differs between phones); remembered from then on.
+  actions['myloft-pick'] = () => {
+    let apps = [];
+    try { apps = JSON.parse(Native.listApps() || '[]'); } catch { apps = []; }
+    apps.sort((x, y) => (/loft/i.test(y.label) - /loft/i.test(x.label)) || x.label.localeCompare(y.label));
+    const rows = (f) => apps.filter((x) => !f || (x.label + ' ' + x.pkg).toLowerCase().includes(f.toLowerCase()))
+      .map((x) => `<button class="opt" data-act="myloft-set" data-pkg="${esc(x.pkg)}">${icon('external')}<span>${esc(x.label)}<small>${esc(x.pkg)}</small></span></button>`).join('') || '<p class="muted small">No app matches.</p>';
+    sheet(`<h3>Which app is MyLOFT?</h3><input type="search" id="app-filter" placeholder="Type to filter, e.g. loft"><div id="app-list">${rows('')}</div>`);
+    $('#app-filter')?.addEventListener('input', (e) => { $('#app-list').innerHTML = rows(e.target.value); });
+    actions['myloft-set'] = (b) => { Native.setMyLoftApp(b.dataset.pkg); closeSheet(true); toast('Saved. Opening it…'); Native.openMyLoftApp?.(); };
+  };
+  actions['myloft-open'] = () => Native.openMyLoftApp?.();
 
   // ================================================================ Intel hub (#intel) and home
   const TILES = [

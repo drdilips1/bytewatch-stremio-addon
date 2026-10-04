@@ -879,6 +879,7 @@
             : pdfSrc || a.doi
               ? `<button class="btn primary full big" data-act="get-pdf">${icon('download')}Get PDF now<span class="sub">${pdfSrc ? 'Free copy · saves to your library' : 'Through your Research4Life access'}</span></button>`
               : `<button class="btn full" data-act="r4l">${icon('key')}Find on Research4Life</button>`}
+          ${!hasPdf && a.doi && actions.myloft ? `<button class="btn" data-act="myloft" data-id="${esc(a.id)}">${icon('key')}MyLOFT</button>` : ''}
           <button class="btn ${s ? 'good' : ''}" data-act="save">${icon(s ? 'bookmarkFill' : 'bookmark')}${s ? 'Saved' : 'Save'}</button>
           ${canRead ? `<button class="btn" data-act="reader">${icon('book')}${s?.fullText ? 'Read offline' : 'Full text'}</button>` : ''}
           ${a.doi ? `<button class="btn" data-act="publisher">${icon('key')}Open via R4L</button>` : ''}
