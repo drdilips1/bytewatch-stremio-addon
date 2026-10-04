@@ -1285,8 +1285,8 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
       ['gemini-2.5-pro', 'Gemini 2.5 Pro', 'Deeper reasoning, smaller free allowance', [0, 0]],
     ],
     claude: [
-      ['claude-opus-5', 'Claude Opus 5', 'Best quality', [5, 25]],
-      ['claude-sonnet-5', 'Claude Sonnet 5', 'Faster, lower cost', [2, 10]],
+      ['claude-opus-5-5', 'Claude Opus 5.5', 'Best quality', [4, 20]],
+      ['claude-sonnet-5-5', 'Claude Sonnet 5.5', 'Faster, lower cost', [2, 10]],
       ['claude-haiku-4-5', 'Claude Haiku 4.5', 'Fastest, lowest cost', [1, 5]],
     ],
   };

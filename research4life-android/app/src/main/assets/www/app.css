@@ -1058,3 +1058,8 @@ details.panel summary { cursor: pointer; }
 .glance-row b { display: block; }
 .glance-row span { display: block; font-size: .88em; color: var(--text-3); margin-top: 2px; }
 .glance-row.derm b::before { content: '🩺 '; }
+
+/* App updates */
+.upd-banner { display: flex; align-items: center; gap: 8px; width: 100%; margin: 8px 0 12px; padding: 10px 14px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; text-align: left; }
+.upd-banner svg { width: 18px; height: 18px; }
+.upd-bar { position: fixed; left: 16px; right: 16px; top: 12px; z-index: 60; padding: 10px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.25); font-size: 14px; }

@@ -10,8 +10,8 @@ android {
         applicationId 'app.dermscholar'
         minSdk 24
         targetSdk 34
-        versionCode 23
-        versionName '4.5'
+        versionCode 24
+        versionName '4.6'
         // 64-bit ARM only: every current phone (Samsung Galaxy included); keeps the APK small enough to share.
         ndk { abiFilters 'arm64-v8a' }
     }
@@ -50,7 +50,7 @@ android {
     }
 
     compileOptions {
-        // The Claude SDK uses java.time; desugaring makes that work back to Android 7.
+        // Desugaring keeps java.time and newer APIs working back to Android 7.
         coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -59,7 +59,6 @@ android {
 
 dependencies {
     implementation 'androidx.webkit:webkit:1.12.1'
-    implementation 'com.anthropic:anthropic-java:2.65.0'
     // On-device text recognition for photos and scanned PDFs (Latin scripts, model bundled).
     implementation 'com.google.mlkit:text-recognition:16.0.1'
     // On-device neural text-to-speech (Kokoro, Piper). The AAR is fetched by tools/fetch-sherpa.sh.

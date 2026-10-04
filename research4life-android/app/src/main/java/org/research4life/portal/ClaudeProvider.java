@@ -1,111 +1,132 @@
 package org.research4life.portal;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.core.JsonValue;
-import com.anthropic.errors.AnthropicIoException;
-import com.anthropic.errors.AnthropicServiceException;
-import com.anthropic.errors.BadRequestException;
-import com.anthropic.errors.PermissionDeniedException;
-import com.anthropic.errors.RateLimitException;
-import com.anthropic.errors.UnauthorizedException;
-import com.anthropic.models.messages.CacheControlEphemeral;
-import com.anthropic.models.messages.ContentBlock;
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.Message;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.StopReason;
-import com.anthropic.models.messages.TextBlockParam;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
-/** Claude, called with the user's own Anthropic API key. */
+/**
+ * Claude, called with the user's own Anthropic API key over the Messages API directly
+ * (no SDK: the SDK and its dependencies were over a third of the APK).
+ */
 final class ClaudeProvider implements LlmProvider {
 
-    static final String DEFAULT_MODEL = "claude-opus-5";
-    private static final ObjectMapper JSON = new ObjectMapper();
+    static final String DEFAULT_MODEL = "claude-opus-5-5";
+    private static final String URL_MESSAGES = "https://api.anthropic.com/v1/messages";
+    /** Models that take the server-side refusal fallback ("default" routing). */
+    private static boolean takesFallback(String m) {
+        return m.equals("claude-opus-5-5") || m.equals("claude-opus-5") || m.equals("claude-fable-5-1") || m.equals("claude-sonnet-5-5");
+    }
 
-    private final AnthropicClient client;
+    private final String apiKey;
     private final String model;
 
     ClaudeProvider(String apiKey, String model) {
+        this.apiKey = apiKey;
         this.model = model == null || model.isEmpty() ? DEFAULT_MODEL : model;
-        client = AnthropicOkHttpClient.builder()
-                .apiKey(apiKey)
-                .timeout(Duration.ofMinutes(5))
-                .build();
     }
 
     @Override
     public Result complete(String system, String document, String task, int maxTokens, String jsonSchema) throws AiException {
-        List<ContentBlockParam> content = new ArrayList<>();
-        if (document != null && !document.isEmpty()) {
-            // The document goes first with a cache breakpoint: repeat questions about it reuse the cache.
-            content.add(ContentBlockParam.ofText(TextBlockParam.builder()
-                    .text(document)
-                    .cacheControl(CacheControlEphemeral.builder().build())
-                    .build()));
-        }
-        content.add(ContentBlockParam.ofText(TextBlockParam.builder().text(task).build()));
-
-        MessageCreateParams.Builder b = MessageCreateParams.builder()
-                .model(model)
-                .maxTokens((long) maxTokens)
-                .system(system)
-                .addUserMessageOfBlockParams(content);
-
-        Map<String, Object> outputConfig = new HashMap<>();
-        // Haiku 4.5 doesn't take an effort setting; the newer models do.
-        if (!model.startsWith("claude-haiku")) outputConfig.put("effort", "medium");
-        if (jsonSchema != null && !jsonSchema.isEmpty()) {
-            try {
-                Map<String, Object> format = new HashMap<>();
-                format.put("type", "json_schema");
-                format.put("schema", JSON.readValue(jsonSchema, Map.class));
-                outputConfig.put("format", format);
-            } catch (Exception e) {
-                throw new AiException("Internal error: bad answer format");
-            }
-        }
-        if (!outputConfig.isEmpty()) b.putAdditionalBodyProperty("output_config", JsonValue.from(outputConfig));
-        if (DEFAULT_MODEL.equals(model)) {
-            // If Claude Opus 5 declines, the API retries on its recommended fallback model.
-            b.putAdditionalHeader("anthropic-beta", "server-side-fallback-2026-07-01");
-            b.putAdditionalBodyProperty("fallbacks", JsonValue.from("default"));
-        }
-
-        Message msg;
+        JSONObject body = new JSONObject();
         try {
-            msg = client.messages().create(b.build());
-        } catch (UnauthorizedException e) {
-            throw new AiException("Your Claude API key was rejected. Check it in Settings → AI.");
-        } catch (PermissionDeniedException e) {
-            throw new AiException("This API key can't use " + model + ". Pick another model in Settings → AI.");
-        } catch (RateLimitException e) {
-            throw new AiException("Claude is busy or your usage limit was reached. Try again in a minute.");
-        } catch (BadRequestException e) {
-            String m = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
-            if (m.contains("credit")) throw new AiException("Your Anthropic account is out of credit.");
-            if (m.contains("too long") || m.contains("context")) throw new AiException("This document is too long for one request.");
-            throw new AiException("Claude couldn't process this request (400).");
-        } catch (AnthropicServiceException e) {
-            throw new AiException("Claude returned an error (" + e.statusCode() + "). Try again.");
-        } catch (AnthropicIoException e) {
-            throw new AiException("Couldn't reach Claude. Check your connection.");
+            JSONArray content = new JSONArray();
+            if (document != null && !document.isEmpty()) {
+                // The document goes first with a cache breakpoint: repeat questions about it reuse the cache.
+                content.put(new JSONObject().put("type", "text").put("text", document)
+                        .put("cache_control", new JSONObject().put("type", "ephemeral")));
+            }
+            content.put(new JSONObject().put("type", "text").put("text", task));
+            body.put("model", model)
+                    .put("max_tokens", maxTokens)
+                    .put("system", system == null ? "" : system)
+                    .put("messages", new JSONArray().put(new JSONObject().put("role", "user").put("content", content)));
+            JSONObject outputConfig = new JSONObject();
+            // Haiku 4.5 doesn't take an effort setting; the newer models do (Opus 5.5 defaults to medium anyway).
+            if (!model.startsWith("claude-haiku")) outputConfig.put("effort", "medium");
+            if (jsonSchema != null && !jsonSchema.isEmpty()) {
+                outputConfig.put("format", new JSONObject().put("type", "json_schema").put("schema", new JSONObject(jsonSchema)));
+            }
+            if (outputConfig.length() > 0) body.put("output_config", outputConfig);
+            if (takesFallback(model)) body.put("fallbacks", "default");
+        } catch (Exception e) {
+            throw new AiException("Internal error: bad answer format");
         }
-        if (msg.stopReason().isPresent() && msg.stopReason().get().equals(StopReason.REFUSAL)) {
-            throw new AiException("Claude declined this request.");
-        }
+
+        JSONObject msg = post(body);
+        if ("refusal".equals(msg.optString("stop_reason"))) throw new AiException("Claude declined this request.");
         StringBuilder out = new StringBuilder();
-        for (ContentBlock block : msg.content()) block.text().ifPresent(t -> out.append(t.text()));
-        if (out.length() == 0) throw new AiException("Claude returned an empty answer. Try again.");
-        long cached = msg.usage().cacheReadInputTokens().orElse(0L);
-        return new Result(out.toString().trim(), msg.model().asString(), msg.usage().inputTokens(),
-                msg.usage().outputTokens(), cached);
+        JSONArray blocks = msg.optJSONArray("content");
+        for (int i = 0; blocks != null && i < blocks.length(); i++) {
+            JSONObject b = blocks.optJSONObject(i);
+            if (b != null && "text".equals(b.optString("type"))) out.append(b.optString("text"));
+        }
+        if (out.length() == 0) {
+            if ("max_tokens".equals(msg.optString("stop_reason"))) throw new AiException("The answer was cut off. Try again, or use a shorter request.");
+            throw new AiException("Claude returned an empty answer. Try again.");
+        }
+        JSONObject u = msg.optJSONObject("usage");
+        long in = u == null ? 0 : u.optLong("input_tokens") + u.optLong("cache_read_input_tokens") + u.optLong("cache_creation_input_tokens");
+        return new Result(out.toString().trim(), msg.optString("model", model), in,
+                u == null ? 0 : u.optLong("output_tokens"), u == null ? 0 : u.optLong("cache_read_input_tokens"));
+    }
+
+    private JSONObject post(JSONObject body) throws AiException {
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL(URL_MESSAGES).openConnection();
+            c.setRequestMethod("POST");
+            c.setConnectTimeout(20_000);
+            c.setReadTimeout(300_000);
+            c.setDoOutput(true);
+            c.setRequestProperty("content-type", "application/json");
+            c.setRequestProperty("x-api-key", apiKey);
+            c.setRequestProperty("anthropic-version", "2023-06-01");
+            if (takesFallback(model)) c.setRequestProperty("anthropic-beta", "server-side-fallback-2026-07-01");
+            try (OutputStream os = c.getOutputStream()) {
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            int code = c.getResponseCode();
+            String text = read(code >= 400 ? c.getErrorStream() : c.getInputStream());
+            if (code >= 400) {
+                String m = "";
+                try { m = new JSONObject(text).optJSONObject("error").optString("message"); } catch (Exception ignored) { }
+                String lm = m.toLowerCase();
+                if (code == 401) throw new AiException("Your Claude API key was rejected. Check it in Settings → AI.");
+                if (code == 403) throw new AiException("This API key can't use " + model + ". Pick another model in Settings → AI.");
+                if (code == 404) throw new AiException("Model " + model + " isn't available to this key. Pick another model in Settings → AI.");
+                if (code == 429 || code == 529) throw new AiException("Claude is busy or your usage limit was reached. Try again in a minute.");
+                if (code == 400) {
+                    if (lm.contains("credit")) throw new AiException("Your Anthropic account is out of credit.");
+                    if (lm.contains("too long") || lm.contains("context")) throw new AiException("This document is too long for one request.");
+                    throw new AiException("Claude couldn't process this request" + (m.isEmpty() ? " (400)." : ": " + m));
+                }
+                throw new AiException("Claude returned an error (" + code + "). Try again.");
+            }
+            return new JSONObject(text);
+        } catch (AiException e) {
+            throw e;
+        } catch (java.io.IOException e) {
+            throw new AiException("Couldn't reach Claude. Check your connection.");
+        } catch (Exception e) {
+            throw new AiException("Claude request failed: " + e.getClass().getSimpleName());
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    private static String read(InputStream in) throws java.io.IOException {
+        if (in == null) return "";
+        try (InputStream s = in) {
+            ByteArrayOutputStream b = new ByteArrayOutputStream();
+            byte[] buf = new byte[16384];
+            for (int n; (n = s.read(buf)) > 0; ) b.write(buf, 0, n);
+            return b.toString("UTF-8");
+        }
     }
 }

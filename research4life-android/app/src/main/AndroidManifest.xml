@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- In-app updates: hands the downloaded new version to Android's installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Lets the app find the phone's text-to-speech engine (Android 11+). -->
     <queries>
@@ -44,6 +46,13 @@
                 <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
                 <data android:mimeType="text/markdown" />
+            </intent-filter>
+            <!-- Coming back from Google sign-in (account sync). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dermscholar" android:host="auth" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

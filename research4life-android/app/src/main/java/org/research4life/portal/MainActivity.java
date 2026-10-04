@@ -170,7 +170,13 @@ public class MainActivity extends Activity {
         String action = intent.getAction();
         Uri uri = null;
         if (Intent.ACTION_VIEW.equals(action)) uri = intent.getData();
-        else if (Intent.ACTION_SEND.equals(action)) uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+        if (uri != null && "dermscholar".equals(uri.getScheme())) {
+            // Back from Google sign-in in the browser (dermscholar://auth#access_token=…).
+            intent.setAction(null);
+            deliver(event("authRedirect", "url", uri.toString()), appRunning);
+            return;
+        }
+        if (Intent.ACTION_SEND.equals(action)) uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
         if (uri == null && Intent.ACTION_SEND.equals(action)) {
             CharSequence text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
             if (text != null && text.length() > 0) {
@@ -529,6 +535,51 @@ public class MainActivity extends Activity {
                     }
                 } catch (Exception e) {
                     toast("Couldn't open MyLOFT");
+                }
+            });
+        }
+
+        /** Opens a page in the phone's browser (Google sign-in can't run inside an app's WebView). */
+        @JavascriptInterface
+        public void openBrowser(String url) {
+            main.post(() -> {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                } catch (Exception e) {
+                    toast("No browser found");
+                }
+            });
+        }
+
+        // ---- in-app updates (see Updater)
+
+        /** Checks for a newer build; answers with an "update" event {state: available|none|error, name, current}. */
+        @JavascriptInterface
+        public void updateCheck() {
+            io.execute(() -> {
+                try {
+                    org.json.JSONObject r = Updater.latest();
+                    long code = r.optLong("versionCode");
+                    emit(event("update", "state", code > Updater.currentCode(MainActivity.this) ? "available" : "none",
+                            "name", r.optString("versionName"), "code", code, "current", version()));
+                } catch (Exception e) {
+                    emit(event("update", "state", "error", "message", "Couldn't check for updates. Try again later."));
+                }
+            });
+        }
+
+        /** Downloads the newest build and opens the installer; progress as "update" events {state: downloading, pct}. */
+        @JavascriptInterface
+        public void updateInstall() {
+            io.execute(() -> {
+                try {
+                    java.io.File apk = Updater.download(MainActivity.this, pct -> emit(event("update", "state", "downloading", "pct", pct)));
+                    main.post(() -> {
+                        String r = Updater.install(MainActivity.this, apk);
+                        emit(event("update", "state", "permission".equals(r) ? "permission" : "installing"));
+                    });
+                } catch (Exception e) {
+                    emit(event("update", "state", "error", "message", "The update didn't download: " + (e.getMessage() == null ? "network error" : e.getMessage())));
                 }
             });
         }

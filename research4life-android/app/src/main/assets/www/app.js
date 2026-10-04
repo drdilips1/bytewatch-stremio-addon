@@ -2953,7 +2953,7 @@
   window.DS = {
     Native, ext, $, $$, esc, icon, md, sheet, closeSheet, toast, store, db, go, render, actions, settings, saveSettings,
     epmcSearch, buildQuery, studyType, card, badgesFor, keywordTerms, journalQuery, getJSON, findArticle, pickOne, pickMany,
-    account, getPdf, searchHash, filtersFrom, skeletons, shortAuthors, NOISE, DERM_FILTER, DERM_WORDS, TYPE_FILTERS, THIS_YEAR, hasNative,
+    loadSaved, account, getPdf, searchHash, filtersFrom, skeletons, shortAuthors, NOISE, DERM_FILTER, DERM_WORDS, TYPE_FILTERS, THIS_YEAR, hasNative,
     topbar, errorBox, coverStyle, hueFor, saveArticle, openReader, showReader, readerTop, readerLoading, lightbox,
     ttsPlay, ttsPlayScript, ttsSheet, ttsPrefs, saveTts, ttsTimes, indexAfterSeconds, sectionStart, sectionEnd, nextSection, prevSection,
     voiceList, RATES, ai, aiJson, aiHasKey, aiMaxCap, modelText, jumpToBlock, copyText, syncPdfs, refreshPdfs, stripTags,

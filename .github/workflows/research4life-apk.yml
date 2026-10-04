@@ -27,6 +27,7 @@ jobs:
         run: |
           node --check app/src/main/assets/www/app.js
           node --check app/src/main/assets/www/journals.js
+          for f in studio intel intel2 sync; do node --check app/src/main/assets/www/$f.js; done
 
       - name: Check journal queries against Europe PMC
         continue-on-error: true
@@ -65,3 +66,17 @@ jobs:
             --title "DermScholar APK (build ${{ github.run_number }})" \
             --notes "Dermatology research app with Research4Life access. Download DermScholar.apk below and open it on your Android phone (allow installing from unknown sources). Updates install over the previous version and keep your library." \
             --prerelease
+
+      - name: Publish to the in-app update channel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The app checks dermscholar-latest/version.json and installs DermScholar.apk from there.
+          CODE=$(grep -oE 'versionCode [0-9]+' app/build.gradle | grep -oE '[0-9]+')
+          NAME=$(grep -oE "versionName '[^']+'" app/build.gradle | cut -d"'" -f2)
+          printf '{"versionCode": %s, "versionName": "%s"}\n' "$CODE" "$NAME" > version.json
+          cat version.json
+          gh release view dermscholar-latest >/dev/null 2>&1 || gh release create dermscholar-latest \
+            --title "DermScholar (latest build)" --prerelease \
+            --notes "Always the newest DermScholar. The app updates itself from here (Settings → App updates). Direct download: https://github.com/${{ github.repository }}/releases/download/dermscholar-latest/DermScholar.apk"
+          gh release upload dermscholar-latest DermScholar.apk version.json --clobber
