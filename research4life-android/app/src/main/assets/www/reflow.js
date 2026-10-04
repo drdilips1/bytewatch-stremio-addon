@@ -132,6 +132,56 @@ function findGutter(items, width) {
   return left > chars * 0.15 && right > chars * 0.15 ? g : null;
 }
 
+/**
+ * Author manuscripts number every line in the margin. Those numbers are bare digits sitting left
+ * (or right) of the text block; drop them so they don't mix into headings and paragraphs.
+ */
+function stripLineNumbers(items) {
+  const isNum = (it) => /^\d{1,4}$/.test(it.s.trim());
+  const text = items.filter((it) => !isNum(it));
+  if (text.length < 10) return items;
+  const xs = text.map((it) => it.x).sort((a, b) => a - b);
+  const ends = text.map((it) => it.x + it.w).sort((a, b) => a - b);
+  const L = xs[Math.floor(xs.length * 0.03)];
+  const R = ends[Math.ceil(ends.length * 0.97) - 1];
+  const margin = items.filter((it) => isNum(it) && (it.x + it.w < L - 0.5 || it.x > R + 0.5));
+  if (margin.length < 6) return items;
+  const drop = new Set(margin);
+  return items.filter((it) => !drop.has(it));
+}
+
+/**
+ * Superscripts (affiliation marks, citation numbers, "K17^hi") sit above the baseline in a
+ * smaller font, so they would form lines of their own. Move each onto its neighbour's baseline
+ * and write it with superscript characters.
+ */
+const SUP = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹', '+': '⁺', '-': '⁻', '–': '⁻', '(': '⁽', ')': '⁾', '*': '*', ',': ',', '†': '†', '‡': '‡', '§': '§', '¶': '¶', '#': '#', ' ': '',
+  a: 'ᵃ', b: 'ᵇ', c: 'ᶜ', d: 'ᵈ', e: 'ᵉ', f: 'ᶠ', g: 'ᵍ', h: 'ʰ', i: 'ⁱ', j: 'ʲ', k: 'ᵏ', l: 'ˡ', m: 'ᵐ', n: 'ⁿ', o: 'ᵒ', p: 'ᵖ', r: 'ʳ', s: 'ˢ', t: 'ᵗ', u: 'ᵘ', v: 'ᵛ', w: 'ʷ', x: 'ˣ', y: 'ʸ', z: 'ᶻ' };
+function markSuperscripts(items) {
+  for (const s of items) {
+    const t = s.s.trim();
+    if (!t || t.length > 12 || !/^[\d\s,*†‡§¶#+\-–()a-z]+$/.test(t)) continue;
+    if (/[a-z]/.test(t) && (t.length > 3 || /\d/.test(t))) continue;
+    let best = null, bestD = Infinity;
+    for (const b of items) {
+      if (b === s || b.sup || b.h < s.h * 1.1) continue;
+      const rise = s.y - b.y;
+      if (rise < b.h * 0.12 || rise > b.h * 0.8) continue;
+      const after = s.x - (b.x + b.w); // mark right after a word
+      const before = b.x - (s.x + s.w); // mark right before a word ("¹Department of …")
+      const d = Math.min(after > -b.h * 0.3 ? Math.abs(after) : Infinity, before > -b.h * 0.3 ? Math.abs(before) : Infinity);
+      if (d < b.h * 0.9 && d < bestD) { best = b; bestD = d; }
+    }
+    if (!best) continue;
+    s.y = best.y;
+    s.h = best.h;
+    s.sup = true;
+    const conv = [...t].map((c) => SUP[c]);
+    s.s = conv.every((c) => c != null) ? conv.join('') : t;
+  }
+  return items;
+}
+
 function buildLines(items, gutter = null) {
   items.sort((a, b) => b.y - a.y || a.x - b.x);
   const lines = [];
@@ -152,7 +202,7 @@ function buildLines(items, gutter = null) {
     let text = '';
     let prev = null;
     for (const it of l.items) {
-      if (prev && it.x - (prev.x + prev.w) > it.h * 0.18 && !/\s$/.test(text) && !/^\s/.test(it.s)) text += ' ';
+      if (prev && !it.sup && it.x - (prev.x + prev.w) > it.h * 0.18 && !/\s$/.test(text) && !/^\s/.test(it.s)) text += ' ';
       text += it.s;
       prev = it;
     }
@@ -222,8 +272,9 @@ export async function reflow(doc, onProgress = () => {}) {
       const k = Math.round(h * 2) / 2;
       sizeHist.set(k, (sizeHist.get(k) || 0) + it.str.length);
     }
-    const gutter = findGutter(items, vp.width);
-    pages.push({ n, page, vp, gutter, lines: buildLines(items, gutter), imgs });
+    const clean = markSuperscripts(stripLineNumbers(items));
+    const gutter = findGutter(clean, vp.width);
+    pages.push({ n, page, vp, gutter, lines: buildLines(clean, gutter), imgs });
     onProgress(n, doc.numPages);
   }
   // Running heads and footers: margin lines whose text (ignoring numbers) repeats across pages,
@@ -237,6 +288,14 @@ export async function reflow(doc, onProgress = () => {}) {
   for (const pg of pages) {
     pg.lines = pg.lines.filter((l) => !(inMargin(l, pg.vp) && (/^(page\s*)?\d+(\s*of\s*\d+)?$/i.test(l.text) || (pages.length > 1 && marginCount.get(norm(l.text)) > 1))));
     pg.twoCol = assignColumns(pg.lines, pg.vp.width, pg.gutter);
+    // Usual distance between lines (double-spaced manuscripts are twice the font size).
+    const gaps = [];
+    for (const c of [0, 1, 2]) {
+      const ls = pg.lines.filter((l) => l.col === c).sort((a, b) => b.y - a.y);
+      for (let i = 1; i < ls.length; i++) { const d = ls[i - 1].y - ls[i].y; if (d > ls[i].h * 0.5 && d < ls[i].h * 4) gaps.push(d / ls[i].h); }
+    }
+    gaps.sort((a, b) => a - b);
+    pg.lead = gaps.length > 8 ? gaps[Math.floor(gaps.length / 2)] : 1.2;
   }
   const body = [...sizeHist.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 10;
   const maxSize = Math.max(...pages.flatMap((p) => p.lines.map((l) => l.size)), body);
@@ -340,7 +399,10 @@ export async function reflow(doc, onProgress = () => {}) {
         continue;
       }
       const t = l.text;
-      if (pg.n === 1 && l.size >= maxSize * 0.92 && l.size > body * 1.25 && blocks.filter((b) => b.type !== 'title').length < 6) {
+      const bigTitle = pg.n === 1 && l.size >= maxSize * 0.92 && l.size > body * 1.25 && blocks.filter((b) => b.type !== 'title').length < 6;
+      // Manuscripts set the title in bold body-size type above everything else.
+      const msTitle = pg.n === 1 && l.bold && t.length < 220 && !/\.$/.test(t) && !SECTION_WORDS.test(t) && (!blocks.length || (blocks.length && blocks.every((b) => b.type === 'title')));
+      if (bigTitle || msTitle) {
         pushPara();
         const last = blocks[blocks.length - 1];
         if (last && last.type === 'title') last.text += ' ' + t; else blocks.push({ type: 'title', text: t });
@@ -374,7 +436,8 @@ export async function reflow(doc, onProgress = () => {}) {
       const continues = para && para.type === 'p' && !/[.:?!]["”)]?$/.test(para.text) && /^[a-z(]/.test(t) && Math.abs(l.size - para.size) < body * 0.12;
       const listItem = /^(\[\d{1,3}\]|\d{1,3}\.)\s/.test(t) && prevLine && /[.\])]$/.test(prevLine.text);
       const newPara = listItem || !continues && (!para || !prevLine ||
-        (prevLine.col === l.col && prevLine.y - l.y > Math.max(prevLine.h, l.h) * 1.75) ||
+        (prevLine.col === l.col && prevLine.y - l.y > Math.max(prevLine.h, l.h) * Math.max(1.75, pg.lead * 1.4)) ||
+        /^[¹²³⁴⁵⁶⁷⁸⁹⁰*†‡§¶]/.test(t) ||
         Math.abs(l.size - para.size) > body * 0.12 ||
         (prevLine.col === l.col && l.x0 - prevLine.x0 > l.h * 0.8 && /[.:?!]["”)]?$/.test(prevLine.text)) ||
         (prevLine.col !== l.col && /[.:?!]["”)]?$/.test(para.text) && /^[A-Z0-9“"(]/.test(t) && l.x0 - colLeft(ordered, l) > l.h * 0.8));
