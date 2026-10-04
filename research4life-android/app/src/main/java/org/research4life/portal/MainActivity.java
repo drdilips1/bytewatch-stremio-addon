@@ -52,6 +52,9 @@ public class MainActivity extends Activity {
     private static final int REQUEST_IMPORT_PDF = 12;
     private static final int REQUEST_CAMERA = 13;
     private static final int REQUEST_SPEECH = 14;
+    private static final int REQUEST_IMAGE_AI = 15;
+    /** Which web request asked for an image (pickImage). */
+    private String pendingImageId;
     private Uri cameraUri;
 
     private WebView webView;
@@ -442,6 +445,46 @@ public class MainActivity extends Activity {
         }
 
         /** Remembers the paper the user is fetching, so a PDF shared back to the app is saved to it. */
+        /**
+         * Lets the user pick a photo (gallery or camera roll) for image questions; answers with an
+         * "imagePicked" event {id, dataUrl} (a JPEG at most 1280 px) or {id, error}.
+         */
+        @JavascriptInterface
+        public void pickImage(String id) {
+            main.post(() -> {
+                pendingImageId = id;
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*");
+                try {
+                    startActivityForResult(i, REQUEST_IMAGE_AI);
+                } catch (ActivityNotFoundException e) {
+                    emit(event("imagePicked", "id", id, "error", "No photo picker available"));
+                }
+            });
+        }
+
+        /** An AI question about an image (data URL); answers with an "ai" event like aiRun. */
+        @JavascriptInterface
+        public void aiRunImage(String id, String system, String task, String dataUrl, int maxTokens) {
+            io.execute(() -> {
+                try {
+                    String prov = provider();
+                    String key = R4LSession.password(MainActivity.this, prov);
+                    if (key == null || key.isEmpty()) throw new LlmProvider.AiException("Add your " + label(prov) + " API key in Settings → AI.");
+                    String b64 = dataUrl == null ? "" : dataUrl.substring(dataUrl.indexOf(',') + 1);
+                    LlmProvider.Result r;
+                    if ("gemini".equals(prov)) r = new GeminiProvider(key, aiModel()).completeWithImage(system, task, b64, maxTokens);
+                    else if ("groq".equals(prov)) r = new GroqProvider(key, null).completeWithImage(system, task, b64, maxTokens);
+                    else throw new LlmProvider.AiException("Image questions work with Gemini or Groq. Switch in Settings → AI.");
+                    recordUsage(r.model, r);
+                    emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model));
+                } catch (LlmProvider.AiException e) {
+                    emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));
+                } catch (Exception e) {
+                    emit(event("ai", "id", id, "state", "error", "message", "Image request failed: " + e.getClass().getSimpleName()));
+                }
+            });
+        }
+
         /** Whether the MyLOFT app is installed (institutional access goes through it). */
         @JavascriptInterface
         public boolean hasMyLoftApp() {
@@ -996,7 +1039,51 @@ public class MainActivity extends Activity {
             else emit(event("speech", "error", ""));
         } else if (requestCode == REQUEST_CAMERA && resultCode == RESULT_OK && cameraUri != null) {
             handleIncoming(cameraUri, "image/jpeg", true);
+        } else if (requestCode == REQUEST_IMAGE_AI) {
+            String id = pendingImageId;
+            pendingImageId = null;
+            if (id == null) return;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+                emit(event("imagePicked", "id", id, "error", "cancelled"));
+                return;
+            }
+            Uri uri = data.getData();
+            io.execute(() -> {
+                try {
+                    emit(event("imagePicked", "id", id, "dataUrl", imageDataUrl(uri)));
+                } catch (Exception e) {
+                    emit(event("imagePicked", "id", id, "error", "Couldn't read that image"));
+                }
+            });
         }
+    }
+
+    /** A picked image as a JPEG data URL, scaled so its longer side is at most 1280 px. */
+    private String imageDataUrl(Uri uri) throws java.io.IOException {
+        android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        try (java.io.InputStream in = getContentResolver().openInputStream(uri)) {
+            android.graphics.BitmapFactory.decodeStream(in, null, bounds);
+        }
+        int sample = 1;
+        while (Math.max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 1280) sample *= 2;
+        android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+        opts.inSampleSize = sample;
+        android.graphics.Bitmap bmp;
+        try (java.io.InputStream in = getContentResolver().openInputStream(uri)) {
+            bmp = android.graphics.BitmapFactory.decodeStream(in, null, opts);
+        }
+        if (bmp == null) throw new java.io.IOException("not an image");
+        float scale = 1280f / Math.max(bmp.getWidth(), bmp.getHeight());
+        if (scale < 1f) {
+            android.graphics.Bitmap s = android.graphics.Bitmap.createScaledBitmap(bmp, Math.round(bmp.getWidth() * scale), Math.round(bmp.getHeight() * scale), true);
+            if (s != bmp) bmp.recycle();
+            bmp = s;
+        }
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out);
+        bmp.recycle();
+        return "data:image/jpeg;base64," + android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP);
     }
 
     private String displayName(Uri uri) {

@@ -438,7 +438,7 @@
 
   window.addEventListener('hashchange', render);
 
-  const TAB_OF = { intel: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
+  const TAB_OF = { intel: 'intel', research: 'intel', project: 'intel', rp: 'intel', gaps: 'intel', compare: 'intel', drug: 'intel', images: 'intel', imgread: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
 
   async function render() {
     closeSheet();
@@ -1693,7 +1693,7 @@
   function onAi(evt) {
     const cb = aiPending[evt.id];
     delete aiPending[evt.id];
-    if (cb) cb(evt);
+    if (cb) cb(evt); else ext.onAiOther?.(evt);
   }
   /** Lenient JSON parse for structured answers. */
   function aiJson(text) {

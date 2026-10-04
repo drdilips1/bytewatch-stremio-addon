@@ -10,8 +10,8 @@ android {
         applicationId 'app.dermscholar'
         minSdk 24
         targetSdk 34
-        versionCode 18
-        versionName '4.0'
+        versionCode 19
+        versionName '4.1'
         // Neural voices ship native code for phones (64- and 32-bit ARM).
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }
     }

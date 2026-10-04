@@ -14,6 +14,15 @@ A dermatology research app with a Consensus-style search, built around
   journal club), a **trial radar** (ClinicalTrials.gov, WHO ICTRP), **guidelines**, **Today in
   Dermatology**, and a **full-text finder** on every paper (phone, PMC, open access, repository/author
   copies via Unpaywall, Research4Life, **MyLOFT** app handoff, publisher). AI: Groq, Gemini (free) or Claude.
+- **Research workspace**: **Paper → Research Project** (PICO, design, sample size, statistics, then research
+  gaps and new questions), **Research Gap Radar** (hot, gaps, controversial, emerging, neglected, with a
+  publication trend; "Top 20 unanswered questions"), **paper comparison** (side-by-side table and why they
+  differ), **drug intelligence** (openFDA label, FAERS reports, RxNorm, trials, RCTs, guidelines, cited AI
+  dossier), **image search** (NLM Open-i and Wikimedia Commons, with licences; clinical, dermoscopy,
+  histopathology) with a **differential-diagnosis** learning table and an **image learning mode** for
+  your own histopathology/dermoscopy/clinical photos (Gemini or Groq vision; educational only), and
+  **My Research** notebooks (papers, quotes, tables, AI notes, questions, protocol, references,
+  manuscript, trials; the project AI reads all of it).
 
 - **Evidence search** over Europe PMC (PubMed, PMC and more). Ask plain-language questions.
   - Each result shows its **key finding**, taken from the abstract's own conclusion.

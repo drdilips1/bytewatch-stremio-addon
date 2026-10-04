@@ -14,6 +14,7 @@
   const DIRECT = {
     ctgov: 'https://clinicaltrials.gov/api/v2/', unpaywall: 'https://api.unpaywall.org/v2/',
     pubmed: 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/', crossref: 'https://api.crossref.org/',
+    openi: 'https://openi.nlm.nih.gov/api/', fda: 'https://api.fda.gov/', rxnav: 'https://rxnav.nlm.nih.gov/REST/', commons: 'https://commons.wikimedia.org/w/',
   };
   const api = (up, path) => (D.hasNative ? `/proxy/${up}/` : DIRECT[up]) + path;
   const today = () => new Date().toISOString().slice(0, 10);
@@ -760,8 +761,8 @@
   actions['intel-go'] = (b) => {
     const k = b.dataset.k;
     if (k === 'ev') { askSheet(); return; }
-    if (k === 'images') { sheet(`<h3>Images</h3><p class="small">Search DermNet's clinical images (opens in the app's browser).</p><input id="img-q" placeholder="e.g. lichen planus pigmentosus"><button class="btn primary full" data-act="img-go" style="margin-top:8px">Search images</button>`); actions['img-go'] = () => { const v = $('#img-q').value.trim(); if (v) { closeSheet(true); openUrl('https://dermnetnz.org/search?q=' + encodeURIComponent(v)); } }; return; }
-    go(k === 'library' ? 'library' : k);
+    if (k === 'images' && !ext.routes.images) { sheet(`<h3>Images</h3><p class="small">Search DermNet's clinical images (opens in the app's browser).</p><input id="img-q" placeholder="e.g. lichen planus pigmentosus"><button class="btn primary full" data-act="img-go" style="margin-top:8px">Search images</button>`); actions['img-go'] = () => { const v = $('#img-q').value.trim(); if (v) { closeSheet(true); openUrl('https://dermnetnz.org/search?q=' + encodeURIComponent(v)); } }; return; }
+    go(k);
   };
   function askSheet(prefill = '') {
     sheet(`<h3>🧬 Ask any dermatology question</h3><textarea id="ev-qin" rows="3" placeholder="What is the current evidence for biologics in severe hidradenitis suppurativa after adalimumab failure?">${esc(prefill)}</textarea>
@@ -797,4 +798,11 @@
     intel: renderIntel, ev: renderEvidence, updates: renderUpdates, desk: renderDesk,
     trials: renderTrials, guides: renderGuides, today: renderToday,
   });
+
+  // Shared with intel2.js (research workspace, drugs, images).
+  window.DSI = {
+    api, q, epmc, trials, trialOf, trialTerm, gather, refsFrom, packText, newCtx, contexts, citeHtml, citeBtns, strength, refRow, trialCard,
+    keyCard, aiErr, busyHtml, aiJsonCall, cacheGet, cacheSet, obj, S, CITE_SYSTEM, paperText, openUrl, evHash, today, daysAgo, TILES, DISEASES,
+    needKey, GUIDE, SAFETY,
+  };
 })();

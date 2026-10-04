@@ -28,8 +28,17 @@ final class GeminiProvider implements LlmProvider {
         this.model = model == null || model.isEmpty() || !model.startsWith("gemini") ? DEFAULT_MODEL : model;
     }
 
+    /** Answers about an image (JPEG, base64): Gemini models read images natively. */
+    Result completeWithImage(String system, String task, String base64Jpeg, int maxTokens) throws AiException {
+        return run(system, null, task, maxTokens, null, base64Jpeg);
+    }
+
     @Override
     public Result complete(String system, String document, String task, int maxTokens, String jsonSchema) throws AiException {
+        return run(system, document, task, maxTokens, jsonSchema, null);
+    }
+
+    private Result run(String system, String document, String task, int maxTokens, String jsonSchema, String imageB64) throws AiException {
         for (int attempt = 0; ; attempt++) {
             try {
                 JSONObject body = new JSONObject();
@@ -41,8 +50,12 @@ final class GeminiProvider implements LlmProvider {
                     body.put("systemInstruction", new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text", sys))));
                 }
                 String user = document == null || document.isEmpty() ? task : "<document>\n" + document + "\n</document>\n\n" + task;
-                body.put("contents", new JSONArray().put(new JSONObject().put("role", "user")
-                        .put("parts", new JSONArray().put(new JSONObject().put("text", user)))));
+                JSONArray parts = new JSONArray();
+                if (imageB64 != null) {
+                    parts.put(new JSONObject().put("inlineData", new JSONObject().put("mimeType", "image/jpeg").put("data", imageB64)));
+                }
+                parts.put(new JSONObject().put("text", user));
+                body.put("contents", new JSONArray().put(new JSONObject().put("role", "user").put("parts", parts)));
                 JSONObject gen = new JSONObject().put("maxOutputTokens", Math.max(1024, maxTokens)).put("temperature", 0.3);
                 if (jsonSchema != null && !jsonSchema.isEmpty()) gen.put("responseMimeType", "application/json");
                 body.put("generationConfig", gen);
@@ -81,10 +94,10 @@ final class GeminiProvider implements LlmProvider {
                 JSONArray cands = res.optJSONArray("candidates");
                 StringBuilder out = new StringBuilder();
                 if (cands != null && cands.length() > 0) {
-                    JSONArray parts = cands.getJSONObject(0).optJSONObject("content") == null ? null
+                    JSONArray outParts = cands.getJSONObject(0).optJSONObject("content") == null ? null
                             : cands.getJSONObject(0).getJSONObject("content").optJSONArray("parts");
-                    for (int i = 0; parts != null && i < parts.length(); i++) {
-                        JSONObject p = parts.getJSONObject(i);
+                    for (int i = 0; outParts != null && i < outParts.length(); i++) {
+                        JSONObject p = outParts.getJSONObject(i);
                         if (!p.optBoolean("thought", false)) out.append(p.optString("text", ""));
                     }
                 }

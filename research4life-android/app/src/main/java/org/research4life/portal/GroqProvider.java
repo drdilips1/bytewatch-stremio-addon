@@ -84,6 +84,34 @@ final class GroqProvider implements LlmProvider {
         }
     }
 
+    /** Answers about an image (JPEG, base64) with Groq's vision model. */
+    Result completeWithImage(String system, String task, String base64Jpeg, int maxTokens) throws AiException {
+        try {
+            JSONObject body = new JSONObject();
+            body.put("model", "meta-llama/llama-4-scout-17b-16e-instruct");
+            JSONArray messages = new JSONArray();
+            messages.put(new JSONObject().put("role", "system").put("content", system));
+            JSONArray content = new JSONArray()
+                    .put(new JSONObject().put("type", "image_url").put("image_url", new JSONObject().put("url", "data:image/jpeg;base64," + base64Jpeg)))
+                    .put(new JSONObject().put("type", "text").put("text", task));
+            messages.put(new JSONObject().put("role", "user").put("content", content));
+            body.put("messages", messages);
+            body.put("max_completion_tokens", Math.min(maxTokens, 4000));
+            JSONObject res = post("chat/completions", body);
+            String text = res.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "").trim();
+            if (text.isEmpty()) throw new AiException("Groq returned an empty answer. Try again.");
+            JSONObject usage = res.optJSONObject("usage");
+            return new Result(text, res.optString("model", "llama-4-scout"), usage == null ? 0 : usage.optLong("prompt_tokens"),
+                    usage == null ? 0 : usage.optLong("completion_tokens"), 0);
+        } catch (AiException e) {
+            throw e;
+        } catch (IOException e) {
+            throw new AiException("Couldn't reach Groq. Check your connection.");
+        } catch (Exception e) {
+            throw new AiException("Groq image request failed: " + e.getClass().getSimpleName());
+        }
+    }
+
     /** Model ids this key can use (chat models only). */
     String listModels() throws AiException {
         try {
