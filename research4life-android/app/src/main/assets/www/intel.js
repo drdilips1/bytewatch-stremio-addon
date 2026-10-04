@@ -1,0 +1,800 @@
+// DermScholar Intel: the intelligence layer above the sources. One dermatology question becomes an
+// Evidence Map (guidelines → systematic reviews → RCTs → observational → case reports → trials → latest),
+// a citation-first AI synthesis with evidence strength, an evidence matrix, a contradiction check,
+// "what changed since I last looked", specialised AI modes, a clinical trial radar, guidelines,
+// Today in Dermatology and a full-text finder (Open Access, PMC, Research4Life, MyLOFT, publisher).
+// Every AI statement carries numbered citations that open the exact papers behind it.
+(() => {
+  'use strict';
+  const D = window.DS;
+  const { $, $$, esc, icon, md, sheet, closeSheet, toast, store, go, render, actions, ext, Native } = D;
+  const view = $('#view');
+
+  // ================================================================ sources
+  const DIRECT = {
+    ctgov: 'https://clinicaltrials.gov/api/v2/', unpaywall: 'https://api.unpaywall.org/v2/',
+    pubmed: 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/', crossref: 'https://api.crossref.org/',
+  };
+  const api = (up, path) => (D.hasNative ? `/proxy/${up}/` : DIRECT[up]) + path;
+  const today = () => new Date().toISOString().slice(0, 10);
+  const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+  const openUrl = (u) => (Native.openPortal ? Native.openPortal(u, '', '') : window.open(u, '_blank'));
+
+  /** A dermatology question as a Europe PMC query, optionally narrowed. */
+  function q(question, { types = [], extra = '', years = 'any', sort = '' } = {}) {
+    let s = D.buildQuery({ q: question, derm: true, types, years, oa: false, preprints: false });
+    if (extra) s = `(${s}) AND ${extra}`;
+    return { query: s, sort };
+  }
+  const GUIDE = '(PUB_TYPE:"Guideline" OR PUB_TYPE:"Practice Guideline" OR TITLE:guideline* OR TITLE:"consensus statement" OR TITLE:"expert consensus" OR TITLE:recommendations)';
+  const OBS = '(TITLE_ABS:cohort OR TITLE_ABS:"case-control" OR TITLE_ABS:"cross-sectional" OR TITLE_ABS:registry OR TITLE_ABS:"real-world")';
+  const COCHRANE = 'JOURNAL:"Cochrane Database Syst Rev"';
+  const SAFETY = '(TITLE_ABS:"adverse event*" OR TITLE_ABS:safety OR TITLE_ABS:pharmacovigilance OR TITLE_ABS:"boxed warning" OR TITLE_ABS:"adverse drug reaction*")';
+
+  /** The evidence buckets of the Evidence Map, best evidence first. */
+  const BUCKETS = [
+    { key: 'guide', label: 'Guidelines & consensus', emoji: '📋', build: (x) => q(x, { extra: GUIDE }), size: 6, ai: 4 },
+    { key: 'sr', label: 'Systematic reviews & meta-analyses', emoji: '📚', build: (x) => q(x, { types: ['meta', 'sr'] }), size: 8, ai: 7 },
+    { key: 'cochrane', label: 'Cochrane reviews', emoji: '🟦', build: (x) => q(x, { extra: COCHRANE }), size: 4, ai: 2 },
+    { key: 'rct', label: 'Randomized controlled trials', emoji: '🎯', build: (x) => q(x, { types: ['rct'] }), size: 10, ai: 9 },
+    { key: 'obs', label: 'Observational studies', emoji: '🔍', build: (x) => q(x, { extra: OBS }), size: 6, ai: 4 },
+    { key: 'case', label: 'Case series & reports', emoji: '🧾', build: (x) => q(x, { types: ['case'] }), size: 4, ai: 2 },
+    { key: 'recent', label: 'Latest publications', emoji: '🆕', build: (x) => q(x, { years: 2, sort: 'P_PDATE_D desc' }), size: 6, ai: 4 },
+  ];
+
+  async function epmc(spec, size) {
+    try {
+      return await D.epmcSearch(spec.query, { sort: spec.sort, size });
+    } catch (e) {
+      return { hit: 0, results: [], error: e.message };
+    }
+  }
+
+  // ---- ClinicalTrials.gov (v2)
+  function trialOf(s) {
+    const p = s.protocolSection || {};
+    const id = p.identificationModule || {}, st = p.statusModule || {}, de = p.designModule || {};
+    const arms = p.armsInterventionsModule || {}, sp = p.sponsorCollaboratorsModule || {};
+    return {
+      nct: id.nctId, title: id.briefTitle || id.officialTitle || '',
+      status: (st.overallStatus || '').replace(/_/g, ' ').toLowerCase(),
+      phase: (de.phases || []).map((x) => x.replace('PHASE', 'Phase ').replace('EARLY_', 'Early ').replace('NA', 'N/A')).join(', '),
+      n: de.enrollmentInfo?.count || 0,
+      conditions: p.conditionsModule?.conditions || [],
+      interventions: (arms.interventions || []).map((i) => `${i.name}${i.type ? ' (' + i.type.toLowerCase() + ')' : ''}`),
+      sponsor: sp.leadSponsor?.name || '',
+      start: st.startDateStruct?.date || '', updated: st.lastUpdatePostDateStruct?.date || '',
+      completion: st.primaryCompletionDateStruct?.date || '',
+    };
+  }
+  async function trials(term, { status = '', phase = '', itype = '', since = '', size = 12 } = {}) {
+    const p = new URLSearchParams({ 'query.term': term, pageSize: String(size), format: 'json', sort: 'LastUpdatePostDate:desc' });
+    if (status) p.set('filter.overallStatus', status);
+    const adv = [];
+    if (phase) adv.push(`AREA[Phase](${phase})`);
+    if (itype) adv.push(`AREA[InterventionType]${itype}`);
+    if (since) adv.push(`AREA[LastUpdatePostDate]RANGE[${since},MAX]`);
+    if (adv.length) p.set('filter.advanced', adv.join(' AND '));
+    try {
+      const j = await D.getJSON(api('ctgov', 'studies?' + p));
+      return { total: j.totalCount ?? (j.studies || []).length, list: (j.studies || []).map(trialOf) };
+    } catch (e) {
+      return { total: 0, list: [], error: e.message };
+    }
+  }
+  const trialTerm = (question) => D.keywordTerms(question).filter((w) => w.length > 2).slice(0, 6).join(' ');
+
+  // ================================================================ evidence pack (what the AI may cite)
+  /** Gathers the Evidence Map for a question: Europe PMC buckets in parallel, plus ongoing trials. */
+  async function gather(question) {
+    const key = 'evmap.' + question.toLowerCase().trim();
+    const hit = mem.get(key);
+    if (hit && Date.now() - hit.at < 30 * 60e3) return hit;
+    const [buckets, tr] = await Promise.all([
+      Promise.all(BUCKETS.map(async (b) => ({ ...b, res: await epmc(b.build(question), b.size) }))),
+      trials(trialTerm(question), { size: 8 }),
+    ]);
+    const out = { question, buckets, trials: tr, at: Date.now() };
+    mem.set(key, out);
+    return out;
+  }
+  const mem = new Map();
+
+  /** Numbered references for the AI: each paper once, best evidence first. */
+  function refsFrom(map) {
+    const refs = [];
+    const seen = new Set();
+    for (const b of map.buckets) {
+      for (const a of b.res.results.slice(0, b.ai)) {
+        if (seen.has(a.id)) continue;
+        seen.add(a.id);
+        refs.push({ kind: 'paper', a, type: D.studyType(a).label, bucket: b.label });
+      }
+    }
+    for (const t of map.trials.list.slice(0, 6)) refs.push({ kind: 'trial', t, type: 'Registered trial' });
+    return refs.map((r, i) => ({ ...r, n: i + 1 }));
+  }
+  function packText(refs, { abstract = 1100 } = {}) {
+    return refs.map((r) => {
+      if (r.kind === 'trial') {
+        const t = r.t;
+        return `[${r.n}] REGISTERED TRIAL ${t.nct} · ${t.phase || 'phase n/a'} · ${t.status} · N=${t.n || '?'} · ${t.title}. Interventions: ${t.interventions.join('; ')}. Conditions: ${t.conditions.join('; ')}.`;
+      }
+      const a = r.a;
+      const abs = D.stripTags(a.abstract || '').slice(0, abstract);
+      return `[${r.n}] ${r.type.toUpperCase()} · ${a.jAbbr || a.journal} ${a.year} · ${a.title}. ${abs}`;
+    }).join('\n\n');
+  }
+
+  const CITE_SYSTEM = 'You are a meticulous dermatology evidence analyst. Use ONLY the numbered sources provided. '
+    + 'Every factual claim must cite its sources with their numbers, like [3] or [2, 5]. Never write "studies show" without citations. '
+    + 'Keep numbers, doses and effect sizes exactly as reported. Rate evidence strength honestly from study designs and consistency: '
+    + 'strong (consistent RCTs or high-quality meta-analyses/guidelines), moderate, limited, very limited, conflicting. '
+    + 'If the sources do not answer something, say so.';
+
+  // ---- JSON schemas (strict: every property required, no extras)
+  const S = {
+    str: { type: 'string' }, ints: { type: 'array', items: { type: 'integer' } },
+    strength: { type: 'string', enum: ['strong', 'moderate', 'limited', 'very limited', 'conflicting'] },
+  };
+  const obj = (props) => ({ type: 'object', additionalProperties: false, required: Object.keys(props), properties: props });
+  const SYNTH = obj({
+    bottomLine: S.str, strength: S.strength,
+    sections: { type: 'array', items: obj({ heading: S.str, points: { type: 'array', items: obj({ text: S.str, cites: S.ints, strength: S.strength }) } }) },
+    controversies: { type: 'array', items: obj({ text: S.str, cites: S.ints }) },
+    gaps: { type: 'array', items: S.str },
+    mustRead: S.ints,
+  });
+  const MATRIX = obj({
+    title: S.str,
+    rows: { type: 'array', items: obj({
+      option: S.str, evidence: { type: 'string', enum: ['High', 'Moderate', 'Low', 'Very low', 'Emerging'] },
+      population: S.str, response: S.str, safety: S.str, followup: S.str, cites: S.ints,
+      n: S.str, endpoints: S.str, effect: S.str, ci: S.str, limitations: S.str,
+    }) },
+  });
+  const CONTRA = obj({
+    claim: S.str,
+    forEvidence: { type: 'array', items: obj({ cite: { type: 'integer' }, point: S.str }) },
+    againstEvidence: { type: 'array', items: obj({ cite: { type: 'integer' }, point: S.str }) },
+    reasons: { type: 'array', items: obj({ reason: S.str, explanation: S.str }) },
+    assessment: S.str, strength: S.strength,
+  });
+
+  // ================================================================ citations UI
+  const contexts = new Map(); // ctx id -> refs
+  let ctxSeq = 0;
+  function newCtx(refs) {
+    const id = 'c' + (++ctxSeq);
+    contexts.set(id, refs);
+    return id;
+  }
+  /** Markdown with [n] citations turned into buttons that show the sources. */
+  function citeHtml(html, ctx) {
+    return html.replace(/\[(\d+(?:\s*[,–-]\s*\d+)*)\]/g, (m0, list) => {
+      const nums = [...list.matchAll(/\d+/g)].map((x) => x[0]);
+      return `<button class="cite" data-act="cite-show" data-ctx="${ctx}" data-n="${nums.join(',')}">${nums.join(', ')}</button>`;
+    });
+  }
+  const citeBtns = (cites, ctx) => (cites?.length ? `<button class="cite" data-act="cite-show" data-ctx="${ctx}" data-n="${cites.join(',')}">${cites.join(', ')}</button>` : '');
+  const STRENGTH = {
+    strong: ['🟢', 'Strong'], moderate: ['🟡', 'Moderate'], limited: ['🟠', 'Limited'],
+    'very limited': ['🔴', 'Very limited'], conflicting: ['⚫', 'Conflicting'],
+  };
+  const strength = (s) => { const x = STRENGTH[s] || STRENGTH.limited; return `<span class="strength s-${esc(String(s).replace(' ', '-'))}">${x[0]} ${x[1]}</span>`; };
+
+  function refRow(r) {
+    if (r.kind === 'trial') {
+      const t = r.t;
+      return `<div class="ref"><div class="ref-n">${r.n}</div><div class="ref-b"><span class="tag">Trial · ${esc(t.phase || 'n/a')} · ${esc(t.status)}</span>
+        <b>${esc(t.title)}</b><span class="muted small">${esc(t.nct)}${t.n ? ' · N=' + t.n : ''}${t.sponsor ? ' · ' + esc(t.sponsor) : ''}</span>
+        <button class="btn xs" data-act="open-trial" data-nct="${esc(t.nct)}">${icon('external')}ClinicalTrials.gov</button></div></div>`;
+    }
+    const a = r.a;
+    return `<div class="ref"><div class="ref-n">${r.n}</div><div class="ref-b"><span class="tag">${esc(r.type)}</span>
+      <b>${esc(a.title)}</b><span class="muted small">${esc(D.shortAuthors(a.authors || ''))} · ${esc(a.jAbbr || a.journal)} ${esc(a.year)}${a.citedBy ? ' · ' + a.citedBy + ' citations' : ''}</span>
+      ${a.finding ? `<p class="small">${esc(a.finding)}</p>` : ''}
+      <button class="btn xs" data-act="open" data-id="${esc(a.id)}">${icon('file')}Open paper</button></div></div>`;
+  }
+  actions['cite-show'] = (b) => {
+    const refs = contexts.get(b.dataset.ctx) || [];
+    const nums = b.dataset.n.split(',').map(Number);
+    const list = refs.filter((r) => nums.includes(r.n));
+    sheet(`<h3>Why did the AI say this?</h3><p class="muted small">The statement is based on ${list.length === 1 ? 'this source' : 'these sources'}:</p>
+      ${list.map(refRow).join('') || '<p class="muted">Source not found.</p>'}`);
+  };
+  actions['open-trial'] = (b) => openUrl('https://clinicaltrials.gov/study/' + b.dataset.nct);
+  actions['refs-all'] = (b) => {
+    const refs = contexts.get(b.dataset.ctx) || [];
+    sheet(`<h3>All sources (${refs.length})</h3>${refs.map(refRow).join('')}`);
+  };
+
+  // ================================================================ AI helpers
+  const needKey = () => !D.aiHasKey();
+  function keyCard() {
+    return `<div class="panel"><b>${icon('spark')} Add a free AI key</b><p class="small">The AI synthesis, matrix and contradiction check need an AI key.
+      <b>Gemini</b> (free, aistudio.google.com/apikey) reads the most papers at once; <b>Groq</b> (free, console.groq.com/keys) is fastest.</p>
+      <button class="btn primary" data-act="settings">Open Settings → AI</button></div>`;
+  }
+  const aiErr = (e) => `<div class="panel"><b>The AI didn't answer</b><p class="small">${esc(e.message === 'NO_KEY' ? 'Add an AI key in Settings → AI.' : e.message)}</p></div>`;
+  async function aiJsonCall(task, refs, schema, max = 6000) {
+    const text = await D.ai(task, { doc: packText(refs), system: CITE_SYSTEM, schema, max });
+    return D.aiJson(text);
+  }
+  const cacheGet = (k) => { const v = store.get('intel.' + k, null); return v && Date.now() - v.at < 7 * 864e5 ? v.data : null; };
+  const cacheSet = (k, data) => store.set('intel.' + k, { at: Date.now(), data });
+
+  // ================================================================ Evidence Map screen (#ev?q=)
+  function evHash(question) { return 'ev?' + new URLSearchParams({ q: question }); }
+
+  async function renderEvidence(_, p) {
+    const question = (p.q || '').trim();
+    if (!question) { go('intel', { replace: true }); return; }
+    const watched = watches().some((w) => w.q.toLowerCase() === question.toLowerCase());
+    view.innerHTML = `${D.topbar('Evidence Map', { right: `<button class="icon-btn" data-act="ev-watch" aria-label="Watch">${icon(watched ? 'starFill' : 'star')}</button>` })}
+      <div class="ev-q"><span class="muted small">Question</span><h2>${esc(question)}</h2>
+        <div class="muted small">Europe PMC (all of PubMed/MEDLINE, PMC, Cochrane) · ClinicalTrials.gov · OpenAlex citations</div>
+        <div class="row wrap" style="margin-top:8px">
+          <button class="chip" data-act="ev-utd" data-q="${esc(question)}">${icon('book')}UpToDate</button>
+          <button class="chip" data-act="ev-r4l">${icon('key')}Research4Life</button>
+          <button class="chip" data-act="ev-papers" data-q="${esc(question)}">${icon('search')}All papers</button>
+          <button class="chip" data-act="ev-dermnet" data-q="${esc(question)}">${icon('globe')}DermNet</button>
+          <button class="chip" data-act="ev-ictrp" data-q="${esc(question)}">${icon('globe')}WHO ICTRP</button>
+        </div></div>
+      <div id="ev-ai"></div>
+      <div id="ev-map">${D.skeletons(4)}</div>`;
+    actions['ev-watch'] = () => { toggleWatch(question); render(); };
+    let map;
+    try {
+      map = await gather(question);
+    } catch (e) {
+      $('#ev-map').innerHTML = D.errorBox(e);
+      return;
+    }
+    if (D.current.name !== 'ev') return;
+    const refs = refsFrom(map);
+    const ctx = newCtx(refs);
+    const total = map.buckets.reduce((s, b) => s + (b.res.hit || 0), 0);
+    $('#ev-map').innerHTML = `
+      <div class="ev-summary">${map.buckets.map((b) => `<div><b>${b.res.hit > 999 ? Math.round(b.res.hit / 100) / 10 + 'k' : b.res.hit}</b><span>${b.emoji} ${esc(b.label.split(' ')[0])}</span></div>`).join('')}
+        <div><b>${map.trials.total || 0}</b><span>🧪 Trials</span></div></div>
+      ${map.buckets.map((b) => bucketHtml(b, question)).join('')}
+      <div class="section"><div class="section-h"><h3>🧪 Clinical trials</h3><button data-act="go-trials" data-q="${esc(trialTerm(question))}">Trial radar</button></div>
+        ${map.trials.list.length ? map.trials.list.slice(0, 5).map(trialCard).join('') : `<div class="muted small">${map.trials.error ? 'ClinicalTrials.gov didn\'t answer.' : 'No registered trials found.'}</div>`}</div>
+      <p class="muted small" style="margin-top:18px">${total.toLocaleString()} matching records. The AI reads the top ${refs.length} sources, numbered below.</p>
+      <button class="btn full" data-act="refs-all" data-ctx="${ctx}">${icon('list')}All ${refs.length} numbered sources</button>`;
+    actions['go-trials'] = (b) => go('trials?' + new URLSearchParams({ q: b.dataset.q }));
+    drawAi(question, refs, ctx);
+  }
+
+  function bucketHtml(b, question) {
+    const list = b.res.results.slice(0, 3);
+    return `<div class="section ev-bucket"><div class="section-h"><h3>${b.emoji} ${esc(b.label)} <span class="count">${b.res.hit || 0}</span></h3>
+      ${b.res.hit > 3 ? `<button data-act="ev-more" data-b="${b.key}" data-q="${esc(question)}">See all</button>` : ''}</div>
+      ${list.length ? list.map((a) => D.card(a, { compact: true })).join('') : `<div class="muted small">${b.res.error ? 'Couldn\'t load: ' + esc(b.res.error) : 'None found.'}</div>`}</div>`;
+  }
+  function trialCard(t) {
+    const live = /recruiting|active|enrolling|not yet/.test(t.status);
+    return `<div class="card trial" data-act="open-trial" data-nct="${esc(t.nct)}">
+      <div class="badges"><span class="badge ${live ? 'b-rct' : ''}">${esc(t.status || 'status n/a')}</span>${t.phase ? `<span class="badge">${esc(t.phase)}</span>` : ''}${t.n ? `<span class="badge">N=${t.n}</span>` : ''}</div>
+      <p class="title main">${esc(t.title)}</p>
+      <div class="byline"><span>${esc(t.nct)}</span>${t.sponsor ? `<span class="dot">${esc(t.sponsor)}</span>` : ''}${t.updated ? `<span class="dot">updated ${esc(t.updated)}</span>` : ''}</div>
+      ${t.interventions.length ? `<p class="small muted">${esc(t.interventions.slice(0, 4).join(' · '))}</p>` : ''}</div>`;
+  }
+  actions['ev-more'] = (b) => {
+    const bk = BUCKETS.find((x) => x.key === b.dataset.b);
+    const types = { sr: ['meta', 'sr'], rct: ['rct'], case: ['case'], guide: ['guide'] }[bk.key] || [];
+    go(D.searchHash(D.filtersFrom({ q: b.dataset.q, types: types.join(','), sort: bk.key === 'recent' ? 'newest' : 'relevance' })));
+  };
+  actions['ev-papers'] = (b) => go(D.searchHash(D.filtersFrom({ q: b.dataset.q })));
+  actions['ev-utd'] = (b) => go('search?' + new URLSearchParams({ q: b.dataset.q, src: 'utd' }));
+  actions['ev-r4l'] = () => Native.openPortal('https://portal.research4life.org/signin', '', '');
+  actions['ev-dermnet'] = (b) => openUrl('https://dermnetnz.org/search?q=' + encodeURIComponent(b.dataset.q));
+  actions['ev-ictrp'] = (b) => openUrl('https://trialsearch.who.int/?SearchAll=' + encodeURIComponent(trialTerm(b.dataset.q)));
+
+  /** The AI panel: synthesis first, then matrix / contradictions / listen on request. */
+  function drawAi(question, refs, ctx) {
+    const el = $('#ev-ai');
+    if (!el) return;
+    if (needKey()) { el.innerHTML = keyCard(); return; }
+    el.innerHTML = `<div class="ai-tools scroll-x">
+        <button class="chip on" data-act="ev-tool" data-t="synth">${icon('spark')}AI synthesis</button>
+        <button class="chip" data-act="ev-tool" data-t="matrix">${icon('chart')}Evidence matrix</button>
+        <button class="chip" data-act="ev-tool" data-t="contra">${icon('alert')}Contradictions</button>
+        <button class="chip" data-act="ev-tool" data-t="listen">${icon('audio')}Listen</button></div>
+      <div id="ev-out"></div>`;
+    actions['ev-tool'] = (b) => {
+      $$('.ai-tools .chip').forEach((c) => c.classList.toggle('on', c === b));
+      const t = b.dataset.t;
+      if (t === 'synth') synth(question, refs, ctx);
+      if (t === 'matrix') matrix(question, refs, ctx);
+      if (t === 'contra') contra(question, refs, ctx);
+      if (t === 'listen') listen(question, refs);
+    };
+    synth(question, refs, ctx);
+  }
+  const busyHtml = (msg) => `<div class="panel busy-inline"><span class="spin"></span>${esc(msg)}</div>`;
+
+  async function synth(question, refs, ctx) {
+    const out = $('#ev-out');
+    const ck = 'synth.' + question.toLowerCase();
+    let r = cacheGet(ck);
+    if (!r) {
+      out.innerHTML = busyHtml(`Reading ${refs.length} sources…`);
+      try {
+        r = await aiJsonCall(
+          `Question: ${question}\n\nWrite a citation-first evidence synthesis for a dermatologist. Sections to use (skip any the sources don't cover): `
+          + '"What the guidelines say", "What the strongest evidence shows", "Efficacy in numbers", "Safety", "Ongoing trials and what is coming", "What has changed recently". '
+          + 'Each point: one or two sentences with citations and its own evidence strength. Then list controversies (where sources disagree), research gaps, and the 3-5 sources most worth reading.',
+          refs, SYNTH);
+        cacheSet(ck, r);
+      } catch (e) { out.innerHTML = aiErr(e); return; }
+    }
+    if (!$('#ev-out')) return;
+    out.innerHTML = `<div class="panel synth">
+      <div class="label">${icon('spark')}Bottom line ${strength(r.strength)}</div><p class="bottom">${citeHtml(esc(r.bottomLine), ctx)}</p>
+      ${(r.sections || []).map((s) => `<h4>${esc(s.heading)}</h4><ul>${(s.points || []).map((p) => `<li>${citeHtml(esc(p.text), ctx)} ${citeBtns(p.cites, ctx)} ${strength(p.strength)}</li>`).join('')}</ul>`).join('')}
+      ${r.controversies?.length ? `<h4>⚔️ Where the evidence disagrees</h4><ul>${r.controversies.map((c) => `<li>${esc(c.text)} ${citeBtns(c.cites, ctx)}</li>`).join('')}</ul>` : ''}
+      ${r.gaps?.length ? `<h4>🕳️ Unanswered questions</h4><ul>${r.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}
+      ${r.mustRead?.length ? `<h4>📌 Read first</h4><div class="row wrap">${r.mustRead.map((n) => citeBtns([n], ctx)).join('')}</div>` : ''}
+      <p class="muted small">Tap a number to see the exact sources. AI can misread abstracts: check key numbers in the papers.</p>
+      <button class="btn xs" data-act="ev-redo">${icon('spark')}Redo</button></div>`;
+    actions['ev-redo'] = () => { store.set('intel.' + ck, null); synth(question, refs, ctx); };
+  }
+
+  async function matrix(question, refs, ctx) {
+    const out = $('#ev-out');
+    const ck = 'matrix.' + question.toLowerCase();
+    let r = cacheGet(ck);
+    if (!r) {
+      out.innerHTML = busyHtml('Building the evidence matrix…');
+      try {
+        r = await aiJsonCall(`Question: ${question}\n\nBuild an evidence matrix: one row per treatment/option/exposure studied in the sources (up to 10, strongest evidence first). `
+          + 'evidence = High/Moderate/Low/Very low/Emerging; population; response (e.g. "↑↑ PASI-75 62% vs 12%" or "?"); safety (key signals or "—"); followup; '
+          + 'cites; and from the cited studies: n (patients), endpoints, effect (effect size), ci (confidence interval or "not reported"), limitations.', refs, MATRIX, 7000);
+        cacheSet(ck, r);
+      } catch (e) { out.innerHTML = aiErr(e); return; }
+    }
+    if (!$('#ev-out')) return;
+    const rows = r.rows || [];
+    window.__evMatrix = { rows, ctx };
+    out.innerHTML = `<div class="panel"><div class="label">${icon('chart')}${esc(r.title || 'Evidence matrix')}</div>
+      <div class="matrix-wrap"><table class="matrix"><thead><tr><th>Option</th><th>Evidence</th><th>Population</th><th>Response</th><th>Safety</th><th>Follow-up</th></tr></thead>
+      <tbody>${rows.map((x, i) => `<tr data-act="mx-row" data-i="${i}"><td><b>${esc(x.option)}</b></td><td><span class="ev-lv lv-${esc(x.evidence.replace(' ', '-'))}">${esc(x.evidence)}</span></td>
+        <td>${esc(x.population)}</td><td>${esc(x.response)}</td><td>${esc(x.safety)}</td><td>${esc(x.followup)}</td></tr>`).join('')}</tbody></table></div>
+      <p class="muted small">Tap a row for patient numbers, endpoints, effect sizes, confidence intervals, limitations and the studies.</p></div>`;
+  }
+  actions['mx-row'] = (b) => {
+    const { rows, ctx } = window.__evMatrix || {};
+    const x = rows?.[+b.dataset.i];
+    if (!x) return;
+    const refs = (contexts.get(ctx) || []).filter((r) => x.cites.includes(r.n));
+    sheet(`<h3>${esc(x.option)}</h3>
+      <div class="kv"><span>Evidence</span><b>${esc(x.evidence)}</b><span>Patients</span><b>${esc(x.n)}</b><span>Endpoints</span><b>${esc(x.endpoints)}</b>
+      <span>Effect</span><b>${esc(x.effect)}</b><span>95% CI</span><b>${esc(x.ci)}</b><span>Follow-up</span><b>${esc(x.followup)}</b><span>Safety</span><b>${esc(x.safety)}</b></div>
+      <p class="small"><b>Limitations:</b> ${esc(x.limitations)}</p><h4>Supporting studies</h4>${refs.map(refRow).join('') || '<p class="muted">None cited.</p>'}`);
+  };
+
+  async function contra(question, refs, ctx) {
+    const out = $('#ev-out');
+    const ck = 'contra.' + question.toLowerCase();
+    let r = cacheGet(ck);
+    if (!r) {
+      out.innerHTML = busyHtml('Looking for disagreements…');
+      try {
+        r = await aiJsonCall(`Question: ${question}\n\nContradiction check. State the main claim being tested. List the evidence FOR it and the evidence AGAINST it or limiting it (each with one citation number and a one-sentence point). `
+          + 'Then explain WHY the studies disagree (different populations, doses, endpoints, follow-up, sample sizes, designs, bias, statistics). Finish with an honest overall assessment and evidence strength.', refs, CONTRA);
+        cacheSet(ck, r);
+      } catch (e) { out.innerHTML = aiErr(e); return; }
+    }
+    if (!$('#ev-out')) return;
+    out.innerHTML = `<div class="panel"><div class="label">${icon('alert')}Claim tested</div><p class="bottom">${esc(r.claim)}</p>
+      <div class="contra"><div><h4>✅ Evidence for</h4><ul>${(r.forEvidence || []).map((x) => `<li>${esc(x.point)} ${citeBtns([x.cite], ctx)}</li>`).join('') || '<li class="muted">None in the sources.</li>'}</ul></div>
+      <div><h4>⚠️ Against / limitations</h4><ul>${(r.againstEvidence || []).map((x) => `<li>${esc(x.point)} ${citeBtns([x.cite], ctx)}</li>`).join('') || '<li class="muted">None in the sources.</li>'}</ul></div></div>
+      ${r.reasons?.length ? `<h4>Why do the studies disagree?</h4><ul>${r.reasons.map((x) => `<li><b>${esc(x.reason)}:</b> ${esc(x.explanation)}</li>`).join('')}</ul>` : ''}
+      <div class="label" style="margin-top:12px">AI evidence assessment ${strength(r.strength)}</div><p>${esc(r.assessment)}</p></div>`;
+  }
+
+  async function listen(question, refs) {
+    const out = $('#ev-out');
+    out.innerHTML = busyHtml('Writing a spoken briefing…');
+    try {
+      const text = await D.ai(`Question: ${question}\n\nWrite a 3-minute spoken research briefing for a dermatologist: what is known, how strong it is, where studies disagree, what is coming in trials, and the bottom line. `
+        + 'Plain spoken prose, no citations in brackets, no Markdown. Mention study types and years naturally ("a 2024 meta-analysis found…").', { doc: packText(refs, { abstract: 700 }), system: CITE_SYSTEM, max: 2500 });
+      const lines = text.split(/\n+/).map((t) => t.trim()).filter((t) => t.length > 1).map((t) => ({ t }));
+      out.innerHTML = `<div class="panel"><div class="label">${icon('audio')}Research briefing</div>${md(text)}</div>`;
+      D.ttsPlayScript?.('Briefing', lines, { title: 'Briefing: ' + question.slice(0, 60) });
+    } catch (e) { out.innerHTML = aiErr(e); }
+  }
+
+  // ================================================================ What changed since I last looked (#updates)
+  const watches = () => store.get('watches', []);
+  function toggleWatch(question) {
+    const list = watches();
+    const i = list.findIndex((w) => w.q.toLowerCase() === question.toLowerCase());
+    if (i >= 0) { list.splice(i, 1); toast('No longer watching'); } else { list.push({ q: question, since: today() }); toast('Watching: you\'ll see what changes'); }
+    store.set('watches', list);
+  }
+
+  async function changesFor(w) {
+    const since = w.since || daysAgo(30);
+    const range = `FIRST_PDATE:[${since} TO ${today()}]`;
+    const kinds = [
+      { key: 'rct', emoji: '🆕', label: 'new RCTs', spec: q(w.q, { types: ['rct'], extra: range }) },
+      { key: 'sr', emoji: '📚', label: 'new systematic reviews', spec: q(w.q, { types: ['meta', 'sr'], extra: range }) },
+      { key: 'guide', emoji: '📋', label: 'guideline updates', spec: q(w.q, { extra: `${GUIDE} AND ${range}` }) },
+      { key: 'safety', emoji: '⚠️', label: 'safety reports', spec: q(w.q, { extra: `${SAFETY} AND ${range}` }) },
+      { key: 'other', emoji: '📄', label: 'other new papers', spec: q(w.q, { extra: range, sort: 'P_PDATE_D desc' }) },
+    ];
+    const [res, tr] = await Promise.all([
+      Promise.all(kinds.map(async (k) => ({ ...k, res: await epmc(k.spec, 6) }))),
+      trials(trialTerm(w.q), { since, size: 6 }),
+    ]);
+    return { w, since, kinds: res, trials: tr };
+  }
+
+  async function renderUpdates() {
+    const list = watches();
+    view.innerHTML = `${D.topbar('What changed?')}
+      <p class="muted small">New evidence since you last looked, for the questions you watch (★ on any Evidence Map).</p>
+      <div id="upd">${list.length ? D.skeletons(3) : '<div class="empty">' + icon('star') + '<b>Nothing watched yet</b><div>Open an Evidence Map and tap ★ to watch a question.</div></div>'}</div>`;
+    if (!list.length) return;
+    const all = await Promise.all(list.map(changesFor));
+    if (D.current.name !== 'updates') return;
+    $('#upd').innerHTML = all.map((c, i) => {
+      const counts = c.kinds.map((k) => k.res.hit ? `<span>${k.emoji} ${k.res.hit} ${esc(k.label)}</span>` : '').join('') +
+        (c.trials.total ? `<span>🧪 ${c.trials.total} new/updated trials</span>` : '');
+      return `<div class="panel upd"><div class="section-h"><h3>${esc(c.w.q)}</h3></div>
+        <div class="muted small">Since ${esc(c.since)}</div><div class="upd-counts">${counts || '<span class="muted">Nothing new</span>'}</div>
+        <div class="row wrap"><button class="btn xs primary" data-act="upd-matters" data-i="${i}">${icon('spark')}What actually matters?</button>
+        <button class="btn xs" data-act="upd-open" data-q="${esc(c.w.q)}">Evidence map</button>
+        <button class="btn xs" data-act="upd-seen" data-i="${i}">${icon('check')}Mark as seen</button></div><div id="upd-ai-${i}"></div></div>`;
+    }).join('');
+    actions['upd-open'] = (b) => go(evHash(b.dataset.q));
+    actions['upd-seen'] = (b) => {
+      const l = watches();
+      if (l[+b.dataset.i]) l[+b.dataset.i].since = today();
+      store.set('watches', l);
+      toast('Marked as seen');
+      render();
+    };
+    actions['upd-matters'] = async (b) => {
+      const c = all[+b.dataset.i];
+      const el = $('#upd-ai-' + b.dataset.i);
+      if (needKey()) { el.innerHTML = keyCard(); return; }
+      const refs = [];
+      for (const k of c.kinds) for (const a of k.res.results.slice(0, 5)) if (!refs.some((r) => r.a?.id === a.id)) refs.push({ kind: 'paper', a, type: D.studyType(a).label });
+      for (const t of c.trials.list.slice(0, 5)) refs.push({ kind: 'trial', t, type: 'Registered trial' });
+      refs.forEach((r, i) => { r.n = i + 1; });
+      if (!refs.length) { el.innerHTML = '<p class="muted small">Nothing new to weigh.</p>'; return; }
+      const ctx = newCtx(refs);
+      el.innerHTML = busyHtml('Weighing what is new…');
+      try {
+        const text = await D.ai(`Question being followed: ${c.w.q}\n\nThese sources are NEW since ${c.since}. What actually matters for a dermatologist? `
+          + 'Rank the 3-6 most clinically or research-relevant developments (practice-changing results, safety signals, guideline changes, important new trials), each with citations, '
+          + 'and say briefly what is NOT worth attention. Markdown bullets, every claim cited like [2].', { doc: packText(refs), system: CITE_SYSTEM, max: 2500 });
+        el.innerHTML = `<div class="synth">${citeHtml(md(text), ctx)}</div>`;
+      } catch (e) { el.innerHTML = aiErr(e); }
+    };
+  }
+
+  // ================================================================ AI modes (#desk?mode=)
+  const MODES = {
+    research: { emoji: '🔬', label: 'Research AI', hint: 'Find RCTs of JAK inhibitors in vitiligo', search: true,
+      task: 'Find and list the studies that answer the request, grouped by design (RCTs, reviews, observational). For each: what it studied, N, main result, with its citation. End with what is missing.' },
+    clinical: { emoji: '🩺', label: 'Clinical Evidence AI', hint: 'Current treatment options for severe atopic dermatitis', search: true,
+      task: 'Answer as a clinical evidence summary for a practising dermatologist: first-line, second-line and advanced options, what the guidelines recommend, efficacy numbers, safety and monitoring, special populations. Cite every claim and give an evidence strength for each recommendation.' },
+    literature: { emoji: '📚', label: 'Literature AI', hint: 'Summarize the last five years of biologics in psoriasis', search: true, recent: true,
+      task: 'Write a structured literature review of the sources: themes, key findings with numbers, how the field has moved, disagreements and gaps. Cite every claim.' },
+    design: { emoji: '🧪', label: 'Research Design AI', hint: 'Design a study comparing treatment A vs B in melasma',
+      task: 'Help design the study: research question (PICO), the best feasible design and why, population and inclusion/exclusion criteria, randomization/blinding, primary and secondary outcomes with validated scales, sample size reasoning with assumptions, statistical plan, ethics, and pitfalls. Use dermatology-standard outcome measures.' },
+    stats: { emoji: '📊', label: 'Statistics AI', hint: 'Which test for comparing PASI change between 3 groups?',
+      task: 'Act as a biostatistician: choose the right analysis, explain why, its assumptions and how to check them, alternatives if assumptions fail, how to report it (effect size, CI), and sample R or SPSS steps if useful.' },
+    manuscript: { emoji: '✍️', label: 'Manuscript AI', hint: 'Paste results and ask: turn these into a Results section',
+      task: 'Write publication-quality text in the style of top dermatology journals (JAAD, BJD). Keep every number exactly as given, do not invent data, follow CONSORT/STROBE/PRISMA reporting where relevant, and mark anything that needs the author\'s input in [square brackets].' },
+    reviewer: { emoji: '🔎', label: 'Reviewer AI', hint: 'Paste your manuscript or abstract to find weaknesses',
+      task: 'Review as a demanding peer reviewer for a top dermatology journal: major issues, minor issues, methods and statistics problems, missing analyses, overstated conclusions, reporting-guideline gaps, and concrete fixes. Be specific and constructive.' },
+    club: { emoji: '🧠', label: 'Journal Club AI', hint: 'Pick a saved paper, or paste a DOI / PMID',
+      task: 'Journal club analysis: PICO → study design and methodology → risk of bias (by domain) → statistics (appropriate? effect sizes and CIs) → results → clinical relevance → limitations → 5 discussion questions for residents. Cite paragraphs where useful.' },
+  };
+
+  function renderDesk(_, p) {
+    const mode = MODES[p.mode] ? p.mode : 'clinical';
+    const m = MODES[mode];
+    view.innerHTML = `${D.topbar('AI research desk')}
+      <div class="scroll-x" style="margin:8px 0 12px">${Object.entries(MODES).map(([k, x]) => `<button class="chip ${k === mode ? 'on' : ''}" data-act="desk-mode" data-v="${k}">${x.emoji} ${esc(x.label.replace(' AI', ''))}</button>`).join('')}</div>
+      <div class="panel"><b>${m.emoji} ${esc(m.label)}</b><p class="muted small">${esc(m.task.split('.')[0])}.</p>
+        ${mode === 'club' ? clubPicker() : ''}
+        <textarea id="desk-in" rows="${['manuscript', 'reviewer', 'stats', 'design'].includes(mode) ? 7 : 3}" placeholder="${esc(m.hint)}">${esc(p.q || '')}</textarea>
+        <button class="btn primary full" data-act="desk-go" style="margin-top:8px">${icon('spark')}Ask</button></div>
+      <div id="desk-out"></div>`;
+    actions['desk-mode'] = (b) => go('desk?' + new URLSearchParams({ mode: b.dataset.v }), { replace: true });
+    actions['desk-go'] = () => runDesk(mode, $('#desk-in').value.trim());
+    if (p.q && p.run) runDesk(mode, p.q);
+  }
+  function clubPicker() {
+    const list = [...D.saved.values()].filter((a) => !a.doc).slice(0, 30);
+    return list.length ? `<label class="field">Saved paper</label><select id="desk-paper"><option value="">— or paste a DOI / PMID / title below —</option>
+      ${list.map((a) => `<option value="${esc(a.id)}">${esc(a.title.slice(0, 90))}</option>`).join('')}</select>` : '';
+  }
+  async function paperText(a) {
+    // Full text when saved offline (PDF reflow or open-access full text), else the abstract.
+    try {
+      const model = await D.db.getReflow(a.id);
+      if (model && model.blocks?.length) return { docModel: model, label: 'full text' };
+    } catch { /* not saved */ }
+    return { doc: `${a.title}\n${a.authors}\n${a.journal} ${a.year}\n\n${D.stripTags(a.abstract || '')}`, label: 'abstract only' };
+  }
+  async function resolvePaper(input) {
+    const pick = $('#desk-paper')?.value;
+    if (pick) return D.findArticle(pick);
+    const doi = input.match(/10\.\d{4,9}\/\S+/)?.[0];
+    const pmid = input.match(/^\d{6,9}$/)?.[0];
+    const spec = doi ? `DOI:"${doi}"` : pmid ? `EXT_ID:${pmid} AND SRC:MED` : `TITLE:"${input.replace(/"/g, '')}"`;
+    const r = await D.epmcSearch(spec, { size: 1 });
+    if (!r.results.length) throw new Error('Paper not found. Paste its DOI or PMID.');
+    return r.results[0];
+  }
+  async function runDesk(mode, input) {
+    const m = MODES[mode];
+    const out = $('#desk-out');
+    if (needKey()) { out.innerHTML = keyCard(); return; }
+    if (!input && !(mode === 'club' && $('#desk-paper')?.value)) { toast('Type your request first'); return; }
+    try {
+      if (m.search) {
+        out.innerHTML = busyHtml('Searching the literature…');
+        const map = await gather(input);
+        let refs = refsFrom(map);
+        if (m.recent) refs = refs.filter((r) => r.kind === 'trial' || +r.a.year >= D.THIS_YEAR - 5).map((r, i) => ({ ...r, n: i + 1 }));
+        const ctx = newCtx(refs);
+        out.innerHTML = busyHtml(`Reading ${refs.length} sources…`);
+        const text = await D.ai(`Request: ${input}\n\n${m.task}`, { doc: packText(refs), system: CITE_SYSTEM + ' Write Markdown with "## " headings and "- " bullets.', max: 5000 });
+        out.innerHTML = `<div class="panel synth">${citeHtml(md(text), ctx)}<button class="btn xs" data-act="refs-all" data-ctx="${ctx}">${icon('list')}${refs.length} sources</button></div>`;
+        return;
+      }
+      if (mode === 'club') {
+        out.innerHTML = busyHtml('Reading the paper…');
+        const a = await resolvePaper(input);
+        const src = await paperText(a);
+        const text = await D.ai(`${m.task}${input && !$('#desk-paper')?.value ? '' : input ? '\n\nAlso: ' + input : ''}`, { ...src, max: 6000 });
+        out.innerHTML = `<div class="panel synth"><div class="label">${icon('school')}${esc(a.title)} <span class="muted small">(${src.label})</span></div>${md(text)}
+          <button class="btn xs" data-act="open" data-id="${esc(a.id)}">${icon('file')}Open paper</button></div>`;
+        return;
+      }
+      out.innerHTML = busyHtml('Thinking…');
+      const text = await D.ai(`${m.task}\n\nUser's material / request:\n\n${input}`, {
+        system: 'You are an expert dermatology researcher, biostatistician and medical writer. Be precise and practical. Never invent data or references. Markdown with "## " headings and "- " bullets.',
+        max: 6000,
+      });
+      out.innerHTML = `<div class="panel synth">${md(text)}<button class="btn xs" data-act="desk-copy">${icon('quote')}Copy</button></div>`;
+      actions['desk-copy'] = () => D.copyText(text);
+    } catch (e) { out.innerHTML = aiErr(e); }
+  }
+
+  // ================================================================ Clinical Trial Radar (#trials)
+  const DISEASES = ['Psoriasis', 'Atopic dermatitis', 'Vitiligo', 'Hidradenitis suppurativa', 'Alopecia areata', 'Androgenetic alopecia', 'Acne', 'Rosacea', 'Melanoma',
+    'Basal cell carcinoma', 'Squamous cell carcinoma skin', 'Chronic urticaria', 'Pemphigus', 'Bullous pemphigoid', 'Prurigo nodularis', 'Melasma', 'Lichen planus', 'Cutaneous lupus', 'Scleroderma', 'Epidermolysis bullosa'];
+  const PHASES = { '': 'Any phase', PHASE1: 'Phase 1', PHASE2: 'Phase 2', PHASE3: 'Phase 3', PHASE4: 'Phase 4' };
+  const STATUSES = { '': 'Any status', RECRUITING: 'Recruiting', 'ACTIVE_NOT_RECRUITING': 'Active', 'NOT_YET_RECRUITING': 'Not yet recruiting', COMPLETED: 'Completed', TERMINATED: 'Terminated' };
+  const ITYPES = { '': 'Any intervention', DRUG: 'Drug', BIOLOGICAL: 'Biologic', DEVICE: 'Device', PROCEDURE: 'Procedure', GENETIC: 'Gene/cell therapy', BEHAVIORAL: 'Behavioural' };
+  const EXTRA_TERMS = { jak: 'JAK inhibitor', biologic: 'monoclonal antibody', topical: 'topical', cell: 'cell therapy' };
+
+  async function renderTrials(_, p) {
+    const f = { q: p.q || 'Psoriasis', phase: p.phase || '', status: p.status ?? 'RECRUITING', itype: p.itype || '', extra: p.extra || '' };
+    const nav = (patch) => go('trials?' + new URLSearchParams({ ...f, ...patch }), { replace: true });
+    view.innerHTML = `${D.topbar('Trial radar')}
+      <p class="muted small">Dermatology trials from ClinicalTrials.gov, newest updates first. WHO ICTRP adds other registries.</p>
+      <div class="scroll-x">${DISEASES.map((d) => `<button class="chip ${d === f.q ? 'on' : ''}" data-act="tr-q" data-v="${esc(d)}">${esc(d)}</button>`).join('')}</div>
+      <div class="scroll-x" style="margin-top:8px">
+        <button class="chip ${f.phase ? 'on' : ''}" data-act="tr-phase">${icon('filter')}${esc(PHASES[f.phase])}</button>
+        <button class="chip ${f.status ? 'on' : ''}" data-act="tr-status">${icon('clock')}${esc(STATUSES[f.status] || 'Any status')}</button>
+        <button class="chip ${f.itype ? 'on' : ''}" data-act="tr-itype">${icon('spark')}${esc(ITYPES[f.itype])}</button>
+        <button class="chip ${f.extra ? 'on' : ''}" data-act="tr-extra">${icon('bulb')}${esc(f.extra ? EXTRA_TERMS[f.extra] : 'Drug class')}</button>
+        <button class="chip" data-act="ev-ictrp" data-q="${esc(f.q)}">${icon('globe')}WHO ICTRP</button></div>
+      <div id="tr-list">${D.skeletons(4)}</div>`;
+    actions['tr-q'] = (b) => nav({ q: b.dataset.v });
+    actions['tr-phase'] = () => D.pickOne('Phase', PHASES, f.phase, (v) => nav({ phase: v }));
+    actions['tr-status'] = () => D.pickOne('Status', STATUSES, f.status, (v) => nav({ status: v }));
+    actions['tr-itype'] = () => D.pickOne('Intervention', ITYPES, f.itype, (v) => nav({ itype: v }));
+    actions['tr-extra'] = () => D.pickOne('Drug class', { '': 'Any', ...EXTRA_TERMS }, f.extra, (v) => nav({ extra: v }));
+    const r = await trials([f.q, EXTRA_TERMS[f.extra] || ''].join(' ').trim(), { status: f.status, phase: f.phase, itype: f.itype, size: 25 });
+    if (D.current.name !== 'trials') return;
+    $('#tr-list').innerHTML = r.error ? D.errorBox(new Error('ClinicalTrials.gov: ' + r.error))
+      : `<p class="muted small">${r.total || r.list.length} trials</p>${r.list.map(trialCard).join('') || '<div class="empty"><b>No trials match</b></div>'}`;
+  }
+
+  // ================================================================ Guidelines (#guides)
+  const SOCIETIES = [
+    ['American Academy of Dermatology (AAD)', 'https://www.aad.org/member/clinical-quality/guidelines'],
+    ['British Association of Dermatologists (BAD)', 'https://www.bad.org.uk/guidelines-and-standards/clinical-guidelines/'],
+    ['European Dermatology Forum / EuroGuiDerm (EADV)', 'https://www.guidelines.edf.one/'],
+    ['EADV', 'https://eadv.org/'],
+    ['Indian Association of Dermatologists (IADVL)', 'https://iadvl.org/'],
+    ['NICE: skin conditions', 'https://www.nice.org.uk/guidance/conditions-and-diseases/skin-conditions'],
+    ['Cochrane Skin', 'https://skin.cochrane.org/'],
+    ['National Psoriasis Foundation', 'https://www.psoriasis.org/'],
+    ['British Society for Medical Dermatology', 'https://www.bsmd.org.uk/'],
+    ['DermNet (education & images)', 'https://dermnetnz.org/'],
+  ];
+  async function renderGuides(_, p) {
+    const topic = p.q || '';
+    view.innerHTML = `${D.topbar('Guidelines')}
+      <form class="searchbox compact" data-form="guides"><textarea name="q" rows="1" placeholder="Topic, e.g. hidradenitis suppurativa">${esc(topic)}</textarea>
+        <button class="go" type="submit">${icon('up')}</button></form>
+      <div id="g-list">${topic ? D.skeletons(3) : ''}</div>
+      <div class="section"><div class="section-h"><h3>Society guidelines</h3></div>
+        <div class="list-card">${SOCIETIES.map(([n, u]) => `<button class="example" data-act="g-open" data-u="${esc(u)}">${icon('external')}<span>${esc(n)}</span></button>`).join('')}</div>
+        <p class="muted small">Societies don't offer a way for apps to read their guideline pages, so they open in the in-app browser. Published guidelines are also found above, from journals.</p></div>`;
+    actions['g-open'] = (b) => openUrl(b.dataset.u);
+    if (!topic) return;
+    const r = await epmc(q(topic, { extra: GUIDE, sort: 'P_PDATE_D desc' }), 20);
+    if (D.current.name !== 'guides') return;
+    $('#g-list').innerHTML = `<div class="section-h"><h3>Published guidelines & consensus (${r.hit})</h3></div>${r.results.map((a) => D.card(a)).join('') || '<div class="muted small">None found.</div>'}`;
+  }
+  document.addEventListener('submit', (e) => {
+    const form = e.target.closest('[data-form=guides]');
+    if (!form) return;
+    e.preventDefault();
+    go('guides?' + new URLSearchParams({ q: form.q.value.trim() }), { replace: true });
+  });
+
+  // ================================================================ Today in Dermatology (#today)
+  const TODAY = obj({ picks: { type: 'array', items: obj({ category: S.str, cite: { type: 'integer' }, why: S.str, summary: S.str }) } });
+  const CATS = ['🔥 Most important', '🧪 Most interesting', '⚠️ Most controversial', '💊 Most clinically relevant', '🤯 Most surprising'];
+
+  async function renderToday() {
+    view.innerHTML = `${D.topbar('Today in Dermatology')}<p class="muted small">New papers from leading dermatology journals in the last two weeks.</p><div id="td">${D.skeletons(4)}</div>`;
+    const top = (window.JOURNALS || []).filter((j) => j.top || /Leading|Research/.test(j.group)).slice(0, 16);
+    const jq = '(' + top.map(D.journalQuery).join(' OR ') + ')';
+    const r = await epmc({ query: `${jq} AND FIRST_PDATE:[${daysAgo(14)} TO ${today()}] AND HAS_ABSTRACT:y ${D.NOISE}`, sort: 'P_PDATE_D desc' }, 40);
+    if (D.current.name !== 'today') return;
+    const papers = r.results;
+    const refs = papers.map((a, i) => ({ kind: 'paper', a, type: D.studyType(a).label, n: i + 1 }));
+    const ctx = newCtx(refs);
+    const el = $('#td');
+    const list = `<div class="section"><div class="section-h"><h3>All new papers (${papers.length})</h3></div>${papers.map((a) => D.card(a, { compact: true })).join('')}</div>`;
+    if (needKey() || !papers.length) { el.innerHTML = (papers.length ? keyCard() : '') + list; return; }
+    const ck = 'today.' + today();
+    let picks = cacheGet(ck);
+    el.innerHTML = busyHtml('Choosing the 5 papers worth knowing…') + list;
+    if (!picks) {
+      try {
+        picks = (await aiJsonCall(`From these new dermatology papers choose exactly five, one per category: ${CATS.join(', ')}. `
+          + 'For each: category (exactly as given), cite (its number), why (one sentence), summary (a 30-second summary: what they did, what they found with key numbers, why it matters).', refs, TODAY, 3000)).picks;
+        cacheSet(ck, picks);
+      } catch (e) { el.innerHTML = aiErr(e) + list; return; }
+    }
+    if (D.current.name !== 'today') return;
+    el.innerHTML = picks.map((x, i) => {
+      const r0 = refs.find((r) => r.n === x.cite);
+      if (!r0) return '';
+      return `<div class="panel today"><div class="label">${esc(x.category)}</div><b>${esc(r0.a.title)}</b>
+        <div class="muted small">${esc(r0.a.jAbbr || r0.a.journal)} · ${esc(r0.type)}</div><p>${esc(x.summary)}</p><p class="small muted">${esc(x.why)}</p>
+        <div class="row wrap"><button class="btn xs" data-act="td-more" data-i="${i}" data-l="2">⏱ 2-minute</button>
+        <button class="btn xs" data-act="td-more" data-i="${i}" data-l="deep">🎓 Deep dive</button>
+        <button class="btn xs" data-act="open" data-id="${esc(r0.a.id)}">${icon('file')}Paper</button></div><div id="td-x-${i}"></div></div>`;
+    }).join('') + list;
+    actions['td-more'] = async (b) => {
+      const x = picks[+b.dataset.i];
+      const r0 = refs.find((r) => r.n === x.cite);
+      const out = $('#td-x-' + b.dataset.i);
+      out.innerHTML = busyHtml('Writing…');
+      try {
+        const src = await paperText(r0.a);
+        const ask = b.dataset.l === 'deep'
+          ? 'Professor-level deep dive for dermatologists: background, methods critique, results with numbers, risk of bias, how it fits the existing evidence, clinical implications, and open questions.'
+          : 'A 2-minute summary (about 300 words): question, design, main results with numbers, limitations, and what it means in practice.';
+        const text = await D.ai(ask + (src.label === 'abstract only' ? ' (Only the abstract is available; say so where it limits the analysis.)' : ''), { ...src, max: 3500 });
+        out.innerHTML = `<div class="synth">${md(text)}</div><button class="btn xs" data-act="td-listen" data-i="${b.dataset.i}">${icon('audio')}Listen</button>`;
+        actions['td-listen'] = () => D.ttsPlayScript?.('Today', text.replace(/[#*_]/g, '').split(/\n+/).filter((t) => t.trim().length > 1).map((t) => ({ t: t.trim() })), { title: r0.a.title.slice(0, 60) });
+      } catch (e) { out.innerHTML = aiErr(e); }
+    };
+  }
+
+  // ================================================================ Full-text finder + MyLOFT (paper page)
+  ext.articleExtra = (a) => `<div class="panel where" id="where"><div class="label">${icon('unlock')}Where to read the full text</div><div id="where-list" class="muted small">Checking…</div></div>
+    <div class="row wrap intel-paper"><button class="btn xs" data-act="paper-club" data-id="${esc(a.id)}">${icon('school')}Journal club</button>
+    <button class="btn xs" data-act="paper-ev" data-q="${esc((a.mesh[0] || a.keywords[0] || a.title).slice(0, 90))}">${icon('chart')}Evidence map for this topic</button></div>`;
+  actions['paper-club'] = (b) => go('desk?' + new URLSearchParams({ mode: 'club', q: b.dataset.id }));
+  actions['paper-ev'] = (b) => go(evHash(b.dataset.q));
+
+  ext.afterArticle = async (a) => {
+    const el = $('#where-list');
+    if (!el) return;
+    const rows = [];
+    const add = (name, sub, act, extra = '') => rows.push(`<button class="opt" data-act="${act}" data-id="${esc(a.id)}" ${extra}>${icon('unlock')}<span>${esc(name)}<small>${esc(sub)}</small></span></button>`);
+    if (D.pdfKeys.has(a.id)) add('On this phone', 'PDF saved in your library', 'open-pdf');
+    const oaLink = (a.links || []).find((l) => /OA|F/.test(l.code || '') && /pdf/i.test(l.style || ''));
+    if (a.pmcid) add('PubMed Central', 'Free full text · read in the app', 'reader');
+    else if (a.oa || oaLink) add('Open access', 'Free copy · Get PDF saves it', 'get-pdf');
+    let up = null;
+    if (a.doi) {
+      try {
+        up = await D.getJSON(api('unpaywall', encodeURIComponent(a.doi) + '?email=unpaywall@dermscholar.app'));
+      } catch { up = null; }
+    }
+    const best = up?.best_oa_location;
+    if (best && !a.pmcid && !a.oa) add(best.host_type === 'repository' ? (best.version === 'publishedVersion' ? 'Repository copy' : 'Author manuscript') : 'Free at the publisher',
+      `${best.host_type === 'repository' ? (best.repository_institution || 'Repository') : (up.publisher || 'Publisher')} · ${best.version === 'publishedVersion' ? 'published version' : best.version === 'acceptedVersion' ? 'accepted manuscript' : 'preprint'}`,
+      'where-url', `data-u="${esc(best.url_for_pdf || best.url)}"`);
+    if (a.doi) {
+      add('Research4Life', D.account('r4l').saved ? 'Your institution-free access · Get PDF' : 'Add your Research4Life login', 'get-pdf');
+      add('MyLOFT (your institution)', Native.hasMyLoftApp?.() ? 'Open in the MyLOFT app, share the PDF back' : 'Install MyLOFT to use your institution\'s access', 'myloft');
+      add('Publisher website', (up?.publisher || 'via doi.org') + (up?.journal_is_oa ? ' · open-access journal' : ''), 'where-url', `data-u="https://doi.org/${esc(a.doi)}"`);
+    }
+    if (el.isConnected) el.innerHTML = rows.join('') || 'No full-text source found. Try Research4Life or MyLOFT.';
+  };
+  actions['where-url'] = (b) => openUrl(b.dataset.u);
+
+  actions.myloft = async (b) => {
+    const a = b.dataset.id ? await D.findArticle(b.dataset.id).catch(() => null) : null;
+    if (a) {
+      Native.setPendingPdf?.(a.id, a.title);
+      D.copyText(a.doi ? `${a.title} doi:${a.doi}` : a.title);
+    }
+    const has = Native.hasMyLoftApp?.();
+    sheet(`<h3>Get it through MyLOFT</h3>
+      <p class="small">MyLOFT gives you your institution's subscriptions. Its website only works inside its own app, so DermScholar hands the paper over:</p>
+      <ol class="steps"><li>${a ? 'The title and DOI are copied.' : 'Find your paper.'} Paste them into MyLOFT's search and open the PDF.</li>
+      <li>In MyLOFT, tap <b>Share</b> (or <b>Open with</b>) → <b>DermScholar</b>.</li>
+      <li>The PDF is saved ${a ? 'to this paper' : 'to your library'} and opens in the reader, ready for AI and listening.</li></ol>
+      <button class="btn primary full" data-act="myloft-go">${icon('external')}${has ? 'Open the MyLOFT app' : 'Get the MyLOFT app'}</button>`);
+    actions['myloft-go'] = () => { closeSheet(true); Native.openMyLoftApp?.(); };
+  };
+
+  // ================================================================ Intel hub (#intel) and home
+  const TILES = [
+    ['today', '🔥', 'Today', 'New evidence worth knowing'],
+    ['ev', '🧬', 'Evidence map', 'Guidelines → reviews → RCTs → trials'],
+    ['updates', '🔔', 'What changed?', 'New since you last looked'],
+    ['desk', '🧠', 'AI research desk', 'Research · clinical · stats · manuscript · reviewer · journal club'],
+    ['trials', '🧪', 'Trial radar', 'ClinicalTrials.gov · WHO ICTRP'],
+    ['guides', '📋', 'Guidelines', 'AAD · BAD · EADV · NICE · Cochrane'],
+    ['library', '📚', 'Library', 'Saved papers · PDFs · MyLOFT'],
+    ['images', '🖼️', 'Images', 'DermNet clinical images'],
+  ];
+  function tilesHtml() {
+    const n = watches().length;
+    return `<div class="intel-tiles">${TILES.map(([k, e, t, s]) => `<button class="intel-tile" data-act="intel-go" data-k="${k}"><span class="e">${e}</span><b>${esc(t)}</b><span>${esc(k === 'updates' && n ? `${n} question${n > 1 ? 's' : ''} watched` : s)}</span></button>`).join('')}</div>`;
+  }
+  actions['intel-go'] = (b) => {
+    const k = b.dataset.k;
+    if (k === 'ev') { askSheet(); return; }
+    if (k === 'images') { sheet(`<h3>Images</h3><p class="small">Search DermNet's clinical images (opens in the app's browser).</p><input id="img-q" placeholder="e.g. lichen planus pigmentosus"><button class="btn primary full" data-act="img-go" style="margin-top:8px">Search images</button>`); actions['img-go'] = () => { const v = $('#img-q').value.trim(); if (v) { closeSheet(true); openUrl('https://dermnetnz.org/search?q=' + encodeURIComponent(v)); } }; return; }
+    go(k === 'library' ? 'library' : k);
+  };
+  function askSheet(prefill = '') {
+    sheet(`<h3>🧬 Ask any dermatology question</h3><textarea id="ev-qin" rows="3" placeholder="What is the current evidence for biologics in severe hidradenitis suppurativa after adalimumab failure?">${esc(prefill)}</textarea>
+      <button class="btn primary full" data-act="ev-ask" style="margin-top:8px">${icon('chart')}Build the evidence map</button>`);
+    actions['ev-ask'] = () => { const v = $('#ev-qin').value.trim(); if (v) { closeSheet(true); go(evHash(v)); } };
+  }
+
+  function renderIntel() {
+    view.innerHTML = `<div class="home-top"><div class="brand"><span>DERM INTELLIGENCE</span></div></div>
+      <form class="searchbox" data-form="intel"><textarea name="q" rows="2" placeholder="Ask any dermatology question…">${''}</textarea><button class="go" type="submit">${icon('up')}</button></form>
+      <p class="muted small" style="margin:6px 4px 14px">Best evidence, where it came from, how strong it is, what's controversial, what changed.</p>
+      ${tilesHtml()}
+      ${watches().length ? `<div class="section"><div class="section-h"><h3>Watched questions</h3><button data-act="intel-go" data-k="updates">What changed?</button></div>
+        <div class="row wrap">${watches().map((w) => `<button class="chip" data-act="upd-open" data-q="${esc(w.q)}">${icon('star')}${esc(w.q.length > 40 ? w.q.slice(0, 38) + '…' : w.q)}</button>`).join('')}</div></div>` : ''}
+      <p class="muted small" style="margin-top:20px">Sources: Europe PMC (all of PubMed/MEDLINE, PMC and Cochrane), ClinicalTrials.gov, OpenAlex, Unpaywall, plus your Research4Life, UpToDate and MyLOFT access.</p>`;
+    actions['upd-open'] = (b) => go(evHash(b.dataset.q));
+  }
+  document.addEventListener('submit', (e) => {
+    const form = e.target.closest('[data-form=intel]');
+    if (!form) return;
+    e.preventDefault();
+    const v = form.q.value.trim();
+    if (v) go(evHash(v));
+  });
+
+  ext.homeIntel = () => `<div class="section"><div class="section-h"><h3>Derm intelligence</h3><button data-act="tab-intel">All</button></div>${tilesHtml()}</div>`;
+  actions['tab-intel'] = () => go('intel');
+  ext.searchTop = (question) => (question && !/["():]|\b(AND|OR|NOT)\b/.test(question)
+    ? `<button class="ev-banner" data-act="ev-from-search" data-q="${esc(question)}">${icon('chart')}<span><b>Evidence map for this question</b><small>Guidelines → reviews → RCTs → trials, with a cited AI synthesis</small></span></button>` : '');
+  actions['ev-from-search'] = (b) => go(evHash(b.dataset.q));
+
+  Object.assign(ext.routes, {
+    intel: renderIntel, ev: renderEvidence, updates: renderUpdates, desk: renderDesk,
+    trials: renderTrials, guides: renderGuides, today: renderToday,
+  });
+})();

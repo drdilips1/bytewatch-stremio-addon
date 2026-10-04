@@ -1,0 +1,67 @@
+name: Build DermScholar APK
+
+on:
+  push:
+    paths:
+      - 'research4life-android/**'
+      - '.github/workflows/research4life-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: research4life-android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check web app syntax
+        run: |
+          node --check app/src/main/assets/www/app.js
+          node --check app/src/main/assets/www/journals.js
+
+      - name: Check journal queries against Europe PMC
+        continue-on-error: true
+        run: node tools/check-journals.mjs
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APK
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          bash tools/fetch-sherpa.sh
+          gradle assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk DermScholar.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DermScholar-apk
+          path: research4life-android/DermScholar.apk
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="dermscholar-${{ github.run_number }}"
+          gh release create "$TAG" DermScholar.apk \
+            --target "${{ github.sha }}" \
+            --title "DermScholar APK (build ${{ github.run_number }})" \
+            --notes "Dermatology research app with Research4Life access. Download DermScholar.apk below and open it on your Android phone (allow installing from unknown sources). Updates install over the previous version and keep your library." \
+            --prerelease

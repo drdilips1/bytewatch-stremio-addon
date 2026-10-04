@@ -1,0 +1,13 @@
+# DermScholar backlog
+
+Bugs and suggestions from the user, newest last. Changes are made and tested locally and are
+**only pushed (which builds the APK) when the user says "Build now"**.
+
+Status: 🟡 noted · 🔵 in progress · ✅ done locally (waiting for "Build now") · 🚀 shipped in a build
+
+| # | Type | Item | Status |
+|---|------|------|--------|
+| 1 | Suggestion | **Research paper → podcast.** NotebookLM-style conversation purpose-built for papers ("So what did this study actually find?", "But what's the catch?", "The authors themselves point out…"), not robotic TTS. **Interrupt** at any moment ("Explain that hazard ratio"), hear the answer, then carry on listening. | ✅ Paper → Podcast in AI studio (tab right after Brief), after import ("Podcast" button) and in the reader menu. Host/Expert script with segments (The question · How they studied it · What they found · The catch · What it means in practice · Bottom line), numbers spoken naturally, limitations attributed to the authors; Quick / Standard / Deep-dive lengths; two contrasting natural voices. **Ask** in the player pauses it, takes a typed or spoken question (mic), the hosts answer from the paper in their own voices, then the podcast resumes at the same line. Segments work as chapters; resumes where you left off; transcript with tap-to-play. Works the same while listening to the paper itself. |
+| 2 | Suggestion | **Derm intelligence (round 1).** Intel tab: Evidence Map (guidelines → SR/MA → Cochrane → RCTs → observational → cases → latest → trials), citation-first AI synthesis with evidence strength and "Why did the AI say this?", evidence matrix (tap rows for N, endpoints, effect, CI, limitations, studies), contradiction detector, "What changed since I last looked?" for watched questions, AI research desk (Research, Clinical, Literature, Design, Statistics, Manuscript, Reviewer, Journal Club), trial radar (ClinicalTrials.gov filters + WHO ICTRP), guidelines (published + society sites), Today in Dermatology (5 picks with 30-s / 2-min / deep dive), full-text finder (on phone, PMC, OA, Unpaywall repository/author copies, Research4Life, MyLOFT, publisher), Gemini as a free AI option. | 🚀 4.0 |
+| 3 | Request | **MyLOFT back, working.** MyLOFT's site only works in its own app, so DermScholar copies the title/DOI, remembers the paper and opens the MyLOFT app (or its Play Store page); Share/Open with → DermScholar saves the PDF to that paper. | 🚀 4.0 |
+| 4 | Suggestion | **Round 2:** Paper → Research Project, Research Gap Radar, paper comparison, drug intelligence dossier (openFDA, RxNorm, DailyMed), image search (Open-i, Wikimedia) with differential-diagnosis and histopathology learning modes, My Research notebooks. | 🟡 next |
