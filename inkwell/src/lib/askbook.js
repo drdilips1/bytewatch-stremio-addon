@@ -54,7 +54,7 @@ export const STARTERS = ['What is this book about?', 'What are the 5 most import
 export const COMPANION = [
   ['explain', '🧠', 'Explain', 'Explain what is being said at this point in simple words, with one real-life example.'],
   ['challenge', '🔍', 'Challenge', "Challenge what the author argues around this point: the claim, the evidence given, the strongest support, the strongest criticism, and what remains uncertain. Mention related research or books."],
-  ['rabbit', '🐇', 'Rabbit hole', 'Take me down a 5-minute rabbit hole on the most interesting idea at this point: what is actually known, myths vs evidence, key thinkers, and related books or documentaries.'],
+  ['rabbit', '🐇', 'Rabbit hole', 'Take me down a short rabbit hole (about 2 minutes to listen, under 250 words) on the most interesting idea at this point: what is actually known, myths vs evidence, key thinkers, and 2–3 related books or documentaries.'],
   ['related', '📚', 'Related', 'Which other books (especially ones in my library) discuss the idea at this point, and how do they agree or disagree?'],
 ];
 

@@ -68,26 +68,45 @@ export async function speakAnswer(text, onDone) {
   const my = ++run;
   const edge = edgeVoice();
   if (edge) {
-    // The read-aloud engine plays the whole answer, paragraph by paragraph.
+    // The read-aloud engine plays the whole answer, paragraph by paragraph. If it hasn't
+    // started speaking within 6 seconds (Microsoft's service slow or down), or fails,
+    // the phone's own voice reads it instead — an answer is never left silent.
     const paras = plain(text).split('\n').map((x) => x.trim()).filter(Boolean);
-    const done = () => {
-      if (my !== run) return;
-      readerOn = false;
-      onDone?.();
-    };
-    try {
-      readerOn = true;
-      await Reader.start({ uid: 'ask-answer', title: 'Ask AI', paras, from: 0, rate: ttsCfg.get().rate || 1, voice: { ...voiceSpec(), engine: 'edge', edgeVoice: edge } });
-      const h = await Reader.addListener('state', (st) => {
-        if (st.uid !== 'ask-answer' || st.finished || !st.active || (!st.playing && st.error) || my !== run) {
-          h.remove();
-          done();
-        }
-      });
-    } catch {
-      done();
-    }
-    return;
+    let handle = null;
+    const started = await new Promise(async (resolve) => {
+      let settled = false;
+      let playing = false;
+      const settle = (v) => !settled && ((settled = true), resolve(v));
+      const timer = setTimeout(() => settle(false), 6000);
+      try {
+        readerOn = true;
+        handle = await Reader.addListener('state', (st) => {
+          if (st.uid !== 'ask-answer') return;
+          if (st.playing && !settled) {
+            playing = true;
+            clearTimeout(timer);
+            settle(true);
+          }
+          // Only the Microsoft voice that actually started can end this answer.
+          if (playing && (st.finished || !st.active || (!st.playing && st.error) || my !== run)) {
+            handle?.remove();
+            if (my === run) {
+              readerOn = false;
+              onDone?.();
+            }
+          }
+        });
+        await Reader.start({ uid: 'ask-answer', title: 'Ask AI', paras, from: 0, rate: ttsCfg.get().rate || 1, voice: { ...voiceSpec(), engine: 'edge', edgeVoice: edge } });
+      } catch {
+        clearTimeout(timer);
+        settle(false);
+      }
+    });
+    if (started || my !== run) return;
+    // Fall back to the phone's voice.
+    handle?.remove();
+    readerOn = false;
+    Reader.stop().catch(() => {});
   }
   const parts = [];
   let cur = '';
