@@ -22,6 +22,8 @@ final class GeminiProvider implements LlmProvider {
 
     private final String apiKey;
     private String model;
+    /** Whether to send the answer's JSON Schema (turned off if this model/API rejects it). */
+    private boolean sendSchema = true;
 
     GeminiProvider(String apiKey, String model) {
         this.apiKey = apiKey;
@@ -57,7 +59,11 @@ final class GeminiProvider implements LlmProvider {
                 parts.put(new JSONObject().put("text", user));
                 body.put("contents", new JSONArray().put(new JSONObject().put("role", "user").put("parts", parts)));
                 JSONObject gen = new JSONObject().put("maxOutputTokens", Math.max(1024, maxTokens)).put("temperature", 0.3);
-                if (jsonSchema != null && !jsonSchema.isEmpty()) gen.put("responseMimeType", "application/json");
+                if (jsonSchema != null && !jsonSchema.isEmpty()) {
+                    gen.put("responseMimeType", "application/json");
+                    // Constrains the answer to the exact structure, so it always parses.
+                    if (sendSchema) gen.put("responseJsonSchema", new JSONObject(jsonSchema));
+                }
                 body.put("generationConfig", gen);
 
                 HttpURLConnection c = (HttpURLConnection) new URL(BASE + model + ":generateContent").openConnection();
@@ -86,6 +92,11 @@ final class GeminiProvider implements LlmProvider {
                 if (code >= 400) {
                     String msg = "";
                     try { msg = new JSONObject(text).getJSONObject("error").optString("message"); } catch (Exception ignored) { }
+                    if (code == 400 && sendSchema && jsonSchema != null && msg.toLowerCase().matches("(?s).*(schema|unknown name|invalid json payload).*")) {
+                        sendSchema = false; // this model doesn't take a schema: rely on the instructions
+                        attempt--;
+                        continue;
+                    }
                     // Google retires models ("…is no longer available… use models/gemini-X"): switch and retry once.
                     if (code == 404 && attempt < 4) {
                         java.util.regex.Matcher m = java.util.regex.Pattern.compile("use models/(gemini-[\\w.-]+)").matcher(msg);

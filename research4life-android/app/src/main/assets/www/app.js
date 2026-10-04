@@ -1698,7 +1698,14 @@
       }
       const note = part < 0.995 ? `\n\n(Note: the full document is too long for this AI account's limit, so you are seeing selected excerpts — about ${Math.max(1, Math.round(part * 100))}% of the text. If the answer might be in the parts you can't see, say so.)` : '';
       try {
-        const out = await aiRaw(task + note, { doc: text, system, schema, max: maxTok });
+        let out = await aiRaw(task + note, { doc: text, system, schema, max: maxTok });
+        // Structured answers occasionally come back as slightly broken JSON (an unescaped quote,
+        // a cut-off list): ask once more for valid JSON before giving up.
+        if (schema) {
+          try { aiJson(out); } catch {
+            out = await aiRaw(task + note + '\n\nIMPORTANT: reply with valid JSON only. Escape any double quotes inside strings as \\" and close every list and object.', { doc: text, system, schema, max: maxTok });
+          }
+        }
         ai.lastPartial = part;
         return out;
       } catch (e) {
@@ -1723,9 +1730,15 @@
   /** Lenient JSON parse for structured answers. */
   function aiJson(text) {
     try { return JSON.parse(text); } catch { /* fall through */ }
-    const m = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-    if (m) return JSON.parse(m[0]);
-    throw new Error('The AI answer was not in the expected format');
+    const m = String(text).replace(/```(?:json)?/gi, '').match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    if (m) {
+      try { return JSON.parse(m[0]); } catch { /* try light repairs */ }
+      // Light repairs: trailing commas, raw line breaks inside strings, curly quotes as delimiters.
+      const fixed = m[0].replace(/,\s*([}\]])/g, '$1').replace(/[\u201c\u201d](\s*[:,}\]])/g, '"$1').replace(/([{,\[]\s*)[\u201c\u201d]/g, '$1"')
+        .replace(/"(?:[^"\\]|\\.)*"/g, (str) => str.replace(/\n/g, '\\n').replace(/\t/g, '\\t'));
+      try { return JSON.parse(fixed); } catch { /* give up below */ }
+    }
+    throw new Error('The AI answer came back in a broken format. Tap again to retry.');
   }
 
   /** Minimal Markdown (headings, bullets, bold, italics) plus [¶n] source links. */
@@ -1842,7 +1855,7 @@
 
 
   // ---------------------------------------------------------------- PDF → mobile reader
-  const REFLOW_V = 3;
+  const REFLOW_V = 4; // 4: real column gutters (unequal columns no longer mixed)
   const openReader = (key) => go('pdf/' + encodeURIComponent(key));
   let pdfDoc = null; // pdf.js document for the open reader (original-pages mode)
   let readerState = null; // {model, opts} of the open reader

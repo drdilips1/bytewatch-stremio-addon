@@ -93,11 +93,52 @@ function fontInfo(page, name) {
   return { bold: false, italic: false };
 }
 
-function buildLines(items) {
+/**
+ * Where a page's columns meet: the widest strip in the middle half of the page that (almost)
+ * no text crosses. Columns aren't always equal (a narrow side column, a wide main one), so
+ * the middle of the page isn't good enough. Returns null for single-column pages.
+ */
+function findGutter(items, width) {
+  const B = 3;
+  const n = Math.ceil(width / B) + 1;
+  const cov = new Array(n).fill(0);
+  let chars = 0;
+  for (const it of items) {
+    const len = it.s.length;
+    chars += len;
+    for (let b = Math.max(0, Math.floor(it.x / B)); b <= Math.min(n - 1, Math.floor((it.x + it.w) / B)); b++) cov[b] += len;
+  }
+  if (!chars) return null;
+  // Text crossing a real gutter is only titles and full-width parts: allow a little.
+  const limit = chars * 0.04;
+  let best = null;
+  let run = null;
+  for (let b = Math.floor(width * 0.22 / B); b <= Math.ceil(width * 0.78 / B); b++) {
+    if (cov[b] <= limit) {
+      if (!run) run = { a: b, z: b, sum: 0 };
+      run.z = b;
+      run.sum += cov[b];
+    } else if (run) {
+      if (!best || run.z - run.a > best.z - best.a || (run.z - run.a === best.z - best.a && run.sum < best.sum)) best = run;
+      run = null;
+    }
+  }
+  if (run && (!best || run.z - run.a > best.z - best.a)) best = run;
+  if (!best || (best.z - best.a + 1) * B < 6) return null;
+  const g = ((best.a + best.z + 1) / 2) * B;
+  // Both sides must carry real text (not a margin note).
+  const left = items.filter((it) => it.x + it.w <= g + 2).reduce((k, it) => k + it.s.length, 0);
+  const right = items.filter((it) => it.x >= g - 2).reduce((k, it) => k + it.s.length, 0);
+  return left > chars * 0.15 && right > chars * 0.15 ? g : null;
+}
+
+function buildLines(items, gutter = null) {
   items.sort((a, b) => b.y - a.y || a.x - b.x);
   const lines = [];
+  // Never join text across the gutter, however close the two columns sit.
+  const crosses = (l, it) => gutter != null && l.x1 <= gutter + 2 && it.x >= gutter - 2 && l.x0 < gutter;
   for (const it of items) {
-    const line = lines.find((l) => Math.abs(l.y - it.y) < Math.max(l.h, it.h) * 0.45 && it.x > l.x1 - it.h * 0.6 && it.x - l.x1 < it.h * 2.5);
+    const line = lines.find((l) => Math.abs(l.y - it.y) < Math.max(l.h, it.h) * 0.45 && it.x > l.x1 - it.h * 0.6 && it.x - l.x1 < it.h * 2.5 && !crosses(l, it));
     if (line) {
       line.items.push(it);
       line.x1 = Math.max(line.x1, it.x + it.w);
@@ -129,11 +170,11 @@ function buildLines(items) {
 }
 
 /** Splits lines that straddle the gutter of a two-column page and tags each line's column. */
-function assignColumns(lines, width) {
-  const mid = width / 2;
+function assignColumns(lines, width, gutter = null) {
+  const mid = gutter ?? width / 2;
   const total = lines.reduce((n, l) => n + l.text.length, 0) || 1;
   const crossing = lines.filter((l) => l.x0 < mid - 12 && l.x1 > mid + 12).reduce((n, l) => n + l.text.length, 0);
-  const twoCol = crossing / total < 0.35 && lines.filter((l) => l.x0 > mid - 5).length > 5;
+  const twoCol = (gutter != null || crossing / total < 0.35) && lines.filter((l) => l.x0 > mid - 5).length > 5;
   for (const l of lines) {
     if (!twoCol) l.col = 0;
     else if (l.x1 <= mid + 8) l.col = 1;
@@ -181,7 +222,8 @@ export async function reflow(doc, onProgress = () => {}) {
       const k = Math.round(h * 2) / 2;
       sizeHist.set(k, (sizeHist.get(k) || 0) + it.str.length);
     }
-    pages.push({ n, page, vp, lines: buildLines(items), imgs });
+    const gutter = findGutter(items, vp.width);
+    pages.push({ n, page, vp, gutter, lines: buildLines(items, gutter), imgs });
     onProgress(n, doc.numPages);
   }
   // Running heads and footers: margin lines whose text (ignoring numbers) repeats across pages,
@@ -194,7 +236,7 @@ export async function reflow(doc, onProgress = () => {}) {
   }
   for (const pg of pages) {
     pg.lines = pg.lines.filter((l) => !(inMargin(l, pg.vp) && (/^(page\s*)?\d+(\s*of\s*\d+)?$/i.test(l.text) || (pages.length > 1 && marginCount.get(norm(l.text)) > 1))));
-    pg.twoCol = assignColumns(pg.lines, pg.vp.width);
+    pg.twoCol = assignColumns(pg.lines, pg.vp.width, pg.gutter);
   }
   const body = [...sizeHist.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 10;
   const maxSize = Math.max(...pages.flatMap((p) => p.lines.map((l) => l.size)), body);
@@ -216,7 +258,7 @@ export async function reflow(doc, onProgress = () => {}) {
 
   for (const pg of pages) {
     const { page, vp, imgs } = pg;
-    const mid = vp.width / 2;
+    const mid = pg.gutter ?? vp.width / 2;
     const colOf = (b) => (!pg.twoCol ? 0 : b.x1 <= mid + 8 ? 1 : b.x0 >= mid - 8 ? 2 : 0);
 
     // Figure regions: images, plus the text-free space above a "Fig N" caption (vector charts).
