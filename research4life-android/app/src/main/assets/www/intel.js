@@ -743,6 +743,8 @@
   actions.myloft = async (b) => {
     const a = b.dataset.id ? await D.findArticle(b.dataset.id).catch(() => null) : null;
     if (a) {
+      // Save the paper now, so the PDF that comes back lands on a paper that's in the Library.
+      if (!D.saved.has(a.id)) await D.saveArticle(a).catch(() => {});
       Native.setPendingPdf?.(a.id, a.title);
       store.set('myloftWaiting', { id: a.id, title: a.title, t: Date.now() });
       D.copyText(a.doi ? `${a.title} doi:${a.doi}` : a.title);

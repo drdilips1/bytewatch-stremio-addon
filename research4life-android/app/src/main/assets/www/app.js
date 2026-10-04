@@ -769,6 +769,12 @@
   }
 
   // ---------------------------------------------------------------- article
+  /** The paper's record from Europe PMC, ignoring any saved copy. */
+  async function fetchPaper(id) {
+    const [src, ext] = id.split(/_(.+)/);
+    const res = await epmcSearch(`EXT_ID:${ext} AND SRC:${src}`, { size: 1 });
+    return res.results[0] || null;
+  }
   async function findArticle(id) {
     if (saved.has(id)) return { ...cache.get(id), ...saved.get(id) };
     if (cache.has(id)) return cache.get(id);
@@ -3015,6 +3021,20 @@
       if (evt.type === 'pdfReceived' || evt.type === 'pdfImported') {
         await syncPdfs();
         pdfKeys.add(evt.key);
+        // A PDF attached to a paper (MyLOFT, Add PDF from phone…) that wasn't saved yet: save the
+        // full paper (title, journal, abstract), not just a bare "imported PDF" entry.
+        const s0 = saved.get(evt.key);
+        if ((!s0 || s0.imported) && /^[A-Z]{3}_/.test(evt.key)) {
+          try {
+            const a = cache.get(evt.key) || await fetchPaper(evt.key);
+            if (a) {
+              const entry = { ...a, savedAt: s0?.savedAt || Date.now(), status: 'unread', collections: [], notes: '' };
+              await db.put(entry);
+              saved.set(entry.id, entry);
+            }
+          } catch { /* keep the basic entry */ }
+        }
+        if (current.name === 'library') render();
         if (jobs.has(evt.key)) { jobs.delete(evt.key); renderTray(); }
         toast(evt.attached ? `PDF saved to “${(evt.title || '').slice(0, 50)}”` : 'PDF added to your library');
         openReader(evt.key);
@@ -3086,6 +3106,16 @@
   applyNav();
   (async () => {
     try { await loadSaved(); await syncPdfs(); } catch { /* library unavailable */ }
+    // Papers whose PDF arrived before they were saved show as bare "imported" entries: fill in
+    // their details in the background (title, journal, abstract), once.
+    setTimeout(async () => {
+      for (const s0 of [...saved.values()].filter((x) => x.imported && /^[A-Z]{3}_/.test(x.id)).slice(0, 20)) {
+        try {
+          const a = await fetchPaper(s0.id);
+          if (a) { const e = { ...a, savedAt: s0.savedAt, status: s0.status || 'unread', collections: s0.collections || [], notes: s0.notes || '' }; await db.put(e); saved.set(e.id, e); }
+        } catch { /* offline: try next start */ }
+      }
+    }, 4000);
     render();
     try {
       const r = Native.consumeReceived && Native.consumeReceived();
