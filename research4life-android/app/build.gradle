@@ -12,7 +12,6 @@ android {
         targetSdk 34
         versionCode 19
         versionName '4.1'
-        // Neural voices ship native code for phones (64- and 32-bit ARM).
         // 64-bit ARM only: every current phone (Samsung Galaxy included); keeps the APK small enough to share.
         ndk { abiFilters 'arm64-v8a' }
     }
