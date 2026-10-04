@@ -407,8 +407,25 @@
     return kept;
   }
 
+  /**
+   * A DOI, PMID, PMCID or a PubMed/doi.org link typed or pasted into search: the exact Europe PMC
+   * query for that one paper (no filters), or null.
+   */
+  function idQuery(text) {
+    const t = String(text || '').trim();
+    const doi = t.match(/(?:doi\.org\/|doi:\s*)?(10\.\d{4,9}\/[^\s"<>]+)/i);
+    if (doi) return `DOI:"${decodeURIComponent(doi[1]).replace(/[.,;)\]]+$/, '')}"`;
+    const pmc = t.match(/\b(PMC\d{4,9})\b/i);
+    if (pmc) return `PMCID:${pmc[1].toUpperCase()}`;
+    const pm = t.match(/^(?:pmid:?\s*)?(\d{5,9})$/i) || t.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d{5,9})/i);
+    if (pm) return `EXT_ID:${pm[1]} AND SRC:MED`;
+    return null;
+  }
+
   function buildQuery(f, { broad = false } = {}) {
     const raw = f.q.trim();
+    const exact = idQuery(raw);
+    if (exact) return exact;
     let core;
     if (isAdvanced(raw)) core = raw;
     else {
@@ -663,7 +680,7 @@
       try {
         let res = await epmcSearch(buildQuery(f), { sort: SORTS[f.sort].v });
         let broad = false;
-        if (res.hit < 5 && !isAdvanced(f.q) && keywordTerms(f.q).length > 1) {
+        if (!idQuery(f.q) && res.hit < 5 && !isAdvanced(f.q) && keywordTerms(f.q).length > 1) {
           const wide = await epmcSearch(buildQuery(f, { broad: true }), { sort: SORTS[f.sort].v });
           if (wide.hit > res.hit) { res = wide; broad = true; }
         }
@@ -676,6 +693,12 @@
       }
     }
     if (current.name !== 'search' || searchHash(filtersFrom(current.params)) !== key) return;
+    // A DOI / PMID that matches exactly one paper: open it straight away.
+    if (idQuery(f.q) && state.results?.length === 1) {
+      cache.set(state.results[0].id, state.results[0]);
+      go('a/' + encodeURIComponent(state.results[0].id), { replace: true });
+      return;
+    }
     drawResults(state);
   }
 
