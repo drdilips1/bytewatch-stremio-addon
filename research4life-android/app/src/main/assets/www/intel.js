@@ -756,16 +756,21 @@
       ${has || !Native.listApps ? `<button class="btn primary full" data-act="myloft-go">${icon('external')}${has ? (a ? 'Send to MyLOFT' : 'Open the MyLOFT app') : 'Get the MyLOFT app'}</button>` : ''}
       ${Native.listApps ? `<button class="btn ${has ? '' : 'primary '}full" style="margin-top:8px" data-act="myloft-pick">${icon('list')}${has ? 'Not the right app? Choose MyLOFT' : 'Choose MyLOFT from your apps'}</button>` : ''}
       ${!has && Native.listApps ? '<button class="btn full" style="margin-top:8px" data-act="myloft-go">Get MyLOFT from the Play Store</button>' : ''}
+      ${a && /^10\.1016\//.test(a.doi || '') && has ? `<button class="btn full" style="margin-top:8px" data-act="myloft-publisher">${icon('external')}Send the publisher link instead</button>` : ''}
       ${a ? `<button class="btn full" style="margin-top:8px" data-act="myloft-file">${icon('file')}I downloaded it: pick the PDF</button>` : ''}
       ${b.r4lAnyway && a ? `<button class="btn full" style="margin-top:8px" data-act="myloft-r4l">Try Research4Life anyway</button>` : ''}`);
     // The paper stays marked as waiting for its PDF, so the picked file is saved to it.
     actions['myloft-file'] = () => { closeSheet(true); if (a) Native.setPendingPdf?.(a.id, a.title); Native.importPdf?.(); };
     // Sending the paper's link into MyLOFT (like Share → MyLOFT) saves it there with your institution's access.
-    actions['myloft-go'] = () => {
+    // Elsevier papers (JAAD, BJD's Elsevier titles…) go via ClinicalKey, which gives a PDF link.
+    actions['myloft-go'] = async () => {
       closeSheet(true);
-      if (a && Native.sendToMyLoft) Native.sendToMyLoft(a.doi ? `https://doi.org/${a.doi}` : a.title, a.title);
-      else Native.openMyLoftApp?.();
+      if (!a || !Native.sendToMyLoft) { Native.openMyLoftApp?.(); return; }
+      const ck = await clinicalKeyUrl(a);
+      Native.sendToMyLoft(ck || (a.doi ? `https://doi.org/${a.doi}` : a.title), a.title);
+      if (ck) toast('Sent to MyLOFT via ClinicalKey: open it there and tap the PDF');
     };
+    actions['myloft-publisher'] = () => { closeSheet(true); Native.sendToMyLoft?.(a.doi ? `https://doi.org/${a.doi}` : a.title, a.title); };
     actions['myloft-r4l'] = () => { closeSheet(true); if (a) D.getPdf(a, { skipAsk: true }); };
   };
 
@@ -781,6 +786,24 @@
     actions['myloft-set'] = (b) => { Native.setMyLoftApp(b.dataset.pkg); closeSheet(true); toast('Saved. Opening it…'); Native.openMyLoftApp?.(); };
   };
   actions['myloft-open'] = () => Native.openMyLoftApp?.();
+
+  /**
+   * The ClinicalKey page for an Elsevier paper (DOI 10.1016/…): ClinicalKey addresses journal
+   * articles by Elsevier's article ID (PII), which Crossref lists. Falls back to a title search.
+   */
+  async function clinicalKeyUrl(a) {
+    if (!/^10\.1016\//.test(a.doi || '')) return null;
+    let pii = '';
+    try {
+      const m = (await D.getJSON(api('crossref', 'works/' + encodeURIComponent(a.doi)))).message || {};
+      pii = (m['alternative-id'] || []).find((x) => /^S?\d{4}/i.test(x)) || '';
+      if (!pii) pii = ((m.link || []).map((l) => (l.URL || '').match(/PII:([^?&/]+)/)).find(Boolean) || [])[1] || '';
+    } catch { /* offline or not in Crossref */ }
+    pii = pii.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+    if (pii && !pii.startsWith('S')) pii = 'S' + pii;
+    return pii ? `https://www.clinicalkey.com/#!/content/journal/1-s2.0-${pii}`
+      : `https://www.clinicalkey.com/#!/search/${encodeURIComponent(a.title)}`;
+  }
 
   // ================================================================ Intel hub (#intel) and home
   const TILES = [
