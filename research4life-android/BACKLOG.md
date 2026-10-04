@@ -26,3 +26,5 @@ Status: 🟡 noted · 🔵 in progress · ✅ done locally (waiting for "Build n
 | 17 | Bug | **MyLOFT hard to find in DermScholar.** | 🚀 4.5: **MyLOFT** button on every paper next to Get PDF; MyLOFT section in Settings (Open · Choose app) |
 | 18 | Bug | **Huge lock-icon blocks in "Where to read the full text", placed too deep in the paper.** | 🚀 4.5: compact rows, box moved right under the title (before Get PDF), paper tools moved below the buttons |
 | 19 | Request | **New, more colourful dermatology app icon.** | 🚀 4.5: a D-shaped dermatoscope (white head, amber LED ring, handle) looking at an open book, on a violet → pink → amber gradient |
+| 20 | Bug | **MyLOFT opens the article but the PDF can't be sent back** (no Share to DermScholar). | ✅ ready, not built: "I downloaded it: pick the PDF" in the MyLOFT sheet and "Add PDF from phone" on every paper; the picked PDF is saved to that paper |
+| 21 | Bug | **"The site returned 403"**: where it appears still to be confirmed. | 🟡 waiting for details |

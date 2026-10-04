@@ -881,6 +881,7 @@
               ? `<button class="btn primary full big" data-act="get-pdf">${icon('download')}Get PDF now<span class="sub">${pdfSrc ? 'Free copy · saves to your library' : 'Through your Research4Life access'}</span></button>`
               : `<button class="btn full" data-act="r4l">${icon('key')}Find on Research4Life</button>`}
           ${!hasPdf && a.doi && actions.myloft ? `<button class="btn" data-act="myloft" data-id="${esc(a.id)}">${icon('key')}MyLOFT</button>` : ''}
+          ${!hasPdf ? `<button class="btn" data-act="pdf-attach" data-id="${esc(a.id)}">${icon('file')}Add PDF from phone</button>` : ''}
           <button class="btn ${s ? 'good' : ''}" data-act="save">${icon(s ? 'bookmarkFill' : 'bookmark')}${s ? 'Saved' : 'Save'}</button>
           ${canRead ? `<button class="btn" data-act="reader">${icon('book')}${s?.fullText ? 'Read offline' : 'Full text'}</button>` : ''}
           ${a.doi ? `<button class="btn" data-act="publisher">${icon('key')}Open via R4L</button>` : ''}
@@ -946,6 +947,8 @@
       if (a.pmcid && (a.oa || a.inPMC)) cacheFullText(a).catch(() => {});
     };
     actions['get-pdf'] = () => getPdf(a);
+    // A PDF downloaded elsewhere (MyLOFT, email, browser): pick it and it's saved to this paper.
+    actions['pdf-attach'] = async () => { if (!saved.has(a.id)) await saveArticle(a); Native.setPendingPdf?.(a.id, a.title); Native.importPdf(); };
     actions['open-pdf'] = () => openReader(a.id);
     actions.reader = () => go('read/' + encodeURIComponent(a.id));
     actions.publisher = async () => {
