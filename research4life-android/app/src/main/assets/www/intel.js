@@ -704,26 +704,30 @@
     if (!el) return;
     const rows = [];
     const add = (name, sub, act, extra = '') => rows.push(`<button class="opt" data-act="${act}" data-id="${esc(a.id)}" ${extra}>${icon('unlock')}<span>${esc(name)}<small>${esc(sub)}</small></span></button>`);
+    // Shown at once, in this order: on the phone, Research4Life, MyLOFT, free copies, then the publisher.
     if (D.pdfKeys.has(a.id)) add('On this phone', 'PDF saved in your library', 'open-pdf');
+    if (a.doi) {
+      add('Research4Life', D.account('r4l').saved ? 'Get PDF with your Research4Life login' : 'Add your Research4Life login, then Get PDF', 'get-pdf');
+      add('MyLOFT (your institution)', Native.hasMyLoftApp?.() ? 'Open in the MyLOFT app, share the PDF back' : 'Install MyLOFT to use your institution\'s access', 'myloft');
+    }
     const oaLink = (a.links || []).find((l) => /OA|F/.test(l.code || '') && /pdf/i.test(l.style || ''));
     if (a.pmcid) add('PubMed Central', 'Free full text · read in the app', 'reader');
     else if (a.oa || oaLink) add('Open access', 'Free copy · Get PDF saves it', 'get-pdf');
-    let up = null;
-    if (a.doi) {
-      try {
-        up = await D.getJSON(api('unpaywall', encodeURIComponent(a.doi) + '?email=unpaywall@dermscholar.app'));
-      } catch { up = null; }
-    }
+    const publisher = () => { if (a.doi) add('Publisher website', 'via doi.org', 'where-url', `data-u="https://doi.org/${esc(a.doi)}"`); };
+    const show = (note = '') => { if (el.isConnected) el.innerHTML = (rows.join('') || 'No full-text source found.') + note; };
+    if (!a.doi || a.pmcid || a.oa) { publisher(); show(); return; }
+    show('<div class="muted small" id="where-more">Checking for free copies…</div>');
+    // Free-copy lookup (Unpaywall): never longer than 6 seconds.
+    const up = await Promise.race([
+      D.getJSON(api('unpaywall', encodeURIComponent(a.doi) + '?email=unpaywall@dermscholar.app')).catch(() => null),
+      new Promise((r) => setTimeout(() => r(null), 6000)),
+    ]);
     const best = up?.best_oa_location;
-    if (best && !a.pmcid && !a.oa) add(best.host_type === 'repository' ? (best.version === 'publishedVersion' ? 'Repository copy' : 'Author manuscript') : 'Free at the publisher',
+    if (best) add(best.host_type === 'repository' ? (best.version === 'publishedVersion' ? 'Repository copy' : 'Author manuscript') : 'Free at the publisher',
       `${best.host_type === 'repository' ? (best.repository_institution || 'Repository') : (up.publisher || 'Publisher')} · ${best.version === 'publishedVersion' ? 'published version' : best.version === 'acceptedVersion' ? 'accepted manuscript' : 'preprint'}`,
       'where-url', `data-u="${esc(best.url_for_pdf || best.url)}"`);
-    if (a.doi) {
-      add('Research4Life', D.account('r4l').saved ? 'Your institution-free access · Get PDF' : 'Add your Research4Life login', 'get-pdf');
-      add('MyLOFT (your institution)', Native.hasMyLoftApp?.() ? 'Open in the MyLOFT app, share the PDF back' : 'Install MyLOFT to use your institution\'s access', 'myloft');
-      add('Publisher website', (up?.publisher || 'via doi.org') + (up?.journal_is_oa ? ' · open-access journal' : ''), 'where-url', `data-u="https://doi.org/${esc(a.doi)}"`);
-    }
-    if (el.isConnected) el.innerHTML = rows.join('') || 'No full-text source found. Try Research4Life or MyLOFT.';
+    publisher();
+    show();
   };
   actions['where-url'] = (b) => openUrl(b.dataset.u);
 

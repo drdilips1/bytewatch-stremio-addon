@@ -174,6 +174,9 @@ final class UtdClient {
 
     private void onPage(String url) {
         if (callback == null || url == null) return;
+        webView.evaluateJavascript(PRO_SCRIPT, v -> {
+            if (v != null && v.contains("clicked")) report("Continuing as a healthcare professional…");
+        });
         if (isLoginUrl(url)) {
             signIn();
             return;
@@ -192,9 +195,15 @@ final class UtdClient {
             return;
         }
         if (logins >= MAX_LOGINS) {
-            finish(result("login", "UpToDate didn't accept the saved login. Check it in Settings, or tap Show page to sign in once."));
+            webView.evaluateJavascript(HINT_SCRIPT, v -> {
+                if (callback == null) return;
+                String where = v == null || "null".equals(v) ? "" : v.replaceAll("^\"|\"$", "");
+                finish(result("login", "UpToDate didn't finish signing in" + (where.isEmpty() ? "" : " (the page shows: “" + where + "”)")
+                        + ". Tap Show page, finish there, then come back — the app tries again by itself."));
+            });
             return;
         }
+        webView.evaluateJavascript(PRO_SCRIPT, null);
         logins++;
         lastProgress = System.currentTimeMillis();
         report("Signing in to UpToDate…");
@@ -236,10 +245,11 @@ final class UtdClient {
                         finish(o);
                         return;
                     }
-                } else if (System.currentTimeMillis() - lastProgress > 8000 && continueClicks < 2) {
-                    // Nothing recognisable yet: an interstitial ("Continue", "Accept", other session) may be waiting.
+                } else if (System.currentTimeMillis() - lastProgress > 5000 && continueClicks < 4) {
+                    // Nothing recognisable yet: an interstitial ("Continue", "Accept", professional/patient choice, other session) may be waiting.
                     continueClicks++;
                     lastProgress = System.currentTimeMillis();
+                    webView.evaluateJavascript(PRO_SCRIPT, null);
                     webView.evaluateJavascript(CONTINUE_SCRIPT, v -> {
                         if (v != null && v.contains("clicked")) report("Continuing past an UpToDate notice…");
                     });
@@ -254,9 +264,12 @@ final class UtdClient {
     private void onHardTimeout() {
         if (callback == null) return;
         webView.stopLoading();
-        String title = webView.getTitle();
-        finish(result("stuck", "UpToDate is taking too long" + (title == null || title.isEmpty() ? "" : " (stopped at “" + title + "”)")
-                + ". Tap Show page to see what it needs, or try again."));
+        webView.evaluateJavascript(HINT_SCRIPT, v -> {
+            if (callback == null) return;
+            String where = v == null || "null".equals(v) ? webView.getTitle() : v.replaceAll("^\"|\"$", "");
+            finish(result("stuck", "UpToDate is taking too long" + (where == null || where.isEmpty() ? "" : " (the page shows: “" + where + "”)")
+                    + ". Tap Show page to see what it needs, or try again."));
+        });
     }
 
     private void finish(JSONObject o) {
@@ -273,12 +286,34 @@ final class UtdClient {
         if (cb != null) cb.onResult(o);
     }
 
+    /**
+     * UpToDate's sign-in can stop on a "who are you" choice ("Continue as a professional",
+     * "Log in as a clinician"…). Taps the professional option, never a patient one.
+     */
+    static final String PRO_SCRIPT = "(function(){"
+            + "if(!/uptodate|wolterskluwer/i.test(location.hostname))return 'none';"
+            // Never on a results or topic page, where such words are ordinary links.
+            + "if(document.querySelector('#topicContent,#topicText')||document.querySelectorAll('a[href*=\"/contents/\"]').length>8)return 'none';"
+            + "var b=[].slice.call(document.querySelectorAll('button,a,input[type=submit],input[type=radio],[role=button],label')).filter(function(e){return e.offsetParent!==null;})"
+            + ".filter(function(e){var t=(e.textContent||e.value||e.getAttribute('aria-label')||'').replace(/\\s+/g,' ');"
+            + "return t.length<90&&/professional|clinician|physician|health\\s*care|medical (staff|user)|practitioner/i.test(t)&&!/patient|caregiver|learn more|about/i.test(t);})[0];"
+            + "if(b){b.click();if(b.type==='radio'){var go=[].slice.call(document.querySelectorAll('button,input[type=submit]')).filter(function(e){return e.offsetParent!==null&&/continue|next|log\\s*in|sign\\s*in|submit/i.test(e.textContent||e.value||'');})[0];if(go)setTimeout(function(){go.click();},300);}return 'clicked';}"
+            + "return 'none';"
+            + "})()";
+
+    /** What the page shows (title and visible buttons), so a stuck sign-in can say where it stopped. */
+    static final String HINT_SCRIPT = "(function(){"
+            + "var b=[].slice.call(document.querySelectorAll('button,a[role=button],input[type=submit],h1,h2')).filter(function(e){return e.offsetParent!==null;})"
+            + ".map(function(e){return (e.textContent||e.value||'').replace(/\\s+/g,' ').trim();}).filter(function(t){return t&&t.length<60;}).slice(0,5);"
+            + "return (document.title||location.hostname)+(b.length?' — '+b.join(' · '):'');"
+            + "})()";
+
     /** Taps an obvious "continue" style button on an UpToDate notice page. */
     static final String CONTINUE_SCRIPT = "(function(){"
             + "if(document.querySelector('input[type=password]'))return 'login';"
             + "if(!/uptodate|wolterskluwer/i.test(location.hostname))return 'none';"
             + "var b=[].slice.call(document.querySelectorAll('button,a,input[type=submit]')).filter(function(e){return e.offsetParent!==null;})"
-            + ".filter(function(e){return /^\\s*(continue|accept|i accept|agree|i agree|proceed|ok|got it|log out other|sign out other|end other session|continue to uptodate)\\b/i.test(e.textContent||e.value||'');})[0];"
+            + ".filter(function(e){return /^\\s*(continue|accept|i accept|agree|i agree|proceed|ok|got it|log out other|sign out other|end other session|continue to uptodate|continue as|log ?in as)\\b/i.test(e.textContent||e.value||'');})[0];"
             + "if(b){b.click();return 'clicked';}return 'none';"
             + "})()";
 

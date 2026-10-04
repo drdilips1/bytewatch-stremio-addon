@@ -226,6 +226,18 @@
   const cache = new Map(); // id -> article seen in results
   const searchCache = new Map(); // route key -> {results, next, hit, broad}
   const jobs = new Map(); // article id -> {title, doi, state: running|saved|failed, message, canShow}
+  let retryAfterPage = null; // paper to fetch again when the user comes back from "Show page"
+  // A job that hears nothing for 2 minutes is stuck: say so and offer the page, never spin forever.
+  setInterval(() => {
+    let changed = false;
+    for (const [k, j] of jobs) {
+      if (j.state === 'running' && Date.now() - (j.at || Date.now()) > 120000) {
+        jobs.set(k, { ...j, state: 'failed', canShow: true, message: `Stopped at “${j.message}”. Tap Show page to finish there; the app retries when you come back.` });
+        changed = true;
+      } else if (j.state === 'running' && !j.at) j.at = Date.now();
+    }
+    if (changed) { renderTray(); refreshCards(); }
+  }, 10000);
 
   function refreshPdfs() {
     try { pdfKeys = new Set(JSON.parse(Native.listPdfs()).map((p) => p.key)); } catch { pdfKeys = new Set(); }
@@ -794,7 +806,7 @@
       return;
     }
     if (!saved.has(a.id)) { await saveArticle(a); }
-    jobs.set(a.id, { title: a.title, doi: a.doi || '', state: 'running', message: free ? 'Downloading free PDF…' : 'Starting…' });
+    jobs.set(a.id, { title: a.title, doi: a.doi || '', state: 'running', message: free ? 'Downloading free PDF…' : 'Starting…', at: Date.now() });
     renderTray();
     refreshCards();
     Native.getPdf(a.id, a.doi || '', a.title, free || '');
@@ -2817,6 +2829,8 @@
     'tray-show': (b) => {
       const j = jobs.get(b.dataset.id);
       jobs.delete(b.dataset.id); renderTray(); refreshCards();
+      // After signing in on the page, coming back retries the paper by itself.
+      retryAfterPage = b.dataset.id;
       Native.showFetchPage(b.dataset.id, j?.doi || '', j?.title || '');
     },
   });
@@ -2836,6 +2850,12 @@
       if (pendingUtdRetry) { pendingUtdRetry = false; if (['search', 'utd'].includes(current.name)) render(); }
       const before = pdfKeys.size;
       const added = await syncPdfs();
+      const retry = retryAfterPage;
+      retryAfterPage = null;
+      if (retry && !pdfKeys.has(retry)) {
+        const a = saved.get(retry);
+        if (a?.doi) { toast('Trying the PDF again with your sign-in…'); getPdf(a, { skipAsk: true }); }
+      }
       let cleared = false;
       for (const [k, j] of jobs) if (j.state === 'failed' && pdfKeys.has(k)) { jobs.delete(k); cleared = true; }
       if (cleared) renderTray();
@@ -2872,7 +2892,7 @@
       }
       if (evt.type === 'fetchStatus') {
         const j = jobs.get(evt.key);
-        if (j) { j.state = 'running'; j.message = evt.message; renderTray(); }
+        if (j) { j.state = 'running'; j.message = evt.message; j.at = Date.now(); renderTray(); }
       } else if (evt.type === 'pdfSaved') {
         pdfKeys.add(evt.key);
         const j = jobs.get(evt.key) || { title: saved.get(evt.key)?.title || 'PDF' };

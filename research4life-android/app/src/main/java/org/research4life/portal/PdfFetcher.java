@@ -287,7 +287,19 @@ final class PdfFetcher {
         else if (listener != null && "queued".equals(stage) && !queue.isEmpty()) listener.onStatus(queue.peekFirst().key, stage, message);
     }
 
+    /** Adds where the page stopped ("the page shows: …") to a failure, so it can be fixed. */
     private void fail(String message, boolean canShow) {
+        if (webView == null || job == null || saving) { failNow(message, canShow); return; }
+        main.removeCallbacks(timeout);
+        final Job j = job;
+        webView.evaluateJavascript(UtdClient.HINT_SCRIPT, v -> {
+            if (job != j) return;
+            String where = v == null || "null".equals(v) ? "" : v.replaceAll("^\"|\"$", "");
+            failNow(where.isEmpty() ? message : message + " (The page shows: “" + where + "”)", canShow);
+        });
+    }
+
+    private void failNow(String message, boolean canShow) {
         main.removeCallbacks(timeout);
         Job j = job;
         job = null;
