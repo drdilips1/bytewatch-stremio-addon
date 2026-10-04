@@ -86,3 +86,14 @@ Already in DermScholar: Research4Life + MyLOFT access; Europe PMC search (PubMed
 | M3 | **Histopathology side-by-side** | 🚀 5.3 · Plan: your slide or photo next to published histology images (Open-i), with AI labelling the features to look for (e.g. Munro microabscesses, basaloid islands). |
 | M4 | **Pipeline tracker** | 🚀 5.3 · Partly there (Trial radar, FDA label alerts). Plan: a Pipeline view by drug class (biologics, oral/topical JAK, TYK2…), with phase 3 trials, recent completions/results posted and FDA approvals; EMA has no simple open API. |
 | M5 | **Citation graph** for a landmark paper | 🚀 5.3 · Plan: OpenAlex citing papers over time, grouped by year, with AI marking which ones support, extend or contradict it. |
+
+## Ideas from Consensus (consensus.app), not yet scheduled
+
+| # | Idea | Plan |
+|---|------|------|
+| C1 | **Consensus Meter** for yes/no questions ("Does dupilumab cause conjunctivitis?") | AI reads the top 20–40 abstracts and marks each Yes / Possibly / Mixed / No; a bar shows the split, weighted by study quality; tap a segment to see those papers. |
+| C2 | **Quality badges on every result**: Highly cited (for its age), Leading journal (exists), study type (exists), sample size (N), Human / animal / in vitro | Citations per year from Europe PMC; N read from the abstract; population from MeSH. |
+| C3 | **More filters**: humans only (exclude animal/in vitro), minimum citations, sample size ≥ N, top journals only ("clinical mode"), country | Search chips; humans via MeSH, citations/N applied to results. |
+| C4 | **Study snapshot on the result card** (population, N, duration, design, main result) without opening the paper | Tap "Snapshot" on a card; reuses the clinical summary card, cached. |
+| C5 | **Deep review**: screens a few hundred papers and writes a structured literature review (search strategy and counts, themes, evidence table, agreements/disagreements, gaps, references) | Several Europe PMC queries → AI screens abstracts in batches → cited report, exportable. |
+| C6 | Pro-style AI summary on top of results | Already in DermScholar ("Evidence snapshot" on search, Evidence map). |
