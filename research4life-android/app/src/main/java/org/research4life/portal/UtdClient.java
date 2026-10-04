@@ -229,7 +229,23 @@ final class UtdClient {
                 String json = new org.json.JSONArray("[" + value + "]").getString(0);
                 JSONObject o = new JSONObject(json);
                 String state = o.optString("state");
-                if ("login".equals(state)) {
+                if ("paywall".equals(state)) {
+                    // The signed-out preview ("To continue reading this article, you must sign in"):
+                    // go to the sign-in page; after signing in, onPage() returns to the topic.
+                    if (logins < MAX_LOGINS && System.currentTimeMillis() - lastProgress > 3000) {
+                        lastProgress = System.currentTimeMillis();
+                        if (!R4LSession.hasCredentials(app, R4LSession.UTD)) {
+                            finish(result("login", "UpToDate shows only a preview until you sign in. Save your UpToDate login in Settings, or tap Show page to sign in once."));
+                            return;
+                        }
+                        report("UpToDate wants a sign-in: signing in…");
+                        returnedToTarget = false;
+                        webView.loadUrl(BASE + "/login");
+                    } else if (logins >= MAX_LOGINS) {
+                        finish(result("login", "UpToDate still shows only the preview after signing in. Check your login in Settings, or tap Show page."));
+                        return;
+                    }
+                } else if ("login".equals(state)) {
                     // A sign-in form on the page (possibly a pop-up, not a /login address).
                     if (System.currentTimeMillis() - lastProgress > 6000 || logins == 0) signIn();
                 } else if ("ok".equals(state) && "topic".equals(kind) && !triedFullPage && o.optString("html").length() < 3000) {
@@ -292,6 +308,7 @@ final class UtdClient {
      */
     static final String PRO_SCRIPT = "(function(){"
             + "if(!/uptodate|wolterskluwer/i.test(location.hostname))return 'none';"
+            + "if(/to continue reading|purchase a personal subscription/i.test((document.body&&document.body.innerText)||''))return 'none';"
             // Never on a results or topic page, where such words are ordinary links.
             + "if(document.querySelector('#topicContent,#topicText')||document.querySelectorAll('a[href*=\"/contents/\"]').length>8)return 'none';"
             + "var b=[].slice.call(document.querySelectorAll('button,a,input[type=submit],input[type=radio],[role=button],label')).filter(function(e){return e.offsetParent!==null;})"
@@ -332,6 +349,8 @@ final class UtdClient {
     /** Topic links from the search results area (not the site's header or menus). */
     static final String SEARCH_SCRIPT = "(function(){"
             + "if(document.querySelector('input[type=password]'))return JSON.stringify({state:'login'});"
+            + "var PAY=/to continue reading this (article|topic),? you must (sign|log) in|you must (sign|log) in to (continue|view)|log in to (read|view) (this|the full)/i;"
+            + "if(PAY.test((document.body&&document.body.innerText)||''))return JSON.stringify({state:'paywall'});"
             + "var bad=/\\/contents\\/(search|table-of-contents|image|calculator|whats-new|practice-changing|patient-education$|index)/i;"
             + "var links=[].slice.call(document.querySelectorAll('a[href*=\"/contents/\"]')).filter(function(a){"
             + "var h=a.getAttribute('href')||'';if(bad.test(h))return false;if(a.closest('header,nav,footer,[role=navigation],[class*=header],[class*=footer],[class*=menu]'))return false;"
@@ -353,6 +372,8 @@ final class UtdClient {
     /** The topic's article text, reduced to simple markup the app can restyle. */
     static final String TOPIC_SCRIPT = "(function(){"
             + "if(document.querySelector('input[type=password]'))return JSON.stringify({state:'login'});"
+            + "var PAY=/to continue reading this (article|topic),? you must (sign|log) in|you must (sign|log) in to (continue|view)|log in to (read|view) (this|the full)/i;"
+            + "if(PAY.test((document.body&&document.body.innerText)||''))return JSON.stringify({state:'paywall'});"
             + "var cands=[].slice.call(document.querySelectorAll('#topicContent,#topicText,[id*=topicText],[class*=topicText],[class*=topic-text],[class*=topicContent],[class*=print],article,main,[role=main]'));"
             + "var root=null,best=0;cands.forEach(function(c){var n=(c.textContent||'').length;if(n>best){best=n;root=c;}});"
             + "if((!root||best<150)&&document.body&&(document.body.textContent||'').length>600){root=document.body;best=root.textContent.length;}"

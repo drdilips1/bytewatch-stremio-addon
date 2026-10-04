@@ -1281,7 +1281,10 @@
     bindUtdLogin(() => render());
     const slow = setTimeout(() => $('#utd-slow')?.classList.remove('hidden'), 15000);
     try {
+      const PAYWALL = /to continue reading this (article|topic),? you must (sign|log) in/i;
       let model = await db.getReflow(key).catch(() => null);
+      // A signed-out preview saved by an older version: throw it away and fetch the real topic.
+      if (model && PAYWALL.test(JSON.stringify(model.blocks || []).slice(0, 400000))) { db.delReflow(key).catch(() => {}); model = null; }
       if (!model) {
         // Watchdog: never leave the spinner up if the background page never answers.
         const res = await Promise.race([
@@ -1295,6 +1298,11 @@
           return;
         }
         if (res.state !== 'ok' || !res.html) { fail("Couldn't open this topic", res.message, true); return; }
+        if (PAYWALL.test(res.html)) {
+          view.innerHTML = topbar('UpToDate') + utdLoginCard('UpToDate only showed the preview (not signed in). Check your UpToDate login in Settings, or tap Show page to sign in once.', true);
+          bindUtdLogin(() => render());
+          return;
+        }
         model = { ...utdToModel(res.html, res.title || 'UpToDate topic', url), key };
         if (model.blocks.length < 3) { fail('This topic came back empty', 'UpToDate may have shown a notice instead of the topic.', true); return; }
         db.putReflow(model).catch(() => {});

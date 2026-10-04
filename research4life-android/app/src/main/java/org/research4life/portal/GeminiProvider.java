@@ -24,6 +24,8 @@ final class GeminiProvider implements LlmProvider {
     private String model;
     /** Whether to send the answer's JSON Schema (turned off if this model/API rejects it). */
     private boolean sendSchema = true;
+    /** Extra room for the model's "thinking", which counts against maxOutputTokens on Gemini 2.5+. */
+    private int headroom = 16384;
 
     GeminiProvider(String apiKey, String model) {
         this.apiKey = apiKey;
@@ -58,7 +60,7 @@ final class GeminiProvider implements LlmProvider {
                 }
                 parts.put(new JSONObject().put("text", user));
                 body.put("contents", new JSONArray().put(new JSONObject().put("role", "user").put("parts", parts)));
-                JSONObject gen = new JSONObject().put("maxOutputTokens", Math.max(1024, maxTokens)).put("temperature", 0.3);
+                JSONObject gen = new JSONObject().put("maxOutputTokens", Math.min(65536, Math.max(1024, maxTokens) + headroom)).put("temperature", 0.3);
                 if (jsonSchema != null && !jsonSchema.isEmpty()) {
                     gen.put("responseMimeType", "application/json");
                     // Constrains the answer to the exact structure, so it always parses.
@@ -122,7 +124,15 @@ final class GeminiProvider implements LlmProvider {
                         if (!p.optBoolean("thought", false)) out.append(p.optString("text", ""));
                     }
                 }
+                String finish = cands != null && cands.length() > 0 ? cands.getJSONObject(0).optString("finishReason") : "";
+                if ("MAX_TOKENS".equals(finish) && headroom < 48000) {
+                    // Cut off (usually by long thinking): once more with much more room.
+                    headroom = 48000;
+                    attempt--;
+                    continue;
+                }
                 String answer = out.toString().trim();
+                if ("MAX_TOKENS".equals(finish)) answer += "\n\n_(The answer was cut off at the length limit. Tap Regenerate for a complete one.)_";
                 if (answer.isEmpty()) throw new AiException("Gemini returned an empty answer. Try again.");
                 JSONObject usage = res.optJSONObject("usageMetadata");
                 long inTok = usage == null ? 0 : usage.optLong("promptTokenCount");
