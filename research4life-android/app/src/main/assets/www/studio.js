@@ -1310,7 +1310,9 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
   };
   ext.settingsSection = () => {
     const prov = provider();
-    const has = D.aiHasKey();
+    const has = (() => { try { return Native.aiHasKeyFor ? !!Native.aiHasKeyFor(prov) : D.aiHasKey(); } catch { return D.aiHasKey(); } })();
+    const auto = (() => { try { return Native.aiAuto ? !!Native.aiAuto() : false; } catch { return false; } })();
+    const keyFor = (p) => { try { return !!Native.aiHasKeyFor?.(p); } catch { return false; } };
     const model = (() => { try { return Native.aiModel?.() || MODELS[prov][0][0]; } catch { return MODELS[prov][0][0]; } })();
     let list = MODELS[prov];
     if (prov === 'groq') {
@@ -1325,6 +1327,10 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
         ${has ? `<button class="icon-btn" data-act="ai-forget" aria-label="Remove key">${icon('trash')}</button>` : ''}</div>
       ${prov === 'gemini' ? '<p class="muted small">Gemini has a generous free tier (key from aistudio.google.com/apikey, no card): best for the evidence map, matrix and contradiction checks, which read dozens of abstracts at once.</p>' : ''}
       ${prov === 'groq' ? '<p class="muted small">Groq is very fast and has a free tier (about 8,000 tokens a minute, 200,000 a day). When a document is bigger than that, the app sends the most relevant parts — the answer says so.</p>' : ''}
+      ${Native.aiAuto ? `<div class="acc-card"><div class="acc-ico">${icon('spark')}</div>
+        <div class="body"><b>Use Groq + Gemini together</b><span>${auto ? 'On' : 'Off'} · Groq key ${keyFor('groq') ? '✓' : '—'} · Gemini key ${keyFor('gemini') ? '✓' : '—'}. When one hits its free limit or is busy, the other answers; long documents go to Gemini first.</span></div>
+        <button class="btn xs ${auto ? 'primary' : ''}" data-act="ai-auto">${auto ? 'On' : 'Off'}</button></div>
+      <p class="muted small">Tip: save a key for each — tap Groq above and add its key, then tap Gemini and add its key. The selected one is used first.</p>` : ''}
       <label class="field">Model ${prov === 'groq' && has ? `<button class="linkish" data-act="groq-refresh">refresh list</button>` : ''}</label>
       ${list.map(([id, name, sub, p]) => `<button class="opt ${model === id ? 'on' : ''}" data-act="set-model" data-v="${esc(id)}">${icon('spark')}<span>${esc(name)}<small>${esc(sub)}${p[0] ? ` · $${p[0]}/$${p[1]} per million tokens in/out` : ''}</small></span>${model === id ? icon('check') : ''}</button>`).join('')}
       <label class="field">Explanation level</label>
@@ -1339,8 +1345,9 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
   Object.assign(actions, {
     'set-aikey': () => sheet(`<h3>${({ groq: 'Groq', gemini: 'Gemini', claude: 'Claude' })[provider()] || 'Groq'} API key</h3>${keyPrompt()}`),
     'set-provider': (b) => { Native.aiSetProvider?.(b.dataset.v); if (b.dataset.v === 'groq' && Native.aiHasKeyFor?.('groq')) Native.aiListModels?.(); render(); },
+    'ai-auto': () => { Native.aiSetAuto?.(!Native.aiAuto?.()); render(); },
     'groq-refresh': () => { Native.aiListModels?.(); toast('Checking which models your key can use…'); },
-    'ai-forget': () => { Native.aiSetKey(''); toast('API key removed'); render(); },
+    'ai-forget': () => { Native.aiSetKey('', provider()); toast('API key removed'); render(); },
     'set-model': (b) => { Native.aiSetModel?.(b.dataset.v); render(); },
     'set-level': (b) => { aiPrefs.level = b.dataset.v; saveAiPrefs(); render(); },
   });

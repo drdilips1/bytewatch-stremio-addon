@@ -466,17 +466,25 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void aiRunImage(String id, String system, String task, String dataUrl, int maxTokens) {
             io.execute(() -> {
+                LlmProvider.AiException first = null;
                 try {
-                    String prov = provider();
-                    String key = R4LSession.password(MainActivity.this, prov);
-                    if (key == null || key.isEmpty()) throw new LlmProvider.AiException("Add your " + label(prov) + " API key in Settings → AI.");
                     String b64 = dataUrl == null ? "" : dataUrl.substring(dataUrl.indexOf(',') + 1);
-                    LlmProvider.Result r;
-                    if ("gemini".equals(prov)) r = new GeminiProvider(key, aiModel()).completeWithImage(system, task, b64, maxTokens);
-                    else if ("groq".equals(prov)) r = new GroqProvider(key, null).completeWithImage(system, task, b64, maxTokens);
-                    else throw new LlmProvider.AiException("Image questions work with Gemini or Groq. Switch in Settings → AI.");
-                    recordUsage(r.model, r);
-                    emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model));
+                    for (String prov : aiOrder(0, true)) {
+                        try {
+                            String key = R4LSession.password(MainActivity.this, prov);
+                            if (key == null || key.isEmpty()) throw new LlmProvider.AiException("Add your " + label(prov) + " API key in Settings → AI.");
+                            LlmProvider.Result r;
+                            if ("gemini".equals(prov)) r = new GeminiProvider(key, modelFor("gemini")).completeWithImage(system, task, b64, maxTokens);
+                            else if ("groq".equals(prov)) r = new GroqProvider(key, null).completeWithImage(system, task, b64, maxTokens);
+                            else continue;
+                            recordUsage(r.model, r);
+                            emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model));
+                            return;
+                        } catch (LlmProvider.AiException e) {
+                            if (first == null) first = e;
+                        }
+                    }
+                    throw first != null ? first : new LlmProvider.AiException("Image questions work with Gemini or Groq. Add a key in Settings → AI.");
                 } catch (LlmProvider.AiException e) {
                     emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));
                 } catch (Exception e) {
@@ -680,7 +688,8 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean aiHasKey() {
-            return R4LSession.hasCredentials(MainActivity.this, provider());
+            if (R4LSession.hasCredentials(MainActivity.this, provider())) return true;
+            return aiAuto() && (R4LSession.hasCredentials(MainActivity.this, "groq") || R4LSession.hasCredentials(MainActivity.this, "gemini"));
         }
 
         @JavascriptInterface
@@ -739,30 +748,84 @@ public class MainActivity extends Activity {
          * Runs one AI task (prompts are written by the web app). Answers with an "ai" event
          * {id, state: done|error, text|message}.
          */
+        /** Whether DermScholar may use Groq and Gemini together (on by default). */
+        @JavascriptInterface
+        public boolean aiAuto() {
+            return getSharedPreferences("ai", MODE_PRIVATE).getBoolean("auto", true);
+        }
+
+        @JavascriptInterface
+        public void aiSetAuto(boolean on) {
+            getSharedPreferences("ai", MODE_PRIVATE).edit().putBoolean("auto", on).apply();
+        }
+
+        /**
+         * Which AIs to try, in order. The chosen one goes first; with auto on, the other free AI
+         * (Groq or Gemini) with a key is the fallback, and long documents go to Gemini first,
+         * since its free tier takes far bigger inputs.
+         */
+        private java.util.List<String> aiOrder(int docChars, boolean imageOnly) {
+            java.util.List<String> order = new java.util.ArrayList<>();
+            String chosen = provider();
+            if (!imageOnly || !"claude".equals(chosen)) order.add(chosen);
+            if (aiAuto()) {
+                for (String p : new String[]{"groq", "gemini"}) {
+                    if (!order.contains(p) && R4LSession.hasCredentials(MainActivity.this, p)) order.add(p);
+                }
+                if (docChars > 60000 && order.remove("gemini") && R4LSession.hasCredentials(MainActivity.this, "gemini")) order.add(0, "gemini");
+            }
+            return order;
+        }
+
+        private String modelFor(String p) {
+            return getSharedPreferences("ai", MODE_PRIVATE).getString("model." + p, defaultModel(p));
+        }
+
+        private final java.util.Map<String, LlmProvider> llms = new java.util.HashMap<>();
+
+        private LlmProvider llmFor(String prov) throws LlmProvider.AiException {
+            String key = R4LSession.password(MainActivity.this, prov);
+            if (key == null || key.isEmpty()) throw new LlmProvider.AiException("Add your " + label(prov) + " API key in Settings → AI.");
+            String model = modelFor(prov);
+            String tag = prov + "|" + model + "|" + key.hashCode();
+            synchronized (MainActivity.this) {
+                if (llm == null) llms.clear();  // a key, model or provider change resets the cache
+                LlmProvider p = llms.get(tag);
+                if (p == null) {
+                    p = "claude".equals(prov) ? new ClaudeProvider(key, model)
+                            : "gemini".equals(prov) ? new GeminiProvider(key, model) : new GroqProvider(key, model);
+                    llms.put(tag, p);
+                    llm = p;
+                    llmModel = tag;
+                }
+                return p;
+            }
+        }
+
+        /**
+         * Runs one AI task (prompts are written by the web app). Answers with an "ai" event
+         * {id, state: done|error, text|message}. When the first AI fails (free limit, busy,
+         * too long…) the next one in {@link #aiOrder} answers instead.
+         */
         @JavascriptInterface
         public void aiRun(String id, String system, String document, String task, int maxTokens, String jsonSchema) {
             io.execute(() -> {
+                LlmProvider.AiException first = null;
                 try {
-                    LlmProvider p;
-                    synchronized (MainActivity.this) {
-                        String prov = provider();
-                        String model = aiModel();
-                        String tag = prov + "|" + model;
-                        if (llm == null || !tag.equals(llmModel)) {
-                            String key = R4LSession.password(MainActivity.this, prov);
-                            if (key == null || key.isEmpty()) {
-                                throw new LlmProvider.AiException("Add your " + label(prov) + " API key in Settings → AI.");
-                            }
-                            llm = "claude".equals(prov) ? new ClaudeProvider(key, model)
-                                    : "gemini".equals(prov) ? new GeminiProvider(key, model) : new GroqProvider(key, model);
-                            llmModel = tag;
+                    for (String prov : aiOrder(document == null ? 0 : document.length(), false)) {
+                        try {
+                            LlmProvider.Result r = llmFor(prov).complete(system, document, task, maxTokens,
+                                    jsonSchema == null || jsonSchema.isEmpty() ? null : jsonSchema);
+                            recordUsage(r.model, r);
+                            emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model,
+                                    "fallback", first == null ? "" : label(prov)));
+                            return;
+                        } catch (LlmProvider.AiException e) {
+                            if ("Cancelled".equals(e.getMessage())) throw e;
+                            if (first == null) first = e;
                         }
-                        p = llm;
                     }
-                    LlmProvider.Result r = p.complete(system, document, task, maxTokens,
-                            jsonSchema == null || jsonSchema.isEmpty() ? null : jsonSchema);
-                    recordUsage(r.model, r);
-                    emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model));
+                    throw first != null ? first : new LlmProvider.AiException("Add your " + label(provider()) + " API key in Settings → AI.");
                 } catch (LlmProvider.AiException e) {
                     emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));
                 } catch (Exception e) {
