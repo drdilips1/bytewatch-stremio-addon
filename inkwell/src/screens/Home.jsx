@@ -1,5 +1,5 @@
 import { BgImage } from '../components/bg-image.jsx';
-import { rankForYou } from '../lib/taste.js';
+import { rankForYou, profile } from '../lib/taste.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Row, BookCard, withMeta, AskButton } from '../components/common.jsx';
 import { openDrive } from '../components/drive-mode.jsx';
@@ -45,23 +45,63 @@ async function topRated() {
   return rankForYou(notOwned(r).filter((b) => (b.rating || 0) >= 4.5 && (b.ratings || 0) >= 200)).slice(0, 30);
 }
 
-// Store-style rows: picks for you, new releases, this month's top titles.
+// Store-style rows, non-fiction in your taste: your top categories (from what you listen to,
+// save and rate), Psychology / Science / History until the app knows you better.
+const FICTION = /fiction|romance|fantasy|thriller|mystery|suspense|horror|teen|young adult|children|erotica|sci-fi|science fiction|litrpg|graphic novel|comics/i;
+const isFiction = (b) => (b.genres || []).some((g) => FICTION.test(g));
+const nonFiction = (list) => (list || []).filter((b) => !isFiction(b));
+const DEFAULT_TOPICS = ['Psychology & Human Behavior', 'Science & Biology', 'History & Civilization'];
+function tasteTopics() {
+  const p = profile();
+  const scored = GENRES.filter((g) => g.au) // the non-fiction categories
+    .map((g) => {
+      let w = 0;
+      for (const [name, v] of p.genres) if (g.match.test(name)) w += v.w;
+      return [g, w];
+    })
+    .filter(([, w]) => w > 0)
+    .sort((x, y) => y[1] - x[1])
+    .slice(0, 3)
+    .map(([g]) => g);
+  return scored.length ? scored : GENRES.filter((g) => DEFAULT_TOPICS.includes(g.name));
+}
+const topicNames = () =>
+  tasteTopics()
+    .map((g) => g.name.split(/ & |, /)[0])
+    .join(', ');
+// Best sellers in your topics, merged in rank order (1st of each, then 2nd of each…).
+async function topicPool() {
+  const pools = await Promise.all(tasteTopics().map((g) => audible.pool(g.au || g.name).catch(() => [])));
+  const out = [];
+  const seen = new Set();
+  for (let i = 0; i < 150; i++)
+    for (const p of pools) {
+      const b = p[i];
+      if (b && !seen.has(b.uid)) seen.add(b.uid) && out.push(b);
+    }
+  return nonFiction(out);
+}
 async function recommendedForYou() {
   const r = await picksForYou().catch(() => []);
   const noRank = ({ rank, ...b }) => b;
-  return (r.length ? rankForYou(notOwned(r)).slice(0, 24) : await topRated()).map(noRank);
+  const picks = nonFiction(r.length ? rankForYou(notOwned(r)) : []);
+  if (picks.length >= 6) return picks.slice(0, 24).map(noRank);
+  // Not enough yet: well-rated best sellers in your topics.
+  const extra = rankForYou(notOwned(await topicPool())).filter((b) => !picks.some((x) => x.uid === b.uid));
+  return [...picks, ...extra].slice(0, 24).map(noRank);
 }
 async function newReleases() {
   const now = Date.now();
-  const since = now - 120 * 864e5;
-  const all = await audible.pool('bestsellers');
-  return notOwned(all.filter((b) => b.released && b.released >= since && b.released <= now))
+  const all = notOwned(await topicPool()).filter((b) => b.released && b.released <= now);
+  let fresh = all.filter((b) => b.released >= now - 120 * 864e5);
+  if (fresh.length < 8) fresh = all.filter((b) => b.released >= now - 365 * 864e5);
+  return fresh
     .sort((a, b) => b.released - a.released)
     .slice(0, 24)
     .map(({ rank, ...b }) => b);
 }
 async function topThisMonth() {
-  const r = await audible.genre('bestsellers');
+  const r = await topicPool();
   return r.slice(0, 20).map((b, i) => ({ ...b, rank: i + 1 }));
 }
 
@@ -520,9 +560,9 @@ export function Home() {
 
       <WaitingRow />
       <ContinueRow />
-      <Row title="Recommended for you" subtitle="From your listening and ratings" icon="sparkle" cacheKey="homeRec" shuffle load={recommendedForYou} deps={[]} />
-      <Row title="New releases" subtitle="Popular audiobooks out in the last few months" icon="flame" cacheKey="homeNew" shuffle load={newReleases} deps={[]} />
-      <Row title="Top titles this month" subtitle="Best sellers right now" icon="star" cacheKey="homeTop" shuffle load={topThisMonth} deps={[]} />
+      <Row title="Recommended for you" subtitle="Non-fiction from your listening and ratings" icon="sparkle" cacheKey="homeRec" shuffle load={recommendedForYou} deps={[]} />
+      <Row title="New releases" subtitle={`New in ${topicNames()}`} icon="flame" cacheKey="homeNew" shuffle load={newReleases} deps={[]} />
+      <Row title="Top titles this month" subtitle={`Best sellers in ${topicNames()}`} icon="star" cacheKey="homeTop" shuffle load={topThisMonth} deps={[]} />
       <CategoryTiles />
 
       {sourceOrder().map((k) => (
