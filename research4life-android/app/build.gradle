@@ -13,7 +13,8 @@ android {
         versionCode 19
         versionName '4.1'
         // Neural voices ship native code for phones (64- and 32-bit ARM).
-        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }
+        // 64-bit ARM only: every current phone (Samsung Galaxy included); keeps the APK small enough to share.
+        ndk { abiFilters 'arm64-v8a' }
     }
 
     // A fixed key so new builds install over old ones without wiping the saved library.
