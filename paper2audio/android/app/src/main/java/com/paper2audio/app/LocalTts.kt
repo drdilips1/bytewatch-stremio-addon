@@ -56,6 +56,7 @@ object LocalTts {
             Class.forName("com.k2fsa.sherpa.onnx.OfflineTts") // loads libsherpa-onnx-jni.so
             true
         } catch (e: Throwable) {
+            AppLog.e("Engine", "On-device engine unavailable", e)
             false
         }
     }

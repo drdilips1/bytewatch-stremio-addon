@@ -78,6 +78,7 @@ class ModelPack(
             } catch (e: CancellationException) {
                 update { message = "Download cancelled" }
             } catch (e: Exception) {
+                AppLog.e("Pack", "$title download failed", e)
                 update { message = "Download failed: ${e.message ?: e.javaClass.simpleName}. Tap Download to retry." }
             } finally {
                 update { installing = false }

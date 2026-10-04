@@ -2,4 +2,6 @@
 <paths>
     <cache-path name="scan" path="scan/" />
     <cache-path name="update" path="update/" />
+    <cache-path name="report" path="report/" />
+    <external-files-path name="downloads" path="Download/" />
 </paths>

@@ -385,6 +385,7 @@ class PlayerActivity : Activity() {
                 }
             }
         }
+        findViewById<Button>(R.id.btnTranscript).setOnClickListener { exportTranscript() }
         btnOpenAudio.setOnClickListener {
             val uri = Exporter.resultUri ?: return@setOnClickListener
             try {
@@ -660,18 +661,82 @@ class PlayerActivity : Activity() {
             if (hasKey) "Hardcover API key (saved ✓)" else "Add Hardcover API key",
             if (isPdf) "Figures and tables" else null,
             if (isPdf) "Text recognition on all pages (for scans or garbled text)" else null,
+            "Export transcript (text, Markdown or PDF)",
+            "Report a problem",
         )
         AlertDialog.Builder(this)
             .setTitle("Document")
             .setItems(options.toTypedArray()) { _, which ->
-                when (which) {
-                    0 -> lookUpDetails()
-                    1 -> askHardcoverKey()
-                    2 -> showFigures()
+                when (options[which]) {
+                    options[0] -> lookUpDetails()
+                    options[1] -> askHardcoverKey()
+                    "Figures and tables" -> showFigures()
+                    "Export transcript (text, Markdown or PDF)" -> exportTranscript()
+                    "Report a problem" -> AppLog.showReport(this)
                     else -> recognizeAllPages()
                 }
             }
             .show()
+    }
+
+    /** Saves the text as it is read aloud: choose the format, and whether to leave out skipped sections. */
+    private fun exportTranscript() {
+        val doc = Speaker.doc ?: return
+        val skipped = Speaker.skipped(doc)
+        val formats = Transcript.Format.values()
+        var leaveOut = skipped.isNotEmpty()
+        val b = AlertDialog.Builder(this)
+            .setTitle("Export transcript")
+            .setItems(formats.map { it.label }.toTypedArray()) { _, which ->
+                val format = formats[which]
+                busy = "Saving the transcript…"
+                render()
+                scope.launch {
+                    try {
+                        val uri = withContext(Dispatchers.IO) {
+                            Transcript.save(this@PlayerActivity, doc, format, if (leaveOut) skipped else emptySet())
+                        }
+                        AppLog.i("Transcript", "Saved ${format.ext}, ${doc.paragraphs.size} paragraphs")
+                        AlertDialog.Builder(this@PlayerActivity)
+                            .setTitle("Transcript saved")
+                            .setMessage("In Downloads/Paper2Audio.")
+                            .setPositiveButton("Share") { _, _ ->
+                                runCatching {
+                                    startActivity(Intent.createChooser(
+                                        Intent(Intent.ACTION_SEND).setType(format.mime).putExtra(Intent.EXTRA_STREAM, uri)
+                                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "Share the transcript"))
+                                }
+                            }
+                            .setNeutralButton("Open") { _, _ ->
+                                runCatching {
+                                    startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, format.mime)
+                                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                                }.onFailure { toast("No app to open it with") }
+                            }
+                            .setNegativeButton("Close", null)
+                            .show()
+                    } catch (e: Exception) {
+                        AppLog.e("Transcript", "Export failed", e)
+                        toast("Couldn't save the transcript: ${e.message}")
+                    } finally {
+                        busy = null
+                        render()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+        if (skipped.isNotEmpty()) {
+            val dp = resources.displayMetrics.density
+            b.setView(android.widget.FrameLayout(this).apply {
+                setPadding((20 * dp).toInt(), (4 * dp).toInt(), (20 * dp).toInt(), 0)
+                addView(android.widget.CheckBox(this@PlayerActivity).apply {
+                    text = "Leave out the ${skipped.size} skipped section(s)"
+                    isChecked = true
+                    setOnCheckedChangeListener { _, on -> leaveOut = on }
+                })
+            })
+        }
+        b.show()
     }
 
     private fun recognizeAllPages() {
@@ -690,6 +755,7 @@ class PlayerActivity : Activity() {
                 reparse()
                 DriveSync.request(this@PlayerActivity)
             } catch (e: Exception) {
+                AppLog.e("Ocr", "Recognition failed", e)
                 busy = null
                 render()
                 toast("Text recognition failed: ${e.message}")
@@ -783,6 +849,7 @@ class PlayerActivity : Activity() {
                 Speaker.load(doc)
                 readerAdapter.notifyDataSetChanged()
             } catch (e: Exception) {
+                AppLog.e("Open", "Couldn't reopen", e)
                 toast(e.message ?: "Could not read that file")
             } finally {
                 busy = null
@@ -1042,7 +1109,10 @@ class PlayerActivity : Activity() {
         }
     }
 
-    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+    private fun toast(msg: String) {
+        AppLog.i("Player", msg)
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+    }
 
     private fun chooseStyle() {
         val styles = Style.entries
@@ -1129,6 +1199,7 @@ class PlayerActivity : Activity() {
                 try {
                     work { text -> runOnUiThread { aiBusy = text; refreshAi() } }
                 } catch (e: Exception) {
+                    AppLog.e("AI", "$label failed", e)
                     AlertDialog.Builder(this@PlayerActivity)
                         .setTitle("AI didn't work")
                         .setMessage(e.message ?: "Something went wrong. Check your internet connection.")

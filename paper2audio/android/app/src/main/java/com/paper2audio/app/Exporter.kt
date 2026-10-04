@@ -151,6 +151,7 @@ object Exporter {
             } catch (e: CancellationException) {
                 update { message = "Cancelled" }
             } catch (e: Exception) {
+                AppLog.e("Export", "Saving audio failed", e)
                 update { message = "Saving failed: ${e.message ?: e.javaClass.simpleName}" }
             } finally {
                 update { running = false }

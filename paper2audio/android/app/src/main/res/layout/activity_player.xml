@@ -504,6 +504,14 @@
                         android:drawableStart="@drawable/ic_save"
                         android:text="Save as an audio file (MP3/M4A)" />
 
+                    <Button
+                        android:id="@+id/btnTranscript"
+                        style="@style/P2A.Button.Text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Export transcript (text, Markdown or PDF)" />
+
                     <ProgressBar
                         android:id="@+id/exportProgress"
                         style="@style/P2A.Progress"

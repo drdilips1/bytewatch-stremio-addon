@@ -127,16 +127,18 @@ class LibraryActivity : Activity() {
         // Tap "Library" for the version, updates and AI settings.
         findViewById<TextView>(R.id.libraryTitle).setOnClickListener { showAbout() }
         Updater.checkDaily(this, scope)
+        AppLog.offerCrashReport(this)
     }
 
     private fun showAbout() {
         AlertDialog.Builder(this)
             .setTitle("Paper to Audio ${Updater.currentName(this)}")
-            .setItems(arrayOf("Check for updates", "AI settings (Grok or Gemini)", "Voice studio")) { _, which ->
+            .setItems(arrayOf("Check for updates", "AI settings (Grok or Gemini)", "Voice studio", "Report a problem")) { _, which ->
                 when (which) {
                     0 -> Updater.checkNow(this, scope)
                     1 -> AiKeyDialog.show(this)
-                    else -> startActivity(Intent(this, VoiceStudioActivity::class.java))
+                    2 -> startActivity(Intent(this, VoiceStudioActivity::class.java))
+                    else -> AppLog.showReport(this)
                 }
             }
             .show()
@@ -248,7 +250,10 @@ class LibraryActivity : Activity() {
         busyText.text = text ?: ""
     }
 
-    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+    private fun toast(msg: String) {
+        AppLog.i("Library", msg)
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+    }
 
     // ---- Google Drive sync ----
 
@@ -321,6 +326,7 @@ class LibraryActivity : Activity() {
                 Speaker.load(doc)
                 openPlayer()
             } catch (e: Exception) {
+                AppLog.e("Open", "Couldn't open ${item.kind}", e)
                 toast(e.message ?: "Could not read that file")
             } finally {
                 setBusy(null)
@@ -344,6 +350,7 @@ class LibraryActivity : Activity() {
                 DriveSync.request(this@LibraryActivity)
                 openPlayer()
             } catch (e: Exception) {
+                AppLog.e("Import", label, e)
                 toast(e.message ?: "Could not open that")
             } finally {
                 setBusy(null)

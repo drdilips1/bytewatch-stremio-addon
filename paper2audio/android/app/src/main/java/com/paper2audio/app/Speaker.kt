@@ -309,6 +309,7 @@ object Speaker {
 
     fun setVoice(id: String) {
         if (id == voiceId) return
+        AppLog.i("Player", "Voice $voiceId -> $id")
         voiceId = id
         prefs.edit().putString("voice2", id).apply()
         if (id.startsWith(SYSTEM)) tts?.let { t -> t.voices?.firstOrNull { it.name == id.removePrefix(SYSTEM) }?.let { t.voice = it } }
@@ -360,6 +361,7 @@ object Speaker {
     fun load(newDoc: Doc) {
         if (playing) pause()
         stopAll()
+        AppLog.i("Player", "Opened ${newDoc.paragraphs.size} paragraphs, ${newDoc.chapters.size} chapters, start ${newDoc.start}")
         doc = newDoc
         index = prefs.getInt("pos:${newDoc.key}", newDoc.start).coerceIn(0, maxOf(0, newDoc.paragraphs.size - 1))
         pieceIndex = prefs.getInt("pc:${newDoc.key}", 0).coerceAtLeast(0)
@@ -468,6 +470,7 @@ object Speaker {
     }
 
     private fun fail(message: String) {
+        AppLog.e("Player", message)
         stopAll()
         playing = false
         lastError = message
@@ -667,6 +670,7 @@ object Speaker {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    AppLog.e("Player", "Retrying a piece with ${p.voice}: ${e.message}")
                     Renderer.render(app, pv, currentSpeed, p.text) // one more try: networks drop requests
                 }
                 return withContext(Dispatchers.Default) { AudioDecode.load(file) }
@@ -706,6 +710,7 @@ object Speaker {
                         throw e
                     } catch (e: Exception) {
                         if (g == generation) {
+                            AppLog.e("Player", "Rendering with $vid failed", e)
                             fail(
                                 if (LocalTts.isLocal(vid)) "The on-device voice couldn't read this (${e.message})."
                                 else "Couldn't reach the natural voice service (${e.message}). Check your internet, or download the document for offline listening."
@@ -815,6 +820,7 @@ object Speaker {
                     start()
                 }
             } catch (e: Exception) {
+                AppLog.e("Preview", "Preview of ${v.voiceId} failed", e)
                 lastError = "Couldn't play the preview (${e.message})."
                 notifyChanged()
             }

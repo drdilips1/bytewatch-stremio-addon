@@ -110,6 +110,7 @@ object Updater {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 dialog.dismiss()
             } catch (e: Exception) {
+                AppLog.e("Update", "Download failed", e)
                 dialog.dismiss()
                 AlertDialog.Builder(activity)
                     .setTitle("Update didn't download")

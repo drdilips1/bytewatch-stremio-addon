@@ -650,6 +650,7 @@ class VoiceStudioActivity : Activity() {
                     .show()
                     .getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { preview(Speaker.CLONE + voice.id) }
             } catch (e: Exception) {
+                AppLog.e("Studio", "Couldn't make the voice", e)
                 AlertDialog.Builder(this@VoiceStudioActivity)
                     .setTitle("Couldn't make the voice")
                     .setMessage(e.message ?: "Something went wrong")
@@ -692,5 +693,8 @@ class VoiceStudioActivity : Activity() {
             .show()
     }
 
-    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    private fun toast(msg: String) {
+        AppLog.i("Studio", msg)
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    }
 }
