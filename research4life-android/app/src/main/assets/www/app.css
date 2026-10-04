@@ -1201,3 +1201,19 @@ details.panel summary { cursor: pointer; }
 .hs-f { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .hs-f div { display: flex; flex-direction: column; }
 .hs-f small { color: var(--text-3); }
+
+/* Consensus meter and quality badges */
+.badge.b-n { background: var(--accent-soft); color: var(--accent-ink); }
+.badge.b-pop { background: var(--good-soft); color: var(--good); }
+.badge.b-pop.warn { background: var(--violet-soft); color: var(--violet); }
+.meter-bar { display: flex; height: 22px; border-radius: 999px; overflow: hidden; background: var(--line); }
+.meter-bar button { border: 0; padding: 0; height: 100%; }
+.meter-bar button.dim { opacity: .35; }
+.meter-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; }
+.meter-legend button { display: flex; align-items: center; gap: 6px; border: 0; background: none; padding: 2px 0; color: var(--text); font-size: 13.5px; }
+.meter-legend button.on { text-decoration: underline; }
+.meter-legend i { width: 10px; height: 10px; border-radius: 50%; }
+.meter-legend small { color: var(--text-3); }
+.cm-row { margin-bottom: 4px; }
+.cm-row > p { margin: 10px 0 4px; display: inline; }
+.cm-ans { display: inline-block; color: #fff; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-right: 6px; }

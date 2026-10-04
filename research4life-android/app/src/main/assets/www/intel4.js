@@ -268,9 +268,64 @@
   };
   actions['vs-big'] = (b) => zoom(b.dataset.src, 'Published image');
 
+  // ================================================================ C1: consensus meter (yes/no questions)
+  const YESNO = /^(does|do|did|is|are|was|were|can|could|should|will|would|has|have|had|may|might)\b/i;
+  const VERDICT = obj({ summary: S.str, items: { type: 'array', items: obj({ n: { type: 'integer' }, answer: { type: 'string', enum: ['yes', 'possibly', 'mixed', 'no', 'not relevant'] }, finding: S.str }) } });
+  const ANS = { yes: ['Yes', '#16a34a'], possibly: ['Possibly', '#65a30d'], mixed: ['Mixed', '#d97706'], no: ['No', '#dc2626'] };
+  const weightOf = (a) => {
+    const t = D.studyType(a).label || '';
+    const w = /meta|systematic/i.test(t) ? 3 : /guideline|consensus/i.test(t) ? 3 : /RCT|randomi/i.test(t) ? 2.5 : /cohort|case-control|observational|trial/i.test(t) ? 1.5 : /case/i.test(t) ? 0.5 : 1;
+    const q = D.quality ? D.quality(a) : {};
+    return w * (q.cited ? 1.2 : 1) * (q.pop && q.pop !== 'Human' ? 0.5 : 1);
+  };
+  async function renderMeter(_, p) {
+    const question = (p.q || '').trim();
+    const pick = p.a || '';
+    view.innerHTML = `${D.topbar('Consensus meter')}<p class="small"><b>${esc(question)}</b></p><div id="cm">${D.skeletons(3)}</div>`;
+    const el = $('#cm');
+    if (!question) { el.innerHTML = '<div class="empty"><b>Ask a yes/no question</b></div>'; return; }
+    if (!D.aiHasKey()) { el.innerHTML = I.keyCard(); return; }
+    const live = ticket('cm');
+    const key = 'meter.' + question.toLowerCase();
+    let data = I.cacheGet(key);
+    if (!data) {
+      try {
+        const f = { ...D.filtersFrom(p), q: question };
+        const res = await D.epmcSearch(D.buildQuery(f), { size: 30 });
+        const papers = res.results.filter((a) => a.abstract);
+        if (!papers.length) { if (live()) el.innerHTML = '<div class="empty"><b>No studies with abstracts found</b></div>'; return; }
+        if (live()) el.innerHTML = I.busyHtml ? I.busyHtml(`Reading ${papers.length} studies…`) : D.skeletons(3);
+        const doc = papers.map((a, i) => `[${i + 1}] ${D.studyType(a).label || 'Study'} · ${a.jAbbr || a.journal} ${a.year} · ${a.title}. ${D.stripTags(a.abstract).slice(0, 1200)}`).join('\n\n');
+        const r = D.aiJson(await D.ai(`QUESTION: ${question}\nFor each numbered study, answer the question from that study's own findings only: "yes", "possibly" (suggestive or weak), "mixed" (both ways or subgroups differ), "no", or "not relevant" (doesn't address it). Give the key finding in under 20 words with numbers if reported. Then a one-sentence summary of what the studies say overall. n is the study number.`,
+          { doc, system: 'You are a meticulous dermatology evidence analyst. Judge each study only on what its abstract reports.', schema: VERDICT, max: 4000 }));
+        data = { summary: r.summary || '', rows: (r.items || []).filter((x) => papers[x.n - 1]).map((x) => ({ ...x, a: papers[x.n - 1] })) };
+        I.cacheSet(key, data);
+      } catch (e) { if (live()) el.innerHTML = I.aiErr(e); return; }
+    }
+    if (!live()) return;
+    const rel = data.rows.filter((x) => ANS[x.answer]);
+    const tot = rel.reduce((s0, x) => s0 + weightOf(x.a), 0) || 1;
+    const share = Object.fromEntries(Object.keys(ANS).map((k) => [k, rel.filter((x) => x.answer === k).reduce((s0, x) => s0 + weightOf(x.a), 0) / tot]));
+    const count = (k) => rel.filter((x) => x.answer === k).length;
+    const shown = (pick ? rel.filter((x) => x.answer === pick) : rel).slice().sort((x, y) => weightOf(y.a) - weightOf(x.a));
+    el.innerHTML = `<div class="panel meter">
+        <div class="meter-bar">${Object.entries(ANS).map(([k, [l, c]]) => share[k] ? `<button style="width:${(share[k] * 100).toFixed(1)}%;background:${c}" data-act="cm-pick" data-a="${k}" class="${pick && pick !== k ? 'dim' : ''}" aria-label="${l}"></button>` : '').join('')}</div>
+        <div class="meter-legend">${Object.entries(ANS).map(([k, [l, c]]) => `<button data-act="cm-pick" data-a="${k}" class="${pick === k ? 'on' : ''}"><i style="background:${c}"></i>${l} <b>${Math.round(share[k] * 100)}%</b> <small>(${count(k)})</small></button>`).join('')}</div>
+        <p class="small" style="margin:10px 0 0">${esc(data.summary)}</p>
+        <p class="muted small">${rel.length} relevant of ${data.rows.length} studies read. Weighted by design (meta-analyses and RCTs count more, animal/lab studies less) and citations. AI-read from abstracts: check key papers.</p></div>
+      <div class="section"><div class="section-h"><h3>${pick ? esc(ANS[pick][0]) + ' · ' + shown.length : 'Studies, strongest first'}</h3>${pick ? '<button data-act="cm-pick" data-a="">Show all</button>' : ''}</div>
+        ${shown.map((x) => `<div class="cm-row"><span class="cm-ans" style="background:${ANS[x.answer][1]}">${ANS[x.answer][0]}</span><p class="small"><b>${esc(x.finding)}</b></p>${D.card(x.a)}</div>`).join('')}</div>
+      <button class="btn full" data-act="ev-from-search" data-q="${esc(question)}">${icon('chart')}Full evidence map</button>`;
+    actions['cm-pick'] = (b) => go('meter?' + new URLSearchParams({ ...p, a: b.dataset.a === pick ? '' : b.dataset.a }), { replace: true });
+  }
+  const prevTop2 = ext.searchTop;
+  ext.searchTop = (question) => (prevTop2 ? prevTop2(question) : '') + (question && YESNO.test(question.trim())
+    ? `<button class="chip pyr-chip" data-act="cm-open" data-q="${esc(question)}">📊 Consensus meter</button>` : '');
+  actions['cm-open'] = (b) => go('meter?' + new URLSearchParams({ ...(D.current.params || {}), q: b.dataset.q, a: '' }));
+
   // ================================================================ tools, routes
   I.TOOLS.splice(0, 0,
     ['pipeline', '🧬', 'Pipeline tracker', 'Phase 3 readouts · running · next wave'],
     ['histo', '🔬', 'Histology side by side', 'Your slide vs published · features to find']);
-  Object.assign(ext.routes, { pyramid: renderPyramid, cites: renderCites, pipeline: renderPipeline, histo: renderHisto });
+  Object.assign(ext.routes, { meter: renderMeter, pyramid: renderPyramid, cites: renderCites, pipeline: renderPipeline, histo: renderHisto });
 })();

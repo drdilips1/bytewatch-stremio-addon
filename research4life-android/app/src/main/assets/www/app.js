@@ -363,6 +363,32 @@
     return out.replace(/^(in conclusion|to conclude|overall|in summary|taken together)[,:]?\s*/i, '').replace(/^./, (c) => c.toUpperCase());
   }
 
+  /**
+   * Quality signals for a result: citations for its age, study size read from the abstract, and
+   * whether it studied people, animals or cells (MeSH and abstract wording).
+   */
+  function quality(a) {
+    if (a._q) return a._q;
+    const age = Math.max(0.5, THIS_YEAR - (Number(a.year) || THIS_YEAR) + 0.5);
+    const per = (a.citedBy || 0) / age;
+    const cited = a.citedBy >= 500 || (per >= 60 && a.citedBy >= 30) ? 'Very highly cited' : a.citedBy >= 100 || (per >= 15 && a.citedBy >= 10) ? 'Highly cited' : '';
+    const abs = stripTags(a.abstract || '').replace(/(\d),(\d{3})/g, '$1$2');
+    let n = 0;
+    const who = '(?:patients|participants|subjects|adults|children|adolescents|infants|individuals|women|men|people|persons|cases|volunteers|eyes|pregnancies|respondents|dermatologists)';
+    for (const re of [new RegExp('\\b[nN]\\s*=\\s*(\\d{2,7})\\b', 'g'), new RegExp('\\b(\\d{2,7})\\s+(?:[a-z-]+\\s+){0,3}' + who + '\\b', 'gi')]) {
+      for (const m of abs.matchAll(re)) { const v = Number(m[1]); if (v > n && v < 5e6 && !(v >= 1900 && v <= 2100)) n = v; }
+    }
+    const mesh = (a.mesh || []).join('|');
+    const text = (a.title || '') + ' ' + abs;
+    let pop = '';
+    if (/\bHumans\b/.test(mesh)) pop = 'Human';
+    else if (/\bAnimals\b|\bMice\b|\bRats\b/.test(mesh) || /\b(mice|murine|rats?|mouse model|zebrafish|porcine|canine)\b/i.test(text)) pop = 'Animal';
+    else if (/\bin vitro\b|\bcell lines?\b|\bcultured (keratinocytes|fibroblasts|cells)\b/i.test(text) && !/\bpatients\b/i.test(text)) pop = 'In vitro';
+    else if (n || /\bpatients\b|\bparticipants\b/i.test(text)) pop = 'Human';
+    a._q = { cited, n: n >= 10 ? n : 0, pop: pop === 'Human' && !n && !/\bHumans\b/.test(mesh) ? '' : pop };
+    return a._q;
+  }
+
   function badgesFor(a, { compact = false } = {}) {
     const st = studyType(a);
     const b = [];
@@ -370,7 +396,10 @@
     if (!a.imported) {
       const j = journalFor(a);
       if (j && j.top) b.push(`<span class="badge b-top">${icon('star')}Leading journal</span>`);
-      if (a.citedBy >= 100) b.push(`<span class="badge b-cite">${icon('trend')}Highly cited</span>`);
+      const q = quality(a);
+      if (q.cited) b.push(`<span class="badge b-cite">${icon('trend')}${q.cited}</span>`);
+      if (q.n) b.push(`<span class="badge b-n">N = ${q.n.toLocaleString()}</span>`);
+      if (q.pop) b.push(`<span class="badge b-pop ${q.pop === 'Human' ? '' : 'warn'}">${q.pop}</span>`);
       if (a.oa) b.push(`<span class="badge b-oa">${icon('unlock')}Open access</span>`);
     }
     if (pdfKeys.has(a.id)) b.push(`<span class="badge b-oa">${icon('file')}PDF offline</span>`);
@@ -524,7 +553,7 @@
     }, { passive: true });
   })();
 
-  const TAB_OF = { intel: 'intel', research: 'intel', project: 'intel', rp: 'intel', gaps: 'intel', compare: 'intel', drug: 'intel', images: 'intel', imgread: 'intel', alerts: 'intel', living: 'intel', sr: 'intel', cases: 'intel', case: 'intel', drugs: 'intel', lasers: 'intel', cme: 'intel', confs: 'intel', network: 'intel', graph: 'intel', visual: 'intel', clin: 'intel', shared: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', mlq: 'library', pyramid: 'search', cites: 'intel', pipeline: 'intel', histo: 'intel', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
+  const TAB_OF = { intel: 'intel', research: 'intel', project: 'intel', rp: 'intel', gaps: 'intel', compare: 'intel', drug: 'intel', images: 'intel', imgread: 'intel', alerts: 'intel', living: 'intel', sr: 'intel', cases: 'intel', case: 'intel', drugs: 'intel', lasers: 'intel', cme: 'intel', confs: 'intel', network: 'intel', graph: 'intel', visual: 'intel', clin: 'intel', shared: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', mlq: 'library', pyramid: 'search', meter: 'search', cites: 'intel', pipeline: 'intel', histo: 'intel', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
 
   async function render() {
     closeSheet();
@@ -3220,7 +3249,7 @@
     topbar, errorBox, coverStyle, hueFor, saveArticle, openReader, showReader, readerTop, readerLoading, lightbox,
     ttsPlay, ttsPlayScript, ttsSheet, ttsPrefs, saveTts, ttsTimes, indexAfterSeconds, sectionStart, sectionEnd, nextSection, prevSection,
     voiceList, RATES, ai, aiJson, aiHasKey, aiMaxCap, modelText, jumpToBlock, copyText, syncPdfs, refreshPdfs, stripTags,
-    speechReady, REFLOW_V, updateSaved, DERM_X,
+    speechReady, REFLOW_V, updateSaved, DERM_X, quality,
     addCollection: (n) => { if (n && !collections.includes(n)) { collections.push(n); store.set('collections', collections); } }, get collections() { return collections; },
     get tts() { return tts; }, get speech() { return speech; }, get saved() { return saved; }, get cache() { return cache; },
     get current() { return current; }, get reader() { return readerState; }, get pdfKeys() { return pdfKeys; },
