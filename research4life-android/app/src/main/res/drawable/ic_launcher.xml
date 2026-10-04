@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- DermScholar: a skin cross-section (epidermis, dermis, fat, a hair follicle) under a magnifier. -->
+<!-- DermScholar: a D-shaped dermatoscope (LED ring, handle) looking at an open book. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="48dp"
@@ -8,42 +8,43 @@
     android:viewportHeight="48">
     <path android:pathData="M24,2a22,22 0,1 1,0 44a22,22 0,1 1,0 -44z">
         <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="linear"
-                android:startX="6" android:startY="4"
-                android:endX="42" android:endY="44">
+            <gradient android:type="linear"
+                android:startX="6" android:startY="4" android:endX="42" android:endY="44">
                 <item android:offset="0" android:color="#FF7C3AED" />
                 <item android:offset="0.55" android:color="#FFDB2777" />
                 <item android:offset="1" android:color="#FFF59E0B" />
             </gradient>
         </aapt:attr>
     </path>
-    <group>
-        <clip-path android:pathData="M24,2a22,22 0,1 1,0 44a22,22 0,1 1,0 -44z" />
-        <!-- subcutaneous fat -->
-        <path android:fillColor="#FDE68A"
-            android:pathData="M0,34c6,-1.5 10,1.5 16,0s10,-1.5 16,0s10,1.5 16,0v14h-48z" />
-        <path android:fillColor="#FCD34D"
-            android:pathData="M8,40a2.4,2.4 0,1 1,0 4.8a2.4,2.4 0,1 1,0 -4.8zM18,38.5a2.6,2.6 0,1 1,0 5.2a2.6,2.6 0,1 1,0 -5.2zM29,40a2.4,2.4 0,1 1,0 4.8a2.4,2.4 0,1 1,0 -4.8zM39,38.5a2.6,2.6 0,1 1,0 5.2a2.6,2.6 0,1 1,0 -5.2z" />
-        <!-- dermis -->
-        <path android:fillColor="#FB7185"
-            android:pathData="M0,28c6,-1.5 10,1.5 16,0s10,-1.5 16,0s10,1.5 16,0v7c-6,1.5 -10,-1.5 -16,0s-10,1.5 -16,0s-10,-1.5 -16,0z" />
-        <!-- epidermis and stratum corneum -->
-        <path android:fillColor="#FDBA8C"
-            android:pathData="M0,25c6,-1.8 10,1.8 16,0s10,-1.8 16,0s10,1.8 16,0v4c-6,1.5 -10,-1.5 -16,0s-10,1.5 -16,0s-10,-1.5 -16,0z" />
-        <path android:fillColor="#FFF1E6"
-            android:pathData="M0,25c6,-1.8 10,1.8 16,0s10,-1.8 16,0s10,1.8 16,0v1.2c-6,1.8 -10,-1.8 -16,0s-10,1.8 -16,0s-10,-1.8 -16,0z" />
+    <group android:translateX="2">
+        <!-- handle -->
+        <path android:strokeColor="#FFFFFF" android:strokeWidth="5" android:strokeLineCap="round"
+            android:pathData="M20,34l5.5,8.5" />
+        <path android:strokeColor="#F472B6" android:strokeWidth="1.4" android:strokeLineCap="round"
+            android:pathData="M22.4,37.6l2.2,3.4" />
+        <!-- D-shaped head and lens -->
+        <path android:fillColor="#FFFFFF" android:pathData="M12,8h9.5a13,13 0,1 1,0 26h-9.5z" />
+        <path android:pathData="M15.5,11.5h6a9.5,9.5 0,1 1,0 19h-6z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear"
+                    android:startX="16" android:startY="11" android:endX="30" android:endY="31">
+                    <item android:offset="0" android:color="#FF0E7490" />
+                    <item android:offset="1" android:color="#FF134E4A" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <!-- LED ring -->
+        <path android:fillColor="#F59E0B"
+            android:pathData="M27.1,10.4a0.95,0.95 0,1 1,0 1.9a0.95,0.95 0,1 1,0 -1.9zM31.2,14.45a0.95,0.95 0,1 1,0 1.9a0.95,0.95 0,1 1,0 -1.9zM32.75,20.05a0.95,0.95 0,1 1,0 1.9a0.95,0.95 0,1 1,0 -1.9zM31.2,25.65a0.95,0.95 0,1 1,0 1.9a0.95,0.95 0,1 1,0 -1.9zM27.1,29.75a0.95,0.95 0,1 1,0 1.9a0.95,0.95 0,1 1,0 -1.9z" />
+        <!-- open book seen through the lens -->
+        <path android:fillColor="#FFFFFF"
+            android:pathData="M16.8,16.8c2.2,-0.9 4.2,-0.7 5.6,0.6v8.4c-1.4,-1.1 -3.4,-1.3 -5.6,-0.6z" />
+        <path android:fillColor="#FFFFFF"
+            android:pathData="M29.2,16.8c-2.2,-0.9 -4.2,-0.7 -5.6,0.6v8.4c1.4,-1.1 3.4,-1.3 5.6,-0.6z" />
+        <path android:strokeColor="#F472B6" android:strokeWidth="0.7" android:strokeLineCap="round"
+            android:pathData="M18.2,19.2l2.8,0.4M18.2,21.2l2.8,0.4M18.2,23.2l2.8,0.4M25,19.6l2.8,-0.4M25,21.6l2.8,-0.4M25,23.6l2.8,-0.4" />
+        <!-- glass highlight -->
+        <path android:fillColor="#FFFFFF" android:fillAlpha="0.22"
+            android:pathData="M15.5,11.5h6a9.5,9.5 0,0 1,8.2,4.7c-5,-1.5 -9.5,-1 -14.2,1.3z" />
     </group>
-    <!-- hair follicle -->
-    <path android:strokeColor="#3B1F14" android:strokeWidth="1.7" android:strokeLineCap="round"
-        android:pathData="M21,32c0.5,-6 1.5,-12 4.5,-18" />
-    <path android:fillColor="#3B1F14"
-        android:pathData="M21,30.6a1.8,1.8 0,1 1,0 3.6a1.8,1.8 0,1 1,0 -3.6z" />
-    <!-- magnifier -->
-    <path android:fillColor="#FFFFFF" android:fillAlpha="0.28"
-        android:pathData="M28,8.5a7,7 0,1 1,0 14a7,7 0,1 1,0 -14z" />
-    <path android:strokeColor="#FFFFFF" android:strokeWidth="2.2"
-        android:pathData="M28,8.5a7,7 0,1 1,0 14a7,7 0,1 1,0 -14z" />
-    <path android:strokeColor="#FFFFFF" android:strokeWidth="3" android:strokeLineCap="round"
-        android:pathData="M33.2,20.7l4.6,4.6" />
 </vector>
