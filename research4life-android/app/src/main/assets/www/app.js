@@ -121,6 +121,7 @@
     spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
     chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+    refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     upload: '<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
@@ -466,6 +467,37 @@
   const utdHash = (q) => 'search?' + new URLSearchParams({ q: q || '', src: 'utd' });
 
   window.addEventListener('hashchange', render);
+
+  // ---------------------------------------------------------------- pull down to refresh
+  // At the top of a list screen, pull down and let go to fetch it again (new papers, issues, feed).
+  (() => {
+    const NO_PULL = new Set(['read', 'pdf', 'doc', 'utd', 'study']);
+    let y0 = null, dy = 0, bar = null;
+    const reset = () => { y0 = null; dy = 0; if (bar) { bar.style.transform = ''; bar.classList.remove('ready', 'show'); } };
+    document.addEventListener('touchstart', (e) => {
+      if (window.scrollY > 0 || $('.sheet') || $('#lb') || NO_PULL.has(current.name) || e.touches.length !== 1) { y0 = null; return; }
+      if (e.target.closest('textarea, input, .scroll-x')) { y0 = null; return; }
+      y0 = e.touches[0].clientY;
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      if (y0 == null) return;
+      dy = e.touches[0].clientY - y0;
+      if (dy <= 0 || window.scrollY > 0) { reset(); return; }
+      if (!bar) { document.body.insertAdjacentHTML('beforeend', `<div id="ptr" class="ptr">${icon('refresh')}</div>`); bar = $('#ptr'); }
+      bar.classList.add('show');
+      bar.style.transform = `translate(-50%, ${Math.min(dy * 0.5, 70)}px) rotate(${Math.min(dy, 140) * 2}deg)`;
+      bar.classList.toggle('ready', dy > 110);
+    }, { passive: true });
+    document.addEventListener('touchend', () => {
+      if (y0 == null) return;
+      const go = dy > 110;
+      reset();
+      if (!go) return;
+      bar.classList.add('show', 'spin');
+      searchCache.clear(); issueCache.clear(); crossrefCache.clear();
+      Promise.resolve(refreshPdfs()).then(() => loadSaved()).finally(() => { render(); setTimeout(() => bar?.classList.remove('show', 'spin'), 600); });
+    }, { passive: true });
+  })();
 
   const TAB_OF = { intel: 'intel', research: 'intel', project: 'intel', rp: 'intel', gaps: 'intel', compare: 'intel', drug: 'intel', images: 'intel', imgread: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
 

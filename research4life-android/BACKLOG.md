@@ -40,3 +40,29 @@ Status: 🟡 noted · 🔵 in progress · ✅ done locally (waiting for "Build n
 | 31 | Request | **Home screen top looked weird** (big magenta "Add document" block above the search). | ✅ ready, not built: compact header with the new dermatoscope logo and greeting; search card first with a smaller heading; "Add document" and "Library" as two small buttons; slim one-line "Continue listening" |
 | 32 | Bug | **PDF from MyLOFT attached ("On your phone · Read now") but the paper isn't in the Library.** The MyLOFT route didn't save the paper; the PDF came in as a bare "imported" entry. | ✅ ready, not built: MyLOFT saves the paper first; any PDF attached to an unsaved paper saves the full paper (title, journal, abstract); bare entries already on the phone are filled in at start-up |
 | 33 | Bug | **ClinicalKey link in MyLOFT says "login first"** although logged in to MyLOFT. | 🟡 waiting for a screenshot (MyLOFT's message or ClinicalKey's page?) |
+| 34 | Request | **Pull down to refresh** on lists (home, search, journals, issues, library). | ✅ ready, not built (not in readers or open sheets) |
+
+## Roadmap from the "dream dermatology research app" brief (Grok), not yet scheduled
+
+Already in DermScholar: Research4Life + MyLOFT access; Europe PMC search (PubMed/MEDLINE, PMC, Cochrane) + ClinicalTrials.gov + preprints; derm journals with issues; AI summaries, Ask, podcast, takeaways with [¶] citations; evidence map with cited synthesis, matrix, contradictions; "What changed?" alerts; AI research desk (PICO, design, stats, manuscript, reviewer, journal club); research projects + gap radar; drug dossier (FDA label, FAERS, approved uses); image search with differential and histopathology learning; notebooks; offline PDFs and reader; account sync; dark mode.
+
+| # | Idea | Notes |
+|---|------|-------|
+| G1 | **Derm filters**: body site, Fitzpatrick type / skin of colour, age group (paediatric), level of evidence, laser/device, drug class | search chips + query terms |
+| G2 | **Clinical summary card** per paper: population (incl. phototype), dose/regimen or device settings, primary outcome with numbers, adverse events, limitations | structured AI output |
+| G3 | **Practice-changing vs incremental** flag + evidence grade on papers | AI + study design |
+| G4 | **Alerts**: retractions of saved papers, FDA/EMA approvals, guideline updates for followed topics | Crossref/Retraction Watch, openFDA |
+| G5 | **Living guideline dashboard** with versions and "what changed" | per disease |
+| G6 | **Reference manager**: citation styles (JAAD, BJD, Vancouver), export RIS/BibTeX/Zotero, tags by disease/mechanism/treatment | |
+| G7 | **Systematic review helper**: PRISMA flow diagram, PICO table across selected papers, simple pooled meta-analysis when numbers are extractable | |
+| G8 | **Private case library**: patient photos kept on the phone (encrypted), timeline, outcome photos, linked references; compare side by side with published images | privacy first, never uploaded without consent |
+| G9 | **Drug tools**: dosing and monitoring protocols for biologics/JAKi/isotretinoin/methotrexate/cyclosporine, interaction checker | |
+| G10 | **Laser/device parameter library** | |
+| G11 | **CME/CPD log** from papers read and quizzes done | |
+| G12 | **Conference radar**: AAD, EADV, WCD, SID abstracts | where feeds exist |
+| G13 | **Author/institution network** for a topic; who publishes in your niche | OpenAlex |
+| G14 | **Shared libraries / journal club groups** for a department | needs server-side sharing |
+| G15 | **Personal knowledge graph**: everything you read, noted or asked, connected over time | |
+| G16 | **Visual search**: papers with similar clinical or H&E images | hard; research-grade |
+| G17 | **Desktop/tablet version** with handoff | the web app (#23) |
+| — | Embase | not possible: subscription-only, no open API |
