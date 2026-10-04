@@ -24,3 +24,4 @@ Status: 🟡 noted · 🔵 in progress · ✅ done locally (waiting for "Build n
 | 15 | Request | **APK small enough to attach in chat** (under 30 MB), e.g. trim bundled assets. | 🟡 roadmap |
 | 16 | Bug | **MyLOFT opened the Play Store ("won't work on this phone") although MyLOFT is installed.** The app didn't recognise the installed MyLOFT by name. | ✅ ready, not built: "Choose MyLOFT from your apps" picker (remembered), wider name matching; Play Store only as a last option |
 | 17 | Bug | **MyLOFT hard to find in DermScholar.** | ✅ ready, not built: **MyLOFT** button on every paper next to Get PDF; MyLOFT section in Settings (Open · Choose app) |
+| 18 | Bug | **Huge lock-icon blocks in "Where to read the full text", placed too deep in the paper.** | ✅ ready, not built: compact rows, box moved right under the title (before Get PDF), paper tools moved below the buttons |

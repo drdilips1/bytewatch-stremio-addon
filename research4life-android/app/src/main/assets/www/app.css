@@ -365,9 +365,9 @@ textarea.notes:focus { border-color: var(--accent); }
 }
 .sheet .grab { width: 40px; height: 4px; border-radius: 99px; background: var(--line-strong); margin: 4px auto 12px; }
 .sheet h3 { margin: 4px 0 12px; font: 600 17px/1.3 var(--sans); }
-.sheet .opt, .drawer .opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 4px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; font-size: 15px; color: var(--text); }
+.opt, .sheet .opt, .drawer .opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 4px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; font-size: 15px; color: var(--text); }
 .sheet .opt:last-child, .drawer .opt:last-child { border-bottom: 0; }
-.sheet .opt svg, .drawer .opt svg { width: 20px; height: 20px; color: var(--text-2); flex: none; }
+.opt svg, .sheet .opt svg, .drawer .opt svg { width: 20px; height: 20px; color: var(--text-2); flex: none; }
 .sheet .opt .chk { margin-left: auto; color: var(--accent); }
 .sheet label.field { display: block; margin: 14px 0 6px; font-size: 13px; color: var(--text-3); font-weight: 600; }
 .sheet input[type=text], .sheet input[type=password], .sheet select {
@@ -1009,7 +1009,9 @@ body.player-open .toast { z-index: 33; }
 .contra { display: grid; grid-template-columns: 1fr; gap: 8px; }
 .upd-counts { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0 10px; font-size: 13.5px; }
 .panel.today p { margin: 6px 0; }
-.where .opt { margin-top: 6px; }
+.where .opt { margin-top: 0; padding: 10px 2px; }
+.where .opt:last-child { border-bottom: 0; }
+.panel.where { margin: 10px 0 12px; }
 .intel-paper { margin: 10px 0 4px; gap: 8px; }
 .card.trial .title { margin-top: 6px; }
 #desk-in, #ev-qin, #img-q { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--text); font: inherit; resize: vertical; margin-top: 8px; }

@@ -872,6 +872,7 @@
 
         ${a.finding ? `<div class="keybox"><div class="label">${icon('spark')}Key finding</div><p>${esc(a.finding)}</p></div>` : ''}
 
+        ${ext.articleExtra && !hasPdf ? ext.articleExtra(a) : ''}
         <div class="actions">
           ${hasPdf
             ? `<button class="btn good full big" data-act="open-pdf">${icon('file')}Read PDF<span class="sub">Saved on this phone</span></button>
@@ -887,7 +888,8 @@
           <button class="btn" data-act="cite">${icon('quote')}Cite</button>
           <button class="btn" data-act="utd-search" data-q="${esc((a.mesh[0] || a.keywords[0] || a.title.split(/[:.]/)[0]).slice(0, 80))}">${icon('book')}UpToDate</button>
         </div>
-        ${ext.articleExtra ? ext.articleExtra(a) : ''}
+        ${ext.articleExtra && hasPdf ? ext.articleExtra(a) : ''}
+        ${ext.articleTools ? ext.articleTools(a) : ''}
 
         ${s ? libraryPanel(s) : ''}
 

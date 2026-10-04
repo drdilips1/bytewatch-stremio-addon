@@ -702,8 +702,8 @@
   }
 
   // ================================================================ Full-text finder + MyLOFT (paper page)
-  ext.articleExtra = (a) => `<div class="panel where" id="where"><div class="label">${icon('unlock')}Where to read the full text</div><div id="where-list" class="muted small">Checking…</div></div>
-    <div class="row wrap intel-paper"><button class="btn xs" data-act="paper-club" data-id="${esc(a.id)}">${icon('school')}Journal club</button>
+  ext.articleExtra = (a) => `<div class="panel where" id="where"><div class="label">${icon('unlock')}Where to read the full text</div><div id="where-list" class="muted small">Checking…</div></div>`;
+  ext.articleTools = (a) => `<div class="row wrap intel-paper"><button class="btn xs" data-act="paper-club" data-id="${esc(a.id)}">${icon('school')}Journal club</button>
     <button class="btn xs" data-act="paper-ev" data-q="${esc((a.mesh[0] || a.keywords[0] || a.title).slice(0, 90))}">${icon('chart')}Evidence map for this topic</button></div>`;
   actions['paper-club'] = (b) => go('desk?' + new URLSearchParams({ mode: 'club', q: b.dataset.id }));
   actions['paper-ev'] = (b) => go(evHash(b.dataset.q));
@@ -717,7 +717,7 @@
     if (D.pdfKeys.has(a.id)) add('On this phone', 'PDF saved in your library', 'open-pdf');
     if (a.doi) {
       add('Research4Life', D.account('r4l').saved ? 'Get PDF with your Research4Life login' : 'Add your Research4Life login, then Get PDF', 'get-pdf');
-      add('MyLOFT (your institution)', Native.hasMyLoftApp?.() ? 'Open in the MyLOFT app, share the PDF back' : 'Install MyLOFT to use your institution\'s access', 'myloft');
+      add('MyLOFT (your institution)', Native.hasMyLoftApp?.() ? 'Open in the MyLOFT app, share the PDF back' : 'Choose your MyLOFT app once, then share the PDF back', 'myloft');
     }
     const oaLink = (a.links || []).find((l) => /OA|F/.test(l.code || '') && /pdf/i.test(l.style || ''));
     if (a.pmcid) add('PubMed Central', 'Free full text · read in the app', 'reader');

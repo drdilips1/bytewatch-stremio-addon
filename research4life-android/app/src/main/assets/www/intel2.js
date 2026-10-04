@@ -700,8 +700,8 @@
   const img = I.TILES.find((t) => t[0] === 'images');
   if (img) img[3] = 'Clinical · dermoscopy · histopathology';
 
-  const prevExtra = ext.articleExtra;
-  ext.articleExtra = (a) => (prevExtra ? prevExtra(a) : '') + `<div class="row wrap intel-paper">
+  const prevTools = ext.articleTools;
+  ext.articleTools = (a) => (prevTools ? prevTools(a) : '') + `<div class="row wrap intel-paper">
     <button class="btn xs" data-act="paper-rp" data-id="${esc(a.id)}">${icon('bulb')}Build research project</button>
     <button class="btn xs" data-act="paper-proj" data-id="${esc(a.id)}" data-t="${esc(a.title.slice(0, 80))}">${icon('folder')}Add to project</button>
     <button class="btn xs" data-act="cmp-add" data-id="${esc(a.id)}">${icon('chart')}Compare</button></div>`;
