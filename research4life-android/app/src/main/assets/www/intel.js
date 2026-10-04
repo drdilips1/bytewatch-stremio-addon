@@ -704,7 +704,7 @@
   // ================================================================ Full-text finder + MyLOFT (paper page)
   ext.articleExtra = (a) => `<div class="panel where" id="where"><div class="label">${icon('unlock')}Where to read the full text</div><div id="where-list" class="muted small">Checking…</div></div>`;
   ext.articleTools = (a) => `<div class="row wrap intel-paper"><button class="btn xs" data-act="paper-club" data-id="${esc(a.id)}">${icon('school')}Journal club</button>
-    <button class="btn xs" data-act="paper-ev" data-q="${esc((a.mesh[0] || a.keywords[0] || a.title).slice(0, 90))}">${icon('chart')}Evidence map for this topic</button></div>`;
+    <button class="btn xs" data-act="paper-ev" data-q="${esc(D.topicOf(a))}">${icon('chart')}Evidence map for this topic</button></div>`;
   actions['paper-club'] = (b) => go('desk?' + new URLSearchParams({ mode: 'club', q: b.dataset.id }));
   actions['paper-ev'] = (b) => go(evHash(b.dataset.q));
 

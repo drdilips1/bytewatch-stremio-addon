@@ -28,3 +28,4 @@ Status: 🟡 noted · 🔵 in progress · ✅ done locally (waiting for "Build n
 | 19 | Request | **New, more colourful dermatology app icon.** | 🚀 4.5: a D-shaped dermatoscope (white head, amber LED ring, handle) looking at an open book, on a violet → pink → amber gradient |
 | 20 | Bug | **MyLOFT opens the article but the PDF can't be sent back** (no Share to DermScholar). | ✅ ready, not built: "I downloaded it: pick the PDF" in the MyLOFT sheet and "Add PDF from phone" on every paper; the picked PDF is saved to that paper |
 | 21 | Bug | **"The site returned 403"**: where it appears still to be confirmed. | 🟡 waiting for details |
+| 22 | Bug | **Gemini error 404: "gemini-2.5-flash is no longer available to new users".** Also the Evidence map from a paper asked about "Humans". | ✅ ready, not built: default Gemini 3.8 Flash; when Google retires a model the app switches to the one Google names and retries; paper topics skip generic MeSH tags (Humans, Female, Adult…) |

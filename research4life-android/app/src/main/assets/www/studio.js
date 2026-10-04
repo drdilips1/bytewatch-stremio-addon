@@ -1281,8 +1281,7 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
       ['qwen/qwen3.8-27b', 'Qwen 3.8 27B', 'Alternative model', [0.8, 4]],
     ],
     gemini: [
-      ['gemini-2.5-flash', 'Gemini 2.5 Flash', 'Free tier · takes whole evidence maps at once (default)', [0, 0]],
-      ['gemini-2.5-pro', 'Gemini 2.5 Pro', 'Deeper reasoning, smaller free allowance', [0, 0]],
+      ['gemini-3.8-flash', 'Gemini 3.8 Flash', 'Free tier · takes whole evidence maps at once (default)', [0, 0]],
     ],
     claude: [
       ['claude-opus-5-5', 'Claude Opus 5.5', 'Best quality', [4, 20]],

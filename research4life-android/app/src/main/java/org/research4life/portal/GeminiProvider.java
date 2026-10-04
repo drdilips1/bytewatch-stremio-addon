@@ -17,11 +17,11 @@ import java.nio.charset.StandardCharsets;
  */
 final class GeminiProvider implements LlmProvider {
 
-    static final String DEFAULT_MODEL = "gemini-2.5-flash";
+    static final String DEFAULT_MODEL = "gemini-3.8-flash";
     private static final String BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
 
     private final String apiKey;
-    private final String model;
+    private String model;
 
     GeminiProvider(String apiKey, String model) {
         this.apiKey = apiKey;
@@ -86,6 +86,16 @@ final class GeminiProvider implements LlmProvider {
                 if (code >= 400) {
                     String msg = "";
                     try { msg = new JSONObject(text).getJSONObject("error").optString("message"); } catch (Exception ignored) { }
+                    // Google retires models ("…is no longer available… use models/gemini-X"): switch and retry once.
+                    if (code == 404 && attempt < 4) {
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("use models/(gemini-[\\w.-]+)").matcher(msg);
+                        String next = m.find() ? m.group(1) : DEFAULT_MODEL.equals(model) ? null : DEFAULT_MODEL;
+                        if (next != null && !next.equals(model)) {
+                            model = next;
+                            attempt = 3; // one model switch, no rate-limit retries on top
+                            continue;
+                        }
+                    }
                     if (code == 400 && msg.toLowerCase().contains("api key")) throw new AiException("Your Gemini API key was rejected. Check it in Settings → AI.");
                     if (code == 403) throw new AiException("Your Gemini API key isn't allowed to use this model. Check it in Settings → AI.");
                     throw new AiException("Gemini returned an error (" + code + ")" + (msg.isEmpty() ? "." : ": " + msg));

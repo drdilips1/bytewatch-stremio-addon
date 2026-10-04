@@ -887,7 +887,7 @@
           ${a.doi ? `<button class="btn" data-act="publisher">${icon('key')}Open via R4L</button>` : ''}
           <button class="btn" data-act="ai-article" data-id="${esc(a.id)}">${icon('spark')}AI summary</button>
           <button class="btn" data-act="cite">${icon('quote')}Cite</button>
-          <button class="btn" data-act="utd-search" data-q="${esc((a.mesh[0] || a.keywords[0] || a.title.split(/[:.]/)[0]).slice(0, 80))}">${icon('book')}UpToDate</button>
+          <button class="btn" data-act="utd-search" data-q="${esc(topicOf(a))}">${icon('book')}UpToDate</button>
         </div>
         ${ext.articleExtra && hasPdf ? ext.articleExtra(a) : ''}
         ${ext.articleTools ? ext.articleTools(a) : ''}
@@ -1729,6 +1729,13 @@
   }
 
   /** Minimal Markdown (headings, bullets, bold, italics) plus [¶n] source links. */
+  // MeSH "check tags" describe the study population, not its topic.
+  const CHECK_TAGS = /^(humans?|animals?|female|male|adults?|aged|middle aged|young adult|adolescent|child|child, preschool|infant|infant, newborn|aged, 80 and over|mice|rats|retrospective studies|prospective studies|cohort studies|treatment outcome|case-control studies|cross-sectional studies|follow-up studies|risk factors|surveys and questionnaires)$/i;
+  /** A short topic for a paper (first real MeSH term, keyword, or the title's main clause). */
+  function topicOf(a) {
+    const t = [...(a.mesh || []), ...(a.keywords || [])].find((x) => x && !CHECK_TAGS.test(String(x).replace(/\*/g, '').trim()));
+    return String(t || (a.title || '').split(/[:.?]/)[0]).replace(/\*/g, '').trim().slice(0, 90);
+  }
   function md(text) {
     const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])_(.+?)_(?=[\s).,;:]|$)/g, '$1<i>$2</i>').replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s).,;:]|$)/g, '$1<i>$2</i>')
       .replace(/\[¶\s?(\d+)(?:\s*[-–,]\s*¶?\s?(\d+))*\]/g, (m0) => [...m0.matchAll(/\d+/g)].map((n) => `<button class="src" data-act="src-jump" data-b="${n[0]}">¶${n[0]}</button>`).join(''));
@@ -2956,7 +2963,7 @@
   window.DS = {
     Native, ext, $, $$, esc, icon, md, sheet, closeSheet, toast, store, db, go, render, actions, settings, saveSettings,
     epmcSearch, buildQuery, studyType, card, badgesFor, keywordTerms, journalQuery, getJSON, findArticle, pickOne, pickMany,
-    loadSaved, account, getPdf, searchHash, filtersFrom, skeletons, shortAuthors, NOISE, DERM_FILTER, DERM_WORDS, TYPE_FILTERS, THIS_YEAR, hasNative,
+    topicOf, loadSaved, account, getPdf, searchHash, filtersFrom, skeletons, shortAuthors, NOISE, DERM_FILTER, DERM_WORDS, TYPE_FILTERS, THIS_YEAR, hasNative,
     topbar, errorBox, coverStyle, hueFor, saveArticle, openReader, showReader, readerTop, readerLoading, lightbox,
     ttsPlay, ttsPlayScript, ttsSheet, ttsPrefs, saveTts, ttsTimes, indexAfterSeconds, sectionStart, sectionEnd, nextSection, prevSection,
     voiceList, RATES, ai, aiJson, aiHasKey, aiMaxCap, modelText, jumpToBlock, copyText, syncPdfs, refreshPdfs, stripTags,
