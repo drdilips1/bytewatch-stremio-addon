@@ -44,6 +44,13 @@ final class VoiceStore {
     private static final String BASE = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/";
 
     static final Pack[] CATALOG = {
+            // Kokoro 1.0: the newest, most natural voices ("Heart" is the best-rated). The 4th field is
+            // the speaker's index in voices.bin.
+            new Pack("kokoro-hd", "kokoro-multi-lang-v1_0", "kokoro", "HD studio voices (Kokoro 1.0)", "en",
+                    "The most natural voices: Heart, Bella, Michael, Emma, George and more. Best quality; large download, needs a recent phone.", 350,
+                    "Heart|female|US|3", "Bella|female|US|2", "Nicole|female|US|6", "Sarah|female|US|9", "Aoede|female|US|1", "Kore|female|US|5",
+                    "Michael|male|US|16", "Fenrir|male|US|14", "Puck|male|US|18", "Echo|male|US|12",
+                    "Emma|female|UK|21", "Isabella|female|UK|22", "George|male|UK|26", "Fable|male|UK|25", "Daniel|male|UK|24"),
             new Pack("kokoro-en", "kokoro-int8-en-v0_19", "kokoro", "Studio voices (Kokoro)", "en",
                     "11 very natural US and UK voices. Best quality; needs a recent phone.", 103,
                     "Default|female|US", "Bella|female|US", "Nicole|female|US", "Sarah|female|US", "Sky|female|US",
@@ -98,7 +105,9 @@ final class VoiceStore {
                 JSONArray sp = new JSONArray();
                 for (String s : p.speakers) {
                     String[] parts = s.split("\\|");
-                    sp.put(new JSONObject().put("name", parts[0]).put("gender", parts[1]).put("accent", parts[2]));
+                    JSONObject o = new JSONObject().put("name", parts[0]).put("gender", parts[1]).put("accent", parts[2]);
+                    if (parts.length > 3) o.put("sid", Integer.parseInt(parts[3]));
+                    sp.put(o);
                 }
                 out.put(new JSONObject().put("id", p.id).put("label", p.label).put("lang", p.lang).put("desc", p.desc)
                         .put("sizeMb", p.sizeMb).put("type", p.type).put("speakers", sp).put("installed", installed(ctx, p.id)));
@@ -181,7 +190,9 @@ final class VoiceStore {
             if (voices == null) throw new IOException("The voice pack is incomplete");
             m.put("voices", voices.getAbsolutePath());
         }
-        File lexicon = find(dir, (f) -> f.getName().equals("lexicon.txt"));
+        // Kokoro 1.0 reads English through its own pronunciation lexicon.
+        File lexicon = find(dir, (f) -> f.getName().equals("lexicon-us-en.txt"));
+        if (lexicon == null) lexicon = find(dir, (f) -> f.getName().equals("lexicon.txt"));
         if (lexicon != null) m.put("lexicon", lexicon.getAbsolutePath());
         return m;
     }

@@ -1096,3 +1096,4 @@ details.panel summary { cursor: pointer; }
 @keyframes ptr-spin { to { transform: translate(-50%, 60px) rotate(360deg); } }
 .typing { display: inline-block; margin-left: 2px; color: var(--accent); animation: typing-blink 1s steps(1) infinite; }
 @keyframes typing-blink { 50% { opacity: 0; } }
+.hd-badge { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 99px; font-size: 10.5px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #DB2777, #7C3AED); vertical-align: 2px; }

@@ -1652,13 +1652,13 @@
         const dl = voiceDownloads[p.id];
         const sel = cur.startsWith('neural:' + p.id + '#');
         const speakers = p.speakers?.length ? p.speakers : [{ name: p.label.replace(/\s*\(.*\)/, ''), gender: '', accent: '' }];
-        return `<div class="nv ${p.installed ? 'ok' : ''} ${sel ? 'on' : ''}"><div class="nv-h"><div><b>${esc(p.label)}</b><span>${esc(p.desc)}</span></div>
+        return `<div class="nv ${p.installed ? 'ok' : ''} ${sel ? 'on' : ''}"><div class="nv-h"><div><b>${esc(p.label)}${/hd/.test(p.id) ? ' <span class="hd-badge">Best quality</span>' : ''}</b><span>${esc(p.desc)}</span></div>
           ${p.installed ? `<button class="icon-btn" data-act="nv-del" data-id="${esc(p.id)}" aria-label="Delete voice">${icon('trash')}</button>`
             : dl ? `<span class="nv-pct" id="vp-${esc(p.id)}">${dl.stage || 'Downloading'} ${dl.pct || 0}%</span>`
             : `<button class="btn xs primary" data-act="nv-get" data-id="${esc(p.id)}">${icon('download')}${p.sizeMb} MB</button>`}</div>
           ${dl && !p.installed ? `<div class="prog"><i id="vpb-${esc(p.id)}" style="width:${dl.pct || 0}%"></i></div>` : ''}
           ${p.installed ? `<div class="chips-wrap">${speakers.map((sp, k) => {
-            const v = `neural:${p.id}#${k}`;
+            const v = `neural:${p.id}#${sp.sid ?? k}`;
             return `<button class="chip ${cur === v ? 'on' : ''}" data-act="nv-use" data-v="${esc(v)}">${cur === v ? icon('check') : ''}${esc(sp.name)}${sp.gender ? ` <small>${sp.gender === 'female' ? '♀' : '♂'} ${esc(sp.accent)}</small>` : ''}</button>`;
           }).join('')}</div>` : ''}</div>`;
       }).join('')}</div>

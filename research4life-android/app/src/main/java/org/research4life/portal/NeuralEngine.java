@@ -236,6 +236,7 @@ final class NeuralEngine {
             k.setVoices(m.getString("voices"));
             k.setTokens(m.getString("tokens"));
             k.setDataDir(m.optString("dataDir", ""));
+            if (m.has("lexicon")) k.setLexicon(m.getString("lexicon"));
             mc.setKokoro(k);
         } else {
             OfflineTtsVitsModelConfig v = new OfflineTtsVitsModelConfig();
