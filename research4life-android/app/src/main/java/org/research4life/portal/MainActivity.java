@@ -318,13 +318,20 @@ public class MainActivity extends Activity {
     private Intent myLoftLaunchIntent() {
         try {
             android.content.pm.PackageManager pm = getPackageManager();
+            // The app the user picked ("Choose MyLOFT from your apps") wins.
+            String chosen = getSharedPreferences("myloft", MODE_PRIVATE).getString("pkg", null);
+            if (chosen != null) {
+                Intent c = pm.getLaunchIntentForPackage(chosen);
+                if (c != null) return c.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            }
             Intent q = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
             for (android.content.pm.ResolveInfo r : pm.queryIntentActivities(q, 0)) {
                 String pkg = r.activityInfo.packageName;
                 CharSequence label = r.loadLabel(pm);
                 if (pkg.equals(getPackageName())) continue;
-                if (pkg.toLowerCase(java.util.Locale.ROOT).contains("myloft")
-                        || (label != null && label.toString().toLowerCase(java.util.Locale.ROOT).contains("myloft"))) {
+                String l = label == null ? "" : label.toString().toLowerCase(java.util.Locale.ROOT).replace(" ", "");
+                String pk = pkg.toLowerCase(java.util.Locale.ROOT);
+                if (pk.contains("myloft") || pk.contains("eclat") || l.contains("myloft") || l.contains("libraryonfingertips")) {
                     Intent i = pm.getLaunchIntentForPackage(pkg);
                     if (i != null) return i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 }
@@ -524,6 +531,30 @@ public class MainActivity extends Activity {
                     toast("Couldn't open MyLOFT");
                 }
             });
+        }
+
+        /** Installed apps (label + package), for choosing the MyLOFT app by hand. */
+        @JavascriptInterface
+        public String listApps() {
+            org.json.JSONArray out = new org.json.JSONArray();
+            try {
+                android.content.pm.PackageManager pm = getPackageManager();
+                Intent q = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+                java.util.List<android.content.pm.ResolveInfo> all = pm.queryIntentActivities(q, 0);
+                java.util.Set<String> seen = new java.util.HashSet<>();
+                for (android.content.pm.ResolveInfo r : all) {
+                    String pkg = r.activityInfo.packageName;
+                    if (pkg.equals(getPackageName()) || !seen.add(pkg)) continue;
+                    out.put(new org.json.JSONObject().put("pkg", pkg).put("label", String.valueOf(r.loadLabel(pm))));
+                }
+            } catch (Exception ignored) {
+            }
+            return out.toString();
+        }
+
+        @JavascriptInterface
+        public void setMyLoftApp(String pkg) {
+            getSharedPreferences("myloft", MODE_PRIVATE).edit().putString("pkg", pkg == null || pkg.isEmpty() ? null : pkg).apply();
         }
 
         @JavascriptInterface

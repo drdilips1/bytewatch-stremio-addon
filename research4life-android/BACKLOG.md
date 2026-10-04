@@ -22,3 +22,4 @@ Status: 🟡 noted · 🔵 in progress · ✅ done locally (waiting for "Build n
 | 13 | Request | **Login and sync** with email/password or Google: library, notes, highlights, projects, watched questions and settings follow you to a new phone (same Supabase account as Paper2Audio/Inkwell). | 🟡 roadmap |
 | 14 | Request | **In-app updates**: the app checks for a new version, shows what's new and installs it with one tap (no GitHub download). | 🟡 roadmap |
 | 15 | Request | **APK small enough to attach in chat** (under 30 MB), e.g. trim bundled assets. | 🟡 roadmap |
+| 16 | Bug | **MyLOFT opened the Play Store ("won't work on this phone") although MyLOFT is installed.** The app didn't recognise the installed MyLOFT by name. | ✅ ready, not built: "Choose MyLOFT from your apps" picker (remembered), wider name matching; Play Store only as a last option |
