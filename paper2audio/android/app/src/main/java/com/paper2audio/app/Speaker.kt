@@ -361,7 +361,7 @@ object Speaker {
         if (playing) pause()
         stopAll()
         doc = newDoc
-        index = prefs.getInt("pos:${newDoc.key}", 0).coerceIn(0, maxOf(0, newDoc.paragraphs.size - 1))
+        index = prefs.getInt("pos:${newDoc.key}", newDoc.start).coerceIn(0, maxOf(0, newDoc.paragraphs.size - 1))
         pieceIndex = prefs.getInt("pc:${newDoc.key}", 0).coerceAtLeast(0)
         currentPiece = null
         if (newDoc.lang == null) {

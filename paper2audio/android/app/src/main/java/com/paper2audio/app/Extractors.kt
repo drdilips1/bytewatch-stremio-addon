@@ -262,6 +262,22 @@ object EpubExtractor {
         RegexOption.IGNORE_CASE,
     )
     private val WS = Regex("""\s+""")
+    /** Pages before the story: reading starts after them (they stay in the book). */
+    private val FRONT_TYPES = setOf(
+        "cover", "frontmatter", "titlepage", "halftitlepage", "copyright-page", "dedication", "epigraph",
+        "toc", "foreword", "preface", "imprint", "colophon", "credits", "seriespage", "praise", "other-credits",
+    )
+    private val FRONT_TITLE = Regex(
+        """^\s*(cover|title( page)?|half[- ]title|copyright|dedication|epigraph|also by.*|other books by.*|by the same author|""" +
+            """praise for.*|advance praise.*|about the (author|book|publisher)|contents|table of contents|""" +
+            """author'?s note|a note (from|to) the (author|reader)|publisher'?s note|front ?matter|imprint)\s*\.?\s*$""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val FRONT_FILE = Regex(
+        """(^|[/_\-])(cover|title(page)?|halftitle|copyright|dedication|dedi|epigraph|toc|contents|""" +
+            """alsoby|also[_-]by|praise|frontmatter|front|fm|imprint|about[_-]?(the[_-]?)?(author|book|publisher))\d*([_\-.][^/]*)?\.x?html?$""",
+        RegexOption.IGNORE_CASE,
+    )
 
     fun extract(file: File, o: CleanOptions, name: String, key: String): Doc {
         ZipFile(file).use { zip ->
@@ -283,14 +299,23 @@ object EpubExtractor {
                 zip.getEntry(resolve(base, item.attr("href")))?.let { e -> zip.getInputStream(e).use { it.readBytes() } }
             }
 
+            // Where the publisher says the text begins: EPUB 3 landmarks or the EPUB 2 guide.
+            val bodyHref = bodyStart(opf, base, manifest, ::read)
+
             val sections = ArrayList<Pair<String?, List<String>>>()
+            var startSection = -1
+            var guessed = -1
+            var bodyReached = false
             var part = 0
             for (ref in opf.tags("itemref")) {
                 val item = manifest[ref.attr("idref")] ?: continue
                 if (ref.attr("linear") == "no") continue
                 if ("nav" in item.attr("properties").split(' ')) continue
                 if ("html" !in item.attr("media-type")) continue
-                val html = read(resolve(base, item.attr("href"))) ?: continue
+                val path = resolve(base, item.attr("href"))
+                val html = read(path) ?: continue
+                val front = guessed < 0 && isFront(html, path)
+                if (path == bodyHref) bodyReached = true
                 val (heading, lines) = chapterLines(html)
                 part++
                 val chapter = heading ?: "Part $part"
@@ -299,10 +324,45 @@ object EpubExtractor {
                         TextCleaner.NOTES.containsMatchIn(chapter))) continue
                 if (o.skipAcknowledgements && TextCleaner.ACK.containsMatchIn(chapter)) continue
                 if (o.skipAppendix && TextCleaner.APPENDIX.containsMatchIn(chapter)) continue
-                sections += chapter to TextCleaner.clean(lines, o)
+                val text = TextCleaner.clean(lines, o)
+                if (startSection < 0 && bodyReached) startSection = sections.size
+                if (guessed < 0) {
+                    // A short page headed by nothing, or by the book's title, is a title or dedication page.
+                    val short = text.sumOf { it.split(' ').size } < 120
+                    val titlePage = short && (heading == null || heading.equals(title, ignoreCase = true) ||
+                        author != null && heading.equals(author, ignoreCase = true))
+                    if (!front && !titlePage && !(heading != null && FRONT_TITLE.matches(heading))) guessed = sections.size
+                }
+                sections += chapter to text
             }
-            return Doc.build(title, key, sections, author, cover)
+            return Doc.build(title, key, sections, author, cover, startSection = if (startSection >= 0) startSection else guessed.coerceAtLeast(0))
         }
+    }
+
+    /** The file where the main text begins, from the EPUB 3 landmarks or the EPUB 2 guide. */
+    private fun bodyStart(opf: Document, base: String, manifest: Map<String, Element>, read: (String) -> String?): String? {
+        val nav = manifest.values.firstOrNull { "nav" in it.attr("properties").split(' ') }
+        if (nav != null) {
+            val navPath = resolve(base, nav.attr("href"))
+            val html = read(navPath)
+            if (html != null) {
+                val landmarks = Jsoup.parse(html).select("nav").firstOrNull { it.attr("epub:type").contains("landmarks") }
+                val a = landmarks?.select("a")?.firstOrNull { it.attr("epub:type").split(' ').any { t -> t == "bodymatter" || t == "start" } }
+                if (a != null) return resolve(navPath.substringBeforeLast('/', ""), a.attr("href"))
+            }
+        }
+        val ref = opf.tags("reference").firstOrNull { it.attr("type").lowercase() in setOf("text", "start", "bodymatter") }
+        return ref?.let { resolve(base, it.attr("href")) }
+    }
+
+    /** Cover, title page, copyright, dedication, contents… by their EPUB type or file name. */
+    private fun isFront(html: String, path: String): Boolean {
+        if (FRONT_FILE.containsMatchIn(path)) return true
+        val head = html.take(4000)
+        val types = Regex("""(?:epub:type|role)\s*=\s*["']([^"']+)["']""").findAll(head)
+            .flatMap { it.groupValues[1].replace("doc-", "").split(' ') }.toSet()
+        if (types.any { it in setOf("bodymatter", "chapter", "prologue", "part", "introduction") }) return false
+        return types.any { it in FRONT_TYPES }
     }
 
     private fun Document.tags(name: String): List<Element> =

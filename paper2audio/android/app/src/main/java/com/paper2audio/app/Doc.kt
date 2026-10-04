@@ -21,6 +21,8 @@ class Doc(
     val pages: Int = 0,
     /** Figures and tables with their pages (PDFs), for "View Figure 3" while listening. */
     val figures: List<Figure> = emptyList(),
+    /** Where reading starts the first time: past a book's cover, copyright, contents… */
+    val start: Int = 0,
 ) {
     val words: Int = paragraphs.sumOf { p -> p.count { it == ' ' } + 1 }
 
@@ -39,15 +41,22 @@ class Doc(
             cover: ByteArray? = null,
             pages: Int = 0,
             figures: List<Figure> = emptyList(),
+            /** Index in [sections] where the main text begins (see [Doc.start]). */
+            startSection: Int = 0,
         ): Doc {
             val paragraphs = ArrayList<String>()
             val chapters = ArrayList<Chapter>()
-            for ((name, paras) in sections) {
+            var start = 0
+            for ((i, section) in sections.withIndex()) {
+                val (name, paras) = section
+                if (i == startSection) start = paragraphs.size
                 if (paras.isEmpty()) continue
                 if (name != null) chapters += Chapter(name, paragraphs.size)
                 paras.forEach { paragraphs += TextCleaner.splitLong(TextCleaner.smartQuotes(it)) }
             }
-            return Doc(title, paragraphs, chapters, key, author?.trim()?.ifBlank { null }, cover, pages, figures)
+            // Front matter that is most of the book was probably misjudged: start at the top.
+            if (start > paragraphs.size * 0.4) start = 0
+            return Doc(title, paragraphs, chapters, key, author?.trim()?.ifBlank { null }, cover, pages, figures, start)
         }
     }
 }
