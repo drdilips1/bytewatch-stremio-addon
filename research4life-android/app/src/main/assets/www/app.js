@@ -1550,6 +1550,7 @@
     tts.active = true;
     start = Math.max(0, Math.min(start, lines.length - 1));
     Native.ttsStart(`${title} · ${label}`, JSON.stringify(lines.map((l) => ({ t: spoken(l.t), voice: l.voice || '', pitch: l.pitch || 0 }))), start, ttsPrefs.rate, ttsPrefs.voice);
+    if (meta.podcast) store.set('lastListen', { key: meta.podcast, title, podcast: true, route: location.hash, t: Date.now() });
     showTtsBar(true, start);
   }
 
@@ -1569,9 +1570,23 @@
   const sectionEnd = (i) => { const n = tts.heads.find((h) => h > i); return (n == null ? tts.texts.length : n) - 1; };
   const nextSection = (i) => tts.heads.find((h) => h > i) ?? i;
   const prevSection = (i) => { const s = sectionStart(i); return i - s > 1 ? s : sectionStart(Math.max(0, s - 1)); };
+  // Time spent inside the current paragraph/line, so the clock moves smoothly instead of only
+  // jumping when the next line starts.
+  const clk = { i: -1, t0: null, acc: 0 };
+  function clockMark(playing, index) {
+    const now = Date.now();
+    if (index !== clk.i) { clk.i = index; clk.acc = 0; clk.t0 = playing ? now : null; }
+    else if (playing && clk.t0 == null) clk.t0 = now;
+    else if (!playing && clk.t0 != null) { clk.acc += (now - clk.t0) / 1000; clk.t0 = null; }
+  }
+  const inLine = (i) => {
+    if (i !== clk.i || !tts.texts[i]) return 0;
+    const len = (tts.cum[i + 1] - tts.cum[i]) / cps();
+    return Math.min(len * 0.98, clk.acc + (clk.t0 != null ? (Date.now() - clk.t0) / 1000 : 0));
+  };
   const ttsTimes = (i = tts.index) => {
     const total = tts.cum[tts.cum.length - 1] / cps();
-    const done = tts.cum[Math.min(i, tts.texts.length)] / cps();
+    const done = tts.cum[Math.min(i, tts.texts.length)] / cps() + inLine(i);
     return { done, total, left: Math.max(0, total - done) };
   };
 
@@ -1613,7 +1628,16 @@
   }
 
   let lastSec = '';
+  function drawClock() {
+    const t = ttsTimes(tts.index);
+    const pos = $('#ttspos');
+    if (pos && speech) pos.textContent = `${speech.clock(t.done)} / ${speech.clock(t.total)} · ${speech.duration(t.left)} left`;
+    const prog = $('#ttsprog');
+    if (prog) prog.style.width = (t.total ? (100 * t.done) / t.total : 0).toFixed(1) + '%';
+  }
+  setInterval(() => { if (tts.active && tts.playing && !document.hidden) { drawClock(); ext.onTtsUpdate?.(); } }, 1000);
   function updateTtsBar(playing, index) {
+    clockMark(playing, index);
     tts.playing = playing; tts.index = index;
     const btn = $('#ttsplay');
     if (btn) btn.innerHTML = icon(playing ? 'pause' : 'play');

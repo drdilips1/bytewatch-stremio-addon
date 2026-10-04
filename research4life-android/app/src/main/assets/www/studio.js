@@ -1171,11 +1171,12 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
     const last = store.get('lastListen', null);
     const lastDoc = last && (D.saved.get(last.key) || null);
     const docs = [...D.saved.values()].filter((a) => a.doc || a.imported).sort((a, b) => b.savedAt - a.savedAt).slice(0, 8);
-    const cont = last && (lastDoc || last.route) ? (() => {
-      const p = progressOf(last.key);
+    const cont = last && (lastDoc || last.route || last.podcast) ? (() => {
+      const pp = last.podcast ? store.get('podpos.' + last.key, null) : null;
+      const p = last.podcast ? (pp && pp.n ? pp.i / pp.n : 0) : progressOf(last.key);
       const mins = lastDoc?.words ? estMinutes(lastDoc.words) : 0;
       return `<button class="continue slim" data-act="home-continue"><span class="play-dot">${icon('play')}</span>
-        <div class="body"><span class="eyebrow">Continue listening · ${Math.round(p * 100)}%${mins ? ` · ${Math.max(1, Math.round(mins * (1 - p)))} min left` : ''}</span><b>${esc(last.title)}</b>
+        <div class="body"><span class="eyebrow">Continue ${last.podcast ? 'podcast' : 'listening'} · ${Math.round(p * 100)}%${mins && !last.podcast ? ` · ${Math.max(1, Math.round(mins * (1 - p)))} min left` : ''}</span><b>${esc(last.title)}</b>
           <div class="prog"><i style="width:${Math.round(p * 100)}%"></i></div></div></button>`;
     })() : '';
     return `<div class="quick-row">
@@ -1191,6 +1192,7 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
     'home-continue': () => {
       const last = store.get('lastListen', null);
       if (!last) return;
+      if (last.podcast && podcastOf(last.key)) { playPodcast(last.key, last.title); return; }
       const a = D.saved.get(last.key);
       const route = a ? routeFor(a) : String(last.route || '').replace(/^#\/?/, '').split('?')[0];
       go(route + '?listen=1');
