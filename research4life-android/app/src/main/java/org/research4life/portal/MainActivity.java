@@ -603,6 +603,28 @@ public class MainActivity extends Activity {
             return out.toString();
         }
 
+        /** Shares the paper's link into the MyLOFT app (it saves it with the institution's access). */
+        @JavascriptInterface
+        public void sendToMyLoft(String text, String title) {
+            main.post(() -> {
+                Intent app = myLoftLaunchIntent();
+                Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain")
+                        .putExtra(Intent.EXTRA_TEXT, text).putExtra(Intent.EXTRA_SUBJECT, title == null ? "" : title)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                try {
+                    if (app != null && app.getComponent() != null) {
+                        startActivity(send.setPackage(app.getComponent().getPackageName()));
+                    } else {
+                        startActivity(Intent.createChooser(send, "Send to MyLOFT").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    }
+                } catch (Exception e) {
+                    // MyLOFT doesn't take shares this way: open it instead (the title and DOI are copied).
+                    Intent i = myLoftLaunchIntent();
+                    if (i != null) startActivity(i); else toast("Couldn't open MyLOFT");
+                }
+            });
+        }
+
         @JavascriptInterface
         public void setMyLoftApp(String pkg) {
             getSharedPreferences("myloft", MODE_PRIVATE).edit().putString("pkg", pkg == null || pkg.isEmpty() ? null : pkg).apply();

@@ -178,6 +178,14 @@
       await addDocument(model, { key: r.key, kind: 'web', source: model.site || 'Web', url: r.url || url });
     } catch (e) {
       closeSheet(true);
+      // A login-only link (MyLOFT, publisher, library proxy): open it in the in-app browser,
+      // where signing in works and a PDF opened there is saved (to the waiting paper, if any).
+      if (/ 40[13]\b/.test(e.message || '')) {
+        const w = D.waitingPaper?.();
+        toast('That page needs a sign-in: opening it here. Open the PDF and it is saved' + (w ? ' to your paper' : '') + '.');
+        Native.openPortal(url, w?.id || '', w?.title || '');
+        return;
+      }
       toast(e.message || "Couldn't read that page");
     }
   }
@@ -193,6 +201,9 @@
   ext.events.sharedText = (evt) => {
     const text = String(evt.text || '').trim();
     const url = text.match(/https?:\/\/[^\s<>"]+/);
+    // Links shared back from MyLOFT only open with its sign-in: straight to the in-app browser.
+    const w = D.waitingPaper?.();
+    if (url && /myloft/i.test(url[0])) { toast('Opening the MyLOFT link here. Open the PDF and it is saved' + (w ? ' to your paper' : '') + '.'); Native.openPortal(url[0], w?.id || '', w?.title || ''); return; }
     if (url && text.length < url[0].length + 200) importUrl(url[0]);
     else importText(text, evt.subject || '');
   };

@@ -744,22 +744,28 @@
     const a = b.dataset.id ? await D.findArticle(b.dataset.id).catch(() => null) : null;
     if (a) {
       Native.setPendingPdf?.(a.id, a.title);
+      store.set('myloftWaiting', { id: a.id, title: a.title, t: Date.now() });
       D.copyText(a.doi ? `${a.title} doi:${a.doi}` : a.title);
     }
     const has = Native.hasMyLoftApp?.();
     sheet(`<h3>Get it through MyLOFT</h3>${b.notInR4L ? '<p class="small"><b>This journal isn\'t in your Research4Life access.</b></p>' : ''}
       <p class="small">MyLOFT gives you your institution's subscriptions. Its website only works inside its own app, so DermScholar hands the paper over:</p>
-      <ol class="steps"><li>${a ? 'The title and DOI are copied.' : 'Find your paper.'} Paste them into MyLOFT's search and open the PDF.</li>
+      <ol class="steps"><li>${a ? 'Tap <b>Send to MyLOFT</b>: the paper is saved in MyLOFT (title and DOI are also copied).' : 'Find your paper in MyLOFT.'} Open it there.</li>
       <li>In MyLOFT, tap <b>Share</b> (or <b>Open with</b>) → <b>DermScholar</b>. No Share button? Tap <b>Download</b> in MyLOFT, come back here and tap <b>I downloaded it</b>.</li>
       <li>The PDF is saved ${a ? 'to this paper' : 'to your library'} and opens in the reader, ready for AI and listening.</li></ol>
-      ${has || !Native.listApps ? `<button class="btn primary full" data-act="myloft-go">${icon('external')}${has ? 'Open the MyLOFT app' : 'Get the MyLOFT app'}</button>` : ''}
+      ${has || !Native.listApps ? `<button class="btn primary full" data-act="myloft-go">${icon('external')}${has ? (a ? 'Send to MyLOFT' : 'Open the MyLOFT app') : 'Get the MyLOFT app'}</button>` : ''}
       ${Native.listApps ? `<button class="btn ${has ? '' : 'primary '}full" style="margin-top:8px" data-act="myloft-pick">${icon('list')}${has ? 'Not the right app? Choose MyLOFT' : 'Choose MyLOFT from your apps'}</button>` : ''}
       ${!has && Native.listApps ? '<button class="btn full" style="margin-top:8px" data-act="myloft-go">Get MyLOFT from the Play Store</button>' : ''}
       ${a ? `<button class="btn full" style="margin-top:8px" data-act="myloft-file">${icon('file')}I downloaded it: pick the PDF</button>` : ''}
       ${b.r4lAnyway && a ? `<button class="btn full" style="margin-top:8px" data-act="myloft-r4l">Try Research4Life anyway</button>` : ''}`);
     // The paper stays marked as waiting for its PDF, so the picked file is saved to it.
     actions['myloft-file'] = () => { closeSheet(true); if (a) Native.setPendingPdf?.(a.id, a.title); Native.importPdf?.(); };
-    actions['myloft-go'] = () => { closeSheet(true); Native.openMyLoftApp?.(); };
+    // Sending the paper's link into MyLOFT (like Share → MyLOFT) saves it there with your institution's access.
+    actions['myloft-go'] = () => {
+      closeSheet(true);
+      if (a && Native.sendToMyLoft) Native.sendToMyLoft(a.doi ? `https://doi.org/${a.doi}` : a.title, a.title);
+      else Native.openMyLoftApp?.();
+    };
     actions['myloft-r4l'] = () => { closeSheet(true); if (a) D.getPdf(a, { skipAsk: true }); };
   };
 
