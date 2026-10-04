@@ -694,7 +694,8 @@
         const ask = b.dataset.l === 'deep'
           ? 'Professor-level deep dive for dermatologists: background, methods critique, results with numbers, risk of bias, how it fits the existing evidence, clinical implications, and open questions.'
           : 'A 2-minute summary (about 300 words): question, design, main results with numbers, limitations, and what it means in practice.';
-        const text = await D.ai(ask + (src.label === 'abstract only' ? ' (Only the abstract is available; say so where it limits the analysis.)' : ''), { ...src, max: 3500 });
+        if (b.dataset.l === 'deep') out.innerHTML = busyHtml('Writing the deep dive… this can take a minute');
+        const text = await D.ai(ask + (src.label === 'abstract only' ? ' (Only the abstract is available; say so where it limits the analysis.)' : ''), { ...src, max: b.dataset.l === 'deep' ? 7000 : 3500 });
         out.innerHTML = `<div class="synth">${md(text)}</div><button class="btn xs" data-act="td-listen" data-i="${b.dataset.i}">${icon('audio')}Listen</button>`;
         actions['td-listen'] = () => D.ttsPlayScript?.('Today', text.replace(/[#*_]/g, '').split(/\n+/).filter((t) => t.trim().length > 1).map((t) => ({ t: t.trim() })), { title: r0.a.title.slice(0, 60) });
       } catch (e) { out.innerHTML = aiErr(e); }

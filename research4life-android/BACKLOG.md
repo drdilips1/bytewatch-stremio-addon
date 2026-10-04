@@ -42,6 +42,7 @@ Status: 🟡 noted · 🔵 in progress · ✅ done locally (waiting for "Build n
 | 33 | Bug | **ClinicalKey link in MyLOFT says "login first"** although logged in to MyLOFT. | 🟡 waiting for a screenshot (MyLOFT's message or ClinicalKey's page?) |
 | 34 | Request | **Pull down to refresh** on lists (home, search, journals, issues, library). | ✅ ready, not built (not in readers or open sheets) |
 
+| 35 | Bug | **Deep dive doesn't load** (spinner never ends). | ✅ ready, not built: every AI request now gives up after 5 minutes with a clear message instead of spinning forever; Today's deep dive gets more room and says it can take a minute; (Gemini cut-off fix from #28 also applies). Which deep dive (Today or Podcast) still to confirm |
 ## Roadmap from the "dream dermatology research app" brief (Grok), not yet scheduled
 
 Already in DermScholar: Research4Life + MyLOFT access; Europe PMC search (PubMed/MEDLINE, PMC, Cochrane) + ClinicalTrials.gov + preprints; derm journals with issues; AI summaries, Ask, podcast, takeaways with [¶] citations; evidence map with cited synthesis, matrix, contradictions; "What changed?" alerts; AI research desk (PICO, design, stats, manuscript, reviewer, journal club); research projects + gap radar; drug dossier (FDA label, FAERS, approved uses); image search with differential and histopathology learning; notebooks; offline PDFs and reader; account sync; dark mode.

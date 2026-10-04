@@ -1738,7 +1738,13 @@
     return new Promise((resolve, reject) => {
       if (!aiHasKey()) { reject(new Error('NO_KEY')); return; }
       const id = 'ai' + (++aiSeq) + '_' + Date.now();
-      aiPending[id] = (evt) => (evt.state === 'done' ? resolve(evt.text) : reject(new Error(evt.message || 'AI request failed')));
+      // Never wait forever: long answers (deep dives, podcasts) take a minute or two, not five.
+      const watchdog = setTimeout(() => {
+        if (!aiPending[id]) return;
+        delete aiPending[id];
+        reject(new Error('The AI took too long to answer (over 5 minutes). Try again, or pick a shorter length.'));
+      }, 300000);
+      aiPending[id] = (evt) => { clearTimeout(watchdog); if (evt.state === 'done') resolve(evt.text); else reject(new Error(evt.message || 'AI request failed')); };
       Native.aiRun(id, system, doc, task, max, schema ? JSON.stringify(schema) : '');
     });
   }
