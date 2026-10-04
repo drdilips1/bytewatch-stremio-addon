@@ -806,12 +806,19 @@
       return;
     }
     if (!saved.has(a.id)) { await saveArticle(a); }
+    // Journals Research4Life doesn't cover go straight to MyLOFT (learned from earlier tries).
+    if (!free && !skipAsk && notInR4L().includes(journalKey(a)) && actions.myloft) {
+      actions.myloft({ dataset: { id: a.id }, r4lAnyway: true, notInR4L: true });
+      return;
+    }
     jobs.set(a.id, { title: a.title, doi: a.doi || '', state: 'running', message: free ? 'Downloading free PDF…' : 'Starting…', at: Date.now() });
     renderTray();
     refreshCards();
     Native.getPdf(a.id, a.doi || '', a.title, free || '');
   }
 
+  const journalKey = (a) => (a.issn || a.essn || a.jAbbr || a.journal || '').toLowerCase();
+  const notInR4L = () => store.get('notInR4L', []);
   function r4lSignInSheet(then) { signInSheet('r4l', then); }
   function signInSheet(provider, then) {
     const acc = account(provider);
@@ -2909,6 +2916,14 @@
         jobs.set(evt.key, { ...j, state: 'failed', message: evt.message, canShow: !!evt.canShow });
         renderTray();
         refreshCards();
+        if (evt.notInR4L && actions.myloft) {
+          // Not in Research4Life: remember the journal and offer MyLOFT right away.
+          const a = saved.get(evt.key);
+          const k = a && journalKey(a);
+          if (k && !notInR4L().includes(k)) store.set('notInR4L', [...notInR4L(), k].slice(-300));
+          jobs.delete(evt.key); renderTray();
+          actions.myloft({ dataset: { id: evt.key }, notInR4L: true });
+        }
       } else if (ext.events[evt.type]) {
         ext.events[evt.type](evt);
       }

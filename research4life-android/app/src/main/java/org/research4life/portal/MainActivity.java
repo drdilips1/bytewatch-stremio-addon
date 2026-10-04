@@ -97,7 +97,10 @@ public class MainActivity extends Activity {
 
             @Override
             public void onFailed(String key, String message, boolean canShowPage) {
-                emit(event("fetchFailed", "key", key, "message", message, "canShow", canShowPage));
+                // "NOT_IN_R4L:" marks journals Research4Life doesn't cover: the app offers MyLOFT straight away.
+                boolean notCovered = message != null && message.startsWith(PdfFetcher.NOT_COVERED);
+                emit(event("fetchFailed", "key", key, "message", notCovered ? message.substring(PdfFetcher.NOT_COVERED.length()) : message,
+                        "canShow", canShowPage, "notInR4L", notCovered));
             }
         });
 

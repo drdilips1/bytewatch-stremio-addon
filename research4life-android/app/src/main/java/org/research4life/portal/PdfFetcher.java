@@ -37,6 +37,8 @@ final class PdfFetcher {
     }
 
     private static final int MAX_PDF_ATTEMPTS = 4;
+    /** Failure prefix for papers outside Research4Life's coverage (the proxy sent us to the plain publisher site). */
+    static final String NOT_COVERED = "NOT_IN_R4L:";
     private static final int MAX_SIGNIN_PAGES = 3;
     private static final long JOB_TIMEOUT_MS = 90_000;
 
@@ -254,6 +256,13 @@ final class PdfFetcher {
      */
     private void waitOrFail(String pageUrl) {
         final Job j = job;
+        // Research4Life only keeps you on its proxy for journals it covers; anything else is
+        // sent to the publisher's own site (where a "security verification" page is common).
+        Uri pu = pageUrl == null ? null : Uri.parse(pageUrl);
+        if (pu != null && !isProxiedContent(pu) && !R4LSession.isR4LHost(pu.getHost())) {
+            failNow(NOT_COVERED + "This journal isn't in your Research4Life access (" + pu.getHost() + "). Get it through MyLOFT.", true);
+            return;
+        }
         final int token = pageToken;
         webView.evaluateJavascript(CHALLENGE_SCRIPT, v -> {
             if (job != j || saving) return;

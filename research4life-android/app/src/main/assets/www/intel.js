@@ -738,13 +738,15 @@
       D.copyText(a.doi ? `${a.title} doi:${a.doi}` : a.title);
     }
     const has = Native.hasMyLoftApp?.();
-    sheet(`<h3>Get it through MyLOFT</h3>
+    sheet(`<h3>Get it through MyLOFT</h3>${b.notInR4L ? '<p class="small"><b>This journal isn\'t in your Research4Life access.</b></p>' : ''}
       <p class="small">MyLOFT gives you your institution's subscriptions. Its website only works inside its own app, so DermScholar hands the paper over:</p>
       <ol class="steps"><li>${a ? 'The title and DOI are copied.' : 'Find your paper.'} Paste them into MyLOFT's search and open the PDF.</li>
       <li>In MyLOFT, tap <b>Share</b> (or <b>Open with</b>) → <b>DermScholar</b>.</li>
       <li>The PDF is saved ${a ? 'to this paper' : 'to your library'} and opens in the reader, ready for AI and listening.</li></ol>
-      <button class="btn primary full" data-act="myloft-go">${icon('external')}${has ? 'Open the MyLOFT app' : 'Get the MyLOFT app'}</button>`);
+      <button class="btn primary full" data-act="myloft-go">${icon('external')}${has ? 'Open the MyLOFT app' : 'Get the MyLOFT app'}</button>
+      ${b.r4lAnyway && a ? `<button class="btn full" style="margin-top:8px" data-act="myloft-r4l">Try Research4Life anyway</button>` : ''}`);
     actions['myloft-go'] = () => { closeSheet(true); Native.openMyLoftApp?.(); };
+    actions['myloft-r4l'] = () => { closeSheet(true); if (a) D.getPdf(a, { skipAsk: true }); };
   };
 
   // ================================================================ Intel hub (#intel) and home
