@@ -2294,6 +2294,28 @@
     return j;
   }
 
+  // Crossref: publishers register every item (research letters, images, comments too) as soon as
+  // it's out, weeks before PubMed / Europe PMC tag it with a volume and issue. Used to complete
+  // issue lists and contents.
+  const CROSSREF = hasNative ? '/proxy/crossref/' : 'https://api.crossref.org/';
+  const crossrefCache = new Map();
+  const crYear = (x) => ((x['published-print'] || x.published || {})['date-parts'] || [[0]])[0][0];
+  async function crossrefYear(j, y) {
+    if (!j.issn) return [];
+    const key = `${j.issn}|${y}`;
+    if (crossrefCache.has(key)) return crossrefCache.get(key);
+    const p = new URLSearchParams({ filter: `from-pub-date:${y - 1}-10-01,until-pub-date:${y}-12-31`, rows: '1000',
+      select: 'DOI,title,volume,issue,page,author,published,published-print,type', mailto: 'app@dermscholar.app' });
+    let items = [];
+    try {
+      const r = await Promise.race([getJSON(`${CROSSREF}journals/${encodeURIComponent(j.issn)}/works?${p}`),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))]);
+      items = (r.message?.items || []).filter((x) => x.volume && x.issue && x.title?.[0]);
+    } catch { items = []; }
+    crossrefCache.set(key, items);
+    return items;
+  }
+
   // Issues come from Europe PMC's volume/issue tags on each article, one year at a time.
   const issueCache = new Map();
   const issueNum = (x) => { const n = parseInt(x, 10); return Number.isNaN(n) ? -1 : n; };
@@ -2317,6 +2339,19 @@
       const g = groups.get(k) || { v: r.journalVolume, i: r.issue, count: 0, oa: 0 };
       g.count++;
       if (r.isOpenAccess === 'Y') g.oa++;
+      groups.set(k, g);
+    }
+    // Issues PubMed hasn't filled in yet (or at all): count them from Crossref.
+    const cr = new Map();
+    for (const x of await crossrefYear(j, y)) {
+      if (crYear(x) !== +y) continue;
+      const k = `${x.volume}|${x.issue}`;
+      cr.set(k, (cr.get(k) || 0) + 1);
+    }
+    for (const [k, n] of cr) {
+      const [v, i] = k.split('|');
+      const g = groups.get(k) || { v, i, count: 0, oa: 0 };
+      g.count = Math.max(g.count, n);
       groups.set(k, g);
     }
     const issues = [...groups.values()].sort((a, b) => issueNum(b.v) - issueNum(a.v) || issueNum(b.i) - issueNum(a.i) || String(a.i).localeCompare(String(b.i)));
@@ -2449,6 +2484,21 @@
       }
     } catch (e) { view.innerHTML = topbar(j.abbr) + errorBox(e); return; }
     if (current.name !== 'ji') return;
+    // Items Crossref lists for this issue that Europe PMC doesn't have yet.
+    let extra = [];
+    if (j.issn) {
+      const years = all.length ? [+all[0].year] : [THIS_YEAR, THIS_YEAR - 1];
+      const have = new Set(all.map((a) => (a.doi || '').toLowerCase()).filter(Boolean));
+      for (const y of years) {
+        for (const x of await crossrefYear(j, y)) {
+          if (String(x.volume) === String(v) && String(x.issue) === String(i) && !have.has(x.DOI.toLowerCase())) {
+            have.add(x.DOI.toLowerCase());
+            extra.push(x);
+          }
+        }
+      }
+      if (current.name !== 'ji') return;
+    }
     const firstPage = (a) => { const m = String(a.pages || '').match(/\d+/); return m ? +m[0] : 1e9; };
     all.sort((a, b) => firstPage(a) - firstPage(b));
     const date = all.find((a) => a.pubDate)?.pubDate || '';
@@ -2458,12 +2508,26 @@
       <section class="issue-hero" style="${coverStyle(j.abbr)}">
         <span class="ci-label">${esc(j.name)}</span>
         <h2>Volume ${esc(v)} · ${esc(issueLabel({ i }))}</h2>
-        <span>${esc(date)}${date ? ' · ' : ''}${all.length} articles</span>
+        <span>${esc(date)}${date ? ' · ' : ''}${all.length + extra.length} articles</span>
         <div class="row" style="gap:8px;margin-top:12px"><button class="btn xs glass" data-act="issue-share">${icon('share')}Share contents</button>
           <button class="btn xs glass" data-act="issue-toc">${icon('list')}Sections</button></div>
       </section>
       ${[...bySection.entries()].filter(([, l]) => l.length).map(([sec, list], k) => `<div class="section" id="sec-${k}"><div class="section-h"><h3>${esc(sec)}</h3><span class="muted small">${list.length}</span></div>
-        ${list.map((a) => card(a, { compact: true })).join('')}</div>`).join('') || '<div class="empty"><b>No articles listed</b></div>'}`;
+        ${list.map((a) => card(a, { compact: true })).join('')}</div>`).join('') || (extra.length ? '' : '<div class="empty"><b>No articles listed</b></div>')}
+      ${extra.length ? `<div class="section"><div class="section-h"><h3>Also in this issue</h3><span class="muted small">${extra.length}</span></div>
+        <p class="muted small" style="margin-top:-6px">Listed by the publisher; not in PubMed yet (or not indexed there, like images and comments).</p>
+        ${extra.sort((a, b) => (parseInt(a.page, 10) || 1e9) - (parseInt(b.page, 10) || 1e9)).map((x) => `<div class="card" role="button" tabindex="0" data-act="cr-open" data-doi="${esc(x.DOI)}">
+          <p class="title main">${esc(stripTags(x.title[0]))}</p>
+          <div class="byline">${x.author?.length ? `<span>${esc(x.author[0].family || x.author[0].name || '')}${x.author.length > 1 ? ' et al.' : ''}</span>` : ''}<span class="${x.author?.length ? 'dot' : ''}">${esc(j.abbr)}${x.page ? ' · p. ' + esc(x.page) : ''}</span></div></div>`).join('')}</div>` : ''}`;
+    // Open it as a paper if Europe PMC knows the DOI; otherwise at the publisher (through Research4Life).
+    actions['cr-open'] = async (b) => {
+      const doi = b.dataset.doi;
+      try {
+        const r = await epmcSearch(`DOI:"${doi}"`, { size: 1 });
+        if (r.results[0]) { cache.set(r.results[0].id, r.results[0]); go('a/' + encodeURIComponent(r.results[0].id)); return; }
+      } catch { /* not indexed */ }
+      Native.openPortal(R4L_PROXY + 'doi_org/' + doi, '', '');
+    };
     actions['issue-share'] = () => {
       const lines = all.slice(0, 40).map((a) => `• ${a.title}${a.doi ? '\n  https://doi.org/' + a.doi : ''}`).join('\n');
       Native.share(`${j.abbr} Vol ${v} ${issueLabel({ i })}`, `${j.name}\nVolume ${v}, ${issueLabel({ i })}${date ? ' (' + date + ')' : ''}\n\n${lines}${all.length > 40 ? `\n…and ${all.length - 40} more` : ''}\n\nShared from DermScholar`);
