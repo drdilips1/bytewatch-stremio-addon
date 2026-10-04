@@ -1726,9 +1726,24 @@
   function md(text) {
     const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])_(.+?)_(?=[\s).,;:]|$)/g, '$1<i>$2</i>').replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s).,;:]|$)/g, '$1<i>$2</i>')
       .replace(/\[¶\s?(\d+)(?:\s*[-–,]\s*¶?\s?(\d+))*\]/g, (m0) => [...m0.matchAll(/\d+/g)].map((n) => `<button class="src" data-act="src-jump" data-b="${n[0]}">¶${n[0]}</button>`).join(''));
-    let out = '', list = false;
+    let out = '', list = false, table = [];
+    const cells = (l) => l.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+    // Markdown tables become one card per row (label: value), readable on a phone.
+    const flushTable = () => {
+      if (!table.length) return;
+      const rows = table.filter((l) => !/^\|?[\s:|-]+\|?$/.test(l)).map(cells);
+      table = [];
+      if (!rows.length) return;
+      const [head, ...body] = rows.length > 1 ? rows : [[], ...rows];
+      out += '<div class="md-table">' + body.map((r) => `<div class="md-row">${r.map((c, i) => c ? (i === 0
+        ? `<div class="md-first">${inline(c)}</div>`
+        : `<div class="md-cell">${head[i] ? `<span>${inline(head[i])}</span>` : ''}${inline(c)}</div>`) : '').join('')}</div>`).join('') + '</div>';
+    };
     String(text).split('\n').forEach((raw) => {
       const line = raw.trim();
+      if (line.startsWith('|')) { if (list) { out += '</ul>'; list = false; } table.push(line); return; }
+      flushTable();
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) return;
       const li = line.match(/^(?:[-*•]|\d+[.)])\s+(.*)/);
       if (li) { if (!list) { out += '<ul>'; list = true; } out += `<li>${inline(li[1])}</li>`; return; }
       if (list) { out += '</ul>'; list = false; }
@@ -1736,6 +1751,7 @@
       const h = line.match(/^#{1,4}\s+(.*)/);
       out += h ? `<h4>${inline(h[1])}</h4>` : `<p>${inline(line)}</p>`;
     });
+    flushTable();
     return out + (list ? '</ul>' : '');
   }
 

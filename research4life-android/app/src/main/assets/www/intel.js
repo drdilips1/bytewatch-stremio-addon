@@ -204,6 +204,15 @@
     sheet(`<h3>Why did the AI say this?</h3><p class="muted small">The statement is based on ${list.length === 1 ? 'this source' : 'these sources'}:</p>
       ${list.map(refRow).join('') || '<p class="muted">Source not found.</p>'}`);
   };
+  /** The sources an answer cites (all of them if it cited none), listed under the answer, each tappable. */
+  function sourcesList(text, refs) {
+    const cited = new Set([...String(text).matchAll(/\[(\d+(?:\s*[,–-]\s*\d+)*)\]/g)].flatMap((m) => [...m[1].matchAll(/\d+/g)].map((x) => +x[0])));
+    const list = cited.size ? refs.filter((r) => cited.has(r.n)) : refs.slice(0, 12);
+    if (!list.length) return '';
+    return `<h4>Sources${cited.size ? '' : ' read for this answer'}</h4><div class="src-list">${list.map((r) => r.kind === 'trial'
+      ? `<button class="src-row" data-act="open-trial" data-nct="${esc(r.t.nct)}"><b>${r.n}</b><span>${esc(r.t.title)}<small>${esc(r.t.nct)} · trial</small></span></button>`
+      : `<button class="src-row" data-act="open" data-id="${esc(r.a.id)}"><b>${r.n}</b><span>${esc(r.a.title)}<small>${esc(r.a.jAbbr || r.a.journal)} ${esc(r.a.year)} · ${esc(r.type)}</small></span></button>`).join('')}</div>`;
+  }
   actions['open-trial'] = (b) => openUrl('https://clinicaltrials.gov/study/' + b.dataset.nct);
   actions['refs-all'] = (b) => {
     const refs = contexts.get(b.dataset.ctx) || [];
@@ -549,8 +558,8 @@
         if (m.recent) refs = refs.filter((r) => r.kind === 'trial' || +r.a.year >= D.THIS_YEAR - 5).map((r, i) => ({ ...r, n: i + 1 }));
         const ctx = newCtx(refs);
         out.innerHTML = busyHtml(`Reading ${refs.length} sources…`);
-        const text = await D.ai(`Request: ${input}\n\n${m.task}`, { doc: packText(refs), system: CITE_SYSTEM + ' Write Markdown with "## " headings and "- " bullets.', max: 5000 });
-        out.innerHTML = `<div class="panel synth">${citeHtml(md(text), ctx)}<button class="btn xs" data-act="refs-all" data-ctx="${ctx}">${icon('list')}${refs.length} sources</button></div>`;
+        const text = await D.ai(`Request: ${input}\n\n${m.task}`, { doc: packText(refs), system: CITE_SYSTEM + ' Write Markdown with "## " headings and "- " bullets. If you use a table, put the source numbers like [3] in every row.', max: 5000 });
+        out.innerHTML = `<div class="panel synth">${citeHtml(md(text), ctx)}${sourcesList(text, refs)}<button class="btn xs" data-act="refs-all" data-ctx="${ctx}">${icon('list')}All ${refs.length} sources searched</button></div>`;
         return;
       }
       if (mode === 'club') {

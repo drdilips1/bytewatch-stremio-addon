@@ -2,6 +2,33 @@
 // paper comparison, drug intelligence, dermatology image search with differential-diagnosis and
 // histopathology learning modes, and My Research notebooks. Builds on intel.js (window.DSI).
 (() => {
+  // ---------------------------------------------------------------- approved uses at a glance (from the FDA label, no AI)
+  const DERM = /dermatitis|eczema|psoria|vitiligo|alopecia|hidradenitis|urticaria|acne|rosacea|pemphig|lupus|melanoma|basal cell|squamous cell|skin|prurigo|itch|pruritus|scleroderma|dermatomyositis|keratos|hyperhidrosis|wart|herpes|zoster|onychomycosis|tinea|scabies|mastocytosis|lichen/i;
+  function indications(text) {
+    const t = String(text || '').replace(/^\s*\d*\s*INDICATIONS? (AND|&) USAGE\s*/i, '').replace(/\(\s*\d+(\.\d+)*\s*\)/g, ' ').replace(/\s+/g, ' ');
+    const out = [];
+    for (const raw of t.split(/(?<=\.)\s+(?=[A-Z])/)) {
+      if (/^limitations? of use/i.test(raw) || !/indicated/i.test(raw)) continue;
+      let x = raw.replace(/^.*?\bindicated\s+(for\s+(the\s+)?(treatment|management|prevention|reduction)\s+of\s+|for\s+(use\s+)?(in\s+)?|as\s+|in\s+)/i, '').replace(/\.$/, '').trim();
+      if (!x) continue;
+      const m = x.match(/^(.*?)\s+with\s+(.*?)(?:\s+(who|whose|that|when|in whom|after|and who)\s+(.*))?$/i);
+      const who = m ? m[1] : '';
+      const cond = m ? m[2] : x;
+      const rest = m && m[4] ? (m[3] + ' ' + m[4]) : '';
+      out.push({ cond: cond.replace(/^(the\s+)/i, ''), who: who.replace(/^(the\s+)?treatment of\s+/i, ''), rest, derm: DERM.test(cond) && !/arthritis/i.test(cond) });
+    }
+    return out.sort((a, b) => b.derm - a.derm);
+  }
+  function glance(text) {
+    const list = indications(text);
+    if (!list.length) return '';
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    const short = (s, n) => (s.length > n ? s.slice(0, n).replace(/\s+\S*$/, '') + '…' : s);
+    return `<div class="panel glance"><div class="label">${icon('check')}Approved uses at a glance <span class="muted small">FDA label</span></div>
+      ${list.map((x) => `<div class="glance-row${x.derm ? ' derm' : ''}"><b>${esc(cap(short(x.cond, 110)))}</b>
+        <span>${esc([x.who && cap(short(x.who, 70)), x.rest && short(x.rest, 120)].filter(Boolean).join(' · '))}</span></div>`).join('')}</div>`;
+  }
+
   'use strict';
   const D = window.DS;
   const I = window.DSI;
@@ -500,10 +527,12 @@
         <div class="kv"><span>Brand</span><b>${esc(brand || '—')}</b><span>FDA label</span><b>${L ? 'Yes · updated ' + esc(String(L.effective_time || '').replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')) : 'Not found (may not be US-approved)'}</b>
         <span>RxNorm</span><b>${esc(rx?.idGroup?.rxnormId?.[0] || '—')}</b><span>Route</span><b>${esc((L?.openfda?.route || []).join(', ') || '—')}</b>
         <span>Trials</span><b>${tr.total || 0} registered</b></div></div>
+      ${glance(sec('indications_and_usage'))}
       <div id="drug-ai"></div>
       ${reactions.length ? `<div class="panel"><div class="label">${icon('alert')}FDA adverse-event reports (FAERS)</div>
         <div class="faers">${reactions.map((r) => `<div><span>${esc(r.term.toLowerCase())}</span><i style="width:${Math.round((r.count / reactions[0].count) * 100)}%"></i><small>${r.count.toLocaleString()}</small></div>`).join('')}</div>
         <p class="muted small">Spontaneous reports: they show what was reported, not how often it happens or whether the drug caused it.</p></div>` : ''}
+      ${fdaSections.length ? '<h4 style="margin:14px 0 6px">Full FDA label</h4>' : ''}
       ${fdaSections.map(([t, v]) => `<details class="panel"><summary><b>${esc(t)}</b> <span class="muted small">FDA label</span></summary><p class="small">${esc(v.slice(0, 2500))}${v.length > 2500 ? '…' : ''}</p></details>`).join('')}
       <div class="section"><div class="section-h"><h3>📋 Guidelines</h3></div>${guides.results.map((a) => D.card(a, { compact: true })).join('') || '<p class="muted small">None found.</p>'}</div>
       <div class="section"><div class="section-h"><h3>🎯 RCTs (${rcts.hit})</h3></div>${rcts.results.slice(0, 4).map((a) => D.card(a, { compact: true })).join('')}</div>
@@ -532,10 +561,10 @@
   const IMG_KINDS = { clinical: 'Clinical', dermoscopy: 'Dermoscopy', histo: 'Histopathology' };
   async function openI(query) {
     try {
-      const j = await D.getJSON(I.api('openi', 'search?' + new URLSearchParams({ query, m: '1', n: '30', it: 'g,ph,mc' })));
+      const j = await D.getJSON(I.api('openi', 'search?' + new URLSearchParams({ query, m: '1', n: '24', it: 'g,ph,mc' })));
       return (j.list || []).map((x) => ({
         src: 'https://openi.nlm.nih.gov' + (x.imgLarge || x.imgThumbLarge || x.imgThumb),
-        thumb: 'https://openi.nlm.nih.gov' + (x.imgThumbLarge || x.imgThumb || x.imgLarge),
+        thumb: 'https://openi.nlm.nih.gov' + (x.imgThumb || x.imgThumbLarge || x.imgLarge),
         caption: D.stripTags(x.image?.caption || x.title || ''), source: 'Open-i (NLM) · ' + (x.journal_title || x.pmcid || 'PMC open access'),
         license: x.license || 'Open-access article figure', pmcid: x.pmcid || '',
       }));
@@ -543,7 +572,7 @@
   }
   async function commons(query) {
     try {
-      const p = new URLSearchParams({ action: 'query', generator: 'search', gsrsearch: `filetype:bitmap ${query}`, gsrnamespace: '6', gsrlimit: '20', prop: 'imageinfo', iiprop: 'url|extmetadata', iiurlwidth: '480', format: 'json', origin: '*' });
+      const p = new URLSearchParams({ action: 'query', generator: 'search', gsrsearch: `filetype:bitmap ${query}`, gsrnamespace: '6', gsrlimit: '20', prop: 'imageinfo', iiprop: 'url|extmetadata', iiurlwidth: '320', format: 'json', origin: '*' });
       const j = await D.getJSON(I.api('commons', 'api.php?' + p));
       return Object.values(j.query?.pages || {}).map((pg) => {
         const ii = pg.imageinfo?.[0] || {};
@@ -570,14 +599,26 @@
     actions['img-upload'] = () => uploadMode();
     if (!query) return;
     const suffix = { clinical: 'skin clinical', dermoscopy: 'dermoscopy', histo: 'histopathology' }[kind];
-    const [oi, wc] = await Promise.all([openI(`${query} ${suffix}`), commons(`${query} ${kind === 'histo' ? 'histopathology' : kind === 'dermoscopy' ? 'dermoscopy' : ''}`)]);
-    if (D.current.name !== 'images') return;
-    const all = [...oi, ...wc];
+    // Each source shows its pictures as soon as it answers (8-second limit each); repeat searches are instant.
+    const key = kind + '|' + query.toLowerCase();
+    const all = [];
     window.__imgs = all;
-    $('#img-grid').innerHTML = all.length ? `<div class="img-grid">${all.map((x, i) => `<button class="img-cell" data-act="img-open" data-i="${i}"><img loading="lazy" src="${esc(x.thumb)}" alt=""><span>${esc(x.source.split(' · ')[0])}</span></button>`).join('')}</div>
-      <p class="muted small">Images from NLM Open-i (figures of open-access articles) and Wikimedia Commons, with their licences. Tap for the caption and source.</p>`
-      : '<div class="empty"><b>No images found</b><div>Try DermNet, or other words.</div></div>';
+    let pending = 2;
+    const draw = () => {
+      const grid = $('#img-grid');
+      if (!grid || D.current.name !== 'images') return;
+      grid.innerHTML = all.length ? `<div class="img-grid">${all.map((x, i) => `<button class="img-cell" data-act="img-open" data-i="${i}"><img loading="lazy" decoding="async" src="${esc(x.thumb)}" alt=""><span>${esc(x.source.split(' · ')[0])}</span></button>`).join('')}</div>
+        ${pending ? '<p class="muted small">Loading more…</p>' : '<p class="muted small">Images from NLM Open-i (figures of open-access articles) and Wikimedia Commons, with their licences. Tap for the caption and source.</p>'}`
+        : pending ? D.skeletons(2) : '<div class="empty"><b>No images found</b><div>Try DermNet, or other words.</div></div>';
+    };
+    const cached = imgCache.get(key);
+    if (cached) { all.push(...cached); pending = 0; draw(); return; }
+    const limit = (p) => Promise.race([p, new Promise((r) => setTimeout(() => r([]), 8000))]);
+    const add = (list) => { all.push(...list); pending--; draw(); if (!pending && all.length) imgCache.set(key, all.slice()); };
+    limit(commons(`${query} ${kind === 'histo' ? 'histopathology' : kind === 'dermoscopy' ? 'dermoscopy' : ''}`)).then(add);
+    limit(openI(`${query} ${suffix}`)).then(add);
   }
+  const imgCache = new Map();
   document.addEventListener('submit', (e) => {
     const f = e.target.closest('[data-form=images]');
     if (!f) return;

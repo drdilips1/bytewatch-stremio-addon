@@ -1039,3 +1039,20 @@ details.panel summary { cursor: pointer; }
 .img-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .img-cell span { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; padding: 2px 5px; background: rgba(0,0,0,.55); color: #fff; text-align: left; }
 .up-img { display: block; max-width: 100%; max-height: 320px; margin: 10px auto; border-radius: 12px; }
+
+/* AI answers: markdown tables as row cards */
+.md-table { display: grid; gap: 8px; margin: 8px 0 12px; }
+.md-row { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--card); }
+.md-first { font-weight: 700; margin-bottom: 4px; }
+.md-cell { font-size: .93em; margin-top: 4px; }
+.md-cell > span { display: block; font-size: .78em; color: var(--text-3); text-transform: uppercase; letter-spacing: .03em; }
+.src-list { display: grid; gap: 6px; margin: 6px 0 10px; }
+.src-row { display: flex; gap: 10px; align-items: flex-start; text-align: left; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: inherit; font: inherit; }
+.src-row > b { min-width: 22px; color: var(--accent); }
+.src-row span { display: block; font-size: .92em; }
+.src-row small { display: block; color: var(--text-3); margin-top: 2px; }
+.glance-row { padding: 8px 0; border-top: 1px solid var(--line); }
+.glance-row:first-of-type { border-top: 0; }
+.glance-row b { display: block; }
+.glance-row span { display: block; font-size: .88em; color: var(--text-3); margin-top: 2px; }
+.glance-row.derm b::before { content: '🩺 '; }
