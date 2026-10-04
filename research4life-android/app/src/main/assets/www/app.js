@@ -2818,6 +2818,7 @@
           <button class="icon-btn" data-act="tray-dismiss" data-id="${esc(key)}" aria-label="Dismiss">${icon('x')}</button></div>`;
       }
       return `<div class="tray-row bad">${icon('alert')}<div class="tray-body"><b>${t}</b><span>${esc(j.message)}</span></div>
+        ${j.canShow && actions.myloft ? `<button class="btn xs primary" data-act="tray-myloft" data-id="${esc(key)}">MyLOFT</button>` : ''}
         ${j.canShow ? `<button class="btn xs" data-act="tray-show" data-id="${esc(key)}">Show page</button>` : ''}
         <button class="icon-btn" data-act="tray-dismiss" data-id="${esc(key)}" aria-label="Dismiss">${icon('x')}</button></div>`;
     }).join('');
@@ -2826,6 +2827,8 @@
     'tray-open': (b) => { jobs.delete(b.dataset.id); renderTray(); openReader(b.dataset.id); },
     'tray-dismiss': (b) => { jobs.delete(b.dataset.id); renderTray(); refreshCards(); },
     'tray-cancel': (b) => { Native.cancelFetch(b.dataset.id); jobs.delete(b.dataset.id); renderTray(); refreshCards(); },
+    // Research4Life couldn't get it: hand the paper to MyLOFT (title/DOI copied, PDF comes back by Share).
+    'tray-myloft': (b) => { jobs.delete(b.dataset.id); renderTray(); refreshCards(); actions.myloft?.(b); },
     'tray-show': (b) => {
       const j = jobs.get(b.dataset.id);
       jobs.delete(b.dataset.id); renderTray(); refreshCards();

@@ -64,7 +64,12 @@ final class PdfFetcher {
     private ViewGroup host;
     private Job job;
     private boolean saving;
-    private int pdfAttempts, signInPages, reloadsAfterSignIn, pageToken;
+    private int pdfAttempts, signInPages, reloadsAfterSignIn, pageToken, challengeWaits;
+
+    /** Publisher security checks ("Just a moment…", "verify you are human") that must finish first. */
+    static final String CHALLENGE_SCRIPT = "(function(){var t=(document.title||'')+' '+((document.body&&document.body.innerText)||'').slice(0,600);"
+            + "return (/just a moment|security verification|checking your browser|verify you are (a )?human|attention required|are you a robot|captcha/i.test(t)"
+            + "||document.querySelector('#challenge-form,#challenge-running,[name=cf-turnstile-response],iframe[src*=challenges],script[src*=challenge-platform]'))?'check':'no';})()";
 
     private final Runnable timeout = () -> {
         if (job != null && !saving) fail("Research4Life needs your help with this one (sign-in or a publisher page). Tap Show page.", true);
@@ -138,6 +143,7 @@ final class PdfFetcher {
         pdfAttempts = 0;
         signInPages = 0;
         reloadsAfterSignIn = 0;
+        challengeWaits = 0;
         attachClients();
         status("opening", "Opening the paper through Research4Life…");
         main.removeCallbacks(timeout);
@@ -229,9 +235,7 @@ final class PdfFetcher {
             } catch (Exception ignored) {
             }
             if (next == null) {
-                if (pdfAttempts == 0) {
-                    fail("No PDF link on the publisher page. Your access may not include this journal — tap Show page to check.", true);
-                }
+                if (pdfAttempts == 0) waitOrFail(pageUrl);
                 return;
             }
             if (++pdfAttempts > MAX_PDF_ATTEMPTS) {
@@ -241,6 +245,31 @@ final class PdfFetcher {
             tried.add(next);
             status("downloading", "Downloading the PDF…");
             webView.loadUrl(next);
+        });
+    }
+
+    /**
+     * No PDF link yet. If the publisher is still running its security check, wait for it
+     * (it usually passes by itself in a few seconds); otherwise the journal isn't accessible.
+     */
+    private void waitOrFail(String pageUrl) {
+        final Job j = job;
+        final int token = pageToken;
+        webView.evaluateJavascript(CHALLENGE_SCRIPT, v -> {
+            if (job != j || saving) return;
+            if (v != null && v.contains("check")) {
+                if (++challengeWaits <= 12) {
+                    status("finding", "Passing the publisher's security check…");
+                    main.removeCallbacks(timeout);
+                    main.postDelayed(timeout, JOB_TIMEOUT_MS);
+                    // A passed check loads the article (onPageLoaded takes over); otherwise look again.
+                    main.postDelayed(() -> { if (job == j && !saving && token == pageToken) findPdf(webView.getUrl()); }, 2500);
+                } else {
+                    fail("The publisher wants you to confirm you're human. Tap Show page, tick the box once, and the PDF saves — or try MyLOFT.", true);
+                }
+                return;
+            }
+            fail("Not available through your Research4Life access. Try MyLOFT, or tap Show page to check.", true);
         });
     }
 
