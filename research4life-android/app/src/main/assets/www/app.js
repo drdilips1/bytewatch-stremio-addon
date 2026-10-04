@@ -1986,7 +1986,7 @@
 
 
   // ---------------------------------------------------------------- PDF → mobile reader
-  const REFLOW_V = 5; // 5: manuscript line numbers removed, superscripts kept inline
+  const REFLOW_V = 6; // 6: only the opened article (neighbouring articles on shared pages dropped)
   const openReader = (key) => go('pdf/' + encodeURIComponent(key));
   let pdfDoc = null; // pdf.js document for the open reader (original-pages mode)
   let readerState = null; // {model, opts} of the open reader
@@ -2005,6 +2005,7 @@
           const el = $('#rdprog');
           if (el) el.textContent = `Reading page ${d} of ${t}…`;
         });
+        if (s && !s.imported && !s.doc) model = reflowMod.trimToArticle(model, { title: s.title, doi: s.doi });
         model.v = REFLOW_V;
         model.key = key;
         model.kind = 'pdf';

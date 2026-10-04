@@ -517,3 +517,46 @@ function joinText(a, b) {
   if (/[A-Za-z]-$/.test(a) && /^[a-z]/.test(b)) return a.slice(0, -1) + b;
   return a + ' ' + b;
 }
+
+/**
+ * Journal PDFs often share pages with the neighbouring articles: the end of the previous one
+ * (its conflicts of interest and references) above our title, the start of the next one after
+ * our references. Keep only the article the reader opened: from its title to its own DOI line.
+ */
+export function trimToArticle(model, { title = '', doi = '' } = {}) {
+  const words = (t) => String(t || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length > 2);
+  const want = [...new Set(words(title))];
+  const blocks = model.blocks;
+  if (want.length < 3 || blocks.length < 6) return model;
+  const cover = (text) => { const have = new Set(words(text)); return want.filter((w) => have.has(w)).length / want.length; };
+  let start = -1, span = 1;
+  for (let i = 0; i < blocks.length && start < 0; i++) {
+    const b = blocks[i];
+    if (!b.text || b.type === 'ref' || b.text.length > title.length * 2.5 + 60) continue;
+    if (cover(b.text) >= 0.75) { start = i; span = 1; break; }
+    const n = blocks[i + 1];
+    if (n?.text && n.text.length < title.length * 2 + 40 && cover(b.text + ' ' + n.text) >= 0.8 && cover(b.text) >= 0.3) { start = i; span = 2; }
+  }
+  if (start < 0) return model;
+  let end = blocks.length;
+  if (doi) {
+    const d = doi.toLowerCase();
+    let sawRefs = false;
+    for (let i = start + span; i < blocks.length; i++) {
+      const b = blocks[i];
+      if (b.type === 'ref' || (b.type === 'h' && /^references|^bibliography/i.test(b.text))) sawRefs = true;
+      if (sawRefs && b.text && b.text.toLowerCase().includes(d) && b.text.length < d.length + 40) { end = i; break; }
+    }
+  }
+  if (start === 0 && end === blocks.length) return model;
+  const head = { type: 'title', text: blocks.slice(start, start + span).map((b) => b.text).join(' ') };
+  const out = [head, ...blocks.slice(start + span, end)];
+  // Paragraphs of ours that followed the previous article's reference list were typed as references.
+  let inRefs = false;
+  for (const b of out) {
+    if (b.type === 'h') inRefs = /^references|^bibliography|^literature cited/i.test(b.text);
+    else if (b.type === 'ref' && !inRefs) b.type = 'p';
+  }
+  const kept = new Set(out.filter((b) => b.id).map((b) => b.id));
+  return { ...model, title: head.text, blocks: out, figures: model.figures.filter((f) => kept.has(f.id)), trimmed: true };
+}
