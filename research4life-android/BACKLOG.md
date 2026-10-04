@@ -75,3 +75,13 @@ Already in DermScholar: Research4Life + MyLOFT access; Europe PMC search (PubMed
 | G16 | **Visual search**: papers with similar clinical or H&E images | hard; research-grade · 🚀 5.1: AI describes photo → literature search (approximate) |
 | G17 | **Desktop/tablet version** with handoff | · 🚀 5.1: wider layout on tablets; no web app (dropped) |
 | — | Embase | not possible: subscription-only, no open API |
+
+## Roadmap from the "DermaSynth" brief (Gemini), not yet scheduled
+
+| # | Idea | Status / plan |
+|---|------|---------------|
+| M1 | **Reverse visual search** (photo → matching case reports) | Partly in 5.1 (Photo search: AI describes the photo, then searches). Plan: show matching published images (Open-i figures) next to the photo, a "case reports" section, and the evidence map for the likely diagnosis. True pixel-similarity search over millions of images isn't possible on a phone without a large image index. |
+| M2 | **Evidence pyramid view of search results** | Plan: a toggle on search results grouping them as guidelines → meta-analyses/SRs → RCTs → cohort/case-control → case reports/series → reviews/opinion, with counts per level. |
+| M3 | **Histopathology side-by-side** | Plan: your slide or photo next to published histology images (Open-i), with AI labelling the features to look for (e.g. Munro microabscesses, basaloid islands). |
+| M4 | **Pipeline tracker** | Partly there (Trial radar, FDA label alerts). Plan: a Pipeline view by drug class (biologics, oral/topical JAK, TYK2…), with phase 3 trials, recent completions/results posted and FDA approvals; EMA has no simple open API. |
+| M5 | **Citation graph** for a landmark paper | Plan: OpenAlex citing papers over time, grouped by year, with AI marking which ones support, extend or contradict it. |
