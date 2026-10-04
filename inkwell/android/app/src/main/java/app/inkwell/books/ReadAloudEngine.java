@@ -179,7 +179,9 @@ public final class ReadAloudEngine {
         List<Piece> list = new ArrayList<>();
         for (int i = 0; i < paras.size(); i++) {
             String t = paras.get(i) == null ? "" : paras.get(i).trim();
-            if (t.isEmpty()) continue;
+            // Lines with nothing to say (a "---" divider, table bars) make the voice
+            // service return no audio, which stalled the reading.
+            if (t.isEmpty() || !t.matches("(?s).*[\\p{L}\\p{N}].*")) continue;
             // The very first piece is kept short (about a sentence) so the voice starts
             // within a second or two; the rest render while it plays.
             if (list.isEmpty() && i >= from && t.length() > 160) {
@@ -451,7 +453,9 @@ public final class ReadAloudEngine {
                 }
                 return out;
             } catch (Exception e) {
-                // No internet / service down: continue with an offline voice.
+                // A piece that came back silent is skipped; only a real outage
+                // (no internet / service down) switches to an offline voice.
+                if (String.valueOf(e.getMessage()).contains("no audio")) throw e;
                 edgeDown = true;
                 voiceNote = "Microsoft voices unavailable (" + e.getMessage() + ") — using an offline voice";
                 main.post(ReadAloudEngine::changed);

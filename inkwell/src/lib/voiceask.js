@@ -47,11 +47,19 @@ export function listen(prompt = 'Ask about this book') {
 // Plain text for speaking: no markdown marks, list numbers read naturally.
 const plain = (t) =>
   String(t || '')
+    // Tables: "| Year | Event |" -> "Year, Event." and divider rows dropped.
+    .replace(/^\s*\|(.*)\|\s*$/gm, (_, row) => {
+      const cells = row.split('|').map((c) => c.trim()).filter(Boolean);
+      return cells.every((c) => /^:?-+:?$/.test(c)) ? '' : cells.join(', ') + '.';
+    })
+    .replace(/^\s*([-*_=]\s*){3,}$/gm, '')
     .replace(/\*\*|__|`/g, '')
     .replace(/(^|\s)[*_]([^*_]+)[*_]/g, '$1$2')
     .replace(/^#{1,6}\s*/gm, '')
     .replace(/^\s*[-*•]\s+/gm, '')
-    .replace(/\n{2,}/g, '\n')
+    .split('\n')
+    .filter((l) => /[\p{L}\p{N}]/u.test(l))
+    .join('\n')
     .trim();
 
 let run = 0;
