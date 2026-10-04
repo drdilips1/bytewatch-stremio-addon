@@ -454,7 +454,7 @@
     D.pickMany('Link saved papers', opts, c.papers, async (v) => { c.papers = v; await CDB.put(c); render(); });
   });
   actions['case-lit'] = (b) => go('images?' + new URLSearchParams({ q: b.dataset.q }));
-  actions['case-zoom'] = withCase(async (c, b) => { const e = c.entries[Number(b.dataset.i)]; if (e?.photo && D.lightbox) D.lightbox(e.photo); });
+  actions['case-zoom'] = withCase(async (c, b) => { const e = c.entries[Number(b.dataset.i)]; if (e?.photo && D.lightbox) D.lightbox([{ id: 'c', kind: 'fig', src: e.photo, label: c.title, caption: e.note || '' }], 0); });
   actions['case-menu'] = withCase(async (c) => {
     sheet(`<h3>Case</h3><button class="opt" data-act="case-edit" data-id="${c.id}">${icon('note')}<span>Edit label / diagnosis</span></button>
       <button class="opt" data-act="case-del" data-id="${c.id}">${icon('trash')}<span>Delete case</span></button>`);

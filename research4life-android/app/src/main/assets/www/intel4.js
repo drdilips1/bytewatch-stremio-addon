@@ -10,6 +10,11 @@
   const { obj, S } = I;
   const OA = D.hasNative ? '/proxy/openalex/' : 'https://api.openalex.org/';
   const miniCard = I.miniCard;
+  // The image viewer takes a list of {src, label, caption} and a position.
+  const zoom = (src, label = 'Image', caption = '') => D.lightbox?.([{ id: 'z', kind: 'fig', src, label, caption }], 0);
+  // Each screen remembers its latest request; slower earlier responses are dropped.
+  const seq = {};
+  const ticket = (k) => { seq[k] = (seq[k] || 0) + 1; const n = seq[k]; return () => seq[k] === n; };
 
   // ================================================================ M2: evidence pyramid
   const TIERS = [
@@ -29,9 +34,10 @@
       <p class="muted small">Everything Europe PMC has for this search, sorted by level of evidence. Tap a level to see its best papers.</p>
       <div id="pyr">${D.skeletons(3)}</div>`;
     const base = D.buildQuery(f);
+    const live = ticket('pyr');
     const res = await Promise.all(TIERS.map(([, , , tq]) => D.epmcSearch(`(${base}) AND ${tq}`, { size: 5, sort: f.sort === 'newest' ? 'P_PDATE_D desc' : f.sort === 'cited' ? 'CITED desc' : '' }).catch(() => ({ hit: 0, results: [] }))));
     const el = $('#pyr');
-    if (!el) return;
+    if (!el || !live()) return;
     const counts = res.map((r) => r.hit || 0);
     // Pyramid: narrow at the top (strongest evidence), wide at the bottom.
     const W = 320, rowH = 38;
@@ -157,8 +163,9 @@
       <div class="row wrap"><button class="btn small" data-act="intel-go" data-k="alerts">${icon('alert')}FDA label updates</button><button class="btn small" data-act="pl-ev" data-q="${esc(CLASSES[c][0])} dermatology">${icon('chart')}Published evidence</button></div>
       <p class="muted small">From ClinicalTrials.gov, dermatology conditions only. EMA decisions aren't available through an open API.</p>`;
     const [, terms] = CLASSES[c];
+    const live = ticket('pl');
     const since = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
-    const fill = (sel, r, empty) => { const el = $(sel); if (el) el.innerHTML = r.list.map(I.trialCard).join('') + (r.total > r.list.length ? `<p class="muted small">${r.list.length} of ${r.total}</p>` : '') || `<p class="muted small">${empty}</p>`; };
+    const fill = (sel, r, empty) => { const el = $(sel); if (el && live()) el.innerHTML = r.list.map(I.trialCard).join('') + (r.total > r.list.length ? `<p class="muted small">${r.list.length} of ${r.total}</p>` : '') || `<p class="muted small">${empty}</p>`; };
     const base = { 'query.cond': DERM_COND, 'query.intr': terms };
     await Promise.all([
       ctgov({ ...base, 'filter.overallStatus': 'COMPLETED', 'filter.advanced': `AREA[Phase](PHASE3) AND AREA[CompletionDate]RANGE[${since},MAX]`, sort: 'CompletionDate:desc' }).then((r) => fill('#pl-done', r, 'No completed phase 3 trials in the last 2 years.')).catch((e) => fill('#pl-done', { list: [], total: 0 }, e.message)),
@@ -186,7 +193,7 @@
     const out = $('#hs-out');
     let dx = ($('#hs-dx')?.value || '').trim();
     out.innerHTML = `<div class="hs-grid"><div><small>Your slide</small><img src="${url}" alt="" data-act="hs-zoom"></div><div id="hs-lit"><small>Published</small>${D.skeletons(1)}</div></div><div id="hs-ai">${D.aiHasKey() ? (I.busyHtml ? I.busyHtml('Looking at the slide…') : '') : I.keyCard()}</div>`;
-    actions['hs-zoom'] = () => D.lightbox?.(url);
+    actions['hs-zoom'] = () => zoom(url, 'Your slide');
     let r = null;
     if (D.aiHasKey()) {
       try {
@@ -211,7 +218,7 @@
     actions['hs-big'] = (b) => {
       const m = imgs[Number(b.dataset.i)];
       const main = lit.querySelector('img');
-      if (main.src === new URL(m.thumb, location.href).href && b === main) { D.lightbox?.(m.src); return; }
+      if (main.src === new URL(m.thumb, location.href).href && b === main) { zoom(m.src, dx, `${m.caption || ''} · ${m.source}`); return; }
       main.src = m.thumb; main.dataset.i = b.dataset.i;
       $('#hs-cap').textContent = (m.caption || '').slice(0, 220) + ' · ' + m.source;
     };
@@ -235,6 +242,7 @@
         <div class="scroll-x">${terms.map((t, i) => `<button class="chip ${i === 0 ? 'on' : ''}" data-act="vs-dx" data-q="${esc(t)}">${esc(t)}</button>`).join('')}</div>
         <div id="vs-res"></div>`;
       const load = async (dx) => {
+        const live = ticket('vs');
         const box = $('#vs-res');
         if (!box) return;
         box.innerHTML = D.skeletons(3);
@@ -243,7 +251,7 @@
           D.epmcSearch(`(${D.buildQuery(f0)}) AND (PUB_TYPE:"Case Reports" OR TITLE:"case report" OR TITLE:"case series")`, { size: 5 }).catch(() => ({ results: [] })),
           D.epmcSearch(`(${D.buildQuery(f0)}) AND (PUB_TYPE:"Practice Guideline" OR PUB_TYPE:"Systematic Review" OR PUB_TYPE:"Meta-Analysis" OR PUB_TYPE:"Randomized Controlled Trial")`, { size: 4 }).catch(() => ({ results: [] })),
         ]);
-        if (!$('#vs-res')) return;
+        if (!$('#vs-res') || !live()) return;
         box.innerHTML = `<div class="section"><div class="section-h"><h3>🔎 Similar case reports</h3></div>${cases.results.map((a) => D.card(a)).join('') || '<p class="muted small">None found.</p>'}</div>
           <div class="section"><div class="section-h"><h3>💊 Treatment evidence</h3><button data-act="ev-from-search" data-q="${esc('treatment of ' + dx)}">Evidence map</button></div>${best.results.map((a) => D.card(a)).join('') || '<p class="muted small">None found.</p>'}</div>
           <div class="row wrap"><button class="btn small" data-act="ev-from-search" data-q="${esc('pathogenesis and immunology of ' + dx)}">${icon('bulb')}Mechanism / pathway</button>
@@ -258,7 +266,7 @@
       }
     } catch (e) { out.innerHTML = I.aiErr(e); }
   };
-  actions['vs-big'] = (b) => D.lightbox?.(b.dataset.src);
+  actions['vs-big'] = (b) => zoom(b.dataset.src, 'Published image');
 
   // ================================================================ tools, routes
   I.TOOLS.splice(0, 0,
