@@ -1155,3 +1155,12 @@ details.panel summary { cursor: pointer; }
   #cards > .card { margin: 0; }
   .grid2 { grid-template-columns: repeat(4, 1fr); }
 }
+
+/* MyLOFT queue */
+.mlq-banner { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 10px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--accent-soft); color: var(--text); text-align: left; }
+.mlq-banner svg { width: 20px; height: 20px; flex: none; color: var(--accent-ink); }
+.mlq-banner span { flex: 1; display: flex; flex-direction: column; }
+.mlq-banner small { color: var(--text-3); }
+.mlq-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.mlq-row > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mlq-row small { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

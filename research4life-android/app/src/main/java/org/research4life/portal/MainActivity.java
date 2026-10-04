@@ -1136,6 +1136,11 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public boolean renamePdf(String from, String to, String title) {
+            return PdfStore.rename(MainActivity.this, from, to, title);
+        }
+
+        @JavascriptInterface
         public void deletePdf(String key) {
             PdfStore.delete(MainActivity.this, key);
         }

@@ -89,6 +89,18 @@ final class PdfStore {
         }
     }
 
+    /** Files a PDF under another key (a PDF shared in matched to its paper). */
+    static synchronized boolean rename(Context ctx, String from, String to, String title) {
+        File src = file(ctx, from), dst = file(ctx, to);
+        if (!src.exists() || dst.exists()) return false;
+        String source = "";
+        try { source = new JSONObject(prefs(ctx).getString(from, "{}")).optString("source", ""); } catch (JSONException ignored) { }
+        if (!src.renameTo(dst)) return false;
+        prefs(ctx).edit().remove(from).apply();
+        record(ctx, to, title, source);
+        return true;
+    }
+
     static synchronized void delete(Context ctx, String key) {
         file(ctx, key).delete();
         prefs(ctx).edit().remove(key).apply();

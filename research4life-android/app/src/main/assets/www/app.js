@@ -524,7 +524,7 @@
     }, { passive: true });
   })();
 
-  const TAB_OF = { intel: 'intel', research: 'intel', project: 'intel', rp: 'intel', gaps: 'intel', compare: 'intel', drug: 'intel', images: 'intel', imgread: 'intel', alerts: 'intel', living: 'intel', sr: 'intel', cases: 'intel', case: 'intel', drugs: 'intel', lasers: 'intel', cme: 'intel', confs: 'intel', network: 'intel', graph: 'intel', visual: 'intel', clin: 'intel', shared: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
+  const TAB_OF = { intel: 'intel', research: 'intel', project: 'intel', rp: 'intel', gaps: 'intel', compare: 'intel', drug: 'intel', images: 'intel', imgread: 'intel', alerts: 'intel', living: 'intel', sr: 'intel', cases: 'intel', case: 'intel', drugs: 'intel', lasers: 'intel', cme: 'intel', confs: 'intel', network: 'intel', graph: 'intel', visual: 'intel', clin: 'intel', shared: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', mlq: 'library', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
 
   async function render() {
     closeSheet();
@@ -3130,6 +3130,21 @@
       if (evt.type === 'pdfReceived' || evt.type === 'pdfImported') {
         await syncPdfs();
         pdfKeys.add(evt.key);
+        // Read the PDF's own DOI/title and file it under the right paper (MyLOFT queue, papers
+        // waiting for a PDF, or a new library entry), whatever order PDFs come back in.
+        if (ext.identifyPdf) {
+          try {
+            const k = await ext.identifyPdf(evt);
+            if (k && k !== evt.key) {
+              const old = evt.key;
+              pdfKeys.delete(old);
+              if (saved.get(old)?.imported) { await db.del(old).catch(() => {}); saved.delete(old); }
+              evt = { ...evt, key: k, attached: true, title: saved.get(k)?.title || evt.title };
+              await syncPdfs();
+              pdfKeys.add(k);
+            }
+          } catch { /* keep it where it landed */ }
+        }
         // A PDF attached to a paper (MyLOFT, Add PDF from phone…) that wasn't saved yet: save the
         // full paper (title, journal, abstract), not just a bare "imported PDF" entry.
         const s0 = saved.get(evt.key);

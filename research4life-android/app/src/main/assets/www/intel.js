@@ -749,6 +749,9 @@
       if (!D.saved.has(a.id)) await D.saveArticle(a).catch(() => {});
       Native.setPendingPdf?.(a.id, a.title);
       store.set('myloftWaiting', { id: a.id, title: a.title, t: Date.now() });
+      mlqAdd(a);
+      // After the first time, one tap: straight to MyLOFT, no sheet.
+      if (!b.sheet && Native.hasMyLoftApp?.() && Native.sendToMyLoft && store.get('myloftUsed', false)) { sendToMyLoft(a); return; }
       D.copyText(a.doi ? `${a.title} doi:${a.doi}` : a.title);
     }
     const has = Native.hasMyLoftApp?.();
@@ -762,6 +765,7 @@
       ${!has && Native.listApps ? '<button class="btn full" style="margin-top:8px" data-act="myloft-go">Get MyLOFT from the Play Store</button>' : ''}
       ${a && /^10\.1016\//.test(a.doi || '') && has ? `<button class="btn full" style="margin-top:8px" data-act="myloft-publisher">${icon('external')}Send the publisher link instead</button>` : ''}
       ${a ? `<button class="btn full" style="margin-top:8px" data-act="myloft-file">${icon('file')}I downloaded it: pick the PDF</button>` : ''}
+      ${a ? `<button class="btn full" style="margin-top:8px" data-act="mlq-later">${icon('clock')}Later: keep it in the MyLOFT queue</button>` : ''}
       ${b.r4lAnyway && a ? `<button class="btn full" style="margin-top:8px" data-act="myloft-r4l">Try Research4Life anyway</button>` : ''}`);
     // The paper stays marked as waiting for its PDF, so the picked file is saved to it.
     actions['myloft-file'] = () => { closeSheet(true); if (a) Native.setPendingPdf?.(a.id, a.title); Native.importPdf?.(); };
@@ -770,12 +774,97 @@
     actions['myloft-go'] = async () => {
       closeSheet(true);
       if (!a || !Native.sendToMyLoft) { Native.openMyLoftApp?.(); return; }
-      const ck = await clinicalKeyUrl(a);
-      Native.sendToMyLoft(ck || (a.doi ? `https://doi.org/${a.doi}` : a.title), a.title);
-      if (ck) toast('Sent to MyLOFT via ClinicalKey: open it there and tap the PDF');
+      sendToMyLoft(a);
     };
+    actions['mlq-later'] = () => { closeSheet(true); toast('In your MyLOFT queue (Library)'); };
     actions['myloft-publisher'] = () => { closeSheet(true); Native.sendToMyLoft?.(a.doi ? `https://doi.org/${a.doi}` : a.title, a.title); };
     actions['myloft-r4l'] = () => { closeSheet(true); if (a) D.getPdf(a, { skipAsk: true }); };
+  };
+
+  // ---------------------------------------------------------------- MyLOFT queue + automatic filing
+  const mlq = () => store.get('mlQueue', []).filter((x) => !D.pdfKeys.has(x.id));
+  function mlqAdd(a) {
+    const list = mlq().filter((x) => x.id !== a.id);
+    store.set('mlQueue', [{ id: a.id, title: a.title, doi: a.doi || '', t: Date.now() }, ...list].slice(0, 60));
+  }
+  const mlqDrop = (id) => store.set('mlQueue', mlq().filter((x) => x.id !== id));
+  async function sendToMyLoft(a) {
+    Native.setPendingPdf?.(a.id, a.title);
+    store.set('myloftWaiting', { id: a.id, title: a.title, t: Date.now() });
+    store.set('myloftUsed', true);
+    mlqAdd(a);
+    D.copyText(a.doi ? `${a.title} doi:${a.doi}` : a.title);
+    const ck = await clinicalKeyUrl(a).catch(() => null);
+    Native.sendToMyLoft(ck || (a.doi ? `https://doi.org/${a.doi}` : a.title), a.title);
+    toast('Sent to MyLOFT. Download it there, then Share → DermScholar: it files itself.');
+  }
+
+  /** DOIs and text from the first pages of a stored PDF. */
+  async function pdfIds(key) {
+    const R = await import('./reflow.js');
+    const doc = await R.openPdf('/pdf/' + encodeURIComponent(key));
+    let text = '';
+    for (let n = 1; n <= Math.min(2, doc.numPages); n++) {
+      const tc = await (await doc.getPage(n)).getTextContent();
+      text += tc.items.map((i) => i.str).join(' ') + '\n';
+    }
+    try { doc.destroy(); } catch { /* ignore */ }
+    const dois = [...new Set([...text.matchAll(/10\.\d{4,9}\/[^\s"<>]+/g)].map((m) => m[0].replace(/[.,;)\]]+$/, '').toLowerCase()))];
+    return { text: text.toLowerCase(), dois };
+  }
+  const tWords = (t) => [...new Set(String(t || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length > 3))];
+  const titleIn = (title, text) => { const w = tWords(title); if (w.length < 3) return 0; const flat = text.replace(/[^\p{L}\p{N}]+/gu, ' '); return w.filter((x) => flat.includes(x)).length / w.length; };
+
+  ext.identifyPdf = async (evt) => {
+    const { text, dois } = await pdfIds(evt.key);
+    const waiting = D.waitingPaper();
+    const queue = mlq();
+    const lacking = [...D.saved.values()].filter((x) => x.doi && !x.imported && !x.doc && !D.pdfKeys.has(x.id));
+    const pool = [...new Map([...(waiting ? [D.saved.get(waiting.id) || waiting] : []), ...queue, ...lacking].filter(Boolean).map((x) => [x.id, x])).values()];
+    const score = (c) => {
+      const byDoi = c.doi && dois.includes(c.doi.toLowerCase());
+      const t = titleIn(c.title, text);
+      return byDoi ? 2 + t : t >= 0.85 ? t : 0;
+    };
+    let best = null, bestS = 0;
+    for (const c of pool) { const sc = score(c); if (sc > bestS) { best = c; bestS = sc; } }
+    let target = best?.id;
+    // Nothing waiting matches: look the PDF's DOI up and add the paper to the library.
+    if (!target && !evt.attached && dois.length) {
+      for (const d of dois.slice(0, 4)) {
+        const res = await D.epmcSearch(`DOI:"${d}"`, { size: 1 }).catch(() => null);
+        const a = res?.results?.[0];
+        if (a && titleIn(a.title, text) >= 0.7) {
+          if (!D.saved.has(a.id)) await D.saveArticle(a);
+          target = a.id;
+          break;
+        }
+      }
+    }
+    const final = target && target !== evt.key && !D.pdfKeys.has(target) && (!evt.attached || bestS >= 2)
+      && Native.renamePdf?.(evt.key, target, D.saved.get(target)?.title || evt.title) ? target : evt.key;
+    mlqDrop(final);
+    if (waiting?.id === final) store.set('myloftWaiting', null);
+    return final;
+  };
+
+  async function renderMlq() {
+    const list = mlq();
+    view.innerHTML = `${D.topbar('MyLOFT queue')}
+      <p class="small">Papers to fetch through MyLOFT. Send them (each opens in MyLOFT), download the PDFs there, then share each one to DermScholar in any order: each PDF finds its own paper by its DOI and title.</p>
+      <div class="row wrap"><button class="btn small" data-act="myloft-file-any">${icon('file')}Pick downloaded PDF</button><button class="btn small" data-act="myloft-open">${icon('external')}Open MyLOFT</button><button class="btn small" data-act="myloft-pick">${icon('list')}Choose app</button></div>
+      <div class="section">${list.map((x) => `<div class="mlq-row"><div><b>${esc(x.title)}</b><small>${x.doi ? 'doi:' + esc(x.doi) : ''}</small></div>
+        <button class="btn xs primary" data-act="mlq-send" data-id="${esc(x.id)}">${icon('external')}Send</button>
+        <button class="icon-btn" data-act="mlq-del" data-id="${esc(x.id)}" aria-label="Remove">${icon('x')}</button></div>`).join('') || `<div class="empty">${icon('check')}<b>Queue empty</b><div>Papers whose journal isn't in Research4Life land here.</div></div>`}</div>`;
+  }
+  actions['mlq-send'] = async (b) => { const a = await D.findArticle(b.dataset.id).catch(() => null); if (a) sendToMyLoft(a); };
+  actions['mlq-del'] = (b) => { mlqDrop(b.dataset.id); render(); };
+  actions['mlq-open'] = () => go('mlq');
+  actions['myloft-file-any'] = () => Native.importPdf?.();
+  const prevLibTop = ext.libraryTop;
+  ext.libraryTop = (p) => {
+    const n = mlq().length;
+    return (n ? `<button class="mlq-banner" data-act="mlq-open">${icon('clock')}<span><b>MyLOFT queue · ${n}</b><small>Papers waiting for their PDF</small></span>${icon('next')}</button>` : '') + (prevLibTop ? prevLibTop(p) : '');
   };
 
   // Pick the installed MyLOFT app once (its name differs between phones); remembered from then on.
@@ -862,7 +951,7 @@
 
   Object.assign(ext.routes, {
     intel: renderIntel, ev: renderEvidence, updates: renderUpdates, desk: renderDesk,
-    trials: renderTrials, guides: renderGuides, today: renderToday,
+    trials: renderTrials, guides: renderGuides, today: renderToday, mlq: renderMlq,
   });
 
   // Shared with intel2.js (research workspace, drugs, images).
