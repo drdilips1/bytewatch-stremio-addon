@@ -79,7 +79,15 @@ export async function speakAnswer(text, onDone) {
     // The read-aloud engine plays the whole answer, paragraph by paragraph. If it hasn't
     // started speaking within 6 seconds (Microsoft's service slow or down), or fails,
     // the phone's own voice reads it instead — an answer is never left silent.
-    const paras = plain(text).split('\n').map((x) => x.trim()).filter(Boolean);
+    // Headings and bullets are short lines; read one by one, each waits on its own
+    // trip to the voice service. Join them into pieces of a few sentences.
+    const paras = [];
+    for (const line of plain(text).split('\n').map((x) => x.trim()).filter(Boolean)) {
+      const l = /[.!?:;,]$/.test(line) ? line : line + '.';
+      const last = paras.length - 1;
+      if (last >= 0 && paras[last].length + l.length < 380) paras[last] += ' ' + l;
+      else paras.push(l);
+    }
     let handle = null;
     const started = await new Promise(async (resolve) => {
       let settled = false;

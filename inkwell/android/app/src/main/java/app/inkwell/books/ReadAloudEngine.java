@@ -68,7 +68,9 @@ public final class ReadAloudEngine {
     private static Context app;
     private static final Handler main = new Handler(Looper.getMainLooper());
     private static final CopyOnWriteArraySet<Runnable> listeners = new CopyOnWriteArraySet<>();
-    private static final ExecutorService renderer = Executors.newSingleThreadExecutor(r -> new Thread(() -> {
+    // Three at a time: each Microsoft piece waits on the network, not the CPU, so
+    // rendering one after another left gaps between short pieces.
+    private static final ExecutorService renderer = Executors.newFixedThreadPool(3, r -> new Thread(() -> {
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
         r.run();
     }, "kathava-read-render"));
@@ -461,13 +463,18 @@ public final class ReadAloudEngine {
                 main.post(ReadAloudEngine::changed);
             }
         }
-        if (("builtin".equals(engine) || "edge".equals(engine)) && voice.builtin != null && SherpaVoice.installed(app, voice.builtin.id)) {
-            File out = new File(dir, i + ".wav");
-            SherpaVoice.render(app, voice.builtin, text, 1f, out);
-            return out;
+        // Offline voices render one piece at a time.
+        synchronized (OFFLINE_LOCK) {
+            if (("builtin".equals(engine) || "edge".equals(engine)) && voice.builtin != null && SherpaVoice.installed(app, voice.builtin.id)) {
+                File out = new File(dir, i + ".wav");
+                SherpaVoice.render(app, voice.builtin, text, 1f, out);
+                return out;
+            }
+            return renderSystem(text, new File(dir, i + ".wav"));
         }
-        return renderSystem(text, new File(dir, i + ".wav"));
     }
+
+    private static final Object OFFLINE_LOCK = new Object();
 
     // ---------------------------------------------------------------- phone TTS
     private static TextToSpeech sys;
