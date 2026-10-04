@@ -1166,13 +1166,14 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
     const cont = last && (lastDoc || last.route) ? (() => {
       const p = progressOf(last.key);
       const mins = lastDoc?.words ? estMinutes(lastDoc.words) : 0;
-      return `<button class="continue" data-act="home-continue">${cover(last.title, TYPES[lastDoc?.docType] || 'Listening')}
-        <div class="body"><span class="eyebrow">Continue listening</span><b>${esc(last.title)}</b>
-          <div class="prog"><i style="width:${Math.round(p * 100)}%"></i></div>
-          <span class="muted small">${Math.round(p * 100)}%${mins ? ` · ${Math.max(1, Math.round(mins * (1 - p)))} min left` : ''}</span></div>
-        <span class="play-dot">${icon('play')}</span></button>`;
+      return `<button class="continue slim" data-act="home-continue"><span class="play-dot">${icon('play')}</span>
+        <div class="body"><span class="eyebrow">Continue listening · ${Math.round(p * 100)}%${mins ? ` · ${Math.max(1, Math.round(mins * (1 - p)))} min left` : ''}</span><b>${esc(last.title)}</b>
+          <div class="prog"><i style="width:${Math.round(p * 100)}%"></i></div></div></button>`;
     })() : '';
-    return `<button class="add-cta" data-act="add-doc"><span class="plus">${icon('plus')}</span><span><b>Add document</b><small>PDF · EPUB · Word · web page · photo · text</small></span><span class="go">${icon('audio')}</span></button>
+    return `<div class="quick-row">
+        <button class="quick-btn" data-act="add-doc"><span class="qi add">${icon('plus')}</span><span><b>Add document</b><small>PDF, Word, photo</small></span></button>
+        <button class="quick-btn" data-act="tab" data-tab="library"><span class="qi lib">${icon('bookmark')}</span><span><b>Library</b><small>${D.saved.size} saved</small></span></button>
+      </div>
       ${cont}
       ${docs.length ? `<div class="section"><div class="section-h"><h3>Recently added</h3><button data-act="tab" data-tab="library">Library</button></div>
         <div class="scroll-x shelf">${docs.map((a) => `<button class="shelf-item" data-act="shelf-open" data-id="${esc(a.id)}">${cover(a.title, TYPES[a.docType] || 'PDF')}

@@ -160,7 +160,7 @@
     school: '<path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11v5c3 2.5 9 2.5 12 0v-5M22 9v6"/>',
   };
   const icon = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ''}</svg>`;
-  const LOGO = '<svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#1F4E79"/><path fill="#fff" d="M11 15c4-1.5 8-1.2 12 1v18c-3-2.2-8-2.5-12-1zM37 15c-4-1.5-8-1.2-12 1v18c3-2.2 8-2.5 12-1z"/><path fill="#F59E0B" d="M31 27a4 4 0 1 1 0 8 4 4 0 1 1 0-8zm0 2a2 2 0 1 0 0 4 2 2 0 1 0 0-4z"/><path fill="#F59E0B" d="m33.6 33.2 1.4-1.4 3.6 3.6-1.4 1.4z"/></svg>';
+  const LOGO = '<svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg-bg" x1="6" y1="4" x2="42" y2="44" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7C3AED"/><stop offset=".55" stop-color="#DB2777"/><stop offset="1" stop-color="#F59E0B"/></linearGradient><linearGradient id="lg-lens" x1="16" y1="11" x2="30" y2="31" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#0E7490"/><stop offset="1" stop-color="#134E4A"/></linearGradient></defs><circle cx="24" cy="24" r="22" fill="url(#lg-bg)"/><g transform="translate(2,0)"><path d="M20 34l5.5 8.5" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path fill="#fff" d="M12 8h9.5a13 13 0 1 1 0 26H12z"/><path fill="url(#lg-lens)" d="M15.5 11.5h6a9.5 9.5 0 1 1 0 19h-6z"/><path fill="#F59E0B" d="M27.1 10.4a.95.95 0 1 1 0 1.9.95.95 0 1 1 0-1.9zM31.2 14.45a.95.95 0 1 1 0 1.9.95.95 0 1 1 0-1.9zM32.75 20.05a.95.95 0 1 1 0 1.9.95.95 0 1 1 0-1.9zM31.2 25.65a.95.95 0 1 1 0 1.9.95.95 0 1 1 0-1.9zM27.1 29.75a.95.95 0 1 1 0 1.9.95.95 0 1 1 0-1.9z"/><path fill="#fff" d="M16.8 16.8c2.2-.9 4.2-.7 5.6.6v8.4c-1.4-1.1-3.4-1.3-5.6-.6zM29.2 16.8c-2.2-.9-4.2-.7-5.6.6v8.4c1.4-1.1 3.4-1.3 5.6-.6z"/></g></svg>';
 
   // ---------------------------------------------------------------- local state
   // Extension points filled in by studio.js (import, player, AI studio, study, notes).
@@ -532,12 +532,11 @@
     const greet = h < 5 ? 'Working late' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
     const utd = account('utd');
     view.innerHTML = `
-      <div class="home-top"><div class="brand">${LOGO}<span>DermScholar</span></div>
+      <div class="home-top"><div class="brand">${LOGO}<span><b>DermScholar</b><small>${greet}</small></span></div>
         <button class="icon-btn" data-act="settings" aria-label="Settings">${icon('settings')}</button></div>
-      ${ext.homeTop ? ext.homeTop() : ''}
       <section class="hero-card">
-        <div class="hero-greet">${greet}</div>
-        <h2>Evidence from dermatology research, <em>in seconds.</em></h2>
+        <h2>Search dermatology <em>evidence</em></h2>
+        <p class="hero-sub">PubMed · Cochrane · guidelines · trials · DOI or PMID</p>
         ${searchBox()}
         <div class="scroll-x hero-chips">
           <button class="chip derm ${settings.derm ? 'on' : ''}" data-act="toggle-derm">${icon('leaf')}Dermatology focus</button>
@@ -546,6 +545,7 @@
           <button class="chip" data-act="quick" data-types="guide">${icon('list')}Guidelines</button>
         </div>
       </section>
+      ${ext.homeTop ? ext.homeTop() : ''}
       ${ext.homeIntel ? ext.homeIntel() : ''}
 
       <div class="stat-row">
