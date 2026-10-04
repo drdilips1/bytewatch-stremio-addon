@@ -27,7 +27,7 @@ jobs:
         run: |
           node --check app/src/main/assets/www/app.js
           node --check app/src/main/assets/www/journals.js
-          for f in studio intel intel2 sync; do node --check app/src/main/assets/www/$f.js; done
+          for f in studio intel intel2 intel3 sync; do node --check app/src/main/assets/www/$f.js; done
 
       - name: Check journal queries against Europe PMC
         continue-on-error: true

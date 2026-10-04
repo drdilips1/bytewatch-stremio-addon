@@ -387,6 +387,28 @@
   const NOISE = 'NOT PUB_TYPE:"Published Erratum" NOT PUB_TYPE:"Retraction of Publication"';
 
   // ---------------------------------------------------------------- query building
+  const T = (w) => '(' + w.map((x) => `TITLE_ABS:"${x}"`).join(' OR ') + ')';
+  const DERM_X = {
+    scalp: { g: 'Body site', label: 'Scalp & hair', q: T(['scalp', 'hair', 'alopecia']) },
+    face: { g: 'Body site', label: 'Face', q: T(['face', 'facial']) },
+    nails: { g: 'Body site', label: 'Nails', q: T(['nail', 'nails', 'onychomycosis']) },
+    acral: { g: 'Body site', label: 'Hands & feet', q: T(['hand', 'hands', 'palmoplantar', 'foot', 'feet', 'acral']) },
+    genital: { g: 'Body site', label: 'Genital', q: T(['genital', 'vulvar', 'penile', 'anogenital']) },
+    oral: { g: 'Body site', label: 'Oral mucosa', q: T(['oral', 'mucosal', 'mucosa']) },
+    soc: { g: 'Population', label: 'Skin of colour', q: T(['skin of color', 'skin of colour', 'Fitzpatrick', 'darker skin', 'phototype', 'African', 'Asian', 'Indian']) },
+    peds: { g: 'Population', label: 'Paediatric', q: '(' + T(['children', 'pediatric', 'paediatric', 'infant', 'adolescent']) + ' OR MESH_HEADING:"Child")' },
+    preg: { g: 'Population', label: 'Pregnancy', q: T(['pregnancy', 'pregnant', 'lactation']) },
+    old: { g: 'Population', label: 'Elderly', q: '(' + T(['elderly', 'older adults', 'geriatric']) + ' OR MESH_HEADING:"Aged")' },
+    high: { g: 'Evidence', label: 'High-level evidence only', q: '(PUB_TYPE:"Meta-Analysis" OR PUB_TYPE:"Systematic Review" OR PUB_TYPE:"Randomized Controlled Trial" OR PUB_TYPE:"Practice Guideline")' },
+    laser: { g: 'Therapy', label: 'Laser & devices', q: T(['laser', 'IPL', 'intense pulsed light', 'radiofrequency', 'photodynamic', 'microneedling']) },
+    bio: { g: 'Therapy', label: 'Biologics', q: T(['biologic', 'biologics', 'monoclonal antibody', 'dupilumab', 'secukinumab', 'ixekizumab', 'guselkumab', 'risankizumab', 'adalimumab', 'ustekinumab', 'omalizumab']) },
+    jak: { g: 'Therapy', label: 'JAK inhibitors', q: T(['JAK inhibitor', 'Janus kinase', 'tofacitinib', 'baricitinib', 'upadacitinib', 'abrocitinib', 'ruxolitinib', 'ritlecitinib', 'deucravacitinib']) },
+    retinoid: { g: 'Therapy', label: 'Retinoids', q: T(['retinoid', 'isotretinoin', 'acitretin', 'tretinoin', 'adapalene', 'tazarotene']) },
+    systemic: { g: 'Therapy', label: 'Systemic immunosuppressants', q: T(['methotrexate', 'cyclosporine', 'ciclosporin', 'azathioprine', 'mycophenolate']) },
+    topical: { g: 'Therapy', label: 'Topicals', q: T(['topical', 'cream', 'ointment']) },
+    surgery: { g: 'Therapy', label: 'Surgery', q: T(['surgery', 'surgical', 'Mohs', 'excision', 'graft']) },
+    cosmetic: { g: 'Therapy', label: 'Cosmetic', q: T(['cosmetic', 'aesthetic', 'botulinum', 'filler', 'chemical peel']) },
+  };
   const TYPE_FILTERS = {
     meta: { label: 'Meta-analysis', q: 'PUB_TYPE:"Meta-Analysis"' },
     sr: { label: 'Systematic review', q: 'PUB_TYPE:"Systematic Review"' },
@@ -436,6 +458,9 @@
     const parts = [`(${core})`];
     if (f.derm && !DERM_WORDS.test(raw)) parts.push(DERM_FILTER);
     if (f.types.length) parts.push('(' + f.types.map((t) => TYPE_FILTERS[t].q).join(' OR ') + ')');
+    const xg = {};
+    for (const k of f.x || []) (xg[DERM_X[k].g] ||= []).push(DERM_X[k].q);
+    for (const qs of Object.values(xg)) parts.push('(' + qs.join(' OR ') + ')');
     if (f.years !== 'any') parts.push(`PUB_YEAR:[${THIS_YEAR - Number(f.years) + 1} TO ${THIS_YEAR}]`);
     if (f.oa) parts.push('OPEN_ACCESS:y');
     let q = parts.join(' AND ');
@@ -461,7 +486,7 @@
     location.hash = hash;
   }
   const searchHash = (f) => 'search?' + new URLSearchParams({
-    q: f.q, derm: f.derm ? 1 : 0, types: f.types.join(','), y: f.years, oa: f.oa ? 1 : 0, sort: f.sort, pp: f.preprints ? 1 : 0,
+    q: f.q, derm: f.derm ? 1 : 0, types: f.types.join(','), ...(f.x?.length ? { x: f.x.join(',') } : {}), y: f.years, oa: f.oa ? 1 : 0, sort: f.sort, pp: f.preprints ? 1 : 0,
     ...(f.src === 'utd' ? { src: 'utd' } : {}),
   });
   const utdHash = (q) => 'search?' + new URLSearchParams({ q: q || '', src: 'utd' });
@@ -499,7 +524,7 @@
     }, { passive: true });
   })();
 
-  const TAB_OF = { intel: 'intel', research: 'intel', project: 'intel', rp: 'intel', gaps: 'intel', compare: 'intel', drug: 'intel', images: 'intel', imgread: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
+  const TAB_OF = { intel: 'intel', research: 'intel', project: 'intel', rp: 'intel', gaps: 'intel', compare: 'intel', drug: 'intel', images: 'intel', imgread: 'intel', alerts: 'intel', living: 'intel', sr: 'intel', cases: 'intel', case: 'intel', drugs: 'intel', lasers: 'intel', cme: 'intel', confs: 'intel', network: 'intel', graph: 'intel', visual: 'intel', clin: 'intel', shared: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
 
   async function render() {
     closeSheet();
@@ -632,6 +657,7 @@
       q: p.q || '',
       derm: p.derm == null ? settings.derm : p.derm === '1',
       types: (p.types || '').split(',').filter((t) => TYPE_FILTERS[t]),
+      x: (p.x || '').split(',').filter((t) => DERM_X[t]),
       years: YEARS[p.y] ? p.y : 'any',
       oa: p.oa === '1',
       sort: SORTS[p.sort] ? p.sort : settings.sort,
@@ -698,6 +724,7 @@
       <div class="scroll-x">
         <button class="chip derm ${f.derm ? 'on' : ''}" data-act="f-derm">${icon('leaf')}Dermatology</button>
         <button class="chip ${f.types.length ? 'on' : ''}" data-act="f-types">${icon('filter')}${f.types.length ? f.types.map((t) => TYPE_FILTERS[t].label).join(', ') : 'Study type'}</button>
+        <button class="chip ${f.x.length ? 'on' : ''}" data-act="f-x">${icon('leaf')}${f.x.length ? f.x.map((t) => DERM_X[t].label).join(', ') : 'Derm filters'}</button>
         <button class="chip ${f.years !== 'any' ? 'on' : ''}" data-act="f-years">${icon('calendar')}${esc(YEARS[f.years])}</button>
         <button class="chip ${f.oa ? 'on' : ''}" data-act="f-oa">${icon('unlock')}Open access</button>
         <button class="chip ${f.sort !== 'relevance' ? 'on' : ''}" data-act="f-sort">${icon('sort')}${esc(SORTS[f.sort].label)}</button>
@@ -778,6 +805,7 @@
     actions['f-years'] = () => pickOne('Publication date', YEARS, f.years, (v) => nav({ years: v }));
     actions['f-sort'] = () => pickOne('Sort by', Object.fromEntries(Object.entries(SORTS).map(([k, v]) => [k, v.label])), f.sort, (v) => nav({ sort: v }));
     actions['f-types'] = () => pickMany('Study type', Object.fromEntries(Object.entries(TYPE_FILTERS).map(([k, v]) => [k, v.label])), f.types, (v) => nav({ types: v }));
+    actions['f-x'] = () => pickMany('Derm filters (same group = any, groups combined)', Object.fromEntries(Object.entries(DERM_X).map(([k, v]) => [k, `${v.g}: ${v.label}`])), f.x, (v) => nav({ x: v }));
     actions.more = async (btn) => {
       const key = searchHash(f);
       const state = searchCache.get(key);
@@ -2678,6 +2706,16 @@
     const names = au.length > 20 ? au.slice(0, 19).join(', ') + ', … ' + au[au.length - 1] : au.length > 1 ? au.slice(0, -1).join(', ') + ', & ' + au[au.length - 1] : au[0] || '';
     return `${names} (${a.year}). ${a.title}. ${a.journal}${a.volume ? ', ' + a.volume : ''}${a.issue ? '(' + a.issue + ')' : ''}${a.pages ? ', ' + a.pages : ''}.${a.doi ? ' https://doi.org/' + a.doi : ''}`;
   }
+  function ama(a) {
+    const au = authorList(a);
+    const names = au.length > 6 ? au.slice(0, 3).join(', ') + ', et al' : au.join(', ');
+    return `${names ? names + '. ' : ''}${a.title}. ${a.jAbbr || a.journal}. ${a.year}${a.volume ? ';' + a.volume : ''}${a.issue ? '(' + a.issue + ')' : ''}${a.pages ? ':' + a.pages : ''}.${a.doi ? ' doi:' + a.doi : ''}`;
+  }
+  function harvard(a) {
+    const au = authorList(a).map((n) => { const [last, ini = ''] = n.split(/\s+(?=[A-Z]+$)/); return `${last}, ${ini.split('').join('.')}${ini ? '.' : ''}`; });
+    const names = au.length > 3 ? au[0] + ' et al.' : au.length > 1 ? au.slice(0, -1).join(', ') + ' and ' + au[au.length - 1] : au[0] || '';
+    return `${names} (${a.year}) '${a.title}', ${a.journal}${a.volume ? ', ' + a.volume : ''}${a.issue ? '(' + a.issue + ')' : ''}${a.pages ? ', pp. ' + a.pages : ''}.${a.doi ? ' doi:' + a.doi + '.' : ''}`;
+  }
   function bibtex(a) {
     const key = ((authorList(a)[0] || 'anon').split(' ')[0] + a.year + (a.title.split(/\W+/).find((w) => w.length > 3) || '')).replace(/[^A-Za-z0-9]/g, '');
     const f = { title: `{${a.title}}`, author: authorList(a).join(' and '), journal: a.journal, year: a.year, volume: a.volume, number: a.issue, pages: a.pages, doi: a.doi, pmid: a.pmid };
@@ -2702,7 +2740,7 @@
 
   function citeSheet(items) {
     const a = items[0];
-    const fmts = { Vancouver: vancouver(a), APA: apa(a), BibTeX: bibtex(a) };
+    const fmts = { Vancouver: vancouver(a), 'AMA / JAAD / JAMA Derm': ama(a), 'BJD / Harvard': harvard(a), APA: apa(a), BibTeX: bibtex(a), RIS: ris(a) };
     sheet(`<h3>Cite</h3>${Object.entries(fmts).map(([k, v]) => `<label class="field">${k}</label>
       <div class="panel" style="margin:0;font-size:13.5px;white-space:pre-wrap;word-break:break-word">${esc(v)}</div>
       <button class="btn small" style="margin-top:6px" data-act="copy-cite" data-f="${k}">${icon('quote')}Copy ${k}</button>`).join('')}`);
@@ -2715,7 +2753,9 @@
       <button class="opt" data-act="exp" data-f="ris">${icon('file')}RIS — Zotero, Mendeley, EndNote</button>
       <button class="opt" data-act="exp" data-f="bib">${icon('file')}BibTeX</button>
       <button class="opt" data-act="exp" data-f="csv">${icon('list')}CSV spreadsheet</button>
-      <button class="opt" data-act="exp" data-f="txt">${icon('quote')}Reference list (Vancouver)</button>`);
+      <button class="opt" data-act="exp" data-f="txt">${icon('quote')}Reference list (Vancouver)</button>
+      <button class="opt" data-act="exp" data-f="ama">${icon('quote')}Reference list (AMA / JAAD)</button>
+      <button class="opt" data-act="exp" data-f="harv">${icon('quote')}Reference list (BJD / Harvard)</button>`);
     const real = items.filter((a) => !a.imported);
     actions.exp = (b) => {
       const f = b.dataset.f;
@@ -2724,8 +2764,10 @@
         bib: [real.map(bibtex).join('\n\n'), 'application/x-bibtex'],
         csv: [csv(real), 'text/csv'],
         txt: [real.map((a, i) => `${i + 1}. ${vancouver(a)}`).join('\n'), 'text/plain'],
+        ama: [real.map((a, i) => `${i + 1}. ${ama(a)}`).join('\n'), 'text/plain'],
+        harv: [real.map(harvard).sort().join('\n'), 'text/plain'],
       }[f];
-      Native.exportText(`dermscholar-${stamp}.${f}`, out[0], out[1]);
+      Native.exportText(`dermscholar-${stamp}.${{ ama: 'txt', harv: 'txt' }[f] || f}`, out[0], out[1]);
       closeSheet();
     };
   }
@@ -3138,7 +3180,8 @@
     topbar, errorBox, coverStyle, hueFor, saveArticle, openReader, showReader, readerTop, readerLoading, lightbox,
     ttsPlay, ttsPlayScript, ttsSheet, ttsPrefs, saveTts, ttsTimes, indexAfterSeconds, sectionStart, sectionEnd, nextSection, prevSection,
     voiceList, RATES, ai, aiJson, aiHasKey, aiMaxCap, modelText, jumpToBlock, copyText, syncPdfs, refreshPdfs, stripTags,
-    speechReady, REFLOW_V,
+    speechReady, REFLOW_V, updateSaved, DERM_X,
+    addCollection: (n) => { if (n && !collections.includes(n)) { collections.push(n); store.set('collections', collections); } }, get collections() { return collections; },
     get tts() { return tts; }, get speech() { return speech; }, get saved() { return saved; }, get cache() { return cache; },
     get current() { return current; }, get reader() { return readerState; }, get pdfKeys() { return pdfKeys; },
     set onSheetClose(f) { onSheetClose = f; },

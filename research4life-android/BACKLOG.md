@@ -51,21 +51,21 @@ Already in DermScholar: Research4Life + MyLOFT access; Europe PMC search (PubMed
 
 | # | Idea | Notes |
 |---|------|-------|
-| G1 | **Derm filters**: body site, Fitzpatrick type / skin of colour, age group (paediatric), level of evidence, laser/device, drug class | search chips + query terms |
-| G2 | **Clinical summary card** per paper: population (incl. phototype), dose/regimen or device settings, primary outcome with numbers, adverse events, limitations | structured AI output |
-| G3 | **Practice-changing vs incremental** flag + evidence grade on papers | AI + study design |
-| G4 | **Alerts**: retractions of saved papers, FDA/EMA approvals, guideline updates for followed topics | Crossref/Retraction Watch, openFDA |
-| G5 | **Living guideline dashboard** with versions and "what changed" | per disease |
-| G6 | **Reference manager**: citation styles (JAAD, BJD, Vancouver), export RIS/BibTeX/Zotero, tags by disease/mechanism/treatment | |
-| G7 | **Systematic review helper**: PRISMA flow diagram, PICO table across selected papers, simple pooled meta-analysis when numbers are extractable | |
-| G8 | **Private case library**: patient photos kept on the phone (encrypted), timeline, outcome photos, linked references; compare side by side with published images | privacy first, never uploaded without consent |
-| G9 | **Drug tools**: dosing and monitoring protocols for biologics/JAKi/isotretinoin/methotrexate/cyclosporine, interaction checker | |
-| G10 | **Laser/device parameter library** | |
-| G11 | **CME/CPD log** from papers read and quizzes done | |
-| G12 | **Conference radar**: AAD, EADV, WCD, SID abstracts | where feeds exist |
-| G13 | **Author/institution network** for a topic; who publishes in your niche | OpenAlex |
-| G14 | **Shared libraries / journal club groups** for a department | needs server-side sharing |
-| G15 | **Personal knowledge graph**: everything you read, noted or asked, connected over time | |
-| G16 | **Visual search**: papers with similar clinical or H&E images | hard; research-grade |
-| G17 | **Desktop/tablet version** with handoff | the web app (#23) |
+| G1 | **Derm filters**: body site, Fitzpatrick type / skin of colour, age group (paediatric), level of evidence, laser/device, drug class | search chips + query terms · 🚀 5.1 |
+| G2 | **Clinical summary card** per paper: population (incl. phototype), dose/regimen or device settings, primary outcome with numbers, adverse events, limitations | structured AI output · 🚀 5.1 |
+| G3 | **Practice-changing vs incremental** flag + evidence grade on papers | AI + study design · 🚀 5.1 |
+| G4 | **Alerts**: retractions of saved papers, FDA/EMA approvals, guideline updates for followed topics | Crossref/Retraction Watch, openFDA · 🚀 5.1: retractions (Europe PMC), FDA label updates, new guidelines |
+| G5 | **Living guideline dashboard** with versions and "what changed" | per disease · 🚀 5.1 |
+| G6 | **Reference manager**: citation styles (JAAD, BJD, Vancouver), export RIS/BibTeX/Zotero, tags by disease/mechanism/treatment | · 🚀 5.1: AMA/JAAD + BJD/Harvard styles; tags = collections |
+| G7 | **Systematic review helper**: PRISMA flow diagram, PICO table across selected papers, simple pooled meta-analysis when numbers are extractable | · 🚀 5.1 |
+| G8 | **Private case library**: patient photos kept on the phone (encrypted), timeline, outcome photos, linked references; compare side by side with published images | privacy first, never uploaded without consent · 🚀 5.1: on the phone only, never synced (not encrypted) |
+| G9 | **Drug tools**: dosing and monitoring protocols for biologics/JAKi/isotretinoin/methotrexate/cyclosporine, interaction checker | · 🚀 5.1: static protocols + isotretinoin calculator; no live interaction checker |
+| G10 | **Laser/device parameter library** | · 🚀 5.1: wavelength/target/skin type, no device settings |
+| G11 | **CME/CPD log** from papers read and quizzes done | · 🚀 5.1 |
+| G12 | **Conference radar**: AAD, EADV, WCD, SID abstracts | where feeds exist · 🚀 5.1: meeting links + indexed abstracts |
+| G13 | **Author/institution network** for a topic; who publishes in your niche | OpenAlex · 🚀 5.1 |
+| G14 | **Shared libraries / journal club groups** for a department | needs server-side sharing · 🚀 5.1: share/import lists by message, no server |
+| G15 | **Personal knowledge graph**: everything you read, noted or asked, connected over time | · 🚀 5.1 |
+| G16 | **Visual search**: papers with similar clinical or H&E images | hard; research-grade · 🚀 5.1: AI describes photo → literature search (approximate) |
+| G17 | **Desktop/tablet version** with handoff | the web app (#23) · 🚀 5.1: wider layout on tablets; web app still #23 |
 | — | Embase | not possible: subscription-only, no open API |
