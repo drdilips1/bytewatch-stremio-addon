@@ -277,7 +277,16 @@
 
   // ---------------------------------------------------------------- updates
   let update = store.get('sync.update', null); // {name, code} of a newer build
+  // "4.10" > "4.9": compare version names part by part.
+  const newer = (a, b) => {
+    const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+    return false;
+  };
+  // Already installed (e.g. the update just went in): forget the offer.
+  if (update && !newer(update.name, Native.version?.() || '0')) { update = null; localStorage.removeItem('ds.sync.update'); }
   ext.events.update = (evt) => {
+    if (evt.state === 'available' && !newer(evt.name, Native.version?.() || '0')) evt.state = 'none';
     if (evt.state === 'available') { update = { name: evt.name, code: evt.code }; origSet('sync.update', update); paint(); if (manualCheck) offerUpdate(); }
     else if (evt.state === 'none') { update = null; localStorage.removeItem('ds.sync.update'); if (manualCheck) toast(`You have the latest version (${evt.current})`); paint(); }
     else if (evt.state === 'downloading') { const el = $('#upd-bar'); if (el) el.textContent = evt.pct >= 0 ? `Downloading the update… ${evt.pct}%` : 'Downloading the update…'; }

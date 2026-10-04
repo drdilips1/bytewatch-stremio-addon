@@ -1302,7 +1302,8 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
       calls += row[3];
       tokens += row[0] + row[1] + row[2];
     }
-    return calls ? `${calls} requests this month · ${(tokens / 1000).toFixed(0)}k tokens · ${provider() === 'groq' ? `≈ $${cost.toFixed(2)} at paid rates · free on Groq's free tier` : `about $${cost.toFixed(2)}`}` : 'No AI use this month';
+    const free = provider() === 'groq' || provider() === 'gemini';
+    return calls ? `${calls} requests this month · ${(tokens / 1000).toFixed(0)}k tokens · ${free ? 'free tier: no charge' : `about $${cost.toFixed(2)}`}` : 'No AI use this month';
   }
   ext.events.aiModels = (evt) => {
     if (evt.models) { store.set('groqModels', evt.models.map((m) => m.id)); if (D.current.name === 'settings') render(); }
