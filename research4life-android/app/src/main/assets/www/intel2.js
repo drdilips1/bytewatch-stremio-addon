@@ -708,7 +708,7 @@
   actions['paper-rp'] = (b) => go('rp/' + encodeURIComponent(b.dataset.id));
   actions['paper-proj'] = (b) => addToProjectSheet(b.dataset.id, b.dataset.t);
 
-  Object.assign(I, { pickImage, aiImage, EDU });
+  Object.assign(I, { pickImage, aiImage, EDU, openI });
   Object.assign(ext.routes, {
     research: renderResearch, project: renderProject, rp: renderRP, gaps: renderGaps, compare: renderCompare,
     drug: renderDrug, images: renderImages, imgread: () => {},

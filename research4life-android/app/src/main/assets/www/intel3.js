@@ -884,6 +884,7 @@
   const prevHome = ext.homeIntel;
   if (prevHome) ext.homeIntel = () => prevHome().replace(/<\/div>$/, '') + `<div class="intel-tiles" style="margin-top:10px">${TOOLS.slice(0, 4).map(([k, e, t, s]) => `<button class="intel-tile" data-act="intel-go" data-k="${k}"><span class="e">${e}</span><b>${esc(t)}</b><span>${esc(s)}</span></button>`).join('')}</div></div>`;
 
+  Object.assign(I, { shrink, TOOLS, miniCard });
   Object.assign(ext.routes, {
     intel: (...a) => { prevIntel(...a); view.lastElementChild.insertAdjacentHTML('beforebegin', toolsHtml()); },
     clin: renderClin, alerts: renderAlerts, living: renderLiving, sr: renderSr, cases: renderCases, case: renderCase,
