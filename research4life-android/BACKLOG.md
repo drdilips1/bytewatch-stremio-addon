@@ -22,7 +22,7 @@ Status: 🟡 noted · 🔵 in progress · ✅ done locally (waiting for "Build n
 | 13 | Request | **Login and sync** with email/password or Google: library, notes, highlights, projects, watched questions and settings follow you to a new phone (same Supabase account as Paper2Audio/Inkwell). | 🟡 roadmap |
 | 14 | Request | **In-app updates**: the app checks for a new version, shows what's new and installs it with one tap (no GitHub download). | 🟡 roadmap |
 | 15 | Request | **APK small enough to attach in chat** (under 30 MB), e.g. trim bundled assets. | 🟡 roadmap |
-| 16 | Bug | **MyLOFT opened the Play Store ("won't work on this phone") although MyLOFT is installed.** The app didn't recognise the installed MyLOFT by name. | ✅ ready, not built: "Choose MyLOFT from your apps" picker (remembered), wider name matching; Play Store only as a last option |
-| 17 | Bug | **MyLOFT hard to find in DermScholar.** | ✅ ready, not built: **MyLOFT** button on every paper next to Get PDF; MyLOFT section in Settings (Open · Choose app) |
-| 18 | Bug | **Huge lock-icon blocks in "Where to read the full text", placed too deep in the paper.** | ✅ ready, not built: compact rows, box moved right under the title (before Get PDF), paper tools moved below the buttons |
-| 19 | Request | **New, more colourful dermatology app icon.** | ✅ ready, not built: a D-shaped dermatoscope (white head, amber LED ring, handle) looking at an open book, on a violet → pink → amber gradient |
+| 16 | Bug | **MyLOFT opened the Play Store ("won't work on this phone") although MyLOFT is installed.** The app didn't recognise the installed MyLOFT by name. | 🚀 4.5: "Choose MyLOFT from your apps" picker (remembered), wider name matching; Play Store only as a last option |
+| 17 | Bug | **MyLOFT hard to find in DermScholar.** | 🚀 4.5: **MyLOFT** button on every paper next to Get PDF; MyLOFT section in Settings (Open · Choose app) |
+| 18 | Bug | **Huge lock-icon blocks in "Where to read the full text", placed too deep in the paper.** | 🚀 4.5: compact rows, box moved right under the title (before Get PDF), paper tools moved below the buttons |
+| 19 | Request | **New, more colourful dermatology app icon.** | 🚀 4.5: a D-shaped dermatoscope (white head, amber LED ring, handle) looking at an open book, on a violet → pink → amber gradient |
