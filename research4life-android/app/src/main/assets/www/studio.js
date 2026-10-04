@@ -488,7 +488,7 @@
     const p = provider();
     const info = {
       groq: ['Groq', 'AI features run on Groq with your own key. Create one free at <b>console.groq.com/keys</b> (it starts with gsk_).', 'gsk_…'],
-      gemini: ['Gemini', 'Free key from <b>aistudio.google.com/apikey</b> (no card; it starts with AIza). Best for evidence maps over many papers.', 'AIza…'],
+      gemini: ['Gemini', 'Free key from <b>aistudio.google.com/apikey</b> (no card needed). Best for evidence maps over many papers.', 'Paste your Gemini key'],
       claude: ['Claude', 'AI features use your own Anthropic key. Create one at <b>console.anthropic.com</b> → API keys.', 'sk-ant-…'],
     }[p] || ['Groq', '', 'gsk_…'];
     return `<div class="key-prompt">${icon('spark')}<div><b>Add your ${info[0]} API key</b><span>${info[1]}</span></div>
@@ -496,9 +496,11 @@
       <p class="muted small">Stored encrypted on this phone. Only the text you use AI on is sent to ${info[0]}.</p></div>`;
   }
   actions['ai-savekey'] = () => {
-    const v = $('#aikey')?.value.trim() || '';
-    if (!/^(gsk_|sk-ant-|AIza)/.test(v)) { toast('That doesn\'t look like a Groq (gsk_…), Gemini (AIza…) or Anthropic (sk-ant-…) key'); return; }
-    Native.aiSetKey(v);
+    // Pasted keys often carry spaces, line breaks, quotes or invisible characters; strip them all.
+    const v = ($('#aikey')?.value || '').replace(/[\s\u200B-\u200D\u2060\uFEFF'"`“”‘’]/g, '');
+    if (v.length < 20) { toast('That key looks too short — copy the whole key and paste it again'); return; }
+    // Known prefixes pick the AI; anything else (e.g. Google's newer key formats) goes to the AI selected above.
+    Native.aiSetKey(v, provider());
     toast('Key saved');
     if (hubState) drawHub(); else closeSheet(true);
     if (D.current.name === 'settings') render();

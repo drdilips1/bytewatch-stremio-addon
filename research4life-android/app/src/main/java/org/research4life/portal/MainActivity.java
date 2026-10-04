@@ -690,11 +690,15 @@ public class MainActivity extends Activity {
 
         /** Saves a key for the provider it belongs to (gsk_… Groq, sk-ant-… Claude) and makes that provider active. */
         @JavascriptInterface
-        public void aiSetKey(String key) {
-            String k = key == null ? "" : key.trim();
+        public void aiSetKey(String key) { aiSetKey(key, provider()); }
+
+        @JavascriptInterface
+        public void aiSetKey(String key, String selected) {
+            String k = key == null ? "" : key.replaceAll("[\\s\\u200B-\\u200D\\u2060\\uFEFF\"']", "");
             synchronized (MainActivity.this) { llm = null; }
             if (k.isEmpty()) { R4LSession.forget(MainActivity.this, provider()); return; }
-            String p = k.startsWith("sk-ant-") ? "claude" : k.startsWith("AIza") ? "gemini" : "groq";
+            String p = k.startsWith("sk-ant-") ? "claude" : k.startsWith("gsk_") ? "groq" : k.startsWith("AIza") ? "gemini"
+                    : known(selected) ? selected : provider();
             R4LSession.saveCredentials(MainActivity.this, p, "api", k);
             aiSetProvider(p);
         }
