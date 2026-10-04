@@ -19,3 +19,6 @@ Status: 🟡 noted · 🔵 in progress · ✅ done locally (waiting for "Build n
 | 10 | Bug | **Image section too slow.** Show results as they arrive, smaller thumbnails first, time limits per source. | 🚀 4.4 |
 | 11 | Top priority | **Getting papers through your logins (Research4Life, MyLOFT) must work.** Needs the error text from 4.3 ("the page shows: …") to fix the exact step where it stops. | 🟡 waiting for test |
 | 12 | Bug | **Journals not in Research4Life (e.g. JAAD) failed instead of going to MyLOFT.** | 🚀 4.4: when Research4Life sends the paper to the plain publisher site, the app knows the journal isn't covered, stops at once (no waiting on "security verification") and opens the MyLOFT handoff; it remembers that journal, so next time Get PDF goes straight to MyLOFT (with "Try Research4Life anyway"). Failed downloads also get a MyLOFT button. |
+| 13 | Request | **Login and sync** with email/password or Google: library, notes, highlights, projects, watched questions and settings follow you to a new phone (same Supabase account as Paper2Audio/Inkwell). | 🟡 roadmap |
+| 14 | Request | **In-app updates**: the app checks for a new version, shows what's new and installs it with one tap (no GitHub download). | 🟡 roadmap |
+| 15 | Request | **APK small enough to attach in chat** (under 30 MB), e.g. trim bundled assets. | 🟡 roadmap |
