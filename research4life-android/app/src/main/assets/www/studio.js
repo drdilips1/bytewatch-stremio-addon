@@ -577,7 +577,7 @@ Follow the document's own structure with "## " sections. Keep key numbers exact.
       body = v ? `<div class="ai-body">${md(v)}</div>
           <div class="row-btns"><button class="btn primary" data-act="hub-listen">${icon('play')}Listen</button>
             <button class="btn" data-act="hub-copy">${icon('file')}Copy</button><button class="btn" data-act="hub-redo">Regenerate</button></div>`
-        : e['busy_' + tab] ? '<div class="ai-wait"><div class="spinner"></div>Reading the document…</div>'
+        : e['busy_' + tab] ? (e['partial_' + tab] ? `<div class="ai-body" id="hub-live">${md(e['partial_' + tab])}<span class="typing">▍</span></div>` : '<div class="ai-wait" id="hub-live"><div class="spinner"></div>Reading the document…</div>')
         : `<button class="btn primary full big" data-act="hub-gen">${icon(TASKS[tab].icon)}Create ${TASKS[tab].label}</button>`;
     } else if (tab === 'ask') {
       body = `${(e.qa || []).map((x) => `<div class="ai-q">${esc(x.q)}</div><div class="ai-body">${x.a ? md(x.a) : '<div class="ai-wait"><div class="spinner"></div>Thinking…</div>'}</div>`).join('')}
@@ -610,13 +610,21 @@ Follow the document's own structure with "## " sections. Keep key numbers exact.
     e['busy_' + tab] = true;
     drawHub();
     try {
-      const out = await D.ai(TASKS[tab].prompt(src.type), docOpts(src, { focus: 'summary', max: TASKS[tab].max }));
+      // Show the answer while it's being written.
+      const live = (t) => {
+        e['partial_' + tab] = t;
+        const box = $('#hub-live');
+        if (box && hubState?.key === key && hubState.tab === tab) box.innerHTML = md(t) + '<span class="typing">▍</span>';
+        else if (hubState?.key === key && hubState.tab === tab) drawHub();
+      };
+      const out = await D.ai(TASKS[tab].prompt(src.type), docOpts(src, { focus: 'summary', max: TASKS[tab].max, onPartial: live }));
       e[tab] = out; e.t = Date.now();
       saveStudio();
     } catch (err) {
       if (!aiNeedsKey(err)) toast(err.message);
     } finally {
       delete e['busy_' + tab];
+      delete e['partial_' + tab];
       if (hubState?.key === key) drawHub();
     }
   }

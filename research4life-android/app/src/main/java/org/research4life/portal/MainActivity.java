@@ -855,6 +855,37 @@ public class MainActivity extends Activity {
          * Runs one AI task (prompts are written by the web app). Answers with an "ai" event
          * {id, state: done|error, text|message}.
          */
+        /**
+         * Like aiRun for plain text answers, but the text is shown while it is being written:
+         * "aiPartial" events {id, text} as it arrives, then the usual "ai" event.
+         */
+        @JavascriptInterface
+        public void aiRunStream(String id, String system, String document, String task, int maxTokens) {
+            io.execute(() -> {
+                LlmProvider.AiException first = null;
+                try {
+                    for (String prov : aiOrder(document == null ? 0 : document.length(), false)) {
+                        try {
+                            LlmProvider.Result r = llmFor(prov).completeStream(system, document, task, maxTokens,
+                                    soFar -> emit(event("aiPartial", "id", id, "text", soFar)));
+                            recordUsage(r.model, r);
+                            emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model,
+                                    "fallback", first == null ? "" : label(prov)));
+                            return;
+                        } catch (LlmProvider.AiException e) {
+                            if ("Cancelled".equals(e.getMessage())) throw e;
+                            if (first == null) first = e;
+                        }
+                    }
+                    throw first != null ? first : new LlmProvider.AiException("Add your " + label(provider()) + " API key in Settings → AI.");
+                } catch (LlmProvider.AiException e) {
+                    emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));
+                } catch (Exception e) {
+                    emit(event("ai", "id", id, "state", "error", "message", "AI request failed: " + e.getClass().getSimpleName()));
+                }
+            });
+        }
+
         /** Whether DermScholar may use Groq and Gemini together (on by default). */
         @JavascriptInterface
         public boolean aiAuto() {

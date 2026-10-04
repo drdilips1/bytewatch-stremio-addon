@@ -26,6 +26,8 @@ final class GeminiProvider implements LlmProvider {
     private boolean sendSchema = true;
     /** Extra room for the model's "thinking", which counts against maxOutputTokens on Gemini 2.5+. */
     private int headroom = 16384;
+    /** Short thinking: much faster answers for summaries and deep dives (dropped if the model refuses it). */
+    private boolean lightThinking = true;
 
     GeminiProvider(String apiKey, String model) {
         this.apiKey = apiKey;
@@ -61,6 +63,11 @@ final class GeminiProvider implements LlmProvider {
                 parts.put(new JSONObject().put("text", user));
                 body.put("contents", new JSONArray().put(new JSONObject().put("role", "user").put("parts", parts)));
                 JSONObject gen = new JSONObject().put("maxOutputTokens", Math.min(65536, Math.max(1024, maxTokens) + headroom)).put("temperature", 0.3);
+                if (lightThinking) {
+                    // Gemini 3.x takes a thinking level; 2.5 a token budget.
+                    gen.put("thinkingConfig", model.startsWith("gemini-2") ? new JSONObject().put("thinkingBudget", 1024)
+                            : new JSONObject().put("thinkingLevel", "low"));
+                }
                 if (jsonSchema != null && !jsonSchema.isEmpty()) {
                     gen.put("responseMimeType", "application/json");
                     // Constrains the answer to the exact structure, so it always parses.
@@ -94,6 +101,11 @@ final class GeminiProvider implements LlmProvider {
                 if (code >= 400) {
                     String msg = "";
                     try { msg = new JSONObject(text).getJSONObject("error").optString("message"); } catch (Exception ignored) { }
+                    if (code == 400 && lightThinking && msg.toLowerCase().contains("thinking")) {
+                        lightThinking = false; // this model doesn't take the setting: use its default
+                        attempt--;
+                        continue;
+                    }
                     if (code == 400 && sendSchema && jsonSchema != null && msg.toLowerCase().matches("(?s).*(schema|unknown name|invalid json payload).*")) {
                         sendSchema = false; // this model doesn't take a schema: rely on the instructions
                         attempt--;
@@ -148,6 +160,78 @@ final class GeminiProvider implements LlmProvider {
             } catch (Exception e) {
                 throw new AiException("Gemini request failed: " + e.getClass().getSimpleName());
             }
+        }
+    }
+
+    /** Streams a plain text answer (Server-Sent Events); any problem falls back to the normal request. */
+    @Override
+    public Result completeStream(String system, String document, String task, int maxTokens, TextListener l) throws AiException {
+        HttpURLConnection c = null;
+        try {
+            JSONObject body = new JSONObject();
+            if (system != null && !system.isEmpty()) {
+                body.put("systemInstruction", new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text", system))));
+            }
+            String user = document == null || document.isEmpty() ? task : "<document>\n" + document + "\n</document>\n\n" + task;
+            body.put("contents", new JSONArray().put(new JSONObject().put("role", "user")
+                    .put("parts", new JSONArray().put(new JSONObject().put("text", user)))));
+            JSONObject gen = new JSONObject().put("maxOutputTokens", Math.min(65536, Math.max(1024, maxTokens) + headroom)).put("temperature", 0.3);
+            if (lightThinking) {
+                gen.put("thinkingConfig", model.startsWith("gemini-2") ? new JSONObject().put("thinkingBudget", 1024)
+                        : new JSONObject().put("thinkingLevel", "low"));
+            }
+            body.put("generationConfig", gen);
+            c = (HttpURLConnection) new URL(BASE + model + ":streamGenerateContent?alt=sse").openConnection();
+            c.setConnectTimeout(20000);
+            c.setReadTimeout(240000);
+            c.setRequestMethod("POST");
+            c.setDoOutput(true);
+            c.setRequestProperty("x-goog-api-key", apiKey);
+            c.setRequestProperty("Content-Type", "application/json");
+            try (OutputStream os = c.getOutputStream()) {
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            if (c.getResponseCode() >= 400) {
+                c.disconnect();
+                return complete(system, document, task, maxTokens, null); // retries, model switch, error messages
+            }
+            StringBuilder out = new StringBuilder();
+            long inTok = 0, outTok = 0, cached = 0, last = 0;
+            String finish = "";
+            try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8))) {
+                for (String line; (line = r.readLine()) != null; ) {
+                    if (!line.startsWith("data:")) continue;
+                    JSONObject o = new JSONObject(line.substring(5).trim());
+                    JSONArray cands = o.optJSONArray("candidates");
+                    if (cands != null && cands.length() > 0) {
+                        JSONObject cand = cands.getJSONObject(0);
+                        JSONArray parts = cand.optJSONObject("content") == null ? null : cand.getJSONObject("content").optJSONArray("parts");
+                        for (int i = 0; parts != null && i < parts.length(); i++) {
+                            JSONObject pt = parts.getJSONObject(i);
+                            if (!pt.optBoolean("thought", false)) out.append(pt.optString("text", ""));
+                        }
+                        if (cand.has("finishReason")) finish = cand.optString("finishReason");
+                    }
+                    JSONObject u = o.optJSONObject("usageMetadata");
+                    if (u != null) {
+                        inTok = u.optLong("promptTokenCount");
+                        outTok = u.optLong("candidatesTokenCount");
+                        cached = u.optLong("cachedContentTokenCount");
+                    }
+                    long now = System.currentTimeMillis();
+                    if (now - last > 250 && out.length() > 0) { last = now; l.onText(out.toString()); }
+                }
+            }
+            String text = out.toString().trim();
+            if (text.isEmpty()) return complete(system, document, task, maxTokens, null);
+            if ("MAX_TOKENS".equals(finish)) text += "\n\n_(The answer was cut off at the length limit. Tap Regenerate for a complete one.)_";
+            l.onText(text);
+            return new Result(text, model, Math.max(0, inTok - cached), outTok, cached);
+        } catch (AiException e) {
+            throw e;
+        } catch (Exception e) {
+            if (c != null) c.disconnect();
+            return complete(system, document, task, maxTokens, null);
         }
     }
 

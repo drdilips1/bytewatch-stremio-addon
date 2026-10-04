@@ -34,4 +34,17 @@ interface LlmProvider {
      * @param jsonSchema JSON Schema the answer must follow, or null for Markdown text
      */
     Result complete(String system, String document, String task, int maxTokens, String jsonSchema) throws AiException;
+
+    /** Receives the answer so far while it is being written. */
+    interface TextListener { void onText(String soFar); }
+
+    /**
+     * Like {@link #complete} for plain text answers, reporting the text as it arrives so it can be
+     * shown while still being written. Providers without streaming answer in one go.
+     */
+    default Result completeStream(String system, String document, String task, int maxTokens, TextListener l) throws AiException {
+        Result r = complete(system, document, task, maxTokens, null);
+        l.onText(r.text);
+        return r;
+    }
 }

@@ -558,7 +558,7 @@
         if (m.recent) refs = refs.filter((r) => r.kind === 'trial' || +r.a.year >= D.THIS_YEAR - 5).map((r, i) => ({ ...r, n: i + 1 }));
         const ctx = newCtx(refs);
         out.innerHTML = busyHtml(`Reading ${refs.length} sources…`);
-        const text = await D.ai(`Request: ${input}\n\n${m.task}`, { doc: packText(refs), system: CITE_SYSTEM + ' Write Markdown with "## " headings and "- " bullets. If you use a table, put the source numbers like [3] in every row.', max: 5000 });
+        const text = await D.ai(`Request: ${input}\n\n${m.task}`, { doc: packText(refs), system: CITE_SYSTEM + ' Write Markdown with "## " headings and "- " bullets. If you use a table, put the source numbers like [3] in every row.', max: 5000, onPartial: (t) => { if (out.isConnected) out.innerHTML = `<div class="panel synth">${md(t)}<span class="typing">▍</span></div>`; } });
         out.innerHTML = `<div class="panel synth">${citeHtml(md(text), ctx)}${sourcesList(text, refs)}<button class="btn xs" data-act="refs-all" data-ctx="${ctx}">${icon('list')}All ${refs.length} sources searched</button></div>`;
         return;
       }
@@ -566,7 +566,7 @@
         out.innerHTML = busyHtml('Reading the paper…');
         const a = await resolvePaper(input);
         const src = await paperText(a);
-        const text = await D.ai(`${m.task}${input && !$('#desk-paper')?.value ? '' : input ? '\n\nAlso: ' + input : ''}`, { ...src, max: 6000 });
+        const text = await D.ai(`${m.task}${input && !$('#desk-paper')?.value ? '' : input ? '\n\nAlso: ' + input : ''}`, { ...src, max: 6000, onPartial: (t) => { if (out.isConnected) out.innerHTML = `<div class="panel synth">${md(t)}<span class="typing">▍</span></div>`; } });
         out.innerHTML = `<div class="panel synth"><div class="label">${icon('school')}${esc(a.title)} <span class="muted small">(${src.label})</span></div>${md(text)}
           <button class="btn xs" data-act="open" data-id="${esc(a.id)}">${icon('file')}Open paper</button></div>`;
         return;
@@ -574,7 +574,7 @@
       out.innerHTML = busyHtml('Thinking…');
       const text = await D.ai(`${m.task}\n\nUser's material / request:\n\n${input}`, {
         system: 'You are an expert dermatology researcher, biostatistician and medical writer. Be precise and practical. Never invent data or references. Markdown with "## " headings and "- " bullets.',
-        max: 6000,
+        max: 6000, onPartial: (t) => { if (out.isConnected) out.innerHTML = `<div class="panel synth">${md(t)}<span class="typing">▍</span></div>`; },
       });
       out.innerHTML = `<div class="panel synth">${md(text)}<button class="btn xs" data-act="desk-copy">${icon('quote')}Copy</button></div>`;
       actions['desk-copy'] = () => D.copyText(text);
@@ -695,7 +695,8 @@
           ? 'Professor-level deep dive for dermatologists: background, methods critique, results with numbers, risk of bias, how it fits the existing evidence, clinical implications, and open questions.'
           : 'A 2-minute summary (about 300 words): question, design, main results with numbers, limitations, and what it means in practice.';
         if (b.dataset.l === 'deep') out.innerHTML = busyHtml('Writing the deep dive… this can take a minute');
-        const text = await D.ai(ask + (src.label === 'abstract only' ? ' (Only the abstract is available; say so where it limits the analysis.)' : ''), { ...src, max: b.dataset.l === 'deep' ? 7000 : 3500 });
+        const text = await D.ai(ask + (src.label === 'abstract only' ? ' (Only the abstract is available; say so where it limits the analysis.)' : ''),
+          { ...src, max: b.dataset.l === 'deep' ? 7000 : 3500, onPartial: (t) => { if (out.isConnected) out.innerHTML = `<div class="synth">${md(t)}<span class="typing">▍</span></div>`; } });
         out.innerHTML = `<div class="synth">${md(text)}</div><button class="btn xs" data-act="td-listen" data-i="${b.dataset.i}">${icon('audio')}Listen</button>`;
         actions['td-listen'] = () => D.ttsPlayScript?.('Today', text.replace(/[#*_]/g, '').split(/\n+/).filter((t) => t.trim().length > 1).map((t) => ({ t: t.trim() })), { title: r0.a.title.slice(0, 60) });
       } catch (e) { out.innerHTML = aiErr(e); }

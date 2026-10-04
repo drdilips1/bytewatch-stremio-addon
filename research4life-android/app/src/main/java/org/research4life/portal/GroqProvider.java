@@ -84,6 +84,80 @@ final class GroqProvider implements LlmProvider {
         }
     }
 
+    /** Streams a plain text answer (Server-Sent Events); any problem falls back to {@link #complete}. */
+    @Override
+    public Result completeStream(String system, String document, String task, int maxTokens, TextListener l) throws AiException {
+        HttpURLConnection c = null;
+        try {
+            JSONObject body = new JSONObject();
+            body.put("model", model);
+            JSONArray messages = new JSONArray();
+            messages.put(new JSONObject().put("role", "system").put("content", system));
+            String user = document == null || document.isEmpty() ? task : "<document>\n" + document + "\n</document>\n\n" + task;
+            messages.put(new JSONObject().put("role", "user").put("content", user));
+            body.put("messages", messages);
+            body.put("max_completion_tokens", maxTokens);
+            if (model.startsWith("openai/gpt-oss")) {
+                body.put("reasoning_effort", "low");
+                body.put("include_reasoning", false);
+            }
+            body.put("stream", true);
+            body.put("stream_options", new JSONObject().put("include_usage", true));
+            c = (HttpURLConnection) new URL(BASE + "chat/completions").openConnection();
+            c.setConnectTimeout(20000);
+            c.setReadTimeout(180000);
+            c.setRequestMethod("POST");
+            c.setDoOutput(true);
+            c.setRequestProperty("Authorization", "Bearer " + apiKey);
+            c.setRequestProperty("Content-Type", "application/json");
+            try (OutputStream os = c.getOutputStream()) {
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            if (c.getResponseCode() >= 400) {
+                c.disconnect();
+                return complete(system, document, task, maxTokens, null); // its error handling (limits, keys…)
+            }
+            StringBuilder out = new StringBuilder();
+            long in = 0, outTok = 0, cached = 0, last = 0;
+            String finish = "", served = model;
+            try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8))) {
+                for (String line; (line = r.readLine()) != null; ) {
+                    if (!line.startsWith("data:")) continue;
+                    String data = line.substring(5).trim();
+                    if (data.equals("[DONE]")) break;
+                    JSONObject o = new JSONObject(data);
+                    served = o.optString("model", served);
+                    JSONArray ch = o.optJSONArray("choices");
+                    if (ch != null && ch.length() > 0) {
+                        JSONObject d = ch.getJSONObject(0).optJSONObject("delta");
+                        if (d != null && !d.isNull("content")) out.append(d.optString("content", ""));
+                        if (!ch.getJSONObject(0).isNull("finish_reason")) finish = ch.getJSONObject(0).optString("finish_reason");
+                    }
+                    JSONObject u = o.optJSONObject("usage");
+                    if (u == null && o.optJSONObject("x_groq") != null) u = o.getJSONObject("x_groq").optJSONObject("usage");
+                    if (u != null) {
+                        in = u.optLong("prompt_tokens");
+                        outTok = u.optLong("completion_tokens");
+                        JSONObject det = u.optJSONObject("prompt_tokens_details");
+                        cached = det == null ? 0 : det.optLong("cached_tokens");
+                    }
+                    long now = System.currentTimeMillis();
+                    if (now - last > 250 && out.length() > 0) { last = now; l.onText(out.toString()); }
+                }
+            }
+            String text = out.toString().trim();
+            if (text.isEmpty()) return complete(system, document, task, maxTokens, null);
+            if ("length".equals(finish)) text += "\n\n_(The answer was cut off at the length limit. Tap Regenerate for a complete one.)_";
+            l.onText(text);
+            return new Result(text, served, Math.max(0, in - cached), outTok, cached);
+        } catch (AiException e) {
+            throw e;
+        } catch (Exception e) {
+            if (c != null) c.disconnect();
+            return complete(system, document, task, maxTokens, null);
+        }
+    }
+
     /** Answers about an image (JPEG, base64) with Groq's vision model. */
     Result completeWithImage(String system, String task, String base64Jpeg, int maxTokens) throws AiException {
         try {

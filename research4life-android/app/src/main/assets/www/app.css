@@ -1094,3 +1094,5 @@ details.panel summary { cursor: pointer; }
 .ptr svg { width: 20px; height: 20px; }
 .ptr.spin { transform: translate(-50%, 60px) !important; animation: ptr-spin .8s linear infinite; color: var(--accent); }
 @keyframes ptr-spin { to { transform: translate(-50%, 60px) rotate(360deg); } }
+.typing { display: inline-block; margin-left: 2px; color: var(--accent); animation: typing-blink 1s steps(1) infinite; }
+@keyframes typing-blink { 50% { opacity: 0; } }
