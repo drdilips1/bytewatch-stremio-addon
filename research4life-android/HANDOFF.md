@@ -13,7 +13,7 @@ Read this first, then `BACKLOG.md` (the roadmap with every request and its statu
 
 ## Current state
 - **Shipped: 5.5** (versionCode 33): Consensus meter fix and treatment-only evidence (BACKLOG #45). The next build is **5.6 / versionCode 34**.
-- **Web app for iPhone (BACKLOG #23), built but not online.** The owner's wife will use it with her own account. Publishing it at a public address (e.g. GitHub Pages from a `gh-pages` branch) needs the owner's explicit OK.
+- **Web app for iPhone (BACKLOG #23), published** (owner approved): workflow `.github/workflows/dermscholar-web.yml` builds it on every push (not on `[skip ci]`) and force-pushes it to the `gh-pages` branch → https://drdilips1.github.io/bytewatch-stremio-addon/ . The owner's wife uses it with her own account.
 
 ## App architecture
 Hybrid Android app: a WebView UI plus a Java bridge.
