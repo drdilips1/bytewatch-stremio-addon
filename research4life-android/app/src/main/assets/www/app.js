@@ -16,7 +16,8 @@
       speakers: ['Default|female|US', 'Bella|female|US', 'Nicole|female|US', 'Sarah|female|US', 'Sky|female|US', 'Adam|male|US', 'Michael|male|US', 'Emma|female|UK', 'Isabella|female|UK', 'George|male|UK', 'Lewis|male|UK'].map((x) => { const [name, gender, accent] = x.split('|'); return { name, gender, accent }; }) },
     { id: 'piper-ryan', label: 'Ryan', desc: 'Warm US male narrator.', sizeMb: 34, lang: 'en', type: 'vits', installed: !!localStorage.getItem('ds.stub.voice.piper-ryan'), speakers: [] },
     { id: 'piper-priyamvada', label: 'Priyamvada (Hindi)', desc: 'Hindi female voice.', sizeMb: 21, lang: 'hi', type: 'vits', installed: false, speakers: [] }]);
-  const Native = hasNative ? window.Native : {
+  // In the browser: the web build's bridge (web.js) where it has one, else development stubs.
+  const Native = hasNative ? window.Native : Object.assign({
     listPdfs: () => '[]', hasPdf: () => false, storageBytes: () => 0,
     downloadPdf: () => toast('PDF download needs the Android app'),
     openPdf: () => {}, deletePdf: () => {}, sharePdf: () => {},
@@ -85,7 +86,7 @@
     utdTopic: (u) => setTimeout(() => App.onNative(window.__utdMock ? window.__utdMock('topic', u) : { type: 'utdTopic', state: 'error', message: 'UpToDate needs the Android app' }), 300),
     openUpToDateAt: (u) => window.open(u, '_blank'),
     openUpToDate: (q) => window.open('https://www.uptodate.com/contents/search' + (q ? '?search=' + encodeURIComponent(q) : ''), '_blank'),
-  };
+  }, window.WebNative || {});
   function copyText(t) { navigator.clipboard?.writeText(t); toast('Copied'); }
 
   const EPMC = hasNative ? '/proxy/epmc/' : 'https://www.ebi.ac.uk/europepmc/webservices/rest/';

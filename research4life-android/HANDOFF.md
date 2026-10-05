@@ -8,11 +8,12 @@ Read this first, then `BACKLOG.md` (the roadmap with every request and its statu
 - After a build: download the APK from the GitHub release `dermscholar-<run number>` (REST: `gh api -H "Accept: application/octet-stream" repos/drdilips1/bytewatch-stremio-addon/releases/assets/<id>`). Attach it in chat if under 30 MB (it's ~25 MB), and also give the release link.
 - Bump `versionCode` / `versionName` in `app/build.gradle` for every build. CI also publishes `dermscholar-latest` (APK + `version.json`), which the in-app updater reads.
 - Commands given to the owner for their Mac Terminal must not contain `#` comment lines (zsh errors on them). Give one step at a time.
-- Don't integrate Sci-Hub/LibGen (declined: copyright). The web/iPhone app is dropped.
+- Don't integrate Sci-Hub/LibGen (declined: copyright).
+- Keep the Android app's structure as is. The web app must not remove features: what needs Android opens the website in a browser tab instead.
 
 ## Current state
-- **Shipped: 5.4** (versionCode 32), release `dermscholar-41`.
-- **Saved but NOT built yet:** BACKLOG #45. The Consensus meter now classifies what each paper *says* (no longer "possibly" for every review), reads the 25 most relevant papers with abstracts and skips case reports, and shows counts in the bar. Treatment questions search treatment/efficacy papers only, without side-effect papers. The next build is **5.5 / versionCode 33**.
+- **Shipped: 5.5** (versionCode 33): Consensus meter fix and treatment-only evidence (BACKLOG #45). The next build is **5.6 / versionCode 34**.
+- **Web app for iPhone (BACKLOG #23), built but not online.** The owner's wife will use it with her own account. Publishing it at a public address (e.g. GitHub Pages from a `gh-pages` branch) needs the owner's explicit OK.
 
 ## App architecture
 Hybrid Android app: a WebView UI plus a Java bridge.
@@ -31,6 +32,7 @@ Hybrid Android app: a WebView UI plus a Java bridge.
   - AI providers: Groq, Gemini, Claude (with streaming)
   - Voices: `VoiceStore`, `NeuralEngine` (Kokoro HD)
 - New screens: add the route to `ext.routes` and to `TAB_OF` in `app.js`. A new JS file also needs a `<script>` tag in `index.html` and an entry in the CI `node --check` list (`.github/workflows/research4life-apk.yml`).
+- Web app (iPhone): `web/web.js` is loaded before `app.js` only in the web build and provides `window.WebNative`, which `app.js` merges into its browser `Native`. It covers AI (Groq/Gemini/Claude from the browser), PDFs in the Cache API (`reflow.openPdf` asks `WebNative.pdfBytes`; a `fetch` wrapper serves `/pdf/` and `/import/`), read aloud (speechSynthesis), voice input, file/photo picking, OCR via AI vision. Keys stay in `dsweb.*` localStorage (not synced). Build: `bash web/build.sh [out]`.
 - Testing: Playwright with mocked `fetch` and `window.__aiMock` (Chromium at `/opt/pw-browsers/chromium`). Serve `www/` over `python3 -m http.server` when a test needs `/pdf/...` or ES modules.
 
 ## Done so far (highlights by version)

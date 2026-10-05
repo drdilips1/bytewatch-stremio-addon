@@ -10,9 +10,11 @@ const FIG_CAPTION = /^(fig(ure)?|scheme|chart)\.?\s*([0-9]+|[ivxlc]+)\b/i;
 const TABLE_CAPTION = /^(table|tab)\.?\s*([0-9]+|[ivxlc]+)\b/i;
 const SECTION_WORDS = /^(abstract|introduction|background|methods?|materials and methods|patients and methods|results|discussion|conclusions?|limitations|references|acknowledg(e)?ments?|funding|conflicts? of interest|disclosures?|summary|case reports?|case presentation|capsule summary|key points|study design|statistical analysis)\b/i;
 
-export function openPdf(url) {
+export async function openPdf(url) {
+  // The web build keeps PDFs in the browser's storage and hands over their bytes.
+  const data = window.WebNative && /^\/pdf\//.test(url) ? await window.WebNative.pdfBytes(url) : null;
   return pdfjs.getDocument({
-    url,
+    ...(data ? { data } : { url }),
     standardFontDataUrl: BASE + 'standard_fonts/',
     cMapUrl: BASE + 'cmaps/',
     cMapPacked: true,
