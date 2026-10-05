@@ -6,6 +6,9 @@ on:
   push:
     paths:
       - 'research4life-android/**'
+      - '!research4life-android/ios/**'
+      - '!research4life-android/app/src/main/java/**'
+      - '!research4life-android/app/src/main/res/**'
       - '.github/workflows/dermscholar-web.yml'
   workflow_dispatch:
 

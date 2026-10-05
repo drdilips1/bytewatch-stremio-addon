@@ -1,0 +1,59 @@
+name: Build DermScholar iPhone app
+
+# Unsigned iPhone app (.ipa) for sideloading (Sideloadly or AltStore sign it with a free Apple ID;
+# refresh every 7 days). Screens: the web build (research4life-android/web/build.sh); native
+# side: research4life-android/ios (XcodeGen project).
+on:
+  push:
+    paths:
+      - 'research4life-android/**'
+      - '!research4life-android/app/src/main/java/**'
+      - '!research4life-android/app/src/main/res/**'
+      - '.github/workflows/dermscholar-ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: research4life-android/ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the screens
+        run: bash ../web/build.sh "$PWD/www"
+
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build
+        run: |
+          NAME=$(grep -oE "versionName '[^']+'" ../app/build.gradle | cut -d"'" -f2)
+          xcodebuild -quiet -project DermScholar.xcodeproj -target DermScholar -configuration Release -sdk iphoneos \
+            MARKETING_VERSION="$NAME" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" SYMROOT="$PWD/build" build
+          mkdir Payload
+          cp -R build/Release-iphoneos/DermScholar.app Payload/
+          zip -qry DermScholar.ipa Payload
+          ls -la DermScholar.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DermScholar-ipa
+          path: research4life-android/ios/DermScholar.ipa
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "dermscholar-ios-${{ github.run_number }}" DermScholar.ipa \
+            --target "${{ github.sha }}" \
+            --title "DermScholar iPhone app (build ${{ github.run_number }})" \
+            --notes "Unsigned iPhone app. Install with Sideloadly or AltStore on a Mac, signed with a free Apple ID (refresh every 7 days). Your library stays when you reinstall." \
+            --prerelease

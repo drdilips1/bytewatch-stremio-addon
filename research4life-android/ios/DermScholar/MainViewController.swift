@@ -1,0 +1,174 @@
+import UIKit
+import WebKit
+
+/// Hosts DermScholar's screens (the same ones as the Android app, plus web/web.js) and does
+/// what a web page can't: the in-app browser, sharing, files opened with the app, and fetching
+/// other sites (LocalFiles' /proxy).
+final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
+    private(set) var webView: WKWebView!
+    private let files = LocalFiles()
+    private var ready = false
+    private var queued: [[String: Any]] = []
+
+    override func loadView() {
+        let cfg = WKWebViewConfiguration()
+        cfg.setURLSchemeHandler(files, forURLScheme: LocalFiles.scheme)
+        cfg.userContentController.add(WeakScriptHandler(self), name: "ios")
+        cfg.allowsInlineMediaPlayback = true
+        cfg.mediaTypesRequiringUserActionForPlayback = []
+        cfg.websiteDataStore = .default()
+        let wv = WKWebView(frame: .zero, configuration: cfg)
+        wv.navigationDelegate = self
+        wv.uiDelegate = self
+        wv.scrollView.contentInsetAdjustmentBehavior = .never
+        wv.isOpaque = false
+        wv.backgroundColor = .systemBackground
+        if #available(iOS 16.4, *) { wv.isInspectable = true }
+        webView = wv
+        view = wv
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        webView.load(URLRequest(url: URL(string: "\(LocalFiles.scheme)://app/index.html")!))
+    }
+
+    // MARK: messages from the screens (web.js)
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any], let cmd = body["cmd"] as? String else { return }
+        switch cmd {
+        case "ready":
+            ready = true
+            let pending = queued
+            queued = []
+            pending.forEach { send($0) }
+        case "browse":
+            if let s = body["url"] as? String, let u = URL(string: s) { openBrowser(u, key: body["key"] as? String ?? "") }
+        case "copy":
+            UIPasteboard.general.string = body["text"] as? String ?? ""
+        case "share":
+            share(body)
+        case "done":
+            if let id = body["id"] as? String { try? FileManager.default.removeItem(at: LocalFiles.inbox.appendingPathComponent(id)) }
+        default:
+            break
+        }
+    }
+
+    /// Sends an event to web.js (WebNative.fromNative); kept until the screens are ready.
+    func send(_ evt: [String: Any]) {
+        guard ready else { queued.append(evt); return }
+        guard let d = try? JSONSerialization.data(withJSONObject: evt), let json = String(data: d, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("window.WebNative && WebNative.fromNative(\(json)); 0", completionHandler: nil)
+    }
+
+    // MARK: files
+
+    /// A file opened with DermScholar from another app.
+    func receive(_ url: URL) {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url) else { return }
+        let isPdf = url.pathExtension.lowercased() == "pdf"
+        hand(data, name: url.lastPathComponent, mime: isPdf ? "application/pdf" : "application/octet-stream", key: "", title: "")
+    }
+
+    /// Hands a file to the screens: PDFs are filed under the paper waiting for one (or `key`).
+    func hand(_ data: Data, name: String, mime: String, key: String, title: String) {
+        let id = UUID().uuidString + (mime == "application/pdf" ? ".pdf" : "")
+        do { try data.write(to: LocalFiles.inbox.appendingPathComponent(id)) } catch { return }
+        send(["type": "nativeFile", "id": id, "name": name, "mime": mime, "key": key, "title": title])
+    }
+
+    // MARK: browser and sharing
+
+    func openBrowser(_ url: URL, key: String) {
+        let scheme = url.scheme?.lowercased() ?? ""
+        if scheme != "http" && scheme != "https" {
+            UIApplication.shared.open(url)
+            return
+        }
+        let b = BrowserViewController(url: url, key: key)
+        b.onPdf = { [weak self] data, name, title in
+            self?.hand(data, name: name, mime: "application/pdf", key: key, title: title)
+        }
+        let nav = UINavigationController(rootViewController: b)
+        nav.modalPresentationStyle = .fullScreen
+        topPresenter().present(nav, animated: true)
+    }
+
+    private func share(_ b: [String: Any]) {
+        var items: [Any] = []
+        if let b64 = b["b64"] as? String, let data = Data(base64Encoded: b64) {
+            var name = (b["fileName"] as? String) ?? ""
+            if name.isEmpty { name = "DermScholar.txt" }
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent(name.replacingOccurrences(of: "/", with: " "))
+            do { try data.write(to: file); items.append(file) } catch { return }
+        } else {
+            items.append((b["text"] as? String) ?? (b["title"] as? String) ?? "")
+        }
+        let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        vc.popoverPresentationController?.sourceView = view
+        vc.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 80, width: 1, height: 1)
+        topPresenter().present(vc, animated: true)
+    }
+
+    private func topPresenter() -> UIViewController {
+        var v: UIViewController = self
+        while let p = v.presentedViewController { v = p }
+        return v
+    }
+
+    // MARK: navigation: the screens stay in the app; any other link opens in the browser
+
+    func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = action.request.url, let scheme = url.scheme?.lowercased() else { decisionHandler(.allow); return }
+        if scheme == LocalFiles.scheme || scheme == "about" || scheme == "blob" || scheme == "data" || action.targetFrame?.isMainFrame == false {
+            decisionHandler(.allow)
+            return
+        }
+        decisionHandler(.cancel)
+        openBrowser(url, key: "")
+    }
+
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let url = action.request.url { openBrowser(url, key: "") }
+        return nil
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        ready = false
+        webView.reload()
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        let a = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+        a.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
+        topPresenter().present(a, animated: true)
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        let a = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+        a.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(false) })
+        a.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })
+        topPresenter().present(a, animated: true)
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
+        let a = UIAlertController(title: nil, message: prompt, preferredStyle: .alert)
+        a.addTextField { $0.text = defaultText }
+        a.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(nil) })
+        a.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(a.textFields?.first?.text) })
+        topPresenter().present(a, animated: true)
+    }
+}
+
+/// Avoids a retain cycle between the web view's content controller and its message handler.
+final class WeakScriptHandler: NSObject, WKScriptMessageHandler {
+    weak var target: WKScriptMessageHandler?
+    init(_ target: WKScriptMessageHandler) { self.target = target }
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(controller, didReceive: message)
+    }
+}

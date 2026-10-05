@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'research4life-android/**'
+      - '!research4life-android/web/**'
+      - '!research4life-android/ios/**'
       - '.github/workflows/research4life-apk.yml'
   workflow_dispatch:
 

@@ -1,12 +1,17 @@
-/* DermScholar on the web (iPhone Safari → Share → Add to Home Screen).
- * Loaded before app.js in the web build only. The Android app does AI requests, PDF storage,
+/* DermScholar on the web (iPhone Safari → Share → Add to Home Screen) and in the iPhone app.
+ * Loaded before app.js in the web build and the iPhone app only. The Android app does AI requests, PDF storage,
  * read aloud and file picking in Java (MainActivity's "Native" bridge); this file does the same
  * jobs with browser features, so the shared screens work unchanged. Features that need Android
  * (Research4Life/UpToDate sign-in inside the app, MyLOFT handoff) open the website in a new tab.
+ * Inside the iPhone app (ios/), those open in its built-in browser instead, PDFs opened there are
+ * filed into the library, and pages are fetched through the app (no browser CORS limits).
  */
 (() => {
   'use strict';
 
+  // The iPhone app's native side (ios/DermScholar/MainViewController.swift), when running inside it.
+  const IOS = (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.ios) || null;
+  const ios = (cmd, o = {}) => IOS.postMessage({ cmd, ...o });
   const emit = (e) => setTimeout(() => window.App && window.App.onNative(e), 0);
   const toast = (m) => (window.DS ? window.DS.toast(m) : console.log(m));
   // Own prefix: kept out of the account sync (which syncs "ds." keys), so API keys stay on this phone.
@@ -20,8 +25,9 @@
 
   /** Opens a link in a new tab; when the tap that asked for it is long gone (Safari blocks the
    * pop-up), shows a button to open it instead. */
-  function openTab(url, label = 'Open') {
+  function openTab(url, label = 'Open', key = '') {
     if (!url) return;
+    if (IOS) { ios('browse', { url, key }); return; }
     let w = null;
     if (userActive()) { try { w = window.open(url, '_blank', 'noopener'); } catch { w = null; } }
     if (w || (userActive() && !navigator.userActivation)) return;
@@ -48,14 +54,36 @@
   const FILES = 'dsweb-files';
   const fileUrl = (kind, key) => new URL('__files/' + kind + '/' + encodeURIComponent(key), location.href).href;
   const pdfIndex = () => ls.get('pdfs', {});
+  // The Cache API needs a secure (https) page; the iPhone app's own pages use IndexedDB instead.
+  const useCache = typeof caches !== 'undefined' && window.isSecureContext;
+  let idbP = null;
+  const idb = () => idbP || (idbP = new Promise((res, rej) => {
+    const r = indexedDB.open('dsweb-files', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('files');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+  const idbDo = async (mode, f) => { const db = await idb(); return new Promise((res, rej) => { const t = db.transaction('files', mode); const q = f(t.objectStore('files')); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); }); };
   async function putFile(kind, key, blob, type) {
+    const t = type || blob.type || 'application/octet-stream';
+    if (!useCache) { await idbDo('readwrite', (st) => st.put({ blob: new Blob([blob], { type: t }), type: t }, kind + '/' + key)); return; }
     const c = await caches.open(FILES);
-    await c.put(fileUrl(kind, key), new Response(blob, { headers: { 'Content-Type': type || blob.type || 'application/octet-stream' } }));
+    await c.put(fileUrl(kind, key), new Response(blob, { headers: { 'Content-Type': t } }));
   }
   async function getFile(kind, key) {
-    try { const c = await caches.open(FILES); return await c.match(fileUrl(kind, key)); } catch { return null; }
+    try {
+      if (!useCache) { const o = await idbDo('readonly', (st) => st.get(kind + '/' + key)); return o ? new Response(o.blob, { headers: { 'Content-Type': o.type } }) : null; }
+      const c = await caches.open(FILES); return await c.match(fileUrl(kind, key));
+    } catch { return null; }
   }
-  async function delFile(kind, key) { try { const c = await caches.open(FILES); await c.delete(fileUrl(kind, key)); } catch { /* gone */ } }
+  async function delFile(kind, key) {
+    try {
+      if (!useCache) { await idbDo('readwrite', (st) => st.delete(kind + '/' + key)); return; }
+      const c = await caches.open(FILES); await c.delete(fileUrl(kind, key));
+    } catch { /* gone */ }
+  }
+  /** Fetches another site: through the iPhone app when inside it (no CORS limits), else directly. */
+  const nfetch = (url) => (IOS ? realFetch('/proxy?u=' + encodeURIComponent(url)) : realFetch(url));
   async function savePdf(key, blob, title, source) {
     await putFile('pdf', key, blob, 'application/pdf');
     const idx = pdfIndex();
@@ -484,8 +512,9 @@
 
   // ================================================================ the bridge
   const N = {
-    isWeb: true,
-    version: () => '5.5 web',
+    isWeb: !IOS,
+    isIos: !!IOS,
+    version: () => (IOS ? '5.5 iOS' : '5.5 web'),
 
     // ---- PDFs
     listPdfs: () => JSON.stringify(Object.entries(pdfIndex()).map(([key, o]) => ({ ...o, key }))),
@@ -528,7 +557,7 @@
     fetchPage: async (id, url) => {
       const key = 'web_' + Date.now();
       try {
-        const res = await realFetch(url);
+        const res = await nfetch(url);
         if (!res.ok) throw new Error('The site answered ' + res.status);
         const buf = await res.arrayBuffer();
         const type = res.headers.get('content-type') || '';
@@ -537,7 +566,7 @@
           emit({ type: 'pageFetched', id, key, pdf: true });
         } else {
           await putFile('doc', key, new Blob([buf], { type }), type);
-          emit({ type: 'pageFetched', id, key, url: res.url || url, type });
+          emit({ type: 'pageFetched', id, key, url: (!IOS && res.url) || url, type });
         }
       } catch {
         // Most sites don't let other websites read their pages: open it instead.
@@ -550,7 +579,7 @@
     getPdf: async (key, doi, title, freeUrl) => {
       if (freeUrl) {
         try {
-          const res = await realFetch(freeUrl);
+          const res = await nfetch(freeUrl);
           const buf = res.ok ? await res.arrayBuffer() : null;
           if (buf && isPdf(buf)) {
             await savePdf(key, new Blob([buf], { type: 'application/pdf' }), title, freeUrl);
@@ -562,7 +591,7 @@
       if (!freeUrl && !doi) { emit({ type: 'pdfFailed', key, message: "This paper has no DOI, so it can't be fetched automatically." }); return; }
       N.setPendingPdf(key, title);
       ls.set('fetch.' + key, { doi, free: freeUrl || '' });
-      emit({ type: 'pdfFailed', key, canShow: true, message: 'Tap Show page, download the PDF there (Research4Life, MyLOFT or the journal), then come back and tap Add PDF: it files itself under this paper.' });
+      emit({ type: 'pdfFailed', key, canShow: true, message: IOS ? 'Tap Show page and open the PDF there (Research4Life, MyLOFT or the journal): it files itself under this paper.' : 'Tap Show page, download the PDF there (Research4Life, MyLOFT or the journal), then come back and tap Add PDF: it files itself under this paper.' });
     },
     downloadPdf: (key, url, title) => N.getPdf(key, '', title, url),
     showFetchPage: (key, doi) => {
@@ -571,11 +600,12 @@
       const d = doi || f.doi;
       // With a Research4Life account, go through its proxy (sign in once in Safari); else the publisher.
       const r4l = (() => { try { return !!localStorage.getItem('ds.acc.r4l'); } catch { return false; } })();
-      openTab(f.free || (d ? (r4l ? 'https://login.research4life.org/tacsgr1doi_org/' : 'https://doi.org/') + d : ''), 'Open the paper');
+      openTab(f.free || (d ? (r4l ? 'https://login.research4life.org/tacsgr1doi_org/' : 'https://doi.org/') + d : ''), 'Open the paper', key);
     },
     cancelFetch: () => {},
     openPdf: (key) => N.openPdfPages(key),
     openPdfPages: async (key) => {
+      if (IOS) { N.sharePdf(key, (pdfIndex()[key] || {}).title || 'paper'); return; }
       const r = await getFile('pdf', key);
       if (!r) { toast('This PDF isn\'t on this phone'); return; }
       const url = URL.createObjectURL(await r.blob());
@@ -584,7 +614,9 @@
     sharePdf: async (key, title) => {
       const r = await getFile('pdf', key);
       if (!r) return;
-      const file = new File([await r.blob()], (title || 'paper').replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 80) + '.pdf', { type: 'application/pdf' });
+      const name = (title || 'paper').replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 80) + '.pdf';
+      if (IOS) { ios('share', { title: title || '', fileName: name, b64: await b64(await r.blob()), mime: 'application/pdf' }); return; }
+      const file = new File([await r.blob()], name, { type: 'application/pdf' });
       try {
         if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title });
         else N.openPdfPages(key);
@@ -595,7 +627,7 @@
     openPortal: (url) => openTab(url),
     openBrowser: (url) => {
       // Google sign-in returns to this page (the Android app uses its dermscholar:// link).
-      if (/\/auth\/v1\/authorize/.test(url)) { location.assign(url.replace(/redirect_to=[^&]*/, 'redirect_to=' + encodeURIComponent(location.origin + location.pathname))); return; }
+      if (!IOS && /\/auth\/v1\/authorize/.test(url)) { location.assign(url.replace(/redirect_to=[^&]*/, 'redirect_to=' + encodeURIComponent(location.origin + location.pathname))); return; }
       openTab(url);
     },
     openUpToDateAt: (u) => openTab(u, 'Open UpToDate'),
@@ -613,12 +645,13 @@
     hasMyLoftApp: () => true,
     openMyLoftApp: () => openTab('https://app.myloft.xyz/', 'Open MyLOFT'),
     sendToMyLoft: (text) => {
-      try { navigator.clipboard.writeText(text); } catch { /* not allowed */ }
-      openTab(/^https?:/.test(text) ? text : 'https://app.myloft.xyz/', 'Open in MyLOFT');
+      N.copy(text);
+      openTab(/^https?:/.test(text) ? text : 'https://app.myloft.xyz/', 'Open in MyLOFT', (ls.get('pending', null) || {}).key || '');
     },
-    share: (t, text) => (navigator.share ? navigator.share({ title: t, text }).catch(() => {}) : N.copy(text)),
-    copy: (t) => { try { navigator.clipboard.writeText(t); } catch { /* not allowed */ } toast('Copied'); },
+    share: (t, text) => (IOS ? ios('share', { title: t || '', text: text || '' }) : navigator.share ? navigator.share({ title: t, text }).catch(() => {}) : N.copy(text)),
+    copy: (t) => { try { if (IOS) ios('copy', { text: t }); else navigator.clipboard.writeText(t); } catch { /* not allowed */ } toast('Copied'); },
     exportText: async (name, content, mime) => {
+      if (IOS) { ios('share', { fileName: name, b64: await b64(new Blob([content])), mime: mime || 'text/plain' }); return; }
       const file = new File([content], name, { type: mime || 'text/plain' });
       try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; } } catch { return; }
       const a = document.createElement('a');
@@ -687,7 +720,35 @@
     },
   };
   const moving = {};
+  function b64(blob) {
+    return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).slice(String(r.result).indexOf(',') + 1)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+  }
+  /** Files from the iPhone app: PDFs saved in its browser, and files opened with DermScholar. */
+  N.fromNative = async (evt) => {
+    if (evt.type === 'nativeFile') {
+      try {
+        const res = await realFetch('/native/' + encodeURIComponent(evt.id));
+        const blob = await res.blob();
+        if (evt.key) N.setPendingPdf(evt.key, evt.title || '');
+        await receiveFile(new File([blob], evt.name || 'Document', { type: evt.mime || blob.type }));
+      } catch (e) { toast("Couldn't add that file: " + (e.message || e)); }
+      ios('done', { id: evt.id });
+      return;
+    }
+    emit(evt);
+  };
   window.WebNative = N;
+  if (IOS) {
+    if (document.readyState === 'complete') setTimeout(() => ios('ready'), 0);
+    else window.addEventListener('load', () => setTimeout(() => ios('ready'), 300));
+  }
+
+  // UpToDate needs the app's own browser: the web version leaves it out (the iPhone app keeps it).
+  if (!IOS) {
+    const st = document.createElement('style');
+    st.textContent = '.app-tile.utd,[data-act=src][data-v=utd],[data-act=utd-search],[data-act=ev-utd],[data-act=utd-open],#nav [data-tab=utd],.setting:has([data-set=showUTD]),.acc-card:has([data-p=utd]){display:none!important}';
+    document.head.appendChild(st);
+  }
 
   // Google sign-in comes back to this page with the tokens in the address: hand them to sync.js.
   const h = location.hash;

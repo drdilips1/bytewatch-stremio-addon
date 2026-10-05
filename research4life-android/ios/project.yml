@@ -1,0 +1,33 @@
+# XcodeGen project for the DermScholar iPhone app (generated on GitHub's Mac builders; see
+# .github/workflows/dermscholar-ios.yml). The screens are the web build in www/ (made by
+# web/build.sh at build time, not committed).
+name: DermScholar
+options:
+  bundleIdPrefix: org.research4life
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  DermScholar:
+    type: application
+    platform: iOS
+    sources:
+      - path: DermScholar
+        excludes:
+          - Info.plist
+      - path: www
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.research4life.dermscholar
+        PRODUCT_NAME: DermScholar
+        INFOPLIST_FILE: DermScholar/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "5.5"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
