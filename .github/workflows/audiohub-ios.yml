@@ -1,0 +1,103 @@
+name: Audiohub iPhone app
+
+# Unsigned iPhone app (.ipa) for sideloading with AltStore (signed with a free Apple ID on the
+# Mac, renewed every 7 days). Same screens as the Android app; the iOS project is generated
+# here by Capacitor (`cap add ios`), so nothing iOS-specific lives in the repo. The Android-only
+# plugins (InkwellPlayer, InkwellTts, …) are absent on iOS and the app uses its web paths for those.
+on:
+  push:
+    paths:
+      - '.github/workflows/audiohub-ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: audiohub-ios
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: inkwell
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: inkwell/package-lock.json
+
+      - name: Install
+        run: |
+          npm ci
+          CORE=$(node -p "require('@capacitor/core/package.json').version")
+          npm i --no-save "@capacitor/ios@$CORE"
+
+      - name: Build the screens
+        env:
+          VITE_APP_VERSION: ios-${{ github.run_number }}
+        run: npx vite build
+
+      - name: Generate the iOS project
+        run: |
+          npx cap add ios
+          npx cap sync ios
+          ls ios/App
+
+      - name: Icon, splash and permissions
+        run: |
+          A=ios/App/App/Assets.xcassets
+          icon=$(ls $A/AppIcon.appiconset/*.png | head -1)
+          sips -z 1024 1024 public/icon-512.png --out "$icon"
+          for f in $A/Splash.imageset/*.png; do
+            sips -z 512 512 public/icon-512.png --out /tmp/s.png >/dev/null
+            sips -p 2732 2732 --padColor 101012 /tmp/s.png --out "$f" >/dev/null
+          done
+          P=ios/App/App/Info.plist
+          pb() { /usr/libexec/PlistBuddy -c "$1" "$P" 2>/dev/null || true; }
+          pb "Delete :CFBundleDisplayName"
+          pb "Add :CFBundleDisplayName string Audiohub"
+          pb "Add :UIBackgroundModes array"
+          pb "Add :UIBackgroundModes:0 string audio"
+          pb "Add :NSAppTransportSecurity dict"
+          pb "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true"
+          pb "Add :NSAppTransportSecurity:NSAllowsArbitraryLoadsInWebContent bool true"
+          pb "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true"
+          pb "Add :NSLocalNetworkUsageDescription string Audiohub connects to your home server (Audiobookshelf, qBittorrent)."
+          pb "Add :NSMicrophoneUsageDescription string Ask questions about your book by voice."
+          pb "Add :NSSpeechRecognitionUsageDescription string Ask questions about your book by voice."
+          pb "Add :ITSAppUsesNonExemptEncryption bool false"
+          /usr/libexec/PlistBuddy -c Print "$P"
+
+      - name: Build
+        working-directory: inkwell/ios/App
+        run: |
+          if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
+          xcodebuild -quiet $SRC -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build" \
+            MARKETING_VERSION="1.0.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry Audiohub.ipa Payload
+          ls -la Audiohub.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Audiohub-ipa
+          path: inkwell/ios/App/Audiohub.ipa
+
+      - name: Publish release
+        working-directory: inkwell/ios/App
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "audiohub-ios-${{ github.run_number }}" Audiohub.ipa \
+            --target "${{ github.sha }}" \
+            --title "Audiohub iPhone app (build ${{ github.run_number }})" \
+            --notes "Unsigned iPhone app. Install with AltStore on the Mac (AltServer menu, hold Option → Sideload .ipa), signed with a free Apple ID (renewed every 7 days). Your library stays when you reinstall." \
+            --prerelease
