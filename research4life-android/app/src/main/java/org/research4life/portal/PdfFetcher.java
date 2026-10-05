@@ -273,7 +273,12 @@ final class PdfFetcher {
             if (next == null) {
                 // ClinicalKey showed a page instead of the PDF: go straight to the usual route.
                 if (job.viaClinicalKey && pdfAttempts > 0) { failNow("ClinicalKey didn't give the PDF.", true); return; }
-                if (pdfAttempts == 0) waitOrFail(pageUrl);
+                if (pdfAttempts == 0) { waitOrFail(pageUrl); return; }
+                // Every PDF link was tried and none gave a PDF: say so soon, instead of waiting out the timeout.
+                final Job j = job;
+                main.postDelayed(() -> {
+                    if (job == j && !saving) fail("The PDF link opened a page, not the PDF: your Research4Life account may not include this journal (try your other account or MyLOFT), or the site wants a tap: tap Show page.", true);
+                }, 10_000);
                 return;
             }
             if (++pdfAttempts > MAX_PDF_ATTEMPTS) {
@@ -283,6 +288,10 @@ final class PdfFetcher {
             tried.add(next);
             status("downloading", "Downloading the PDF…");
             webView.loadUrl(next);
+            // A link that neither downloads nor opens a page: look again after 20 s (next link or a clear failure).
+            final Job jl = job;
+            final int attempt = pdfAttempts;
+            main.postDelayed(() -> { if (job == jl && !saving && pdfAttempts == attempt) findPdf(webView.getUrl()); }, 20_000);
         });
     }
 
