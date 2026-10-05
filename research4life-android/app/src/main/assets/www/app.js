@@ -925,16 +925,17 @@
       return;
     }
     if (!saved.has(a.id)) { await saveArticle(a); }
+    // Elsevier journals (JAAD…): Research4Life gives the PDF through ClinicalKey, not ScienceDirect.
+    const pii = ext.elsevierPii ? await ext.elsevierPii(a).catch(() => '') : '';
     // Journals Research4Life doesn't cover go straight to MyLOFT (learned from earlier tries).
-    if (!free && !skipAsk && notInR4L().includes(journalKey(a)) && actions.myloft) {
+    // Not Elsevier ones: those earlier tries went through ScienceDirect, before the ClinicalKey route.
+    if (!free && !skipAsk && !pii && notInR4L().includes(journalKey(a)) && actions.myloft) {
       actions.myloft({ dataset: { id: a.id }, r4lAnyway: true, notInR4L: true });
       return;
     }
     jobs.set(a.id, { title: a.title, doi: a.doi || '', state: 'running', message: free ? 'Downloading free PDF…' : 'Starting…', at: Date.now() });
     renderTray();
     refreshCards();
-    // Elsevier journals (JAAD…): Research4Life gives the PDF through ClinicalKey, not ScienceDirect.
-    const pii = ext.elsevierPii ? await ext.elsevierPii(a).catch(() => '') : '';
     if (pii) Native.getPdf(a.id, a.doi || '', a.title, free || '', pii);
     else Native.getPdf(a.id, a.doi || '', a.title, free || '');
   }
@@ -3236,7 +3237,7 @@
         if (evt.notInR4L && actions.myloft) {
           // Not in Research4Life: remember the journal and offer MyLOFT right away.
           const a = saved.get(evt.key);
-          const k = a && journalKey(a);
+          const k = a && !/^10\.1016\//.test(a.doi || '') && journalKey(a);
           if (k && !notInR4L().includes(k)) store.set('notInR4L', [...notInR4L(), k].slice(-300));
           jobs.delete(evt.key); renderTray();
           actions.myloft({ dataset: { id: evt.key }, notInR4L: true });
