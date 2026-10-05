@@ -69,7 +69,7 @@ export function buildReport({ note = '', version = '', setup = [] } = {}) {
     '',
     `What happened: ${note.trim() || '(not described)'}`,
     '',
-    `App: Audiohub ${version} · ${Capacitor.isNativePlatform() ? 'Android app' : 'web app'}`,
+    `App: Audiohub ${version} · ${{ android: 'Android app', ios: 'iPhone app' }[Capacitor.getPlatform()] || 'web app'}`,
     `Device: ${navigator.userAgent.replace(/\s*\(KHTML.*$/, '').slice(0, 140)}`,
     `Screen: ${screen}`,
     `Time: ${when(Date.now())} · Online: ${navigator.onLine ? 'yes' : 'no'}`,
