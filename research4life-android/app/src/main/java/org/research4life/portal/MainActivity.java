@@ -532,6 +532,7 @@ public class MainActivity extends Activity {
                 Intent i = myLoftLaunchIntent();
                 try {
                     if (i != null) {
+                        getSharedPreferences("myloft", MODE_PRIVATE).edit().putLong("lastOpen", System.currentTimeMillis()).apply();
                         startActivity(i);
                     } else {
                         try {
@@ -620,7 +621,21 @@ public class MainActivity extends Activity {
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 try {
                     if (app != null && app.getComponent() != null) {
-                        startActivity(send.setPackage(app.getComponent().getPackageName()));
+                        send.setPackage(app.getComponent().getPackageName());
+                        // MyLOFT asks to log in again when an article arrives while it is closed; opened
+                        // normally first, it restores its sign-in. So after a while away: open it, then send.
+                        android.content.SharedPreferences mp = getSharedPreferences("myloft", MODE_PRIVATE);
+                        long now = System.currentTimeMillis();
+                        boolean cold = now - mp.getLong("lastOpen", 0) > 20 * 60 * 1000L;
+                        mp.edit().putLong("lastOpen", now).apply();
+                        if (cold) {
+                            startActivity(app);
+                            main.postDelayed(() -> {
+                                try { startActivity(send); } catch (Exception ignored) { }
+                            }, 3500);
+                        } else {
+                            startActivity(send);
+                        }
                     } else {
                         startActivity(Intent.createChooser(send, "Send to MyLOFT").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                     }
