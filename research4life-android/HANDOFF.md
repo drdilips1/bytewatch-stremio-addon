@@ -105,5 +105,6 @@ Hybrid Android app: a WebView UI plus a Java bridge.
   - The reader on real journal PDFs that share pages
 
 ## Side notes (owner's Mac, not part of the app)
+- iPhone app install (owner's choice): **AltStore**. AltServer runs on the owner's always-on Mac (same Wi-Fi as the wife's iPhone), signed with the owner's free Apple ID; Finder → her iPhone → "Show this iPhone when on Wi-Fi" so AltStore refreshes the 7-day signature by itself. New versions: AirDrop the .ipa to her iPhone → AltStore → +. Developer Mode on and the profile trusted once on her iPhone.
 - qBittorrent runs in Docker with bind mounts to `/Volumes/MyBook/...`. The watcher is `~/bin/mybook-watch.sh` with LaunchAgent `com.mybook.watch`. An old backup qBittorrent container is still there; the owner chose to leave it.
 - Audiobookshelf runs natively: `cd ~/audiobookshelf-server && ALLOW_CORS=1 npm start` (port 3333, base path `/audiobookshelf`). If the drive was off, an empty root-owned `/Volumes/MyBook` placeholder makes it crash with `EACCES ... watch '/Volumes/MyBook'`. Fix: with the drive off, `sudo rmdir /Volumes/MyBook`, turn the drive on, then start it again.
