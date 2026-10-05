@@ -51,8 +51,16 @@ final class PdfFetcher {
 
     private static final class Job {
         final String key, doi, title;
+        /** Elsevier article ID: Research4Life gives Elsevier PDFs (JAAD…) through ClinicalKey, not ScienceDirect. */
+        final String pii;
+        boolean viaClinicalKey;
         int accountTries;
-        Job(String key, String doi, String title) { this.key = key; this.doi = doi; this.title = title; }
+        Job(String key, String doi, String title, String pii) {
+            this.key = key; this.doi = doi; this.title = title;
+            this.pii = pii == null ? "" : pii;
+            viaClinicalKey = !this.pii.isEmpty();
+        }
+        String startUrl() { return viaClinicalKey ? R4LSession.clinicalKeyUrl(pii) : R4LSession.doiUrl(doi); }
     }
 
     private final Context app;
@@ -113,10 +121,10 @@ final class PdfFetcher {
         return host != null && webView != null && webView.getParent() == host;
     }
 
-    void enqueue(String key, String doi, String title) {
+    void enqueue(String key, String doi, String title, String pii) {
         if (job != null && job.key.equals(key)) return;
         for (Job j : queue) if (j.key.equals(key)) return;
-        queue.addLast(new Job(key, doi, title));
+        queue.addLast(new Job(key, doi, title, pii));
         if (job == null) next(); else status("queued", "Waiting in queue…");
     }
 
@@ -147,10 +155,10 @@ final class PdfFetcher {
         reloadsAfterSignIn = 0;
         challengeWaits = 0;
         attachClients();
-        status("opening", "Opening the paper through Research4Life…");
+        status("opening", job.viaClinicalKey ? "Opening the paper in ClinicalKey through Research4Life…" : "Opening the paper through Research4Life…");
         main.removeCallbacks(timeout);
         main.postDelayed(timeout, JOB_TIMEOUT_MS);
-        webView.loadUrl(R4LSession.doiUrl(job.doi));
+        webView.loadUrl(job.startUrl());
     }
 
     private void attachClients() {
@@ -213,19 +221,25 @@ final class PdfFetcher {
                     && signInPages > 0 && reloadsAfterSignIn < 2) {
                 reloadsAfterSignIn++;
                 status("opening", "Signed in. Opening the paper…");
-                main.postDelayed(() -> { if (job != null) webView.loadUrl(R4LSession.doiUrl(job.doi)); }, 1200);
+                main.postDelayed(() -> { if (job != null) webView.loadUrl(job.startUrl()); }, 1200);
             }
             return;
         }
         status("finding", "Looking for the PDF…");
         final int token = pageToken;
-        main.postDelayed(() -> { if (token == pageToken && job != null && !saving) findPdf(url); }, 2000);
+        // ClinicalKey's page builds itself (and its session) with scripts: give it longer.
+        main.postDelayed(() -> { if (token == pageToken && job != null && !saving) findPdf(url); }, job.viaClinicalKey ? 6000 : 2000);
     }
 
     private void findPdf(String pageUrl) {
         webView.evaluateJavascript(R4LSession.FIND_PDF_SCRIPT, value -> {
             if (job == null || saving) return;
             String next = null;
+            // ClinicalKey's own PDF address for the article comes first.
+            if (job.viaClinicalKey) {
+                String ck = R4LSession.clinicalKeyPdfUrl(job.pii);
+                if (!tried.contains(ck)) next = ck;
+            }
             try {
                 JSONArray arr = new JSONArray(new JSONArray("[" + value + "]").getString(0));
                 boolean viaProxy = isProxiedContent(Uri.parse(pageUrl));
@@ -237,6 +251,8 @@ final class PdfFetcher {
             } catch (Exception ignored) {
             }
             if (next == null) {
+                // ClinicalKey showed a page instead of the PDF: go straight to the usual route.
+                if (job.viaClinicalKey && pdfAttempts > 0) { failNow("ClinicalKey didn't give the PDF.", true); return; }
                 if (pdfAttempts == 0) waitOrFail(pageUrl);
                 return;
             }
@@ -342,6 +358,14 @@ final class PdfFetcher {
         Job j = job;
         job = null;
         saving = false;
+        // ClinicalKey didn't give the PDF: try the usual Research4Life route (ScienceDirect) once.
+        if (j != null && j.viaClinicalKey) {
+            j.viaClinicalKey = false;
+            queue.addFirst(j);
+            if (listener != null) listener.onStatus(j.key, "opening", "ClinicalKey didn't give the PDF. Trying ScienceDirect through Research4Life…");
+            main.postDelayed(this::next, 500);
+            return;
+        }
         // With several Research4Life accounts saved, try the paper again with the next one.
         int accounts = R4LSession.accountCount(app, R4LSession.R4L);
         String nextUser = R4LSession.nextAccount(app, R4LSession.R4L);

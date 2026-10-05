@@ -514,7 +514,7 @@
   const N = {
     isWeb: !IOS,
     isIos: !!IOS,
-    version: () => (IOS ? '5.5 iOS' : '5.5 web'),
+    version: () => (IOS ? '5.6 iOS' : '5.6 web'),
 
     // ---- PDFs
     listPdfs: () => JSON.stringify(Object.entries(pdfIndex()).map(([key, o]) => ({ ...o, key }))),
@@ -576,7 +576,7 @@
     },
 
     /** One-tap PDF: a free copy if the site allows it; otherwise the page opens for a manual download. */
-    getPdf: async (key, doi, title, freeUrl) => {
+    getPdf: async (key, doi, title, freeUrl, pii) => {
       if (freeUrl) {
         try {
           const res = await nfetch(freeUrl);
@@ -590,7 +590,7 @@
       }
       if (!freeUrl && !doi) { emit({ type: 'pdfFailed', key, message: "This paper has no DOI, so it can't be fetched automatically." }); return; }
       N.setPendingPdf(key, title);
-      ls.set('fetch.' + key, { doi, free: freeUrl || '' });
+      ls.set('fetch.' + key, { doi, free: freeUrl || '', pii: pii || '' });
       emit({ type: 'pdfFailed', key, canShow: true, message: IOS ? 'Tap Show page and open the PDF there (Research4Life, MyLOFT or the journal): it files itself under this paper.' : 'Tap Show page, download the PDF there (Research4Life, MyLOFT or the journal), then come back and tap Add PDF: it files itself under this paper.' });
     },
     downloadPdf: (key, url, title) => N.getPdf(key, '', title, url),
@@ -600,7 +600,10 @@
       const d = doi || f.doi;
       // With a Research4Life account, go through its proxy (sign in once in Safari); else the publisher.
       const r4l = (() => { try { return !!localStorage.getItem('ds.acc.r4l'); } catch { return false; } })();
-      openTab(f.free || (d ? (r4l ? 'https://login.research4life.org/tacsgr1doi_org/' : 'https://doi.org/') + d : ''), 'Open the paper', key);
+      // Elsevier (JAAD…): Research4Life gives the PDF through ClinicalKey, not ScienceDirect.
+      const viaR4L = f.pii && r4l ? 'https://login.research4life.org/tacsgr1www_clinicalkey_com/#!/content/journal/1-s2.0-' + f.pii
+        : d ? (r4l ? 'https://login.research4life.org/tacsgr1doi_org/' : 'https://doi.org/') + d : '';
+      openTab(f.free || viaR4L, 'Open the paper', key);
     },
     cancelFetch: () => {},
     openPdf: (key) => N.openPdfPages(key),

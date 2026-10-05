@@ -248,8 +248,8 @@ public class MainActivity extends Activity {
     }
 
     /** Gets the paper's PDF through Research4Life in the background. */
-    private void fetchViaR4L(String key, String doi, String title) {
-        fetcher.enqueue(key, doi, title);
+    private void fetchViaR4L(String key, String doi, String title, String pii) {
+        fetcher.enqueue(key, doi, title, pii);
     }
 
     /** Streams a library PDF to the in-app reader (same origin, so pdf.js can read it). */
@@ -386,9 +386,15 @@ public class MainActivity extends Activity {
          */
         @JavascriptInterface
         public void getPdf(String key, String doi, String title, String freeUrl) {
+            getPdf(key, doi, title, freeUrl, "");
+        }
+
+        /** Same, with the Elsevier article ID (PII) when known: those go through ClinicalKey first. */
+        @JavascriptInterface
+        public void getPdf(String key, String doi, String title, String freeUrl, String pii) {
             boolean hasDoi = doi != null && !doi.isEmpty();
             if (freeUrl == null || freeUrl.isEmpty()) {
-                if (hasDoi) main.post(() -> fetchViaR4L(key, doi, title));
+                if (hasDoi) main.post(() -> fetchViaR4L(key, doi, title, pii));
                 else emit(event("pdfFailed", "key", key, "message", "This paper has no DOI, so it can't be fetched automatically."));
                 return;
             }
@@ -398,7 +404,7 @@ public class MainActivity extends Activity {
                     PdfStore.download(MainActivity.this, key, freeUrl, title, ua);
                     emit(event("pdfSaved", "key", key));
                 } catch (Exception e) {
-                    if (hasDoi) main.post(() -> fetchViaR4L(key, doi, title));
+                    if (hasDoi) main.post(() -> fetchViaR4L(key, doi, title, pii));
                     else emit(event("pdfFailed", "key", key, "message", "Couldn't download the free PDF."));
                 }
             });

@@ -933,7 +933,10 @@
     jobs.set(a.id, { title: a.title, doi: a.doi || '', state: 'running', message: free ? 'Downloading free PDF…' : 'Starting…', at: Date.now() });
     renderTray();
     refreshCards();
-    Native.getPdf(a.id, a.doi || '', a.title, free || '');
+    // Elsevier journals (JAAD…): Research4Life gives the PDF through ClinicalKey, not ScienceDirect.
+    const pii = ext.elsevierPii ? await ext.elsevierPii(a).catch(() => '') : '';
+    if (pii) Native.getPdf(a.id, a.doi || '', a.title, free || '', pii);
+    else Native.getPdf(a.id, a.doi || '', a.title, free || '');
   }
 
   const journalKey = (a) => (a.issn || a.essn || a.jAbbr || a.journal || '').toLowerCase();

@@ -890,6 +890,14 @@
    */
   async function clinicalKeyUrl(a) {
     if (!/^10\.1016\//.test(a.doi || '')) return null;
+    const pii = await elsevierPii(a);
+    return pii ? `https://www.clinicalkey.com/#!/content/journal/1-s2.0-${pii}`
+      : `https://www.clinicalkey.com/#!/search/${encodeURIComponent(a.title)}`;
+  }
+
+  /** Elsevier's article ID (PII, "S0190…") for a 10.1016 DOI, from Crossref; '' if unknown. */
+  async function elsevierPii(a) {
+    if (!/^10\.1016\//.test(a.doi || '')) return '';
     let pii = '';
     try {
       const m = (await D.getJSON(api('crossref', 'works/' + encodeURIComponent(a.doi)))).message || {};
@@ -898,9 +906,10 @@
     } catch { /* offline or not in Crossref */ }
     pii = pii.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
     if (pii && !pii.startsWith('S')) pii = 'S' + pii;
-    return pii ? `https://www.clinicalkey.com/#!/content/journal/1-s2.0-${pii}`
-      : `https://www.clinicalkey.com/#!/search/${encodeURIComponent(a.title)}`;
+    return pii;
   }
+  // Get PDF sends Elsevier papers through ClinicalKey in Research4Life (app.js getPdf).
+  ext.elsevierPii = elsevierPii;
 
   // ================================================================ Intel hub (#intel) and home
   const TILES = [
