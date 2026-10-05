@@ -137,14 +137,17 @@ final class R4LSession {
         return PROXY_PREFIX + "doi_org/" + doi;
     }
 
-    /** An Elsevier article in ClinicalKey, through Research4Life (how Research4Life gives JAAD and other Elsevier PDFs). */
+    /**
+     * An Elsevier article on ClinicalKey's own site. Research4Life gives ClinicalKey by signing you
+     * in to clinicalkey.com (not through its proxy); the in-app browsers keep that sign-in.
+     */
     static String clinicalKeyUrl(String pii) {
-        return PROXY_PREFIX + "www_clinicalkey_com/#!/content/journal/1-s2.0-" + pii;
+        return "https://www.clinicalkey.com/#!/content/journal/1-s2.0-" + pii;
     }
 
-    /** ClinicalKey's PDF download for an Elsevier article, through Research4Life. */
+    /** ClinicalKey's PDF download for an Elsevier article (the link of its PDF button). */
     static String clinicalKeyPdfUrl(String pii) {
-        return PROXY_PREFIX + "www_clinicalkey_com/service/content/pdf/watermarked/1-s2.0-" + pii + ".pdf?locale=en_US&searchIndex=";
+        return "https://www.clinicalkey.com/service/content/pdf/watermarked/1-s2.0-" + pii + ".pdf?locale=en_US&searchIndex=";
     }
 
     // ------------------------------------------------------------------ credentials

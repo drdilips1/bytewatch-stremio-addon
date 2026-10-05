@@ -54,6 +54,8 @@ final class PdfFetcher {
         /** Elsevier article ID: Research4Life gives Elsevier PDFs (JAAD…) through ClinicalKey, not ScienceDirect. */
         final String pii;
         boolean viaClinicalKey;
+        /** ClinicalKey was tried and gave no PDF (usually: not signed in to ClinicalKey yet). */
+        boolean clinicalKeyFailed;
         /** Whether the article link was already reopened after landing on a site's bare home page. */
         boolean reopened;
         int accountTries;
@@ -157,7 +159,7 @@ final class PdfFetcher {
         reloadsAfterSignIn = 0;
         challengeWaits = 0;
         attachClients();
-        status("opening", job.viaClinicalKey ? "Opening the paper in ClinicalKey through Research4Life…" : "Opening the paper through Research4Life…");
+        status("opening", job.viaClinicalKey ? "Opening the paper in ClinicalKey…" : "Opening the paper through Research4Life…");
         main.removeCallbacks(timeout);
         main.postDelayed(timeout, JOB_TIMEOUT_MS);
         webView.loadUrl(job.startUrl());
@@ -379,8 +381,9 @@ final class PdfFetcher {
         // ClinicalKey didn't give the PDF: try the usual Research4Life route (ScienceDirect) once.
         if (j != null && j.viaClinicalKey) {
             j.viaClinicalKey = false;
+            j.clinicalKeyFailed = true;
             queue.addFirst(j);
-            if (listener != null) listener.onStatus(j.key, "opening", "ClinicalKey didn't give the PDF. Trying ScienceDirect through Research4Life…");
+            if (listener != null) listener.onStatus(j.key, "opening", "ClinicalKey didn't give the PDF. Trying the publisher through Research4Life…");
             main.postDelayed(this::next, 500);
             return;
         }
@@ -395,6 +398,9 @@ final class PdfFetcher {
             if (listener != null) listener.onStatus(j.key, "opening", "Trying your other Research4Life account (" + nextUser + ")…");
             main.postDelayed(this::next, 800);
             return;
+        }
+        if (j != null && j.clinicalKeyFailed && !message.startsWith(NOT_COVERED)) {
+            message = "ClinicalKey didn't give the PDF: sign in to ClinicalKey once through Research4Life (R4L → ClinicalKey) in the app, then try again. " + message;
         }
         if (listener != null && j != null) listener.onFailed(j.key, message, canShow);
         next();

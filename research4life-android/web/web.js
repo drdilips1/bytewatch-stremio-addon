@@ -632,7 +632,7 @@
       // With a Research4Life account, go through its proxy (sign in once in Safari); else the publisher.
       const r4l = (() => { try { return !!localStorage.getItem('ds.acc.r4l'); } catch { return false; } })();
       // Elsevier (JAAD…): Research4Life gives the PDF through ClinicalKey, not ScienceDirect.
-      const viaR4L = f.pii && r4l ? 'https://login.research4life.org/tacsgr1www_clinicalkey_com/#!/content/journal/1-s2.0-' + f.pii
+      const viaR4L = f.pii ? 'https://www.clinicalkey.com/#!/content/journal/1-s2.0-' + f.pii
         : d ? (r4l ? 'https://login.research4life.org/tacsgr1doi_org/' : 'https://doi.org/') + d : '';
       openTab(f.free || viaR4L, 'Open the paper', key);
     },

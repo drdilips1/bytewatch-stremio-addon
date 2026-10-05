@@ -1078,8 +1078,8 @@
       if (!saved.has(a.id)) await saveArticle(a);
       // Elsevier (JAAD…): Research4Life gives the full text through ClinicalKey, not ScienceDirect.
       const pii = ext.elsevierPii ? await ext.elsevierPii(a).catch(() => '') : '';
-      toast(pii ? 'Opening in ClinicalKey through Research4Life' : 'Opening through Research4Life (DOI link)');
-      Native.openPortal(pii ? R4L_PROXY + 'www_clinicalkey_com/#!/content/journal/1-s2.0-' + pii : R4L_PROXY + 'doi_org/' + a.doi, a.id, title);
+      toast(pii ? 'Opening in ClinicalKey (your Research4Life sign-in)' : 'Opening through Research4Life (DOI link)');
+      Native.openPortal(pii ? 'https://www.clinicalkey.com/#!/content/journal/1-s2.0-' + pii : R4L_PROXY + 'doi_org/' + a.doi, a.id, title);
     };
     actions.r4l = async () => {
       if (!saved.has(a.id)) await saveArticle(a);
