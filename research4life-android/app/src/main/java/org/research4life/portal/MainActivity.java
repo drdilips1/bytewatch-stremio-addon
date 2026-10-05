@@ -489,6 +489,7 @@ public class MainActivity extends Activity {
         public void aiRunImage(String id, String system, String task, String dataUrl, int maxTokens) {
             io.execute(() -> {
                 LlmProvider.AiException first = null;
+                StringBuilder also = new StringBuilder();
                 try {
                     String b64 = dataUrl == null ? "" : dataUrl.substring(dataUrl.indexOf(',') + 1);
                     for (String prov : aiOrder(0, true)) {
@@ -503,10 +504,10 @@ public class MainActivity extends Activity {
                             emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model));
                             return;
                         } catch (LlmProvider.AiException e) {
-                            if (first == null) first = e;
+                            if (first == null) first = e; else also.append(" · ").append(label(prov)).append(": ").append(e.getMessage());
                         }
                     }
-                    throw first != null ? first : new LlmProvider.AiException("Image questions work with Gemini or Groq. Add a key in Settings → AI.");
+                    throw first != null ? withOthers(first, also) : new LlmProvider.AiException("Image questions work with Gemini or Groq. Add a key in Settings → AI.");
                 } catch (LlmProvider.AiException e) {
                     emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));
                 } catch (Exception e) {
@@ -784,6 +785,15 @@ public class MainActivity extends Activity {
             return "claude".equals(p) || "gemini".equals(p) ? p : "groq";
         }
 
+        /**
+         * The first AI's error, plus why the fallback AIs failed too (so a Gemini problem behind a
+         * Groq limit is visible). "TOO_LARGE:" errors stay as they are: the web app reads them.
+         */
+        private LlmProvider.AiException withOthers(LlmProvider.AiException first, StringBuilder also) {
+            if (also.length() == 0 || first.getMessage() == null || first.getMessage().startsWith("TOO_LARGE:")) return first;
+            return new LlmProvider.AiException(first.getMessage() + also);
+        }
+
         private String label(String p) {
             return "claude".equals(p) ? "Claude" : "gemini".equals(p) ? "Gemini" : "Groq";
         }
@@ -869,6 +879,7 @@ public class MainActivity extends Activity {
         public void aiRunStream(String id, String system, String document, String task, int maxTokens) {
             io.execute(() -> {
                 LlmProvider.AiException first = null;
+                StringBuilder also = new StringBuilder();
                 try {
                     for (String prov : aiOrder(document == null ? 0 : document.length(), false)) {
                         try {
@@ -880,10 +891,10 @@ public class MainActivity extends Activity {
                             return;
                         } catch (LlmProvider.AiException e) {
                             if ("Cancelled".equals(e.getMessage())) throw e;
-                            if (first == null) first = e;
+                            if (first == null) first = e; else also.append(" · ").append(label(prov)).append(": ").append(e.getMessage());
                         }
                     }
-                    throw first != null ? first : new LlmProvider.AiException("Add your " + label(provider()) + " API key in Settings → AI.");
+                    throw first != null ? withOthers(first, also) : new LlmProvider.AiException("Add your " + label(provider()) + " API key in Settings → AI.");
                 } catch (LlmProvider.AiException e) {
                     emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));
                 } catch (Exception e) {
@@ -955,6 +966,7 @@ public class MainActivity extends Activity {
         public void aiRun(String id, String system, String document, String task, int maxTokens, String jsonSchema) {
             io.execute(() -> {
                 LlmProvider.AiException first = null;
+                StringBuilder also = new StringBuilder();
                 try {
                     for (String prov : aiOrder(document == null ? 0 : document.length(), false)) {
                         try {
@@ -966,10 +978,10 @@ public class MainActivity extends Activity {
                             return;
                         } catch (LlmProvider.AiException e) {
                             if ("Cancelled".equals(e.getMessage())) throw e;
-                            if (first == null) first = e;
+                            if (first == null) first = e; else also.append(" · ").append(label(prov)).append(": ").append(e.getMessage());
                         }
                     }
-                    throw first != null ? first : new LlmProvider.AiException("Add your " + label(provider()) + " API key in Settings → AI.");
+                    throw first != null ? withOthers(first, also) : new LlmProvider.AiException("Add your " + label(provider()) + " API key in Settings → AI.");
                 } catch (LlmProvider.AiException e) {
                     emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));
                 } catch (Exception e) {

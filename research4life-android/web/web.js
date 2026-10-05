@@ -429,6 +429,7 @@
   /** Runs one request on the chosen AI, falling back to the other free AI like the Android app. */
   async function aiRun(id, req, { imageOnly = false } = {}) {
     let first = null;
+    const others = [];
     try {
       for (const p of aiOrder((req.doc || '').length, imageOnly)) {
         if (req.image && p === 'claude') continue;
@@ -439,9 +440,12 @@
           emit({ type: 'ai', id, state: 'done', text: r.text, model: r.model, fallback: first ? LABEL[p] : '' });
           return;
         } catch (e) {
-          if (!first) first = e instanceof AiError ? e : new AiError(`${LABEL[p]} request failed: ${e && e.message ? e.message : e}`);
+          const err = e instanceof AiError ? e : new AiError(`${LABEL[p]} request failed: ${e && e.message ? e.message : e}`);
+          if (!first) first = err; else others.push(`${LABEL[p]}: ${err.message}`);
         }
       }
+      // Why the fallback AIs failed too (a Gemini problem behind a Groq limit); TOO_LARGE stays as is.
+      if (first && others.length && !/^TOO_LARGE:/.test(first.message)) first = new AiError(first.message + ' · ' + others.join(' · '));
       throw first || new AiError(imageOnly ? 'Image questions work with Gemini or Groq. Add a key in Settings → AI.' : `Add your ${LABEL[provider()]} API key in Settings → AI.`);
     } catch (e) {
       emit({ type: 'ai', id, state: 'error', message: e.message || 'AI request failed' });

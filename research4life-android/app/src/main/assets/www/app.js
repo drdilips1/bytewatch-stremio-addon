@@ -1879,10 +1879,10 @@
         return out;
       } catch (e) {
         // A free per-minute limit (Groq, Gemini): wait out the minute and carry on, instead of failing.
-        if (/limit (was reached|is reached)[\s\S]*wait a minute|rate limit was reached/i.test(String(e.message)) && !/daily|per day|tomorrow/i.test(String(e.message)) && waits < 2) {
+        if (/limit (was reached|is reached)[\s\S]*wait a minute|rate limit was reached/i.test(String(e.message)) && !/daily free limit|per day/i.test(String(e.message)) && waits < 2) {
           waits++;
           attempt--;
-          for (let s0 = 62; s0 > 0; s0--) { try { onWait?.(s0); } catch { /* screen gone */ } await new Promise((r) => setTimeout(r, 1000)); }
+          for (let s0 = 62; s0 > 0; s0--) { try { onWait?.(s0, String(e.message)); } catch { /* screen gone */ } await new Promise((r) => setTimeout(r, 1000)); }
           continue;
         }
         const m = String(e.message).match(/^TOO_LARGE:(\d+):(\d+)/);
