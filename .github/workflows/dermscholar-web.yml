@@ -1,7 +1,10 @@
 name: Publish DermScholar web app
 
 # The iPhone version (Safari → Share → Add to Home Screen): the Android app's screens plus
-# research4life-android/web/web.js, published to the gh-pages branch (GitHub Pages).
+# research4life-android/web/web.js, published to the dermscholar/ folder of the gh-pages branch
+# → https://drdilips1.github.io/bytewatch-stremio-addon/dermscholar/
+# The rest of the site (its root) is Audiohub's, published by inkwell-web.yml on the Audiohub
+# branch; each workflow replaces only its own part.
 on:
   push:
     paths:
@@ -22,6 +25,10 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Shared with Audiohub's web workflow: one gh-pages update at a time.
+    concurrency:
+      group: pages-publish
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
 
@@ -39,13 +46,26 @@ jobs:
       - name: Build
         run: bash research4life-android/web/build.sh "$RUNNER_TEMP/site"
 
-      - name: Publish to gh-pages
-        working-directory: ${{ runner.temp }}/site
+      - name: Publish to gh-pages (dermscholar/ only; the root is Audiohub's)
+        env:
+          SITE: ${{ runner.temp }}/site
+          REPO_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
         run: |
-          git init -q -b gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          set -e
+          git clone -q --depth 1 --branch gh-pages "$REPO_URL" "$RUNNER_TEMP/pages"
+          cd "$RUNNER_TEMP/pages"
+          old=$(git rev-parse HEAD)
+          # Until 5.10 DermScholar sat at the site root; leave the root to Audiohub.
+          if grep -q '<title>DermScholar</title>' index.html 2>/dev/null; then
+            find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          fi
+          rm -rf dermscholar
+          cp -R "$SITE" dermscholar
+          touch .nojekyll
+          # One commit, no history: Audiohub's part holds its APK, which would pile up.
+          git checkout -q --orphan site
           git add -A
-          git commit -q -m "DermScholar web app from ${GITHUB_SHA::7}"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
-          echo "Published: https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/" >> "$GITHUB_STEP_SUMMARY"
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "DermScholar web app from ${GITHUB_SHA::7} (Audiohub at the root)"
+          git push -q --force-with-lease=gh-pages:$old origin site:gh-pages
+          echo "Published: https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/dermscholar/" >> "$GITHUB_STEP_SUMMARY"
