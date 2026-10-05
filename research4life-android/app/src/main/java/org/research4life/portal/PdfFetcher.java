@@ -54,6 +54,8 @@ final class PdfFetcher {
         /** Elsevier article ID: Research4Life gives Elsevier PDFs (JAAD…) through ClinicalKey, not ScienceDirect. */
         final String pii;
         boolean viaClinicalKey;
+        /** Whether the article link was already reopened after landing on a site's bare home page. */
+        boolean reopened;
         int accountTries;
         Job(String key, String doi, String title, String pii) {
             this.key = key; this.doi = doi; this.title = title;
@@ -225,6 +227,20 @@ final class PdfFetcher {
             }
             return;
         }
+        // Research4Life sometimes lands on the site's bare home page (doi.org's, ClinicalKey's) instead
+        // of the article: reopen the article link once; never take PDFs from such a page.
+        String path = u.getPath() == null ? "/" : u.getPath();
+        if (isProxiedContent(u) && path.matches("/tacsgr1[^/]*/?") && (u.getQuery() == null || u.getQuery().isEmpty())
+                && !(job.viaClinicalKey && url.contains("#!/content"))) {
+            if (!job.reopened) {
+                job.reopened = true;
+                status("opening", "Opening the article again…");
+                webView.loadUrl(job.startUrl());
+            } else {
+                fail("Research4Life opened the site's home page instead of the article. Tap Show page to open it yourself, or try MyLOFT.", true);
+            }
+            return;
+        }
         status("finding", "Looking for the PDF…");
         final int token = pageToken;
         // ClinicalKey's page builds itself (and its session) with scripts: give it longer.
@@ -243,6 +259,8 @@ final class PdfFetcher {
             try {
                 JSONArray arr = new JSONArray(new JSONArray("[" + value + "]").getString(0));
                 boolean viaProxy = isProxiedContent(Uri.parse(pageUrl));
+                // doi.org only forwards to articles: any PDF on its own pages is never the paper.
+                if (pageUrl != null && pageUrl.contains("/tacsgr1doi_org")) arr = new JSONArray();
                 for (int i = 0; i < arr.length() && next == null; i++) {
                     String c = fixPdfUrl(arr.getString(i));
                     if (viaProxy) c = R4LSession.proxied(c);

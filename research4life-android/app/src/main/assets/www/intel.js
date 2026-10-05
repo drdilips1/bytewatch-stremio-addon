@@ -1094,6 +1094,19 @@
   const tWords = (t) => [...new Set(String(t || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length > 3))];
   const titleIn = (title, text) => { const w = tWords(title); if (w.length < 3) return 0; const flat = text.replace(/[^\p{L}\p{N}]+/gu, ' '); return w.filter((x) => flat.includes(x)).length / w.length; };
 
+  /**
+   * Whether a downloaded PDF is this paper: its DOI or most of its title appear in the first pages.
+   * Scanned PDFs without text pass (they can't be checked).
+   */
+  ext.checkPdf = async (key, paper) => {
+    try {
+      const { text, dois } = await pdfIds(key);
+      if (text.replace(/\s+/g, '').length < 60) return true;
+      if (paper.doi && dois.includes(paper.doi.toLowerCase())) return true;
+      return titleIn(paper.title, text) >= 0.6;
+    } catch { return true; }
+  };
+
   ext.identifyPdf = async (evt) => {
     const { text, dois } = await pdfIds(evt.key);
     const waiting = D.waitingPaper();

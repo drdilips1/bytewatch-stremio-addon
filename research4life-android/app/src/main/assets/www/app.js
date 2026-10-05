@@ -2198,6 +2198,7 @@
         ${opts.pdf ? `<button class="opt" data-act="rd-toggle-pages">${icon('file')}${$('#rdpages').classList.contains('hidden') ? 'Original page layout' : 'Mobile reading view'}</button>
         <button class="opt" data-act="rd-native">${icon('external')}Open in another PDF app</button>
         <button class="opt" data-act="rd-share">${icon('share')}Share PDF</button>
+        <button class="opt" data-act="rd-remove-pdf">${icon('trash')}Remove this PDF (wrong file)</button>
         <button class="opt" data-act="rd-redo">${icon('spark')}Rebuild mobile view</button>` : ''}
         ${opts.article ? `<button class="opt" data-act="rd-paper">${icon('quote')}Paper details &amp; citation</button>` : ''}
         ${ext.readerMenu ? ext.readerMenu(opts, model) : ''}
@@ -2217,6 +2218,15 @@
     actions['utd-open-web'] = () => { closeSheet(); Native.openUpToDateAt(opts.url); };
     actions['rd-native'] = () => { closeSheet(); Native.openPdfPages(key, title); };
     actions['rd-share'] = () => { closeSheet(); Native.sharePdf(key, title); };
+    // A wrong PDF (e.g. a site's own document) can go without losing the paper and its notes.
+    actions['rd-remove-pdf'] = async () => {
+      closeSheet();
+      Native.deletePdf(key);
+      pdfKeys.delete(key);
+      await db.delReflow(key).catch(() => {});
+      toast('PDF removed. The paper and its notes stay in your library.');
+      history.length > 1 ? history.back() : go('library', { replace: true });
+    };
     actions['rd-redo'] = async () => { closeSheet(); await db.delReflow(key).catch(() => {}); render(); };
     actions['rd-paper'] = () => { closeSheet(); go('a/' + encodeURIComponent(opts.article.id)); };
     if (opts.startInPages) togglePages(opts, true);
@@ -3231,6 +3241,17 @@
         const j = jobs.get(evt.key);
         if (j) { j.state = 'running'; j.message = evt.message; j.at = Date.now(); renderTray(); }
       } else if (evt.type === 'pdfSaved') {
+        // Make sure it is this paper (a site's home page once gave the DOI Foundation's trademark PDF).
+        const paper = saved.get(evt.key);
+        if (paper && !paper.imported && ext.checkPdf && !(await ext.checkPdf(evt.key, paper))) {
+          Native.deletePdf(evt.key);
+          pdfKeys.delete(evt.key);
+          const j0 = jobs.get(evt.key) || { title: paper.title };
+          jobs.set(evt.key, { ...j0, state: 'failed', canShow: true, message: 'The PDF that came back was a different document, not this paper, so it wasn\'t saved. Tap Show page to get it yourself, or try MyLOFT.' });
+          renderTray();
+          refreshCards();
+          return;
+        }
         pdfKeys.add(evt.key);
         const j = jobs.get(evt.key) || { title: saved.get(evt.key)?.title || 'PDF' };
         jobs.set(evt.key, { ...j, state: 'saved', message: 'Saved to your library' });
