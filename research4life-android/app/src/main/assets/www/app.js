@@ -2025,7 +2025,7 @@
 
 
   // ---------------------------------------------------------------- PDF → mobile reader
-  const REFLOW_V = 6; // 6: only the opened article (neighbouring articles on shared pages dropped)
+  const REFLOW_V = 7; // 7: symbol fonts (≥, ±), run-on reference lists split, broken-off headings rejoined, running heads, own DOI inside the references
   const openReader = (key) => go('pdf/' + encodeURIComponent(key));
   let pdfDoc = null; // pdf.js document for the open reader (original-pages mode)
   let readerState = null; // {model, opts} of the open reader

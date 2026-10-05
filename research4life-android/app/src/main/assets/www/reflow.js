@@ -89,10 +89,20 @@ function fontInfo(page, name) {
     if (page.commonObjs.has(name)) {
       const f = page.commonObjs.get(name);
       const n = (f?.name || '') + ' ' + (f?.loadedName || '');
-      return { bold: !!f?.bold || /bold|black|heavy|semibold|demi/i.test(n), italic: !!f?.italic || /italic|oblique/i.test(n) };
+      return { name: n, bold: !!f?.bold || /bold|black|heavy|semibold|demi/i.test(n), italic: !!f?.italic || /italic|oblique/i.test(n) };
     }
   } catch { /* font not loaded */ }
-  return { bold: false, italic: false };
+  return { name: '', bold: false, italic: false };
+}
+
+// Publishers' symbol fonts store math signs and Greek letters under ordinary keys (Elsevier's
+// MathematicalPi "$" is ≥, Universal-GreekwithMathPi "6" is ±): put the real characters back.
+const MATHPI = { $: '≥', '#': '≤' };
+const GREEKPI = { 6: '±', a: 'α', b: 'β', g: 'γ', d: 'δ', e: 'ε', k: 'κ', l: 'λ', m: 'μ', p: 'π', s: 'σ', t: 'τ', c: 'χ', w: 'ω', D: 'Δ' };
+function symbolText(s, font) {
+  if (!font || s.length > 3) return s;
+  const map = /MathematicalPi/i.test(font) ? MATHPI : /Universal-?Greek|GreekwithMathPi/i.test(font) ? GREEKPI : null;
+  return map ? [...s].map((ch) => map[ch] || ch).join('') : s;
 }
 
 /**
@@ -255,6 +265,10 @@ function readingOrder(lines) {
  * Parses the PDF into {title, blocks, figures}. `onProgress(done, total)` is called per page.
  * Block types: title, h, p, fig, table, ref.
  */
+// Journal running heads that differ between odd and even pages: "VOLUME 95, NUMBER 4",
+// "1143 Brief Reports" / "Brief Reports 1143", "OCTOBER 2026", "J AM ACAD DERMATOL".
+const RUNNING_HEAD = { test: (t) => /^((vol(ume)?\.?)\s*\d+,?\s*(no\.?|number|issue)\s*\d+|\d{1,5}\s+[A-Za-z][A-Za-z &]{2,40}|[A-Za-z][A-Za-z &]{2,40}\s+\d{1,5}|(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4})$/i.test(t) || /^[A-Z][A-Z .&]{3,40}$/.test(t) };
+
 export async function reflow(doc, onProgress = () => {}) {
   const pages = [];
   const sizeHist = new Map();
@@ -270,7 +284,7 @@ export async function reflow(doc, onProgress = () => {}) {
       const h = Math.hypot(c, d) || it.height || 10;
       if (Math.abs(b) > Math.abs(a) * 0.5) continue; // rotated text (margins, watermarks)
       const fi = fontInfo(page, it.fontName);
-      items.push({ s: it.str, x: e, y: f, w: it.width, h, bold: fi.bold, italic: fi.italic });
+      items.push({ s: symbolText(it.str, fi.name), x: e, y: f, w: it.width, h, bold: fi.bold, italic: fi.italic });
       const k = Math.round(h * 2) / 2;
       sizeHist.set(k, (sizeHist.get(k) || 0) + it.str.length);
     }
@@ -288,7 +302,7 @@ export async function reflow(doc, onProgress = () => {}) {
     for (const t of new Set(pg.lines.filter((l) => inMargin(l, pg.vp)).map((l) => norm(l.text)))) marginCount.set(t, (marginCount.get(t) || 0) + 1);
   }
   for (const pg of pages) {
-    pg.lines = pg.lines.filter((l) => !(inMargin(l, pg.vp) && (/^(page\s*)?\d+(\s*of\s*\d+)?$/i.test(l.text) || (pages.length > 1 && marginCount.get(norm(l.text)) > 1))));
+    pg.lines = pg.lines.filter((l) => !(inMargin(l, pg.vp) && (/^(page\s*)?\d+(\s*of\s*\d+)?$/i.test(l.text) || RUNNING_HEAD.test(l.text.trim()) || (pages.length > 1 && marginCount.get(norm(l.text)) > 1))));
     pg.twoCol = assignColumns(pg.lines, pg.vp.width, pg.gutter);
     // Usual distance between lines (double-spaced manuscripts are twice the font size).
     const gaps = [];
@@ -503,7 +517,7 @@ export async function reflow(doc, onProgress = () => {}) {
   const chars = out.reduce((n, b) => n + (b.text ? b.text.length : 0), 0);
   return {
     title: title || '',
-    blocks: out,
+    blocks: tidy(out),
     figures: figures.filter((f) => keep.has(f.id)),
     pages: doc.numPages,
     scanned: chars < 400 * doc.numPages * 0.25,
@@ -547,7 +561,15 @@ export function trimToArticle(model, { title = '', doi = '' } = {}) {
     for (let i = start + span; i < blocks.length; i++) {
       const b = blocks[i];
       if (b.type === 'ref' || (b.type === 'h' && /^references|^bibliography/i.test(b.text))) sawRefs = true;
-      if (sawRefs && b.text && b.text.toLowerCase().includes(d) && b.text.length < d.length + 40) { end = i; break; }
+      if (sawRefs && b.text && b.text.toLowerCase().includes(d)) {
+        if (b.text.length < d.length + 40) { end = i; break; }
+        // The DOI line got merged into the end of the reference list: keep what comes before it.
+        const at = b.text.toLowerCase().indexOf(d);
+        const before = b.text.slice(0, at).replace(/(https?:\/\/)?(dx\.)?(doi\.org\/)?\s*$/i, '').trim();
+        if (before) blocks[i] = { ...b, text: before };
+        end = before ? i + 1 : i;
+        break;
+      }
     }
   }
   if (start === 0 && end === blocks.length) return model;
@@ -560,5 +582,49 @@ export function trimToArticle(model, { title = '', doi = '' } = {}) {
     else if (b.type === 'ref' && !inRefs) b.type = 'p';
   }
   const kept = new Set(out.filter((b) => b.id).map((b) => b.id));
-  return { ...model, title: head.text, blocks: out, figures: model.figures.filter((f) => kept.has(f.id)), trimmed: true };
+  return { ...model, title: head.text, blocks: tidy(out), figures: model.figures.filter((f) => kept.has(f.id)), trimmed: true };
+}
+
+/**
+ * Clean-ups after layout, for journals' short-article pages:
+ * - a "heading" that is really a line broken off a paragraph ("Key Message: Standardizing clinical
+ *   data" + "collection in…") joins its paragraph; author/affiliation lines are not headings;
+ * - the copyright footnote at the foot of a column moves to the end instead of splitting a paragraph;
+ * - a run-on reference list ("1. … 2. … 3. …") is split into one item per reference.
+ */
+export function tidy(blocks) {
+  const DEGREES = /\b(MD|PhD|MBBS|DO|MSc|MPH|BA|BS|BSc|DS|RN|MBChB|FRCP|DNB)\b/g;
+  const out = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.type === 'h' && b.text) {
+      const next = blocks[i + 1];
+      if (next && next.type === 'p' && next.text && /^[a-z(]/.test(next.text) && !/[.?!]$/.test(b.text)) {
+        blocks[i + 1] = { ...next, text: `${b.text} ${next.text}` };
+        continue;
+      }
+      if ((b.text.match(DEGREES) || []).length >= 2 || /,$/.test(b.text) || /^(from the |e-mail:|rome|italy)/i.test(b.text)) {
+        out.push({ ...b, type: 'p', small: true });
+        continue;
+      }
+    }
+    out.push(b);
+  }
+  // Copyright footnotes go to the end.
+  const notes = out.filter((b) => b.type === 'p' && /^©|^copyright\b/i.test(b.text || ''));
+  const body = out.filter((b) => !notes.includes(b));
+  // One reference per item.
+  const refs = [];
+  for (const b of body.concat(notes.map((n) => ({ ...n, small: true })))) {
+    if (b.type !== 'ref' || !b.text) { refs.push(b); continue; }
+    const cuts = [];
+    let want = null;
+    for (const m of b.text.matchAll(/(?:^|\s)(\d{1,3})\.\s+(?=[A-Z‘'"“])/g)) {
+      const n = +m[1];
+      if (want === null || n === want) { cuts.push(m.index + (m[0].startsWith(' ') ? 1 : 0)); want = n + 1; }
+    }
+    if (cuts.length < 2) { refs.push(b); continue; }
+    cuts.forEach((c, k) => { const t = b.text.slice(c, cuts[k + 1] ?? b.text.length).trim(); if (t) refs.push({ ...b, text: t }); });
+  }
+  return refs;
 }
