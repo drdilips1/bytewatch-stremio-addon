@@ -653,6 +653,15 @@
     },
     share: (t, text) => (IOS ? ios('share', { title: t || '', text: text || '' }) : navigator.share ? navigator.share({ title: t, text }).catch(() => {}) : N.copy(text)),
     copy: (t) => { try { if (IOS) ios('copy', { text: t }); else navigator.clipboard.writeText(t); } catch { /* not allowed */ } toast('Copied'); },
+    /** A generated file (Word, PowerPoint) as base64: the share sheet, or a download. */
+    exportFile: async (name, base64, mime) => {
+      if (IOS) { ios('share', { fileName: name, b64: base64, mime }); return; }
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      const file = new File([bytes], name, { type: mime });
+      try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; } } catch { return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(file); a.download = name; a.click();
+    },
     exportText: async (name, content, mime) => {
       if (IOS) { ios('share', { fileName: name, b64: await b64(new Blob([content])), mime: mime || 'text/plain' }); return; }
       const file = new File([content], name, { type: mime || 'text/plain' });

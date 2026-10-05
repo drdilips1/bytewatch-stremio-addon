@@ -1218,6 +1218,32 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** Shares a generated file (Word, PowerPoint) given as base64: save to Files/Drive, WhatsApp, email… */
+        @JavascriptInterface
+        public void exportFile(String fileName, String base64, String mime) {
+            io.execute(() -> {
+                try {
+                    File dir = new File(getCacheDir(), "export");
+                    dir.mkdirs();
+                    File f = new File(dir, fileName.replaceAll("[^A-Za-z0-9_. -]", "_"));
+                    try (FileOutputStream out = new FileOutputStream(f)) {
+                        out.write(android.util.Base64.decode(base64, android.util.Base64.DEFAULT));
+                    }
+                    Uri uri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                    main.post(() -> {
+                        Intent i = new Intent(Intent.ACTION_SEND);
+                        i.setType(mime);
+                        i.putExtra(Intent.EXTRA_STREAM, uri);
+                        i.putExtra(Intent.EXTRA_SUBJECT, f.getName());
+                        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(Intent.createChooser(i, "Save or share " + f.getName()));
+                    });
+                } catch (Exception e) {
+                    toast("Export failed");
+                }
+            });
+        }
+
         @JavascriptInterface
         public void copy(String text) {
             main.post(() -> {

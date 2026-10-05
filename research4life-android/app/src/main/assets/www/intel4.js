@@ -347,6 +347,21 @@
       table: obj({ caption: S.str, columns: { type: 'array', items: S.str }, rows: { type: 'array', items: { type: 'array', items: S.str } } }) }) },
     claims: { type: 'array', items: obj({ strength: { type: 'string', enum: ['strong', 'moderate', 'limited'] }, claim: S.str, cites: S.ints }) },
   });
+  /** The meter and its explanation as an exportable report (Word, slides). */
+  function explainReport(question, data, r) {
+    const rel = data.rows.filter((x) => ANS[x.answer]);
+    const tot = rel.reduce((s0, x) => s0 + weightOf(x.a), 0) || 1;
+    const meter = Object.entries(ANS).map(([k, [l]]) => `${l} ${Math.round(rel.filter((x) => x.answer === k).reduce((s0, x) => s0 + weightOf(x.a), 0) / tot * 100)}%`).join(' · ');
+    const blocks = [{ h: 'Answer' }, { p: r.headline }, { p: `Consensus meter: ${meter} (${rel.length} relevant studies of ${data.rows.length} read).` }];
+    for (const x of r.sections || []) {
+      blocks.push({ h: x.heading });
+      (x.paragraphs || []).forEach((t) => blocks.push({ p: t }));
+      if (x.table?.columns?.length && x.table.rows?.length) blocks.push({ table: x.table });
+    }
+    if (r.claims?.length) blocks.push({ h: 'Evidence strength' }, { table: { caption: '', columns: ['Strength', 'Claim'], rows: r.claims.map((c) => [(I.STRENGTH[c.strength] || ['', c.strength])[1], c.claim + (c.cites?.length ? ` [${c.cites.join(', ')}]` : '')]) } });
+    return { title: data.yesno || question, subtitle: `Evidence summary · ${new Date().toLocaleDateString()}`, blocks };
+  }
+
   async function explain(question, data, live) {
     const el = $('#cm-ex');
     if (!el) return;
@@ -380,7 +395,7 @@
         ${r.claims?.length ? `<h4>Evidence strength</h4><div class="ex-table"><table><thead><tr><th>Strength</th><th>Claim</th></tr></thead><tbody>
           ${r.claims.map((c) => `<tr><td>${I.strength(c.strength)}</td><td>${cite(c.claim)} ${I.citeBtns(c.cites, ctx)}</td></tr>`).join('')}</tbody></table></div>` : ''}
         <p class="muted small">Written by AI from the ${rows.length} relevant studies above. Tap a reference to see the paper; check key numbers in the papers.</p>
-        <button class="btn xs" data-act="cm-ex-redo">${icon('spark')}Redo</button></div>`;
+        <div class="row wrap" style="gap:6px"><button class="btn xs" data-act="cm-ex-redo">${icon('spark')}Redo</button> ${I.exportBtns(I.offerExport(() => explainReport(question, data, r), ctx))}</div></div>`;
     actions['cm-ex-redo'] = () => { store.set('intel.' + key, null); explain(question, data, live); };
   }
   const prevTop2 = ext.searchTop;

@@ -304,6 +304,131 @@
     const shown = labels.length > 2 ? `${labels.slice(0, 2).join(', ')} +${labels.length - 2}` : labels.join(', ');
     return `<button class="cite" data-act="cite-show" data-ctx="${ctx}" data-n="${cites.join(',')}">${esc(shown)}</button>`;
   };
+  // ================================================================ Word and PowerPoint export
+  // A report is {title, subtitle, blocks: [{h} | {p} | {ul: []} | {table: {columns, rows, caption}}]} with
+  // [n] citations; exports turn them into (Author Year) and add the cited papers as references.
+  const loaded = {};
+  const loadScript = (src) => loaded[src] || (loaded[src] = new Promise((res, rej) => {
+    const el = document.createElement('script');
+    el.src = src; el.onload = res; el.onerror = () => { delete loaded[src]; rej(new Error('Couldn\'t load the export tool')); };
+    document.head.appendChild(el);
+  }));
+  /** "[2, 5]" → "(Capon 2017; Dand 2020)", remembering which references were cited. */
+  function plainCites(text, ctx, used) {
+    return String(text || '').replace(/\s*\[(\d+(?:\s*[,–-]\s*\d+)*)\]/g, (m0, list) => {
+      const nums = [...list.matchAll(/\d+/g)].map((x) => Number(x[0]));
+      nums.forEach((n) => used.add(n));
+      return ` (${nums.map((n) => citeLabel(n, ctx)).join('; ')})`;
+    });
+  }
+  function refLine(r) {
+    if (r.kind === 'trial') return `${r.t.title}. ClinicalTrials.gov ${r.t.nct}${r.t.status ? ' (' + r.t.status + ')' : ''}.`;
+    const a = r.a;
+    const au = String(a.authors || '').split(',').map((x) => x.trim()).filter(Boolean);
+    return `${au.length > 3 ? au.slice(0, 3).join(', ') + ', et al' : au.join(', ')}. ${a.title}. ${a.jAbbr || a.journal || ''} ${a.year || ''}${a.doi ? '. doi:' + a.doi : a.pmid ? '. PMID ' + a.pmid : ''}.`;
+  }
+  /** Plain text report with citations resolved, and the reference list in citation order. */
+  function resolveReport(rep, ctx) {
+    const used = new Set();
+    const pc = (t) => plainCites(t, ctx, used);
+    const blocks = rep.blocks.map((b) => (b.p != null ? { p: pc(b.p) } : b.ul ? { ul: b.ul.map(pc) } : b.table ? { table: { ...b.table, rows: b.table.rows.map((row) => row.map(pc)) } } : b));
+    const all = contexts.get(ctx) || [];
+    const refs = [...used].map((n) => all.find((x) => x.n === n)).filter(Boolean)
+      .sort((x, y) => citeLabel(x.n, ctx).localeCompare(citeLabel(y.n, ctx))).map((r) => `${citeLabel(r.n, ctx)}. ${refLine(r)}`);
+    return { ...rep, blocks, refs };
+  }
+  const fileName = (title, ext) => `${String(title).replace(/[^\w\s-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'DermScholar'}.${ext}`;
+  const MIME = { docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' };
+  function deliver(name, b64, mime) {
+    if (Native.exportFile) Native.exportFile(name, b64, mime);
+    else { const a = document.createElement('a'); a.href = `data:${mime};base64,${b64}`; a.download = name; a.click(); }
+  }
+  async function exportWord(rep0, ctx) {
+    await loadScript('vendor/office/docx.min.js');
+    const { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType } = window.docx;
+    const rep = resolveReport(rep0, ctx);
+    const children = [new Paragraph({ text: rep.title, heading: HeadingLevel.TITLE })];
+    if (rep.subtitle) children.push(new Paragraph({ children: [new TextRun({ text: rep.subtitle, italics: true, color: '666666' })] }));
+    for (const b of rep.blocks) {
+      if (b.h) children.push(new Paragraph({ text: b.h, heading: HeadingLevel.HEADING_2, spacing: { before: 240 } }));
+      else if (b.p != null) children.push(new Paragraph({ children: [new TextRun(b.p)], spacing: { after: 120 } }));
+      else if (b.ul) b.ul.forEach((t) => children.push(new Paragraph({ text: t, bullet: { level: 0 } })));
+      else if (b.table) {
+        const cell = (t, bold) => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(t), bold })] })] });
+        children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ tableHeader: true, children: b.table.columns.map((c) => cell(c, true)) }), ...b.table.rows.map((r) => new TableRow({ children: b.table.columns.map((_, i) => cell(r[i] ?? '', false)) }))] }));
+        if (b.table.caption) children.push(new Paragraph({ children: [new TextRun({ text: b.table.caption, italics: true, size: 18 })] }));
+      }
+    }
+    if (rep.refs.length) {
+      children.push(new Paragraph({ text: 'References', heading: HeadingLevel.HEADING_2, spacing: { before: 240 } }));
+      rep.refs.forEach((t) => children.push(new Paragraph({ children: [new TextRun({ text: t, size: 18 })], spacing: { after: 80 } })));
+    }
+    children.push(new Paragraph({ children: [new TextRun({ text: 'Made with DermScholar. AI-written from paper abstracts: check key numbers in the papers.', italics: true, size: 16, color: '888888' })], spacing: { before: 240 } }));
+    const doc = new Document({ creator: 'DermScholar', title: rep.title, sections: [{ children }] });
+    deliver(fileName(rep.title, 'docx'), await Packer.toBase64String(doc), MIME.docx);
+  }
+  async function exportSlides(rep0, ctx) {
+    await loadScript('vendor/office/pptxgen.bundle.js');
+    const rep = resolveReport(rep0, ctx);
+    const pptx = new window.PptxGenJS();
+    pptx.layout = 'LAYOUT_WIDE';
+    pptx.title = rep.title;
+    const ACC = '7C3AED';
+    const head = (sl, t) => { sl.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.12, fill: { color: ACC } }); sl.addText(t, { x: 0.6, y: 0.35, w: 12.1, h: 0.8, fontSize: 26, bold: true, color: '1F2937', fit: 'shrink' }); };
+    const foot = (sl) => sl.addText('DermScholar · AI-written from paper abstracts: check key numbers', { x: 0.6, y: 7.0, w: 12.1, h: 0.3, fontSize: 9, color: '9CA3AF' });
+    const t = pptx.addSlide();
+    t.background = { color: 'F5F3FF' };
+    t.addText(rep.title, { x: 0.8, y: 2.3, w: 11.7, h: 1.6, fontSize: 36, bold: true, color: '1F2937', fit: 'shrink' });
+    if (rep.subtitle) t.addText(rep.subtitle, { x: 0.8, y: 4.0, w: 11.7, h: 1.2, fontSize: 18, color: '4B5563', fit: 'shrink' });
+    t.addText('DermScholar', { x: 0.8, y: 6.4, w: 6, h: 0.4, fontSize: 12, color: ACC, bold: true });
+    // One slide per section (text split over slides when long; tables on their own slide).
+    let cur = null;
+    const flush = () => {
+      if (!cur || !cur.lines.length) return;
+      for (let i = 0; i < cur.lines.length; i += 5) {
+        const sl = pptx.addSlide();
+        head(sl, cur.h + (i ? ' (cont.)' : ''));
+        sl.addText(cur.lines.slice(i, i + 5).map((x) => ({ text: x, options: { bullet: true, breakLine: true, paraSpaceAfter: 8 } })), { x: 0.6, y: 1.3, w: 12.1, h: 5.5, fontSize: 18, color: '1F2937', valign: 'top', fit: 'shrink' });
+        foot(sl);
+      }
+      cur.lines = [];
+    };
+    for (const b of rep.blocks) {
+      if (b.h) { flush(); cur = { h: b.h, lines: [] }; continue; }
+      cur = cur || { h: rep.title, lines: [] };
+      if (b.p != null) cur.lines.push(b.p);
+      else if (b.ul) cur.lines.push(...b.ul);
+      else if (b.table) {
+        flush();
+        const sl = pptx.addSlide();
+        head(sl, b.table.caption || cur.h);
+        const hdr = b.table.columns.map((c) => ({ text: c, options: { bold: true, color: 'FFFFFF', fill: { color: ACC } } }));
+        sl.addTable([hdr, ...b.table.rows.map((r) => b.table.columns.map((_, i) => ({ text: String(r[i] ?? '') })))], { x: 0.6, y: 1.3, w: 12.1, fontSize: 13, color: '1F2937', border: { type: 'solid', color: 'E5E7EB', pt: 0.75 }, autoPage: true, autoPageRepeatHeader: true });
+        foot(sl);
+      }
+    }
+    flush();
+    for (let i = 0; i < rep.refs.length; i += 7) {
+      const sl = pptx.addSlide();
+      head(sl, 'References' + (i ? ' (cont.)' : ''));
+      sl.addText(rep.refs.slice(i, i + 7).map((x) => ({ text: x, options: { breakLine: true, paraSpaceAfter: 6 } })), { x: 0.6, y: 1.3, w: 12.1, h: 5.5, fontSize: 12, color: '374151', valign: 'top', fit: 'shrink' });
+    }
+    deliver(fileName(rep.title, 'pptx'), await pptx.write({ outputType: 'base64' }), MIME.pptx);
+  }
+  /** Word and Slides buttons for a report built on demand by make(). */
+  function exportBtns(id) { return `<button class="btn xs" data-act="ex-word" data-id="${id}">${icon('download')}Word</button> <button class="btn xs" data-act="ex-slides" data-id="${id}">${icon('download')}Slides</button>`; }
+  const reports = new Map();
+  /** Registers a report for the export buttons; returns the id to pass to exportBtns. */
+  function offerExport(make, ctx) { const id = 'r' + (reports.size + 1) + '_' + Date.now(); reports.set(id, { make, ctx }); return id; }
+  async function runExport(kind, id) {
+    const r = reports.get(id);
+    if (!r) return;
+    toast(kind === 'word' ? 'Making the Word document…' : 'Making the slides…');
+    try { await (kind === 'word' ? exportWord : exportSlides)(r.make(), r.ctx); } catch (e) { toast(e.message || 'Export failed'); }
+  }
+  actions['ex-word'] = (b) => runExport('word', b.dataset.id);
+  actions['ex-slides'] = (b) => runExport('slides', b.dataset.id);
+
   const STRENGTH = {
     strong: ['🟢', 'Strong'], moderate: ['🟡', 'Moderate'], limited: ['🟠', 'Limited'],
     'very limited': ['🔴', 'Very limited'], conflicting: ['⚫', 'Conflicting'],
@@ -456,6 +581,17 @@
   }
   const busyHtml = (msg) => `<div class="panel busy-inline"><span class="spin"></span>${esc(msg)}</div>`;
 
+  /** The synthesis as an exportable report (Word, slides). */
+  function synthReport(question, r) {
+    const st = (x) => (STRENGTH[x] ? ` (${STRENGTH[x][1].toLowerCase()} evidence)` : '');
+    const withCites = (t, cites) => t + (cites?.length && !/\[\d/.test(t) ? ` [${cites.join(', ')}]` : '');
+    const blocks = [{ h: 'Bottom line' }, { p: r.bottomLine + st(r.strength) }];
+    for (const x of r.sections || []) blocks.push({ h: x.heading }, { ul: (x.points || []).map((pt) => withCites(pt.text, pt.cites) + st(pt.strength)) });
+    if (r.controversies?.length) blocks.push({ h: 'Where the evidence disagrees' }, { ul: r.controversies.map((c) => withCites(c.text, c.cites)) });
+    if (r.gaps?.length) blocks.push({ h: 'Unanswered questions' }, { ul: r.gaps });
+    return { title: question, subtitle: `Evidence synthesis · ${new Date().toLocaleDateString()}`, blocks };
+  }
+
   async function synth(question, refs, ctx) {
     const out = $('#ev-out');
     const ck = 'synth2.' + question.toLowerCase();
@@ -483,7 +619,7 @@
       ${r.gaps?.length ? `<h4>🕳️ Unanswered questions</h4><ul>${r.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}
       ${r.mustRead?.length ? `<h4>📌 Read first</h4><div class="row wrap">${r.mustRead.map((n) => citeBtns([n], ctx)).join('')}</div>` : ''}
       <p class="muted small">Tap a number to see the exact sources. AI can misread abstracts: check key numbers in the papers.</p>
-      <button class="btn xs" data-act="ev-redo">${icon('spark')}Redo</button></div>`;
+      <div class="row wrap" style="gap:6px"><button class="btn xs" data-act="ev-redo">${icon('spark')}Redo</button> ${exportBtns(offerExport(() => synthReport(question, r), ctx))}</div></div>`;
     actions['ev-redo'] = () => { store.set('intel.' + ck, null); synth(question, refs, ctx); };
   }
 
@@ -1102,6 +1238,6 @@
   window.DSI = {
     api, q, epmc, trials, trialOf, trialTerm, gather, refsFrom, packText, newCtx, contexts, citeHtml, citeBtns, strength, refRow, trialCard,
     keyCard, aiErr, busyHtml, aiJsonCall, cacheGet, cacheSet, obj, S, CITE_SYSTEM, paperText, openUrl, evHash, today, daysAgo, TILES, DISEASES,
-    needKey, GUIDE, SAFETY, TREAT, isTreatmentQ, planSearch, evidencePool, stepsHtml,
+    needKey, GUIDE, SAFETY, TREAT, isTreatmentQ, planSearch, evidencePool, stepsHtml, exportBtns, offerExport, STRENGTH,
   };
 })();

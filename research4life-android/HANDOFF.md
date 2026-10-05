@@ -12,7 +12,7 @@ Read this first, then `BACKLOG.md` (the roadmap with every request and its statu
 - Keep the Android app's structure as is. The web app must not remove features: what needs Android opens the website in a browser tab instead.
 
 ## Current state
-- **Shipped: 5.5** (versionCode 33): Consensus meter fix and treatment-only evidence (BACKLOG #45). The next build is **5.6 / versionCode 34** (already bumped): BACKLOG #48 Elsevier PDFs via ClinicalKey, #49 shared AI-planned search for the Evidence Map and Consensus meter (`planSearch`/`evidencePool` in intel.js).
+- **Shipped: 5.5** (versionCode 33): Consensus meter fix and treatment-only evidence (BACKLOG #45). The next build is **5.6 / versionCode 34** (already bumped): BACKLOG #48 Elsevier PDFs via ClinicalKey, #49 shared AI-planned search for the Evidence Map and Consensus meter (`planSearch`/`evidencePool` in intel.js), #50 Consensus-style explanation, #51 Word/slides export (`exportWord`/`exportSlides` in intel.js, libraries in `www/vendor/office`, bridge `Native.exportFile(name, base64, mime)` on Android and in web.js).
 - **Web app for iPhone (BACKLOG #23), published** (owner approved): workflow `.github/workflows/dermscholar-web.yml` builds it on every push (not on `[skip ci]`) and force-pushes it to the `gh-pages` branch → https://drdilips1.github.io/bytewatch-stremio-addon/ . The owner's wife uses it with her own account.
 
 ## App architecture
@@ -35,6 +35,7 @@ Hybrid Android app: a WebView UI plus a Java bridge.
 - Web app (iPhone): `web/web.js` is loaded before `app.js` only in the web build and provides `window.WebNative`, which `app.js` merges into its browser `Native`. It covers AI (Groq/Gemini/Claude from the browser), PDFs in the Cache API (`reflow.openPdf` asks `WebNative.pdfBytes`; a `fetch` wrapper serves `/pdf/` and `/import/`), read aloud (speechSynthesis), voice input, file/photo picking, OCR via AI vision. Keys stay in `dsweb.*` localStorage (not synced). Build: `bash web/build.sh [out]`.
 - iPhone app (`ios/`, BACKLOG #46): `MainViewController` hosts the web build (`www/`, made by `web/build.sh` in CI) at `dsapp://app/` via `LocalFiles` (also `/native/<id>` for files handed over and `/proxy?u=` for native fetches with the in-app browser's cookies). web.js detects `window.webkit.messageHandlers.ios` and sends `browse`, `share`, `copy`, `ready`, `done`; native answers with `WebNative.fromNative({type:'nativeFile',…})`. `BrowserViewController` is the in-app browser; PDFs opened in it are saved (automatically when opened for a paper's PDF). Unsigned .ipa from `.github/workflows/dermscholar-ios.yml`; the owner sideloads it (Sideloadly/AltStore, free Apple ID, 7-day refresh). Nothing compiled locally (no Xcode here): the first CI build is the compile check.
 - Build triggers: the APK workflow ignores `web/` and `ios/`; web and iOS workflows ignore Android-only Java/res changes.
+- Roadmap priority from the owner: C5/S1 deep review next.
 - Testing: Playwright with mocked `fetch` and `window.__aiMock` (Chromium at `/opt/pw-browsers/chromium`). Serve `www/` over `python3 -m http.server` when a test needs `/pdf/...` or ES modules.
 
 ## Done so far (highlights by version)
