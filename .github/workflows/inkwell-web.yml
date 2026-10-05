@@ -1,7 +1,9 @@
 name: Inkwell web app
 
 # Builds the same app for the browser (iPhone / iPad: Safari → Share → Add to
-# Home Screen) and publishes it on GitHub Pages.
+# Home Screen) and publishes it on GitHub Pages (the gh-pages branch, site root).
+# The dermscholar/ folder of that site belongs to DermScholar (dermscholar-web.yml
+# on its own branch); each workflow replaces only its own part.
 
 on:
   push:
@@ -11,9 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: inkwell-web
@@ -22,6 +22,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Shared with DermScholar's web workflow: one gh-pages update at a time.
+    concurrency:
+      group: pages-publish
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: inkwell
@@ -54,22 +58,21 @@ jobs:
             printf '{"version":"%s","apk":"app/Audiohub.apk","github":"%s"}\n' "$ver" "$gh_url" > dist/app/latest.json
             ls -la dist/app; cat dist/app/latest.json
           fi
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: inkwell/dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    concurrency:
-      group: pages-deploy
-      cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Publish to gh-pages (keeps DermScholar's dermscholar/ folder)
+        working-directory: ${{ github.workspace }}
+        env:
+          REPO_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+        run: |
+          set -e
+          git clone -q --depth 1 --branch gh-pages "$REPO_URL" "$RUNNER_TEMP/pages"
+          cd "$RUNNER_TEMP/pages"
+          old=$(git rev-parse HEAD)
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name dermscholar -exec rm -rf {} +
+          cp -R "$GITHUB_WORKSPACE/inkwell/dist/." .
+          touch .nojekyll
+          # One commit, no history: the mirrored APK would pile up.
+          git checkout -q --orphan site
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Audiohub web app from ${GITHUB_SHA::7} (DermScholar in dermscholar/)"
+          git push -q --force-with-lease=gh-pages:$old origin site:gh-pages
