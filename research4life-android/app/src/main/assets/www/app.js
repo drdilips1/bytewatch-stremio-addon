@@ -549,7 +549,7 @@
       reset();
       if (!go) return;
       bar.classList.add('show', 'spin');
-      searchCache.clear(); issueCache.clear(); crossrefCache.clear();
+      searchCache.clear(); issueCache.clear(); crossrefCache.clear(); yearsPulled = Date.now();
       Promise.resolve(refreshPdfs()).then(() => loadSaved()).finally(() => { render(); setTimeout(() => bar?.classList.remove('show', 'spin'), 600); });
     }, { passive: true });
   })();
@@ -2477,6 +2477,11 @@
     if (!j.issn) return [];
     const key = `${j.issn}|${y}`;
     if (crossrefCache.has(key)) return crossrefCache.get(key);
+    const run = crossrefFetch(j, y);
+    crossrefCache.set(key, run);
+    return run;
+  }
+  async function crossrefFetch(j, y) {
     const p = new URLSearchParams({ filter: `from-pub-date:${y - 1}-10-01,until-pub-date:${y}-12-31`, rows: '1000',
       select: 'DOI,title,volume,issue,page,author,published,published-print,type', mailto: 'app@dermscholar.app' });
     let items = [];
@@ -2485,25 +2490,25 @@
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))]);
       items = (r.message?.items || []).filter((x) => x.volume && x.issue && x.title?.[0]);
     } catch { items = []; }
-    crossrefCache.set(key, items);
     return items;
   }
 
-  // Issues come from Europe PMC's volume/issue tags on each article, one year at a time.
+  // Issues come from Europe PMC's volume/issue tags on each article, one year at a time, topped up
+  // from Crossref. Both are asked at once; Crossref (slow) gets a few seconds and otherwise fills
+  // in afterwards (out.more). The issue list is also kept on the phone, so a journal opens at once
+  // and refreshes in the background.
   const issueCache = new Map();
   const issueNum = (x) => { const n = parseInt(x, 10); return Number.isNaN(n) ? -1 : n; };
-  async function loadYear(j, y) {
-    const key = `${j.abbr}|${y}`;
-    if (issueCache.has(key)) return issueCache.get(key);
-    const q = `${journalQuery(j)} AND PUB_YEAR:${y} ${NOISE}`;
-    const items = [];
-    let cursor = '*';
-    for (let page = 0; page < 3 && cursor; page++) {
-      const p = new URLSearchParams({ query: q, format: 'json', resultType: 'lite', pageSize: 1000, cursorMark: cursor });
-      const r = await getJSON(EPMC + 'search?' + p);
-      items.push(...(r.resultList?.result || []));
-      cursor = r.nextCursorMark && r.nextCursorMark !== cursor && items.length < r.hitCount ? r.nextCursorMark : null;
-    }
+  const yearKey = (j, y) => `ds.jy.${j.issn || j.abbr}|${y}`;
+  let yearsPulled = 0; // pull-to-refresh: kept lists show, but are fetched again
+  const yearFresh = (y, t) => t > yearsPulled && Date.now() - t < (y >= THIS_YEAR - 1 ? 6 * 3600e3 : 14 * 86400e3);
+  function storedYear(j, y) {
+    try { const d = JSON.parse(localStorage.getItem(yearKey(j, y)) || 'null'); return d && Array.isArray(d.issues) ? d : null; } catch { return null; }
+  }
+  function storeYear(j, y, out) {
+    try { localStorage.setItem(yearKey(j, y), JSON.stringify({ t: Date.now(), issues: out.issues, inPressN: out.inPress.length, total: out.total })); } catch { /* full */ }
+  }
+  function mergeYear(y, items, crItems) {
     const groups = new Map();
     const inPress = [];
     for (const r of items) {
@@ -2516,7 +2521,7 @@
     }
     // Issues PubMed hasn't filled in yet (or at all): count them from Crossref.
     const cr = new Map();
-    for (const x of await crossrefYear(j, y)) {
+    for (const x of crItems) {
       if (crYear(x) !== +y) continue;
       const k = `${x.volume}|${x.issue}`;
       cr.set(k, (cr.get(k) || 0) + 1);
@@ -2529,8 +2534,33 @@
     }
     const issues = [...groups.values()].sort((a, b) => issueNum(b.v) - issueNum(a.v) || issueNum(b.i) - issueNum(a.i) || String(a.i).localeCompare(String(b.i)));
     inPress.sort((a, b) => (b.firstPublicationDate || '').localeCompare(a.firstPublicationDate || ''));
-    const out = { issues, inPress, total: items.length };
+    return { issues, inPress, total: items.length };
+  }
+  async function loadYear(j, y) {
+    const key = `${j.abbr}|${y}`;
+    if (issueCache.has(key)) return issueCache.get(key);
+    const crP = crossrefYear(j, y);
+    const q = `${journalQuery(j)} AND PUB_YEAR:${y} ${NOISE}`;
+    const items = [];
+    let cursor = '*';
+    for (let page = 0; page < 3 && cursor; page++) {
+      const p = new URLSearchParams({ query: q, format: 'json', resultType: 'lite', pageSize: 1000, cursorMark: cursor });
+      const r = await getJSON(EPMC + 'search?' + p);
+      items.push(...(r.resultList?.result || []));
+      cursor = r.nextCursorMark && r.nextCursorMark !== cursor && items.length < r.hitCount ? r.nextCursorMark : null;
+    }
+    const crItems = await Promise.race([crP, new Promise((res) => setTimeout(() => res(null), 1500))]);
+    const out = mergeYear(y, items, crItems || []);
+    if (!crItems) {
+      out.more = crP.then((cr) => {
+        const full = mergeYear(y, items, cr);
+        issueCache.set(key, full);
+        storeYear(j, y, full);
+        return full;
+      });
+    }
     issueCache.set(key, out);
+    storeYear(j, y, out);
     return out;
   }
   const issueHash = (j, v, i) => `ji/${encodeURIComponent(j.custom ? 'issn:' + j.issn : j.abbr)}/${encodeURIComponent(v)}/${encodeURIComponent(i)}`;
@@ -2608,16 +2638,11 @@
     const years = Array.from({ length: 8 }, (_, k) => THIS_YEAR - k);
     const y = Number(params.y) || THIS_YEAR;
     const yearChips = `<div class="scroll-x" style="margin:8px -16px 12px">${years.map((yy) => `<button class="chip ${yy === y ? 'on' : ''}" data-act="jyear" data-y="${yy}">${yy}</button>`).join('')}</div>`;
-    el.innerHTML = yearChips + skeletons(3);
     actions.jyear = (b) => nav({ y: b.dataset.y });
-    try {
-      let data = await loadYear(j, y);
-      // Early in the year the newest issues may still be last year's.
-      let current = null;
-      if (y === THIS_YEAR) {
-        current = data.issues[0] || (await loadYear(j, THIS_YEAR - 1)).issues[0] || null;
-      }
+    actions['open-issue'] = (b) => go(issueHash(j, b.dataset.v, b.dataset.i));
+    const paint = (data, current) => {
       if (!el.isConnected) return;
+      const inPressN = data.inPress ? data.inPress.length : data.inPressN || 0;
       const tiles = data.issues.map((g) => `<button class="issue-tile" data-act="open-issue" data-v="${esc(g.v)}" data-i="${esc(g.i)}">
           <span class="issue-vol">Vol ${esc(g.v)}</span><b>${esc(issueLabel(g))}</b><span class="muted small">${g.count} articles${g.oa ? ` · ${g.oa} open` : ''}</span></button>`).join('');
       el.innerHTML = yearChips + (current ? `<button class="current-issue" data-act="open-issue" data-v="${esc(current.v)}" data-i="${esc(current.i)}" style="${coverStyle(j.abbr)}">
@@ -2625,9 +2650,24 @@
           <span>${current.count} articles · open table of contents →</span></button>` : '') +
         (data.issues.length ? `<div class="section-h" style="margin-top:18px"><h3>${y} issues</h3><span class="muted small">${data.issues.length}</span></div><div class="issue-grid">${tiles}</div>`
           : `<div class="empty"><b>No issues found for ${y}</b><div>Europe PMC may not list issue numbers for this journal.</div></div>`) +
-        (data.inPress.length && y >= THIS_YEAR - 1 ? `<button class="btn full" style="width:100%;margin-top:14px" data-act="jtab" data-t="press">${icon('clock')}${data.inPress.length} articles in press</button>` : '');
-      actions['open-issue'] = (b) => go(issueHash(j, b.dataset.v, b.dataset.i));
-    } catch (e) { if (el.isConnected) el.innerHTML = yearChips + errorBox(e); }
+        (inPressN && y >= THIS_YEAR - 1 ? `<button class="btn full" style="width:100%;margin-top:14px" data-act="jtab" data-t="press">${icon('clock')}${inPressN} articles in press</button>` : '');
+    };
+    // Early in the year the newest issues may still be last year's.
+    const currentOf = async (data, stored) => {
+      if (y !== THIS_YEAR) return null;
+      if (data.issues[0]) return data.issues[0];
+      const prev = stored ? storedYear(j, THIS_YEAR - 1) : null;
+      return (prev || (await loadYear(j, THIS_YEAR - 1))).issues[0] || null;
+    };
+    const kept = storedYear(j, y);
+    if (kept) paint(kept, await currentOf(kept, true));
+    else el.innerHTML = yearChips + skeletons(3);
+    if (kept && yearFresh(y, kept.t)) return;
+    try {
+      const data = await loadYear(j, y);
+      paint(data, await currentOf(data));
+      if (data.more) data.more.then(async (full) => paint(full, await currentOf(full))).catch(() => {});
+    } catch (e) { if (el.isConnected && !kept) el.innerHTML = yearChips + errorBox(e); }
   }
 
   const SECTION_ORDER = ['Systematic reviews & meta-analyses', 'Clinical trials', 'Original research', 'Reviews & guidelines', 'Case reports', 'Letters, comments & editorials'];
@@ -2647,6 +2687,10 @@
     if (!j) return go('journals', { replace: true });
     view.innerHTML = `${topbar(`${j.abbr} · Vol ${v}`, { right: `<button class="icon-btn" data-act="issue-share" aria-label="Share">${icon('share')}</button>` })}${skeletons(5)}`;
     const q = `${journalQuery(j)} AND VOLUME:"${v}" AND ISSUE:"${i}" ${NOISE}`;
+    // The issue's year, if the issue list was opened before: start Crossref now, alongside Europe PMC.
+    const knownYear = Array.from({ length: 8 }, (_, k) => THIS_YEAR - k)
+      .find((y) => storedYear(j, y)?.issues.some((g) => String(g.v) === String(v) && String(g.i) === String(i)));
+    if (j.issn && knownYear) crossrefYear(j, knownYear);
     const all = [];
     try {
       let cursor = '*';
@@ -2657,21 +2701,6 @@
       }
     } catch (e) { view.innerHTML = topbar(j.abbr) + errorBox(e); return; }
     if (current.name !== 'ji') return;
-    // Items Crossref lists for this issue that Europe PMC doesn't have yet.
-    let extra = [];
-    if (j.issn) {
-      const years = all.length ? [+all[0].year] : [THIS_YEAR, THIS_YEAR - 1];
-      const have = new Set(all.map((a) => (a.doi || '').toLowerCase()).filter(Boolean));
-      for (const y of years) {
-        for (const x of await crossrefYear(j, y)) {
-          if (String(x.volume) === String(v) && String(x.issue) === String(i) && !have.has(x.DOI.toLowerCase())) {
-            have.add(x.DOI.toLowerCase());
-            extra.push(x);
-          }
-        }
-      }
-      if (current.name !== 'ji') return;
-    }
     const firstPage = (a) => { const m = String(a.pages || '').match(/\d+/); return m ? +m[0] : 1e9; };
     all.sort((a, b) => firstPage(a) - firstPage(b));
     const date = all.find((a) => a.pubDate)?.pubDate || '';
@@ -2681,17 +2710,40 @@
       <section class="issue-hero" style="${coverStyle(j.abbr)}">
         <span class="ci-label">${esc(j.name)}</span>
         <h2>Volume ${esc(v)} · ${esc(issueLabel({ i }))}</h2>
-        <span>${esc(date)}${date ? ' · ' : ''}${all.length + extra.length} articles</span>
+        <span>${esc(date)}${date ? ' · ' : ''}<span id="issue-n">${all.length}</span> articles</span>
         <div class="row" style="gap:8px;margin-top:12px"><button class="btn xs glass" data-act="issue-share">${icon('share')}Share contents</button>
           <button class="btn xs glass" data-act="issue-toc">${icon('list')}Sections</button></div>
       </section>
       ${[...bySection.entries()].filter(([, l]) => l.length).map(([sec, list], k) => `<div class="section" id="sec-${k}"><div class="section-h"><h3>${esc(sec)}</h3><span class="muted small">${list.length}</span></div>
-        ${list.map((a) => card(a, { compact: true })).join('')}</div>`).join('') || (extra.length ? '' : '<div class="empty"><b>No articles listed</b></div>')}
-      ${extra.length ? `<div class="section"><div class="section-h"><h3>Also in this issue</h3><span class="muted small">${extra.length}</span></div>
+        ${list.map((a) => card(a, { compact: true })).join('')}</div>`).join('') || '<div class="empty" id="issue-none"><b>No articles listed</b></div>'}
+      <div id="issue-extra"></div>`;
+    const here = view.firstElementChild;
+    // Items Crossref lists for this issue that Europe PMC doesn't have yet (Crossref is slow, so
+    // they're added once it answers).
+    if (j.issn) {
+      (async () => {
+        const years = all.length ? [+all[0].year] : knownYear ? [knownYear] : [THIS_YEAR, THIS_YEAR - 1];
+        const have = new Set(all.map((a) => (a.doi || '').toLowerCase()).filter(Boolean));
+        const extra = [];
+        for (const items of await Promise.all(years.map((y) => crossrefYear(j, y)))) {
+          for (const x of items) {
+            if (String(x.volume) === String(v) && String(x.issue) === String(i) && !have.has(x.DOI.toLowerCase())) {
+              have.add(x.DOI.toLowerCase());
+              extra.push(x);
+            }
+          }
+        }
+        const box = $('#issue-extra');
+        if (!extra.length || !box || view.firstElementChild !== here) return;
+        $('#issue-none')?.remove();
+        $('#issue-n').textContent = all.length + extra.length;
+        box.innerHTML = `<div class="section"><div class="section-h"><h3>Also in this issue</h3><span class="muted small">${extra.length}</span></div>
         <p class="muted small" style="margin-top:-6px">Listed by the publisher; not in PubMed yet (or not indexed there, like images and comments).</p>
         ${extra.sort((a, b) => (parseInt(a.page, 10) || 1e9) - (parseInt(b.page, 10) || 1e9)).map((x) => `<div class="card" role="button" tabindex="0" data-act="cr-open" data-doi="${esc(x.DOI)}">
           <p class="title main">${esc(stripTags(x.title[0]))}</p>
-          <div class="byline">${x.author?.length ? `<span>${esc(x.author[0].family || x.author[0].name || '')}${x.author.length > 1 ? ' et al.' : ''}</span>` : ''}<span class="${x.author?.length ? 'dot' : ''}">${esc(j.abbr)}${x.page ? ' · p. ' + esc(x.page) : ''}</span></div></div>`).join('')}</div>` : ''}`;
+          <div class="byline">${x.author?.length ? `<span>${esc(x.author[0].family || x.author[0].name || '')}${x.author.length > 1 ? ' et al.' : ''}</span>` : ''}<span class="${x.author?.length ? 'dot' : ''}">${esc(j.abbr)}${x.page ? ' · p. ' + esc(x.page) : ''}</span></div></div>`).join('')}</div>`;
+      })().catch(() => {});
+    }
     // Open it as a paper if Europe PMC knows the DOI; otherwise at the publisher (through Research4Life).
     actions['cr-open'] = async (b) => {
       const doi = b.dataset.doi;
