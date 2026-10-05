@@ -375,18 +375,33 @@
     const key = 'explain2.' + question.toLowerCase();
     let r = I.cacheGet(key);
     if (!r) {
+      // Shows how long it has been, and offers a retry if the AI is slow (free per-minute limits).
+      const t0 = Date.now();
       el.innerHTML = I.busyHtml('Writing the explanation…');
+      const tick = setInterval(() => {
+        const box = $('#cm-ex');
+        if (!box || !live()) { clearInterval(tick); return; }
+        const sec = Math.round((Date.now() - t0) / 1000);
+        box.innerHTML = I.busyHtml(`Writing the explanation… ${sec} s${sec >= 45 ? ' · the AI is slow or at its free per-minute limit' : ''}`)
+          + (sec >= 60 ? `<button class="btn xs" data-act="cm-ex-redo" style="margin-top:6px">${icon('spark')}Try again</button>` : '');
+      }, 5000);
+      actions['cm-ex-redo'] = () => { clearInterval(tick); store.set('intel.' + key, null); explain(question, data, live); };
       try {
-        const doc = rows.map((x) => `[${x.n}] ${D.studyType(x.a).label || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 1000)}`).join('\n\n');
+        const doc = rows.map((x) => `[${x.n}] ${D.studyType(x.a).label || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 750)}`).join('\n\n');
         r = D.aiJson(await D.ai(`QUESTION: ${data.yesno || question}\n\n`
           + 'Explain the answer for a dermatologist, like a concise review, using only these papers:\n'
           + '- headline: one sentence that answers the question directly, with the key number if there is one (e.g. "Genetic inheritance strongly influences psoriasis risk, explaining about 60-70% of susceptibility.").\n'
           + '- sections: 3 to 5, with headings that fit the question (e.g. "Genetic basis", "Twin and family studies", "Mechanisms", "Clinical implications"). Each has 1 or 2 short paragraphs of 2-3 sentences; every claim cites its papers like [3] or [2, 5]. Keep numbers exactly as reported.\n'
           + '- table: in at most two sections, a compact table when it makes things clearer (e.g. genes or loci with their role, or study, design, N and result), cells may cite [n]; otherwise caption "", columns [] and rows [].\n'
           + '- claims: 3 to 5 key claims with their evidence strength (strong: consistent across several good studies; moderate; limited) and the papers that support them.',
-          { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: EXPLAIN(), max: 6000 }));
+          { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: EXPLAIN(), max: 3500 }));
+        clearInterval(tick);
         I.cacheSet(key, r);
-      } catch (e) { if (live() && $('#cm-ex')) $('#cm-ex').innerHTML = I.aiErr(e); return; }
+      } catch (e) {
+        clearInterval(tick);
+        if (live() && $('#cm-ex')) $('#cm-ex').innerHTML = I.aiErr(e) + `<button class="btn xs" data-act="cm-ex-redo" style="margin-top:6px">${icon('spark')}Try again</button>`;
+        return;
+      }
     }
     if (!live() || !$('#cm-ex')) return;
     const cite = (t) => I.citeHtml(esc(t), ctx);
