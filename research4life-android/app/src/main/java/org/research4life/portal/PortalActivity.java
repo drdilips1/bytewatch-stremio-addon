@@ -310,7 +310,8 @@ public class PortalActivity extends Activity {
         titles.addView(titleView);
         titles.addView(hint);
         bar.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        homeButton = headerButton("R4L", v -> webView.loadUrl(homeUrl()), accent);
+        // Going home on purpose must not be "restored" back to the article.
+        homeButton = headerButton("R4L", v -> { startRestored = true; webView.loadUrl(homeUrl()); }, accent);
         bar.addView(homeButton);
         bar.addView(headerButton("↻", v -> webView.reload(), fg));
         root.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
