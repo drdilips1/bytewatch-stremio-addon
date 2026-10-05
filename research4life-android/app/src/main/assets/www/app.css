@@ -1226,3 +1226,12 @@ details.panel summary { cursor: pointer; }
 .ev-step svg { width: 16px; height: 16px; flex: none; }
 .ev-step span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ev-step b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Consensus-style explanation under the meter: headline, sections, tables. */
+.explain .ex-head { font: 600 17px/1.4 var(--sans); margin: 0 0 6px; }
+.explain h4 { margin: 16px 0 6px; }
+.explain p { margin: 0 0 8px; line-height: 1.55; }
+.ex-table { overflow-x: auto; margin: 8px 0 12px; }
+.ex-table table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.ex-table th, .ex-table td { text-align: left; vertical-align: top; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+.ex-table th { color: var(--text-2); font-weight: 600; white-space: nowrap; }
