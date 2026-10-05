@@ -49,6 +49,12 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
             UIPasteboard.general.string = body["text"] as? String ?? ""
         case "share":
             share(body)
+        case "setCredentials":
+            if let p = body["p"] as? String, let u = body["user"] as? String, let pass = body["pass"] as? String, !u.isEmpty, !pass.isEmpty {
+                Keychain.save(provider: p, user: u, password: pass)
+            }
+        case "forgetCredentials":
+            if let p = body["p"] as? String { Keychain.delete(provider: p) }
         case "done":
             if let id = body["id"] as? String { try? FileManager.default.removeItem(at: LocalFiles.inbox.appendingPathComponent(id)) }
         default:
@@ -92,6 +98,9 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         let b = BrowserViewController(url: url, key: key)
         b.onPdf = { [weak self] data, name, title in
             self?.hand(data, name: name, mime: "application/pdf", key: key, title: title)
+        }
+        b.onCredentials = { [weak self] p, user in
+            self?.send(["type": "credentialsSaved", "p": p, "user": user])
         }
         let nav = UINavigationController(rootViewController: b)
         nav.modalPresentationStyle = .fullScreen

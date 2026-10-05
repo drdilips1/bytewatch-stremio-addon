@@ -622,7 +622,13 @@
       if (!freeUrl && !doi) { emit({ type: 'pdfFailed', key, message: "This paper has no DOI, so it can't be fetched automatically." }); return; }
       N.setPendingPdf(key, title);
       ls.set('fetch.' + key, { doi, free: freeUrl || '', pii: pii || '' });
-      emit({ type: 'pdfFailed', key, canShow: true, message: IOS ? 'Tap Show page and open the PDF there (Research4Life, MyLOFT or the journal): it files itself under this paper.' : 'Tap Show page, download the PDF there (Research4Life, MyLOFT or the journal), then come back and tap Add PDF: it files itself under this paper.' });
+      if (IOS) {
+        // The app's browser signs in to Research4Life by itself and files the PDF when it opens.
+        N.showFetchPage(key, doi);
+        emit({ type: 'pdfFailed', key, canShow: true, message: 'Opened Research4Life: open the PDF there and it files itself under this paper. Closed it too soon? Tap Show page.' });
+        return;
+      }
+      emit({ type: 'pdfFailed', key, canShow: true, message: 'Tap Show page, download the PDF there (Research4Life, MyLOFT or the journal), then come back and tap Add PDF: it files itself under this paper.' });
     },
     downloadPdf: (key, url, title) => N.getPdf(key, '', title, url),
     showFetchPage: (key, doi) => {
@@ -778,8 +784,20 @@
       ios('done', { id: evt.id });
       return;
     }
+    if (evt.type === 'credentialsSaved') {
+      // Typed on a sign-in page in the app's browser: the password stays in the iPhone's Keychain.
+      try { localStorage.setItem('ds.acc.' + evt.p, evt.user); } catch { /* blocked */ }
+      toast((evt.p === 'utd' ? 'UpToDate' : 'Research4Life') + ' sign-in saved');
+      return;
+    }
     emit(evt);
   };
+  if (IOS) {
+    // The iPhone app keeps passwords in the Keychain and its browser signs in with them; the
+    // screens keep only the user ID.
+    N.setCredentials = (p, u, pass) => { try { localStorage.setItem('ds.acc.' + p, u); } catch { /* blocked */ } ios('setCredentials', { p, user: u, pass: pass || '' }); };
+    N.forgetCredentials = (p) => { try { localStorage.removeItem('ds.acc.' + p); } catch { /* blocked */ } ios('forgetCredentials', { p }); };
+  }
   window.WebNative = N;
   if (IOS) {
     if (document.readyState === 'complete') setTimeout(() => ios('ready'), 0);

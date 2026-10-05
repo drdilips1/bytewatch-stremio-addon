@@ -4,8 +4,13 @@ import WebKit
 /// The app's own browser for Research4Life, UpToDate, MyLOFT and journals. Logins are kept (the
 /// shared cookie store). A PDF opened here goes into the library: automatically when the browser
 /// was opened to get a paper's PDF (`key`), otherwise with the Save PDF button.
-final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
+final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     var onPdf: ((Data, String, String) -> Void)?
+    /// A login typed on a sign-in page (provider, user): saved in the Keychain, shown in Settings.
+    var onCredentials: ((String, String) -> Void)?
+    private var autoSignIns = 0
+    private var signedIn = false
+    private var reopened = false
 
     private let startURL: URL
     private let key: String
@@ -30,6 +35,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = .default()
         cfg.allowsInlineMediaPlayback = true
+        cfg.userContentController.add(WeakScriptHandler(self), name: "dsr4l")
         let wv = WKWebView(frame: .zero, configuration: cfg)
         wv.navigationDelegate = self
         wv.uiDelegate = self
@@ -80,6 +86,41 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     @objc private func reloadPage() { webView.reload() }
     @objc private func openInSafari() { UIApplication.shared.open(webView.url ?? startURL) }
     @objc private func savePdf() { if let u = pdfURL { fetchPdf(u, auto: false) } }
+
+    // MARK: sign-in
+
+    /// On a Research4Life / UpToDate sign-in page: fill in the saved login and send it (twice at
+    /// most, so a wrong password doesn't loop); a login typed there is remembered.
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard let p = SignIn.provider(for: webView.url) else { return }
+        // Signed in, but Research4Life landed on its own home page: open the paper again (once).
+        let path = webView.url?.path.lowercased() ?? ""
+        if signedIn, !reopened, p == "r4l", SignIn.provider(for: startURL) == nil,
+           !path.contains("signin"), !path.contains("login") {
+            // Wait a moment: sign-in pages pass through a few self-submitting steps.
+            let here = webView.url
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                guard let self = self, !self.reopened, self.webView.url == here, !self.webView.isLoading else { return }
+                self.reopened = true
+                self.webView.load(URLRequest(url: self.startURL))
+            }
+            return
+        }
+        let saved = Keychain.load(provider: p)
+        webView.evaluateJavaScript(SignIn.script(user: saved?.user, password: saved?.password, auto: autoSignIns < 2), completionHandler: nil)
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any] else { return }
+        if body["status"] as? String == "signing-in" { autoSignIns += 1; signedIn = true; return }
+        guard let user = body["u"] as? String, let pass = body["p"] as? String, !user.isEmpty, !pass.isEmpty,
+              let p = SignIn.provider(for: webView.url) else { return }
+        signedIn = true
+        if let saved = Keychain.load(provider: p), saved.user == user, saved.password == pass { return }
+        Keychain.save(provider: p, user: user, password: pass)
+        autoSignIns = 0
+        onCredentials?(p, user)
+    }
 
     // MARK: PDFs
 
