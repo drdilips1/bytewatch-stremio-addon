@@ -1325,7 +1325,14 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
       tokens += row[0] + row[1] + row[2];
     }
     const free = provider() === 'groq' || provider() === 'gemini';
-    return calls ? `${calls} requests this month · ${(tokens / 1000).toFixed(0)}k tokens · ${free ? 'free tier: no charge' : `about $${cost.toFixed(2)}`}` : 'No AI use this month';
+    // Which AI answered: requests per provider ("Groq 18 · Gemini 5"), so a Gemini fallback shows up here.
+    const by = {};
+    for (const [model, row] of Object.entries(m)) {
+      const who = /^gemini/i.test(model) ? 'Gemini' : /^claude/i.test(model) ? 'Claude' : 'Groq';
+      by[who] = (by[who] || 0) + row[3];
+    }
+    const split = Object.entries(by).map(([k, v]) => `${k} ${v}`).join(' · ');
+    return calls ? `${split} requests this month · ${(tokens / 1000).toFixed(0)}k tokens · ${free ? 'free tier: no charge' : `about $${cost.toFixed(2)}`}` : 'No AI use this month';
   }
   ext.events.aiModels = (evt) => {
     if (evt.models) { store.set('groqModels', evt.models.map((m) => m.id)); if (D.current.name === 'settings') render(); }
