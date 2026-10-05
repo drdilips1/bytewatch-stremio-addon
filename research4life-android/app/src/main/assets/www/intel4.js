@@ -314,7 +314,8 @@
           + 'Do not downgrade a clear statement to "possibly" just because the paper is a review or doesn\'t test it directly. '
           + 'Judge each paper against the question as asked: when the question is general (e.g. diet) and a paper finds no effect for one specific factor (e.g. chocolate) while others matter, that is "mixed" or "possibly", not "no"; use "no" only when the paper concludes the answer to the question itself is no. '
           + 'Give the key finding or statement in under 20 words with numbers if reported. Every paper must get an item. Then one or two sentences answering the question from the relevant papers, leading with the majority answer and the key numbers. Never count or mention papers that are not relevant. n is the paper number.',
-          { doc, system: 'You are a meticulous dermatology evidence analyst. Classify each paper by what its abstract says about the question.', schema: VERDICT, max: 4000 }));
+          { doc, system: 'You are a meticulous dermatology evidence analyst. Classify each paper by what its abstract says about the question.', schema: VERDICT, max: 4000,
+            onWait: (sec) => { if (live()) el.innerHTML = I.stepsHtml(pool.steps, { read: papers.length }) + I.busyHtml(`The AI's free per-minute limit is reached. Continuing by itself in ${sec} s…`); } }));
         data = { yesno, steps: pool.steps, retrieved: pool.retrieved, eligible: pool.total, summary: r.summary || '', rows: (r.items || []).filter((x) => papers[x.n - 1]).map((x) => ({ ...x, a: papers[x.n - 1] })) };
         I.cacheSet(key, data);
       } catch (e) { if (live()) el.innerHTML = I.aiErr(e); return; }
@@ -394,7 +395,8 @@
           + '- sections: 3 to 5, with headings that fit the question (e.g. "Genetic basis", "Twin and family studies", "Mechanisms", "Clinical implications"). Each has 1 or 2 short paragraphs of 2-3 sentences; every claim cites its papers like [3] or [2, 5]. Keep numbers exactly as reported.\n'
           + '- table: in at most two sections, a compact table when it makes things clearer (e.g. genes or loci with their role, or study, design, N and result), cells may cite [n]; otherwise caption "", columns [] and rows [].\n'
           + '- claims: 3 to 5 key claims with their evidence strength (strong: consistent across several good studies; moderate; limited) and the papers that support them.',
-          { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: EXPLAIN(), max: 3500 }));
+          { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: EXPLAIN(), max: 3500,
+            onWait: (sec) => { if (live() && $('#cm-ex')) { clearInterval(tick); $('#cm-ex').innerHTML = I.busyHtml(`The AI's free per-minute limit is used up by the meter. Continuing by itself in ${sec} s…`); } } }));
         clearInterval(tick);
         I.cacheSet(key, r);
       } catch (e) {

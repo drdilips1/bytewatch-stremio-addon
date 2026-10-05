@@ -1851,7 +1851,8 @@
    * per-minute limit is too small for the whole document (Groq's free tier), the most relevant
    * excerpts are sent instead: abstract/conclusions for summaries, matching paragraphs for questions.
    */
-  async function ai(task, { doc = '', docModel = null, query = '', focus = 'summary', system = AI_SYSTEM, schema = null, max = 8000, onPartial = null } = {}) {
+  async function ai(task, { doc = '', docModel = null, query = '', focus = 'summary', system = AI_SYSTEM, schema = null, max = 8000, onPartial = null, onWait = null } = {}) {
+    let waits = 0;
     for (let attempt = 0; attempt < 3; attempt++) {
       const lim = store.get(aiLimitKey(), null);
       const budget = lim?.chars || Infinity;
@@ -1877,6 +1878,13 @@
         ai.lastPartial = part;
         return out;
       } catch (e) {
+        // A free per-minute limit (Groq, Gemini): wait out the minute and carry on, instead of failing.
+        if (/limit (was reached|is reached)[\s\S]*wait a minute|rate limit was reached/i.test(String(e.message)) && !/daily|per day|tomorrow/i.test(String(e.message)) && waits < 2) {
+          waits++;
+          attempt--;
+          for (let s0 = 62; s0 > 0; s0--) { try { onWait?.(s0); } catch { /* screen gone */ } await new Promise((r) => setTimeout(r, 1000)); }
+          continue;
+        }
         const m = String(e.message).match(/^TOO_LARGE:(\d+):(\d+)/);
         if (!m) throw e;
         const limit = +m[1], requested = +m[2];
