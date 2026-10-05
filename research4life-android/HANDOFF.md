@@ -12,7 +12,7 @@ Read this first, then `BACKLOG.md` (the roadmap with every request and its statu
 - Keep the Android app's structure as is. The web app must not remove features: what needs Android opens the website in a browser tab instead.
 
 ## Current state
-- **Shipped: 5.5** (versionCode 33): Consensus meter fix and treatment-only evidence (BACKLOG #45). The next build is **5.6 / versionCode 34** (already bumped): BACKLOG #48, Elsevier PDFs via ClinicalKey.
+- **Shipped: 5.5** (versionCode 33): Consensus meter fix and treatment-only evidence (BACKLOG #45). The next build is **5.6 / versionCode 34** (already bumped): BACKLOG #48 Elsevier PDFs via ClinicalKey, #49 shared AI-planned search for the Evidence Map and Consensus meter (`planSearch`/`evidencePool` in intel.js).
 - **Web app for iPhone (BACKLOG #23), published** (owner approved): workflow `.github/workflows/dermscholar-web.yml` builds it on every push (not on `[skip ci]`) and force-pushes it to the `gh-pages` branch → https://drdilips1.github.io/bytewatch-stremio-addon/ . The owner's wife uses it with her own account.
 
 ## App architecture

@@ -23,7 +23,9 @@
 
   /** A dermatology question as a Europe PMC query, optionally narrowed. */
   function q(question, { types = [], extra = '', years = 'any', sort = '', treat = true } = {}) {
-    let s = D.buildQuery({ q: question, derm: true, types, years, oa: false, preprints: false });
+    // The planned search (synonyms, the terms papers use) when there is one, else the question's words.
+    const core = planCore(question);
+    let s = D.buildQuery({ q: core || question, derm: !core, types, years, oa: false, preprints: false });
     if (extra) s = `(${s}) AND ${extra}`;
     // Treatment questions get treatment papers, not side-effect reports (unless safety is asked).
     if (treat && isTreatmentQ(question)) s = `(${s}) AND ${TREAT}`;
@@ -36,9 +38,111 @@
   const COCHRANE = 'JOURNAL:"Cochrane Database Syst Rev"';
   const SAFETY = '(TITLE_ABS:"adverse event*" OR TITLE_ABS:safety OR TITLE_ABS:pharmacovigilance OR TITLE_ABS:"boxed warning" OR TITLE_ABS:"adverse drug reaction*")';
 
+  // ================================================================ search plan (shared)
+  // A question's own words miss most papers: "inheritance in psoriasis" finds a gene-variant
+  // preprint, while the answer is in papers on heritability, twins, HLA-C*06:02 and GWAS. Like
+  // Consensus, the AI first turns the question into Boolean searches with the terms papers use.
+  // The Evidence Map, the Consensus meter and search all use the same plan, so they agree.
+  const PLAN_SYSTEM = 'You are an expert medical librarian who builds PubMed/Europe PMC searches for dermatology questions.';
+  const plans = new Map();
+  const planKey = (question) => 'plan1.' + question.toLowerCase().replace(/\s+/g, ' ').trim();
+  const YESNO_Q = /^(does|do|did|is|are|was|were|can|could|should|will|would|has|have|had|may|might)\b/i;
+  /** One term as a title/abstract condition (a trailing * matches word endings). */
+  function absTerm(t) {
+    const v = String(t || '').replace(/["()[\]{}:]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!v || /^(and|or|not)$/i.test(v)) return '';
+    if (/^[\w-]+\*$/.test(v)) return `TITLE_ABS:${v}`;
+    return `TITLE_ABS:"${v.replace(/\*+$/, '')}"`;
+  }
+  /** Concept groups → "(a OR b) AND (c OR d)": every group must appear in the title or abstract. */
+  function groupsQuery(groups) {
+    const parts = (groups || []).map((g) => (Array.isArray(g) ? g : [g]).map(absTerm).filter(Boolean)).filter((g) => g.length)
+      .map((g) => (g.length > 1 ? `(${g.join(' OR ')})` : g[0]));
+    return parts.length ? parts.join(' AND ') : '';
+  }
+  const planCore = (question) => (plans.get(planKey(question)) || cacheGet(planKey(question)))?.searches?.[0]?.query || '';
+  // Built on first use: the schema helpers (obj, S) are defined further down.
+  let planSchema = null;
+  const PLAN = () => planSchema || (planSchema = obj({
+    yesno: S.str, topic: S.str,
+    searches: { type: 'array', items: obj({ label: S.str, groups: { type: 'array', items: { type: 'array', items: S.str } } }) },
+  }));
+  /**
+   * The search plan for a question: {yesno, topic, searches: [{label, query}]}. Cached for a week;
+   * without an AI key it falls back to the question's own words.
+   */
+  async function planSearch(question) {
+    const k = planKey(question);
+    if (plans.has(k)) return plans.get(k);
+    let plan = cacheGet(k);
+    if (!plan && D.aiHasKey()) {
+      try {
+        const r = D.aiJson(await D.ai(`QUESTION: ${question}\n\n`
+          + 'Turn this question into literature searches. Return:\n'
+          + '- yesno: the question as one clear yes/no question (e.g. "Role of inheritance in psoriasis?" → "Does inheritance play a role in psoriasis?"), or "" if it cannot be answered yes or no (e.g. "What are the treatment options for vitiligo?").\n'
+          + '- topic: a 3-6 word label.\n'
+          + '- searches: 2 to 4 searches. Each search is a list of concept groups that must ALL appear in a paper\'s title or abstract. Each group lists 1-10 alternative terms: synonyms, the words papers actually use, British and US spellings, key genes, drugs, tests or scores; a trailing * matches word endings (heritab*, twin*). Usually 2 groups per search, never more than 3. '
+          + 'The first search is the broad core one: the condition (with its variants) AND the main concept with all its synonyms. The others cover distinct angles a good review would search. '
+          + 'Never use generic words like role, effect, impact, evidence, patients, study, association as a group.\n'
+          + 'Example for "Role of inheritance in psoriasis?": core [["psoriasis","psoriatic"],["inheritance","heritab*","familial","family history","genetic*","twin*","susceptibility loci"]]; '
+          + 'angles [["psoriasis"],["twin*","concordance"]], [["psoriasis"],["GWAS","genome-wide association","HLA-C","HLA-Cw6","PSORS1"]].',
+          { system: PLAN_SYSTEM, schema: PLAN(), max: 1500 }));
+        const searches = (r.searches || []).map((x) => ({ label: String(x.label || '').slice(0, 90), query: groupsQuery(x.groups) })).filter((x) => x.query).slice(0, 4);
+        if (searches.length) {
+          plan = { yesno: String(r.yesno || '').trim(), topic: String(r.topic || '').trim(), searches, ai: true };
+          cacheSet(k, plan);
+        }
+      } catch { /* use the question's own words */ }
+    }
+    if (!plan) {
+      const words = D.keywordTerms(question);
+      let core = words.join(' ');
+      if (!D.DERM_WORDS.test(question)) core = `(${core}) AND ${D.DERM_FILTER}`;
+      plan = { yesno: YESNO_Q.test(question.trim()) ? question.trim() : '', topic: question, searches: [{ label: words.join(' '), query: core }], ai: false };
+    }
+    plans.set(k, plan);
+    return plan;
+  }
+
+  /**
+   * The papers that answer a question, shared by the Consensus meter and quick answers: every
+   * planned search (most relevant, plus the most cited for the core one), merged and ranked by
+   * relevance, study design and citations. onStep({label, hit}) reports each search as it lands.
+   */
+  async function evidencePool(question, { size = 20, onStep = null, noCase = true } = {}) {
+    const plan = await planSearch(question);
+    const score = new Map();
+    const papers = new Map();
+    const add = (list, w) => list.forEach((a, i) => {
+      if (!a.abstract) return;
+      papers.set(a.id, a);
+      score.set(a.id, (score.get(a.id) || 0) + w / (1 + i / 6));
+    });
+    const steps = await Promise.all(plan.searches.map(async (sp, i) => {
+      const base = `(${sp.query}) AND HAS_ABSTRACT:y NOT SRC:PPR${noCase ? ' NOT PUB_TYPE:"Case Reports"' : ''} ${D.NOISE}`;
+      const [rel, cited] = await Promise.all([epmc({ query: base }, 30), i === 0 ? epmc({ query: base, sort: 'CITED desc' }, 15) : Promise.resolve(null)]);
+      add(rel.results || [], i === 0 ? 1.2 : 1);
+      if (cited) add(cited.results || [], 0.8);
+      const step = { label: sp.label, query: sp.query, hit: rel.hit || 0 };
+      onStep?.(step);
+      return step;
+    }));
+    const rank = (a) => (score.get(a.id) || 0) * (1 + 0.12 * (D.studyType(a).rank || 0)) + Math.log10(1 + (a.citedBy || 0)) * 0.15;
+    const list = [...papers.values()].sort((x, y) => rank(y) - rank(x));
+    return { plan, steps, total: papers.size, papers: list.slice(0, size) };
+  }
+
+  /** The search steps as Consensus shows them: each planned search with how many papers matched. */
+  function stepsHtml(steps, { read = 0, done = false } = {}) {
+    const n = (v) => (v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : String(v));
+    return `<div class="panel ev-steps">${steps.map((x) => `<div class="ev-step">${icon('search')}<span>${esc(x.label)}</span><b>${n(x.hit)}</b></div>`).join('')}
+      ${read ? `<div class="ev-step">${icon('book')}<span>${done ? 'Read' : 'Reading'} the most relevant abstracts</span><b>${read}</b></div>` : ''}</div>`;
+  }
+
   /** The evidence buckets of the Evidence Map, best evidence first. */
   const BUCKETS = [
     { key: 'guide', label: 'Guidelines & consensus', emoji: '📋', build: (x) => q(x, { extra: GUIDE }), size: 6, ai: 4 },
+    { key: 'cited', label: 'Most cited papers', emoji: '⭐', build: (x) => q(x, { sort: 'CITED desc' }), size: 6, ai: 5 },
     { key: 'sr', label: 'Systematic reviews & meta-analyses', emoji: '📚', build: (x) => q(x, { types: ['meta', 'sr'] }), size: 8, ai: 7 },
     { key: 'cochrane', label: 'Cochrane reviews', emoji: '🟦', build: (x) => q(x, { extra: COCHRANE }), size: 4, ai: 2 },
     { key: 'rct', label: 'Randomized controlled trials', emoji: '🎯', build: (x) => q(x, { types: ['rct'] }), size: 10, ai: 9 },
@@ -91,15 +195,17 @@
 
   // ================================================================ evidence pack (what the AI may cite)
   /** Gathers the Evidence Map for a question: Europe PMC buckets in parallel, plus ongoing trials. */
-  async function gather(question) {
+  async function gather(question, { onStep = null } = {}) {
     const key = 'evmap.' + question.toLowerCase().trim();
     const hit = mem.get(key);
     if (hit && Date.now() - hit.at < 30 * 60e3) return hit;
-    const [buckets, tr] = await Promise.all([
+    const plan = await planSearch(question);
+    const [pool, buckets, tr] = await Promise.all([
+      evidencePool(question, { size: 15, noCase: false, onStep }),
       Promise.all(BUCKETS.map(async (b) => ({ ...b, res: await epmc(b.build(question), b.size) }))),
       trials(trialTerm(question), { size: 8 }),
     ]);
-    const out = { question, buckets, trials: tr, at: Date.now() };
+    const out = { question, plan, pool, buckets, trials: tr, at: Date.now() };
     mem.set(key, out);
     return out;
   }
@@ -109,6 +215,12 @@
   function refsFrom(map) {
     const refs = [];
     const seen = new Set();
+    // The most relevant papers first: the same ones the Consensus meter reads.
+    for (const a of map.pool?.papers || []) {
+      if (seen.has(a.id)) continue;
+      seen.add(a.id);
+      refs.push({ kind: 'paper', a, type: D.studyType(a).label, bucket: 'Most relevant' });
+    }
     for (const b of map.buckets) {
       for (const a of b.res.results.slice(0, b.ai)) {
         if (seen.has(a.id)) continue;
@@ -176,12 +288,22 @@
   }
   /** Markdown with [n] citations turned into buttons that show the sources. */
   function citeHtml(html, ctx) {
-    return html.replace(/\[(\d+(?:\s*[,–-]\s*\d+)*)\]/g, (m0, list) => {
-      const nums = [...list.matchAll(/\d+/g)].map((x) => x[0]);
-      return `<button class="cite" data-act="cite-show" data-ctx="${ctx}" data-n="${nums.join(',')}">${nums.join(', ')}</button>`;
-    });
+    return html.replace(/\[(\d+(?:\s*[,–-]\s*\d+)*)\]/g, (m0, list) => citeBtns([...list.matchAll(/\d+/g)].map((x) => Number(x[0])), ctx));
   }
-  const citeBtns = (cites, ctx) => (cites?.length ? `<button class="cite" data-act="cite-show" data-ctx="${ctx}" data-n="${cites.join(',')}">${cites.join(', ')}</button>` : '');
+  /** A citation as Consensus shows it: first author and year ("Capon 2017"), or the trial ID. */
+  function citeLabel(n, ctx) {
+    const r = (contexts.get(ctx) || []).find((x) => x.n === Number(n));
+    if (!r) return String(n);
+    if (r.kind === 'trial') return r.t.nct || String(n);
+    const first = String(r.a.authors || '').split(',')[0].trim().split(/\s+/)[0] || (r.a.jAbbr || 'Study');
+    return `${first} ${r.a.year || ''}`.trim();
+  }
+  const citeBtns = (cites, ctx) => {
+    if (!cites?.length) return '';
+    const labels = cites.map((n) => citeLabel(n, ctx));
+    const shown = labels.length > 2 ? `${labels.slice(0, 2).join(', ')} +${labels.length - 2}` : labels.join(', ');
+    return `<button class="cite" data-act="cite-show" data-ctx="${ctx}" data-n="${cites.join(',')}">${esc(shown)}</button>`;
+  };
   const STRENGTH = {
     strong: ['🟢', 'Strong'], moderate: ['🟡', 'Moderate'], limited: ['🟠', 'Limited'],
     'very limited': ['🔴', 'Very limited'], conflicting: ['⚫', 'Conflicting'],
@@ -251,16 +373,20 @@
         <div class="row wrap" style="margin-top:8px">
           <button class="chip" data-act="ev-utd" data-q="${esc(question)}">${icon('book')}UpToDate</button>
           <button class="chip" data-act="ev-r4l">${icon('key')}Research4Life</button>
+          <button class="chip" data-act="cm-open" data-q="${esc(question)}">📊 Consensus meter</button>
           <button class="chip" data-act="ev-papers" data-q="${esc(question)}">${icon('search')}All papers</button>
           <button class="chip" data-act="ev-dermnet" data-q="${esc(question)}">${icon('globe')}DermNet</button>
           <button class="chip" data-act="ev-ictrp" data-q="${esc(question)}">${icon('globe')}WHO ICTRP</button>
         </div></div>
+      <div id="ev-steps"></div>
       <div id="ev-ai"></div>
       <div id="ev-map">${D.skeletons(4)}</div>`;
     actions['ev-watch'] = () => { toggleWatch(question); render(); };
     let map;
+    const steps = [];
+    $('#ev-ai').innerHTML = busyHtml('Planning the searches…');
     try {
-      map = await gather(question);
+      map = await gather(question, { onStep: (st) => { steps.push(st); if (D.current.name === 'ev' && $('#ev-ai')) $('#ev-ai').innerHTML = stepsHtml(steps) + busyHtml('Searching…'); } });
     } catch (e) {
       $('#ev-map').innerHTML = D.errorBox(e);
       return;
@@ -269,6 +395,7 @@
     const refs = refsFrom(map);
     const ctx = newCtx(refs);
     const total = map.buckets.reduce((s, b) => s + (b.res.hit || 0), 0);
+    if (map.pool?.steps?.length) $('#ev-steps').innerHTML = stepsHtml(map.pool.steps, { read: refs.length, done: true });
     $('#ev-map').innerHTML = `
       <div class="ev-summary">${map.buckets.map((b) => `<div><b>${b.res.hit > 999 ? Math.round(b.res.hit / 100) / 10 + 'k' : b.res.hit}</b><span>${b.emoji} ${esc(b.label.split(' ')[0])}</span></div>`).join('')}
         <div><b>${map.trials.total || 0}</b><span>🧪 Trials</span></div></div>
@@ -331,14 +458,18 @@
 
   async function synth(question, refs, ctx) {
     const out = $('#ev-out');
-    const ck = 'synth.' + question.toLowerCase();
+    const ck = 'synth2.' + question.toLowerCase();
     let r = cacheGet(ck);
     if (!r) {
       out.innerHTML = busyHtml(`Reading ${refs.length} sources…`);
       try {
         r = await aiJsonCall(
-          `Question: ${question}\n\nWrite a citation-first evidence synthesis for a dermatologist. Sections to use (skip any the sources don't cover): `
-          + '"What the guidelines say", "What the strongest evidence shows", "Efficacy in numbers", "Safety", "Ongoing trials and what is coming", "What has changed recently". '
+          `Question: ${question}\n\nWrite a citation-first evidence synthesis for a dermatologist. The bottom line answers the question directly in one or two sentences. `
+          + 'Choose sections that fit the question. Treatment questions: "What the guidelines say", "What the strongest evidence shows", "Efficacy in numbers", "Safety", "Ongoing trials and what is coming", "What has changed recently". '
+          + 'Cause, risk, genetics, epidemiology or mechanism questions: "Key findings", "How strong the evidence is" (twin, family, cohort, genetic or meta-analytic data with numbers), "Mechanisms", "Clinical relevance", "Open questions". '
+          + 'Skip any section the sources don\'t cover; never write a point only to say a source type is missing. '
+          + 'Rate strength by what the sources show about the question: many consistent studies stating the same established fact is strong, even without trials. '
+          + 'If few sources address the question directly, say "the papers found address this only partly" rather than calling the evidence very limited. '
           + 'Each point: one or two sentences with citations and its own evidence strength. Then list controversies (where sources disagree), research gaps, and the 3-5 sources most worth reading.',
           refs, SYNTH);
         cacheSet(ck, r);
@@ -358,7 +489,7 @@
 
   async function matrix(question, refs, ctx) {
     const out = $('#ev-out');
-    const ck = 'matrix.' + question.toLowerCase();
+    const ck = 'matrix2.' + question.toLowerCase();
     let r = cacheGet(ck);
     if (!r) {
       out.innerHTML = busyHtml('Building the evidence matrix…');
@@ -391,7 +522,7 @@
 
   async function contra(question, refs, ctx) {
     const out = $('#ev-out');
-    const ck = 'contra.' + question.toLowerCase();
+    const ck = 'contra2.' + question.toLowerCase();
     let r = cacheGet(ck);
     if (!r) {
       out.innerHTML = busyHtml('Looking for disagreements…');
@@ -971,6 +1102,6 @@
   window.DSI = {
     api, q, epmc, trials, trialOf, trialTerm, gather, refsFrom, packText, newCtx, contexts, citeHtml, citeBtns, strength, refRow, trialCard,
     keyCard, aiErr, busyHtml, aiJsonCall, cacheGet, cacheSet, obj, S, CITE_SYSTEM, paperText, openUrl, evHash, today, daysAgo, TILES, DISEASES,
-    needKey, GUIDE, SAFETY, TREAT, isTreatmentQ,
+    needKey, GUIDE, SAFETY, TREAT, isTreatmentQ, planSearch, evidencePool, stepsHtml,
   };
 })();

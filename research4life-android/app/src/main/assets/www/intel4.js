@@ -286,26 +286,34 @@
     if (!question) { el.innerHTML = '<div class="empty"><b>Ask a yes/no question</b></div>'; return; }
     if (!D.aiHasKey()) { el.innerHTML = I.keyCard(); return; }
     const live = ticket('cm');
-    const key = 'meter2.' + question.toLowerCase();
+    const key = 'meter3.' + question.toLowerCase();
     let data = I.cacheGet(key);
     if (!data) {
       try {
-        const f = { ...D.filtersFrom(p), q: question };
-        // Papers that can answer a general question: skip case reports, keep the 25 most relevant with abstracts.
-        const res = await D.epmcSearch(`(${D.buildQuery(f)}) NOT PUB_TYPE:"Case Reports"`, { size: 40 });
-        const papers = res.results.filter((a) => a.abstract).slice(0, 25);
+        // The same planned searches and papers as the Evidence Map (intel.js evidencePool), so
+        // both screens read the same evidence; the 20 most relevant studies with abstracts.
+        const steps = [];
+        if (live()) el.innerHTML = I.busyHtml('Planning the searches…');
+        const pool = await I.evidencePool(question, { size: 20, onStep: (st) => { steps.push(st); if (live()) el.innerHTML = I.stepsHtml(steps) + I.busyHtml('Searching…'); } });
+        const yesno = pool.plan.yesno || (YESNO.test(question) ? question : '');
+        if (!yesno) {
+          if (live()) el.innerHTML = `<div class="empty">${icon('chart')}<b>This question isn't a yes/no one</b><div>The Evidence map answers it, from the same papers.</div></div>
+            <button class="btn primary full" data-act="ev-from-search" data-q="${esc(question)}">${icon('chart')}Open the evidence map</button>`;
+          return;
+        }
+        const papers = pool.papers;
         if (!papers.length) { if (live()) el.innerHTML = '<div class="empty"><b>No studies with abstracts found</b></div>'; return; }
-        if (live()) el.innerHTML = I.busyHtml ? I.busyHtml(`Reading ${papers.length} studies…`) : D.skeletons(3);
+        if (live()) el.innerHTML = I.stepsHtml(pool.steps, { read: papers.length }) + I.busyHtml(`Reading ${papers.length} studies…`);
         const doc = papers.map((a, i) => `[${i + 1}] ${D.studyType(a).label || 'Study'} · ${a.jAbbr || a.journal} ${a.year} · ${a.title}. ${D.stripTags(a.abstract).slice(0, 1200)}`).join('\n\n');
-        const r = D.aiJson(await D.ai(`QUESTION: ${question}\nFor each numbered paper, say what THAT PAPER says about the question, from its findings or its own statements and conclusions (a review stating the answer as established counts):\n`
+        const r = D.aiJson(await D.ai(`QUESTION: ${yesno}\nFor each numbered paper, say what THAT PAPER says about the question, from its findings or its own statements and conclusions (a review stating the answer as established counts):\n`
           + '- "yes": the paper supports or states yes (including "X is a well-established …", "X is classified as …").\n'
           + '- "possibly": the paper leans yes but hedges ("may", "suggests", "partly", "has features of", small or preliminary data).\n'
           + '- "mixed": it reports evidence both ways, or the answer depends on subgroup/definition.\n'
           + '- "no": it supports or states no.\n'
           + '- "not relevant": it does not address the question at all.\n'
-          + 'Do not downgrade a clear statement to "possibly" just because the paper is a review or doesn\'t test it directly. Give the key finding or statement in under 20 words with numbers if reported. Then one sentence summarising what the papers say overall, leading with the majority answer. n is the paper number.',
+          + 'Do not downgrade a clear statement to "possibly" just because the paper is a review or doesn\'t test it directly. Give the key finding or statement in under 20 words with numbers if reported. Then one or two sentences answering the question from the relevant papers, leading with the majority answer and the key numbers (do not count or mention the papers that are not relevant). n is the paper number.',
           { doc, system: 'You are a meticulous dermatology evidence analyst. Classify each paper by what its abstract says about the question.', schema: VERDICT, max: 4000 }));
-        data = { summary: r.summary || '', rows: (r.items || []).filter((x) => papers[x.n - 1]).map((x) => ({ ...x, a: papers[x.n - 1] })) };
+        data = { yesno, steps: pool.steps, summary: r.summary || '', rows: (r.items || []).filter((x) => papers[x.n - 1]).map((x) => ({ ...x, a: papers[x.n - 1] })) };
         I.cacheSet(key, data);
       } catch (e) { if (live()) el.innerHTML = I.aiErr(e); return; }
     }
@@ -315,7 +323,9 @@
     const share = Object.fromEntries(Object.keys(ANS).map((k) => [k, rel.filter((x) => x.answer === k).reduce((s0, x) => s0 + weightOf(x.a), 0) / tot]));
     const count = (k) => rel.filter((x) => x.answer === k).length;
     const shown = (pick ? rel.filter((x) => x.answer === pick) : rel).slice().sort((x, y) => weightOf(y.a) - weightOf(x.a));
-    el.innerHTML = `<div class="panel meter">
+    el.innerHTML = `${data.yesno && data.yesno.toLowerCase() !== question.toLowerCase() ? `<p class="muted small" style="margin:-4px 0 8px">Answering: <b>${esc(data.yesno)}</b></p>` : ''}
+      ${data.steps?.length ? I.stepsHtml(data.steps, { read: data.rows.length, done: true }) : ''}
+      <div class="panel meter">
         <div class="meter-bar">${Object.entries(ANS).map(([k, [l, c]]) => share[k] ? `<button style="width:${(share[k] * 100).toFixed(1)}%;background:${c}" data-act="cm-pick" data-a="${k}" class="${pick && pick !== k ? 'dim' : ''}" aria-label="${l}">${share[k] > 0.08 ? count(k) : ''}</button>` : '').join('')}</div>
         <div class="meter-legend">${Object.entries(ANS).map(([k, [l, c]]) => `<button data-act="cm-pick" data-a="${k}" class="${pick === k ? 'on' : ''}"><i style="background:${c}"></i>${l} <b>${Math.round(share[k] * 100)}%</b> <small>(${count(k)})</small></button>`).join('')}</div>
         <p class="small" style="margin:10px 0 0">${esc(data.summary)}</p>
@@ -326,7 +336,9 @@
     actions['cm-pick'] = (b) => go('meter?' + new URLSearchParams({ ...p, a: b.dataset.a === pick ? '' : b.dataset.a }), { replace: true });
   }
   const prevTop2 = ext.searchTop;
-  ext.searchTop = (question) => (prevTop2 ? prevTop2(question) : '') + (question && YESNO.test(question.trim())
+  // Any real question gets the meter (it rephrases "Role of X in Y?" as a yes/no question itself).
+  const askable = (x) => !!x && (YESNO.test(x.trim()) || /\?\s*$/.test(x) || x.trim().split(/\s+/).length >= 3) && !/^(10\.\d|pmc\d|\d{5,}$)/i.test(x.trim());
+  ext.searchTop = (question) => (prevTop2 ? prevTop2(question) : '') + (askable(question)
     ? `<button class="chip pyr-chip" data-act="cm-open" data-q="${esc(question)}">📊 Consensus meter</button>` : '');
   actions['cm-open'] = (b) => go('meter?' + new URLSearchParams({ ...(D.current.params || {}), q: b.dataset.q, a: '' }));
 
