@@ -10,8 +10,8 @@ android {
         applicationId 'app.dermscholar'
         minSdk 24
         targetSdk 34
-        versionCode 35
-        versionName '5.7'
+        versionCode 36
+        versionName '5.8'
         // 64-bit ARM only: every current phone (Samsung Galaxy included); keeps the APK small enough to share.
         ndk { abiFilters 'arm64-v8a' }
     }
