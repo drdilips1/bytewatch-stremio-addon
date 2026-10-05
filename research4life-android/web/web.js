@@ -297,7 +297,21 @@
 
   // ---- Gemini
   const GEMINI = 'https://generativelanguage.googleapis.com/v1beta/models/';
-  const gem = { model: null, sendSchema: true, headroom: 16384, light: true };
+  const gem = { model: ls.get('ai.geminiWorking', null), sendSchema: true, headroom: 16384, light: true, noQuota: new Set() };
+  /** Another free Gemini model this key can use (Flash first, newest first, then Flash-Lite), or null. */
+  async function nextFreeGemini(current) {
+    try {
+      const res = await realFetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': keyFor('gemini') } });
+      if (!res.ok) return null;
+      const names = ((await res.json()).models || [])
+        .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map((m) => String(m.name || '').replace(/^models\//, ''))
+        .filter((n) => n.startsWith('gemini') && n.includes('flash') && !/image|tts|audio|live|embed|vision/.test(n) && !gem.noQuota.has(n) && n !== current);
+      const rank = (n) => (n.includes('lite') ? 2 : 0) + (/preview|exp/.test(n) ? 1 : 0);
+      names.sort((a, b) => rank(a) - rank(b) || b.localeCompare(a));
+      return names[0] || null;
+    } catch { return null; }
+  }
   async function gemini({ system, doc, task, max, schema, onText, image }) {
     const key = keyFor('gemini');
     let model = gem.model && gem.model.startsWith('gemini') ? gem.model : modelFor('gemini');
@@ -329,6 +343,7 @@
           if (text) {
             if (finish === 'MAX_TOKENS') text += CUT;
             onText(text);
+            if (model !== DEFAULT_MODEL.gemini) ls.set('ai.geminiWorking', model);
             return { text, model, ...usageOf(usage) };
           }
         }
@@ -338,8 +353,19 @@
       const res = await post(GEMINI + model + ':generateContent', { 'x-goog-api-key': key }, build(false), 'Gemini');
       const c = res.status;
       if (c === 429 || c === 503) {
-        if (attempt < 3) { await sleep(6000 * (attempt + 1)); continue; }
-        throw new AiError(c === 429 ? "Gemini's free limit was reached. Wait a minute (or until tomorrow for the daily limit) and try again." : 'Gemini is busy right now. Try again in a minute.');
+        const why = c === 429 ? String(await errText(res)) : '';
+        // Free allowances are per model: "limit: 0" (none for this model) or a used-up day → another free model.
+        if (c === 429 && /limit:\s*0\b|per ?day|daily/i.test(why) && gem.noQuota.size < 4) {
+          gem.noQuota.add(model);
+          const next = await nextFreeGemini(model);
+          if (next) { model = next; gem.model = next; attempt = -1; continue; }
+        }
+        const daily = /per ?day|daily/i.test(why), noFree = /limit:\s*0\b/i.test(why);
+        if (attempt < 3 && !daily && !noFree) { await sleep(6000 * (attempt + 1)); continue; }
+        const g = why ? ` (Google: ${why.slice(0, 160)})` : '';
+        throw new AiError(c === 429
+          ? (noFree ? `Your Gemini key has no free allowance for ${model} (or any other free Gemini model it could find).` : daily ? `Gemini's free daily limit for ${model} is used up. It resets tomorrow.` : "Gemini's free limit was reached. Wait a minute and try again.") + g
+          : 'Gemini is busy right now. Try again in a minute.');
       }
       if (c >= 400) {
         const msg = String(await errText(res));
@@ -362,6 +388,7 @@
       if (r.finish === 'MAX_TOKENS') text += CUT;
       if (!text) throw new AiError('Gemini returned an empty answer. Try again.');
       if (onText) onText(text);
+      if (model !== DEFAULT_MODEL.gemini) ls.set('ai.geminiWorking', model);
       return { text, model, ...usageOf(o.usageMetadata) };
     }
   }

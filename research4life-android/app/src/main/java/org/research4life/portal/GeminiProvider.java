@@ -22,6 +22,10 @@ final class GeminiProvider implements LlmProvider {
 
     private final String apiKey;
     private String model;
+    /** A model that answered on this phone after the chosen one had no free allowance (kept for this run). */
+    private static volatile String workingModel;
+    /** Models Google said have no free allowance for this key ("limit: 0"). */
+    private final java.util.Set<String> noQuota = new java.util.HashSet<>();
     /** Whether to send the answer's JSON Schema (turned off if this model/API rejects it). */
     private boolean sendSchema = true;
     /** Extra room for the model's "thinking", which counts against maxOutputTokens on Gemini 2.5+. */
@@ -32,6 +36,44 @@ final class GeminiProvider implements LlmProvider {
     GeminiProvider(String apiKey, String model) {
         this.apiKey = apiKey;
         this.model = model == null || model.isEmpty() || !model.startsWith("gemini") ? DEFAULT_MODEL : model;
+        if (workingModel != null && DEFAULT_MODEL.equals(this.model)) this.model = workingModel;
+    }
+
+    /**
+     * Another Gemini model this key may use for free: Google lists the key's models; Flash models
+     * that generate text come first (newest first), then Flash-Lite. Null when there is none left.
+     */
+    private String nextFreeModel() {
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200").openConnection();
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(20000);
+            c.setRequestProperty("x-goog-api-key", apiKey);
+            if (c.getResponseCode() >= 400) { c.disconnect(); return null; }
+            JSONArray list = new JSONObject(slurp(c.getInputStream())).optJSONArray("models");
+            c.disconnect();
+            java.util.List<String> names = new java.util.ArrayList<>();
+            for (int i = 0; list != null && i < list.length(); i++) {
+                JSONObject m = list.getJSONObject(i);
+                String name = m.optString("name").replaceFirst("^models/", "");
+                if (!name.startsWith("gemini") || !name.contains("flash")) continue;
+                if (name.matches(".*(image|tts|audio|live|embed|vision).*")) continue;
+                JSONArray ways = m.optJSONArray("supportedGenerationMethods");
+                if (ways == null || !ways.toString().contains("generateContent")) continue;
+                if (noQuota.contains(name) || name.equals(model)) continue;
+                names.add(name);
+            }
+            names.sort((a, b) -> {
+                int la = a.contains("lite") ? 1 : 0, lb = b.contains("lite") ? 1 : 0;
+                if (la != lb) return la - lb;
+                int pa = a.contains("preview") || a.contains("exp") ? 1 : 0, pb = b.contains("preview") || b.contains("exp") ? 1 : 0;
+                if (pa != pb) return pa - pb;
+                return b.compareTo(a); // newer version numbers first
+            });
+            return names.isEmpty() ? null : names.get(0);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** Answers about an image (JPEG, base64): Gemini models read images natively. */
@@ -90,12 +132,25 @@ final class GeminiProvider implements LlmProvider {
                 String text = in == null ? "" : slurp(in);
                 c.disconnect();
                 if (code == 429 || code == 503) {
-                    if (attempt < 3) {
+                    String why = "";
+                    try { why = new JSONObject(text).getJSONObject("error").optString("message"); } catch (Exception ignored) { }
+                    // "limit: 0": this model has no free allowance on this key; try another free model.
+                    // Free allowances are per model, so a used-up daily limit is worth another model too.
+                    if (code == 429 && why.matches("(?is).*(limit:\\s*0\\b|per ?day|daily).*") && noQuota.size() < 4) {
+                        noQuota.add(model);
+                        String next = nextFreeModel();
+                        if (next != null) { model = next; attempt = -1; continue; }
+                    }
+                    boolean daily = why.matches("(?is).*(per ?day|daily).*");
+                    boolean noFree = why.matches("(?is).*limit:\\s*0\\b.*");
+                    if (attempt < 3 && !daily && !noFree) {
                         Thread.sleep(6000L * (attempt + 1));
                         continue;
                     }
+                    String g = why.isEmpty() ? "" : " (Google: " + (why.length() > 160 ? why.substring(0, 160) + "…" : why) + ")";
                     throw new AiException(code == 429
-                            ? "Gemini's free limit was reached. Wait a minute (or until tomorrow for the daily limit) and try again."
+                            ? (noFree ? "Your Gemini key has no free allowance for " + model + " (or any other free Gemini model it could find)."
+                               : daily ? "Gemini's free daily limit for " + model + " is used up. It resets tomorrow." : "Gemini's free limit was reached. Wait a minute and try again.") + g
                             : "Gemini is busy right now. Try again in a minute.");
                 }
                 if (code >= 400) {
@@ -150,6 +205,7 @@ final class GeminiProvider implements LlmProvider {
                 long inTok = usage == null ? 0 : usage.optLong("promptTokenCount");
                 long outTok = usage == null ? 0 : usage.optLong("candidatesTokenCount");
                 long cached = usage == null ? 0 : usage.optLong("cachedContentTokenCount");
+                workingModel = model;
                 return new Result(answer, model, Math.max(0, inTok - cached), outTok, cached);
             } catch (AiException e) {
                 throw e;
@@ -226,6 +282,7 @@ final class GeminiProvider implements LlmProvider {
             if (text.isEmpty()) return complete(system, document, task, maxTokens, null);
             if ("MAX_TOKENS".equals(finish)) text += "\n\n_(The answer was cut off at the length limit. Tap Regenerate for a complete one.)_";
             l.onText(text);
+            workingModel = model;
             return new Result(text, model, Math.max(0, inTok - cached), outTok, cached);
         } catch (AiException e) {
             throw e;
