@@ -214,7 +214,19 @@
       actions['ml-anyway'] = () => { closeSheet(true); importUrl(url[0]); };
       return;
     }
-    if (url && /myloft/i.test(url[0])) { toast('Opening the MyLOFT link here. Open the PDF and it is saved' + (w ? ' to your paper' : '') + '.'); Native.openPortal(url[0], w?.id || '', w?.title || ''); return; }
+    if (url && /myloft/i.test(url[0])) {
+      const open = () => Native.openPortal(url[0], w?.id || '', w?.title || '');
+      // The first few times: explain the one-time MyLOFT sign-in in DermScholar's own browser.
+      const shown = store.get('mlWebHint', 0);
+      if (shown >= 3) { open(); return; }
+      store.set('mlWebHint', shown + 1);
+      sheet(`<h3>Opening the MyLOFT link</h3>
+        <p class="small">If MyLOFT asks you to sign in, sign in <b>once</b> here (same login as the MyLOFT app). DermScholar remembers it, so MyLOFT links then open with your institution's access.</p>
+        <p class="small">Then open the article's <b>PDF</b>: it is saved${w ? ` to “${esc((w.title || '').slice(0, 60))}”` : ' to your library'}.</p>
+        <button class="btn primary full" data-act="ml-open">Open</button>`);
+      actions['ml-open'] = () => { closeSheet(true); open(); };
+      return;
+    }
     if (url && text.length < url[0].length + 200) importUrl(url[0]);
     else importText(text, evt.subject || '');
   };
