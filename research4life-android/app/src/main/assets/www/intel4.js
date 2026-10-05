@@ -286,7 +286,7 @@
     if (!question) { el.innerHTML = '<div class="empty"><b>Ask a yes/no question</b></div>'; return; }
     if (!D.aiHasKey()) { el.innerHTML = I.keyCard(); return; }
     const live = ticket('cm');
-    const key = 'meter3.' + question.toLowerCase();
+    const key = 'meter4.' + question.toLowerCase();
     let data = I.cacheGet(key);
     if (!data) {
       try {
@@ -304,16 +304,18 @@
         const papers = pool.papers;
         if (!papers.length) { if (live()) el.innerHTML = '<div class="empty"><b>No studies with abstracts found</b></div>'; return; }
         if (live()) el.innerHTML = I.stepsHtml(pool.steps, { read: papers.length }) + I.busyHtml(`Reading ${papers.length} studies…`);
-        const doc = papers.map((a, i) => `[${i + 1}] ${D.studyType(a).label || 'Study'} · ${a.jAbbr || a.journal} ${a.year} · ${a.title}. ${D.stripTags(a.abstract).slice(0, 1200)}`).join('\n\n');
+        const doc = papers.map((a, i) => `[${i + 1}] ${D.studyType(a).label || 'Study'} · ${a.jAbbr || a.journal} ${a.year} · ${a.title}. ${I.absShort(a)}`).join('\n\n');
         const r = D.aiJson(await D.ai(`QUESTION: ${yesno}\nFor each numbered paper, say what THAT PAPER says about the question, from its findings or its own statements and conclusions (a review stating the answer as established counts):\n`
           + '- "yes": the paper supports or states yes (including "X is a well-established …", "X is classified as …").\n'
           + '- "possibly": the paper leans yes but hedges ("may", "suggests", "partly", "has features of", small or preliminary data).\n'
           + '- "mixed": it reports evidence both ways, or the answer depends on subgroup/definition.\n'
           + '- "no": it supports or states no.\n'
           + '- "not relevant": it does not address the question at all.\n'
-          + 'Do not downgrade a clear statement to "possibly" just because the paper is a review or doesn\'t test it directly. Give the key finding or statement in under 20 words with numbers if reported. Then one or two sentences answering the question from the relevant papers, leading with the majority answer and the key numbers (do not count or mention the papers that are not relevant). n is the paper number.',
+          + 'Do not downgrade a clear statement to "possibly" just because the paper is a review or doesn\'t test it directly. '
+          + 'Judge each paper against the question as asked: when the question is general (e.g. diet) and a paper finds no effect for one specific factor (e.g. chocolate) while others matter, that is "mixed" or "possibly", not "no"; use "no" only when the paper concludes the answer to the question itself is no. '
+          + 'Give the key finding or statement in under 20 words with numbers if reported. Every paper must get an item. Then one or two sentences answering the question from the relevant papers, leading with the majority answer and the key numbers. Never count or mention papers that are not relevant. n is the paper number.',
           { doc, system: 'You are a meticulous dermatology evidence analyst. Classify each paper by what its abstract says about the question.', schema: VERDICT, max: 4000 }));
-        data = { yesno, steps: pool.steps, summary: r.summary || '', rows: (r.items || []).filter((x) => papers[x.n - 1]).map((x) => ({ ...x, a: papers[x.n - 1] })) };
+        data = { yesno, steps: pool.steps, retrieved: pool.retrieved, eligible: pool.total, summary: r.summary || '', rows: (r.items || []).filter((x) => papers[x.n - 1]).map((x) => ({ ...x, a: papers[x.n - 1] })) };
         I.cacheSet(key, data);
       } catch (e) { if (live()) el.innerHTML = I.aiErr(e); return; }
     }
@@ -324,7 +326,8 @@
     const count = (k) => rel.filter((x) => x.answer === k).length;
     const shown = (pick ? rel.filter((x) => x.answer === pick) : rel).slice().sort((x, y) => weightOf(y.a) - weightOf(x.a));
     el.innerHTML = `${data.yesno && data.yesno.toLowerCase() !== question.toLowerCase() ? `<p class="muted small" style="margin:-4px 0 8px">Answering: <b>${esc(data.yesno)}</b></p>` : ''}
-      ${data.steps?.length ? I.stepsHtml(data.steps, { read: data.rows.length, done: true }) : ''}
+      <div id="cm-head"></div>
+      ${data.steps?.length ? I.stepsHtml(data.steps, { read: data.rows.length, done: true, retrieved: data.retrieved, eligible: data.eligible }) : ''}
       <div class="panel meter">
         <div class="meter-bar">${Object.entries(ANS).map(([k, [l, c]]) => share[k] ? `<button style="width:${(share[k] * 100).toFixed(1)}%;background:${c}" data-act="cm-pick" data-a="${k}" class="${pick && pick !== k ? 'dim' : ''}" aria-label="${l}">${share[k] > 0.08 ? count(k) : ''}</button>` : '').join('')}</div>
         <div class="meter-legend">${Object.entries(ANS).map(([k, [l, c]]) => `<button data-act="cm-pick" data-a="${k}" class="${pick === k ? 'on' : ''}"><i style="background:${c}"></i>${l} <b>${Math.round(share[k] * 100)}%</b> <small>(${count(k)})</small></button>`).join('')}</div>
@@ -369,12 +372,12 @@
     if (rows.length < 2) return;
     const refs = rows.map((x) => ({ kind: 'paper', a: x.a, type: D.studyType(x.a).label, n: x.n }));
     const ctx = I.newCtx(refs);
-    const key = 'explain1.' + question.toLowerCase();
+    const key = 'explain2.' + question.toLowerCase();
     let r = I.cacheGet(key);
     if (!r) {
       el.innerHTML = I.busyHtml('Writing the explanation…');
       try {
-        const doc = rows.map((x) => `[${x.n}] ${D.studyType(x.a).label || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${D.stripTags(x.a.abstract).slice(0, 1400)}`).join('\n\n');
+        const doc = rows.map((x) => `[${x.n}] ${D.studyType(x.a).label || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 1000)}`).join('\n\n');
         r = D.aiJson(await D.ai(`QUESTION: ${data.yesno || question}\n\n`
           + 'Explain the answer for a dermatologist, like a concise review, using only these papers:\n'
           + '- headline: one sentence that answers the question directly, with the key number if there is one (e.g. "Genetic inheritance strongly influences psoriasis risk, explaining about 60-70% of susceptibility.").\n'
@@ -389,6 +392,7 @@
     const cite = (t) => I.citeHtml(esc(t), ctx);
     const table = (t) => (t && t.columns?.length && t.rows?.length ? `<div class="ex-table"><table><thead><tr>${t.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
       <tbody>${t.rows.map((row) => `<tr>${row.map((c) => `<td>${cite(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>${t.caption ? `<p class="muted small">${esc(t.caption)}</p>` : ''}</div>` : '');
+    if ($('#cm-head') && r.headline) $('#cm-head').innerHTML = `<p class="cm-headline">${cite(r.headline)}</p>`;
     $('#cm-ex').innerHTML = `<div class="panel explain">
         <p class="ex-head">${cite(r.headline || '')}</p>
         ${(r.sections || []).map((x) => `<h4>${esc(x.heading)}</h4>${(x.paragraphs || []).map((t) => `<p>${cite(t)}</p>`).join('')}${table(x.table)}`).join('')}

@@ -62,6 +62,9 @@ public class PortalActivity extends Activity {
     private String provider = R4LSession.R4L;
     private String lastSignInUrl;
     private int signInRepeats;
+    /** The article link this screen was opened with, reopened once if sign-in loses it. */
+    private String startUrl;
+    private boolean startRestored;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -95,6 +98,8 @@ public class PortalActivity extends Activity {
                     ? name + ": login saved for " + R4LSession.username(this, provider)
                     : name + " · your sign-in is remembered");
         String url = in.getStringExtra(EXTRA_URL);
+        startUrl = url;
+        startRestored = false;
         if (url != null) {
             webView.loadUrl(url);
         } else if (webView.getUrl() == null) {
@@ -105,12 +110,32 @@ public class PortalActivity extends Activity {
         }
     }
 
+    /**
+     * Research4Life's sign-in sometimes returns to the bare site (doi.org's or ClinicalKey's home,
+     * or the portal) instead of the article: open the article link again, once.
+     */
+    private boolean restoreStartUrl(String url) {
+        if (startRestored || startUrl == null || url.equals(startUrl) || !startUrl.startsWith(R4LSession.PROXY_PREFIX)) return false;
+        Uri u = Uri.parse(url);
+        String path = u.getPath() == null ? "/" : u.getPath();
+        boolean bareProxied = PdfFetcher.isProxiedContent(u) && path.matches("/tacsgr1[^/]*/?") && (u.getQuery() == null || u.getQuery().isEmpty());
+        boolean portalHome = u.getHost() != null && u.getHost().startsWith("portal.") && !path.toLowerCase().matches(".*(login|signin|sign-in).*");
+        boolean startHasPath = !Uri.parse(startUrl).getPath().matches("/tacsgr1[^/]*/?") || startUrl.contains("#");
+        if ((bareProxied || portalHome) && startHasPath) {
+            startRestored = true;
+            webView.loadUrl(startUrl);
+            return true;
+        }
+        return false;
+    }
+
     private String homeUrl() {
         return R4LSession.UTD.equals(provider) ? R4LSession.UTD_HOME : R4LSession.PORTAL_URL;
     }
 
     private void onPageLoaded(String url) {
         if (url == null) return;
+        if (restoreStartUrl(url)) return;
         // Stop auto-submitting if the same sign-in page keeps coming back (wrong password).
         String path = Uri.parse(url).getPath();
         boolean loginPage = path != null && path.toLowerCase().matches(".*(login|signin|sign-in).*");

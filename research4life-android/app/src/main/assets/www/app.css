@@ -1235,3 +1235,8 @@ details.panel summary { cursor: pointer; }
 .ex-table table { border-collapse: collapse; width: 100%; font-size: 13px; }
 .ex-table th, .ex-table td { text-align: left; vertical-align: top; padding: 7px 8px; border-bottom: 1px solid var(--line); }
 .ex-table th { color: var(--text-2); font-weight: 600; white-space: nowrap; }
+.ev-tot { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 4px 0 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.ev-tot div { display: flex; flex-direction: column; }
+.ev-tot b { font: 700 20px/1.2 var(--sans); color: var(--text); }
+.ev-tot span { font-size: 12px; color: var(--text-3); }
+.cm-headline { font: 600 19px/1.4 var(--sans); margin: 4px 0 14px; }

@@ -45,7 +45,7 @@
   // The Evidence Map, the Consensus meter and search all use the same plan, so they agree.
   const PLAN_SYSTEM = 'You are an expert medical librarian who builds PubMed/Europe PMC searches for dermatology questions.';
   const plans = new Map();
-  const planKey = (question) => 'plan1.' + question.toLowerCase().replace(/\s+/g, ' ').trim();
+  const planKey = (question) => 'plan2.' + question.toLowerCase().replace(/\s+/g, ' ').trim();
   const YESNO_Q = /^(does|do|did|is|are|was|were|can|could|should|will|would|has|have|had|may|might)\b/i;
   /** One term as a title/abstract condition (a trailing * matches word endings). */
   function absTerm(t) {
@@ -83,7 +83,8 @@
           + '- topic: a 3-6 word label.\n'
           + '- searches: 2 to 4 searches. Each search is a list of concept groups that must ALL appear in a paper\'s title or abstract. Each group lists 1-10 alternative terms: synonyms, the words papers actually use, British and US spellings, key genes, drugs, tests or scores; a trailing * matches word endings (heritab*, twin*). Usually 2 groups per search, never more than 3. '
           + 'The first search is the broad core one: the condition (with its variants) AND the main concept with all its synonyms. The others cover distinct angles a good review would search. '
-          + 'Never use generic words like role, effect, impact, evidence, patients, study, association as a group.\n'
+          + 'Never use generic words like role, effect, impact, evidence, patients, study, association as a group. '
+          + 'Each search has a label: its terms in a few plain words, e.g. "psoriasis heritability, twins, family history" (never "core" or "angle").\n'
           + 'Example for "Role of inheritance in psoriasis?": core [["psoriasis","psoriatic"],["inheritance","heritab*","familial","family history","genetic*","twin*","susceptibility loci"]]; '
           + 'angles [["psoriasis"],["twin*","concordance"]], [["psoriasis"],["GWAS","genome-wide association","HLA-C","HLA-Cw6","PSORS1"]].',
           { system: PLAN_SYSTEM, schema: PLAN(), max: 1500 }));
@@ -129,13 +130,20 @@
     }));
     const rank = (a) => (score.get(a.id) || 0) * (1 + 0.12 * (D.studyType(a).rank || 0)) + Math.log10(1 + (a.citedBy || 0)) * 0.15;
     const list = [...papers.values()].sort((x, y) => rank(y) - rank(x));
-    return { plan, steps, total: papers.size, papers: list.slice(0, size) };
+    return { plan, steps, total: papers.size, retrieved: steps.reduce((n, x) => n + x.hit, 0), papers: list.slice(0, size) };
+  }
+
+  /** An abstract short enough that 20 fit one AI request (free Groq): its opening and its conclusions. */
+  function absShort(a, max = 900) {
+    const t = D.stripTags(a.abstract || '');
+    return t.length <= max ? t : `${t.slice(0, Math.round(max * 0.3))} … ${t.slice(-Math.round(max * 0.7))}`;
   }
 
   /** The search steps as Consensus shows them: each planned search with how many papers matched. */
-  function stepsHtml(steps, { read = 0, done = false } = {}) {
+  function stepsHtml(steps, { read = 0, done = false, retrieved = 0, eligible = 0 } = {}) {
     const n = (v) => (v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : String(v));
-    return `<div class="panel ev-steps">${steps.map((x) => `<div class="ev-step">${icon('search')}<span>${esc(x.label)}</span><b>${n(x.hit)}</b></div>`).join('')}
+    const tot = done && retrieved ? `<div class="ev-tot"><div><b>${n(retrieved)}</b><span>Retrieved</span></div><div><b>${n(eligible)}</b><span>Eligible</span></div><div><b>${read}</b><span>Included</span></div></div>` : '';
+    return `<div class="panel ev-steps">${tot}${steps.map((x) => `<div class="ev-step">${icon('search')}<span>${esc(x.label)}</span><b>${n(x.hit)}</b></div>`).join('')}
       ${read ? `<div class="ev-step">${icon('book')}<span>${done ? 'Read' : 'Reading'} the most relevant abstracts</span><b>${read}</b></div>` : ''}</div>`;
   }
 
@@ -520,7 +528,7 @@
     const refs = refsFrom(map);
     const ctx = newCtx(refs);
     const total = map.buckets.reduce((s, b) => s + (b.res.hit || 0), 0);
-    if (map.pool?.steps?.length) $('#ev-steps').innerHTML = stepsHtml(map.pool.steps, { read: refs.length, done: true });
+    if (map.pool?.steps?.length) $('#ev-steps').innerHTML = stepsHtml(map.pool.steps, { read: refs.length, done: true, retrieved: map.pool.retrieved, eligible: map.pool.total });
     $('#ev-map').innerHTML = `
       <div class="ev-summary">${map.buckets.map((b) => `<div><b>${b.res.hit > 999 ? Math.round(b.res.hit / 100) / 10 + 'k' : b.res.hit}</b><span>${b.emoji} ${esc(b.label.split(' ')[0])}</span></div>`).join('')}
         <div><b>${map.trials.total || 0}</b><span>🧪 Trials</span></div></div>
@@ -1165,8 +1173,9 @@
   /** Elsevier's article ID (PII, "S0190…") for a 10.1016 DOI, from Crossref; '' if unknown. */
   async function elsevierPii(a) {
     if (!/^10\.1016\//.test(a.doi || '')) return '';
-    let pii = '';
-    try {
+    // Europe PMC's record often has Elsevier's own link with the ID (…/pii/S0190962224001234).
+    let pii = ((a.links || []).map((l) => (l.url || '').match(/pii\/(S?[0-9X]{15,17})/i)).find(Boolean) || [])[1] || '';
+    if (!pii) try {
       const m = (await D.getJSON(api('crossref', 'works/' + encodeURIComponent(a.doi)))).message || {};
       pii = (m['alternative-id'] || []).find((x) => /^S?\d{4}/i.test(x)) || '';
       if (!pii) pii = ((m.link || []).map((l) => (l.URL || '').match(/PII:([^?&/]+)/)).find(Boolean) || [])[1] || '';
@@ -1238,6 +1247,6 @@
   window.DSI = {
     api, q, epmc, trials, trialOf, trialTerm, gather, refsFrom, packText, newCtx, contexts, citeHtml, citeBtns, strength, refRow, trialCard,
     keyCard, aiErr, busyHtml, aiJsonCall, cacheGet, cacheSet, obj, S, CITE_SYSTEM, paperText, openUrl, evHash, today, daysAgo, TILES, DISEASES,
-    needKey, GUIDE, SAFETY, TREAT, isTreatmentQ, planSearch, evidencePool, stepsHtml, exportBtns, offerExport, STRENGTH,
+    needKey, GUIDE, SAFETY, TREAT, isTreatmentQ, planSearch, evidencePool, stepsHtml, absShort, exportBtns, offerExport, STRENGTH,
   };
 })();
