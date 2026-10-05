@@ -27,7 +27,7 @@
    * pop-up), shows a button to open it instead. */
   function openTab(url, label = 'Open', key = '') {
     if (!url) return;
-    if (IOS) { ios('browse', { url, key }); return; }
+    if (IOS) { try { document.activeElement && document.activeElement.blur(); } catch { /* none */ } toast('Opening…'); ios('browse', { url, key }); return; }
     let w = null;
     if (userActive()) { try { w = window.open(url, '_blank', 'noopener'); } catch { w = null; } }
     if (w || (userActive() && !navigator.userActivation)) return;
@@ -793,6 +793,15 @@
     emit(evt);
   };
   if (IOS) {
+    // MyLOFT's website only works inside its app: hand the paper's link to the MyLOFT app through
+    // the share sheet (its "Save to MyLOFT"), or open the app itself.
+    const MYLOFT_STORE = 'itms-apps://apps.apple.com/search?term=MyLOFT';
+    N.openMyLoftApp = () => ios('openApp', { url: 'https://app.myloft.xyz/', store: MYLOFT_STORE });
+    N.sendToMyLoft = (text) => {
+      N.copy(text);
+      if (/^https?:/.test(text)) ios('share', { title: 'Send to MyLOFT', url: text });
+      else N.openMyLoftApp();
+    };
     // The iPhone app keeps passwords in the Keychain and its browser signs in with them; the
     // screens keep only the user ID.
     N.setCredentials = (p, u, pass) => { try { localStorage.setItem('ds.acc.' + p, u); } catch { /* blocked */ } ios('setCredentials', { p, user: u, pass: pass || '' }); };

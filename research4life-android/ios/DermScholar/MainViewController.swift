@@ -44,7 +44,14 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
             queued = []
             pending.forEach { send($0) }
         case "browse":
-            if let s = body["url"] as? String, let u = URL(string: s) { openBrowser(u, key: body["key"] as? String ?? "") }
+            if let s = body["url"] as? String, let u = MainViewController.url(s) { openBrowser(u, key: body["key"] as? String ?? "") }
+        case "openApp":
+            // Another app's own link (MyLOFT): its app when installed, else the App Store.
+            guard let s = body["url"] as? String, let u = URL(string: s) else { break }
+            let store = (body["store"] as? String).flatMap(URL.init(string:))
+            UIApplication.shared.open(u, options: [.universalLinksOnly: true]) { ok in
+                if !ok { UIApplication.shared.open(store ?? u) }
+            }
         case "copy":
             UIPasteboard.general.string = body["text"] as? String ?? ""
         case "share":
@@ -89,6 +96,14 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
 
     // MARK: browser and sharing
 
+    /// A link from the screens; one with characters a URL can't hold (some DOIs) is escaped.
+    static func url(_ s: String) -> URL? {
+        if let u = URL(string: s) { return u }
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.insert(charactersIn: "#")
+        return s.addingPercentEncoding(withAllowedCharacters: allowed).flatMap(URL.init(string:))
+    }
+
     func openBrowser(_ url: URL, key: String) {
         let scheme = url.scheme?.lowercased() ?? ""
         if scheme != "http" && scheme != "https" {
@@ -104,7 +119,16 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         }
         let nav = UINavigationController(rootViewController: b)
         nav.modalPresentationStyle = .fullScreen
-        topPresenter().present(nav, animated: true)
+        let presenter = topPresenter()
+        if presenter is UIAlertController || presenter is UIActivityViewController || presenter.isBeingDismissed {
+            presenter.dismiss(animated: false) { [weak self] in self?.topPresenter().present(nav, animated: true) }
+        } else {
+            presenter.present(nav, animated: true)
+        }
+        // Never a tap that does nothing: if the browser didn't come up, open the page in Safari.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            if nav.presentingViewController == nil { UIApplication.shared.open(url) }
+        }
     }
 
     private func share(_ b: [String: Any]) {
@@ -114,6 +138,8 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
             if name.isEmpty { name = "DermScholar.txt" }
             let file = FileManager.default.temporaryDirectory.appendingPathComponent(name.replacingOccurrences(of: "/", with: " "))
             do { try data.write(to: file); items.append(file) } catch { return }
+        } else if let s = b["url"] as? String, let u = URL(string: s) {
+            items.append(u) // a link: apps' share extensions (MyLOFT…) offer to save it
         } else {
             items.append((b["text"] as? String) ?? (b["title"] as? String) ?? "")
         }
