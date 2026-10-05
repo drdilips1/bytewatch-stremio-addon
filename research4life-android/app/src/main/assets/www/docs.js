@@ -376,7 +376,7 @@ export function fromOcr(pages, { title = '' } = {}) {
   });
   if (!gotTitle) {
     const first = m.blocks.find((b) => b.type === 'p');
-    const t = first ? first.text.split(/(?<=[.!?])\s/)[0].slice(0, 80) : 'Scanned page';
+    const t = first ? first.text.replace(/([.!?])\s[\s\S]*$/, '$1').slice(0, 80) : 'Scanned page';
     m.title = t; m.blocks[0].text = t;
   }
   return tidy(m);

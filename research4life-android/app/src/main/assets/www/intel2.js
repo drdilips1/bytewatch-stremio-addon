@@ -7,7 +7,7 @@
   function indications(text) {
     const t = String(text || '').replace(/^\s*\d*\s*INDICATIONS? (AND|&) USAGE\s*/i, '').replace(/\(\s*\d+(\.\d+)*\s*\)/g, ' ').replace(/\s+/g, ' ');
     const out = [];
-    for (const raw of t.split(/(?<=\.)\s+(?=[A-Z])/)) {
+    for (const raw of t.replace(/\.\s+(?=[A-Z])/g, '.\n').split('\n')) {
       if (/^limitations? of use/i.test(raw) || !/indicated/i.test(raw)) continue;
       let x = raw.replace(/^.*?\bindicated\s+(for\s+(the\s+)?(treatment|management|prevention|reduction)\s+of\s+|for\s+(use\s+)?(in\s+)?|as\s+|in\s+)/i, '').replace(/\.$/, '').trim();
       if (!x) continue;

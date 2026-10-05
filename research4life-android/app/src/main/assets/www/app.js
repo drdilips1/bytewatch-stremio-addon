@@ -336,7 +336,7 @@
   }
 
   function splitSentences(text) {
-    return text.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+(?=[A-Z(\[])/).map((s) => s.trim()).filter((s) => s.length > 20);
+    return text.replace(/\s+/g, ' ').trim().replace(/([.!?])\s+(?=[A-Z(\[])/g, '$1\n').split('\n').map((s) => s.trim()).filter((s) => s.length > 20);
   }
 
   /** The abstract's conclusion, trimmed to one or two sentences. */
@@ -2129,15 +2129,23 @@
     el.style.setProperty('--rsize', rprefs.size + 'px');
     el.style.setProperty('--rbg', bg);
     el.style.setProperty('--rfg', fg);
-    el.style.setProperty('--rmuted', `color-mix(in srgb, ${fg} 62%, ${bg})`);
-    el.style.setProperty('--rline', `color-mix(in srgb, ${fg} 14%, ${bg})`);
-    el.style.setProperty('--rsoft', `color-mix(in srgb, ${fg} 6%, ${bg})`);
+    el.style.setProperty('--rmuted', mixColor(fg, bg, 62));
+    el.style.setProperty('--rline', mixColor(fg, bg, 14));
+    el.style.setProperty('--rsoft', mixColor(fg, bg, 6));
     // The bars and panels follow the reading colours while reading.
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     document.body.dataset.rtheme = key;
     document.body.style.setProperty('--bg', bg);
-    document.body.style.setProperty('--card', `color-mix(in srgb, ${fg} 4%, ${bg})`);
-    document.body.style.setProperty('--line', `color-mix(in srgb, ${fg} 12%, ${bg})`);
+    document.body.style.setProperty('--card', mixColor(fg, bg, 4));
+    document.body.style.setProperty('--line', mixColor(fg, bg, 12));
+  }
+  // color-mix() worked out here: Safari before 16.2 (iPadOS 15) ignores it.
+  function mixColor(a, b, pct) {
+    const rgb = (h) => { const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(h).trim()); if (!m) return null;
+      const x = m[1].length === 3 ? m[1].replace(/./g, '$&$&') : m[1]; return [0, 2, 4].map((k) => parseInt(x.slice(k, k + 2), 16)); };
+    const A = rgb(a), B = rgb(b);
+    if (!A || !B) return `color-mix(in srgb, ${a} ${pct}%, ${b})`;
+    return '#' + A.map((v, k) => Math.round((v * pct + B[k] * (100 - pct)) / 100).toString(16).padStart(2, '0')).join('');
   }
 
   function showReader(model, opts) {

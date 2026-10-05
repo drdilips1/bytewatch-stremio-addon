@@ -1,9 +1,13 @@
 // Turns a journal PDF into a mobile reading layout: one column of headings and paragraphs,
 // with figures and tables cropped from the page as images.
-import * as pdfjs from './vendor/pdfjs/pdf.min.js';
+// Older Safari (iPadOS / iOS 15) can't run the current pdf.js; the web and iPhone builds carry
+// the legacy build for it (web/pdfjs-legacy).
+const MODERN = (() => { try { new Function('class A { static {} }'); return true; } catch { return false; } })();
+const DIR = MODERN ? './vendor/pdfjs/' : './vendor/pdfjs/legacy/';
+const pdfjs = await import(DIR + 'pdf.min.js');
 
-const BASE = new URL('./vendor/pdfjs/', import.meta.url).href;
-pdfjs.GlobalWorkerOptions.workerSrc = BASE + 'pdf.worker.min.js';
+const BASE = new URL('./vendor/pdfjs/', import.meta.url).href; // fonts and character maps, shared
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(DIR + 'pdf.worker.min.js', import.meta.url).href;
 
 const CAPTION = /^(fig(ure)?|table|tab|scheme|chart|box)\.?\s*([0-9]+|[ivxlc]+)\b/i;
 const FIG_CAPTION = /^(fig(ure)?|scheme|chart)\.?\s*([0-9]+|[ivxlc]+)\b/i;
