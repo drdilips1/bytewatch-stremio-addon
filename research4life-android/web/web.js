@@ -786,6 +786,26 @@
     else window.addEventListener('load', () => setTimeout(() => ios('ready'), 300));
   }
 
+  // iPhone / iPad screens reach under the status bar, camera notch and home bar (the Android app
+  // sits below its status bar): keep the bars and buttons clear of them.
+  {
+    const st = document.createElement('style');
+    const T = 'env(safe-area-inset-top,0px)', B = 'env(safe-area-inset-bottom,0px)';
+    st.textContent = `body{padding-top:${T}}
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:${T};background:var(--bg);z-index:9}
+.topbar{top:${T}}
+.rd-progress{top:calc(61px + ${T})}
+:root{--nav-h:calc(72px + ${B})}
+nav.bottom{padding-bottom:${B}}
+.drawer{padding-top:${T};padding-bottom:${B}}
+.lb{padding-top:${T};padding-bottom:${B}}
+.player{padding-top:calc(10px + ${T})}
+.sheet{padding-bottom:calc(24px + ${B})}
+.upd-bar{top:calc(12px + ${T})}
+.ptr{top:calc(6px + ${T})}`;
+    document.head.appendChild(st);
+  }
+
   // UpToDate needs the app's own browser: the web version leaves it out (the iPhone app keeps it).
   if (!IOS) {
     const st = document.createElement('style');
