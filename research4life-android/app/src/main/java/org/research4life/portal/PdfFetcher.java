@@ -40,6 +40,7 @@ final class PdfFetcher {
     /** Failure prefix for papers outside Research4Life's coverage (the proxy sent us to the plain publisher site). */
     static final String NOT_COVERED = "NOT_IN_R4L:";
     private static final int MAX_SIGNIN_PAGES = 3;
+    private static final int MAX_LOADS = 24;
     private static final long JOB_TIMEOUT_MS = 90_000;
 
     private static PdfFetcher instance;
@@ -58,6 +59,8 @@ final class PdfFetcher {
         boolean clinicalKeyFailed;
         /** Whether the article link was already reopened after landing on a site's bare home page. */
         boolean reopened;
+        /** Pages loaded for this paper, across retries and accounts: a cap stops endless back-and-forth. */
+        int loads;
         int accountTries;
         Job(String key, String doi, String title, String pii) {
             this.key = key; this.doi = doi; this.title = title;
@@ -72,6 +75,8 @@ final class PdfFetcher {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final ArrayDeque<Job> queue = new ArrayDeque<>();
     private final Map<String, String> lastUrls = new HashMap<>();
+    /** The pages each paper went through (for the Details button when Get PDF fails). */
+    private final Map<String, java.util.List<String>> trails = new HashMap<>();
     private final Set<String> tried = new HashSet<>();
     private Listener listener;
     private WebView webView;
@@ -128,6 +133,7 @@ final class PdfFetcher {
     void enqueue(String key, String doi, String title, String pii) {
         if (job != null && job.key.equals(key)) return;
         for (Job j : queue) if (j.key.equals(key)) return;
+        trails.remove(key);
         queue.addLast(new Job(key, doi, title, pii));
         if (job == null) next(); else status("queued", "Waiting in queue…");
     }
@@ -140,6 +146,12 @@ final class PdfFetcher {
             job = null;
             next();
         }
+    }
+
+    /** The pages a paper's Get PDF went through, newest last. */
+    String trail(String key) {
+        java.util.List<String> t = trails.get(key);
+        return t == null ? "" : android.text.TextUtils.join("\n", t);
     }
 
     String lastUrl(String key) {
@@ -159,7 +171,9 @@ final class PdfFetcher {
         reloadsAfterSignIn = 0;
         challengeWaits = 0;
         attachClients();
-        status("opening", job.viaClinicalKey ? "Opening the paper in ClinicalKey…" : "Opening the paper through Research4Life…");
+        String who = R4LSession.username(app);
+        status("opening", job.viaClinicalKey ? "Opening the paper in ClinicalKey…"
+                : "Opening the paper through Research4Life" + (who == null || who.isEmpty() ? "" : " (" + who + ")") + "…");
         main.removeCallbacks(timeout);
         main.postDelayed(timeout, JOB_TIMEOUT_MS);
         webView.loadUrl(job.startUrl());
@@ -183,7 +197,14 @@ final class PdfFetcher {
             @Override
             public void onPageFinished(WebView view, String url) {
                 CookieManager.getInstance().flush();
-                if (job != null) lastUrls.put(job.key, url);
+                if (job != null) {
+                    lastUrls.put(job.key, url);
+                    java.util.List<String> t = trails.get(job.key);
+                    if (t == null) { t = new java.util.ArrayList<>(); trails.put(job.key, t); }
+                    String line = (job.accountTries > 0 ? "[account " + (job.accountTries + 1) + "] " : "") + url;
+                    if (t.isEmpty() || !t.get(t.size() - 1).equals(line)) t.add(line.length() > 220 ? line.substring(0, 220) + "…" : line);
+                    while (t.size() > 30) t.remove(0);
+                }
                 onPageLoaded(url);
             }
         });
@@ -205,6 +226,10 @@ final class PdfFetcher {
 
     private void onPageLoaded(String url) {
         if (job == null || saving) return;
+        if (++job.loads > MAX_LOADS) {
+            fail("Research4Life kept going between pages without reaching the PDF. Tap Show page to see where it stops, or use Get PDF via MyLOFT.", true);
+            return;
+        }
         Uri u = Uri.parse(url);
         if (R4LSession.isR4LHost(u.getHost()) && !isProxiedContent(u)) {
             if (isSignInPage(u)) {
@@ -217,7 +242,7 @@ final class PdfFetcher {
                     fail("Research4Life sign-in didn't go through. Check your saved ID and password, or tap Show page.", true);
                     return;
                 }
-                status("signing-in", "Signing in to Research4Life…");
+                status("signing-in", "Signing in to Research4Life as " + R4LSession.username(app) + "…");
             }
             String pass = R4LSession.hasCredentials(app) ? R4LSession.password(app) : null;
             webView.evaluateJavascript(R4LSession.signInScript(R4LSession.username(app), pass, true), null);
@@ -388,7 +413,7 @@ final class PdfFetcher {
         job = null;
         saving = false;
         // ClinicalKey didn't give the PDF: try the usual Research4Life route (ScienceDirect) once.
-        if (j != null && j.viaClinicalKey) {
+        if (j != null && j.viaClinicalKey && j.loads <= MAX_LOADS) {
             j.viaClinicalKey = false;
             j.clinicalKeyFailed = true;
             queue.addFirst(j);
@@ -399,7 +424,7 @@ final class PdfFetcher {
         // With several Research4Life accounts saved, try the paper again with the next one.
         int accounts = R4LSession.accountCount(app, R4LSession.R4L);
         String nextUser = R4LSession.nextAccount(app, R4LSession.R4L);
-        if (j != null && nextUser != null && j.accountTries < accounts - 1) {
+        if (j != null && nextUser != null && j.accountTries < accounts - 1 && j.loads <= MAX_LOADS) {
             j.accountTries++;
             R4LSession.setActive(app, R4LSession.R4L, nextUser);
             R4LSession.signOut(R4LSession.R4L_ORIGINS);

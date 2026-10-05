@@ -1131,6 +1131,12 @@ public class MainActivity extends Activity {
             R4LSession.forget(MainActivity.this);
         }
 
+        /** The pages Get PDF went through for a paper (Details button in the tray). */
+        @JavascriptInterface
+        public String fetchTrail(String key) {
+            return fetcher.trail(key);
+        }
+
         @JavascriptInterface
         public void cancelFetch(String key) {
             main.post(() -> fetcher.cancel(key));

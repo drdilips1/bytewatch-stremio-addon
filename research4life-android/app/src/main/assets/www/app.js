@@ -929,10 +929,7 @@
     const pii = ext.elsevierPii ? await ext.elsevierPii(a).catch(() => '') : '';
     // Journals Research4Life doesn't cover go straight to MyLOFT (learned from earlier tries).
     // Not Elsevier ones: those earlier tries went through ScienceDirect, before the ClinicalKey route.
-    if (!free && !skipAsk && !pii && notInR4L().includes(journalKey(a)) && actions.myloft) {
-      actions.myloft({ dataset: { id: a.id }, r4lAnyway: true, notInR4L: true });
-      return;
-    }
+
     jobs.set(a.id, { title: a.title, doi: a.doi || '', state: 'running', message: free ? 'Downloading free PDF…' : 'Starting…', at: Date.now() });
     renderTray();
     refreshCards();
@@ -995,24 +992,21 @@
 
         ${a.finding ? `<div class="keybox"><div class="label">${icon('spark')}Key finding</div><p>${esc(a.finding)}</p></div>` : ''}
 
-        ${ext.articleExtra && !hasPdf ? ext.articleExtra(a) : ''}
         <div class="actions">
           ${hasPdf
             ? `<button class="btn good full big" data-act="open-pdf">${icon('file')}Read PDF<span class="sub">Saved on this phone</span></button>
                <button class="btn full" data-act="listen" data-id="${esc(a.id)}">${icon('audio')}Listen to this paper</button>`
             : pdfSrc || a.doi
-              ? `<button class="btn primary full big" data-act="get-pdf">${icon('download')}Get PDF now<span class="sub">${pdfSrc ? 'Free copy · saves to your library' : 'Through your Research4Life access'}</span></button>`
+              ? `<button class="btn primary full big" data-act="get-pdf">${icon('download')}Get PDF with R4L<span class="sub">${pdfSrc ? 'Free copy first, then your Research4Life access' : 'Through your Research4Life access'}</span></button>`
               : `<button class="btn full" data-act="r4l">${icon('key')}Find on Research4Life</button>`}
-          ${!hasPdf && a.doi && actions.myloft ? `<button class="btn" data-act="myloft" data-id="${esc(a.id)}">${icon('key')}MyLOFT</button>` : ''}
-          ${!hasPdf ? `<button class="btn" data-act="pdf-attach" data-id="${esc(a.id)}">${icon('file')}Add PDF from phone</button>` : ''}
+          ${!hasPdf && a.doi && actions.myloft ? `<button class="btn full big" data-act="myloft" data-id="${esc(a.id)}">${icon('key')}Get PDF via MyLOFT<span class="sub">Your institution's access</span></button>` : ''}
           <button class="btn ${s ? 'good' : ''}" data-act="save">${icon(s ? 'bookmarkFill' : 'bookmark')}${s ? 'Saved' : 'Save'}</button>
           ${canRead ? `<button class="btn" data-act="reader">${icon('book')}${s?.fullText ? 'Read offline' : 'Full text'}</button>` : ''}
-          ${a.doi ? `<button class="btn" data-act="publisher">${icon('key')}Open via R4L</button>` : ''}
           <button class="btn" data-act="ai-article" data-id="${esc(a.id)}">${icon('spark')}AI summary</button>
           <button class="btn" data-act="cite">${icon('quote')}Cite</button>
           <button class="btn" data-act="utd-search" data-q="${esc(topicOf(a))}">${icon('book')}UpToDate</button>
         </div>
-        ${ext.articleExtra && hasPdf ? ext.articleExtra(a) : ''}
+
         ${ext.articleTools ? ext.articleTools(a) : ''}
 
         ${s ? libraryPanel(s) : ''}
@@ -3134,12 +3128,22 @@
       return `<div class="tray-row bad">${icon('alert')}<div class="tray-body"><b>${t}</b><span>${esc(j.message)}</span></div>
         ${j.canShow && actions.myloft ? `<button class="btn xs primary" data-act="tray-myloft" data-id="${esc(key)}">MyLOFT</button>` : ''}
         ${j.canShow ? `<button class="btn xs" data-act="tray-show" data-id="${esc(key)}">Show page</button>` : ''}
+        ${j.state === 'failed' && Native.fetchTrail ? `<button class="btn xs" data-act="tray-trail" data-id="${esc(key)}">Details</button>` : ''}
         <button class="icon-btn" data-act="tray-dismiss" data-id="${esc(key)}" aria-label="Dismiss">${icon('x')}</button></div>`;
     }).join('');
   }
   Object.assign(actions, {
     'tray-open': (b) => { jobs.delete(b.dataset.id); renderTray(); openReader(b.dataset.id); },
     'tray-dismiss': (b) => { jobs.delete(b.dataset.id); renderTray(); refreshCards(); },
+    // Where Get PDF went, page by page, to copy and send when it fails.
+    'tray-trail': (b) => {
+      let t = '';
+      try { t = Native.fetchTrail(b.dataset.id) || ''; } catch { /* old app */ }
+      const text = `Get PDF: ${saved.get(b.dataset.id)?.title || b.dataset.id}\n${jobs.get(b.dataset.id)?.message || ''}\n\nPages:\n${t || '(none recorded)'}`;
+      sheet(`<h3>Where Get PDF went</h3><pre class="trail">${esc(text)}</pre>
+        <button class="btn primary full" data-act="trail-copy">${icon('file')}Copy</button>`);
+      actions['trail-copy'] = () => { Native.copy(text); closeSheet(); };
+    },
     'tray-cancel': (b) => { Native.cancelFetch(b.dataset.id); jobs.delete(b.dataset.id); renderTray(); refreshCards(); },
     // Research4Life couldn't get it: hand the paper to MyLOFT (title/DOI copied, PDF comes back by Share).
     'tray-myloft': (b) => { jobs.delete(b.dataset.id); renderTray(); refreshCards(); actions.myloft?.(b); },
@@ -3269,8 +3273,7 @@
           const a = saved.get(evt.key);
           const k = a && !/^10\.1016\//.test(a.doi || '') && journalKey(a);
           if (k && !notInR4L().includes(k)) store.set('notInR4L', [...notInR4L(), k].slice(-300));
-          jobs.delete(evt.key); renderTray();
-          actions.myloft({ dataset: { id: evt.key }, notInR4L: true });
+          // The tray offers MyLOFT; it is not opened by itself (the owner picks R4L or MyLOFT).
         }
       } else if (ext.events[evt.type]) {
         ext.events[evt.type](evt);
