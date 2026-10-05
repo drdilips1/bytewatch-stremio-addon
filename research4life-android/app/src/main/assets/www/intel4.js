@@ -270,9 +270,7 @@
 
   // ================================================================ C1: consensus meter (yes/no questions)
   const YESNO = /^(does|do|did|is|are|was|were|can|could|should|will|would|has|have|had|may|might)\b/i;
-  // One request does the meter and its short explanation (two requests ran into free per-minute limits).
-  const VERDICT = obj({ summary: S.str, headline: S.str, explanation: { type: 'array', items: S.str },
-    claims: { type: 'array', items: obj({ strength: { type: 'string', enum: ['strong', 'moderate', 'limited'] }, claim: S.str, cites: S.ints }) }, items: { type: 'array', items: obj({ n: { type: 'integer' }, answer: { type: 'string', enum: ['yes', 'possibly', 'mixed', 'no', 'not relevant'] }, finding: S.str }) } });
+  const VERDICT = obj({ summary: S.str, items: { type: 'array', items: obj({ n: { type: 'integer' }, answer: { type: 'string', enum: ['yes', 'possibly', 'mixed', 'no', 'not relevant'] }, finding: S.str }) } });
   const ANS = { yes: ['Yes', '#16a34a'], possibly: ['Possibly', '#65a30d'], mixed: ['Mixed', '#d97706'], no: ['No', '#dc2626'] };
   const weightOf = (a) => {
     const t = D.studyType(a).label || '';
@@ -288,7 +286,7 @@
     if (!question) { el.innerHTML = '<div class="empty"><b>Ask a yes/no question</b></div>'; return; }
     if (!D.aiHasKey()) { el.innerHTML = I.keyCard(); return; }
     const live = ticket('cm');
-    const key = 'meter5.' + question.toLowerCase();
+    const key = 'meter6.' + question.toLowerCase();
     let data = I.cacheGet(key);
     if (!data) {
       try {
@@ -315,13 +313,9 @@
           + '- "not relevant": it does not address the question at all.\n'
           + 'Do not downgrade a clear statement to "possibly" just because the paper is a review or doesn\'t test it directly. '
           + 'Judge each paper against the question as asked: when the question is general (e.g. diet) and a paper finds no effect for one specific factor (e.g. chocolate) while others matter, that is "mixed" or "possibly", not "no"; use "no" only when the paper concludes the answer to the question itself is no. '
-          + 'Give the key finding or statement in under 20 words with numbers if reported. Every paper must get an item. n is the paper number. Never count or mention papers that are not relevant. Then:\n'
-          + '- summary: one or two sentences answering the question from the relevant papers, leading with the majority answer and the key numbers.\n'
-          + '- headline: one sentence that answers the question directly with the key number if there is one (e.g. "Yes, diet plays a significant role in acne, mainly high-glycaemic foods and dairy.").\n'
-          + '- explanation: 2 or 3 short paragraphs (2-3 sentences each) explaining the answer like a concise review; every claim cites its papers like [3] or [2, 5]; numbers exactly as reported.\n'
-          + '- claims: 3 or 4 key claims with their evidence strength (strong: consistent across several good studies; moderate; limited) and the papers that support them.',
-          { doc, system: 'You are a meticulous dermatology evidence analyst. Classify each paper by what its abstract says about the question, then explain the answer using only these papers.', schema: VERDICT, max: 5000 }));
-        data = { yesno, steps: pool.steps, retrieved: pool.retrieved, eligible: pool.total, summary: r.summary || '', headline: r.headline || '', explanation: r.explanation || [], claims: r.claims || [], rows: (r.items || []).filter((x) => papers[x.n - 1]).map((x) => ({ ...x, a: papers[x.n - 1] })) };
+          + 'Give the key finding or statement in under 20 words with numbers if reported. Every paper must get an item. Then one or two sentences answering the question from the relevant papers, leading with the majority answer and the key numbers. Never count or mention papers that are not relevant. n is the paper number.',
+          { doc, system: 'You are a meticulous dermatology evidence analyst. Classify each paper by what its abstract says about the question.', schema: VERDICT, max: 4000 }));
+        data = { yesno, steps: pool.steps, retrieved: pool.retrieved, eligible: pool.total, summary: r.summary || '', rows: (r.items || []).filter((x) => papers[x.n - 1]).map((x) => ({ ...x, a: papers[x.n - 1] })) };
         I.cacheSet(key, data);
       } catch (e) { if (live()) el.innerHTML = I.aiErr(e); return; }
     }
@@ -337,43 +331,80 @@
       <div class="panel meter">
         <div class="meter-bar">${Object.entries(ANS).map(([k, [l, c]]) => share[k] ? `<button style="width:${(share[k] * 100).toFixed(1)}%;background:${c}" data-act="cm-pick" data-a="${k}" class="${pick && pick !== k ? 'dim' : ''}" aria-label="${l}">${share[k] > 0.08 ? count(k) : ''}</button>` : '').join('')}</div>
         <div class="meter-legend">${Object.entries(ANS).map(([k, [l, c]]) => `<button data-act="cm-pick" data-a="${k}" class="${pick === k ? 'on' : ''}"><i style="background:${c}"></i>${l} <b>${Math.round(share[k] * 100)}%</b> <small>(${count(k)})</small></button>`).join('')}</div>
-        ${data.headline ? '' : `<p class="small" style="margin:10px 0 0">${esc(data.summary)}</p>`}
+        <p class="small" id="cm-sum" style="margin:10px 0 0">${esc(data.summary)}</p>
         <p class="muted small">${rel.length} relevant of ${data.rows.length} studies read. Weighted by design (meta-analyses and RCTs count more, animal/lab studies less) and citations. AI-read from abstracts: check key papers.</p></div>
       ${pick ? '' : '<div id="cm-ex"></div>'}
       <div class="section"><div class="section-h"><h3>${pick ? esc(ANS[pick][0]) + ' · ' + shown.length : 'Studies, strongest first'}</h3>${pick ? '<button data-act="cm-pick" data-a="">Show all</button>' : ''}</div>
         ${shown.map((x) => `<div class="cm-row"><span class="cm-ans" style="background:${ANS[x.answer][1]}">${ANS[x.answer][0]}</span><p class="small"><b>${esc(x.finding)}</b></p>${D.card(x.a)}</div>`).join('')}</div>
       <button class="btn full" data-act="ev-from-search" data-q="${esc(question)}">${icon('chart')}Full evidence map</button>`;
     actions['cm-pick'] = (b) => go('meter?' + new URLSearchParams({ ...p, a: b.dataset.a === pick ? '' : b.dataset.a }), { replace: true });
-    if (!pick) showExplanation(question, data);
+    if (!pick) explain(question, data, live);
   }
 
-  // The explanation under the meter, as Consensus writes it: a one-line answer on top, a few
-  // short paragraphs with author-year citations and an evidence-strength table. It comes in the
-  // same AI answer as the meter, from the same papers.
+  // The explanation under the meter, as Consensus writes it: a one-line answer, short sections
+  // with author-year citations, a table where it helps, and an evidence-strength table. Written
+  // from the same papers the meter read.
+  const EXPLAIN = () => obj({
+    headline: S.str,
+    sections: { type: 'array', items: obj({ heading: S.str, paragraphs: { type: 'array', items: S.str },
+      table: obj({ caption: S.str, columns: { type: 'array', items: S.str }, rows: { type: 'array', items: { type: 'array', items: S.str } } }) }) },
+    claims: { type: 'array', items: obj({ strength: { type: 'string', enum: ['strong', 'moderate', 'limited'] }, claim: S.str, cites: S.ints }) },
+  });
   /** The meter and its explanation as an exportable report (Word, slides). */
-  function explainReport(question, data) {
+  function explainReport(question, data, r) {
     const rel = data.rows.filter((x) => ANS[x.answer]);
     const tot = rel.reduce((s0, x) => s0 + weightOf(x.a), 0) || 1;
     const meter = Object.entries(ANS).map(([k, [l]]) => `${l} ${Math.round(rel.filter((x) => x.answer === k).reduce((s0, x) => s0 + weightOf(x.a), 0) / tot * 100)}%`).join(' · ');
-    const blocks = [{ h: 'Answer' }, { p: data.headline || data.summary }, { p: `Consensus meter: ${meter} (${rel.length} relevant studies of ${data.rows.length} read).` }];
-    if (data.explanation?.length) { blocks.push({ h: 'Explanation' }); data.explanation.forEach((t) => blocks.push({ p: t })); }
-    if (data.claims?.length) blocks.push({ h: 'Evidence strength' }, { table: { caption: '', columns: ['Strength', 'Claim'], rows: data.claims.map((c) => [(I.STRENGTH[c.strength] || ['', c.strength])[1], c.claim + (c.cites?.length ? ` [${c.cites.join(', ')}]` : '')]) } });
+    const blocks = [{ h: 'Answer' }, { p: r.headline }, { p: `Consensus meter: ${meter} (${rel.length} relevant studies of ${data.rows.length} read).` }];
+    for (const x of r.sections || []) {
+      blocks.push({ h: x.heading });
+      (x.paragraphs || []).forEach((t) => blocks.push({ p: t }));
+      if (x.table?.columns?.length && x.table.rows?.length) blocks.push({ table: x.table });
+    }
+    if (r.claims?.length) blocks.push({ h: 'Evidence strength' }, { table: { caption: '', columns: ['Strength', 'Claim'], rows: r.claims.map((c) => [(I.STRENGTH[c.strength] || ['', c.strength])[1], c.claim + (c.cites?.length ? ` [${c.cites.join(', ')}]` : '')]) } });
     return { title: data.yesno || question, subtitle: `Evidence summary · ${new Date().toLocaleDateString()}`, blocks };
   }
 
-  function showExplanation(question, data) {
+  async function explain(question, data, live) {
     const el = $('#cm-ex');
-    if (!el || (!data.headline && !data.explanation?.length)) return;
-    const refs = data.rows.map((x) => ({ kind: 'paper', a: x.a, type: D.studyType(x.a).label, n: x.n }));
+    if (!el) return;
+    const rows = data.rows.filter((x) => ANS[x.answer]).sort((x, y) => x.n - y.n);
+    if (rows.length < 2) return;
+    const refs = rows.map((x) => ({ kind: 'paper', a: x.a, type: D.studyType(x.a).label, n: x.n }));
     const ctx = I.newCtx(refs);
+    const key = 'explain3.' + question.toLowerCase();
+    let r = I.cacheGet(key);
+    if (!r) {
+      el.innerHTML = I.busyHtml('Writing the explanation…');
+      actions['cm-ex-redo'] = () => { store.set('intel.' + key, null); explain(question, data, live); };
+      try {
+        const doc = rows.map((x) => `[${x.n}] ${D.studyType(x.a).label || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 1000)}`).join('\n\n');
+        r = D.aiJson(await D.ai(`QUESTION: ${data.yesno || question}\n\n`
+          + 'Explain the answer for a dermatologist, like a concise review, using only these papers:\n'
+          + '- headline: one sentence that answers the question directly, with the key number if there is one (e.g. "Genetic inheritance strongly influences psoriasis risk, explaining about 60-70% of susceptibility.").\n'
+          + '- sections: 3 to 5, with headings that fit the question (e.g. "Genetic basis", "Twin and family studies", "Mechanisms", "Clinical implications"). Each has 1 or 2 short paragraphs of 2-3 sentences; every claim cites its papers like [3] or [2, 5]. Keep numbers exactly as reported.\n'
+          + '- table: in at most two sections, a compact table when it makes things clearer (e.g. genes or loci with their role, or study, design, N and result), cells may cite [n]; otherwise caption "", columns [] and rows [].\n'
+          + '- claims: 3 to 5 key claims with their evidence strength (strong: consistent across several good studies; moderate; limited) and the papers that support them.',
+          { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: EXPLAIN(), max: 5000 }));
+        I.cacheSet(key, r);
+      } catch (e) {
+        if (live() && $('#cm-ex')) $('#cm-ex').innerHTML = I.aiErr(e) + `<button class="btn xs" data-act="cm-ex-redo" style="margin-top:6px">${icon('spark')}Try again</button>`;
+        return;
+      }
+    }
+    if (!live() || !$('#cm-ex')) return;
     const cite = (t) => I.citeHtml(esc(t), ctx);
-    if ($('#cm-head') && data.headline) $('#cm-head').innerHTML = `<p class="cm-headline">${cite(data.headline)}</p>`;
-    el.innerHTML = `<div class="panel explain">
-        ${(data.explanation || []).map((t) => `<p>${cite(t)}</p>`).join('')}
-        ${data.claims?.length ? `<h4>Evidence strength</h4><div class="ex-table"><table><thead><tr><th>Strength</th><th>Claim</th></tr></thead><tbody>
-          ${data.claims.map((c) => `<tr><td>${I.strength(c.strength)}</td><td>${cite(c.claim)} ${I.citeBtns(c.cites, ctx)}</td></tr>`).join('')}</tbody></table></div>` : ''}
-        <p class="muted small">Written by AI from the studies below. Tap a reference to see the paper; check key numbers in the papers.</p>
-        <div class="row wrap" style="gap:6px">${I.exportBtns(I.offerExport(() => explainReport(question, data), ctx))}</div></div>`;
+    const table = (t) => (t && t.columns?.length && t.rows?.length ? `<div class="ex-table"><table><thead><tr>${t.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+      <tbody>${t.rows.map((row) => `<tr>${row.map((c) => `<td>${cite(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>${t.caption ? `<p class="muted small">${esc(t.caption)}</p>` : ''}</div>` : '');
+    if ($('#cm-head') && r.headline) { $('#cm-head').innerHTML = `<p class="cm-headline">${cite(r.headline)}</p>`; $('#cm-sum')?.remove(); }
+    $('#cm-ex').innerHTML = `<div class="panel explain">
+        <p class="ex-head">${cite(r.headline || '')}</p>
+        ${(r.sections || []).map((x) => `<h4>${esc(x.heading)}</h4>${(x.paragraphs || []).map((t) => `<p>${cite(t)}</p>`).join('')}${table(x.table)}`).join('')}
+        ${r.claims?.length ? `<h4>Evidence strength</h4><div class="ex-table"><table><thead><tr><th>Strength</th><th>Claim</th></tr></thead><tbody>
+          ${r.claims.map((c) => `<tr><td>${I.strength(c.strength)}</td><td>${cite(c.claim)} ${I.citeBtns(c.cites, ctx)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+        <p class="muted small">Written by AI from the ${rows.length} relevant studies above. Tap a reference to see the paper; check key numbers in the papers.</p>
+        <div class="row wrap" style="gap:6px"><button class="btn xs" data-act="cm-ex-redo">${icon('spark')}Redo</button> ${I.exportBtns(I.offerExport(() => explainReport(question, data, r), ctx))}</div></div>`;
+    actions['cm-ex-redo'] = () => { store.set('intel.' + key, null); explain(question, data, live); };
   }
   const prevTop2 = ext.searchTop;
   // Any real question gets the meter (it rephrases "Role of X in Y?" as a yes/no question itself).
