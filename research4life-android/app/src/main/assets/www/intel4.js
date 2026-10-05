@@ -249,7 +249,7 @@
         const f0 = { ...D.filtersFrom({}), q: dx, derm: true };
         const [cases, best] = await Promise.all([
           D.epmcSearch(`(${D.buildQuery(f0)}) AND (PUB_TYPE:"Case Reports" OR TITLE:"case report" OR TITLE:"case series")`, { size: 5 }).catch(() => ({ results: [] })),
-          D.epmcSearch(`(${D.buildQuery(f0)}) AND (PUB_TYPE:"Practice Guideline" OR PUB_TYPE:"Systematic Review" OR PUB_TYPE:"Meta-Analysis" OR PUB_TYPE:"Randomized Controlled Trial")`, { size: 4 }).catch(() => ({ results: [] })),
+          D.epmcSearch(`(${D.buildQuery(f0)}) AND (PUB_TYPE:"Practice Guideline" OR PUB_TYPE:"Systematic Review" OR PUB_TYPE:"Meta-Analysis" OR PUB_TYPE:"Randomized Controlled Trial") AND ${I.TREAT}`, { size: 4 }).catch(() => ({ results: [] })),
         ]);
         if (!$('#vs-res') || !live()) return;
         box.innerHTML = `<div class="section"><div class="section-h"><h3>🔎 Similar case reports</h3></div>${cases.results.map((a) => D.card(a)).join('') || '<p class="muted small">None found.</p>'}</div>
@@ -286,18 +286,25 @@
     if (!question) { el.innerHTML = '<div class="empty"><b>Ask a yes/no question</b></div>'; return; }
     if (!D.aiHasKey()) { el.innerHTML = I.keyCard(); return; }
     const live = ticket('cm');
-    const key = 'meter.' + question.toLowerCase();
+    const key = 'meter2.' + question.toLowerCase();
     let data = I.cacheGet(key);
     if (!data) {
       try {
         const f = { ...D.filtersFrom(p), q: question };
-        const res = await D.epmcSearch(D.buildQuery(f), { size: 30 });
-        const papers = res.results.filter((a) => a.abstract);
+        // Papers that can answer a general question: skip case reports, keep the 25 most relevant with abstracts.
+        const res = await D.epmcSearch(`(${D.buildQuery(f)}) NOT PUB_TYPE:"Case Reports"`, { size: 40 });
+        const papers = res.results.filter((a) => a.abstract).slice(0, 25);
         if (!papers.length) { if (live()) el.innerHTML = '<div class="empty"><b>No studies with abstracts found</b></div>'; return; }
         if (live()) el.innerHTML = I.busyHtml ? I.busyHtml(`Reading ${papers.length} studies…`) : D.skeletons(3);
         const doc = papers.map((a, i) => `[${i + 1}] ${D.studyType(a).label || 'Study'} · ${a.jAbbr || a.journal} ${a.year} · ${a.title}. ${D.stripTags(a.abstract).slice(0, 1200)}`).join('\n\n');
-        const r = D.aiJson(await D.ai(`QUESTION: ${question}\nFor each numbered study, answer the question from that study's own findings only: "yes", "possibly" (suggestive or weak), "mixed" (both ways or subgroups differ), "no", or "not relevant" (doesn't address it). Give the key finding in under 20 words with numbers if reported. Then a one-sentence summary of what the studies say overall. n is the study number.`,
-          { doc, system: 'You are a meticulous dermatology evidence analyst. Judge each study only on what its abstract reports.', schema: VERDICT, max: 4000 }));
+        const r = D.aiJson(await D.ai(`QUESTION: ${question}\nFor each numbered paper, say what THAT PAPER says about the question, from its findings or its own statements and conclusions (a review stating the answer as established counts):\n`
+          + '- "yes": the paper supports or states yes (including "X is a well-established …", "X is classified as …").\n'
+          + '- "possibly": the paper leans yes but hedges ("may", "suggests", "partly", "has features of", small or preliminary data).\n'
+          + '- "mixed": it reports evidence both ways, or the answer depends on subgroup/definition.\n'
+          + '- "no": it supports or states no.\n'
+          + '- "not relevant": it does not address the question at all.\n'
+          + 'Do not downgrade a clear statement to "possibly" just because the paper is a review or doesn\'t test it directly. Give the key finding or statement in under 20 words with numbers if reported. Then one sentence summarising what the papers say overall, leading with the majority answer. n is the paper number.',
+          { doc, system: 'You are a meticulous dermatology evidence analyst. Classify each paper by what its abstract says about the question.', schema: VERDICT, max: 4000 }));
         data = { summary: r.summary || '', rows: (r.items || []).filter((x) => papers[x.n - 1]).map((x) => ({ ...x, a: papers[x.n - 1] })) };
         I.cacheSet(key, data);
       } catch (e) { if (live()) el.innerHTML = I.aiErr(e); return; }
@@ -309,7 +316,7 @@
     const count = (k) => rel.filter((x) => x.answer === k).length;
     const shown = (pick ? rel.filter((x) => x.answer === pick) : rel).slice().sort((x, y) => weightOf(y.a) - weightOf(x.a));
     el.innerHTML = `<div class="panel meter">
-        <div class="meter-bar">${Object.entries(ANS).map(([k, [l, c]]) => share[k] ? `<button style="width:${(share[k] * 100).toFixed(1)}%;background:${c}" data-act="cm-pick" data-a="${k}" class="${pick && pick !== k ? 'dim' : ''}" aria-label="${l}"></button>` : '').join('')}</div>
+        <div class="meter-bar">${Object.entries(ANS).map(([k, [l, c]]) => share[k] ? `<button style="width:${(share[k] * 100).toFixed(1)}%;background:${c}" data-act="cm-pick" data-a="${k}" class="${pick && pick !== k ? 'dim' : ''}" aria-label="${l}">${share[k] > 0.08 ? count(k) : ''}</button>` : '').join('')}</div>
         <div class="meter-legend">${Object.entries(ANS).map(([k, [l, c]]) => `<button data-act="cm-pick" data-a="${k}" class="${pick === k ? 'on' : ''}"><i style="background:${c}"></i>${l} <b>${Math.round(share[k] * 100)}%</b> <small>(${count(k)})</small></button>`).join('')}</div>
         <p class="small" style="margin:10px 0 0">${esc(data.summary)}</p>
         <p class="muted small">${rel.length} relevant of ${data.rows.length} studies read. Weighted by design (meta-analyses and RCTs count more, animal/lab studies less) and citations. AI-read from abstracts: check key papers.</p></div>

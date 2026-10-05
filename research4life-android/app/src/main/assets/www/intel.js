@@ -22,11 +22,15 @@
   const openUrl = (u) => (Native.openPortal ? Native.openPortal(u, '', '') : window.open(u, '_blank'));
 
   /** A dermatology question as a Europe PMC query, optionally narrowed. */
-  function q(question, { types = [], extra = '', years = 'any', sort = '' } = {}) {
+  function q(question, { types = [], extra = '', years = 'any', sort = '', treat = true } = {}) {
     let s = D.buildQuery({ q: question, derm: true, types, years, oa: false, preprints: false });
     if (extra) s = `(${s}) AND ${extra}`;
+    // Treatment questions get treatment papers, not side-effect reports (unless safety is asked).
+    if (treat && isTreatmentQ(question)) s = `(${s}) AND ${TREAT}`;
     return { query: s, sort };
   }
+  const TREAT = '((TITLE_ABS:treatment OR TITLE_ABS:therapy OR TITLE_ABS:therapies OR TITLE_ABS:efficacy OR TITLE_ABS:management OR TITLE_ABS:treated) NOT TITLE:"adverse" NOT TITLE:"side effect" NOT TITLE:"side effects" NOT TITLE:"safety" NOT TITLE:"induced" NOT TITLE:"toxicity" NOT TITLE:"pharmacovigilance" NOT TITLE:"associated with")';
+  const isTreatmentQ = (x) => /\b(treat|treatment|treating|therap|management|manage|best (drug|option)|first[- ]line|second[- ]line|efficacy|options? for|how to (treat|manage))/i.test(x) && !/\b(side effects?|adverse|safety|toxicit|risk of|induced|complication)/i.test(x);
   const GUIDE = '(PUB_TYPE:"Guideline" OR PUB_TYPE:"Practice Guideline" OR TITLE:guideline* OR TITLE:"consensus statement" OR TITLE:"expert consensus" OR TITLE:recommendations)';
   const OBS = '(TITLE_ABS:cohort OR TITLE_ABS:"case-control" OR TITLE_ABS:"cross-sectional" OR TITLE_ABS:registry OR TITLE_ABS:"real-world")';
   const COCHRANE = 'JOURNAL:"Cochrane Database Syst Rev"';
@@ -433,7 +437,7 @@
       { key: 'rct', emoji: '🆕', label: 'new RCTs', spec: q(w.q, { types: ['rct'], extra: range }) },
       { key: 'sr', emoji: '📚', label: 'new systematic reviews', spec: q(w.q, { types: ['meta', 'sr'], extra: range }) },
       { key: 'guide', emoji: '📋', label: 'guideline updates', spec: q(w.q, { extra: `${GUIDE} AND ${range}` }) },
-      { key: 'safety', emoji: '⚠️', label: 'safety reports', spec: q(w.q, { extra: `${SAFETY} AND ${range}` }) },
+      { key: 'safety', emoji: '⚠️', label: 'safety reports', spec: q(w.q, { extra: `${SAFETY} AND ${range}`, treat: false }) },
       { key: 'other', emoji: '📄', label: 'other new papers', spec: q(w.q, { extra: range, sort: 'P_PDATE_D desc' }) },
     ];
     const [res, tr] = await Promise.all([
@@ -958,6 +962,6 @@
   window.DSI = {
     api, q, epmc, trials, trialOf, trialTerm, gather, refsFrom, packText, newCtx, contexts, citeHtml, citeBtns, strength, refRow, trialCard,
     keyCard, aiErr, busyHtml, aiJsonCall, cacheGet, cacheSet, obj, S, CITE_SYSTEM, paperText, openUrl, evHash, today, daysAgo, TILES, DISEASES,
-    needKey, GUIDE, SAFETY,
+    needKey, GUIDE, SAFETY, TREAT, isTreatmentQ,
   };
 })();
