@@ -420,7 +420,7 @@
     if (!answerable(question)) { el.remove(); return; }
     if (!D.aiHasKey()) { el.innerHTML = ''; return; }
     const live = () => el.isConnected;
-    const key = 'answer2.' + question.toLowerCase().trim();
+    const key = 'answer3.' + question.toLowerCase().trim();
     let full = false;
     const render = (r, refs) => {
       if (!live()) return;
@@ -450,7 +450,14 @@
       <div class="section-h" style="margin:0 0 4px"><h3>${icon('spark')}Quick answer</h3><span class="muted small">checking against papers…</span></div>
       <div id="qa-quick">${I.busyHtml('Answering…')}</div></div>`;
     let quickShown = false;
-    D.ai(`QUESTION: ${question}\n\nAnswer for a dermatologist seeing the patient now, in under 180 words. Start with a one-line answer. Then "## Options" as short bullets in order of use (first-line, then second-line or refractory, then procedures), with the usual regimen or strength where standard. End with one line on what current guidelines or consensus say, and say plainly where evidence is limited. No preamble.`,
+    // Shaped by what is asked: treatment options only for treatment questions; dermoscopy,
+    // diagnosis, investigations, causes… get their own structure.
+    const shape = /\b(treat|treatment|therap|management|manage|drug|dose|regimen|first[- ]line|second[- ]line|options? for)/i.test(question)
+      ? 'Then "## Options" as short bullets in order of use (first-line, then second-line or refractory, then procedures), with the usual regimen or strength where standard. End with one line on what current guidelines or consensus say.'
+      : /\b(dermoscop|dermatoscop|trichoscop|onychoscop|capillaroscop)/i.test(question)
+        ? 'Then the dermoscopic features as a compact Markdown table (one row per condition or variant: key features, vessels, colours/structures, clues that tell it apart), then one line on pitfalls and when to biopsy. Do not discuss treatment.'
+        : 'Then short bullets or a compact Markdown table answering exactly that question (e.g. criteria, features, differentials, investigations, causes or prognosis — whichever is asked). Do not add treatment unless the question asks about it.';
+    D.ai(`QUESTION: ${question}\n\nAnswer exactly this question for a dermatologist seeing the patient now, in under 200 words. Start with a one-line answer. ${shape} Say plainly where evidence is limited. No preamble.`,
       { system: 'You are an experienced, careful dermatologist. Be practical and current; never invent doses or studies; say when something is uncertain.', max: 700,
         onPartial: (t) => { if (!full && live() && $('#qa-quick')) { quickShown = true; $('#qa-quick').innerHTML = D.md(t); } } })
       .then((t) => { if (!full && live() && $('#qa-quick')) { quickShown = true; $('#qa-quick').innerHTML = D.md(t); } })
@@ -468,9 +475,9 @@
       const refs = papers.map((a, i) => ({ kind: 'paper', a, type: D.studyType(a).label, n: i + 1 }));
       const doc = refs.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 650)}`).join('\n\n');
       const r = D.aiJson(await D.ai(`QUESTION: ${question}\n\n`
-        + 'Answer this for a dermatologist straight away, like a short up-to-date review, using only these papers (guidelines and consensus statements come first; prefer the newest guidance and the strongest evidence):\n'
+        + 'Answer exactly this question for a dermatologist straight away, like a short up-to-date review, using only these papers (guidelines and consensus statements come first; prefer the newest guidance and the strongest evidence). Stay on what is asked: a question about dermoscopy, diagnosis, investigations or causes gets no treatment section.\n'
         + '- headline: one or two sentences that answer the question directly (for treatment questions: the first-line options and when to step up).\n'
-        + '- sections: 3 to 5 with headings that fit the question (for treatment: "First-line", "Second-line / refractory", "Procedures and devices", "Maintenance and prevention", "Special situations"; for other questions, what fits). Each has 1-2 short paragraphs; every claim cites its papers like [3] or [2, 5]; keep numbers exactly as reported.\n'
+        + '- sections: 3 to 5 with headings that fit the question (for treatment: "First-line", "Second-line / refractory", "Procedures and devices", "Maintenance and prevention", "Special situations"; for dermoscopy: one section per condition with its dermoscopic features, and a table comparing them; for diagnosis or other questions, what fits). Each has 1-2 short paragraphs; every claim cites its papers like [3] or [2, 5]; keep numbers exactly as reported.\n'
         + '- table: where it helps (e.g. treatment, evidence level, key result, notes — one row per option), cells may cite [n]; otherwise caption "", columns [] and rows [].\n'
         + '- guidelines: what the current guidelines or consensus statements among the papers recommend, each with its citations; [] if none.\n'
         + '- claims: 3 to 5 key claims with evidence strength (strong, moderate, limited) and the papers behind them.',
