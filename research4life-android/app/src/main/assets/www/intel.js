@@ -1075,7 +1075,8 @@
     D.copyText(a.doi ? `${a.title} doi:${a.doi}` : a.title);
     const ck = await clinicalKeyUrl(a).catch(() => null);
     Native.sendToMyLoft(ck || (a.doi ? `https://doi.org/${a.doi}` : a.title), a.title);
-    toast('Sent to MyLOFT. Download it there, then Share → DermScholar: it files itself.');
+    // iPhone: the share sheet does the sending, so say what to tap in it.
+    toast(Native.myloftViaShareSheet ? 'In the panel, tap MyLOFT (or More → MyLOFT) to save the paper there. Then download it in MyLOFT and Share → DermScholar.' : 'Sent to MyLOFT. Download it there, then Share → DermScholar: it files itself.');
   }
 
   /** DOIs and text from the first pages of a stored PDF. */

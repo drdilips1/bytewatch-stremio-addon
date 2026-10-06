@@ -4,7 +4,7 @@ import WebKit
 /// The app's own browser for Research4Life, UpToDate, MyLOFT and journals. Logins are kept (the
 /// shared cookie store). A PDF opened here goes into the library: automatically when the browser
 /// was opened to get a paper's PDF (`key`), otherwise with the Save PDF button.
-final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKDownloadDelegate {
     var onPdf: ((Data, String, String) -> Void)?
     /// A login typed on a sign-in page (provider, user): saved in the Keychain, shown in Settings.
     var onCredentials: ((String, String) -> Void)?
@@ -60,7 +60,6 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         super.viewDidLoad()
         navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close))
         navigationItem.rightBarButtonItem = saveButton
-        saveButton.isEnabled = false
         backButton.isEnabled = false
         forwardButton.isEnabled = false
         let flex = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
@@ -100,7 +99,27 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     @objc private func goForward() { webView.goForward() }
     @objc private func reloadPage() { webView.reload() }
     @objc private func openInSafari() { UIApplication.shared.open(webView.url ?? startURL) }
-    @objc private func savePdf() { if let u = pdfURL { fetchPdf(u, auto: false) } }
+    /// The PDF on show, or else the article page's own PDF link (its citation_pdf_url, PDF button…).
+    @objc private func savePdf() {
+        if let u = pdfURL { download(u, auto: false); return }
+        webView.evaluateJavaScript(BrowserViewController.findPdfScript) { [weak self] v, _ in
+            guard let self = self else { return }
+            guard let s = v as? String, let u = URL(string: s) else {
+                self.notice("No PDF found on this page yet. Open the article's PDF (its PDF or Download button), then tap Save PDF.")
+                return
+            }
+            self.download(u, auto: !self.key.isEmpty)
+        }
+    }
+
+    static let findPdfScript = #"""
+    (function(){function abs(u){try{return new URL(u,location.href).href}catch(e){return null}}
+    var m=document.querySelector('meta[name="citation_pdf_url"]');if(m&&m.content)return abs(m.content);
+    var a=[].slice.call(document.querySelectorAll('a[href]'));
+    var best=a.filter(function(x){var h=x.getAttribute('href')||'',t=(x.textContent||'')+' '+(x.getAttribute('aria-label')||'')+' '+(x.title||'');
+    return /\.pdf($|[?#])|\/pdf(\/|$|\?)|pdfdirect|epdf|download/i.test(h)&&/pdf|download/i.test(t+' '+h);})[0];
+    return best?(abs(best.getAttribute('href'))||'').replace('/doi/epdf/','/doi/pdfdirect/'):null;})()
+    """#
 
     // MARK: sign-in
 
@@ -170,49 +189,75 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         let url = response.response.url
         let named = (response.response.suggestedFilename ?? url?.lastPathComponent ?? "").lowercased().hasSuffix(".pdf")
         let isPdf = mime == "application/pdf" || mime == "application/x-pdf" || (mime == "application/octet-stream" && named)
-        if response.isForMainFrame {
-            pdfURL = isPdf ? url : nil
-            saveButton.isEnabled = isPdf
-            if isPdf, let u = url, !key.isEmpty { fetchPdf(u, auto: true) }
+        if response.isForMainFrame && isPdf {
+            pdfURL = url
+            // Opened to get this paper's PDF: keep it straight away. WebKit downloads it itself, with
+            // the page's own logins and context (publishers refuse a separate re-download).
+            if !key.isEmpty { title = "Saving PDF…"; decisionHandler(.download); return }
+        } else if response.isForMainFrame {
+            pdfURL = nil
         }
         if !response.canShowMIMEType {
-            decisionHandler(.cancel)
-            if isPdf, let u = url, key.isEmpty { fetchPdf(u, auto: false) }
+            decisionHandler(isPdf ? .download : .cancel)
             return
         }
         decisionHandler(.allow)
     }
 
-    /// Downloads the PDF with this browser's logins and hands it to the library.
-    private func fetchPdf(_ url: URL, auto: Bool) {
-        guard !fetching.contains(url.absoluteString) else { return }
-        fetching.insert(url.absoluteString)
-        saveButton.isEnabled = false
+    // A link that downloads (the journal's own Download button) becomes a WebKit download too.
+    func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+        start(download, auto: !key.isEmpty)
+    }
+
+    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        start(download, auto: !key.isEmpty)
+    }
+
+    /// Downloads a PDF through the browser itself (its logins and cookies) for the library.
+    private func download(_ url: URL, auto: Bool) {
         title = "Saving PDF…"
-        webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
-            guard let self = self else { return }
-            var req = URLRequest(url: url)
-            req.setValue(LocalFiles.userAgent, forHTTPHeaderField: "User-Agent")
-            Cookies.apply(cookies, to: &req)
-            URLSession.shared.dataTask(with: req) { data, resp, _ in
-                DispatchQueue.main.async {
-                    self.fetching.remove(url.absoluteString)
-                    guard let data = data, data.prefix(1024).range(of: Data("%PDF".utf8)) != nil else {
-                        self.title = self.webView.title
-                        self.saveButton.isEnabled = self.pdfURL != nil
-                        self.notice("This PDF couldn't be saved from here. Tap the Safari button, then Share → DermScholar.")
-                        return
-                    }
-                    let name = resp?.suggestedFilename ?? url.lastPathComponent
-                    self.onPdf?(data, name, self.webView.title ?? "")
-                    if auto {
-                        self.dismiss(animated: true)
-                    } else {
-                        self.title = "Saved to your library"
-                    }
-                }
-            }.resume()
+        var req = URLRequest(url: url)
+        if let here = webView.url { req.setValue(here.absoluteString, forHTTPHeaderField: "Referer") }
+        webView.startDownload(using: req) { [weak self] d in self?.start(d, auto: auto) }
+    }
+
+    private var downloads: [ObjectIdentifier: (file: URL, name: String, auto: Bool)] = [:]
+
+    private func start(_ d: WKDownload, auto: Bool) {
+        d.delegate = self
+        downloads[ObjectIdentifier(d)] = (FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString), "", auto)
+        fetching.insert(String(describing: ObjectIdentifier(d)))
+        title = "Saving PDF…"
+    }
+
+    func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+        let id = ObjectIdentifier(download)
+        guard let d = downloads[id] else { completionHandler(nil); return }
+        downloads[id] = (d.file, suggestedFilename, d.auto)
+        completionHandler(d.file)
+    }
+
+    func downloadDidFinish(_ download: WKDownload) {
+        let id = ObjectIdentifier(download)
+        fetching.remove(String(describing: id))
+        guard let d = downloads.removeValue(forKey: id) else { return }
+        let data = try? Data(contentsOf: d.file)
+        try? FileManager.default.removeItem(at: d.file)
+        guard let pdf = data, pdf.prefix(1024).range(of: Data("%PDF".utf8)) != nil else {
+            title = webView.title
+            notice("That download wasn't a PDF (the site sent a page instead). Open the PDF itself, then tap Save PDF.")
+            return
         }
+        onPdf?(pdf, d.name.isEmpty ? "paper.pdf" : d.name, webView.title ?? "")
+        if d.auto { dismiss(animated: true) } else { title = "Saved to your library" }
+    }
+
+    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+        let id = ObjectIdentifier(download)
+        fetching.remove(String(describing: id))
+        if let d = downloads.removeValue(forKey: id) { try? FileManager.default.removeItem(at: d.file) }
+        title = webView.title
+        notice("The PDF didn't download (\(error.localizedDescription)). Try the page's PDF button again, or the Safari button.")
     }
 
     private func notice(_ text: String) {
@@ -226,13 +271,18 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url, let scheme = url.scheme?.lowercased() else { decisionHandler(.allow); return }
         if action.targetFrame?.isMainFrame ?? true { noteClinicalKeyEntry(url) }
+        if action.shouldPerformDownload { decisionHandler(.download); return }
         if ["http", "https", "about", "blob", "data"].contains(scheme) { decisionHandler(.allow); return }
         decisionHandler(.cancel)
         UIApplication.shared.open(url) // mailto:, the MyLOFT app's own links…
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if action.targetFrame == nil, let url = action.request.url { webView.load(URLRequest(url: url)) }
+        if action.targetFrame == nil {
+            var req = action.request
+            if req.value(forHTTPHeaderField: "Referer") == nil, let here = webView.url { req.setValue(here.absoluteString, forHTTPHeaderField: "Referer") }
+            webView.load(req)
+        }
         return nil
     }
 

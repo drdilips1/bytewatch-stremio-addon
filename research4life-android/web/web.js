@@ -827,6 +827,7 @@
     // the share sheet (its "Save to MyLOFT"), or open the app itself.
     const MYLOFT_STORE = 'itms-apps://apps.apple.com/search?term=MyLOFT';
     N.openMyLoftApp = () => ios('openApp', { url: 'https://app.myloft.xyz/', store: MYLOFT_STORE });
+    N.myloftViaShareSheet = true;
     N.sendToMyLoft = (text) => {
       N.copy(text);
       if (/^https?:/.test(text)) ios('share', { title: 'Send to MyLOFT', url: text });
