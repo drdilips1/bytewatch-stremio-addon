@@ -107,6 +107,7 @@ final class R4LSession {
                 if (!user.trim().equals(username(app, provider)) || !pass.equals(password(app, provider))) {
                     saveCredentials(app, provider, user, pass);
                     String name = UTD.equals(provider) ? "UpToDate" : SPR.equals(provider) ? "Springer Nature Link" : "Research4Life";
+                    if (CollegeProxy.PX.equals(provider)) name = "College proxy";
                     android.widget.Toast.makeText(app, name + " sign-in saved on this phone", android.widget.Toast.LENGTH_SHORT).show();
                 }
             });

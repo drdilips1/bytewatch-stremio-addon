@@ -638,12 +638,16 @@
         const f = ls.get('fetch.' + key, {});
         const d = doi || f.doi || '';
         const spr = (() => { try { return !!localStorage.getItem('ds.acc.spr'); } catch { return false; } })();
-        if (spr && !f.pii && !f.free && /^10\.(1007|1186)\//.test(d)) {
-          ios('fetchPdf', { key, url: 'https://link.springer.com/content/pdf/' + d + '.pdf', fallback: fetchUrl(key, doi), springer: true });
-          emit({ type: 'fetchStatus', key, message: 'Getting the PDF from Springer Nature Link…' });
-          return;
-        }
-        ios('fetchPdf', { key, url: fetchUrl(key, doi) });
+        // The ways to the PDF in turn: Springer (own account), the college proxy, Research4Life.
+        const routes = [];
+        if (spr && !f.pii && !f.free && /^10\.(1007|1186)\//.test(d)) routes.push({ name: 'Springer Nature Link', url: 'https://link.springer.com/content/pdf/' + d + '.pdf' });
+        if (d && !f.free && DSNative.level >= 5 && (ls.get('px', {}).host)) routes.push({ name: 'your college proxy', url: 'https://doi.org/' + d });
+        routes.push({ name: 'Research4Life', url: fetchUrl(key, doi) });
+        const [first, ...rest] = routes;
+        if (DSNative.level >= 5) ios('fetchPdf', { key, url: first.url, route: first.name, fallbacks: rest });
+        else if (first.name === 'Springer Nature Link') ios('fetchPdf', { key, url: first.url, fallback: rest[rest.length - 1].url, springer: true });
+        else ios('fetchPdf', { key, url: fetchUrl(key, doi) });
+        if (first.name !== 'Research4Life') { emit({ type: 'fetchStatus', key, message: `Getting the PDF through ${first.name}…` }); return; }
         emit({ type: 'fetchStatus', key, message: 'Opening the paper through Research4Life…' });
         return;
       }
@@ -899,6 +903,10 @@
       if (/^https?:/.test(text)) ios('share', { title: 'Save to MyLOFT', url: text, then: 'myloft' });
       else N.openMyLoftApp();
     };
+    // The college proxy (EZproxy as an internet proxy): the app's browsers use it from iOS 17;
+    // before that, the Wi-Fi proxy setting does, and the app answers its password pop-up.
+    N.collegeProxy = () => JSON.stringify({ ...ls.get('px', {}), supported: true, ios16: !(window.DSNative && DSNative.proxyApi) });
+    N.setCollegeProxy = (host, port) => { ls.set('px', host ? { host, port } : {}); ios('setProxy', { host: host || '', port: port || 0 }); };
     // The iPhone app keeps passwords in the Keychain and its browser signs in with them; the
     // screens keep only the user ID.
     N.setCredentials = (p, u, pass) => { try { localStorage.setItem('ds.acc.' + p, u); } catch { /* blocked */ } ios('setCredentials', { p, user: u, pass: pass || '' }); };

@@ -70,6 +70,8 @@ final class PdfFetcher {
         boolean viaSpringer;
         /** Springer's sign-in page was opened for this paper. */
         boolean springerLogin;
+        /** Through the college proxy: the publisher's own site, with the college's access. */
+        boolean viaCollege;
         Job(String key, String doi, String title, String pii) {
             this.key = key; this.doi = doi; this.title = title;
             this.pii = pii == null ? "" : pii;
@@ -77,6 +79,7 @@ final class PdfFetcher {
         }
         String startUrl() {
             if (viaSpringer) return R4LSession.springerPdfUrl(doi);
+            if (viaCollege) return "https://doi.org/" + doi;
             return viaClinicalKey ? R4LSession.clinicalKeyUrl(pii) : R4LSession.doiUrl(doi);
         }
     }
@@ -150,6 +153,7 @@ final class PdfFetcher {
         trails.remove(key);
         Job nj = new Job(key, doi, title, pii);
         nj.viaSpringer = nj.pii.isEmpty() && R4LSession.isSpringerDoi(doi) && R4LSession.hasCredentials(app, R4LSession.SPR);
+        nj.viaCollege = !nj.viaSpringer && collegeRoute(doi);
         queue.addLast(nj);
         if (job == null) next(); else status("queued", "Waiting in queue…");
     }
@@ -192,6 +196,7 @@ final class PdfFetcher {
         attachClients();
         String who = R4LSession.username(app);
         status("opening", job.viaSpringer ? "Getting the PDF from Springer Nature Link…"
+                : job.viaCollege ? "Opening the paper through your college proxy…"
                 : job.viaClinicalKey ? "Opening the paper in ClinicalKey…"
                 : "Opening the paper through Research4Life" + (who == null || who.isEmpty() ? "" : " (" + who + ")") + "…");
         main.removeCallbacks(timeout);
@@ -212,6 +217,12 @@ final class PdfFetcher {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 pageToken++;
+            }
+
+            @Override
+            public void onReceivedHttpAuthRequest(WebView view, android.webkit.HttpAuthHandler handler, String host, String realm) {
+                // The college proxy's password pop-up: answered with the saved login.
+                if (!CollegeProxy.answer(view.getContext(), handler, host)) super.onReceivedHttpAuthRequest(view, handler, host, realm);
             }
 
             @Override
@@ -379,12 +390,16 @@ final class PdfFetcher {
         return false;
     }
 
+    private boolean collegeRoute(String doi) {
+        return doi != null && !doi.isEmpty() && CollegeProxy.usable(app);
+    }
+
     private void findPdf(String pageUrl) {
         webView.evaluateJavascript(R4LSession.FIND_PDF_SCRIPT, value -> {
             if (job == null || saving) return;
             String next = null;
             // ClinicalKey's own PDF address for the article comes first.
-            if (job.viaClinicalKey) {
+            if (job.viaClinicalKey && !job.viaCollege) {
                 String ck = R4LSession.clinicalKeyPdfUrl(job.pii);
                 if (!tried.contains(ck)) next = ck;
             }
@@ -402,7 +417,7 @@ final class PdfFetcher {
             }
             if (next == null) {
                 // ClinicalKey showed a page instead of the PDF: go straight to the usual route.
-                if (job.viaClinicalKey && pdfAttempts > 0) { failNow("ClinicalKey didn't give the PDF.", true); return; }
+                if (job.viaClinicalKey && !job.viaCollege && pdfAttempts > 0) { failNow("ClinicalKey didn't give the PDF.", true); return; }
                 if (pdfAttempts == 0) { waitOrFail(pageUrl); return; }
                 // Every PDF link was tried and none gave a PDF: say so soon, instead of waiting out the timeout.
                 final Job j = job;
@@ -519,12 +534,15 @@ final class PdfFetcher {
         Job r = job;
         // Springer Nature Link didn't give the PDF (no access to this journal on that account):
         // the usual Research4Life route next.
-        if (r != null && r.viaSpringer) {
+        if (r != null && (r.viaSpringer || r.viaCollege)) {
+            String from = r.viaSpringer ? "Springer Nature Link" : "Your college proxy";
+            r.viaCollege = r.viaSpringer && collegeRoute(r.doi);
             r.viaSpringer = false;
             job = null;
             saving = false;
             queue.addFirst(r);
-            if (listener != null) listener.onStatus(r.key, "opening", "Springer Nature Link didn't give the PDF. Trying Research4Life…");
+            if (listener != null) listener.onStatus(r.key, "opening", from + " didn't give the PDF. Trying "
+                    + (r.viaCollege ? "your college proxy" : r.viaClinicalKey ? "ClinicalKey" : "Research4Life") + "…");
             main.postDelayed(this::next, 500);
             return;
         }

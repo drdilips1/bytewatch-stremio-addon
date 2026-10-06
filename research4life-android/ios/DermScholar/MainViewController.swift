@@ -18,7 +18,7 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         let info = Bundle.main.infoDictionary ?? [:]
         let clean = { (k: String) in ((info[k] as? String) ?? "").filter { $0.isNumber || $0 == "." } }
         cfg.userContentController.addUserScript(WKUserScript(
-            source: "window.DSNative={version:'\(clean("CFBundleShortVersionString"))',build:'\(clean("CFBundleVersion"))',level:\(ScreenUpdates.nativeLevel)};",
+            source: "window.DSNative={version:'\(clean("CFBundleShortVersionString"))',build:'\(clean("CFBundleVersion"))',level:\(ScreenUpdates.nativeLevel),proxyApi:\(CollegeProxy.apiAvailable)};",
             injectionTime: .atDocumentStart, forMainFrameOnly: true))
         cfg.allowsInlineMediaPlayback = true
         cfg.mediaTypesRequiringUserActionForPlayback = []
@@ -37,6 +37,7 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
     override func viewDidLoad() {
         super.viewDidLoad()
         files.root = ScreenUpdates.root()
+        CollegeProxy.apply()
         webView.load(URLRequest(url: URL(string: "\(LocalFiles.scheme)://app/index.html")!))
         // Downloaded screens that don't start within 20 s: back to the built-in ones.
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
@@ -70,13 +71,21 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         case "fetchPdf":
             // Get PDF in the background: the app stays usable, progress shows in the tray.
             if let s = body["url"] as? String, let u = MainViewController.url(s), let key = body["key"] as? String, !key.isEmpty {
-                let fallback = (body["fallback"] as? String).flatMap(MainViewController.url)
-                fetchInBackground(u, key: key, springerFallback: (body["springer"] as? Bool) == true ? fallback : nil)
+                // The ways to try in turn (Springer → college proxy → Research4Life).
+                var routes: [(name: String, url: URL)] = ((body["fallbacks"] as? [[String: Any]]) ?? []).compactMap { r in
+                    guard let n = r["name"] as? String, let s = r["url"] as? String, let v = MainViewController.url(s) else { return nil }
+                    return (n, v)
+                }
+                if routes.isEmpty, (body["springer"] as? Bool) == true, let f = (body["fallback"] as? String).flatMap(MainViewController.url) { routes = [("Research4Life", f)] }
+                let route = (body["route"] as? String) ?? ((body["springer"] as? Bool) == true ? "Springer Nature Link" : "")
+                fetchInBackground(u, key: key, route: route, fallbacks: routes)
             }
         case "showFetch":
             showFetch(key: body["key"] as? String ?? "", url: (body["url"] as? String).flatMap(MainViewController.url))
         case "cancelFetch":
             if let key = body["key"] as? String, let nav = fetches.removeValue(forKey: key) { detach(nav) }
+        case "setProxy":
+            CollegeProxy.save(host: body["host"] as? String ?? "", port: body["port"] as? Int ?? 0)
         case "browse":
             if let s = body["url"] as? String, let u = MainViewController.url(s) { openBrowser(u, key: body["key"] as? String ?? "") }
         case "openApp":
@@ -92,6 +101,7 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         case "setCredentials":
             if let p = body["p"] as? String, let u = body["user"] as? String, let pass = body["pass"] as? String, !u.isEmpty, !pass.isEmpty {
                 Keychain.save(provider: p, user: u, password: pass)
+                if p == "px" { CollegeProxy.apply() }
             }
         case "utdSearch":
             utd.search(body["q"] as? String ?? "") { [weak self] r in self?.send(r.merging(["type": "utdResults"]) { _, n in n }) }
@@ -146,11 +156,12 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
     /// Get PDF browsers working out of sight, by paper.
     private var fetches: [String: UINavigationController] = [:]
 
-    private func fetchInBackground(_ url: URL, key: String, springerFallback: URL? = nil) {
+    private func fetchInBackground(_ url: URL, key: String, route: String = "", fallbacks: [(name: String, url: URL)] = []) {
         if let old = fetches.removeValue(forKey: key) { detach(old) }
         let b = BrowserViewController(url: url, key: key)
         b.background = true
-        b.springerFallback = springerFallback
+        b.routeName = route
+        b.fallbacks = fallbacks
         b.onPdf = { [weak self] data, name, title in
             self?.hand(data, name: name, mime: "application/pdf", key: key, title: title)
         }

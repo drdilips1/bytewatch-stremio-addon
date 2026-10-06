@@ -238,6 +238,12 @@ public class PortalActivity extends Activity {
     private void attachClients() {
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public void onReceivedHttpAuthRequest(WebView view, android.webkit.HttpAuthHandler handler, String host, String realm) {
+                // The college proxy's password pop-up: answered with the saved login.
+                if (!CollegeProxy.answer(view.getContext(), handler, host)) super.onReceivedHttpAuthRequest(view, handler, host, realm);
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 noteClinicalKeyEntry(request.getUrl());
                 return handleUrl(request.getUrl());

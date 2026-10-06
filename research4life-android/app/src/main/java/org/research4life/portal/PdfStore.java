@@ -134,7 +134,11 @@ final class PdfStore {
         HttpURLConnection conn = null;
         String current = url;
         for (int i = 0; i < MAX_REDIRECTS; i++) {
-            conn = (HttpURLConnection) new URL(current).openConnection();
+            // Through the college proxy when it's set up (its access is by the college's address).
+            java.net.Proxy px = CollegeProxy.proxyFor(ctx, current);
+            conn = (HttpURLConnection) (px != null ? new URL(current).openConnection(px) : new URL(current).openConnection());
+            String pxAuth = px != null ? CollegeProxy.authHeader(ctx) : null;
+            if (pxAuth != null) conn.setRequestProperty("Proxy-Authorization", pxAuth);
             conn.setInstanceFollowRedirects(false);
             conn.setConnectTimeout(20000);
             conn.setReadTimeout(60000);

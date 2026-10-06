@@ -75,6 +75,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        CollegeProxy.apply(this);
         // The app UI sits on top; the Research4Life fetcher's WebView runs underneath, unseen.
         fetchLayer = new FrameLayout(this);
         webView = new WebView(this);
@@ -119,6 +120,12 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new Bridge(), "Native");
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onReceivedHttpAuthRequest(WebView view, android.webkit.HttpAuthHandler handler, String host, String realm) {
+                // The college proxy's password pop-up: answered with the saved login.
+                if (!CollegeProxy.answer(view.getContext(), handler, host)) super.onReceivedHttpAuthRequest(view, handler, host, realm);
+            }
+
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
@@ -431,6 +438,22 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void forgetCredentials(String provider) {
             R4LSession.forget(MainActivity.this, provider);
+        }
+
+        /** The college proxy (host and port; its login is the "px" credentials). */
+        @JavascriptInterface
+        public String collegeProxy() {
+            try {
+                return new JSONObject().put("host", CollegeProxy.host(MainActivity.this)).put("port", CollegeProxy.port(MainActivity.this))
+                        .put("supported", CollegeProxy.supported()).toString();
+            } catch (Exception e) {
+                return "{}";
+            }
+        }
+
+        @JavascriptInterface
+        public void setCollegeProxy(String host, int port) {
+            main.post(() -> CollegeProxy.save(MainActivity.this, host, port));
         }
 
         /** Searches UpToDate in the background; results arrive as a utdResults event. */

@@ -909,12 +909,14 @@
   const PROVIDERS = {
     r4l: { name: 'Research4Life', id: 'User ID', desc: 'Used by Get PDF to fetch paywalled papers in the background.' },
     utd: { name: 'UpToDate', id: 'Username', desc: 'Signs you in automatically whenever you open UpToDate.' },
+    px: { name: 'College proxy', id: 'Username', desc: 'Your college EZproxy login (its password pop-up).' },
     spr: { name: 'Springer Nature Link', id: 'Email', desc: 'Your own Springer account: Get PDF tries Springer and BMC papers there first (then Research4Life).' },
   };
   function account(p) {
     try { return JSON.parse(Native.account ? Native.account(p) : p === 'r4l' ? Native.r4lAccount() : '{}'); } catch { return {}; }
   }
   const r4lAccount = () => account('r4l');
+  function collegeProxy() { try { return JSON.parse(Native.collegeProxy ? Native.collegeProxy() : '{}') || {}; } catch { return {}; } }
 
   /** Read the PDF if it's saved; otherwise fetch it (free copy first, then Research4Life). */
   async function getPdf(a, { skipAsk = false } = {}) {
@@ -2994,6 +2996,14 @@
         <button class="btn xs ${acc.saved ? '' : 'primary'}" data-act="acc-set" data-p="${p}">${acc.saved ? 'Change' : 'Add login'}</button>
         ${acc.saved ? `<button class="icon-btn" data-act="acc-forget" data-p="${p}" aria-label="Forget">${icon('trash')}</button>` : ''}</div>`;
     };
+    const collegeRow = () => {
+      const px = collegeProxy();
+      const acc = account('px');
+      return `<div class="acc-card"><div class="acc-ico px">${icon('key')}</div>
+        <div class="body"><b>College proxy</b><span>${px.host ? esc(px.host) + ':' + px.port + (acc.saved ? ' · login ' + esc(acc.user) : ' · no login saved') : 'Not set — your college EZproxy (address, port, login)'}</span></div>
+        <button class="btn xs ${px.host ? '' : 'primary'}" data-act="px-set">${px.host ? 'Change' : 'Add'}</button>
+        ${px.host ? `<button class="icon-btn" data-act="px-forget" aria-label="Remove">${icon('trash')}</button>` : ''}</div>`;
+    };
     view.innerHTML = `${topbar('Settings')}
       <div class="section"><div class="section-h"><h3>Appearance</h3></div>
         <div class="panel">
@@ -3008,7 +3018,7 @@
           <p class="muted small" style="margin:12px 0 0">Reading colours and fonts for papers are in the reader's <b>Aa</b> menu.</p>
         </div></div>
       <div class="section"><div class="section-h"><h3>Accounts</h3></div>
-        ${r4lAccounts()}${accRow('utd')}${accRow('spr')}
+        ${r4lAccounts()}${accRow('utd')}${accRow('spr')}${collegeRow()}
         <p class="muted small">Passwords are encrypted with this phone's keystore and only sent to the provider's own sign-in page.</p></div>
       ${ext.settingsSection ? ext.settingsSection() : ''}
       <div class="section"><div class="section-h"><h3>Bottom bar</h3></div>
@@ -3120,6 +3130,38 @@
     'r4l-forget': () => { (Native.forgetCredentials ? Native.forgetCredentials('r4l') : Native.r4lForget()); toast('Research4Life sign-in removed'); render(); },
     'r4l-open': () => Native.openPortal(PORTAL, '', ''),
     'acc-set': (b) => signInSheet(b.dataset.p, null),
+    // The college's EZproxy, used as an internet proxy (the address and port from the APN
+    // settings, and the login its pop-up asks for): Get PDF tries the college's access first.
+    'px-set': () => {
+      const px = collegeProxy();
+      const acc = account('px');
+      sheet(`<h3>College proxy</h3>
+        <p class="muted small" style="margin-top:-4px">Your college's EZproxy: the proxy address and port (as in your phone's APN settings) and the username and password its pop-up asks for. Get PDF then tries your college's access first, on mobile data or Wi-Fi. Stored on this device only.</p>
+        <form data-form="px">
+          <label class="field">Proxy address</label><input type="text" name="h" value="${esc(px.host || '')}" placeholder="ezproxy.yourcollege.edu" autocapitalize="none" autocomplete="off">
+          <label class="field">Port</label><input type="number" name="port" value="${px.port || 8080}" inputmode="numeric">
+          <label class="field">Username</label><input type="text" name="u" value="${esc(acc.user || '')}" autocomplete="username" autocapitalize="none">
+          <label class="field">Password</label><input type="password" name="p" autocomplete="current-password" placeholder="${acc.saved ? '(saved — leave empty to keep)' : ''}">
+          ${px.supported === false ? '<p class="small" style="color:var(--danger,#c33)">This phone\'s Android System WebView is too old to use a proxy: update it from the Play Store.</p>' : ''}
+          ${px.ios16 ? '<p class="small muted">On this iPad/iPhone (before iOS 17) the app can\'t set the proxy itself: also set it in Settings → Wi-Fi → ⓘ → Configure Proxy → Manual. The app then answers the password pop-up by itself.</p>' : ''}
+          <div class="actions"><button type="button" class="btn" data-act="px-cancel">Cancel</button><button class="btn primary">Save</button></div>
+        </form>`);
+      const form = $('[data-form=px]');
+      actions['px-cancel'] = () => closeSheet(true);
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const h = form.h.value.trim(); const port = parseInt(form.port.value, 10) || 0;
+        const u = form.u.value.trim(); const p = form.p.value;
+        if (!h || !port) { toast('Enter the proxy address and port'); return; }
+        if (u && p) Native.setCredentials('px', u, p);
+        else if (u && !acc.saved) { toast('Enter the password too'); return; }
+        Native.setCollegeProxy?.(h, port);
+        closeSheet(true);
+        toast('College proxy saved');
+        render();
+      });
+    },
+    'px-forget': () => { Native.setCollegeProxy?.('', 0); Native.forgetCredentials('px'); toast('College proxy removed'); render(); },
     'acc-forget': (b) => { Native.forgetCredentials(b.dataset.p); toast(`${PROVIDERS[b.dataset.p].name} sign-in removed`); render(); },
     'utd-open': () => go(utdHash('')),
     'acc-add': () => signInSheet('r4l', null),

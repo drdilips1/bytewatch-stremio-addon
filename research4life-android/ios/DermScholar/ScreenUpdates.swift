@@ -9,7 +9,7 @@ enum ScreenUpdates {
     /// What this native side can do. Raise it when the screens start using something new here
     /// (web/build.sh puts it in ota.json as minNative, and AltStore's source as dsNativeLevel):
     /// older apps then keep their screens and offer the reinstall instead.
-    static let nativeLevel = 4
+    static let nativeLevel = 5
     static let site = "https://drdilips1.github.io/bytewatch-stremio-addon/dermscholar/"
     static let bundled = Bundle.main.url(forResource: "www", withExtension: nil)!
     private static let defaults = UserDefaults.standard
