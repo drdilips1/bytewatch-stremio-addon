@@ -200,8 +200,8 @@
     let res;
     try {
       res = await realFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body), signal: ctl.signal });
-    } catch {
-      throw new AiError(ctl.signal.aborted ? `${name} didn't answer in time.` : `Couldn't reach ${name}. Check your connection.`);
+    } catch (e) {
+      throw new AiError(ctl.signal.aborted ? `${name} didn't answer in time.` : `Couldn't reach ${name} (${(e && e.message) || e}). Check your connection.`);
     } finally {
       clearTimeout(t);
     }
@@ -719,6 +719,22 @@
     aiSetProvider: (p) => ls.set('ai.provider', known(p)),
     aiHasKey: () => !!keyFor(provider()) || (auto() && !!(keyFor('groq') || keyFor('gemini'))),
     aiHasKeyFor: (p) => !!keyFor(known(p)),
+    /** Settings → AI → Test: a one-word request to each AI with a key, with the exact error and time. */
+    aiTest: async () => {
+      const lines = [];
+      for (const p of ['groq', 'gemini', 'claude']) {
+        if (!keyFor(p)) { if (p !== 'claude') lines.push(`${LABEL[p]}: no key saved on this device`); continue; }
+        const t0 = Date.now();
+        try {
+          const r = await RUN[p]({ system: 'Reply with one word.', task: 'Say OK.', max: 16 });
+          lines.push(`${LABEL[p]}: works (${((Date.now() - t0) / 1000).toFixed(1)} s, ${r.model}) → "${String(r.text).slice(0, 40)}"`);
+        } catch (e) {
+          lines.push(`${LABEL[p]}: FAILED after ${((Date.now() - t0) / 1000).toFixed(1)} s → ${(e && e.message) || e}`);
+        }
+      }
+      lines.push(`Selected: ${LABEL[provider()]} · together: ${auto() ? 'on' : 'off'} · ${IOS ? 'iPhone/iPad app' : 'web app'} ${(window.DSNative && window.DSNative.build) || ''}`);
+      return lines.join('\n');
+    },
     aiSetKey: (key, selected) => {
       const k = String(key || '').replace(/[\s​-‍⁠﻿"']/g, '');
       if (!k) { ls.del('ai.key.' + provider()); return; }

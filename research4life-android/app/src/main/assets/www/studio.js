@@ -1383,6 +1383,7 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
         <div class="body"><b>Use Groq + Gemini together</b><span>${auto ? 'On' : 'Off'} · Groq key ${keyFor('groq') ? '✓' : '—'} · Gemini key ${keyFor('gemini') ? '✓' : '—'}. When one hits its free limit or is busy, the other answers; long documents go to Gemini first.</span></div>
         <button class="btn xs ${auto ? 'primary' : ''}" data-act="ai-auto">${auto ? 'On' : 'Off'}</button></div>
       <p class="muted small">Tip: save a key for each — tap Groq above and add its key, then tap Gemini and add its key. The selected one is used first.</p>` : ''}
+      ${Native.aiTest ? '<button class="btn full" style="margin:8px 0" data-act="ai-test">Test AI connection</button><pre class="trail" id="ai-test-out" hidden></pre>' : ''}
       <label class="field">Model ${prov === 'groq' && has ? `<button class="linkish" data-act="groq-refresh">refresh list</button>` : ''}</label>
       ${list.map(([id, name, sub, p]) => `<button class="opt ${model === id ? 'on' : ''}" data-act="set-model" data-v="${esc(id)}">${icon('spark')}<span>${esc(name)}<small>${esc(sub)}${p[0] ? ` · $${p[0]}/$${p[1]} per million tokens in/out` : ''}</small></span>${model === id ? icon('check') : ''}</button>`).join('')}
       <label class="field">Explanation level</label>
@@ -1404,6 +1405,15 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
     'groq-refresh': () => { Native.aiListModels?.(); toast('Checking which models your key can use…'); },
     'ai-forget': () => { Native.aiSetKey('', provider()); toast('API key removed'); render(); },
     'set-model': (b) => { Native.aiSetModel?.(b.dataset.v); render(); },
+    // iPhone/iPad and web: what each AI answers, or the exact error (Copy to send it).
+    'ai-test': async (b) => {
+      const out = $('#ai-test-out');
+      b.disabled = true; b.textContent = 'Testing…';
+      out.hidden = false; out.textContent = 'Asking each AI for one word…';
+      try { out.textContent = await Native.aiTest(); } catch (e) { out.textContent = 'Test failed: ' + (e.message || e); }
+      b.disabled = false; b.textContent = 'Test again';
+      out.onclick = () => { D.copyText(out.textContent); };
+    },
     'set-level': (b) => { aiPrefs.level = b.dataset.v; saveAiPrefs(); render(); },
   });
 })();
