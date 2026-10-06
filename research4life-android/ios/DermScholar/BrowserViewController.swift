@@ -105,6 +105,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     /// The PDF on show, or else the article page's own PDF link (its citation_pdf_url, PDF button…).
     @objc private func savePdf() {
         if let u = pdfURL { download(u, auto: false); return }
+        if let u = SignIn.clinicalKeyPdf(for: webView.url) { download(u, auto: !key.isEmpty); return }
         webView.evaluateJavaScript(BrowserViewController.findPdfScript) { [weak self] v, _ in
             guard let self = self else { return }
             guard let s = v as? String, let u = URL(string: s) else {
@@ -146,6 +147,13 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             navigationItem.prompt = nil
             if webView.url?.absoluteString != art.absoluteString {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.webView.load(URLRequest(url: art)) }
+            }
+            // Then fetch its PDF, as Android does (ClinicalKey's page builds itself: give it time).
+            if !key.isEmpty, let pdf = SignIn.clinicalKeyPdf(for: art) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 9) { [weak self] in
+                    guard let self = self, self.fetching.isEmpty, self.downloads.isEmpty else { return }
+                    self.download(pdf, auto: true)
+                }
             }
             return
         }

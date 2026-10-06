@@ -50,6 +50,13 @@ enum SignIn {
 
     static let portal = URL(string: "https://portal.research4life.org/")!
 
+    /// ClinicalKey's PDF for the article on show (its PDF button's address), as the Android app uses.
+    static func clinicalKeyPdf(for url: URL?) -> URL? {
+        guard let s = url?.absoluteString, isClinicalKeyHost(url?.host),
+              let r = s.range(of: "1-s2\\.0-S[0-9X]{15,17}", options: .regularExpression) else { return nil }
+        return URL(string: "https://www.clinicalkey.com/service/content/pdf/watermarked/" + s[r] + ".pdf?locale=en_US&searchIndex=")
+    }
+
     static func script(user: String?, password: String?, auto: Bool) -> String {
         let pair: [Any] = [user.map { $0 as Any } ?? NSNull(), password.map { $0 as Any } ?? NSNull()]
         let args = (try? JSONSerialization.data(withJSONObject: pair, options: []))
