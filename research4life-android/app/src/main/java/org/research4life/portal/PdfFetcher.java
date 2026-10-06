@@ -89,6 +89,8 @@ final class PdfFetcher {
     private Job job;
     private boolean saving;
     private int pdfAttempts, signInPages, reloadsAfterSignIn, pageToken, challengeWaits;
+    /** The last address onPageLoaded handled (so a scripted page change isn't handled twice). */
+    private String lastHandled;
 
     /** Publisher security checks ("Just a moment…", "verify you are human") that must finish first. */
     static final String CHALLENGE_SCRIPT = "(function(){var t=(document.title||'')+' '+((document.body&&document.body.innerText)||'').slice(0,600);"
@@ -177,6 +179,7 @@ final class PdfFetcher {
         signInPages = 0;
         reloadsAfterSignIn = 0;
         challengeWaits = 0;
+        lastHandled = null;
         attachClients();
         String who = R4LSession.username(app);
         status("opening", job.viaClinicalKey ? "Opening the paper in ClinicalKey…"
@@ -199,6 +202,20 @@ final class PdfFetcher {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 pageToken++;
+            }
+
+            @Override
+            public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                // Research4Life's portal changes pages with scripts (signing in, then its home page)
+                // without a new page load: handle such a change like a loaded page.
+                if (job == null || saving || url == null) return;
+                Uri u = Uri.parse(url);
+                if (!R4LSession.isR4LHost(u.getHost()) || isProxiedContent(u)) return;
+                final Job j = job;
+                final int token = pageToken;
+                main.postDelayed(() -> {
+                    if (job == j && !saving && token == pageToken && url.equals(view.getUrl()) && !url.equals(lastHandled)) onPageLoaded(url);
+                }, 1500);
             }
 
             @Override
@@ -240,6 +257,7 @@ final class PdfFetcher {
 
     private void onPageLoaded(String url) {
         if (job == null || saving) return;
+        lastHandled = url;
         Uri ru = Uri.parse(url);
         if (job.renewUrl != null && !R4LSession.isR4LHost(ru.getHost())) {
             // Renewing ClinicalKey: once ClinicalKey itself opens, go back to the paper.
@@ -276,7 +294,24 @@ final class PdfFetcher {
                 reloadsAfterSignIn++;
                 status("opening", "Signed in. Opening the paper…");
                 main.postDelayed(() -> { if (job != null) webView.loadUrl(job.renewUrl != null ? job.renewUrl : job.startUrl()); }, 1200);
+                return;
             }
+            // Still on a Research4Life page after a while (a sign-in that went through without the
+            // page changing, or its home page): open the paper again rather than waiting it out.
+            final Job j = job;
+            final int token = pageToken;
+            main.postDelayed(() -> {
+                if (job != j || saving || token != pageToken || reloadsAfterSignIn >= 3) return;
+                Uri now = Uri.parse(String.valueOf(webView.getUrl()));
+                if (!R4LSession.isR4LHost(now.getHost()) || isProxiedContent(now)) return;
+                reloadsAfterSignIn++;
+                if (isSignInPage(now) && signInPages >= MAX_SIGNIN_PAGES) {
+                    fail("Research4Life sign-in didn't go through. Check your saved ID and password, or tap Show page.", true);
+                    return;
+                }
+                status("opening", "Opening the paper through Research4Life again…");
+                webView.loadUrl(j.renewUrl != null ? j.renewUrl : j.startUrl());
+            }, 15_000);
             return;
         }
         // Research4Life sometimes lands on the site's bare home page (doi.org's, ClinicalKey's) instead
