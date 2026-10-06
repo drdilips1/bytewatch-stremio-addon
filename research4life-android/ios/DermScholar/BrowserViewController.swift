@@ -153,13 +153,27 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     /// through the proxy too (as R4LSession.proxied on Android).
     /// A publisher page whose PDF address is known from its own address: Wiley's article, abstract
     /// or PDF-viewer pages (/doi/full|abs|epdf|pdf/…) → /doi/pdfdirect/…?download=true, the file itself.
+    /// Springer: /article/<doi> → /content/pdf/<doi>.pdf. Nature: /articles/<id> → /articles/<id>.pdf.
     static func directPdf(for url: URL?) -> URL? {
-        guard let u = url, var c = URLComponents(url: u, resolvingAgainstBaseURL: false),
-              ((c.host ?? "") + c.path).contains("wiley"), let r = c.path.range(of: "/doi/(epdf|pdf|full|abs|abstract|reader)/", options: .regularExpression) else { return nil }
-        c.path = c.path.replacingCharacters(in: r, with: "/doi/pdfdirect/")
+        guard let u = url, var c = URLComponents(url: u, resolvingAgainstBaseURL: false) else { return nil }
+        let site = (c.host ?? "") + c.path   // the host, or Research4Life's proxy path (…springer_com/…)
         c.fragment = nil
-        c.queryItems = [URLQueryItem(name: "download", value: "true")]
-        return c.url
+        if site.contains("wiley"), let r = c.path.range(of: "/doi/(epdf|pdf|full|abs|abstract|reader)/", options: .regularExpression) {
+            c.path = c.path.replacingCharacters(in: r, with: "/doi/pdfdirect/")
+            c.queryItems = [URLQueryItem(name: "download", value: "true")]
+            return c.url
+        }
+        if site.contains("springer"), let r = c.path.range(of: "/(article|chapter)/", options: .regularExpression), !c.path.hasSuffix(".pdf") {
+            c.path = c.path.replacingCharacters(in: r, with: "/content/pdf/") + ".pdf"
+            c.query = nil
+            return c.url
+        }
+        if site.contains("nature"), c.path.range(of: "/articles/[^/]+$", options: .regularExpression) != nil, !c.path.hasSuffix(".pdf") {
+            c.path += ".pdf"
+            c.query = nil
+            return c.url
+        }
+        return nil
     }
 
     static func fixPdfUrl(_ s: String, proxied: Bool) -> String {
