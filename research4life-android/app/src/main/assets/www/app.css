@@ -446,6 +446,9 @@ body.reading .tray { bottom: 14px; }
 .tray-row > svg { width: 20px; height: 20px; flex: none; }
 .tray-row.ok { color: var(--good); }
 .tray-row.bad { color: var(--rose); }
+/* A failed row has several buttons: they go under the message instead of squeezing it. */
+.tray-row.bad { flex-wrap: wrap; row-gap: 8px; }
+.tray-row.bad .tray-body { flex: 1 1 calc(100% - 80px); }
 .tray-body { flex: 1; min-width: 0; color: var(--text); }
 .tray-body b { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tray-body span { display: block; font-size: 12px; color: var(--text-2); line-height: 1.35; }

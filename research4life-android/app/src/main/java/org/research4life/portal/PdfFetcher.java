@@ -75,6 +75,7 @@ final class PdfFetcher {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final ArrayDeque<Job> queue = new ArrayDeque<>();
     private final Map<String, String> lastUrls = new HashMap<>();
+    private final Map<String, String> clinicalKeyPages = new HashMap<>();
     /** The pages each paper went through (for the Details button when Get PDF fails). */
     private final Map<String, java.util.List<String>> trails = new HashMap<>();
     private final Set<String> tried = new HashSet<>();
@@ -155,7 +156,9 @@ final class PdfFetcher {
     }
 
     String lastUrl(String key) {
-        return lastUrls.get(key);
+        // An Elsevier paper whose ClinicalKey try failed: Show page opens it in ClinicalKey, not ScienceDirect.
+        String ck = clinicalKeyPages.get(key);
+        return ck != null ? ck : lastUrls.get(key);
     }
 
     // ------------------------------------------------------------------ job flow
@@ -414,6 +417,7 @@ final class PdfFetcher {
         saving = false;
         // ClinicalKey didn't give the PDF: try the usual Research4Life route (ScienceDirect) once.
         if (j != null && j.viaClinicalKey && j.loads <= MAX_LOADS) {
+            clinicalKeyPages.put(j.key, R4LSession.clinicalKeyUrl(j.pii));
             j.viaClinicalKey = false;
             j.clinicalKeyFailed = true;
             queue.addFirst(j);
@@ -433,8 +437,12 @@ final class PdfFetcher {
             main.postDelayed(this::next, 800);
             return;
         }
-        if (j != null && j.clinicalKeyFailed && !message.startsWith(NOT_COVERED)) {
-            message = "ClinicalKey didn't give the PDF: sign in to ClinicalKey once through Research4Life (R4L → ClinicalKey) in the app, then try again. " + message;
+        if (j != null && j.clinicalKeyFailed) {
+            // Elsevier journals come through ClinicalKey; ScienceDirect refusing them doesn't mean
+            // Research4Life lacks the journal.
+            message = message.startsWith(NOT_COVERED)
+                    ? "ClinicalKey didn't give the PDF (ScienceDirect isn't part of Research4Life for this journal). Tap Show page to open it in ClinicalKey, or Details to see where it stopped."
+                    : "ClinicalKey didn't give the PDF: sign in to ClinicalKey once through Research4Life (R4L → ClinicalKey) in the app, then try again. " + message;
         }
         if (listener != null && j != null) listener.onFailed(j.key, message, canShow);
         next();
