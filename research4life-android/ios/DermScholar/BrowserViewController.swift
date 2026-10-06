@@ -154,6 +154,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     /// A publisher page whose PDF address is known from its own address: Wiley's article, abstract
     /// or PDF-viewer pages (/doi/full|abs|epdf|pdf/…) → /doi/pdfdirect/…?download=true, the file itself.
     /// Springer: /article/<doi> → /content/pdf/<doi>.pdf. Nature: /articles/<id> → /articles/<id>.pdf.
+    /// Everything else (LWW, Oxford, Karger, JAMA, Acta DV, JMIR…): the page's citation_pdf_url tag and
+    /// PDF links (UtdScripts.findPdf, as on Android).
     static func directPdf(for url: URL?) -> URL? {
         guard let u = url, var c = URLComponents(url: u, resolvingAgainstBaseURL: false) else { return nil }
         let site = (c.host ?? "") + c.path   // the host, or Research4Life's proxy path (…springer_com/…)
@@ -166,6 +168,19 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         if site.contains("springer"), let r = c.path.range(of: "/(article|chapter)/", options: .regularExpression), !c.path.hasSuffix(".pdf") {
             c.path = c.path.replacingCharacters(in: r, with: "/content/pdf/") + ".pdf"
             c.query = nil
+            return c.url
+        }
+        // Taylor & Francis, Mary Ann Liebert, SAGE (the same site system as Wiley): /doi/pdf/…?download=true.
+        if site.range(of: "tandfonline|liebertpub|sagepub", options: .regularExpression) != nil,
+           let r = c.path.range(of: "/doi/(epdf|full|abs|abstract|reader)/", options: .regularExpression) {
+            c.path = c.path.replacingCharacters(in: r, with: "/doi/pdf/")
+            c.queryItems = [URLQueryItem(name: "download", value: "true")]
+            return c.url
+        }
+        // ScienceDirect (Elsevier outside ClinicalKey): /science/article/pii/<id> → its PDF download.
+        if site.contains("sciencedirect"), c.path.range(of: "/science/article/(abs/)?pii/[^/]+$", options: .regularExpression) != nil {
+            c.path = c.path.replacingOccurrences(of: "/abs/pii/", with: "/pii/") + "/pdfft"
+            c.queryItems = [URLQueryItem(name: "isDTMRedir", value: "true"), URLQueryItem(name: "download", value: "true")]
             return c.url
         }
         if site.contains("nature"), c.path.range(of: "/articles/[^/]+$", options: .regularExpression) != nil, !c.path.hasSuffix(".pdf") {
