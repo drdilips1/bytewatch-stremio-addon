@@ -437,7 +437,7 @@ final class R4LSession {
             + "if(/^(javascript|mailto):/i.test(h)||h==='#')return;"
             + "if(/\\.pdf(\\?|$)|\\/pdf(ft|direct)?(\\/|\\?|$)|\\/epdf\\/|\\/doi\\/pdf|pdf=render|download=true|\\/pdfft/i.test(h)"
             + "||/\\b(download|view|get|full[- ]?text)\\s*(the\\s*)?(article\\s*)?pdf\\b|^\\s*pdf\\s*$/i.test(t))out.push(h);});"
-            + "var seen={},res=[];out.map(abs).forEach(function(u){if(u&&!seen[u]&&!/supplement|suppl_|\\/suppl\\//i.test(u)){seen[u]=1;res.push(u);}});"
+            + "var seen={},res=[];out.map(abs).forEach(function(u){if(u&&!seen[u]&&!/supplement|suppl_|\\/suppl\\/|\\/esm\\/|moesm|_esm\\.pdf|mediaobjects|figures?\\/|\\/fig\\d/i.test(u)){seen[u]=1;res.push(u);}});"
             + "return JSON.stringify(res.slice(0,6));"
             + "})()";
 }
