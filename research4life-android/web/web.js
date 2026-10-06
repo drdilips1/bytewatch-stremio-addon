@@ -858,7 +858,7 @@
       return;
     }
     // Answers to the account sync's requests (logins from the Keychain, the Vault's crypto).
-    if (evt.type === 'secrets' || evt.type === 'secretsImported' || evt.type === 'vault') {
+    if (evt.type === 'secrets' || evt.type === 'secretsImported' || evt.type === 'vault' || evt.type === 'http') {
       const f = nativeWaits[evt.id];
       delete nativeWaits[evt.id];
       if (f) f(evt);
@@ -927,6 +927,8 @@
     if (window.DSNative && DSNative.level >= 6) {
       const AIS = ['groq', 'gemini', 'claude'];
       N.vault = (op, args) => askNative('vault', { op, ...args }).then((e) => e.out || null);
+      // The sync server, reached by the app itself (the screens' own requests can be refused).
+      if (DSNative.level >= 7) N.httpAsync = (url, { method = 'GET', headers = {}, body } = {}) => askNative('http', { url, method, headers, ...(body !== undefined ? { body } : {}) });
       N.exportSecretsAsync = async () => {
         const e = await askNative('exportSecrets', {});
         const creds = { ...(e.creds || {}) };

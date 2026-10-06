@@ -49,6 +49,7 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
     }
 
     private var checkedScreens = false
+    private lazy var httpSession = URLSession(configuration: .default, delegate: ProxyAuth(), delegateQueue: nil)
 
     /// UpToDate read inside the app (hidden browser, same logins as the app's browser).
     private lazy var utd: UtdClient = {
@@ -115,6 +116,21 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
             let added = Vault.importLogins(body["creds"] as? [String: Any] ?? [:])
             if added["px"] != nil { CollegeProxy.apply() }
             send(["type": "secretsImported", "id": body["id"] as? String ?? "", "added": added])
+        case "http":
+            // The account sync's requests, made by the app itself (no browser cross-site limits).
+            let id = body["id"] as? String ?? ""
+            guard let s = body["url"] as? String, let u = URL(string: s), u.scheme == "https" else {
+                send(["type": "http", "id": id, "status": 0, "text": "Bad link"]); return
+            }
+            var req = URLRequest(url: u, timeoutInterval: 30)
+            req.httpMethod = body["method"] as? String ?? "GET"
+            for (k, v) in (body["headers"] as? [String: String]) ?? [:] { req.setValue(v, forHTTPHeaderField: k) }
+            if let b = body["body"] as? String { req.httpBody = Data(b.utf8) }
+            httpSession.dataTask(with: req) { [weak self] data, resp, error in
+                let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                let text = data.flatMap { String(data: $0, encoding: .utf8) } ?? (error?.localizedDescription ?? "")
+                DispatchQueue.main.async { self?.send(["type": "http", "id": id, "status": status, "text": text]) }
+            }.resume()
         case "vault":
             // Account-sync crypto for screens without the browser's crypto (see Vault).
             let op = body["op"] as? String ?? ""

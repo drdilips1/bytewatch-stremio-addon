@@ -34,7 +34,14 @@
     if (prefer) headers.Prefer = prefer;
     let r;
     try {
-      r = await fetch(URL_ + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+      if (Native.httpAsync) {
+        // The iPhone app makes the request itself.
+        const o = await Native.httpAsync(URL_ + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+        if (!o.status) throw new Error(o.text || 'Load failed');
+        r = { ok: o.status >= 200 && o.status < 300, status: o.status, text: async () => o.text || '' };
+      } else {
+        r = await fetch(URL_ + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+      }
     } catch {
       // "Load failed" / "Failed to fetch": the server couldn't be reached at all.
       const e = new Error('Couldn\'t reach the sync server. Check the internet connection; if a VPN (Tailscale) or a Wi-Fi proxy is on, turn it off and try again.');
