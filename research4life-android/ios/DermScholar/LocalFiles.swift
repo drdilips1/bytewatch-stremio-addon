@@ -13,7 +13,8 @@ final class LocalFiles: NSObject, WKURLSchemeHandler {
         return u
     }()
 
-    private let root = Bundle.main.url(forResource: "www", withExtension: nil)!
+    /// The screens being served: the built-in ones, or newer downloaded ones (ScreenUpdates).
+    var root = ScreenUpdates.bundled
     private var stopped = Set<ObjectIdentifier>()
     private let session: URLSession = {
         let c = URLSessionConfiguration.default

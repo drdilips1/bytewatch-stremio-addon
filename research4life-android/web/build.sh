@@ -15,4 +15,8 @@ perl -0pi -e 's|  <title>DermScholar</title>\n|  <title>DermScholar</title>\n  <
 perl -0pi -e 's|  <script src="journals.js"></script>|  <script src="web.js"></script>\n  <script src="journals.js"></script>|' "$out/index.html"
 grep -q 'src="web.js"' "$out/index.html" && grep -q 'manifest.webmanifest' "$out/index.html"
 touch "$out/.nojekyll"
+# The list the iPhone app updates its screens from: files and hashes, commit time, native level.
+built=$(git -C "$here" log -1 --format=%ct 2>/dev/null || date +%s)
+level=$(grep -o 'nativeLevel = [0-9]*' "$here/../ios/DermScholar/ScreenUpdates.swift" | grep -o '[0-9]*$')
+python3 -I "$here/ota.py" "$out" "$built" "$level"
 echo "Web app built in $out"

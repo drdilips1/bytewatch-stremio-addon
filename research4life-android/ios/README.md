@@ -16,3 +16,12 @@ GitHub builds an unsigned `DermScholar.ipa` on every change (release `dermschola
 5. AirDrop `DermScholar.ipa` to the iPhone, save it to Files, then AltStore → + → choose it.
 
 New versions: repeat step 5. The library, notes and logins stay.
+
+## Updates
+
+- **Screens** (most fixes): the app downloads newer screens from GitHub Pages by itself and uses
+  them from the next launch (`ScreenUpdates.swift`, `web/ota.py`).
+- **The app itself**: add the AltStore source once (the app offers it, or AltStore → Sources → +
+  `https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/dermscholar-ios-latest/altstore.json`),
+  install DermScholar from it, and new builds then show in AltStore's Updates tab and install over
+  Wi-Fi. The app shows a notice when a new build needs installing.

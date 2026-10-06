@@ -57,3 +57,40 @@ jobs:
             --title "DermScholar iPhone app (build ${{ github.run_number }})" \
             --notes "Unsigned iPhone app. Install with Sideloadly or AltStore on a Mac, signed with a free Apple ID (refresh every 7 days). Your library stays when you reinstall." \
             --prerelease
+
+      # AltStore source: AltStore shows new builds in its Updates tab and installs them over Wi-Fi.
+      # dsNativeLevel tells the app when its native side needs the reinstall (ScreenUpdates.swift).
+      - name: Publish the AltStore source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NAME=$(grep -oE "versionName '[^']+'" ../app/build.gradle | cut -d"'" -f2)
+          LEVEL=$(grep -o 'nativeLevel = [0-9]*' DermScholar/ScreenUpdates.swift | grep -o '[0-9]*$')
+          SIZE=$(stat -f%z DermScholar.ipa)
+          PRIVACY=$(plutil -convert json -o - Payload/DermScholar.app/Info.plist | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps({k: v for k, v in d.items() if k.startswith("NS") and k.endswith("UsageDescription")}))')
+          export NAME LEVEL SIZE PRIVACY BUILD="${{ github.run_number }}" REPO="$GITHUB_REPOSITORY"
+          python3 - <<'PY'
+          import json, os, datetime
+          e = os.environ
+          ipa = f"https://github.com/{e['REPO']}/releases/download/dermscholar-ios-{e['BUILD']}/DermScholar.ipa"
+          icon = "https://drdilips1.github.io/bytewatch-stremio-addon/dermscholar/icon-512.png"
+          today = datetime.date.today().isoformat()
+          desc = "Dermatology research: search, Research4Life and MyLOFT PDFs, mobile reading, AI tools."
+          app = {
+            "name": "DermScholar", "bundleIdentifier": "org.research4life.dermscholar", "developerName": "DermScholar",
+            "subtitle": "Dermatology research", "localizedDescription": desc, "iconURL": icon, "tintColor": "#7C3AED",
+            "versions": [{"version": e["NAME"], "buildVersion": e["BUILD"], "date": today, "downloadURL": ipa,
+                          "size": int(e["SIZE"]), "minOSVersion": "15.0", "localizedDescription": f"Build {e['BUILD']}"}],
+            "appPermissions": {"entitlements": [], "privacy": json.loads(e["PRIVACY"])},
+            # Older AltStore versions read these.
+            "version": e["NAME"], "versionDate": today, "versionDescription": f"Build {e['BUILD']}", "downloadURL": ipa, "size": int(e["SIZE"]),
+          }
+          src = {"name": "DermScholar", "identifier": "org.research4life.dermscholar.source", "iconURL": icon,
+                 "website": "https://drdilips1.github.io/bytewatch-stremio-addon/dermscholar/",
+                 "apps": [app], "news": [], "dsNativeLevel": int(e["LEVEL"])}
+          json.dump(src, open("altstore.json", "w"), indent=1)
+          PY
+          cat altstore.json
+          gh release view dermscholar-ios-latest >/dev/null 2>&1 || gh release create dermscholar-ios-latest \
+            --title "DermScholar iPhone app (latest)" --notes "AltStore source and the newest iPhone app. Add to AltStore: altstore://source?url=https://github.com/$GITHUB_REPOSITORY/releases/download/dermscholar-ios-latest/altstore.json" --prerelease
+          gh release upload dermscholar-ios-latest altstore.json DermScholar.ipa --clobber

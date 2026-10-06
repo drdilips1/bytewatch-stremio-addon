@@ -793,6 +793,36 @@
     emit(evt);
   };
   if (IOS) {
+    // New iPhone app versions come through AltStore (its Updates tab installs them over Wi-Fi);
+    // the screens update on their own (ScreenUpdates.swift), so the notice only appears when the
+    // app itself needs reinstalling (a newer native level), plus once to add the AltStore source.
+    const SOURCE = 'https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/dermscholar-ios-latest/altstore.json';
+    const me = window.DSNative || { version: '', build: '0', level: 1 };
+    const bar = (html, acts) => {
+      document.getElementById('ios-upd')?.remove();
+      const el = document.createElement('div');
+      el.id = 'ios-upd';
+      el.className = 'upd-bar';
+      el.innerHTML = html;
+      document.body.appendChild(el);
+      el.querySelectorAll('button[data-k]').forEach((b) => b.addEventListener('click', () => { el.remove(); acts[b.dataset.k](); }));
+    };
+    const btns = (a, b) => `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button class="btn xs" data-k="later">${b}</button><button class="btn xs primary" data-k="go">${a}</button></div>`;
+    const openAltStore = (path = '') => ios('openApp', { url: 'altstore://' + path, store: 'https://altstore.io' });
+    setTimeout(async () => {
+      try {
+        const j = await (await nfetch(SOURCE + '?t=' + Date.now())).json();
+        const v = (j.apps && j.apps[0] && j.apps[0].versions && j.apps[0].versions[0]) || {};
+        if ((j.dsNativeLevel || 0) > (me.level || 1) && ls.get('upd.later', '') !== String(v.buildVersion)) {
+          bar(`<b>New iPhone app version ${v.version || ''}</b><div class="small">Open AltStore → Updates to install it. Your library stays.</div>${btns('Open AltStore', 'Later')}`,
+            { go: () => openAltStore(), later: () => ls.set('upd.later', String(v.buildVersion)) });
+        } else if (!ls.get('altstore.offered', false)) {
+          bar('<b>Get updates through AltStore</b><div class="small">Add DermScholar to AltStore once: new versions then show in its Updates tab and install over Wi-Fi.</div>' + btns('Add to AltStore', 'Not now'),
+            { go: () => { ls.set('altstore.offered', true); openAltStore('source?url=' + encodeURIComponent(SOURCE)); }, later: () => ls.set('altstore.offered', true) });
+        }
+      } catch { /* offline, or no release yet */ }
+    }, 6000);
+
     // MyLOFT's website only works inside its app: hand the paper's link to the MyLOFT app through
     // the share sheet (its "Save to MyLOFT"), or open the app itself.
     const MYLOFT_STORE = 'itms-apps://apps.apple.com/search?term=MyLOFT';

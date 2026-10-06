@@ -14,6 +14,12 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         let cfg = WKWebViewConfiguration()
         cfg.setURLSchemeHandler(files, forURLScheme: LocalFiles.scheme)
         cfg.userContentController.add(WeakScriptHandler(self), name: "ios")
+        // The screens can tell which app they run in (update notice, features this app has).
+        let info = Bundle.main.infoDictionary ?? [:]
+        let clean = { (k: String) in ((info[k] as? String) ?? "").filter { $0.isNumber || $0 == "." } }
+        cfg.userContentController.addUserScript(WKUserScript(
+            source: "window.DSNative={version:'\(clean("CFBundleShortVersionString"))',build:'\(clean("CFBundleVersion"))',level:\(ScreenUpdates.nativeLevel)};",
+            injectionTime: .atDocumentStart, forMainFrameOnly: true))
         cfg.allowsInlineMediaPlayback = true
         cfg.mediaTypesRequiringUserActionForPlayback = []
         cfg.websiteDataStore = .default()
@@ -30,8 +36,18 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        files.root = ScreenUpdates.root()
         webView.load(URLRequest(url: URL(string: "\(LocalFiles.scheme)://app/index.html")!))
+        // Downloaded screens that don't start within 20 s: back to the built-in ones.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+            guard let self = self, !self.ready, self.files.root != ScreenUpdates.bundled else { return }
+            ScreenUpdates.reject(self.files.root)
+            self.files.root = ScreenUpdates.bundled
+            self.webView.reload()
+        }
     }
+
+    private var checkedScreens = false
 
     // MARK: messages from the screens (web.js)
 
@@ -40,6 +56,7 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         switch cmd {
         case "ready":
             ready = true
+            if !checkedScreens { checkedScreens = true; ScreenUpdates.check(current: files.root) }
             let pending = queued
             queued = []
             pending.forEach { send($0) }
@@ -49,7 +66,9 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
             // Another app's own link (MyLOFT): its app when installed, else the App Store.
             guard let s = body["url"] as? String, let u = URL(string: s) else { break }
             let store = (body["store"] as? String).flatMap(URL.init(string:))
-            UIApplication.shared.open(u, options: [.universalLinksOnly: true]) { ok in
+            // https: only as the app's own link (else the website would open); altstore://… as is.
+            let only: [UIApplication.OpenExternalURLOptionsKey: Any] = u.scheme == "https" ? [.universalLinksOnly: true] : [:]
+            UIApplication.shared.open(u, options: only) { ok in
                 if !ok { UIApplication.shared.open(store ?? u) }
             }
         case "copy":
