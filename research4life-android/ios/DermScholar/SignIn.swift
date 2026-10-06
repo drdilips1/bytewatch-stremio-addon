@@ -9,6 +9,8 @@ enum SignIn {
     static func provider(for url: URL?) -> String? {
         guard let u = url, let host = u.host?.lowercased() else { return nil }
         if host == "research4life.org" || host.hasSuffix(".research4life.org") { return u.path.hasPrefix("/tacsgr1") ? nil : "r4l" }
+        // Research4Life's own login (WHO's sign-in service), used on the way into ClinicalKey.
+        if host == "stsr4l.who.int" { return "r4l" }
         if host == "uptodate.com" || host.hasSuffix(".uptodate.com") || host.hasSuffix("wolterskluwer.com") { return "utd" }
         return nil
     }
@@ -51,6 +53,15 @@ enum SignIn {
     /// Research4Life's sign-in page: the saved login fills in there (its home page stays signed out).
     static let portal = URL(string: "https://portal.research4life.org/signin")!
 
+    /// Research4Life's way into ClinicalKey (the owner's link from the Research4Life portal):
+    /// Elsevier's institution login through WHO's Research4Life sign-in, returning to `article`.
+    static func clinicalKeyLogin(returningTo article: URL) -> URL {
+        var c = URLComponents(string: "https://auth.elsevier.com/ShibAuth/institutionLogin")!
+        c.queryItems = [URLQueryItem(name: "entityID", value: "http://stsr4l.who.int/adfs/services/trust"),
+                        URLQueryItem(name: "appReturnURL", value: article.absoluteString)]
+        return c.url!
+    }
+
     /// ClinicalKey's PDF for the article on show (its PDF button's address), as the Android app uses.
     static func clinicalKeyPdf(for url: URL?) -> URL? {
         guard let s = url?.absoluteString, isClinicalKeyHost(url?.host),
@@ -84,10 +95,10 @@ enum SignIn {
     if(f&&(f.user||window.__dsStep1||tries>6)){clearInterval(t);if(f.user)set(f.user,U);set(f.pw,P);
     if(!AUTO)return;DSR4L.status('signing-in');setTimeout(function(){var form=f.pw.form;
     var btn=(form&&form.querySelector('button[type=submit],input[type=submit],button:not([type])'))
-    ||[].slice.call(document.querySelectorAll('button,input[type=submit]')).filter(vis).filter(function(b){return /sign\s*in|log\s*in|login|submit|continue/i.test(b.textContent||b.value||'');})[0];
+    ||[].slice.call(document.querySelectorAll('button,input[type=submit],[role=button]')).filter(vis).filter(function(b){return /sign\s*in|log\s*in|login|submit|continue/i.test(b.textContent||b.value||'');})[0];
     if(btn)btn.click();else if(form){form.requestSubmit?form.requestSubmit():form.submit();}},500);}
     else if(!f&&AUTO&&!window.__dsStep1){var u=[].slice.call(document.querySelectorAll('input[type=email],input[autocomplete=username],input[name*=user i],input[id*=user i],input[name*=email i]')).filter(vis)[0];
-    var nb=[].slice.call(document.querySelectorAll('button,input[type=submit]')).filter(vis).filter(function(b){return /continue|next|sign\s*in|log\s*in/i.test(b.textContent||b.value||'');})[0];
+    var nb=[].slice.call(document.querySelectorAll('button,input[type=submit],[role=button]')).filter(vis).filter(function(b){return /continue|next|sign\s*in|log\s*in/i.test(b.textContent||b.value||'');})[0];
     if(u&&nb&&!u.value){window.__dsStep1=1;set(u,U);setTimeout(function(){nb.click();},400);}}
     if(tries>40)clearInterval(t);},400);
     """#

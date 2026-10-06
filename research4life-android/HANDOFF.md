@@ -1,6 +1,6 @@
 # DermScholar: handoff for a new session
 
-> **Owner's build rule (6 Oct 2026):** build only on "build for iOS", "build for Android" or "build for both" (not a plain "build now"); commit everything else with `[skip ci]`. Android Get PDF works — don't change Android unless asked. **The owner's reports are about iOS (iPhone/iPad) unless they say Android.**
+> **Owner's build rule (6 Oct 2026):** build only on "build for iOS", "build for Android" or "build for both" (not a plain "build now"); commit everything else with `[skip ci]`. Android Get PDF works — don't change Android unless asked. **Research4Life → ClinicalKey link:** `https://auth.elsevier.com/ShibAuth/institutionLogin?entityID=http://stsr4l.who.int/adfs/services/trust&appReturnURL=<article>` (WHO ADFS sign-in). **The owner's reports are about iOS (iPhone/iPad) unless they say Android.**
 
 
 Read this first, then `BACKLOG.md` (the roadmap with every request and its status).

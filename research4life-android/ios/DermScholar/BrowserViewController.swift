@@ -36,7 +36,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         startURL = url
         if SignIn.isClinicalKeyArticle(url) {
             ckArticle = url
-            firstURL = SignIn.clinicalKeyEntry ?? SignIn.portal
+            firstURL = SignIn.clinicalKeyLogin(returningTo: url)
         } else {
             firstURL = url
         }
@@ -91,10 +91,55 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             webView.observe(\.canGoForward, options: [.new]) { [weak self] wv, _ in self?.forwardButton.isEnabled = wv.canGoForward },
         ]
         webView.customUserAgent = LocalFiles.userAgent
-        if ckArticle != nil && SignIn.clinicalKeyEntry == nil {
-            navigationItem.prompt = "Signed in? Search ClinicalKey on Research4Life and tap it once: the app remembers it"
-        }
+        // Elsevier papers for Get PDF: the steps run behind a cover, as Android fetches in the background.
+        if ckArticle != nil && !key.isEmpty { showCover("Signing in through Research4Life…") }
         webView.load(URLRequest(url: firstURL))
+    }
+
+    // MARK: cover (the automatic Elsevier route runs out of sight)
+
+    private var cover: UIView?
+    private let coverLabel = UILabel()
+
+    private func showCover(_ text: String) {
+        coverLabel.text = text
+        guard cover == nil else { return }
+        let c = UIView()
+        c.backgroundColor = .systemBackground
+        c.translatesAutoresizingMaskIntoConstraints = false
+        let spin = UIActivityIndicatorView(style: .large)
+        spin.startAnimating()
+        coverLabel.numberOfLines = 0
+        coverLabel.textAlignment = .center
+        coverLabel.font = .preferredFont(forTextStyle: .headline)
+        let show = UIButton(type: .system)
+        show.setTitle("Show page", for: .normal)
+        show.addTarget(self, action: #selector(liftCover), for: .touchUpInside)
+        let stack = UIStackView(arrangedSubviews: [spin, coverLabel, show])
+        stack.axis = .vertical
+        stack.spacing = 16
+        stack.alignment = .center
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        c.addSubview(stack)
+        view.addSubview(c)
+        NSLayoutConstraint.activate([
+            c.leadingAnchor.constraint(equalTo: view.leadingAnchor), c.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            c.topAnchor.constraint(equalTo: view.topAnchor), c.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            stack.centerXAnchor.constraint(equalTo: c.centerXAnchor), stack.centerYAnchor.constraint(equalTo: c.centerYAnchor),
+            stack.widthAnchor.constraint(lessThanOrEqualTo: c.widthAnchor, constant: -48),
+        ])
+        cover = c
+        // Not done within 75 s: show the page and say so.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 75) { [weak self] in
+            guard let self = self, self.cover != nil else { return }
+            self.liftCover()
+            self.notice("The PDF didn't come automatically. Here's the page: open the PDF or tap Save PDF.")
+        }
+    }
+
+    @objc private func liftCover() {
+        cover?.removeFromSuperview()
+        cover = nil
     }
 
     @objc private func close() { onClose?(); dismiss(animated: true) }
@@ -134,12 +179,19 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         // start again at Research4Life, where tapping ClinicalKey teaches the right one.
         if SignIn.isHandoverError(webView.url), !recovered {
             recovered = true
-            SignIn.clinicalKeyEntry = nil
-            UserDefaults.standard.removeObject(forKey: "ckEntry")
-            if SignIn.isClinicalKeyArticle(startURL) { ckArticle = startURL }
-            navigationItem.prompt = "Signed in? Search ClinicalKey on Research4Life and tap it once: the app remembers it"
-            webView.load(URLRequest(url: SignIn.portal))
+            if SignIn.isClinicalKeyArticle(startURL) {
+                ckArticle = startURL
+                webView.load(URLRequest(url: SignIn.clinicalKeyLogin(returningTo: startURL)))
+            } else {
+                liftCover()
+            }
             return
+        }
+        if cover != nil, let h = webView.url?.host {
+            coverLabel.text = SignIn.isClinicalKeyHost(h) ? "Opening the paper in ClinicalKey…"
+                : SignIn.provider(for: webView.url) == "r4l" ? "Signing in to Research4Life…" : coverLabel.text
+            // A sign-in page with no saved login: the person has to type it.
+            if SignIn.provider(for: webView.url) == "r4l" && Keychain.load(provider: "r4l") == nil { liftCover() }
         }
         // ClinicalKey reached through Research4Life: now open the article.
         if let art = ckArticle, SignIn.isClinicalKeyHost(webView.url?.host) {
@@ -150,6 +202,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             }
             // Then fetch its PDF, as Android does (ClinicalKey's page builds itself: give it time).
             if !key.isEmpty, let pdf = SignIn.clinicalKeyPdf(for: art) {
+                coverLabel.text = "Getting the PDF…"
                 DispatchQueue.main.asyncAfter(deadline: .now() + 9) { [weak self] in
                     guard let self = self, self.fetching.isEmpty, self.downloads.isEmpty else { return }
                     self.download(pdf, auto: true)
@@ -264,6 +317,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         let data = try? Data(contentsOf: d.file)
         try? FileManager.default.removeItem(at: d.file)
         guard let pdf = data, pdf.prefix(1024).range(of: Data("%PDF".utf8)) != nil else {
+            liftCover()
             title = webView.title
             notice("That download wasn't a PDF (the site sent a page instead). Open the PDF itself, then tap Save PDF.")
             return
@@ -276,6 +330,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         let id = ObjectIdentifier(download)
         fetching.remove(String(describing: id))
         if let d = downloads.removeValue(forKey: id) { try? FileManager.default.removeItem(at: d.file) }
+        liftCover()
         title = webView.title
         notice("The PDF didn't download (\(error.localizedDescription)). Try the page's PDF button again, or the Safari button.")
     }
