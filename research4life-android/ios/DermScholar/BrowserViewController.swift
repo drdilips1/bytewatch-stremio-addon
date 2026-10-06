@@ -91,8 +91,9 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             webView.observe(\.canGoForward, options: [.new]) { [weak self] wv, _ in self?.forwardButton.isEnabled = wv.canGoForward },
         ]
         webView.customUserAgent = LocalFiles.userAgent
-        // Elsevier papers for Get PDF: the steps run behind a cover, as Android fetches in the background.
-        if ckArticle != nil && !key.isEmpty { showCover("Signing in through Research4Life…") }
+        // Get PDF: the steps run behind a cover, as Android fetches in the background — signing in,
+        // finding the PDF link on the publisher's page, downloading it (any publisher).
+        if !key.isEmpty { showCover(ckArticle != nil ? "Signing in through Research4Life…" : "Opening the paper through Research4Life…") }
         webView.load(URLRequest(url: firstURL))
     }
 
@@ -140,6 +141,53 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     @objc private func liftCover() {
         cover?.removeFromSuperview()
         cover = nil
+    }
+
+    // MARK: automatic PDF (Android's PdfFetcher: the page's PDF links, best first)
+
+    private var autoTried = Set<String>()
+    private var autoLooks = 0
+    private var autoBusy = false
+
+    /// Wiley/T&F/SAGE viewer links → their direct PDF; links on a Research4Life proxied page go
+    /// through the proxy too (as R4LSession.proxied on Android).
+    static func fixPdfUrl(_ s: String, proxied: Bool) -> String {
+        var u = s
+        if u.contains("wiley") { u = u.replacingOccurrences(of: "/doi/epdf/", with: "/doi/pdfdirect/").replacingOccurrences(of: "/doi/pdf/", with: "/doi/pdfdirect/") }
+        if u.contains("tandfonline") || u.contains("sagepub") { u = u.replacingOccurrences(of: "/doi/epdf/", with: "/doi/pdf/") }
+        guard proxied, let c = URLComponents(string: u), let host = c.host, !SignIn.isR4LHost(host) else { return u }
+        return "https://login.research4life.org/tacsgr1" + host.replacingOccurrences(of: ".", with: "_") + c.percentEncodedPath + (c.percentEncodedQuery.map { "?" + $0 } ?? "")
+    }
+
+    private func autoFindPdf() {
+        guard !key.isEmpty, cover != nil, !autoBusy, downloads.isEmpty, ckArticle == nil, let here = webView.url else { return }
+        if SignIn.provider(for: here) != nil || SignIn.isClinicalKeyHost(here.host) { return }
+        autoBusy = true
+        webView.evaluateJavaScript(UtdScripts.findPdf) { [weak self] v, _ in
+            guard let self = self, self.cover != nil else { return }
+            self.autoBusy = false
+            let list = ((v as? String).flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) } as? [String]) ?? []
+            let proxied = SignIn.isR4LHost(here.host) && here.path.hasPrefix("/tacsgr1")
+            let next = list.map { BrowserViewController.fixPdfUrl($0, proxied: proxied) }
+                .first { !self.autoTried.contains($0) && $0 != here.absoluteString }
+            if let n = next, let u = URL(string: n), self.autoTried.count < 4 {
+                self.autoTried.insert(n)
+                self.coverLabel.text = "Getting the PDF…"
+                self.download(u, auto: true)
+                return
+            }
+            // No link yet: the page may still be building, or passing a security check.
+            self.autoLooks += 1
+            if self.autoLooks < 5 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.autoFindPdf() }
+                return
+            }
+            self.liftCover()
+            let r4l = SignIn.isR4LHost(here.host)
+            self.notice(r4l || !self.autoTried.isEmpty
+                ? "The PDF didn't come automatically. Here's the page: open its PDF, or tap Save PDF."
+                : "This journal doesn't seem to be in your Research4Life access (\(here.host ?? "")). Try MyLOFT.")
+        }
     }
 
     @objc private func close() { onClose?(); dismiss(animated: true) }
@@ -210,7 +258,15 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             }
             return
         }
-        guard let p = SignIn.provider(for: webView.url) else { return }
+        guard let p = SignIn.provider(for: webView.url) else {
+            // A publisher's page: look for its PDF (Get PDF, behind the cover).
+            if cover != nil {
+                coverLabel.text = "Looking for the PDF…"
+                autoLooks = 0
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.autoFindPdf() }
+            }
+            return
+        }
         // Signed in, but Research4Life landed on its own home page: open the paper again (once).
         let path = webView.url?.path.lowercased() ?? ""
         if signedIn, !reopened, p == "r4l", SignIn.provider(for: firstURL) == nil || firstURL == SignIn.clinicalKeyEntry,
@@ -317,6 +373,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         let data = try? Data(contentsOf: d.file)
         try? FileManager.default.removeItem(at: d.file)
         guard let pdf = data, pdf.prefix(1024).range(of: Data("%PDF".utf8)) != nil else {
+            // That link gave a page, not the PDF: try the page's next link.
+            if cover != nil, autoTried.count < 4 { autoLooks = 3; DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.autoFindPdf() }; return }
             liftCover()
             title = webView.title
             notice("That download wasn't a PDF (the site sent a page instead). Open the PDF itself, then tap Save PDF.")
