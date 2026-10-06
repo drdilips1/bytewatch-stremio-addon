@@ -192,12 +192,18 @@
     ls.set('ai.usage', all);
   }
 
+  // An AI that doesn't answer in time is given up on and the other AI is tried: 45 s to start a
+  // streamed reply, 150 s for a whole one (long structured answers take a minute or two).
   async function post(url, headers, body, name) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), body.stream || /stream/i.test(url) ? 45000 : 150000);
     let res;
     try {
-      res = await realFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+      res = await realFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body), signal: ctl.signal });
     } catch {
-      throw new AiError(`Couldn't reach ${name}. Check your connection.`);
+      throw new AiError(ctl.signal.aborted ? `${name} didn't answer in time.` : `Couldn't reach ${name}. Check your connection.`);
+    } finally {
+      clearTimeout(t);
     }
     return res;
   }
