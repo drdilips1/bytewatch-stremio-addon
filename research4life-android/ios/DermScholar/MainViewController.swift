@@ -70,7 +70,8 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         case "fetchPdf":
             // Get PDF in the background: the app stays usable, progress shows in the tray.
             if let s = body["url"] as? String, let u = MainViewController.url(s), let key = body["key"] as? String, !key.isEmpty {
-                fetchInBackground(u, key: key)
+                let fallback = (body["fallback"] as? String).flatMap(MainViewController.url)
+                fetchInBackground(u, key: key, springerFallback: (body["springer"] as? Bool) == true ? fallback : nil)
             }
         case "showFetch":
             showFetch(key: body["key"] as? String ?? "", url: (body["url"] as? String).flatMap(MainViewController.url))
@@ -145,10 +146,11 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
     /// Get PDF browsers working out of sight, by paper.
     private var fetches: [String: UINavigationController] = [:]
 
-    private func fetchInBackground(_ url: URL, key: String) {
+    private func fetchInBackground(_ url: URL, key: String, springerFallback: URL? = nil) {
         if let old = fetches.removeValue(forKey: key) { detach(old) }
         let b = BrowserViewController(url: url, key: key)
         b.background = true
+        b.springerFallback = springerFallback
         b.onPdf = { [weak self] data, name, title in
             self?.hand(data, name: name, mime: "application/pdf", key: key, title: title)
         }

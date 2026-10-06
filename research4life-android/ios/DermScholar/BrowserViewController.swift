@@ -19,6 +19,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     /// The PDF was saved in the background.
     var onDone: (() -> Void)?
     private var reported = false
+    /// Springer Nature Link first (the person's own account); this is the Research4Life route after it.
+    var springerFallback: URL?
+    private var springerLogin = false
+    private var springerReloaded = false
     private var autoSignIns = 0
     private var signedIn = false
     private var reopened = false
@@ -102,7 +106,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         webView.customUserAgent = LocalFiles.userAgent
         // Get PDF: the steps run behind a cover, as Android fetches in the background — signing in,
         // finding the PDF link on the publisher's page, downloading it (any publisher).
-        if !key.isEmpty && background { showCover(ckArticle != nil ? "Signing in through Research4Life…" : "Opening the paper through Research4Life…") }
+        if !key.isEmpty && background {
+            showCover(springerFallback != nil ? "Getting the PDF from Springer Nature Link…"
+                : ckArticle != nil ? "Signing in through Research4Life…" : "Opening the paper through Research4Life…")
+        }
         webView.load(URLRequest(url: firstURL))
     }
 
@@ -274,6 +281,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             }
             return
         }
+        if springerStep() { return }
         if covering, let h = webView.url?.host {
             if SignIn.isClinicalKeyHost(h) { status("Opening the paper in ClinicalKey…") }
             else if SignIn.provider(for: webView.url) == "r4l" { status("Signing in to Research4Life…") }
@@ -416,6 +424,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         try? FileManager.default.removeItem(at: d.file)
         guard let pdf = data, pdf.prefix(1024).range(of: Data("%PDF".utf8)) != nil else {
             // That link gave a page, not the PDF: try the page's next link.
+            if leaveSpringer() { return }
             if covering, autoTried.count < 4 { autoLooks = 3; DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.autoFindPdf() }; return }
             liftCover()
             title = webView.title
@@ -436,12 +445,54 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         let id = ObjectIdentifier(download)
         fetching.remove(String(describing: id))
         if let d = downloads.removeValue(forKey: id) { try? FileManager.default.removeItem(at: d.file) }
+        if leaveSpringer() { return }
         liftCover()
         title = webView.title
         notice("The PDF didn't download (\(error.localizedDescription)). Try the page's PDF button again, or the Safari button.")
     }
 
+    /// Springer Nature Link didn't give the PDF: the Research4Life route instead.
+    private func leaveSpringer() -> Bool {
+        guard covering, let next = springerFallback else { return false }
+        springerFallback = nil
+        autoTried.removeAll()
+        autoLooks = 0
+        status("Springer Nature Link didn't give the PDF. Trying Research4Life…")
+        webView.load(URLRequest(url: next))
+        return true
+    }
+
+    /// A Springer page on the Springer route: sign in (once), back to the PDF (once), else Research4Life.
+    private func springerStep() -> Bool {
+        guard covering, springerFallback != nil, let u = webView.url else { return false }
+        if SignIn.provider(for: u) == "spr" {
+            status("Signing in to Springer Nature Link…")
+            if Keychain.load(provider: "spr") == nil { return leaveSpringer() }
+            return false   // the usual sign-in fills it in
+        }
+        guard let h = u.host?.lowercased(), h == "link.springer.com" || h.hasSuffix(".springer.com") || h.hasSuffix("springernature.com") else { return false }
+        if !springerLogin {
+            springerLogin = true
+            status("Signing in to Springer Nature Link…")
+            var c = URLComponents(string: "https://link.springer.com/signup-login")!
+            c.queryItems = [URLQueryItem(name: "previousUrl", value: startURL.absoluteString)]
+            if let login = c.url { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.webView.load(URLRequest(url: login)) } }
+            return true
+        }
+        if !springerReloaded && !u.path.contains("/content/pdf/") {
+            springerReloaded = true
+            status("Signed in. Getting the PDF from Springer Nature Link…")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self = self else { return }
+                self.webView.load(URLRequest(url: self.startURL))
+            }
+            return true
+        }
+        return leaveSpringer()
+    }
+
     private func notice(_ text: String) {
+        if background, leaveSpringer() { return }
         if background {
             // Out of sight: the tray shows it once, with Show page.
             if !reported { reported = true; onFailed?(text, text.hasPrefix("This journal doesn't")) }

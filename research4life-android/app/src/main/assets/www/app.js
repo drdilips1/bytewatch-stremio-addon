@@ -909,6 +909,7 @@
   const PROVIDERS = {
     r4l: { name: 'Research4Life', id: 'User ID', desc: 'Used by Get PDF to fetch paywalled papers in the background.' },
     utd: { name: 'UpToDate', id: 'Username', desc: 'Signs you in automatically whenever you open UpToDate.' },
+    spr: { name: 'Springer Nature Link', id: 'Email', desc: 'Your own Springer account: Get PDF tries Springer and BMC papers there first (then Research4Life).' },
   };
   function account(p) {
     try { return JSON.parse(Native.account ? Native.account(p) : p === 'r4l' ? Native.r4lAccount() : '{}'); } catch { return {}; }
@@ -3007,7 +3008,7 @@
           <p class="muted small" style="margin:12px 0 0">Reading colours and fonts for papers are in the reader's <b>Aa</b> menu.</p>
         </div></div>
       <div class="section"><div class="section-h"><h3>Accounts</h3></div>
-        ${r4lAccounts()}${accRow('utd')}
+        ${r4lAccounts()}${accRow('utd')}${accRow('spr')}
         <p class="muted small">Passwords are encrypted with this phone's keystore and only sent to the provider's own sign-in page.</p></div>
       ${ext.settingsSection ? ext.settingsSection() : ''}
       <div class="section"><div class="section-h"><h3>Bottom bar</h3></div>

@@ -11,6 +11,9 @@ enum SignIn {
         if host == "research4life.org" || host.hasSuffix(".research4life.org") { return u.path.hasPrefix("/tacsgr1") ? nil : "r4l" }
         // Research4Life's own login (WHO's sign-in service), used on the way into ClinicalKey.
         if host == "stsr4l.who.int" { return "r4l" }
+        // Springer Nature Link's sign-in (the person's own Springer account).
+        if host.hasPrefix("idp."), host.hasSuffix("springer.com") || host.hasSuffix("springernature.com") { return "spr" }
+        if host == "link.springer.com", u.path.lowercased().hasPrefix("/signup-login") || u.path.lowercased().hasPrefix("/login") { return "spr" }
         if host == "uptodate.com" || host.hasSuffix(".uptodate.com") || host.hasSuffix("wolterskluwer.com") { return "utd" }
         return nil
     }

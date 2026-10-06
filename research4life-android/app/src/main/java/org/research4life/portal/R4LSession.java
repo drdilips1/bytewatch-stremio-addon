@@ -106,7 +106,7 @@ final class R4LSession {
                 if (provider == null) return;
                 if (!user.trim().equals(username(app, provider)) || !pass.equals(password(app, provider))) {
                     saveCredentials(app, provider, user, pass);
-                    String name = UTD.equals(provider) ? "UpToDate" : "Research4Life";
+                    String name = UTD.equals(provider) ? "UpToDate" : SPR.equals(provider) ? "Springer Nature Link" : "Research4Life";
                     android.widget.Toast.makeText(app, name + " sign-in saved on this phone", android.widget.Toast.LENGTH_SHORT).show();
                 }
             });
@@ -135,6 +135,25 @@ final class R4LSession {
 
     static String doiUrl(String doi) {
         return PROXY_PREFIX + "doi_org/" + doi;
+    }
+
+    /** Springer (incl. Adis) and BMC papers: Springer Nature Link has them (10.1007/…, 10.1186/…). */
+    static boolean isSpringerDoi(String doi) {
+        return doi != null && (doi.startsWith("10.1007/") || doi.startsWith("10.1186/"));
+    }
+
+    /** The paper's PDF on Springer Nature Link (needs the person's own Springer access). */
+    static String springerPdfUrl(String doi) {
+        return "https://link.springer.com/content/pdf/" + doi + ".pdf";
+    }
+
+    /** Springer Nature Link's sign-in, coming back to {@code next} afterwards. */
+    static String springerLoginUrl(String next) {
+        return "https://link.springer.com/signup-login?previousUrl=" + Uri.encode(next);
+    }
+
+    static boolean isSpringerHost(String host) {
+        return host != null && (host.equals("link.springer.com") || host.endsWith(".springer.com") || host.endsWith("springernature.com"));
     }
 
     /**
@@ -172,6 +191,8 @@ final class R4LSession {
     /** Saved-login providers: Research4Life and UpToDate. */
     static final String R4L = "r4l";
     static final String UTD = "utd";
+    /** A personal Springer Nature Link account. */
+    static final String SPR = "spr";
     static final String UTD_HOME = "https://www.uptodate.com/contents/search";
 
     private static SharedPreferences prefs(Context ctx, String provider) {
@@ -350,6 +371,10 @@ final class R4LSession {
         if (host == null) return null;
         if (isR4LHost(host)) return u.getPath() != null && u.getPath().startsWith("/tacsgr1") ? null : R4L;
         if (host.equals("uptodate.com") || host.endsWith(".uptodate.com") || host.endsWith("wolterskluwer.com")) return UTD;
+        // Springer Nature's sign-in (Springer Nature Link and its account service).
+        String path = u.getPath() == null ? "" : u.getPath().toLowerCase();
+        if (host.startsWith("idp.") && (host.endsWith("springer.com") || host.endsWith("springernature.com"))) return SPR;
+        if (host.equals("link.springer.com") && (path.startsWith("/signup-login") || path.startsWith("/login"))) return SPR;
         return null;
     }
 

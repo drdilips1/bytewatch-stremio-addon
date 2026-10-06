@@ -670,6 +670,7 @@ nav.bottom button.on .pill { background: var(--accent-soft); }
 .acc-ico svg { width: 20px; height: 20px; }
 .acc-ico.utd { background: linear-gradient(135deg, #0e7490, #155e75); }
 .acc-ico.r4l { background: linear-gradient(135deg, #16a34a, #166534); }
+.acc-ico.spr { background: linear-gradient(135deg, #2563eb, #1e3a8a); }
 .panel { background: var(--card); box-shadow: var(--shadow); }
 
 /* Reader colours & fonts */

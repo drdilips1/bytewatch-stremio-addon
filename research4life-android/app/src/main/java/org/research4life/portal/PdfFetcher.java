@@ -66,12 +66,19 @@ final class PdfFetcher {
         /** Pages loaded for this paper, across retries and accounts: a cap stops endless back-and-forth. */
         int loads;
         int accountTries;
+        /** Springer/BMC paper with the person's own Springer Nature Link login: tried there first. */
+        boolean viaSpringer;
+        /** Springer's sign-in page was opened for this paper. */
+        boolean springerLogin;
         Job(String key, String doi, String title, String pii) {
             this.key = key; this.doi = doi; this.title = title;
             this.pii = pii == null ? "" : pii;
             viaClinicalKey = !this.pii.isEmpty();
         }
-        String startUrl() { return viaClinicalKey ? R4LSession.clinicalKeyUrl(pii) : R4LSession.doiUrl(doi); }
+        String startUrl() {
+            if (viaSpringer) return R4LSession.springerPdfUrl(doi);
+            return viaClinicalKey ? R4LSession.clinicalKeyUrl(pii) : R4LSession.doiUrl(doi);
+        }
     }
 
     private final Context app;
@@ -141,7 +148,9 @@ final class PdfFetcher {
         if (job != null && job.key.equals(key)) return;
         for (Job j : queue) if (j.key.equals(key)) return;
         trails.remove(key);
-        queue.addLast(new Job(key, doi, title, pii));
+        Job nj = new Job(key, doi, title, pii);
+        nj.viaSpringer = nj.pii.isEmpty() && R4LSession.isSpringerDoi(doi) && R4LSession.hasCredentials(app, R4LSession.SPR);
+        queue.addLast(nj);
         if (job == null) next(); else status("queued", "Waiting in queue…");
     }
 
@@ -182,7 +191,8 @@ final class PdfFetcher {
         lastHandled = null;
         attachClients();
         String who = R4LSession.username(app);
-        status("opening", job.viaClinicalKey ? "Opening the paper in ClinicalKey…"
+        status("opening", job.viaSpringer ? "Getting the PDF from Springer Nature Link…"
+                : job.viaClinicalKey ? "Opening the paper in ClinicalKey…"
                 : "Opening the paper through Research4Life" + (who == null || who.isEmpty() ? "" : " (" + who + ")") + "…");
         main.removeCallbacks(timeout);
         main.postDelayed(timeout, JOB_TIMEOUT_MS);
@@ -269,6 +279,7 @@ final class PdfFetcher {
             }
             return;
         }
+        if (job.viaSpringer && springerStep(url)) { job.loads++; return; }
         if (++job.loads > MAX_LOADS) {
             fail("Research4Life kept going between pages without reaching the PDF. Tap Show page to see where it stops, or use Get PDF via MyLOFT.", true);
             return;
@@ -332,6 +343,40 @@ final class PdfFetcher {
         final int token = pageToken;
         // ClinicalKey's page builds itself (and its session) with scripts: give it longer.
         main.postDelayed(() -> { if (token == pageToken && job != null && !saving) findPdf(url); }, job.viaClinicalKey ? 6000 : 2000);
+    }
+
+    /**
+     * The Springer Nature Link route (the person's own account): its sign-in page is filled in with
+     * the saved login; a paper page (no access yet) leads to the sign-in once, coming back to the PDF.
+     * Returns false to let the usual steps run (looking for the PDF on the page).
+     */
+    private boolean springerStep(String url) {
+        Uri u = Uri.parse(url);
+        if (job.loads > MAX_LOADS) return false;
+        if (R4LSession.SPR.equals(R4LSession.providerFor(u))) {
+            if (++signInPages > MAX_SIGNIN_PAGES) { failNow("Springer Nature Link sign-in didn't go through.", true); return true; }
+            status("signing-in", "Signing in to Springer Nature Link as " + R4LSession.username(app, R4LSession.SPR) + "…");
+            webView.evaluateJavascript(R4LSession.signInScript(R4LSession.username(app, R4LSession.SPR), R4LSession.password(app, R4LSession.SPR), true), null);
+            return true;
+        }
+        if (!R4LSession.isSpringerHost(u.getHost())) return false;
+        // A Springer page instead of the PDF: not signed in yet (sign in, then back to the PDF), or,
+        // after signing in, a page on the way back: open the PDF again (once).
+        if (!job.springerLogin) {
+            job.springerLogin = true;
+            status("signing-in", "Signing in to Springer Nature Link…");
+            final Job j = job;
+            main.postDelayed(() -> { if (job == j && !saving) webView.loadUrl(R4LSession.springerLoginUrl(j.startUrl())); }, 800);
+            return true;
+        }
+        if (reloadsAfterSignIn < 1 && !url.contains("/content/pdf/")) {
+            reloadsAfterSignIn++;
+            status("opening", "Signed in. Getting the PDF from Springer Nature Link…");
+            final Job j = job;
+            main.postDelayed(() -> { if (job == j && !saving) webView.loadUrl(j.startUrl()); }, 1500);
+            return true;
+        }
+        return false;
     }
 
     private void findPdf(String pageUrl) {
@@ -472,6 +517,17 @@ final class PdfFetcher {
         // ClinicalKey gave no PDF: its sign-in has usually expired. Renew it through Research4Life
         // (the link learned when ClinicalKey was opened from Research4Life) and try once more.
         Job r = job;
+        // Springer Nature Link didn't give the PDF (no access to this journal on that account):
+        // the usual Research4Life route next.
+        if (r != null && r.viaSpringer) {
+            r.viaSpringer = false;
+            job = null;
+            saving = false;
+            queue.addFirst(r);
+            if (listener != null) listener.onStatus(r.key, "opening", "Springer Nature Link didn't give the PDF. Trying Research4Life…");
+            main.postDelayed(this::next, 500);
+            return;
+        }
         String entry = R4LSession.clinicalKeyEntry(app);
         if (r != null && r.viaClinicalKey && !r.ckRenewed && entry != null && r.loads <= MAX_LOADS) {
             r.ckRenewed = true;

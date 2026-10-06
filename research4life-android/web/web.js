@@ -634,6 +634,15 @@
       if (IOS && bgFetch()) {
         // As on Android: the app's browser works out of sight (signs in, finds and saves the PDF)
         // while the app stays usable; the tray shows each step, and Show page brings the browser up.
+        // Springer/BMC papers with the person's own Springer Nature Link login: there first, then Research4Life.
+        const f = ls.get('fetch.' + key, {});
+        const d = doi || f.doi || '';
+        const spr = (() => { try { return !!localStorage.getItem('ds.acc.spr'); } catch { return false; } })();
+        if (spr && !f.pii && !f.free && /^10\.(1007|1186)\//.test(d)) {
+          ios('fetchPdf', { key, url: 'https://link.springer.com/content/pdf/' + d + '.pdf', fallback: fetchUrl(key, doi), springer: true });
+          emit({ type: 'fetchStatus', key, message: 'Getting the PDF from Springer Nature Link…' });
+          return;
+        }
         ios('fetchPdf', { key, url: fetchUrl(key, doi) });
         emit({ type: 'fetchStatus', key, message: 'Opening the paper through Research4Life…' });
         return;
@@ -836,7 +845,7 @@
     if (evt.type === 'credentialsSaved') {
       // Typed on a sign-in page in the app's browser: the password stays in the iPhone's Keychain.
       try { localStorage.setItem('ds.acc.' + evt.p, evt.user); } catch { /* blocked */ }
-      toast((evt.p === 'utd' ? 'UpToDate' : 'Research4Life') + ' sign-in saved');
+      toast(({ utd: 'UpToDate', spr: 'Springer Nature Link' }[evt.p] || 'Research4Life') + ' sign-in saved');
       return;
     }
     emit(evt);
