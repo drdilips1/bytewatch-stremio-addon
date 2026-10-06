@@ -406,6 +406,71 @@
         <div class="row wrap" style="gap:6px"><button class="btn xs" data-act="cm-ex-redo">${icon('spark')}Redo</button> ${I.exportBtns(I.offerExport(() => explainReport(question, data, r), ctx))}</div></div>`;
     actions['cm-ex-redo'] = () => { store.set('intel.' + key, null); explain(question, data, live); };
   }
+  // ================================================================ answer first (search)
+  // A question on the main search ("treatment options for melasma") is answered before the list
+  // of papers: current guidelines and the best studies, as a short cited review with tables.
+  const ANSWER = () => obj({
+    headline: S.str,
+    sections: EXPLAIN().properties.sections,
+    guidelines: { type: 'array', items: obj({ text: S.str, cites: S.ints }) },
+    claims: EXPLAIN().properties.claims,
+  });
+  const answerable = (x) => !!x && x.trim().split(/\s+/).length >= 3 && !/["():]|\b(AND|OR|NOT)\b/.test(x) && !/^(10\.\d|pmid|pmc\d|\d{5,9}$)/i.test(x.trim());
+  async function searchAnswer(question, el) {
+    if (!answerable(question)) { el.remove(); return; }
+    if (!D.aiHasKey()) { el.innerHTML = ''; return; }
+    const live = () => el.isConnected;
+    const key = 'answer1.' + question.toLowerCase().trim();
+    const render = (r, refs) => {
+      if (!live()) return;
+      const ctx = I.newCtx(refs);
+      const cite = (t) => I.citeHtml(esc(t), ctx);
+      const table = (t) => (t && t.columns?.length && t.rows?.length ? `<div class="ex-table"><table><thead><tr>${t.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+        <tbody>${t.rows.map((row) => `<tr>${row.map((c) => `<td>${cite(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>${t.caption ? `<p class="muted small">${esc(t.caption)}</p>` : ''}</div>` : '');
+      el.innerHTML = `<div class="panel explain qa">
+        <div class="section-h" style="margin:0 0 4px"><h3>${icon('spark')}Answer</h3><span class="muted small">${refs.length} sources</span></div>
+        <p class="ex-head">${cite(r.headline || '')}</p>
+        ${(r.sections || []).map((x) => `<h4>${esc(x.heading)}</h4>${(x.paragraphs || []).map((t) => `<p>${cite(t)}</p>`).join('')}${table(x.table)}`).join('')}
+        ${r.guidelines?.length ? `<h4>Current guidelines</h4><ul>${r.guidelines.map((g) => `<li>${cite(g.text)} ${I.citeBtns(g.cites, ctx)}</li>`).join('')}</ul>` : ''}
+        ${r.claims?.length ? `<h4>Evidence strength</h4><div class="ex-table"><table><thead><tr><th>Strength</th><th>Claim</th></tr></thead><tbody>
+          ${r.claims.map((c) => `<tr><td>${I.strength(c.strength)}</td><td>${cite(c.claim)} ${I.citeBtns(c.cites, ctx)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+        <details class="qa-refs"><summary>References (${refs.length})</summary>${refs.map(I.refRow).join('')}</details>
+        <p class="muted small">AI-written from these papers' abstracts (guidelines first). Tap a reference to see it; check key numbers in the papers.</p>
+        <div class="row wrap" style="gap:6px"><button class="btn xs" data-act="qa-redo">${icon('spark')}Redo</button>
+          <button class="btn xs" data-act="ev-from-search" data-q="${esc(question)}">${icon('chart')}Full evidence map</button></div></div>`;
+      actions['qa-redo'] = () => { store.set('intel.' + key, null); searchAnswer(question, el); };
+    };
+    const kept = I.cacheGet(key);
+    if (kept && kept.r && kept.refs) { render(kept.r, kept.refs.map((x) => ({ ...x, a: x.a }))); return; }
+    el.innerHTML = I.busyHtml('Answering from current evidence and guidelines…');
+    try {
+      const yr = new Date().getFullYear();
+      const [pool, guides] = await Promise.all([
+        I.evidencePool(question, { size: 18 }),
+        I.epmc(I.q(question, { extra: `${I.GUIDE} AND PUB_YEAR:[${yr - 6} TO ${yr}]` }), 6).catch(() => ({ results: [] })),
+      ]);
+      const seen = new Set();
+      const papers = [...(guides.results || []).filter((a) => a.abstract), ...pool.papers].filter((a) => !seen.has(a.id) && seen.add(a.id)).slice(0, 22);
+      if (papers.length < 2) { el.innerHTML = ''; return; }
+      const refs = papers.map((a, i) => ({ kind: 'paper', a, type: D.studyType(a).label, n: i + 1 }));
+      const doc = refs.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 850)}`).join('\n\n');
+      const r = D.aiJson(await D.ai(`QUESTION: ${question}\n\n`
+        + 'Answer this for a dermatologist straight away, like a short up-to-date review, using only these papers (guidelines and consensus statements come first; prefer the newest guidance and the strongest evidence):\n'
+        + '- headline: one or two sentences that answer the question directly (for treatment questions: the first-line options and when to step up).\n'
+        + '- sections: 3 to 5 with headings that fit the question (for treatment: "First-line", "Second-line / refractory", "Procedures and devices", "Maintenance and prevention", "Special situations"; for other questions, what fits). Each has 1-2 short paragraphs; every claim cites its papers like [3] or [2, 5]; keep numbers exactly as reported.\n'
+        + '- table: where it helps (e.g. treatment, evidence level, key result, notes — one row per option), cells may cite [n]; otherwise caption "", columns [] and rows [].\n'
+        + '- guidelines: what the current guidelines or consensus statements among the papers recommend, each with its citations; [] if none.\n'
+        + '- claims: 3 to 5 key claims with evidence strength (strong, moderate, limited) and the papers behind them.',
+        { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: ANSWER(), max: 6000 }));
+      I.cacheSet(key, { r, refs });
+      render(r, refs);
+    } catch (e) {
+      if (live()) el.innerHTML = I.aiErr(e) + `<button class="btn xs" data-act="qa-redo" style="margin-top:6px">${icon('spark')}Try again</button>`;
+      actions['qa-redo'] = () => searchAnswer(question, el);
+    }
+  }
+  ext.searchAnswer = searchAnswer;
+
   const prevTop2 = ext.searchTop;
   // Any real question gets the meter (it rephrases "Role of X in Y?" as a yes/no question itself).
   const askable = (x) => !!x && (YESNO.test(x.trim()) || /\?\s*$/.test(x) || x.trim().split(/\s+/).length >= 3) && !/^(10\.\d|pmc\d|\d{5,}$)/i.test(x.trim());

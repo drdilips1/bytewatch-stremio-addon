@@ -754,6 +754,7 @@
       ${searchBox(f.q, true)}
       ${sourceTabs(f)}
       ${ext.searchTop ? ext.searchTop(f.q) : ''}
+      ${ext.searchAnswer && !f.types.length && f.sort === 'relevance' ? '<div id="qa-answer"></div>' : ''}
       <div class="scroll-x">
         <button class="chip derm ${f.derm ? 'on' : ''}" data-act="f-derm">${icon('leaf')}Dermatology</button>
         <button class="chip ${f.types.length ? 'on' : ''}" data-act="f-types">${icon('filter')}${f.types.length ? f.types.map((t) => TYPE_FILTERS[t].label).join(', ') : 'Study type'}</button>
@@ -766,6 +767,8 @@
     const ta = $('.searchbox textarea');
     ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
     bindSearchChips(f);
+    // A question gets its answer first (the current evidence, guidelines, references); papers below.
+    if ($('#qa-answer')) ext.searchAnswer(f.q, $('#qa-answer'));
 
     let state = searchCache.get(key);
     if (!state) {

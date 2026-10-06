@@ -1248,3 +1248,9 @@ pre.trail { white-space: pre-wrap; word-break: break-all; font-size: 11px; line-
 
 /* Library: remove one paper from its card. */
 .card-actions .lib-del { margin-left: auto; color: var(--text-2); }
+
+/* Answer first on the search results. */
+.qa { margin: 10px 0 12px; }
+.qa h3 { display: flex; align-items: center; gap: 6px; font-size: 16px; }
+.qa-refs { margin: 10px 0 4px; }
+.qa-refs summary { cursor: pointer; font-weight: 600; font-size: 14px; }
