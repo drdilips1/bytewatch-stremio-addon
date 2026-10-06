@@ -207,6 +207,13 @@ final class PdfFetcher {
                     String line = (job.accountTries > 0 ? "[account " + (job.accountTries + 1) + "] " : "") + url;
                     if (t.isEmpty() || !t.get(t.size() - 1).equals(line)) t.add(line.length() > 220 ? line.substring(0, 220) + "…" : line);
                     while (t.size() > 30) t.remove(0);
+                    // What the page showed (title and first words), for Details when Get PDF fails.
+                    final java.util.List<String> tl = t;
+                    view.evaluateJavascript("(document.title+' | '+(document.body?document.body.innerText:'')).replace(/\\s+/g,' ').trim().slice(0,160)", v -> {
+                        if (v == null || v.equals("null") || v.length() < 6) return;
+                        String said = v.replaceAll("^\"|\"$", "").replace("\\\"", "\"");
+                        if (!said.equals(" | ") && tl.size() < 40) tl.add("   ↳ " + said);
+                    });
                 }
                 onPageLoaded(url);
             }
@@ -441,7 +448,7 @@ final class PdfFetcher {
             // Elsevier journals come through ClinicalKey; ScienceDirect refusing them doesn't mean
             // Research4Life lacks the journal.
             message = message.startsWith(NOT_COVERED)
-                    ? "ClinicalKey didn't give the PDF (ScienceDirect isn't part of Research4Life for this journal). Tap Show page to open it in ClinicalKey, or Details to see where it stopped."
+                    ? "ClinicalKey didn't give the PDF: very new articles reach ClinicalKey a few weeks after ScienceDirect, and ScienceDirect itself isn't in Research4Life. Try MyLOFT now, or Research4Life again in a few weeks. Show page opens it in ClinicalKey; Details shows what each page said."
                     : "ClinicalKey didn't give the PDF: sign in to ClinicalKey once through Research4Life (R4L → ClinicalKey) in the app, then try again. " + message;
         }
         if (listener != null && j != null) listener.onFailed(j.key, message, canShow);
