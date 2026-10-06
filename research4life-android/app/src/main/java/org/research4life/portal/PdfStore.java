@@ -187,6 +187,18 @@ final class PdfStore {
         record(ctx, key, title, url);
     }
 
+    /** Saves a PDF fetched by the page itself (through the college proxy); not a PDF → NOT_PDF. */
+    static void saveBytes(Context ctx, String key, byte[] data, String title, String url) throws IOException {
+        if (data == null || data.length < 5 || !startsWithPdfMagic(data, data.length)) throw new IOException("NOT_PDF");
+        File target = file(ctx, key);
+        File tmp = new File(target.getPath() + ".part");
+        try (OutputStream out = new FileOutputStream(tmp)) {
+            out.write(data);
+        }
+        if (!tmp.renameTo(target)) throw new IOException("Could not save file");
+        record(ctx, key, title, url);
+    }
+
     static void importFrom(Context ctx, Uri uri, String key, String title) throws IOException {
         File target = file(ctx, key);
         try (InputStream in = ctx.getContentResolver().openInputStream(uri);

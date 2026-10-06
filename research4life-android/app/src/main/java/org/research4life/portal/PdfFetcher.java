@@ -205,6 +205,7 @@ final class PdfFetcher {
     }
 
     private void attachClients() {
+        webView.addJavascriptInterface(pageBridge, "DSPDF");
         webView.setWebChromeClient(null);
         webView.getSettings().setUserAgentString(null);
         webView.setWebViewClient(new WebViewClient() {
@@ -482,7 +483,110 @@ final class PdfFetcher {
         return url;
     }
 
+    /**
+     * Through the college proxy the PDF is fetched by the page itself (the browser's connection
+     * through the proxy, with its sign-in): a separate download can't pass the proxy's login.
+     */
     private void save(String url, String userAgent, String fileName) {
+        if (CollegeProxy.proxyFor(app, url) != null && webView != null) saveInPage(url, userAgent, fileName);
+        else saveDirect(url, userAgent, fileName);
+    }
+
+    private final class PageBridge {
+        String id;
+        java.io.ByteArrayOutputStream buf;
+
+        @android.webkit.JavascriptInterface
+        public void chunk(String forId, String b64) {
+            synchronized (this) {
+                if (forId == null || !forId.equals(id) || buf == null || buf.size() > 80_000_000) return;
+                byte[] b = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
+                buf.write(b, 0, b.length);
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        public void end(String forId) {
+            byte[] data;
+            synchronized (this) {
+                if (forId == null || !forId.equals(id) || buf == null) return;
+                data = buf.toByteArray();
+                id = null;
+                buf = null;
+            }
+            main.post(() -> pageFetched(forId, data, null));
+        }
+
+        @android.webkit.JavascriptInterface
+        public void error(String forId, String message) {
+            synchronized (this) {
+                if (forId == null || !forId.equals(id)) return;
+                id = null;
+                buf = null;
+            }
+            main.post(() -> pageFetched(forId, null, message));
+        }
+    }
+
+    private final PageBridge pageBridge = new PageBridge();
+    private String pageFetchId, pageFetchUrl, pageFetchUa, pageFetchName;
+
+    private void saveInPage(String url, String userAgent, String fileName) {
+        final Job j = job;
+        saving = true;
+        main.removeCallbacks(timeout);
+        status("downloading", "Saving the PDF…");
+        final String id = "p" + System.nanoTime();
+        synchronized (pageBridge) {
+            pageBridge.id = id;
+            pageBridge.buf = new java.io.ByteArrayOutputStream();
+        }
+        pageFetchId = id;
+        pageFetchUrl = url;
+        pageFetchUa = userAgent;
+        pageFetchName = fileName;
+        String js = "(function(u,id){fetch(u,{credentials:'include'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.arrayBuffer();})"
+                + ".then(function(b){var a=new Uint8Array(b),C=393216;for(var i=0;i<a.length;i+=C){var s='',sub=a.subarray(i,i+C);"
+                + "for(var k=0;k<sub.length;k+=8192)s+=String.fromCharCode.apply(null,sub.subarray(k,k+8192));DSPDF.chunk(id,btoa(s));}DSPDF.end(id);})"
+                + ".catch(function(e){DSPDF.error(id,String(e&&e.message||e));});})(" + R4LSession.jsString(url) + "," + R4LSession.jsString(id) + ")";
+        webView.evaluateJavascript(js, null);
+        // No answer from the page (it navigated away): the usual download instead.
+        main.postDelayed(() -> { if (job == j && id.equals(pageFetchId)) pageFetched(id, null, "timeout"); }, 90_000);
+    }
+
+    private void pageFetched(String id, byte[] data, String error) {
+        if (!id.equals(pageFetchId) || job == null) return;
+        pageFetchId = null;
+        final Job j = job;
+        if (data == null) {
+            // The page couldn't fetch it (another site's file, or no answer): the usual download.
+            saving = false;
+            saveDirect(pageFetchUrl, pageFetchUa, pageFetchName);
+            return;
+        }
+        io.execute(() -> {
+            try {
+                PdfStore.saveBytes(app, j.key, data, j.title != null ? j.title : pageFetchName, pageFetchUrl);
+                main.post(() -> {
+                    if (listener != null) listener.onSaved(j.key, j.title);
+                    finishJob();
+                });
+            } catch (Exception e) {
+                main.post(() -> {
+                    saving = false;
+                    if (job != j) return;
+                    if ("NOT_PDF".equals(e.getMessage())) {
+                        status("finding", "Looking for the PDF…");
+                        main.postDelayed(() -> { if (job == j && !saving) findPdf(webView.getUrl()); }, 1500);
+                    } else {
+                        fail("Couldn't save the PDF: " + e.getMessage(), true);
+                    }
+                });
+            }
+        });
+    }
+
+    private void saveDirect(String url, String userAgent, String fileName) {
         final Job j = job;
         saving = true;
         main.removeCallbacks(timeout);
