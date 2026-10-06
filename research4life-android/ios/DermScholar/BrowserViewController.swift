@@ -151,6 +151,17 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
     /// Wiley/T&F/SAGE viewer links → their direct PDF; links on a Research4Life proxied page go
     /// through the proxy too (as R4LSession.proxied on Android).
+    /// A publisher page whose PDF address is known from its own address: Wiley's article, abstract
+    /// or PDF-viewer pages (/doi/full|abs|epdf|pdf/…) → /doi/pdfdirect/…?download=true, the file itself.
+    static func directPdf(for url: URL?) -> URL? {
+        guard let u = url, var c = URLComponents(url: u, resolvingAgainstBaseURL: false),
+              ((c.host ?? "") + c.path).contains("wiley"), let r = c.path.range(of: "/doi/(epdf|pdf|full|abs|abstract|reader)/", options: .regularExpression) else { return nil }
+        c.path = c.path.replacingCharacters(in: r, with: "/doi/pdfdirect/")
+        c.fragment = nil
+        c.queryItems = [URLQueryItem(name: "download", value: "true")]
+        return c.url
+    }
+
     static func fixPdfUrl(_ s: String, proxied: Bool) -> String {
         var u = s
         if u.contains("wiley") { u = u.replacingOccurrences(of: "/doi/epdf/", with: "/doi/pdfdirect/").replacingOccurrences(of: "/doi/pdf/", with: "/doi/pdfdirect/") }
@@ -168,7 +179,9 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             self.autoBusy = false
             let list = ((v as? String).flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) } as? [String]) ?? []
             let proxied = SignIn.isR4LHost(here.host) && here.path.hasPrefix("/tacsgr1")
-            let next = list.map { BrowserViewController.fixPdfUrl($0, proxied: proxied) }
+            // The page's own direct PDF address first (Wiley), then the links found on it.
+            let direct = BrowserViewController.directPdf(for: here).map { [$0.absoluteString] } ?? []
+            let next = (direct + list.map { BrowserViewController.fixPdfUrl($0, proxied: proxied) })
                 .first { !self.autoTried.contains($0) && $0 != here.absoluteString }
             if let n = next, let u = URL(string: n), self.autoTried.count < 4 {
                 self.autoTried.insert(n)
@@ -199,6 +212,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     @objc private func savePdf() {
         if let u = pdfURL { download(u, auto: false); return }
         if let u = SignIn.clinicalKeyPdf(for: webView.url) { download(u, auto: !key.isEmpty); return }
+        if let u = BrowserViewController.directPdf(for: webView.url) { download(u, auto: !key.isEmpty); return }
         webView.evaluateJavaScript(BrowserViewController.findPdfScript) { [weak self] v, _ in
             guard let self = self else { return }
             guard let s = v as? String, let u = URL(string: s) else {
