@@ -174,12 +174,31 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
             items.append((b["text"] as? String) ?? (b["title"] as? String) ?? "")
         }
         let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        vc.popoverPresentationController?.sourceView = view
-        vc.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 80, width: 1, height: 1)
-        topPresenter().present(vc, animated: true)
-        // Never a tap that does nothing: say so if the share panel didn't come up.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            if vc.presentingViewController == nil { self?.send(["type": "notice", "message": "The share panel didn't open. The link is copied: paste it where you need it."]) }
+        // iPad: a panel in the middle of the screen, anchored to the view it's shown from.
+        let show: (UIViewController) -> Void = { p in
+            if let pop = vc.popoverPresentationController, let host = p.view {
+                pop.sourceView = host
+                pop.sourceRect = CGRect(x: host.bounds.midX, y: host.bounds.midY, width: 1, height: 1)
+                pop.permittedArrowDirections = []
+            }
+            p.present(vc, animated: true)
+        }
+        let presenter = topPresenter()
+        if presenter is UIAlertController || presenter.isBeingDismissed {
+            presenter.dismiss(animated: false) { [weak self] in if let self = self { show(self.topPresenter()) } }
+        } else {
+            show(presenter)
+        }
+        // Never a tap that does nothing: if the panel didn't come up, say so (MyLOFT: open its app).
+        let forMyLoft = (b["then"] as? String) == "myloft"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self = self, vc.presentingViewController == nil else { return }
+            if forMyLoft {
+                self.send(["type": "notice", "message": "The share panel didn't open: the link is copied and MyLOFT is opening. Paste it there."])
+                self.openFirst(["myloft://", "https://app.myloft.xyz/"].compactMap(URL.init(string:)), fallback: URL(string: "itms-apps://apps.apple.com/search?term=MyLOFT"))
+            } else {
+                self.send(["type": "notice", "message": "The share panel didn't open. The link is copied: paste it where you need it."])
+            }
         }
     }
 

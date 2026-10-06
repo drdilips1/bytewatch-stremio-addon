@@ -862,11 +862,13 @@
       N.utdTopic = (u) => ios('utdTopic', { url: u });
       N.utdShowPage = () => ios('utdShowPage');
     }
-    // MyLOFT: no "Open with" panel — the paper's link is copied and the MyLOFT app opens.
-    N.myloftHint = 'Link copied and MyLOFT opened: paste the link in MyLOFT (its search or browser), open the paper, download the PDF, then Share → DermScholar. It files itself under this paper.';
+    // MyLOFT: iPhone apps can't add to another app's library directly; MyLOFT's own "save" is in
+    // the share panel. The panel opens with the paper's link (also copied); MyLOFT saves it.
+    N.myloftHint = 'Tap MyLOFT in the panel to save the paper in MyLOFT (not in the first row? swipe the row, or More → MyLOFT). Then open it in MyLOFT, download the PDF and Share → DermScholar: it files itself.';
     N.sendToMyLoft = (text) => {
       try { ios('copy', { text }); } catch { /* no clipboard */ }
-      N.openMyLoftApp();
+      if (/^https?:/.test(text)) ios('share', { title: 'Save to MyLOFT', url: text, then: 'myloft' });
+      else N.openMyLoftApp();
     };
     // The iPhone app keeps passwords in the Keychain and its browser signs in with them; the
     // screens keep only the user ID.
