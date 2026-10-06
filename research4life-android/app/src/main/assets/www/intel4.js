@@ -420,9 +420,11 @@
     if (!answerable(question)) { el.remove(); return; }
     if (!D.aiHasKey()) { el.innerHTML = ''; return; }
     const live = () => el.isConnected;
-    const key = 'answer1.' + question.toLowerCase().trim();
+    const key = 'answer2.' + question.toLowerCase().trim();
+    let full = false;
     const render = (r, refs) => {
       if (!live()) return;
+      full = true;
       const ctx = I.newCtx(refs);
       const cite = (t) => I.citeHtml(esc(t), ctx);
       const table = (t) => (t && t.columns?.length && t.rows?.length ? `<div class="ex-table"><table><thead><tr>${t.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
@@ -442,18 +444,29 @@
     };
     const kept = I.cacheGet(key);
     if (kept && kept.r && kept.refs) { render(kept.r, kept.refs.map((x) => ({ ...x, a: x.a }))); return; }
-    el.innerHTML = I.busyHtml('Answering from current evidence and guidelines…');
+    // A quick answer straight away (seconds, written as it comes), while the cited answer is
+    // prepared from the papers; the cited one replaces it when ready.
+    el.innerHTML = `<div class="panel explain qa">
+      <div class="section-h" style="margin:0 0 4px"><h3>${icon('spark')}Quick answer</h3><span class="muted small">checking against papers…</span></div>
+      <div id="qa-quick">${I.busyHtml('Answering…')}</div></div>`;
+    let quickShown = false;
+    D.ai(`QUESTION: ${question}\n\nAnswer for a dermatologist seeing the patient now, in under 180 words. Start with a one-line answer. Then "## Options" as short bullets in order of use (first-line, then second-line or refractory, then procedures), with the usual regimen or strength where standard. End with one line on what current guidelines or consensus say, and say plainly where evidence is limited. No preamble.`,
+      { system: 'You are an experienced, careful dermatologist. Be practical and current; never invent doses or studies; say when something is uncertain.', max: 700,
+        onPartial: (t) => { if (!full && live() && $('#qa-quick')) { quickShown = true; $('#qa-quick').innerHTML = D.md(t); } } })
+      .then((t) => { if (!full && live() && $('#qa-quick')) { quickShown = true; $('#qa-quick').innerHTML = D.md(t); } })
+      .catch(() => { if (!full && live() && $('#qa-quick') && !quickShown) $('#qa-quick').innerHTML = I.busyHtml('Answering from current evidence and guidelines…'); });
     try {
       const yr = new Date().getFullYear();
-      const [pool, guides] = await Promise.all([
-        I.evidencePool(question, { size: 18 }),
-        I.epmc(I.q(question, { extra: `${I.GUIDE} AND PUB_YEAR:[${yr - 6} TO ${yr}]` }), 6).catch(() => ({ results: [] })),
+      // Two quick searches (no AI planning step): the most relevant papers and recent guidelines.
+      const [rel, guides] = await Promise.all([
+        I.epmc({ ...I.q(question), query: `(${I.q(question).query}) AND HAS_ABSTRACT:y NOT SRC:PPR NOT PUB_TYPE:"Case Reports"` }, 14).catch(() => ({ results: [] })),
+        I.epmc(I.q(question, { extra: `${I.GUIDE} AND PUB_YEAR:[${yr - 6} TO ${yr}]` }), 5).catch(() => ({ results: [] })),
       ]);
       const seen = new Set();
-      const papers = [...(guides.results || []).filter((a) => a.abstract), ...pool.papers].filter((a) => !seen.has(a.id) && seen.add(a.id)).slice(0, 22);
-      if (papers.length < 2) { el.innerHTML = ''; return; }
+      const papers = [...(guides.results || []), ...(rel.results || [])].filter((a) => a.abstract && !seen.has(a.id) && seen.add(a.id)).slice(0, 14);
+      if (papers.length < 2) { if (!quickShown) el.innerHTML = ''; return; }
       const refs = papers.map((a, i) => ({ kind: 'paper', a, type: D.studyType(a).label, n: i + 1 }));
-      const doc = refs.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 850)}`).join('\n\n');
+      const doc = refs.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 650)}`).join('\n\n');
       const r = D.aiJson(await D.ai(`QUESTION: ${question}\n\n`
         + 'Answer this for a dermatologist straight away, like a short up-to-date review, using only these papers (guidelines and consensus statements come first; prefer the newest guidance and the strongest evidence):\n'
         + '- headline: one or two sentences that answer the question directly (for treatment questions: the first-line options and when to step up).\n'
@@ -461,12 +474,14 @@
         + '- table: where it helps (e.g. treatment, evidence level, key result, notes — one row per option), cells may cite [n]; otherwise caption "", columns [] and rows [].\n'
         + '- guidelines: what the current guidelines or consensus statements among the papers recommend, each with its citations; [] if none.\n'
         + '- claims: 3 to 5 key claims with evidence strength (strong, moderate, limited) and the papers behind them.',
-        { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: ANSWER(), max: 6000 }));
+        { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: ANSWER(), max: 3500 }));
       I.cacheSet(key, { r, refs });
       render(r, refs);
     } catch (e) {
-      if (live()) el.innerHTML = I.aiErr(e) + `<button class="btn xs" data-act="qa-redo" style="margin-top:6px">${icon('spark')}Try again</button>`;
       actions['qa-redo'] = () => searchAnswer(question, el);
+      // The quick answer stays; only the cited version failed.
+      if (live() && quickShown) { el.querySelector('.section-h .muted').textContent = 'references didn\'t load'; return; }
+      if (live()) el.innerHTML = I.aiErr(e) + `<button class="btn xs" data-act="qa-redo" style="margin-top:6px">${icon('spark')}Try again</button>`;
     }
   }
   ext.searchAnswer = searchAnswer;
