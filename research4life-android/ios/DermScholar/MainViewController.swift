@@ -143,6 +143,7 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         b.onPdf = { [weak self] data, name, title in
             self?.hand(data, name: name, mime: "application/pdf", key: key, title: title)
         }
+        b.onClose = { [weak self] in self?.send(["type": "browserClosed", "key": key]) }
         b.onCredentials = { [weak self] p, user in
             self?.send(["type": "credentialsSaved", "p": p, "user": user])
         }

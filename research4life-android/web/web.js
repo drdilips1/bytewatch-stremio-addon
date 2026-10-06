@@ -632,7 +632,7 @@
       if (IOS) {
         // The app's browser signs in to Research4Life by itself and files the PDF when it opens.
         N.showFetchPage(key, doi);
-        emit({ type: 'pdfFailed', key, canShow: true, message: 'Opened Research4Life: open the PDF there and it files itself under this paper. Closed it too soon? Tap Show page.' });
+        emit({ type: 'fetchStatus', key, message: 'Opened in the browser: open the PDF there (or tap Save PDF) and it saves under this paper.' });
         return;
       }
       emit({ type: 'pdfFailed', key, canShow: true, message: 'Tap Show page, download the PDF there (Research4Life, MyLOFT or the journal), then come back and tap Add PDF: it files itself under this paper.' });
@@ -808,6 +808,11 @@
       return;
     }
     if (evt.type === 'notice') { toast(evt.message); return; }
+    if (evt.type === 'browserClosed') {
+      // Closed without the PDF: drop the "getting the PDF" row (a saved PDF arrives just before).
+      if (evt.key) setTimeout(() => { if (!pdfIndex()[evt.key]) emit({ type: 'fetchDone', key: evt.key }); }, 2500);
+      return;
+    }
     if (evt.type === 'credentialsSaved') {
       // Typed on a sign-in page in the app's browser: the password stays in the iPhone's Keychain.
       try { localStorage.setItem('ds.acc.' + evt.p, evt.user); } catch { /* blocked */ }

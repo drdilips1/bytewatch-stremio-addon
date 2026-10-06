@@ -6,6 +6,8 @@ import WebKit
 /// was opened to get a paper's PDF (`key`), otherwise with the Save PDF button.
 final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKDownloadDelegate {
     var onPdf: ((Data, String, String) -> Void)?
+    /// The browser closed (Done, or by itself after saving the paper's PDF).
+    var onClose: (() -> Void)?
     /// A login typed on a sign-in page (provider, user): saved in the Keychain, shown in Settings.
     var onCredentials: ((String, String) -> Void)?
     private var autoSignIns = 0
@@ -95,7 +97,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         webView.load(URLRequest(url: firstURL))
     }
 
-    @objc private func close() { dismiss(animated: true) }
+    @objc private func close() { onClose?(); dismiss(animated: true) }
     @objc private func goBack() { webView.goBack() }
     @objc private func goForward() { webView.goForward() }
     @objc private func reloadPage() { webView.reload() }
@@ -259,7 +261,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             return
         }
         onPdf?(pdf, d.name.isEmpty ? "paper.pdf" : d.name, webView.title ?? "")
-        if d.auto { dismiss(animated: true) } else { title = "Saved to your library" }
+        if d.auto { onClose?(); dismiss(animated: true) } else { title = "Saved to your library" }
     }
 
     func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {

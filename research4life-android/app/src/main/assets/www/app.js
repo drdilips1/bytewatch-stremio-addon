@@ -3301,6 +3301,11 @@
         if (el) el.textContent = evt.message;
         return;
       }
+      if (evt.type === 'fetchDone') {
+        // iPhone app: its browser closed without a PDF — no row left behind.
+        if (jobs.get(evt.key)?.state === 'running') { jobs.delete(evt.key); renderTray(); refreshCards(); }
+        return;
+      }
       if (evt.type === 'fetchStatus') {
         const j = jobs.get(evt.key);
         if (j) { j.state = 'running'; j.message = evt.message; j.at = Date.now(); renderTray(); }
