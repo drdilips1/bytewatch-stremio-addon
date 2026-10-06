@@ -1,6 +1,6 @@
 # DermScholar: handoff for a new session
 
-> **Owner's build rule (6 Oct 2026):** build only on "build for iOS", "build for Android" or "build for both" (not a plain "build now"); commit everything else with `[skip ci]`. Android Get PDF works — don't change Android unless asked.
+> **Owner's build rule (6 Oct 2026):** build only on "build for iOS", "build for Android" or "build for both" (not a plain "build now"); commit everything else with `[skip ci]`. Android Get PDF works — don't change Android unless asked. **The owner's reports are about iOS (iPhone/iPad) unless they say Android.**
 
 
 Read this first, then `BACKLOG.md` (the roadmap with every request and its status).
