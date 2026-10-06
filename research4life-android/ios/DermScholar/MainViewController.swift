@@ -70,14 +70,11 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         case "browse":
             if let s = body["url"] as? String, let u = MainViewController.url(s) { openBrowser(u, key: body["key"] as? String ?? "") }
         case "openApp":
-            // Another app's own link (MyLOFT): its app when installed, else the App Store.
-            guard let s = body["url"] as? String, let u = URL(string: s) else { break }
-            let store = (body["store"] as? String).flatMap(URL.init(string:))
-            // https: only as the app's own link (else the website would open); altstore://… as is.
-            let only: [UIApplication.OpenExternalURLOptionsKey: Any] = u.scheme == "https" ? [.universalLinksOnly: true] : [:]
-            UIApplication.shared.open(u, options: only) { ok in
-                if !ok { UIApplication.shared.open(store ?? u) }
-            }
+            // Another app (MyLOFT, AltStore): each of its links in turn — its own scheme, then its
+            // https link as the app's (never the website) — else the App Store / its site.
+            var links = ((body["urls"] as? [String]) ?? []).compactMap(URL.init(string:))
+            if let s = body["url"] as? String, let u = URL(string: s) { links.append(u) }
+            openFirst(links, fallback: (body["store"] as? String).flatMap(URL.init(string:)))
         case "copy":
             UIPasteboard.general.string = body["text"] as? String ?? ""
         case "share":
@@ -179,6 +176,21 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         vc.popoverPresentationController?.sourceView = view
         vc.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 80, width: 1, height: 1)
         topPresenter().present(vc, animated: true)
+        // Never a tap that does nothing: say so if the share panel didn't come up.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            if vc.presentingViewController == nil { self?.send(["type": "notice", "message": "The share panel didn't open. The link is copied: paste it where you need it."]) }
+        }
+    }
+
+    private func openFirst(_ links: [URL], fallback: URL?) {
+        guard let u = links.first else {
+            if let f = fallback { UIApplication.shared.open(f) } else { send(["type": "notice", "message": "That app isn't installed on this device."]) }
+            return
+        }
+        let only: [UIApplication.OpenExternalURLOptionsKey: Any] = u.scheme == "https" ? [.universalLinksOnly: true] : [:]
+        UIApplication.shared.open(u, options: only) { [weak self] ok in
+            if !ok { self?.openFirst(Array(links.dropFirst()), fallback: fallback) }
+        }
     }
 
     private func topPresenter() -> UIViewController {

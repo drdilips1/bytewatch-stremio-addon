@@ -807,6 +807,7 @@
       ios('done', { id: evt.id });
       return;
     }
+    if (evt.type === 'notice') { toast(evt.message); return; }
     if (evt.type === 'credentialsSaved') {
       // Typed on a sign-in page in the app's browser: the password stays in the iPhone's Keychain.
       try { localStorage.setItem('ds.acc.' + evt.p, evt.user); } catch { /* blocked */ }
@@ -849,18 +850,18 @@
     // MyLOFT's website only works inside its app: hand the paper's link to the MyLOFT app through
     // the share sheet (its "Save to MyLOFT"), or open the app itself.
     const MYLOFT_STORE = 'itms-apps://apps.apple.com/search?term=MyLOFT';
-    N.openMyLoftApp = () => ios('openApp', { url: 'https://app.myloft.xyz/', store: MYLOFT_STORE });
+    N.openMyLoftApp = () => ios('openApp', { urls: ['myloft://', 'https://app.myloft.xyz/'], store: MYLOFT_STORE });
     // UpToDate inside the app, as on Android: the app's hidden browser signs in and reads it.
     if ((window.DSNative && window.DSNative.level) >= 3) {
       N.utdSearch = (q) => ios('utdSearch', { q });
       N.utdTopic = (u) => ios('utdTopic', { url: u });
       N.utdShowPage = () => ios('utdShowPage');
     }
-    N.myloftViaShareSheet = true;
+    // MyLOFT: no "Open with" panel — the paper's link is copied and the MyLOFT app opens.
+    N.myloftHint = 'Link copied and MyLOFT opened: paste the link in MyLOFT (its search or browser), open the paper, download the PDF, then Share → DermScholar. It files itself under this paper.';
     N.sendToMyLoft = (text) => {
-      N.copy(text);
-      if (/^https?:/.test(text)) ios('share', { title: 'Send to MyLOFT', url: text });
-      else N.openMyLoftApp();
+      try { ios('copy', { text }); } catch { /* no clipboard */ }
+      N.openMyLoftApp();
     };
     // The iPhone app keeps passwords in the Keychain and its browser signs in with them; the
     // screens keep only the user ID.
