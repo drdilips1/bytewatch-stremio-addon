@@ -631,6 +631,13 @@
       // The free copy (if any) didn't give a PDF (Europe PMC sometimes lists one that doesn't exist):
       // Show page goes through Research4Life instead.
       ls.set('fetch.' + key, { doi, free: '', pii: pii || '' });
+      if (IOS && bgFetch()) {
+        // As on Android: the app's browser works out of sight (signs in, finds and saves the PDF)
+        // while the app stays usable; the tray shows each step, and Show page brings the browser up.
+        ios('fetchPdf', { key, url: fetchUrl(key, doi) });
+        emit({ type: 'fetchStatus', key, message: 'Opening the paper through Research4Life…' });
+        return;
+      }
       if (IOS) {
         // The app's browser signs in to Research4Life by itself and files the PDF when it opens.
         N.showFetchPage(key, doi);
@@ -641,17 +648,13 @@
     },
     downloadPdf: (key, url, title) => N.getPdf(key, '', title, url),
     showFetchPage: (key, doi) => {
-      const f = ls.get('fetch.' + key, {});
       N.setPendingPdf(key, (window.DS && window.DS.saved.get(key) && window.DS.saved.get(key).title) || '');
-      const d = doi || f.doi;
-      // With a Research4Life account, go through its proxy (sign in once in Safari); else the publisher.
-      const r4l = (() => { try { return !!localStorage.getItem('ds.acc.r4l'); } catch { return false; } })();
-      // Elsevier (JAAD…): Research4Life gives the PDF through ClinicalKey, not ScienceDirect.
-      const viaR4L = f.pii ? 'https://www.clinicalkey.com/#!/content/journal/1-s2.0-' + f.pii
-        : d ? (r4l ? 'https://login.research4life.org/tacsgr1doi_org/' : 'https://doi.org/') + d : '';
-      openTab(f.free || viaR4L, 'Open the paper', key);
+      const url = fetchUrl(key, doi);
+      // The background Get PDF browser as it is (else the paper's page).
+      if (IOS && bgFetch()) { ios('showFetch', { key, url }); return; }
+      openTab(url, 'Open the paper', key);
     },
-    cancelFetch: () => {},
+    cancelFetch: (key) => { if (IOS && bgFetch()) ios('cancelFetch', { key }); },
     openPdf: (key) => N.openPdfPages(key),
     openPdfPages: async (key) => {
       if (IOS) { N.sharePdf(key, (pdfIndex()[key] || {}).title || 'paper'); return; }
@@ -797,6 +800,19 @@
   function b64(blob) {
     return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).slice(String(r.result).indexOf(',') + 1)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
   }
+  /** The iPhone app can get PDFs out of sight (native level 4). */
+  function bgFetch() { return !!(window.DSNative && DSNative.level >= 4); }
+  /** Where a paper's PDF is fetched: its free copy, else through Research4Life. */
+  function fetchUrl(key, doi) {
+    const f = ls.get('fetch.' + key, {});
+    const d = doi || f.doi;
+    // With a Research4Life account, go through its proxy (sign in once in Safari); else the publisher.
+    const r4l = (() => { try { return !!localStorage.getItem('ds.acc.r4l'); } catch { return false; } })();
+    // Elsevier (JAAD…): Research4Life gives the PDF through ClinicalKey, not ScienceDirect.
+    const viaR4L = f.pii ? 'https://www.clinicalkey.com/#!/content/journal/1-s2.0-' + f.pii
+      : d ? (r4l ? 'https://login.research4life.org/tacsgr1doi_org/' : 'https://doi.org/') + d : '';
+    return f.free || viaR4L;
+  }
   /** Files from the iPhone app: PDFs saved in its browser, and files opened with DermScholar. */
   N.fromNative = async (evt) => {
     if (evt.type === 'nativeFile') {
@@ -813,6 +829,8 @@
     if (evt.type === 'browserClosed') {
       // Closed without the PDF: drop the "getting the PDF" row (a saved PDF arrives just before).
       if (evt.key) setTimeout(() => { if (!pdfIndex()[evt.key]) emit({ type: 'fetchDone', key: evt.key }); }, 2500);
+      // Back from Show page (signed in there, perhaps): try the paper again by itself, as on Android.
+      if (evt.key && bgFetch()) setTimeout(() => { try { window.App && App.onResume && App.onResume(); } catch { /* old screens */ } }, 2600);
       return;
     }
     if (evt.type === 'credentialsSaved') {

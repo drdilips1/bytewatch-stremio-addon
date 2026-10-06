@@ -10,6 +10,15 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     var onClose: (() -> Void)?
     /// A login typed on a sign-in page (provider, user): saved in the Keychain, shown in Settings.
     var onCredentials: ((String, String) -> Void)?
+    /// Get PDF in the background (as Android's PdfFetcher): the browser works out of sight while the
+    /// app stays usable; progress and failures go to the screens' tray, whose Show page brings it up.
+    var background = false
+    var onStatus: ((String) -> Void)?
+    /// Failed in the background (message, journal not in Research4Life).
+    var onFailed: ((String, Bool) -> Void)?
+    /// The PDF was saved in the background.
+    var onDone: (() -> Void)?
+    private var reported = false
     private var autoSignIns = 0
     private var signedIn = false
     private var reopened = false
@@ -93,54 +102,40 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         webView.customUserAgent = LocalFiles.userAgent
         // Get PDF: the steps run behind a cover, as Android fetches in the background — signing in,
         // finding the PDF link on the publisher's page, downloading it (any publisher).
-        if !key.isEmpty { showCover(ckArticle != nil ? "Signing in through Research4Life…" : "Opening the paper through Research4Life…") }
+        if !key.isEmpty && background { showCover(ckArticle != nil ? "Signing in through Research4Life…" : "Opening the paper through Research4Life…") }
         webView.load(URLRequest(url: firstURL))
     }
 
-    // MARK: cover (the automatic Elsevier route runs out of sight)
+    // MARK: automatic steps (out of sight; progress goes to the tray)
 
-    private var cover: UIView?
-    private let coverLabel = UILabel()
+    /// The automatic Get PDF steps are running.
+    private var covering = false
 
     private func showCover(_ text: String) {
-        coverLabel.text = text
-        guard cover == nil else { return }
-        let c = UIView()
-        c.backgroundColor = .systemBackground
-        c.translatesAutoresizingMaskIntoConstraints = false
-        let spin = UIActivityIndicatorView(style: .large)
-        spin.startAnimating()
-        coverLabel.numberOfLines = 0
-        coverLabel.textAlignment = .center
-        coverLabel.font = .preferredFont(forTextStyle: .headline)
-        let show = UIButton(type: .system)
-        show.setTitle("Show page", for: .normal)
-        show.addTarget(self, action: #selector(liftCover), for: .touchUpInside)
-        let stack = UIStackView(arrangedSubviews: [spin, coverLabel, show])
-        stack.axis = .vertical
-        stack.spacing = 16
-        stack.alignment = .center
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        c.addSubview(stack)
-        view.addSubview(c)
-        NSLayoutConstraint.activate([
-            c.leadingAnchor.constraint(equalTo: view.leadingAnchor), c.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            c.topAnchor.constraint(equalTo: view.topAnchor), c.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            stack.centerXAnchor.constraint(equalTo: c.centerXAnchor), stack.centerYAnchor.constraint(equalTo: c.centerYAnchor),
-            stack.widthAnchor.constraint(lessThanOrEqualTo: c.widthAnchor, constant: -48),
-        ])
-        cover = c
-        // Not done within 75 s: show the page and say so.
+        status(text)
+        guard !covering else { return }
+        covering = true
+        // Not done within 75 s: say so (the tray's Show page opens the page).
         DispatchQueue.main.asyncAfter(deadline: .now() + 75) { [weak self] in
-            guard let self = self, self.cover != nil else { return }
+            guard let self = self, self.covering else { return }
             self.liftCover()
-            self.notice("The PDF didn't come automatically. Here's the page: open the PDF or tap Save PDF.")
+            self.notice("The PDF didn't come automatically. Tap Show page to open it yourself, or try MyLOFT.")
         }
     }
 
-    @objc private func liftCover() {
-        cover?.removeFromSuperview()
-        cover = nil
+    private func status(_ text: String) {
+        if background && !reported { onStatus?(text) }
+    }
+
+    private func liftCover() {
+        covering = false
+    }
+
+    /// Show page from the tray: the person takes over on the page as it is.
+    func bringToFront() {
+        background = false
+        covering = false
+        title = webView?.title
     }
 
     // MARK: automatic PDF (Android's PdfFetcher: the page's PDF links, best first)
@@ -200,11 +195,11 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     }
 
     private func autoFindPdf() {
-        guard !key.isEmpty, cover != nil, !autoBusy, downloads.isEmpty, ckArticle == nil, let here = webView.url else { return }
+        guard !key.isEmpty, covering, !autoBusy, downloads.isEmpty, ckArticle == nil, let here = webView.url else { return }
         if SignIn.provider(for: here) != nil || SignIn.isClinicalKeyHost(here.host) { return }
         autoBusy = true
         webView.evaluateJavaScript(UtdScripts.findPdf) { [weak self] v, _ in
-            guard let self = self, self.cover != nil else { return }
+            guard let self = self, self.covering else { return }
             self.autoBusy = false
             let list = ((v as? String).flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) } as? [String]) ?? []
             let proxied = SignIn.isR4LHost(here.host) && here.path.hasPrefix("/tacsgr1")
@@ -214,7 +209,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
                 .first { !self.autoTried.contains($0) && $0 != here.absoluteString }
             if let n = next, let u = URL(string: n), self.autoTried.count < 4 {
                 self.autoTried.insert(n)
-                self.coverLabel.text = "Getting the PDF…"
+                self.status("Getting the PDF…")
                 self.download(u, auto: true)
                 return
             }
@@ -227,7 +222,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             self.liftCover()
             let r4l = SignIn.isR4LHost(here.host)
             self.notice(r4l || !self.autoTried.isEmpty
-                ? "The PDF didn't come automatically. Here's the page: open its PDF, or tap Save PDF."
+                ? "The PDF didn't come automatically. Tap Show page to open its PDF yourself, or try MyLOFT."
                 : "This journal doesn't seem to be in your Research4Life access (\(here.host ?? "")). Try MyLOFT.")
         }
     }
@@ -273,16 +268,20 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             if SignIn.isClinicalKeyArticle(startURL) {
                 ckArticle = startURL
                 webView.load(URLRequest(url: SignIn.clinicalKeyLogin(returningTo: startURL)))
-            } else {
+            } else if covering {
                 liftCover()
+                notice("The sign-in didn't go through. Tap Show page to open the paper yourself.")
             }
             return
         }
-        if cover != nil, let h = webView.url?.host {
-            coverLabel.text = SignIn.isClinicalKeyHost(h) ? "Opening the paper in ClinicalKey…"
-                : SignIn.provider(for: webView.url) == "r4l" ? "Signing in to Research4Life…" : coverLabel.text
+        if covering, let h = webView.url?.host {
+            if SignIn.isClinicalKeyHost(h) { status("Opening the paper in ClinicalKey…") }
+            else if SignIn.provider(for: webView.url) == "r4l" { status("Signing in to Research4Life…") }
             // A sign-in page with no saved login: the person has to type it.
-            if SignIn.provider(for: webView.url) == "r4l" && Keychain.load(provider: "r4l") == nil { liftCover() }
+            if SignIn.provider(for: webView.url) == "r4l" && Keychain.load(provider: "r4l") == nil {
+                liftCover()
+                notice("Save your Research4Life sign-in in Settings, or tap Show page to sign in once.")
+            }
         }
         // ClinicalKey reached through Research4Life: now open the article.
         if let art = ckArticle, SignIn.isClinicalKeyHost(webView.url?.host) {
@@ -293,7 +292,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             }
             // Then fetch its PDF, as Android does (ClinicalKey's page builds itself: give it time).
             if !key.isEmpty, let pdf = SignIn.clinicalKeyPdf(for: art) {
-                coverLabel.text = "Getting the PDF…"
+                status("Getting the PDF…")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 9) { [weak self] in
                     guard let self = self, self.fetching.isEmpty, self.downloads.isEmpty else { return }
                     self.download(pdf, auto: true)
@@ -303,8 +302,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         }
         guard let p = SignIn.provider(for: webView.url) else {
             // A publisher's page: look for its PDF (Get PDF, behind the cover).
-            if cover != nil {
-                coverLabel.text = "Looking for the PDF…"
+            if covering {
+                status("Looking for the PDF…")
                 autoLooks = 0
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.autoFindPdf() }
             }
@@ -417,14 +416,20 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         try? FileManager.default.removeItem(at: d.file)
         guard let pdf = data, pdf.prefix(1024).range(of: Data("%PDF".utf8)) != nil else {
             // That link gave a page, not the PDF: try the page's next link.
-            if cover != nil, autoTried.count < 4 { autoLooks = 3; DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.autoFindPdf() }; return }
+            if covering, autoTried.count < 4 { autoLooks = 3; DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.autoFindPdf() }; return }
             liftCover()
             title = webView.title
             notice("That download wasn't a PDF (the site sent a page instead). Open the PDF itself, then tap Save PDF.")
             return
         }
         onPdf?(pdf, d.name.isEmpty ? "paper.pdf" : d.name, webView.title ?? "")
-        if d.auto { onClose?(); dismiss(animated: true) } else { title = "Saved to your library" }
+        if d.auto {
+            covering = false
+            onClose?()
+            if background { onDone?() } else { dismiss(animated: true) }
+        } else {
+            title = "Saved to your library"
+        }
     }
 
     func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
@@ -437,6 +442,11 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     }
 
     private func notice(_ text: String) {
+        if background {
+            // Out of sight: the tray shows it once, with Show page.
+            if !reported { reported = true; onFailed?(text, text.hasPrefix("This journal doesn't")) }
+            return
+        }
         let a = UIAlertController(title: nil, message: text, preferredStyle: .alert)
         a.addAction(UIAlertAction(title: "OK", style: .default))
         present(a, animated: true)
@@ -464,12 +474,14 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     }
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        if background { completionHandler(); return }
         let a = UIAlertController(title: nil, message: message, preferredStyle: .alert)
         a.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
         present(a, animated: true)
     }
 
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        if background { completionHandler(true); return }
         let a = UIAlertController(title: nil, message: message, preferredStyle: .alert)
         a.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(false) })
         a.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })

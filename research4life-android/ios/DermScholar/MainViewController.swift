@@ -67,6 +67,15 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
             let pending = queued
             queued = []
             pending.forEach { send($0) }
+        case "fetchPdf":
+            // Get PDF in the background: the app stays usable, progress shows in the tray.
+            if let s = body["url"] as? String, let u = MainViewController.url(s), let key = body["key"] as? String, !key.isEmpty {
+                fetchInBackground(u, key: key)
+            }
+        case "showFetch":
+            showFetch(key: body["key"] as? String ?? "", url: (body["url"] as? String).flatMap(MainViewController.url))
+        case "cancelFetch":
+            if let key = body["key"] as? String, let nav = fetches.removeValue(forKey: key) { detach(nav) }
         case "browse":
             if let s = body["url"] as? String, let u = MainViewController.url(s) { openBrowser(u, key: body["key"] as? String ?? "") }
         case "openApp":
@@ -131,6 +140,62 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         var allowed = CharacterSet.urlQueryAllowed
         allowed.insert(charactersIn: "#")
         return s.addingPercentEncoding(withAllowedCharacters: allowed).flatMap(URL.init(string:))
+    }
+
+    /// Get PDF browsers working out of sight, by paper.
+    private var fetches: [String: UINavigationController] = [:]
+
+    private func fetchInBackground(_ url: URL, key: String) {
+        if let old = fetches.removeValue(forKey: key) { detach(old) }
+        let b = BrowserViewController(url: url, key: key)
+        b.background = true
+        b.onPdf = { [weak self] data, name, title in
+            self?.hand(data, name: name, mime: "application/pdf", key: key, title: title)
+        }
+        b.onCredentials = { [weak self] p, user in
+            self?.send(["type": "credentialsSaved", "p": p, "user": user])
+        }
+        b.onStatus = { [weak self] m in self?.send(["type": "fetchStatus", "key": key, "message": m]) }
+        b.onFailed = { [weak self] m, notIn in
+            self?.send(["type": "fetchFailed", "key": key, "message": m, "canShow": true, "notInR4L": notIn])
+        }
+        b.onDone = { [weak self] in
+            guard let self = self, let nav = self.fetches[key], nav.viewControllers.first === b else { return }
+            self.fetches.removeValue(forKey: key)
+            self.detach(nav)
+        }
+        let nav = UINavigationController(rootViewController: b)
+        b.loadViewIfNeeded()
+        addChild(nav)
+        nav.view.frame = view.bounds
+        nav.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        // Present but invisible (as UtdClient): pages in a window keep running their scripts.
+        nav.view.alpha = 0.01
+        nav.view.isUserInteractionEnabled = false
+        view.insertSubview(nav.view, at: 0)
+        nav.didMove(toParent: self)
+        fetches[key] = nav
+    }
+
+    private func detach(_ nav: UINavigationController) {
+        nav.willMove(toParent: nil)
+        nav.view.removeFromSuperview()
+        nav.removeFromParent()
+    }
+
+    /// Show page from the tray: the background browser as it is, or else the paper's page.
+    private func showFetch(key: String, url: URL?) {
+        guard let nav = fetches.removeValue(forKey: key), let b = nav.viewControllers.first as? BrowserViewController else {
+            if let u = url { openBrowser(u, key: key) }
+            return
+        }
+        detach(nav)
+        nav.view.alpha = 1
+        nav.view.isUserInteractionEnabled = true
+        b.bringToFront()
+        b.onClose = { [weak self] in self?.send(["type": "browserClosed", "key": key]) }
+        nav.modalPresentationStyle = .fullScreen
+        topPresenter().present(nav, animated: true)
     }
 
     func openBrowser(_ url: URL, key: String) {
