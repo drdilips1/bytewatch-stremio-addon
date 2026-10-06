@@ -92,7 +92,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         ]
         webView.customUserAgent = LocalFiles.userAgent
         if ckArticle != nil && SignIn.clinicalKeyEntry == nil {
-            navigationItem.prompt = "Tap ClinicalKey on Research4Life once: the app remembers it"
+            navigationItem.prompt = "Signed in? Search ClinicalKey on Research4Life and tap it once: the app remembers it"
         }
         webView.load(URLRequest(url: firstURL))
     }
@@ -137,7 +137,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             SignIn.clinicalKeyEntry = nil
             UserDefaults.standard.removeObject(forKey: "ckEntry")
             if SignIn.isClinicalKeyArticle(startURL) { ckArticle = startURL }
-            navigationItem.prompt = "Tap ClinicalKey on Research4Life once: the app remembers it"
+            navigationItem.prompt = "Signed in? Search ClinicalKey on Research4Life and tap it once: the app remembers it"
             webView.load(URLRequest(url: SignIn.portal))
             return
         }

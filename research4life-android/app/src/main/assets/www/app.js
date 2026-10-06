@@ -556,6 +556,7 @@
 
   const TAB_OF = { intel: 'intel', research: 'intel', project: 'intel', rp: 'intel', gaps: 'intel', compare: 'intel', drug: 'intel', images: 'intel', imgread: 'intel', alerts: 'intel', living: 'intel', sr: 'intel', cases: 'intel', case: 'intel', drugs: 'intel', lasers: 'intel', cme: 'intel', confs: 'intel', network: 'intel', graph: 'intel', visual: 'intel', clin: 'intel', shared: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', mlq: 'library', pyramid: 'search', meter: 'search', cites: 'intel', pipeline: 'intel', histo: 'intel', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
 
+  const tabPlace = {};
   async function render() {
     closeSheet();
     closeDrawer();
@@ -572,6 +573,8 @@
     const tab = TAB_OF[r.name];
     if (tab !== null && tab !== undefined) {
       $$('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+      // Each tab remembers where it was (a journal issue, a library filter…) for coming back.
+      tabPlace[tab] = location.hash.replace(/^#\/?/, '');
     }
     window.scrollTo(0, 0);
     try {
@@ -3191,12 +3194,16 @@
     $('#nav [data-tab=portal]')?.classList.toggle('hidden', !settings.showR4L);
     $('#nav [data-tab=utd]')?.classList.toggle('hidden', !settings.showUTD);
   }
+  // Where each bottom tab was left: switching back returns there; tapping the tab you're on goes
+  // to its main page (tabPlace is kept by render()).
   function switchTab(tab) {
     if (tab === 'portal') { Native.openPortal(PORTAL, '', ''); return; }
     if (tab === 'utd') { go(utdHash('')); return; }
     const target = { search: '', intel: 'intel', journals: 'journals', library: 'library' }[tab];
     if (parseHash().name === (target || 'home')) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-    go(target);
+    const here = TAB_OF[parseHash().name];
+    const back = tabPlace[tab];
+    go(here !== tab && back && back !== target ? back : target);
   }
   $$('#nav button').forEach((b) => {
     b.querySelector('[data-icon]').innerHTML = icon(b.querySelector('[data-icon]').dataset.icon);

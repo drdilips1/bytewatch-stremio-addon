@@ -48,7 +48,8 @@ enum SignIn {
         return !reopenable(u)
     }
 
-    static let portal = URL(string: "https://portal.research4life.org/")!
+    /// Research4Life's sign-in page: the saved login fills in there (its home page stays signed out).
+    static let portal = URL(string: "https://portal.research4life.org/signin")!
 
     /// ClinicalKey's PDF for the article on show (its PDF button's address), as the Android app uses.
     static func clinicalKeyPdf(for url: URL?) -> URL? {
