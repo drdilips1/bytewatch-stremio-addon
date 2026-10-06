@@ -1245,3 +1245,6 @@ details.panel summary { cursor: pointer; }
 .ev-tot span { font-size: 12px; color: var(--text-3); }
 .cm-headline { font: 600 19px/1.4 var(--sans); margin: 4px 0 14px; }
 pre.trail { white-space: pre-wrap; word-break: break-all; font-size: 11px; line-height: 1.45; max-height: 50vh; overflow: auto; background: var(--bg-soft); border-radius: 10px; padding: 10px; }
+
+/* Library: remove one paper from its card. */
+.card-actions .lib-del { margin-left: auto; color: var(--text-2); }

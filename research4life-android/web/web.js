@@ -628,7 +628,9 @@
       }
       if (!freeUrl && !doi) { emit({ type: 'pdfFailed', key, message: "This paper has no DOI, so it can't be fetched automatically." }); return; }
       N.setPendingPdf(key, title);
-      ls.set('fetch.' + key, { doi, free: freeUrl || '', pii: pii || '' });
+      // The free copy (if any) didn't give a PDF (Europe PMC sometimes lists one that doesn't exist):
+      // Show page goes through Research4Life instead.
+      ls.set('fetch.' + key, { doi, free: '', pii: pii || '' });
       if (IOS) {
         // The app's browser signs in to Research4Life by itself and files the PDF when it opens.
         N.showFetchPage(key, doi);

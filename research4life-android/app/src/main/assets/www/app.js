@@ -2801,6 +2801,7 @@
         <button class="btn small primary" data-act="add-doc">${icon('plus')}Add document</button>
         <button class="btn small" data-act="go-notes">${icon('note')}My notes</button>
         <button class="btn small" data-act="export" ${saved.size ? '' : 'disabled'}>${icon('download')}Export</button>
+        <button class="btn small" data-act="lib-clean" ${saved.size ? '' : 'disabled'}>${icon('trash')}Clean up</button>
       </div>
       <div id="lib">${items.length ? items.map((a) => libCard(a)).join('') : `<div class="empty">${icon('bookmark')}<b>${saved.size ? 'Nothing matches' : 'Your library is empty'}</b>
         <div>${saved.size ? 'Try another filter.' : 'Save papers from search, or import PDFs you already have. Everything here works offline.'}</div></div>`}</div>`;
@@ -2813,6 +2814,29 @@
     actions.import = () => Native.importPdf();
     actions.export = () => exportSheet(items.length ? items : [...saved.values()]);
     actions['new-collection'] = () => newCollection(() => render());
+    actions['lib-remove'] = (b) => {
+      const a = saved.get(b.dataset.id);
+      if (!a) return;
+      sheet(`<h3>Remove from library?</h3><p class="muted">${esc(a.title)}</p>
+        <p class="muted small">Its notes${pdfKeys.has(a.id) ? ' and offline PDF' : ''} are deleted too.</p>
+        <div class="actions"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="lib-remove-ok">Remove</button></div>`);
+      actions['lib-remove-ok'] = async () => { closeSheet(true); await removeFromLibrary([a.id]); toast('Removed from library'); render(); };
+    };
+    actions['lib-clean'] = () => {
+      const all = [...saved.values()].filter((a) => !a.utd);
+      const noPdf = all.filter((a) => !a.imported && !pdfKeys.has(a.id) && !a.fullText && !a.doc && !a.notes);
+      const read = all.filter((a) => a.status === 'read');
+      sheet(`<h3>Clean up the library</h3>
+        <button class="opt" data-act="lib-clean-go" data-k="nopdf" ${noPdf.length ? '' : 'disabled'}>${icon('trash')}<span>Remove papers without a PDF<small>${noPdf.length} saved papers with no PDF, full text or notes</small></span></button>
+        <button class="opt" data-act="lib-clean-go" data-k="read" ${read.length ? '' : 'disabled'}>${icon('check')}<span>Remove papers marked read<small>${read.length} paper${read.length === 1 ? "" : "s"}, with notes and PDFs</small></span></button>
+        <p class="muted small">To remove one paper, tap the bin on its card.</p>`);
+      actions['lib-clean-go'] = (bb) => {
+        const list = bb.dataset.k === 'read' ? read : noPdf;
+        sheet(`<h3>Remove ${list.length} paper${list.length === 1 ? '' : 's'}?</h3><p class="muted small">This can't be undone.</p>
+          <div class="actions"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="lib-clean-ok">Remove</button></div>`);
+        actions['lib-clean-ok'] = async () => { closeSheet(true); await removeFromLibrary(list.map((a) => a.id)); toast(`Removed ${list.length}`); render(); };
+      };
+    };
   }
 
   function libCard(a) {
@@ -2825,7 +2849,17 @@
       <div class="badges">${st}${badgesFor(a, { compact: true })}${a.fullText ? `<span class="badge b-review">${icon('book')}Full text offline</span>` : ''}
         ${(a.collections || []).map((c) => `<span class="badge">${esc(c)}</span>`).join('')}</div>
       ${ext.cardExtra ? ext.cardExtra(a) : ''}
-      ${a.imported ? '' : `<div class="card-actions">${pdfAction(a)}</div>`}</div>`;
+      <div class="card-actions">${a.imported ? '' : pdfAction(a)}<button class="icon-btn lib-del" data-act="lib-remove" data-id="${esc(a.id)}" aria-label="Remove from library">${icon('trash')}</button></div></div>`;
+  }
+  /** Removes papers from the library with their notes and offline PDFs. */
+  async function removeFromLibrary(ids) {
+    for (const id of ids) {
+      await db.del(id).catch(() => {});
+      saved.delete(id);
+      if (pdfKeys.has(id)) { Native.deletePdf(id); pdfKeys.delete(id); }
+      jobs.delete(id);
+    }
+    renderTray();
   }
 
   // ---------------------------------------------------------------- citations & export
