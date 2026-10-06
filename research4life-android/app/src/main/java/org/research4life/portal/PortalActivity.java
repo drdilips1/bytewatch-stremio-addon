@@ -213,15 +213,39 @@ public class PortalActivity extends Activity {
         }
     }
 
+    // The first link followed from a Research4Life page; when it leads to ClinicalKey, it is the
+    // link that signs you in there (R4LSession.clinicalKeyEntry), kept for Get PDF to renew it.
+    private boolean fromR4LPage;
+    private String chainStart;
+
+    private void noteClinicalKeyEntry(Uri u) {
+        String host = u.getHost();
+        if (host == null) return;
+        String path = u.getPath() == null ? "" : u.getPath();
+        if (R4LSession.isR4LHost(host) && !path.startsWith("/tacgw")) {
+            fromR4LPage = true;
+            chainStart = null;
+            return;
+        }
+        if (fromR4LPage && chainStart == null) chainStart = u.toString();
+        if (R4LSession.isClinicalKeyHost(host)) {
+            if (chainStart != null && !chainStart.contains("#!/content/")) R4LSession.setClinicalKeyEntry(this, chainStart);
+            fromR4LPage = false;
+            chainStart = null;
+        }
+    }
+
     private void attachClients() {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                noteClinicalKeyEntry(request.getUrl());
                 return handleUrl(request.getUrl());
             }
 
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                noteClinicalKeyEntry(Uri.parse(url));
                 progressBar.setVisibility(View.VISIBLE);
                 titleView.setText(Uri.parse(url).getHost());
             }

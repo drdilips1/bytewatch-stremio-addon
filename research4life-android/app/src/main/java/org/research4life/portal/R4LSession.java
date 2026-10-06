@@ -145,6 +145,23 @@ final class R4LSession {
         return "https://www.clinicalkey.com/#!/content/journal/1-s2.0-" + pii;
     }
 
+    /**
+     * The link Research4Life uses to sign you in to ClinicalKey, learned the first time ClinicalKey
+     * is opened from Research4Life in the app (PortalActivity). That sign-in expires; Get PDF opens
+     * this link again to renew it.
+     */
+    static void setClinicalKeyEntry(Context ctx, String url) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("ckEntry", url).apply();
+    }
+
+    static String clinicalKeyEntry(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("ckEntry", null);
+    }
+
+    static boolean isClinicalKeyHost(String host) {
+        return host != null && (host.equals("clinicalkey.com") || host.endsWith(".clinicalkey.com"));
+    }
+
     /** ClinicalKey's PDF download for an Elsevier article (the link of its PDF button). */
     static String clinicalKeyPdfUrl(String pii) {
         return "https://www.clinicalkey.com/service/content/pdf/watermarked/1-s2.0-" + pii + ".pdf?locale=en_US&searchIndex=";
