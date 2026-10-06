@@ -208,6 +208,7 @@
     if (url && w && !/myloft/i.test(url[0]) && text.length < url[0].length + 200) {
       sheet(`<h3>MyLOFT sent the link, not the PDF</h3>
         <p class="small">The link only opens with access <b>inside MyLOFT</b>. In MyLOFT, open the article, tap <b>PDF</b> or <b>Download</b>, then <b>Share</b> the PDF file → <b>DermScholar</b>. It files itself under “${esc((w.title || '').slice(0, 70))}”.</p>
+        <p class="small">If MyLOFT shows only the abstract, with no PDF or Download button, your library doesn't subscribe to this journal either: neither route has the PDF. Then ask the author for a copy (the paper's corresponding author email), or look for a free version later.</p>
         <button class="btn primary full" data-act="ml-back">Back to MyLOFT</button>
         <button class="btn full" data-act="ml-anyway" style="margin-top:8px">Open the link here anyway</button>`);
       actions['ml-back'] = () => { closeSheet(true); Native.openMyLoftApp?.(); };
