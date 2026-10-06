@@ -239,6 +239,15 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
             items.append((b["text"] as? String) ?? (b["title"] as? String) ?? "")
         }
         let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        // MyLOFT's "save" closes at once on a link shared from another app (it reads web pages as
+        // Safari hands them over): then open the paper in Safari, where Share → MyLOFT saves it.
+        if let s = b["url"] as? String, let u = URL(string: s), u.scheme?.hasPrefix("http") == true {
+            vc.completionWithItemsHandler = { [weak self] type, completed, _, error in
+                guard let self = self, let t = type?.rawValue.lowercased(), t.contains("myloft"), !completed || error != nil else { return }
+                self.send(["type": "notice", "message": "MyLOFT didn't take the link from here. The paper is opening in Safari: tap Share → MyLOFT there to save it."])
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { UIApplication.shared.open(u) }
+            }
+        }
         // iPad: a panel in the middle of the screen, anchored to the view it's shown from.
         let show: (UIViewController) -> Void = { p in
             if let pop = vc.popoverPresentationController, let host = p.view {
