@@ -54,8 +54,9 @@
   const FILES = 'dsweb-files';
   const fileUrl = (kind, key) => new URL('__files/' + kind + '/' + encodeURIComponent(key), location.href).href;
   const pdfIndex = () => ls.get('pdfs', {});
-  // The Cache API needs a secure (https) page; the iPhone app's own pages use IndexedDB instead.
-  const useCache = typeof caches !== 'undefined' && window.isSecureContext;
+  // The Cache API needs a secure http(s) page: the iPhone app's own pages (dsapp://, secure but
+  // not http) keep files in IndexedDB instead ("Request url is not HTTP/HTTPS" otherwise).
+  const useCache = typeof caches !== 'undefined' && window.isSecureContext && /^https?:$/.test(location.protocol);
   let idbP = null;
   const idb = () => idbP || (idbP = new Promise((res, rej) => {
     const r = indexedDB.open('dsweb-files', 1);
