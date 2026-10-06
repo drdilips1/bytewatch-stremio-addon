@@ -109,6 +109,20 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
             utd.topic(body["url"] as? String ?? "") { [weak self] r in self?.send(r.merging(["type": "utdTopic"]) { _, n in n }) }
         case "utdShowPage":
             openBrowser(utd.currentUrl, key: "")
+        case "exportSecrets":
+            send(["type": "secrets", "id": body["id"] as? String ?? "", "creds": Vault.exportLogins()])
+        case "importSecrets":
+            let added = Vault.importLogins(body["creds"] as? [String: Any] ?? [:])
+            if added["px"] != nil { CollegeProxy.apply() }
+            send(["type": "secretsImported", "id": body["id"] as? String ?? "", "added": added])
+        case "vault":
+            // Account-sync crypto for screens without the browser's crypto (see Vault).
+            let op = body["op"] as? String ?? ""
+            let k = body["key"] as? String ?? ""
+            let out: String? = op == "derive" ? Vault.deriveKey(password: body["password"] as? String ?? "", salt: body["salt"] as? String ?? "")
+                : op == "seal" ? Vault.seal(key: k, text: body["text"] as? String ?? "")
+                : op == "open" ? Vault.open(key: k, blob: body["blob"] as? String ?? "") : nil
+            send(["type": "vault", "id": body["id"] as? String ?? "", "out": out ?? NSNull()])
         case "forgetCredentials":
             if let p = body["p"] as? String { Keychain.delete(provider: p) }
         case "done":

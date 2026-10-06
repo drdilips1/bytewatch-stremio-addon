@@ -966,6 +966,7 @@
       const u = form.u.value.trim(); const p = form.p.value;
       if (!u || !p) { toast('Enter both user ID and password'); return; }
       if (Native.setCredentials) Native.setCredentials(provider, u, p); else Native.r4lSetCredentials(u, p);
+      ext.secretsChanged?.();
       if (provider === 'utd') { store.set('utdLoggedIn', false); utdCache.clear(); }
       if (provider === 'r4l') store.set('r4lAsked', true);
       closeSheet(true);
@@ -3156,13 +3157,14 @@
         if (u && p) Native.setCredentials('px', u, p);
         else if (u && !acc.saved) { toast('Enter the password too'); return; }
         Native.setCollegeProxy?.(h, port);
+        ext.secretsChanged?.();
         closeSheet(true);
         toast('College proxy saved');
         render();
       });
     },
     'px-forget': () => { Native.setCollegeProxy?.('', 0); Native.forgetCredentials('px'); toast('College proxy removed'); render(); },
-    'acc-forget': (b) => { Native.forgetCredentials(b.dataset.p); toast(`${PROVIDERS[b.dataset.p].name} sign-in removed`); render(); },
+    'acc-forget': (b) => { Native.forgetCredentials(b.dataset.p); ext.secretsChanged?.(); toast(`${PROVIDERS[b.dataset.p].name} sign-in removed`); render(); },
     'utd-open': () => go(utdHash('')),
     'acc-add': () => signInSheet('r4l', null),
     'acc-use': (b) => { Native.setActiveAccount('r4l', b.dataset.u); toast(`Using ${b.dataset.u} for Research4Life`); render(); },

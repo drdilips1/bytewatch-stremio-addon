@@ -813,6 +813,17 @@
   function b64(blob) {
     return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).slice(String(r.result).indexOf(',') + 1)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
   }
+  // Requests to the iPhone app that answer with an event of the same id.
+  const nativeWaits = {};
+  let nativeSeq = 0;
+  function askNative(cmd, args) {
+    return new Promise((resolve, reject) => {
+      const id = 'n' + (++nativeSeq);
+      nativeWaits[id] = resolve;
+      setTimeout(() => { if (nativeWaits[id]) { delete nativeWaits[id]; reject(new Error('No answer from the app')); } }, 20000);
+      ios(cmd, { ...args, id });
+    });
+  }
   /** The iPhone app can get PDFs out of sight (native level 4). */
   function bgFetch() { return !!(window.DSNative && DSNative.level >= 4); }
   /** Where a paper's PDF is fetched: its free copy, else through Research4Life. */
@@ -846,7 +857,15 @@
       if (evt.key && bgFetch()) setTimeout(() => { try { window.App && App.onResume && App.onResume(); } catch { /* old screens */ } }, 2600);
       return;
     }
+    // Answers to the account sync's requests (logins from the Keychain, the Vault's crypto).
+    if (evt.type === 'secrets' || evt.type === 'secretsImported' || evt.type === 'vault') {
+      const f = nativeWaits[evt.id];
+      delete nativeWaits[evt.id];
+      if (f) f(evt);
+      return;
+    }
     if (evt.type === 'credentialsSaved') {
+      try { window.DS?.ext?.secretsChanged?.(); } catch { /* old screens */ }
       // Typed on a sign-in page in the app's browser: the password stays in the iPhone's Keychain.
       try { localStorage.setItem('ds.acc.' + evt.p, evt.user); } catch { /* blocked */ }
       toast(({ utd: 'UpToDate', spr: 'Springer Nature Link' }[evt.p] || 'Research4Life') + ' sign-in saved');
@@ -903,6 +922,35 @@
       if (/^https?:/.test(text)) ios('share', { title: 'Save to MyLOFT', url: text, then: 'myloft' });
       else N.openMyLoftApp();
     };
+    // The account sync's encrypted part: the logins from the Keychain and the AI keys kept here
+    // (the same shape as Android's exportSecrets / importSecrets).
+    if (window.DSNative && DSNative.level >= 6) {
+      const AIS = ['groq', 'gemini', 'claude'];
+      N.vault = (op, args) => askNative('vault', { op, ...args }).then((e) => e.out || null);
+      N.exportSecretsAsync = async () => {
+        const e = await askNative('exportSecrets', {});
+        const creds = { ...(e.creds || {}) };
+        for (const p of AIS) { const k = ls.get('ai.key.' + p, ''); if (k) creds[p] = { active: 'api', accounts: [{ user: 'api', pass: k }] }; }
+        const out = { creds, ai: { provider: ls.get('ai.provider', 'groq'), auto: ls.get('ai.auto', true) } };
+        const px = ls.get('px', {});
+        if (px.host) out.px = px;
+        return JSON.stringify(out);
+      };
+      N.importSecretsAsync = async (json) => {
+        let o;
+        try { o = JSON.parse(json); } catch { return; }
+        const creds = o.creds || {};
+        const hadAi = AIS.some((p) => ls.get('ai.key.' + p, ''));
+        for (const p of AIS) {
+          const k = creds[p]?.accounts?.[0]?.pass;
+          if (k && !ls.get('ai.key.' + p, '')) ls.set('ai.key.' + p, k);
+        }
+        if (!hadAi && o.ai) { if (o.ai.provider) ls.set('ai.provider', o.ai.provider); ls.set('ai.auto', o.ai.auto !== false); }
+        if (o.px?.host && !ls.get('px', {}).host) { ls.set('px', o.px); ios('setProxy', { host: o.px.host, port: o.px.port || 0 }); }
+        const e = await askNative('importSecrets', { creds });
+        for (const [p, u] of Object.entries(e.added || {})) { try { localStorage.setItem('ds.acc.' + p, u); } catch { /* blocked */ } }
+      };
+    }
     // The college proxy (EZproxy as an internet proxy): the app's browsers use it from iOS 17;
     // before that, the Wi-Fi proxy setting does, and the app answers its password pop-up.
     N.collegeProxy = () => JSON.stringify({ ...ls.get('px', {}), supported: true, ios16: !(window.DSNative && DSNative.proxyApi) });

@@ -283,6 +283,38 @@ final class R4LSession {
         return out.toString();
     }
 
+    /** Every saved login of a provider with its password, for the encrypted account sync. */
+    static org.json.JSONObject exportProvider(Context ctx, String provider) throws org.json.JSONException {
+        org.json.JSONArray arr = accounts(ctx, provider), out = new org.json.JSONArray();
+        String active = username(ctx, provider);
+        for (int i = 0; i < arr.length(); i++) {
+            String u = arr.optJSONObject(i).optString("user");
+            if (u.isEmpty()) continue;
+            boolean was = setActive(ctx, provider, u);
+            String pass = was ? password(ctx, provider) : null;
+            if (pass != null) out.put(new org.json.JSONObject().put("user", u).put("pass", pass));
+        }
+        if (!active.isEmpty()) setActive(ctx, provider, active);
+        return new org.json.JSONObject().put("active", active).put("accounts", out);
+    }
+
+    /** Adds the logins from another device (the active one stays unless there was none). */
+    static void importProvider(Context ctx, String provider, org.json.JSONObject o) {
+        if (o == null) return;
+        String before = username(ctx, provider);
+        org.json.JSONArray arr = o.optJSONArray("accounts");
+        if (arr == null) return;
+        for (int i = 0; i < arr.length(); i++) {
+            org.json.JSONObject a = arr.optJSONObject(i);
+            if (a == null || a.optString("user").isEmpty() || a.optString("pass").isEmpty()) continue;
+            String u = a.optString("user");
+            if (u.equals(username(ctx, provider)) && a.optString("pass").equals(password(ctx, provider))) continue;
+            saveCredentials(ctx, provider, u, a.optString("pass"));
+        }
+        String act = before.isEmpty() ? o.optString("active") : before;
+        if (!act.isEmpty()) setActive(ctx, provider, act);
+    }
+
     static int accountCount(Context ctx, String provider) {
         return accounts(ctx, provider).length();
     }

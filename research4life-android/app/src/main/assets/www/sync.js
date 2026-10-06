@@ -2,7 +2,10 @@
 // Sign in with email/password (or Google, when the sync server allows it) on the same server
 // as Paper2Audio and Inkwell, so one account works across the apps. What syncs: the saved
 // library (papers, statuses, collections, notes), highlights and notes, projects and notebooks,
-// watched questions, follows, history and settings. PDFs themselves stay on each phone.
+// watched questions, follows, history and settings, AI answers already written, and — encrypted
+// with a key made from the account password, so the server can't read them — the logins
+// (Research4Life, UpToDate, Springer, college proxy) and AI keys. PDFs themselves stay on each
+// phone; papers whose PDF another device has can be fetched again in one tap.
 // Data lives in the account's row of public.user_data under the key "dermscholar"; other
 // apps' keys in that row are left untouched.
 (() => {
@@ -96,6 +99,119 @@
     timer = setTimeout(() => sync(), 20000);
   }
 
+  // ---------------------------------------------------------------- encrypted logins
+  // The key is made from the account password (PBKDF2-SHA256, 150,000 rounds, salted with the
+  // email) and kept on this device only; logins and AI keys are sealed with AES-GCM before they
+  // leave it. Screens without the browser's crypto (the iPhone app) use the app's own (Vault).
+  const subtle = (() => { try { return window.isSecureContext !== false && crypto?.subtle ? crypto.subtle : null; } catch { return null; } })();
+  const u8 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const b64of = (buf) => { const a = new Uint8Array(buf); let s0 = ''; for (let i = 0; i < a.length; i += 8192) s0 += String.fromCharCode.apply(null, a.subarray(i, i + 8192)); return btoa(s0); };
+  const vaultSalt = (email) => 'dermscholar-vault:' + String(email || '').trim().toLowerCase();
+  const VK = 'ds.sync.vk';
+  const canVault = () => !!subtle || !!Native.vault;
+  async function vDerive(password, email) {
+    if (subtle) {
+      const base = await subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+      const bits = await subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(vaultSalt(email)), iterations: 150000 }, base, 256);
+      return b64of(bits);
+    }
+    return Native.vault ? Native.vault('derive', { password, salt: vaultSalt(email) }) : null;
+  }
+  async function vSeal(key, text) {
+    if (subtle) {
+      const k = await subtle.importKey('raw', u8(key), 'AES-GCM', false, ['encrypt']);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = new Uint8Array(await subtle.encrypt({ name: 'AES-GCM', iv }, k, new TextEncoder().encode(text)));
+      const out = new Uint8Array(12 + ct.length);
+      out.set(iv); out.set(ct, 12);
+      return b64of(out);
+    }
+    return Native.vault ? Native.vault('seal', { key, text }) : null;
+  }
+  async function vOpen(key, blob) {
+    try {
+      if (subtle) {
+        const d = u8(blob);
+        const k = await subtle.importKey('raw', u8(key), 'AES-GCM', false, ['decrypt']);
+        return new TextDecoder().decode(await subtle.decrypt({ name: 'AES-GCM', iv: d.subarray(0, 12) }, k, d.subarray(12)));
+      }
+      return Native.vault ? await Native.vault('open', { key, blob }) : null;
+    } catch { return null; }
+  }
+  async function getSecrets() {
+    try {
+      if (Native.exportSecretsAsync) return await Native.exportSecretsAsync();
+      return Native.exportSecrets ? Native.exportSecrets() : null;
+    } catch { return null; }
+  }
+  async function putSecrets(json) {
+    try {
+      if (Native.importSecretsAsync) await Native.importSecretsAsync(json);
+      else Native.importSecrets?.(json);
+    } catch { /* old app */ }
+  }
+  const hasSecrets = (json) => { try { const o = JSON.parse(json); return Object.keys(o.creds || {}).length > 0 || !!o.px?.host; } catch { return false; } };
+  let vaultState = ''; // '' | 'locked' (no key yet) | 'wrong' (the account's logins didn't unlock)
+  async function syncVault(mine) {
+    let vault = mine.vault || null;
+    const vk = localStorage.getItem(VK);
+    if (!canVault() || !(Native.exportSecrets || Native.exportSecretsAsync)) return vault;
+    if (!vk) { vaultState = 'locked'; return vault; }
+    vaultState = '';
+    const replace = store.get('sync.vaultReplace', false);
+    if (vault?.blob && (vault.t || 0) > store.get('sync.vaultT', 0) && !replace) {
+      const txt = await vOpen(vk, vault.blob);
+      if (txt == null) { vaultState = 'wrong'; return vault; }
+      await putSecrets(txt);
+      origSet('sync.vaultT', vault.t);
+    }
+    const cur = await getSecrets();
+    if (cur && hasSecrets(cur)) {
+      const h = hash(cur);
+      if (h !== store.get('sync.vaultH', '') || replace) {
+        const blob = await vSeal(vk, cur);
+        if (blob) {
+          vault = { t: Date.now(), blob };
+          origSet('sync.vaultT', vault.t);
+          origSet('sync.vaultH', h);
+          origSet('sync.vaultReplace', false);
+        }
+      }
+    }
+    return vault;
+  }
+  /** Makes this device's key from the account password (at sign-in, or when asked in Settings). */
+  async function unlockVault(password, email) {
+    if (!canVault() || !password) return;
+    const k = await vDerive(password, email || S.get()?.email);
+    if (k) localStorage.setItem(VK, k);
+  }
+  // A login or AI key changed in Settings: sync it soon.
+  ext.secretsChanged = () => schedule();
+
+  // ---------------------------------------------------------------- AI answers
+  // Answers, evidence maps and explanations already written: the newest ones go along (within a
+  // size budget), so the other device opens them at once instead of asking the AI again.
+  const INTEL_BUDGET = 1200000;
+  function intelOut() {
+    const all = Object.keys(localStorage).filter((k) => k.startsWith('ds.intel.')).map((k) => {
+      const v = localStorage.getItem(k) || '';
+      let at = 0;
+      try { at = JSON.parse(v)?.at || 0; } catch { /* not ours */ }
+      return [k, v, at];
+    }).filter(([, v]) => v.length < 60000).sort((x, y) => y[2] - x[2]);
+    const out = {};
+    let size = 0;
+    for (const [k, v] of all) { if (size + v.length > INTEL_BUDGET) break; out[k] = v; size += v.length; }
+    return out;
+  }
+  function intelIn(remote) {
+    for (const [k, v] of Object.entries(remote || {})) {
+      if (!k.startsWith('ds.intel.') || typeof v !== 'string' || localStorage.getItem(k) != null) continue;
+      try { localStorage.setItem(k, v); } catch { return; }
+    }
+  }
+
   // ---------------------------------------------------------------- sync
   let running = false;
   let again = false;
@@ -174,6 +290,8 @@
         changed = true;
         out[id] = r;
       } else out[id] = slim(l);
+      // Which papers have their PDF on some device (fetched again here in one tap).
+      if (out[id] && (out[id].hadPdf || Native.hasPdf?.(id))) out[id] = { ...out[id], hadPdf: true };
     }
 
     // Settings, notes, highlights, projects…: newest value of each key wins.
@@ -200,7 +318,10 @@
     origSet('sync.sent', sent);
     origSet('sync.times', times);
 
-    const section = { v: 1, articles: out, deleted, keys, updatedAt: Date.now() };
+    intelIn(mine.intel);
+    const vault = await syncVault(mine);
+    const section = { v: 1, articles: out, deleted, keys, intel: intelOut(), updatedAt: Date.now() };
+    if (vault) section.vault = vault;
     // Read again just before writing, so another app's changes made meanwhile are kept.
     let data = row || {};
     try { data = (await readRow(tok)) || data; } catch { /* use the first read */ }
@@ -213,12 +334,13 @@
   // ---------------------------------------------------------------- sign-in screens
   async function signIn(email, password) {
     saveSession(await call('/auth/v1/token?grant_type=password', { method: 'POST', body: { email: email.trim(), password } }));
+    await unlockVault(password, email);
     await sync();
   }
   async function signUp(email, password) {
     if (password.length < 6) throw new Error('Use a password of at least 6 characters');
     const o = await call('/auth/v1/signup', { method: 'POST', body: { email: email.trim(), password } });
-    if (o && o.access_token) { saveSession(o); await sync(); return 'Account created. You\'re signed in and syncing.'; }
+    if (o && o.access_token) { saveSession(o); await unlockVault(password, email); await sync(); return 'Account created. You\'re signed in and syncing.'; }
     return `Account created. Open the confirmation email sent to ${email.trim()}, then sign in here.`;
   }
   async function googleAvailable() {
@@ -322,18 +444,59 @@
       : `<div class="acc-card"><div class="acc-ico">${icon('key')}</div><div class="body"><b>Not signed in</b>
           <span>Sign in with email or Google to sync your library, notes and projects across phones.</span></div>
           <button class="btn xs primary" data-act="acct-in">Sign in</button></div>`;
+    // Logins and AI keys: synced encrypted (or why not yet).
+    const vk = !!localStorage.getItem(VK);
+    const vault = !signedIn() || !canVault() ? '' : `<div class="acc-card"><div class="acc-ico">${icon('key')}</div><div class="body"><b>Logins & AI keys</b>
+        <span>${vaultState === 'wrong' ? 'The logins in your account didn\'t unlock (password changed?). Tap Unlock.'
+          : vk ? 'Synced encrypted: Research4Life, UpToDate, Springer, college proxy and AI keys follow you to every device.'
+          : 'Not syncing yet: enter your DermScholar password once on this device to sync them, encrypted.'}</span></div>
+        ${!vk || vaultState === 'wrong' ? '<button class="btn xs primary" data-act="vault-unlock">Unlock</button>' : ''}</div>`;
     const ver = Native.version?.() || '';
     const upd = `<div class="acc-card"><div class="acc-ico">${icon('download')}</div><div class="body"><b>DermScholar ${esc(ver)}</b>
         <span>${update ? 'Version ' + esc(update.name) + ' is available' : 'Updates install from inside the app'}</span></div>
         ${update ? '<button class="btn xs primary" data-act="upd-offer">Update</button>' : '<button class="btn xs" data-act="upd-check">Check for updates</button>'}</div>`;
-    return `<div class="section"><div class="section-h"><h3>Account & sync</h3></div>${acct}</div>
+    return `<div class="section"><div class="section-h"><h3>Account & sync</h3></div>${acct}${vault}</div>
       <div class="section"><div class="section-h"><h3>App updates</h3></div>${upd}</div>` + (prevSection ? prevSection() : '');
   };
   actions['acct-in'] = () => accountSheet();
+  actions['vault-unlock'] = () => {
+    const wrong = vaultState === 'wrong';
+    sheet(`<h3>Sync logins & AI keys</h3>
+      <p class="muted small" style="margin-top:-4px">Enter your DermScholar account password (${esc(S.get()?.email || '')}). Your logins are encrypted with it on this device before they're synced: the server can't read them.</p>
+      <form data-form="vault"><label class="field">DermScholar password</label><input type="password" name="p" autocomplete="current-password">
+        <div class="actions"><button type="button" class="btn" data-act="vault-cancel">Cancel</button><button class="btn primary">Unlock</button></div>
+        ${wrong ? '<button type="button" class="linkish" data-act="vault-replace" style="margin-top:8px">Still not unlocking? Replace them with this device\'s logins</button>' : ''}</form>`);
+    const form = $('[data-form=vault]');
+    actions['vault-cancel'] = () => closeSheet(true);
+    actions['vault-replace'] = async () => {
+      const pw = form.p.value;
+      if (!pw) { toast('Enter your password first'); return; }
+      await unlockVault(pw);
+      store.set('sync.vaultReplace', true);
+      closeSheet(true);
+      await sync({ quiet: false });
+      render();
+    };
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pw = form.p.value;
+      if (!pw) return;
+      try {
+        // Check the password with the account itself (a wrong one would lock the logins).
+        await call('/auth/v1/token?grant_type=password', { method: 'POST', body: { email: S.get()?.email, password: pw } }).then((o) => saveSession(o));
+      } catch { toast('That isn\'t your DermScholar password'); return; }
+      await unlockVault(pw);
+      closeSheet(true);
+      toast('Syncing your logins…');
+      await sync({ quiet: false });
+      render();
+    });
+  };
   actions['acct-out'] = () => {
     const tok = S.get()?.access;
     call('/auth/v1/logout', { method: 'POST', token: tok }).catch(() => {});
     S.clear();
+    localStorage.removeItem(VK);
     toast('Signed out. Your library stays on this phone.');
     render();
   };
@@ -346,6 +509,34 @@
     if (!update || $('#upd-banner')) return;
     const top = $('.home, main, #view') || document.body;
     top.insertAdjacentHTML('afterbegin', `<button id="upd-banner" class="upd-banner" data-act="upd-offer">${icon('download')}DermScholar ${esc(update.name)} is ready — tap to update</button>`);
+  };
+  // Papers whose PDF another device has: fetch them here in one tap (logins come with the sync).
+  const prevLibTop = ext.libraryTop;
+  ext.libraryTop = (p) => {
+    const before = prevLibTop ? prevLibTop(p) : '';
+    if (p.q || p.f || p.c) return before;
+    const want = [...(D.saved?.values() || [])].filter((a) => a.hadPdf && a.doi && !Native.hasPdf?.(a.id));
+    if (!want.length || store.get('sync.pdfDismiss', 0) === want.length) return before;
+    return before + `<div class="panel small" style="margin-top:8px;display:flex;gap:8px;align-items:center">${icon('download')}
+      <span style="flex:1">${want.length} paper${want.length > 1 ? 's have their PDF' : ' has its PDF'} on your other device.</span>
+      <button class="btn xs primary" data-act="pdf-pull">Get ${want.length > 1 ? 'them' : 'it'}</button>
+      <button class="icon-btn" data-act="pdf-pull-x" aria-label="Hide">${icon('x')}</button></div>`;
+  };
+  actions['pdf-pull-x'] = () => { store.set('sync.pdfDismiss', [...(D.saved?.values() || [])].filter((a) => a.hadPdf && a.doi && !Native.hasPdf?.(a.id)).length); render(); };
+  let pulling = false;
+  actions['pdf-pull'] = async () => {
+    if (pulling) { toast('Already getting them'); return; }
+    pulling = true;
+    const want = [...(D.saved?.values() || [])].filter((a) => a.hadPdf && a.doi && !Native.hasPdf?.(a.id));
+    toast(`Getting ${want.length} PDF${want.length > 1 ? 's' : ''}… you can keep using the app`);
+    // One at a time (each signs in and finds its PDF), so the sites aren't flooded.
+    for (const a of want) {
+      if (Native.hasPdf?.(a.id)) continue;
+      try { await D.getPdf(a, { skipAsk: true }); } catch { continue; }
+      for (let i = 0; i < 60 && !Native.hasPdf?.(a.id); i++) await new Promise((r) => setTimeout(r, 2000));
+    }
+    pulling = false;
+    D.refreshPdfs?.();
   };
   function paint() {
     const el = $('#sync-status');

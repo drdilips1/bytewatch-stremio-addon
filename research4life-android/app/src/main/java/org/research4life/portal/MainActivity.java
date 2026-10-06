@@ -440,6 +440,47 @@ public class MainActivity extends Activity {
             R4LSession.forget(MainActivity.this, provider);
         }
 
+        /** Logins and AI keys for the encrypted account sync (sync.js encrypts them before upload). */
+        private final String[] SECRET_PROVIDERS = {R4LSession.R4L, R4LSession.UTD, R4LSession.SPR, CollegeProxy.PX, "groq", "gemini", "claude"};
+
+        @JavascriptInterface
+        public String exportSecrets() {
+            try {
+                JSONObject creds = new JSONObject();
+                for (String p : SECRET_PROVIDERS) {
+                    JSONObject o = R4LSession.exportProvider(MainActivity.this, p);
+                    if (o.getJSONArray("accounts").length() > 0) creds.put(p, o);
+                }
+                JSONObject out = new JSONObject().put("creds", creds);
+                if (CollegeProxy.configured(MainActivity.this)) out.put("px", new JSONObject().put("host", CollegeProxy.host(MainActivity.this)).put("port", CollegeProxy.port(MainActivity.this)));
+                out.put("ai", new JSONObject().put("provider", provider()).put("auto", aiAuto()));
+                return out.toString();
+            } catch (Exception e) {
+                return "{}";
+            }
+        }
+
+        @JavascriptInterface
+        public void importSecrets(String json) {
+            try {
+                JSONObject o = new JSONObject(json);
+                JSONObject creds = o.optJSONObject("creds");
+                boolean hadAi = aiHasKey();
+                if (creds != null) for (String p : SECRET_PROVIDERS) R4LSession.importProvider(MainActivity.this, p, creds.optJSONObject(p));
+                JSONObject px = o.optJSONObject("px");
+                if (px != null && !CollegeProxy.configured(MainActivity.this) && !px.optString("host").isEmpty()) {
+                    main.post(() -> CollegeProxy.save(MainActivity.this, px.optString("host"), px.optInt("port")));
+                }
+                JSONObject ai = o.optJSONObject("ai");
+                if (ai != null && !hadAi) {
+                    if (!ai.optString("provider").isEmpty()) aiSetProvider(ai.optString("provider"));
+                    aiSetAuto(ai.optBoolean("auto", true));
+                }
+                synchronized (MainActivity.this) { llm = null; }
+            } catch (Exception ignored) {
+            }
+        }
+
         /** The college proxy (host and port; its login is the "px" credentials). */
         @JavascriptInterface
         public String collegeProxy() {

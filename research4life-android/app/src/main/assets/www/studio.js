@@ -536,6 +536,7 @@
     if (v.length < 20) { toast('That key looks too short — copy the whole key and paste it again'); return; }
     // Known prefixes pick the AI; anything else (e.g. Google's newer key formats) goes to the AI selected above.
     Native.aiSetKey(v, provider());
+    ext.secretsChanged?.();
     toast('Key saved');
     if (hubState) drawHub(); else closeSheet(true);
     if (D.current.name === 'settings') render();
