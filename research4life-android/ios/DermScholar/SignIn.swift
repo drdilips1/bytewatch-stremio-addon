@@ -32,8 +32,20 @@ enum SignIn {
     /// Research4Life in the app's browser. ClinicalKey only lets Research4Life users in when they
     /// arrive through Research4Life, so Elsevier papers go through this link first.
     static var clinicalKeyEntry: URL? {
-        get { UserDefaults.standard.string(forKey: "ckEntry").flatMap(URL.init(string:)) }
-        set { UserDefaults.standard.set(newValue?.absoluteString, forKey: "ckEntry") }
+        get { UserDefaults.standard.string(forKey: "ckEntry").flatMap(URL.init(string:)).flatMap { reopenable($0) ? $0 : nil } }
+        set { UserDefaults.standard.set(newValue.flatMap { reopenable($0) ? $0.absoluteString : nil }, forKey: "ckEntry") }
+    }
+
+    /// A link that can be opened again on its own: not one of the sign-in hand-over steps
+    /// (SAML/Shibboleth receivers such as auth.elsevier.com/SHIRE/SAML2/POST only take a posted form).
+    static func reopenable(_ u: URL) -> Bool {
+        u.absoluteString.range(of: "saml|shire|shibboleth|/sso/|/idp/profile", options: [.regularExpression, .caseInsensitive]) == nil
+    }
+
+    /// Elsevier's sign-in receiver showing its error (opened without the hand-over form).
+    static func isHandoverError(_ u: URL?) -> Bool {
+        guard let u = u, let h = u.host?.lowercased(), h.hasSuffix("elsevier.com") else { return false }
+        return !reopenable(u)
     }
 
     static let portal = URL(string: "https://portal.research4life.org/")!

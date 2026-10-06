@@ -15,8 +15,9 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     /// ClinicalKey link (or its portal, to tap ClinicalKey once), then to the article.
     private var firstURL: URL
     private var ckArticle: URL?
-    private var fromR4LPage = false
-    private var chainStart: URL?
+    /// The link last tapped on a Research4Life page (its way into ClinicalKey, once ClinicalKey opens).
+    private var tappedOnR4L: URL?
+    private var recovered = false
 
     private let startURL: URL
     private let key: String
@@ -126,6 +127,17 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     /// On a Research4Life / UpToDate sign-in page: fill in the saved login and send it (twice at
     /// most, so a wrong password doesn't loop); a login typed there is remembered.
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // Elsevier's "Something went wrong" (a sign-in step opened on its own): forget that link and
+        // start again at Research4Life, where tapping ClinicalKey teaches the right one.
+        if SignIn.isHandoverError(webView.url), !recovered {
+            recovered = true
+            SignIn.clinicalKeyEntry = nil
+            UserDefaults.standard.removeObject(forKey: "ckEntry")
+            if SignIn.isClinicalKeyArticle(startURL) { ckArticle = startURL }
+            navigationItem.prompt = "Tap ClinicalKey on Research4Life once: the app remembers it"
+            webView.load(URLRequest(url: SignIn.portal))
+            return
+        }
         // ClinicalKey reached through Research4Life: now open the article.
         if let art = ckArticle, SignIn.isClinicalKeyHost(webView.url?.host) {
             ckArticle = nil
@@ -165,20 +177,18 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         onCredentials?(p, user)
     }
 
-    /// The first link followed from a Research4Life page; when it leads to ClinicalKey, it is
-    /// Research4Life's way into ClinicalKey (SignIn.clinicalKeyEntry).
-    private func noteClinicalKeyEntry(_ u: URL) {
-        guard let host = u.host else { return }
-        if SignIn.isR4LHost(host) && !u.path.hasPrefix("/tacgw") {
-            fromR4LPage = true
-            chainStart = nil
-            return
+    /// The link tapped on a Research4Life page; when it leads to ClinicalKey, it is Research4Life's
+    /// way into ClinicalKey (SignIn.clinicalKeyEntry). Only a tapped link is kept, never the
+    /// sign-in hand-over steps in between (those can't be opened again on their own).
+    private func noteClinicalKeyEntry(_ action: WKNavigationAction) {
+        guard let u = action.request.url, let host = u.host else { return }
+        if (action.navigationType == .linkActivated || action.targetFrame == nil),
+           SignIn.isR4LHost(webView.url?.host), (action.request.httpMethod ?? "GET") == "GET", SignIn.reopenable(u) {
+            tappedOnR4L = u
         }
-        if fromR4LPage && chainStart == nil { chainStart = u }
         if SignIn.isClinicalKeyHost(host) {
-            if let c = chainStart, !SignIn.isClinicalKeyArticle(c) { SignIn.clinicalKeyEntry = c }
-            fromR4LPage = false
-            chainStart = nil
+            if let t = tappedOnR4L, !SignIn.isClinicalKeyArticle(t) { SignIn.clinicalKeyEntry = t }
+            tappedOnR4L = nil
         }
     }
 
@@ -270,7 +280,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url, let scheme = url.scheme?.lowercased() else { decisionHandler(.allow); return }
-        if action.targetFrame?.isMainFrame ?? true { noteClinicalKeyEntry(url) }
+        if action.targetFrame?.isMainFrame ?? true { noteClinicalKeyEntry(action) }
         if action.shouldPerformDownload { decisionHandler(.download); return }
         if ["http", "https", "about", "blob", "data"].contains(scheme) { decisionHandler(.allow); return }
         decisionHandler(.cancel)
@@ -279,6 +289,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         if action.targetFrame == nil {
+            noteClinicalKeyEntry(action)
             var req = action.request
             if req.value(forHTTPHeaderField: "Referer") == nil, let here = webView.url { req.setValue(here.absoluteString, forHTTPHeaderField: "Referer") }
             webView.load(req)
