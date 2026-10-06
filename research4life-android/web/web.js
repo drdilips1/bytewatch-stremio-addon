@@ -833,6 +833,12 @@
     // the share sheet (its "Save to MyLOFT"), or open the app itself.
     const MYLOFT_STORE = 'itms-apps://apps.apple.com/search?term=MyLOFT';
     N.openMyLoftApp = () => ios('openApp', { url: 'https://app.myloft.xyz/', store: MYLOFT_STORE });
+    // UpToDate inside the app, as on Android: the app's hidden browser signs in and reads it.
+    if ((window.DSNative && window.DSNative.level) >= 3) {
+      N.utdSearch = (q) => ios('utdSearch', { q });
+      N.utdTopic = (u) => ios('utdTopic', { url: u });
+      N.utdShowPage = () => ios('utdShowPage');
+    }
     N.myloftViaShareSheet = true;
     N.sendToMyLoft = (text) => {
       N.copy(text);

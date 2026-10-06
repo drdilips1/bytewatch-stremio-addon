@@ -49,6 +49,13 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
 
     private var checkedScreens = false
 
+    /// UpToDate read inside the app (hidden browser, same logins as the app's browser).
+    private lazy var utd: UtdClient = {
+        let c = UtdClient(host: view)
+        c.onStatus = { [weak self] m in self?.send(["type": "utdStatus", "message": m]) }
+        return c
+    }()
+
     // MARK: messages from the screens (web.js)
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -79,6 +86,12 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
             if let p = body["p"] as? String, let u = body["user"] as? String, let pass = body["pass"] as? String, !u.isEmpty, !pass.isEmpty {
                 Keychain.save(provider: p, user: u, password: pass)
             }
+        case "utdSearch":
+            utd.search(body["q"] as? String ?? "") { [weak self] r in self?.send(r.merging(["type": "utdResults"]) { _, n in n }) }
+        case "utdTopic":
+            utd.topic(body["url"] as? String ?? "") { [weak self] r in self?.send(r.merging(["type": "utdTopic"]) { _, n in n }) }
+        case "utdShowPage":
+            openBrowser(utd.currentUrl, key: "")
         case "forgetCredentials":
             if let p = body["p"] as? String { Keychain.delete(provider: p) }
         case "done":
