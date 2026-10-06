@@ -119,6 +119,11 @@ final class UtdClient: NSObject, WKNavigationDelegate {
         return kind != "search" || (URLComponents(url: u, resolvingAgainstBaseURL: false)?.queryItems ?? []).contains { $0.name == "search" }
     }
 
+    /// The college proxy's password pop-up (a Wi-Fi proxy set in Settings): answered with the saved login.
+    func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if let c = CollegeProxy.credential(for: challenge) { completionHandler(.useCredential, c) } else { completionHandler(.performDefaultHandling, nil) }
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard callback != nil, let url = webView.url else { return }
         web.evaluateJavaScript(UtdScripts.pro) { [weak self] v, _ in

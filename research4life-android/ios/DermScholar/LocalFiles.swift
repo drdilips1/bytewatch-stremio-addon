@@ -16,10 +16,10 @@ final class LocalFiles: NSObject, WKURLSchemeHandler {
     /// The screens being served: the built-in ones, or newer downloaded ones (ScreenUpdates).
     var root = ScreenUpdates.bundled
     private var stopped = Set<ObjectIdentifier>()
-    private let session: URLSession = {
+    private lazy var session: URLSession = {
         let c = URLSessionConfiguration.default
         c.timeoutIntervalForRequest = 60
-        return URLSession(configuration: c)
+        return URLSession(configuration: c, delegate: ProxyAuth(), delegateQueue: nil)
     }()
 
     func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
@@ -121,5 +121,13 @@ enum Cookies {
             return hostOk && pathOk && secureOk && fresh
         }
         for (k, v) in HTTPCookie.requestHeaderFields(with: matching) { req.setValue(v, forHTTPHeaderField: k) }
+    }
+}
+
+/// Answers the college proxy's password request (a Wi-Fi proxy set in Settings) for the app's own fetches.
+final class ProxyAuth: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if let c = CollegeProxy.credential(for: challenge) { completionHandler(.useCredential, c) } else { completionHandler(.performDefaultHandling, nil) }
     }
 }

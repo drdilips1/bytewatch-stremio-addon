@@ -32,12 +32,25 @@
     const headers = { apikey: KEY, Authorization: 'Bearer ' + (token || KEY) };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (prefer) headers.Prefer = prefer;
-    const r = await fetch(URL_ + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    let r;
+    try {
+      r = await fetch(URL_ + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    } catch {
+      // "Load failed" / "Failed to fetch": the server couldn't be reached at all.
+      const e = new Error('Couldn\'t reach the sync server. Check the internet connection; if a VPN (Tailscale) or a Wi-Fi proxy is on, turn it off and try again.');
+      e.code = 0;
+      throw e;
+    }
     const text = await r.text();
     if (!r.ok) {
       let o = null;
       try { o = JSON.parse(text); } catch { /* not JSON */ }
-      const e = new Error((o && (o.msg || o.error_description || o.message || o.error)) || 'Server error ' + r.status);
+      let m = (o && (o.msg || o.error_description || o.message || o.error)) || 'Server error ' + r.status;
+      // Plain words for the usual sign-in answers.
+      if (/invalid login credentials|invalid_grant/i.test(m) && /grant_type=password/.test(path)) m = 'Wrong email or password, or there is no DermScholar account for this email yet (tap Create account). Note: this is the DermScholar account, not Research4Life.';
+      else if (/email not confirmed/i.test(m)) m = 'This account\'s email isn\'t confirmed yet: open the confirmation email (check spam), tap its link, then sign in.';
+      else if (/already registered|already exists/i.test(m)) m = 'There is already a DermScholar account for this email: tap Sign in (or Forgot password).';
+      const e = new Error(m);
       e.code = r.status;
       throw e;
     }

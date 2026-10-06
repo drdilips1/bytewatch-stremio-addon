@@ -322,6 +322,11 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
 
     // MARK: navigation: the screens stay in the app; any other link opens in the browser
 
+    /// The college proxy's password pop-up (a Wi-Fi proxy set in Settings): answered with the saved login.
+    func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if let c = CollegeProxy.credential(for: challenge) { completionHandler(.useCredential, c) } else { completionHandler(.performDefaultHandling, nil) }
+    }
+
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url, let scheme = url.scheme?.lowercased() else { decisionHandler(.allow); return }
         if scheme == LocalFiles.scheme || scheme == "about" || scheme == "blob" || scheme == "data" || action.targetFrame?.isMainFrame == false {
