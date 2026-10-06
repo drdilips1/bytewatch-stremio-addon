@@ -13,6 +13,31 @@ enum SignIn {
         return nil
     }
 
+    static func isR4LHost(_ host: String?) -> Bool {
+        guard let h = host?.lowercased() else { return false }
+        return h == "research4life.org" || h.hasSuffix(".research4life.org")
+    }
+
+    static func isClinicalKeyHost(_ host: String?) -> Bool {
+        guard let h = host?.lowercased() else { return false }
+        return h == "clinicalkey.com" || h.hasSuffix(".clinicalkey.com")
+    }
+
+    /// An article on ClinicalKey (Elsevier journals: JAAD…), as Get PDF opens it.
+    static func isClinicalKeyArticle(_ url: URL) -> Bool {
+        isClinicalKeyHost(url.host) && url.absoluteString.contains("#!/content/")
+    }
+
+    /// Research4Life's link into ClinicalKey, learned the first time ClinicalKey is opened from
+    /// Research4Life in the app's browser. ClinicalKey only lets Research4Life users in when they
+    /// arrive through Research4Life, so Elsevier papers go through this link first.
+    static var clinicalKeyEntry: URL? {
+        get { UserDefaults.standard.string(forKey: "ckEntry").flatMap(URL.init(string:)) }
+        set { UserDefaults.standard.set(newValue?.absoluteString, forKey: "ckEntry") }
+    }
+
+    static let portal = URL(string: "https://portal.research4life.org/")!
+
     static func script(user: String?, password: String?, auto: Bool) -> String {
         let pair: [Any] = [user.map { $0 as Any } ?? NSNull(), password.map { $0 as Any } ?? NSNull()]
         let args = (try? JSONSerialization.data(withJSONObject: pair, options: []))

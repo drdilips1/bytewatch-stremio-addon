@@ -11,6 +11,12 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     private var autoSignIns = 0
     private var signedIn = false
     private var reopened = false
+    /// Where the browser starts: an Elsevier article first goes through Research4Life's
+    /// ClinicalKey link (or its portal, to tap ClinicalKey once), then to the article.
+    private var firstURL: URL
+    private var ckArticle: URL?
+    private var fromR4LPage = false
+    private var chainStart: URL?
 
     private let startURL: URL
     private let key: String
@@ -25,6 +31,12 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
     init(url: URL, key: String) {
         startURL = url
+        if SignIn.isClinicalKeyArticle(url) {
+            ckArticle = url
+            firstURL = SignIn.clinicalKeyEntry ?? SignIn.portal
+        } else {
+            firstURL = url
+        }
         self.key = key
         super.init(nibName: nil, bundle: nil)
     }
@@ -77,7 +89,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             webView.observe(\.canGoForward, options: [.new]) { [weak self] wv, _ in self?.forwardButton.isEnabled = wv.canGoForward },
         ]
         webView.customUserAgent = LocalFiles.userAgent
-        webView.load(URLRequest(url: startURL))
+        if ckArticle != nil && SignIn.clinicalKeyEntry == nil {
+            navigationItem.prompt = "Tap ClinicalKey on Research4Life once: the app remembers it"
+        }
+        webView.load(URLRequest(url: firstURL))
     }
 
     @objc private func close() { dismiss(animated: true) }
@@ -92,17 +107,26 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     /// On a Research4Life / UpToDate sign-in page: fill in the saved login and send it (twice at
     /// most, so a wrong password doesn't loop); a login typed there is remembered.
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // ClinicalKey reached through Research4Life: now open the article.
+        if let art = ckArticle, SignIn.isClinicalKeyHost(webView.url?.host) {
+            ckArticle = nil
+            navigationItem.prompt = nil
+            if webView.url?.absoluteString != art.absoluteString {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.webView.load(URLRequest(url: art)) }
+            }
+            return
+        }
         guard let p = SignIn.provider(for: webView.url) else { return }
         // Signed in, but Research4Life landed on its own home page: open the paper again (once).
         let path = webView.url?.path.lowercased() ?? ""
-        if signedIn, !reopened, p == "r4l", SignIn.provider(for: startURL) == nil,
-           !path.contains("signin"), !path.contains("login") {
+        if signedIn, !reopened, p == "r4l", SignIn.provider(for: firstURL) == nil || firstURL == SignIn.clinicalKeyEntry,
+           webView.url != firstURL, !path.contains("signin"), !path.contains("login") {
             // Wait a moment: sign-in pages pass through a few self-submitting steps.
             let here = webView.url
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 guard let self = self, !self.reopened, self.webView.url == here, !self.webView.isLoading else { return }
                 self.reopened = true
-                self.webView.load(URLRequest(url: self.startURL))
+                self.webView.load(URLRequest(url: self.firstURL))
             }
             return
         }
@@ -120,6 +144,23 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         Keychain.save(provider: p, user: user, password: pass)
         autoSignIns = 0
         onCredentials?(p, user)
+    }
+
+    /// The first link followed from a Research4Life page; when it leads to ClinicalKey, it is
+    /// Research4Life's way into ClinicalKey (SignIn.clinicalKeyEntry).
+    private func noteClinicalKeyEntry(_ u: URL) {
+        guard let host = u.host else { return }
+        if SignIn.isR4LHost(host) && !u.path.hasPrefix("/tacgw") {
+            fromR4LPage = true
+            chainStart = nil
+            return
+        }
+        if fromR4LPage && chainStart == nil { chainStart = u }
+        if SignIn.isClinicalKeyHost(host) {
+            if let c = chainStart, !SignIn.isClinicalKeyArticle(c) { SignIn.clinicalKeyEntry = c }
+            fromR4LPage = false
+            chainStart = nil
+        }
     }
 
     // MARK: PDFs
@@ -184,6 +225,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url, let scheme = url.scheme?.lowercased() else { decisionHandler(.allow); return }
+        if action.targetFrame?.isMainFrame ?? true { noteClinicalKeyEntry(url) }
         if ["http", "https", "about", "blob", "data"].contains(scheme) { decisionHandler(.allow); return }
         decisionHandler(.cancel)
         UIApplication.shared.open(url) // mailto:, the MyLOFT app's own links…
