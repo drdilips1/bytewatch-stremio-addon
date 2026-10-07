@@ -1331,8 +1331,8 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
       ['gemini-3.8-flash', 'Gemini 3.8 Flash', 'Free tier · takes whole evidence maps at once (default)', [0, 0]],
     ],
     claude: [
-      ['claude-opus-5-5', 'Claude Opus 5.5', 'Best quality', [4, 20]],
-      ['claude-sonnet-5-5', 'Claude Sonnet 5.5', 'Faster, lower cost', [2, 10]],
+      ['claude-sonnet-5-5', 'Claude Sonnet 5.5', 'Best value for clinical answers (default)', [2, 10]],
+      ['claude-opus-5-5', 'Claude Opus 5.5', 'Top quality, twice the cost', [4, 20]],
       ['claude-haiku-4-5', 'Claude Haiku 4.5', 'Fastest, lowest cost', [1, 5]],
     ],
   };

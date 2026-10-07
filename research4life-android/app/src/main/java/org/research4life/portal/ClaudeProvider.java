@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
  */
 final class ClaudeProvider implements LlmProvider {
 
-    static final String DEFAULT_MODEL = "claude-opus-5-5";
+    static final String DEFAULT_MODEL = "claude-sonnet-5-5";
     private static final String URL_MESSAGES = "https://api.anthropic.com/v1/messages";
     /** Models that take the server-side refusal fallback ("default" routing). */
     private static boolean takesFallback(String m) {

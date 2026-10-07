@@ -163,7 +163,7 @@
 
   // ================================================================ AI (own keys, called from the browser)
   const PROVIDERS = ['groq', 'gemini', 'claude'];
-  const DEFAULT_MODEL = { groq: 'openai/gpt-oss-120b', gemini: 'gemini-3.8-flash', claude: 'claude-opus-5-5' };
+  const DEFAULT_MODEL = { groq: 'openai/gpt-oss-120b', gemini: 'gemini-3.8-flash', claude: 'claude-sonnet-5-5' };
   const LABEL = { groq: 'Groq', gemini: 'Gemini', claude: 'Claude' };
   const known = (p) => (p === 'claude' || p === 'gemini' ? p : 'groq');
   const provider = () => known(ls.get('ai.provider', 'groq'));
