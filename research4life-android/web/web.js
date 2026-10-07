@@ -253,9 +253,35 @@
     if (c === 400 && msg.includes('json')) return new AiError("Groq couldn't produce the answer in the expected format. Try again.");
     return new AiError(`Groq returned an error (${c})` + (msg ? ': ' + msg : '.'));
   }
-  const groq = (req) => oaChat('groq', null, req);
+  // Picture-reading models are retired now and then: the one this key can use is looked up and remembered.
+  const vision = {};
+  async function findVision(who) {
+    const or = who === 'openrouter';
+    const res = await realFetch((or ? OPENROUTER : GROQ) + 'models', { headers: { Authorization: 'Bearer ' + keyFor(who) } });
+    if (!res.ok) throw new AiError(`Couldn't list ${LABEL[who]} models.`);
+    const list = (await res.json()).data || [];
+    const pick = or
+      ? list.filter((m) => String(m.architecture?.input_modalities || '').includes('image') && (/:free$/.test(m.id) || (m.pricing?.prompt === '0' && m.pricing?.completion === '0')))
+      : list.filter((m) => m.active !== false && /llama-4|scout|maverick|vision|-vl\b|vl-|llava|gemma-3|pixtral|qwen.*vl/i.test(m.id) && !/guard/.test(m.id));
+    const best = pick.find((m) => /scout|maverick|gemma|llama-4|qwen/i.test(m.id)) || pick[0];
+    if (!best) throw new AiError(`${LABEL[who]} has no model that reads pictures for your key.`);
+    vision[who] = best.id;
+    return best.id;
+  }
+  async function withVision(who, req, run) {
+    let model = vision[who] || (who === 'groq' ? 'meta-llama/llama-4-scout-17b-16e-instruct' : await findVision(who));
+    try { const r = await run(model); vision[who] = model; return r; } catch (e) {
+      if (!/isn't available|error \((400|404)\)/.test(e.message || '')) throw e;
+      const next = await findVision(who);
+      if (next === model) throw e;
+      model = next;
+      return run(model);
+    }
+  }
+  const groq = (req) => (req.image ? withVision('groq', req, (m) => oaChat('groq', m, req)) : oaChat('groq', null, req));
   /** OpenRouter: its free model first; when that is busy or at its daily limit, the same model paid from the credit. */
   async function openrouter(req) {
+    if (req.image) return withVision('openrouter', req, (m) => oaChat('openrouter', m, req));
     const model = modelFor('openrouter');
     try { return await oaChat('openrouter', model, req); } catch (e) {
       if (!/:free$/.test(model) || /rejected|^TOO_LARGE/.test(e.message || '')) throw e;
@@ -268,7 +294,7 @@
     const name = LABEL[who];
     const BASE = or ? OPENROUTER : GROQ;
     const key = keyFor(who);
-    const model = or ? orModel : image ? 'meta-llama/llama-4-scout-17b-16e-instruct' : modelFor('groq');
+    const model = orModel || (image ? 'meta-llama/llama-4-scout-17b-16e-instruct' : modelFor('groq'));
     const tag = (m) => (or ? 'openrouter/' + m : m);
     const strict = !or && (model.startsWith('openai/gpt-oss') || model.startsWith('qwen/'));
     const messages = [{ role: 'system', content: system }];
@@ -501,7 +527,7 @@
       // Someone is waiting on it: the quickest AI first (Groq, when its key is saved).
       if (fast && keyFor('groq')) order = ['groq', ...order.filter((p) => p !== 'groq')];
       for (const p of order) {
-        if (req.image && (p === 'claude' || p === 'openrouter')) continue;
+        if (req.image && p === 'claude') continue;
         try {
           if (!keyFor(p)) throw new AiError(`Add your ${LABEL[p]} API key in Settings → AI.`);
           const r = await RUN[p](req);
@@ -587,7 +613,7 @@
   const N = {
     isWeb: !IOS,
     isIos: !!IOS,
-    version: () => (IOS ? '5.24 iOS' : '5.24 web'),
+    version: () => (IOS ? '5.25 iOS' : '5.25 web'),
 
     // ---- PDFs
     listPdfs: () => JSON.stringify(Object.entries(pdfIndex()).map(([key, o]) => ({ ...o, key }))),

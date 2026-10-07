@@ -228,10 +228,61 @@ final class GroqProvider implements LlmProvider {
     }
 
     /** Answers about an image (JPEG, base64) with Groq's vision model. */
+    /** The picture-reading model found for each service (models are retired; the one in use is looked up). */
+    private static final java.util.Map<String, String> visionModel = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Pattern GROQ_VISION = Pattern.compile("(?i)(llama-4|scout|maverick|vision|-vl\\b|vl-|llava|gemma-3|pixtral|qwen.*vl)");
+
+    /** A model of this service that reads pictures: Groq by name; OpenRouter a free one by its listed input types. */
+    private String findVisionModel() throws AiException {
+        try {
+            JSONObject res = get("models");
+            JSONArray data = res.optJSONArray("data");
+            String best = null;
+            for (int i = 0; data != null && i < data.length(); i++) {
+                JSONObject m = data.getJSONObject(i);
+                String id = m.optString("id");
+                if (or) {
+                    JSONObject arch = m.optJSONObject("architecture");
+                    JSONArray in = arch == null ? null : arch.optJSONArray("input_modalities");
+                    boolean image = in != null && in.toString().contains("image");
+                    JSONObject price = m.optJSONObject("pricing");
+                    boolean free = id.endsWith(":free") || (price != null && "0".equals(price.optString("prompt")) && "0".equals(price.optString("completion")));
+                    if (image && free) { best = id; if (id.contains("gemma") || id.contains("llama-4") || id.contains("qwen")) break; }
+                } else if (m.optBoolean("active", true) && GROQ_VISION.matcher(id).find() && !id.contains("guard")) {
+                    best = id;
+                    if (id.contains("scout") || id.contains("maverick")) break;
+                }
+            }
+            if (best == null) throw new AiException(name + " has no model that reads pictures for your key.");
+            visionModel.put(base, best);
+            return best;
+        } catch (AiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AiException("Couldn't list " + name + " models.");
+        }
+    }
+
     Result completeWithImage(String system, String task, String base64Jpeg, int maxTokens) throws AiException {
+        String model = visionModel.get(base);
+        if (model == null) model = or ? findVisionModel() : "meta-llama/llama-4-scout-17b-16e-instruct";
+        try {
+            return imageOnce(model, system, task, base64Jpeg, maxTokens);
+        } catch (AiException e) {
+            String m = e.getMessage() == null ? "" : e.getMessage();
+            // Retired or not offered to this key: find the current picture model and try it once.
+            if (!m.contains("isn't available") && !m.contains("error (400)") && !m.contains("error (404)")) throw e;
+            visionModel.remove(base);
+            String next = findVisionModel();
+            if (next.equals(model)) throw e;
+            return imageOnce(next, system, task, base64Jpeg, maxTokens);
+        }
+    }
+
+    private Result imageOnce(String visionId, String system, String task, String base64Jpeg, int maxTokens) throws AiException {
         try {
             JSONObject body = new JSONObject();
-            body.put("model", "meta-llama/llama-4-scout-17b-16e-instruct");
+            body.put("model", visionId);
             JSONArray messages = new JSONArray();
             messages.put(new JSONObject().put("role", "system").put("content", system));
             JSONArray content = new JSONArray()
@@ -239,20 +290,21 @@ final class GroqProvider implements LlmProvider {
                     .put(new JSONObject().put("type", "text").put("text", task));
             messages.put(new JSONObject().put("role", "user").put("content", content));
             body.put("messages", messages);
-            body.put("max_completion_tokens", Math.min(maxTokens, 4000));
+            body.put(or ? "max_tokens" : "max_completion_tokens", Math.min(maxTokens, 4000));
             body.put("temperature", 0.2);
             JSONObject res = post("chat/completions", body);
             String text = res.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "").trim();
-            if (text.isEmpty()) throw new AiException("Groq returned an empty answer. Try again.");
+            if (text.isEmpty()) throw new AiException(name + " returned an empty answer. Try again.");
+            visionModel.put(base, visionId);
             JSONObject usage = res.optJSONObject("usage");
-            return new Result(text, res.optString("model", "llama-4-scout"), usage == null ? 0 : usage.optLong("prompt_tokens"),
+            return new Result(text, tag(res.optString("model", visionId)), usage == null ? 0 : usage.optLong("prompt_tokens"),
                     usage == null ? 0 : usage.optLong("completion_tokens"), 0);
         } catch (AiException e) {
             throw e;
         } catch (IOException e) {
-            throw new AiException("Couldn't reach Groq. Check your connection.");
+            throw new AiException("Couldn't reach " + name + ". Check your connection.");
         } catch (Exception e) {
-            throw new AiException("Groq image request failed: " + e.getClass().getSimpleName());
+            throw new AiException(name + " image request failed: " + e.getClass().getSimpleName());
         }
     }
 

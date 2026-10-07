@@ -595,6 +595,7 @@ public class MainActivity extends Activity {
                             LlmProvider.Result r;
                             if ("gemini".equals(prov)) r = new GeminiProvider(key, modelFor("gemini")).completeWithImage(system, task, b64, maxTokens);
                             else if ("groq".equals(prov)) r = new GroqProvider(key, null).completeWithImage(system, task, b64, maxTokens);
+                            else if ("openrouter".equals(prov)) r = GroqProvider.openRouter(key, null).completeWithImage(system, task, b64, maxTokens);
                             else continue;
                             recordUsage(r.model, r);
                             emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model));
@@ -603,7 +604,7 @@ public class MainActivity extends Activity {
                             if (first == null) first = e; else also.append(" · ").append(label(prov)).append(": ").append(e.getMessage());
                         }
                     }
-                    throw first != null ? withOthers(first, also) : new LlmProvider.AiException("Image questions work with Gemini or Groq. Add a key in Settings → AI.");
+                    throw first != null ? withOthers(first, also) : new LlmProvider.AiException("Image questions work with Gemini, Groq or OpenRouter. Add a key in Settings → AI.");
                 } catch (LlmProvider.AiException e) {
                     emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));
                 } catch (Exception e) {

@@ -87,6 +87,7 @@ final class GeminiProvider implements LlmProvider {
     }
 
     private Result run(String system, String document, String task, int maxTokens, String jsonSchema, String imageB64) throws AiException {
+        boolean ioRetried = false;
         for (int attempt = 0; ; attempt++) {
             try {
                 JSONObject body = new JSONObject();
@@ -210,7 +211,12 @@ final class GeminiProvider implements LlmProvider {
             } catch (AiException e) {
                 throw e;
             } catch (IOException e) {
-                throw new AiException("Couldn't reach Gemini. Check your connection.");
+                // A dropped or slow connection (common on mobile data, and with pictures): once more.
+                if (!ioRetried) { ioRetried = true; attempt--; continue; }
+                String why = e instanceof java.net.SocketTimeoutException ? "it took too long to answer"
+                        : e instanceof java.net.UnknownHostException ? "no internet connection"
+                        : e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                throw new AiException("Couldn't reach Gemini (" + why + "). Check your connection.");
             } catch (InterruptedException e) {
                 throw new AiException("Cancelled");
             } catch (Exception e) {
