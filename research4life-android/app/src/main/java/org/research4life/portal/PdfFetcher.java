@@ -194,7 +194,7 @@ final class PdfFetcher {
     private void next() {
         if (job != null || !isAttached()) return;
         job = queue.pollFirst();
-        if (job == null) return;
+        if (job == null) { CollegeProxy.use(app, false, null); return; }
         tried.clear();
         saving = false;
         pdfAttempts = 0;
@@ -210,7 +210,9 @@ final class PdfFetcher {
                 : "Opening the paper through Research4Life" + (who == null || who.isEmpty() ? "" : " (" + who + ")") + "…");
         main.removeCallbacks(timeout);
         main.postDelayed(timeout, JOB_TIMEOUT_MS);
-        webView.loadUrl(job.startUrl());
+        // The college proxy only for the college route; Research4Life and ClinicalKey go direct.
+        final Job j = job;
+        CollegeProxy.use(app, j.viaCollege, () -> { if (job == j) webView.loadUrl(j.startUrl()); });
     }
 
     private void attachClients() {

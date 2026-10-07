@@ -69,11 +69,31 @@ final class CollegeProxy {
     static void save(Context ctx, String host, int port) {
         String h = host == null ? "" : host.trim().replaceFirst("^(?i)https?://", "").replaceAll("[/\\s].*$", "");
         prefs(ctx).edit().putString("host", h).putInt("port", h.isEmpty() ? 0 : port).apply();
-        apply(ctx);
+        if (active) apply(ctx);
     }
 
-    /** Points the app's browsers at the proxy (or back to the direct connection). */
+    /**
+     * Whether the app's browsers go through the proxy right now: only while Get PDF uses the
+     * college route. Everything else (Research4Life, ClinicalKey, UpToDate, browsing) stays direct,
+     * so those sign-ins aren't mistaken for the college's.
+     */
+    private static boolean active;
+
+    /** Turns the proxy on or off for the app's browsers, then runs {@code then}. */
+    static void use(Context ctx, boolean on, Runnable then) {
+        final Context app = ctx.getApplicationContext();
+        boolean want = on && usable(app);
+        if (want == active) { if (then != null) then.run(); return; }
+        active = want;
+        apply(app, then);
+    }
+
+    /** At start: the login helper for the proxy's password, and the direct connection. */
     static void apply(Context ctx) {
+        apply(ctx, null);
+    }
+
+    private static void apply(Context ctx, Runnable then) {
         final Context app = ctx.getApplicationContext();
         java.net.Authenticator.setDefault(new java.net.Authenticator() {
             @Override
@@ -83,18 +103,23 @@ final class CollegeProxy {
                 return pass == null ? null : new PasswordAuthentication(R4LSession.username(app, PX), pass.toCharArray());
             }
         });
-        if (!supported()) return;
-        Runnable done = () -> { };
+        if (!supported()) { if (then != null) then.run(); return; }
+        android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+        Runnable done = () -> { if (then != null) main.post(then); };
         try {
-            if (configured(app)) {
+            if (active && configured(app)) {
                 ProxyConfig.Builder b = new ProxyConfig.Builder().addProxyRule(host(app) + ":" + port(app));
                 for (String rule : BYPASS) b.addBypassRule(rule);
                 ProxyController.getInstance().setProxyOverride(b.build(), Runnable::run, done);
             } else {
-                ProxyController.getInstance().clearProxyOverride(Runnable::run, done);
+                // Direct, even when a proxy is set in the phone's APN or Wi-Fi settings: Research4Life,
+                // ClinicalKey and UpToDate must see this phone, not the college.
+                ProxyController.getInstance().setProxyOverride(new ProxyConfig.Builder().addDirect().build(), Runnable::run, done);
             }
         } catch (Exception ignored) {
             // An address the browser can't use: stay direct.
+            active = false;
+            if (then != null) main.post(then);
         }
     }
 
@@ -109,7 +134,7 @@ final class CollegeProxy {
 
     /** The proxy for a download (PDFs saved outside the browser), or null to go direct. */
     static Proxy proxyFor(Context ctx, String url) {
-        if (!usable(ctx) || bypassed(Uri.parse(url).getHost())) return null;
+        if (!active || !usable(ctx) || bypassed(Uri.parse(url).getHost())) return null;
         return new Proxy(Proxy.Type.HTTP, InetSocketAddress.createUnresolved(host(ctx), port(ctx)));
     }
 
