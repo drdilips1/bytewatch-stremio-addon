@@ -55,6 +55,8 @@ final class PdfFetcher {
         /** Elsevier article ID: Research4Life gives Elsevier PDFs (JAAD…) through ClinicalKey, not ScienceDirect. */
         final String pii;
         boolean viaClinicalKey;
+        /** ClinicalKey's sign-in is recent (a PDF from it today): go straight to the article. */
+        boolean ckFresh;
         /** ClinicalKey was tried and gave no PDF (usually: not signed in to ClinicalKey yet). */
         boolean clinicalKeyFailed;
         /** ClinicalKey's sign-in was renewed through Research4Life (once per paper). */
@@ -83,7 +85,7 @@ final class PdfFetcher {
             if (viaSpringer) return R4LSession.springerPdfUrl(doi);
             if (viaCollege) return "https://doi.org/" + doi;
             // Elsevier: straight into ClinicalKey through Research4Life's sign-in, back to the article.
-            if (viaClinicalKey) return R4LSession.clinicalKeyLogin(R4LSession.clinicalKeyUrl(pii));
+            if (viaClinicalKey) return ckFresh ? R4LSession.clinicalKeyUrl(pii) : R4LSession.clinicalKeyLogin(R4LSession.clinicalKeyUrl(pii));
             return viaClinicalKey ? R4LSession.clinicalKeyUrl(pii) : R4LSession.doiUrl(doi);
         }
     }
@@ -162,6 +164,8 @@ final class PdfFetcher {
         trails.remove(key);
         Job nj = new Job(key, doi, title, pii);
         nj.only = route;
+        // Signing in through Research4Life about once a day; otherwise straight to ClinicalKey.
+        nj.ckFresh = R4LSession.clinicalKeyFresh(app);
         nj.viaSpringer = route == null && nj.pii.isEmpty() && R4LSession.isSpringerDoi(doi) && R4LSession.hasCredentials(app, R4LSession.SPR)
                 && R4LSession.sourceOn(app, R4LSession.SPR);
         // Elsevier papers (JAAD…) go to ClinicalKey through Research4Life first: it reliably has them.
@@ -602,6 +606,7 @@ final class PdfFetcher {
             try {
                 PdfStore.saveBytes(app, j.key, data, j.title != null ? j.title : pageFetchName, pageFetchUrl);
                 main.post(() -> {
+                    if (j.viaClinicalKey && !j.viaCollege) R4LSession.markClinicalKey(app);
                     if (listener != null) listener.onSaved(j.key, j.title);
                     finishJob();
                 });
@@ -629,6 +634,7 @@ final class PdfFetcher {
             try {
                 PdfStore.download(app, j.key, url, j.title != null ? j.title : fileName, userAgent);
                 main.post(() -> {
+                    if (j.viaClinicalKey && !j.viaCollege) R4LSession.markClinicalKey(app);
                     if (listener != null) listener.onSaved(j.key, j.title);
                     finishJob();
                 });

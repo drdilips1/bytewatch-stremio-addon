@@ -198,6 +198,15 @@ final class R4LSession {
                 + "&appReturnURL=" + Uri.encode(article);
     }
 
+    /** ClinicalKey gave a PDF within the last 12 hours: its sign-in is still good, go straight to the article. */
+    static boolean clinicalKeyFresh(Context ctx) {
+        return System.currentTimeMillis() - ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong("ckAt", 0) < 12 * 3600_000L;
+    }
+
+    static void markClinicalKey(Context ctx) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong("ckAt", System.currentTimeMillis()).apply();
+    }
+
     static boolean isClinicalKeyHost(String host) {
         return host != null && (host.equals("clinicalkey.com") || host.endsWith(".clinicalkey.com"));
     }
