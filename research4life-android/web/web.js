@@ -1051,7 +1051,7 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:${T};backgrou
 .topbar{top:${T}}
 .rd-progress{top:calc(61px + ${T})}
 :root{--nav-h:calc(72px + ${B})}
-nav.bottom{padding-bottom:${B}}
+nav.bottom{bottom:calc(10px + ${B});padding-bottom:0}
 .drawer{padding-top:${T};padding-bottom:${B}}
 .lb{padding-top:${T};padding-bottom:${B}}
 .player{padding-top:calc(10px + ${T})}

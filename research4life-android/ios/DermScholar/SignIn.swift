@@ -14,6 +14,9 @@ enum SignIn {
         // Springer Nature Link's sign-in (the person's own Springer account).
         if host.hasPrefix("idp."), host.hasSuffix("springer.com") || host.hasSuffix("springernature.com") { return "spr" }
         if host == "link.springer.com", u.path.lowercased().hasPrefix("/signup-login") || u.path.lowercased().hasPrefix("/login") { return "spr" }
+        // Springer Nature's other sign-in pages (account., sso., login. … with a login/sign-in path).
+        if host.hasSuffix("springernature.com") || host.hasSuffix(".springer.com"),
+           u.path.lowercased().range(of: "login|signin|sign-in|authorize|auth", options: .regularExpression) != nil { return "spr" }
         if host == "uptodate.com" || host.hasSuffix(".uptodate.com") || host.hasSuffix("wolterskluwer.com") { return "utd" }
         return nil
     }
