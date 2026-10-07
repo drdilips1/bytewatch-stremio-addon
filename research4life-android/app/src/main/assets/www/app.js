@@ -500,8 +500,21 @@
 
   // ---------------------------------------------------------------- routing
   const view = $('#view');
-  let depth = 0;
+  // How many in-app steps can be gone back: kept for the session, so a reload (after sync brings
+  // something in) doesn't make Back forget the way.
+  let depth = (() => { try { return +sessionStorage.getItem('ds.depth') || 0; } catch { return 0; } })();
+  const setDepth = (n) => { depth = Math.max(0, n); try { sessionStorage.setItem('ds.depth', String(depth)); } catch { /* blocked */ } };
   let current = { name: '', params: {} };
+  /** Where Back goes when there is no step to return to: the page above this one. */
+  function parentOf(r) {
+    if (r.name === 'ji') return 'j/' + encodeURIComponent(r.arg.split('/')[0]);
+    if (r.name === 'j') return 'journals';
+    const tab = TAB_OF[r.name];
+    if (tab === 'intel' && r.name !== 'intel') return 'intel';
+    if (tab === 'library' && r.name !== 'library') return 'library';
+    if (r.name === 'a' || r.name === 'pdf' || r.name === 'read') return tabPlace.library && r.name !== 'a' ? 'library' : '';
+    return '';
+  }
 
   function parseHash() {
     const h = location.hash.replace(/^#\/?/, '');
@@ -512,7 +525,7 @@
   function go(hash, { replace = false } = {}) {
     if (('#' + hash.replace(/^#/, '')) === location.hash) { render(); return; }
     if (replace) { location.replace('#' + hash.replace(/^#/, '')); return; }
-    depth++;
+    setDepth(depth + 1);
     location.hash = hash;
   }
   const searchHash = (f) => 'search?' + new URLSearchParams({
@@ -3333,7 +3346,16 @@
       if ($('#lb')) { closeLightbox(); return true; }
       if ($('#drawer')) { closeDrawer(); return true; }
       const name = parseHash().name;
-      if (depth > 0) { depth--; window.history.back(); return true; }
+      if (depth > 0) {
+        setDepth(depth - 1);
+        const was = location.hash;
+        window.history.back();
+        // No step there after all (the app was restarted): the page above instead.
+        setTimeout(() => { if (location.hash === was) { const up = parentOf(parseHash()); setDepth(0); location.replace('#/' + (up || '')); } }, 400);
+        return true;
+      }
+      const up = parentOf(parseHash());
+      if (up) { location.replace('#/' + up); return true; }
       if (name !== 'home') { location.replace('#/'); return true; }
       return false;
     },
