@@ -180,6 +180,8 @@
     if (auto()) {
       for (const p of ['groq', 'gemini']) if (!order.includes(p) && keyFor(p)) order.push(p);
       if (docChars > 60000 && order.includes('gemini') && keyFor('gemini')) { order.splice(order.indexOf('gemini'), 1); order.unshift('gemini'); }
+      // Claude (paid) answers last, only when both free AIs are busy or at their limit.
+      if (!order.includes('claude') && keyFor('claude')) order.push('claude');
     }
     return order;
   }
@@ -770,7 +772,9 @@
       if (!k) { ls.del('ai.key.' + provider()); return; }
       const p = k.startsWith('sk-ant-') ? 'claude' : k.startsWith('gsk_') ? 'groq' : k.startsWith('AIza') ? 'gemini' : known(selected || provider());
       ls.set('ai.key.' + p, k);
-      ls.set('ai.provider', p);
+      // A Claude key is the paid back-up: the free AI that answers first stays selected.
+      // (Choosing the Claude tab to add it selected Claude, so the free one is selected again.)
+      ls.set('ai.provider', p === 'claude' && auto() && (keyFor('groq') || keyFor('gemini')) ? (keyFor('groq') ? 'groq' : 'gemini') : p);
     },
     aiModel: () => modelFor(provider()),
     aiSetModel: (m) => { ls.set('ai.model.' + provider(), m); if (provider() === 'gemini') gem.model = null; },

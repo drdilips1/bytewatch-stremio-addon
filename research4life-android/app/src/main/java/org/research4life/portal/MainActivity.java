@@ -943,7 +943,11 @@ public class MainActivity extends Activity {
             String p = k.startsWith("sk-ant-") ? "claude" : k.startsWith("gsk_") ? "groq" : k.startsWith("AIza") ? "gemini"
                     : known(selected == null || selected.isEmpty() ? provider() : selected);
             R4LSession.saveCredentials(MainActivity.this, p, "api", k);
-            aiSetProvider(p);
+            // A Claude key is the paid back-up: the free AI that answers first stays selected.
+            // (Choosing the Claude tab to add it selected Claude, so the free one is selected again.)
+            boolean groq = R4LSession.hasCredentials(MainActivity.this, "groq");
+            boolean backup = "claude".equals(p) && aiAuto() && (groq || R4LSession.hasCredentials(MainActivity.this, "gemini"));
+            aiSetProvider(backup ? (groq ? "groq" : "gemini") : p);
         }
 
         @JavascriptInterface
@@ -1039,8 +1043,8 @@ public class MainActivity extends Activity {
 
         /**
          * Which AIs to try, in order. The chosen one goes first; with auto on, the other free AI
-         * (Groq or Gemini) with a key is the fallback, and long documents go to Gemini first,
-         * since its free tier takes far bigger inputs.
+         * (Groq or Gemini) with a key is the fallback, long documents go to Gemini first (its free
+         * tier takes far bigger inputs), and Claude, when its key is saved, is the last resort.
          */
         private java.util.List<String> aiOrder(int docChars, boolean imageOnly) {
             java.util.List<String> order = new java.util.ArrayList<>();
@@ -1051,6 +1055,8 @@ public class MainActivity extends Activity {
                     if (!order.contains(p) && R4LSession.hasCredentials(MainActivity.this, p)) order.add(p);
                 }
                 if (docChars > 60000 && order.remove("gemini") && R4LSession.hasCredentials(MainActivity.this, "gemini")) order.add(0, "gemini");
+                // Claude (paid) answers last, only when both free AIs are busy or at their limit.
+                if (!order.contains("claude") && R4LSession.hasCredentials(MainActivity.this, "claude")) order.add("claude");
             }
             return order;
         }
