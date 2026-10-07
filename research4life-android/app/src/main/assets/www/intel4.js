@@ -422,86 +422,80 @@
     if (!answerable(question)) { el.remove(); return; }
     if (!D.aiHasKey()) { el.innerHTML = ''; return; }
     const live = () => el.isConnected;
-    const key = 'answer4.' + question.toLowerCase().trim();
-    let full = false;
-    const render = (r, refs, steps) => {
+    const key = 'answer5.' + question.toLowerCase().trim();
+    // The answer is written as it comes (like Consensus): searches first (a second or two), then
+    // the cited answer streams in; quotes and follow-up suggestions come at its end.
+    const splitTail = (t) => { const i = t.search(/\n\s*\**QUOTES:?\**/i); return i < 0 ? { body: t, tail: '' } : { body: t.slice(0, i), tail: t.slice(i) }; };
+    const parseTail = (tail) => {
+      const quotes = [...tail.matchAll(/\[(\d+)\]\s*[“"](.+?)[”"]/g)].map((m) => ({ n: +m[1], quote: m[2] }));
+      const fi = tail.search(/FOLLOW-?UPS:?/i);
+      const followups = fi < 0 ? [] : tail.slice(fi).split('\n').slice(1).map((l) => l.replace(/^\s*[-*\d.)]+\s*/, '').trim()).filter((l) => l.length > 8).slice(0, 4);
+      return { quotes, followups };
+    };
+    const stepsHtml = (steps) => (steps?.length ? `<div class="muted small" style="margin:0 0 8px">${steps.map((x) => `${icon('search')} ${esc(x.label)}${x.hit != null ? ' · ' + Number(x.hit || 0).toLocaleString() : ''}`).join('<br>')}</div>` : '');
+    const frame = (note, steps, inner) => `<div class="panel explain qa">
+        <div class="section-h" style="margin:0 0 4px"><h3>${icon('spark')}Answer</h3><span class="muted small qa-note">${note}</span></div>
+        ${stepsHtml(steps)}<div class="qa-body">${inner}</div></div>`;
+    const render = (text, refs, steps) => {
       if (!live()) return;
-      full = true;
-      // The supporting sentence of each paper, shown in the references (as Consensus does).
-      for (const q of r.quotes || []) { const x = refs.find((y) => y.n === q.n); if (x && q.quote) x.quote = q.quote; }
+      const { body, tail } = splitTail(text);
+      const { quotes, followups } = parseTail(tail);
+      for (const q of quotes) { const x = refs.find((y) => y.n === q.n); if (x) x.quote = q.quote; }
       const ctx = I.newCtx(refs);
-      const cite = (t) => I.citeHtml(esc(t), ctx);
-      const table = (t) => (t && t.columns?.length && t.rows?.length ? `<div class="ex-table"><table><thead><tr>${t.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
-        <tbody>${t.rows.map((row) => `<tr>${row.map((c) => `<td>${cite(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>${t.caption ? `<p class="muted small">${esc(t.caption)}</p>` : ''}</div>` : '');
-      el.innerHTML = `<div class="panel explain qa">
-        <div class="section-h" style="margin:0 0 4px"><h3>${icon('spark')}Answer</h3><span class="muted small">${refs.length} sources</span></div>
-        ${steps?.length ? `<div class="muted small" style="margin:0 0 8px">${steps.map((x) => `${icon('search')} ${esc(x.label)} · ${Number(x.hit || 0).toLocaleString()}`).join('<br>')}</div>` : ''}
-        <p class="ex-head" style="font-size:1.08em;font-weight:600">${cite(r.headline || '')}</p>
-        ${(r.sections || []).map((x) => `<h4>${esc(x.heading)}</h4>${(x.paragraphs || []).map((t) => `<p>${cite(t)}</p>`).join('')}${table(x.table)}`).join('')}
-        ${r.guidelines?.length ? `<h4>Current guidelines</h4><ul>${r.guidelines.map((g) => `<li>${cite(g.text)} ${I.citeBtns(g.cites, ctx)}</li>`).join('')}</ul>` : ''}
-        ${r.claims?.length ? `<h4>Evidence strength</h4><div class="ex-table"><table><thead><tr><th>Strength</th><th>Claim</th></tr></thead><tbody>
-          ${r.claims.map((c) => `<tr><td>${I.strength(c.strength)}</td><td>${cite(c.claim)} ${I.citeBtns(c.cites, ctx)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      el.innerHTML = frame(`${refs.length} sources`, steps, I.citeHtml(D.md(body), ctx)).replace(/<\/div>$/, '') + `
         <details class="qa-refs"><summary>References (${refs.length})</summary>${refs.map(I.refRow).join('')}</details>
-        ${r.followups?.length ? `<div class="qa-sugg" style="margin-top:10px">${r.followups.slice(0, 4).map((f) => `<button class="chip" data-act="qa-sugg" data-q="${esc(f)}" style="text-align:left;white-space:normal">${icon('search')}${esc(f)}</button>`).join('')}</div>` : ''}
-        <p class="muted small">AI-written from these papers' abstracts (guidelines first). Tap a reference to see it; check key numbers in the papers.</p>
+        ${followups.length ? `<div class="qa-sugg" style="margin-top:10px">${followups.map((f) => `<button class="chip" data-act="qa-sugg" data-q="${esc(f)}" style="text-align:left;white-space:normal">${icon('search')}${esc(f)}</button>`).join('')}</div>` : ''}
+        <p class="muted small">AI-written from these papers' abstracts (guidelines first). Tap a citation to see its paper; check key numbers in the papers.</p>
         <div class="row wrap" style="gap:6px"><button class="btn xs" data-act="qa-redo">${icon('spark')}Redo</button>
           <button class="btn xs" data-act="ev-from-search" data-q="${esc(question)}">${icon('chart')}Full evidence map</button></div></div>
         <div class="qa-thread"></div>
         <form class="qa-follow" style="display:flex;gap:8px;margin-top:10px"><input name="f" placeholder="Ask a follow-up…" autocomplete="off" style="flex:1"><button class="btn primary">Ask</button></form>`;
       actions['qa-redo'] = () => { store.set('intel.' + key, null); searchAnswer(question, el); };
-      followUps(question, r, refs, el);
-      // A suggested follow-up asked with one tap.
+      followUps(question, { text: body }, refs, el);
       actions['qa-sugg'] = (b) => { const f = el.querySelector('.qa-follow'); if (!f) return; f.f.value = b.dataset.q; f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event('submit', { cancelable: true })); };
     };
     const kept = I.cacheGet(key);
-    if (kept && kept.r && kept.refs) { render(kept.r, kept.refs.map((x) => ({ ...x, a: x.a })), kept.steps); return; }
-    // A quick answer straight away (seconds, written as it comes), while the cited answer is
-    // prepared from the papers; the cited one replaces it when ready.
-    el.innerHTML = `<div class="panel explain qa">
-      <div class="section-h" style="margin:0 0 4px"><h3>${icon('spark')}Quick answer</h3><span class="muted small">checking against papers…</span></div>
-      <div id="qa-quick">${I.busyHtml('Answering…')}</div></div>`;
-    let quickShown = false;
-    // Shaped by what is asked: treatment options only for treatment questions; dermoscopy,
-    // diagnosis, investigations, causes… get their own structure.
+    if (kept && kept.text && kept.refs) { render(kept.text, kept.refs, kept.steps); return; }
+
+    const yr = new Date().getFullYear();
+    el.innerHTML = frame('searching…', [{ label: 'Most relevant papers' }, { label: 'Guidelines and consensus statements (last 6 years)' }], I.busyHtml('Searching the literature…'));
+    // Shaped by what is asked: treatment options only for treatment questions.
     const shape = /\b(treat|treatment|therap|management|manage|drug|dose|regimen|first[- ]line|second[- ]line|options? for)/i.test(question)
-      ? 'Then "## Options" as short bullets in order of use (first-line, then second-line or refractory, then procedures), with the usual regimen or strength where standard. End with one line on what current guidelines or consensus say.'
+      ? 'For treatment: sections such as "First-line", "Second-line / refractory", "Procedures and devices", "Maintenance", "Special situations", and a table (treatment | evidence | key result | notes).'
       : /\b(dermoscop|dermatoscop|trichoscop|onychoscop|capillaroscop)/i.test(question)
-        ? 'Then the dermoscopic features as a compact Markdown table (one row per condition or variant: key features, vessels, colours/structures, clues that tell it apart), then one line on pitfalls and when to biopsy. Do not discuss treatment.'
-        : 'Then short bullets or a compact Markdown table answering exactly that question (e.g. criteria, features, differentials, investigations, causes or prognosis — whichever is asked). Do not add treatment unless the question asks about it.';
-    D.ai(`QUESTION: ${question}\n\nAnswer exactly this question for a dermatologist seeing the patient now, in under 200 words. Start with a one-line answer. ${shape} Say plainly where evidence is limited. No preamble.`,
-      { system: 'You are an experienced, careful dermatologist. Be practical and current; never invent doses or studies; say when something is uncertain.', max: 700,
-        onPartial: (t) => { if (!full && live() && $('#qa-quick')) { quickShown = true; $('#qa-quick').innerHTML = D.md(t); } } })
-      .then((t) => { if (!full && live() && $('#qa-quick')) { quickShown = true; $('#qa-quick').innerHTML = D.md(t); } })
-      .catch(() => { if (!full && live() && $('#qa-quick') && !quickShown) $('#qa-quick').innerHTML = I.busyHtml('Answering from current evidence and guidelines…'); });
+        ? 'For dermoscopy: one section per condition with its dermoscopic features, and a table comparing them (condition | structures | vessels | colours | clues). No treatment.'
+        : 'Use the sections the question needs (e.g. criteria, features, differentials, investigations, causes, prognosis), with a table where it helps. No treatment section unless asked.';
     try {
-      const yr = new Date().getFullYear();
-      // Two quick searches (no AI planning step): the most relevant papers and recent guidelines.
       const [rel, guides] = await Promise.all([
         I.epmc({ ...I.q(question), query: `(${I.q(question).query}) AND HAS_ABSTRACT:y NOT SRC:PPR NOT PUB_TYPE:"Case Reports"` }, 14).catch(() => ({ results: [] })),
         I.epmc(I.q(question, { extra: `${I.GUIDE} AND PUB_YEAR:[${yr - 6} TO ${yr}]` }), 5).catch(() => ({ results: [] })),
       ]);
+      const steps = [{ label: 'Most relevant papers', hit: rel.hit || 0 }, { label: 'Guidelines and consensus statements (last 6 years)', hit: guides.hit || 0 }];
       const seen = new Set();
       const papers = [...(guides.results || []), ...(rel.results || [])].filter((a) => a.abstract && !seen.has(a.id) && seen.add(a.id)).slice(0, 14);
-      if (papers.length < 2) { if (!quickShown) el.innerHTML = ''; return; }
+      if (papers.length < 2) { if (live()) el.innerHTML = frame('', steps, '<p class="muted small">Not enough papers found to answer this from the literature. Try other words.</p>'); return; }
       const refs = papers.map((a, i) => ({ kind: 'paper', a, type: D.studyType(a).label, n: i + 1 }));
-      const doc = refs.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 650)}`).join('\n\n');
-      const r = D.aiJson(await D.ai(`QUESTION: ${question}\n\n`
-        + 'Answer exactly this question for a dermatologist straight away, like a short up-to-date review, using only these papers (guidelines and consensus statements come first; prefer the newest guidance and the strongest evidence). Stay on what is asked: a question about dermoscopy, diagnosis, investigations or causes gets no treatment section.\n'
-        + '- headline: one or two sentences that answer the question directly (for treatment questions: the first-line options and when to step up).\n'
-        + '- sections: 3 to 5 with headings that fit the question (for treatment: "First-line", "Second-line / refractory", "Procedures and devices", "Maintenance and prevention", "Special situations"; for dermoscopy: one section per condition with its dermoscopic features, and a table comparing them; for diagnosis or other questions, what fits). Each has 1-2 short paragraphs; every claim cites its papers like [3] or [2, 5]; keep numbers exactly as reported.\n'
-        + '- table: where it helps (e.g. treatment, evidence level, key result, notes — one row per option), cells may cite [n]; otherwise caption "", columns [] and rows [].\n'
-        + '- guidelines: what the current guidelines or consensus statements among the papers recommend, each with its citations; [] if none.\n'
-        + '- claims: 3 to 5 key claims with evidence strength (strong, moderate, limited) and the papers behind them.\n'
-        + '- quotes: for up to 8 of the papers you cite most, the one sentence from its abstract that best supports your answer, copied exactly ({n, quote}).\n'
-        + '- followups: 3 short follow-up questions a dermatologist would likely ask next about this topic (e.g. about prognosis, monitoring, special populations, what to do if positive).',
-        { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: ANSWER(), max: 4000 }));
-      const steps = [{ label: 'Most relevant papers', hit: rel.hitCount || rel.hit || 0 }, { label: 'Guidelines and consensus statements (last 6 years)', hit: guides.hitCount || guides.hit || 0 }];
-      I.cacheSet(key, { r, refs, steps });
-      render(r, refs, steps);
+      const ctx = I.newCtx(refs);
+      if (live()) el.innerHTML = frame(`reading ${refs.length} papers…`, steps, I.busyHtml('Writing the answer…'));
+      const doc = refs.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 600)}`).join('\n\n');
+      const text = await D.ai(`QUESTION: ${question}\n\n`
+        + 'Answer exactly this question for a dermatologist, like a short up-to-date review, using only these papers (guidelines and consensus statements first; prefer the newest guidance and strongest evidence). Write Markdown:\n'
+        + '1. First line: the answer in one bold sentence (**…**).\n'
+        + '2. A short paragraph (2-3 sentences) explaining it.\n'
+        + '3. 2 to 4 "## " sections with headings that fit the question, short paragraphs or bullets, and one compact Markdown table where it helps. ' + shape + '\n'
+        + '4. If the papers include guidelines or consensus statements: "## Current guidelines" with what they recommend.\n'
+        + 'Every claim cites its papers like [3] or [2, 5]; keep numbers exactly as reported; never add facts not in the papers; say plainly where evidence is limited. About 300-450 words. No preamble.\n'
+        + 'Then, after the answer, exactly these two blocks:\nQUOTES:\n[n] "the one sentence from paper n\'s abstract that best supports the answer" (for the 5-8 papers you cite most)\nFOLLOWUPS:\n- three short follow-up questions a dermatologist would likely ask next',
+        { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', max: 2200,
+          onPartial: (t) => {
+            if (!live()) return;
+            const b = el.querySelector('.qa-body');
+            if (b) b.innerHTML = I.citeHtml(D.md(splitTail(t).body), ctx);
+          } });
+      I.cacheSet(key, { text, refs, steps });
+      render(text, refs, steps);
     } catch (e) {
       actions['qa-redo'] = () => searchAnswer(question, el);
-      // The quick answer stays; only the cited version failed.
-      if (live() && quickShown) { el.querySelector('.section-h .muted').textContent = 'references didn\'t load'; return; }
       if (live()) el.innerHTML = I.aiErr(e) + `<button class="btn xs" data-act="qa-redo" style="margin-top:6px">${icon('spark')}Try again</button>`;
     }
   }
@@ -539,7 +533,7 @@
         }
         all = all.concat(added);
         const doc = all.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 500)}`).join('\n\n');
-        const earlier = [`Earlier answer: ${r.headline || ''}`, ...(r.sections || []).map((x) => `${x.heading}: ${(x.paragraphs || []).join(' ').slice(0, 300)}`),
+        const earlier = [r.text ? `Earlier answer: ${String(r.text).slice(0, 1500)}` : `Earlier answer: ${r.headline || ''}`, ...(r.sections || []).map((x) => `${x.heading}: ${(x.paragraphs || []).join(' ').slice(0, 300)}`),
           ...thread.slice(-3).map((t) => `Follow-up "${t.q}": ${String(t.a).slice(0, 500)}`)].join('\n');
         const text = await D.ai(`ORIGINAL QUESTION: ${question}\n${earlier}\n\nFOLLOW-UP QUESTION: ${q2}\n\n`
           + 'Answer the follow-up for a dermatologist in under 250 words, using the numbered papers and citing them like [3] or [2, 5]. '
