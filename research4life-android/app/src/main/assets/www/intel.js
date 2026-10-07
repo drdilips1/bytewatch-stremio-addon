@@ -25,7 +25,8 @@
   function q(question, { types = [], extra = '', years = 'any', sort = '', treat = true } = {}) {
     // The planned search (synonyms, the terms papers use) when there is one, else the question's words.
     const core = planCore(question);
-    let s = D.buildQuery({ q: core || question, derm: !core, types, years, oa: false, preprints: false });
+    // The skin filter applies to planned searches too, unless they are already about skin disease.
+    let s = D.buildQuery({ q: core || question, derm: true, types, years, oa: false, preprints: false });
     if (extra) s = `(${s}) AND ${extra}`;
     // Treatment questions get treatment papers, not side-effect reports (unless safety is asked).
     if (treat && isTreatmentQ(question)) s = `(${s}) AND ${TREAT}`;
@@ -97,7 +98,7 @@
     }
     if (!plan) {
       const words = D.keywordTerms(question);
-      let core = words.join(' ');
+      let core = words.map(absTerm).filter(Boolean).join(' AND ');
       if (!D.DERM_WORDS.test(question)) core = `(${core}) AND ${D.DERM_FILTER}`;
       plan = { yesno: YESNO_Q.test(question.trim()) ? question.trim() : '', topic: question, searches: [{ label: words.join(' '), query: core }], ai: false };
     }
@@ -120,7 +121,8 @@
       score.set(a.id, (score.get(a.id) || 0) + w / (1 + i / 6));
     });
     const steps = await Promise.all(plan.searches.map(async (sp, i) => {
-      const base = `(${sp.query}) AND HAS_ABSTRACT:y NOT SRC:PPR${noCase ? ' NOT PUB_TYPE:"Case Reports"' : ''} ${D.NOISE}`;
+      const skin = D.DERM_WORDS.test(sp.query) ? '' : ` AND ${D.DERM_FILTER}`;
+      const base = `(${sp.query})${skin} AND HAS_ABSTRACT:y NOT SRC:PPR${noCase ? ' NOT PUB_TYPE:"Case Reports"' : ''} ${D.NOISE}`;
       const [rel, cited] = await Promise.all([epmc({ query: base }, 30), i === 0 ? epmc({ query: base, sort: 'CITED desc' }, 15) : Promise.resolve(null)]);
       add(rel.results || [], i === 0 ? 1.2 : 1);
       if (cited) add(cited.results || [], 0.8);
@@ -128,7 +130,8 @@
       onStep?.(step);
       return step;
     }));
-    const rank = (a) => (score.get(a.id) || 0) * (1 + 0.12 * (D.studyType(a).rank || 0)) + Math.log10(1 + (a.citedBy || 0)) * 0.15;
+    // Dermatology journals first: the same trial reported in JAAD outranks a general journal's mention.
+    const rank = (a) => (score.get(a.id) || 0) * (1 + 0.12 * (D.studyType(a).rank || 0)) * (D.dermJournal(a) ? 1.35 : 1) + Math.log10(1 + (a.citedBy || 0)) * 0.15;
     const list = [...papers.values()].sort((x, y) => rank(y) - rank(x));
     return { plan, steps, total: papers.size, retrieved: steps.reduce((n, x) => n + x.hit, 0), papers: list.slice(0, size) };
   }
@@ -248,7 +251,7 @@
   function bestRefs(refs, n = 24) {
     if (refs.length <= n) return refs;
     const len = refs.length;
-    const score = (r, i) => (r.kind === 'trial' ? 9 : D.studyType(r.a).rank * 2 + ((+r.a.year || 0) >= D.THIS_YEAR - 3 ? 1.5 : 0)) + (1 - i / len) * 3;
+    const score = (r, i) => (r.kind === 'trial' ? 9 : D.studyType(r.a).rank * 2 + ((+r.a.year || 0) >= D.THIS_YEAR - 3 ? 1.5 : 0) + (D.dermJournal(r.a) ? 2 : 0)) + (1 - i / len) * 3;
     const ranked = refs.map((r, i) => ({ r, s: score(r, i) })).sort((x, y) => y.s - x.s);
     const out = [];
     let trials = 0;

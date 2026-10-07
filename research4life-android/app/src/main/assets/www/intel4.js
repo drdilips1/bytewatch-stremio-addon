@@ -496,13 +496,15 @@
       const recent = /\b(new|newer|newest|latest|recent|recently|emerging|novel|upcoming|update[sd]?|advances?|current trends?|20[2-3]\d)\b/i.test(question);
       const relQuery = `(${I.q(question).query}) AND HAS_ABSTRACT:y NOT SRC:PPR NOT PUB_TYPE:"Case Reports"${recent ? ` AND PUB_YEAR:[${yr - 4} TO ${yr}]` : ''}`;
       let [rel, guides] = await Promise.all([
-        I.epmc({ ...I.q(question), query: relQuery }, 14).catch(() => ({ results: [] })),
+        I.epmc({ ...I.q(question), query: relQuery }, 25).catch(() => ({ results: [] })),
         I.epmc(I.q(question, { extra: `${I.GUIDE} AND PUB_YEAR:[${yr - 6} TO ${yr}]` }), 5).catch(() => ({ results: [] })),
       ]);
       // Too few recent papers: all years.
-      if (recent && (rel.results || []).length < 4) rel = await I.epmc({ ...I.q(question), query: relQuery.replace(/ AND PUB_YEAR:\[[^\]]+\]/, '') }, 14).catch(() => rel);
+      if (recent && (rel.results || []).length < 4) rel = await I.epmc({ ...I.q(question), query: relQuery.replace(/ AND PUB_YEAR:\[[^\]]+\]/, '') }, 25).catch(() => rel);
       const seen = new Set();
-      const eligible = [...(guides.results || []), ...(rel.results || [])].filter((a) => a.abstract && !seen.has(a.id) && seen.add(a.id));
+      // The 25 most relevant, dermatology journals first (keeping relevance order within each).
+      const relList = (rel.results || []).map((a, i) => ({ a, s: i - (D.dermJournal(a) ? 8 : 0) })).sort((x, y) => x.s - y.s).map((x) => x.a);
+      const eligible = [...(guides.results || []), ...relList].filter((a) => a.abstract && !seen.has(a.id) && seen.add(a.id));
       const papers = eligible.slice(0, 14);
       const steps = { retrieved: (rel.hit || 0) + (guides.hit || 0), eligible: eligible.length, included: papers.length,
         rows: [{ label: question, hit: rel.hit || 0 }, { label: 'Guidelines and consensus statements, last 6 years', hit: guides.hit || 0 }, { label: 'Read abstracts', hit: papers.length, read: true }] };

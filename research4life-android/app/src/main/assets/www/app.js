@@ -96,7 +96,12 @@
   // Title/abstract terms that keep results dermatological.
   const DERM_FILTER = '(TITLE_ABS:skin OR TITLE_ABS:cutaneous OR TITLE_ABS:dermatolog* OR TITLE_ABS:dermatitis OR TITLE_ABS:dermal OR TITLE_ABS:epiderm* OR TITLE_ABS:mucocutaneous)';
   // Queries already about skin disease don't need the filter.
-  const DERM_WORDS = /\b(dermat\w*|skin|cutaneous|psoria\w*|eczema|vitiligo|acne|melasma|alopecia|urticaria|pemphig\w*|melanoma|hidradenitis|rosacea|lichen|tinea|dermatophyt\w*|scabies|lepros\w*|leprae|keloid|pigment\w*|nev(us|i)|naev\w*|mycosis fungoides|onychomycosis|wart|vulgaris|pruritus|itch|hyperhidrosis|keratos\w*|basal cell|squamous cell|seborrh\w*|intertrigo|impetigo|cellulitis|lupus|morphea|scleroderma|bullous|epidermolysis|ichthyosis|hair|nail|sunscreen|photoaging|isotretinoin|dupilumab|minoxidil)\b/i;
+  const DERM_WORDS = /\b(dermat\w*|skin|cutaneous|psoria\w*|eczema|vitiligo|acne|melasma|alopecia|urticaria|pemphig\w*|melanoma|hidradenitis|rosacea|lichen|tinea|dermatophyt\w*|scabies|lepros\w*|leprae|keloid|nev(us|i)|naev\w*|mycosis fungoides|onychomycosis|warts?|hyperhidrosis|keratos\w*|basal cell|seborrh\w*|intertrigo|impetigo|cellulitis|morphea|bullous|epidermolysis|ichthyosis|sunscreen|photoaging|isotretinoin|minoxidil)\b/i;
+  // (Words also common outside dermatology, like lupus, hair, nail, itch, pigment, squamous cell or
+  // dupilumab, keep the skin filter: "lupus" alone finds kidney and joint papers.)
+  /** A dermatology journal (JAAD, BJD, JAMA Dermatology, JEADV…): its papers come first in answers. */
+  const DERM_JOURNAL = /dermat|\bskin\b|cutan|venereol|acta derm|melanoma res|leprosy|lepr rev|trichol|hair (res|sci)|photoderm|pigment cell|mycoses|wound|burns|cosmet/i;
+  const dermJournal = (a) => DERM_JOURNAL.test(`${a?.journal || ''} ${a?.jAbbr || ''}`);
 
   const STOP = new Set('a an the of in on for to with and or is are was were be been does do did can could should would will what which who whom whose how why when where there any some this that these those than then vs versus compared comparison between among about into from by as at it its effect effects effective effectiveness efficacy role use using used study studies evidence patients patient people adults treatment treat treating therapy improve improves improvement reduce reduces better best whats thats theres new newer newest latest recent recently emerging novel update updates updated advances advance current insights insight overview know tell me explain explained understanding'.split(' '));
   const KEEP_WHEN_ALONE = new Set(['treatment', 'therapy', 'efficacy']);
@@ -482,8 +487,12 @@
     let core;
     if (isAdvanced(raw)) core = raw;
     else {
-      const terms = keywordTerms(raw);
-      core = broad ? terms.join(' OR ') : terms.join(' ');
+      // Words in the title or abstract, not anywhere in the full text: only open-access papers have
+      // their full text indexed, so a full-text match favoured free papers and ones that mention the
+      // word in passing (often not dermatology).
+      const terms = keywordTerms(raw).map((t) => t.replace(/["“”()[\]{}:]/g, '').trim()).filter((t) => t && !/^(and|or|not)$/i.test(t))
+        .map((t) => (/^[\w*]+$/.test(t) ? `TITLE_ABS:${t}` : `TITLE_ABS:"${t.replace(/\*+$/, '')}"`));
+      core = broad ? terms.join(' OR ') : terms.join(' AND ');
     }
     const parts = [`(${core})`];
     if (f.derm && !DERM_WORDS.test(raw)) parts.push(DERM_FILTER);
@@ -3489,7 +3498,7 @@
   window.DS = {
     Native, ext, $, $$, esc, icon, md, sheet, closeSheet, toast, store, db, go, render, actions, settings, saveSettings,
     epmcSearch, buildQuery, studyType, card, badgesFor, keywordTerms, journalQuery, getJSON, findArticle, pickOne, pickMany,
-    topicOf, loadSaved, account, waitingPaper: () => { const w = store.get('myloftWaiting', null); return w && Date.now() - w.t < 24 * 3600e3 ? w : null; }, getPdf, searchHash, filtersFrom, skeletons, shortAuthors, NOISE, DERM_FILTER, DERM_WORDS, TYPE_FILTERS, THIS_YEAR, hasNative,
+    topicOf, loadSaved, account, waitingPaper: () => { const w = store.get('myloftWaiting', null); return w && Date.now() - w.t < 24 * 3600e3 ? w : null; }, getPdf, searchHash, filtersFrom, skeletons, shortAuthors, NOISE, DERM_FILTER, DERM_WORDS, dermJournal, TYPE_FILTERS, THIS_YEAR, hasNative,
     topbar, errorBox, coverStyle, hueFor, saveArticle, openReader, showReader, readerTop, readerLoading, lightbox,
     ttsPlay, ttsPlayScript, ttsSheet, ttsPrefs, saveTts, ttsTimes, indexAfterSeconds, sectionStart, sectionEnd, nextSection, prevSection,
     voiceList, RATES, ai, aiJson, aiHasKey, live, aiMaxCap, modelText, jumpToBlock, copyText, syncPdfs, refreshPdfs, stripTags,
