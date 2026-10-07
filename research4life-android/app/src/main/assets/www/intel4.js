@@ -414,29 +414,35 @@
     sections: EXPLAIN().properties.sections,
     guidelines: { type: 'array', items: obj({ text: S.str, cites: S.ints }) },
     claims: EXPLAIN().properties.claims,
+    quotes: { type: 'array', items: obj({ n: { type: 'integer' }, quote: S.str }) },
+    followups: { type: 'array', items: S.str },
   });
-  const answerable = (x) => !!x && x.trim().split(/\s+/).length >= 3 && !/["():]|\b(AND|OR|NOT)\b/.test(x) && !/^(10\.\d|pmid|pmc\d|\d{5,9}$)/i.test(x.trim());
+  const answerable = (x) => !!x && x.trim().split(/\s+/).length >= 2 && !/["():]|\b(AND|OR|NOT)\b/.test(x) && !/^(10\.\d|pmid|pmc\d|\d{5,9}$)/i.test(x.trim());
   async function searchAnswer(question, el) {
     if (!answerable(question)) { el.remove(); return; }
     if (!D.aiHasKey()) { el.innerHTML = ''; return; }
     const live = () => el.isConnected;
-    const key = 'answer3.' + question.toLowerCase().trim();
+    const key = 'answer4.' + question.toLowerCase().trim();
     let full = false;
-    const render = (r, refs) => {
+    const render = (r, refs, steps) => {
       if (!live()) return;
       full = true;
+      // The supporting sentence of each paper, shown in the references (as Consensus does).
+      for (const q of r.quotes || []) { const x = refs.find((y) => y.n === q.n); if (x && q.quote) x.quote = q.quote; }
       const ctx = I.newCtx(refs);
       const cite = (t) => I.citeHtml(esc(t), ctx);
       const table = (t) => (t && t.columns?.length && t.rows?.length ? `<div class="ex-table"><table><thead><tr>${t.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
         <tbody>${t.rows.map((row) => `<tr>${row.map((c) => `<td>${cite(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>${t.caption ? `<p class="muted small">${esc(t.caption)}</p>` : ''}</div>` : '');
       el.innerHTML = `<div class="panel explain qa">
         <div class="section-h" style="margin:0 0 4px"><h3>${icon('spark')}Answer</h3><span class="muted small">${refs.length} sources</span></div>
-        <p class="ex-head">${cite(r.headline || '')}</p>
+        ${steps?.length ? `<div class="muted small" style="margin:0 0 8px">${steps.map((x) => `${icon('search')} ${esc(x.label)} · ${Number(x.hit || 0).toLocaleString()}`).join('<br>')}</div>` : ''}
+        <p class="ex-head" style="font-size:1.08em;font-weight:600">${cite(r.headline || '')}</p>
         ${(r.sections || []).map((x) => `<h4>${esc(x.heading)}</h4>${(x.paragraphs || []).map((t) => `<p>${cite(t)}</p>`).join('')}${table(x.table)}`).join('')}
         ${r.guidelines?.length ? `<h4>Current guidelines</h4><ul>${r.guidelines.map((g) => `<li>${cite(g.text)} ${I.citeBtns(g.cites, ctx)}</li>`).join('')}</ul>` : ''}
         ${r.claims?.length ? `<h4>Evidence strength</h4><div class="ex-table"><table><thead><tr><th>Strength</th><th>Claim</th></tr></thead><tbody>
           ${r.claims.map((c) => `<tr><td>${I.strength(c.strength)}</td><td>${cite(c.claim)} ${I.citeBtns(c.cites, ctx)}</td></tr>`).join('')}</tbody></table></div>` : ''}
         <details class="qa-refs"><summary>References (${refs.length})</summary>${refs.map(I.refRow).join('')}</details>
+        ${r.followups?.length ? `<div class="qa-sugg" style="margin-top:10px">${r.followups.slice(0, 4).map((f) => `<button class="chip" data-act="qa-sugg" data-q="${esc(f)}" style="text-align:left;white-space:normal">${icon('search')}${esc(f)}</button>`).join('')}</div>` : ''}
         <p class="muted small">AI-written from these papers' abstracts (guidelines first). Tap a reference to see it; check key numbers in the papers.</p>
         <div class="row wrap" style="gap:6px"><button class="btn xs" data-act="qa-redo">${icon('spark')}Redo</button>
           <button class="btn xs" data-act="ev-from-search" data-q="${esc(question)}">${icon('chart')}Full evidence map</button></div></div>
@@ -444,9 +450,11 @@
         <form class="qa-follow" style="display:flex;gap:8px;margin-top:10px"><input name="f" placeholder="Ask a follow-up…" autocomplete="off" style="flex:1"><button class="btn primary">Ask</button></form>`;
       actions['qa-redo'] = () => { store.set('intel.' + key, null); searchAnswer(question, el); };
       followUps(question, r, refs, el);
+      // A suggested follow-up asked with one tap.
+      actions['qa-sugg'] = (b) => { const f = el.querySelector('.qa-follow'); if (!f) return; f.f.value = b.dataset.q; f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event('submit', { cancelable: true })); };
     };
     const kept = I.cacheGet(key);
-    if (kept && kept.r && kept.refs) { render(kept.r, kept.refs.map((x) => ({ ...x, a: x.a }))); return; }
+    if (kept && kept.r && kept.refs) { render(kept.r, kept.refs.map((x) => ({ ...x, a: x.a })), kept.steps); return; }
     // A quick answer straight away (seconds, written as it comes), while the cited answer is
     // prepared from the papers; the cited one replaces it when ready.
     el.innerHTML = `<div class="panel explain qa">
@@ -483,10 +491,13 @@
         + '- sections: 3 to 5 with headings that fit the question (for treatment: "First-line", "Second-line / refractory", "Procedures and devices", "Maintenance and prevention", "Special situations"; for dermoscopy: one section per condition with its dermoscopic features, and a table comparing them; for diagnosis or other questions, what fits). Each has 1-2 short paragraphs; every claim cites its papers like [3] or [2, 5]; keep numbers exactly as reported.\n'
         + '- table: where it helps (e.g. treatment, evidence level, key result, notes — one row per option), cells may cite [n]; otherwise caption "", columns [] and rows [].\n'
         + '- guidelines: what the current guidelines or consensus statements among the papers recommend, each with its citations; [] if none.\n'
-        + '- claims: 3 to 5 key claims with evidence strength (strong, moderate, limited) and the papers behind them.',
-        { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: ANSWER(), max: 3500 }));
-      I.cacheSet(key, { r, refs });
-      render(r, refs);
+        + '- claims: 3 to 5 key claims with evidence strength (strong, moderate, limited) and the papers behind them.\n'
+        + '- quotes: for up to 8 of the papers you cite most, the one sentence from its abstract that best supports your answer, copied exactly ({n, quote}).\n'
+        + '- followups: 3 short follow-up questions a dermatologist would likely ask next about this topic (e.g. about prognosis, monitoring, special populations, what to do if positive).',
+        { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: ANSWER(), max: 4000 }));
+      const steps = [{ label: 'Most relevant papers', hit: rel.hitCount || rel.hit || 0 }, { label: 'Guidelines and consensus statements (last 6 years)', hit: guides.hitCount || guides.hit || 0 }];
+      I.cacheSet(key, { r, refs, steps });
+      render(r, refs, steps);
     } catch (e) {
       actions['qa-redo'] = () => searchAnswer(question, el);
       // The quick answer stays; only the cited version failed.

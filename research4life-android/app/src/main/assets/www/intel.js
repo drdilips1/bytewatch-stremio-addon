@@ -453,7 +453,7 @@
     const a = r.a;
     return `<div class="ref"><div class="ref-n">${r.n}</div><div class="ref-b"><span class="tag">${esc(r.type)}</span>
       <b>${esc(a.title)}</b><span class="muted small">${esc(D.shortAuthors(a.authors || ''))} · ${esc(a.jAbbr || a.journal)} ${esc(a.year)}${a.citedBy ? ' · ' + a.citedBy + ' citations' : ''}</span>
-      ${a.finding ? `<p class="small">${esc(a.finding)}</p>` : ''}
+      ${r.quote ? `<p class="small ref-quote">“${esc(r.quote)}”</p>` : a.finding ? `<p class="small">${esc(a.finding)}</p>` : ''}
       <button class="btn xs" data-act="open" data-id="${esc(a.id)}">${icon('file')}Open paper</button></div></div>`;
   }
   actions['cite-show'] = (b) => {
