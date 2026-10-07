@@ -623,6 +623,12 @@ nav.bottom button { font-size: 11px; letter-spacing: .01em; }
 nav.bottom .pill { padding: 4px 18px; transition: background .2s; }
 nav.bottom button.on { color: var(--accent-ink); }
 nav.bottom button.on .pill { background: var(--accent-soft); }
+/* Six tabs (with UpToDate and R4L shown) fit the width: each tab may shrink (the last one was cut off). */
+nav.bottom { padding: 0 4px; }
+nav.bottom button { min-width: 0; padding: 0 1px; }
+nav.bottom button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+nav.bottom .pill { padding: 4px clamp(6px, 3.2vw, 18px); max-width: 100%; box-sizing: border-box; }
+@media (max-width: 400px) { nav.bottom button { font-size: 10.5px; letter-spacing: 0; } }
 #view { padding-bottom: calc(var(--nav-h) + 40px); }
 .tray { bottom: calc(var(--nav-h) + 16px); }
 
