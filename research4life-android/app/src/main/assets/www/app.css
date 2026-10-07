@@ -1334,3 +1334,9 @@ h1, .topbar h1 { letter-spacing: -.01em; }
 /* Journal covers: the same colours, quieter. */
 .jcover-art { filter: saturate(.45) brightness(.82); box-shadow: none; border: 1px solid var(--line); }
 .jcover-art span { font-weight: 500; }
+/* A journal's real cover or logo (from Wikipedia) when one was found. */
+[data-jart].has-art { background-color: #fff !important; background-size: contain !important; background-position: center !important; background-repeat: no-repeat !important; filter: none; color: transparent; }
+[data-jart].has-art > * { visibility: hidden; }
+.jcover-art.has-art { background-size: cover !important; }
+.jcover-art.has-art::after { display: none; }
+.avatar[data-jart].has-art { border: 1px solid var(--line); }

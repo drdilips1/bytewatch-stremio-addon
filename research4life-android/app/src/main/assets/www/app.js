@@ -684,6 +684,7 @@
         <div id="feed">${followed.length ? skeletons(3) : `<div class="muted small">Follow journals to see their latest articles here.</div>`}</div>
       </div>`;
     if (followed.length) loadFeed(followed);
+    loadJournalArt(view);
     ext.afterHome?.();
   }
 
@@ -2470,15 +2471,57 @@
 
   function jrow(j) {
     const on = follows.includes(j.abbr);
-    return `<div class="jrow"><div class="avatar" style="${coverStyle(j.abbr)}">${esc(initials(j))}</div>
+    return `<div class="jrow"><div class="avatar" data-jart="${esc(j.abbr)}" style="${coverStyle(j.abbr)}">${esc(initials(j))}</div>
       <button class="open" data-act="journal" data-abbr="${esc(j.abbr)}"><div class="name">${esc(j.name)}</div>
       <div class="sub">${esc(j.abbr)} · ${esc(j.publisher)}${j.oa ? ' · <span style="color:var(--good)">Open access</span>' : ''}</div></button>
       <button class="star ${on ? 'on' : ''}" data-act="follow" data-abbr="${esc(j.abbr)}" aria-label="Follow">${icon(on ? 'starFill' : 'star')}</button></div>`;
   }
   function jcover(j) {
     return `<button class="jcover" data-act="journal" data-abbr="${esc(j.abbr)}">
-      <div class="jcover-art" style="${coverStyle(j.abbr)}"><span>${esc(initials(j))}</span><small>${esc(j.publisher)}</small></div>
+      <div class="jcover-art" data-jart="${esc(j.abbr)}" style="${coverStyle(j.abbr)}"><span>${esc(initials(j))}</span><small>${esc(j.publisher)}</small></div>
       <b>${esc(j.abbr)}</b></button>`;
+  }
+
+  // ---- journal covers and logos (Wikipedia's picture of the journal, cached on the phone)
+  const WIKI = 'https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=pageimages&piprop=thumbnail&pithumbsize=320&pilicense=any';
+  const jartGet = (abbr) => { const v = store.get('jart.' + abbr, null); return v && Date.now() - v.t < (v.u ? 30 : 7) * 864e5 ? v : null; };
+  const words = (x) => String(x).toLowerCase().replace(/\(journal\)|[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 2 && !['the', 'and', 'journal', 'for'].includes(w));
+  async function findJournalArt(j) {
+    const pages = (o) => Object.values(o?.query?.pages || {});
+    // The journal's own page ("JAMA Dermatology", or "Dermatology (journal)").
+    const exact = await getJSON(`${WIKI}&titles=${encodeURIComponent(j.name)}|${encodeURIComponent(j.name + ' (journal)')}`).catch(() => null);
+    let hit = pages(exact).filter((p) => p.thumbnail).sort((a, b) => /\(journal\)/.test(b.title) - /\(journal\)/.test(a.title))[0];
+    if (!hit) {
+      // Else the best search match, only if its title is really this journal's name.
+      const sr = await getJSON(`${WIKI}&generator=search&gsrnamespace=0&gsrlimit=3&gsrsearch=${encodeURIComponent(j.name + ' journal')}`).catch(() => null);
+      const want = words(j.name);
+      hit = pages(sr).filter((p) => p.thumbnail).find((p) => { const w = words(p.title); return want.length && want.every((x) => w.includes(x)) && w.length <= want.length + 1; });
+    }
+    return hit?.thumbnail?.source || '';
+  }
+  /** Puts each journal's cover or logo on its tile (data-jart), fetching what isn't cached yet. */
+  let jartBusy = false;
+  async function loadJournalArt(root = document) {
+    const paint = (el, u) => { if (!u) return; el.style.backgroundImage = `url("${u}")`; el.classList.add('has-art'); };
+    const todo = [];
+    for (const el of root.querySelectorAll('[data-jart]')) {
+      const c = jartGet(el.dataset.jart);
+      if (c) paint(el, c.u); else todo.push(el);
+    }
+    if (jartBusy || !todo.length || !navigator.onLine) return;
+    jartBusy = true;
+    try {
+      const abbrs = [...new Set(todo.map((el) => el.dataset.jart))];
+      for (let i = 0; i < abbrs.length; i += 4) {
+        await Promise.all(abbrs.slice(i, i + 4).map(async (abbr) => {
+          const j = journalByAbbr.get(abbr.toLowerCase());
+          if (!j) return;
+          const u = await findJournalArt(j).catch(() => '');
+          store.set('jart.' + abbr, { u, t: Date.now() });
+          document.querySelectorAll(`[data-jart="${CSS.escape(abbr)}"]`).forEach((el) => paint(el, u));
+        }));
+      }
+    } finally { jartBusy = false; }
   }
 
   function renderJournals() {
@@ -2497,7 +2540,9 @@
       const q = e.target.value.trim().toLowerCase();
       if (!q) { renderJournals(); return; }
       $('#jlist').innerHTML = `<div class="section"><div class="list-card">${JOURNALS.filter((j) => (j.name + ' ' + j.abbr + ' ' + j.publisher).toLowerCase().includes(q)).map(jrow).join('') || '<div class="empty"><b>No match</b></div>'}</div></div>`;
+      loadJournalArt($('#jlist'));
     });
+    loadJournalArt(view);
     actions.discover = async (btn) => {
       btn.disabled = true;
       const el = $('#discover');
