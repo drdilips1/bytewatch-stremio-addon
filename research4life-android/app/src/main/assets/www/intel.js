@@ -841,7 +841,6 @@
         const ctx = newCtx(refs);
         out.innerHTML = busyHtml(`Reading ${refs.length} sources…`);
         const text = await D.ai(`Request: ${input}\n\n${m.task}`, { doc: packText(refs), system: CITE_SYSTEM + ' Write Markdown with "## " headings and "- " bullets. If you use a table, put the source numbers like [3] in every row.', max: 3500, fast: true,
-          onWait: (sec) => { if (out.isConnected) out.innerHTML = busyHtml(`The free AI's per-minute limit was reached: carrying on in ${sec} s…`); },
           onPartial: (t) => { if (out.isConnected) out.innerHTML = `<div class="panel synth">${citeHtml(md(t), ctx)}<span class="typing">▍</span></div>`; } });
         out.innerHTML = `<div class="panel synth">${citeHtml(md(text), ctx)}${sourcesList(text, refs)}<button class="btn xs" data-act="refs-all" data-ctx="${ctx}">${icon('list')}All ${refs.length} sources searched</button></div>`;
         return;
