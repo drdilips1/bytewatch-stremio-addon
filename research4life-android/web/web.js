@@ -614,7 +614,7 @@
     },
 
     /** One-tap PDF: a free copy if the site allows it; otherwise the page opens for a manual download. */
-    getPdf: async (key, doi, title, freeUrl, pii) => {
+    getPdf: async (key, doi, title, freeUrl, pii, route) => {
       if (freeUrl) {
         try {
           const res = await nfetch(freeUrl);
@@ -640,8 +640,14 @@
         const spr = (() => { try { return !!localStorage.getItem('ds.acc.spr'); } catch { return false; } })();
         // The ways to the PDF in turn: Springer (own account), the college proxy, Research4Life.
         const routes = [];
-        if (spr && !f.pii && !f.free && /^10\.(1007|1186)\//.test(d)) routes.push({ name: 'Springer Nature Link', url: 'https://link.springer.com/content/pdf/' + d + '.pdf' });
-        if (d && !f.free && DSNative.level >= 5 && (ls.get('px', {}).host)) routes.push({ name: 'your college proxy', url: 'https://doi.org/' + d });
+        if (route === 'college') {
+          if (!d || !(ls.get('px', {}).host)) { emit({ type: 'pdfFailed', key, message: 'Set up your college proxy first: Settings → Accounts → College proxy.' }); return; }
+          ios('fetchPdf', { key, url: 'https://doi.org/' + d, route: 'your college proxy', fallbacks: [] });
+          emit({ type: 'fetchStatus', key, message: 'Getting the PDF through your college proxy…' });
+          return;
+        }
+        if (!route && spr && !f.pii && !f.free && /^10\.(1007|1186)\//.test(d)) routes.push({ name: 'Springer Nature Link', url: 'https://link.springer.com/content/pdf/' + d + '.pdf' });
+        if (!route && d && !f.free && DSNative.level >= 5 && (ls.get('px', {}).host)) routes.push({ name: 'your college proxy', url: 'https://doi.org/' + d });
         routes.push({ name: 'Research4Life', url: fetchUrl(key, doi) });
         const [first, ...rest] = routes;
         if (DSNative.level >= 5) ios('fetchPdf', { key, url: first.url, route: first.name, fallbacks: rest });

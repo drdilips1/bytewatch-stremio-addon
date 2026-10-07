@@ -255,8 +255,13 @@ public class MainActivity extends Activity {
     }
 
     /** Gets the paper's PDF through Research4Life in the background. */
+    /** The way picked for the next Get PDF ("r4l": Research4Life only), or null for every way in turn. */
+    private String pdfRoute;
+
     private void fetchViaR4L(String key, String doi, String title, String pii) {
-        fetcher.enqueue(key, doi, title, pii);
+        String route = pdfRoute;
+        pdfRoute = null;
+        fetcher.enqueue(key, doi, title, pii, route);
     }
 
     /** Streams a library PDF to the in-app reader (same origin, so pdf.js can read it). */
@@ -397,6 +402,19 @@ public class MainActivity extends Activity {
         }
 
         /** Same, with the Elsevier article ID (PII) when known: those go through ClinicalKey first. */
+        /** Get PDF one way only, as picked on the paper's page: "college" (the college proxy) or "r4l". */
+        @JavascriptInterface
+        public void getPdf(String key, String doi, String title, String freeUrl, String pii, String route) {
+            if ("college".equals(route)) {
+                if (doi == null || doi.isEmpty()) { emit(event("pdfFailed", "key", key, "message", "This paper has no DOI, so it can't be fetched through the proxy.")); return; }
+                if (!CollegeProxy.usable(MainActivity.this)) { emit(event("pdfFailed", "key", key, "message", "Set up your college proxy first: Settings → Accounts → College proxy.")); return; }
+                main.post(() -> fetcher.enqueue(key, doi, title, pii, "college"));
+                return;
+            }
+            pdfRoute = route;
+            getPdf(key, doi, title, freeUrl, pii);
+        }
+
         @JavascriptInterface
         public void getPdf(String key, String doi, String title, String freeUrl, String pii) {
             boolean hasDoi = doi != null && !doi.isEmpty();

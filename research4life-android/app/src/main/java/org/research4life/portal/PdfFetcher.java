@@ -72,6 +72,8 @@ final class PdfFetcher {
         boolean springerLogin;
         /** Through the college proxy: the publisher's own site, with the college's access. */
         boolean viaCollege;
+        /** One way only, as picked on the paper's page ("college", "r4l"), or null for every way in turn. */
+        String only;
         Job(String key, String doi, String title, String pii) {
             this.key = key; this.doi = doi; this.title = title;
             this.pii = pii == null ? "" : pii;
@@ -148,12 +150,18 @@ final class PdfFetcher {
     }
 
     void enqueue(String key, String doi, String title, String pii) {
+        enqueue(key, doi, title, pii, null);
+    }
+
+    /** route: null tries every way in turn; "college" only the college proxy; "r4l" only Research4Life. */
+    void enqueue(String key, String doi, String title, String pii, String route) {
         if (job != null && job.key.equals(key)) return;
         for (Job j : queue) if (j.key.equals(key)) return;
         trails.remove(key);
         Job nj = new Job(key, doi, title, pii);
-        nj.viaSpringer = nj.pii.isEmpty() && R4LSession.isSpringerDoi(doi) && R4LSession.hasCredentials(app, R4LSession.SPR);
-        nj.viaCollege = !nj.viaSpringer && collegeRoute(doi);
+        nj.only = route;
+        nj.viaSpringer = route == null && nj.pii.isEmpty() && R4LSession.isSpringerDoi(doi) && R4LSession.hasCredentials(app, R4LSession.SPR);
+        nj.viaCollege = "college".equals(route) || (route == null && !nj.viaSpringer && collegeRoute(doi));
         queue.addLast(nj);
         if (job == null) next(); else status("queued", "Waiting in queue…");
     }
@@ -638,6 +646,15 @@ final class PdfFetcher {
         Job r = job;
         // Springer Nature Link didn't give the PDF (no access to this journal on that account):
         // the usual Research4Life route next.
+        if (r != null && "college".equals(r.only)) {
+            // Only the college proxy was asked for: say so, the other ways are on the paper's page.
+            job = null;
+            saving = false;
+            if (listener != null) listener.onFailed(r.key, "Your college proxy didn't give the PDF (the college may not subscribe to this journal). "
+                    + (message.startsWith(NOT_COVERED) ? "" : message + " ") + "Try Get PDF with R4L or MyLOFT.", canShow);
+            next();
+            return;
+        }
         if (r != null && (r.viaSpringer || r.viaCollege)) {
             String from = r.viaSpringer ? "Springer Nature Link" : "Your college proxy";
             r.viaCollege = r.viaSpringer && collegeRoute(r.doi);

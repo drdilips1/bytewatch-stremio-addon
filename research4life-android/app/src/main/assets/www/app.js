@@ -921,7 +921,7 @@
   function collegeProxy() { try { return JSON.parse(Native.collegeProxy ? Native.collegeProxy() : '{}') || {}; } catch { return {}; } }
 
   /** Read the PDF if it's saved; otherwise fetch it (free copy first, then Research4Life). */
-  async function getPdf(a, { skipAsk = false } = {}) {
+  async function getPdf(a, { skipAsk = false, route = '' } = {}) {
     if (pdfKeys.has(a.id)) { openReader(a.id); return; }
     if (jobs.get(a.id)?.state === 'running') { toast('Already getting this PDF'); return; }
     const free = pdfSourceFor(a);
@@ -931,7 +931,7 @@
       Native.openPortal(PORTAL, a.id, a.title);
       return;
     }
-    if (!free && !skipAsk && !r4lAccount().saved && !store.get('r4lAsked', false)) {
+    if (!free && !skipAsk && route !== 'college' && !r4lAccount().saved && !store.get('r4lAsked', false)) {
       r4lSignInSheet(() => getPdf(a, { skipAsk: true }));
       return;
     }
@@ -944,7 +944,8 @@
     jobs.set(a.id, { title: a.title, doi: a.doi || '', state: 'running', message: free ? 'Downloading free PDF…' : 'Starting…', at: Date.now() });
     renderTray();
     refreshCards();
-    if (pii) Native.getPdf(a.id, a.doi || '', a.title, free || '', pii);
+    if (route) Native.getPdf(a.id, a.doi || '', a.title, route === 'college' ? '' : free || '', pii || '', route);
+    else if (pii) Native.getPdf(a.id, a.doi || '', a.title, free || '', pii);
     else Native.getPdf(a.id, a.doi || '', a.title, free || '');
   }
 
@@ -1011,6 +1012,7 @@
             : pdfSrc || a.doi
               ? `<button class="btn primary full big" data-act="get-pdf">${icon('download')}Get PDF with R4L<span class="sub">${pdfSrc ? 'Free copy first, then your Research4Life access' : 'Through your Research4Life access'}</span></button>`
               : `<button class="btn full" data-act="r4l">${icon('key')}Find on Research4Life</button>`}
+          ${!hasPdf && a.doi && collegeProxy().host ? `<button class="btn full big" data-act="get-pdf-college">${icon('key')}Get PDF with college proxy<span class="sub">Your college's subscriptions (${esc(collegeProxy().host)})</span></button>` : ''}
           ${!hasPdf && a.doi && actions.myloft ? `<button class="btn full big" data-act="myloft" data-id="${esc(a.id)}">${icon('key')}Get PDF via MyLOFT<span class="sub">Your institution's access</span></button>` : ''}
           <button class="btn ${s ? 'good' : ''}" data-act="save">${icon(s ? 'bookmarkFill' : 'bookmark')}${s ? 'Saved' : 'Save'}</button>
           ${canRead ? `<button class="btn" data-act="reader">${icon('book')}${s?.fullText ? 'Read offline' : 'Full text'}</button>` : ''}
@@ -1075,7 +1077,10 @@
       render();
       if (a.pmcid && (a.oa || a.inPMC)) cacheFullText(a).catch(() => {});
     };
-    actions['get-pdf'] = () => getPdf(a);
+    // With the college proxy offered beside it, this button is Research4Life only (the quick
+    // Get PDF on paper cards still tries every way in turn).
+    actions['get-pdf'] = () => getPdf(a, collegeProxy().host ? { route: 'r4l' } : {});
+    actions['get-pdf-college'] = () => getPdf(a, { route: 'college' });
     // A PDF downloaded elsewhere (MyLOFT, email, browser): pick it and it's saved to this paper.
     actions['pdf-attach'] = async () => { if (!saved.has(a.id)) await saveArticle(a); Native.setPendingPdf?.(a.id, a.title); Native.importPdf(); };
     actions['open-pdf'] = () => openReader(a.id);
