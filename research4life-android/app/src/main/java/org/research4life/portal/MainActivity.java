@@ -499,6 +499,12 @@ public class MainActivity extends Activity {
             }
         }
 
+        /** Get PDF sources switched off in Settings: ["r4l","spr","px","myloft"]. */
+        @JavascriptInterface
+        public void setSourcesOff(String json) {
+            getSharedPreferences("sources", MODE_PRIVATE).edit().putString("off", json == null ? "[]" : json).apply();
+        }
+
         /** The college proxy (host and port; its login is the "px" credentials). */
         @JavascriptInterface
         public String collegeProxy() {

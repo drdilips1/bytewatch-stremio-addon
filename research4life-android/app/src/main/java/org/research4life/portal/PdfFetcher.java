@@ -160,9 +160,15 @@ final class PdfFetcher {
         trails.remove(key);
         Job nj = new Job(key, doi, title, pii);
         nj.only = route;
-        nj.viaSpringer = route == null && nj.pii.isEmpty() && R4LSession.isSpringerDoi(doi) && R4LSession.hasCredentials(app, R4LSession.SPR);
+        nj.viaSpringer = route == null && nj.pii.isEmpty() && R4LSession.isSpringerDoi(doi) && R4LSession.hasCredentials(app, R4LSession.SPR)
+                && R4LSession.sourceOn(app, R4LSession.SPR);
         // Elsevier papers (JAAD…) go to ClinicalKey through Research4Life first: it reliably has them.
         nj.viaCollege = "college".equals(route) || (route == null && !nj.viaSpringer && nj.pii.isEmpty() && collegeRoute(doi));
+        // Research4Life switched off and nothing else to try: say so at once.
+        if (!nj.viaSpringer && !nj.viaCollege && !R4LSession.sourceOn(app, R4LSession.R4L)) {
+            if (listener != null) listener.onFailed(key, "Research4Life is switched off in Settings → Accounts, and no other source (Springer, college proxy) applies to this paper.", false);
+            return;
+        }
         queue.addLast(nj);
         if (job == null) next(); else status("queued", "Waiting in queue…");
     }
@@ -403,7 +409,7 @@ final class PdfFetcher {
     }
 
     private boolean collegeRoute(String doi) {
-        return doi != null && !doi.isEmpty() && CollegeProxy.usable(app);
+        return doi != null && !doi.isEmpty() && CollegeProxy.usable(app) && R4LSession.sourceOn(app, CollegeProxy.PX);
     }
 
     private void findPdf(String pageUrl) {
@@ -662,6 +668,13 @@ final class PdfFetcher {
             String from = r.viaSpringer ? "Springer Nature Link" : "Your college proxy";
             r.viaCollege = r.viaSpringer && collegeRoute(r.doi);
             r.viaSpringer = false;
+            if (!r.viaCollege && !R4LSession.sourceOn(app, R4LSession.R4L)) {
+                job = null;
+                saving = false;
+                if (listener != null) listener.onFailed(r.key, from + " didn't give the PDF, and Research4Life is switched off in Settings. Try MyLOFT.", canShow);
+                next();
+                return;
+            }
             job = null;
             saving = false;
             queue.addFirst(r);

@@ -637,7 +637,8 @@
         // Springer/BMC papers with the person's own Springer Nature Link login: there first, then Research4Life.
         const f = ls.get('fetch.' + key, {});
         const d = doi || f.doi || '';
-        const spr = (() => { try { return !!localStorage.getItem('ds.acc.spr'); } catch { return false; } })();
+        const off = (() => { try { return JSON.parse(localStorage.getItem('ds.srcOff') || '[]'); } catch { return []; } })();
+        const spr = !off.includes('spr') && (() => { try { return !!localStorage.getItem('ds.acc.spr'); } catch { return false; } })();
         // The ways to the PDF in turn: Springer (own account), the college proxy, Research4Life.
         const routes = [];
         if (route === 'college') {
@@ -647,8 +648,9 @@
           return;
         }
         if (!route && spr && !f.pii && !f.free && /^10\.(1007|1186)\//.test(d)) routes.push({ name: 'Springer Nature Link', url: 'https://link.springer.com/content/pdf/' + d + '.pdf' });
-        if (!route && d && !f.free && !f.pii && DSNative.level >= 5 && (ls.get('px', {}).host)) routes.push({ name: 'your college proxy', url: 'https://doi.org/' + d });
-        routes.push({ name: 'Research4Life', url: fetchUrl(key, doi) });
+        if (!route && d && !f.free && !f.pii && !off.includes('px') && DSNative.level >= 5 && (ls.get('px', {}).host)) routes.push({ name: 'your college proxy', url: 'https://doi.org/' + d });
+        if (!off.includes('r4l') || route === 'r4l') routes.push({ name: 'Research4Life', url: fetchUrl(key, doi) });
+        if (!routes.length) { emit({ type: 'pdfFailed', key, message: 'Research4Life is switched off in Settings → Accounts, and no other source (Springer, college proxy) applies to this paper.' }); return; }
         const [first, ...rest] = routes;
         if (DSNative.level >= 5) ios('fetchPdf', { key, url: first.url, route: first.name, fallbacks: rest });
         else if (first.name === 'Springer Nature Link') ios('fetchPdf', { key, url: first.url, fallback: rest[rest.length - 1].url, springer: true });

@@ -918,6 +918,16 @@
     try { return JSON.parse(Native.account ? Native.account(p) : p === 'r4l' ? Native.r4lAccount() : '{}'); } catch { return {}; }
   }
   const r4lAccount = () => account('r4l');
+  // Get PDF sources that can be switched off in Settings (their logins stay saved).
+  const srcOn = (k) => !store.get('srcOff', []).includes(k);
+  function setSrc(k, on) {
+    const off = new Set(store.get('srcOff', []));
+    if (on) off.delete(k); else off.add(k);
+    store.set('srcOff', [...off]);
+    try { Native.setSourcesOff?.(JSON.stringify([...off])); } catch { /* old app */ }
+  }
+  try { Native.setSourcesOff?.(JSON.stringify(store.get('srcOff', []))); } catch { /* old app */ }
+  const srcSwitch = (k) => `<label class="switch" title="Use for Get PDF"><input type="checkbox" data-src="${k}" ${srcOn(k) ? 'checked' : ''}><span></span></label>`;
   function collegeProxy() { try { return JSON.parse(Native.collegeProxy ? Native.collegeProxy() : '{}') || {}; } catch { return {}; } }
 
   /** Read the PDF if it's saved; otherwise fetch it (free copy first, then Research4Life). */
@@ -931,7 +941,7 @@
       Native.openPortal(PORTAL, a.id, a.title);
       return;
     }
-    if (!free && !skipAsk && route !== 'college' && !r4lAccount().saved && !store.get('r4lAsked', false)) {
+    if (!free && !skipAsk && route !== 'college' && srcOn('r4l') && !r4lAccount().saved && !store.get('r4lAsked', false)) {
       r4lSignInSheet(() => getPdf(a, { skipAsk: true }));
       return;
     }
@@ -1010,10 +1020,10 @@
             ? `<button class="btn good full big" data-act="open-pdf">${icon('file')}Read PDF<span class="sub">Saved on this phone</span></button>
                <button class="btn full" data-act="listen" data-id="${esc(a.id)}">${icon('audio')}Listen to this paper</button>`
             : pdfSrc || a.doi
-              ? `<button class="btn primary full big" data-act="get-pdf">${icon('download')}Get PDF with R4L<span class="sub">${pdfSrc ? 'Free copy first, then your Research4Life access' : 'Through your Research4Life access'}</span></button>`
+              ? !srcOn('r4l') && collegeProxy().host && srcOn('px') ? '' : `<button class="btn primary full big" data-act="get-pdf">${icon('download')}Get PDF with R4L<span class="sub">${pdfSrc ? 'Free copy first, then your Research4Life access' : 'Through your Research4Life access'}</span></button>`
               : `<button class="btn full" data-act="r4l">${icon('key')}Find on Research4Life</button>`}
-          ${!hasPdf && a.doi && collegeProxy().host ? `<button class="btn full big" data-act="get-pdf-college">${icon('key')}Get PDF with college proxy<span class="sub">Your college's subscriptions (${esc(collegeProxy().host)})</span></button>` : ''}
-          ${!hasPdf && a.doi && actions.myloft ? `<button class="btn full big" data-act="myloft" data-id="${esc(a.id)}">${icon('key')}Get PDF via MyLOFT<span class="sub">Your institution's access</span></button>` : ''}
+          ${!hasPdf && a.doi && collegeProxy().host && srcOn('px') ? `<button class="btn full big" data-act="get-pdf-college">${icon('key')}Get PDF with college proxy<span class="sub">Your college's subscriptions (${esc(collegeProxy().host)})</span></button>` : ''}
+          ${!hasPdf && a.doi && actions.myloft && srcOn('myloft') ? `<button class="btn full big" data-act="myloft" data-id="${esc(a.id)}">${icon('key')}Get PDF via MyLOFT<span class="sub">Your institution's access</span></button>` : ''}
           <button class="btn ${s ? 'good' : ''}" data-act="save">${icon(s ? 'bookmarkFill' : 'bookmark')}${s ? 'Saved' : 'Save'}</button>
           ${canRead ? `<button class="btn" data-act="reader">${icon('book')}${s?.fullText ? 'Read offline' : 'Full text'}</button>` : ''}
           <button class="btn" data-act="ai-article" data-id="${esc(a.id)}">${icon('spark')}AI summary</button>
@@ -1079,7 +1089,7 @@
     };
     // With the college proxy offered beside it, this button is Research4Life only (the quick
     // Get PDF on paper cards still tries every way in turn).
-    actions['get-pdf'] = () => getPdf(a, collegeProxy().host ? { route: 'r4l' } : {});
+    actions['get-pdf'] = () => getPdf(a, collegeProxy().host && srcOn('px') && srcOn('r4l') ? { route: 'r4l' } : {});
     actions['get-pdf-college'] = () => getPdf(a, { route: 'college' });
     // A PDF downloaded elsewhere (MyLOFT, email, browser): pick it and it's saved to this paper.
     actions['pdf-attach'] = async () => { if (!saved.has(a.id)) await saveArticle(a); Native.setPendingPdf?.(a.id, a.title); Native.importPdf(); };
@@ -3002,7 +3012,7 @@
       return `<div class="acc-card"><div class="acc-ico ${p}">${icon(p === 'utd' ? 'book' : 'key')}</div>
         <div class="body"><b>${P.name}</b><span>${acc.saved ? 'Login saved: ' + esc(acc.user) + (p === 'utd' ? (store.get('utdLoggedIn', false) ? ' · signed in' : ' · not yet verified') : '') : 'Not saved'}</span></div>
         <button class="btn xs ${acc.saved ? '' : 'primary'}" data-act="acc-set" data-p="${p}">${acc.saved ? 'Change' : 'Add login'}</button>
-        ${acc.saved ? `<button class="icon-btn" data-act="acc-forget" data-p="${p}" aria-label="Forget">${icon('trash')}</button>` : ''}</div>`;
+        ${acc.saved ? `<button class="icon-btn" data-act="acc-forget" data-p="${p}" aria-label="Forget">${icon('trash')}</button>` : ''}${p === 'spr' ? srcSwitch('spr') : ''}</div>`;
     };
     const collegeRow = () => {
       const px = collegeProxy();
@@ -3010,8 +3020,10 @@
       return `<div class="acc-card"><div class="acc-ico px">${icon('key')}</div>
         <div class="body"><b>College proxy</b><span>${px.host ? esc(px.host) + ':' + px.port + (acc.saved ? ' · login ' + esc(acc.user) : ' · no login saved') : 'Not set — your college EZproxy (address, port, login)'}</span></div>
         <button class="btn xs ${px.host ? '' : 'primary'}" data-act="px-set">${px.host ? 'Change' : 'Add'}</button>
-        ${px.host ? `<button class="icon-btn" data-act="px-forget" aria-label="Remove">${icon('trash')}</button>` : ''}</div>`;
+        ${px.host ? `<button class="icon-btn" data-act="px-forget" aria-label="Remove">${icon('trash')}</button>${srcSwitch('px')}` : ''}</div>`;
     };
+    const myloftRow = () => `<div class="acc-card"><div class="acc-ico">${icon('key')}</div>
+        <div class="body"><b>MyLOFT</b><span>${srcOn('myloft') ? 'Offered when the other sources don\'t have a paper' : 'Off: not offered'}</span></div>${srcSwitch('myloft')}</div>`;
     view.innerHTML = `${topbar('Settings')}
       <div class="section"><div class="section-h"><h3>Appearance</h3></div>
         <div class="panel">
@@ -3026,7 +3038,8 @@
           <p class="muted small" style="margin:12px 0 0">Reading colours and fonts for papers are in the reader's <b>Aa</b> menu.</p>
         </div></div>
       <div class="section"><div class="section-h"><h3>Accounts</h3></div>
-        ${r4lAccounts()}${accRow('utd')}${accRow('spr')}${collegeRow()}
+        ${r4lAccounts()}${accRow('utd')}${accRow('spr')}${collegeRow()}${myloftRow()}
+        <p class="muted small">Switches: use a source for Get PDF or not. Switching off keeps its login.</p>
         <p class="muted small">Passwords are encrypted with this phone's keystore and only sent to the provider's own sign-in page.</p></div>
       ${ext.settingsSection ? ext.settingsSection() : ''}
       <div class="section"><div class="section-h"><h3>Bottom bar</h3></div>
@@ -3046,6 +3059,7 @@
       <div class="section"><div class="section-h"><h3>About</h3></div>
         <p class="small muted">DermScholar ${esc(Native.version())}. Paper data from <b>Europe PMC</b> (PubMed, PMC and more); journal metrics from <b>OpenAlex</b>.
         "Key finding" is taken from each abstract's own conclusion. It is not a medical recommendation. Fonts: Inter, Literata, Fraunces (SIL OFL); PDF engine: pdf.js.</p></div>`;
+    $$('[data-src]').forEach((el) => el.addEventListener('change', () => { setSrc(el.dataset.src, el.checked); ext.secretsChanged?.(); render(); }));
     $$('[data-set]').forEach((el) => el.addEventListener('change', () => { settings[el.dataset.set] = el.checked; saveSettings(); searchCache.clear(); applyNav(); }));
     actions['set-sort'] = () => pickOne('Default sort', Object.fromEntries(Object.entries(SORTS).map(([k, v]) => [k, v.label])), settings.sort, (v) => { settings.sort = v; saveSettings(); render(); });
     const keepScroll = (fn) => { const y = scrollY; fn(); saveSettings(); applyTheme(); render(); requestAnimationFrame(() => window.scrollTo(0, y)); };
@@ -3060,8 +3074,8 @@
     try { list = JSON.parse(Native.listAccounts ? Native.listAccounts('r4l') : '[]'); } catch { list = []; }
     if (!list.length) { const a = account('r4l'); if (a.saved) list = [{ user: a.user, active: true }]; }
     return `<div class="acc-card acc-multi"><div class="acc-ico r4l">${icon('key')}</div>
-      <div class="body"><b>Research4Life</b><span>${list.length ? `${list.length} account${list.length > 1 ? 's' : ''} · Get PDF tries the others if one fails` : 'Not saved'}</span></div>
-      <button class="btn xs primary" data-act="acc-add" data-p="r4l">${icon('plus')}Add</button></div>
+      <div class="body"><b>Research4Life</b><span>${!srcOn('r4l') ? 'Off: Get PDF skips it (logins kept)' : list.length ? `${list.length} account${list.length > 1 ? 's' : ''} · Get PDF tries the others if one fails` : 'Not saved'}</span></div>
+      <button class="btn xs primary" data-act="acc-add" data-p="r4l">${icon('plus')}Add</button>${srcSwitch('r4l')}</div>
       ${list.map((a) => `<div class="acc-sub"><span class="acc-dot ${a.active ? 'on' : ''}"></span><b>${esc(a.user)}</b>${a.active ? '<span class="badge b-oa">Active</span>' : `<button class="btn xs" data-act="acc-use" data-u="${esc(a.user)}">Use</button>`}
         <button class="icon-btn" data-act="acc-remove" data-u="${esc(a.user)}" aria-label="Remove">${icon('trash')}</button></div>`).join('')}`;
   }

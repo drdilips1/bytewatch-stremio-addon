@@ -153,6 +153,11 @@ final class R4LSession {
         return "https://link.springer.com/signup-login?previousUrl=" + Uri.encode(next);
     }
 
+    /** Whether a Get PDF source ("r4l", "spr", "px") is switched on in Settings. */
+    static boolean sourceOn(Context ctx, String k) {
+        return !ctx.getSharedPreferences("sources", Context.MODE_PRIVATE).getString("off", "[]").contains("\"" + k + "\"");
+    }
+
     static boolean isSpringerHost(String host) {
         return host != null && (host.equals("link.springer.com") || host.endsWith(".springer.com") || host.endsWith("springernature.com"));
     }
