@@ -434,7 +434,30 @@
     };
     // The direct answer (first line) large, as Consensus shows it.
     const lead = (html) => html.replace(/<p>/, '<p class="qa-lead">');
-    const stepsHtml = (steps) => (steps?.length ? `<div class="muted small qa-steps" style="margin:0 0 8px">${steps.map((x) => `${icon('search')} ${esc(x.label)}${x.hit != null ? ' · ' + Number(x.hit || 0).toLocaleString() : ''}`).join('<br>')}</div>` : '');
+    // Retrieved · Eligible · Included, counting up (as Consensus shows them), then each step.
+    const big = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : Number(n).toLocaleString());
+    const stepsHtml = (steps) => {
+      if (!steps) return '';
+      const rows = Array.isArray(steps) ? steps : steps.rows || [];
+      const tot = Array.isArray(steps) ? null : steps;
+      const num = (v) => (v == null ? '<span class="qa-num">…</span>' : `<span class="qa-num" data-to="${v}">0</span>`);
+      return `<div class="qa-stats">${tot ? `<div><b>${num(tot.retrieved)}</b><span>Retrieved</span></div><div><b>${num(tot.eligible)}</b><span>Eligible</span></div><div><b>${num(tot.included)}</b><span>Included</span></div>` : ''}</div>
+        <div class="muted small qa-steps" style="margin:0 0 8px">${rows.map((x) => `<div>${icon(x.read ? 'book' : 'search')} ${esc(x.label)}${x.hit != null ? ` · <b class="qa-num" data-to="${x.hit}">0</b>` : ''}</div>`).join('')}</div>`;
+    };
+    // The numbers roll up to their value in about a second.
+    const rollUp = () => {
+      el.querySelectorAll('.qa-num[data-to]').forEach((n) => {
+        const to = +n.dataset.to;
+        delete n.dataset.to;
+        const t0 = performance.now();
+        const tick = (t) => {
+          const k = Math.min(1, (t - t0) / 1100);
+          n.textContent = big(Math.round(to * (1 - Math.pow(1 - k, 3))));
+          if (k < 1 && n.isConnected) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+    };
     const frame = (note, steps, inner) => `<div class="panel explain qa">
         <div class="section-h" style="margin:0 0 4px"><h3>${icon('spark')}Answer</h3><span class="muted small qa-note">${note}</span></div>
         ${stepsHtml(steps)}<div class="qa-body">${inner}</div></div>`;
@@ -452,6 +475,7 @@
         <div class="qa-thread"></div>
         <div class="qa-sugg-box"></div>
         <form class="qa-follow" style="display:flex;gap:8px;margin-top:10px"><input name="f" placeholder="Ask a follow-up…" autocomplete="off" style="flex:1"><button class="btn primary">Ask</button></form>`;
+      el.querySelectorAll('.qa-num[data-to]').forEach((n) => { n.textContent = big(+n.dataset.to); });
       actions['qa-redo'] = () => { store.set('intel.' + key, null); searchAnswer(question, el); };
       followUps(question, { text: body, followups }, refs, el);
       actions['qa-sugg'] = (b) => { const f = el.querySelector('.qa-follow'); if (!f) return; f.f.value = b.dataset.q; f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event('submit', { cancelable: true })); };
@@ -460,7 +484,7 @@
     if (kept && kept.text && kept.refs) { render(kept.text, kept.refs, kept.steps); return; }
 
     const yr = new Date().getFullYear();
-    el.innerHTML = frame('searching…', [{ label: 'Most relevant papers' }, { label: 'Guidelines and consensus statements (last 6 years)' }], I.busyHtml('Searching the literature…'));
+    el.innerHTML = frame('searching…', { retrieved: null, eligible: null, included: null, rows: [{ label: question }, { label: 'Guidelines and consensus statements, last 6 years' }] }, I.busyHtml('Searching the literature…'));
     // Shaped by what is asked: treatment options only for treatment questions.
     const shape = /\b(treat|treatment|therap|management|manage|drug|dose|regimen|first[- ]line|second[- ]line|options? for)/i.test(question)
       ? 'For treatment: sections such as "First-line", "Second-line / refractory", "Procedures and devices", "Maintenance", "Special situations", and a table (treatment | evidence | key result | notes).'
@@ -472,13 +496,15 @@
         I.epmc({ ...I.q(question), query: `(${I.q(question).query}) AND HAS_ABSTRACT:y NOT SRC:PPR NOT PUB_TYPE:"Case Reports"` }, 14).catch(() => ({ results: [] })),
         I.epmc(I.q(question, { extra: `${I.GUIDE} AND PUB_YEAR:[${yr - 6} TO ${yr}]` }), 5).catch(() => ({ results: [] })),
       ]);
-      const steps = [{ label: 'Most relevant papers', hit: rel.hit || 0 }, { label: 'Guidelines and consensus statements (last 6 years)', hit: guides.hit || 0 }];
       const seen = new Set();
-      const papers = [...(guides.results || []), ...(rel.results || [])].filter((a) => a.abstract && !seen.has(a.id) && seen.add(a.id)).slice(0, 14);
+      const eligible = [...(guides.results || []), ...(rel.results || [])].filter((a) => a.abstract && !seen.has(a.id) && seen.add(a.id));
+      const papers = eligible.slice(0, 14);
+      const steps = { retrieved: (rel.hit || 0) + (guides.hit || 0), eligible: eligible.length, included: papers.length,
+        rows: [{ label: question, hit: rel.hit || 0 }, { label: 'Guidelines and consensus statements, last 6 years', hit: guides.hit || 0 }, { label: 'Read abstracts', hit: papers.length, read: true }] };
       if (papers.length < 2) { if (live()) el.innerHTML = frame('', steps, '<p class="muted small">Not enough papers found to answer this from the literature. Try other words.</p>'); return; }
       const refs = papers.map((a, i) => ({ kind: 'paper', a, type: D.studyType(a).label, n: i + 1 }));
       const ctx = I.newCtx(refs);
-      if (live()) el.innerHTML = frame(`reading ${refs.length} papers…`, steps, I.busyHtml('Writing the answer…'));
+      if (live()) { el.innerHTML = frame(`reading ${refs.length} papers…`, steps, I.busyHtml('Writing the answer…')); rollUp(); }
       const doc = refs.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 600)}`).join('\n\n');
       const text = await D.ai(`QUESTION: ${question}\n\n`
         + 'Answer exactly this question for a dermatologist, like a short up-to-date review, using only these papers (guidelines and consensus statements first; prefer the newest guidance and strongest evidence). Write Markdown:\n'

@@ -1267,3 +1267,13 @@ pre.trail { white-space: pre-wrap; word-break: break-all; font-size: 11px; line-
 /* The follow-up box stays in reach at the bottom while reading, above the tab bar. */
 .qa-follow { position: sticky; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 5; background: var(--bg); padding: 8px 0; }
 .qa-follow input { border-radius: 22px; padding: 12px 16px; }
+
+/* Retrieved · Eligible · Included, as Consensus shows them. */
+.qa-stats { display: flex; gap: 0; margin: 4px 0 10px; }
+.qa-stats:empty { display: none; }
+.qa-stats > div { flex: 1; padding: 0 10px; border-left: 1px solid var(--line); }
+.qa-stats > div:first-child { border-left: 0; padding-left: 0; }
+.qa-stats b { display: block; font-size: 1.45em; font-variant-numeric: tabular-nums; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.qa-stats span { font-size: .8em; opacity: .7; }
+.qa-steps > div { padding: 3px 0; }
+.qa-steps b.qa-num { font-variant-numeric: tabular-nums; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
