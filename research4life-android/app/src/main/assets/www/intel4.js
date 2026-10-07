@@ -504,10 +504,22 @@
       const seen = new Set();
       // The 25 most relevant, dermatology journals first (keeping relevance order within each).
       const relList = (rel.results || []).map((a, i) => ({ a, s: i - (D.dermJournal(a) ? 8 : 0) })).sort((x, y) => x.s - y.s).map((x) => x.a);
-      const eligible = [...(guides.results || []), ...relList].filter((a) => a.abstract && !seen.has(a.id) && seen.add(a.id));
+      let eligible = [...(guides.results || []), ...relList].filter((a) => a.abstract && !seen.has(a.id) && seen.add(a.id));
+      let retrieved = (rel.hit || 0) + (guides.hit || 0);
+      let rows = [{ label: question, hit: rel.hit || 0 }, { label: 'Guidelines and consensus statements, last 6 years', hit: guides.hit || 0 }];
+      // The question's own words found too little (rare names, misspellings, many terms): the
+      // AI-planned searches the Evidence Map uses (synonyms, the terms papers use, several angles).
+      if (eligible.length < 4) {
+        if (live()) el.innerHTML = frame('', { retrieved, eligible: eligible.length, included: 0, rows }, I.busyHtml('Few papers with those exact words: planning a wider search…'));
+        const pool = await I.evidencePool(question, { size: 14 }).catch(() => null);
+        if (pool?.papers?.length) {
+          eligible = [...eligible, ...pool.papers].filter((a, i, all) => a.abstract && all.findIndex((x) => x.id === a.id) === i);
+          retrieved += pool.retrieved || 0;
+          rows = [...rows, ...pool.steps.map((x) => ({ label: x.label, hit: x.hit || 0 }))];
+        }
+      }
       const papers = eligible.slice(0, 14);
-      const steps = { retrieved: (rel.hit || 0) + (guides.hit || 0), eligible: eligible.length, included: papers.length,
-        rows: [{ label: question, hit: rel.hit || 0 }, { label: 'Guidelines and consensus statements, last 6 years', hit: guides.hit || 0 }, { label: 'Read abstracts', hit: papers.length, read: true }] };
+      const steps = { retrieved, eligible: eligible.length, included: papers.length, rows: [...rows, { label: 'Read abstracts', hit: papers.length, read: true }] };
       if (papers.length < 2) { if (live()) el.innerHTML = frame('', steps, '<p class="muted small">Not enough papers found to answer this from the literature. Try other words.</p>'); return; }
       const refs = papers.map((a, i) => ({ kind: 'paper', a, type: D.studyType(a).label, n: i + 1 }));
       const ctx = I.newCtx(refs);
