@@ -563,11 +563,19 @@ public class MainActivity extends Activity {
         public void pickImage(String id) {
             main.post(() -> {
                 pendingImageId = id;
-                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*");
+                // The system photo picker (Android 13+), else the gallery: some phones' file picker
+                // shows photos greyed out for "open document".
+                Intent i = android.os.Build.VERSION.SDK_INT >= 33
+                        ? new Intent("android.provider.action.PICK_IMAGES").setType("image/*")
+                        : new Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*");
                 try {
                     startActivityForResult(i, REQUEST_IMAGE_AI);
                 } catch (ActivityNotFoundException e) {
-                    emit(event("imagePicked", "id", id, "error", "No photo picker available"));
+                    try {
+                        startActivityForResult(new Intent(Intent.ACTION_GET_CONTENT).setType("image/*"), REQUEST_IMAGE_AI);
+                    } catch (ActivityNotFoundException e2) {
+                        emit(event("imagePicked", "id", id, "error", "No photo picker on this phone"));
+                    }
                 }
             });
         }

@@ -669,7 +669,7 @@
     actions['up-pick'] = async () => {
       const context = $('#up-ctx').value.trim();
       let dataUrl;
-      try { dataUrl = await pickImage(); } catch { return; }
+      try { dataUrl = await pickImage(); } catch (e) { if (!/cancel/i.test(e.message || '')) toast(e.message || 'Couldn\'t open the photos'); return; }
       closeSheet(true);
       go('imgread');
       setTimeout(() => readImage(dataUrl, kind, context), 50);
