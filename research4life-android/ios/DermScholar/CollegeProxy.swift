@@ -36,11 +36,22 @@ enum CollegeProxy {
         apply()
     }
 
+    /// The proxy is used only while Get PDF takes the college route; Research4Life, ClinicalKey and
+    /// UpToDate stay direct, so those sign-ins aren't mistaken for the college's.
+    private(set) static var active = false
+
+    static func setActive(_ on: Bool) {
+        let want = on && configured
+        guard want != active else { return }
+        active = want
+        apply()
+    }
+
     /// Points the app's browsers (the shared website data store) at the proxy, or back to direct.
     static func apply() {
         guard #available(iOS 17.0, *) else { return }
         let store = WKWebsiteDataStore.default()
-        guard configured, let p = NWEndpoint.Port(rawValue: UInt16(clamping: port)) else {
+        guard active, configured, let p = NWEndpoint.Port(rawValue: UInt16(clamping: port)) else {
             store.proxyConfigurations = []
             return
         }

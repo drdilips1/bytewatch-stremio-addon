@@ -192,6 +192,7 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         b.background = true
         b.routeName = route
         b.fallbacks = fallbacks
+        CollegeProxy.setActive(route == "your college proxy")
         b.onPdf = { [weak self] data, name, title in
             self?.hand(data, name: name, mime: "application/pdf", key: key, title: title)
         }
@@ -200,9 +201,11 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, WKNavi
         }
         b.onStatus = { [weak self] m in self?.send(["type": "fetchStatus", "key": key, "message": m]) }
         b.onFailed = { [weak self] m, notIn in
+            CollegeProxy.setActive(false)
             self?.send(["type": "fetchFailed", "key": key, "message": m, "canShow": true, "notInR4L": notIn])
         }
         b.onDone = { [weak self] in
+            CollegeProxy.setActive(false)
             guard let self = self, let nav = self.fetches[key], nav.viewControllers.first === b else { return }
             self.fetches.removeValue(forKey: key)
             self.detach(nav)

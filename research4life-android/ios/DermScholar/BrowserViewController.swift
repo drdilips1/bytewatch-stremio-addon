@@ -457,6 +457,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     private func leaveRoute() -> Bool {
         guard covering, !fallbacks.isEmpty else { return false }
         let next = fallbacks.removeFirst()
+        CollegeProxy.setActive(next.name == "your college proxy")
         let from = routeName.isEmpty ? "That way" : routeName.prefix(1).uppercased() + routeName.dropFirst()
         routeName = next.name
         autoTried.removeAll()
