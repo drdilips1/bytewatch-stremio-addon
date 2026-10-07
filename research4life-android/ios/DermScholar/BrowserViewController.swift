@@ -545,6 +545,33 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     // MARK: links
 
     /// The college proxy's password pop-up: answered with the saved login.
+    /// A page that couldn't load at all (proxy refused, no connection, certificate…): say why
+    /// instead of leaving a blank page, and try the next way to the PDF in the background.
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        let e = error as NSError
+        if e.code == NSURLErrorCancelled { return }
+        if e.domain == "WebKitErrorDomain", e.code == 102 || e.code == 204 { return } // a download taking over, or a plug-in
+        let via = CollegeProxy.active ? "through your college proxy (\(CollegeProxy.host):\(CollegeProxy.port))" : ""
+        let why: String
+        switch e.code {
+        case NSURLErrorCannotConnectToHost, NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed:
+            why = via.isEmpty ? "The site couldn't be reached." : "The college proxy couldn't be reached. Check the address and port in Settings → Accounts → College proxy; some colleges only allow it on their own network or VPN."
+        case NSURLErrorTimedOut: why = "The page took too long to answer\(via.isEmpty ? "" : " " + via)."
+        case NSURLErrorNotConnectedToInternet: why = "No internet connection."
+        case NSURLErrorUserAuthenticationRequired, NSURLErrorUserCancelledAuthentication:
+            why = "The college proxy didn't accept the saved login. Check the username and password in Settings → Accounts → College proxy."
+        case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted, NSURLErrorServerCertificateHasUnknownRoot:
+            why = "A secure connection couldn't be made\(via.isEmpty ? "" : " " + via)."
+        default: why = e.localizedDescription + (via.isEmpty ? "" : " (\(via))")
+        }
+        let text = "Couldn't open the page: \(why) [\(e.domain) \(e.code)]"
+        let safe = text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
+        let url = (e.userInfo[NSURLErrorFailingURLStringErrorKey] as? String ?? "").replacingOccurrences(of: "<", with: "&lt;")
+        webView.loadHTMLString("<html><head><meta name=viewport content='width=device-width'></head><body style='font:16px -apple-system;padding:24px;color:#333'><h3>Couldn't open the page</h3><p>\(safe)</p><p style='color:#888;font-size:13px;word-break:break-all'>\(url)</p></body></html>", baseURL: nil)
+        title = "Couldn't open the page"
+        notice(text)
+    }
+
     func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         if let c = CollegeProxy.credential(for: challenge) { completionHandler(.useCredential, c) } else { completionHandler(.performDefaultHandling, nil) }
     }
