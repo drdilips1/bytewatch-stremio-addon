@@ -79,7 +79,7 @@ final class ClaudeProvider implements LlmProvider {
     private JSONObject post(JSONObject body) throws AiException {
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL(URL_MESSAGES).openConnection();
+            c = (HttpURLConnection) new URL(URL_MESSAGES).openConnection(java.net.Proxy.NO_PROXY);
             c.setRequestMethod("POST");
             c.setConnectTimeout(20_000);
             c.setReadTimeout(300_000);

@@ -45,9 +45,18 @@ final class ApiProxy {
         String target = base + rest.substring(slash + 1)
                 + (uri.getEncodedQuery() != null ? "?" + uri.getEncodedQuery() : "");
 
+        // Direct, never through a proxy set in the phone's APN or Wi-Fi settings (a college proxy
+        // cuts these off): search, journal and paper data are free to fetch from anywhere.
+        // A dropped connection is tried once more.
+        WebResourceResponse r = fetch(target);
+        if (r.getStatusCode() == 502) r = fetch(target);
+        return r;
+    }
+
+    private static WebResourceResponse fetch(String target) {
         HttpURLConnection conn = null;
         try {
-            conn = (HttpURLConnection) new URL(target).openConnection();
+            conn = (HttpURLConnection) new URL(target).openConnection(java.net.Proxy.NO_PROXY);
             conn.setConnectTimeout(15000);
             conn.setReadTimeout(30000);
             conn.setRequestProperty("Accept", "application/json, application/xml;q=0.9, */*;q=0.8");

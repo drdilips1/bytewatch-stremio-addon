@@ -45,7 +45,7 @@ final class GeminiProvider implements LlmProvider {
      */
     private String nextFreeModel() {
         try {
-            HttpURLConnection c = (HttpURLConnection) new URL("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200").openConnection();
+            HttpURLConnection c = (HttpURLConnection) new URL("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200").openConnection(java.net.Proxy.NO_PROXY);
             c.setConnectTimeout(15000);
             c.setReadTimeout(20000);
             c.setRequestProperty("x-goog-api-key", apiKey);
@@ -117,7 +117,7 @@ final class GeminiProvider implements LlmProvider {
                 }
                 body.put("generationConfig", gen);
 
-                HttpURLConnection c = (HttpURLConnection) new URL(BASE + model + ":generateContent").openConnection();
+                HttpURLConnection c = (HttpURLConnection) new URL(BASE + model + ":generateContent").openConnection(java.net.Proxy.NO_PROXY);
                 c.setConnectTimeout(20000);
                 c.setReadTimeout(240000);
                 c.setRequestMethod("POST");
@@ -237,7 +237,7 @@ final class GeminiProvider implements LlmProvider {
                         : new JSONObject().put("thinkingLevel", "low"));
             }
             body.put("generationConfig", gen);
-            c = (HttpURLConnection) new URL(BASE + model + ":streamGenerateContent?alt=sse").openConnection();
+            c = (HttpURLConnection) new URL(BASE + model + ":streamGenerateContent?alt=sse").openConnection(java.net.Proxy.NO_PROXY);
             c.setConnectTimeout(20000);
             c.setReadTimeout(240000);
             c.setRequestMethod("POST");

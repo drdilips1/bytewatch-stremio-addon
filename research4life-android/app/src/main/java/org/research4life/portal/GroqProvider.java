@@ -103,7 +103,7 @@ final class GroqProvider implements LlmProvider {
             }
             body.put("stream", true);
             body.put("stream_options", new JSONObject().put("include_usage", true));
-            c = (HttpURLConnection) new URL(BASE + "chat/completions").openConnection();
+            c = (HttpURLConnection) new URL(BASE + "chat/completions").openConnection(java.net.Proxy.NO_PROXY);
             c.setConnectTimeout(20000);
             c.setReadTimeout(180000);
             c.setRequestMethod("POST");
@@ -210,7 +210,7 @@ final class GroqProvider implements LlmProvider {
     }
 
     private JSONObject get(String path) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(BASE + path).openConnection();
+        HttpURLConnection c = (HttpURLConnection) new URL(BASE + path).openConnection(java.net.Proxy.NO_PROXY);
         c.setConnectTimeout(20000);
         c.setReadTimeout(30000);
         c.setRequestProperty("Authorization", "Bearer " + apiKey);
@@ -218,7 +218,7 @@ final class GroqProvider implements LlmProvider {
     }
 
     private JSONObject post(String path, JSONObject body) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(BASE + path).openConnection();
+        HttpURLConnection c = (HttpURLConnection) new URL(BASE + path).openConnection(java.net.Proxy.NO_PROXY);
         c.setConnectTimeout(20000);
         c.setReadTimeout(180000);
         c.setRequestMethod("POST");

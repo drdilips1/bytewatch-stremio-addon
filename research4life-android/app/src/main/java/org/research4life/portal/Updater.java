@@ -96,7 +96,7 @@ final class Updater {
     }
 
     private static HttpURLConnection open(String url) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection(java.net.Proxy.NO_PROXY);
         c.setInstanceFollowRedirects(true); // GitHub sends release files from another host
         c.setConnectTimeout(20_000);
         c.setReadTimeout(60_000);

@@ -223,7 +223,7 @@ final class VoiceStore {
         try {
             URL u = new URL(url);
             for (int hop = 0; hop < 6; hop++) {
-                conn = (HttpURLConnection) u.openConnection();
+                conn = (HttpURLConnection) u.openConnection(java.net.Proxy.NO_PROXY);
                 conn.setInstanceFollowRedirects(false);
                 conn.setConnectTimeout(20000);
                 conn.setReadTimeout(60000);

@@ -602,9 +602,11 @@
     return `<div class="topbar">${back ? `<button class="icon-btn" data-act="back" aria-label="Back">${icon('back')}</button>` : ''}<h1>${esc(title)}</h1>${right}</div>`;
   }
   function errorBox(e, retry = true) {
-    const offline = !navigator.onLine || /Failed to fetch|Network|HTTP 5/.test(String(e?.message || e));
-    return `<div class="empty">${icon(offline ? 'globe' : 'x')}<b>${offline ? "You're offline" : 'Something went wrong'}</b>
-      <div>${offline ? 'Search needs a connection. Your Library works offline.' : esc(e?.message || e)}</div>
+    // "Offline" only when the phone really is; a server that didn't answer says so (with why).
+    const offline = !navigator.onLine;
+    const net = !offline && /Failed to fetch|Load failed|Network|HTTP 5/.test(String(e?.message || e));
+    return `<div class="empty">${icon(offline || net ? 'globe' : 'x')}<b>${offline ? "You're offline" : net ? "Couldn't reach the server" : 'Something went wrong'}</b>
+      <div>${offline ? 'Search needs a connection. Your Library works offline.' : net ? 'The search or journal service didn\'t answer. Tap Try again; if it keeps happening, a VPN or a proxy in the phone\'s settings may be blocking it.' : esc(e?.message || e)}</div>
       ${retry ? '<div class="spacer"></div><button class="btn small" data-act="retry">Try again</button>' : ''}</div>`;
   }
   const skeletons = (n = 4) => Array.from({ length: n }, () => '<div class="skeleton"><i style="width:92%"></i><i style="width:80%"></i><i style="width:45%"></i></div>').join('');
