@@ -820,7 +820,6 @@
     }
     el.innerHTML = `
       <div class="meta-line">${fmt(state.hit)} papers${state.broad ? ' · showing broader matches' : ''}</div>
-      ${snapshot(state)}
       <div id="cards">${state.results.map((a) => card(a)).join('')}</div>
       ${state.next ? '<button class="more" data-act="more">Load more</button>' : ''}`;
   }
