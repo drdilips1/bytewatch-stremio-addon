@@ -671,9 +671,22 @@
       let dataUrl;
       try { dataUrl = await pickImage(); } catch (e) { if (!/cancel/i.test(e.message || '')) toast(e.message || 'Couldn\'t open the photos'); return; }
       closeSheet(true);
+      toast('Image chosen. Reading it…');
+      // The page shows it when it opens (a later redraw can't leave it blank).
+      pendingImg = { dataUrl, kind, context };
       go('imgread');
-      setTimeout(() => readImage(dataUrl, kind, context), 50);
     };
+  }
+  let pendingImg = null;
+  let shownImg = null;
+  function renderImgRead() {
+    const p = pendingImg || shownImg;
+    if (!p) { go('images', { replace: true }); return; }
+    pendingImg = null;
+    shownImg = p;
+    // Already read (coming back to it): show it again without asking the AI twice.
+    if (p.html) { view.innerHTML = `${D.topbar('Image learning mode')}<img class="up-img" src="${p.dataUrl}" alt=""><div id="up-out">${p.html}</div>`; return; }
+    readImage(p.dataUrl, p.kind, p.context);
   }
   async function readImage(dataUrl, kind, context) {
     view.innerHTML = `${D.topbar('Image learning mode')}<img class="up-img" src="${dataUrl}" alt=""><div id="up-out">${I.busyHtml('Looking at the image…')}</div>`;
@@ -688,6 +701,7 @@
       const search = (text.match(/SEARCH:\s*(.+)/i)?.[1] || '').split(/[;,]/).map((x) => x.trim()).filter(Boolean).slice(0, 5);
       $('#up-out').innerHTML = `<div class="panel synth">${md(text.replace(/SEARCH:.*$/im, ''))}<p class="muted small">${esc(EDU)}</p></div>
         ${search.length ? `<div class="section"><div class="section-h"><h3>Key references</h3></div><div class="row wrap">${search.map((s) => `<button class="chip" data-act="ev-from-search" data-q="${esc(s)}">${icon('chart')}${esc(s)}</button>`).join('')}</div></div>` : ''}`;
+      if (shownImg && shownImg.dataUrl === dataUrl) shownImg.html = $('#up-out').innerHTML;
     } catch (e) { $('#up-out').innerHTML = I.aiErr(e); }
   }
 
@@ -711,6 +725,6 @@
   Object.assign(I, { pickImage, aiImage, EDU, openI });
   Object.assign(ext.routes, {
     research: renderResearch, project: renderProject, rp: renderRP, gaps: renderGaps, compare: renderCompare,
-    drug: renderDrug, images: renderImages, imgread: () => {},
+    drug: renderDrug, images: renderImages, imgread: renderImgRead,
   });
 })();
