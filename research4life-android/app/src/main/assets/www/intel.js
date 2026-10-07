@@ -1296,7 +1296,7 @@
   }
 
   function renderIntel() {
-    view.innerHTML = `<div class="home-top"><div class="brand"><span>DERM INTELLIGENCE</span></div></div>
+    view.innerHTML = `<div class="home-top"><div class="brand"><span><b>Derm Intelligence</b><small>Evidence, AI and research tools</small></span></div></div>
       <form class="searchbox" data-form="intel"><textarea name="q" rows="2" placeholder="Ask any dermatology question…">${''}</textarea><button class="go" type="submit">${icon('up')}</button></form>
       <p class="muted small" style="margin:6px 4px 14px">Best evidence, where it came from, how strong it is, what's controversial, what changed.</p>
       ${tilesHtml()}

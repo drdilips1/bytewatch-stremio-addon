@@ -176,7 +176,9 @@
     get(k, d) { try { const v = localStorage.getItem('ds.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem('ds.' + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
   };
-  const settings = Object.assign({ derm: true, preprints: false, theme: 'system', sort: 'relevance', accent: 'ocean', bgLight: 'white', bgDark: 'graphite', showR4L: false, showUTD: false }, store.get('settings', {}));
+  const settings = Object.assign({ derm: true, preprints: false, theme: 'system', sort: 'relevance', accent: 'gold', bgLight: 'ivory', bgDark: 'ink', showR4L: false, showUTD: false }, store.get('settings', {}));
+  // The new look (ink and ivory with a gold accent) once for everyone; Settings → Appearance still changes it.
+  if (!settings.look2) { Object.assign(settings, { accent: 'gold', bgLight: 'ivory', bgDark: 'ink', look2: true }); store.set('settings', settings); }
   const saveSettings = () => store.set('settings', settings);
   let follows = store.get('follows', null);
   if (!follows) {
@@ -649,6 +651,7 @@
       <div class="home-top"><div class="brand">${LOGO}<span><b>DermScholar</b><small>${greet}</small></span></div>
         <button class="icon-btn" data-act="settings" aria-label="Settings">${icon('settings')}</button></div>
       <section class="hero-card">
+        <span class="hero-eyebrow">Evidence search</span>
         <h2>Search dermatology <em>evidence</em></h2>
         <p class="hero-sub">PubMed · Cochrane · guidelines · trials · DOI or PMID</p>
         ${searchBox()}
@@ -660,13 +663,7 @@
         </div>
       </section>
       ${ext.homeTop ? ext.homeTop() : ''}
-      ${ext.homeIntel ? ext.homeIntel() : ''}
-
-      <div class="stat-row">
-        <button class="stat-tile" data-act="tab" data-tab="library"><b>${saved.size}</b><span>Saved</span></button>
-        <button class="stat-tile" data-act="lib-offline"><b>${pdfKeys.size}</b><span>PDFs offline</span></button>
-        <button class="stat-tile" data-act="tab" data-tab="journals"><b>${followed.length}</b><span>Following</span></button>
-      </div>
+      <!-- Derm intelligence lives on the Intel tab; the first page stays calm. -->
 
       <div class="app-tiles">
         <button class="app-tile utd" data-act="utd-open"><span class="app-ico">${icon('book')}</span><b>UpToDate</b><span>${utd.saved ? (store.get('utdLoggedIn', false) ? 'Signed in · search in the app' : 'Login saved · tap to search') : 'Add your login'}</span></button>
@@ -675,16 +672,11 @@
 
       <div class="section">
         <div class="section-h"><h3>Try asking</h3></div>
-        <div class="list-card">${EXAMPLES.map((q) => `<button class="example" data-act="ask" data-q="${esc(q)}">${icon('bulb')}<span>${esc(q)}</span></button>`).join('')}</div>
+        <div class="list-card">${EXAMPLES.slice(0, 4).map((q) => `<button class="example" data-act="ask" data-q="${esc(q)}">${icon('bulb')}<span>${esc(q)}</span></button>`).join('')}</div>
       </div>
 
       ${recent.length ? `<div class="section"><div class="section-h"><h3>Recent searches</h3><button data-act="clear-history">Clear</button></div>
         <div class="row wrap">${recent.slice(0, 8).map((q) => `<button class="chip" data-act="ask" data-q="${esc(q)}">${icon('clock')}${esc(q.length > 36 ? q.slice(0, 34) + '…' : q)}</button>`).join('')}</div></div>` : ''}
-
-      <div class="section">
-        <div class="section-h"><h3>Browse topics</h3></div>
-        <div class="row wrap">${TOPICS.map((t) => `<button class="chip topic" data-act="topic" data-q="${esc(t)}"><i style="background:hsl(${hueFor(t)} 60% 50%)"></i>${esc(t)}</button>`).join('')}</div>
-      </div>
 
       <div class="section">
         <div class="section-h"><h3>New in your journals</h3><button data-act="tab" data-tab="journals">Manage</button></div>
@@ -3026,9 +3018,9 @@
   }
 
   // ---------------------------------------------------------------- settings
-  const ACCENTS = { ocean: '#2563eb', teal: '#0d9488', violet: '#7c3aed', rose: '#e11d48', amber: '#d97706', forest: '#16a34a', indigo: '#4f46e5', slate: '#475569' };
-  const BG_LIGHT = { white: ['#ffffff', 'White'], paper: ['#faf6ef', 'Paper'], mist: ['#f3f6fb', 'Mist'], mint: ['#f1faf6', 'Mint'], blush: ['#fdf4f5', 'Blush'] };
-  const BG_DARK = { graphite: ['#0f1115', 'Graphite'], midnight: ['#0b1224', 'Midnight'], forest: ['#0c1512', 'Forest'], amoled: ['#000000', 'Black'] };
+  const ACCENTS = { gold: '#b8924c', ocean: '#2563eb', teal: '#0d9488', violet: '#7c3aed', rose: '#e11d48', amber: '#d97706', forest: '#16a34a', indigo: '#4f46e5', slate: '#475569' };
+  const BG_LIGHT = { ivory: ['#f8f6f1', 'Ivory'], white: ['#ffffff', 'White'], paper: ['#faf6ef', 'Paper'], mist: ['#f3f6fb', 'Mist'], mint: ['#f1faf6', 'Mint'], blush: ['#fdf4f5', 'Blush'] };
+  const BG_DARK = { ink: ['#0d0f13', 'Ink'], graphite: ['#0f1115', 'Graphite'], midnight: ['#0b1224', 'Midnight'], forest: ['#0c1512', 'Forest'], amoled: ['#000000', 'Black'] };
 
   function renderSettings() {
     const pdfCount = pdfKeys.size;

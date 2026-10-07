@@ -2,6 +2,9 @@
 @font-face { font-family: "Literata"; src: url(fonts/literata.woff2) format("woff2"); font-weight: 200 900; font-display: swap; }
 @font-face { font-family: "Literata"; src: url(fonts/literata-italic.woff2) format("woff2"); font-weight: 200 900; font-style: italic; font-display: swap; }
 @font-face { font-family: "Fraunces"; src: url(fonts/fraunces.woff2) format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Newsreader"; src: url(fonts/newsreader.woff2) format("woff2"); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: "Newsreader"; src: url(fonts/newsreader-italic.woff2) format("woff2"); font-weight: 200 800; font-style: italic; font-display: swap; }
+@font-face { font-family: "Plus Jakarta Sans"; src: url(fonts/jakarta.woff2) format("woff2"); font-weight: 200 800; font-display: swap; }
 
 :root {
   --bg: #ffffff;
@@ -28,8 +31,9 @@
   --shadow-lg: 0 10px 40px rgba(15, 23, 42, .12);
   --radius: 18px;
   --serif: "Literata", Georgia, "Times New Roman", serif;
-  --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --display: "Fraunces", "Literata", Georgia, serif;
+  /* App text: Plus Jakarta Sans; headings: Newsreader (an editorial serif); papers keep Literata. */
+  --sans: "Plus Jakarta Sans", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --display: "Newsreader", "Literata", Georgia, serif;
   --nav-h: 72px;
   color-scheme: light;
 }
@@ -61,6 +65,8 @@
 }
 
 /* Accent colours (light, then dark) */
+:root[data-accent="gold"]   { --accent: #9a7432; --accent-strong: #8a6526; --accent-soft: #f5eedf; --accent-ink: #7a5a22; }
+:root[data-theme="dark"][data-accent="gold"] { --accent: #d4b06a; --accent-strong: #a8843f; --accent-soft: #2a2416; --accent-ink: #e8cf96; }
 :root[data-accent="teal"]   { --accent: #0d9488; --accent-strong: #0d9488; --accent-soft: #e2f6f3; --accent-ink: #0f766e; }
 :root[data-accent="violet"] { --accent: #7c3aed; --accent-strong: #7c3aed; --accent-soft: #f1eafe; --accent-ink: #6d28d9; }
 :root[data-accent="rose"]   { --accent: #e11d48; --accent-strong: #e11d48; --accent-soft: #fde8ed; --accent-ink: #be123c; }
@@ -81,6 +87,8 @@
 :root[data-bg="mist"]  { --bg: #f3f6fb; --bg-soft: #e9eef6; --card: #ffffff; --line: #e1e7f0; --line-strong: #cfd8e5; }
 :root[data-bg="mint"]  { --bg: #f1faf6; --bg-soft: #e5f3ec; --card: #ffffff; --line: #dcece4; --line-strong: #c7ded2; }
 :root[data-bg="blush"] { --bg: #fdf4f5; --bg-soft: #f8e8ea; --card: #ffffff; --line: #f0dde0; --line-strong: #e5c9cd; }
+:root[data-bg="ivory"] { --bg: #f8f6f1; --bg-soft: #f0ece3; --card: #fffdf9; --line: #e7e1d5; --line-strong: #d8d0c0; --text: #17181c; --text-2: #4a4b52; --text-3: #8a877f; }
+:root[data-theme="dark"][data-bg="ink"] { --bg: #0d0f13; --bg-soft: #14171d; --card: #15181e; --line: #242831; --line-strong: #323743; --text: #ece8df; --text-2: #b9b4a9; --text-3: #7f7b72; }
 :root[data-theme="dark"][data-bg="midnight"] { --bg: #0b1224; --bg-soft: #121b31; --card: #111a30; --line: #1f2a44; --line-strong: #2b3857; }
 :root[data-theme="dark"][data-bg="forest"]   { --bg: #0c1512; --bg-soft: #131f1a; --card: #121d18; --line: #1e2d26; --line-strong: #2a3d34; }
 :root[data-theme="dark"][data-bg="amoled"]   { --bg: #000000; --bg-soft: #0b0b0c; --card: #0c0c0e; --line: #1c1d21; --line-strong: #2a2b31; }
@@ -1294,3 +1302,35 @@ pre.trail { white-space: pre-wrap; word-break: break-all; font-size: 11px; line-
 .abstract p, .abstract > div, .ai-body p, .ai-body li, .synth p, .synth li, .rd p:not(.rd-small) {
   text-align: justify; text-justify: inter-word; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word;
 }
+
+/* ================================================================ Refined look (first page)
+   Calm, editorial: one accent, hairline borders, a serif display face, no rainbow gradients. */
+.hero-card {
+  padding: 22px 18px 14px; border-radius: 22px;
+  background:
+    radial-gradient(140% 120% at 100% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 55%),
+    var(--card);
+  border: 1px solid var(--line); box-shadow: none;
+}
+.hero-card::after { content: ''; position: absolute; left: 18px; right: 18px; top: 0; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 60%, transparent), transparent); }
+.hero-eyebrow { display: block; font: 600 10.5px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--accent-ink); margin-bottom: 10px; }
+.hero-card h2 { font: 500 30px/1.08 var(--display); letter-spacing: -.015em; margin: 0 0 6px; }
+.hero-card h2 em { font-style: italic; font-weight: 400; color: var(--accent-ink); }
+.hero-sub { font-size: 12px; letter-spacing: .01em; }
+.hero-card .searchbox { box-shadow: none; border: 1px solid var(--line-strong); background: var(--bg); }
+.hero-chips .chip { background: transparent; border: 1px solid var(--line); }
+.home-top .brand b { font: 500 21px/1 var(--display); letter-spacing: -.01em; }
+.home-top .brand small { font-size: 11.5px; letter-spacing: .02em; }
+.section-h h3 { font: 600 11px/1.2 var(--sans); letter-spacing: .14em; }
+.quick-btn, .app-tile, .list-card { box-shadow: none; border-color: var(--line); }
+.qi, .qi.add, .qi.lib, .app-tile .app-ico, .app-tile.utd .app-ico, .app-tile.r4l .app-ico {
+  background: var(--accent-soft); color: var(--accent-ink); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.example { font-size: 14px; }
+.example svg { color: var(--accent); opacity: .8; }
+body { letter-spacing: -.003em; }
+h1, .topbar h1 { letter-spacing: -.01em; }
+.chip.derm.on { background: var(--accent-soft); color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+/* Journal covers: the same colours, quieter. */
+.jcover-art { filter: saturate(.45) brightness(.82); box-shadow: none; border: 1px solid var(--line); }
+.jcover-art span { font-weight: 500; }
