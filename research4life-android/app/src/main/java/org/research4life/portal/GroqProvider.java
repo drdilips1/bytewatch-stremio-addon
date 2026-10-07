@@ -63,6 +63,10 @@ final class GroqProvider implements LlmProvider {
     }
 
     private void putCommon(JSONObject body, int maxTokens) throws Exception {
+        // Low randomness and a fixed seed: asking again gives (nearly) the same evidence answer,
+        // not a different one each time (the default temperature is 1).
+        body.put("temperature", 0.2);
+        body.put("seed", 7);
         if (or) {
             body.put("max_tokens", maxTokens);
             if (model.startsWith("openai/gpt-oss")) body.put("reasoning", new JSONObject().put("effort", "low").put("exclude", true));
@@ -236,6 +240,7 @@ final class GroqProvider implements LlmProvider {
             messages.put(new JSONObject().put("role", "user").put("content", content));
             body.put("messages", messages);
             body.put("max_completion_tokens", Math.min(maxTokens, 4000));
+            body.put("temperature", 0.2);
             JSONObject res = post("chat/completions", body);
             String text = res.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "").trim();
             if (text.isEmpty()) throw new AiException("Groq returned an empty answer. Try again.");

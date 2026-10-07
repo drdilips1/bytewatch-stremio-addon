@@ -274,7 +274,8 @@
     const messages = [{ role: 'system', content: system }];
     if (image) messages.push({ role: 'user', content: [{ type: 'image_url', image_url: { url: image } }, { type: 'text', text: task }] });
     else messages.push({ role: 'user', content: userText(doc, task) });
-    const body = { model, messages };
+    // Low randomness and a fixed seed: asking again gives (nearly) the same evidence answer.
+    const body = { model, messages, temperature: 0.2, seed: 7 };
     if (or) {
       body.max_tokens = max;
       if (model.startsWith('openai/gpt-oss')) body.reasoning = { effort: 'low', exclude: true };
