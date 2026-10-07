@@ -434,7 +434,8 @@
         + (k === 'translate' ? `Translate the passage into ${lang}. Give only the translation, keeping numbers and names.` : EXPLAIN[k][1])
         + ` Reader level: ${LEVELS[aiPrefs.level]}. Base it on the document; if you add general background, say so.`;
       try {
-        const ans = await D.ai(task, model ? { docModel: model, focus: 'query', query: text, max: 3000 } : { max: 3000 });
+        const onPartial = D.live(out, { cls: 'ai-body' });
+        const ans = await D.ai(task, model ? { docModel: model, focus: 'query', query: text, max: 3000, onPartial } : { max: 3000, onPartial });
         lastAnswer = { mode: k, text: ans, lang };
         out.innerHTML = `<div class="ai-body">${md(ans)}</div>
           <div class="row-btns"><button class="btn xs" data-act="ex-listen">${icon('audio')}Read aloud</button>
@@ -680,7 +681,9 @@ Follow the document's own structure with "## " sections. Keep key numbers exact.
       $('.sheet').scrollTop = $('.sheet').scrollHeight;
       const where = hubState.context ? `\nThe reader is currently at this passage while listening:\n${hubState.context}\n` : '';
       try {
-        turn.a = await D.ai(`${history ? 'Earlier in this conversation:\n' + history + '\n\n' : ''}${where}Question: ${q}\n\nAnswer from the document only, at a ${LEVELS[aiPrefs.level]} level. After each claim cite the supporting passage as [¶n]. If the document doesn't say, answer "The document doesn't say" and stop. If the user asks for an example or a simple explanation, you may add general background but say it's not from the document.`, docOpts(src, { focus: 'query', query: q + ' ' + (hubState.context || ''), max: 3000 }));
+        turn.a = await D.ai(`${history ? 'Earlier in this conversation:\n' + history + '\n\n' : ''}${where}Question: ${q}\n\nAnswer from the document only, at a ${LEVELS[aiPrefs.level]} level. After each claim cite the supporting passage as [¶n]. If the document doesn't say, answer "The document doesn't say" and stop. If the user asks for an example or a simple explanation, you may add general background but say it's not from the document.`, docOpts(src, { focus: 'query', query: q + ' ' + (hubState.context || ''), max: 3000,
+          // The answer appears while it is being written.
+          onPartial: (t) => { turn.a = t; if (hubState?.key === key) { drawHub(); $('.sheet').scrollTop = $('.sheet').scrollHeight; } } }));
       } catch (err) {
         e.qa = e.qa.filter((x) => x !== turn);
         toast(aiNeedsKey(err) ? 'Add your Claude API key first' : err.message);
@@ -1314,7 +1317,7 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
       const out = $('#notesai');
       out.innerHTML = '<div class="ai-wait"><div class="spinner"></div>Reading your notes…</div>';
       try {
-        const ans = await D.ai('Write a consolidated summary of these saved highlights and notes, grouped by theme (not by document), naming which document each point comes from. Finish with "## Open questions" if the notes raise any.', { doc: asText(), max: 4000 });
+        const ans = await D.ai('Write a consolidated summary of these saved highlights and notes, grouped by theme (not by document), naming which document each point comes from. Finish with "## Open questions" if the notes raise any.', { doc: asText(), max: 4000, onPartial: D.live(out, { cls: 'ai-body card' }) });
         out.innerHTML = `<div class="ai-body card">${md(ans)}</div>`;
       } catch (e) { out.innerHTML = aiNeedsKey(e) ? keyPrompt() : `<p class="muted small">${esc(e.message)}</p>`; }
     };

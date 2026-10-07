@@ -239,6 +239,39 @@
     for (const t of map.trials.list.slice(0, 6)) refs.push({ kind: 'trial', t, type: 'Registered trial' });
     return refs.map((r, i) => ({ ...r, n: i + 1 }));
   }
+  /**
+   * The strongest {@code n} sources (guidelines, meta-analyses, RCTs first; then more relevant and
+   * newer), kept in their numbered order so citations still point at the full list. Written answers
+   * read these: the rest are mostly small or repeated studies that rarely change the answer, and
+   * the AI reads 24 sources carefully where it skims 60.
+   */
+  function bestRefs(refs, n = 24) {
+    if (refs.length <= n) return refs;
+    const len = refs.length;
+    const score = (r, i) => (r.kind === 'trial' ? 9 : D.studyType(r.a).rank * 2 + ((+r.a.year || 0) >= D.THIS_YEAR - 3 ? 1.5 : 0)) + (1 - i / len) * 3;
+    const ranked = refs.map((r, i) => ({ r, s: score(r, i) })).sort((x, y) => y.s - x.s);
+    const out = [];
+    let trials = 0;
+    for (const { r } of ranked) {
+      if (out.length >= n) break;
+      if (r.kind === 'trial' && ++trials > 3) continue;
+      out.push(r);
+    }
+    return out.sort((x, y) => x.n - y.n);
+  }
+  // Papers reporting no effect, harm or disagreement (they are often smaller and ranked lower).
+  const DISSENT = /\bno (significant|difference|benefit|association|improvement|evidence)|not (significantly|associated|superior|effective|supported)|did not|failed to|ineffective|conflicting|inconsistent|controvers|lack of (efficacy|effect|benefit)|\bworse\b|\bharm/i;
+  /** For the contradiction check: the strongest sources plus those that disagree, about 30. */
+  function balancedRefs(refs, n = 30) {
+    if (refs.length <= n) return refs;
+    const top = bestRefs(refs, n - 10);
+    const rest = refs.filter((r) => !top.includes(r));
+    const against = rest.filter((r) => r.kind === 'paper' && DISSENT.test(`${r.a.title} ${D.stripTags(r.a.abstract || '')}`)).slice(0, 10);
+    const fill = bestRefs(rest.filter((r) => !against.includes(r)), n - top.length - against.length);
+    return [...top, ...against, ...fill].sort((x, y) => x.n - y.n);
+  }
+  const basedOn = (used, all) => (used.length < all.length ? `<p class="muted small">Based on the ${used.length} strongest of ${all.length} sources.</p>` : '');
+
   function packText(refs, { abstract = 1100 } = {}) {
     return refs.map((r) => {
       if (r.kind === 'trial') {
@@ -604,8 +637,9 @@
     const out = $('#ev-out');
     const ck = 'synth2.' + question.toLowerCase();
     let r = cacheGet(ck);
+    const use = bestRefs(refs);
     if (!r) {
-      out.innerHTML = busyHtml(`Reading ${refs.length} sources…`);
+      out.innerHTML = busyHtml(`Reading the ${use.length} strongest sources…`);
       try {
         r = await aiJsonCall(
           `Question: ${question}\n\nWrite a citation-first evidence synthesis for a dermatologist. The bottom line answers the question directly in one or two sentences. `
@@ -615,7 +649,7 @@
           + 'Rate strength by what the sources show about the question: many consistent studies stating the same established fact is strong, even without trials. '
           + 'If few sources address the question directly, say "the papers found address this only partly" rather than calling the evidence very limited. '
           + 'Each point: one or two sentences with citations and its own evidence strength. Then list controversies (where sources disagree), research gaps, and the 3-5 sources most worth reading.',
-          refs, SYNTH);
+          use, SYNTH);
         cacheSet(ck, r);
       } catch (e) { out.innerHTML = aiErr(e); return; }
     }
@@ -626,7 +660,7 @@
       ${r.controversies?.length ? `<h4>⚔️ Where the evidence disagrees</h4><ul>${r.controversies.map((c) => `<li>${esc(c.text)} ${citeBtns(c.cites, ctx)}</li>`).join('')}</ul>` : ''}
       ${r.gaps?.length ? `<h4>🕳️ Unanswered questions</h4><ul>${r.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}
       ${r.mustRead?.length ? `<h4>📌 Read first</h4><div class="row wrap">${r.mustRead.map((n) => citeBtns([n], ctx)).join('')}</div>` : ''}
-      <p class="muted small">Tap a number to see the exact sources. AI can misread abstracts: check key numbers in the papers.</p>
+      <p class="muted small">Tap a number to see the exact sources. AI can misread abstracts: check key numbers in the papers.</p>${basedOn(use, refs)}
       <div class="row wrap" style="gap:6px"><button class="btn xs" data-act="ev-redo">${icon('spark')}Redo</button> ${exportBtns(offerExport(() => synthReport(question, r), ctx))}</div></div>`;
     actions['ev-redo'] = () => { store.set('intel.' + ck, null); synth(question, refs, ctx); };
   }
@@ -651,7 +685,7 @@
       <div class="matrix-wrap"><table class="matrix"><thead><tr><th>Option</th><th>Evidence</th><th>Population</th><th>Response</th><th>Safety</th><th>Follow-up</th></tr></thead>
       <tbody>${rows.map((x, i) => `<tr data-act="mx-row" data-i="${i}"><td><b>${esc(x.option)}</b></td><td><span class="ev-lv lv-${esc(x.evidence.replace(' ', '-'))}">${esc(x.evidence)}</span></td>
         <td>${esc(x.population)}</td><td>${esc(x.response)}</td><td>${esc(x.safety)}</td><td>${esc(x.followup)}</td></tr>`).join('')}</tbody></table></div>
-      <p class="muted small">Tap a row for patient numbers, endpoints, effect sizes, confidence intervals, limitations and the studies.</p></div>`;
+      <p class="muted small">Tap a row for patient numbers, endpoints, effect sizes, confidence intervals, limitations and the studies. Based on all ${refs.length} sources.</p></div>`;
   }
   actions['mx-row'] = (b) => {
     const { rows, ctx } = window.__evMatrix || {};
@@ -668,11 +702,12 @@
     const out = $('#ev-out');
     const ck = 'contra2.' + question.toLowerCase();
     let r = cacheGet(ck);
+    const use = balancedRefs(refs);
     if (!r) {
       out.innerHTML = busyHtml('Looking for disagreements…');
       try {
         r = await aiJsonCall(`Question: ${question}\n\nContradiction check. State the main claim being tested. List the evidence FOR it and the evidence AGAINST it or limiting it (each with one citation number and a one-sentence point). `
-          + 'Then explain WHY the studies disagree (different populations, doses, endpoints, follow-up, sample sizes, designs, bias, statistics). Finish with an honest overall assessment and evidence strength.', refs, CONTRA);
+          + 'Then explain WHY the studies disagree (different populations, doses, endpoints, follow-up, sample sizes, designs, bias, statistics). Finish with an honest overall assessment and evidence strength.', use, CONTRA);
         cacheSet(ck, r);
       } catch (e) { out.innerHTML = aiErr(e); return; }
     }
@@ -681,17 +716,20 @@
       <div class="contra"><div><h4>✅ Evidence for</h4><ul>${(r.forEvidence || []).map((x) => `<li>${esc(x.point)} ${citeBtns([x.cite], ctx)}</li>`).join('') || '<li class="muted">None in the sources.</li>'}</ul></div>
       <div><h4>⚠️ Against / limitations</h4><ul>${(r.againstEvidence || []).map((x) => `<li>${esc(x.point)} ${citeBtns([x.cite], ctx)}</li>`).join('') || '<li class="muted">None in the sources.</li>'}</ul></div></div>
       ${r.reasons?.length ? `<h4>Why do the studies disagree?</h4><ul>${r.reasons.map((x) => `<li><b>${esc(x.reason)}:</b> ${esc(x.explanation)}</li>`).join('')}</ul>` : ''}
-      <div class="label" style="margin-top:12px">AI evidence assessment ${strength(r.strength)}</div><p>${esc(r.assessment)}</p></div>`;
+      <div class="label" style="margin-top:12px">AI evidence assessment ${strength(r.strength)}</div><p>${esc(r.assessment)}</p>
+      ${use.length < refs.length ? `<p class="muted small">Based on ${use.length} of ${refs.length} sources: the strongest, plus those reporting no effect or disagreeing.</p>` : ''}</div>`;
   }
 
   async function listen(question, refs) {
     const out = $('#ev-out');
     out.innerHTML = busyHtml('Writing a spoken briefing…');
+    const use = bestRefs(refs);
+    const wrap = (h) => `<div class="label">${icon('audio')}Research briefing</div>${h}`;
     try {
       const text = await D.ai(`Question: ${question}\n\nWrite a 3-minute spoken research briefing for a dermatologist: what is known, how strong it is, where studies disagree, what is coming in trials, and the bottom line. `
-        + 'Plain spoken prose, no citations in brackets, no Markdown. Mention study types and years naturally ("a 2024 meta-analysis found…").', { doc: packText(refs, { abstract: 700 }), system: CITE_SYSTEM, max: 2500 });
+        + 'Plain spoken prose, no citations in brackets, no Markdown. Mention study types and years naturally ("a 2024 meta-analysis found…").', { doc: packText(use, { abstract: 700 }), system: CITE_SYSTEM, max: 2500, onPartial: D.live(out, { cls: 'panel', wrap }) });
       const lines = text.split(/\n+/).map((t) => t.trim()).filter((t) => t.length > 1).map((t) => ({ t }));
-      out.innerHTML = `<div class="panel"><div class="label">${icon('audio')}Research briefing</div>${md(text)}</div>`;
+      out.innerHTML = `<div class="panel">${wrap(md(text))}${basedOn(use, refs)}</div>`;
       D.ttsPlayScript?.('Briefing', lines, { title: 'Briefing: ' + question.slice(0, 60) });
     } catch (e) { out.innerHTML = aiErr(e); }
   }
@@ -761,7 +799,7 @@
       try {
         const text = await D.ai(`Question being followed: ${c.w.q}\n\nThese sources are NEW since ${c.since}. What actually matters for a dermatologist? `
           + 'Rank the 3-6 most clinically or research-relevant developments (practice-changing results, safety signals, guideline changes, important new trials), each with citations, '
-          + 'and say briefly what is NOT worth attention. Markdown bullets, every claim cited like [2].', { doc: packText(refs), system: CITE_SYSTEM, max: 2500 });
+          + 'and say briefly what is NOT worth attention. Markdown bullets, every claim cited like [2].', { doc: packText(refs), system: CITE_SYSTEM, max: 2500, onPartial: D.live(el, { wrap: (h) => citeHtml(h, ctx) }) });
         el.innerHTML = `<div class="synth">${citeHtml(md(text), ctx)}</div>`;
       } catch (e) { el.innerHTML = aiErr(e); }
     };
@@ -835,14 +873,15 @@
         const map = await gather(input);
         let refs = refsFrom(map);
         if (m.recent) refs = refs.filter((r) => r.kind === 'trial' || +r.a.year >= D.THIS_YEAR - 5).map((r, i) => ({ ...r, n: i + 1 }));
-        // The best 24 (best evidence first): enough for a cited answer, small enough to start writing
-        // in seconds and fit the free AI limits (49 sources made it wait, or never start).
-        refs = refs.slice(0, 24).map((r, i) => ({ ...r, n: i + 1 }));
+        // The strongest 24: enough for a cited answer, small enough to start writing in seconds and
+        // fit the free AI limits (49 sources made it wait, or never start).
+        const found = refs.length;
+        refs = bestRefs(refs).map((r, i) => ({ ...r, n: i + 1 }));
         const ctx = newCtx(refs);
         out.innerHTML = busyHtml(`Reading ${refs.length} sources…`);
         const text = await D.ai(`Request: ${input}\n\n${m.task}`, { doc: packText(refs), system: CITE_SYSTEM + ' Write Markdown with "## " headings and "- " bullets. If you use a table, put the source numbers like [3] in every row.', max: 3500, fast: true,
           onPartial: (t) => { if (out.isConnected) out.innerHTML = `<div class="panel synth">${citeHtml(md(t), ctx)}<span class="typing">▍</span></div>`; } });
-        out.innerHTML = `<div class="panel synth">${citeHtml(md(text), ctx)}${sourcesList(text, refs)}<button class="btn xs" data-act="refs-all" data-ctx="${ctx}">${icon('list')}All ${refs.length} sources searched</button></div>`;
+        out.innerHTML = `<div class="panel synth">${citeHtml(md(text), ctx)}${sourcesList(text, refs)}${found > refs.length ? `<p class="muted small">Based on the ${refs.length} strongest of ${found} sources.</p>` : ''}<button class="btn xs" data-act="refs-all" data-ctx="${ctx}">${icon('list')}All ${refs.length} sources read</button></div>`;
         return;
       }
       if (mode === 'club') {
@@ -1273,7 +1312,7 @@
 
   // Shared with intel2.js (research workspace, drugs, images).
   window.DSI = {
-    api, q, epmc, trials, trialOf, trialTerm, gather, refsFrom, packText, newCtx, contexts, citeHtml, citeBtns, strength, refRow, trialCard,
+    api, q, epmc, trials, trialOf, trialTerm, gather, refsFrom, packText, bestRefs, basedOn, newCtx, contexts, citeHtml, citeBtns, strength, refRow, trialCard,
     keyCard, aiErr, busyHtml, aiJsonCall, cacheGet, cacheSet, obj, S, CITE_SYSTEM, paperText, openUrl, evHash, today, daysAgo, TILES, DISEASES,
     needKey, GUIDE, SAFETY, TREAT, isTreatmentQ, planSearch, evidencePool, stepsHtml, absShort, exportBtns, offerExport, STRENGTH,
   };

@@ -1870,7 +1870,9 @@
         reject(new Error('The AI took too long to answer (over 5 minutes). Try again, or pick a shorter length.'));
       }, 300000);
       aiPending[id] = (evt) => { clearTimeout(watchdog); delete aiPartial[id]; if (evt.state === 'done') resolve(evt.text); else reject(new Error(evt.message || 'AI request failed')); };
-      if (stream && fast && Native.aiRunStreamFast) Native.aiRunStreamFast(id, system, doc, task, max);
+      // Someone is watching it being written: the quickest AI first (Groq), unless the document is
+      // long enough that Gemini should take it.
+      if (stream && (fast || doc.length < 60000) && Native.aiRunStreamFast) Native.aiRunStreamFast(id, system, doc, task, max);
       else if (stream) Native.aiRunStream(id, system, doc, task, max);
       else Native.aiRun(id, system, doc, task, max, schema ? JSON.stringify(schema) : '');
     });
@@ -1937,6 +1939,10 @@
     delete aiPending[evt.id];
     if (cb) cb(evt); else ext.onAiOther?.(evt);
   }
+  /** onPartial for D.ai: shows the answer in {@code el} while it is being written. */
+  const live = (el, { cls = 'synth', wrap = (h) => h } = {}) => (t) => {
+    if (el && el.isConnected) el.innerHTML = `<div class="${cls}">${wrap(md(t))}<span class="typing">▍</span></div>`;
+  };
   /** Lenient JSON parse for structured answers. */
   function aiJson(text) {
     try { return JSON.parse(text); } catch { /* fall through */ }
@@ -3486,7 +3492,7 @@
     topicOf, loadSaved, account, waitingPaper: () => { const w = store.get('myloftWaiting', null); return w && Date.now() - w.t < 24 * 3600e3 ? w : null; }, getPdf, searchHash, filtersFrom, skeletons, shortAuthors, NOISE, DERM_FILTER, DERM_WORDS, TYPE_FILTERS, THIS_YEAR, hasNative,
     topbar, errorBox, coverStyle, hueFor, saveArticle, openReader, showReader, readerTop, readerLoading, lightbox,
     ttsPlay, ttsPlayScript, ttsSheet, ttsPrefs, saveTts, ttsTimes, indexAfterSeconds, sectionStart, sectionEnd, nextSection, prevSection,
-    voiceList, RATES, ai, aiJson, aiHasKey, aiMaxCap, modelText, jumpToBlock, copyText, syncPdfs, refreshPdfs, stripTags,
+    voiceList, RATES, ai, aiJson, aiHasKey, live, aiMaxCap, modelText, jumpToBlock, copyText, syncPdfs, refreshPdfs, stripTags,
     speechReady, REFLOW_V, updateSaved, DERM_X, quality,
     addCollection: (n) => { if (n && !collections.includes(n)) { collections.push(n); store.set('collections', collections); } }, get collections() { return collections; },
     get tts() { return tts; }, get speech() { return speech; }, get saved() { return saved; }, get cache() { return cache; },

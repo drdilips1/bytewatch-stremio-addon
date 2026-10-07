@@ -236,7 +236,7 @@
     if (I.needKey()) { out.innerHTML = I.keyCard(); return; }
     out.innerHTML = I.busyHtml('Reading the project…');
     try {
-      const text = await D.ai(qtext, { doc: await projectText(pj), system: PROJECT_SYSTEM, max: 4000 });
+      const text = await D.ai(qtext, { doc: await projectText(pj), system: PROJECT_SYSTEM, max: 4000, onPartial: D.live(out) });
       out.innerHTML = `<div class="synth">${md(text)}</div><button class="btn xs" data-act="pj-keep" data-id="${pj.id}">${icon('note')}Keep as AI note</button>`;
       actions['pj-keep'] = () => { updateProject(pj.id, (p) => p.notes.unshift({ text: `**Q: ${qtext}**\n${text}`, at: Date.now(), ai: true })); toast('Saved to AI notes'); };
     } catch (e) { out.innerHTML = I.aiErr(e); }
@@ -251,7 +251,7 @@
       const task = f === 'protocol'
         ? 'Draft a study protocol for this project: background and rationale (cite [P1]…), objectives, design, setting, population and eligibility, interventions, outcomes with validated dermatology scales, sample size reasoning with stated assumptions, statistical analysis plan, ethics, limitations. Mark anything the investigator must decide in [square brackets].'
         : 'Draft a manuscript skeleton for this project in the style of a top dermatology journal: title, structured abstract, introduction (cite [P1]…), methods, results placeholders (never invent numbers: use [n=?] style placeholders), discussion, limitations, conclusion.';
-      box.value = await D.ai(task, { doc: await projectText(pj), system: PROJECT_SYSTEM, max: 7000 });
+      box.value = await D.ai(task, { doc: await projectText(pj), system: PROJECT_SYSTEM, max: 7000, onPartial: (t) => { if (box.isConnected) box.value = t; } });
     } catch (e) { box.value = 'AI error: ' + e.message; }
   };
 
@@ -414,7 +414,7 @@
       const ctx = I.newCtx(refs);
       if (!text) {
         text = await D.ai(`From these recent dermatology systematic reviews and meta-analyses, list the top 20 unanswered dermatology research questions in ${D.THIS_YEAR}, `
-          + 'ranked by clinical importance. For each: the question in bold, why it is unanswered (one sentence), and citations like [3]. Numbered Markdown list.', { doc: I.packText(refs, { abstract: 900 }), system: I.CITE_SYSTEM, max: 6000 });
+          + 'ranked by clinical importance. For each: the question in bold, why it is unanswered (one sentence), and citations like [3]. Numbered Markdown list.', { doc: I.packText(refs, { abstract: 900 }), system: I.CITE_SYSTEM, max: 6000, onPartial: D.live(el, { cls: 'panel synth', wrap: (h) => I.citeHtml(h, ctx) }) });
         I.cacheSet(ck, text);
       }
       el.innerHTML = `<div class="panel synth">${I.citeHtml(md(text), ctx)}<button class="btn xs" data-act="refs-all" data-ctx="${ctx}">${icon('list')}${refs.length} sources</button></div>`;
@@ -550,7 +550,7 @@
           + I.packText(refs.filter((r) => r.kind !== 'label'), { abstract: 700 });
         text = await D.ai(`Write a dermatology drug dossier for ${name}: mechanism; regulatory status and approved indications (dermatology first); dermatology trial evidence with numbers; comparative effectiveness; `
           + 'safety signals (label warnings and FAERS, with the FAERS caveat); pregnancy and lactation; monitoring; important interactions; what guidelines say; latest developments and ongoing trials. '
-          + 'Cite the label as [L], FAERS as [F] and papers/trials by number like [3]. Markdown with "## " headings.', { doc, system: I.CITE_SYSTEM.replace('numbered sources', 'numbered sources, the FDA label [L] and FAERS [F]'), max: 6000 });
+          + 'Cite the label as [L], FAERS as [F] and papers/trials by number like [3]. Markdown with "## " headings.', { doc, system: I.CITE_SYSTEM.replace('numbered sources', 'numbered sources, the FDA label [L] and FAERS [F]'), max: 6000, onPartial: D.live(ai, { cls: 'panel synth', wrap: (h) => I.citeHtml(h, ctx) }) });
         I.cacheSet(ck, text);
       }
       ai.innerHTML = `<div class="panel synth">${I.citeHtml(md(text), ctx)}<p class="muted small">Label from openFDA (US). Always check your local prescribing information.</p></div>`;
