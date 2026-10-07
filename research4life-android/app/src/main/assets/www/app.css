@@ -1261,3 +1261,9 @@ pre.trail { white-space: pre-wrap; word-break: break-all; font-size: 11px; line-
 .qa-steps svg, .qa-sugg svg, .qa .ex-head svg, .qa-thread .ex-head svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; flex: none; }
 .qa-sugg { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .ref-quote { font-style: italic; opacity: .85; }
+
+.qa-lead { font-size: 1.32em; line-height: 1.32; margin: 2px 0 10px; }
+.qa-lead b { font-weight: 700; }
+/* The follow-up box stays in reach at the bottom while reading, above the tab bar. */
+.qa-follow { position: sticky; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 5; background: var(--bg); padding: 8px 0; }
+.qa-follow input { border-radius: 22px; padding: 12px 16px; }

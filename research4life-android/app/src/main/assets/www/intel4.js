@@ -432,6 +432,8 @@
       const followups = fi < 0 ? [] : tail.slice(fi).split('\n').slice(1).map((l) => l.replace(/^\s*[-*\d.)]+\s*/, '').trim()).filter((l) => l.length > 8).slice(0, 4);
       return { quotes, followups };
     };
+    // The direct answer (first line) large, as Consensus shows it.
+    const lead = (html) => html.replace(/<p>/, '<p class="qa-lead">');
     const stepsHtml = (steps) => (steps?.length ? `<div class="muted small qa-steps" style="margin:0 0 8px">${steps.map((x) => `${icon('search')} ${esc(x.label)}${x.hit != null ? ' · ' + Number(x.hit || 0).toLocaleString() : ''}`).join('<br>')}</div>` : '');
     const frame = (note, steps, inner) => `<div class="panel explain qa">
         <div class="section-h" style="margin:0 0 4px"><h3>${icon('spark')}Answer</h3><span class="muted small qa-note">${note}</span></div>
@@ -442,7 +444,7 @@
       const { quotes, followups } = parseTail(tail);
       for (const q of quotes) { const x = refs.find((y) => y.n === q.n); if (x) x.quote = q.quote; }
       const ctx = I.newCtx(refs);
-      el.innerHTML = frame(`${refs.length} sources`, steps, I.citeHtml(D.md(body), ctx)).replace(/<\/div>$/, '') + `
+      el.innerHTML = frame(`${refs.length} sources`, steps, lead(I.citeHtml(D.md(body), ctx))).replace(/<\/div>$/, '') + `
         <details class="qa-refs"><summary>References (${refs.length})</summary>${refs.map(I.refRow).join('')}</details>
         <p class="muted small">AI-written from these papers' abstracts (guidelines first). Tap a citation to see its paper; check key numbers in the papers.</p>
         <div class="row wrap" style="gap:6px"><button class="btn xs" data-act="qa-redo">${icon('spark')}Redo</button>
@@ -480,8 +482,8 @@
       const doc = refs.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 600)}`).join('\n\n');
       const text = await D.ai(`QUESTION: ${question}\n\n`
         + 'Answer exactly this question for a dermatologist, like a short up-to-date review, using only these papers (guidelines and consensus statements first; prefer the newest guidance and strongest evidence). Write Markdown:\n'
-        + '1. First line: the answer in one bold sentence (**…**).\n'
-        + '2. A short paragraph (2-3 sentences) explaining it.\n'
+        + '1. First line: the direct answer in one plain sentence (what to do / what it is), with only its key phrase in **bold** (e.g. "Order an **extended myositis panel** covering the dermatomyositis-specific and overlap antibodies.").\n'
+        + '2. A short paragraph (2-3 sentences) explaining it, with the key terms in **bold**.\n'
         + '3. 2 to 4 "## " sections with headings that fit the question, short paragraphs or bullets, and one compact Markdown table where it helps. ' + shape + '\n'
         + '4. If the papers include guidelines or consensus statements: "## Current guidelines" with what they recommend.\n'
         + 'Every claim cites its papers like [3] or [2, 5]; keep numbers exactly as reported; never add facts not in the papers; say plainly where evidence is limited. About 300-450 words. No preamble.\n'
@@ -490,7 +492,7 @@
           onPartial: (t) => {
             if (!live()) return;
             const b = el.querySelector('.qa-body');
-            if (b) b.innerHTML = I.citeHtml(D.md(splitTail(t).body), ctx);
+            if (b) b.innerHTML = lead(I.citeHtml(D.md(splitTail(t).body), ctx));
           } });
       I.cacheSet(key, { text, refs, steps });
       render(text, refs, steps);
@@ -519,13 +521,15 @@
     // Related questions just above the box: from the answer, then from the latest follow-up.
     const suggBox = el.querySelector('.qa-sugg-box');
     const paintSugg = (list) => {
+      // The first suggestion waits in the box (tap Ask to ask it), as Consensus does.
+      if (list?.length) { form.f.placeholder = list[0]; form.f.dataset.sugg = list[0]; } else { form.f.placeholder = 'Ask a follow-up…'; form.f.dataset.sugg = ''; }
       if (!suggBox) return;
       suggBox.innerHTML = list?.length ? `<p class="muted small" style="margin:12px 0 6px">Related questions</p><div class="qa-sugg">${list.slice(0, 4).map((f) => `<button class="chip" data-act="qa-sugg" data-q="${esc(f)}" style="text-align:left;white-space:normal">${icon('search')}${esc(f)}</button>`).join('')}</div>` : '';
     };
     paintSugg(thread.length && thread[thread.length - 1].sugg?.length ? thread[thread.length - 1].sugg : r.followups);
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const q2 = form.f.value.trim();
+      const q2 = form.f.value.trim() || (form.f.dataset.sugg || '');
       if (!q2) return;
       form.f.value = '';
       box.insertAdjacentHTML('beforeend', turnHtml({ q: q2 }, I.busyHtml('Answering…')));
