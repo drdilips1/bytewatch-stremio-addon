@@ -1283,6 +1283,8 @@ pre.trail { white-space: pre-wrap; word-break: break-all; font-size: 11px; line-
 .qa-sugg .chip svg { margin-top: 2px; }
 
 /* Answers read as even blocks of text (justified, with hyphenation), not ragged lines. */
-.qa-body p, .qa-body li, .qa-body .md-row, .qa-thread .qa-a p, .qa-thread .qa-a li, .explain p {
+/* Throughout the app: abstracts, AI answers and summaries, and the reader's paragraphs. */
+.qa-body p, .qa-body li, .qa-body .md-row, .qa-thread .qa-a p, .qa-thread .qa-a li, .explain p,
+.abstract p, .abstract > div, .ai-body p, .ai-body li, .synth p, .synth li, .rd p:not(.rd-small) {
   text-align: justify; text-justify: inter-word; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word;
 }
