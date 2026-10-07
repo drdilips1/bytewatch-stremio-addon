@@ -495,10 +495,12 @@
       // "New", "latest", "recent", "emerging"…: the last few years only, so the answer is about what is new.
       const recent = /\b(new|newer|newest|latest|recent|recently|emerging|novel|upcoming|update[sd]?|advances?|current trends?|20[2-3]\d)\b/i.test(question);
       const relQuery = `(${I.q(question).query}) AND HAS_ABSTRACT:y NOT SRC:PPR NOT PUB_TYPE:"Case Reports"${recent ? ` AND PUB_YEAR:[${yr - 4} TO ${yr}]` : ''}`;
-      const [rel, guides] = await Promise.all([
+      let [rel, guides] = await Promise.all([
         I.epmc({ ...I.q(question), query: relQuery }, 14).catch(() => ({ results: [] })),
         I.epmc(I.q(question, { extra: `${I.GUIDE} AND PUB_YEAR:[${yr - 6} TO ${yr}]` }), 5).catch(() => ({ results: [] })),
       ]);
+      // Too few recent papers: all years.
+      if (recent && (rel.results || []).length < 4) rel = await I.epmc({ ...I.q(question), query: relQuery.replace(/ AND PUB_YEAR:\[[^\]]+\]/, '') }, 14).catch(() => rel);
       const seen = new Set();
       const eligible = [...(guides.results || []), ...(rel.results || [])].filter((a) => a.abstract && !seen.has(a.id) && seen.add(a.id));
       const papers = eligible.slice(0, 14);

@@ -98,7 +98,7 @@
   // Queries already about skin disease don't need the filter.
   const DERM_WORDS = /\b(dermat\w*|skin|cutaneous|psoria\w*|eczema|vitiligo|acne|melasma|alopecia|urticaria|pemphig\w*|melanoma|hidradenitis|rosacea|lichen|tinea|dermatophyt\w*|scabies|lepros\w*|leprae|keloid|pigment\w*|nev(us|i)|naev\w*|mycosis fungoides|onychomycosis|wart|vulgaris|pruritus|itch|hyperhidrosis|keratos\w*|basal cell|squamous cell|seborrh\w*|intertrigo|impetigo|cellulitis|lupus|morphea|scleroderma|bullous|epidermolysis|ichthyosis|hair|nail|sunscreen|photoaging|isotretinoin|dupilumab|minoxidil)\b/i;
 
-  const STOP = new Set('a an the of in on for to with and or is are was were be been does do did can could should would will what which who whom whose how why when where there any some this that these those than then vs versus compared comparison between among about into from by as at it its effect effects effective effectiveness efficacy role use using used study studies evidence patients patient people adults treatment treat treating therapy improve improves improvement reduce reduces better best'.split(' '));
+  const STOP = new Set('a an the of in on for to with and or is are was were be been does do did can could should would will what which who whom whose how why when where there any some this that these those than then vs versus compared comparison between among about into from by as at it its effect effects effective effectiveness efficacy role use using used study studies evidence patients patient people adults treatment treat treating therapy improve improves improvement reduce reduces better best whats thats theres new newer newest latest recent recently emerging novel update updates updated advances advance current insights insight overview know tell me explain explained understanding'.split(' '));
   const KEEP_WHEN_ALONE = new Set(['treatment', 'therapy', 'efficacy']);
 
   // ---------------------------------------------------------------- icons
@@ -454,7 +454,7 @@
   const isAdvanced = (q) => /["():]|\b(AND|OR|NOT)\b/.test(q);
 
   function keywordTerms(q) {
-    const words = q.replace(/[?!.,;]+/g, ' ').replace(/[“”]/g, '"').split(/\s+/).filter(Boolean);
+    const words = q.replace(/[?!.,;]+/g, ' ').replace(/[“”]/g, '"').replace(/\b(what|that|it|there)['’]s\b/gi, '$1s').split(/\s+/).filter(Boolean);
     const kept = words.filter((w) => !STOP.has(w.toLowerCase()));
     if (!kept.length) return words.filter((w) => KEEP_WHEN_ALONE.has(w.toLowerCase()) || w.length > 2);
     return kept;
