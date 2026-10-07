@@ -835,9 +835,14 @@
         const map = await gather(input);
         let refs = refsFrom(map);
         if (m.recent) refs = refs.filter((r) => r.kind === 'trial' || +r.a.year >= D.THIS_YEAR - 5).map((r, i) => ({ ...r, n: i + 1 }));
+        // The best 24 (best evidence first): enough for a cited answer, small enough to start writing
+        // in seconds and fit the free AI limits (49 sources made it wait, or never start).
+        refs = refs.slice(0, 24).map((r, i) => ({ ...r, n: i + 1 }));
         const ctx = newCtx(refs);
         out.innerHTML = busyHtml(`Reading ${refs.length} sources…`);
-        const text = await D.ai(`Request: ${input}\n\n${m.task}`, { doc: packText(refs), system: CITE_SYSTEM + ' Write Markdown with "## " headings and "- " bullets. If you use a table, put the source numbers like [3] in every row.', max: 5000, onPartial: (t) => { if (out.isConnected) out.innerHTML = `<div class="panel synth">${md(t)}<span class="typing">▍</span></div>`; } });
+        const text = await D.ai(`Request: ${input}\n\n${m.task}`, { doc: packText(refs), system: CITE_SYSTEM + ' Write Markdown with "## " headings and "- " bullets. If you use a table, put the source numbers like [3] in every row.', max: 3500, fast: true,
+          onWait: (sec) => { if (out.isConnected) out.innerHTML = busyHtml(`The free AI's per-minute limit was reached: carrying on in ${sec} s…`); },
+          onPartial: (t) => { if (out.isConnected) out.innerHTML = `<div class="panel synth">${citeHtml(md(t), ctx)}<span class="typing">▍</span></div>`; } });
         out.innerHTML = `<div class="panel synth">${citeHtml(md(text), ctx)}${sourcesList(text, refs)}<button class="btn xs" data-act="refs-all" data-ctx="${ctx}">${icon('list')}All ${refs.length} sources searched</button></div>`;
         return;
       }
