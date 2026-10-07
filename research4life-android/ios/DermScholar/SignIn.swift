@@ -83,7 +83,7 @@ enum SignIn {
     if(!window.DSR4L)window.DSR4L={credentials:function(u,p){try{webkit.messageHandlers.dsr4l.postMessage({u:u,p:p})}catch(e){}},status:function(s){try{webkit.messageHandlers.dsr4l.postMessage({status:s})}catch(e){}}};
     if(window.__dsSignIn)return;window.__dsSignIn=1;
     if(/research4life\.org$/.test(location.hostname)&&(/login\s*failure/i.test(document.title)||/Incorrect login credentials/i.test((document.body&&document.body.innerText)||''))){
-    try{var lf=+(sessionStorage.getItem('dsR4lFail')||0);if(Date.now()-lf>60000){sessionStorage.setItem('dsR4lFail',Date.now());location.replace('https://portal.research4life.org/');return;}}catch(e){}}
+    try{var lf=+(sessionStorage.getItem('dsR4lFail')||0);if(Date.now()-lf>60000){sessionStorage.setItem('dsR4lFail',Date.now());var ta=[].slice.call(document.querySelectorAll('a[href]')).filter(function(a){return /try\s*again/i.test(a.textContent||'');})[0];location.replace(ta?ta.href:'https://portal.research4life.org/');return;}}catch(e){}}
     var U=A[0],P=A[1];
     function vis(e){return e&&e.offsetParent!==null&&!e.disabled;}
     function fields(){var pw=[].slice.call(document.querySelectorAll('input[type=password]')).filter(vis)[0];if(!pw)return null;
