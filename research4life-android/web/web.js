@@ -647,7 +647,7 @@
           return;
         }
         if (!route && spr && !f.pii && !f.free && /^10\.(1007|1186)\//.test(d)) routes.push({ name: 'Springer Nature Link', url: 'https://link.springer.com/content/pdf/' + d + '.pdf' });
-        if (!route && d && !f.free && DSNative.level >= 5 && (ls.get('px', {}).host)) routes.push({ name: 'your college proxy', url: 'https://doi.org/' + d });
+        if (!route && d && !f.free && !f.pii && DSNative.level >= 5 && (ls.get('px', {}).host)) routes.push({ name: 'your college proxy', url: 'https://doi.org/' + d });
         routes.push({ name: 'Research4Life', url: fetchUrl(key, doi) });
         const [first, ...rest] = routes;
         if (DSNative.level >= 5) ios('fetchPdf', { key, url: first.url, route: first.name, fallbacks: rest });

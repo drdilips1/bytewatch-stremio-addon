@@ -161,7 +161,8 @@ final class PdfFetcher {
         Job nj = new Job(key, doi, title, pii);
         nj.only = route;
         nj.viaSpringer = route == null && nj.pii.isEmpty() && R4LSession.isSpringerDoi(doi) && R4LSession.hasCredentials(app, R4LSession.SPR);
-        nj.viaCollege = "college".equals(route) || (route == null && !nj.viaSpringer && collegeRoute(doi));
+        // Elsevier papers (JAAD…) go to ClinicalKey through Research4Life first: it reliably has them.
+        nj.viaCollege = "college".equals(route) || (route == null && !nj.viaSpringer && nj.pii.isEmpty() && collegeRoute(doi));
         queue.addLast(nj);
         if (job == null) next(); else status("queued", "Waiting in queue…");
     }
