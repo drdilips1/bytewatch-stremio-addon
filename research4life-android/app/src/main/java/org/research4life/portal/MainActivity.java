@@ -928,6 +928,13 @@ public class MainActivity extends Activity {
                     || R4LSession.hasCredentials(MainActivity.this, "openrouter"));
         }
 
+        /** The last 4 characters of the saved key (as AI Studio and the consoles show them), or "". */
+        @JavascriptInterface
+        public String aiKeyTail(String p) {
+            String k = R4LSession.password(MainActivity.this, known(p));
+            return k == null || k.length() < 8 ? "" : k.substring(k.length() - 4);
+        }
+
         @JavascriptInterface
         public boolean aiHasKeyFor(String p) {
             return R4LSession.hasCredentials(MainActivity.this, known(p));

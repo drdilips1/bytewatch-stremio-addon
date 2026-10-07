@@ -74,6 +74,33 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         view = wv
     }
 
+    /// The app's own look (ink / ivory with a gold accent, serif title), so pages open inside DermScholar.
+    private func applyLook() {
+        let dyn = { (dark: String, light: String) in UIColor { $0.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light) } }
+        let bg = dyn("0D0F13", "F8F6F1"), fg = dyn("ECE8DF", "17181C"), gold = dyn("D4B06A", "9A7432")
+        view.backgroundColor = bg
+        progress.progressTintColor = gold
+        progress.trackTintColor = .clear
+        guard let nav = navigationController else { return }
+        let titleFont = UIFont(descriptor: UIFont.systemFont(ofSize: 16, weight: .semibold).fontDescriptor.withDesign(.serif) ?? UIFont.systemFont(ofSize: 16).fontDescriptor, size: 16)
+        let bar = UINavigationBarAppearance()
+        bar.configureWithOpaqueBackground()
+        bar.backgroundColor = bg
+        bar.shadowColor = dyn("242831", "E7E1D5")
+        bar.titleTextAttributes = [.foregroundColor: fg, .font: titleFont]
+        nav.navigationBar.standardAppearance = bar
+        nav.navigationBar.scrollEdgeAppearance = bar
+        nav.navigationBar.compactAppearance = bar
+        nav.navigationBar.tintColor = gold
+        let tools = UIToolbarAppearance()
+        tools.configureWithOpaqueBackground()
+        tools.backgroundColor = bg
+        tools.shadowColor = dyn("242831", "E7E1D5")
+        nav.toolbar.standardAppearance = tools
+        if #available(iOS 15.0, *) { nav.toolbar.scrollEdgeAppearance = tools }
+        nav.toolbar.tintColor = gold
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close))
@@ -85,6 +112,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         let safari = UIBarButtonItem(image: UIImage(systemName: "safari"), style: .plain, target: self, action: #selector(openInSafari))
         toolbarItems = [backButton, flex, forwardButton, flex, reload, flex, safari]
         navigationController?.isToolbarHidden = false
+        applyLook()
 
         progress.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(progress)
@@ -553,5 +581,13 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         a.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(false) })
         a.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })
         present(a, animated: true)
+    }
+}
+
+private extension UIColor {
+    /// "0D0F13" → the colour.
+    convenience init(hex: String) {
+        let v = UInt32(hex, radix: 16) ?? 0
+        self.init(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255, blue: CGFloat(v & 0xFF) / 255, alpha: 1)
     }
 }

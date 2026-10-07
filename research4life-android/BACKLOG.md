@@ -147,7 +147,7 @@ Already in DermScholar: Research4Life + MyLOFT access; Europe PMC search (PubMed
 
 | # | Idea | Plan |
 |---|------|------|
-| S1 | **Deep review** | Same as C5: screen a few hundred papers, write a structured, referenced literature review, exportable (Word/slides via S2). Next priority. |
+| S1 | **Deep review** | 🚀 5.24: Intel → Deep review. Planned searches + guidelines + SR/MA, AI screens up to 160 abstracts, review from the strongest 28 included (summary, themes, evidence table, agreements/disagreements, gaps, conclusion), search strategy with counts, references, Word/slides export. |
 | S2 | **Export as Word or slides** | 🚀 5.6 (BACKLOG #51). |
 | S3 | **Charts and infographics** | One-page visual summary of a topic (prevalence, effect sizes, evidence pyramid). |
 | S4 | **Scientific poster** | Conference poster from a project or paper. |

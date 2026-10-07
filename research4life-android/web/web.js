@@ -587,7 +587,7 @@
   const N = {
     isWeb: !IOS,
     isIos: !!IOS,
-    version: () => (IOS ? '5.21 iOS' : '5.21 web'),
+    version: () => (IOS ? '5.24 iOS' : '5.24 web'),
 
     // ---- PDFs
     listPdfs: () => JSON.stringify(Object.entries(pdfIndex()).map(([key, o]) => ({ ...o, key }))),
@@ -781,6 +781,7 @@
     aiSetProvider: (p) => ls.set('ai.provider', known(p)),
     aiHasKey: () => !!keyFor(provider()) || (auto() && !!(keyFor('groq') || keyFor('gemini') || keyFor('openrouter'))),
     aiHasKeyFor: (p) => !!keyFor(known(p)),
+    aiKeyTail: (p) => { const k = keyFor(known(p)); return k.length < 8 ? '' : k.slice(-4); },
     /** Settings → AI → Test: a one-word request to each AI with a key, with the exact error and time. */
     aiTest: async () => {
       const lines = [];

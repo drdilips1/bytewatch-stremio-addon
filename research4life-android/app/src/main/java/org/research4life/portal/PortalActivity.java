@@ -261,6 +261,8 @@ public class PortalActivity extends Activity {
                 progressBar.setVisibility(View.GONE);
                 String t = view.getTitle();
                 if (t != null && !t.isEmpty() && !t.startsWith("http")) titleView.setText(t);
+                // Which site this is, under the page title (pages opened from the app, not Get PDF).
+                if (articleKey == null && url != null && url.startsWith("http")) hint.setText(Uri.parse(url).getHost());
                 CookieManager.getInstance().flush();
                 onPageLoaded(url);
             }
@@ -310,9 +312,13 @@ public class PortalActivity extends Activity {
 
     private void buildUi() {
         boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        int bg = night ? Color.parseColor("#16181D") : Color.WHITE;
-        int fg = night ? Color.parseColor("#E6E8EB") : Color.parseColor("#111827");
-        int accent = night ? Color.parseColor("#60A5FA") : Color.parseColor("#2563EB");
+        // The app's own look (ink / ivory with a gold accent), so pages open inside DermScholar.
+        int bg = night ? Color.parseColor("#0D0F13") : Color.parseColor("#F8F6F1");
+        int fg = night ? Color.parseColor("#ECE8DF") : Color.parseColor("#17181C");
+        int accent = night ? Color.parseColor("#D4B06A") : Color.parseColor("#9A7432");
+        int line = night ? Color.parseColor("#242831") : Color.parseColor("#E7E1D5");
+        getWindow().setStatusBarColor(bg);
+        getWindow().setNavigationBarColor(bg);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -322,18 +328,18 @@ public class PortalActivity extends Activity {
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(4), dp(4), dp(4), dp(4));
         bar.setBackgroundColor(bg);
-        bar.setElevation(dp(2));
         bar.addView(headerButton("✕", v -> finish(), fg));
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
         titleView = new TextView(this);
         titleView.setTextColor(fg);
-        titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        titleView.setTypeface(Typeface.create(Typeface.SERIF, Typeface.BOLD));
         titleView.setSingleLine(true);
         titleView.setEllipsize(TextUtils.TruncateAt.END);
         titleView.setText("Research4Life");
         hint = new TextView(this);
-        hint.setTextColor(Color.parseColor("#6B7280"));
+        hint.setTextColor(night ? Color.parseColor("#7F7B72") : Color.parseColor("#8A877F"));
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         hint.setSingleLine(true);
         hint.setEllipsize(TextUtils.TruncateAt.END);
@@ -345,12 +351,17 @@ public class PortalActivity extends Activity {
         bar.addView(homeButton);
         bar.addView(headerButton("↻", v -> webView.reload(), fg));
         root.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
+        View rule = new View(this);
+        rule.setBackgroundColor(line);
+        root.addView(rule, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1) / 2)));
 
         FrameLayout frame = new FrameLayout(this);
         frame.addView(webView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setMax(100);
-        FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(4));
+        progressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
+        progressBar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(bg));
+        FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3));
         plp.gravity = Gravity.TOP;
         frame.addView(progressBar, plp);
         root.addView(frame, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));

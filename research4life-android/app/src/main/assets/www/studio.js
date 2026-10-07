@@ -1333,7 +1333,10 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
       ['claude-haiku-4-5', 'Claude Haiku 4.5', 'Fastest, lowest cost', [1, 5]],
     ],
   };
-  const priceOf = (model) => (/^openrouter\//.test(model)
+  // Paid Gemini (when the key has billing): about Gemini Flash's published paid price.
+  const GEMINI_PAID = [1.5, 9];
+  const paidKey = (p) => !!store.get('aiPaid.' + p, false);
+  const priceOf = (model) => (/^gemini/i.test(model) && paidKey('gemini') ? GEMINI_PAID : null) || (/^openrouter\//.test(model)
     ? MODELS.openrouter.find((x) => x[0] === String(model).slice(11))?.[3]
     : [...MODELS.groq, ...MODELS.gemini, ...MODELS.claude].find((x) => x[0] === model || String(model).startsWith(x[0]))?.[3]) || [0, 0];
   function usageLine() {
@@ -1345,7 +1348,8 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
     // On the free tiers (Groq, Gemini) only paid OpenRouter answers, from the credit, cost anything.
     const freeTier = provider() === 'groq' || provider() === 'gemini';
     for (const [model, row] of Object.entries(m)) {
-      const price = freeTier && !/^openrouter\//.test(model) ? [0, 0] : priceOf(model);
+      const paid = /^openrouter\//.test(model) || (/^gemini/i.test(model) && paidKey('gemini'));
+      const price = freeTier && !paid ? [0, 0] : priceOf(model);
       cost += (row[0] * price[0] + row[1] * price[1] + row[2] * price[0] * 0.5) / 1e6;
       calls += row[3];
       tokens += row[0] + row[1] + row[2];
@@ -1358,7 +1362,8 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
       by[who] = (by[who] || 0) + row[3];
     }
     const split = Object.entries(by).map(([k, v]) => `${k} ${v}`).join(' · ');
-    return calls ? `${split} requests this month · ${(tokens / 1000).toFixed(0)}k tokens · ${free ? 'free tier: no charge' : `about $${cost.toFixed(2)}`}` : 'No AI use this month';
+    const inr = cost ? ` (about ₹${Math.round(cost * 88)})` : '';
+    return calls ? `${split} requests this month · ${(tokens / 1000).toFixed(0)}k tokens · ${free ? 'free tier: no charge' : `about $${cost.toFixed(2)}${inr}`}` : 'No AI use this month';
   }
   ext.events.aiModels = (evt) => {
     if (evt.models) { store.set('groqModels', evt.models.map((m) => m.id)); if (D.current.name === 'settings') render(); }
@@ -1377,9 +1382,11 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
     return `<div class="section"><div class="section-h"><h3>AI</h3></div>
       <div class="seg wide" style="margin-bottom:10px">${[['groq', 'Groq'], ['gemini', 'Gemini'], ['openrouter', 'OpenRouter'], ['claude', 'Claude']].map(([k, l]) => `<button class="${prov === k ? 'on' : ''}" data-act="set-provider" data-v="${k}">${l}</button>`).join('')}</div>
       <div class="acc-card"><div class="acc-ico ai ${prov}">${icon('spark')}</div>
-        <div class="body"><b>${({ groq: 'Groq', gemini: 'Gemini (Google)', claude: 'Claude (Anthropic)', openrouter: 'OpenRouter' })[prov] || 'Groq'}</b><span>${has ? 'API key saved · ' + esc(usageLine()) : `Add your ${({ groq: 'Groq', gemini: 'Gemini', claude: 'Anthropic', openrouter: 'OpenRouter' })[prov] || 'Groq'} API key to use AI features`}</span></div>
+        <div class="body"><b>${({ groq: 'Groq', gemini: 'Gemini (Google)', claude: 'Claude (Anthropic)', openrouter: 'OpenRouter' })[prov] || 'Groq'}</b><span>${has ? `API key saved${(() => { try { const t = Native.aiKeyTail?.(prov); return t ? ` (ending …${esc(t)})` : ''; } catch { return ''; } })()} · ` + esc(usageLine()) : `Add your ${({ groq: 'Groq', gemini: 'Gemini', claude: 'Anthropic', openrouter: 'OpenRouter' })[prov] || 'Groq'} API key to use AI features`}</span></div>
         <button class="btn xs ${has ? '' : 'primary'}" data-act="set-aikey">${has ? 'Change' : 'Add key'}</button>
         ${has ? `<button class="icon-btn" data-act="ai-forget" aria-label="Remove key">${icon('trash')}</button>` : ''}</div>
+      ${prov === 'gemini' && has ? `<div class="setting"><div class="body"><b>Billing is on for this key</b><span>Shows this month's estimated Gemini cost above (about $1.50 / $9 per million tokens in/out). Check the exact bill in Google AI Studio → Usage.</span></div>
+        <button class="btn xs ${paidKey('gemini') ? 'primary' : ''}" data-act="ai-paid">${paidKey('gemini') ? 'On' : 'Off'}</button></div>` : ''}
       ${prov === 'gemini' ? '<p class="muted small">Gemini has a generous free tier (key from aistudio.google.com/apikey, no card): best for the evidence map, matrix and contradiction checks, which read dozens of abstracts at once.</p>' : ''}
       ${prov === 'openrouter' ? '<p class="muted small">OpenRouter is the back-up: it answers only when Groq and Gemini are busy or at their limit. Its free model allows 50 requests a day (1,000 once you have bought $10 of credit); when it is busy, the paid version answers from your credit. Without credit, nothing is ever charged.</p>' : ''}
       ${prov === 'groq' ? '<p class="muted small">Groq is very fast and has a free tier (about 8,000 tokens a minute, 200,000 a day). When a document is bigger than that, the app sends the most relevant parts — the answer says so.</p>' : ''}
@@ -1406,6 +1413,7 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
     'set-aikey': () => sheet(`<h3>${({ groq: 'Groq', gemini: 'Gemini', claude: 'Claude', openrouter: 'OpenRouter' })[provider()] || 'Groq'} API key</h3>${keyPrompt()}`),
     'set-provider': (b) => { Native.aiSetProvider?.(b.dataset.v); if (b.dataset.v === 'groq' && Native.aiHasKeyFor?.('groq')) Native.aiListModels?.(); render(); },
     'ai-auto': () => { Native.aiSetAuto?.(!Native.aiAuto?.()); render(); },
+    'ai-paid': () => { store.set('aiPaid.gemini', !paidKey('gemini')); render(); },
     'groq-refresh': () => { Native.aiListModels?.(); toast('Checking which models your key can use…'); },
     'ai-forget': () => { Native.aiSetKey('', provider()); toast('API key removed'); render(); },
     'set-model': (b) => { Native.aiSetModel?.(b.dataset.v); render(); },
