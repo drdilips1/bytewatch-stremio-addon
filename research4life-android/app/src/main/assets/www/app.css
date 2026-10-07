@@ -1256,3 +1256,8 @@ pre.trail { white-space: pre-wrap; word-break: break-all; font-size: 11px; line-
 .qa h3 { display: flex; align-items: center; gap: 6px; font-size: 16px; }
 .qa-refs { margin: 10px 0 4px; }
 .qa-refs summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+
+/* Search answer: small icons beside the search steps and follow-up chips (they had no size). */
+.qa-steps svg, .qa-sugg svg, .qa .ex-head svg, .qa-thread .ex-head svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; flex: none; }
+.qa-sugg { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.ref-quote { font-style: italic; opacity: .85; }

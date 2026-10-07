@@ -1858,7 +1858,7 @@
     + 'Write in plain Markdown: short "## " headings, "- " bullets and **bold** for key facts. No tables and no preamble.';
 
   const aiPartial = {}; // request id -> callback(text so far), for answers shown while being written
-  function aiRaw(task, { doc = '', system = AI_SYSTEM, schema = null, max = 8000, onPartial = null } = {}) {
+  function aiRaw(task, { doc = '', system = AI_SYSTEM, schema = null, max = 8000, onPartial = null, fast = false } = {}) {
     return new Promise((resolve, reject) => {
       if (!aiHasKey()) { reject(new Error('NO_KEY')); return; }
       const id = 'ai' + (++aiSeq) + '_' + Date.now();
@@ -1871,7 +1871,8 @@
         reject(new Error('The AI took too long to answer (over 5 minutes). Try again, or pick a shorter length.'));
       }, 300000);
       aiPending[id] = (evt) => { clearTimeout(watchdog); delete aiPartial[id]; if (evt.state === 'done') resolve(evt.text); else reject(new Error(evt.message || 'AI request failed')); };
-      if (stream) Native.aiRunStream(id, system, doc, task, max);
+      if (stream && fast && Native.aiRunStreamFast) Native.aiRunStreamFast(id, system, doc, task, max);
+      else if (stream) Native.aiRunStream(id, system, doc, task, max);
       else Native.aiRun(id, system, doc, task, max, schema ? JSON.stringify(schema) : '');
     });
   }
@@ -1885,7 +1886,7 @@
    * per-minute limit is too small for the whole document (Groq's free tier), the most relevant
    * excerpts are sent instead: abstract/conclusions for summaries, matching paragraphs for questions.
    */
-  async function ai(task, { doc = '', docModel = null, query = '', focus = 'summary', system = AI_SYSTEM, schema = null, max = 8000, onPartial = null, onWait = null } = {}) {
+  async function ai(task, { doc = '', docModel = null, query = '', focus = 'summary', system = AI_SYSTEM, schema = null, max = 8000, onPartial = null, onWait = null, fast = false } = {}) {
     let waits = 0;
     for (let attempt = 0; attempt < 3; attempt++) {
       const lim = store.get(aiLimitKey(), null);
@@ -1901,7 +1902,7 @@
       }
       const note = part < 0.995 ? `\n\n(Note: the full document is too long for this AI account's limit, so you are seeing selected excerpts — about ${Math.max(1, Math.round(part * 100))}% of the text. If the answer might be in the parts you can't see, say so.)` : '';
       try {
-        let out = await aiRaw(task + note, { doc: text, system, schema, max: maxTok, onPartial });
+        let out = await aiRaw(task + note, { doc: text, system, schema, max: maxTok, onPartial, fast });
         // Structured answers occasionally come back as slightly broken JSON (an unescaped quote,
         // a cut-off list): ask once more for valid JSON before giving up.
         if (schema) {

@@ -432,7 +432,7 @@
       const followups = fi < 0 ? [] : tail.slice(fi).split('\n').slice(1).map((l) => l.replace(/^\s*[-*\d.)]+\s*/, '').trim()).filter((l) => l.length > 8).slice(0, 4);
       return { quotes, followups };
     };
-    const stepsHtml = (steps) => (steps?.length ? `<div class="muted small" style="margin:0 0 8px">${steps.map((x) => `${icon('search')} ${esc(x.label)}${x.hit != null ? ' · ' + Number(x.hit || 0).toLocaleString() : ''}`).join('<br>')}</div>` : '');
+    const stepsHtml = (steps) => (steps?.length ? `<div class="muted small qa-steps" style="margin:0 0 8px">${steps.map((x) => `${icon('search')} ${esc(x.label)}${x.hit != null ? ' · ' + Number(x.hit || 0).toLocaleString() : ''}`).join('<br>')}</div>` : '');
     const frame = (note, steps, inner) => `<div class="panel explain qa">
         <div class="section-h" style="margin:0 0 4px"><h3>${icon('spark')}Answer</h3><span class="muted small qa-note">${note}</span></div>
         ${stepsHtml(steps)}<div class="qa-body">${inner}</div></div>`;
@@ -486,7 +486,7 @@
         + '4. If the papers include guidelines or consensus statements: "## Current guidelines" with what they recommend.\n'
         + 'Every claim cites its papers like [3] or [2, 5]; keep numbers exactly as reported; never add facts not in the papers; say plainly where evidence is limited. About 300-450 words. No preamble.\n'
         + 'Then, after the answer, exactly these two blocks:\nQUOTES:\n[n] "the one sentence from paper n\'s abstract that best supports the answer" (for the 5-8 papers you cite most)\nFOLLOWUPS:\n- three short follow-up questions a dermatologist would likely ask next',
-        { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', max: 2200,
+        { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', max: 2200, fast: true,
           onPartial: (t) => {
             if (!live()) return;
             const b = el.querySelector('.qa-body');

@@ -988,11 +988,23 @@ public class MainActivity extends Activity {
          */
         @JavascriptInterface
         public void aiRunStream(String id, String system, String document, String task, int maxTokens) {
+            streamWith(id, system, document, task, maxTokens, false);
+        }
+
+        /** The same, quickest AI first (Groq when its key is saved): for answers someone is waiting on. */
+        @JavascriptInterface
+        public void aiRunStreamFast(String id, String system, String document, String task, int maxTokens) {
+            streamWith(id, system, document, task, maxTokens, true);
+        }
+
+        private void streamWith(String id, String system, String document, String task, int maxTokens, boolean fast) {
             io.execute(() -> {
                 LlmProvider.AiException first = null;
                 StringBuilder also = new StringBuilder();
                 try {
-                    for (String prov : aiOrder(document == null ? 0 : document.length(), false)) {
+                    java.util.List<String> order = aiOrder(document == null ? 0 : document.length(), false);
+                    if (fast && R4LSession.hasCredentials(MainActivity.this, "groq")) { order.remove("groq"); order.add(0, "groq"); }
+                    for (String prov : order) {
                         try {
                             LlmProvider.Result r = llmFor(prov).completeStream(system, document, task, maxTokens,
                                     soFar -> emit(event("aiPartial", "id", id, "text", soFar)));

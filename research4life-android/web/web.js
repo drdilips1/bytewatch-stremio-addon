@@ -461,11 +461,14 @@
 
   const RUN = { groq, gemini, claude };
   /** Runs one request on the chosen AI, falling back to the other free AI like the Android app. */
-  async function aiRun(id, req, { imageOnly = false } = {}) {
+  async function aiRun(id, req, { imageOnly = false, fast = false } = {}) {
     let first = null;
     const others = [];
     try {
-      for (const p of aiOrder((req.doc || '').length, imageOnly)) {
+      let order = aiOrder((req.doc || '').length, imageOnly);
+      // Someone is waiting on it: the quickest AI first (Groq, when its key is saved).
+      if (fast && keyFor('groq')) order = ['groq', ...order.filter((p) => p !== 'groq')];
+      for (const p of order) {
         if (req.image && p === 'claude') continue;
         try {
           if (!keyFor(p)) throw new AiError(`Add your ${LABEL[p]} API key in Settings → AI.`);
@@ -777,6 +780,7 @@
     aiSetAuto: (on) => ls.set('ai.auto', !!on),
     aiRun: (id, system, doc, task, max, schema) => aiRun(id, { system, doc, task, max, schema: schema || null }),
     aiRunStream: (id, system, doc, task, max) => aiRun(id, { system, doc, task, max, onText: (t) => emit({ type: 'aiPartial', id, text: t }) }),
+    aiRunStreamFast: (id, system, doc, task, max) => aiRun(id, { system, doc, task, max, onText: (t) => emit({ type: 'aiPartial', id, text: t }) }, { fast: true }),
     aiRunImage: (id, system, task, dataUrl, max) => aiRun(id, { system, task, max, image: dataUrl }, { imageOnly: true }),
 
     // ---- read aloud
