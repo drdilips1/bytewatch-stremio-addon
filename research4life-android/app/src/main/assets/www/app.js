@@ -1960,7 +1960,8 @@
     return String(t || (a.title || '').split(/[:.?]/)[0]).replace(/\*/g, '').trim().slice(0, 90);
   }
   function md(text) {
-    const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])_(.+?)_(?=[\s).,;:]|$)/g, '$1<i>$2</i>').replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s).,;:]|$)/g, '$1<i>$2</i>')
+    // AI tables often put <br> inside a cell: a real line break, not the letters "<br>".
+    const inline = (t) => esc(t).replace(/&lt;br\s*\/?&gt;/gi, '<br>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])_(.+?)_(?=[\s).,;:]|$)/g, '$1<i>$2</i>').replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s).,;:]|$)/g, '$1<i>$2</i>')
       .replace(/\[¶\s?(\d+)(?:\s*[-–,]\s*¶?\s?(\d+))*\]/g, (m0) => [...m0.matchAll(/\d+/g)].map((n) => `<button class="src" data-act="src-jump" data-b="${n[0]}">¶${n[0]}</button>`).join(''));
     let out = '', list = false, table = [];
     const cells = (l) => l.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
