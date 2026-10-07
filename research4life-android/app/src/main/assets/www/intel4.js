@@ -444,14 +444,14 @@
       const ctx = I.newCtx(refs);
       el.innerHTML = frame(`${refs.length} sources`, steps, I.citeHtml(D.md(body), ctx)).replace(/<\/div>$/, '') + `
         <details class="qa-refs"><summary>References (${refs.length})</summary>${refs.map(I.refRow).join('')}</details>
-        ${followups.length ? `<div class="qa-sugg" style="margin-top:10px">${followups.map((f) => `<button class="chip" data-act="qa-sugg" data-q="${esc(f)}" style="text-align:left;white-space:normal">${icon('search')}${esc(f)}</button>`).join('')}</div>` : ''}
         <p class="muted small">AI-written from these papers' abstracts (guidelines first). Tap a citation to see its paper; check key numbers in the papers.</p>
         <div class="row wrap" style="gap:6px"><button class="btn xs" data-act="qa-redo">${icon('spark')}Redo</button>
           <button class="btn xs" data-act="ev-from-search" data-q="${esc(question)}">${icon('chart')}Full evidence map</button></div></div>
         <div class="qa-thread"></div>
+        <div class="qa-sugg-box"></div>
         <form class="qa-follow" style="display:flex;gap:8px;margin-top:10px"><input name="f" placeholder="Ask a follow-up…" autocomplete="off" style="flex:1"><button class="btn primary">Ask</button></form>`;
       actions['qa-redo'] = () => { store.set('intel.' + key, null); searchAnswer(question, el); };
-      followUps(question, { text: body }, refs, el);
+      followUps(question, { text: body, followups }, refs, el);
       actions['qa-sugg'] = (b) => { const f = el.querySelector('.qa-follow'); if (!f) return; f.f.value = b.dataset.q; f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event('submit', { cancelable: true })); };
     };
     const kept = I.cacheGet(key);
@@ -516,6 +516,13 @@
     const turnHtml = (t, body) => `<div class="panel explain" style="margin-top:10px"><p class="ex-head">${icon('search')} ${esc(t.q)}</p><div class="qa-a">${body}</div></div>`;
     const answerHtml = (text) => I.citeHtml(D.md(text), I.newCtx(all));
     box.innerHTML = thread.map((t) => turnHtml(t, answerHtml(t.a))).join('');
+    // Related questions just above the box: from the answer, then from the latest follow-up.
+    const suggBox = el.querySelector('.qa-sugg-box');
+    const paintSugg = (list) => {
+      if (!suggBox) return;
+      suggBox.innerHTML = list?.length ? `<p class="muted small" style="margin:12px 0 6px">Related questions</p><div class="qa-sugg">${list.slice(0, 4).map((f) => `<button class="chip" data-act="qa-sugg" data-q="${esc(f)}" style="text-align:left;white-space:normal">${icon('search')}${esc(f)}</button>`).join('')}</div>` : '';
+    };
+    paintSugg(thread.length && thread[thread.length - 1].sugg?.length ? thread[thread.length - 1].sugg : r.followups);
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const q2 = form.f.value.trim();
@@ -537,11 +544,15 @@
           ...thread.slice(-3).map((t) => `Follow-up "${t.q}": ${String(t.a).slice(0, 500)}`)].join('\n');
         const text = await D.ai(`ORIGINAL QUESTION: ${question}\n${earlier}\n\nFOLLOW-UP QUESTION: ${q2}\n\n`
           + 'Answer the follow-up for a dermatologist in under 250 words, using the numbered papers and citing them like [3] or [2, 5]. '
-          + 'Answer exactly what is asked; a table if comparing options. If the papers don\'t cover it, say so plainly, then give what is generally known, marked as not from these papers. Markdown, no preamble.',
+          + 'Answer exactly what is asked; a table if comparing options. If the papers don\'t cover it, say so plainly, then give what is generally known, marked as not from these papers. Markdown, no preamble.\n'
+          + 'After the answer, exactly:\nFOLLOWUPS:\n- three short questions a dermatologist would likely ask next, following on from this follow-up',
           { doc, system: 'You are a careful dermatology evidence writer. Cite the numbered papers for every claim taken from them; never invent studies or numbers.', max: 1500,
-            onPartial: (t) => { if (out.isConnected) out.innerHTML = answerHtml(t); } });
-        if (out.isConnected) out.innerHTML = answerHtml(text);
-        thread.push({ q: q2, a: text, added });
+            fast: true, onPartial: (t) => { if (out.isConnected) out.innerHTML = answerHtml(t.split(/\n\s*\**FOLLOW-?UPS:?/i)[0]); } });
+        const [ans, tail = ''] = text.split(/\n\s*\**FOLLOW-?UPS:?\**/i);
+        const sugg = tail.split('\n').map((l) => l.replace(/^\s*[-*\d.)]+\s*/, '').trim()).filter((l) => l.length > 8).slice(0, 4);
+        if (out.isConnected) out.innerHTML = answerHtml(ans);
+        if (sugg.length) paintSugg(sugg);
+        thread.push({ q: q2, a: ans, added, sugg });
         I.cacheSet(tkey, thread);
       } catch (err) {
         if (out.isConnected) out.innerHTML = I.aiErr(err);
