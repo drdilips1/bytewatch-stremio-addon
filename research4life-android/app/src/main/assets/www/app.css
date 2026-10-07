@@ -1277,3 +1277,7 @@ pre.trail { white-space: pre-wrap; word-break: break-all; font-size: 11px; line-
 .qa-stats span { font-size: .8em; opacity: .7; }
 .qa-steps > div { padding: 3px 0; }
 .qa-steps b.qa-num { font-variant-numeric: tabular-nums; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+/* Related questions: full-width cards whose text wraps (they overlapped as one-line chips). */
+.qa-sugg .chip { height: auto; min-height: 36px; width: 100%; padding: 9px 13px; border-radius: 14px; white-space: normal; line-height: 1.35; align-items: flex-start; text-align: left; }
+.qa-sugg .chip svg { margin-top: 2px; }

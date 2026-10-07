@@ -764,7 +764,7 @@
     if (!f.q.trim()) return go('', { replace: true });
     const key = searchHash(f);
     view.innerHTML = `
-      ${topbar('Results', { right: `<button class="icon-btn" data-act="home" aria-label="Home">${icon('search')}</button>` })}
+      ${topbar('Search', { right: `<button class="icon-btn" data-act="home" aria-label="New search">${icon('plus')}</button>` })}
       <div class="spacer"></div>
       ${searchBox(f.q, true)}
       ${sourceTabs(f)}
