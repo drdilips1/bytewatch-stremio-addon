@@ -490,6 +490,10 @@ final class R4LSession {
     static String signInScript(String user, String pass, boolean autoSubmit) {
         return "(function(){"
                 + "if(window.__dsSignIn)return;window.__dsSignIn=1;"
+                // Research4Life's "Login failure" page (also seen in normal browsers, after a double
+                // submit or a stale sign-in): go to the portal once; signed in, you carry on there.
+                + "if(/research4life\\.org$/.test(location.hostname)&&(/login\\s*failure/i.test(document.title)||/Incorrect login credentials/i.test((document.body&&document.body.innerText)||''))){"
+                + "try{var lf=+(sessionStorage.getItem('dsR4lFail')||0);if(Date.now()-lf>60000){sessionStorage.setItem('dsR4lFail',Date.now());location.replace('https://portal.research4life.org/');return;}}catch(e){}}"
                 + "var U=" + (user == null ? "null" : jsString(user)) + ",P=" + (pass == null ? "null" : jsString(pass)) + ",AUTO=" + autoSubmit + ";"
                 + "function vis(e){return e&&e.offsetParent!==null&&!e.disabled;}"
                 + "function fields(){var pw=[].slice.call(document.querySelectorAll('input[type=password]')).filter(vis)[0];if(!pw)return null;"
@@ -504,7 +508,10 @@ final class R4LSession {
                 + "el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}"
                 + "var tries=0;var t=setInterval(function(){tries++;var f=fields();"
                 + "if(f&&(f.user||window.__dsStep1||tries>6)){clearInterval(t);if(f.user)set(f.user,U);set(f.pw,P);if(window.DSR4L)DSR4L.status('signing-in');"
-                + "if(!AUTO)return;setTimeout(function(){var form=f.pw.form;"
+                + "if(!AUTO)return;"
+                // Never submit twice within 20 s (a second submit is what Research4Life calls a login failure).
+                + "try{if(Date.now()-(+(sessionStorage.getItem('dsR4lSubmit')||0))<20000)return;sessionStorage.setItem('dsR4lSubmit',Date.now());}catch(e){}"
+                + "setTimeout(function(){var form=f.pw.form;"
                 + "var btn=(form&&form.querySelector('button[type=submit],input[type=submit],button:not([type])'))"
                 + "||[].slice.call(document.querySelectorAll('button,input[type=submit],[role=button]')).filter(vis).filter(function(b){return /sign\\s*in|log\\s*in|login|submit|continue/i.test(b.textContent||b.value||'');})[0];"
                 + "if(btn)btn.click();else if(form){form.requestSubmit?form.requestSubmit():form.submit();}},500);}"
