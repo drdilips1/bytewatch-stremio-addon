@@ -41,7 +41,7 @@ jobs:
         run: |
           node --check web/web.js
           node --check app/src/main/assets/www/app.js
-          for f in journals studio intel intel2 intel3 intel4 sync; do node --check app/src/main/assets/www/$f.js; done
+          for f in journals studio intel intel2 intel3 intel4 intel5 sync; do node --check app/src/main/assets/www/$f.js; done
           if grep -nE '\(\?<[=!]' app/src/main/assets/www/*.js web/web.js; then
             echo "Regex look-behind breaks the app on iPadOS/iOS 15 (Safari < 16.4); rewrite it without (?<= / (?<!" ; exit 1
           fi
