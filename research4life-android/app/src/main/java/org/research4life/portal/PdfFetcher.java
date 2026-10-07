@@ -488,6 +488,18 @@ final class PdfFetcher {
         // Research4Life only keeps you on its proxy for journals it covers; anything else is
         // sent to the publisher's own site (where a "security verification" page is common).
         Uri pu = pageUrl == null ? null : Uri.parse(pageUrl);
+        // Still on Research4Life's own pages (its portal, not the journal): it didn't pass the
+        // paper on. Open it again once; that is not "no access".
+        if (pu != null && R4LSession.isR4LHost(pu.getHost()) && !isProxiedContent(pu)) {
+            if (!j.reopened) {
+                j.reopened = true;
+                status("opening", "Opening the paper through Research4Life again…");
+                webView.loadUrl(j.startUrl());
+            } else {
+                fail("Research4Life didn't open the paper (it stayed on its own page). Tap Get PDF again, or Show page to open it yourself.", true);
+            }
+            return;
+        }
         if (pu != null && !isProxiedContent(pu) && !R4LSession.isR4LHost(pu.getHost())) {
             failNow(NOT_COVERED + "This journal isn't in your Research4Life access (" + pu.getHost() + "). Get it through MyLOFT.", true);
             return;

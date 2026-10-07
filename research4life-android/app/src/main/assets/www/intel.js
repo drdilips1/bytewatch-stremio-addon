@@ -1093,7 +1093,15 @@
     return { text: text.toLowerCase(), dois };
   }
   const tWords = (t) => [...new Set(String(t || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length > 3))];
-  const titleIn = (title, text) => { const w = tWords(title); if (w.length < 3) return 0; const flat = text.replace(/[^\p{L}\p{N}]+/gu, ' '); return w.filter((x) => flat.includes(x)).length / w.length; };
+  // Some publishers' PDFs (Oxford, Silverchair) place each letter separately, so their text comes
+  // out as "e f f i c a c y": words are also looked for with the spaces taken out.
+  const titleIn = (title, text) => {
+    const w = tWords(title);
+    if (w.length < 3) return 0;
+    const flat = text.replace(/[^\p{L}\p{N}]+/gu, ' ');
+    const tight = text.replace(/[^\p{L}\p{N}]+/gu, '');
+    return w.filter((x) => flat.includes(x) || tight.includes(x.replace(/[^\p{L}\p{N}]+/gu, ''))).length / w.length;
+  };
 
   /**
    * Whether a downloaded PDF is this paper: its DOI or most of its title appear in the first pages.
@@ -1104,6 +1112,8 @@
       const { text, dois } = await pdfIds(key);
       if (text.replace(/\s+/g, '').length < 60) return true;
       if (paper.doi && dois.includes(paper.doi.toLowerCase())) return true;
+      const squash = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '');
+      if (paper.doi && squash(text).includes(squash(paper.doi))) return true;
       return titleIn(paper.title, text) >= 0.6;
     } catch { return true; }
   };
