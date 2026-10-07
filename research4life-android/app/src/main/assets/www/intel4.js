@@ -422,7 +422,7 @@
     if (!answerable(question)) { el.remove(); return; }
     if (!D.aiHasKey()) { el.innerHTML = ''; return; }
     const live = () => el.isConnected;
-    const key = 'answer5.' + question.toLowerCase().trim();
+    const key = 'answer6.' + question.toLowerCase().trim();
     // The answer is written as it comes (like Consensus): searches first (a second or two), then
     // the cited answer streams in; quotes and follow-up suggestions come at its end.
     const splitTail = (t) => { const i = t.search(/\n\s*\**QUOTES:?\**/i); return i < 0 ? { body: t, tail: '' } : { body: t.slice(0, i), tail: t.slice(i) }; };
@@ -516,7 +516,7 @@
         + 'The first line must answer the question as asked, including its qualifiers (new, in children, in pregnancy, refractory, first-line…), not a general statement about the topic. '
         + (recent ? 'The question asks what is NEW: lead with the treatments, tests or findings from recent years (name them, with what the newest studies show), and mention the established standard only briefly as context. ' : '')
         + 'Write Markdown:\n'
-        + '1. First line: the direct answer in one plain sentence (what to do / what it is), with only its key phrase in **bold** (e.g. "Order an **extended myositis panel** covering the dermatomyositis-specific and overlap antibodies.").\n'
+        + '1. First line: the direct answer in one plain sentence (what to do / what it is), with only its key phrase in **bold**; for management questions it names the overall approach including established mainstays (e.g. isotretinoin for severe acne), even ones the papers do not cover (e.g. "Order an **extended myositis panel** covering the dermatomyositis-specific and overlap antibodies.").\n'
         + '2. A short paragraph (2-3 sentences) explaining it, with the key terms in **bold**.\n'
         + '3. 2 to 4 "## " sections with headings that fit the question, short paragraphs or bullets, and one compact Markdown table where it helps. ' + shape + '\n'
         + '4. If the papers include guidelines or consensus statements: "## Current guidelines" with what they recommend.\n'

@@ -643,7 +643,7 @@
 
   async function synth(question, refs, ctx) {
     const out = $('#ev-out');
-    const ck = 'synth2.' + question.toLowerCase();
+    const ck = 'synth3.' + question.toLowerCase();
     let r = cacheGet(ck);
     const use = bestRefs(refs);
     if (!r) {
@@ -651,6 +651,9 @@
       try {
         r = await aiJsonCall(
           `Question: ${question}\n\nWrite a citation-first evidence synthesis for a dermatologist. The bottom line answers the question directly in one or two sentences. `
+          + 'For management or treatment questions the bottom line names the overall approach by severity, including every established mainstay '
+          + '(e.g. for acne: topical retinoids and benzoyl peroxide, oral antibiotics, hormonal therapy, and isotretinoin for severe, scarring or resistant acne), '
+          + 'even ones the sources found do not cover; it must never read as if a standard option does not exist. '
           + 'Choose sections that fit the question. Treatment questions: "What the guidelines say", "What the strongest evidence shows", "Efficacy in numbers", "Safety", "Ongoing trials and what is coming", "What has changed recently". '
           + 'Cause, risk, genetics, epidemiology or mechanism questions: "Key findings", "How strong the evidence is" (twin, family, cohort, genetic or meta-analytic data with numbers), "Mechanisms", "Clinical relevance", "Open questions". '
           + 'Skip any section the sources don\'t cover; never write a point only to say a source type is missing. '
