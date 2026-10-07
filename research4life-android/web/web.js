@@ -162,10 +162,10 @@
   }
 
   // ================================================================ AI (own keys, called from the browser)
-  const PROVIDERS = ['groq', 'gemini', 'claude'];
-  const DEFAULT_MODEL = { groq: 'openai/gpt-oss-120b', gemini: 'gemini-3.8-flash', claude: 'claude-sonnet-5-5' };
-  const LABEL = { groq: 'Groq', gemini: 'Gemini', claude: 'Claude' };
-  const known = (p) => (p === 'claude' || p === 'gemini' ? p : 'groq');
+  const PROVIDERS = ['groq', 'gemini', 'claude', 'openrouter'];
+  const DEFAULT_MODEL = { groq: 'openai/gpt-oss-120b', gemini: 'gemini-3.8-flash', claude: 'claude-sonnet-5-5', openrouter: 'openai/gpt-oss-120b:free' };
+  const LABEL = { groq: 'Groq', gemini: 'Gemini', claude: 'Claude', openrouter: 'OpenRouter' };
+  const known = (p) => (PROVIDERS.includes(p) ? p : 'groq');
   const provider = () => known(ls.get('ai.provider', 'groq'));
   const keyFor = (p) => ls.get('ai.key.' + p, '');
   const modelFor = (p) => ls.get('ai.model.' + p, DEFAULT_MODEL[p]);
@@ -178,7 +178,8 @@
     const chosen = provider();
     if (!imageOnly || chosen !== 'claude') order.push(chosen);
     if (auto()) {
-      for (const p of ['groq', 'gemini']) if (!order.includes(p) && keyFor(p)) order.push(p);
+      // OpenRouter (free model, then credit) comes after both free AIs.
+      for (const p of ['groq', 'gemini', 'openrouter']) if (!order.includes(p) && keyFor(p)) order.push(p);
       if (docChars > 60000 && order.includes('gemini') && keyFor('gemini')) { order.splice(order.indexOf('gemini'), 1); order.unshift('gemini'); }
     }
     return order;
@@ -232,8 +233,17 @@
 
   // ---- Groq (OpenAI-compatible)
   const GROQ = 'https://api.groq.com/openai/v1/';
-  async function groqError(res) {
+  const OPENROUTER = 'https://openrouter.ai/api/v1/';
+  async function groqError(res, or, model) {
     const msg = String(await errText(res));
+    const c0 = res.status;
+    if (or) {
+      if (c0 === 401) return new AiError('Your OpenRouter API key was rejected. Check it in Settings → AI.');
+      if (c0 === 402) return new AiError('OpenRouter credit is used up. Add credit on openrouter.ai, or wait for the free limit to reset.');
+      if (c0 === 429) return new AiError(/:free$/.test(model) ? "OpenRouter's free model is busy or its daily limit is used up." : 'OpenRouter is busy. Try again in a minute.');
+      if (c0 === 404) return new AiError("This OpenRouter model isn't available right now. Pick another model in Settings → AI.");
+      return new AiError(`OpenRouter returned an error (${c0})` + (msg ? ': ' + msg : '.'));
+    }
     const lim = /Limit (\d+), Requested (\d+)/.exec(msg);
     const c = res.status;
     if ((c === 413 || c === 429) && lim && /per minute/i.test(msg)) return new AiError('TOO_LARGE:' + lim[1] + ':' + lim[2]);
@@ -243,23 +253,44 @@
     if (c === 400 && msg.includes('json')) return new AiError("Groq couldn't produce the answer in the expected format. Try again.");
     return new AiError(`Groq returned an error (${c})` + (msg ? ': ' + msg : '.'));
   }
-  async function groq({ system, doc, task, max, schema, onText, image }) {
-    const key = keyFor('groq');
-    const model = image ? 'meta-llama/llama-4-scout-17b-16e-instruct' : modelFor('groq');
-    const strict = model.startsWith('openai/gpt-oss') || model.startsWith('qwen/');
+  const groq = (req) => oaChat('groq', null, req);
+  /** OpenRouter: its free model first; when that is busy or at its daily limit, the same model paid from the credit. */
+  async function openrouter(req) {
+    const model = modelFor('openrouter');
+    try { return await oaChat('openrouter', model, req); } catch (e) {
+      if (!/:free$/.test(model) || /rejected|^TOO_LARGE/.test(e.message || '')) throw e;
+      try { return await oaChat('openrouter', model.replace(/:free$/, ''), req); } catch (e2) { throw new AiError(e.message + ' · Paid: ' + (e2.message || e2)); }
+    }
+  }
+  /** OpenAI-style chat completions: Groq, or OpenRouter (answers recorded as "openrouter/…"). */
+  async function oaChat(who, orModel, { system, doc, task, max, schema, onText, image }) {
+    const or = who === 'openrouter';
+    const name = LABEL[who];
+    const BASE = or ? OPENROUTER : GROQ;
+    const key = keyFor(who);
+    const model = or ? orModel : image ? 'meta-llama/llama-4-scout-17b-16e-instruct' : modelFor('groq');
+    const tag = (m) => (or ? 'openrouter/' + m : m);
+    const strict = !or && (model.startsWith('openai/gpt-oss') || model.startsWith('qwen/'));
     const messages = [{ role: 'system', content: system }];
     if (image) messages.push({ role: 'user', content: [{ type: 'image_url', image_url: { url: image } }, { type: 'text', text: task }] });
     else messages.push({ role: 'user', content: userText(doc, task) });
-    const body = { model, messages, max_completion_tokens: image ? Math.min(max, 4000) : max };
-    if (model.startsWith('openai/gpt-oss')) { body.reasoning_effort = 'low'; body.include_reasoning = false; }
+    const body = { model, messages };
+    if (or) {
+      body.max_tokens = max;
+      if (model.startsWith('openai/gpt-oss')) body.reasoning = { effort: 'low', exclude: true };
+    } else {
+      body.max_completion_tokens = image ? Math.min(max, 4000) : max;
+      if (model.startsWith('openai/gpt-oss')) { body.reasoning_effort = 'low'; body.include_reasoning = false; }
+    }
     if (schema) {
       if (strict) body.response_format = { type: 'json_schema', json_schema: { name: 'answer', strict: true, schema: JSON.parse(schema) } };
-      else { body.response_format = { type: 'json_object' }; messages[0].content = system + '\nReply with JSON only, matching this JSON Schema: ' + schema; }
+      else { if (!or) body.response_format = { type: 'json_object' }; messages[0].content = system + '\nReply with JSON only, matching this JSON Schema: ' + schema; }
     }
     const headers = { Authorization: 'Bearer ' + key };
+    if (or) headers['X-Title'] = 'DermScholar';
     if (onText && !schema) {
       try {
-        const res = await post(GROQ + 'chat/completions', headers, { ...body, stream: true, stream_options: { include_usage: true } }, 'Groq');
+        const res = await post(BASE + 'chat/completions', headers, { ...body, stream: true, stream_options: { include_usage: true } }, name);
         if (res.ok) {
           let out = '', finish = '', served = model, usage = null;
           const push = throttle(onText);
@@ -279,21 +310,21 @@
             if (finish === 'length') text += CUT;
             onText(text);
             const cached = (usage && usage.prompt_tokens_details && usage.prompt_tokens_details.cached_tokens) || 0;
-            return { text, model: served, inTok: Math.max(0, ((usage && usage.prompt_tokens) || 0) - cached), outTok: (usage && usage.completion_tokens) || 0, cached };
+            return { text, model: tag(served), inTok: Math.max(0, ((usage && usage.prompt_tokens) || 0) - cached), outTok: (usage && usage.completion_tokens) || 0, cached };
           }
         }
       } catch (e) { if (e instanceof AiError && /TOO_LARGE|rejected/.test(e.message)) throw e; }
     }
-    const res = await post(GROQ + 'chat/completions', headers, body, 'Groq');
-    if (!res.ok) throw await groqError(res);
+    const res = await post(BASE + 'chat/completions', headers, body, name);
+    if (!res.ok) throw await groqError(res, or, model);
     const o = await res.json();
     const ch = o.choices[0];
     const text = ((ch.message && ch.message.content) || '').trim();
-    if (!text) throw new AiError(ch.finish_reason === 'length' ? 'The answer was cut off. Try again, or use a shorter request.' : 'Groq returned an empty answer. Try again.');
+    if (!text) throw new AiError(ch.finish_reason === 'length' ? 'The answer was cut off. Try again, or use a shorter request.' : name + ' returned an empty answer. Try again.');
     const u = o.usage || {};
     const cached = (u.prompt_tokens_details && u.prompt_tokens_details.cached_tokens) || 0;
     if (onText) onText(text);
-    return { text, model: o.model || model, inTok: Math.max(0, (u.prompt_tokens || 0) - cached), outTok: u.completion_tokens || 0, cached };
+    return { text, model: tag(o.model || model), inTok: Math.max(0, (u.prompt_tokens || 0) - cached), outTok: u.completion_tokens || 0, cached };
   }
   async function groqModels() {
     const res = await realFetch(GROQ + 'models', { headers: { Authorization: 'Bearer ' + keyFor('groq') } });
@@ -459,7 +490,7 @@
     return { text, model: msg.model || model, inTok: (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0), outTok: u.output_tokens || 0, cached: u.cache_read_input_tokens || 0 };
   }
 
-  const RUN = { groq, gemini, claude };
+  const RUN = { groq, gemini, claude, openrouter };
   /** Runs one request on the chosen AI, falling back to the other free AI like the Android app. */
   async function aiRun(id, req, { imageOnly = false, fast = false } = {}) {
     let first = null;
@@ -469,7 +500,7 @@
       // Someone is waiting on it: the quickest AI first (Groq, when its key is saved).
       if (fast && keyFor('groq')) order = ['groq', ...order.filter((p) => p !== 'groq')];
       for (const p of order) {
-        if (req.image && p === 'claude') continue;
+        if (req.image && (p === 'claude' || p === 'openrouter')) continue;
         try {
           if (!keyFor(p)) throw new AiError(`Add your ${LABEL[p]} API key in Settings → AI.`);
           const r = await RUN[p](req);
@@ -747,12 +778,12 @@
     // ---- AI
     aiProvider: provider,
     aiSetProvider: (p) => ls.set('ai.provider', known(p)),
-    aiHasKey: () => !!keyFor(provider()) || (auto() && !!(keyFor('groq') || keyFor('gemini'))),
+    aiHasKey: () => !!keyFor(provider()) || (auto() && !!(keyFor('groq') || keyFor('gemini') || keyFor('openrouter'))),
     aiHasKeyFor: (p) => !!keyFor(known(p)),
     /** Settings → AI → Test: a one-word request to each AI with a key, with the exact error and time. */
     aiTest: async () => {
       const lines = [];
-      for (const p of ['groq', 'gemini', 'claude']) {
+      for (const p of ['groq', 'gemini', 'openrouter', 'claude']) {
         if (!keyFor(p)) { if (p !== 'claude') lines.push(`${LABEL[p]}: no key saved on this device`); continue; }
         const t0 = Date.now();
         try {
@@ -768,9 +799,11 @@
     aiSetKey: (key, selected) => {
       const k = String(key || '').replace(/[\s​-‍⁠﻿"']/g, '');
       if (!k) { ls.del('ai.key.' + provider()); return; }
-      const p = k.startsWith('sk-ant-') ? 'claude' : k.startsWith('gsk_') ? 'groq' : k.startsWith('AIza') ? 'gemini' : known(selected || provider());
+      const p = k.startsWith('sk-ant-') ? 'claude' : k.startsWith('sk-or-') ? 'openrouter' : k.startsWith('gsk_') ? 'groq' : k.startsWith('AIza') ? 'gemini' : known(selected || provider());
       ls.set('ai.key.' + p, k);
-      ls.set('ai.provider', p);
+      // OpenRouter is the back-up after the free Groq and Gemini: they stay selected (choosing its tab to add the key selected it).
+      const backup = p === 'openrouter' && auto() && (keyFor('groq') || keyFor('gemini'));
+      ls.set('ai.provider', backup ? (keyFor('groq') ? 'groq' : 'gemini') : p);
     },
     aiModel: () => modelFor(provider()),
     aiSetModel: (m) => { ls.set('ai.model.' + provider(), m); if (provider() === 'gemini') gem.model = null; },
@@ -937,7 +970,7 @@
     // The account sync's encrypted part: the logins from the Keychain and the AI keys kept here
     // (the same shape as Android's exportSecrets / importSecrets).
     if (window.DSNative && DSNative.level >= 6) {
-      const AIS = ['groq', 'gemini', 'claude'];
+      const AIS = ['groq', 'gemini', 'claude', 'openrouter'];
       N.vault = (op, args) => askNative('vault', { op, ...args }).then((e) => e.out || null);
       // The sync server, reached by the app itself (the screens' own requests can be refused).
       if (DSNative.level >= 7) N.httpAsync = (url, { method = 'GET', headers = {}, body } = {}) => askNative('http', { url, method, headers, ...(body !== undefined ? { body } : {}) });

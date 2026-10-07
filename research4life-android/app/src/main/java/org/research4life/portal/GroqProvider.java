@@ -17,28 +17,91 @@ import java.util.regex.Pattern;
  * Groq (GroqCloud, OpenAI-compatible chat completions) with the user's own API key.
  * Free-tier keys have small per-minute token limits, so a request that is too large fails
  * with "TOO_LARGE:&lt;limit&gt;:&lt;requested&gt;"; the web app then retries with selected excerpts.
+ * Also OpenRouter ({@link #openRouter}), which speaks the same protocol: its free models (":free")
+ * are tried first, then the same model paid from the account's credit.
  */
 final class GroqProvider implements LlmProvider {
 
     static final String DEFAULT_MODEL = "openai/gpt-oss-120b";
-    private static final String BASE = "https://api.groq.com/openai/v1/";
+    static final String OPENROUTER_MODEL = "openai/gpt-oss-120b:free";
+    private static final String GROQ_BASE = "https://api.groq.com/openai/v1/";
+    private static final String OPENROUTER_BASE = "https://openrouter.ai/api/v1/";
     private static final Pattern LIMIT = Pattern.compile("Limit (\\d+), Requested (\\d+)");
 
     private final String apiKey;
     private final String model;
+    private final boolean or;
+    private final String base;
+    private final String name;
 
     GroqProvider(String apiKey, String model) {
-        this.apiKey = apiKey;
-        this.model = model == null || model.isEmpty() ? DEFAULT_MODEL : model;
+        this(apiKey, model, false);
     }
 
-    /** Structured outputs are guaranteed (strict) only on these models. */
+    private GroqProvider(String apiKey, String model, boolean openRouter) {
+        this.apiKey = apiKey;
+        this.or = openRouter;
+        this.model = model == null || model.isEmpty() ? (openRouter ? OPENROUTER_MODEL : DEFAULT_MODEL) : model;
+        this.base = openRouter ? OPENROUTER_BASE : GROQ_BASE;
+        this.name = openRouter ? "OpenRouter" : "Groq";
+    }
+
+    static GroqProvider openRouter(String apiKey, String model) {
+        return new GroqProvider(apiKey, model, true);
+    }
+
+    /** OpenRouter: when a free model is busy or at its daily limit, the same model paid from the credit. */
+    private GroqProvider paidTwin(AiException e) {
+        if (!or || !model.endsWith(":free")) return null;
+        String m = e.getMessage() == null ? "" : e.getMessage();
+        if (m.contains("rejected") || m.startsWith("TOO_LARGE")) return null;
+        return new GroqProvider(apiKey, model.substring(0, model.length() - 5), true);
+    }
+
+    private static AiException both(AiException free, AiException paid) {
+        return new AiException(free.getMessage() + " · Paid: " + paid.getMessage());
+    }
+
+    private void putCommon(JSONObject body, int maxTokens) throws Exception {
+        if (or) {
+            body.put("max_tokens", maxTokens);
+            if (model.startsWith("openai/gpt-oss")) body.put("reasoning", new JSONObject().put("effort", "low").put("exclude", true));
+        } else {
+            body.put("max_completion_tokens", maxTokens);
+            if (model.startsWith("openai/gpt-oss")) {
+                body.put("reasoning_effort", "low");
+                body.put("include_reasoning", false);
+            }
+        }
+    }
+
+    /** OpenRouter answers are recorded as "openrouter/…", so usage and costs aren't counted as Groq's. */
+    private String tag(String served) {
+        return or ? "openrouter/" + served : served;
+    }
+
+    private void headers(HttpURLConnection c) {
+        c.setRequestProperty("Authorization", "Bearer " + apiKey);
+        if (or) c.setRequestProperty("X-Title", "DermScholar");
+    }
+
+    /** Structured outputs are guaranteed (strict) only on these models (Groq; OpenRouter's hosts vary). */
     private boolean strictJson() {
-        return model.startsWith("openai/gpt-oss") || model.startsWith("qwen/");
+        return !or && (model.startsWith("openai/gpt-oss") || model.startsWith("qwen/"));
     }
 
     @Override
     public Result complete(String system, String document, String task, int maxTokens, String jsonSchema) throws AiException {
+        try {
+            return completeOnce(system, document, task, maxTokens, jsonSchema);
+        } catch (AiException e) {
+            GroqProvider paid = paidTwin(e);
+            if (paid == null) throw e;
+            try { return paid.completeOnce(system, document, task, maxTokens, jsonSchema); } catch (AiException e2) { throw both(e, e2); }
+        }
+    }
+
+    private Result completeOnce(String system, String document, String task, int maxTokens, String jsonSchema) throws AiException {
         try {
             JSONObject body = new JSONObject();
             body.put("model", model);
@@ -48,17 +111,13 @@ final class GroqProvider implements LlmProvider {
             String user = document == null || document.isEmpty() ? task : "<document>\n" + document + "\n</document>\n\n" + task;
             messages.put(new JSONObject().put("role", "user").put("content", user));
             body.put("messages", messages);
-            body.put("max_completion_tokens", maxTokens);
-            if (model.startsWith("openai/gpt-oss")) {
-                body.put("reasoning_effort", "low");
-                body.put("include_reasoning", false);
-            }
+            putCommon(body, maxTokens);
             if (jsonSchema != null && !jsonSchema.isEmpty()) {
                 if (strictJson()) {
                     body.put("response_format", new JSONObject().put("type", "json_schema").put("json_schema",
                             new JSONObject().put("name", "answer").put("strict", true).put("schema", new JSONObject(jsonSchema))));
                 } else {
-                    body.put("response_format", new JSONObject().put("type", "json_object"));
+                    if (!or) body.put("response_format", new JSONObject().put("type", "json_object"));
                     messages.getJSONObject(0).put("content", system + "\nReply with JSON only, matching this JSON Schema: " + jsonSchema);
                 }
             }
@@ -67,26 +126,36 @@ final class GroqProvider implements LlmProvider {
             String text = choice.getJSONObject("message").optString("content", "").trim();
             if (text.isEmpty()) {
                 if ("length".equals(choice.optString("finish_reason"))) throw new AiException("The answer was cut off. Try again, or use a shorter request.");
-                throw new AiException("Groq returned an empty answer. Try again.");
+                throw new AiException(name + " returned an empty answer. Try again.");
             }
             JSONObject usage = res.optJSONObject("usage");
             long in = usage == null ? 0 : usage.optLong("prompt_tokens");
             long out = usage == null ? 0 : usage.optLong("completion_tokens");
             JSONObject details = usage == null ? null : usage.optJSONObject("prompt_tokens_details");
             long cached = details == null ? 0 : details.optLong("cached_tokens");
-            return new Result(text, res.optString("model", model), Math.max(0, in - cached), out, cached);
+            return new Result(text, tag(res.optString("model", model)), Math.max(0, in - cached), out, cached);
         } catch (AiException e) {
             throw e;
         } catch (IOException e) {
-            throw new AiException("Couldn't reach Groq. Check your connection.");
+            throw new AiException("Couldn't reach " + name + ". Check your connection.");
         } catch (Exception e) {
-            throw new AiException("Groq request failed: " + e.getClass().getSimpleName());
+            throw new AiException(name + " request failed: " + e.getClass().getSimpleName());
         }
     }
 
     /** Streams a plain text answer (Server-Sent Events); any problem falls back to {@link #complete}. */
     @Override
     public Result completeStream(String system, String document, String task, int maxTokens, TextListener l) throws AiException {
+        try {
+            return streamOnce(system, document, task, maxTokens, l);
+        } catch (AiException e) {
+            GroqProvider paid = paidTwin(e);
+            if (paid == null) throw e;
+            try { return paid.streamOnce(system, document, task, maxTokens, l); } catch (AiException e2) { throw both(e, e2); }
+        }
+    }
+
+    private Result streamOnce(String system, String document, String task, int maxTokens, TextListener l) throws AiException {
         HttpURLConnection c = null;
         try {
             JSONObject body = new JSONObject();
@@ -96,26 +165,22 @@ final class GroqProvider implements LlmProvider {
             String user = document == null || document.isEmpty() ? task : "<document>\n" + document + "\n</document>\n\n" + task;
             messages.put(new JSONObject().put("role", "user").put("content", user));
             body.put("messages", messages);
-            body.put("max_completion_tokens", maxTokens);
-            if (model.startsWith("openai/gpt-oss")) {
-                body.put("reasoning_effort", "low");
-                body.put("include_reasoning", false);
-            }
+            putCommon(body, maxTokens);
             body.put("stream", true);
             body.put("stream_options", new JSONObject().put("include_usage", true));
-            c = (HttpURLConnection) new URL(BASE + "chat/completions").openConnection(java.net.Proxy.NO_PROXY);
+            c = (HttpURLConnection) new URL(base + "chat/completions").openConnection(java.net.Proxy.NO_PROXY);
             c.setConnectTimeout(20000);
             c.setReadTimeout(180000);
             c.setRequestMethod("POST");
             c.setDoOutput(true);
-            c.setRequestProperty("Authorization", "Bearer " + apiKey);
+            headers(c);
             c.setRequestProperty("Content-Type", "application/json");
             try (OutputStream os = c.getOutputStream()) {
                 os.write(body.toString().getBytes(StandardCharsets.UTF_8));
             }
             if (c.getResponseCode() >= 400) {
                 c.disconnect();
-                return complete(system, document, task, maxTokens, null); // its error handling (limits, keys…)
+                return completeOnce(system, document, task, maxTokens, null); // its error handling (limits, keys…)
             }
             StringBuilder out = new StringBuilder();
             long in = 0, outTok = 0, cached = 0, last = 0;
@@ -146,15 +211,15 @@ final class GroqProvider implements LlmProvider {
                 }
             }
             String text = out.toString().trim();
-            if (text.isEmpty()) return complete(system, document, task, maxTokens, null);
+            if (text.isEmpty()) return completeOnce(system, document, task, maxTokens, null);
             if ("length".equals(finish)) text += "\n\n_(The answer was cut off at the length limit. Tap Regenerate for a complete one.)_";
             l.onText(text);
-            return new Result(text, served, Math.max(0, in - cached), outTok, cached);
+            return new Result(text, tag(served), Math.max(0, in - cached), outTok, cached);
         } catch (AiException e) {
             throw e;
         } catch (Exception e) {
             if (c != null) c.disconnect();
-            return complete(system, document, task, maxTokens, null);
+            return completeOnce(system, document, task, maxTokens, null);
         }
     }
 
@@ -210,20 +275,20 @@ final class GroqProvider implements LlmProvider {
     }
 
     private JSONObject get(String path) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(BASE + path).openConnection(java.net.Proxy.NO_PROXY);
+        HttpURLConnection c = (HttpURLConnection) new URL(base + path).openConnection(java.net.Proxy.NO_PROXY);
         c.setConnectTimeout(20000);
         c.setReadTimeout(30000);
-        c.setRequestProperty("Authorization", "Bearer " + apiKey);
+        headers(c);
         return read(c);
     }
 
     private JSONObject post(String path, JSONObject body) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(BASE + path).openConnection(java.net.Proxy.NO_PROXY);
+        HttpURLConnection c = (HttpURLConnection) new URL(base + path).openConnection(java.net.Proxy.NO_PROXY);
         c.setConnectTimeout(20000);
         c.setReadTimeout(180000);
         c.setRequestMethod("POST");
         c.setDoOutput(true);
-        c.setRequestProperty("Authorization", "Bearer " + apiKey);
+        headers(c);
         c.setRequestProperty("Content-Type", "application/json");
         try (OutputStream os = c.getOutputStream()) {
             os.write(body.toString().getBytes(StandardCharsets.UTF_8));
@@ -242,6 +307,13 @@ final class GroqProvider implements LlmProvider {
             Matcher m = LIMIT.matcher(msg);
             if ((code == 413 || code == 429) && m.find() && msg.toLowerCase().contains("per minute")) {
                 throw new AiException("TOO_LARGE:" + m.group(1) + ":" + m.group(2));
+            }
+            if (or) {
+                if (code == 401) throw new AiException("Your OpenRouter API key was rejected. Check it in Settings → AI.");
+                if (code == 402) throw new AiException("OpenRouter credit is used up. Add credit on openrouter.ai, or wait for the free limit to reset.");
+                if (code == 429) throw new AiException(model.endsWith(":free") ? "OpenRouter's free model is busy or its daily limit is used up." : "OpenRouter is busy. Try again in a minute.");
+                if (code == 404) throw new AiException("This OpenRouter model isn't available right now. Pick another model in Settings → AI.");
+                throw new AiException("OpenRouter returned an error (" + code + ")" + (msg.isEmpty() ? "." : ": " + msg));
             }
             if (code == 401) throw new AiException("Your Groq API key was rejected. Check it in Settings → AI.");
             if (code == 404) throw new AiException("This Groq model isn't available to your key. Pick another model in Settings → AI.");

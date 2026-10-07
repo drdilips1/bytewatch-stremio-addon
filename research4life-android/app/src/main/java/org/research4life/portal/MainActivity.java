@@ -459,7 +459,7 @@ public class MainActivity extends Activity {
         }
 
         /** Logins and AI keys for the encrypted account sync (sync.js encrypts them before upload). */
-        private final String[] SECRET_PROVIDERS = {R4LSession.R4L, R4LSession.UTD, R4LSession.SPR, CollegeProxy.PX, "groq", "gemini", "claude"};
+        private final String[] SECRET_PROVIDERS = {R4LSession.R4L, R4LSession.UTD, R4LSession.SPR, CollegeProxy.PX, "groq", "gemini", "claude", "openrouter"};
 
         @JavascriptInterface
         public String exportSecrets() {
@@ -889,11 +889,12 @@ public class MainActivity extends Activity {
 
         private String defaultModel(String provider) {
             return "claude".equals(provider) ? ClaudeProvider.DEFAULT_MODEL
-                    : "gemini".equals(provider) ? GeminiProvider.DEFAULT_MODEL : GroqProvider.DEFAULT_MODEL;
+                    : "gemini".equals(provider) ? GeminiProvider.DEFAULT_MODEL
+                    : "openrouter".equals(provider) ? GroqProvider.OPENROUTER_MODEL : GroqProvider.DEFAULT_MODEL;
         }
 
         private String known(String p) {
-            return "claude".equals(p) || "gemini".equals(p) ? p : "groq";
+            return "claude".equals(p) || "gemini".equals(p) || "openrouter".equals(p) ? p : "groq";
         }
 
         /**
@@ -906,7 +907,7 @@ public class MainActivity extends Activity {
         }
 
         private String label(String p) {
-            return "claude".equals(p) ? "Claude" : "gemini".equals(p) ? "Gemini" : "Groq";
+            return "claude".equals(p) ? "Claude" : "gemini".equals(p) ? "Gemini" : "openrouter".equals(p) ? "OpenRouter" : "Groq";
         }
 
         @JavascriptInterface
@@ -923,7 +924,8 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean aiHasKey() {
             if (R4LSession.hasCredentials(MainActivity.this, provider())) return true;
-            return aiAuto() && (R4LSession.hasCredentials(MainActivity.this, "groq") || R4LSession.hasCredentials(MainActivity.this, "gemini"));
+            return aiAuto() && (R4LSession.hasCredentials(MainActivity.this, "groq") || R4LSession.hasCredentials(MainActivity.this, "gemini")
+                    || R4LSession.hasCredentials(MainActivity.this, "openrouter"));
         }
 
         @JavascriptInterface
@@ -940,10 +942,14 @@ public class MainActivity extends Activity {
             String k = key == null ? "" : key.replaceAll("[\\s\\u200B-\\u200D\\u2060\\uFEFF\"']", "");
             synchronized (MainActivity.this) { llm = null; }
             if (k.isEmpty()) { R4LSession.forget(MainActivity.this, provider()); return; }
-            String p = k.startsWith("sk-ant-") ? "claude" : k.startsWith("gsk_") ? "groq" : k.startsWith("AIza") ? "gemini"
+            String p = k.startsWith("sk-ant-") ? "claude" : k.startsWith("sk-or-") ? "openrouter" : k.startsWith("gsk_") ? "groq" : k.startsWith("AIza") ? "gemini"
                     : known(selected == null || selected.isEmpty() ? provider() : selected);
             R4LSession.saveCredentials(MainActivity.this, p, "api", k);
-            aiSetProvider(p);
+            // OpenRouter is the back-up after the free Groq and Gemini: they stay selected (choosing
+            // its tab to add the key selected it).
+            boolean groq = R4LSession.hasCredentials(MainActivity.this, "groq");
+            boolean backup = "openrouter".equals(p) && aiAuto() && (groq || R4LSession.hasCredentials(MainActivity.this, "gemini"));
+            aiSetProvider(backup ? (groq ? "groq" : "gemini") : p);
         }
 
         @JavascriptInterface
@@ -1039,15 +1045,15 @@ public class MainActivity extends Activity {
 
         /**
          * Which AIs to try, in order. The chosen one goes first; with auto on, the other free AI
-         * (Groq or Gemini) with a key is the fallback, and long documents go to Gemini first,
-         * since its free tier takes far bigger inputs.
+         * (Groq or Gemini) with a key is the fallback, long documents go to Gemini first (its free
+         * tier takes far bigger inputs), and OpenRouter (free model, then credit) comes after both.
          */
         private java.util.List<String> aiOrder(int docChars, boolean imageOnly) {
             java.util.List<String> order = new java.util.ArrayList<>();
             String chosen = provider();
             if (!imageOnly || !"claude".equals(chosen)) order.add(chosen);
             if (aiAuto()) {
-                for (String p : new String[]{"groq", "gemini"}) {
+                for (String p : new String[]{"groq", "gemini", "openrouter"}) {
                     if (!order.contains(p) && R4LSession.hasCredentials(MainActivity.this, p)) order.add(p);
                 }
                 if (docChars > 60000 && order.remove("gemini") && R4LSession.hasCredentials(MainActivity.this, "gemini")) order.add(0, "gemini");
@@ -1071,7 +1077,8 @@ public class MainActivity extends Activity {
                 LlmProvider p = llms.get(tag);
                 if (p == null) {
                     p = "claude".equals(prov) ? new ClaudeProvider(key, model)
-                            : "gemini".equals(prov) ? new GeminiProvider(key, model) : new GroqProvider(key, model);
+                            : "gemini".equals(prov) ? new GeminiProvider(key, model)
+                            : "openrouter".equals(prov) ? GroqProvider.openRouter(key, model) : new GroqProvider(key, model);
                     llms.put(tag, p);
                     llm = p;
                     llmModel = tag;

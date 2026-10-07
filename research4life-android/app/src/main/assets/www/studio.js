@@ -525,6 +525,7 @@
       groq: ['Groq', 'AI features run on Groq with your own key. Create one free at <b>console.groq.com/keys</b> (it starts with gsk_).', 'gsk_…'],
       gemini: ['Gemini', 'Free key from <b>aistudio.google.com/apikey</b> (no card needed). Best for evidence maps over many papers.', 'Paste your Gemini key'],
       claude: ['Claude', 'AI features use your own Anthropic key. Create one at <b>console.anthropic.com</b> → API keys.', 'sk-ant-…'],
+      openrouter: ['OpenRouter', 'Free key from <b>openrouter.ai</b> → Keys (no card needed; it starts with sk-or-). Answers when Groq and Gemini are busy: a free model first, then your credit if you add some.', 'sk-or-…'],
     }[p] || ['Groq', '', 'gsk_…'];
     return `<div class="key-prompt">${icon('spark')}<div><b>Add your ${info[0]} API key</b><span>${info[1]}</span></div>
       <input type="password" id="aikey" placeholder="${info[2]}" autocomplete="off"><button class="btn primary full" data-act="ai-savekey" style="margin-top:8px">Save key</button>
@@ -537,7 +538,7 @@
     // Known prefixes pick the AI; anything else (e.g. Google's newer key formats) goes to the AI selected above.
     Native.aiSetKey(v, provider());
     ext.secretsChanged?.();
-    toast('Key saved');
+    toast(/^sk-or-/.test(v) && provider() !== 'openrouter' ? 'OpenRouter key saved · answers when Groq and Gemini are busy' : 'Key saved');
     if (hubState) drawHub(); else closeSheet(true);
     if (D.current.name === 'settings') render();
     if (/^gsk_/.test(v)) Native.aiListModels?.();
@@ -1330,30 +1331,38 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
     gemini: [
       ['gemini-3.8-flash', 'Gemini 3.8 Flash', 'Free tier · takes whole evidence maps at once (default)', [0, 0]],
     ],
+    openrouter: [
+      ['openai/gpt-oss-120b:free', 'GPT-OSS 120B (free)', 'Free, then the paid version from your credit when busy (default)', [0, 0]],
+      ['openai/gpt-oss-120b', 'GPT-OSS 120B (paid)', 'From your credit only: steadier at busy times', [0.15, 0.75]],
+    ],
     claude: [
       ['claude-sonnet-5-5', 'Claude Sonnet 5.5', 'Best value for clinical answers (default)', [2, 10]],
       ['claude-opus-5-5', 'Claude Opus 5.5', 'Top quality, twice the cost', [4, 20]],
       ['claude-haiku-4-5', 'Claude Haiku 4.5', 'Fastest, lowest cost', [1, 5]],
     ],
   };
-  const priceOf = (model) => [...MODELS.groq, ...MODELS.gemini, ...MODELS.claude].find((x) => x[0] === model || String(model).startsWith(x[0]))?.[3] || [0, 0];
+  const priceOf = (model) => (/^openrouter\//.test(model)
+    ? MODELS.openrouter.find((x) => x[0] === String(model).slice(11))?.[3]
+    : [...MODELS.groq, ...MODELS.gemini, ...MODELS.claude].find((x) => x[0] === model || String(model).startsWith(x[0]))?.[3]) || [0, 0];
   function usageLine() {
     let u = {};
     try { u = JSON.parse(Native.aiUsage?.() || '{}'); } catch { u = {}; }
     const month = new Date().toISOString().slice(0, 7);
     const m = u[month] || {};
     let cost = 0, calls = 0, tokens = 0;
+    // On the free tiers (Groq, Gemini) only paid OpenRouter answers, from the credit, cost anything.
+    const freeTier = provider() === 'groq' || provider() === 'gemini';
     for (const [model, row] of Object.entries(m)) {
-      const price = priceOf(model);
+      const price = freeTier && !/^openrouter\//.test(model) ? [0, 0] : priceOf(model);
       cost += (row[0] * price[0] + row[1] * price[1] + row[2] * price[0] * 0.5) / 1e6;
       calls += row[3];
       tokens += row[0] + row[1] + row[2];
     }
-    const free = provider() === 'groq' || provider() === 'gemini';
+    const free = freeTier && cost === 0;
     // Which AI answered: requests per provider ("Groq 18 · Gemini 5"), so a Gemini fallback shows up here.
     const by = {};
     for (const [model, row] of Object.entries(m)) {
-      const who = /^gemini/i.test(model) ? 'Gemini' : /^claude/i.test(model) ? 'Claude' : 'Groq';
+      const who = /^gemini/i.test(model) ? 'Gemini' : /^claude/i.test(model) ? 'Claude' : /^openrouter\//i.test(model) ? 'OpenRouter' : 'Groq';
       by[who] = (by[who] || 0) + row[3];
     }
     const split = Object.entries(by).map(([k, v]) => `${k} ${v}`).join(' · ');
@@ -1374,15 +1383,16 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
       if (live?.length) list = [...list.filter((x) => live.includes(x[0])), ...live.filter((id) => !list.some((x) => x[0] === id)).map((id) => [id, id, 'Available to your key', priceOf(id)])];
     }
     return `<div class="section"><div class="section-h"><h3>AI</h3></div>
-      <div class="seg wide" style="margin-bottom:10px">${[['groq', 'Groq'], ['gemini', 'Gemini'], ['claude', 'Claude']].map(([k, l]) => `<button class="${prov === k ? 'on' : ''}" data-act="set-provider" data-v="${k}">${l}</button>`).join('')}</div>
+      <div class="seg wide" style="margin-bottom:10px">${[['groq', 'Groq'], ['gemini', 'Gemini'], ['openrouter', 'OpenRouter'], ['claude', 'Claude']].map(([k, l]) => `<button class="${prov === k ? 'on' : ''}" data-act="set-provider" data-v="${k}">${l}</button>`).join('')}</div>
       <div class="acc-card"><div class="acc-ico ai ${prov}">${icon('spark')}</div>
-        <div class="body"><b>${({ groq: 'Groq', gemini: 'Gemini (Google)', claude: 'Claude (Anthropic)' })[prov] || 'Groq'}</b><span>${has ? 'API key saved · ' + esc(usageLine()) : `Add your ${({ groq: 'Groq', gemini: 'Gemini', claude: 'Anthropic' })[prov] || 'Groq'} API key to use AI features`}</span></div>
+        <div class="body"><b>${({ groq: 'Groq', gemini: 'Gemini (Google)', claude: 'Claude (Anthropic)', openrouter: 'OpenRouter' })[prov] || 'Groq'}</b><span>${has ? 'API key saved · ' + esc(usageLine()) : `Add your ${({ groq: 'Groq', gemini: 'Gemini', claude: 'Anthropic', openrouter: 'OpenRouter' })[prov] || 'Groq'} API key to use AI features`}</span></div>
         <button class="btn xs ${has ? '' : 'primary'}" data-act="set-aikey">${has ? 'Change' : 'Add key'}</button>
         ${has ? `<button class="icon-btn" data-act="ai-forget" aria-label="Remove key">${icon('trash')}</button>` : ''}</div>
       ${prov === 'gemini' ? '<p class="muted small">Gemini has a generous free tier (key from aistudio.google.com/apikey, no card): best for the evidence map, matrix and contradiction checks, which read dozens of abstracts at once.</p>' : ''}
+      ${prov === 'openrouter' ? '<p class="muted small">OpenRouter is the back-up: it answers only when Groq and Gemini are busy or at their limit. Its free model allows 50 requests a day (1,000 once you have bought $10 of credit); when it is busy, the paid version answers from your credit. Without credit, nothing is ever charged.</p>' : ''}
       ${prov === 'groq' ? '<p class="muted small">Groq is very fast and has a free tier (about 8,000 tokens a minute, 200,000 a day). When a document is bigger than that, the app sends the most relevant parts — the answer says so.</p>' : ''}
       ${Native.aiAuto ? `<div class="acc-card"><div class="acc-ico">${icon('spark')}</div>
-        <div class="body"><b>Use Groq + Gemini together</b><span>${auto ? 'On' : 'Off'} · Groq key ${keyFor('groq') ? '✓' : '—'} · Gemini key ${keyFor('gemini') ? '✓' : '—'}. When one hits its free limit or is busy, the other answers; long documents go to Gemini first.</span></div>
+        <div class="body"><b>Use Groq + Gemini together</b><span>${auto ? 'On' : 'Off'} · Groq key ${keyFor('groq') ? '✓' : '—'} · Gemini key ${keyFor('gemini') ? '✓' : '—'} · OpenRouter key ${keyFor('openrouter') ? '✓' : '—'}. When one hits its free limit or is busy, the other answers; long documents go to Gemini first; OpenRouter answers when both are busy.</span></div>
         <button class="btn xs ${auto ? 'primary' : ''}" data-act="ai-auto">${auto ? 'On' : 'Off'}</button></div>
       <p class="muted small">Tip: save a key for each — tap Groq above and add its key, then tap Gemini and add its key. The selected one is used first.</p>` : ''}
       ${Native.aiTest ? '<button class="btn full" style="margin:8px 0" data-act="ai-test">Test AI connection</button><pre class="trail" id="ai-test-out" hidden></pre>' : ''}
@@ -1398,10 +1408,10 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
         <div class="acc-card"><div class="acc-ico">${icon('audio')}</div><div class="body"><b>Voices, speed &amp; skipping</b><span>${String(D.ttsPrefs.voice || '').startsWith('neural:') ? 'Natural voice' : 'Phone voice'} · ${D.ttsPrefs.rate}× · skips ${Object.entries(D.ttsPrefs.skip).filter(([, v]) => v).length} kinds of content</span></div>
           <button class="btn xs" data-act="tts-settings-open">Open</button></div></div>
       <div class="section"><div class="section-h"><h3>Privacy</h3></div>
-        <p class="small">Your documents, notes and audio positions stay on this phone in app-private storage; PDFs, imports and voice packs are deleted when you delete them. Nothing is uploaded unless you use an AI feature — then only that document's text goes to ${({ groq: 'Groq', gemini: 'Google (Gemini)', claude: 'Anthropic' })[prov] || 'Groq'} over an encrypted connection, under their API terms. Natural voices run entirely on the phone. Your API keys and logins are encrypted with the phone's keystore.</p></div>`;
+        <p class="small">Your documents, notes and audio positions stay on this phone in app-private storage; PDFs, imports and voice packs are deleted when you delete them. Nothing is uploaded unless you use an AI feature — then only that document's text goes to ${({ groq: 'Groq', gemini: 'Google (Gemini)', claude: 'Anthropic', openrouter: 'OpenRouter' })[prov] || 'Groq'} over an encrypted connection, under their API terms. Natural voices run entirely on the phone. Your API keys and logins are encrypted with the phone's keystore.</p></div>`;
   };
   Object.assign(actions, {
-    'set-aikey': () => sheet(`<h3>${({ groq: 'Groq', gemini: 'Gemini', claude: 'Claude' })[provider()] || 'Groq'} API key</h3>${keyPrompt()}`),
+    'set-aikey': () => sheet(`<h3>${({ groq: 'Groq', gemini: 'Gemini', claude: 'Claude', openrouter: 'OpenRouter' })[provider()] || 'Groq'} API key</h3>${keyPrompt()}`),
     'set-provider': (b) => { Native.aiSetProvider?.(b.dataset.v); if (b.dataset.v === 'groq' && Native.aiHasKeyFor?.('groq')) Native.aiListModels?.(); render(); },
     'ai-auto': () => { Native.aiSetAuto?.(!Native.aiAuto?.()); render(); },
     'groq-refresh': () => { Native.aiListModels?.(); toast('Checking which models your key can use…'); },
