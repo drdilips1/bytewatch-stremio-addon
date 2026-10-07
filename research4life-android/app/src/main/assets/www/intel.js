@@ -284,11 +284,19 @@
     }).join('\n\n');
   }
 
+  /**
+   * Completeness: a search finds some papers, not all of medicine. An answer that drops a standard
+   * treatment because no paper in this batch mentions it (isotretinoin in acne) is wrong for a clinician.
+   */
+  const STANDARD = 'Completeness matters as much as citations. For management, treatment or diagnosis questions, never leave out an established, '
+    + 'guideline-recommended mainstay just because the provided sources do not mention it (for example isotretinoin for severe, nodular or scarring acne, '
+    + 'or acne not responding to oral antibiotics). Put it in its proper place, marked "(established practice; not in the sources found)", with no citation number, '
+    + 'and never invent study results, numbers or references for it.';
   const CITE_SYSTEM = 'You are a meticulous dermatology evidence analyst. Use ONLY the numbered sources provided. '
     + 'Every factual claim must cite its sources with their numbers, like [3] or [2, 5]. Never write "studies show" without citations. '
     + 'Keep numbers, doses and effect sizes exactly as reported. Rate evidence strength honestly from study designs and consistency: '
     + 'strong (consistent RCTs or high-quality meta-analyses/guidelines), moderate, limited, very limited, conflicting. '
-    + 'If the sources do not answer something, say so.';
+    + 'If the sources do not answer something, say so. ' + STANDARD;
 
   // ---- JSON schemas (strict: every property required, no extras)
   const S = {
@@ -1314,6 +1322,6 @@
   window.DSI = {
     api, q, epmc, trials, trialOf, trialTerm, gather, refsFrom, packText, bestRefs, basedOn, newCtx, contexts, citeHtml, citeBtns, strength, refRow, trialCard,
     keyCard, aiErr, busyHtml, aiJsonCall, cacheGet, cacheSet, obj, S, CITE_SYSTEM, paperText, openUrl, evHash, today, daysAgo, TILES, DISEASES,
-    needKey, GUIDE, SAFETY, TREAT, isTreatmentQ, planSearch, evidencePool, stepsHtml, absShort, exportBtns, offerExport, STRENGTH,
+    needKey, GUIDE, STANDARD, SAFETY, TREAT, isTreatmentQ, planSearch, evidencePool, stepsHtml, absShort, exportBtns, offerExport, STRENGTH,
   };
 })();

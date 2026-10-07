@@ -385,7 +385,7 @@
           + '- sections: 3 to 5, with headings that fit the question (e.g. "Genetic basis", "Twin and family studies", "Mechanisms", "Clinical implications"). Each has 1 or 2 short paragraphs of 2-3 sentences; every claim cites its papers like [3] or [2, 5]. Keep numbers exactly as reported.\n'
           + '- table: in at most two sections, a compact table when it makes things clearer (e.g. genes or loci with their role, or study, design, N and result), cells may cite [n]; otherwise caption "", columns [] and rows [].\n'
           + '- claims: 3 to 5 key claims with their evidence strength (strong: consistent across several good studies; moderate; limited) and the papers that support them.',
-          { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', schema: EXPLAIN(), max: 5000 }));
+          { doc, system: 'You are a careful dermatology evidence writer. Every claim taken from the numbered papers cites them; never invent studies or numbers. ' + I.STANDARD, schema: EXPLAIN(), max: 5000 }));
         I.cacheSet(key, r);
       } catch (e) {
         if (live() && $('#cm-ex')) $('#cm-ex').innerHTML = I.aiErr(e) + `<button class="btn xs" data-act="cm-ex-redo" style="margin-top:6px">${icon('spark')}Try again</button>`;
@@ -520,9 +520,9 @@
         + '2. A short paragraph (2-3 sentences) explaining it, with the key terms in **bold**.\n'
         + '3. 2 to 4 "## " sections with headings that fit the question, short paragraphs or bullets, and one compact Markdown table where it helps. ' + shape + '\n'
         + '4. If the papers include guidelines or consensus statements: "## Current guidelines" with what they recommend.\n'
-        + 'Every claim cites its papers like [3] or [2, 5]; keep numbers exactly as reported; never add facts not in the papers; say plainly where evidence is limited. About 300-450 words. No preamble.\n'
+        + 'Every claim from the papers cites them like [3] or [2, 5]; keep numbers exactly as reported; never invent studies or numbers; say plainly where evidence is limited. For management questions, cover the full standard approach (first line to advanced options) even where the papers found do not. About 300-450 words. No preamble.\n'
         + 'Then, after the answer, exactly these two blocks:\nQUOTES:\n[n] "the one sentence from paper n\'s abstract that best supports the answer" (for the 5-8 papers you cite most)\nFOLLOWUPS:\n- three short follow-up questions a dermatologist would likely ask next',
-        { doc, system: 'You are a careful dermatology evidence writer. Every claim must be supported by the numbered papers and cite them; never add facts that are not in them.', max: 2200, fast: true,
+        { doc, system: 'You are a careful dermatology evidence writer. Every claim taken from the numbered papers cites them; never invent studies or numbers. ' + I.STANDARD, max: 2200, fast: true,
           onPartial: (t) => {
             if (!live()) return;
             const b = el.querySelector('.qa-body');
@@ -584,7 +584,7 @@
           + 'Answer the follow-up for a dermatologist in under 250 words, using the numbered papers and citing them like [3] or [2, 5]. '
           + 'Answer exactly what is asked; a table if comparing options. If the papers don\'t cover it, say so plainly, then give what is generally known, marked as not from these papers. Markdown, no preamble.\n'
           + 'After the answer, exactly:\nFOLLOWUPS:\n- three short questions a dermatologist would likely ask next, following on from this follow-up',
-          { doc, system: 'You are a careful dermatology evidence writer. Cite the numbered papers for every claim taken from them; never invent studies or numbers.', max: 1500,
+          { doc, system: 'You are a careful dermatology evidence writer. Cite the numbered papers for every claim taken from them; never invent studies or numbers. ' + I.STANDARD, max: 1500,
             fast: true, onPartial: (t) => { if (out.isConnected) out.innerHTML = answerHtml(t.split(/\n\s*\**FOLLOW-?UPS:?/i)[0]); } });
         const [ans, tail = ''] = text.split(/\n\s*\**FOLLOW-?UPS:?\**/i);
         const sugg = tail.split('\n').map((l) => l.replace(/^\s*[-*\d.)]+\s*/, '').trim()).filter((l) => l.length > 8).slice(0, 4);
