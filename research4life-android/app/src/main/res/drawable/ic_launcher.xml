@@ -1,50 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- DermScholar: a D-shaped dermatoscope (LED ring, handle) looking at an open book. -->
+<!-- DermScholar: a gold dermatoscope lens (LED ring) over an open book, on ink. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="48dp"
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <path android:pathData="M24,2a22,22 0,1 1,0 44a22,22 0,1 1,0 -44z">
+    <path android:pathData="M11,0h26a11,11 0,0 1,11 11v26a11,11 0,0 1,-11 11h-26a11,11 0,0 1,-11 -11v-26a11,11 0,0 1,11 -11z">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="linear"
-                android:startX="6" android:startY="4" android:endX="42" android:endY="44">
-                <item android:offset="0" android:color="#FF7C3AED" />
-                <item android:offset="0.55" android:color="#FFDB2777" />
-                <item android:offset="1" android:color="#FFF59E0B" />
+            <gradient android:type="linear" android:startX="8" android:startY="4" android:endX="40" android:endY="46">
+                <item android:offset="0" android:color="#FF1C2029" />
+                <item android:offset="1" android:color="#FF0B0D11" />
             </gradient>
         </aapt:attr>
     </path>
-    <group android:translateX="2">
-        <!-- handle -->
-        <path android:strokeColor="#FFFFFF" android:strokeWidth="5" android:strokeLineCap="round"
-            android:pathData="M20,34l5.5,8.5" />
-        <path android:strokeColor="#F472B6" android:strokeWidth="1.4" android:strokeLineCap="round"
-            android:pathData="M22.4,37.6l2.2,3.4" />
-        <!-- D-shaped head and lens -->
-        <path android:fillColor="#FFFFFF" android:pathData="M12,8h9.5a13,13 0,1 1,0 26h-9.5z" />
-        <path android:pathData="M15.5,11.5h6a9.5,9.5 0,1 1,0 19h-6z">
-            <aapt:attr name="android:fillColor">
-                <gradient android:type="linear"
-                    android:startX="16" android:startY="11" android:endX="30" android:endY="31">
-                    <item android:offset="0" android:color="#FF0E7490" />
-                    <item android:offset="1" android:color="#FF134E4A" />
-                </gradient>
-            </aapt:attr>
-        </path>
-        <!-- LED ring -->
-        <path android:fillColor="#F59E0B"
-            android:pathData="M27.1,10.4a0.95,0.95 0,1 1,0 1.9a0.95,0.95 0,1 1,0 -1.9zM31.2,14.45a0.95,0.95 0,1 1,0 1.9a0.95,0.95 0,1 1,0 -1.9zM32.75,20.05a0.95,0.95 0,1 1,0 1.9a0.95,0.95 0,1 1,0 -1.9zM31.2,25.65a0.95,0.95 0,1 1,0 1.9a0.95,0.95 0,1 1,0 -1.9zM27.1,29.75a0.95,0.95 0,1 1,0 1.9a0.95,0.95 0,1 1,0 -1.9z" />
-        <!-- open book seen through the lens -->
-        <path android:fillColor="#FFFFFF"
-            android:pathData="M16.8,16.8c2.2,-0.9 4.2,-0.7 5.6,0.6v8.4c-1.4,-1.1 -3.4,-1.3 -5.6,-0.6z" />
-        <path android:fillColor="#FFFFFF"
-            android:pathData="M29.2,16.8c-2.2,-0.9 -4.2,-0.7 -5.6,0.6v8.4c1.4,-1.1 3.4,-1.3 5.6,-0.6z" />
-        <path android:strokeColor="#F472B6" android:strokeWidth="0.7" android:strokeLineCap="round"
-            android:pathData="M18.2,19.2l2.8,0.4M18.2,21.2l2.8,0.4M18.2,23.2l2.8,0.4M25,19.6l2.8,-0.4M25,21.6l2.8,-0.4M25,23.6l2.8,-0.4" />
-        <!-- glass highlight -->
-        <path android:fillColor="#FFFFFF" android:fillAlpha="0.22"
-            android:pathData="M15.5,11.5h6a9.5,9.5 0,0 1,8.2,4.7c-5,-1.5 -9.5,-1 -14.2,1.3z" />
-    </group>
+    <path android:strokeWidth="4.2" android:strokeLineCap="round" android:pathData="M30.4,29.6L36.6,35.8">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear" android:startX="12" android:startY="9" android:endX="36" android:endY="37">
+                <item android:offset="0" android:color="#FFF0D9A4" />
+                <item android:offset="0.55" android:color="#FFCFA95F" />
+                <item android:offset="1" android:color="#FFA07A35" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FF0F1217" android:strokeWidth="2.4"
+        android:pathData="M22,9.9a11.6,11.6 0,1 1,0 23.2a11.6,11.6 0,1 1,0 -23.2z">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear" android:startX="12" android:startY="9" android:endX="36" android:endY="37">
+                <item android:offset="0" android:color="#FFF0D9A4" />
+                <item android:offset="0.55" android:color="#FFCFA95F" />
+                <item android:offset="1" android:color="#FFA07A35" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#D9E3C27E" android:pathData="M31.30,21.50m-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0zM30.05,26.15m-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0zM26.65,29.55m-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0zM17.35,29.55m-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0zM13.95,26.15m-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0zM12.70,21.50m-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0zM13.95,16.85m-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0zM17.35,13.45m-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0zM22.00,12.20m-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0zM26.65,13.45m-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0zM30.05,16.85m-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0z" />
+    <path android:fillColor="#FFF2E8D4" android:pathData="M15.6,17.6c2.1,-1.1 4.2,-0.9 5.9,0.5v8c-1.8,-1.2 -3.8,-1.4 -5.9,-0.6z" />
+    <path android:fillColor="#FFF2E8D4" android:pathData="M28.4,17.6c-2.1,-1.1 -4.2,-0.9 -5.9,0.5v8c1.8,-1.2 3.8,-1.4 5.9,-0.6z" />
+    <path android:strokeColor="#FFCFA95F" android:strokeWidth="0.8" android:strokeLineCap="round" android:pathData="M22,18.2v8.2" />
 </vector>
