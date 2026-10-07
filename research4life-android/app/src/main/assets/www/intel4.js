@@ -439,8 +439,11 @@
         <details class="qa-refs"><summary>References (${refs.length})</summary>${refs.map(I.refRow).join('')}</details>
         <p class="muted small">AI-written from these papers' abstracts (guidelines first). Tap a reference to see it; check key numbers in the papers.</p>
         <div class="row wrap" style="gap:6px"><button class="btn xs" data-act="qa-redo">${icon('spark')}Redo</button>
-          <button class="btn xs" data-act="ev-from-search" data-q="${esc(question)}">${icon('chart')}Full evidence map</button></div></div>`;
+          <button class="btn xs" data-act="ev-from-search" data-q="${esc(question)}">${icon('chart')}Full evidence map</button></div></div>
+        <div class="qa-thread"></div>
+        <form class="qa-follow" style="display:flex;gap:8px;margin-top:10px"><input name="f" placeholder="Ask a follow-up…" autocomplete="off" style="flex:1"><button class="btn primary">Ask</button></form>`;
       actions['qa-redo'] = () => { store.set('intel.' + key, null); searchAnswer(question, el); };
+      followUps(question, r, refs, el);
     };
     const kept = I.cacheGet(key);
     if (kept && kept.r && kept.refs) { render(kept.r, kept.refs.map((x) => ({ ...x, a: x.a }))); return; }
@@ -492,6 +495,54 @@
     }
   }
   ext.searchAnswer = searchAnswer;
+
+  /**
+   * Follow-up questions under the answer: each is answered from the same papers plus a few found
+   * for the follow-up itself, knowing the earlier answer; the thread is kept with the answer.
+   */
+  function followUps(question, r, refs, el) {
+    const tkey = 'thread1.' + question.toLowerCase().trim();
+    const thread = I.cacheGet(tkey) || [];
+    let all = refs.slice();
+    for (const t of thread) for (const x of t.added || []) if (!all.some((y) => y.n === x.n)) all.push(x);
+    const box = el.querySelector('.qa-thread');
+    const form = el.querySelector('.qa-follow');
+    if (!box || !form) return;
+    const turnHtml = (t, body) => `<div class="panel explain" style="margin-top:10px"><p class="ex-head">${icon('search')} ${esc(t.q)}</p><div class="qa-a">${body}</div></div>`;
+    const answerHtml = (text) => I.citeHtml(D.md(text), I.newCtx(all));
+    box.innerHTML = thread.map((t) => turnHtml(t, answerHtml(t.a))).join('');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const q2 = form.f.value.trim();
+      if (!q2) return;
+      form.f.value = '';
+      box.insertAdjacentHTML('beforeend', turnHtml({ q: q2 }, I.busyHtml('Answering…')));
+      const out = box.lastElementChild.querySelector('.qa-a');
+      try {
+        // A few papers on the follow-up itself, added to the numbered list.
+        const more = await I.epmc(I.q(`${q2} ${question}`.slice(0, 300)), 8).catch(() => ({ results: [] }));
+        const added = [];
+        for (const a of more.results || []) {
+          if (!a.abstract || all.some((x) => x.a?.id === a.id) || added.length >= 6) continue;
+          added.push({ kind: 'paper', a, type: D.studyType(a).label, n: all.length + added.length + 1 });
+        }
+        all = all.concat(added);
+        const doc = all.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 500)}`).join('\n\n');
+        const earlier = [`Earlier answer: ${r.headline || ''}`, ...(r.sections || []).map((x) => `${x.heading}: ${(x.paragraphs || []).join(' ').slice(0, 300)}`),
+          ...thread.slice(-3).map((t) => `Follow-up "${t.q}": ${String(t.a).slice(0, 500)}`)].join('\n');
+        const text = await D.ai(`ORIGINAL QUESTION: ${question}\n${earlier}\n\nFOLLOW-UP QUESTION: ${q2}\n\n`
+          + 'Answer the follow-up for a dermatologist in under 250 words, using the numbered papers and citing them like [3] or [2, 5]. '
+          + 'Answer exactly what is asked; a table if comparing options. If the papers don\'t cover it, say so plainly, then give what is generally known, marked as not from these papers. Markdown, no preamble.',
+          { doc, system: 'You are a careful dermatology evidence writer. Cite the numbered papers for every claim taken from them; never invent studies or numbers.', max: 1500,
+            onPartial: (t) => { if (out.isConnected) out.innerHTML = answerHtml(t); } });
+        if (out.isConnected) out.innerHTML = answerHtml(text);
+        thread.push({ q: q2, a: text, added });
+        I.cacheSet(tkey, thread);
+      } catch (err) {
+        if (out.isConnected) out.innerHTML = I.aiErr(err);
+      }
+    });
+  }
 
   const prevTop2 = ext.searchTop;
   // Any real question gets the meter (it rephrases "Role of X in Y?" as a yes/no question itself).
