@@ -183,6 +183,21 @@ final class R4LSession {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("ckEntry", null);
     }
 
+    /** WHO's sign-in for Research4Life, used on the way into ClinicalKey. */
+    static boolean isWhoSignIn(String host) {
+        return "stsr4l.who.int".equals(host);
+    }
+
+    /**
+     * Research4Life's own way into ClinicalKey (Elsevier's institution login through WHO's
+     * Research4Life sign-in), coming back to {@code article}. It doesn't depend on the portal's
+     * resource list (where ClinicalKey sometimes shows grey until signing in again).
+     */
+    static String clinicalKeyLogin(String article) {
+        return "https://auth.elsevier.com/ShibAuth/institutionLogin?entityID=" + Uri.encode("http://stsr4l.who.int/adfs/services/trust")
+                + "&appReturnURL=" + Uri.encode(article);
+    }
+
     static boolean isClinicalKeyHost(String host) {
         return host != null && (host.equals("clinicalkey.com") || host.endsWith(".clinicalkey.com"));
     }
@@ -408,6 +423,7 @@ final class R4LSession {
         String host = u.getHost();
         if (host == null) return null;
         if (isR4LHost(host)) return u.getPath() != null && u.getPath().startsWith("/tacsgr1") ? null : R4L;
+        if (isWhoSignIn(host)) return R4L;
         if (host.equals("uptodate.com") || host.endsWith(".uptodate.com") || host.endsWith("wolterskluwer.com")) return UTD;
         // Springer Nature's sign-in (Springer Nature Link and its account service).
         String path = u.getPath() == null ? "" : u.getPath().toLowerCase();
@@ -481,10 +497,10 @@ final class R4LSession {
                 + "if(f&&(f.user||window.__dsStep1||tries>6)){clearInterval(t);if(f.user)set(f.user,U);set(f.pw,P);if(window.DSR4L)DSR4L.status('signing-in');"
                 + "if(!AUTO)return;setTimeout(function(){var form=f.pw.form;"
                 + "var btn=(form&&form.querySelector('button[type=submit],input[type=submit],button:not([type])'))"
-                + "||[].slice.call(document.querySelectorAll('button,input[type=submit]')).filter(vis).filter(function(b){return /sign\\s*in|log\\s*in|login|submit|continue/i.test(b.textContent||b.value||'');})[0];"
+                + "||[].slice.call(document.querySelectorAll('button,input[type=submit],[role=button]')).filter(vis).filter(function(b){return /sign\\s*in|log\\s*in|login|submit|continue/i.test(b.textContent||b.value||'');})[0];"
                 + "if(btn)btn.click();else if(form){form.requestSubmit?form.requestSubmit():form.submit();}},500);}"
                 + "else if(!f&&AUTO&&!window.__dsStep1){var u=[].slice.call(document.querySelectorAll('input[type=email],input[autocomplete=username],input[name*=user i],input[id*=user i],input[name*=email i]')).filter(vis)[0];"
-                + "var nb=[].slice.call(document.querySelectorAll('button,input[type=submit]')).filter(vis).filter(function(b){return /continue|next|sign\\s*in|log\\s*in/i.test(b.textContent||b.value||'');})[0];"
+                + "var nb=[].slice.call(document.querySelectorAll('button,input[type=submit],[role=button]')).filter(vis).filter(function(b){return /continue|next|sign\\s*in|log\\s*in/i.test(b.textContent||b.value||'');})[0];"
                 + "if(u&&nb&&!u.value){window.__dsStep1=1;set(u,U);setTimeout(function(){nb.click();},400);}}"
                 + "if(tries>40)clearInterval(t);},400);"
                 + "})();";

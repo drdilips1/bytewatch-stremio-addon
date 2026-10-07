@@ -82,6 +82,8 @@ final class PdfFetcher {
         String startUrl() {
             if (viaSpringer) return R4LSession.springerPdfUrl(doi);
             if (viaCollege) return "https://doi.org/" + doi;
+            // Elsevier: straight into ClinicalKey through Research4Life's sign-in, back to the article.
+            if (viaClinicalKey) return R4LSession.clinicalKeyLogin(R4LSession.clinicalKeyUrl(pii));
             return viaClinicalKey ? R4LSession.clinicalKeyUrl(pii) : R4LSession.doiUrl(doi);
         }
     }
@@ -298,14 +300,29 @@ final class PdfFetcher {
         if (job == null || saving) return;
         lastHandled = url;
         Uri ru = Uri.parse(url);
+        // WHO's Research4Life sign-in (on the way into ClinicalKey): fill in the saved login.
+        if (R4LSession.isWhoSignIn(ru.getHost())) {
+            if (!R4LSession.hasCredentials(app)) { fail("Save your Research4Life sign-in in Settings, or tap Show page to sign in once.", true); return; }
+            if (++signInPages > MAX_SIGNIN_PAGES + 1) { fail("Research4Life sign-in didn't go through. Check your saved ID and password, or tap Show page.", true); return; }
+            status("signing-in", "Signing in to Research4Life as " + R4LSession.username(app) + "…");
+            webView.evaluateJavascript(R4LSession.signInScript(R4LSession.username(app), R4LSession.password(app), true), null);
+            return;
+        }
         if (job.renewUrl != null && !R4LSession.isR4LHost(ru.getHost())) {
             // Renewing ClinicalKey: once ClinicalKey itself opens, go back to the paper.
             if (R4LSession.isClinicalKeyHost(ru.getHost())) {
                 job.renewUrl = null;
                 status("opening", "ClinicalKey renewed. Opening the paper…");
                 final Job j = job;
-                main.postDelayed(() -> { if (job == j && !saving) webView.loadUrl(j.startUrl()); }, 4000);
+                main.postDelayed(() -> { if (job == j && !saving) webView.loadUrl(j.viaClinicalKey ? R4LSession.clinicalKeyUrl(j.pii) : j.startUrl()); }, 4000);
             }
+            return;
+        }
+        // Elsevier's sign-in hand-over pages on the way into ClinicalKey: wait for ClinicalKey itself.
+        if (job.viaClinicalKey && !job.viaCollege && ru.getHost() != null && ru.getHost().endsWith("elsevier.com")
+                && !R4LSession.isClinicalKeyHost(ru.getHost())) {
+            status("signing-in", "Signing in to ClinicalKey through Research4Life…");
+            job.loads++;
             return;
         }
         if (job.viaSpringer && springerStep(url)) { job.loads++; return; }
@@ -683,8 +700,9 @@ final class PdfFetcher {
             main.postDelayed(this::next, 500);
             return;
         }
-        String entry = R4LSession.clinicalKeyEntry(app);
-        if (r != null && r.viaClinicalKey && !r.ckRenewed && entry != null && r.loads <= MAX_LOADS) {
+        // Once more through Research4Life's ClinicalKey sign-in (a fresh session).
+        String entry = r == null ? null : R4LSession.clinicalKeyLogin(R4LSession.clinicalKeyUrl(r.pii));
+        if (r != null && r.viaClinicalKey && !r.viaCollege && !r.ckRenewed && r.loads <= MAX_LOADS) {
             r.ckRenewed = true;
             r.renewUrl = entry;
             tried.clear();
@@ -725,10 +743,8 @@ final class PdfFetcher {
             // Elsevier journals come through ClinicalKey; ScienceDirect refusing them doesn't mean
             // Research4Life lacks the journal.
             message = message.startsWith(NOT_COVERED)
-                    ? (R4LSession.clinicalKeyEntry(app) == null
-                        ? "ClinicalKey didn't give the PDF: its sign-in has expired. Open ClinicalKey once from Research4Life in the app (a journal page → R4L → ClinicalKey): the app keeps that link and renews ClinicalKey by itself from then on. Or use MyLOFT."
-                        : "ClinicalKey didn't give the PDF, even after renewing its sign-in through Research4Life. Tap Show page to see it in ClinicalKey, Details for what each page said, or use MyLOFT.")
-                    : "ClinicalKey didn't give the PDF: sign in to ClinicalKey once through Research4Life (R4L → ClinicalKey) in the app, then try again. " + message;
+                    ? "ClinicalKey didn't give the PDF, even after signing in again through Research4Life. Tap Show page to see it in ClinicalKey, Details for what each page said, or use MyLOFT."
+                    : "ClinicalKey didn't give the PDF. Tap Show page to see where it stopped, or use MyLOFT. " + message;
         }
         if (listener != null && j != null) listener.onFailed(j.key, message, canShow);
         next();
