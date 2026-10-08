@@ -1372,3 +1372,5 @@ body.reading .rv-bar { display: none; }
 /* In the evidence-strength tables the meter stacks over its word, as in Consensus. */
 td > .strength { flex-direction: column; align-items: flex-start; gap: 4px; }
 td > .strength .meter i { width: 6px; height: 18px; border-radius: 3px; }
+.md-first > .strength, .md-cell > .strength { flex-direction: column; align-items: flex-start; gap: 4px; }
+.md-first > .strength .meter i { width: 6px; height: 18px; border-radius: 3px; }

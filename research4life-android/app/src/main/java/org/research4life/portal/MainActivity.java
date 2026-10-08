@@ -1017,7 +1017,9 @@ public class MainActivity extends Activity {
                 StringBuilder also = new StringBuilder();
                 try {
                     java.util.List<String> order = aiOrder(document == null ? 0 : document.length(), false);
-                    if (fast && R4LSession.hasCredentials(MainActivity.this, "groq")) { order.remove("groq"); order.add(0, "groq"); }
+                    // The quickest AI first only when a free AI is chosen: a chosen Claude / OpenRouter is used as chosen.
+                    String chosen = provider();
+                    if (fast && ("groq".equals(chosen) || "gemini".equals(chosen)) && R4LSession.hasCredentials(MainActivity.this, "groq")) { order.remove("groq"); order.add(0, "groq"); }
                     for (String prov : order) {
                         try {
                             LlmProvider.Result r = llmFor(prov).completeStream(system, document, task, maxTokens,

@@ -525,7 +525,8 @@
     try {
       let order = aiOrder((req.doc || '').length, imageOnly);
       // Someone is waiting on it: the quickest AI first (Groq, when its key is saved).
-      if (fast && keyFor('groq')) order = ['groq', ...order.filter((p) => p !== 'groq')];
+      // The quickest AI first only when a free AI is chosen: a chosen paid AI (Claude, OpenRouter) is used as chosen.
+      if (fast && keyFor('groq') && (provider() === 'groq' || provider() === 'gemini')) order = ['groq', ...order.filter((p) => p !== 'groq')];
       for (const p of order) {
         if (req.image && p === 'claude') continue;
         try {

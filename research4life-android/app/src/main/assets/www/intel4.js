@@ -422,7 +422,7 @@
     if (!answerable(question)) { el.remove(); return; }
     if (!D.aiHasKey()) { el.innerHTML = ''; return; }
     const live = () => el.isConnected;
-    const key = 'answer9.' + question.toLowerCase().trim();
+    const key = 'answer10.' + question.toLowerCase().trim();
     // The answer is written as it comes (like Consensus): searches first (a second or two), then
     // the cited answer streams in; quotes and follow-up suggestions come at its end.
     const splitTail = (t) => { const i = t.search(/\n\s*\**QUOTES:?\**/i); return i < 0 ? { body: t, tail: '' } : { body: t.slice(0, i), tail: t.slice(i) }; };
@@ -433,7 +433,12 @@
       return { quotes, followups };
     };
     // The direct answer (first line) large, as Consensus shows it.
-    const lead = (html) => html.replace(/<p>/, '<p class="qa-lead">');
+    // The first paragraph large; strength words in tables ("Strong", "Moderate"…) as the meter.
+    const METER = { strong: 'strong', moderate: 'moderate', limited: 'limited', 'very limited': 'very limited', conflicting: 'conflicting', low: 'limited', 'very low': 'very limited', high: 'strong' };
+    const lead = (html) => meterize(html.replace(/<p>/, '<p class="qa-lead">'));
+    const meterize = (html) => html
+      .replace(/(<td>|<div class="md-(?:first|cell)">(?:<span>[^<]*<\/span>)?)\s*(?:<b>)?\s*(strong|moderate|limited|very limited|conflicting|high|low|very low)\s*(?:<\/b>)?\s*(<\/td>|<\/div>)/gi,
+        (m, a, w, b) => `${a}${I.strength(METER[w.toLowerCase()])}${b}`);
     // Retrieved · Eligible · Included, counting up (as Consensus shows them), then each step.
     const big = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : Number(n).toLocaleString());
     const stepsHtml = (steps) => {
@@ -542,6 +547,7 @@
         + '2. A short paragraph (2-3 sentences) explaining it, with the key terms in **bold**.\n'
         + '3. 2 to 4 "## " sections with headings that fit the question, short paragraphs or bullets, and one compact Markdown table where it helps. ' + shape + '\n'
         + '4. If the papers include guidelines or consensus statements: "## Current guidelines" with what they recommend.\n'
+        + '5. "## Evidence strength": a table with columns Strength | Claim, 3 to 5 rows for the key claims, Strength being exactly one of Strong, Moderate, Limited, Very limited or Conflicting, each claim cited.\n'
         + 'Every claim from the papers cites them like [3] or [2, 5]; keep numbers exactly as reported; never invent studies or numbers; say plainly where evidence is limited. For management questions, cover the full standard approach (first line to advanced options, prevention to surgery) even where the papers found do not. About 350-550 words. No preamble.\n'
         + 'Then, after the answer, exactly these two blocks:\nQUOTES:\n[n] "the one sentence from paper n\'s abstract that best supports the answer" (for the 5-8 papers you cite most)\nFOLLOWUPS:\n- three short follow-up questions a dermatologist would likely ask next',
         { doc, system: 'You are a careful dermatology evidence writer. Every claim taken from the numbered papers cites them; never invent studies or numbers. ' + I.STANDARD, max: 2200, fast: true,
@@ -572,7 +578,7 @@
     const form = el.querySelector('.qa-follow');
     if (!box || !form) return;
     const turnHtml = (t, body) => `<div class="panel explain" style="margin-top:10px"><p class="ex-head">${icon('search')} ${esc(t.q)}</p><div class="qa-a">${body}</div></div>`;
-    const answerHtml = (text) => I.citeHtml(D.md(text), I.newCtx(all));
+    const answerHtml = (text) => meterize(I.citeHtml(D.md(text), I.newCtx(all)));
     box.innerHTML = thread.map((t) => turnHtml(t, answerHtml(t.a))).join('');
     // Related questions just above the box: from the answer, then from the latest follow-up.
     const suggBox = el.querySelector('.qa-sugg-box');
