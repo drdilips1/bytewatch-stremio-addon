@@ -1354,3 +1354,21 @@ h1, .topbar h1 { letter-spacing: -.01em; }
 .rv-bar b { color: var(--accent-ink); }
 .rv-bar .spin { width: 12px; height: 12px; }
 body.reading .rv-bar { display: none; }
+/* Evidence strength: a 10-segment meter and its word (strong / moderate / limited …). */
+.strength { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; vertical-align: middle; font-size: 11.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.strength .meter { display: inline-flex; gap: 2px; }
+.strength .meter i { width: 4px; height: 12px; border-radius: 2px; background: var(--line-strong); }
+.strength em { font-style: normal; }
+.strength.s-strong .meter i.on { background: #2fbf98; }
+.strength.s-moderate .meter i.on { background: #f0bf2c; }
+.strength.s-limited .meter i.on { background: #ef8a3a; }
+.strength.s-very-limited .meter i.on { background: #e05252; }
+.strength.s-conflicting .meter i.on { background: #8d7fdb; }
+.strength.s-strong em { color: #1f9e7c; } .strength.s-moderate em { color: #b98c0d; } .strength.s-limited em { color: #c8691f; }
+.strength.s-very-limited em { color: #c93d3d; } .strength.s-conflicting em { color: #6e60c4; }
+:root[data-theme="dark"] .strength.s-strong em { color: #5fd9b6; } :root[data-theme="dark"] .strength.s-moderate em { color: #f3cd56; }
+:root[data-theme="dark"] .strength.s-limited em { color: #f4a368; } :root[data-theme="dark"] .strength.s-very-limited em { color: #f07a7a; }
+:root[data-theme="dark"] .strength.s-conflicting em { color: #ab9ff0; }
+/* In the evidence-strength tables the meter stacks over its word, as in Consensus. */
+td > .strength { flex-direction: column; align-items: flex-start; gap: 4px; }
+td > .strength .meter i { width: 6px; height: 18px; border-radius: 3px; }

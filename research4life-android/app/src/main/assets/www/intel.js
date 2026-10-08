@@ -491,7 +491,13 @@
     strong: ['🟢', 'Strong'], moderate: ['🟡', 'Moderate'], limited: ['🟠', 'Limited'],
     'very limited': ['🔴', 'Very limited'], conflicting: ['⚫', 'Conflicting'],
   };
-  const strength = (s) => { const x = STRENGTH[s] || STRENGTH.limited; return `<span class="strength s-${esc(String(s).replace(' ', '-'))}">${x[0]} ${x[1]}</span>`; };
+  // Evidence strength as a 10-segment meter with its word (like Consensus): strong 9, moderate 6…
+  const FILL = { strong: 9, moderate: 6, limited: 4, 'very limited': 2, conflicting: 5 };
+  const strength = (s) => {
+    const k = STRENGTH[s] ? s : 'limited';
+    const n = FILL[k];
+    return `<span class="strength s-${esc(k.replace(' ', '-'))}" title="${esc(STRENGTH[k][1])} evidence"><span class="meter">${Array.from({ length: 10 }, (_, i) => `<i${i < n ? ' class="on"' : ''}></i>`).join('')}</span><em>${STRENGTH[k][1]}</em></span>`;
+  };
 
   function refRow(r) {
     if (r.kind === 'trial') {
