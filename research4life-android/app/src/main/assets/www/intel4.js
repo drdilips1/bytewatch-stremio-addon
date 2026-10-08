@@ -605,14 +605,18 @@
           added.push({ kind: 'paper', a, type: D.studyType(a).label, n: all.length + added.length + 1 });
         }
         all = all.concat(added);
-        const doc = all.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 500)}`).join('\n\n');
+        // Same system prompt and same paper text as the first answer, so Claude reads them from its cache;
+        // papers added for follow-ups go after it, in the question part.
+        const line = (x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 520)}`;
+        const doc = refs.map(line).join('\n\n');
+        const extra = all.slice(refs.length).map(line).join('\n\n');
         const earlier = [r.text ? `Earlier answer: ${String(r.text).slice(0, 1500)}` : `Earlier answer: ${r.headline || ''}`, ...(r.sections || []).map((x) => `${x.heading}: ${(x.paragraphs || []).join(' ').slice(0, 300)}`),
           ...thread.slice(-3).map((t) => `Follow-up "${t.q}": ${String(t.a).slice(0, 500)}`)].join('\n');
-        const text = await D.ai(`ORIGINAL QUESTION: ${question}\n${earlier}\n\nFOLLOW-UP QUESTION: ${q2}\n\n`
+        const text = await D.ai((extra ? `MORE NUMBERED PAPERS:\n${extra}\n\n` : '') + `ORIGINAL QUESTION: ${question}\n${earlier}\n\nFOLLOW-UP QUESTION: ${q2}\n\n`
           + 'Answer the follow-up for a dermatologist in under 250 words, using the numbered papers and citing them like [3] or [2, 5]. '
           + 'Answer exactly what is asked; a table if comparing options. If the papers don\'t cover it, say so plainly, then give what is generally known, marked as not from these papers. Markdown, no preamble.\n'
           + 'After the answer, exactly:\nFOLLOWUPS:\n- three short questions a dermatologist would likely ask next, following on from this follow-up',
-          { doc, system: 'You are a careful dermatology evidence writer. Cite the numbered papers for every claim taken from them; never invent studies or numbers. ' + I.STANDARD, max: 1500,
+          { doc, system: 'You are a careful dermatology evidence writer. Every claim taken from the numbered papers cites them; never invent studies or numbers. ' + I.STANDARD, max: 1500,
             fast: true, onPartial: (t) => { if (out.isConnected) out.innerHTML = answerHtml(t.split(/\n\s*\**FOLLOW-?UPS:?/i)[0]); } });
         const [ans, tail = ''] = text.split(/\n\s*\**FOLLOW-?UPS:?\**/i);
         const sugg = tail.split('\n').map((l) => l.replace(/^\s*[-*\d.)]+\s*/, '').trim()).filter((l) => l.length > 8).slice(0, 4);
