@@ -100,7 +100,7 @@
       // 1. Search: every planned search, plus guidelines and systematic reviews on the core one.
       const plan = await I.planSearch(question);
       const filters = ` AND HAS_ABSTRACT:y NOT SRC:PPR NOT PUB_TYPE:"Case Reports" ${D.NOISE}`;
-      const skin = (qy) => (D.DERM_WORDS.test(qy) ? '' : ` AND ${D.DERM_FILTER}`);
+      const skin = () => ''; // planned searches already name the condition (see intel.js q())
       const specs = plan.searches.map((sp) => ({ label: sp.label, query: `(${sp.query})${skin(sp.query)}${filters}`, size: PER_SEARCH }));
       if (plan.searches[0]) {
         const core = plan.searches[0].query;
@@ -130,7 +130,7 @@
       if (papers.size < 3) throw new Error('Too few papers found. Try broader words, or a shorter question.');
 
       // 2. Screen: the most relevant abstracts, in batches, against the question.
-      const rank = (a) => (score.get(a.id) || 0) * (1 + 0.12 * (D.studyType(a).rank || 0)) * (D.dermJournal(a) ? 1.3 : 1);
+      const rank = (a) => (score.get(a.id) || 0) * (1 + 0.12 * (D.studyType(a).rank || 0)) * (D.keyJournal(a) ? 1.25 : 1) + Math.log10(1 + (a.citedBy || 0)) * 0.35;
       const pool = [...papers.values()].sort((x, y) => rank(y) - rank(x)).slice(0, TO_SCREEN);
       const screenLine = { label: 'AI screening abstracts against the question', n: `0/${pool.length}` };
       st.lines.push(screenLine);

@@ -25,8 +25,9 @@
   function q(question, { types = [], extra = '', years = 'any', sort = '', treat = true } = {}) {
     // The planned search (synonyms, the terms papers use) when there is one, else the question's words.
     const core = planCore(question);
-    // The skin filter applies to planned searches too, unless they are already about skin disease.
-    let s = D.buildQuery({ q: core || question, derm: true, types, years, oa: false, preprints: false });
+    // Planned searches name the condition and its synonyms already: no skin filter on top (it dropped
+    // landmark trials published in rheumatology or general journals, e.g. bosentan for digital ulcers).
+    let s = D.buildQuery({ q: core || question, derm: !core, types, years, oa: false, preprints: false });
     if (extra) s = `(${s}) AND ${extra}`;
     // Treatment questions get treatment papers, not side-effect reports (unless safety is asked).
     if (treat && isTreatmentQ(question)) s = `(${s}) AND ${TREAT}`;
@@ -121,8 +122,7 @@
       score.set(a.id, (score.get(a.id) || 0) + w / (1 + i / 6));
     });
     const steps = await Promise.all(plan.searches.map(async (sp, i) => {
-      const skin = D.DERM_WORDS.test(sp.query) ? '' : ` AND ${D.DERM_FILTER}`;
-      const base = `(${sp.query})${skin} AND HAS_ABSTRACT:y NOT SRC:PPR${noCase ? ' NOT PUB_TYPE:"Case Reports"' : ''} ${D.NOISE}`;
+      const base = `(${sp.query}) AND HAS_ABSTRACT:y NOT SRC:PPR${noCase ? ' NOT PUB_TYPE:"Case Reports"' : ''} ${D.NOISE}`;
       const [rel, cited] = await Promise.all([epmc({ query: base }, 30), i === 0 ? epmc({ query: base, sort: 'CITED desc' }, 15) : Promise.resolve(null)]);
       add(rel.results || [], i === 0 ? 1.2 : 1);
       if (cited) add(cited.results || [], 0.8);
@@ -131,7 +131,8 @@
       return step;
     }));
     // Dermatology journals first: the same trial reported in JAAD outranks a general journal's mention.
-    const rank = (a) => (score.get(a.id) || 0) * (1 + 0.12 * (D.studyType(a).rank || 0)) * (D.dermJournal(a) ? 1.35 : 1) + Math.log10(1 + (a.citedBy || 0)) * 0.15;
+    // Relevance × design × leading journal, plus citations (landmark trials are the most cited).
+    const rank = (a) => (score.get(a.id) || 0) * (1 + 0.12 * (D.studyType(a).rank || 0)) * (D.keyJournal(a) ? 1.25 : 1) + Math.log10(1 + (a.citedBy || 0)) * 0.35;
     const list = [...papers.values()].sort((x, y) => rank(y) - rank(x));
     return { plan, steps, total: papers.size, retrieved: steps.reduce((n, x) => n + x.hit, 0), papers: list.slice(0, size) };
   }
@@ -251,7 +252,10 @@
   function bestRefs(refs, n = 24) {
     if (refs.length <= n) return refs;
     const len = refs.length;
-    const score = (r, i) => (r.kind === 'trial' ? 9 : D.studyType(r.a).rank * 2 + ((+r.a.year || 0) >= D.THIS_YEAR - 3 ? 1.5 : 0) + (D.dermJournal(r.a) ? 2 : 0)) + (1 - i / len) * 3;
+    // Design, recency, leading journal, citations (landmark RCTs), and the guideline / most-cited
+    // buckets (the evidence a clinician expects to see) always near the top.
+    const score = (r, i) => (r.kind === 'trial' ? 9 : D.studyType(r.a).rank * 2 + ((+r.a.year || 0) >= D.THIS_YEAR - 3 ? 1 : 0) + (D.keyJournal(r.a) ? 1.5 : 0)
+      + Math.log10(1 + (r.a.citedBy || 0)) * 1.5 + (/^(Most cited|Guidelines)/.test(r.bucket || '') ? 3 : 0)) + (1 - i / len) * 3;
     const ranked = refs.map((r, i) => ({ r, s: score(r, i) })).sort((x, y) => y.s - x.s);
     const out = [];
     let trials = 0;
@@ -293,7 +297,9 @@
    */
   const STANDARD = 'Completeness matters as much as citations. For management, treatment or diagnosis questions, never leave out an established, '
     + 'guideline-recommended mainstay just because the provided sources do not mention it (for example isotretinoin for severe, nodular or scarring acne, '
-    + 'or acne not responding to oral antibiotics). Put it in its proper place, marked "(established practice; not in the sources found)", with no citation number, '
+    + 'or acne not responding to oral antibiotics; bosentan to prevent new digital ulcers in systemic sclerosis). Before writing, recall what the current major guidelines '
+    + 'for this question recommend (EULAR, ACR, AAD, BAD, EADV/EDF, NICE, IADVL, as relevant) and check that every option they recommend appears in the bottom line or the sections. '
+    + 'Put any the sources do not cover in its proper place, marked "(established practice; not in the sources found)", with no citation number, '
     + 'and never invent study results, numbers or references for it.';
   const CITE_SYSTEM = 'You are a meticulous dermatology evidence analyst. Use ONLY the numbered sources provided. '
     + 'Every factual claim must cite its sources with their numbers, like [3] or [2, 5]. Never write "studies show" without citations. '
@@ -646,7 +652,7 @@
 
   async function synth(question, refs, ctx) {
     const out = $('#ev-out');
-    const ck = 'synth3.' + question.toLowerCase();
+    const ck = 'synth4.' + question.toLowerCase();
     let r = cacheGet(ck);
     const use = bestRefs(refs);
     if (!r) {

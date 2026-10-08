@@ -422,7 +422,7 @@
     if (!answerable(question)) { el.remove(); return; }
     if (!D.aiHasKey()) { el.innerHTML = ''; return; }
     const live = () => el.isConnected;
-    const key = 'answer6.' + question.toLowerCase().trim();
+    const key = 'answer7.' + question.toLowerCase().trim();
     // The answer is written as it comes (like Consensus): searches first (a second or two), then
     // the cited answer streams in; quotes and follow-up suggestions come at its end.
     const splitTail = (t) => { const i = t.search(/\n\s*\**QUOTES:?\**/i); return i < 0 ? { body: t, tail: '' } : { body: t.slice(0, i), tail: t.slice(i) }; };
@@ -503,7 +503,7 @@
       if (recent && (rel.results || []).length < 4) rel = await I.epmc({ ...I.q(question), query: relQuery.replace(/ AND PUB_YEAR:\[[^\]]+\]/, '') }, 25).catch(() => rel);
       const seen = new Set();
       // The 25 most relevant, dermatology journals first (keeping relevance order within each).
-      const relList = (rel.results || []).map((a, i) => ({ a, s: i - (D.dermJournal(a) ? 8 : 0) })).sort((x, y) => x.s - y.s).map((x) => x.a);
+      const relList = (rel.results || []).map((a, i) => ({ a, s: i - (D.keyJournal(a) ? 6 : 0) - Math.min(6, Math.log10(1 + (a.citedBy || 0)) * 2) })).sort((x, y) => x.s - y.s).map((x) => x.a);
       let eligible = [...(guides.results || []), ...relList].filter((a) => a.abstract && !seen.has(a.id) && seen.add(a.id));
       let retrieved = (rel.hit || 0) + (guides.hit || 0);
       let rows = [{ label: question, hit: rel.hit || 0 }, { label: 'Guidelines and consensus statements, last 6 years', hit: guides.hit || 0 }];
