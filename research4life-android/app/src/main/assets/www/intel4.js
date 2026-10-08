@@ -422,7 +422,7 @@
     if (!answerable(question)) { el.remove(); return; }
     if (!D.aiHasKey()) { el.innerHTML = ''; return; }
     const live = () => el.isConnected;
-    const key = 'answer7.' + question.toLowerCase().trim();
+    const key = 'answer8.' + question.toLowerCase().trim();
     // The answer is written as it comes (like Consensus): searches first (a second or two), then
     // the cited answer streams in; quotes and follow-up suggestions come at its end.
     const splitTail = (t) => { const i = t.search(/\n\s*\**QUOTES:?\**/i); return i < 0 ? { body: t, tail: '' } : { body: t.slice(0, i), tail: t.slice(i) }; };
@@ -487,7 +487,7 @@
     el.innerHTML = frame('searching…', { retrieved: null, eligible: null, included: null, rows: [{ label: question }, { label: 'Guidelines and consensus statements, last 6 years' }] }, I.busyHtml('Searching the literature…'));
     // Shaped by what is asked: treatment options only for treatment questions.
     const shape = /\b(treat|treatment|therap|management|manage|drug|dose|regimen|first[- ]line|second[- ]line|options? for)/i.test(question)
-      ? 'For treatment: sections such as "First-line", "Second-line / refractory", "Procedures and devices", "Maintenance", "Special situations", and a table (treatment | evidence | key result | notes).'
+      ? 'For treatment (the whole management): sections such as "General measures and prevention", "First-line", "Second-line / refractory", "Procedures and surgery", "Maintenance", "Special situations", and a table (treatment | what it does: prevents / heals / controls | evidence | key result | notes).'
       : /\b(dermoscop|dermatoscop|trichoscop|onychoscop|capillaroscop)/i.test(question)
         ? 'For dermoscopy: one section per condition with its dermoscopic features, and a table comparing them (condition | structures | vessels | colours | clues). No treatment.'
         : 'Use the sections the question needs (e.g. criteria, features, differentials, investigations, causes, prognosis), with a table where it helps. No treatment section unless asked.';

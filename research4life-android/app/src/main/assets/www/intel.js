@@ -33,7 +33,8 @@
     if (treat && isTreatmentQ(question)) s = `(${s}) AND ${TREAT}`;
     return { query: s, sort };
   }
-  const TREAT = '((TITLE_ABS:treatment OR TITLE_ABS:therapy OR TITLE_ABS:therapies OR TITLE_ABS:efficacy OR TITLE_ABS:management OR TITLE_ABS:treated) NOT TITLE:"adverse" NOT TITLE:"side effect" NOT TITLE:"side effects" NOT TITLE:"safety" NOT TITLE:"induced" NOT TITLE:"toxicity" NOT TITLE:"pharmacovigilance" NOT TITLE:"associated with")';
+  // "Treatment" in a question means the whole management: prevention, healing, drugs, procedures, surgery.
+  const TREAT = '((TITLE_ABS:treatment OR TITLE_ABS:therapy OR TITLE_ABS:therapies OR TITLE_ABS:efficacy OR TITLE_ABS:management OR TITLE_ABS:treated OR TITLE_ABS:prevent* OR TITLE_ABS:prophyla* OR TITLE_ABS:surgery OR TITLE_ABS:surgical OR TITLE_ABS:procedure* OR TITLE_ABS:healing) NOT TITLE:"adverse" NOT TITLE:"side effect" NOT TITLE:"side effects" NOT TITLE:"safety" NOT TITLE:"induced" NOT TITLE:"toxicity" NOT TITLE:"pharmacovigilance" NOT TITLE:"associated with")';
   const isTreatmentQ = (x) => /\b(treat|treatment|treating|therap|management|manage|best (drug|option)|first[- ]line|second[- ]line|efficacy|options? for|how to (treat|manage))/i.test(x) && !/\b(side effects?|adverse|safety|toxicit|risk of|induced|complication)/i.test(x);
   const GUIDE = '(PUB_TYPE:"Guideline" OR PUB_TYPE:"Practice Guideline" OR TITLE:guideline* OR TITLE:"consensus statement" OR TITLE:"expert consensus" OR TITLE:recommendations)';
   const OBS = '(TITLE_ABS:cohort OR TITLE_ABS:"case-control" OR TITLE_ABS:"cross-sectional" OR TITLE_ABS:registry OR TITLE_ABS:"real-world")';
@@ -47,7 +48,7 @@
   // The Evidence Map, the Consensus meter and search all use the same plan, so they agree.
   const PLAN_SYSTEM = 'You are an expert medical librarian who builds PubMed/Europe PMC searches for dermatology questions.';
   const plans = new Map();
-  const planKey = (question) => 'plan2.' + question.toLowerCase().replace(/\s+/g, ' ').trim();
+  const planKey = (question) => 'plan3.' + question.toLowerCase().replace(/\s+/g, ' ').trim();
   const YESNO_Q = /^(does|do|did|is|are|was|were|can|could|should|will|would|has|have|had|may|might)\b/i;
   /** One term as a title/abstract condition (a trailing * matches word endings). */
   function absTerm(t) {
@@ -85,6 +86,7 @@
           + '- topic: a 3-6 word label.\n'
           + '- searches: 2 to 4 searches. Each search is a list of concept groups that must ALL appear in a paper\'s title or abstract. Each group lists 1-10 alternative terms: synonyms, the words papers actually use, British and US spellings, key genes, drugs, tests or scores; a trailing * matches word endings (heritab*, twin*). Usually 2 groups per search, never more than 3. '
           + 'The first search is the broad core one: the condition (with its variants) AND the main concept with all its synonyms. The others cover distinct angles a good review would search. '
+          + 'For treatment or management questions the angles include prevention (prevent*, prophyla*, recurrence), the main drug classes and named drugs used for it, and procedures or surgery. '
           + 'Never use generic words like role, effect, impact, evidence, patients, study, association as a group. '
           + 'Each search has a label: its terms in a few plain words, e.g. "psoriasis heritability, twins, family history" (never "core" or "angle").\n'
           + 'Example for "Role of inheritance in psoriasis?": core [["psoriasis","psoriatic"],["inheritance","heritab*","familial","family history","genetic*","twin*","susceptibility loci"]]; '
@@ -295,7 +297,9 @@
    * Completeness: a search finds some papers, not all of medicine. An answer that drops a standard
    * treatment because no paper in this batch mentions it (isotretinoin in acne) is wrong for a clinician.
    */
-  const STANDARD = 'Completeness matters as much as citations. For management, treatment or diagnosis questions, never leave out an established, '
+  const STANDARD = 'Completeness matters as much as citations. Read "treatment" or "management" in a question broadly: prevention of new lesions or flares, '
+    + 'healing or control of existing ones, drugs, procedures and surgery, wound or supportive care, and lifestyle measures; an option that only prevents is still part of the treatment. '
+    + 'For management, treatment or diagnosis questions, never leave out an established, '
     + 'guideline-recommended mainstay just because the provided sources do not mention it (for example isotretinoin for severe, nodular or scarring acne, '
     + 'or acne not responding to oral antibiotics; bosentan to prevent new digital ulcers in systemic sclerosis). Before writing, recall what the current major guidelines '
     + 'for this question recommend (EULAR, ACR, AAD, BAD, EADV/EDF, NICE, IADVL, as relevant) and check that every option they recommend appears in the bottom line or the sections. '
@@ -658,7 +662,7 @@
 
   async function synth(question, refs, ctx) {
     const out = $('#ev-out');
-    const ck = 'synth4.' + question.toLowerCase();
+    const ck = 'synth5.' + question.toLowerCase();
     let r = cacheGet(ck);
     const use = bestRefs(refs);
     if (!r) {
@@ -669,7 +673,7 @@
           + 'For management or treatment questions the bottom line names the overall approach by severity, including every established mainstay '
           + '(e.g. for acne: topical retinoids and benzoyl peroxide, oral antibiotics, hormonal therapy, and isotretinoin for severe, scarring or resistant acne), '
           + 'even ones the sources found do not cover; it must never read as if a standard option does not exist. '
-          + 'Choose sections that fit the question. Treatment questions: "What the guidelines say", "What the strongest evidence shows", "Efficacy in numbers", "Safety", "Ongoing trials and what is coming", "What has changed recently". '
+          + 'Choose sections that fit the question. Treatment or management questions cover prevention, healing, drugs, procedures and surgery: "What the guidelines say", "Prevention", "What the strongest evidence shows", "Procedures and surgery", "Efficacy in numbers", "Safety", "Ongoing trials and what is coming", "What has changed recently". '
           + 'Cause, risk, genetics, epidemiology or mechanism questions: "Key findings", "How strong the evidence is" (twin, family, cohort, genetic or meta-analytic data with numbers), "Mechanisms", "Clinical relevance", "Open questions". '
           + 'Skip any section the sources don\'t cover; never write a point only to say a source type is missing. '
           + 'Rate strength by what the sources show about the question: many consistent studies stating the same established fact is strong, even without trials. '
