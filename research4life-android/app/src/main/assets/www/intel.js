@@ -34,7 +34,7 @@
     return { query: s, sort };
   }
   // "Treatment" in a question means the whole management: prevention, healing, drugs, procedures, surgery.
-  const TREAT = '((TITLE_ABS:treatment OR TITLE_ABS:therapy OR TITLE_ABS:therapies OR TITLE_ABS:efficacy OR TITLE_ABS:management OR TITLE_ABS:treated OR TITLE_ABS:prevent* OR TITLE_ABS:prophyla* OR TITLE_ABS:surgery OR TITLE_ABS:surgical OR TITLE_ABS:procedure* OR TITLE_ABS:healing) NOT TITLE:"adverse" NOT TITLE:"side effect" NOT TITLE:"side effects" NOT TITLE:"safety" NOT TITLE:"induced" NOT TITLE:"toxicity" NOT TITLE:"pharmacovigilance" NOT TITLE:"associated with")';
+  const TREAT = '((TITLE_ABS:treatment OR TITLE_ABS:therapy OR TITLE_ABS:therapies OR TITLE_ABS:efficacy OR TITLE_ABS:management OR TITLE_ABS:treated OR TITLE_ABS:prevent* OR TITLE_ABS:prophyla* OR TITLE_ABS:surgery OR TITLE_ABS:surgical OR TITLE_ABS:procedure* OR TITLE_ABS:healing) NOT TITLE:"adverse" NOT TITLE:"side effect" NOT TITLE:"side effects" NOT TITLE:"safety" NOT TITLE:"induced" NOT TITLE:"toxicity" NOT TITLE:"pharmacovigilance")';
   const isTreatmentQ = (x) => /\b(treat|treatment|treating|therap|management|manage|best (drug|option)|first[- ]line|second[- ]line|efficacy|options? for|how to (treat|manage))/i.test(x) && !/\b(side effects?|adverse|safety|toxicit|risk of|induced|complication)/i.test(x);
   const GUIDE = '(PUB_TYPE:"Guideline" OR PUB_TYPE:"Practice Guideline" OR TITLE:guideline* OR TITLE:"consensus statement" OR TITLE:"expert consensus" OR TITLE:recommendations)';
   const OBS = '(TITLE_ABS:cohort OR TITLE_ABS:"case-control" OR TITLE_ABS:"cross-sectional" OR TITLE_ABS:registry OR TITLE_ABS:"real-world")';
@@ -297,7 +297,13 @@
    * Completeness: a search finds some papers, not all of medicine. An answer that drops a standard
    * treatment because no paper in this batch mentions it (isotretinoin in acne) is wrong for a clinician.
    */
-  const STANDARD = 'Completeness matters as much as citations. Read "treatment" or "management" in a question broadly: prevention of new lesions or flares, '
+  // How every cited answer should think: like an experienced dermatologist, open and inclusive,
+  // never narrowed to the literal words of the question.
+  const STANDARD = 'Answer the way an experienced dermatologist would: read the question generously and think about what a clinician asking it needs to know. '
+    + 'Be inclusive, not literal: cover everything relevant around the question (the full range of options, how they compare, who they suit, special populations, '
+    + 'adjuncts, practical points, newer options and where evidence is still evolving); when a source addresses a related aspect, include it and say how it relates '
+    + 'instead of leaving it out. Weigh the evidence thoughtfully and say where it is strong, weak or uncertain. '
+    + 'Completeness matters as much as citations. Read "treatment" or "management" in a question broadly: prevention of new lesions or flares, '
     + 'healing or control of existing ones, drugs, procedures and surgery, wound or supportive care, and lifestyle measures; an option that only prevents is still part of the treatment. '
     + 'For management, treatment or diagnosis questions, never leave out an established, '
     + 'guideline-recommended mainstay just because the provided sources do not mention it (for example isotretinoin for severe, nodular or scarring acne, '
@@ -662,7 +668,7 @@
 
   async function synth(question, refs, ctx) {
     const out = $('#ev-out');
-    const ck = 'synth5.' + question.toLowerCase();
+    const ck = 'synth6.' + question.toLowerCase();
     let r = cacheGet(ck);
     const use = bestRefs(refs);
     if (!r) {

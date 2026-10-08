@@ -422,7 +422,7 @@
     if (!answerable(question)) { el.remove(); return; }
     if (!D.aiHasKey()) { el.innerHTML = ''; return; }
     const live = () => el.isConnected;
-    const key = 'answer8.' + question.toLowerCase().trim();
+    const key = 'answer9.' + question.toLowerCase().trim();
     // The answer is written as it comes (like Consensus): searches first (a second or two), then
     // the cited answer streams in; quotes and follow-up suggestions come at its end.
     const splitTail = (t) => { const i = t.search(/\n\s*\**QUOTES:?\**/i); return i < 0 ? { body: t, tail: '' } : { body: t.slice(0, i), tail: t.slice(i) }; };
@@ -495,6 +495,9 @@
       // "New", "latest", "recent", "emerging"…: the last few years only, so the answer is about what is new.
       const recent = /\b(new|newer|newest|latest|recent|recently|emerging|novel|upcoming|update[sd]?|advances?|current trends?|20[2-3]\d)\b/i.test(question);
       const relQuery = `(${I.q(question).query}) AND HAS_ABSTRACT:y NOT SRC:PPR NOT PUB_TYPE:"Case Reports"${recent ? ` AND PUB_YEAR:[${yr - 4} TO ${yr}]` : ''}`;
+      // The AI-planned searches (synonyms, the terms papers use, several angles) start at the same
+      // time and join the quick search when ready, so answers draw on the whole topic.
+      const poolP = I.evidencePool(question, { size: 14 }).catch(() => null);
       let [rel, guides] = await Promise.all([
         I.epmc({ ...I.q(question), query: relQuery }, 25).catch(() => ({ results: [] })),
         I.epmc(I.q(question, { extra: `${I.GUIDE} AND PUB_YEAR:[${yr - 6} TO ${yr}]` }), 5).catch(() => ({ results: [] })),
@@ -507,24 +510,29 @@
       let eligible = [...(guides.results || []), ...relList].filter((a) => a.abstract && !seen.has(a.id) && seen.add(a.id));
       let retrieved = (rel.hit || 0) + (guides.hit || 0);
       let rows = [{ label: question, hit: rel.hit || 0 }, { label: 'Guidelines and consensus statements, last 6 years', hit: guides.hit || 0 }];
-      // The question's own words found too little (rare names, misspellings, many terms): the
-      // AI-planned searches the Evidence Map uses (synonyms, the terms papers use, several angles).
-      if (eligible.length < 4) {
-        if (live()) el.innerHTML = frame('', { retrieved, eligible: eligible.length, included: 0, rows }, I.busyHtml('Few papers with those exact words: planning a wider search…'));
-        const pool = await I.evidencePool(question, { size: 14 }).catch(() => null);
-        if (pool?.papers?.length) {
-          eligible = [...eligible, ...pool.papers].filter((a, i, all) => a.abstract && all.findIndex((x) => x.id === a.id) === i);
-          retrieved += pool.retrieved || 0;
-          rows = [...rows, ...pool.steps.map((x) => ({ label: x.label, hit: x.hit || 0 }))];
+      // Wait for the planned searches: up to 4 s when the quick search found plenty, as long as
+      // needed when it found too little (rare names, misspellings, many terms).
+      if (eligible.length < 4 && live()) el.innerHTML = frame('', { retrieved, eligible: eligible.length, included: 0, rows }, I.busyHtml('Few papers with those exact words: widening the search…'));
+      const pool = eligible.length < 4 ? await poolP : await Promise.race([poolP, new Promise((r) => setTimeout(() => r(null), 4000))]);
+      if (pool?.papers?.length) {
+        // Interleave: the quick search's best and the planned searches' best, so both views count.
+        const quick = eligible;
+        const merged = [];
+        for (let i = 0; merged.length < quick.length + pool.papers.length && (i < quick.length || i < pool.papers.length); i++) {
+          if (quick[i]) merged.push(quick[i]);
+          if (pool.papers[i]) merged.push(pool.papers[i]);
         }
+        eligible = merged.filter((a, i, all) => a.abstract && all.findIndex((x) => x.id === a.id) === i);
+        retrieved += pool.retrieved || 0;
+        rows = [...rows, ...pool.steps.map((x) => ({ label: x.label, hit: x.hit || 0 }))];
       }
-      const papers = eligible.slice(0, 14);
+      const papers = eligible.slice(0, 18);
       const steps = { retrieved, eligible: eligible.length, included: papers.length, rows: [...rows, { label: 'Read abstracts', hit: papers.length, read: true }] };
       if (papers.length < 2) { if (live()) el.innerHTML = frame('', steps, '<p class="muted small">Not enough papers found to answer this from the literature. Try other words.</p>'); return; }
       const refs = papers.map((a, i) => ({ kind: 'paper', a, type: D.studyType(a).label, n: i + 1 }));
       const ctx = I.newCtx(refs);
       if (live()) { el.innerHTML = frame(`reading ${refs.length} papers…`, steps, I.busyHtml('Writing the answer…')); rollUp(); }
-      const doc = refs.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 600)}`).join('\n\n');
+      const doc = refs.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 520)}`).join('\n\n');
       const text = await D.ai(`QUESTION: ${question}\n\n`
         + 'Answer exactly this question for a dermatologist, like a short up-to-date review, using only these papers (guidelines and consensus statements first; prefer the newest guidance and strongest evidence). '
         + 'The first line must answer the question as asked, including its qualifiers (new, in children, in pregnancy, refractory, first-line…), not a general statement about the topic. '
@@ -534,7 +542,7 @@
         + '2. A short paragraph (2-3 sentences) explaining it, with the key terms in **bold**.\n'
         + '3. 2 to 4 "## " sections with headings that fit the question, short paragraphs or bullets, and one compact Markdown table where it helps. ' + shape + '\n'
         + '4. If the papers include guidelines or consensus statements: "## Current guidelines" with what they recommend.\n'
-        + 'Every claim from the papers cites them like [3] or [2, 5]; keep numbers exactly as reported; never invent studies or numbers; say plainly where evidence is limited. For management questions, cover the full standard approach (first line to advanced options) even where the papers found do not. About 300-450 words. No preamble.\n'
+        + 'Every claim from the papers cites them like [3] or [2, 5]; keep numbers exactly as reported; never invent studies or numbers; say plainly where evidence is limited. For management questions, cover the full standard approach (first line to advanced options, prevention to surgery) even where the papers found do not. About 350-550 words. No preamble.\n'
         + 'Then, after the answer, exactly these two blocks:\nQUOTES:\n[n] "the one sentence from paper n\'s abstract that best supports the answer" (for the 5-8 papers you cite most)\nFOLLOWUPS:\n- three short follow-up questions a dermatologist would likely ask next',
         { doc, system: 'You are a careful dermatology evidence writer. Every claim taken from the numbered papers cites them; never invent studies or numbers. ' + I.STANDARD, max: 2200, fast: true,
           onPartial: (t) => {
