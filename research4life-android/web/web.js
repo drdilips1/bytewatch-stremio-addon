@@ -178,8 +178,8 @@
     const chosen = provider();
     if (!imageOnly || chosen !== 'claude') order.push(chosen);
     if (auto()) {
-      // OpenRouter (free model, then credit) comes after both free AIs.
-      for (const p of ['groq', 'gemini', 'openrouter']) if (!order.includes(p) && keyFor(p)) order.push(p);
+      // Groq, then Claude when its key is saved (the owner's choice), then Gemini, then OpenRouter.
+      for (const p of ['groq', 'claude', 'gemini', 'openrouter']) if (!order.includes(p) && keyFor(p)) order.push(p);
       if (docChars > 60000 && order.includes('gemini') && keyFor('gemini')) { order.splice(order.indexOf('gemini'), 1); order.unshift('gemini'); }
     }
     return order;
@@ -831,7 +831,7 @@
       const p = k.startsWith('sk-ant-') ? 'claude' : k.startsWith('sk-or-') ? 'openrouter' : k.startsWith('gsk_') ? 'groq' : k.startsWith('AIza') ? 'gemini' : known(selected || provider());
       ls.set('ai.key.' + p, k);
       // OpenRouter is the back-up after the free Groq and Gemini: they stay selected (choosing its tab to add the key selected it).
-      const backup = p === 'openrouter' && auto() && (keyFor('groq') || keyFor('gemini'));
+      const backup = (p === 'openrouter' || p === 'claude') && auto() && (keyFor('groq') || keyFor('gemini'));
       ls.set('ai.provider', backup ? (keyFor('groq') ? 'groq' : 'gemini') : p);
     },
     aiModel: () => modelFor(provider()),

@@ -539,7 +539,8 @@
     // Known prefixes pick the AI; anything else (e.g. Google's newer key formats) goes to the AI selected above.
     Native.aiSetKey(v, provider());
     ext.secretsChanged?.();
-    toast(/^sk-or-/.test(v) && provider() !== 'openrouter' ? 'OpenRouter key saved · answers when Groq and Gemini are busy' : 'Key saved');
+    toast(/^sk-or-/.test(v) && provider() !== 'openrouter' ? 'OpenRouter key saved · answers when Groq and Gemini are busy'
+      : /^sk-ant-/.test(v) && provider() !== 'claude' ? 'Claude key saved · answers when Groq is busy' : 'Key saved');
     if (hubState) drawHub(); else closeSheet(true);
     if (D.current.name === 'settings') render();
     if (/^gsk_/.test(v)) Native.aiListModels?.();
@@ -1391,7 +1392,7 @@ Use only the document; vary difficulty.`, docOpts(src, { focus: 'summary', schem
       ${prov === 'openrouter' ? '<p class="muted small">OpenRouter is the back-up: it answers only when Groq and Gemini are busy or at their limit. Its free model allows 50 requests a day (1,000 once you have bought $10 of credit); when it is busy, the paid version answers from your credit. Without credit, nothing is ever charged.</p>' : ''}
       ${prov === 'groq' ? '<p class="muted small">Groq is very fast and has a free tier (about 8,000 tokens a minute, 200,000 a day). When a document is bigger than that, the app sends the most relevant parts — the answer says so.</p>' : ''}
       ${Native.aiAuto ? `<div class="acc-card"><div class="acc-ico">${icon('spark')}</div>
-        <div class="body"><b>Use Groq + Gemini together</b><span>${auto ? 'On' : 'Off'} · Groq key ${keyFor('groq') ? '✓' : '—'} · Gemini key ${keyFor('gemini') ? '✓' : '—'} · OpenRouter key ${keyFor('openrouter') ? '✓' : '—'}. When one hits its free limit or is busy, the other answers; long documents go to Gemini first; OpenRouter answers when both are busy.</span></div>
+        <div class="body"><b>Use Groq + Gemini together</b><span>${auto ? 'On' : 'Off'} · Groq key ${keyFor('groq') ? '✓' : '—'} · Gemini key ${keyFor('gemini') ? '✓' : '—'} · Claude key ${keyFor('claude') ? '✓' : '—'} · OpenRouter key ${keyFor('openrouter') ? '✓' : '—'}. Order: Groq, then Claude (paid, when its key is saved), then Gemini, then OpenRouter; long documents go to Gemini first.</span></div>
         <button class="btn xs ${auto ? 'primary' : ''}" data-act="ai-auto">${auto ? 'On' : 'Off'}</button></div>
       <p class="muted small">Tip: save a key for each — tap Groq above and add its key, then tap Gemini and add its key. The selected one is used first.</p>` : ''}
       ${Native.aiTest ? '<button class="btn full" style="margin:8px 0" data-act="ai-test">Test AI connection</button><pre class="trail" id="ai-test-out" hidden></pre>' : ''}

@@ -956,7 +956,7 @@ public class MainActivity extends Activity {
             // OpenRouter is the back-up after the free Groq and Gemini: they stay selected (choosing
             // its tab to add the key selected it).
             boolean groq = R4LSession.hasCredentials(MainActivity.this, "groq");
-            boolean backup = "openrouter".equals(p) && aiAuto() && (groq || R4LSession.hasCredentials(MainActivity.this, "gemini"));
+            boolean backup = ("openrouter".equals(p) || "claude".equals(p)) && aiAuto() && (groq || R4LSession.hasCredentials(MainActivity.this, "gemini"));
             aiSetProvider(backup ? (groq ? "groq" : "gemini") : p);
         }
 
@@ -1063,7 +1063,8 @@ public class MainActivity extends Activity {
             String chosen = provider();
             if (!imageOnly || !"claude".equals(chosen)) order.add(chosen);
             if (aiAuto()) {
-                for (String p : new String[]{"groq", "gemini", "openrouter"}) {
+                // Groq, then Claude when its key is saved (the owner's choice), then Gemini, then OpenRouter.
+                for (String p : new String[]{"groq", "claude", "gemini", "openrouter"}) {
                     if (!order.contains(p) && R4LSession.hasCredentials(MainActivity.this, p)) order.add(p);
                 }
                 if (docChars > 60000 && order.remove("gemini") && R4LSession.hasCredentials(MainActivity.this, "gemini")) order.add(0, "gemini");
