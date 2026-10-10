@@ -75,7 +75,7 @@ object Renderer {
      * joined), so playback starts fast and can step back a sentence at a time.
      */
     fun pieces(paragraph: String, voiceId: String): List<String> =
-        TextCleaner.pieces(paragraph, 50, hardMax = if (LocalTts.isLocal(voiceId)) 300 else 900)
+        TextCleaner.pieces(paragraph, 50, hardMax = if (LocalTts.isLocal(voiceId)) 200 else 900)
 
     private fun dir(context: Context) = File(context.filesDir, "audiocache").apply { mkdirs() }
 
@@ -88,6 +88,15 @@ object Renderer {
 
     fun isCached(context: Context, v: Voicing, speed: Float, text: String) = file(context, v, speed, text).length() > 0
 
+    /** A render in progress and how many callers wait for it. */
+    private class Flight(val job: Deferred<File>) {
+        var waiters = 0
+    }
+
+    /** Renders running now, by target file: a second request for the same audio waits for the first. */
+    private val inFlight = HashMap<String, Flight>()
+    private val work = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     /** Returns the audio for [text], rendering it if it isn't cached yet. */
     suspend fun render(context: Context, v: Voicing, speed: Float, text: String): File {
         val target = file(context, v, speed, text)
@@ -95,6 +104,29 @@ object Renderer {
             target.setLastModified(System.currentTimeMillis())
             return target
         }
+        val key = target.path
+        val flight = synchronized(inFlight) {
+            inFlight.getOrPut(key) {
+                val d = work.async(start = kotlinx.coroutines.CoroutineStart.LAZY) { renderNow(context, v, speed, text, target) }
+                Flight(d).also { f -> d.invokeOnCompletion { synchronized(inFlight) { if (inFlight[key] === f) inFlight.remove(key) } } }
+            }.also { it.waiters++ }
+        }
+        flight.job.start()
+        try {
+            return flight.job.await()
+        } finally {
+            // Nobody needs it any more (e.g. after a seek): don't keep the voice engine busy with it.
+            // A short grace lets Play pick up what the warm-up started.
+            val last = synchronized(inFlight) { --flight.waiters == 0 }
+            if (last && !flight.job.isCompleted) work.launch {
+                kotlinx.coroutines.delay(500)
+                if (synchronized(inFlight) { flight.waiters == 0 }) flight.job.cancel()
+            }
+        }
+    }
+
+    private suspend fun renderNow(context: Context, v: Voicing, speed: Float, text: String, target: File): File {
+        if (target.length() > 0) return target
         val segments = v.dialogue?.let { Stories.split(text) }
         if (segments != null && segments.size > 1) {
             // Narration and dialogue in their own voices, joined into one file.
@@ -114,13 +146,39 @@ object Renderer {
                 withContext(localThread) { LocalTts.writeWav(tmp, LocalTts.synthesize(voice, spoken, es, v.lang)) }
             } else {
                 val rate = ((es - 1f) * 100).roundToInt().coerceIn(-50, 200)
-                withContext(Dispatchers.IO) { tmp.writeBytes(EdgeTts.synthesize(spoken, voice.removePrefix(Speaker.EDGE), rate, v.pitch)) }
+                tmp.writeBytes(hedged(spoken.length) { EdgeTts.synthesize(spoken, voice.removePrefix(Speaker.EDGE), rate, v.pitch) })
             }
             if (!tmp.renameTo(target)) error("Couldn't save audio")
         } finally {
             tmp.delete()
         }
         return target
+    }
+
+    /**
+     * Runs [request] (a blocking network call); if it hasn't answered within a few
+     * seconds, sends the same request again and takes whichever answers first. A
+     * stuck connection then costs a few seconds instead of a long silence.
+     */
+    private suspend fun hedged(chars: Int, request: () -> ByteArray): ByteArray = coroutineScope {
+        val waitMs = 3_500L + chars * 15L
+        val first = async(Dispatchers.IO) { runCatching(request) }
+        val early = kotlinx.coroutines.withTimeoutOrNull(waitMs) { first.await() }
+        if (early != null && early.isSuccess) return@coroutineScope early.getOrThrow()
+        val second = async(Dispatchers.IO) { runCatching(request) }
+        if (early != null) return@coroutineScope second.await().getOrThrow() // the first failed fast
+        // Whichever succeeds first; an error only if both fail.
+        val winner = kotlinx.coroutines.selects.select<Result<ByteArray>> {
+            first.onAwait { it }
+            second.onAwait { it }
+        }
+        if (winner.isSuccess) {
+            first.cancel()
+            second.cancel()
+            return@coroutineScope winner.getOrThrow()
+        }
+        val other = if (first.isCompleted) second.await() else first.await()
+        other.getOrThrow()
     }
 
     /** Joins MP3 pieces (frames simply follow each other) or WAV pieces (same format). */

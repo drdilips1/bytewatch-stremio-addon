@@ -39,7 +39,7 @@ object Speaker {
     const val CLONE = "clone:"
     const val DEFAULT_VOICE = EDGE + "en-US-AndrewMultilingualNeural"
     private const val LOOKAHEAD = 3
-    private const val PIECE_LOOKAHEAD = 4
+    private const val PIECE_LOOKAHEAD = 5
 
     data class VoiceOption(val id: String, val label: String)
 
@@ -412,7 +412,10 @@ object Speaker {
         }
         if (isStreamed) {
             val s = stream
-            if (s != null && session?.isActive == true) s.resume() else startStreaming()
+            // After a long pause the audio output may have gone stale (other apps, Bluetooth): start afresh.
+            val fresh = System.currentTimeMillis() - pausedAt > 120_000
+            if (s != null && session?.isActive == true && !fresh && !starting) s.resume() else startStreaming()
+            watchStart()
         } else {
             if (!systemReady) {
                 lastError = if (BuildConfig.LITE) "This phone has no working text-to-speech engine. Download a natural voice (Voice) instead."
@@ -430,7 +433,25 @@ object Speaker {
         notifyChanged()
     }
 
+    private var pausedAt = Long.MAX_VALUE
+    private var watchdog: Job? = null
+
+    /** If nothing is heard 20 s after Play (a stuck request or engine), tries once more. */
+    private fun watchStart() {
+        watchdog?.cancel()
+        val g = generation
+        watchdog = scope.launch {
+            delay(20_000)
+            if (playing && starting && g == generation && lastError == null) {
+                AppLog.e("Player", "Nothing heard 20 s after Play with $voiceId; starting again")
+                startStreaming()
+            }
+        }
+    }
+
     fun pause() {
+        pausedAt = System.currentTimeMillis()
+        watchdog?.cancel()
         playing = false
         val s = stream
         if (isStreamed && s != null && session?.isActive == true) s.pause() else stopAll()

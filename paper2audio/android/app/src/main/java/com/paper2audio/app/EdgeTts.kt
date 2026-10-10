@@ -61,8 +61,8 @@ object EdgeTts {
     internal var socketBase = "wss://$BASE"
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
     /** Corrects for a phone clock that is off; the token is time-based. */
@@ -208,8 +208,8 @@ object EdgeTts {
             }
         })
 
-        // Normally a few seconds; give up sooner than before so a stuck request gets retried.
-        if (!done.await(45, TimeUnit.SECONDS)) {
+        // Normally a second or two; a stuck request is given up on (and retried) after 20 s.
+        if (!done.await(20, TimeUnit.SECONDS)) {
             ws.cancel()
             throw IOException("The voice service timed out")
         }

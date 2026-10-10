@@ -13,7 +13,7 @@ enum class Style(
     val paragraphPause: Int,
     val headingPause: Int,
 ) {
-    STANDARD("Standard", "natural pace and pauses", 1.0f, 200, 450, 800),
+    STANDARD("Standard", "natural pace and pauses", 1.0f, 160, 360, 700),
     ACADEMIC("Academic", "clear and measured, with room between sections", 0.97f, 260, 600, 1000),
     CONVERSATIONAL("Conversational", "lighter and a little quicker", 1.06f, 140, 360, 650),
     STORYTELLING("Storytelling", "unhurried, for novels and stories", 0.95f, 300, 700, 1100),
