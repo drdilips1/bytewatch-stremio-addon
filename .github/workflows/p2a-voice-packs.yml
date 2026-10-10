@@ -1,0 +1,63 @@
+name: Voice packs (fast downloads)
+
+# Repacks the on-device voice models from the sherpa-onnx release as zip files
+# split into ~100 MB parts, published to the p2a-voices release. The apps
+# download these parts (resumable, with progress per part) and unpack them
+# quickly; bzip2 archives take minutes to unpack on a phone.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/p2a-voice-packs.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repack:
+    runs-on: ubuntu-latest
+    strategy:
+      # One at a time, so the release isn't created twice.
+      max-parallel: 1
+      matrix:
+        folder:
+          - sherpa-onnx-supertonic-3-tts-int8-2026-05-11
+          - kokoro-multi-lang-v1_0
+          - sherpa-onnx-pocket-tts-int8-2026-01-26
+    steps:
+      - name: Download and repack
+        env:
+          F: ${{ matrix.folder }}
+        run: |
+          curl -fsSL -o pack.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$F.tar.bz2"
+          tar xjf pack.tar.bz2
+          rm pack.tar.bz2
+          # Files the apps never use.
+          rm -rf "$F/dict" "$F"/*.fst "$F/lexicon-zh.txt" "$F/test_wavs"
+          (cd "$F" && zip -r -6 -q "../$F.zip" .)
+          rm -rf "$F"
+          split -b 100M -d -a 3 --numeric-suffixes=1 "$F.zip" "$F.zip."
+          rm "$F.zip"
+          python3 - <<'PY'
+          import json, os
+          f = os.environ["F"]
+          parts = sorted(p for p in os.listdir(".") if p.startswith(f + ".zip."))
+          info = {"parts": [{"name": p, "size": os.path.getsize(p)} for p in parts]}
+          json.dump(info, open(f + ".json", "w"))
+          print(info)
+          PY
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: p2a-voices
+          name: Voice packs for Paper to Audio
+          prerelease: true
+          overwrite_files: true
+          files: |
+            ${{ matrix.folder }}.zip.*
+            ${{ matrix.folder }}.json
+          body: |
+            On-device voice models (from the sherpa-onnx project) repacked for quick,
+            resumable downloads inside the app. Kokoro is Apache-2.0; see each
+            model's original license in the sherpa-onnx tts-models release.

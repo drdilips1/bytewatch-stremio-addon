@@ -72,7 +72,7 @@ object Exporter {
     private fun overall(pct: Int) = (part * 100 + pct) / parts
 
     private fun progressMessage(pct: Int): String {
-        val parts = mutableListOf(if (this.parts > 1) "Saving chapter ${part + 1} of ${this.parts}… $pct%" else "Saving… $pct%")
+        val parts = mutableListOf(if (this.parts > 1) "Saving file ${part + 1} of ${this.parts}… $pct%" else "Saving… $pct%")
         if (bytesOut > 0) parts += "%.1f MB".format(bytesOut / 1_000_000.0)
         val elapsed = System.currentTimeMillis() - startedAt
         if (pct >= 2 && elapsed > 5_000) {
@@ -107,7 +107,7 @@ object Exporter {
      * folder named after the book (MP3s get title, author, track and cover tags), which
      * audiobook and music apps show as an album.
      */
-    fun start(context: Context, doc: Doc, v: Voicing, speed: Float, perChapter: Boolean = false) {
+    fun start(context: Context, doc: Doc, v: Voicing, speed: Float, perChapter: Boolean = false, split: Int = 1) {
         val voiceId = v.voiceId
         if (running) return
         val app = context.applicationContext
@@ -127,9 +127,14 @@ object Exporter {
                 val cover = runCatching { Library.thumb(app, doc.key).takeIf { it.exists() }?.readBytes() }.getOrNull()
                 val author = item?.author ?: doc.author
                 val safeBook = doc.title.replace(Regex("""[\\/:*?"<>|]+"""), "_").take(60).trim().ifBlank { "Audiobook" }
-                val chapters = if (perChapter && doc.chapters.size > 1) chapterDocs(doc) else listOf(doc)
+                val chapters = when {
+                    perChapter && doc.chapters.size > 1 -> chapterDocs(doc)
+                    split > 1 -> partDocs(doc, split)
+                    else -> listOf(doc)
+                }
                 parts = chapters.size
-                folder = if (chapters.size > 1) "Paper2Audio/$safeBook" else "Paper2Audio"
+                val base = Brand.folder(app)
+                folder = if (chapters.size > 1) "$base/$safeBook" else base
                 var result: Pair<Uri, String>? = null
                 for ((i, d) in chapters.withIndex()) {
                     part = i
@@ -582,3 +587,41 @@ object Id3 {
         return header + body
     }
 }
+
+/**
+ * The book in [n] parts of about the same length ("Title - Part 1 of 2"), split at a
+ * chapter start near each cut when there is one, else between paragraphs.
+ */
+fun partDocs(doc: Doc, n: Int): List<Doc> {
+    val words = doc.paragraphs.map { p -> p.count { it == ' ' } + 1 }
+    val total = words.sum().coerceAtLeast(1)
+    val cuts = ArrayList<Int>()
+    var acc = 0
+    var target = total / n
+    for ((i, w) in words.withIndex()) {
+        if (cuts.size < n - 1 && acc >= target && i > 0) {
+            // Prefer a chapter start within the next tenth of the part.
+            val slack = total / n / 10
+            var j = i
+            var a2 = acc
+            while (j < words.size && a2 - acc <= slack && doc.chapters.none { it.start == j }) {
+                a2 += words[j]
+                j++
+            }
+            val cut = if (j < words.size && doc.chapters.any { it.start == j }) j else i
+            if (cuts.isEmpty() || cut > cuts.last()) cuts += cut
+            target += total / n
+        }
+        acc += w
+    }
+    val bounds = listOf(0) + cuts + listOf(doc.paragraphs.size)
+    val count = bounds.size - 1
+    return (0 until count).map { k ->
+        val from = bounds[k]
+        val to = bounds[k + 1]
+        val chapters = doc.chapters.filter { it.start in from until to }.map { Chapter(it.title, it.start - from) }
+        Doc("${doc.title} - Part ${k + 1} of $count".take(90), doc.paragraphs.subList(from, to), chapters, doc.key, doc.author, pages = 0)
+            .also { it.lang = doc.lang }
+    }.filter { it.paragraphs.isNotEmpty() }
+}
+

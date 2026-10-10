@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.paper2audio.app"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.paper2audio.app"
@@ -15,6 +17,36 @@ android {
         ndk { abiFilters += "arm64-v8a" }
         versionCode = 18
         versionName = "4.0"
+    }
+
+    buildFeatures { buildConfig = true }
+
+    // "full": the sideloaded app with every feature. "lite": the Play Store edition
+    // (on-device voices only, no AI or accounts, supported by ads).
+    flavorDimensions += "edition"
+    productFlavors {
+        create("full") {
+            dimension = "edition"
+            targetSdk = 34
+            buildConfigField("boolean", "LITE", "false")
+            buildConfigField("String", "AD_BANNER", "\"\"")
+            buildConfigField("String", "AD_INTERSTITIAL", "\"\"")
+            manifestPlaceholders["admobAppId"] = ""
+        }
+        create("lite") {
+            dimension = "edition"
+            // Permanent once uploaded to Google Play.
+            applicationId = "com.narrato.reader"
+            targetSdk = 36
+            versionCode = 1
+            versionName = "1.0"
+            buildConfigField("boolean", "LITE", "true")
+            // AdMob IDs from the environment (GitHub secrets); Google's test IDs otherwise.
+            fun env(name: String, test: String) = System.getenv(name)?.takeIf { it.isNotBlank() } ?: test
+            manifestPlaceholders["admobAppId"] = env("ADMOB_APP_ID", "ca-app-pub-3940256099942544~3347511713")
+            buildConfigField("String", "AD_BANNER", "\"${env("ADMOB_BANNER_ID", "ca-app-pub-3940256099942544/9214589741")}\"")
+            buildConfigField("String", "AD_INTERSTITIAL", "\"${env("ADMOB_INTERSTITIAL_ID", "ca-app-pub-3940256099942544/1033173712")}\"")
+        }
     }
 
     // Sign with your own key when P2A_KEYSTORE is set (see README), so new
@@ -42,9 +74,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     lint {
         checkReleaseBuilds = false
     }
@@ -65,6 +94,10 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+}
+
 dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("org.jsoup:jsoup:1.17.2")
@@ -78,4 +111,7 @@ dependencies {
     // On-device language detection, to pick voices that speak the document's language.
     implementation("com.google.mlkit:language-id:17.0.6")
     implementation("androidx.core:core:1.13.1")
+    // Ads and the EU/UK consent form, in the Play Store edition only.
+    "liteImplementation"("com.google.android.gms:play-services-ads:24.4.0")
+    "liteImplementation"("com.google.android.ump:user-messaging-platform:3.2.0")
 }

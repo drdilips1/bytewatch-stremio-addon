@@ -123,7 +123,7 @@ object Transcript {
         }
     }
 
-    /** Saves to Downloads/Paper2Audio; returns the file to open or share. */
+    /** Saves to Downloads/<app name>; returns the file to open or share. */
     fun save(context: Context, doc: Doc, format: Format, leaveOut: Set<String>): Uri {
         val write: (OutputStream) -> Unit = { out ->
             if (format == Format.PDF) pdf(doc, leaveOut, out) else out.write(text(doc, format, leaveOut).toByteArray())
@@ -132,7 +132,14 @@ object Transcript {
     }
 }
 
-/** Files in Downloads/Paper2Audio, visible in the Files app. */
+/** The folder (in Downloads and Music) that saved files go into: the app's name. */
+object Brand {
+    fun folder(context: Context): String =
+        if (!BuildConfig.LITE) "Paper2Audio"
+        else context.getString(R.string.app_name).replace(Regex("[^A-Za-z0-9]+"), "").ifEmpty { "Audiobooks" }
+}
+
+/** Files in Downloads/<app name>, visible in the Files app. */
 object Downloads {
     fun save(context: Context, name: String, ext: String, mime: String, write: (OutputStream) -> Unit): Uri {
         val safe = name.replace(Regex("""[\\/:*?"<>|]+"""), " ").take(90).trim().ifEmpty { "Paper2Audio" }
@@ -141,7 +148,7 @@ object Downloads {
             val values = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, "$safe.$ext")
                 put(MediaStore.Downloads.MIME_TYPE, mime)
-                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Paper2Audio")
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + Brand.folder(context))
                 put(MediaStore.Downloads.IS_PENDING, 1)
             }
             val uri = cr.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
@@ -155,7 +162,7 @@ object Downloads {
             }
             return uri
         }
-        val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "Paper2Audio").apply { mkdirs() }
+        val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), Brand.folder(context)).apply { mkdirs() }
         val f = File(dir, "$safe.$ext")
         f.outputStream().use(write)
         return androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", f)

@@ -64,6 +64,15 @@ class ReaderService : Service() {
         return START_NOT_STICKY
     }
 
+    /** Android 15+ stops long data work after a few hours a day; stop cleanly instead of crashing. */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        AppLog.e("Service", "Background time limit reached (type $fgsType)")
+        if (Exporter.running) Exporter.cancel()
+        ModelPack.active?.cancelInstall()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
     private fun goForeground() {
         val n = build()
         if (Build.VERSION.SDK_INT >= 29) {
@@ -93,7 +102,8 @@ class ReaderService : Service() {
         val doc = Speaker.doc
         val open = PendingIntent.getActivity(
             this, 0,
-            Intent(this, PlayerActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            Intent(this, if (BuildConfig.LITE) LitePlayerActivity::class.java else PlayerActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
         val text = when {

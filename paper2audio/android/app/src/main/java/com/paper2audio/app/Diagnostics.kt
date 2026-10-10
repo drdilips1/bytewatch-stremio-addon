@@ -112,7 +112,7 @@ object AppLog {
             append("Phone: ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.SUPPORTED_ABIS.firstOrNull()}\n")
             append("Memory: ${mem.availMem / 1_000_000} MB free of ${mem.totalMem / 1_000_000} MB${if (mem.lowMemory) " (low)" else ""}; storage free: $free MB\n")
             append("Voice: ${Speaker.voiceId}; speed ${Speaker.speed}x; style ${Speaker.style.label}; playing ${Speaker.playing}\n")
-            append("AI: ${Llm.name(context)}; theme ${prefs.getString("theme", "default")}\n")
+            append(if (BuildConfig.LITE) "Edition: Play Store" else "AI: ${Llm.name(context)}").append("; theme ${prefs.getString("theme", "default")}\n")
             if (doc != null) {
                 val item = Library.get(context, Library.currentId)
                 append("Document: \"${doc.title}\" (${item?.kind ?: "?"}), ${doc.paragraphs.size} paragraphs, ${doc.chapters.size} chapters, ")

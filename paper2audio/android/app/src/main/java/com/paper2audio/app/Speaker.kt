@@ -43,6 +43,17 @@ object Speaker {
 
     data class VoiceOption(val id: String, val label: String)
 
+    /** The phone's own default voice (the Play Store edition starts with it; no download needed). */
+    const val PHONE_DEFAULT = SYSTEM
+
+    /** Microsoft Andrew in the full edition; in the Play Store edition the best voice already on the phone. */
+    fun defaultVoice(): String = when {
+        !BuildConfig.LITE -> DEFAULT_VOICE
+        LocalTts.supported && LocalTts.SUPERTONIC_PACK.isInstalled() -> SUPER + "F1"
+        LocalTts.supported && LocalTts.KOKORO_PACK.isInstalled() -> KOKORO + Kokoro.VOICES.first().name
+        else -> PHONE_DEFAULT
+    }
+
     private lateinit var app: Context
     private val prefs: SharedPreferences by lazy { app.getSharedPreferences("p2a", Context.MODE_PRIVATE) }
     private val main = Handler(Looper.getMainLooper())
@@ -220,9 +231,11 @@ object Speaker {
         speed = prefs.getFloat("speed", 1.0f)
         style = Style.of(prefs.getString("style", null))
         speedRendered = renderSpeed
-        voiceId = prefs.getString("voice2", null) ?: DEFAULT_VOICE
+        voiceId = prefs.getString("voice2", null) ?: defaultVoice()
         // A cloned voice that no longer exists (deleted, or a retired ready-made one) falls back to the default.
-        if (voiceId.startsWith(CLONE) && MyVoices.get(voiceId.removePrefix(CLONE)) == null) voiceId = DEFAULT_VOICE
+        if (voiceId.startsWith(CLONE) && MyVoices.get(voiceId.removePrefix(CLONE)) == null) voiceId = defaultVoice()
+        // The Play Store edition has on-device and phone voices only.
+        if (BuildConfig.LITE && (voiceId.startsWith(EDGE) || voiceId.startsWith(CLONE))) voiceId = defaultVoice()
         warmUpLocal()
         pendingReady += onReady
         tts = TextToSpeech(app) { status ->
@@ -235,7 +248,7 @@ object Speaker {
                 notifyChanged()
             }
         }
-        scope.launch {
+        if (!BuildConfig.LITE) scope.launch {
             runCatching { withContext(Dispatchers.IO) { EdgeTts.listVoices() } }.onSuccess { all ->
                 val curated = EdgeTts.CURATED.map { it.name }.toSet()
                 edgeVoices = EdgeTts.CURATED + all.filter { it.name !in curated }.sortedBy { it.locale }
@@ -312,7 +325,9 @@ object Speaker {
         AppLog.i("Player", "Voice $voiceId -> $id")
         voiceId = id
         prefs.edit().putString("voice2", id).apply()
-        if (id.startsWith(SYSTEM)) tts?.let { t -> t.voices?.firstOrNull { it.name == id.removePrefix(SYSTEM) }?.let { t.voice = it } }
+        if (id.startsWith(SYSTEM)) tts?.let { t ->
+            (t.voices?.firstOrNull { it.name == id.removePrefix(SYSTEM) } ?: t.defaultVoice)?.let { t.voice = it }
+        }
         // Always stop the old voice first, so it can never keep going under the new name;
         // then continue from the sentence being read.
         stopAll()
@@ -328,7 +343,7 @@ object Speaker {
     /** Call after a voice download finishes or cloned voices change, so the voice list updates. */
     fun refreshVoices() {
         voicesVersion++
-        if (voiceId.startsWith(CLONE) && MyVoices.get(voiceId.removePrefix(CLONE)) == null) setVoice(DEFAULT_VOICE)
+        if (voiceId.startsWith(CLONE) && MyVoices.get(voiceId.removePrefix(CLONE)) == null) setVoice(defaultVoice())
         warmUpLocal()
         notifyChanged()
     }
@@ -390,7 +405,8 @@ object Speaker {
         missingPack()?.let {
             stopAll()
             playing = false
-            lastError = "Download the ${it.title} first (Options tab), or choose a ★ voice."
+            lastError = if (BuildConfig.LITE) "Download the ${it.title} first (Voice), or choose another voice."
+            else "Download the ${it.title} first (Options tab), or choose a ★ voice."
             notifyChanged()
             return
         }
@@ -399,7 +415,8 @@ object Speaker {
             if (s != null && session?.isActive == true) s.resume() else startStreaming()
         } else {
             if (!systemReady) {
-                lastError = "This phone has no working text-to-speech engine. Pick a ★ natural voice instead."
+                lastError = if (BuildConfig.LITE) "This phone has no working text-to-speech engine. Download a natural voice (Voice) instead."
+                else "This phone has no working text-to-speech engine. Pick a ★ natural voice instead."
                 notifyChanged()
                 return
             }
@@ -442,18 +459,17 @@ object Speaker {
     /** Steps back one sentence (to the previous paragraph's last one at a paragraph start). */
     fun previousSentence() {
         val d = doc ?: return
-        if (!isStreamed) return previous()
+        val count = { i: Int -> if (isStreamed) piecesOf(d, i, voiceId).size else systemSentences(d, i).size }
         when {
             pieceIndex > 0 -> seek(index, pieceIndex - 1)
-            index > 0 -> seek(index - 1, piecesOf(d, index - 1, voiceId).size - 1)
+            index > 0 -> seek(index - 1, count(index - 1) - 1)
             else -> seek(0)
         }
     }
 
     fun nextSentence() {
         val d = doc ?: return
-        if (!isStreamed) return next()
-        val count = piecesOf(d, index, voiceId).size
+        val count = if (isStreamed) piecesOf(d, index, voiceId).size else systemSentences(d, index).size
         if (pieceIndex + 1 < count) seek(index, pieceIndex + 1) else seek(index + 1)
     }
 
@@ -490,25 +506,37 @@ object Speaker {
                 last = minOf(last + 1, d.paragraphs.size - 1)
                 continue
             }
-            t.speak(Speech.normalize(d.paragraphs[queuedUpTo], medical), TextToSpeech.QUEUE_ADD, Bundle(), "$generation:$queuedUpTo")
+            // One utterance per sentence, so the sentence being read is highlighted.
+            val sentences = systemSentences(d, queuedUpTo)
+            val from = if (queuedUpTo == index) pieceIndex.coerceIn(0, sentences.size - 1) else 0
+            for (k in from until sentences.size) {
+                val last = if (k == sentences.size - 1) 1 else 0
+                t.speak(Speech.normalize(sentences[k], medical), TextToSpeech.QUEUE_ADD, Bundle(), "$generation:$queuedUpTo:$k:$last")
+            }
         }
     }
 
-    private fun parse(id: String): Int? {
-        val (gen, idx) = id.split(':').map { it.toIntOrNull() ?: return null }
-        return if (gen == generation && !isStreamed) idx else null
+    private fun systemSentences(d: Doc, i: Int): List<String> =
+        TextCleaner.sentences(d.paragraphs[i]).filter { it.isNotBlank() }.ifEmpty { listOf(d.paragraphs[i]) }
+
+    /** (paragraph, sentence, last sentence of the paragraph) of an utterance id from this generation. */
+    private fun parse(id: String): Triple<Int, Int, Boolean>? {
+        val parts = id.split(':').map { it.toIntOrNull() ?: return null }
+        if (parts.size != 4 || parts[0] != generation || isStreamed) return null
+        return Triple(parts[1], parts[2], parts[3] == 1)
     }
 
     private fun handleStart(id: String) {
-        val idx = parse(id) ?: return
+        val (idx, k, _) = parse(id) ?: return
         if (idx != index) moveTo(idx)
-        pieceIndex = 0
-        currentPiece = doc?.paragraphs?.getOrNull(idx)
+        pieceIndex = k
+        currentPiece = doc?.let { systemSentences(it, idx).getOrNull(k) } ?: doc?.paragraphs?.getOrNull(idx)
         notifyChanged()
     }
 
     private fun handleDone(id: String) {
-        val idx = parse(id) ?: return
+        val (idx, _, lastInParagraph) = parse(id) ?: return
+        if (!lastInParagraph) return
         val d = doc ?: return
         if (idx >= d.paragraphs.size - 1) {
             playing = false

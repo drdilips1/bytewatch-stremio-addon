@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Working name; change before the first Play Store upload. -->
+    <string name="app_name">Narrato</string>
+</resources>

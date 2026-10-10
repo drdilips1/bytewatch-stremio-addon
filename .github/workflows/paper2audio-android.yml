@@ -43,14 +43,22 @@ jobs:
           KEYSTORE_B64: ${{ secrets.P2A_KEYSTORE_B64 || secrets.SIGNING_KEY }}
           P2A_KEYSTORE_PASSWORD: ${{ secrets.P2A_KEYSTORE_PASSWORD || secrets.SIGNING_PASSWORD }}
           P2A_KEY_ALIAS: ${{ secrets.P2A_KEY_ALIAS || secrets.SIGNING_ALIAS || 'p2a' }}
+          # Play Store edition ads (Google's test ads until these secrets are set).
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_BANNER_ID: ${{ secrets.ADMOB_BANNER_ID }}
+          ADMOB_INTERSTITIAL_ID: ${{ secrets.ADMOB_INTERSTITIAL_ID }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/p2a.keystore"
             export P2A_KEYSTORE="$RUNNER_TEMP/p2a.keystore"
           fi
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
-          cp app/build/outputs/apk/release/app-release.apk Paper2Audio.apk
+          ./gradlew assembleFullRelease assembleLiteRelease bundleLiteRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/full/release/app-full-release.apk Paper2Audio.apk
+          # Play Store edition: the bundle to upload, and an APK to try it on a phone.
+          cp app/build/outputs/apk/lite/release/app-lite-release.apk Narrato.apk
+          cp app/build/outputs/bundle/liteRelease/app-lite-release.aab Narrato.aab
+          ls -la Paper2Audio.apk Narrato.apk Narrato.aab
           # For the in-app "Update available" check.
           CODE=$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | grep -oE '[0-9]+')
           NAME=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | cut -d'"' -f2)
@@ -67,10 +75,45 @@ jobs:
             echo "::warning::No P2A_KEYSTORE_B64 secret: signed with a temporary debug key (Google sign-in won't work, and updates need an uninstall)."
           fi
 
+      - name: Check native libraries for 16 KB pages (required by Google Play)
+        run: |
+          python3 - <<'PY'
+          import struct, zipfile
+          z = zipfile.ZipFile("Narrato.apk")
+          bad = []
+          for n in z.namelist():
+              if not n.endswith(".so"): continue
+              d = z.read(n)
+              phoff = struct.unpack_from("<Q", d, 0x20)[0]; phentsize, phnum = struct.unpack_from("<HH", d, 0x36)
+              aligns = [struct.unpack_from("<Q", d, phoff + i * phentsize + 0x30)[0]
+                        for i in range(phnum) if struct.unpack_from("<I", d, phoff + i * phentsize)[0] == 1]
+              ok = min(aligns) >= 16384
+              print(("OK  " if ok else "BAD ") + n, [hex(a) for a in aligns])
+              if not ok: bad.append(n)
+          if bad: print("::warning::Not 16 KB aligned: " + ", ".join(bad))
+          PY
+
       - uses: actions/upload-artifact@v4
         with:
           name: Paper2Audio-apk
-          path: paper2audio/android/Paper2Audio.apk
+          path: |
+            paper2audio/android/Paper2Audio.apk
+            paper2audio/android/Narrato.apk
+            paper2audio/android/Narrato.aab
+
+      - name: Publish the Play Store edition (bundle to upload, APK to try)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: narrato-lite
+          name: Narrato (Play Store edition) – latest build
+          prerelease: true
+          overwrite_files: true
+          files: |
+            paper2audio/android/Narrato.apk
+            paper2audio/android/Narrato.aab
+          body: |
+            Play Store edition. Upload **Narrato.aab** to Google Play Console.
+            **Narrato.apk** installs on a phone for testing (separate from Paper to Audio).
 
       - name: Publish to the permanent download link
         uses: softprops/action-gh-release@v2
