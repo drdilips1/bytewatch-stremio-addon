@@ -25,13 +25,144 @@ import java.util.zip.ZipFile
  * scans use the text recognized from them ([ocrPages], page number to text).
  */
 object PdfExtractor {
-    /** One line of text with its font size and whether it is all bold. */
-    class Line(val text: String, val size: Float, val bold: Boolean, val page: Int) {
+    /**
+     * One line of text: its largest and typical font size, whether it is all bold, and
+     * where it is on the page (x0..x1 across, y down; -1 when unknown, e.g. OCR text).
+     */
+    class Line(
+        val text: String,
+        val size: Float,
+        val bold: Boolean,
+        val page: Int,
+        val x0: Float = -1f,
+        val x1: Float = -1f,
+        val y: Float = 0f,
+        val pageWidth: Float = 0f,
+        val median: Float = size,
+    ) {
         val blank get() = text.isBlank()
+        /** The last line of a paragraph. */
+        var paraEnd = false
+
+        fun withText(t: String) = Line(t, size, bold, page, x0, x1, y, pageWidth, median).also { it.paraEnd = paraEnd }
+    }
+
+    /** One character as the PDF places it (y grows downward). */
+    class Glyph(val text: String, val x: Float, val y: Float, val w: Float, val size: Float, val bold: Boolean, val pageWidth: Float)
+
+    /**
+     * A line from its characters (null = a word gap). Raised small characters are
+     * superscripts: citation numbers ("psoriasis,²˒³") and affiliation marks ("Li¹")
+     * are dropped; squared and cubed units ("m²") are kept.
+     */
+    fun lineOf(tokens: List<Glyph?>, page: Int): Line? {
+        val glyphs = tokens.filterNotNull().filter { it.text.isNotBlank() }
+        if (glyphs.isEmpty()) return null
+        val med = glyphs.map { it.size }.sorted()[glyphs.size / 2]
+        val base = glyphs.map { it.y }.sorted()[glyphs.size / 2]
+        fun raised(g: Glyph) = g.size < med * 0.82f && g.y < base - med * 0.15f
+        val sb = StringBuilder()
+        val kept = ArrayList<Glyph>()
+        for (t in tokens) {
+            if (t == null) {
+                if (sb.isNotEmpty() && sb.last() != ' ') sb.append(' ')
+                continue
+            }
+            if (raised(t)) {
+                val unit = Regex("""(?:^|[^A-Za-z])(?:m|cm|mm|km|ft|in)$""").containsMatchIn(sb)
+                when {
+                    unit && t.text == "2" -> sb.append('²')
+                    unit && t.text == "3" -> sb.append('³')
+                    sb.endsWith("10") || sb.endsWith("10-") || sb.endsWith("10−") -> sb.append(t.text)
+                }
+                continue
+            }
+            sb.append(t.text)
+            kept += t
+        }
+        val text = sb.toString().replace(Regex("""\s+([,.;:])"""), "$1").replace(Regex("""\s{2,}"""), " ").trim()
+        if (text.isEmpty() || kept.isEmpty()) return null
+        val size = (kept.maxOf { it.size } * 2).toInt() / 2f
+        val median = (kept.map { it.size }.sorted()[kept.size / 2] * 2).toInt() / 2f
+        return Line(
+            text, size, kept.count { it.bold } >= kept.size * 0.8, page,
+            kept.minOf { it.x }, kept.maxOf { it.x + it.w }, base, kept.first().pageWidth, median,
+        )
+    }
+
+    /**
+     * Reading order for a page: on two-column pages, text spanning the page (title,
+     * abstract, wide tables) in place, and between those the left column, then the right.
+     * Single-column pages keep the PDF's own order.
+     */
+    internal fun readingOrder(lines: List<Line>): List<Line> {
+        val w = lines.firstOrNull()?.pageWidth ?: 0f
+        if (w <= 0f || lines.any { it.x0 < 0f }) return lines
+        val mid = w / 2
+        fun side(l: Line) = when {
+            l.x1 <= mid + w * 0.04f -> 0
+            l.x0 >= mid - w * 0.04f -> 1
+            else -> 2
+        }
+        if (lines.count { side(it) == 0 } < 4 || lines.count { side(it) == 1 } < 4) return lines
+        val out = ArrayList<Line>()
+        val left = ArrayList<Line>()
+        val right = ArrayList<Line>()
+        for (l in lines.sortedWith(compareBy({ it.y }, { it.x0 }))) {
+            when (side(l)) {
+                0 -> left += l
+                1 -> right += l
+                else -> {
+                    out += left
+                    out += right
+                    left.clear()
+                    right.clear()
+                    out += l
+                }
+            }
+        }
+        out += left
+        out += right
+        return out
+    }
+
+    private val HEADING_PHRASES = listOf(
+        "Abstract", "Summary", "Introduction", "Background", "Methods", "Materials and Methods", "Methodology",
+        "Patients and Methods", "Results", "Discussion", "Conclusion", "Conclusions", "Limitations",
+        "Acknowledgments", "Acknowledgements", "Acknowledgment", "Acknowledgement", "Conflict of Interest Statement",
+        "Conflict of Interest", "Conflicts of Interest", "Ethics Statement", "Data Availability Statement",
+        "Author Contributions", "Funding Information", "Funding", "References", "Keywords", "Supporting Information",
+        "Supplementary Material", "Case Report", "Case Presentation", "Appendix",
+    ).associateBy { it.lowercase().replace(" ", "") }
+
+    /**
+     * Headings as written: "1 | INTRODUC TION" -> "1 Introduction", "R E FE R E N C E S" -> "References"
+     * (letter-spaced capitals come out of PDFs in pieces), "2.1 | Patients" -> "2.1 Patients".
+     */
+    internal fun tidyHeading(text: String): String {
+        var t = text.trim()
+        val num = Regex("""^(\d{1,2}(?:\.\d{1,2}){0,3}\.?|[IVX]{1,4}\.)\s*[|│]?\s*""").find(t)
+        val prefix = num?.groupValues?.get(1)?.let { "$it " } ?: ""
+        if (num != null) t = t.substring(num.range.last + 1)
+        t = t.replace(Regex("""\s*[|│]\s*"""), " ").trim()
+        if (t.length > 90) return text
+        val squashed = t.lowercase().replace(Regex("""[^a-z]"""), "")
+        HEADING_PHRASES[squashed]?.let { return prefix + it }
+        val letters = t.filter { it.isLetter() }
+        if (letters.length >= 4 && letters.all { it.isUpperCase() }) {
+            val tokens = t.split(' ').filter { it.isNotEmpty() }
+            // Mostly one- and two-letter pieces: one spaced-out word.
+            if (tokens.size >= 3 && tokens.count { it.length == 1 } * 2 >= tokens.size) t = tokens.joinToString("")
+            t = t.lowercase().split(' ').mapIndexed { i, w ->
+                if (i > 0 && w in setOf("of", "and", "in", "for", "the", "to", "with", "on", "a", "an", "or")) w
+                else w.replaceFirstChar { it.uppercase() }
+            }.joinToString(" ")
+        }
+        return (prefix + t).trim()
     }
 
     private val KNOWN_HEADING = Regex(
-        """^(?:\d+(?:\.\d+)*\.?\s*|[IVX]+\.\s*)?(abstract|summary|introduction|background|methods?|materials and methods|methodology|patients and methods|study design|results?|findings|discussion|limitations?|strengths and limitations|conclusions?|concluding remarks|references|bibliography|acknowledge?ments?|appendix|supplementary material|funding|conflicts? of interest|declarations?|keywords?)\s*:?$""",
+        """^(?:\d+(?:\.\d+)*\.?\s*|[IVX]+\.\s*)?(abstract|summary|introduction|background|methods?|materials and methods|methodology|patients and methods|study design|results?|findings|discussion|limitations?|strengths and limitations|conclusions?|concluding remarks|references|bibliography|acknowledge?ments?|appendix|supplementary material|supporting information|funding(?: information)?|conflicts? of interest(?: statement)?|ethics statement|data availability statement|author contributions|declarations?|keywords?)\s*:?$""",
         RegexOption.IGNORE_CASE,
     )
     private val NUMBERED_HEADING = Regex("""^(?:\d{1,2}(?:\.\d{1,2}){0,3}\.?|[IVX]{1,4}\.)\s+[A-Z][^.!?]{2,90}$""")
@@ -41,6 +172,9 @@ object PdfExtractor {
     private val JUNK = Regex(
         """(?i)(downloaded from|all rights reserved|©|\(c\)\s*\d{4}|copyright|creative commons|doi:\s*10\.|https?://doi|\bissn\b|e-?mail:|@\w+\.\w|orcid|corresponding author|^\s*(?:received|accepted|revised|published)\b[^a-z]{0,3}(?:\d{1,2}\s+[A-Z][a-z]+|[A-Z][a-z]+\s+\d{1,2}|\d{4})|published online|this article is protected|for personal use|licen[cs]ed under|www\.|\bpage \d+ of \d+\b|\bvol\.\s*\d+|\bpp\.\s*\d)""",
     )
+
+    /** Running heads like "XU ET AL." or "Smith et al. 12". */
+    private val RUNNING_HEAD = Regex("""(?i)^\d*\s*[A-Z][\p{L}'-]+(?:\s+(?:and|&)\s+[A-Z][\p{L}'-]+)?\s+et\s+al\.?\s*\d*$""")
 
     fun extract(context: Context, file: File, o: CleanOptions, name: String, key: String, ocrPages: Map<Int, String> = emptyMap()): Doc {
         PDFBoxResourceLoader.init(context.applicationContext)
@@ -71,42 +205,31 @@ object PdfExtractor {
         for (i in 1..pdf.numberOfPages) {
             val lines = ArrayList<Line>()
             val stripper = object : PDFTextStripper() {
-                val sb = StringBuilder()
-                var maxSize = 0f
-                var chars = 0
-                var boldChars = 0
+                val tokens = ArrayList<Glyph?>()
 
                 override fun writeString(text: String, textPositions: MutableList<TextPosition>) {
-                    sb.append(text)
                     for (tp in textPositions) {
-                        val size = maxOf(tp.fontSizeInPt, tp.heightDir)
-                        if (!tp.unicode.isNullOrBlank()) {
-                            if (size > maxSize) maxSize = size
-                            chars++
-                            val font = runCatching { tp.font?.name }.getOrNull().orEmpty()
-                            if ("Bold" in font || "bold" in font || "Black" in font || "Heavy" in font || font.endsWith(",B")) boldChars++
-                        }
+                        val u = tp.unicode ?: continue
+                        val font = runCatching { tp.font?.name }.getOrNull().orEmpty()
+                        val bold = "Bold" in font || "bold" in font || "Black" in font || "Heavy" in font || font.endsWith(",B")
+                        tokens += Glyph(u, tp.xDirAdj, tp.yDirAdj, tp.widthDirAdj, maxOf(tp.fontSizeInPt, tp.heightDir), bold, tp.pageWidth)
                     }
                 }
 
                 override fun writeWordSeparator() {
-                    sb.append(' ')
+                    tokens += null
                 }
 
                 override fun writeLineSeparator() = flush()
 
                 override fun writeParagraphEnd() {
                     flush()
-                    if (lines.lastOrNull()?.blank == false) lines += Line("", 0f, false, i)
+                    lines.lastOrNull()?.paraEnd = true
                 }
 
                 fun flush() {
-                    val t = sb.toString().trim()
-                    if (t.isNotEmpty()) lines += Line(t, (maxSize * 2).toInt() / 2f, chars > 0 && boldChars >= chars * 0.8, i)
-                    sb.setLength(0)
-                    maxSize = 0f
-                    chars = 0
-                    boldChars = 0
+                    lineOf(tokens, i)?.let { lines += it }
+                    tokens.clear()
                 }
             }
             // Content order, not position: position sorting mixes the lines of two-column papers.
@@ -115,7 +238,7 @@ object PdfExtractor {
             stripper.endPage = i
             stripper.getText(pdf)
             stripper.flush()
-            lines += Line("", 0f, false, i)
+            lines.lastOrNull()?.paraEnd = true
             out += lines
         }
         return out
@@ -133,15 +256,30 @@ object PdfExtractor {
     ): Doc {
         // Running headers/footers and page numbers.
         val repeated = TextCleaner.repeatedLines(pages.map { p -> p.map { it.text } })
-        val all = pages.flatten().filter { l ->
-            val k = TextCleaner.norm(l.text)
-            l.blank || !(k.isNotEmpty() && k in repeated) && !TextCleaner.PAGE_NUM.containsMatchIn(l.text) &&
-                !(l.text.length < 160 && JUNK.containsMatchIn(l.text))
+        val kept = pages.map { p ->
+            p.filter { l ->
+                val k = TextCleaner.norm(l.text)
+                l.blank || !(k.isNotEmpty() && k in repeated) && !TextCleaner.PAGE_NUM.containsMatchIn(l.text) &&
+                    !(l.text.length < 160 && JUNK.containsMatchIn(l.text)) && !RUNNING_HEAD.matches(l.text.trim())
+            }.map { l -> if (!l.blank && l.text.length <= 120) l.withText(tidyHeading(l.text)) else l }
         }
         // The body text size: the size most characters are set in.
         val bySize = HashMap<Float, Int>()
-        for (l in all) if (!l.blank && l.size > 0f) bySize[l.size] = (bySize[l.size] ?: 0) + l.text.length
+        for (l in kept.flatten()) if (!l.blank && l.median > 0f) bySize[l.median] = (bySize[l.median] ?: 0) + l.text.length
         val body = bySize.maxByOrNull { it.value }?.key ?: 0f
+
+        fun expand(ps: List<List<Line>>): List<Line> {
+            val out = ArrayList<Line>()
+            for (p in ps) for (l in p) {
+                out += l
+                if (l.paraEnd && !l.blank) out += Line("", 0f, false, l.page)
+            }
+            return out
+        }
+        // Small print isn't read: footnotes, author and affiliation columns, table cells, figure legends.
+        // (Captions are still found in it, for "View figure".)
+        val withSmall = expand(kept)
+        val all = expand(kept.map { p -> readingOrder(p.filter { l -> l.blank || body <= 0f || l.median <= 0f || l.median >= body * 0.85f }) })
 
         // Title: the largest text near the top of page 1 (consecutive lines of that size).
         val first = all.filter { it.page == 1 && !it.blank }.take(25)
@@ -169,12 +307,12 @@ object PdfExtractor {
 
         // Captions, with their pages.
         val figures = ArrayList<Figure>()
-        for ((i, l) in all.withIndex()) {
+        for ((i, l) in withSmall.withIndex()) {
             val m = CAPTION.find(l.text) ?: continue
             if (!CAPTION.matches(l.text.trim()) || l.text.length > 400) continue
             val label = m.groupValues[1].replace(Regex("""(?i)^fig\.""" ), "Figure").replace(Regex("""\s+"""), " ")
             if (figures.any { it.label.equals(label, true) }) continue
-            val more = all.drop(i + 1).takeWhile { !it.blank }.take(3).joinToString(" ") { it.text }
+            val more = withSmall.drop(i + 1).takeWhile { !it.blank }.take(3).joinToString(" ") { it.text }
             figures += Figure(label, (m.groupValues[2] + " " + more).trim().take(300), l.page)
         }
 
@@ -188,6 +326,8 @@ object PdfExtractor {
             if (!skipping) {
                 val paras = TextCleaner.clean(buf, o)
                 if (paras.isNotEmpty()) sections += heading to (if (heading != null) listOf(heading!!) + paras else paras)
+                // A section that opens straight into a subsection ("2 Methods", then "2.1 Patients") still gets its place.
+                else if (heading != null) sections += heading to listOf(heading!!)
             }
             buf = ArrayList()
         }
@@ -206,10 +346,23 @@ object PdfExtractor {
             }
             blocks.filter { b -> b.sumOf { it.text.split(' ').size } < 25 }.flatten().toSet()
         } else emptySet()
+        var lastHeading: Line? = null
         for (l in all) {
             if (stop) break
             if (l in titleSet || l in front) continue
+            // A heading wrapped onto a second line ("2.2 Epidural lidocaine" / "block treatment").
+            val prev = lastHeading
+            if (!l.blank && prev != null && buf.isEmpty() && heading != null && l.page == prev.page &&
+                l.size == prev.size && l.bold == prev.bold && l.text.length < 80 && !prev.text.trimEnd().endsWith(".") &&
+                Sections.kindOf(l.text) == null && !NUMBERED_HEADING.matches(l.text.trim())
+            ) {
+                heading = "$heading ${l.text.trim().trimEnd(':')}"
+                lastHeading = l
+                continue
+            }
+            if (!l.blank) lastHeading = null
             if (!l.blank && isHeading(l, strict)) {
+                lastHeading = l
                 val t = l.text.trim().trimEnd(':')
                 val kind = Sections.kindOf(t)
                 flush()
@@ -222,7 +375,7 @@ object PdfExtractor {
                     break
                 }
                 skipping = o.skipAcknowledgements && TextCleaner.ACK.containsMatchIn(t) ||
-                    Regex("""(?i)^(funding|conflicts? of interest|declarations?|keywords?)""").containsMatchIn(t)
+                    Regex("""(?i)^(?:\d+(?:\.\d+)*\s+)?(funding|conflicts? of interest|declarations?|keywords?|ethics statement|data availability|author contributions|supporting information|orcid)""").containsMatchIn(t)
                 heading = t
                 continue
             }
@@ -302,11 +455,13 @@ object EpubExtractor {
             // Where the publisher says the text begins: EPUB 3 landmarks or the EPUB 2 guide.
             val bodyHref = bodyStart(opf, base, manifest, ::read)
 
+            // Chapter names from the book's own table of contents, like an e-reader shows them.
+            val toc = tocTitles(opf, base, manifest, ::read)
+
             val sections = ArrayList<Pair<String?, List<String>>>()
             var startSection = -1
             var guessed = -1
             var bodyReached = false
-            var part = 0
             for (ref in opf.tags("itemref")) {
                 val item = manifest[ref.attr("idref")] ?: continue
                 if (ref.attr("linear") == "no") continue
@@ -317,26 +472,62 @@ object EpubExtractor {
                 val front = guessed < 0 && isFront(html, path)
                 if (path == bodyHref) bodyReached = true
                 val (heading, lines) = chapterLines(html)
-                part++
-                val chapter = heading ?: "Part $part"
-                if (SKIP_CHAPTER.containsMatchIn(chapter) || lines.none { it.isNotBlank() }) continue
-                if (o.skipReferences && (TextCleaner.END_SECTION.containsMatchIn(chapter) ||
-                        TextCleaner.NOTES.containsMatchIn(chapter))) continue
-                if (o.skipAcknowledgements && TextCleaner.ACK.containsMatchIn(chapter)) continue
-                if (o.skipAppendix && TextCleaner.APPENDIX.containsMatchIn(chapter)) continue
+                // With a table of contents, files it doesn't list continue the chapter before
+                // (and a highlighted line inside a chapter isn't taken for a new one).
+                val chapter: String? = if (toc.isNotEmpty()) toc[path] else heading
+                val name = chapter ?: heading ?: ""
+                if (SKIP_CHAPTER.containsMatchIn(name) || lines.none { it.isNotBlank() }) continue
+                if (o.skipReferences && (TextCleaner.END_SECTION.containsMatchIn(name) ||
+                        TextCleaner.NOTES.containsMatchIn(name))) continue
+                if (o.skipAcknowledgements && TextCleaner.ACK.containsMatchIn(name)) continue
+                if (o.skipAppendix && TextCleaner.APPENDIX.containsMatchIn(name)) continue
                 val text = TextCleaner.clean(lines, o)
                 if (startSection < 0 && bodyReached) startSection = sections.size
                 if (guessed < 0) {
                     // A short page headed by nothing, or by the book's title, is a title or dedication page.
                     val short = text.sumOf { it.split(' ').size } < 120
-                    val titlePage = short && (heading == null || heading.equals(title, ignoreCase = true) ||
-                        author != null && heading.equals(author, ignoreCase = true))
-                    if (!front && !titlePage && !(heading != null && FRONT_TITLE.matches(heading))) guessed = sections.size
+                    val named = chapter ?: heading
+                    val titlePage = short && (named == null || named.equals(title, ignoreCase = true) ||
+                        author != null && named.equals(author, ignoreCase = true))
+                    if (!front && !titlePage && !(named != null && FRONT_TITLE.matches(named))) guessed = sections.size
                 }
                 sections += chapter to text
             }
             return Doc.build(title, key, sections, author, cover, startSection = if (startSection >= 0) startSection else guessed.coerceAtLeast(0))
         }
+    }
+
+    /** Table of contents entries: file path to its first title (EPUB 3 nav, else EPUB 2 NCX). */
+    private fun tocTitles(opf: Document, base: String, manifest: Map<String, Element>, read: (String) -> String?): Map<String, String> {
+        val out = LinkedHashMap<String, String>()
+        fun add(dir: String, href: String, title: String) {
+            val t = WS.replace(title, " ").trim()
+            if (href.isBlank() || t.isEmpty()) return
+            out.putIfAbsent(resolve(dir, href), t.take(120))
+        }
+        manifest.values.firstOrNull { "nav" in it.attr("properties").split(' ') }?.let { nav ->
+            val navPath = resolve(base, nav.attr("href"))
+            read(navPath)?.let { html ->
+                val doc = Jsoup.parse(html)
+                val tocNav = doc.select("nav").firstOrNull { it.attr("epub:type").split(' ').contains("toc") } ?: doc.select("nav").firstOrNull()
+                tocNav?.select("a[href]")?.forEach { a -> add(navPath.substringBeforeLast('/', ""), a.attr("href"), a.text()) }
+            }
+        }
+        if (out.isEmpty()) {
+            val ncx = manifest.values.firstOrNull { it.attr("media-type") == "application/x-dtbncx+xml" }
+            if (ncx != null) {
+                val ncxPath = resolve(base, ncx.attr("href"))
+                read(ncxPath)?.let { xml ->
+                    val doc = Jsoup.parse(xml, "", Parser.xmlParser())
+                    for (point in doc.tags("navPoint")) {
+                        val label = point.children().firstOrNull { it.tagName().endsWith("navLabel") }?.text().orEmpty()
+                        val src = point.children().firstOrNull { it.tagName().endsWith("content") }?.attr("src").orEmpty()
+                        add(ncxPath.substringBeforeLast('/', ""), src, label)
+                    }
+                }
+            }
+        }
+        return out
     }
 
     /** The file where the main text begins, from the EPUB 3 landmarks or the EPUB 2 guide. */
@@ -428,7 +619,8 @@ object EpubExtractor {
                     is Element -> {
                         val tag = node.normalName()
                         if (tag in BLOCK) flush()
-                        if (heading == null && tag in HEADINGS) {
+                        // Only top-level headings name a chapter; h3 and below are headings inside one.
+                        if (heading == null && (tag == "h1" || tag == "h2")) {
                             heading = WS.replace(node.text(), " ").trim().ifEmpty { null }
                         }
                     }

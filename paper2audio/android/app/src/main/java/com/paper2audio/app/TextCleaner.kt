@@ -19,7 +19,7 @@ object TextCleaner {
     val APPENDIX = Regex("""^\s*(?:[A-Z]\.?\s*)?(appendix|appendices|supplementary material)\b.*$""", IC)
     val NOTES = Regex("""^\s*(notes|endnotes|footnotes)\s*$""", IC)
     val ACK = Regex("""^\s*(?:\d+\.?\s*)?acknowledge?ments?\s*$""", IC)
-    private val CAPTION = Regex("""^\s*(figure|fig\.|table|algorithm)\s*\d+[.:]""", IC)
+    private val CAPTION = Regex("""^\s*(figure|fig\.|table|algorithm)\s*\d+[a-z]?\s*(?:[.:|]|\s(?=[A-Z(]))""", IC)
 
     // [1], [2, 5], [3-7], [Smith 2020]
     private val BRACKET_CITE = Regex("""\s?\[[\w\s.,;&+\-–]*\d[\w\s.,;&+\-–]*\]""")
