@@ -702,6 +702,7 @@ object Speaker {
         val vid = voiceId
         val currentSpeed = renderSpeed
         starting = true
+        val askedAt = System.currentTimeMillis()
         session = scope.launch {
             // Supertonic reads in the document's language: make sure it's known (fast, on the phone).
             if (d.lang == null && LocalTts.isLocal(vid)) withContext(Dispatchers.IO) { Langs.of(d) }
@@ -714,8 +715,8 @@ object Speaker {
                 if (!LocalTts.isLocal(vid)) seq else sequence {
                     var first = true
                     for (p in seq) {
-                        if (first && p.text.length > 90) {
-                            val parts = TextCleaner.splitLong(p.text, 70)
+                        if (first && p.text.length > 70) {
+                            val parts = TextCleaner.splitLong(p.text, 55)
                             parts.forEachIndexed { k, t ->
                                 yield(Piece(p.paragraph, p.index, t, p.lastInParagraph && k == parts.size - 1, p.voice))
                             }
@@ -753,6 +754,10 @@ object Speaker {
                 while (true) {
                     val p = out.currentTag() as Piece?
                     if (p != null && p !== shown && g == generation) {
+                        if (shown == null) {
+                            AppLog.i("Player", "First sound after %.1f s (%s, %d characters)".format(
+                                (System.currentTimeMillis() - askedAt) / 1000f, vid, p.text.length))
+                        }
                         shown = p
                         starting = false
                         if (p.paragraph != index) moveTo(p.paragraph)

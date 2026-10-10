@@ -75,7 +75,10 @@ object Renderer {
      * joined), so playback starts fast and can step back a sentence at a time.
      */
     fun pieces(paragraph: String, voiceId: String): List<String> =
-        TextCleaner.pieces(paragraph, 50, hardMax = if (LocalTts.isLocal(voiceId)) 200 else 900)
+        // On-device voices: one sentence per piece (only very short ones joined), so every sentence
+        // gets the same pause whatever the text, and the first sound comes sooner.
+        if (LocalTts.isLocal(voiceId)) TextCleaner.pieces(paragraph, 14, hardMax = 200)
+        else TextCleaner.pieces(paragraph, 50, hardMax = 900)
 
     private fun dir(context: Context) = File(context.filesDir, "audiocache").apply { mkdirs() }
 
