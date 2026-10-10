@@ -237,7 +237,11 @@ class LitePlayerActivity : Activity() {
             shownPiece = Speaker.currentPiece
             readerAdapter.notifyDataSetChanged()
             if (moved && System.currentTimeMillis() - lastUserScroll > 6_000) {
-                reader.post { reader.smoothScrollToPositionFromTop(Speaker.index, LiteUi.dp(this, 80), 250) }
+                reader.post {
+                    // A jump, not a scroll (easier on the eyes), and only when the paragraph is out of view.
+                    val i = Speaker.index
+                    if (i < reader.firstVisiblePosition || i >= reader.lastVisiblePosition) reader.setSelectionFromTop(i, LiteUi.dp(this, 80))
+                }
             }
         }
     }

@@ -415,6 +415,7 @@ object EpubExtractor {
         RegexOption.IGNORE_CASE,
     )
     private val WS = Regex("""\s+""")
+    private val WEB_ADDRESS = Regex("""(?i)^\W*(?:https?://)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|in|co|io|info|me|ru|to|cc|xyz)(?:/\S*)?\W*$""")
     /** Pages before the story: reading starts after them (they stay in the book). */
     private val FRONT_TYPES = setOf(
         "cover", "frontmatter", "titlepage", "halftitlepage", "copyright-page", "dedication", "epigraph",
@@ -459,6 +460,7 @@ object EpubExtractor {
             val toc = tocTitles(opf, base, manifest, ::read)
 
             val sections = ArrayList<Pair<String?, List<String>>>()
+            val names = ArrayList<String?>()
             var startSection = -1
             var guessed = -1
             var bodyReached = false
@@ -492,8 +494,17 @@ object EpubExtractor {
                     if (!front && !titlePage && !(named != null && FRONT_TITLE.matches(named))) guessed = sections.size
                 }
                 sections += chapter to text
+                names += chapter ?: heading
             }
-            return Doc.build(title, key, sections, author, cover, startSection = if (startSection >= 0) startSection else guessed.coerceAtLeast(0))
+            // Watermarks stamped through pirated or converted books ("OceanofPDF.com"): a bare web
+            // address, or a short line repeated in many chapters.
+            val counts = HashMap<String, Int>()
+            for ((_, ps) in sections) for (p in ps.filter { it.length < 60 }.toSet()) counts[p.trim().lowercase()] = (counts[p.trim().lowercase()] ?: 0) + 1
+            val minRepeats = maxOf(5, sections.size / 5)
+            fun watermark(p: String) = p.length < 60 && (WEB_ADDRESS.matches(p.trim()) || (counts[p.trim().lowercase()] ?: 0) >= minRepeats)
+            val clean = sections.map { (n, ps) -> n to ps.filterNot(::watermark) }
+            val start = if (startSection >= 0) startSection else guessed.coerceAtLeast(0)
+            return Doc.build(title, key, clean, author, cover, startSection = start, startTitle = names.getOrNull(start))
         }
     }
 

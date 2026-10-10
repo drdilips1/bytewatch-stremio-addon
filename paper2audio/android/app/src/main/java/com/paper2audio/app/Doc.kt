@@ -43,6 +43,8 @@ class Doc(
             figures: List<Figure> = emptyList(),
             /** Index in [sections] where the main text begins (see [Doc.start]). */
             startSection: Int = 0,
+            /** The start section's name: reading starts at that heading if it comes a little later in the section. */
+            startTitle: String? = null,
         ): Doc {
             val paragraphs = ArrayList<String>()
             val chapters = ArrayList<Chapter>()
@@ -53,6 +55,19 @@ class Doc(
                 if (paras.isEmpty()) continue
                 if (name != null) chapters += Chapter(name, paragraphs.size)
                 paras.forEach { paragraphs += TextCleaner.splitLong(TextCleaner.smartQuotes(it)) }
+            }
+            // Stray front matter at the start of the first chapter's file (an "Also by" list,
+            // a watermark): start at the chapter's own heading when it follows shortly.
+            fun key(t: String) = t.lowercase().filter { it.isLetterOrDigit() }
+            val want = startTitle?.let(::key)?.takeIf { it.isNotEmpty() }
+            val opening = Regex("""(?i)^(prologue|preface|introduction|chapter\s*(1|one|i)\b.*|part\s*(1|one|i)\b.*|one|1)$""")
+            for (i in start until minOf(start + 25, paragraphs.size)) {
+                val p = paragraphs[i].trim()
+                if (p.length > 80) continue
+                if (key(p) == want || opening.matches(p)) {
+                    start = i
+                    break
+                }
             }
             // Front matter that is most of the book was probably misjudged: start at the top.
             if (start > paragraphs.size * 0.4) start = 0

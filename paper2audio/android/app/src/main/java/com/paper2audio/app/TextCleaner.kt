@@ -260,8 +260,13 @@ object TextCleaner {
                     out += buf.toString()
                     buf.setLength(0)
                 }
-                out += s.substring(0, limit)
-                s = s.substring(limit)
+                // Cut at a clause break (comma, semicolon, dash) if there's one past the middle, else between words.
+                val window = s.substring(0, limit + 1)
+                val clause = Regex("""[,;:\u2014\u2013)]\s""").findAll(window).map { it.range.first + 1 }.lastOrNull { it >= limit / 2 }
+                val space = window.lastIndexOf(' ').takeIf { it >= limit / 3 }
+                val cut = clause ?: space ?: limit
+                out += s.substring(0, cut).trim()
+                s = s.substring(cut).trim()
             }
             if (buf.isNotEmpty() && buf.length + s.length + 1 > limit) {
                 out += buf.toString()

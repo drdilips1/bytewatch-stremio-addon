@@ -79,6 +79,44 @@ object HtmlExtractor {
     private val WS = Regex("""\s+""")
     private val BLOCKS = setOf("p", "li", "blockquote", "pre")
 
+    private val AD_WORDS = setOf(
+        "ad", "ads", "advert", "adverts", "advertisement", "adsbygoogle", "dfp", "gpt", "sponsor", "sponsored", "promo",
+        "promoted", "taboola", "outbrain", "mgid", "related", "recommended", "recommendations", "newsletter", "subscribe",
+        "also", "alsoread", "trending", "popup", "paywall", "banner", "comments", "comment",
+    )
+
+    /** "Also read: …", "Subscribe…" and similar boxes inside articles. */
+    private val PROMO = Regex("""(?i)^\s*(also read|read also|read more|related:|recommended|subscribe (now|to)|sign up for|click here|download the app|follow us|advertisement\b|sponsored\b|trending\b)""")
+
+    /** A block that is mostly a link (related stories, "next article" teasers). */
+    private fun mostlyLinks(el: Element, text: String): Boolean {
+        if (el.normalName().matches(Regex("h[1-4]"))) return false
+        val linked = el.select("a").sumOf { it.text().length }
+        return text.length < 300 && linked >= text.length * 0.7
+    }
+
+    /**
+     * The part of the page holding the article: the innermost element that contains most
+     * of the page's paragraph text. Articles broken up by ads or "also read" boxes span
+     * several containers; this keeps all of them (a single best container loses some).
+     */
+    internal fun articleRoot(doc: org.jsoup.nodes.Document): Element {
+        val paras = doc.select("p").filter { it.text().length >= 40 && !mostlyLinks(it, it.text()) }
+        val total = paras.sumOf { it.text().length }
+        if (total == 0) return doc.body()
+        val sums = HashMap<Element, Int>()
+        for (p in paras) {
+            val n = p.text().length
+            var e: Element? = p.parent()
+            while (e != null) {
+                sums[e] = (sums[e] ?: 0) + n
+                e = e.parent()
+            }
+        }
+        // The deepest element with at least 70% of the text.
+        return sums.filter { it.value >= total * 0.7 }.keys.maxByOrNull { it.parents().size } ?: doc.body()
+    }
+
     class Article(val title: String, val author: String?, val imageUrl: String?, val sections: List<Pair<String?, List<String>>>)
 
     fun extract(file: File, o: CleanOptions, name: String, key: String): Doc {
@@ -103,11 +141,12 @@ object HtmlExtractor {
             ?.takeUnless { it.startsWith("http") }
         val image = meta(doc, "og:image", "twitter:image")
         doc.select(JUNK).remove()
+        // Ad slots, sponsored and related-story boxes, by their class or id words.
+        doc.allElements.toList().filter { el ->
+            el !== doc.body() && (el.className() + " " + el.id()).lowercase().split(Regex("""[^a-z]+""")).any { it in AD_WORDS }
+        }.forEach { if (it.parent() != null) it.remove() }
 
-        // Prefer an explicit article container, else the element holding the most paragraph text.
-        val root = doc.selectFirst("article, main, [role=main], #mw-content-text, .post-content, .entry-content, .article-body")
-            ?: doc.select("p").groupBy { it.parent() }.maxByOrNull { (_, ps) -> ps.sumOf { it.text().length } }?.key
-            ?: doc.body()
+        val root = articleRoot(doc)
 
         val sections = ArrayList<Pair<String?, List<String>>>()
         var heading: String? = null
@@ -120,7 +159,7 @@ object HtmlExtractor {
             // Skip blocks nested inside another collected block (e.g. <p> inside <li>), read once via the outer one.
             if (el.parents().takeWhile { it != root }.any { it.normalName() in BLOCKS }) continue
             val text = WS.replace(el.text(), " ").trim()
-            if (text.isEmpty()) continue
+            if (text.isEmpty() || PROMO.containsMatchIn(text) || mostlyLinks(el, text)) continue
             if (el.normalName().matches(Regex("h[1-4]"))) {
                 if (text == title && sections.isEmpty() && lines.isEmpty()) continue
                 if (o.skipReferences && END.matches(text)) break
@@ -256,6 +295,8 @@ object PptxExtractor {
                     ?.filter { it.getElementsByTag("p:ph").firstOrNull()?.attr("type") == "body" }
                     ?.flatMap { sp -> sp.getElementsByTag("a:p").map { p -> p.getElementsByTag("a:t").joinToString("") { it.wholeText() }.trim() } }
                     ?.filter { it.isNotEmpty() }.orEmpty()
+                // A slide with only a picture has nothing to read; saying just its number sounds odd.
+                if (slideTitle.isNullOrBlank() && points.isEmpty() && notes.isEmpty()) continue
                 val heading = "Slide ${i + 1}" + (slideTitle?.let { ": $it" } ?: "")
                 val lines = ArrayList<String>()
                 lines += heading

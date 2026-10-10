@@ -709,7 +709,23 @@ object Speaker {
             val out = AudioStream(app, Renderer.playbackBoost(v, currentSpeed))
             if (!playing) out.pause()
             stream = out
-            val pieces = pieceSequence(d, index, pieceIndex, vid).iterator()
+            // On-device voices: a long first sentence is cut at a comma or space, so the first sound comes sooner.
+            val pieces = pieceSequence(d, index, pieceIndex, vid).let { seq ->
+                if (!LocalTts.isLocal(vid)) seq else sequence {
+                    var first = true
+                    for (p in seq) {
+                        if (first && p.text.length > 90) {
+                            val parts = TextCleaner.splitLong(p.text, 70)
+                            parts.forEachIndexed { k, t ->
+                                yield(Piece(p.paragraph, p.index, t, p.lastInParagraph && k == parts.size - 1, p.voice))
+                            }
+                        } else {
+                            yield(p)
+                        }
+                        first = false
+                    }
+                }
+            }.iterator()
             val queue = ArrayDeque<Pair<Piece, Deferred<Pcm16>>>()
             val base = v.copy(dialogue = null)
             suspend fun load(p: Piece): Pcm16 {

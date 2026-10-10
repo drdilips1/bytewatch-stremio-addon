@@ -82,13 +82,19 @@ object LocalTts {
     class Pcm(val bytes: ByteArray, val sampleRate: Int)
 
     private val lock = Any()
-    private var engine: OfflineTts? = null
-    private var engineKey: String? = null
+    /** Loaded models, most recently used last. Phones with plenty of memory keep two, so switching back is instant. */
+    private val engines = LinkedHashMap<String, OfflineTts>()
+
+    private val keepEngines: Int by lazy {
+        val totalKb = runCatching {
+            java.io.File("/proc/meminfo").readLines().first { it.startsWith("MemTotal") }.filter { it.isDigit() }.toLong()
+        }.getOrDefault(0L)
+        if (totalKb >= 5_500_000L) 2 else 1
+    }
 
     fun release() = synchronized(lock) {
-        engine?.release()
-        engine = null
-        engineKey = null
+        engines.values.forEach { it.release() }
+        engines.clear()
     }
 
     /** Loads the model for [voiceId] without generating anything, so Play starts quickly. */
@@ -109,7 +115,7 @@ object LocalTts {
                 val code = lang?.takeIf { it in SUPERTONIC_LANGS } ?: "en"
                 tts.generateWithConfig(
                     text,
-                    GenerationConfig(sid = v.sid, speed = speed, numSteps = 8, extra = mapOf("lang" to code)),
+                    GenerationConfig(sid = v.sid, speed = speed, numSteps = 6, extra = mapOf("lang" to code)),
                 )
             }
             else -> {
@@ -145,9 +151,11 @@ object LocalTts {
             voiceId.startsWith(Speaker.SUPER) -> "supertonic"
             else -> "pocket"
         }
-        engine?.let { if (engineKey == key) return it }
-        engine?.release()
-        engine = null
+        engines.remove(key)?.let { engines[key] = it; return it }
+        while (engines.size >= keepEngines) {
+            val oldest = engines.keys.first()
+            engines.remove(oldest)?.release()
+        }
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
         val model = when (key) {
             "supertonic" -> SUPERTONIC_PACK.let { p ->
@@ -193,10 +201,7 @@ object LocalTts {
                 )
             }
         }
-        return OfflineTts(config = OfflineTtsConfig(model = model)).also {
-            engine = it
-            engineKey = key
-        }
+        return OfflineTts(config = OfflineTtsConfig(model = model)).also { engines[key] = it }
     }
 
     private fun toPcm16(samples: FloatArray): ByteArray {
