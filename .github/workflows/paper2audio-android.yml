@@ -60,8 +60,9 @@ jobs:
           cp app/build/outputs/bundle/liteRelease/app-lite-release.aab Narrato.aab
           ls -la Paper2Audio.apk Narrato.apk Narrato.aab
           # For the in-app "Update available" check.
-          CODE=$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | grep -oE '[0-9]+')
-          NAME=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | cut -d'"' -f2)
+          # The full edition's version (the first one in the file; the lite flavor has its own).
+          CODE=$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | head -1 | grep -oE '[0-9]+')
+          NAME=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | head -1 | cut -d'"' -f2)
           printf '{"versionCode": %s, "versionName": "%s"}\n' "$CODE" "$NAME" > version.json
           cat version.json
 
