@@ -38,7 +38,7 @@ import java.util.concurrent.CopyOnWriteArraySet
 import kotlin.coroutines.coroutineContext
 
 /**
- * Renders a whole document to one audio file in Music/Paper2Audio: MP3 for
+ * Renders a whole document to one audio file in Downloads/Paper2Audio: MP3 for
  * the natural (Microsoft) voices, M4A (AAC) for the phone's own voices.
  */
 object Exporter {
@@ -65,7 +65,7 @@ object Exporter {
     private var part = 0
     private var parts = 1
     private var partBytes = 0L
-    /** Where files go (under Music) and the MP3 tags for the current file. */
+    /** Where files go (under Downloads) and the MP3 tags for the current file. */
     private var folder = "Paper2Audio"
     private var tags: Id3.Info? = null
 
@@ -151,7 +151,7 @@ object Exporter {
                 val (uri, where) = result!!
                 update {
                     resultUri = uri
-                    message = "Saved to $where"
+                    message = "Saved to $where (in the Files app)"
                 }
             } catch (e: CancellationException) {
                 update { message = "Cancelled" }
@@ -377,25 +377,26 @@ object Exporter {
         val safe = title.replace(Regex("""[\\/:*?"<>|]+"""), "_").take(80).ifBlank { "audio" }
         if (Build.VERSION.SDK_INT >= 29) {
             val cr = context.contentResolver
+            // In Downloads, where people look for saved files (music and audiobook apps find them there too).
             val values = ContentValues().apply {
-                put(MediaStore.Audio.Media.DISPLAY_NAME, "$safe.$ext")
-                put(MediaStore.Audio.Media.MIME_TYPE, mime)
-                put(MediaStore.Audio.Media.TITLE, title)
-                put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/" + folder)
-                put(MediaStore.Audio.Media.IS_PENDING, 1)
+                put(MediaStore.Downloads.DISPLAY_NAME, "$safe.$ext")
+                put(MediaStore.Downloads.MIME_TYPE, mime)
+                put(MediaStore.Downloads.TITLE, title)
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + folder)
+                put(MediaStore.Downloads.IS_PENDING, 1)
             }
-            val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
             val uri = cr.insert(collection, values) ?: error("Could not create the audio file")
             val pfd = cr.openFileDescriptor(uri, "rw") ?: error("Could not open the audio file")
             return Output(
-                uri, pfd, "Music/$folder",
+                uri, pfd, "Downloads/$folder",
                 commit = {
-                    cr.update(uri, ContentValues().apply { put(MediaStore.Audio.Media.IS_PENDING, 0) }, null, null)
+                    cr.update(uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
                 },
                 discard = { runCatching { cr.delete(uri, null, null) } },
             )
         }
-        val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), folder).apply { mkdirs() }
+        val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), folder).apply { mkdirs() }
         val file = File(dir, "$safe.$ext")
         val pfd = ParcelFileDescriptor.open(
             file,

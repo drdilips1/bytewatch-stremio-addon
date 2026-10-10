@@ -304,7 +304,7 @@ class LitePlayerActivity : Activity() {
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             )
         } catch (e: Exception) {
-            Toast.makeText(this, "Saved in your Music folder. No audio player was found to open it.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Saved in Downloads/${Brand.folder(this)}. No audio player was found to open it.", Toast.LENGTH_LONG).show()
         }
     }
 

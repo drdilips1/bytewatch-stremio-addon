@@ -132,7 +132,7 @@ object Transcript {
     }
 }
 
-/** The folder (in Downloads and Music) that saved files go into: the app's name. */
+/** The folder in Downloads that saved files (audio, text) go into: the app's name. */
 object Brand {
     fun folder(context: Context): String =
         if (!BuildConfig.LITE) "Paper2Audio"
