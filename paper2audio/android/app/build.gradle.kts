@@ -15,8 +15,8 @@ android {
         targetSdk = 34
         // Samsung Galaxy and nearly all current phones are 64-bit ARM; this keeps the APK small.
         ndk { abiFilters += "arm64-v8a" }
-        versionCode = 19
-        versionName = "4.1"
+        versionCode = 20
+        versionName = "4.2"
     }
 
     buildFeatures { buildConfig = true }
@@ -38,8 +38,8 @@ android {
             // Permanent once uploaded to Google Play.
             applicationId = "com.narrato.reader"
             targetSdk = 36
-            versionCode = 1
-            versionName = "1.0"
+            versionCode = 2
+            versionName = "1.1"
             buildConfigField("boolean", "LITE", "true")
             // AdMob IDs from the environment (GitHub secrets); Google's test IDs otherwise.
             fun env(name: String, test: String) = System.getenv(name)?.takeIf { it.isNotBlank() } ?: test
