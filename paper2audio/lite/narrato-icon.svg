@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="0.55" stop-color="#3730A3"/>
+      <stop offset="1" stop-color="#1E1B4B"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.55">
+      <stop offset="0" stop-color="#A5B4FC" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#A5B4FC" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wave" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#F59E0B"/>
+      <stop offset="1" stop-color="#FCD34D"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <g fill="url(#wave)"><rect x="163" y="216" width="26" height="46" rx="13"/><rect x="203" y="170" width="26" height="92" rx="13"/><rect x="243" y="130" width="26" height="132" rx="13"/><rect x="283" y="170" width="26" height="92" rx="13"/><rect x="323" y="216" width="26" height="46" rx="13"/></g>
+  <path d="M 256 300 C 214 274 160 270 118 284 L 118 386 C 160 372 214 376 256 402 Z" fill="#FFFFFF"/>
+  <path d="M 256 300 C 298 274 352 270 394 284 L 394 386 C 352 372 298 376 256 402 Z" fill="#E0E7FF"/>
+  <path d="M 256 300 L 256 402" stroke="#C7D2FE" stroke-width="4"/>
+</svg>

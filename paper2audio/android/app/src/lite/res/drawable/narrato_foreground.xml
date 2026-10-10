@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Narrato: an open book with sound bars rising from it. Drawn on a 512 grid, scaled into the icon's safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.2174"
+        android:scaleY="0.2174"
+        android:translateX="-1.65"
+        android:translateY="-3.83">
+        <path android:fillColor="#FBBF24" android:pathData="M163,229 a13,13 0 0 1 26,0 V249 a13,13 0 0 1 -26,0 Z" />
+        <path android:fillColor="#FBBF24" android:pathData="M203,183 a13,13 0 0 1 26,0 V249 a13,13 0 0 1 -26,0 Z" />
+        <path android:fillColor="#FBBF24" android:pathData="M243,143 a13,13 0 0 1 26,0 V249 a13,13 0 0 1 -26,0 Z" />
+        <path android:fillColor="#FBBF24" android:pathData="M283,183 a13,13 0 0 1 26,0 V249 a13,13 0 0 1 -26,0 Z" />
+        <path android:fillColor="#FBBF24" android:pathData="M323,229 a13,13 0 0 1 26,0 V249 a13,13 0 0 1 -26,0 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M256,300 C214,274 160,270 118,284 L118,386 C160,372 214,376 256,402 Z" />
+        <path android:fillColor="#E0E7FF" android:pathData="M256,300 C298,274 352,270 394,284 L394,386 C352,372 298,376 256,402 Z" />
+        <path android:strokeColor="#C7D2FE" android:strokeWidth="4" android:pathData="M256,300 L256,402" />
+    </group>
+</vector>
