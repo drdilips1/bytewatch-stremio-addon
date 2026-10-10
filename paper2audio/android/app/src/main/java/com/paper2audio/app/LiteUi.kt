@@ -59,137 +59,103 @@ object LiteUi {
 
     /**
      * The voice picker: the phone's voice (instant), then natural on-device voices
-     * with their one-time download shown as percent and megabytes.
+     * with their one-time download shown as percent and megabytes. Tapping a voice
+     * plays a short sample; the sheet stays open to try others.
      */
     fun showVoices(activity: Activity, onChosen: () -> Unit = {}) {
-        val pad = dp(activity, 20)
-        val list = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, dp(activity, 8), pad, dp(activity, 8))
-        }
-        val dialog = AlertDialog.Builder(activity)
-            .setTitle("Choose a voice")
-            .setView(ScrollView(activity).apply { addView(list) })
-            .setNegativeButton("Close", null)
-            .create()
-        val refresh = { fillVoices(activity, list, dialog, onChosen) }
-        val listener: () -> Unit = { if (dialog.isShowing) refresh() }
+        val sheet = LiteSheet(activity, "Choose a voice", "Tap a voice to hear it")
+        val listener: () -> Unit = { if (sheet.isShowing) fillVoices(activity, sheet, onChosen) }
         ModelPack.addListener(listener)
-        dialog.setOnDismissListener {
+        sheet.onDismiss {
             ModelPack.removeListener(listener)
             Speaker.stopPreview()
         }
-        refresh()
-        dialog.show()
+        fillVoices(activity, sheet, onChosen)
+        sheet.show()
     }
 
-    private fun fillVoices(activity: Activity, list: LinearLayout, dialog: AlertDialog, onChosen: () -> Unit) {
-        list.removeAllViews()
-        val text = Themes.color(activity, R.attr.p2aText)
-        fun header(t: String, note: String) {
-            list.addView(TextView(activity).apply {
-                this.text = t
-                textSize = 16f
-                setTextColor(text)
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setPadding(0, dp(activity, 14), 0, dp(activity, 2))
-            })
-            list.addView(TextView(activity, null, 0, R.style.P2A_Muted).apply { this.text = note })
+    private fun fillVoices(activity: Activity, sheet: LiteSheet, onChosen: () -> Unit) {
+        sheet.clear()
+        fun choice(id: String, title: String, subtitle: String) {
+            sheet.row(R.drawable.ic_voice, title, subtitle, checked = id == Speaker.voiceId, dismiss = false) {
+                Speaker.setVoice(id)
+                if (!Speaker.playing) Speaker.preview(voice = id)
+                onChosen()
+                fillVoices(activity, sheet, onChosen)
+            }
         }
-        fun choice(id: String, label: String) {
-            val chosen = id == Speaker.voiceId
-            list.addView(Button(activity, null, 0, if (chosen) R.style.P2A_Button else R.style.P2A_Button_Soft).apply {
-                this.text = if (chosen) "✓  $label" else label
-                gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                    topMargin = dp(activity, 6)
-                }
-                setOnClickListener {
-                    Speaker.setVoice(id)
-                    if (!Speaker.playing) Speaker.preview(voice = id)
-                    onChosen()
-                    fillVoices(activity, list, dialog, onChosen)
-                }
-            })
-        }
-        fun pack(p: ModelPack, what: String, voices: List<Pair<String, String>>) {
-            header(p.title.replaceFirstChar { it.uppercase() }, what)
+        fun pack(p: ModelPack, voices: List<Triple<String, String, String>>) {
             when {
                 p.isInstalled() -> {
-                    voices.forEach { (id, label) -> choice(id, label) }
-                    list.addView(Button(activity, null, 0, R.style.P2A_Button_Text).apply {
-                        this.text = "Delete these voices (frees ${p.sizeMb} MB)"
-                        setOnClickListener {
-                            AlertDialog.Builder(activity)
-                                .setMessage("Delete ${p.title}? You can download them again any time.")
-                                .setPositiveButton("Delete") { _, _ ->
-                                    if (LocalTts.packFor(Speaker.voiceId) === p) Speaker.setVoice(Speaker.PHONE_DEFAULT)
-                                    p.uninstall { fillVoices(activity, list, dialog, onChosen) }
-                                }
-                                .setNegativeButton("Cancel", null)
-                                .show()
-                        }
-                    })
+                    voices.forEach { (id, title, sub) -> choice(id, title, sub) }
+                    sheet.row(R.drawable.ic_delete, "Delete these voices", "Frees ${p.sizeMb} MB; download again any time", dismiss = false) {
+                        AlertDialog.Builder(activity)
+                            .setMessage("Delete ${p.title}? You can download them again any time.")
+                            .setPositiveButton("Delete") { _, _ ->
+                                if (LocalTts.packFor(Speaker.voiceId) === p) Speaker.setVoice(Speaker.PHONE_DEFAULT)
+                                p.uninstall { fillVoices(activity, sheet, onChosen) }
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
                 }
                 p.installing -> {
-                    list.addView(ProgressBar(activity, null, 0, R.style.P2A_Progress).apply {
+                    val box = LinearLayout(activity).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(dp(activity, 24), dp(activity, 6), dp(activity, 24), dp(activity, 2))
+                    }
+                    box.addView(ProgressBar(activity, null, 0, R.style.P2A_Progress).apply {
                         max = 100
                         progress = p.progress
-                        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(activity, 10)).apply {
-                            topMargin = dp(activity, 10)
-                        }
+                    }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(activity, 8)))
+                    box.addView(TextView(activity, null, 0, R.style.P2A_Muted).apply {
+                        text = p.message ?: "Starting…"
+                        setPadding(0, dp(activity, 8), 0, 0)
                     })
-                    list.addView(TextView(activity, null, 0, R.style.P2A_Muted).apply {
-                        this.text = p.message ?: "Starting…"
-                        setPadding(0, dp(activity, 6), 0, 0)
-                    })
-                    list.addView(Button(activity, null, 0, R.style.P2A_Button_Text).apply {
-                        this.text = "Pause download"
-                        setOnClickListener { p.cancelInstall() }
-                    })
+                    sheet.view(box)
+                    sheet.row(R.drawable.ic_pause, "Pause the download", "It resumes from here later", dismiss = false) { p.cancelInstall() }
                 }
                 else -> {
-                    p.message?.takeIf { it.startsWith("Download failed") }?.let { msg ->
-                        list.addView(TextView(activity, null, 0, R.style.P2A_Muted).apply { this.text = msg })
-                    }
+                    val failed = p.message?.takeIf { it.startsWith("Download failed") }
                     val partial = p.partialMb()
-                    list.addView(Button(activity, null, 0, R.style.P2A_Button).apply {
-                        this.text = if (partial > 0) "Resume download ($partial of ${p.sizeMb} MB done)" else "Download (${p.sizeMb} MB, once)"
-                        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                            topMargin = dp(activity, 8)
+                    sheet.row(
+                        R.drawable.ic_save,
+                        if (partial > 0) "Resume the download" else "Download these voices",
+                        failed ?: if (partial > 0) "$partial of ${p.sizeMb} MB done" else "${p.sizeMb} MB, once · then works offline",
+                        dismiss = false,
+                    ) {
+                        askNotifications(activity)
+                        p.install {
+                            // Switch to the new voices when they're ready (if still on the phone voice).
+                            if (Speaker.voiceId.startsWith(Speaker.SYSTEM)) voices.firstOrNull()?.let { Speaker.setVoice(it.first) }
+                            onChosen()
                         }
-                        setOnClickListener {
-                            askNotifications(activity)
-                            p.install {
-                                // Switch to the new voices when they're ready (if still on the phone voice).
-                                if (Speaker.voiceId.startsWith(Speaker.SYSTEM)) voices.firstOrNull()?.let { Speaker.setVoice(it.first) }
-                                onChosen()
-                            }
-                            fillVoices(activity, list, dialog, onChosen)
-                        }
-                    })
+                        fillVoices(activity, sheet, onChosen)
+                    }
                 }
             }
         }
 
-        header("Phone voice", "Works instantly, offline. Quality depends on your phone.")
-        choice(Speaker.PHONE_DEFAULT, "Phone's default voice")
-        list.addView(Button(activity, null, 0, R.style.P2A_Button_Text).apply {
-            this.text = "Other phone voices…"
-            setOnClickListener { showPhoneVoices(activity) { onChosen(); fillVoices(activity, list, dialog, onChosen) } }
-        })
+        sheet.section("On your phone · instant")
+        choice(Speaker.PHONE_DEFAULT, "Phone's default voice", "Works offline; quality depends on your phone")
+        sheet.row(R.drawable.ic_list, "Other phone voices", "Including Indian English, if your phone has it") {
+            showPhoneVoices(activity) { onChosen() }
+        }
 
         if (LocalTts.supported) {
+            sheet.section("Natural · Supertonic · 31 languages")
             pack(
                 LocalTts.SUPERTONIC_PACK,
-                "Natural voices made on your phone, offline. English and 30 more languages.",
-                LocalTts.SUPERTONIC_VOICES.map { Speaker.SUPER + it.name to "${supertonicName(it.name)} · ${if (it.name.startsWith("F")) "female" else "male"}" },
+                LocalTts.SUPERTONIC_VOICES.map {
+                    Triple(Speaker.SUPER + it.name, supertonicName(it.name), if (it.name.startsWith("F")) "Female · quick to start" else "Male · quick to start")
+                },
             )
-            pack(
-                LocalTts.KOKORO_PACK,
-                "Very natural English voices, offline. A larger download.",
-                Kokoro.VOICES.map { Speaker.KOKORO + it.name to it.label },
-            )
+            sheet.section("Natural · Kokoro · English")
+            val kokoro = Kokoro.VOICES.sortedBy { if (it.indian) 0 else 1 }.map { v ->
+                val (name, rest) = v.label.split(" · ", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+                Triple(Speaker.KOKORO + v.name, name, rest.replaceFirstChar { it.uppercase() })
+            }
+            pack(LocalTts.KOKORO_PACK, kokoro)
         }
     }
 
@@ -207,14 +173,32 @@ object LiteUi {
                     AlertDialog.Builder(activity).setMessage("No other voices are installed on this phone.").setPositiveButton("OK", null).show()
                     return@runOnUiThread
                 }
-                AlertDialog.Builder(activity)
-                    .setTitle("Phone voices")
-                    .setItems(voices.map { "${it.locale.displayName} · ${it.name}" }.toTypedArray()) { _, which ->
-                        Speaker.setVoice(Speaker.SYSTEM + voices[which].name)
-                        if (!Speaker.playing) Speaker.preview(voice = Speaker.voiceId)
-                        onChosen()
+                val sheet = LiteSheet(activity, "Phone voices", "Tap one to hear it")
+                // Indian English and Indian languages first, then the phone's language, then the rest.
+                val indian = voices.filter { it.locale.country == "IN" }
+                val rest = voices - indian.toSet()
+                fun add(list: List<android.speech.tts.Voice>) {
+                    val count = HashMap<String, Int>()
+                    for (v in list) {
+                        val lang = v.locale.displayName
+                        val n = (count[lang] ?: 0) + 1
+                        count[lang] = n
+                        val id = Speaker.SYSTEM + v.name
+                        sheet.row(R.drawable.ic_voice, "$lang · voice $n", if (v.quality >= android.speech.tts.Voice.QUALITY_HIGH) "Higher quality" else null, checked = id == Speaker.voiceId, dismiss = false) {
+                            Speaker.setVoice(id)
+                            if (!Speaker.playing) Speaker.preview(voice = id)
+                            onChosen()
+                        }
                     }
-                    .show()
+                }
+                if (indian.isNotEmpty()) {
+                    sheet.section("Indian")
+                    add(indian)
+                    sheet.section("Other languages")
+                }
+                add(rest)
+                sheet.onDismiss { Speaker.stopPreview() }
+                sheet.show()
             }
         }
     }
@@ -261,7 +245,8 @@ object LiteUi {
         box.addView(label)
         box.addView(bar)
         box.addView(presets)
-        AlertDialog.Builder(activity).setTitle("Reading speed").setView(box).setPositiveButton("Done", null).show()
+        box.setPadding(dp(activity, 24), 0, dp(activity, 24), dp(activity, 8))
+        LiteSheet(activity, "Reading speed", "Drag, or tap a common speed").view(box).show()
     }
 
     /** "1.0x", "1.25x". */
@@ -280,19 +265,20 @@ object LiteUi {
     }
 
     fun showSleep(activity: Activity, onChanged: () -> Unit) {
-        val minutes = listOf(5, 10, 15, 20, 30, 45, 60, 90)
-        val options = listOf("Off") + minutes.map { "$it minutes" } + listOf("End of this chapter")
-        AlertDialog.Builder(activity)
-            .setTitle("Sleep timer")
-            .setItems(options.toTypedArray()) { _, which ->
-                when (which) {
-                    0 -> Speaker.setSleepTimer(0)
-                    options.size - 1 -> Speaker.setSleepAtEndOfChapter()
-                    else -> Speaker.setSleepTimer(minutes[which - 1])
-                }
+        val on = Speaker.sleepAt > 0 || Speaker.sleepEndOfChapter
+        val sheet = LiteSheet(activity, "Sleep timer", if (on) "Stops in ${sleepLabel()}" else "Stop reading after a while")
+        if (on) sheet.row(R.drawable.ic_close, "Turn off", null) { Speaker.setSleepTimer(0); onChanged() }
+        sheet.row(R.drawable.ic_list, "End of this chapter", "Stops when the chapter ends", checked = Speaker.sleepEndOfChapter) {
+            Speaker.setSleepAtEndOfChapter()
+            onChanged()
+        }
+        for (m in listOf(5, 10, 15, 20, 30, 45, 60, 90)) {
+            sheet.row(R.drawable.ic_timer, if (m >= 60) "${m / 60} h${if (m % 60 > 0) " ${m % 60} min" else ""}" else "$m minutes", null) {
+                Speaker.setSleepTimer(m)
                 onChanged()
             }
-            .show()
+        }
+        sheet.show()
     }
 
     // ---- Audiobook ----
@@ -317,22 +303,18 @@ object LiteUi {
         }
         val (minutes, mb) = Exporter.estimate(doc, Speaker.voiceId, Speaker.renderSpeed)
         val length = if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
-        val options = ArrayList<Pair<String, () -> Unit>>()
         val v = Speaker.voicing(doc)
         val sp = Speaker.renderSpeed
         val start = { perChapter: Boolean, parts: Int ->
             askNotifications(activity)
             Exporter.start(activity, doc, v, sp, perChapter = perChapter, split = parts)
         }
-        options += "One audio file (about $mb MB)" to { start(false, 1) }
-        if (doc.chapters.size > 1) options += "One file per chapter (${doc.chapters.size} files, like an audiobook)" to { start(true, 1) }
-        if (minutes >= 30) options += "Two parts (about ${mb / 2} MB each)" to { start(false, 2) }
-        if (minutes >= 240) options += "Four parts (about ${mb / 4} MB each)" to { start(false, 4) }
-        AlertDialog.Builder(activity)
-            .setTitle("Make an audiobook · $length")
-            .setItems(options.map { it.first }.toTypedArray()) { _, which -> options[which].second() }
-            .setNegativeButton("Cancel", null)
-            .show()
+        val sheet = LiteSheet(activity, "Make an audiobook", "$length with ${voiceName()} · saved in Downloads/${Brand.folder(activity)}")
+        sheet.row(R.drawable.ic_save, "One audio file", "About $mb MB") { start(false, 1) }
+        if (doc.chapters.size > 1) sheet.row(R.drawable.ic_list, "A file per chapter", "${doc.chapters.size} files in a folder, like an audiobook") { start(true, 1) }
+        if (minutes >= 30) sheet.row(R.drawable.ic_save, "Two parts", "About ${mb / 2} MB each") { start(false, 2) }
+        if (minutes >= 240) sheet.row(R.drawable.ic_save, "Four parts", "About ${mb / 4} MB each") { start(false, 4) }
+        sheet.show()
     }
 
     fun askNotifications(activity: Activity) {

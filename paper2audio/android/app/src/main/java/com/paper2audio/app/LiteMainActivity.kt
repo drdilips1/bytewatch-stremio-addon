@@ -143,23 +143,21 @@ class LiteMainActivity : Activity() {
     }
 
     private fun itemMenu(item: Library.Item) {
-        AlertDialog.Builder(this)
-            .setTitle(item.title)
-            .setItems(arrayOf("Listen", "Delete")) { _, which ->
-                if (which == 0) open(item) else {
-                    AlertDialog.Builder(this)
-                        .setMessage("Delete “${item.title}” from the library?")
-                        .setPositiveButton("Delete") { _, _ ->
-                            if (Speaker.doc?.key == item.id) Speaker.pause()
-                            scope.launch {
-                                withContext(Dispatchers.IO) { Library.remove(this@LiteMainActivity, item) }
-                                thumbs.remove(item.id)
-                                reload()
-                            }
+        LiteSheet(this, item.title, item.author)
+            .row(R.drawable.ic_headphones, "Listen", "Continue where you left off") { open(item) }
+            .row(R.drawable.ic_delete, "Delete", "Remove it from your library") {
+                AlertDialog.Builder(this)
+                    .setMessage("Delete “${item.title}” from the library?")
+                    .setPositiveButton("Delete") { _, _ ->
+                        if (Speaker.doc?.key == item.id) Speaker.pause()
+                        scope.launch {
+                            withContext(Dispatchers.IO) { Library.remove(this@LiteMainActivity, item) }
+                            thumbs.remove(item.id)
+                            reload()
                         }
-                        .setNegativeButton("Cancel", null)
-                        .show()
-                }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
             }
             .show()
     }
@@ -168,24 +166,13 @@ class LiteMainActivity : Activity() {
 
     private fun showAddMenu() {
         if (working) return
-        val options = arrayOf(
-            "Book or document\nPDF, EPUB, Word, PowerPoint, text or web page file",
-            "Paste text",
-            "Web page link",
-            "Photo of a page\nTake a picture; the text is read from it",
-            "Photos or screenshots\nChoose images with text",
-        )
-        AlertDialog.Builder(this)
-            .setTitle("Add")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> pickFile()
-                    1 -> askText()
-                    2 -> askLink()
-                    3 -> takePhoto()
-                    else -> pickImages()
-                }
-            }
+        LiteSheet(this, "Add something to listen to")
+            .row(R.drawable.ic_doc, "Book or document", "PDF, EPUB, Word, PowerPoint or text file") { pickFile() }
+            .row(R.drawable.ic_paste, "Paste text", "From the clipboard, or type it") { askText() }
+            .row(R.drawable.ic_link, "Web page", "An article or blog post, by its link") { askLink() }
+            .section("From pictures")
+            .row(R.drawable.ic_camera, "Photo of a page", "Take a picture; the text is read from it") { takePhoto() }
+            .row(R.drawable.ic_image, "Photos or screenshots", "Choose images that have text") { pickImages() }
             .show()
     }
 
@@ -369,30 +356,27 @@ class LiteMainActivity : Activity() {
     // ---- Menu ----
 
     private fun showMenu() {
-        val options = ArrayList<Pair<String, () -> Unit>>()
-        options += "Theme" to { Themes.showPicker(this) }
-        options += "Report a problem" to { AppLog.showReport(this) }
-        options += "Privacy policy" to {
-            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL))) }
-            Unit
-        }
-        options += "Ad privacy choices" to {
-            if (!Ads.privacyOptions(this)) toast("No ad choices are needed in your region.")
-        }
-        options += "About" to {
-            AlertDialog.Builder(this)
-                .setTitle("${getString(R.string.app_name)} ${Updater.currentName(this)}")
-                .setMessage(
-                    "Listen to books, documents and web pages, as much as you like. Free, with ads.\n\n" +
-                        "Voices run on your phone: Supertonic (Supertone), Kokoro (Apache 2.0), through sherpa-onnx (Apache 2.0). " +
-                        "PDF reading: PdfBox-Android (Apache 2.0). Text recognition: Google ML Kit.",
-                )
-                .setPositiveButton("OK", null)
-                .show()
-            Unit
-        }
-        AlertDialog.Builder(this)
-            .setItems(options.map { it.first }.toTypedArray()) { _, which -> options[which].second() }
+        LiteSheet(this, getString(R.string.app_name), "Version ${Updater.currentName(this)} · free and unlimited")
+            .row(R.drawable.ic_palette, "Theme", "Colors of the app") { Themes.showPicker(this) }
+            .row(R.drawable.ic_bug, "Report a problem", "Share the app's error log to get it fixed") { AppLog.showReport(this) }
+            .section("Privacy")
+            .row(R.drawable.ic_shield, "Privacy policy", "What the app stores and shares") {
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL))) }
+            }
+            .row(R.drawable.ic_info, "Ad privacy choices", "Change how ads use your data") {
+                if (!Ads.privacyOptions(this)) toast("No ad choices are needed in your region.")
+            }
+            .row(R.drawable.ic_text, "About and credits", "The voices and libraries in this app") {
+                AlertDialog.Builder(this)
+                    .setTitle("${getString(R.string.app_name)} ${Updater.currentName(this)}")
+                    .setMessage(
+                        "Listen to books, documents and web pages, as much as you like. Free, with ads.\n\n" +
+                            "Voices run on your phone: Supertonic (Supertone), Kokoro (Apache 2.0), through sherpa-onnx (Apache 2.0). " +
+                            "PDF reading: PdfBox-Android (Apache 2.0). Text recognition: Google ML Kit.",
+                    )
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
             .show()
     }
 

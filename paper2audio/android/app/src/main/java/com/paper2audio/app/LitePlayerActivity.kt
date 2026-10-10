@@ -345,49 +345,47 @@ class LitePlayerActivity : Activity() {
             Toast.makeText(this, "This one has no chapters. Drag the bar below to move around.", Toast.LENGTH_SHORT).show()
             return
         }
-        val current = doc.chapters.indexOf(doc.chapterAt(Speaker.index))
-        AlertDialog.Builder(this)
-            .setTitle("Chapters")
-            .setSingleChoiceItems(doc.chapters.map { it.title }.toTypedArray(), current) { d, which ->
-                d.dismiss()
+        val current = doc.chapterAt(Speaker.index)
+        val sheet = LiteSheet(this, "Chapters", "${doc.chapters.size} chapters · tap one to go there")
+        for ((i, ch) in doc.chapters.withIndex()) {
+            val end = doc.chapters.getOrNull(i + 1)?.start ?: doc.paragraphs.size
+            val words = (ch.start until end).sumOf { k -> doc.paragraphs[k].count { it == ' ' } + 1 }
+            val minutes = (words / (160f * Speaker.renderSpeed)).toInt().coerceAtLeast(1)
+            sheet.row(null, ch.title, "$minutes min", checked = ch == current) {
                 lastUserScroll = 0
-                Speaker.seek(doc.chapters[which].start)
+                Speaker.seek(ch.start)
             }
-            .show()
+        }
+        sheet.show()
     }
 
     private fun showMore() {
-        val options = ArrayList<Pair<String, () -> Unit>>()
-        options += "Make an audiobook" to { LiteUi.showAudiobook(this) }
-        options += "Save the text (text, Markdown or PDF)" to { exportTranscript() }
-        options += "Text size" to { textSize() }
-        options += "Report a problem" to { AppLog.showReport(this) }
-        AlertDialog.Builder(this)
-            .setItems(options.map { it.first }.toTypedArray()) { _, which -> options[which].second() }
+        LiteSheet(this, Speaker.doc?.title, null)
+            .row(R.drawable.ic_save, "Make an audiobook", "Save it as audio files in Downloads") { LiteUi.showAudiobook(this) }
+            .row(R.drawable.ic_text, "Save the text", "As plain text, Markdown or PDF") { exportTranscript() }
+            .row(R.drawable.ic_tune, "Text size", "Larger or smaller reading text") { textSize() }
+            .row(R.drawable.ic_bug, "Report a problem", "Share the app's error log to get it fixed") { AppLog.showReport(this) }
             .show()
     }
 
     private fun textSize() {
         val sizes = listOf(14f, 16f, 18f, 20f, 23f, 26f)
         val labels = listOf("Small", "Medium", "Default", "Large", "Larger", "Largest")
-        AlertDialog.Builder(this)
-            .setTitle("Text size")
-            .setSingleChoiceItems(labels.toTypedArray(), sizes.indexOf(textSizeSp).coerceAtLeast(0)) { d, which ->
-                d.dismiss()
-                textSizeSp = sizes[which]
+        val sheet = LiteSheet(this, "Text size")
+        for ((i, label) in labels.withIndex()) {
+            sheet.row(null, label, null, checked = sizes[i] == textSizeSp) {
+                textSizeSp = sizes[i]
                 prefs.edit().putFloat("liteTextSize", textSizeSp).apply()
                 readerAdapter.notifyDataSetChanged()
             }
-            .show()
+        }
+        sheet.show()
     }
 
     private fun exportTranscript() {
         val doc = Speaker.doc ?: return
-        val formats = Transcript.Format.values()
-        AlertDialog.Builder(this)
-            .setTitle("Save the text")
-            .setItems(formats.map { it.label }.toTypedArray()) { _, which ->
-                val format = formats[which]
+        val sheet = LiteSheet(this, "Save the text", "Saved in Downloads/${Brand.folder(this)}")
+        for (format in Transcript.Format.values()) sheet.row(R.drawable.ic_doc, format.label, null) {
                 scope.launch {
                     try {
                         val uri = withContext(Dispatchers.IO) { Transcript.save(this@LitePlayerActivity, doc, format, emptySet()) }
@@ -408,7 +406,7 @@ class LitePlayerActivity : Activity() {
                         Toast.makeText(this@LitePlayerActivity, "Couldn't save: ${e.message}", Toast.LENGTH_LONG).show()
                     }
                 }
-            }
-            .show()
+        }
+        sheet.show()
     }
 }

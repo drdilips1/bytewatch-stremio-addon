@@ -7,6 +7,7 @@ package com.paper2audio.app
 object Kokoro {
     data class KVoice(val name: String, val sid: Int, val label: String) {
         val british get() = name.startsWith("b")
+        val indian get() = name.startsWith("h")
     }
 
     /** Best-rated English voices of kokoro-multi-lang-v1_0; sid is the speaker index in voices.bin. */
@@ -26,6 +27,11 @@ object Kokoro {
         KVoice("bm_george", 26, "George · British English · male"),
         KVoice("bm_fable", 25, "Fable · British English · male"),
         KVoice("bm_daniel", 24, "Daniel · British English · male"),
+        // Kokoro's Hindi voices reading English: an Indian accent.
+        KVoice("hf_alpha", 31, "Ananya · Indian English · female"),
+        KVoice("hf_beta", 32, "Diya · Indian English · female"),
+        KVoice("hm_omega", 33, "Arjun · Indian English · male"),
+        KVoice("hm_psi", 34, "Kabir · Indian English · male"),
     )
 
     fun voice(name: String): KVoice? = VOICES.firstOrNull { it.name == name }
