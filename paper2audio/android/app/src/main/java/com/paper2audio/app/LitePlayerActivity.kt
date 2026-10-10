@@ -265,7 +265,10 @@ class LitePlayerActivity : Activity() {
                 taskProgress.visibility = View.VISIBLE
                 taskProgress.isIndeterminate = Exporter.progress == 0
                 taskProgress.progress = Exporter.progress
-                taskOpen.visibility = View.GONE
+                // Chapters and parts can be played as soon as each one is ready.
+                val ready = Exporter.lastFinished != null && Exporter.filesTotal > 1
+                taskOpen.visibility = if (ready) View.VISIBLE else View.GONE
+                if (ready) taskOpen.text = "Play ${Exporter.filesDone} of ${Exporter.filesTotal}"
                 taskCancel.text = "Stop"
             }
             pack != null -> {
@@ -293,11 +296,12 @@ class LitePlayerActivity : Activity() {
         taskText.text = Exporter.message ?: ""
         taskProgress.visibility = View.GONE
         taskOpen.visibility = if (Exporter.resultUri != null) View.VISIBLE else View.GONE
+        taskOpen.text = "Open"
         taskCancel.text = "Close"
     }
 
     private fun openAudio() {
-        val uri = Exporter.resultUri ?: return
+        val uri = (if (Exporter.running) Exporter.lastFinished else Exporter.resultUri) ?: return
         try {
             startActivity(
                 Intent(Intent.ACTION_VIEW).setDataAndType(uri, contentResolver.getType(uri) ?: "audio/*")

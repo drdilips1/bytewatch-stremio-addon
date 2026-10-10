@@ -302,18 +302,44 @@ object LiteUi {
             return
         }
         val (minutes, mb) = Exporter.estimate(doc, Speaker.voiceId, Speaker.renderSpeed)
-        val length = if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
+        fun hm(m: Int) = if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min"
+        val work = RenderSpeed.minutesFor(activity, Speaker.voiceId, minutes)
         val v = Speaker.voicing(doc)
         val sp = Speaker.renderSpeed
-        val start = { perChapter: Boolean, parts: Int ->
+        val start = { d: Doc, perChapter: Boolean, parts: Int ->
             askNotifications(activity)
-            Exporter.start(activity, doc, v, sp, perChapter = perChapter, split = parts)
+            Exporter.start(activity, d, v, sp, perChapter = perChapter, split = parts)
         }
-        val sheet = LiteSheet(activity, "Make an audiobook", "$length with ${voiceName()} · saved in Downloads/${Brand.folder(activity)}")
-        sheet.row(R.drawable.ic_save, "One audio file", "About $mb MB") { start(false, 1) }
-        if (doc.chapters.size > 1) sheet.row(R.drawable.ic_list, "A file per chapter", "${doc.chapters.size} files in a folder, like an audiobook") { start(true, 1) }
-        if (minutes >= 30) sheet.row(R.drawable.ic_save, "Two parts", "About ${mb / 2} MB each") { start(false, 2) }
-        if (minutes >= 240) sheet.row(R.drawable.ic_save, "Four parts", "About ${mb / 4} MB each") { start(false, 4) }
+        val note = if (work >= 20) " · keep the phone charging" else ""
+        val sheet = LiteSheet(
+            activity, "Make an audiobook",
+            "${hm(minutes)} of audio with ${voiceName()} · about ${hm(work)} to make on this phone$note. Saved in Downloads/${Brand.folder(activity)}.",
+        )
+        // The chapter being read, on its own: minutes, not hours.
+        val ch = doc.chapterAt(Speaker.index)
+        if (ch != null && doc.chapters.size > 1) {
+            val end = doc.chapters.getOrNull(doc.chapters.indexOf(ch) + 1)?.start ?: doc.paragraphs.size
+            val sub = Doc("${doc.title} - ${ch.title}".take(90), doc.paragraphs.subList(ch.start, end), emptyList(), doc.key, doc.author)
+                .also { it.lang = doc.lang }
+            val (chMin, chMb) = Exporter.estimate(sub, Speaker.voiceId, sp)
+            sheet.row(R.drawable.ic_headphones, "This chapter only", "${ch.title} · ${hm(chMin)} of audio, about ${hm(RenderSpeed.minutesFor(activity, Speaker.voiceId, chMin))} to make, $chMb MB") {
+                start(sub, false, 1)
+            }
+        }
+        if (doc.chapters.size > 1) {
+            sheet.row(R.drawable.ic_list, "The whole book, a file per chapter", "${doc.chapters.size} files · play each one as soon as it's ready") { start(doc, true, 1) }
+        }
+        if (minutes >= 30) sheet.row(R.drawable.ic_save, "The whole book in two parts", "About ${mb / 2} MB each · play part 1 while part 2 is made") { start(doc, false, 2) }
+        if (minutes >= 240) sheet.row(R.drawable.ic_save, "The whole book in four parts", "About ${mb / 4} MB each") { start(doc, false, 4) }
+        sheet.row(R.drawable.ic_save, "The whole book as one file", "About $mb MB") { start(doc, false, 1) }
+        // Long books with the slower natural voices: point to the quicker ones.
+        if (work >= 60 && Speaker.voiceId.startsWith(Speaker.KOKORO)) {
+            val quick = RenderSpeed.minutesFor(activity, Speaker.SUPER + "F1", minutes)
+            if (quick < work * 0.8) {
+                sheet.section("Faster")
+                sheet.row(R.drawable.ic_voice, "Use a Supertonic voice", "About ${hm(quick)} to make instead of ${hm(work)}") { showVoices(activity) }
+            }
+        }
         sheet.show()
     }
 

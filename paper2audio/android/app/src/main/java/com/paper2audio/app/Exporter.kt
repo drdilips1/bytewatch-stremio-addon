@@ -84,6 +84,13 @@ object Exporter {
     var resultUri: Uri? = null
         private set
 
+    /** The last file finished while saving several (chapters or parts): playable before the rest is done. */
+    var lastFinished: Uri? = null
+        private set
+    var filesDone = 0
+        private set
+    val filesTotal get() = parts
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val main = Handler(Looper.getMainLooper())
     private val listeners = CopyOnWriteArraySet<() -> Unit>()
@@ -113,6 +120,8 @@ object Exporter {
         val app = context.applicationContext
         running = true
         progress = 0
+        lastFinished = null
+        filesDone = 0
         part = 0
         parts = 1
         bytesOut = 0
@@ -147,6 +156,11 @@ object Exporter {
                         cover = cover,
                     )
                     result = exportOne(app, d, v, speed, voiceId)
+                    val done = result.first
+                    update {
+                        lastFinished = done
+                        filesDone = i + 1
+                    }
                 }
                 val (uri, where) = result!!
                 update {

@@ -146,7 +146,12 @@ object Renderer {
         try {
             val es = engineSpeed(v, speed)
             if (LocalTts.isLocal(voice)) {
-                withContext(localThread) { LocalTts.writeWav(tmp, LocalTts.synthesize(voice, spoken, es, v.lang)) }
+                withContext(localThread) {
+                    val t0 = System.nanoTime()
+                    val pcm = LocalTts.synthesize(voice, spoken, es, v.lang)
+                    RenderSpeed.record(context, voice, (System.nanoTime() - t0) / 1e9, pcm.bytes.size / 2.0 / pcm.sampleRate)
+                    LocalTts.writeWav(tmp, pcm)
+                }
             } else {
                 val rate = ((es - 1f) * 100).roundToInt().coerceIn(-50, 200)
                 tmp.writeBytes(hedged(spoken.length) { EdgeTts.synthesize(spoken, voice.removePrefix(Speaker.EDGE), rate, v.pitch) })
@@ -389,4 +394,39 @@ object OfflineDownloader {
     fun cancel() {
         job?.cancel()
     }
+}
+
+/**
+ * How fast this phone makes speech with each kind of voice (seconds of work per second
+ * of audio), learned while listening; for honest time estimates before saving audio.
+ */
+object RenderSpeed {
+    private fun kind(voiceId: String) = voiceId.substringBefore(':')
+
+    /** Before anything was measured: typical phone figures. */
+    private fun guess(kind: String) = when (kind) {
+        "super" -> 0.45
+        "kokoro" -> 0.9
+        "clone" -> 1.4
+        "edge" -> 0.08
+        else -> 0.25 // the phone's own voices
+    }
+
+    fun record(context: Context, voiceId: String, workSeconds: Double, audioSeconds: Double) {
+        if (audioSeconds < 0.5) return
+        val prefs = context.getSharedPreferences("p2a", Context.MODE_PRIVATE)
+        val key = "rtf:" + kind(voiceId)
+        val now = workSeconds / audioSeconds
+        val old = prefs.getFloat(key, -1f)
+        val avg = if (old < 0f) now else old * 0.8 + now * 0.2
+        prefs.edit().putFloat(key, avg.toFloat()).apply()
+    }
+
+    fun of(context: Context, voiceId: String): Double =
+        context.getSharedPreferences("p2a", Context.MODE_PRIVATE).getFloat("rtf:" + kind(voiceId), -1f)
+            .takeIf { it > 0f }?.toDouble() ?: guess(kind(voiceId))
+
+    /** Minutes to make [audioMinutes] of audio with [voiceId]. */
+    fun minutesFor(context: Context, voiceId: String, audioMinutes: Int): Int =
+        (audioMinutes * of(context, voiceId)).toInt().coerceAtLeast(1)
 }
