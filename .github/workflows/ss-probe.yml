@@ -1,0 +1,13 @@
+name: ss-probe
+on:
+  push:
+    paths: [".github/workflows/ss-probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36"
+          curl -sSL -m 30 -A "$UA" "https://www.getstoryshots.com/" -o /tmp/h
+          grep -o -i -E 'href="[^"]*(app\.|web\.|/app|login|sign-?in|account|subscribe|webapp|player)[^"]*"' /tmp/h | sort -u | head -30
+          for u in https://app.getstoryshots.com https://web.getstoryshots.com https://www.getstoryshots.com/app/; do printf "%s -> " "$u"; curl -s -o /dev/null -m 15 -L -A "$UA" -w "%{http_code} %{url_effective}\n" "$u"; done
