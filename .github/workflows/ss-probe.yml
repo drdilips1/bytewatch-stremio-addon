@@ -1,5 +1,7 @@
 name: ss-probe
-on: workflow_dispatch
+on:
+  push:
+    paths: [".github/workflows/ss-probe.yml"]
 jobs:
   probe:
     runs-on: ubuntu-latest
