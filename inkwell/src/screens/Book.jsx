@@ -59,6 +59,7 @@ import {
   summaryBook,
   aiReady,
 } from "../sources/summaries.js";
+import { useStoryShots, openStoryShots } from "../sources/storyshots.js";
 
 // Books you already have (cloud, server, addons) can still show other copies from source addons.
 const OTHER_SOURCES = new Set(["tb", "rd", "abs", "addon"]);
@@ -180,6 +181,7 @@ export function Book({ book: initial }) {
 
       <div class="book-body">
       <StatsStrip book={book} tracks={tracks} />
+      <StoryShotsLink book={book} />
       <div class="book-actions">
         {book.kind === "discover" && (
           <button
@@ -622,6 +624,17 @@ export function Book({ book: initial }) {
   );
 }
 
+/** "Audio summary on StoryShots", when they have one: opens it in their app. */
+function StoryShotsLink({ book }) {
+  const ss = useStoryShots(book, { always: true });
+  if (!ss) return null;
+  return (
+    <button class="ss-link" onClick={() => openStoryShots(ss)}>
+      <span class="ss-badge">S</span> Audio summary on StoryShots
+    </button>
+  );
+}
+
 /** Blinks (Blinkist-style key ideas): made by your AI service, then kept. */
 function Summaries({ book, description }) {
   const [sum, setSum] = useState(() => savedSummary(book));
@@ -651,6 +664,7 @@ function Summaries({ book, description }) {
       <h3 class="section-label">
         <Icon name="text" size={16} /> Blinks
       </h3>
+
       <div class="sum-card">
         {sum ? (
           <>

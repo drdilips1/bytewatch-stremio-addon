@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { ssBadges } from '../sources/storyshots.js';
 import { Icon } from '../components/icons.jsx';
 import { toast, AskButton } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup } from '../lib/store.js';
@@ -40,6 +41,21 @@ function Section({ icon, title, children }) {
       </button>
       {open && <div class="set-card">{children}</div>}
     </section>
+  );
+}
+
+function SsToggle() {
+  const [on, setOn] = useState(ssBadges.get());
+  return (
+    <Toggle
+      label="StoryShots badges"
+      hint="A small S on covers when StoryShots has a summary of the book; tap it to open the summary"
+      on={on}
+      onChange={(v) => {
+        ssBadges.set(v);
+        setOn(v);
+      }}
+    />
   );
 }
 
@@ -1135,6 +1151,7 @@ export function Settings() {
             ))}
           </div>
         </div>
+        <SsToggle />
         <Toggle label="Dynamic colour" hint="Tint the player and book pages from the cover art" on={st.dynamicColor} onChange={(v) => settings.patch({ dynamicColor: v })} />
         <PlayerBackgroundPicker st={st} />
       </Section>
