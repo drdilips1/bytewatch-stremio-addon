@@ -7,6 +7,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36"
-          for u in "https://www.getstoryshots.com/wp-json/wp/v2/search?search=atomic%20habits&per_page=5" "https://www.getstoryshots.com/?s=atomic+habits" "https://www.getstoryshots.com/books/atomic-habits-summary/" "https://itunes.apple.com/search?term=storyshots&entity=podcast&limit=5"; do
-            echo "=== $u"; curl -sS -L -m 30 -A "$UA" -o /tmp/o -w "HTTP %{http_code} final=%{url_effective} type=%{content_type}\n" "$u" || true; head -c 1500 /tmp/o; echo; done
+          API="https://www.getstoryshots.com/wp-json/wp/v2/search?search=atomic%20habits&per_page=3"
+          for ua in "Dalvik/2.1.0 (Linux; U; Android 14; SM-S918B Build/UP1A)" "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36" "okhttp/4.12.0"; do
+            echo "=== UA: $ua"; curl -sS -m 30 -A "$ua" -H "Accept: application/json" -o /tmp/o -w "HTTP %{http_code}\n" "$API"; head -c 150 /tmp/o; echo; done
+          echo "=== FEED"
+          curl -sS -L -m 60 -o /tmp/feed.xml -w "HTTP %{http_code} size=%{size_download}\n" https://feeds.megaphone.fm/PARSIDA7641695618
+          echo "items: $(grep -o '<item>' /tmp/feed.xml | wc -l)"
+          grep -o '<title>[^<]*</title>' /tmp/feed.xml | sed -n '2,40p'
+          echo "=== search titles"
+          grep -o '<title>[^<]*</title>' /tmp/feed.xml | grep -i -E "atomic|educated|sapiens|thinking, fast|psychology of money|deep work|power of now" | head -20
+          echo "=== enclosure sample"; grep -o '<enclosure[^>]*>' /tmp/feed.xml | head -2
+          echo "=== last titles"; grep -o '<title>[^<]*</title>' /tmp/feed.xml | tail -5
