@@ -132,8 +132,10 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body, fe
       try {
         res = await go(url, headers);
       } catch (e) {
-        // In a browser a CORS block looks like a network error: try the relay once.
-        if (!WEB || e.timeout || !relayUrl() || !(relayable(url) || (feed && /^https:/i.test(url)))) throw e;
+        // In a browser a CORS block looks like a network error; on a phone, a site the
+        // network blocks (e.g. StoryShots' on some Indian networks) fails the same way:
+        // try the relay once.
+        if (e.timeout || !relayUrl() || !(relayable(url) || (WEB && feed && /^https:/i.test(url)))) throw e;
         res = await relayed();
       }
     }

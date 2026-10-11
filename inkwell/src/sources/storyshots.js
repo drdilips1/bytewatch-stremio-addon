@@ -4,6 +4,7 @@
 // when the narrated audio is free (plays here), outline when it's in StoryShots
 // (their written summary here, or their app with your subscription).
 import { useEffect, useState } from 'preact/hooks';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { getJson, getText } from '../lib/http.js';
 import { words, mainTitle } from '../lib/match.js';
 import { stripHtml } from '../lib/format.js';
@@ -216,7 +217,18 @@ export function useStoryShots(book, { always = false } = {}) {
   return v;
 }
 
-export const openStoryShots = (url) => openExternal(url || SS);
+// Their website is blocked on some networks: open their app instead (Play Store if
+// it isn't installed). The web app can only link to the store.
+const SS_APP = 'com.storyshots.android';
+const WebPlugin = registerPlugin('InkwellWeb');
+export async function openStoryShots() {
+  if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb')) {
+    try {
+      return await WebPlugin.openApp({ package: SS_APP });
+    } catch {}
+  }
+  return openExternal(`https://play.google.com/store/apps/details?id=${SS_APP}`);
+}
 
 // ---- "Listen here": their written summary in the reader, read by our voices -----
 let chooserSet = null;

@@ -66,6 +66,45 @@ public class InkwellWebPlugin extends Plugin {
         }
     }
 
+    /** Open another app by its package name; its Play Store page if it isn't installed. */
+    @PluginMethod
+    public void openApp(PluginCall call) {
+        String pkg = call.getString("package");
+        if (pkg == null || pkg.isEmpty()) {
+            call.reject("Missing package");
+            return;
+        }
+        JSObject ret = new JSObject();
+        try {
+            Intent launch = getContext().getPackageManager().getLaunchIntentForPackage(pkg);
+            if (launch != null) {
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getActivity().startActivity(launch);
+                ret.put("opened", "app");
+                call.resolve(ret);
+                return;
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            Intent store = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + pkg));
+            store.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getActivity().startActivity(store);
+            ret.put("opened", "store");
+            call.resolve(ret);
+        } catch (Exception e) {
+            try {
+                Intent web = new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + pkg));
+                web.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getActivity().startActivity(web);
+                ret.put("opened", "web");
+                call.resolve(ret);
+            } catch (Exception e2) {
+                call.reject("Couldn't open the app");
+            }
+        }
+    }
+
     /** A short message that shows over any screen (e.g. while the in-app browser is open). */
     @PluginMethod
     public void toast(PluginCall call) {

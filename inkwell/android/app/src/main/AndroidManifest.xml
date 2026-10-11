@@ -90,6 +90,8 @@
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
         </intent>
+        <!-- The StoryShots app, opened from a book's "S" -->
+        <package android:name="com.storyshots.android" />
     </queries>
 
     <!-- Permissions -->

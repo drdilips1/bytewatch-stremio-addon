@@ -35,7 +35,7 @@ export function StoryShotsSheet() {
       >
         <Icon name="external" size={18} /> {main ? 'Listen in StoryShots' : 'Open StoryShots'}
       </button>
-      <small class="muted">{main ? 'Their narrated audio for this one is in the StoryShots app — with your subscription.' : 'The StoryShots app or site, with your account (PDFs, infographics, the full library).'}</small>
+      <small class="muted">{main ? 'Opens the StoryShots app — their narrated audio for this one is there, with your subscription.' : 'The StoryShots app, with your account (PDFs, infographics, the full library).'}</small>
     </>
   );
   return (
