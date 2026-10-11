@@ -11,6 +11,9 @@ on:
       - 'inkwell/**'
       - '.github/workflows/inkwell-web.yml'
   workflow_dispatch:
+  # Weekly: refresh the StoryShots list (new summaries) even without app changes.
+  schedule:
+    - cron: '17 3 * * 1'
 
 permissions:
   contents: write
@@ -41,6 +44,10 @@ jobs:
         env:
           VITE_APP_VERSION: web-${{ github.run_number }}
         run: npx vite build
+      - name: StoryShots list (their website summaries + free podcast episodes)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: node scripts/storyshots-index.mjs
       - name: Mirror the latest APK on Pages (faster downloads for in-app updates)
         env:
           GH_TOKEN: ${{ github.token }}

@@ -149,9 +149,9 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
         )}
         {ss && (
           <span
-            class="ss-badge"
+            class={'ss-badge' + (ss.ep ? '' : ' outline')}
             role="link"
-            title="Summary on StoryShots — tap to open"
+            title={ss.ep ? 'StoryShots audio summary — plays here' : 'Summary in StoryShots — tap for options'}
             onClick={(e) => {
               e.stopPropagation();
               chooseStoryShots(book, ss);

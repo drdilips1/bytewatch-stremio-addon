@@ -6885,3 +6885,9 @@ button.rt {
   width: 100%;
   justify-content: center;
 }
+/* Outline S: the summary is in StoryShots (their app / written summary), not free audio. */
+.ss-badge.outline {
+  background: rgba(0, 0, 0, 0.6);
+  color: #9db9ff;
+  border-color: #5b8cff;
+}

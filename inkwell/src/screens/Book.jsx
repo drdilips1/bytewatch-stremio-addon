@@ -630,7 +630,8 @@ function StoryShotsLink({ book }) {
   if (!ss) return null;
   return (
     <button class="ss-link" onClick={() => chooseStoryShots(book, ss)}>
-      <span class="ss-badge">S</span> Summary on StoryShots
+      <span class={"ss-badge" + (ss.ep ? "" : " outline")}>S</span>{" "}
+      {ss.ep ? "StoryShots audio summary" : "Summary in StoryShots"}
     </button>
   );
 }

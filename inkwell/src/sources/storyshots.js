@@ -1,7 +1,8 @@
-// StoryShots: does it have a summary of this book? Their free public podcast carries
-// their narrated summaries (about 565), so the app keeps a small index of it and
-// shows an "S" on covers it covers; the episode plays right here. Their website's
-// written summaries are a second source (book page), read aloud by the app's voices.
+// StoryShots: does it have a summary of this book? A list built weekly on GitHub
+// (scripts/storyshots-index.mjs, published with the web app) holds every summary on
+// their website and every episode of their free podcast. Covers get an "S": filled
+// when the narrated audio is free (plays here), outline when it's in StoryShots
+// (their written summary here, or their app with your subscription).
 import { useEffect, useState } from 'preact/hooks';
 import { getJson, getText } from '../lib/http.js';
 import { words, mainTitle } from '../lib/match.js';
@@ -28,27 +29,53 @@ export function episodeBook(title) {
   return m ? { book: m[1], author: '' } : null;
 }
 
+// The weekly list, published next to the web app.
+const INDEX_URL = 'https://drdilips1.github.io/bytewatch-stremio-addon/storyshots.json';
+const siteIndex = persisted('storyshotsSite', { t: 0, list: [] }); // [{ b, a, u, id }]
+
 let feedLoad = null;
-/** The episode index: [{ b: book title words, a: author's last name, uid, title, url, duration, date, image }]. */
+let triedAt = 0;
+/** The episode index: [{ b: book title words, a: author's last name, uid, title, url, duration, image }]. */
 export function storyShotsEpisodes() {
   const have = feedIndex.get();
-  if (have.eps.length && Date.now() - have.t < FEED_FOR) return Promise.resolve(have.eps);
-  feedLoad ||= getText(SS_FEED, { timeout: 60000, feed: true, headers: { Accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.5' } })
-    .then((xml) => {
-      const { podcast, episodes } = parseFeed(xml, SS_FEED);
-      const eps = episodes
-        .map((e) => {
-          const eb = episodeBook(e.title);
-          if (!eb) return null;
-          return { b: words(mainTitle(eb.book)).join(' '), a: lastName(eb.author), uid: e.uid, title: e.title, url: e.url, duration: e.duration, date: e.date, image: e.image };
-        })
-        .filter((e) => e && e.b);
-      if (eps.length) feedIndex.set({ t: Date.now(), cover: podcast.cover, eps });
-      return eps.length ? eps : have.eps;
+  const fresh = (x) => x.t && Date.now() - x.t < FEED_FOR;
+  // Up to date, or tried within the hour: use what's kept.
+  if ((have.eps.length && fresh(have) && siteIndex.get().list.length && fresh(siteIndex.get())) || Date.now() - triedAt < 3600e3) return feedLoad || Promise.resolve(have.eps);
+  triedAt = Date.now();
+  feedLoad ||= getJson(INDEX_URL + '?w=' + Math.floor(Date.now() / FEED_FOR), { timeout: 30000 })
+    .then((ix) => {
+      const eps = (ix.pod || [])
+        .map(([book, author, url, duration, title, guid, image]) => ({ b: words(mainTitle(book)).join(' '), a: lastName(author), uid: 'ssp:' + (guid || url), title, url, duration, image }))
+        .filter((e) => e.b);
+      const list = (ix.site || []).map(([book, author, u, id]) => ({ b: words(mainTitle(book)).join(' '), a: lastName(author), u, id })).filter((e) => e.b);
+      if (list.length) siteIndex.set({ t: Date.now(), list });
+      if (!eps.length) throw new Error('no episodes in the list');
+      feedIndex.set({ t: Date.now(), cover: ix.cover || '', eps });
+      return eps;
     })
+    // No list (offline, or not published yet): read the podcast feed itself.
+    .catch(() =>
+      getText(SS_FEED, { timeout: 60000, feed: true, headers: { Accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.5' } }).then((xml) => {
+        const { podcast, episodes } = parseFeed(xml, SS_FEED);
+        const eps = episodes
+          .map((e) => {
+            const eb = episodeBook(e.title);
+            return eb ? { b: words(mainTitle(eb.book)).join(' '), a: lastName(eb.author), uid: e.uid, title: e.title, url: e.url, duration: e.duration, image: e.image } : null;
+          })
+          .filter((e) => e && e.b);
+        if (eps.length) feedIndex.set({ t: Date.now(), cover: podcast.cover, eps });
+        return eps.length ? eps : have.eps;
+      }),
+    )
     .catch(() => have.eps)
     .finally(() => (feedLoad = null));
   return feedLoad;
+}
+
+/** StoryShots' website summary for a book, from the weekly list: its page, or ''. */
+function matchSite(book) {
+  const hit = matchEpisode(book, siteIndex.get().list);
+  return hit ? { u: hit.u, api: hit.id ? `${SS}/wp-json/wp/v2/posts/${hit.id}` : '' } : null;
 }
 
 /** StoryShots' episode for a book, from an index. */
@@ -167,29 +194,21 @@ export function checkStoryShots(book) {
  */
 export function useStoryShots(book, { always = false } = {}) {
   const on = always || ssBadges.get();
+  const skip = !book?.title || ['pod', 'sum', 'ss'].includes(book.source);
   const pick = () => {
-    if (!on || !book?.title || ['pod', 'sum', 'ss'].includes(book.source)) return null;
+    if (!on || skip) return null;
     const ep = matchEpisode(book, feedIndex.get().eps);
-    const url = always ? knownStoryShots(book) || '' : '';
+    const url = matchSite(book)?.u || (always ? knownStoryShots(book) || '' : '');
     return ep || url ? { ep, url } : null;
   };
   const [v, setV] = useState(pick);
   useEffect(() => {
-    if (!on || !book?.title || ['pod', 'sum', 'ss'].includes(book.source)) return setV(null);
+    if (!on || skip) return setV(null);
     let alive = true;
-    let ep = matchEpisode(book, feedIndex.get().eps);
-    let url = always ? knownStoryShots(book) || '' : '';
-    const show = () => alive && setV(ep || url ? { ep, url } : null);
-    show();
-    storyShotsEpisodes().then((eps) => {
-      ep = matchEpisode(book, eps);
-      show();
-    });
-    if (always && knownStoryShots(book) === undefined)
-      checkStoryShots(book).then((u) => {
-        url = u || '';
-        show();
-      });
+    setV(pick());
+    storyShotsEpisodes().then(() => alive && setV(pick()));
+    // Book page: if the weekly list doesn't have it, ask their website directly.
+    if (always && !matchSite(book) && knownStoryShots(book) === undefined) checkStoryShots(book).then(() => alive && setV(pick()));
     return () => {
       alive = false;
     };
@@ -208,6 +227,7 @@ export const registerChooser = (fn) => (chooserSet = fn);
 /** A reader "book" for a book's StoryShots summary. */
 export function storyShotsBook(book, url) {
   const hit = found.get()[keyFor(book)] || {};
+  const listed = matchSite(book);
   return {
     uid: 'ss:' + url,
     source: 'ss',
@@ -216,7 +236,7 @@ export function storyShotsBook(book, url) {
     author: book.author || '',
     cover: book.cover || '',
     link: url,
-    api: hit.u === url ? hit.a || '' : '',
+    api: listed?.u === url ? listed.api : hit.u === url ? hit.a || '' : '',
   };
 }
 

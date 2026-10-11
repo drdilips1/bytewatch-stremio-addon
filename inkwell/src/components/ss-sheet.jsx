@@ -24,6 +24,20 @@ export function StoryShotsSheet() {
   const close = () => setPick(null);
   const { book, ep } = pick;
   const url = pick.url || found;
+  const openBlock = (main) => (
+    <>
+      <button
+        class={'btn big ' + (main ? 'primary' : 'secondary')}
+        onClick={() => {
+          close();
+          openStoryShots(url);
+        }}
+      >
+        <Icon name="external" size={18} /> {main ? 'Listen in StoryShots' : 'Open StoryShots'}
+      </button>
+      <small class="muted">{main ? 'Their narrated audio for this one is in the StoryShots app — with your subscription.' : 'The StoryShots app or site, with your account (PDFs, infographics, the full library).'}</small>
+    </>
+  );
   return (
     <div class="sheet-backdrop" onClick={close}>
       <div class="sheet ss-sheet" onClick={(e) => e.stopPropagation()}>
@@ -45,10 +59,11 @@ export function StoryShotsSheet() {
             <small class="muted">Their own narrated summary (from their free podcast), in the Audiohub player.</small>
           </>
         )}
+        {!ep && openBlock(true)}
         {url && (
           <>
             <button
-              class={'btn big ' + (ep ? 'secondary' : 'primary')}
+              class="btn secondary big"
               onClick={() => {
                 close();
                 nav.push('reader', { book: storyShotsBook(book, url), readAloud: true });
@@ -67,16 +82,7 @@ export function StoryShotsSheet() {
             </button>
           </>
         )}
-        <button
-          class="btn secondary big"
-          onClick={() => {
-            close();
-            openStoryShots(url);
-          }}
-        >
-          <Icon name="external" size={18} /> Open StoryShots
-        </button>
-        <small class="muted">The StoryShots app or site, with your account (PDFs, infographics, the full library).</small>
+        {ep && openBlock(false)}
       </div>
     </div>
   );
