@@ -1,0 +1,10 @@
+name: ss-probe
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36"
+          for u in "https://www.getstoryshots.com/wp-json/wp/v2/search?search=atomic%20habits&per_page=5" "https://www.getstoryshots.com/?s=atomic+habits" "https://www.getstoryshots.com/books/atomic-habits-summary/" "https://itunes.apple.com/search?term=storyshots&entity=podcast&limit=5"; do
+            echo "=== $u"; curl -sS -L -m 30 -A "$UA" -o /tmp/o -w "HTTP %{http_code} final=%{url_effective} type=%{content_type}\n" "$u" || true; head -c 1500 /tmp/o; echo; done
