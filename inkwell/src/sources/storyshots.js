@@ -224,7 +224,7 @@ const WebPlugin = registerPlugin('InkwellWeb');
 export async function openStoryShots() {
   if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb')) {
     try {
-      return await WebPlugin.openApp({ package: SS_APP });
+      return await WebPlugin.openApp({ package: SS_APP, name: 'StoryShots' });
     } catch {}
   }
   return openExternal(`https://play.google.com/store/apps/details?id=${SS_APP}`);

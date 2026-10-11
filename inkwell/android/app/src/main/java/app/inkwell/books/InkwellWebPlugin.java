@@ -75,8 +75,26 @@ public class InkwellWebPlugin extends Plugin {
             return;
         }
         JSObject ret = new JSObject();
+        String name = call.getString("name", "");
         try {
-            Intent launch = getContext().getPackageManager().getLaunchIntentForPackage(pkg);
+            android.content.pm.PackageManager pm = getContext().getPackageManager();
+            Intent launch = pm.getLaunchIntentForPackage(pkg);
+            // Not under that id: look for an installed app with this name.
+            if (launch == null && !name.isEmpty()) {
+                Intent main = new Intent(Intent.ACTION_MAIN);
+                main.addCategory(Intent.CATEGORY_LAUNCHER);
+                for (android.content.pm.ResolveInfo ri : pm.queryIntentActivities(main, 0)) {
+                    CharSequence label = ri.loadLabel(pm);
+                    if (label != null && label.toString().toLowerCase().contains(name.toLowerCase())
+                        && !ri.activityInfo.packageName.equals(getContext().getPackageName())) {
+                        launch = new Intent(Intent.ACTION_MAIN);
+                        launch.addCategory(Intent.CATEGORY_LAUNCHER);
+                        launch.setClassName(ri.activityInfo.packageName, ri.activityInfo.name);
+                        ret.put("package", ri.activityInfo.packageName);
+                        break;
+                    }
+                }
+            }
             if (launch != null) {
                 launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 getActivity().startActivity(launch);
