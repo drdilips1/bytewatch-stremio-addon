@@ -3,7 +3,7 @@
 // tapping it opens the summary in the StoryShots app (or their site), where you're
 // signed in with your own account.
 import { useEffect, useState } from 'preact/hooks';
-import { getJson } from '../lib/http.js';
+import { getJson, getText } from '../lib/http.js';
 import { words, mainTitle } from '../lib/match.js';
 import { stripHtml } from '../lib/format.js';
 import { persisted } from '../lib/store.js';
@@ -72,8 +72,9 @@ export function checkStoryShots(book) {
           const hits = await getJson(`${SS}/wp-json/wp/v2/search?` + new URLSearchParams({ search: mainTitle(book.title), per_page: '10' }), { timeout: 15000, headers: BROWSER });
           const hit = (Array.isArray(hits) ? hits : []).find((x) => String(x.url || '').startsWith(SS) && sameBook(book, stripHtml(x.title || '')));
           const u = hit ? hit.url : '';
+          const a = hit?._links?.self?.[0]?.href || '';
           found.set((all) => {
-            const next = { ...all, [k]: { u, t: Date.now() } };
+            const next = { ...all, [k]: { u, a, t: Date.now() } };
             const keys = Object.keys(next);
             // Keep the newest 1500 lookups.
             if (keys.length > 1500) keys.sort((a, b) => next[a].t - next[b].t).slice(0, keys.length - 1500).forEach((x) => delete next[x]);
@@ -111,3 +112,65 @@ export function useStoryShots(book, { always = false } = {}) {
 }
 
 export const openStoryShots = (url) => openExternal(url || SS);
+
+// ---- "Listen here": their written summary in the reader, read by our voices -----
+let chooserSet = null;
+/** Tap on an S: ask whether to listen here or open StoryShots. */
+export const chooseStoryShots = (book, url) => (chooserSet ? chooserSet({ book, url }) : openStoryShots(url));
+export const registerChooser = (fn) => (chooserSet = fn);
+
+/** A reader "book" for a book's StoryShots summary. */
+export function storyShotsBook(book, url) {
+  const hit = found.get()[keyFor(book)] || {};
+  return {
+    uid: 'ss:' + url,
+    source: 'ss',
+    kind: 'text',
+    title: `${mainTitle(book.title)} · StoryShots summary`,
+    author: book.author || '',
+    cover: book.cover || '',
+    link: url,
+    api: hit.u === url ? hit.a || '' : '',
+  };
+}
+
+/** Summary text for the in-app reader: { html, headings, title }. */
+export async function loadStoryShots(book) {
+  let title = book.title;
+  let body = '';
+  if (book.api) {
+    try {
+      const post = await getJson(book.api + (book.api.includes('?') ? '&' : '?') + '_fields=title,content', { timeout: 20000, headers: BROWSER });
+      title = stripHtml(post?.title?.rendered || title);
+      body = post?.content?.rendered || '';
+    } catch {}
+  }
+  if (!body) {
+    const page = new DOMParser().parseFromString(await getText(book.link, { timeout: 25000, headers: BROWSER }), 'text/html');
+    const main = page.querySelector('.entry-content, article .content, article, main') || page.body;
+    body = main.innerHTML;
+    title = page.querySelector('h1')?.textContent?.trim() || title;
+  }
+  const doc = new DOMParser().parseFromString(body, 'text/html');
+  doc.querySelectorAll('script,style,link,meta,iframe,object,embed,form,button,input,noscript,svg,figure,audio,video,.wp-block-buttons,.sharedaddy').forEach((n) => n.remove());
+  doc.querySelectorAll('*').forEach((el) => {
+    for (const a of [...el.attributes]) {
+      const n = a.name.toLowerCase();
+      if (n.startsWith('on') || n === 'style' || n === 'class' || n === 'id' || n.startsWith('data-')) el.removeAttribute(a.name);
+      if ((n === 'href' || n === 'src') && /^\s*javascript:/i.test(a.value)) el.removeAttribute(a.name);
+    }
+    if (el.tagName === 'A') el.setAttribute('target', '_blank');
+    if (el.tagName === 'IMG') el.remove();
+  });
+  const h1 = doc.createElement('h1');
+  h1.textContent = stripHtml(title || book.title);
+  doc.body.prepend(h1);
+  const headings = [...doc.body.querySelectorAll('h1,h2,h3')]
+    .map((h, i) => {
+      h.id ||= 'ss-h-' + i;
+      return { id: h.id, text: h.textContent.replace(/\s+/g, ' ').trim(), level: +h.tagName[1] };
+    })
+    .filter((h) => h.text && h.text.length < 120);
+  if (!doc.body.textContent.trim()) throw new Error('StoryShots returned an empty summary — open it in StoryShots instead');
+  return { html: doc.body.innerHTML, headings, title: h1.textContent };
+}

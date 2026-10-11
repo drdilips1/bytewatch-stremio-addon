@@ -59,7 +59,7 @@ import {
   summaryBook,
   aiReady,
 } from "../sources/summaries.js";
-import { useStoryShots, openStoryShots } from "../sources/storyshots.js";
+import { useStoryShots, chooseStoryShots } from "../sources/storyshots.js";
 
 // Books you already have (cloud, server, addons) can still show other copies from source addons.
 const OTHER_SOURCES = new Set(["tb", "rd", "abs", "addon"]);
@@ -629,8 +629,8 @@ function StoryShotsLink({ book }) {
   const ss = useStoryShots(book, { always: true });
   if (!ss) return null;
   return (
-    <button class="ss-link" onClick={() => openStoryShots(ss)}>
-      <span class="ss-badge">S</span> Audio summary on StoryShots
+    <button class="ss-link" onClick={() => chooseStoryShots(book, ss)}>
+      <span class="ss-badge">S</span> Summary on StoryShots
     </button>
   );
 }

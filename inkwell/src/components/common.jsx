@@ -10,7 +10,7 @@ import { useImage } from '../lib/image.js';
 import { useMeta } from '../lib/meta.js';
 import { useTileRating } from '../lib/ratings.js';
 import { openExternal } from '../sources/summaries.js';
-import { useStoryShots, openStoryShots } from '../sources/storyshots.js';
+import { useStoryShots, chooseStoryShots } from '../sources/storyshots.js';
 
 export function Cover({ book, class: cls = '', eager }) {
   const { src, failed: proxyFailed } = useImage(book?.cover || '');
@@ -154,7 +154,7 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
             title="Summary on StoryShots — tap to open"
             onClick={(e) => {
               e.stopPropagation();
-              openStoryShots(ss);
+              chooseStoryShots(book, ss);
             }}
           >
             S

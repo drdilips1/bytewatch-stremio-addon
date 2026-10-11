@@ -10,6 +10,7 @@ import { settings, useStore } from './lib/store.js';
 import { applyTheme } from './lib/theme.js';
 import { Icon } from './components/icons.jsx';
 import { Toaster, Guard } from './components/common.jsx';
+import { StoryShotsSheet } from './components/ss-sheet.jsx';
 import { UpdatePrompt } from './components/update.jsx';
 import { MiniPlayer, FullPlayer, usePlayer } from './components/player-ui.jsx';
 import * as player from './lib/player.js';
@@ -129,6 +130,7 @@ export function App() {
       {route.overlay === 'player' && <FullPlayer />}
       {route.overlay === 'drive' && <DriveMode />}
       <UpdatePrompt />
+      <StoryShotsSheet />
       <Toaster />
     </div>
   );
