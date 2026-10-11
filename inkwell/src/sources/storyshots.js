@@ -1,13 +1,80 @@
-// StoryShots: does it have a summary of this book? Their public website lists every
-// summary, so the app looks the book up there and shows a small "S" on the cover;
-// tapping it opens the summary in the StoryShots app (or their site), where you're
-// signed in with your own account.
+// StoryShots: does it have a summary of this book? Their free public podcast carries
+// their narrated summaries (about 565), so the app keeps a small index of it and
+// shows an "S" on covers it covers; the episode plays right here. Their website's
+// written summaries are a second source (book page), read aloud by the app's voices.
 import { useEffect, useState } from 'preact/hooks';
 import { getJson, getText } from '../lib/http.js';
 import { words, mainTitle } from '../lib/match.js';
 import { stripHtml } from '../lib/format.js';
 import { persisted } from '../lib/store.js';
 import { openExternal } from './summaries.js';
+import { parseFeed } from './podcasts.js';
+
+// ---- the podcast: one feed, indexed once a week -------------------------------
+export const SS_FEED = 'https://feeds.megaphone.fm/PARSIDA7641695618';
+const feedIndex = persisted('storyshotsFeed', { t: 0, cover: '', eps: [] });
+const FEED_FOR = 7 * 86400e3;
+
+// "Atomic Habits by James Clear Book Summary and Review | Free Audiobook",
+// "Chip War Summary | Chris Miller", "Contagious Summary in 15 minutes | Jonah Berger",
+// "Kama Sutra - Book Summary |  Vatsyayana" -> { book, author }
+export function episodeBook(title) {
+  const t = String(title || '').replace(/\s+/g, ' ').trim();
+  let m = /^(.*?) by (.+?)(?:\s*[-|:]\s*|\s+)(?:Book )?Summary\b/i.exec(t);
+  if (m) return { book: m[1], author: m[2] };
+  m = /^(.*?)\s*(?:-\s*)?(?:Book )?Summary\b[^|]*\|\s*(.+)$/i.exec(t);
+  if (m) return { book: m[1], author: m[2] };
+  m = /^(.*?)\s*(?:-\s*)?(?:Book )?Summary\b/i.exec(t);
+  return m ? { book: m[1], author: '' } : null;
+}
+
+let feedLoad = null;
+/** The episode index: [{ b: book title words, a: author's last name, uid, title, url, duration, date, image }]. */
+export function storyShotsEpisodes() {
+  const have = feedIndex.get();
+  if (have.eps.length && Date.now() - have.t < FEED_FOR) return Promise.resolve(have.eps);
+  feedLoad ||= getText(SS_FEED, { timeout: 60000, feed: true, headers: { Accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.5' } })
+    .then((xml) => {
+      const { podcast, episodes } = parseFeed(xml, SS_FEED);
+      const eps = episodes
+        .map((e) => {
+          const eb = episodeBook(e.title);
+          if (!eb) return null;
+          return { b: words(mainTitle(eb.book)).join(' '), a: lastName(eb.author), uid: e.uid, title: e.title, url: e.url, duration: e.duration, date: e.date, image: e.image };
+        })
+        .filter((e) => e && e.b);
+      if (eps.length) feedIndex.set({ t: Date.now(), cover: podcast.cover, eps });
+      return eps.length ? eps : have.eps;
+    })
+    .catch(() => have.eps)
+    .finally(() => (feedLoad = null));
+  return feedLoad;
+}
+
+/** StoryShots' episode for a book, from an index. */
+export function matchEpisode(book, eps) {
+  const t = words(mainTitle(book?.title)).join(' ');
+  if (!t) return null;
+  const au = lastName(book.author);
+  const same = eps.filter((e) => e.b === t);
+  return same.find((e) => !au || !e.a || e.a === au) || null;
+}
+
+/** The episode as a playable podcast "book". */
+export function storyShotsEpisodeBook(ep) {
+  return {
+    uid: ep.uid,
+    source: 'pod',
+    kind: 'audio',
+    title: ep.title,
+    author: 'StoryShots',
+    cover: ep.image || feedIndex.get().cover || '',
+    description: '',
+    duration: ep.duration || 0,
+    feedUrl: SS_FEED,
+    tracks: [{ title: ep.title, url: ep.url, duration: ep.duration || 0, index: 0 }],
+  };
+}
 
 const SS = 'https://www.getstoryshots.com';
 const BROWSER = {
@@ -94,21 +161,40 @@ export function checkStoryShots(book) {
   return inflight.get(k);
 }
 
-/** Hook: the StoryShots summary page for a book, or '' while unknown / when there's none. */
+/**
+ * Hook: what StoryShots has for a book — { ep, url } (podcast episode and/or summary
+ * page), or null. Covers use the podcast index only; the book page also asks the website.
+ */
 export function useStoryShots(book, { always = false } = {}) {
   const on = always || ssBadges.get();
-  const [u, setU] = useState(() => (on && book?.title ? knownStoryShots(book) || '' : ''));
+  const pick = () => {
+    if (!on || !book?.title || ['pod', 'sum', 'ss'].includes(book.source)) return null;
+    const ep = matchEpisode(book, feedIndex.get().eps);
+    const url = always ? knownStoryShots(book) || '' : '';
+    return ep || url ? { ep, url } : null;
+  };
+  const [v, setV] = useState(pick);
   useEffect(() => {
-    if (!on || !book?.title || ['pod', 'sum'].includes(book.source)) return setU('');
-    const known = knownStoryShots(book);
-    if (known !== undefined) return setU(known);
+    if (!on || !book?.title || ['pod', 'sum', 'ss'].includes(book.source)) return setV(null);
     let alive = true;
-    checkStoryShots(book).then((v) => alive && setU(v || ''));
+    let ep = matchEpisode(book, feedIndex.get().eps);
+    let url = always ? knownStoryShots(book) || '' : '';
+    const show = () => alive && setV(ep || url ? { ep, url } : null);
+    show();
+    storyShotsEpisodes().then((eps) => {
+      ep = matchEpisode(book, eps);
+      show();
+    });
+    if (always && knownStoryShots(book) === undefined)
+      checkStoryShots(book).then((u) => {
+        url = u || '';
+        show();
+      });
     return () => {
       alive = false;
     };
   }, [book?.uid, book?.title, on]);
-  return u;
+  return v;
 }
 
 export const openStoryShots = (url) => openExternal(url || SS);
@@ -116,7 +202,7 @@ export const openStoryShots = (url) => openExternal(url || SS);
 // ---- "Listen here": their written summary in the reader, read by our voices -----
 let chooserSet = null;
 /** Tap on an S: ask whether to listen here or open StoryShots. */
-export const chooseStoryShots = (book, url) => (chooserSet ? chooserSet({ book, url }) : openStoryShots(url));
+export const chooseStoryShots = (book, ss) => (chooserSet ? chooserSet({ book, ...ss }) : openStoryShots(ss?.url));
 export const registerChooser = (fn) => (chooserSet = fn);
 
 /** A reader "book" for a book's StoryShots summary. */
