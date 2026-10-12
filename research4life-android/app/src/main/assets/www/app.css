@@ -1397,3 +1397,5 @@ td > .strength .meter i { width: 6px; height: 18px; border-radius: 3px; }
 .dx-warn svg, .dx-tip svg { width: 16px; height: 16px; vertical-align: -3px; }
 .dx-ctx { display: block; width: 100%; box-sizing: border-box; margin-top: 10px; }
 .dx-go { display: flex; width: 100%; justify-content: center; margin-top: 8px; }
+.dx-board { width: 100%; border-radius: 12px; border: 1px solid var(--line); margin-top: 10px; display: block; }
+.dx-changed { color: #b45309; font-weight: 600; }

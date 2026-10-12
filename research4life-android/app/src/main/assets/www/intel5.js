@@ -390,10 +390,114 @@ Give 3-5 differentials. Base everything on what is visible; say so plainly when 
       ${list(r.mustNotMiss).length ? `<div class="panel small dx-warn">${icon('alert')} <b>Don't miss:</b> ${list(r.mustNotMiss).map(esc).join(' · ')}</div>` : ''}
       ${list(r.nextSteps).length ? `<div class="section"><div class="section-h"><h3>To confirm</h3></div><ul>${list(r.nextSteps).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
       ${r.pearl ? `<div class="panel small dx-tip">${icon('bulb')} ${esc(r.pearl)}</div>` : ''}
+      ${dx ? `<button class="btn ${r.likelihood === 'high' ? '' : 'primary'} full dx-go" data-act="dx-compare">${icon('chart')}Compare with reference pictures</button>
+        <p class="muted small">Puts published pictures of the top diagnoses beside yours and asks the AI which matches best (about 30 seconds).</p>` : ''}
+      <div id="dx-cmp"></div>
       ${dx ? `<div class="section"><div class="section-h"><h3>Learn more</h3></div><div class="scroll-x">${[dx, ...list(r.differentials).map((x) => x.name)].filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 5).map((t, i) => `<button class="chip ${i === 0 ? 'on' : ''}" data-act="dx-pickdx" data-q="${esc(t)}">${esc(t)}</button>`).join('')}</div><div id="dx-more"></div></div>` : ''}
       <p class="muted small">${esc(I.EDU)}</p>`;
     if (dx) moreOn(dx);
+    if (e.cmp) showCmp(e.cmp, null, null);
   }
+  // ---- Compare with references: the top diagnoses' published pictures beside yours, one AI judgement.
+  // Pictures from other sites can only be drawn into one image when fetched through the app
+  // (Android /proxy/, iPhone /proxy?u=); in the web app Wikimedia's allow it, Open-i's don't.
+  const viaApp = (u) => {
+    if (D.hasNative) {
+      if (u.startsWith('https://openi.nlm.nih.gov/')) return '/proxy/openiimg/' + u.slice(26);
+      if (u.startsWith('https://upload.wikimedia.org/')) return '/proxy/wmup/' + u.slice(29);
+      return u;
+    }
+    return window.DSNative ? '/proxy?u=' + encodeURIComponent(u) : u;
+  };
+  async function loadImg(u) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 12000);
+    try {
+      const res = await fetch(viaApp(u), { signal: ctl.signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const blob = await res.blob();
+      if (!/^image\//.test(blob.type) && blob.size < 2000) throw new Error('Not a picture');
+      const url = URL.createObjectURL(blob);
+      return await new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => bad(new Error('Bad picture')); im.src = url; });
+    } finally { clearTimeout(t); }
+  }
+  /** Up to two reference pictures of a diagnosis that load (bigger Commons thumbnails than the grid's). */
+  async function refsFor(name, suffix) {
+    const list = await I.pics(name + suffix, 8).catch(() => []);
+    const got = [];
+    for (const m of list) {
+      if (got.length >= 2) break;
+      const u = m.source.startsWith('Wikimedia') ? String(m.thumb).replace(/\/320px-/, '/640px-') : m.src;
+      try { got.push({ im: await loadImg(u), m }); } catch { /* next one */ }
+    }
+    return got;
+  }
+  function board(mine, rows) {
+    const W = 1800, PAD = 10, LBL = 46, H0 = 560, H = 380;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = LBL + H0 + rows.length * (LBL + H + PAD) + PAD;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#111'; g.font = 'bold 32px sans-serif';
+    const fit = (im, x, y, w, h) => { const k = Math.min(w / im.width, h / im.height); g.drawImage(im, x, y, im.width * k, im.height * k); };
+    g.fillText("YOUR PICTURE", PAD, 34);
+    fit(mine, PAD, LBL, W - 2 * PAD, H0);
+    let y = LBL + H0 + PAD;
+    rows.forEach((r, i) => {
+      g.fillStyle = '#111';
+      g.fillText(`${String.fromCharCode(65 + i)}. REFERENCE: ${r.name}`.slice(0, 80), PAD, y + 34);
+      const w = (W - PAD * (r.refs.length + 1)) / Math.max(1, r.refs.length);
+      r.refs.forEach((x, j) => fit(x.im, PAD + j * (w + PAD), y + LBL, w, H));
+      y += LBL + H + PAD;
+    });
+    return c.toDataURL('image/jpeg', 0.85);
+  }
+  const CMP_SAME = { high: 'Close match', moderate: 'Partial match', low: 'Poor match' };
+  actions['dx-compare'] = async () => {
+    const e = dxShown;
+    const box = $('#dx-cmp');
+    if (!e || !box) return;
+    if (!e.image) { box.innerHTML = '<p class="muted small">Add the pictures again and tap Diagnose to compare them with references.</p>'; return; }
+    const r = e.r || {};
+    const names = [r.diagnosis, ...(r.differentials || []).map((x) => x.name)].filter((v, i, a) => v && a.findIndex((y) => y.toLowerCase() === v.toLowerCase()) === i).slice(0, 3);
+    const suffix = /Histo/.test(e.kinds) ? ' histopathology' : /Dermoscopy/.test(e.kinds) ? ' dermoscopy' : /Tricho/.test(e.kinds) ? ' trichoscopy' : /KOH/.test(e.kinds) ? ' microscopy' : '';
+    box.innerHTML = I.busyHtml('Finding reference pictures…');
+    try {
+      const rows = (await Promise.all(names.map(async (name) => ({ name, refs: await refsFor(name, suffix) })))).filter((x) => x.refs.length);
+      if (!rows.length) { box.innerHTML = '<p class="muted small">No reference pictures could be loaded for these diagnoses, so the first answer stands. Try the Leeds slides or DermNet.</p>'; return; }
+      const mine = await new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = e.image; });
+      const image = board(mine, rows);
+      box.innerHTML = `<img class="dx-board" src="${image}" alt="" data-act="vs-big" data-src="${image}">${I.busyHtml('Comparing your picture with the references…')}`;
+      const text = await I.aiImage(`The top of this image is a clinician's picture (${e.kinds})${e.ctx ? '; clinical details: ' + e.ctx : ''}. Below it are published reference pictures, one row per candidate diagnosis: ${rows.map((x, i) => `${String.fromCharCode(65 + i)} = ${x.name}`).join(', ')}.
+The first reading was: most likely ${r.diagnosis || 'unclear'}; findings: ${(r.findings || []).slice(0, 8).join('; ')}.
+Compare the clinician's picture with each reference row feature by feature (pattern, architecture, cells or structures, colours). References differ in magnification, stain and quality, and may show a different stage, so judge diagnostic features, not overall look; say when a reference is unhelpful.
+Answer only as JSON: {"best": "the diagnosis the clinician's picture matches best", "likelihood": "high | moderate | low", "rows": [{"name": "", "similarity": "high | moderate | low", "shared": ["features shared with the clinician's picture"], "different": ["features that differ"]}], "verdict": "2-3 sentences: which fits best and why, and whether this changes the first reading", "caveat": "one line on the limits of this comparison"}`, image,
+      'You are an expert dermatologist and dermatopathologist comparing a case with reference images for a fellow clinician. Be precise, use standard terminology, and never invent findings that are not visible.');
+      const v = D.aiJson(text);
+      e.cmp = v;
+      const all = dxRecent(); const k = all.findIndex((x) => x.at === e.at);
+      if (k >= 0) { all[k].cmp = v; store.set('dx.recent', all); }
+      showCmp(v, image, rows);
+    } catch (err) { box.innerHTML = I.aiErr(err); }
+  };
+  function showCmp(v, image, rows) {
+    const box = $('#dx-cmp');
+    if (!box) return;
+    const list = (a) => (Array.isArray(a) ? a : []).filter(Boolean);
+    const changed = dxShown?.r?.diagnosis && v.best && v.best.toLowerCase() !== dxShown.r.diagnosis.toLowerCase();
+    box.innerHTML = `${image ? `<img class="dx-board" src="${image}" alt="" data-act="vs-big" data-src="${image}">` : ''}
+      <div class="panel synth dx-card"><div class="label">${icon('chart')}After comparing with references</div>
+        <h2 class="dx-name">${esc(v.best || '—')}</h2><div>${likeHtml(v.likelihood)}</div>
+        ${changed ? `<p class="small dx-changed">Differs from the first reading (${esc(dxShown.r.diagnosis)}).</p>` : ''}
+        ${v.verdict ? `<p>${esc(v.verdict)}</p>` : ''}
+        ${list(v.rows).map((x) => `<h4>${esc(x.name)} · ${esc(CMP_SAME[x.similarity] || x.similarity || '')}</h4>
+          ${list(x.shared).length ? `<p class="small"><b>Shared:</b> ${list(x.shared).map(esc).join('; ')}</p>` : ''}
+          ${list(x.different).length ? `<p class="small"><b>Different:</b> ${list(x.different).map(esc).join('; ')}</p>` : ''}`).join('')}
+        ${v.caveat ? `<p class="muted small">${esc(v.caveat)}</p>` : ''}
+        ${rows ? `<p class="muted small">References: ${rows.map((x, i) => `${String.fromCharCode(65 + i)}. ${esc(x.name)} (${x.refs.map((y) => esc(y.m.source.split(' · ')[0])).join(', ')})`).join(' · ')}</p>` : ''}
+      </div>`;
+  }
+
   async function moreOn(dx) {
     const box = $('#dx-more');
     if (!box) return;

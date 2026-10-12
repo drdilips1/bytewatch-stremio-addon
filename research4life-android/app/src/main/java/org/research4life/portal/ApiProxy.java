@@ -33,6 +33,10 @@ final class ApiProxy {
         UPSTREAMS.put("fda", "https://api.fda.gov/");
         UPSTREAMS.put("rxnav", "https://rxnav.nlm.nih.gov/REST/");
         UPSTREAMS.put("commons", "https://commons.wikimedia.org/w/");
+        // Reference pictures for Diagnose from picture's comparison (drawn into one image, which a
+        // page can only do with pictures from its own address).
+        UPSTREAMS.put("openiimg", "https://openi.nlm.nih.gov/");
+        UPSTREAMS.put("wmup", "https://upload.wikimedia.org/");
     }
 
     private ApiProxy() {}
