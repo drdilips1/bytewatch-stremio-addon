@@ -644,7 +644,7 @@ class SettingsPage(activity: Activity, host: PagesHost) : Page(activity, host) {
             })
         }
 
-        look.addView(ui.textButton("Reading look: font, line spacing, paper color ›") { ReadingLook.show(activity) {} })
+        look.addView(ui.textButton("Reading look: fonts, size, spacing, margins, day or night ›") { ReadingLook.show(activity) {} })
 
         // Ratings and Goodreads.
         val gr = ui.section(body, R.drawable.ic_explore, "Ratings and Goodreads", "goodreads")

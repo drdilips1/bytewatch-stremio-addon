@@ -21,6 +21,7 @@ import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.BackgroundColorSpan
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
@@ -217,11 +218,8 @@ class PlayerActivity : Activity() {
         val doc = Speaker.doc
         LiteSheet(this, item?.title ?: doc?.title ?: "This book", listOfNotNull(item?.author ?: doc?.author).firstOrNull())
             .section("Reading")
-            .row(R.drawable.ic_text, "Reading look", "Font, line spacing and paper color") {
-                ReadingLook.show(this) {
-                    applyPaper()
-                    readerAdapter.notifyDataSetChanged()
-                }
+            .row(R.drawable.ic_text, "Reading look", "Font, size, spacing, margins, alignment, day or night") {
+                ReadingLook.show(this) { applyReadingLook() }
             }
             .row(R.drawable.ic_people, "Characters and voices", "Full cast: choose the voice of each character") {
                 CastPicker.show(this, scope)
@@ -259,6 +257,17 @@ class PlayerActivity : Activity() {
     private fun applyPaper() {
         val paper = ReadingLook.paper(this)
         if (paper != null) reader.setBackgroundColor(paper.background) else reader.background = null
+        val side = ((8 + ReadingLook.margin(this)) * resources.displayMetrics.density).toInt()
+        reader.setPadding(side, reader.paddingTop, side, reader.paddingBottom)
+    }
+
+    /** After a change in Reading look: size (also on the Options slider), page, margins, and the text. */
+    private fun applyReadingLook() {
+        textSizeSp = ReadingLook.textSize(this)
+        textSizeBar.progress = (textSizeSp - 13).toInt().coerceIn(0, textSizeBar.max)
+        textSizeLabel.text = "Reader text size  ${textSizeSp.toInt()}"
+        applyPaper()
+        readerAdapter.notifyDataSetChanged()
     }
 
     private fun setupControls() {
@@ -500,6 +509,24 @@ class PlayerActivity : Activity() {
             val face = ReadingLook.typeface(this@PlayerActivity)
             tv.setTypeface(if (isHeading) Themes.titleFont(this@PlayerActivity) else face, Typeface.NORMAL)
             tv.setLineSpacing(0f, ReadingLook.spacing(this@PlayerActivity))
+            when (ReadingLook.alignment(this@PlayerActivity)) {
+                "justify" -> {
+                    tv.gravity = Gravity.START
+                    tv.justificationMode = android.text.Layout.JUSTIFICATION_MODE_INTER_WORD
+                }
+                "center" -> {
+                    tv.gravity = Gravity.CENTER_HORIZONTAL
+                    tv.justificationMode = android.text.Layout.JUSTIFICATION_MODE_NONE
+                }
+                "right" -> {
+                    tv.gravity = Gravity.END
+                    tv.justificationMode = android.text.Layout.JUSTIFICATION_MODE_NONE
+                }
+                else -> {
+                    tv.gravity = Gravity.START
+                    tv.justificationMode = android.text.Layout.JUSTIFICATION_MODE_NONE
+                }
+            }
             ReadingLook.paper(this@PlayerActivity)?.let { tv.setTextColor(it.text) } ?: tv.setTextColor(color(R.attr.p2aText))
             val shown = if (position in noteIndexes) "🔖 $text" else text
             val piece = Speaker.currentPiece
