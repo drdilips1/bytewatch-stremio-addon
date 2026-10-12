@@ -2759,6 +2759,21 @@
       return (r.message?.items || []).filter((x) => x.title?.[0] && !FRONT.test(x.title[0].trim()) && (!x.issue || !crDate(x['published-print']) || isoOf(crDate(x['published-print'])) > today));
     } catch (e) { return { failed: (e && e.message) || 'no answer' }; }
   }
+  // A journal's ISSN when the app has none stored: from OpenAlex's journal register, only when its
+  // name matches exactly (a wrong ISSN would show another journal's papers); kept on the phone.
+  const plainName = (t) => String(t || '').toLowerCase().replace(/^the\s+/, '').replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+  async function journalIssn(j) {
+    if (j.issn) return j.issn;
+    const k = 'issn.' + plainName(j.name);
+    const kept = store.get(k, '');
+    if (kept) return kept;
+    try {
+      const d = await getJSON(`${OPENALEX}sources?search=${encodeURIComponent(j.name)}&per_page=5&select=display_name,issn_l,alternate_titles`);
+      const hit = (d.results || []).find((x) => x.issn_l && [x.display_name, ...(x.alternate_titles || [])].some((n) => plainName(n) === plainName(j.name)));
+      if (hit) { store.set(k, hit.issn_l); return hit.issn_l; }
+    } catch { /* not now */ }
+    return '';
+  }
   async function inPressList(j) {
     const from = new Date(Date.now() - 240 * 864e5).toISOString().slice(0, 10);
     const today = new Date().toISOString().slice(0, 10);
@@ -2767,7 +2782,7 @@
       Promise.all([loadYear(j, THIS_YEAR), loadYear(j, THIS_YEAR - 1)]).catch(() => [{ inPress: [] }, { inPress: [] }]),
       epmcSearch(q, { size: 100 }).catch(() => ({ results: [] })),
     ]);
-    const issn = j.issn || recent.results.find((a) => a.issn)?.issn || '';
+    const issn = j.issn || recent.results.find((a) => a.issn)?.issn || await journalIssn(j);
     const crr = await crossrefInPress(issn, from);
     const cr = Array.isArray(crr) ? crr : [];
     const inIssue = (doi) => recent.results.some((a) => (a.doi || '').toLowerCase() === doi.toLowerCase() && a.volume && a.issue && !issueLater(a));
