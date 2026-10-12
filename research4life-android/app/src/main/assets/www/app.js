@@ -872,13 +872,18 @@
     let list = ofCache.get(key);
     if (!list) {
       const from = new Date(Date.now() - 183 * 864e5).toISOString().slice(0, 10);
-      const p = new URLSearchParams({ filter: `title_and_abstract.search:${f.q.replace(/[,|:]/g, ' ')},from_publication_date:${from},type:article`, sort: 'publication_date:desc', 'per-page': '50',
+      // The question's key words only (a whole question matched papers on any of its words).
+      const terms = [...new Set(keywordTerms(f.q).map((w) => w.toLowerCase().replace(/[^a-z0-9-]/g, '')).filter((w) => w.length > 3 && !/^(effective|effectiveness|compared|comparison|versus|treatment|treat|therapy|patients?|management|best|current|evidence|role|use|used|using|new|latest|recent)$/.test(w)))];
+      if (!terms.length) return;
+      const need = terms.length <= 2 ? terms.length : Math.max(2, Math.ceil(terms.length * 0.6));
+      const hits = (a) => { const t = `${a.title} ${a.abstract}`.toLowerCase(); return terms.filter((w) => t.includes(w.replace(/s$/, ''))).length; };
+      const p = new URLSearchParams({ filter: `title_and_abstract.search:${terms.join(' ')},from_publication_date:${from},type:article`, sort: 'publication_date:desc', 'per-page': '50',
         select: 'id,doi,display_name,publication_date,publication_year,authorships,primary_location,ids,abstract_inverted_index,biblio,open_access,cited_by_count', mailto: 'app@dermscholar.app' });
       try {
         const j = await Promise.race([getJSON(`${OPENALEX}works?${p}`), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000))]);
         const have = new Set(state.results.map((a) => (a.doi || '').toLowerCase()).filter(Boolean));
         list = (j.results || []).filter((w) => w.doi && !w.ids?.pmid).map(fromOpenAlex)
-          .filter((a) => !have.has(a.doi.toLowerCase()) && (!settings.derm || dermJournal(a) || DERM_WORDS.test(a.title)));
+          .filter((a) => !have.has(a.doi.toLowerCase()) && hits(a) >= need && (!settings.derm || dermJournal(a) || DERM_WORDS.test(a.title)));
       } catch { list = []; }
       ofCache.set(key, list);
     }

@@ -1420,3 +1420,4 @@ td > .strength .meter i { width: 6px; height: 18px; border-radius: 3px; }
 .hist-row.old .hist-open b { color: var(--text-3); font-weight: 500; }
 .hist-warn { margin-bottom: 8px; border-color: #e3a008; }
 .dx-bar { bottom: calc(var(--nav-h) + 62px); }
+.online-first h3 svg { width: 15px; height: 15px; vertical-align: -2px; margin-right: 4px; }
