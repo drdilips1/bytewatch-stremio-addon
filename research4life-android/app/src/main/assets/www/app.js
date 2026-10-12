@@ -2651,7 +2651,7 @@
   // issue lists and contents.
   const CROSSREF = hasNative ? '/proxy/crossref/' : 'https://api.crossref.org/';
   const crossrefCache = new Map();
-  const crYear = (x) => ((x['published-print'] || x.published || {})['date-parts'] || [[0]])[0][0];
+  const crYear = (x) => ((x['published-print'] || x.issued || {})['date-parts'] || [[0]])[0][0];
   async function crossrefYear(j, y) {
     if (!j.issn) return [];
     const key = `${j.issn}|${y}`;
@@ -2662,7 +2662,8 @@
   }
   async function crossrefFetch(j, y) {
     const p = new URLSearchParams({ filter: `from-pub-date:${y - 1}-10-01,until-pub-date:${y}-12-31`, rows: '1000',
-      select: 'DOI,title,volume,issue,page,author,published,published-print,type', mailto: 'app@dermscholar.app' });
+      // Only field names Crossref's select accepts: an unknown one fails the whole request.
+      select: 'DOI,title,volume,issue,page,author,issued,published-print,type', mailto: 'app@dermscholar.app' });
     let items = [];
     try {
       const r = await Promise.race([getJSON(`${CROSSREF}journals/${encodeURIComponent(j.issn)}/works?${p}`),
@@ -2730,7 +2731,7 @@
   const crDate = (d) => { const p = d?.['date-parts']?.[0]; return p && p[0] ? [p[0], p[1] || 1, p[2] || 1] : null; };
   const isoOf = (p) => (p ? `${p[0]}-${String(p[1]).padStart(2, '0')}-${String(p[2]).padStart(2, '0')}` : '');
   function fromCrossref(x, j) {
-    const online = crDate(x['published-online']) || crDate(x.published) || crDate(x.issued);
+    const online = crDate(x['published-online']) || crDate(x.created) || crDate(x.issued);
     const a = {
       id: 'DOI_' + x.DOI, source: 'DOI', extId: x.DOI, pmid: '', pmcid: '', doi: x.DOI,
       title: stripTags((x.title || [''])[0] || 'Untitled').replace(/\.$/, ''),
@@ -2746,14 +2747,15 @@
   }
   async function crossrefInPress(issn, from) {
     if (!issn) return [];
-    const p = new URLSearchParams({ filter: `from-online-pub-date:${from},type:journal-article`, rows: '100', sort: 'published', order: 'desc',
-      select: 'DOI,title,author,volume,issue,page,published,published-online,published-print,issued,abstract,container-title', mailto: 'app@dermscholar.app' });
+    // Registered (DOI created) since `from`: every new paper has that date, not all have an online date.
+    const p = new URLSearchParams({ filter: `from-created-date:${from},type:journal-article`, rows: '100', sort: 'created', order: 'desc',
+      select: 'DOI,title,author,volume,issue,page,created,published-online,published-print,issued,abstract,container-title', mailto: 'app@dermscholar.app' });
     try {
       const r = await Promise.race([getJSON(`${CROSSREF}journals/${encodeURIComponent(issn)}/works?${p}`), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))]);
       const today = new Date().toISOString().slice(0, 10);
       // Not yet in a printed issue: no print date (or one still to come), or no issue number.
       return (r.message?.items || []).filter((x) => x.title?.[0] && (!x.issue || !crDate(x['published-print']) || isoOf(crDate(x['published-print'])) > today));
-    } catch { return []; }
+    } catch (e) { return { failed: (e && e.message) || 'no answer' }; }
   }
   async function inPressList(j) {
     const from = new Date(Date.now() - 240 * 864e5).toISOString().slice(0, 10);
@@ -2764,15 +2766,20 @@
       epmcSearch(q, { size: 100 }).catch(() => ({ results: [] })),
     ]);
     const issn = j.issn || recent.results.find((a) => a.issn)?.issn || '';
-    const cr = await crossrefInPress(issn, from);
+    const crr = await crossrefInPress(issn, from);
+    const cr = Array.isArray(crr) ? crr : [];
     const inIssue = (doi) => recent.results.some((a) => (a.doi || '').toLowerCase() === doi.toLowerCase() && a.volume && a.issue && !issueLater(a));
     const seen = new Set();
     const key = (a) => (a.doi ? 'doi:' + a.doi.toLowerCase() : a.id);
-    return [...years[0].inPress, ...years[1].inPress].map(normalize)
+    const list = [...years[0].inPress, ...years[1].inPress].map(normalize)
       .concat(recent.results.filter((a) => !a.volume || !a.issue || issueLater(a)))
       .concat(cr.filter((x) => !inIssue(x.DOI)).map((x) => fromCrossref(x, j)))
       .filter((a) => !seen.has(key(a)) && seen.add(key(a)))
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    // Why it may be short: no ISSN to ask Crossref with, or Crossref didn't answer.
+    list.note = !issn ? 'This journal has no ISSN in the app, so the publisher\'s online-first list (Crossref) wasn\'t checked.'
+      : crr && crr.failed ? `The publisher's online-first list (Crossref) didn't answer (${crr.failed}). Try again later.` : '';
+    return list;
   }
   async function loadYear(j, y) {
     const key = `${j.abbr}|${y}`;
@@ -2847,7 +2854,7 @@
         const list = await inPressList(j);
         if (!el.isConnected) return;
         el.innerHTML = list.length ? `<div class="meta-line">${list.length} articles published online ahead of an issue</div>${list.slice(0, 60).map((x) => card(x, { compact: true })).join('')}`
-          : '<div class="empty"><b>Nothing in press</b><div>All recent articles are already in issues.</div></div>';
+          : `<div class="empty"><b>Nothing in press</b><div>${esc(list.note || 'No papers published online ahead of an issue were found in Europe PMC or Crossref.')}</div></div>`;
       } catch (e) { el.innerHTML = errorBox(e); }
       return;
     }
