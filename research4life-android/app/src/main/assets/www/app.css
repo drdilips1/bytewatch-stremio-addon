@@ -1278,8 +1278,11 @@ pre.trail { white-space: pre-wrap; word-break: break-all; font-size: 11px; line-
 .qa-sugg { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .ref-quote { font-style: italic; opacity: .85; }
 
-.qa-lead { font-size: 1.32em; line-height: 1.32; margin: 2px 0 10px; }
-.qa-lead b { font-weight: 700; }
+.qa-lead { margin: 2px 0 10px; }
+.qa-body .qa-title, .qa .qa-title { display: block; font-family: var(--display); font-size: 22px; font-weight: 700; line-height: 1.25; margin: 4px 0 10px; text-align: left; }
+/* Answers: bold only in headings (and the evidence tables' first column), plain text elsewhere. */
+.qa-body p b, .qa-body p strong, .qa-body li b, .qa-body li strong,
+.qa-thread .qa-a p b, .qa-thread .qa-a p strong, .qa-thread .qa-a li b, .qa-thread .qa-a li strong { font-weight: inherit; }
 /* The follow-up box stays in reach at the bottom while reading, above the tab bar. */
 .qa-follow { position: sticky; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 5; background: var(--bg); padding: 8px 0; }
 .qa-follow input { border-radius: 22px; padding: 12px 16px; }

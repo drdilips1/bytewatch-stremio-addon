@@ -442,7 +442,8 @@
     // The direct answer (first line) large, as Consensus shows it.
     // The first paragraph large; strength words in tables ("Strong", "Moderate"…) as the meter.
     const METER = { strong: 'strong', moderate: 'moderate', limited: 'limited', 'very limited': 'very limited', conflicting: 'conflicting', low: 'limited', 'very low': 'very limited', high: 'strong' };
-    const lead = (html) => meterize(html.replace(/<p>/, '<p class="qa-lead">'));
+    // Like Consensus: a short title in bold, then plain text (bold only in headings).
+    const lead = (html) => meterize(html.replace(/^\s*<h4>([\s\S]*?)<\/h4>/, '<h3 class="qa-title">$1</h3>').replace(/<p>/, '<p class="qa-lead">'));
     const meterize = (html) => html
       .replace(/(<td>|<div class="md-(?:first|cell)">(?:<span>[^<]*<\/span>)?)\s*(?:<b>)?\s*(strong|moderate|limited|very limited|conflicting|high|low|very low)\s*(?:<\/b>)?\s*(<\/td>|<\/div>)/gi,
         (m, a, w, b) => `${a}${I.strength(METER[w.toLowerCase()])}${b}`);
@@ -547,11 +548,11 @@
       const doc = refs.map((x) => `[${x.n}] ${x.type || 'Study'} · ${x.a.authors ? x.a.authors.split(',')[0] + ' et al.' : ''} ${x.a.jAbbr || x.a.journal} ${x.a.year} · ${x.a.title}. ${I.absShort(x.a, 520)}`).join('\n\n');
       const text = await D.ai(`QUESTION: ${question}\n\n`
         + 'Answer exactly this question for a dermatologist, like a short up-to-date review, using only these papers (guidelines and consensus statements first; prefer the newest guidance and strongest evidence). '
-        + 'The first line must answer the question as asked, including its qualifiers (new, in children, in pregnancy, refractory, first-line…), not a general statement about the topic. '
+        + 'The first sentence after the title must answer the question as asked, including its qualifiers (new, in children, in pregnancy, refractory, first-line…), not a general statement about the topic. '
         + (recent ? 'The question asks what is NEW: lead with the treatments, tests or findings from recent years (name them, with what the newest studies show), and mention the established standard only briefly as context. ' : '')
         + 'Write Markdown:\n'
-        + '1. First line: the direct answer in one plain sentence (what to do / what it is), with only its key phrase in **bold**; for management questions it names the overall approach including established mainstays (e.g. isotretinoin for severe acne), even ones the papers do not cover (e.g. "Order an **extended myositis panel** covering the dermatomyositis-specific and overlap antibodies.").\n'
-        + '2. A short paragraph (2-3 sentences) explaining it, with the key terms in **bold**.\n'
+        + '1. First line: a short title of 3-8 words as a Markdown heading starting "# " (e.g. "# Global Shift in Emerging Dermatophyte Pathogens").\n'
+        + '2. Then the direct answer in one or two plain sentences (what to do / what it is), in plain text without bold; for management questions it names the overall approach including established mainstays (e.g. isotretinoin for severe acne), even ones the papers do not cover. Follow it with 1-2 sentences explaining it.\n'
         + '3. 2 to 4 "## " sections with headings that fit the question, short paragraphs or bullets, and one compact Markdown table where it helps. ' + shape + '\n'
         + '4. If the papers include guidelines or consensus statements: "## Current guidelines" with what they recommend.\n'
         + '5. "## Evidence strength": a table with columns Strength | Claim, 3 to 5 rows for the key claims, Strength being exactly one of Strong, Moderate, Limited, Very limited or Conflicting, each claim cited.\n'
