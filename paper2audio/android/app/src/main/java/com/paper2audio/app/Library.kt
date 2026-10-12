@@ -161,8 +161,13 @@ object Library {
     }
 
     /** A bookmark (no text), a note, or a highlight ([color]: yellow, green, blue or pink). */
-    class Note(val index: Int, val text: String, val at: Long, val color: String? = null) {
-        val isBookmark get() = text.isBlank() && color == null
+    class Note(
+        val index: Int, val text: String, val at: Long, val color: String? = null,
+        /** The words it's about, as character offsets in the paragraph (-1: the whole paragraph). */
+        val start: Int = -1, val end: Int = -1,
+    ) {
+        val isBookmark get() = text.isBlank() && color == null && start < 0
+        val isSpan get() = start >= 0 && end > start
     }
 
     val HIGHLIGHT_COLORS = linkedMapOf(
@@ -172,14 +177,17 @@ object Library {
     fun notes(item: Item): List<Note> {
         val arr = runCatching { JSONArray(item.notes) }.getOrElse { JSONArray() }
         return (0 until arr.length()).map { arr.getJSONObject(it) }
-            .map { Note(it.optInt("i"), it.optString("t"), it.optLong("at"), it.optString("c").ifBlank { null }) }
+            .map { Note(it.optInt("i"), it.optString("t"), it.optLong("at"), it.optString("c").ifBlank { null }, it.optInt("s", -1), it.optInt("e", -1)) }
             .sortedBy { it.index }
     }
 
     private fun saveNotes(context: Context, item: Item, notes: List<Note>) = synchronized(this) {
         val arr = JSONArray()
         notes.forEach { n ->
-            arr.put(JSONObject().put("i", n.index).put("t", n.text).put("at", n.at).apply { n.color?.let { put("c", it) } })
+            arr.put(JSONObject().put("i", n.index).put("t", n.text).put("at", n.at).apply {
+                n.color?.let { put("c", it) }
+                if (n.isSpan) put("s", n.start).put("e", n.end)
+            })
         }
         item.notes = arr.toString()
         item.opened = maxOf(item.opened, System.currentTimeMillis())
@@ -189,12 +197,23 @@ object Library {
     fun addNote(context: Context, item: Item, index: Int, text: String, color: String? = null) =
         saveNotes(context, item, notes(item) + Note(index, text.trim(), System.currentTimeMillis(), color))
 
+    /** Highlights (and/or notes) on words [start]..[end] of paragraph [index]. */
+    fun addSpan(context: Context, item: Item, index: Int, start: Int, end: Int, color: String?, note: String = "") {
+        // A new color on the same words replaces the old one.
+        val kept = notes(item).filterNot { it.index == index && it.start == start && it.end == end && it.text.isBlank() && note.isBlank() }
+        saveNotes(context, item, kept + Note(index, note.trim(), System.currentTimeMillis(), color, start, end))
+    }
+
+    /** Removes highlights that overlap words [start]..[end] of paragraph [index]. */
+    fun removeSpans(context: Context, item: Item, index: Int, start: Int, end: Int) =
+        saveNotes(context, item, notes(item).filterNot { it.index == index && it.isSpan && it.text.isBlank() && it.start < end && start < it.end })
+
     /** The highlight color of paragraph [index], if it's highlighted. */
     fun highlightAt(item: Item, index: Int): String? = notes(item).lastOrNull { it.index == index && it.color != null }?.color
 
     /** Highlights paragraph [index] in [color], or removes its highlight (null). */
     fun setHighlight(context: Context, item: Item, index: Int, color: String?) {
-        val kept = notes(item).filterNot { it.index == index && it.color != null && it.text.isBlank() }
+        val kept = notes(item).filterNot { it.index == index && it.color != null && it.text.isBlank() && !it.isSpan }
         saveNotes(context, item, if (color == null) kept else kept + Note(index, "", System.currentTimeMillis(), color))
     }
 

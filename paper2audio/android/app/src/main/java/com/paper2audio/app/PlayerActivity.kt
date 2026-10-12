@@ -35,6 +35,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -529,19 +530,20 @@ class PlayerActivity : Activity() {
             }
             ReadingLook.paper(this@PlayerActivity)?.let { tv.setTextColor(it.text) } ?: tv.setTextColor(color(R.attr.p2aText))
             val shown = if (position in noteIndexes) "🔖 $text" else text
+            val span = SpannableString(shown)
+            // Highlighted words, and words with a note (underlined).
+            val offset = shown.length - text.length
+            markWords(span, position, offset)
             val piece = Speaker.currentPiece
             if (current && piece != null && Speaker.playing) {
-                val span = SpannableString(shown)
                 val start = shown.indexOf(piece)
                 if (start >= 0) {
                     val accent = color(R.attr.p2aAccent)
                     val tint = (accent and 0x00FFFFFF) or 0x40000000
                     span.setSpan(BackgroundColorSpan(tint), start, start + piece.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
-                tv.text = span
-            } else {
-                tv.text = shown
             }
+            tv.text = span
             val paper = ReadingLook.paper(this@PlayerActivity)
             when {
                 // On a chosen paper color, the current paragraph keeps that paper (slightly deeper) and an accent edge.
@@ -572,6 +574,7 @@ class PlayerActivity : Activity() {
                 Speaker.seek(position)
                 if (!Speaker.playing) Speaker.play()
             }
+            .row(R.drawable.ic_text, "Select words", "Highlight in color, note, dictionary, Wikipedia, search") { selectWords(position) }
             .row(R.drawable.ic_sparkle, "Explain or ask AI…") { explainMenu(position, null) }
             .section("Mark")
             .row(R.drawable.ic_bookmark, "Add bookmark") {
@@ -581,7 +584,7 @@ class PlayerActivity : Activity() {
                     afterNotesChanged()
                 }
             }
-            .row(R.drawable.ic_palette, "Highlight…", "Yellow, green, blue or pink") { item?.let { chooseHighlight(it, position) } }
+            .row(R.drawable.ic_palette, "Highlight the paragraph", "Yellow, green, blue or pink") { item?.let { chooseHighlight(it, position) } }
             .row(R.drawable.ic_text, "Add note…") { item?.let { askNote(it, position) } }
             .section("Share")
             .row(R.drawable.ic_paste, "Copy text") {
@@ -605,16 +608,9 @@ class PlayerActivity : Activity() {
             .show()
     }
 
-    private fun chooseHighlight(item: Library.Item, position: Int) {
-        val names = Library.HIGHLIGHT_COLORS.keys.toList()
-        val labels = names.map { it.replaceFirstChar { c -> c.uppercase() } } + "Remove highlight"
-        AlertDialog.Builder(this)
-            .setTitle("Highlight")
-            .setItems(labels.toTypedArray()) { _, which ->
-                Library.setHighlight(this, item, position, names.getOrNull(which))
-                afterNotesChanged()
-            }
-            .show()
+    private fun chooseHighlight(item: Library.Item, position: Int) = pickColor { c ->
+        Library.setHighlight(this, item, position, c)
+        afterNotesChanged()
     }
 
     private fun askNote(item: Library.Item, position: Int) {
@@ -646,8 +642,130 @@ class PlayerActivity : Activity() {
 
     private fun loadMarks(item: Library.Item?) {
         val notes = item?.let { Library.notes(it) }.orEmpty()
-        noteIndexes = notes.filter { it.color == null || it.text.isNotBlank() }.map { it.index }.toSet()
-        highlights = notes.filter { it.color != null }.associate { it.index to (Library.HIGHLIGHT_COLORS[it.color] ?: 0x66F5C542) }
+        noteIndexes = notes.filter { !it.isSpan && (it.color == null || it.text.isNotBlank()) }.map { it.index }.toSet()
+        highlights = notes.filter { it.color != null && !it.isSpan }.associate { it.index to (Library.HIGHLIGHT_COLORS[it.color] ?: 0x66F5C542) }
+        spans = notes.filter { it.isSpan }.groupBy { it.index }
+    }
+
+    /** Highlights and notes on words, by paragraph. */
+    private var spans: Map<Int, List<Library.Note>> = emptyMap()
+
+    private fun markWords(span: SpannableString, position: Int, offset: Int) {
+        for (n in spans[position].orEmpty()) {
+            val a = n.start + offset
+            val b = n.end + offset
+            if (a < 0 || b > span.length || a >= b) continue
+            n.color?.let { span.setSpan(BackgroundColorSpan(Library.HIGHLIGHT_COLORS[it] ?: 0x66F5C542), a, b, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE) }
+            if (n.text.isNotBlank()) span.setSpan(android.text.style.UnderlineSpan(), a, b, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    /**
+     * The paragraph with its words selectable: press and hold, drag, then Highlight (in four
+     * colors), Note, Dictionary, Wikipedia, Search, Quote card, or Copy.
+     */
+    private fun selectWords(position: Int) {
+        val item = Library.get(this, Library.currentId) ?: return
+        val doc = Speaker.doc ?: return
+        val para = doc.paragraphs.getOrNull(position) ?: return
+        val d = resources.displayMetrics.density
+        val tv = TextView(this).apply {
+            textSize = textSizeSp
+            typeface = ReadingLook.typeface(this@PlayerActivity)
+            setLineSpacing(0f, ReadingLook.spacing(this@PlayerActivity))
+            setTextColor(color(R.attr.p2aText))
+            setTextIsSelectable(true)
+            setPadding((24 * d).toInt(), (4 * d).toInt(), (24 * d).toInt(), (12 * d).toInt())
+        }
+        fun render() {
+            val sp = SpannableString(para)
+            markWords(sp, position, 0)
+            tv.text = sp
+        }
+        render()
+        tv.customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
+            override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                menu.add(0, 1, 0, "Highlight")
+                menu.add(0, 2, 1, "Note")
+                menu.add(0, 3, 2, "Dictionary")
+                menu.add(0, 4, 3, "Wikipedia")
+                menu.add(0, 5, 4, "Search")
+                menu.add(0, 6, 5, "Quote card")
+                return true
+            }
+
+            override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
+
+            override fun onActionItemClicked(mode: android.view.ActionMode, mi: android.view.MenuItem): Boolean {
+                val a = minOf(tv.selectionStart, tv.selectionEnd).coerceAtLeast(0)
+                val b = maxOf(tv.selectionStart, tv.selectionEnd).coerceAtMost(para.length)
+                if (a >= b) return false
+                val words = para.substring(a, b)
+                when (mi.itemId) {
+                    1 -> pickColor { c ->
+                        if (c == null) Library.removeSpans(this@PlayerActivity, item, position, a, b)
+                        else Library.addSpan(this@PlayerActivity, item, position, a, b, c)
+                        afterNotesChanged()
+                        render()
+                    }
+                    2 -> {
+                        val input = EditText(this@PlayerActivity).apply { hint = "Your note"; minLines = 2 }
+                        AlertDialog.Builder(this@PlayerActivity)
+                            .setTitle("Note on “${words.take(40)}${if (words.length > 40) "…" else ""}”")
+                            .setView(FrameLayout(this@PlayerActivity).apply {
+                                setPadding((20 * d).toInt(), (10 * d).toInt(), (20 * d).toInt(), 0)
+                                addView(input)
+                            })
+                            .setPositiveButton("Save") { _, _ ->
+                                val t = input.text.toString().trim()
+                                if (t.isNotEmpty()) {
+                                    Library.addSpan(this@PlayerActivity, item, position, a, b, null, t)
+                                    afterNotesChanged()
+                                    render()
+                                }
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                    3 -> LookUp.dictionary(this@PlayerActivity, scope, words)
+                    4 -> LookUp.wikipedia(this@PlayerActivity, scope, words)
+                    5 -> LookUp.webSearch(this@PlayerActivity, words)
+                    6 -> Sharing.shareQuote(this@PlayerActivity, words, item.title, item.author ?: doc.author)
+                }
+                mode.finish()
+                return true
+            }
+
+            override fun onDestroyActionMode(mode: android.view.ActionMode) = Unit
+        }
+        LiteSheet(this, "Select words", "Press and hold a word, then drag to choose more").view(tv).show()
+    }
+
+    /** Four highlight colors as round swatches, and "remove". */
+    private fun pickColor(picked: (String?) -> Unit) {
+        val d = resources.displayMetrics.density
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, (8 * d).toInt(), 0, (16 * d).toInt())
+        }
+        var sheet: LiteSheet? = null
+        for ((name, argb) in Library.HIGHLIGHT_COLORS) {
+            row.addView(View(this).apply {
+                contentDescription = name
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(argb or 0xFF000000.toInt())
+                }
+                setOnClickListener {
+                    sheet?.dismiss()
+                    picked(name)
+                }
+            }, LinearLayout.LayoutParams((48 * d).toInt(), (48 * d).toInt()).apply { marginStart = (10 * d).toInt(); marginEnd = (10 * d).toInt() })
+        }
+        sheet = LiteSheet(this, "Highlight").view(row)
+            .row(R.drawable.ic_close, "Remove highlight") { picked(null) }
+            .show()
     }
 
     private fun showNotes() {

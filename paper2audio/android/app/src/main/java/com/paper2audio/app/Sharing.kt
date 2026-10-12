@@ -186,7 +186,8 @@ object Sharing {
                 sb.append("## ").append(chapter).append("\n\n")
                 lastChapter = chapter
             }
-            val passage = doc?.paragraphs?.getOrNull(n.index)
+            val para = doc?.paragraphs?.getOrNull(n.index)
+            val passage = if (n.isSpan && para != null && n.end <= para.length) para.substring(n.start, n.end) else para
             if (passage != null) sb.append("> ").append(passage.replace("\n", " ")).append("\n\n")
             val kind = when {
                 n.color != null -> "Highlight (${n.color})"
