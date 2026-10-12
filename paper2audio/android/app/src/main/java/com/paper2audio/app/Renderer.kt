@@ -168,7 +168,10 @@ object Renderer {
                 }
             } else {
                 val rate = ((es - 1f) * 100).roundToInt().coerceIn(-50, 200)
-                tmp.writeBytes(hedged(spoken.length) { EdgeTts.synthesize(spoken, voice.removePrefix(Speaker.EDGE), rate, v.pitch) })
+                // "edge:Name@-20": the voice with its own pitch shift (children's voices in full cast).
+                val name = voice.removePrefix(Speaker.EDGE).substringBefore('@')
+                val shift = voice.substringAfter('@', "0").toIntOrNull() ?: 0
+                tmp.writeBytes(hedged(spoken.length) { EdgeTts.synthesize(spoken, name, rate, v.pitch + shift) })
             }
             if (!tmp.renameTo(target)) error("Couldn't save audio")
         } finally {

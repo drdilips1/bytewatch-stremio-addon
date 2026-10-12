@@ -787,6 +787,18 @@ object Speaker {
         else -> emptyList()
     }
 
+    /**
+     * Children's voices: Microsoft's child voices (Ana, Maisie); boys a little lower. On-device
+     * engines have no child voices, so children get the lighter (female) voices there.
+     */
+    private fun childPool(main: String, boy: Boolean): List<String> = when {
+        main.startsWith(EDGE) -> if (boy) listOf("$EDGE" + "en-US-AnaNeural@-25", "$EDGE" + "en-GB-MaisieNeural@-25")
+        else listOf("$EDGE" + "en-US-AnaNeural", "$EDGE" + "en-GB-MaisieNeural")
+        else -> pool(main, false)
+    }
+
+    private fun isChildVoice(id: String) = id.contains("AnaNeural") || id.contains("MaisieNeural")
+
     /** Whether voice [id] sounds male (best guess from its name or description). */
     private fun isMale(id: String): Boolean = when {
         id.startsWith(EDGE) -> (EdgeTts.CURATED.firstOrNull { EDGE + it.name == id }?.gender
@@ -832,7 +844,8 @@ object Speaker {
         val key = d.key + "|" + speaker
         guessed[key]?.let { return it.ifEmpty { null } }
         val near = d.paragraphs.asSequence().filter { speaker in it }.take(120).joinToString(" ")
-        val g = Cast.genderOf(speaker, near, castVoices.keys + speakersOf(d))
+        var g = Cast.genderOf(speaker, near, castVoices.keys + speakersOf(d))
+        if (g != null && Cast.isChild(speaker, near)) g = if (g == "male") "boy" else "girl"
         guessed[key] = g ?: ""
         return g
     }
@@ -884,11 +897,17 @@ object Speaker {
             return user
         }
         val known = user?.removePrefix("gender:") ?: aiGenders[d.key]?.get(speaker) ?: guessGender(d, speaker)
+        val child = known == "boy" || known == "girl"
         // The voice this character had before (earlier in the book, or in another book of the series),
-        // unless it's a man's voice for a woman or the other way round.
+        // unless it's a man's voice for a woman, an adult's for a child, or the other way round.
         rememberedCast(d)[speaker]?.takeIf { v ->
-            v != voiceId && LocalTts.missing(v) == null && (v in pool(voiceId, true) || v in pool(voiceId, false)) &&
-                (known == null || isMale(v) == (known == "male"))
+            v != voiceId && LocalTts.missing(v) == null &&
+                (v in pool(voiceId, true) || v in pool(voiceId, false) || v in childPool(voiceId, true) || v in childPool(voiceId, false)) &&
+                when {
+                    known == null -> true
+                    child -> v in childPool(voiceId, known == "boy")
+                    else -> !isChildVoice(v) && isMale(v) == (known == "male")
+                }
         }?.let { v ->
             castVoices[speaker] = v
             return v
@@ -902,11 +921,12 @@ object Speaker {
             } else {
                 val gender = known ?: Cast.genderOf(speaker, castText, castVoices.keys + scriptSpeakers)
                 val male = when (gender) {
-                    "male" -> true
-                    "female" -> false
+                    "male", "boy" -> true
+                    "female", "girl" -> false
                     else -> !isMale(main) // unknown: contrast with the narrator
                 }
-                val candidates = pool(main, male).filter { LocalTts.missing(it) == null }
+                val candidates = (if (gender == "boy" || gender == "girl") childPool(main, gender == "boy") else pool(main, male))
+                    .filter { LocalTts.missing(it) == null }
                 // A fresh voice while there are some; then the least used one, so many characters share evenly.
                 candidates.firstOrNull { it !in used }
                     ?: candidates.filter { it != main }.minByOrNull { c -> castVoices.values.count { it == c } }

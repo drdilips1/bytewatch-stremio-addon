@@ -46,10 +46,12 @@ object CastPicker {
                 val who = when (gender) {
                     "female" -> "woman"
                     "male" -> "man"
+                    "girl" -> "girl"
+                    "boy" -> "boy"
                     else -> "not sure"
                 }
                 val mark = if (chosen.containsKey(name)) "✓ " else ""
-                "$mark$name · $who · $lines lines\n   ${VoicePicker.label(voice).substringBefore(" · ")}"
+                "$mark$name · $who · $lines lines\n   ${voiceName(voice)}"
             }
             AlertDialog.Builder(activity)
                 .setTitle("Characters and voices")
@@ -59,10 +61,18 @@ object CastPicker {
         }
     }
 
+    private fun voiceName(id: String): String = when {
+        id.contains("AnaNeural") -> "Ana (child)" + if ('@' in id) ", a little lower" else ""
+        id.contains("MaisieNeural") -> "Maisie (child)" + if ('@' in id) ", a little lower" else ""
+        else -> VoicePicker.label(id).substringBefore(" · ")
+    }
+
     private fun choose(activity: Activity, scope: CoroutineScope, doc: Doc, name: String) {
         val options = arrayOf(
             "$name is a woman\nA female voice, picked for you",
             "$name is a man\nA male voice, picked for you",
+            "$name is a girl\nA child's voice",
+            "$name is a boy\nA child's voice, a little lower",
             "Choose a woman's voice…",
             "Choose a man's voice…",
             "Choose any voice…",
@@ -73,16 +83,18 @@ object CastPicker {
             .setItems(options) { _, which ->
                 fun done(value: String?) {
                     Speaker.setUserCast(doc, name, value)
-                    Toast.makeText(activity, "$name: ${value?.let { if (it.startsWith("gender:")) it.removePrefix("gender:") + " voice" else VoicePicker.label(it).substringBefore(" · ") } ?: "automatic"}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(activity, "$name: ${value?.let { if (it.startsWith("gender:")) it.removePrefix("gender:") + "'s voice" else voiceName(it) } ?: "automatic"}", Toast.LENGTH_SHORT).show()
                     show(activity, scope)
                 }
                 val current = Speaker.voiceOfCharacter(doc, name)
                 when (which) {
                     0 -> done("gender:female")
                     1 -> done("gender:male")
-                    2 -> VoicePicker.pickOne(activity, "Voice for $name", current, { it.male == false }) { done(it) }
-                    3 -> VoicePicker.pickOne(activity, "Voice for $name", current, { it.male == true }) { done(it) }
-                    4 -> VoicePicker.pickOne(activity, "Voice for $name", current) { done(it) }
+                    2 -> done("gender:girl")
+                    3 -> done("gender:boy")
+                    4 -> VoicePicker.pickOne(activity, "Voice for $name", current, { it.male == false }) { done(it) }
+                    5 -> VoicePicker.pickOne(activity, "Voice for $name", current, { it.male == true }) { done(it) }
+                    6 -> VoicePicker.pickOne(activity, "Voice for $name", current) { done(it) }
                     else -> done(null)
                 }
             }

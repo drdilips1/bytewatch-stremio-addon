@@ -76,6 +76,21 @@ object Cast {
         }
     }
 
+    private val CHILD = Regex("""\b(?:boy|girl|child|kid|toddler|baby|schoolboy|schoolgirl|little (?:boy|girl|one|brother|sister)|(?:[1-9]|1[0-2]|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[- ]years?[- ]old)\b""", RegexOption.IGNORE_CASE)
+    private val ADULT = Regex("""\b(?:man|woman|lady|gentleman|wife|husband|sir|madam|grown)\b""", RegexOption.IGNORE_CASE)
+
+    /** Whether the text around [name] says they're a child ("little Tom", "the girl", "seven years old"). */
+    fun isChild(name: String, text: String): Boolean {
+        var child = 0
+        var adult = 0
+        for (m in Regex("""(.{0,40})\b${Regex.escape(name)}\b(.{0,80})""").findAll(text)) {
+            val around = m.groupValues[1] + " " + m.groupValues[2]
+            child += CHILD.findAll(around).count()
+            adult += ADULT.findAll(around).count()
+        }
+        return child >= 2 && child > adult * 2
+    }
+
     /** The characters who speak in [doc] (named in "…,” said Maya and the like), most frequent first. */
     fun characters(doc: Doc): List<Pair<String, Int>> {
         val counts = HashMap<String, Int>()

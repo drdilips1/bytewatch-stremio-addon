@@ -150,19 +150,20 @@ object Ai {
     fun characters(context: Context, doc: Doc): Map<String, String> {
         val sample = doc.paragraphs.filter { '\u201C' in it }.joinToString("\n\n").take(limit(context) - 2_000)
         if (sample.length < 500) return emptyMap()
-        val file = cacheFile(context, "characters", doc.title, doc.author.orEmpty())
+        val file = cacheFile(context, "characters2", doc.title, doc.author.orEmpty())
         val json = cached(file) {
             Llm.generate(
                 context,
                 "List the characters who speak in this story" + (doc.author?.let { " (\"${doc.title}\" by $it)" } ?: "") +
-                    ", with each one's gender. Use the names exactly as the text uses them for speakers (first names " +
-                    "or surnames as they appear, include both forms if both are used). Return only JSON: " +
-                    "{\"characters\":{\"Name\":\"male\" or \"female\"}}.\n\nDialogue from the story:\n\n$sample",
+                    ", with each one's gender, and whether they are a child (about 12 or younger). Use the names exactly as the " +
+                    "text uses them for speakers (first names or surnames as they appear, include both forms if both are used). " +
+                    "Return only JSON: {\"characters\":{\"Name\":\"male\", \"female\", \"boy\" or \"girl\"}}.\n\n" +
+                    "Dialogue from the story:\n\n$sample",
                 json = true,
             )
         }
         val o = JSONObject(cleanJson(json)).optJSONObject("characters") ?: return emptyMap()
-        return o.keys().asSequence().associateWith { o.optString(it).lowercase() }.filterValues { it == "male" || it == "female" }
+        return o.keys().asSequence().associateWith { o.optString(it).lowercase() }.filterValues { it == "male" || it == "female" || it == "boy" || it == "girl" }
     }
 
     /** A short spoken recap of a chapter that just ended, with one question to think about (AI immersion). */
