@@ -129,11 +129,12 @@
     }
   }
 
-  function pickFiles(accept, onFiles, { capture = false, label = 'Choose a file' } = {}) {
+  function pickFiles(accept, onFiles, { capture = false, label = 'Choose a file', multiple = false } = {}) {
     const run = () => {
       const inp = document.createElement('input');
       inp.type = 'file';
       inp.accept = accept;
+      inp.multiple = multiple;
       if (capture) inp.capture = 'environment';
       inp.style.display = 'none';
       inp.onchange = () => { const fs = Array.from(inp.files || []); inp.remove(); if (fs.length) onFiles(fs); };
@@ -655,6 +656,11 @@
     pickImage: (id) => pickFiles('image/*', async (fs) => {
       try { emit({ type: 'imagePicked', id, dataUrl: await imageDataUrl(fs[0]) }); } catch (e) { emit({ type: 'imagePicked', id, error: e.message }); }
     }, { label: 'Choose a photo' }),
+    pickImages: (id, max) => pickFiles('image/*', async (fs) => {
+      const dataUrls = [];
+      for (const f of fs.slice(0, Math.max(1, max || 1))) { try { dataUrls.push(await imageDataUrl(f)); } catch { /* skip that one */ } }
+      emit(dataUrls.length ? { type: 'imagePicked', id, dataUrl: dataUrls[0], dataUrls } : { type: 'imagePicked', id, error: "Couldn't read those photos" });
+    }, { label: 'Choose photos', multiple: max > 1 }),
     deleteImport: (k) => delFile('doc', k),
     consumeReceived: () => '[]',
     ocrImport: async (id, key) => {

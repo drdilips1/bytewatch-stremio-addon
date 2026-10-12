@@ -561,6 +561,12 @@ public class MainActivity extends Activity {
          */
         @JavascriptInterface
         public void pickImage(String id) {
+            pickImages(id, 1);
+        }
+
+        /** Like pickImage, choosing up to {@code max} photos at once; the event also has "dataUrls". */
+        @JavascriptInterface
+        public void pickImages(String id, int max) {
             main.post(() -> {
                 pendingImageId = id;
                 // The system photo picker (Android 13+), else the gallery: some phones' file picker
@@ -568,6 +574,10 @@ public class MainActivity extends Activity {
                 Intent i = android.os.Build.VERSION.SDK_INT >= 33
                         ? new Intent("android.provider.action.PICK_IMAGES").setType("image/*")
                         : new Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*");
+                if (max > 1) {
+                    if (android.os.Build.VERSION.SDK_INT >= 33) i.putExtra("android.provider.extra.PICK_IMAGES_MAX", max);
+                    else i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                }
                 try {
                     startActivityForResult(i, REQUEST_IMAGE_AI);
                 } catch (ActivityNotFoundException e) {
@@ -1455,17 +1465,23 @@ public class MainActivity extends Activity {
             String id = pendingImageId;
             pendingImageId = null;
             if (id == null) return;
-            if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            java.util.List<Uri> uris = new java.util.ArrayList<>();
+            if (resultCode == RESULT_OK && data != null) {
+                android.content.ClipData clip = data.getClipData();
+                if (clip != null) for (int k = 0; k < clip.getItemCount() && k < 6; k++) uris.add(clip.getItemAt(k).getUri());
+                else if (data.getData() != null) uris.add(data.getData());
+            }
+            if (uris.isEmpty()) {
                 emit(event("imagePicked", "id", id, "error", "cancelled"));
                 return;
             }
-            Uri uri = data.getData();
             io.execute(() -> {
-                try {
-                    emit(event("imagePicked", "id", id, "dataUrl", imageDataUrl(uri)));
-                } catch (Exception e) {
-                    emit(event("imagePicked", "id", id, "error", "Couldn't read that image"));
+                org.json.JSONArray all = new org.json.JSONArray();
+                for (Uri u : uris) {
+                    try { all.put(imageDataUrl(u)); } catch (Exception ignored) { }
                 }
+                if (all.length() == 0) emit(event("imagePicked", "id", id, "error", "Couldn't read that image"));
+                else emit(event("imagePicked", "id", id, "dataUrl", all.optString(0), "dataUrls", all));
             });
         }
     }

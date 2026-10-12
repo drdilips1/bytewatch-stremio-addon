@@ -55,6 +55,15 @@
       Native.pickImage(id);
     });
   }
+  /** Up to {@code max} photos chosen at once (data URLs); one at a time where the app can't. */
+  function pickImages(max) {
+    return new Promise((resolve, reject) => {
+      if (!Native.pickImages) { pickImage().then((u) => resolve([u]), reject); return; }
+      const id = 'img' + (++imgSeq);
+      imgWait[id] = (evt) => (evt.error ? reject(new Error(evt.error)) : resolve(evt.dataUrls && evt.dataUrls.length ? evt.dataUrls : [evt.dataUrl]));
+      Native.pickImages(id, max);
+    });
+  }
   const aiImgWait = {};
   ext.onAiOther = (evt) => { const f = aiImgWait[evt.id]; delete aiImgWait[evt.id]; if (f) f(evt); };
   function aiImage(task, dataUrl, system) {
@@ -737,7 +746,7 @@
     const [a, b] = await Promise.all([openI(query).catch(() => []), commons(query).catch(() => [])]);
     return [...a.slice(0, Math.ceil(n * 0.6)), ...b].slice(0, n);
   }
-  Object.assign(I, { pickImage, aiImage, EDU, openI, commons, pics });
+  Object.assign(I, { pickImage, pickImages, aiImage, EDU, openI, commons, pics });
   Object.assign(ext.routes, {
     research: renderResearch, project: renderProject, rp: renderRP, gaps: renderGaps, compare: renderCompare,
     drug: renderDrug, images: renderImages, imgread: renderImgRead,

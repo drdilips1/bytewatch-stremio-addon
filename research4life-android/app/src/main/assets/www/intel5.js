@@ -322,9 +322,9 @@
   }
   actions['dx-kind'] = (b) => { dxKind = b.dataset.v; $$('[data-act=dx-kind]').forEach((x) => x.classList.toggle('on', x === b)); paintPics(); };
   actions['dx-pick'] = async () => {
-    let url;
-    try { url = await I.shrink(await I.pickImage(), 1400); } catch (e) { if (!/cancel/i.test(e.message || '')) toast(e.message || 'Couldn\'t open the photos'); return; }
-    dxPics.push({ url, kind: dxKind });
+    let urls;
+    try { urls = await I.pickImages(3 - dxPics.length); } catch (e) { if (!/cancel/i.test(e.message || '')) toast(e.message || 'Couldn\'t open the photos'); return; }
+    for (const u of urls.slice(0, 3 - dxPics.length)) dxPics.push({ url: await I.shrink(u, 1400), kind: dxKind });
     dxShown = null;
     paintPics();
   };
