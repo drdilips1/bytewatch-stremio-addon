@@ -633,7 +633,12 @@
   actions['ev-papers'] = (b) => go(D.searchHash(D.filtersFrom({ q: b.dataset.q })));
   actions['ev-utd'] = (b) => go('search?' + new URLSearchParams({ q: b.dataset.q, src: 'utd' }));
   actions['ev-r4l'] = () => Native.openPortal('https://portal.research4life.org/signin', '', '');
-  actions['ev-dermnet'] = (b) => openUrl('https://dermnetnz.org/search?q=' + encodeURIComponent(b.dataset.q));
+  // The diagnosis on screen (Histology side by side reads its box when the button has none).
+  const dxOf = (b) => (b.dataset.q || $('#hs-dx')?.value || '').trim();
+  actions['ev-dermnet'] = (b) => openUrl('https://dermnetnz.org/search?q=' + encodeURIComponent(dxOf(b)));
+  // Pathology Outlines has no search address of its own that is known to work: a Google search
+  // restricted to the site lands on its topic page.
+  actions['po-open'] = (b) => openUrl('https://www.google.com/search?q=' + encodeURIComponent('site:pathologyoutlines.com ' + (dxOf(b) || 'skin')));
   // Leeds Virtual Pathology: whole-slide histology (zoomable, free), opened in the in-app browser.
   actions['leeds-open'] = () => openUrl('https://www.virtualpathology.leeds.ac.uk/slides/library/');
   // PathPresenter's slide library: whole slides, many dermatopathology, also in the in-app browser.
