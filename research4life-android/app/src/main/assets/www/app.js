@@ -2667,6 +2667,30 @@
     inPress.sort((a, b) => (b.firstPublicationDate || '').localeCompare(a.firstPublicationDate || ''));
     return { issues, inPress, total: items.length };
   }
+  // Published online, not yet in a printed issue: no volume/issue yet, or (Elsevier's Clinics and
+  // others) already given an issue that comes out later, often dated next year.
+  const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  function issueLater(a) {
+    const m = /(\d{4})(?:\s+([A-Za-z]{3}))?/.exec(a.pubDate || '');
+    if (!m) return false;
+    const y = +m[1], mo = m[2] ? MONTHS.indexOf(m[2].toLowerCase()) : -1;
+    const now = new Date();
+    return y > now.getFullYear() || (y === now.getFullYear() && mo > now.getMonth());
+  }
+  async function inPressList(j) {
+    const from = new Date(Date.now() - 240 * 864e5).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const q = `${journalQuery(j)} AND FIRST_PDATE:[${from} TO ${today}] ${NOISE}`;
+    const [years, recent] = await Promise.all([
+      Promise.all([loadYear(j, THIS_YEAR), loadYear(j, THIS_YEAR - 1)]).catch(() => [{ inPress: [] }, { inPress: [] }]),
+      epmcSearch(q, { size: 100 }).catch(() => ({ results: [] })),
+    ]);
+    const seen = new Set();
+    return [...years[0].inPress, ...years[1].inPress].map(normalize)
+      .concat(recent.results.filter((a) => !a.volume || !a.issue || issueLater(a)))
+      .filter((a) => !seen.has(a.id) && seen.add(a.id))
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  }
   async function loadYear(j, y) {
     const key = `${j.abbr}|${y}`;
     if (issueCache.has(key)) return issueCache.get(key);
@@ -2737,8 +2761,7 @@
     if (tab === 'issues' && !params.q) return renderIssuesTab(j, params, nav, el);
     if (tab === 'press' && !params.q) {
       try {
-        const [a, b] = await Promise.all([loadYear(j, THIS_YEAR), loadYear(j, THIS_YEAR - 1)]);
-        const list = [...a.inPress, ...b.inPress].map(normalize);
+        const list = await inPressList(j);
         if (!el.isConnected) return;
         el.innerHTML = list.length ? `<div class="meta-line">${list.length} articles published online ahead of an issue</div>${list.slice(0, 60).map((x) => card(x, { compact: true })).join('')}`
           : '<div class="empty"><b>Nothing in press</b><div>All recent articles are already in issues.</div></div>';
@@ -2781,7 +2804,7 @@
           <span>${current.count} articles · open table of contents →</span></button>` : '') +
         (data.issues.length ? `<div class="section-h" style="margin-top:18px"><h3>${y} issues</h3><span class="muted small">${data.issues.length}</span></div><div class="issue-grid">${tiles}</div>`
           : `<div class="empty"><b>No issues found for ${y}</b><div>Europe PMC may not list issue numbers for this journal.</div></div>`) +
-        (inPressN && y >= THIS_YEAR - 1 ? `<button class="btn full" style="width:100%;margin-top:14px" data-act="jtab" data-t="press">${icon('clock')}${inPressN} articles in press</button>` : '');
+        (y >= THIS_YEAR - 1 ? `<button class="btn full" style="width:100%;margin-top:14px" data-act="jtab" data-t="press">${icon('clock')}${inPressN ? inPressN + ' articles' : 'Articles'} in press</button>` : '');
     };
     // Early in the year the newest issues may still be last year's.
     const currentOf = async (data, stored) => {
