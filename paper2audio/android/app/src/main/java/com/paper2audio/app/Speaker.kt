@@ -854,10 +854,14 @@ object Speaker {
      * Children's voices: Microsoft's child voices (Ana, Maisie); boys a little lower. On-device
      * engines have no child voices, so children get the lighter (female) voices there.
      */
-    private fun childPool(main: String, boy: Boolean): List<String> = when {
-        main.startsWith(EDGE) -> if (boy) listOf("$EDGE" + "en-US-AnaNeural@-10", "$EDGE" + "en-GB-MaisieNeural@-10")
-        else listOf("$EDGE" + "en-US-AnaNeural", "$EDGE" + "en-GB-MaisieNeural")
-        else -> pool(main, false)
+    private fun childPool(main: String, boy: Boolean): List<String> {
+        if (!main.startsWith(EDGE)) return pool(main, false)
+        // Only the child voices Microsoft still offers (once its full list is in).
+        val known = edgeVoices.size > EdgeTts.CURATED.size
+        val kids = listOf("en-US-AnaNeural", "en-GB-MaisieNeural")
+            .filter { n -> !known || edgeVoices.any { it.name.endsWith(n) } }
+            .map { EDGE + it + if (boy) "@-10" else "" }
+        return kids.ifEmpty { pool(main, false) }
     }
 
     private fun isChildVoice(id: String) = id.contains("AnaNeural") || id.contains("MaisieNeural")
@@ -1110,8 +1114,8 @@ object Speaker {
                         else -> EDGE_LOOKAHEAD
                     }
                     var first = true
-                    suspend fun load(p: Piece, text: String): Pcm16 {
-                        val pv = base.copy(voiceId = p.voice)
+                    suspend fun loadIn(voice: String, text: String): Pcm16 {
+                        val pv = base.copy(voiceId = voice)
                         // Networks drop requests: online voices get three tries, a little apart.
                         val tries = if (LocalTts.isLocal(pv.voiceId)) 2 else 3
                         var file: java.io.File? = null
@@ -1127,6 +1131,20 @@ object Speaker {
                             }
                         }
                         return AudioDecode.load(file!!)
+                    }
+                    suspend fun load(p: Piece, text: String): Pcm16 {
+                        // A piece with nothing to say ("“…") gets no audio from any voice: a short silence instead.
+                        if (text.none { it.isLetterOrDigit() }) return Pcm16(ShortArray(6_000), 24_000)
+                        return try {
+                            loadIn(p.voice, text)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            // A character's voice failing shouldn't stop the book: read this piece in the main voice.
+                            if (p.voice == base.voiceId) throw e
+                            AppLog.i("Player", "Cast voice ${p.voice} failed (${e.message}); using the main voice")
+                            loadIn(base.voiceId, text)
+                        }
                     }
                     fun fill() {
                         while (queue.size < lookahead() && pieces.hasNext()) {
@@ -1177,7 +1195,7 @@ object Speaker {
                     return@launch
                 }
                 fail(
-                    if (LocalTts.isLocal(vid)) "The on-device voice couldn't read this (${failure.message})."
+                    if (LocalTts.isLocal(vid) && failure !is java.io.IOException) "The on-device voice couldn't read this (${failure.message})."
                     else "Couldn't reach the natural voice service (${failure.message}). Check your internet, or download the document for offline listening."
                 )
                 return@launch
