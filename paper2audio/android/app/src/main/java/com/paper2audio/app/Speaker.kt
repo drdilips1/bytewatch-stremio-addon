@@ -520,6 +520,16 @@ object Speaker {
     private var focusRequest: android.media.AudioFocusRequest? = null
     private var resumeOnFocus = false
 
+    @Volatile private var ducked = false
+    private val longInterruption = Runnable {
+        if (ducked && playing) {
+            ducked = false
+            stream?.duck(false)
+            resumeOnFocus = true
+            pause()
+        }
+    }
+
     private fun requestFocus() {
         val am = app.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
         val req = focusRequest ?: android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN)
@@ -529,7 +539,7 @@ object Speaker {
                     .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build()
             )
-            // Spoken word: pause rather than play quietly under a navigation prompt.
+            // Handled here: quieter for notification sounds, paused for calls and voice prompts.
             .setWillPauseWhenDucked(true)
             .setOnAudioFocusChangeListener({ change ->
                 when (change) {
@@ -537,15 +547,36 @@ object Speaker {
                         resumeOnFocus = false
                         if (playing) pause()
                     }
-                    android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                    // A notification sound: just quieter for a moment, no pause and restart.
+                    android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                        if (playing && isStreamed) {
+                            ducked = true
+                            stream?.duck(true)
+                            // Longer than a ding (a navigation voice prompt): pause, and carry on afterwards.
+                            main.removeCallbacks(longInterruption)
+                            main.postDelayed(longInterruption, 1_500)
+                        } else if (playing) {
+                            resumeOnFocus = true
+                            pause()
+                        }
+                    }
+                    // A call, an assistant, a voice message: pause, and carry on afterwards.
+                    android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                         if (playing) {
                             resumeOnFocus = true
                             pause()
                         }
                     }
-                    android.media.AudioManager.AUDIOFOCUS_GAIN -> if (resumeOnFocus) {
-                        resumeOnFocus = false
-                        play()
+                    android.media.AudioManager.AUDIOFOCUS_GAIN -> {
+                        main.removeCallbacks(longInterruption)
+                        if (ducked) {
+                            ducked = false
+                            stream?.duck(false)
+                        }
+                        if (resumeOnFocus) {
+                            resumeOnFocus = false
+                            play()
+                        }
                     }
                 }
             }, main)

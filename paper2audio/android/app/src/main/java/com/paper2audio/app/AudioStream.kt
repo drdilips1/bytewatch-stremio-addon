@@ -124,6 +124,11 @@ class AudioStream(context: Context, boost: Float) {
         wakeLock.acquire(6 * 60 * 60 * 1000L)
     }
 
+    /** Quieter while a notification sound plays (instead of stopping), and back. */
+    fun duck(on: Boolean) {
+        runCatching { track?.setVolume(if (on) 0.25f else 1f) }
+    }
+
     fun setBoost(value: Float) {
         boost = value
         applyBoost()

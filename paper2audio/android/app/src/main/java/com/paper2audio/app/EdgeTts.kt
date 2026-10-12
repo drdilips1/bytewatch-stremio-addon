@@ -145,47 +145,95 @@ object EdgeTts {
         return frame.copyOfRange(2 + headerLength, frame.size)
     }
 
-    private fun synthesizePiece(text: String, voice: String, ratePercent: Int, pitchHz: Int, retryOnAuth: Boolean): ByteArray {
-        val request = Request.Builder()
-            .url(
-                "$socketBase/edge/v1?TrustedClientToken=$TOKEN&ConnectionId=${muid().lowercase(Locale.US)}" +
-                    "&Sec-MS-GEC=${secMsGec()}&Sec-MS-GEC-Version=$GEC_VERSION"
-            )
-            .header("Pragma", "no-cache")
-            .header("Cache-Control", "no-cache")
-            .header("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold")
-            .header("User-Agent", USER_AGENT)
-            .header("Accept-Language", "en-US,en;q=0.9")
-            .header("Cookie", "muid=${muid()};")
-            .build()
+    private fun socketRequest(): Request = Request.Builder()
+        .url(
+            "$socketBase/edge/v1?TrustedClientToken=$TOKEN&ConnectionId=${muid().lowercase(Locale.US)}" +
+                "&Sec-MS-GEC=${secMsGec()}&Sec-MS-GEC-Version=$GEC_VERSION"
+        )
+        .header("Pragma", "no-cache")
+        .header("Cache-Control", "no-cache")
+        .header("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold")
+        .header("User-Agent", USER_AGENT)
+        .header("Accept-Language", "en-US,en;q=0.9")
+        .header("Cookie", "muid=${muid()};")
+        .build()
 
+    private val SPEECH_CONFIG: String get() = "X-Timestamp:${jsDate()}\r\n" +
+        "Content-Type:application/json; charset=utf-8\r\n" +
+        "Path:speech.config\r\n\r\n" +
+        """{"context":{"synthesis":{"audio":{"metadataoptions":{""" +
+        """"sentenceBoundaryEnabled":"true","wordBoundaryEnabled":"false"},""" +
+        """"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}""" + "\r\n"
+
+    /**
+     * A connection to the voice service, opened ahead of time: connecting (name lookup, secure
+     * handshake) takes a second or more on mobile data, so a few are kept ready and each sentence
+     * takes one and only has to send its text. Each connection still reads exactly one sentence.
+     */
+    private class Conn(val born: Long) : WebSocketListener() {
+        lateinit var ws: WebSocket
+        val opened = CountDownLatch(1)
+        @Volatile var dead = false
+        @Volatile var failCode: Int? = null
+        @Volatile var failedResponse: Response? = null
+        /** The sentence's listener, once a sentence has taken this connection. */
+        @Volatile var handler: WebSocketListener? = null
+
+        override fun onOpen(webSocket: WebSocket, response: Response) {
+            webSocket.send(SPEECH_CONFIG)
+            opened.countDown()
+        }
+        override fun onMessage(webSocket: WebSocket, text: String) { handler?.onMessage(webSocket, text) }
+        override fun onMessage(webSocket: WebSocket, bytes: ByteString) { handler?.onMessage(webSocket, bytes) }
+        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            dead = true
+            failCode = response?.code
+            failedResponse = response
+            opened.countDown()
+            handler?.onFailure(webSocket, t, response)
+        }
+        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            dead = true
+            opened.countDown()
+            handler?.onClosed(webSocket, code, reason)
+        }
+        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+            dead = true
+            handler?.onClosing(webSocket, code, reason)
+        }
+    }
+
+    private const val READY = 3
+    /** A ready connection older than this is closed rather than used (the service drops idle ones). */
+    private const val MAX_IDLE_MS = 20_000L
+    private val ready = java.util.concurrent.ConcurrentLinkedDeque<Conn>()
+
+    private fun open(): Conn {
+        val c = Conn(System.currentTimeMillis())
+        c.ws = client.newWebSocket(socketRequest(), c)
+        return c
+    }
+
+    /** A ready connection if there is a fresh one, and more opened in the background for the next sentences. */
+    private fun take(): Conn {
+        val now = System.currentTimeMillis()
+        var c: Conn? = null
+        while (true) {
+            val r = ready.pollFirst() ?: break
+            if (!r.dead && now - r.born < MAX_IDLE_MS) { c = r; break }
+            runCatching { r.ws.cancel() }
+        }
+        while (ready.size < READY) ready.addLast(open())
+        return c ?: open()
+    }
+
+    private fun synthesizePiece(text: String, voice: String, ratePercent: Int, pitchHz: Int, retryOnAuth: Boolean): ByteArray {
+        val conn = take()
         val audio = ByteArrayOutputStream()
         val done = CountDownLatch(1)
         var failure: Throwable? = null
         var failedResponse: Response? = null
-
-        val ws = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                webSocket.send(
-                    "X-Timestamp:${jsDate()}\r\n" +
-                        "Content-Type:application/json; charset=utf-8\r\n" +
-                        "Path:speech.config\r\n\r\n" +
-                        """{"context":{"synthesis":{"audio":{"metadataoptions":{""" +
-                        """"sentenceBoundaryEnabled":"true","wordBoundaryEnabled":"false"},""" +
-                        """"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}""" + "\r\n"
-                )
-                val rate = if (ratePercent >= 0) "+$ratePercent%" else "$ratePercent%"
-                val ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
-                    "<voice name='$voice'><prosody pitch='${if (pitchHz >= 0) "+" else ""}${pitchHz}Hz' rate='$rate' volume='+0%'>" +
-                    escape(text) + "</prosody></voice></speak>"
-                webSocket.send(
-                    "X-RequestId:${muid().lowercase(Locale.US)}\r\n" +
-                        "Content-Type:application/ssml+xml\r\n" +
-                        "X-Timestamp:${jsDate()}Z\r\n" + // the trailing Z matches what Edge sends
-                        "Path:ssml\r\n\r\n" + ssml
-                )
-            }
-
+        conn.handler = object : WebSocketListener() {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 if (text.contains("Path:turn.end")) {
                     webSocket.close(1000, null)
@@ -206,11 +254,37 @@ object EdgeTts {
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 done.countDown()
             }
-        })
+        }
+        if (!conn.opened.await(10, TimeUnit.SECONDS)) {
+            conn.ws.cancel()
+            throw IOException("The voice service didn't answer")
+        }
+        if (conn.dead) {
+            // Couldn't connect (or a ready connection was dropped): one more time with a new one.
+            val code = conn.failCode
+            if (code == 403 && retryOnAuth) {
+                adjustSkew(conn.failedResponse)
+                ready.forEach { runCatching { it.ws.cancel() } }
+                ready.clear()
+                return synthesizePiece(text, voice, ratePercent, pitchHz, retryOnAuth = false)
+            }
+            if (retryOnAuth) return synthesizePiece(text, voice, ratePercent, pitchHz, retryOnAuth = false)
+            throw IOException(if (code != null) "Voice service error (HTTP $code)" else "Couldn't connect to the voice service")
+        }
+        val rate = if (ratePercent >= 0) "+$ratePercent%" else "$ratePercent%"
+        val ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
+            "<voice name='$voice'><prosody pitch='${if (pitchHz >= 0) "+" else ""}${pitchHz}Hz' rate='$rate' volume='+0%'>" +
+            escape(text) + "</prosody></voice></speak>"
+        conn.ws.send(
+            "X-RequestId:${muid().lowercase(Locale.US)}\r\n" +
+                "Content-Type:application/ssml+xml\r\n" +
+                "X-Timestamp:${jsDate()}Z\r\n" + // the trailing Z matches what Edge sends
+                "Path:ssml\r\n\r\n" + ssml
+        )
 
         // Normally a second or two; a stuck request is given up on (and retried) after 20 s.
         if (!done.await(20, TimeUnit.SECONDS)) {
-            ws.cancel()
+            conn.ws.cancel()
             throw IOException("The voice service timed out")
         }
         val code = failedResponse?.code
