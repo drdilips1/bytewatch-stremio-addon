@@ -295,6 +295,7 @@ class PlayerActivity : Activity() {
         btnPlay.setOnClickListener {
             askNotificationPermission()
             Speaker.toggle()
+            if (Speaker.playing) askScreenOff()
         }
         // Tap: one sentence back or forward. Hold: a whole paragraph.
         btnPrev.setOnClickListener { Speaker.previousSentence() }
@@ -1443,6 +1444,27 @@ class PlayerActivity : Activity() {
             Speaker.lastError = null
             toast(it)
         }
+    }
+
+    /**
+     * Once: Android (Samsung especially) stops apps in the background to save battery, which stops
+     * the voice a while after the screen goes off. Asks to let Paper to Audio keep running.
+     */
+    private fun askScreenOff() {
+        val pm = getSystemService(android.os.PowerManager::class.java) ?: return
+        if (pm.isIgnoringBatteryOptimizations(packageName) || prefs.getBoolean("askedScreenOff", false)) return
+        prefs.edit().putBoolean("askedScreenOff", true).apply()
+        AlertDialog.Builder(this)
+            .setTitle("Keep reading with the screen off?")
+            .setMessage(
+                "To save battery, Android may stop Paper to Audio a few minutes after the screen goes off. " +
+                    "Allow it to keep running, and the voice carries on until you stop it or the sleep timer does.\n\n" +
+                    "On Samsung phones, also check Settings › Battery › Background usage limits, and that Paper to Audio " +
+                    "isn't in \"Sleeping apps\"."
+            )
+            .setPositiveButton("Allow") { _, _ -> Battery.ask(this) }
+            .setNegativeButton("Not now", null)
+            .show()
     }
 
     private fun askNotificationPermission() {

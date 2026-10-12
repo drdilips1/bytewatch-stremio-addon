@@ -42,6 +42,7 @@ object Speaker {
     private const val PIECE_LOOKAHEAD = 5
     /** Online voices render in parallel: keep more sentences on the way. */
     private const val EDGE_LOOKAHEAD = 7
+    private const val EDGE_LOOKAHEAD_SCREEN_OFF = 20
 
     data class VoiceOption(val id: String, val label: String)
 
@@ -1054,6 +1055,7 @@ object Speaker {
             if (d.lang == null && LocalTts.isLocal(vid)) withContext(Dispatchers.IO) { Langs.of(d) }
             val v = voicing(d)
             val out = AudioStream(app, Renderer.playbackBoost(v, currentSpeed))
+            out.keepWifi = !LocalTts.isLocal(vid)
             if (!playing) out.pause()
             stream = out
             val base = v.copy(dialogue = null)
@@ -1089,7 +1091,13 @@ object Speaker {
                 withContext(Dispatchers.Default) {
                     val pieces = pieceSequence(d, from, fromPiece, vid).iterator()
                     val queue = ArrayDeque<Pair<Piece, List<Deferred<Pcm16>>>>()
-                    val lookahead = if (LocalTts.isLocal(vid)) PIECE_LOOKAHEAD else EDGE_LOOKAHEAD
+                    val power = app.getSystemService(android.os.PowerManager::class.java)
+                    // With the screen off, online voices prepare much further ahead, so a short network gap isn't heard.
+                    fun lookahead(): Int = when {
+                        LocalTts.isLocal(vid) -> PIECE_LOOKAHEAD
+                        power?.isInteractive == false -> EDGE_LOOKAHEAD_SCREEN_OFF
+                        else -> EDGE_LOOKAHEAD
+                    }
                     var first = true
                     suspend fun load(p: Piece, text: String): Pcm16 {
                         val pv = base.copy(voiceId = p.voice)
@@ -1110,7 +1118,7 @@ object Speaker {
                         return AudioDecode.load(file!!)
                     }
                     fun fill() {
-                        while (queue.size < lookahead && pieces.hasNext()) {
+                        while (queue.size < lookahead() && pieces.hasNext()) {
                             val p = pieces.next()
                             // The very first sentence is spoken in two halves when it's long, so sound starts sooner.
                             val parts = if (first) Renderer.quickStart(p.text, p.voice) else listOf(p.text)

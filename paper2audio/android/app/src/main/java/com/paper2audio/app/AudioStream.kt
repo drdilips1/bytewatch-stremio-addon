@@ -38,6 +38,25 @@ class AudioStream(context: Context, boost: Float) {
         .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "paper2audio:reading")
         .apply { setReferenceCounted(false) }
 
+    /** Online voices: keeps Wi-Fi awake with the screen off (else its power saving stops the voice). */
+    var keepWifi = false
+    @Suppress("DEPRECATION")
+    private val wifiLock = runCatching {
+        (context.applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager)
+            .createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "paper2audio:reading")
+            .apply { setReferenceCounted(false) }
+    }.getOrNull()
+
+    private fun hold() {
+        hold()
+        if (keepWifi) runCatching { wifiLock?.acquire() }
+    }
+
+    private fun letGo() {
+        letGo()
+        runCatching { if (wifiLock?.isHeld == true) wifiLock.release() }
+    }
+
     /** Frames the listener has heard so far. */
     private val heard: Long
         get() = track?.let { it.playbackHeadPosition.toLong() and 0xffffffffL } ?: 0L
@@ -79,7 +98,7 @@ class AudioStream(context: Context, boost: Float) {
         applyBoost()
         if (!paused) {
             t.play()
-            wakeLock.acquire(6 * 60 * 60 * 1000L)
+            hold()
         }
         return t
     }
@@ -115,13 +134,13 @@ class AudioStream(context: Context, boost: Float) {
     fun pause() {
         paused = true
         track?.pause()
-        if (wakeLock.isHeld) wakeLock.release()
+        letGo()
     }
 
     fun resume() {
         paused = false
         track?.play()
-        wakeLock.acquire(6 * 60 * 60 * 1000L)
+        hold()
     }
 
     /** Quieter while a notification sound plays (instead of stopping), and back. */
@@ -147,7 +166,7 @@ class AudioStream(context: Context, boost: Float) {
             it.release()
         }
         track = null
-        if (wakeLock.isHeld) wakeLock.release()
+        letGo()
     }
 
     companion object {
