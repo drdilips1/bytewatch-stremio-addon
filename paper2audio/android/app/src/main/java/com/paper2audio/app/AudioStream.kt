@@ -48,12 +48,12 @@ class AudioStream(context: Context, boost: Float) {
     }.getOrNull()
 
     private fun hold() {
-        hold()
+        wakeLock.acquire(6 * 60 * 60 * 1000L)
         if (keepWifi) runCatching { wifiLock?.acquire() }
     }
 
     private fun letGo() {
-        letGo()
+        if (wakeLock.isHeld) wakeLock.release()
         runCatching { if (wifiLock?.isHeld == true) wifiLock.release() }
     }
 
