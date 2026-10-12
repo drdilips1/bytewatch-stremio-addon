@@ -698,7 +698,9 @@
   }
   let pendingImg = null;
   let shownImg = null;
-  function renderImgRead() {
+  function renderImgRead(_, q = {}) {
+    // From History: a reading kept on this phone.
+    if (q.at && !pendingImg) { const old = store.get('imgl.recent', []).find((x) => String(x.at) === String(q.at)); if (old) shownImg = { dataUrl: old.thumb, html: old.html, kind: old.kind }; }
     const p = pendingImg || shownImg;
     if (!p) { go('images', { replace: true }); return; }
     pendingImg = null;
@@ -721,6 +723,13 @@
       $('#up-out').innerHTML = `<div class="panel synth">${md(text.replace(/SEARCH:.*$/im, ''))}<p class="muted small">${esc(EDU)}</p></div>
         ${search.length ? `<div class="section"><div class="section-h"><h3>Key references</h3></div><div class="row wrap">${search.map((s) => `<button class="chip" data-act="ev-from-search" data-q="${esc(s)}">${icon('chart')}${esc(s)}</button>`).join('')}</div></div>` : ''}`;
       if (shownImg && shownImg.dataUrl === dataUrl) shownImg.html = $('#up-out').innerHTML;
+      try {
+        const at = Date.now();
+        const thumb = I.shrink ? await I.shrink(dataUrl, 480) : dataUrl;
+        store.set('imgl.recent', [{ at, thumb, kind, html: $('#up-out').innerHTML }, ...store.get('imgl.recent', [])].slice(0, 12));
+        const first = (text.match(/^#+\s*(.+)$/m)?.[1] || IMG_KINDS[kind] || 'Image').replace(/[*_]/g, '');
+        I.remember('img', `${IMG_KINDS[kind] || 'Image'}: ${context || first}`, 'imgread?' + new URLSearchParams({ at }), { thumb: I.shrink ? await I.shrink(dataUrl, 160) : '' });
+      } catch { /* history is a convenience */ }
     } catch (e) { $('#up-out').innerHTML = I.aiErr(e); }
   }
 

@@ -560,7 +560,19 @@
     const text = await D.ai(task, { doc: packText(refs), system: CITE_SYSTEM, schema, max });
     return D.aiJson(text);
   }
-  const cacheGet = (k) => { const v = store.get('intel.' + k, null); return v && Date.now() - v.at < 7 * 864e5 ? v.data : null; };
+  // Answers are kept 90 days (the oldest give way when the phone's storage for the app is full).
+  const cacheGet = (k) => { const v = store.get('intel.' + k, null); return v && Date.now() - v.at < 90 * 864e5 ? v.data : null; };
+
+  // ---- History: every question asked and answer written, in one list (#history), newest first.
+  const HIST = 'history2';
+  const history = () => store.get(HIST, []);
+  /** Records a question with the screen that answers it again (from its saved answer). */
+  function remember(kind, title, route, extra = {}) {
+    if (!title || !route) return;
+    const list = history().filter((x) => x.route !== route);
+    list.unshift({ kind, title: String(title).slice(0, 240), route, at: Date.now(), ...extra });
+    store.set(HIST, list.slice(0, 200));
+  }
   const cacheSet = (k, data) => store.set('intel.' + k, { at: Date.now(), data });
 
   // ================================================================ Evidence Map screen (#ev?q=)
@@ -702,6 +714,7 @@
         cacheSet(ck, r);
       } catch (e) { out.innerHTML = aiErr(e); return; }
     }
+    remember('ev', question, evHash(question));
     if (!$('#ev-out')) return;
     out.innerHTML = `<div class="panel synth">
       <div class="label">${icon('spark')}Bottom line ${strength(r.strength)}</div><p class="bottom">${citeHtml(esc(r.bottomLine), ctx)}</p>
@@ -886,7 +899,8 @@
       <div id="desk-out"></div>`;
     actions['desk-mode'] = (b) => go('desk?' + new URLSearchParams({ mode: b.dataset.v }), { replace: true });
     actions['desk-go'] = () => runDesk(mode, $('#desk-in').value.trim());
-    if (p.q && p.run) runDesk(mode, p.q);
+    if (p.paper && $('#desk-paper')) $('#desk-paper').value = p.paper;
+    if ((p.q || p.paper) && p.run) runDesk(mode, p.paper && p.q === p.paper ? '' : (p.q || ''));
   }
   function clubPicker() {
     const list = [...D.saved.values()].filter((a) => !a.doc).slice(0, 30);
@@ -911,11 +925,39 @@
     if (!r.results.length) throw new Error('Paper not found. Paste its DOI or PMID.');
     return r.results[0];
   }
-  async function runDesk(mode, input) {
+  // Desk answers are kept (90 days) and listed in History; asking the same again shows the saved one.
+  const deskKey = (mode, input) => 'desk1.' + mode + '|' + input.toLowerCase().trim();
+  function deskShow(out, sv) {
+    if (sv.refs) {
+      const ctx = newCtx(sv.refs);
+      out.innerHTML = `<div class="panel synth">${citeHtml(md(sv.text), ctx)}${sourcesList(sv.text, sv.refs)}${sv.found > sv.refs.length ? `<p class="muted small">Based on the ${sv.refs.length} strongest of ${sv.found} sources.</p>` : ''}<button class="btn xs" data-act="refs-all" data-ctx="${ctx}">${icon('list')}All ${sv.refs.length} sources read</button></div>`;
+    } else if (sv.paper) {
+      out.innerHTML = `<div class="panel synth"><div class="label">${icon('school')}${esc(sv.paper.title)} <span class="muted small">(${esc(sv.paper.label)})</span></div>${md(sv.text)}
+        <button class="btn xs" data-act="open" data-id="${esc(sv.paper.id)}">${icon('file')}Open paper</button></div>`;
+    } else {
+      out.innerHTML = `<div class="panel synth">${md(sv.text)}<button class="btn xs" data-act="desk-copy">${icon('quote')}Copy</button></div>`;
+      actions['desk-copy'] = () => D.copyText(sv.text);
+    }
+    out.insertAdjacentHTML('beforeend', `<div class="row" style="margin-top:6px"><button class="btn xs" data-act="desk-redo">${icon('refresh')}Write again</button></div>`);
+  }
+  async function runDesk(mode, input, again = false) {
     const m = MODES[mode];
     const out = $('#desk-out');
     if (needKey()) { out.innerHTML = keyCard(); return; }
     if (!input && !(mode === 'club' && $('#desk-paper')?.value)) { toast('Type your request first'); return; }
+    // A saved paper picked for journal club: kept under the paper (and opened again from History by its id).
+    const sel = $('#desk-paper');
+    const pick = sel?.value || '';
+    const asked = pick ? (input || pick) : input;
+    const key = deskKey(mode, pick ? 'paper:' + pick + '|' + input : input);
+    const saved = !again ? cacheGet(key) : null;
+    const keep = (sv) => {
+      cacheSet(key, sv);
+      const title = pick ? (sv.paper?.title || sel.selectedOptions[0]?.textContent || pick) + (input ? ' — ' + input : '') : input;
+      remember('desk', `${m.emoji} ${title}`, 'desk?' + new URLSearchParams({ mode, q: pick && !input ? asked : input, run: '1', ...(pick ? { paper: pick } : {}) }));
+    };
+    actions['desk-redo'] = () => runDesk(mode, input, true);
+    if (saved) { deskShow(out, saved); return; }
     try {
       if (m.search) {
         out.innerHTML = busyHtml('Searching the literature…');
@@ -930,7 +972,9 @@
         out.innerHTML = busyHtml(`Reading ${refs.length} sources…`);
         const text = await D.ai(`Request: ${input}\n\n${m.task}`, { doc: packText(refs), system: CITE_SYSTEM + ' Write Markdown with "## " headings and "- " bullets. If you use a table, put the source numbers like [3] in every row.', max: 3500, fast: true,
           onPartial: (t) => { if (out.isConnected) out.innerHTML = `<div class="panel synth">${citeHtml(md(t), ctx)}<span class="typing">▍</span></div>`; } });
-        out.innerHTML = `<div class="panel synth">${citeHtml(md(text), ctx)}${sourcesList(text, refs)}${found > refs.length ? `<p class="muted small">Based on the ${refs.length} strongest of ${found} sources.</p>` : ''}<button class="btn xs" data-act="refs-all" data-ctx="${ctx}">${icon('list')}All ${refs.length} sources read</button></div>`;
+        const sv = { text, refs, found };
+        keep(sv);
+        deskShow(out, sv);
         return;
       }
       if (mode === 'club') {
@@ -938,8 +982,9 @@
         const a = await resolvePaper(input);
         const src = await paperText(a);
         const text = await D.ai(`${m.task}${input && !$('#desk-paper')?.value ? '' : input ? '\n\nAlso: ' + input : ''}`, { ...src, max: 6000, onPartial: (t) => { if (out.isConnected) out.innerHTML = `<div class="panel synth">${md(t)}<span class="typing">▍</span></div>`; } });
-        out.innerHTML = `<div class="panel synth"><div class="label">${icon('school')}${esc(a.title)} <span class="muted small">(${src.label})</span></div>${md(text)}
-          <button class="btn xs" data-act="open" data-id="${esc(a.id)}">${icon('file')}Open paper</button></div>`;
+        const sv = { text, paper: { title: a.title, id: a.id, label: src.label } };
+        keep(sv);
+        deskShow(out, sv);
         return;
       }
       out.innerHTML = busyHtml('Thinking…');
@@ -947,8 +992,9 @@
         system: 'You are an expert dermatology researcher, biostatistician and medical writer. Be precise and practical. Never invent data or references. Markdown with "## " headings and "- " bullets.',
         max: 6000, onPartial: (t) => { if (out.isConnected) out.innerHTML = `<div class="panel synth">${md(t)}<span class="typing">▍</span></div>`; },
       });
-      out.innerHTML = `<div class="panel synth">${md(text)}<button class="btn xs" data-act="desk-copy">${icon('quote')}Copy</button></div>`;
-      actions['desk-copy'] = () => D.copyText(text);
+      const sv = { text };
+      keep(sv);
+      deskShow(out, sv);
     } catch (e) { out.innerHTML = aiErr(e); }
   }
 
@@ -1368,5 +1414,6 @@
     api, q, epmc, trials, trialOf, trialTerm, gather, refsFrom, packText, bestRefs, basedOn, newCtx, contexts, citeHtml, citeBtns, strength, refRow, trialCard,
     keyCard, aiErr, busyHtml, aiJsonCall, cacheGet, cacheSet, obj, S, CITE_SYSTEM, paperText, openUrl, evHash, today, daysAgo, TILES, DISEASES,
     needKey, GUIDE, STANDARD, SAFETY, TREAT, isTreatmentQ, planSearch, evidencePool, stepsHtml, absShort, exportBtns, offerExport, STRENGTH,
+    remember, history, HIST,
   };
 })();

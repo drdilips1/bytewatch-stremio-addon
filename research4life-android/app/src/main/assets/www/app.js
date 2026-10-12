@@ -179,8 +179,22 @@
   const ext = { routes: {}, events: {} };
   const store = {
     get(k, d) { try { const v = localStorage.getItem('ds.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-    set(k, v) { try { localStorage.setItem('ds.' + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
+    set(k, v) {
+      const json = JSON.stringify(v);
+      try { localStorage.setItem('ds.' + k, json); } catch {
+        // Storage full: drop the oldest saved AI answers (a quarter of them) and try once more.
+        try { pruneAnswers(); localStorage.setItem('ds.' + k, json); } catch { /* storage unavailable */ }
+      }
+    },
   };
+  function pruneAnswers() {
+    const old = Object.keys(localStorage).filter((k) => k.startsWith('ds.intel.')).map((k) => {
+      let at = 0;
+      try { at = JSON.parse(localStorage.getItem(k))?.at || 0; } catch { /* unreadable: oldest */ }
+      return { k, at };
+    }).sort((a, b) => a.at - b.at);
+    old.slice(0, Math.max(1, Math.ceil(old.length / 4))).forEach((x) => localStorage.removeItem(x.k));
+  }
   const settings = Object.assign({ derm: true, preprints: false, theme: 'system', sort: 'relevance', accent: 'gold', bgLight: 'ivory', bgDark: 'ink', showR4L: false, showUTD: false }, store.get('settings', {}));
   // The new look (ink and ivory with a gold accent) once for everyone; Settings → Appearance still changes it.
   if (!settings.look2) { Object.assign(settings, { accent: 'gold', bgLight: 'ivory', bgDark: 'ink', look2: true }); store.set('settings', settings); }
@@ -676,6 +690,7 @@
         <button class="app-tile dx wide" data-act="intel-go" data-k="dx"><span class="app-ico">${icon('camera')}</span><b>Diagnose from picture</b><span>Clinical · dermoscopy · histology · KOH · Wood's lamp</span></button>
       </div>
 
+      ${ext.homeRecent ? ext.homeRecent() : ''}
       <div class="section">
         <div class="section-h"><h3>Try asking</h3></div>
         <div class="list-card">${EXAMPLES.slice(0, 4).map((q) => `<button class="example" data-act="ask" data-q="${esc(q)}">${icon('bulb')}<span>${esc(q)}</span></button>`).join('')}</div>

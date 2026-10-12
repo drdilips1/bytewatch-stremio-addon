@@ -321,6 +321,7 @@
           { doc, system: 'You are a meticulous dermatology evidence analyst. Classify each paper by what its abstract says about the question.', schema: VERDICT, max: 4000 }));
         data = { yesno, steps: pool.steps, retrieved: pool.retrieved, eligible: pool.total, summary: r.summary || '', rows: (r.items || []).filter((x) => papers[x.n - 1]).map((x) => ({ ...x, a: papers[x.n - 1] })) };
         I.cacheSet(key, data);
+        I.remember('meter', question, 'meter?' + new URLSearchParams({ q: question }));
       } catch (e) { if (live()) el.innerHTML = I.aiErr(e); return; }
     }
     if (!live()) return;
@@ -427,6 +428,8 @@
     if (!D.aiHasKey()) { el.innerHTML = ''; return; }
     const live = () => el.isConnected;
     const key = 'answer10.' + question.toLowerCase().trim();
+    // The search screen this answer is on, for History (it opens the saved answer again).
+    const route = location.hash.replace(/^#/, '') || D.searchHash(D.filtersFrom({ q: question }));
     // The answer is written as it comes (like Consensus): searches first (a second or two), then
     // the cited answer streams in; quotes and follow-up suggestions come at its end.
     const splitTail = (t) => { const i = t.search(/\n\s*\**QUOTES:?\**/i); return i < 0 ? { body: t, tail: '' } : { body: t.slice(0, i), tail: t.slice(i) }; };
@@ -490,7 +493,7 @@
       actions['qa-sugg'] = (b) => { const f = el.querySelector('.qa-follow'); if (!f) return; f.f.value = b.dataset.q; f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event('submit', { cancelable: true })); };
     };
     const kept = I.cacheGet(key);
-    if (kept && kept.text && kept.refs) { render(kept.text, kept.refs, kept.steps); return; }
+    if (kept && kept.text && kept.refs) { I.remember('answer', question, route); render(kept.text, kept.refs, kept.steps); return; }
 
     const yr = new Date().getFullYear();
     el.innerHTML = frame('searching…', { retrieved: null, eligible: null, included: null, rows: [{ label: question }, { label: 'Guidelines and consensus statements, last 6 years' }] }, I.busyHtml('Searching the literature…'));
@@ -561,6 +564,7 @@
             if (b) b.innerHTML = lead(I.citeHtml(D.md(splitTail(t).body), ctx));
           } });
       I.cacheSet(key, { text, refs, steps });
+      I.remember('answer', question, route);
       render(text, refs, steps);
     } catch (e) {
       actions['qa-redo'] = () => searchAnswer(question, el);

@@ -6,7 +6,7 @@
   'use strict';
   const D = window.DS;
   const I = window.DSI;
-  const { $, $$, esc, icon, md, store, go, actions, ext, toast } = D;
+  const { $, $$, esc, icon, md, store, go, actions, ext, toast, render } = D;
   const view = $('#view');
 
   const SCREEN = { type: 'object', additionalProperties: false, required: ['include'], properties: { include: { type: 'array', items: { type: 'integer' } } } };
@@ -180,6 +180,7 @@
       { doc, system: I.CITE_SYSTEM, max: 5000, onPartial: (t) => { my.text = t; my.ctx = ctx; paintJob(); } });
       const result = { question, text, counts: { ...st.c, cited: use.length }, searches: specs.map((sp, i) => ({ label: sp.label, hit: st.lines[i]?.n || 0 })), refs: use.map((r) => ({ n: r.n, type: r.type, a: slim(r.a) })), at: Date.now() };
       I.cacheSet(ck, result);
+      I.remember('review', question, 'review?' + new URLSearchParams({ q: question }));
       my.done = true;
       my.result = result;
       if (onPage(question)) { my.seen = true; show(question, result); } else my.seen = false;
@@ -295,7 +296,8 @@
   }
   const thumb = (url) => I.shrink(url, 220);
 
-  function renderDx() {
+  function renderDx(_, p = {}) {
+    if (p.at) { const old = dxRecent().find((x) => String(x.at) === String(p.at)); if (old && dxShown?.at !== old.at) { dxShown = old; dxPics = []; } }
     view.innerHTML = `${D.topbar('Diagnose from picture')}
       <p class="small">Add up to three pictures of one case (e.g. clinical, dermoscopy and histology together). Use photos taken with consent, without faces or other identifying features.</p>
       <div class="row wrap" id="dx-kinds">${Object.entries(DX_KINDS).map(([k, [l]]) => `<button class="chip ${k === dxKind ? 'on' : ''}" data-act="dx-kind" data-v="${k}">${esc(l)}</button>`).join('')}</div>
@@ -363,7 +365,8 @@ Give 3-5 differentials. Base everything on what is visible; say so plainly when 
       'You are an expert dermatologist and dermatopathologist reviewing images for a fellow clinician. Be precise, use standard terminology, and never invent findings that are not visible. This supports, and does not replace, clinical examination and histopathology.');
       const r = D.aiJson(text);
       const entry = { r, at: Date.now(), kinds: pics.map((p) => DX_KINDS[p.kind][0]).join(' + '), thumb: await thumb(pics[0].url), ctx };
-      store.set('dx.recent', [entry, ...dxRecent()].slice(0, 10));
+      store.set('dx.recent', [entry, ...dxRecent()].slice(0, 20));
+      I.remember('dx', `${r.diagnosis || 'Picture'} · ${entry.kinds}`, 'dx?' + new URLSearchParams({ at: entry.at }), { thumb: entry.thumb });
       dxShown = { ...entry, image };
       showDx(dxShown);
     } catch (e) { out.innerHTML = I.aiErr(e); }
@@ -393,11 +396,54 @@ Give 3-5 differentials. Base everything on what is visible; say so plainly when 
       ${dx ? `<button class="btn ${r.likelihood === 'high' ? '' : 'primary'} full dx-go" data-act="dx-compare">${icon('chart')}Compare with reference pictures</button>
         <p class="muted small">Puts published pictures of the top diagnoses beside yours and asks the AI which matches best (about 30 seconds).</p>` : ''}
       <div id="dx-cmp"></div>
+      ${dx ? `<div class="section"><div class="section-h"><h3>Ask about this case</h3></div>
+        <div id="dx-thread"></div>
+        <form class="qa-follow" data-form="dx-ask"><textarea name="f" rows="1" placeholder="e.g. Which stain would confirm it? How would you treat it?"></textarea><button class="go" type="submit">${icon('up')}</button></form>
+        <div class="row wrap" id="dx-sugg">${['What would confirm it?', `How is ${dx} treated?`, 'Which features argue against it?'].map((q) => `<button class="chip" data-act="dx-sugg" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>` : ''}
       ${dx ? `<div class="section"><div class="section-h"><h3>Learn more</h3></div><div class="scroll-x">${[dx, ...list(r.differentials).map((x) => x.name)].filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 5).map((t, i) => `<button class="chip ${i === 0 ? 'on' : ''}" data-act="dx-pickdx" data-q="${esc(t)}">${esc(t)}</button>`).join('')}</div><div id="dx-more"></div></div>` : ''}
       <p class="muted small">${esc(I.EDU)}</p>`;
     if (dx) moreOn(dx);
     if (e.cmp) showCmp(e.cmp, null, null);
+    paintThread(e);
   }
+  // ---- Follow-up questions on a case: with the pictures while they are open, else from the findings.
+  function paintThread(e) {
+    const box = $('#dx-thread');
+    if (!box) return;
+    box.innerHTML = (e.thread || []).map((t) => `<div class="panel explain" style="margin-top:8px"><p class="ex-head">${icon('search')} ${esc(t.q)}</p><div class="synth">${md(t.a)}</div></div>`).join('');
+  }
+  async function askDx(q) {
+    const e = dxShown;
+    const box = $('#dx-thread');
+    if (!e || !box || !q) return;
+    const r = e.r || {};
+    box.insertAdjacentHTML('beforeend', `<div class="panel explain" style="margin-top:8px"><p class="ex-head">${icon('search')} ${esc(q)}</p><div class="synth dx-ans">${I.busyHtml('Thinking…')}</div></div>`);
+    const out = box.lastElementChild.querySelector('.dx-ans');
+    const caseText = `Case: ${e.kinds}${e.ctx ? '; clinical details: ' + e.ctx : ''}.
+Reading of the pictures: most likely ${r.diagnosis || 'unclear'} (${r.likelihood || ''}); findings: ${(r.findings || []).join('; ')}; differentials: ${(r.differentials || []).map((x) => x.name).join(', ')}.${e.cmp ? ` After comparing with reference pictures: ${e.cmp.best} — ${e.cmp.verdict || ''}` : ''}
+Earlier questions: ${(e.thread || []).slice(-3).map((t) => `Q: ${t.q} A: ${String(t.a).slice(0, 400)}`).join(' | ') || 'none'}.
+
+Question: ${q}
+
+Answer for a dermatologist in under 250 words, practical and specific, Markdown. If the question needs something the pictures can't show, say so.`;
+    const sys = 'You are an expert dermatologist and dermatopathologist discussing a case with a colleague. Be precise and use standard terminology; never invent findings.';
+    try {
+      const a = e.image ? await I.aiImage(caseText, e.image, sys) : await D.ai(caseText + '\n(The pictures are not available now; answer from the reading above.)', { system: sys, max: 1500 });
+      e.thread = [...(e.thread || []), { q, a }];
+      const all = dxRecent(); const k = all.findIndex((x) => x.at === e.at);
+      if (k >= 0) { all[k].thread = e.thread; store.set('dx.recent', all); }
+      out.innerHTML = md(a);
+    } catch (err) { out.innerHTML = I.aiErr(err); }
+  }
+  actions['dx-sugg'] = (b) => askDx(b.dataset.q);
+  document.addEventListener('submit', (ev) => {
+    const f = ev.target.closest('[data-form=dx-ask]');
+    if (!f) return;
+    ev.preventDefault();
+    const q = f.f.value.trim();
+    f.f.value = '';
+    askDx(q);
+  });
   // ---- Compare with references: the top diagnoses' published pictures beside yours, one AI judgement.
   // Pictures from other sites can only be drawn into one image when fetched through the app
   // (Android /proxy/, iPhone /proxy?u=); in the web app Wikimedia's allow it, Open-i's don't.
@@ -517,8 +563,61 @@ Answer only as JSON: {"best": "the diagnosis the clinician's picture matches bes
   actions['dx-cases'] = (b) => go(D.searchHash(D.filtersFrom({ q: `${b.dataset.q} case report` })));
   actions['dx-pickdx'] = (b) => { $$('[data-act=dx-pickdx].chip').forEach((x) => x.classList.toggle('on', x.dataset.q === b.dataset.q)); moreOn(b.dataset.q); };
 
+
+  // ================================================================ History (#history)
+  // Every question asked and answer written (search answers, evidence maps, desk, consensus meter,
+  // deep reviews, picture diagnoses, image learning), newest first; tapping one opens its saved answer.
+  const KINDS = {
+    answer: ['💬', 'Search answer'], ev: ['🧬', 'Evidence map'], desk: ['🧠', 'AI research desk'], meter: ['📊', 'Consensus meter'],
+    review: ['📑', 'Deep review'], dx: ['🩺', 'Diagnosis'], img: ['🖼️', 'Image learning'],
+  };
+  let histKind = '';
+  const when = (t) => {
+    const d = new Date(t), now = new Date();
+    const days = Math.floor((new Date(now.toDateString()) - new Date(d.toDateString())) / 864e5);
+    return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : days < 7 ? 'This week' : days < 31 ? 'This month' : 'Earlier';
+  };
+  const histRow = (x) => {
+    const [e, label] = KINDS[x.kind] || ['•', ''];
+    return `<div class="hist-row"><button class="hist-open" data-act="hist-open" data-r="${esc(x.route)}">${x.thumb ? `<img src="${x.thumb}" alt="">` : `<span class="hist-e">${e}</span>`}
+      <span><b>${esc(x.title)}</b><small>${esc(label)} · ${new Date(x.at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></span></button>
+      <button class="hist-x" data-act="hist-del" data-r="${esc(x.route)}" aria-label="Remove">×</button></div>`;
+  };
+  function renderHistory() {
+    const all = I.history();
+    view.innerHTML = `${D.topbar('History')}
+      <input id="hist-q" placeholder="Search your questions" value="">
+      <div class="scroll-x" style="margin:8px 0"><button class="chip ${histKind ? '' : 'on'}" data-act="hist-kind" data-v="">All</button>${Object.entries(KINDS).filter(([k]) => all.some((x) => x.kind === k)).map(([k, [e, l]]) => `<button class="chip ${histKind === k ? 'on' : ''}" data-act="hist-kind" data-v="${k}">${e} ${esc(l)}</button>`).join('')}</div>
+      <div id="hist-list"></div>
+      ${all.length ? '<button class="btn xs" data-act="hist-clear" style="margin-top:12px">Clear history</button>' : ''}
+      <p class="muted small">Answers are kept on this phone for 90 days; the oldest go first if the app's storage fills up.</p>`;
+    paintHistory();
+    $('#hist-q').addEventListener('input', paintHistory);
+  }
+  function paintHistory() {
+    const el = $('#hist-list');
+    if (!el) return;
+    const q = ($('#hist-q')?.value || '').toLowerCase().trim();
+    const list = I.history().filter((x) => (!histKind || x.kind === histKind) && (!q || x.title.toLowerCase().includes(q)));
+    if (!list.length) { el.innerHTML = '<div class="empty"><b>Nothing here yet</b><div>Questions you ask and answers the AI writes appear here.</div></div>'; return; }
+    let last = '';
+    el.innerHTML = list.map((x) => { const w = when(x.at); const h = w !== last ? `<h4 class="hist-h">${w}</h4>` : ''; last = w; return h + histRow(x); }).join('');
+  }
+  actions['hist-kind'] = (b) => { histKind = b.dataset.v; $$('[data-act=hist-kind]').forEach((x) => x.classList.toggle('on', x === b)); paintHistory(); };
+  actions['hist-open'] = (b) => go(b.dataset.r);
+  actions['hist-del'] = (b) => { store.set(I.HIST, I.history().filter((x) => x.route !== b.dataset.r)); if (D.current.name === 'history') paintHistory(); else render(); };
+  actions['hist-clear'] = () => { if (confirm('Clear the history list? Saved answers stay until they expire.')) { store.set(I.HIST, []); renderHistory(); } };
+  // The first screen: the three latest, with the full list a tap away.
+  ext.homeRecent = () => {
+    const list = I.history().slice(0, 3);
+    return list.length ? `<div class="section"><div class="section-h"><h3>Recent answers</h3><button data-act="go-history">See all</button></div>
+      <div class="list-card hist-card">${list.map(histRow).join('')}</div></div>` : '';
+  };
+  actions['go-history'] = () => go('history');
+
   // On the Intel tab, beside the evidence map.
   I.TILES.splice(2, 0, ['review', '📑', 'Deep review', 'Screens 100+ papers · structured, referenced review']);
   I.TILES.splice(1, 0, ['dx', '🩺', 'Diagnose from picture', 'Clinical · dermoscopy · histology · KOH · Wood\'s lamp']);
-  Object.assign(ext.routes, { review: renderReview, dx: renderDx });
+  I.TILES.splice(1, 0, ['history', '🕘', 'History', 'Every question and answer, kept 90 days']);
+  Object.assign(ext.routes, { review: renderReview, dx: renderDx, history: renderHistory });
 })();
