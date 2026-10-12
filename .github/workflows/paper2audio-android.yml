@@ -6,6 +6,11 @@ on:
       - "paper2audio/android/**"
       - ".github/workflows/paper2audio-android.yml"
   workflow_dispatch:
+    inputs:
+      narrato:
+        description: "Also build Narrato (the Play Store edition)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write # publish the APK to the paper2audio-apk release
@@ -13,6 +18,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Narrato builds only when asked: "[narrato]" in the commit message, or the box when run by hand.
+      BUILD_NARRATO: ${{ contains(github.event.head_commit.message, '[narrato]') || inputs.narrato == true }}
     defaults:
       run:
         working-directory: paper2audio/android
@@ -53,12 +61,17 @@ jobs:
             export P2A_KEYSTORE="$RUNNER_TEMP/p2a.keystore"
           fi
           chmod +x gradlew
-          ./gradlew assembleFullRelease assembleLiteRelease bundleLiteRelease --no-daemon --stacktrace
+          if [ "$BUILD_NARRATO" = "true" ]; then
+            ./gradlew assembleFullRelease assembleLiteRelease bundleLiteRelease --no-daemon --stacktrace
+            # Play Store edition: the bundle to upload, and an APK to try it on a phone.
+            cp app/build/outputs/apk/lite/release/app-lite-release.apk Narrato.apk
+            cp app/build/outputs/bundle/liteRelease/app-lite-release.aab Narrato.aab
+            ls -la Narrato.apk Narrato.aab
+          else
+            ./gradlew assembleFullRelease --no-daemon --stacktrace
+          fi
           cp app/build/outputs/apk/full/release/app-full-release.apk Paper2Audio.apk
-          # Play Store edition: the bundle to upload, and an APK to try it on a phone.
-          cp app/build/outputs/apk/lite/release/app-lite-release.apk Narrato.apk
-          cp app/build/outputs/bundle/liteRelease/app-lite-release.aab Narrato.aab
-          ls -la Paper2Audio.apk Narrato.apk Narrato.aab
+          ls -la Paper2Audio.apk
           # For the in-app "Update available" check.
           # The full edition's version (the first one in the file; the lite flavor has its own).
           CODE=$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | head -1 | grep -oE '[0-9]+')
@@ -77,6 +90,7 @@ jobs:
           fi
 
       - name: Check native libraries for 16 KB pages (required by Google Play)
+        if: env.BUILD_NARRATO == 'true'
         run: |
           python3 - <<'PY'
           import struct, zipfile
@@ -103,6 +117,7 @@ jobs:
             paper2audio/android/Narrato.aab
 
       - name: Publish the Play Store edition (bundle to upload, APK to try)
+        if: env.BUILD_NARRATO == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: narrato-lite
