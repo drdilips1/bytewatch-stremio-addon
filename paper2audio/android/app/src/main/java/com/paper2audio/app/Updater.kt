@@ -10,6 +10,9 @@ import android.provider.Settings
 import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -17,6 +20,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
 
@@ -119,6 +123,7 @@ object Updater {
         var job: kotlinx.coroutines.Job? = null
         val dialog = AlertDialog.Builder(activity)
             .setTitle("Downloading the update…")
+            .setMessage("Starting…")
             .setView(box)
             .setNegativeButton("Cancel") { _, _ -> job?.cancel() }
             .setCancelable(false)
@@ -126,7 +131,12 @@ object Updater {
         job = scope.launch {
             try {
                 val apk = withContext(Dispatchers.IO) {
-                    fetch(app) { pct -> activity.runOnUiThread { bar.progress = pct } }
+                    fetch(app) { pct, note ->
+                        activity.runOnUiThread {
+                            bar.progress = pct
+                            dialog.setMessage(note)
+                        }
+                    }
                 }
                 dialog.dismiss()
                 install(activity, apk)
@@ -147,14 +157,93 @@ object Updater {
         }
     }
 
-    /** Downloads the APK (resuming a partial download) into the app's cache. */
-    private suspend fun fetch(context: Context, progress: (Int) -> Unit): File {
+    /** How many pieces of the APK download at once (each connection to GitHub is speed-limited). */
+    private const val PIECES = 6
+
+    /**
+     * Downloads the APK into the app's cache: in [PIECES] pieces at once when the server
+     * allows it (much faster), each piece resuming where an earlier attempt stopped.
+     * An update already downloaded in full is used again without downloading.
+     */
+    private suspend fun fetch(context: Context, progress: (Int, String) -> Unit): File = coroutineScope {
         val dir = File(context.cacheDir, "update").apply { mkdirs() }
+        val url = "$BASE/Paper2Audio.apk"
+        val total = client.newCall(Request.Builder().url(url).header("Range", "bytes=0-0").build()).execute().use { r ->
+            if (r.code == 206) r.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: -1L else -1L
+        }
+        if (total <= 0) return@coroutineScope fetchWhole(dir, url, progress)
+        val done = File(dir, "Paper2Audio-$total.apk")
+        if (done.length() == total) {
+            progress(100, "Already downloaded")
+            return@coroutineScope done
+        }
+        dir.listFiles()?.filter { it.name.startsWith("Paper2Audio") && !it.name.contains("-$total.") }?.forEach { it.delete() }
+        val size = (total + PIECES - 1) / PIECES
+        val pieces = (0 until PIECES).map { i -> i * size until minOf(total, (i + 1) * size) }.filter { !it.isEmpty() }
+        val files = pieces.indices.map { File(dir, "Paper2Audio-$total.apk.$it") }
+        val have = AtomicLong(files.sumOf { it.length() })
+        val haveAtStart = have.get()
+        val started = System.currentTimeMillis()
+        val lastShown = AtomicLong(0)
+        fun show() {
+            val now = System.currentTimeMillis()
+            if (now - lastShown.get() < 250) return
+            lastShown.set(now)
+            val got = have.get()
+            val secs = (now - started) / 1000.0
+            val speed = if (secs > 1) (got - haveAtStart) / secs / 1_000_000 else 0.0
+            val note = "%.1f of %.1f MB".format(got / 1e6, total / 1e6) + if (speed > 0) " · %.1f MB/s".format(speed) else ""
+            progress((got * 100 / total).toInt(), note)
+        }
+        pieces.mapIndexed { i, range ->
+            async(Dispatchers.IO) {
+                val file = files[i]
+                val want = range.last - range.first + 1
+                var tries = 0
+                while (file.length() < want) {
+                    val from = range.first + file.length()
+                    val req = Request.Builder().url(url).header("Range", "bytes=$from-${range.last}").build()
+                    try {
+                        client.newCall(req).execute().use { r ->
+                            if (r.code != 206) error("HTTP ${r.code}")
+                            java.io.FileOutputStream(file, true).use { out ->
+                                r.body!!.byteStream().use { input ->
+                                    val buf = ByteArray(128 * 1024)
+                                    while (true) {
+                                        coroutineContext.ensureActive()
+                                        val n = input.read(buf)
+                                        if (n < 0) break
+                                        out.write(buf, 0, n)
+                                        have.addAndGet(n.toLong())
+                                        show()
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e: java.io.IOException) {
+                        // A dropped connection: try this piece again (it resumes), a few times.
+                        if (++tries >= 4) throw e
+                    }
+                }
+            }
+        }.awaitAll()
+        progress(100, "Preparing to install…")
+        val tmp = File(dir, "Paper2Audio-$total.apk.join")
+        java.io.FileOutputStream(tmp).use { out ->
+            for (f in files) f.inputStream().use { it.copyTo(out, 1 shl 20) }
+        }
+        if (tmp.length() != total || !tmp.renameTo(done)) error("Couldn't save the update")
+        files.forEach { it.delete() }
+        done
+    }
+
+    /** One connection, for a server that doesn't allow pieces. */
+    private suspend fun fetchWhole(dir: File, url: String, progress: (Int, String) -> Unit): File {
         val part = File(dir, "Paper2Audio.apk.part")
         val done = File(dir, "Paper2Audio.apk")
         done.delete()
         val have = if (part.exists()) part.length() else 0L
-        val req = Request.Builder().url("$BASE/Paper2Audio.apk").apply { if (have > 0) header("Range", "bytes=$have-") }.build()
+        val req = Request.Builder().url(url).apply { if (have > 0) header("Range", "bytes=$have-") }.build()
         client.newCall(req).execute().use { r ->
             if (!r.isSuccessful) error("HTTP ${r.code}")
             val resumed = r.code == 206
@@ -169,7 +258,7 @@ object Updater {
                         if (n < 0) break
                         out.write(buf, 0, n)
                         sofar += n
-                        if (total > 0) progress((sofar * 100 / total).toInt())
+                        if (total > 0) progress((sofar * 100 / total).toInt(), "%.1f of %.1f MB".format(sofar / 1e6, total / 1e6))
                     }
                     if (total > 0 && sofar < total) error("The download was interrupted")
                 }
