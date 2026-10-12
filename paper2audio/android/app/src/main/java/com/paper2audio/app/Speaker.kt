@@ -112,7 +112,8 @@ object Speaker {
     }
 
     fun setDialogueVoice(id: String?) {
-        prefs.edit().putString("dialogueVoice", id).apply()
+        // Choosing a dialogue voice means more than one voice again.
+        prefs.edit().putString("dialogueVoice", id).apply { if (id != null) putBoolean("singleVoice", false) }.apply()
         castFor = null
         restartAudio()
     }
@@ -799,8 +800,13 @@ object Speaker {
     /** Full cast: a voice per character in stories (instead of one dialogue voice). */
     val fullCast: Boolean get() = prefs.getBoolean("fullCast", false)
 
+    /** Full cast switched off by the listener: one voice for everything, scripts and dialogue too. */
+    private val singleVoice: Boolean get() = prefs.getBoolean("singleVoice", false)
+
     fun setFullCast(on: Boolean) {
-        prefs.edit().putBoolean("fullCast", on).apply()
+        prefs.edit().putBoolean("fullCast", on).putBoolean("singleVoice", !on).apply()
+        // Off means off: the separate voice for all dialogue goes too.
+        if (!on) prefs.edit().remove("dialogueVoice").apply()
         castFor = null
         doc?.let(::learnCharacters)
         restartAudio()
@@ -998,7 +1004,7 @@ object Speaker {
     private fun piecesOf(d: Doc, k: Int, vid: String): List<Piece> {
         val para = d.paragraphs[k]
         val speakers = speakersOf(d)
-        val script = speakers.takeIf { it.isNotEmpty() }?.let { Cast.scriptLine(para) }?.takeIf { it.first in speakers }
+        val script = speakers.takeIf { it.isNotEmpty() && !singleVoice }?.let { Cast.scriptLine(para) }?.takeIf { it.first in speakers }
         val segments: List<Pair<String, String>> = when {
             !isStreamed -> listOf(para to vid)
             // "Host: …": the label isn't read; the speaker's voice reads the rest.
