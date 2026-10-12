@@ -214,6 +214,14 @@ object EdgeTts {
         return c
     }
 
+    /** Closes the spare connections (nothing is playing): nothing stays open in the background. */
+    fun closeSpares() {
+        while (true) {
+            val c = ready.pollFirst() ?: break
+            runCatching { c.ws.cancel() }
+        }
+    }
+
     /** A ready connection if there is a fresh one, and more opened in the background for the next sentences. */
     private fun take(): Conn {
         val now = System.currentTimeMillis()

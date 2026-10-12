@@ -587,6 +587,7 @@ object Speaker {
     }
 
     fun pause() {
+        EdgeTts.closeSpares()
         pausedAt = System.currentTimeMillis()
         watchdog?.cancel()
         playing = false
