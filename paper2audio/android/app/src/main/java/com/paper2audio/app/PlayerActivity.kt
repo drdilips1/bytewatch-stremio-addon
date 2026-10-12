@@ -277,6 +277,11 @@ class PlayerActivity : Activity() {
         findViewById<ImageButton>(R.id.btnTheme).setOnClickListener { startActivity(Intent(this, CarModeActivity::class.java)) }
         findViewById<ImageButton>(R.id.btnDetails).setOnClickListener { showDetailsMenu() }
         findViewById<ImageButton>(R.id.btnNotes).setOnClickListener { showNotes() }
+        // Hold: bookmark where you are, in one tap.
+        findViewById<ImageButton>(R.id.btnNotes).setOnLongClickListener {
+            toggleBookmarkHere()
+            true
+        }
         tabReader.setOnClickListener { showTab(options = false) }
         tabOptions.setOnClickListener { showTab(options = true) }
         findViewById<ImageButton>(R.id.btnOptions).setOnClickListener { showTab(options = optionsPanel.visibility != View.VISIBLE) }
@@ -529,7 +534,11 @@ class PlayerActivity : Activity() {
                 }
             }
             ReadingLook.paper(this@PlayerActivity)?.let { tv.setTextColor(it.text) } ?: tv.setTextColor(color(R.attr.p2aText))
-            val shown = if (position in noteIndexes) "🔖 $text" else text
+            val shown = when (position) {
+                in bookmarkIndexes -> "🔖 $text"
+                in noteIndexes -> "📝 $text"
+                else -> text
+            }
             val span = SpannableString(shown)
             // Highlighted words, and words with a note (underlined).
             val offset = shown.length - text.length
@@ -642,9 +651,21 @@ class PlayerActivity : Activity() {
 
     private fun loadMarks(item: Library.Item?) {
         val notes = item?.let { Library.notes(it) }.orEmpty()
-        noteIndexes = notes.filter { !it.isSpan && (it.color == null || it.text.isNotBlank()) }.map { it.index }.toSet()
+        noteIndexes = notes.filter { !it.isSpan && it.text.isNotBlank() }.map { it.index }.toSet()
+        bookmarkIndexes = notes.filter { it.isBookmark }.map { it.index }.toSet()
+        renderBookmarkButton()
         highlights = notes.filter { it.color != null && !it.isSpan }.associate { it.index to (Library.HIGHLIGHT_COLORS[it.color] ?: 0x66F5C542) }
         spans = notes.filter { it.isSpan }.groupBy { it.index }
+    }
+
+    private var bookmarkIndexes: Set<Int> = emptySet()
+
+    /** The bookmark button lights up when the place being read is bookmarked. */
+    private fun renderBookmarkButton() {
+        val b = findViewById<ImageButton>(R.id.btnNotes) ?: return
+        val on = Speaker.index in bookmarkIndexes
+        b.imageTintList = android.content.res.ColorStateList.valueOf(color(if (on) R.attr.p2aAccent else R.attr.p2aText))
+        b.contentDescription = if (on) "Bookmarked here. Bookmarks, highlights and notes (hold to remove)" else "Bookmarks, highlights and notes (hold to bookmark this place)"
     }
 
     /** Highlights and notes on words, by paragraph. */
@@ -768,46 +789,103 @@ class PlayerActivity : Activity() {
             .show()
     }
 
+    /** Bookmarks the place being read now, or removes the bookmark there. */
+    private fun toggleBookmarkHere() {
+        val item = Library.get(this, Library.currentId) ?: return
+        val i = Speaker.index
+        val existing = Library.notes(item).filter { it.isBookmark && it.index == i }
+        if (existing.isNotEmpty()) {
+            existing.forEach { Library.deleteNote(this, item, it) }
+            toast("Bookmark removed")
+        } else {
+            Library.addNote(this, item, i, "")
+            toast("Bookmarked: " + (Speaker.doc?.chapterAt(i)?.title ?: "paragraph ${i + 1}"))
+        }
+        afterNotesChanged()
+    }
+
+    private fun ago(at: Long): String {
+        val m = (System.currentTimeMillis() - at) / 60_000
+        return when {
+            m < 1 -> "just now"
+            m < 60 -> "$m min ago"
+            m < 1440 -> "${m / 60} h ago"
+            else -> java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(at))
+        }
+    }
+
+    /** Bookmarks, highlights and notes of this book, in a panel; "Bookmark this place" on top. */
     private fun showNotes() {
         val item = Library.get(this, Library.currentId) ?: return
         val notes = Library.notes(item)
-        if (notes.isEmpty()) {
-            AlertDialog.Builder(this)
-                .setTitle("Bookmarks and notes")
-                .setMessage("Long-press any paragraph in the reader to bookmark it or add a note.")
-                .setPositiveButton("OK", null)
-                .show()
-            return
-        }
         val doc = Speaker.doc
-        val labels = notes.map { n ->
-            val where = doc?.chapterAt(n.index)?.title?.let { "$it · " } ?: ""
-            val para = doc?.paragraphs?.getOrNull(n.index)?.take(70) ?: ""
-            when {
-                n.color != null && n.text.isBlank() -> "🖍 $where¶${n.index + 1}: $para…"
-                n.isBookmark -> "🔖 $where¶${n.index + 1}: $para…"
-                else -> "📝 ${n.text}\n   $where¶${n.index + 1}"
-            }
+        val bookmarks = notes.filter { it.isBookmark }
+        val highlights = notes.filter { it.color != null && it.text.isBlank() }
+        val written = notes.filter { it.text.isNotBlank() }
+        val here = Speaker.index
+        val hereMarked = bookmarks.any { it.index == here }
+        fun where(n: Library.Note) = doc?.chapterAt(n.index)?.title ?: "Paragraph ${n.index + 1}"
+        fun words(n: Library.Note): String {
+            val para = doc?.paragraphs?.getOrNull(n.index).orEmpty()
+            val t = if (n.isSpan && n.end <= para.length) para.substring(n.start, n.end) else para
+            return if (t.length > 90) t.take(90).substringBeforeLast(' ') + "…" else t
         }
-        AlertDialog.Builder(this)
-            .setTitle("Bookmarks, highlights and notes")
-            .setNeutralButton("Export all") { _, _ -> Sharing.exportNotes(this, scope, item) }
-            .setItems(labels.toTypedArray()) { _, i ->
-                val n = notes[i]
-                AlertDialog.Builder(this)
-                    .setTitle(if (n.isBookmark) "Bookmark" else if (n.text.isBlank()) "Highlight" else "Note")
-                    .setMessage(if (n.text.isBlank()) doc?.paragraphs?.getOrNull(n.index)?.take(300) else n.text)
-                    .setPositiveButton("Go there") { _, _ ->
-                        lastUserScroll = 0
-                        Speaker.seek(n.index)
-                        showTab(options = false)
-                    }
-                    .setNeutralButton("Delete") { _, _ ->
-                        Library.deleteNote(this, item, n)
-                        afterNotesChanged()
-                    }
-                    .setNegativeButton("Close", null)
-                    .show()
+        val sheet = LiteSheet(
+            this, "Bookmarks",
+            "${bookmarks.size} bookmark${if (bookmarks.size == 1) "" else "s"} · ${highlights.size} highlight${if (highlights.size == 1) "" else "s"} · ${written.size} note${if (written.size == 1) "" else "s"}",
+        )
+            .row(R.drawable.ic_bookmark, if (hereMarked) "Remove the bookmark here" else "Bookmark this place", doc?.chapterAt(here)?.title ?: "Paragraph ${here + 1}") {
+                toggleBookmarkHere()
+            }
+        if (bookmarks.isNotEmpty()) {
+            sheet.section("Bookmarks")
+            for (n in bookmarks) sheet.row(R.drawable.ic_bookmark, where(n), "${words(n)}\n${ago(n.at)}") { noteAction(item, n) }
+        }
+        if (highlights.isNotEmpty()) {
+            sheet.section("Highlights")
+            for (n in highlights) sheet.row(R.drawable.ic_palette, words(n), where(n)) { noteAction(item, n) }
+        }
+        if (written.isNotEmpty()) {
+            sheet.section("Notes")
+            for (n in written) sheet.row(R.drawable.ic_text, n.text, "${where(n)} · ${words(n)}") { noteAction(item, n) }
+        }
+        if (notes.isEmpty()) {
+            sheet.view(TextView(this).apply {
+                text = "Tip: hold the bookmark button to bookmark where you are in one tap. Long-press any paragraph to highlight words or add a note."
+                textSize = 14f
+                setTextColor(color(R.attr.p2aMuted))
+                val d = resources.displayMetrics.density
+                setPadding((24 * d).toInt(), (8 * d).toInt(), (24 * d).toInt(), (12 * d).toInt())
+            })
+        } else {
+            sheet.section("")
+            sheet.row(R.drawable.ic_save, "Export all", "As a Markdown note, with the passages") { Sharing.exportNotes(this, scope, item) }
+        }
+        sheet.show()
+    }
+
+    private fun noteAction(item: Library.Item, n: Library.Note) {
+        val doc = Speaker.doc
+        val kind = when {
+            n.isBookmark -> "Bookmark"
+            n.text.isBlank() -> "Highlight"
+            else -> "Note"
+        }
+        LiteSheet(this, kind, doc?.chapterAt(n.index)?.title)
+            .row(R.drawable.ic_play, "Go there and listen") {
+                lastUserScroll = 0
+                showTab(options = false)
+                Speaker.seek(n.index)
+                if (!Speaker.playing) Speaker.play()
+            }
+            .row(R.drawable.ic_text, "Go there") {
+                lastUserScroll = 0
+                showTab(options = false)
+                Speaker.seek(n.index)
+            }
+            .row(R.drawable.ic_delete, "Delete") {
+                Library.deleteNote(this, item, n)
+                afterNotesChanged()
             }
             .show()
     }
@@ -1261,6 +1339,7 @@ class PlayerActivity : Activity() {
         }
 
         // Reader: redraw and follow the current paragraph unless the user is browsing.
+        if (Speaker.index != shownIndex) renderBookmarkButton()
         if (Speaker.index != shownIndex || Speaker.currentPiece != shownPiece) {
             val moved = Speaker.index != shownIndex
             shownIndex = Speaker.index
