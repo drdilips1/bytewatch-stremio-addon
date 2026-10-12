@@ -2986,6 +2986,7 @@
     const here = view.firstElementChild;
     // Items Crossref lists for this issue that Europe PMC doesn't have yet (Crossref is slow, so
     // they're added once it answers).
+    const crSeen = new Map();
     if (j.issn) {
       (async () => {
         const years = all.length ? [+all[0].year] : knownYear ? [knownYear] : [THIS_YEAR, THIS_YEAR - 1];
@@ -2995,6 +2996,7 @@
           for (const x of items) {
             if (String(x.volume) === String(v) && String(x.issue) === String(i) && !have.has(x.DOI.toLowerCase())) {
               have.add(x.DOI.toLowerCase());
+              crSeen.set(x.DOI.toLowerCase(), x);
               extra.push(x);
             }
           }
@@ -3017,6 +3019,10 @@
         const r = await epmcSearch(`DOI:"${doi}"`, { size: 1 });
         if (r.results[0]) { cache.set(r.results[0].id, r.results[0]); go('a/' + encodeURIComponent(r.results[0].id)); return; }
       } catch { /* not indexed */ }
+      // Not in Europe PMC: the app's own paper page from the publisher's record, so Get PDF
+      // (Springer, college proxy, Research4Life in turn), Save and Share work as for any paper.
+      const x = crSeen.get(doi.toLowerCase());
+      if (x) { const a = fromCrossref(x, j); go('a/' + encodeURIComponent(a.id)); return; }
       Native.openPortal(R4L_PROXY + 'doi_org/' + doi, '', '');
     };
     actions['issue-share'] = () => {
