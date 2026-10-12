@@ -404,9 +404,9 @@ Give 3-5 differentials. Base everything on what is visible; say so plainly when 
       <div id="dx-imgs">${D.skeletons(1)}</div>`;
     const kind = dxShown?.kinds || '';
     const suffix = /Histo/.test(kind) ? ' histopathology' : /Dermoscopy|Tricho/.test(kind) ? ' dermoscopy' : '';
-    const imgs = (await I.openI(dx + suffix).catch(() => [])).slice(0, 8);
+    const imgs = await I.pics(dx + suffix, 10).catch(() => []);
     const el = $('#dx-imgs');
-    if (el) el.innerHTML = imgs.length ? `<small class="muted">Published images: ${esc(dx + suffix)}</small><div class="hs-thumbs big">${imgs.map((m) => `<img src="${esc(m.thumb)}" alt="" data-act="vs-big" data-src="${esc(m.src)}">`).join('')}</div>` : '<p class="muted small">No open-access images found.</p>';
+    if (el) el.innerHTML = imgs.length ? `<small class="muted">Published images: ${esc(dx + suffix)} · Open-i and Wikimedia Commons</small><div class="hs-thumbs big">${imgs.map((m) => `<img src="${esc(m.thumb)}" alt="" data-act="vs-big" data-src="${esc(m.src)}">`).join('')}</div>` : '<p class="muted small">No open-access images found.</p>';
   }
   actions['dx-cases'] = (b) => go(D.searchHash(D.filtersFrom({ q: `${b.dataset.q} case report` })));
   actions['dx-pickdx'] = (b) => { $$('[data-act=dx-pickdx].chip').forEach((x) => x.classList.toggle('on', x.dataset.q === b.dataset.q)); moreOn(b.dataset.q); };

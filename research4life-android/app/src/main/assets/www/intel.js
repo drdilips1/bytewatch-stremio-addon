@@ -16,7 +16,11 @@
     pubmed: 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/', crossref: 'https://api.crossref.org/',
     openi: 'https://openi.nlm.nih.gov/api/', fda: 'https://api.fda.gov/', rxnav: 'https://rxnav.nlm.nih.gov/REST/', commons: 'https://commons.wikimedia.org/w/',
   };
-  const api = (up, path) => (D.hasNative ? `/proxy/${up}/` : DIRECT[up]) + path;
+  // Sites that don't allow requests from a web page (CORS): in the iPhone/iPad app they go through its
+  // own fetcher (/proxy?u=, LocalFiles.swift), as Android's /proxy/ does.
+  const NO_CORS = new Set(['openi', 'ctgov']);
+  const api = (up, path) => (D.hasNative ? `/proxy/${up}/` + path
+    : window.DSNative && NO_CORS.has(up) ? '/proxy?u=' + encodeURIComponent(DIRECT[up] + path) : DIRECT[up] + path);
   const today = () => new Date().toISOString().slice(0, 10);
   const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
   const openUrl = (u) => (Native.openPortal ? Native.openPortal(u, '', '') : window.open(u, '_blank'));

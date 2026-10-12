@@ -212,7 +212,7 @@
     }
     const lit = $('#hs-lit');
     if (!dx) { if (lit) lit.innerHTML = '<small>Published</small><p class="muted small">Enter a diagnosis to see published histology.</p>'; return; }
-    const imgs = (await I.openI(`${dx} histopathology`)).slice(0, 12);
+    const imgs = await I.pics(`${dx} histopathology`, 12);
     if (!lit) return;
     lit.innerHTML = `<small>Published: ${esc(dx)}</small>${imgs.length ? `<img src="${esc(imgs[0].thumb)}" alt="" data-act="hs-big" data-i="0"><div class="hs-thumbs">${imgs.map((m, i) => `<img src="${esc(m.thumb)}" alt="" data-act="hs-big" data-i="${i}">`).join('')}</div><p class="muted small" id="hs-cap">${esc((imgs[0].caption || '').slice(0, 220))}</p>` : '<p class="muted small">No open-access histology found.</p>'}`;
     actions['hs-big'] = (b) => {
@@ -260,7 +260,7 @@
       actions['vs-dx'] = (b) => { document.querySelectorAll('[data-act=vs-dx]').forEach((x) => x.classList.toggle('on', x === b)); load(b.dataset.q); };
       if (t0) {
         load(t0);
-        const imgs = (await I.openI(t0)).slice(0, 8);
+        const imgs = await I.pics(t0, 8);
         const box = $('#vs-imgs');
         if (box) box.innerHTML = `<small>Published images: ${esc(t0)}</small>${imgs.length ? `<div class="hs-thumbs big">${imgs.map((m) => `<img src="${esc(m.thumb)}" alt="" data-act="vs-big" data-src="${esc(m.src)}">`).join('')}</div>` : '<p class="muted small">No open-access images found.</p>'}`;
       }

@@ -613,7 +613,8 @@
     };
     const cached = imgCache.get(key);
     if (cached) { all.push(...cached); pending = 0; draw(); return; }
-    const limit = (p) => Promise.race([p, new Promise((r) => setTimeout(() => r([]), 8000))]);
+    // Open-i is often slow: 15 seconds before giving up on a source.
+    const limit = (p) => Promise.race([p, new Promise((r) => setTimeout(() => r([]), 15000))]);
     const add = (list) => { all.push(...list); pending--; draw(); if (!pending && all.length) imgCache.set(key, all.slice()); };
     limit(commons(`${query} ${kind === 'histo' ? 'histopathology' : kind === 'dermoscopy' ? 'dermoscopy' : ''}`)).then(add);
     limit(openI(`${query} ${suffix}`)).then(add);
@@ -722,7 +723,12 @@
   actions['paper-rp'] = (b) => go('rp/' + encodeURIComponent(b.dataset.id));
   actions['paper-proj'] = (b) => addToProjectSheet(b.dataset.id, b.dataset.t);
 
-  Object.assign(I, { pickImage, aiImage, EDU, openI });
+    /** Published pictures from Open-i and Wikimedia Commons together (one failing source still leaves pictures). */
+  async function pics(query, n = 10) {
+    const [a, b] = await Promise.all([openI(query).catch(() => []), commons(query).catch(() => [])]);
+    return [...a.slice(0, Math.ceil(n * 0.6)), ...b].slice(0, n);
+  }
+  Object.assign(I, { pickImage, aiImage, EDU, openI, commons, pics });
   Object.assign(ext.routes, {
     research: renderResearch, project: renderProject, rp: renderRP, gaps: renderGaps, compare: renderCompare,
     drug: renderDrug, images: renderImages, imgread: renderImgRead,
