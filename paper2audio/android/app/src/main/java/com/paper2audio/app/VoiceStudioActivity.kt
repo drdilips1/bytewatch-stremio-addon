@@ -88,6 +88,7 @@ class VoiceStudioActivity : Activity() {
             LocalTts.PACKS.joinToString { "${it.id}:${it.isInstalled()}:${it.installing}" },
             MyVoices.own().joinToString { "${it.id}:${it.name}" },
             Speaker.voiceId, Speaker.dialogueVoice, Speaker.pitch, Speaker.voicesVersion,
+            Speaker.fullCast, Speaker.castChoice(true), Speaker.castChoice(false),
         ).joinToString("|")
         if (now != shape) {
             shape = now
@@ -218,8 +219,10 @@ class VoiceStudioActivity : Activity() {
         if (!LocalTts.supported) {
             card("On-device voices aren't available", "This phone's processor isn't supported by the on-device voice engine. The ★ online voices work normally.")
         } else {
+            buildCurrent()
             buildReadyMade()
             buildOwnVoices()
+            buildPackVoices()
         }
         buildDesign()
         buildStories()
@@ -234,6 +237,41 @@ class VoiceStudioActivity : Activity() {
                 if (pack.isInstalled()) "" else "First use downloads the voice engine (about ${pack.sizeMb} MB, once).",
         )
         for (v in MyVoices.BUILT_IN) voiceRow(c, Speaker.CLONE + v.id, v.name, v.description)
+    }
+
+    /** The voice in use, and every voice in one searchable list. */
+    private fun buildCurrent() {
+        val c = card("Reading voice", VoicePicker.label(Speaker.voiceId))
+        c.addFull(button("Choose from all voices", onClick = {
+            VoicePicker.pickOne(this, "Reading voice", Speaker.voiceId) { use(it) }
+        }), 8)
+    }
+
+    /** Kokoro and Supertonic voices, once their pack is downloaded. */
+    private fun buildPackVoices() {
+        val kokoro = LocalTts.KOKORO_PACK
+        if (kokoro.isInstalled()) {
+            val c = card("◆ Kokoro voices", "15 English voices on your phone (offline). Heart and Michael are the most natural.")
+            for (v in Kokoro.VOICES) {
+                val parts = v.label.split(" · ")
+                voiceRow(c, Speaker.KOKORO + v.name, parts.first(), parts.drop(1).joinToString(" · "))
+            }
+        }
+        val supertonic = LocalTts.SUPERTONIC_PACK
+        if (supertonic.isInstalled()) {
+            val c = card("◆ Supertonic voices", "10 voices on your phone (offline) that read 31 languages, including Hindi.")
+            for (v in LocalTts.SUPERTONIC_VOICES) {
+                val male = v.name.startsWith("M")
+                voiceRow(c, Speaker.SUPER + v.name, "${if (male) "Male" else "Female"} ${v.name.drop(1)}", "Supertonic · 31 languages")
+            }
+        }
+        if (!kokoro.isInstalled() || !supertonic.isInstalled()) {
+            val missing = listOfNotNull(
+                "◆ Kokoro (15 English voices)".takeUnless { kokoro.isInstalled() },
+                "◆ Supertonic (31 languages)".takeUnless { supertonic.isInstalled() },
+            ).joinToString(" and ")
+            card("More on-device voices", "Download $missing under “On-device voice packs” below; their voices then appear here with Use buttons.")
+        }
     }
 
     private fun buildOwnVoices() {
@@ -427,20 +465,31 @@ class VoiceStudioActivity : Activity() {
 
     private fun buildStories() {
         val c = card(
-            "Stories: voices for dialogue",
-            "Narration is read by your main voice and quoted dialogue by other voices, like an audiobook cast. " +
+            "Stories: a cast of voices",
+            "Narration is read by your reading voice; quoted dialogue by other voices, like an audiobook cast. " +
                 "Podcasts and transcripts (\u201CHost: …\u201D, \u201CSpeaker 2: …\u201D) always get a voice per speaker.",
         )
         c.addFull(android.widget.Switch(this).apply {
-            text = "Full cast: a different voice for each character (he/she guessed from the story)"
+            text = "Full cast: a different voice for each character (men and women get male and female voices)"
             textSize = 15f
             setTextColor(color(R.attr.p2aText))
             isChecked = Speaker.fullCast
             setOnCheckedChangeListener { _, on -> Speaker.setFullCast(on) }
         }, 6)
+        if (Speaker.fullCast) {
+            castRow(c, male = true)
+            castRow(c, male = false)
+            c.addFull(muted("Characters are told apart from “said Maya” and “he asked”. Each new character gets the next voice from the list; with more characters than voices, voices are shared."), 6)
+            c.addFull(button("Listen to a sample", soft = true, onClick = {
+                Speaker.stopPreview()
+                toast("Playing a sample…")
+                Speaker.previewCast(DIALOGUE_SAMPLE)
+            }))
+            return
+        }
         val current = Speaker.dialogueVoice
-        val label = current?.let { id -> Speaker.voiceOptions().firstOrNull { it.id == id }?.label ?: id } ?: "Off"
-        c.addFull(muted(if (Speaker.fullCast) "Main dialogue voice (first extra speaker in podcasts): $label" else "Dialogue voice: $label"), 4)
+        val label = current?.let { VoicePicker.label(it) } ?: "Off"
+        c.addFull(muted("Or one voice for all dialogue: $label"), 8)
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         row.addView(button(if (current == null) "Choose a voice" else "Change", onClick = { chooseDialogue() }),
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(5) })
@@ -452,6 +501,31 @@ class VoiceStudioActivity : Activity() {
         }), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(5) })
         c.addFull(row)
         if (current != null) c.addView(textButton("Turn off") { Speaker.setDialogueVoice(null) })
+    }
+
+    /** "Male voices: Andrew, Brian (2)  [Choose…]" for the full cast. */
+    private fun castRow(parent: LinearLayout, male: Boolean) {
+        val chosen = Speaker.castChoice(male)
+        val names = chosen.map { VoicePicker.label(it).substringBefore(" · ") }
+        val what = if (male) "Male characters" else "Female characters"
+        parent.addFull(TextView(this).apply {
+            text = what
+            textSize = 15f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(color(R.attr.p2aText))
+        }, 14)
+        parent.addView(muted(if (names.isEmpty()) "Automatic (voices like your reading voice)" else "${names.joinToString(", ")} (${names.size})"))
+        parent.addFull(button(if (chosen.isEmpty()) "Choose voices…" else "Change voices…", soft = true, onClick = {
+            VoicePicker.pickMany(
+                this, "Voices for ${what.lowercase()}", chosen.toSet(),
+                // Phone voices can't be mixed into the audio stream.
+                filter = { e -> !e.id.startsWith(Speaker.SYSTEM) && e.male != !male },
+            ) { picked ->
+                val missing = picked.mapNotNull { LocalTts.missing(it) }.distinct()
+                if (male) Speaker.setCastVoices(picked, Speaker.castChoice(false)) else Speaker.setCastVoices(Speaker.castChoice(true), picked)
+                missing.firstOrNull()?.let { pack -> needPack(pack) { } }
+            }
+        }), 4)
     }
 
     private fun chooseDialogue() {
@@ -637,13 +711,18 @@ class VoiceStudioActivity : Activity() {
     }
 
     private fun saveVoice(name: String, samples: FloatArray, rate: Int) {
+        toast("Cleaning up the recording…")
         scope.launch {
             try {
                 val voice = withContext(Dispatchers.Default) { MyVoices.add(name, samples, rate) }
                 Speaker.refreshVoices()
+                val tip = if (voice.noisy) {
+                    "\n\nThere was background noise in the recording. It was removed, but if the voice doesn't sound " +
+                        "right, record again in a quieter room (no fan, TV or traffic)."
+                } else ""
                 AlertDialog.Builder(this@VoiceStudioActivity)
                     .setTitle("“${voice.name}” is ready")
-                    .setMessage("Listen to it, or use it to read your documents.")
+                    .setMessage("Listen to it, or use it to read your documents.$tip")
                     .setPositiveButton("Use it") { _, _ -> use(Speaker.CLONE + voice.id) }
                     .setNeutralButton("Listen", null)
                     .setNegativeButton("Close") { _, _ -> Speaker.stopPreview() }

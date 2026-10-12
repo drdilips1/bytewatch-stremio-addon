@@ -48,16 +48,39 @@ object Updater {
         }
     }.getOrNull()
 
-    /** At most once a day, quietly checks and offers a newer version. */
-    fun checkDaily(activity: Activity, scope: CoroutineScope) {
+    /** The newest version found by the last check, if it is newer than this app. */
+    var available: Release? = null
+        private set
+
+    /**
+     * On every start (at most every 3 hours) checks for a newer version: [onNewer] shows it
+     * (the library's banner), and the first time a version is seen it is offered right away.
+     */
+    fun checkOnStart(activity: Activity, scope: CoroutineScope, onNewer: (Release) -> Unit) {
+        available?.let { if (it.code > currentCode(activity)) onNewer(it) }
         val prefs = activity.getSharedPreferences("p2a", Context.MODE_PRIVATE)
-        if (System.currentTimeMillis() - prefs.getLong("updateCheckedAt", 0) < 20 * 3_600_000L) return
+        if (System.currentTimeMillis() - prefs.getLong("updateCheckedAt", 0) < 3 * 3_600_000L && available == null) {
+            // Checked recently: still show a version found then.
+            val code = prefs.getLong("updateSeen", 0)
+            if (code > currentCode(activity)) onNewer(Release(code, prefs.getString("updateSeenName", "").orEmpty()).also { available = it })
+            return
+        }
         prefs.edit().putLong("updateCheckedAt", System.currentTimeMillis()).apply()
         scope.launch {
             val r = withContext(Dispatchers.IO) { latest() } ?: return@launch
-            if (r.code > currentCode(activity) && prefs.getLong("updateSkipped", 0) != r.code) offer(activity, scope, r, quiet = true)
+            if (r.code <= currentCode(activity)) return@launch
+            available = r
+            prefs.edit().putLong("updateSeen", r.code).putString("updateSeenName", r.name).apply()
+            onNewer(r)
+            if (prefs.getLong("updateOffered", 0) != r.code) {
+                prefs.edit().putLong("updateOffered", r.code).apply()
+                offer(activity, scope, r, quiet = true)
+            }
         }
     }
+
+    /** Downloads and installs the newest version (from the banner). */
+    fun update(activity: Activity, scope: CoroutineScope) = download(activity, scope)
 
     /** "Check for updates" from the menu. */
     fun checkNow(activity: Activity, scope: CoroutineScope) {

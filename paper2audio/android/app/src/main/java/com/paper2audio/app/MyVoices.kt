@@ -39,6 +39,10 @@ object MyVoices {
         /** Ready-made voices that come with the app (a short seed recording in assets/voices). */
         val builtIn: Boolean = false,
         val description: String = "",
+        /** Recording format version; 2 = background noise removed (see [Denoise]). */
+        val version: Int = 2,
+        /** Set by [add] when the recording had noticeable background noise. */
+        val noisy: Boolean = false,
     )
 
     /**
@@ -79,7 +83,10 @@ object MyVoices {
         if (!::app.isInitialized || !index.exists()) return emptyList()
         val arr = runCatching { JSONArray(index.readText()) }.getOrNull() ?: return emptyList()
         return (0 until arr.length()).map { arr.getJSONObject(it) }.map {
-            Voice(it.getString("id"), it.getString("name"), it.optLong("created"), it.optDouble("seconds", 0.0).toFloat())
+            Voice(
+                it.getString("id"), it.getString("name"), it.optLong("created"), it.optDouble("seconds", 0.0).toFloat(),
+                version = it.optInt("v", 1),
+            )
         }.filter { File(dir, "${it.id}.wav").exists() }
     }
 
@@ -87,26 +94,55 @@ object MyVoices {
 
     private fun save(voices: List<Voice>) {
         val arr = JSONArray()
-        voices.forEach { arr.put(JSONObject().put("id", it.id).put("name", it.name).put("created", it.created).put("seconds", it.seconds.toDouble())) }
+        voices.forEach {
+            arr.put(JSONObject().put("id", it.id).put("name", it.name).put("created", it.created).put("seconds", it.seconds.toDouble()).put("v", it.version))
+        }
         index.writeText(arr.toString())
     }
 
     /** Stores a new voice from raw mono samples; throws with an explanation when the recording is unusable. */
     fun add(name: String, samples: FloatArray, sampleRate: Int): Voice {
-        val clean = clean(resample(samples, sampleRate, RATE))
+        val raw = resample(samples, sampleRate, RATE)
+        if (clean(raw).size < MIN_SECONDS * RATE) {
+            val seconds = clean(raw).size / RATE.toFloat()
+            error("That recording has only ${"%.0f".format(seconds)} seconds of speech. Record at least $MIN_SECONDS seconds (10–20 is best).")
+        }
+        val noisy = Denoise.noiseRatio(raw) > 0.12f
+        // Background noise is what makes a cloned voice come out as mumbling: remove it first.
+        val clean = clean(Denoise.speech(app, raw, RATE))
         val seconds = clean.size / RATE.toFloat()
-        if (seconds < MIN_SECONDS) error("That recording has only ${"%.0f".format(seconds)} seconds of speech. Record at least $MIN_SECONDS seconds (10–20 is best).")
+        if (seconds < MIN_SECONDS) error("That recording has only ${"%.0f".format(seconds)} seconds of clear speech. Record at least $MIN_SECONDS seconds (10–20 is best) in a quiet room.")
         val id = java.util.UUID.randomUUID().toString().take(8)
-        val pcm = ByteArray(clean.size * 2)
-        clean.forEachIndexed { i, f ->
+        writeRef(File(dir, "$id.wav"), clean)
+        val voice = Voice(id, name.trim().ifBlank { "My voice" }, System.currentTimeMillis(), seconds)
+        save(own() + voice)
+        return voice.copy(noisy = noisy)
+    }
+
+    private fun writeRef(file: File, x: FloatArray) {
+        val pcm = ByteArray(x.size * 2)
+        x.forEachIndexed { i, f ->
             val v = (f.coerceIn(-1f, 1f) * 32767f).toInt()
             pcm[2 * i] = (v and 0xff).toByte()
             pcm[2 * i + 1] = ((v shr 8) and 0xff).toByte()
         }
-        LocalTts.writeWav(File(dir, "$id.wav"), LocalTts.Pcm(pcm, RATE))
-        val voice = Voice(id, name.trim().ifBlank { "My voice" }, System.currentTimeMillis(), seconds)
-        save(own() + voice)
-        return voice
+        val tmp = File(file.path + ".part")
+        LocalTts.writeWav(tmp, LocalTts.Pcm(pcm, RATE))
+        if (!tmp.renameTo(file)) error("Couldn't save the voice")
+    }
+
+    /** Voices cloned by older versions kept their background noise: clean them once. */
+    private fun upgrade(id: String, f: File) {
+        val voice = own().firstOrNull { it.id == id } ?: return
+        if (voice.version >= 2) return
+        runCatching {
+            val pcm = LocalTts.readWav(f)
+            val buf = java.nio.ByteBuffer.wrap(pcm.bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+            val x = resample(FloatArray(buf.remaining()) { buf.get(it) / 32768f }, pcm.sampleRate, RATE)
+            val clean = clean(Denoise.speech(app, x, RATE))
+            if (clean.size >= MIN_SECONDS * RATE) writeRef(f, clean)
+        }
+        save(own().map { if (it.id == id) it.copy(version = 2) else it })
     }
 
     fun rename(id: String, name: String) = save(own().map { if (it.id == id) it.copy(name = name.trim().ifBlank { it.name }) else it })
@@ -125,6 +161,7 @@ object MyVoices {
             val f = File(dir, "$id.wav")
             if (!f.exists() && BUILT_IN.any { it.id == id }) unpackBuiltIn(id, f)
             if (!f.exists()) return null
+            upgrade(id, f)
             val pcm = LocalTts.readWav(f)
             val buf = java.nio.ByteBuffer.wrap(pcm.bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
             val samples = FloatArray(buf.remaining()) { buf.get(it) / 32768f }

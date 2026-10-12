@@ -75,6 +75,8 @@ object Cast {
     }
 
     private val NAME = Regex("""\b([A-Z][a-z]{1,15})\b""")
+    private val MALE = Regex("""\b(he|his|him|himself)\b""")
+    private val FEMALE = Regex("""\b(she|her|hers|herself)\b""")
 
     /** The last character named in the narration before quote [i] ("Tom looked up. “No,” he said" -> Tom). */
     private fun lastName(parts: List<Pair<Boolean, String>>, i: Int, exclude: String?): String? {
@@ -95,14 +97,17 @@ object Cast {
         if (name == "she") return "female"
         var male = 0
         var female = 0
+        // Built once per call (not per mention): this runs over long books.
+        val otherNames = others.filter { it != name && it.length > 1 && it != "he" && it != "she" && it != "?" }
+        val other = if (otherNames.isEmpty()) null else Regex("""\b(?:${otherNames.joinToString("|") { Regex.escape(it) }})\b""")
         // A lookahead, so mentions close together are all counted.
         for (m in Regex("""\b${Regex.escape(name)}\b(?=(.{0,80}))""").findAll(text)) {
             var tail = m.groupValues[1]
-            val cut = others.filter { it != name }.mapNotNull { o -> Regex("""\b${Regex.escape(o)}\b""").find(tail)?.range?.first }.minOrNull()
+            val cut = other?.find(tail)?.range?.first
             if (cut != null) tail = tail.substring(0, cut)
             tail = tail.lowercase()
-            male += Regex("""\b(he|his|him|himself)\b""").findAll(tail).count()
-            female += Regex("""\b(she|her|hers|herself)\b""").findAll(tail).count()
+            male += MALE.findAll(tail).count()
+            female += FEMALE.findAll(tail).count()
         }
         return when {
             male > female -> "male"

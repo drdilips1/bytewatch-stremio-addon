@@ -85,7 +85,7 @@ class PlayerActivity : Activity() {
     private lateinit var btnChapters: ImageButton
     private lateinit var speedLabel: TextView
     private lateinit var speedBar: SeekBar
-    private lateinit var voiceSpinner: Spinner
+    private lateinit var voiceButton: Button
     private lateinit var checks: List<CheckBox>
     private lateinit var btnExport: Button
     private lateinit var exportProgress: ProgressBar
@@ -103,6 +103,7 @@ class PlayerActivity : Activity() {
 
     private var voices: List<Speaker.VoiceOption> = emptyList()
     private var voicesShown = -1
+    private var voiceShownFor: String? = null
     private var busy: String? = null
     private var userSeeking = false
     private var coverFor: String? = null
@@ -149,7 +150,7 @@ class PlayerActivity : Activity() {
         btnChapters = findViewById(R.id.btnChapters)
         speedLabel = findViewById(R.id.speedLabel)
         speedBar = findViewById(R.id.speedBar)
-        voiceSpinner = findViewById(R.id.voiceSpinner)
+        voiceButton = findViewById(R.id.voiceButton)
         btnExport = findViewById(R.id.btnExport)
         exportProgress = findViewById(R.id.exportProgress)
         exportStatus = findViewById(R.id.exportStatus)
@@ -206,7 +207,7 @@ class PlayerActivity : Activity() {
     private fun setupControls() {
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<ImageButton>(R.id.btnVoiceStudio).setOnClickListener { startActivity(Intent(this, VoiceStudioActivity::class.java)) }
-        findViewById<ImageButton>(R.id.btnTheme).setOnClickListener { Themes.showPicker(this) }
+        findViewById<ImageButton>(R.id.btnTheme).setOnClickListener { startActivity(Intent(this, CarModeActivity::class.java)) }
         findViewById<ImageButton>(R.id.btnDetails).setOnClickListener { showDetailsMenu() }
         findViewById<ImageButton>(R.id.btnNotes).setOnClickListener { showNotes() }
         tabReader.setOnClickListener { showTab(options = false) }
@@ -236,10 +237,9 @@ class PlayerActivity : Activity() {
             isChecked = Speaker.medical
             setOnCheckedChangeListener { _, on -> Speaker.setMedical(on) }
         }
-        findViewById<Button>(R.id.btnExplainNow).setOnClickListener {
-            val doc = Speaker.doc ?: return@setOnClickListener
-            explainMenu(Speaker.index, Speaker.currentPiece?.takeIf { it != doc.paragraphs.getOrNull(Speaker.index) })
-        }
+        findViewById<Button>(R.id.btnExplainNow).setOnClickListener { AskSheet.forBook(this, scope) }
+        findViewById<ImageButton>(R.id.btnAskVoice).setOnClickListener { AskSheet.forBook(this, scope, listenNow = true) }
+        findViewById<Button>(R.id.btnVersions).setOnClickListener { Versions.choose(this) }
         btnFigure = findViewById(R.id.btnFigure)
         btnFigure.setOnClickListener {
             val doc = Speaker.doc ?: return@setOnClickListener
@@ -598,24 +598,18 @@ class PlayerActivity : Activity() {
 
     private fun setupVoices() {
         voicesShown = Speaker.voicesVersion
-        voices = Speaker.voiceOptions()
-        voiceSpinner.onItemSelectedListener = null
-        voiceSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, voices.map { it.label }).apply {
-            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        }
-        voiceSpinner.setSelection(voices.indexOfFirst { it.id == Speaker.voiceId }.coerceAtLeast(0), false)
-        voiceSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val option = voices.getOrNull(position) ?: return
-                if (option.id == Speaker.voiceId) return
-                Speaker.setVoice(option.id)
+        voiceShownFor = Speaker.voiceId
+        voiceButton.text = "Voice: " + VoicePicker.label(Speaker.voiceId) + "  ▾"
+        voiceButton.setOnClickListener {
+            VoicePicker.pickOne(this, "Reading voice", Speaker.voiceId) { id ->
+                if (id == Speaker.voiceId) return@pickOne
+                Speaker.setVoice(id)
                 offlineFor = null
                 refreshOfflineStatus()
-                val pack = LocalTts.missing(option.id)
+                setupVoices()
+                val pack = LocalTts.missing(id)
                 if (pack != null && !pack.installing) promptDownload(pack)
             }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
     }
 
@@ -1080,7 +1074,7 @@ class PlayerActivity : Activity() {
             if (Exporter.resultUri != null && !Exporter.running && Build.VERSION.SDK_INT >= 29) View.VISIBLE else View.GONE
 
         // Voices and on-device voice downloads
-        if (Speaker.voicesVersion != voicesShown) setupVoices()
+        if (Speaker.voicesVersion != voicesShown || Speaker.voiceId != voiceShownFor) setupVoices()
         val lang = doc?.lang
         val suggestion = lang?.takeIf { !Speaker.voiceFits(it) }?.let { Speaker.suggestVoice(it) }
         langHint.visibility = if (suggestion != null) View.VISIBLE else View.GONE
@@ -1167,6 +1161,11 @@ class PlayerActivity : Activity() {
     }
 
     private fun refreshAi() {
+        // Pure audiobook: no AI anywhere.
+        val pure = AiLevel.of(this) == AiLevel.PURE
+        findViewById<View>(R.id.aiCard).visibility = if (pure) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.btnExplainNow).visibility = if (pure) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.btnAskVoice).visibility = if (pure) View.GONE else View.VISIBLE
         val doc = Speaker.doc
         val item = doc?.let { Library.get(this, it.key) }
         val isPdf = item?.kind == Loader.Kind.PDF
@@ -1179,7 +1178,7 @@ class PlayerActivity : Activity() {
         aiStatus.text = when {
             aiBusy != null -> aiBusy
             !Llm.ready(this) -> "Briefings, summaries, questions, study tools, podcasts, figure explanations and \"Explain\" " +
-                "(long-press a paragraph). Needs a Grok key or a free Gemini key: tap any button to set it up."
+                "(long-press a paragraph). Needs a free Groq or Gemini key: tap any button to set it up."
             visuals != null -> "${visuals.size} figures, tables and equations explained" +
                 if (cbVisuals.isChecked) "; they're read where the text first mentions them." else "."
             else -> "Long-press a paragraph in the reader and choose \"Explain with AI\" for a plain-language explanation."
@@ -1248,13 +1247,14 @@ class PlayerActivity : Activity() {
             .setTitle(if (sentence != null) "\u201C${sentence.take(70)}${if (sentence.length > 70) "…" else ""}\u201D" else "Paragraph ${position + 1}")
             .setItems(labels.toTypedArray()) { _, which ->
                 if (which == modes.size) {
-                    openChat("About \u201C${(sentence ?: doc.paragraphs[position]).take(160)}\u201D (¶${position + 1}): ")
+                    AskSheet.forBook(this, scope)
                     return@setItems
                 }
                 val mode = modes[which]
                 runAi("${mode.label}…") {
                     val text = withContext(Dispatchers.IO) { Ai.explain(this@PlayerActivity, doc, position, mode, sentence) }
                     showAiText(mode.label, text, null)
+                    if (AskSheet.speakAnswers(this@PlayerActivity)) Speaker.speakAnswer(text)
                 }
             }
             .show()

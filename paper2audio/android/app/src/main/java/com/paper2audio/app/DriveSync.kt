@@ -76,9 +76,13 @@ object DriveSync {
         update { status = null }
     }
 
-    /** Starts a sync in the background (coalesced if one is already running). */
+    /**
+     * Starts a sync in the background (coalesced if one is already running). Every place that
+     * syncs calls this, so it also syncs the account ([Account]) when signed in.
+     */
     fun request(context: Context) {
         val app = context.applicationContext
+        Account.request(app)
         if (!enabled(app)) return
         synchronized(this) {
             if (running) {
