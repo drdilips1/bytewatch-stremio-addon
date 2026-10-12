@@ -69,14 +69,25 @@
     S.set({ access: o.access_token, refresh: o.refresh_token, expires: Date.now() + (o.expires_in || 3600) * 1000,
       user: u.id || prev.user, email: u.email || prev.email });
   }
+  // One renewal at a time: each refresh token works once, so two renewals at the same moment used
+  // to spend it twice and the second one signed the phone out.
+  let renewing = null;
   async function token(force = false) {
     const s = S.get();
     if (!s?.refresh) throw new Error('Not signed in');
     if (!force && s.access && Date.now() < s.expires - 60000) return s.access;
+    if (!renewing) renewing = renew(s).finally(() => { renewing = null; });
+    return renewing;
+  }
+  async function renew(s) {
     try {
       saveSession(await call('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: s.refresh } }));
     } catch (e) {
-      if (e.code >= 400 && e.code < 500) { S.set({ ...s, refresh: null, access: null }); throw new Error('Your sign-in ran out. Sign in again to keep syncing.'); }
+      // Renewed meanwhile (another screen or a sync that just finished): use the new session.
+      const now = S.get();
+      if (now?.refresh && now.refresh !== s.refresh) return now.access;
+      // Only a refused sign-in signs out; busy (429), server errors and no connection keep it.
+      if (e.code === 400 || e.code === 401 || e.code === 403) { S.set({ ...s, refresh: null, access: null }); throw new Error('Your sign-in ran out. Sign in again to keep syncing.'); }
       throw e;
     }
     return S.get().access;
@@ -514,7 +525,8 @@
   };
   actions['acct-out'] = () => {
     const tok = S.get()?.access;
-    call('/auth/v1/logout', { method: 'POST', token: tok }).catch(() => {});
+    // This phone only (scope=local): the default signed out every phone using the account.
+    call('/auth/v1/logout?scope=local', { method: 'POST', token: tok }).catch(() => {});
     S.clear();
     localStorage.removeItem(VK);
     toast('Signed out. Your library stays on this phone.');
