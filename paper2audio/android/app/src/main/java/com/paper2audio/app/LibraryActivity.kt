@@ -183,8 +183,8 @@ class LibraryActivity : Activity(), PagesHost {
         pageViews[Tabs.DISCOVER] = DiscoverPage(this, this)
         pageViews[Tabs.SETTINGS] = SettingsPage(this, this)
         for ((_, page) in pageViews) {
-            page.view.visibility = View.GONE
-            pages.addView(page.view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            page.root.visibility = View.GONE
+            pages.addView(page.root, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
         val d = resources.displayMetrics.density
         for (i in Tabs.LABELS.indices) {
@@ -216,7 +216,7 @@ class LibraryActivity : Activity(), PagesHost {
         getSharedPreferences("p2a", MODE_PRIVATE).edit().putInt("tab", tab).apply()
         findViewById<View>(R.id.libraryPage).visibility = if (tab == Tabs.LIBRARY) View.VISIBLE else View.GONE
         for ((i, page) in pageViews) {
-            page.view.visibility = if (i == tab) View.VISIBLE else View.GONE
+            page.root.visibility = if (i == tab) View.VISIBLE else View.GONE
             if (i == tab) page.refresh()
         }
         val accent = Themes.color(this, R.attr.p2aAccent)

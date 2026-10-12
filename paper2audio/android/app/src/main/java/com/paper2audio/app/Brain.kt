@@ -194,7 +194,7 @@ object Brain {
     class Recommendation(val title: String, val author: String, val why: String)
 
     /** Books to read next for this reader (not simply popular ones). Call off the main thread. */
-    fun recommend(context: Context, wish: String = ""): List<Recommendation> {
+    fun recommend(context: Context, wish: String = "", avoid: List<String> = emptyList()): List<Recommendation> {
         val items = Library.items(context)
         val profile = profile(context) ?: if (items.isNotEmpty()) learnProfile(context) else ""
         val have = items.take(150).joinToString("; ") { it.title }
@@ -203,6 +203,7 @@ object Brain {
             "Recommend 10 books this reader should read next, matched to their intellectual taste rather than popularity. " +
                 "Mix well-known and lesser-known excellent books; no books they already have.\n\nTaste profile:\n$profile\n\n" +
                 "Already in their library: $have\n\n" + (if (wish.isNotBlank()) "Right now they want: $wish\n\n" else "") +
+                (if (avoid.isNotEmpty()) "Already suggested before, so suggest different ones: ${avoid.takeLast(60).joinToString("; ")}\n\n" else "") +
                 "Return only JSON: {\"books\":[{\"title\":\"…\",\"author\":\"…\",\"why\":\"one sentence on why it suits them\"}]}",
             json = true,
         )

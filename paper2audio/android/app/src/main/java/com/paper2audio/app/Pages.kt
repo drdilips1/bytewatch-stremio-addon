@@ -67,6 +67,9 @@ abstract class Page(protected val activity: Activity, protected val host: PagesH
         build()
     }
 
+    /** What's shown on screen for this page (the page itself, or the page inside a pull-to-refresh). */
+    open val root: View get() = view
+
     protected fun toast(msg: String) = Toast.makeText(activity, msg, Toast.LENGTH_LONG).show()
 
     protected fun aiOff() = AiLevel.of(activity) == AiLevel.PURE
@@ -80,6 +83,45 @@ abstract class Page(protected val activity: Activity, protected val host: PagesH
  */
 class HomePage(activity: Activity, host: PagesHost) : Page(activity, host) {
     private var heroButton: android.widget.Button? = null
+
+    /** Pull down on Home: new picks (when AI is on) and the page brought up to date. */
+    private val pull = PullToRefresh(activity, view) { newPicks() }
+    override val root: View get() = pull
+
+    /** Asks the AI for new picks, different from the ones shown before. */
+    private fun newPicks() {
+        if (aiOff() || !Llm.ready(activity)) {
+            refresh()
+            pull.done()
+            if (aiOff()) toast("Turn on AI in Settings › AI to get picks for you")
+            else AiKeyDialog.show(activity) { newPicks() }
+            return
+        }
+        host.scope.launch {
+            try {
+                val before = shownPicks()
+                val recs = withContext(Dispatchers.IO) { Brain.recommend(activity, "", avoid = before) }
+                if (recs.isNotEmpty()) {
+                    val arr = JSONArray()
+                    recs.forEach { arr.put(JSONObject().put("t", it.title).put("a", it.author).put("w", it.why)) }
+                    val shown = JSONArray((before + recs.map { it.title }).distinct().takeLast(80))
+                    prefs.edit().putString("lastRecs", arr.toString()).putString("shownRecs", shown.toString())
+                        .putBoolean("hidePicks", false).apply()
+                }
+            } catch (e: Exception) {
+                toast(e.message ?: "Couldn't get new picks right now")
+            } finally {
+                refresh()
+                pull.done()
+            }
+        }
+    }
+
+    /** Titles already suggested (so new picks are different). */
+    private fun shownPicks(): List<String> = runCatching {
+        val arr = JSONArray(prefs.getString("shownRecs", "[]"))
+        (0 until arr.length()).map { arr.getString(it) }
+    }.getOrDefault(emptyList()) + savedPicks().map { it.title }
     private var heroId: String? = null
     private val prefs = activity.getSharedPreferences("p2a", android.content.Context.MODE_PRIVATE)
 
@@ -144,7 +186,7 @@ class HomePage(activity: Activity, host: PagesHost) : Page(activity, host) {
         // Continue: the others, as covers.
         val recent = all.sortedByDescending { it.opened }.filter { it.id != current?.id }.take(12)
         if (recent.isNotEmpty()) {
-            ui.heading(body, "Continue", link = "See all") { host.showTab(Tabs.LIBRARY) }
+            ui.heading(body, "Continue", link = "See all", onLink = { host.showTab(Tabs.LIBRARY) })
             val strip = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
             for (item in recent) {
                 val cell = LinearLayout(activity).apply {
@@ -176,11 +218,14 @@ class HomePage(activity: Activity, host: PagesHost) : Page(activity, host) {
         // Picked for you (from Discover), each book its own card.
         val picks = savedPicks()
         if (!aiOff() && picks.isNotEmpty() && !prefs.getBoolean("hidePicks", false)) {
-            ui.heading(body, "✦  Picked for you", link = "Hide") {
+            ui.heading(body, "✦  Picked for you", link = "↻ New", onLink = {
+                toast("Finding new picks…")
+                newPicks()
+            }, link2 = "Hide", onLink2 = {
                 prefs.edit().putBoolean("hidePicks", true).apply()
-                toast("Hidden. Your picks stay in Discover.")
+                toast("Hidden. Pull down for new picks; they also stay in Discover.")
                 refresh()
-            }
+            })
             val strip = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
             for (r in picks.take(8)) strip.addView(pickCard(r), LinearLayout.LayoutParams(ui.dp(264), ViewGroup.LayoutParams.MATCH_PARENT).apply { marginEnd = ui.dp(12) })
             body.addView(HorizontalScrollView(activity).apply {

@@ -73,7 +73,10 @@ class Ui(val activity: Activity) {
     }
 
     /** A section heading in the serif, with an optional link at the right ("See all"). */
-    fun heading(parent: LinearLayout, title: String, top: Int = 22, link: String? = null, onLink: (() -> Unit)? = null) {
+    fun heading(
+        parent: LinearLayout, title: String, top: Int = 22, link: String? = null, onLink: (() -> Unit)? = null,
+        link2: String? = null, onLink2: (() -> Unit)? = null,
+    ) {
         val row = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -85,6 +88,7 @@ class Ui(val activity: Activity) {
             setTextColor(color(R.attr.p2aText))
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         if (link != null && onLink != null) row.addView(textButton(link, onLink).apply { minHeight = dp(36); minimumHeight = dp(36) })
+        if (link2 != null && onLink2 != null) row.addView(textButton(link2, onLink2).apply { minHeight = dp(36); minimumHeight = dp(36) })
         parent.addView(row, full(top))
     }
 
