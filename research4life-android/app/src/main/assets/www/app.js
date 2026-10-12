@@ -697,8 +697,14 @@
   async function loadFeed(followed) {
     const el = $('#feed');
     try {
-      const q = '(' + followed.map(journalQuery).join(' OR ') + ') AND HAS_ABSTRACT:y ' + NOISE;
-      const res = await epmcSearch(q, { sort: 'P_PDATE_D desc', size: 8 });
+      // Newest online first (sorting by issue date kept papers in future issues on top for weeks).
+      const from = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+      const q = '(' + followed.map(journalQuery).join(' OR ') + `) AND FIRST_PDATE:[${from} TO ${new Date().toISOString().slice(0, 10)}] AND HAS_ABSTRACT:y ` + NOISE;
+      let res = await epmcSearch(q, { sort: 'FIRST_PDATE_D desc', size: 8 }).catch(() => null);
+      if (!res || !res.results.length) {
+        res = await epmcSearch(q, { size: 60 });
+        res.results = res.results.sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 8);
+      }
       if (!el.isConnected) return;
       el.innerHTML = res.results.map((a) => card(a, { compact: true })).join('') ||
         '<div class="muted small">No recent articles.</div>';

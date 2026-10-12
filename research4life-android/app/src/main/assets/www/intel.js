@@ -1018,9 +1018,13 @@
     view.innerHTML = `${D.topbar('Today in Dermatology')}<p class="muted small">New papers from leading dermatology journals in the last two weeks.</p><div id="td">${D.skeletons(4)}</div>`;
     const top = (window.JOURNALS || []).filter((j) => j.top || /Leading|Research/.test(j.group)).slice(0, 16);
     const jq = '(' + top.map(D.journalQuery).join(' OR ') + ')';
-    const r = await epmc({ query: `${jq} AND FIRST_PDATE:[${daysAgo(14)} TO ${today()}] AND HAS_ABSTRACT:y ${D.NOISE}`, sort: 'P_PDATE_D desc' }, 40);
+    // Newest online first. Sorting by issue date (P_PDATE) kept papers assigned to future issues on
+    // top for the whole two weeks, so the same 40 showed day after day.
+    const query = `${jq} AND FIRST_PDATE:[${daysAgo(14)} TO ${today()}] AND HAS_ABSTRACT:y ${D.NOISE}`;
+    let r = await epmc({ query, sort: 'FIRST_PDATE_D desc' }, 60);
+    if (!r.results.length) r = await epmc({ query }, 100);
     if (D.current.name !== 'today') return;
-    const papers = r.results;
+    const papers = r.results.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 40);
     const refs = papers.map((a, i) => ({ kind: 'paper', a, type: D.studyType(a).label, n: i + 1 }));
     const ctx = newCtx(refs);
     const el = $('#td');
