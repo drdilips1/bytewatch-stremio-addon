@@ -340,6 +340,10 @@ object Speaker {
     }
 
     fun setVoice(id: String) {
+        if (offlineFrom != null) {
+            offlineFrom = null
+            onlineWatch?.cancel()
+        }
         if (id == voiceId) return
         AppLog.i("Player", "Voice $voiceId -> $id")
         voiceId = id
@@ -578,6 +582,69 @@ object Speaker {
         starting = false
         stream?.release()
         stream = null
+    }
+
+    // ---- No internet: an on-device voice carries on, and the natural voice comes back later ----
+
+    /** The natural voice that lost its connection, while an on-device voice stands in for it. */
+    private var offlineFrom: String? = null
+    private var onlineWatch: Job? = null
+
+    private fun isNetworkError(e: Throwable): Boolean =
+        generateSequence(e) { it.cause }.take(6).any { it is java.io.IOException }
+
+    /** The best voice that needs no internet, of the same gender as [edgeId]. */
+    private fun offlineStandIn(edgeId: String): String {
+        val male = edgeVoices.firstOrNull { EDGE + it.name == edgeId }?.gender == "Male"
+        return when {
+            LocalTts.supported && LocalTts.KOKORO_PACK.isInstalled() -> KOKORO + if (male) "am_michael" else "af_heart"
+            LocalTts.supported && LocalTts.SUPERTONIC_PACK.isInstalled() -> SUPER + if (male) "M1" else "F1"
+            else -> PHONE_DEFAULT
+        }
+    }
+
+    /**
+     * The natural voice couldn't be reached (no internet, or Android cut the app's internet while the
+     * screen is locked): keeps reading with an on-device voice instead of stopping, without changing
+     * the chosen voice, and switches back once the voice service can be reached again.
+     */
+    private fun goOffline(vid: String) {
+        val standIn = offlineStandIn(vid)
+        AppLog.i("Player", "No internet: $vid -> $standIn until it's back")
+        offlineFrom = vid
+        voiceId = standIn // not saved: the chosen voice comes back by itself
+        stopAll()
+        play()
+        val pm = app.getSystemService(android.os.PowerManager::class.java)
+        val tip = if (pm?.isIgnoringBatteryOptimizations(app.packageName) == false)
+            " If this happens with the screen locked, turn on Settings › Playback › Keep playing with the screen locked." else ""
+        lastError = "No internet. Carrying on with an on-device voice; your natural voice comes back when you're online.$tip"
+        notifyChanged()
+        onlineWatch?.cancel()
+        onlineWatch = scope.launch {
+            while (offlineFrom != null) {
+                delay(20_000)
+                val reachable = withContext(Dispatchers.IO) {
+                    runCatching { java.net.InetAddress.getByName("speech.platform.bing.com") }.isSuccess
+                }
+                if (reachable) {
+                    backOnline()
+                    break
+                }
+            }
+        }
+    }
+
+    private fun backOnline() {
+        val from = offlineFrom ?: return
+        offlineFrom = null
+        AppLog.i("Player", "Back online: $voiceId -> $from")
+        voiceId = from
+        val wasPlaying = playing
+        stopAll()
+        if (wasPlaying) play() else prewarm()
+        lastError = "Back online: your natural voice is reading again."
+        notifyChanged()
     }
 
     private fun fail(message: String) {
@@ -917,6 +984,10 @@ object Speaker {
             if (g != generation) return@launch
             if (failure != null) {
                 AppLog.e("Player", "Rendering with $vid failed", failure)
+                if (vid.startsWith(EDGE) && isNetworkError(failure)) {
+                    goOffline(vid)
+                    return@launch
+                }
                 fail(
                     if (LocalTts.isLocal(vid)) "The on-device voice couldn't read this (${failure.message})."
                     else "Couldn't reach the natural voice service (${failure.message}). Check your internet, or download the document for offline listening."
