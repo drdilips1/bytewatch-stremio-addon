@@ -13,12 +13,14 @@ object Cast {
     private val SCRIPT_LINE = Regex("""^([A-Z][\w.'\-]*(?: [A-Z0-9][\w.'\-]*){0,2}):\s+(\S.*)$""", RegexOption.DOT_MATCHES_ALL)
     private const val VERBS = "said|asked|replied|answered|whispered|shouted|cried|called|added|muttered|murmured|" +
         "exclaimed|yelled|laughed|snapped|sighed|began|continued|insisted|told|warned|agreed|admitted|explained|repeated"
-    private val AFTER_NAME = Regex("""^[,.!?]?\s*(?:$VERBS)\s+(?:the\s+)?([A-Z][a-z]+(?: [A-Z][a-z]+)?)""")
-    private val AFTER_NAME_FIRST = Regex("""^[,.!?]?\s*([A-Z][a-z]+(?: [A-Z][a-z]+)?)\s+(?:$VERBS)\b""")
+    /** "Mrs. ", "Aunt " before a name: skipped, so the name itself is the character. */
+    private const val TITLE = """(?:(?:Mrs|Mr|Ms|Miss|Dr|Sir|Lady|Lord|Aunt|Uncle|Captain|Madame|Monsieur)\.?\s+)?"""
+    private val AFTER_NAME = Regex("""^[,.!?]?\s*(?:$VERBS)\s+(?:the\s+)?$TITLE([A-Z][a-z]+(?: [A-Z][a-z]+)?)""")
+    private val AFTER_NAME_FIRST = Regex("""^[,.!?]?\s*$TITLE([A-Z][a-z]+(?: [A-Z][a-z]+)?)\s+(?:$VERBS)\b""")
     private val AFTER_PRONOUN = Regex("""^[,.!?]?\s*(he|she)\s+(?:$VERBS)\b""", RegexOption.IGNORE_CASE)
-    private val BEFORE_NAME = Regex("""([A-Z][a-z]+(?: [A-Z][a-z]+)?)\s+(?:$VERBS)[,:]?\s*$""")
+    private val BEFORE_NAME = Regex("""$TITLE([A-Z][a-z]+(?: [A-Z][a-z]+)?)\s+(?:$VERBS)[,:]?\s*$""")
     private val BEFORE_PRONOUN = Regex("""\b(he|she)\s+(?:$VERBS)[,:]?\s*$""", RegexOption.IGNORE_CASE)
-    private val NOT_NAMES = setOf("The", "Then", "But", "And", "She", "He", "It", "They", "We", "You", "I", "This", "That", "When", "Now")
+    private val NOT_NAMES = setOf("The", "Then", "But", "And", "She", "He", "It", "They", "We", "You", "I", "This", "That", "When", "Now", "Mrs", "Mr", "Ms", "Miss", "Dr")
 
     /** "Host: Welcome back." -> ("Host", "Welcome back."). */
     fun scriptLine(p: String): Pair<String, String>? {
@@ -74,6 +76,20 @@ object Cast {
         }
     }
 
+    /** The characters who speak in [doc] (named in "…,” said Maya and the like), most frequent first. */
+    fun characters(doc: Doc): List<Pair<String, Int>> {
+        val counts = HashMap<String, Int>()
+        for (p in doc.paragraphs) {
+            if ('"' !in p && '“' !in p && '«' !in p && '‘' !in p && '\'' !in p) continue
+            for (s in storySegments(p)) {
+                val who = s.speaker ?: continue
+                if (who == "he" || who == "she" || who == "?") continue
+                counts[who] = (counts[who] ?: 0) + 1
+            }
+        }
+        return counts.entries.sortedByDescending { it.value }.take(60).map { it.key to it.value }
+    }
+
     private val NAME = Regex("""\b([A-Z][a-z]{1,15})\b""")
     private val MALE = Regex("""\b(he|his|him|himself)\b""")
     private val FEMALE = Regex("""\b(she|her|hers|herself)\b""")
@@ -95,6 +111,14 @@ object Cast {
     fun genderOf(name: String, text: String, others: Set<String> = emptySet()): String? {
         if (name == "he") return "male"
         if (name == "she") return "female"
+        // A title says it outright: "Mrs. Bennet", "Aunt Polly", "Sir Walter".
+        val n = Regex.escape(name)
+        val womanTitles = Regex("""\b(?:Mrs|Miss|Ms|Lady|Queen|Princess|Duchess|Countess|Madam|Madame|Mme|Aunt|Auntie|Mother|Grandma|Granny|Sister|Mistress|Dame|Empress)\.?\s+$n\b""")
+        val manTitles = Regex("""\b(?:Mr|Sir|Lord|King|Prince|Duke|Count|Monsieur|Uncle|Father|Grandpa|Brother|Master|Emperor|Captain|Colonel)\.?\s+$n\b""")
+        val w = womanTitles.findAll(text).count()
+        val m = manTitles.findAll(text).count()
+        if (w > m) return "female"
+        if (m > w) return "male"
         var male = 0
         var female = 0
         // Built once per call (not per mention): this runs over long books.

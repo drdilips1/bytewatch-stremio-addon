@@ -217,6 +217,7 @@ class PlayerActivity : Activity() {
         val doc = Speaker.doc
         val options = arrayOf(
             "Reading look\nFont, size, line spacing and paper color",
+            "Characters and voices\nFull cast: choose the voice of each character",
             "Share a quote\nThe paragraph being read, as a picture",
             "Send to Kindle",
             "Share the file",
@@ -232,15 +233,16 @@ class PlayerActivity : Activity() {
                         applyPaper()
                         readerAdapter.notifyDataSetChanged()
                     }
-                    1 -> doc?.paragraphs?.getOrNull(Speaker.index)?.let {
+                    1 -> CastPicker.show(this, scope)
+                    2 -> doc?.paragraphs?.getOrNull(Speaker.index)?.let {
                         Sharing.shareQuote(this, it, item?.title ?: doc.title, item?.author ?: doc.author)
                     }
-                    2 -> item?.let { Sharing.sendToKindle(this, scope, it) }
-                    3 -> item?.let { Sharing.shareFile(this, scope, it) }
-                    4 -> item?.let { Sharing.exportNotes(this, scope, it) }
-                    5 -> showDetailsMenu()
-                    6 -> startActivity(Intent(this, VoiceStudioActivity::class.java))
-                    7 -> startActivity(Intent(this, CarModeActivity::class.java))
+                    3 -> item?.let { Sharing.sendToKindle(this, scope, it) }
+                    4 -> item?.let { Sharing.shareFile(this, scope, it) }
+                    5 -> item?.let { Sharing.exportNotes(this, scope, it) }
+                    6 -> showDetailsMenu()
+                    7 -> startActivity(Intent(this, VoiceStudioActivity::class.java))
+                    8 -> startActivity(Intent(this, CarModeActivity::class.java))
                 }
             }
             .show()

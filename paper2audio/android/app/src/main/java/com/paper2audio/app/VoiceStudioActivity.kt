@@ -485,6 +485,11 @@ class VoiceStudioActivity : Activity() {
                 toast("Playing a sample…")
                 Speaker.previewCast(DIALOGUE_SAMPLE)
             }))
+            if (Speaker.doc != null) {
+                c.addFull(button("Characters in this book: choose each one's voice", soft = true, onClick = {
+                    CastPicker.show(this, scope)
+                }), 6)
+            }
             return
         }
         val current = Speaker.dialogueVoice

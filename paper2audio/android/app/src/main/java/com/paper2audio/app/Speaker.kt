@@ -797,6 +797,46 @@ object Speaker {
         else -> false
     }
 
+    /** Voices the listener chose for characters (by author, so a series keeps them): voice id, or "gender:male"/"gender:female". */
+    private fun userCastKey(d: Doc) = "castUser:" + (d.author?.lowercase()?.trim() ?: d.key)
+
+    fun userCast(d: Doc): Map<String, String> = runCatching {
+        val o = org.json.JSONObject(prefs.getString(userCastKey(d), "{}")!!)
+        o.keys().asSequence().associateWith { o.getString(it) }
+    }.getOrDefault(emptyMap())
+
+    /** Sets [speaker]'s voice ([value]: a voice id, "gender:male", "gender:female"; null: automatic). */
+    fun setUserCast(d: Doc, speaker: String, value: String?) {
+        val o = runCatching { org.json.JSONObject(prefs.getString(userCastKey(d), "{}")!!) }.getOrDefault(org.json.JSONObject())
+        if (value == null) o.remove(speaker) else o.put(speaker, value)
+        // The old automatic choice is forgotten, so the new one sticks.
+        val remembered = runCatching { org.json.JSONObject(prefs.getString(castMemoryKey(d), "{}")!!) }.getOrDefault(org.json.JSONObject())
+        remembered.remove(speaker)
+        prefs.edit().putString(userCastKey(d), o.toString()).putString(castMemoryKey(d), remembered.toString()).apply()
+        castFor = null
+        restartAudio()
+    }
+
+    /** The voice [speaker] reads with now (for the Characters list). */
+    fun voiceOfCharacter(d: Doc, speaker: String): String = castVoice(d, speaker)
+
+    /** Whether [speaker] is read as a man, a woman, or unknown (for the Characters list). */
+    fun genderOfCharacter(d: Doc, speaker: String): String? =
+        userCast(d)[speaker]?.takeIf { it.startsWith("gender:") }?.removePrefix("gender:")
+            ?: aiGenders[d.key]?.get(speaker) ?: guessGender(d, speaker)
+
+    /** Gender from the text around the character's name, anywhere in the book (not only its start). */
+    private val guessed = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    private fun guessGender(d: Doc, speaker: String): String? {
+        val key = d.key + "|" + speaker
+        guessed[key]?.let { return it.ifEmpty { null } }
+        val near = d.paragraphs.asSequence().filter { speaker in it }.take(120).joinToString(" ")
+        val g = Cast.genderOf(speaker, near, castVoices.keys + speakersOf(d))
+        guessed[key] = g ?: ""
+        return g
+    }
+
     /** Characters' genders found by the AI, per document (see [Ai.characters]). */
     private val aiGenders = java.util.concurrent.ConcurrentHashMap<String, Map<String, String>>()
 
@@ -830,16 +870,25 @@ object Speaker {
     /** The voice for [speaker]: the first script speaker is the main voice; others get distinct voices. */
     @Synchronized
     private fun castVoice(d: Doc, speaker: String): String {
-        val castKey = d.key + voiceId + castChoice(true) + castChoice(false)
+        val castKey = d.key + voiceId + castChoice(true) + castChoice(false) + prefs.getString(userCastKey(d), "")
         if (castFor != castKey) {
             castFor = castKey
             castVoices.clear()
             castText = d.paragraphs.take(400).joinToString(" ")
         }
         castVoices[speaker]?.let { return it }
-        // The voice this character had before (earlier in the book, or in another book of the series).
+        // A voice the listener chose for this character.
+        val user = userCast(d)[speaker]
+        if (user != null && !user.startsWith("gender:") && LocalTts.missing(user) == null) {
+            castVoices[speaker] = user
+            return user
+        }
+        val known = user?.removePrefix("gender:") ?: aiGenders[d.key]?.get(speaker) ?: guessGender(d, speaker)
+        // The voice this character had before (earlier in the book, or in another book of the series),
+        // unless it's a man's voice for a woman or the other way round.
         rememberedCast(d)[speaker]?.takeIf { v ->
-            v != voiceId && LocalTts.missing(v) == null && (v in pool(voiceId, true) || v in pool(voiceId, false))
+            v != voiceId && LocalTts.missing(v) == null && (v in pool(voiceId, true) || v in pool(voiceId, false)) &&
+                (known == null || isMale(v) == (known == "male"))
         }?.let { v ->
             castVoices[speaker] = v
             return v
@@ -851,7 +900,7 @@ object Speaker {
             if (scriptSpeakers.isNotEmpty() && speaker == scriptSpeakers.getOrNull(1) && dialogueVoice != null) {
                 dialogueVoice!!
             } else {
-                val gender = aiGenders[d.key]?.get(speaker) ?: Cast.genderOf(speaker, castText, castVoices.keys + scriptSpeakers)
+                val gender = known ?: Cast.genderOf(speaker, castText, castVoices.keys + scriptSpeakers)
                 val male = when (gender) {
                     "male" -> true
                     "female" -> false
