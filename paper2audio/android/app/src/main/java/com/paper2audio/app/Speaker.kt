@@ -343,6 +343,7 @@ object Speaker {
     fun setVoice(id: String) {
         if (offlineFrom != null) {
             offlineFrom = null
+            backPending = false
             onlineWatch?.cancel()
         }
         if (id == voiceId) return
@@ -614,6 +615,20 @@ object Speaker {
     /** The natural voice that lost its connection, while an on-device voice stands in for it. */
     private var offlineFrom: String? = null
     private var onlineWatch: Job? = null
+    /** The voice service works again: switch back at the next paragraph. */
+    @Volatile private var backPending = false
+    private var offlineNoticeAt = 0L
+    private val hiccups = ArrayList<Long>()
+
+    /** Whether the phone has working internet (Android checked it), or a name lookup works. Call off the main thread. */
+    private fun internetUp(): Boolean {
+        val validated = runCatching {
+            val cm = app.getSystemService(android.net.ConnectivityManager::class.java)
+            cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        }.getOrNull()
+        if (validated == false) return false
+        return runCatching { java.net.InetAddress.getByName("speech.platform.bing.com") }.isSuccess
+    }
 
     private fun isNetworkError(e: Throwable): Boolean =
         generateSequence(e) { it.cause }.take(6).any { it is java.io.IOException }
@@ -638,24 +653,32 @@ object Speaker {
         AppLog.i("Player", "No internet: $vid -> $standIn until it's back")
         offlineFrom = vid
         voiceId = standIn // not saved: the chosen voice comes back by itself
+        backPending = false
         stopAll()
         play()
-        val pm = app.getSystemService(android.os.PowerManager::class.java)
-        val tip = if (pm?.isIgnoringBatteryOptimizations(app.packageName) == false)
-            " If this happens with the screen locked, turn on Settings › Playback › Keep playing with the screen locked." else ""
-        lastError = "No internet. Carrying on with an on-device voice; your natural voice comes back when you're online.$tip"
+        // Said once in a while, not every time.
+        val now = System.currentTimeMillis()
+        if (now - offlineNoticeAt > 15 * 60_000) {
+            offlineNoticeAt = now
+            val pm = app.getSystemService(android.os.PowerManager::class.java)
+            val tip = if (pm?.isIgnoringBatteryOptimizations(app.packageName) == false)
+                " If this happens with the screen locked, turn on Settings › Playback › Keep playing with the screen locked." else ""
+            lastError = "No internet. Carrying on with an on-device voice; your natural voice comes back when you're online.$tip"
+        }
         notifyChanged()
         onlineWatch?.cancel()
         onlineWatch = scope.launch {
+            delay(60_000) // stay a while, so a shaky connection doesn't switch back and forth
             while (offlineFrom != null) {
-                delay(20_000)
-                val reachable = withContext(Dispatchers.IO) {
-                    runCatching { java.net.InetAddress.getByName("speech.platform.bing.com") }.isSuccess
+                // Back only when the voice itself answers again.
+                val works = withContext(Dispatchers.IO) {
+                    internetUp() && runCatching { EdgeTts.synthesize("Okay.", vid.removePrefix(EDGE).substringBefore('@'), 0) }.isSuccess // not cached
                 }
-                if (reachable) {
-                    backOnline()
+                if (works) {
+                    if (playing) backPending = true else backOnline()
                     break
                 }
+                delay(30_000)
             }
         }
     }
@@ -663,12 +686,13 @@ object Speaker {
     private fun backOnline() {
         val from = offlineFrom ?: return
         offlineFrom = null
+        backPending = false
+        hiccups.clear()
         AppLog.i("Player", "Back online: $voiceId -> $from")
         voiceId = from
         val wasPlaying = playing
         stopAll()
         if (wasPlaying) play() else prewarm()
-        lastError = "Back online: your natural voice is reading again."
         notifyChanged()
     }
 
@@ -1038,14 +1062,21 @@ object Speaker {
                     var first = true
                     suspend fun load(p: Piece, text: String): Pcm16 {
                         val pv = base.copy(voiceId = p.voice)
-                        val file = try {
-                            Renderer.render(app, pv, currentSpeed, text)
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            Renderer.render(app, pv, currentSpeed, text) // one more try: networks drop requests
+                        // Networks drop requests: online voices get three tries, a little apart.
+                        val tries = if (LocalTts.isLocal(pv.voiceId)) 2 else 3
+                        var file: java.io.File? = null
+                        for (attempt in 1..tries) {
+                            try {
+                                file = Renderer.render(app, pv, currentSpeed, text)
+                                break
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                if (attempt == tries) throw e
+                                if (!LocalTts.isLocal(pv.voiceId)) delay(1_200L * attempt)
+                            }
                         }
-                        return AudioDecode.load(file)
+                        return AudioDecode.load(file!!)
                     }
                     fun fill() {
                         while (queue.size < lookahead && pieces.hasNext()) {
@@ -1079,6 +1110,19 @@ object Speaker {
             if (failure != null) {
                 AppLog.e("Player", "Rendering with $vid failed", failure)
                 if (vid.startsWith(EDGE) && isNetworkError(failure)) {
+                    val now = System.currentTimeMillis()
+                    hiccups.removeAll { now - it > 180_000 }
+                    if (hiccups.size < 3 && withContext(Dispatchers.IO) { internetUp() }) {
+                        // The internet is fine; the voice service had a hiccup. Carry on from this sentence.
+                        hiccups += now
+                        AppLog.i("Player", "Voice service hiccup (${failure.message}); carrying on")
+                        delay(1_000)
+                        if (g == generation && playing) {
+                            stopAll()
+                            play()
+                        }
+                        return@launch
+                    }
                     goOffline(vid)
                     return@launch
                 }
@@ -1120,6 +1164,7 @@ object Speaker {
 
     /** Called whenever playback reaches a new paragraph. */
     private fun moveTo(k: Int) {
+        if (backPending) scope.launch { backOnline() }
         val d = doc
         val oldChapter = d?.chapterAt(index)
         if (d != null && k > index && d.chapterAt(k) != oldChapter) markFinished(d, oldChapter)
