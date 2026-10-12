@@ -171,6 +171,15 @@ object Metadata {
         return parseGutendex(get(url))
     }
 
+    /** Public-domain e-books on a subject ("history", "philosophy"…), most popular first. */
+    fun searchGutenbergTopic(topic: String): List<Result> {
+        val url = "https://gutendex.com/books/".toHttpUrl().newBuilder()
+            .addQueryParameter("topic", topic.trim())
+            .addQueryParameter("languages", "en")
+            .build().toString()
+        return parseGutendex(get(url))
+    }
+
     internal fun parseGutendex(json: String): List<Result> {
         val results = JSONObject(json).optJSONArray("results") ?: return emptyList()
         val out = ArrayList<Result>()

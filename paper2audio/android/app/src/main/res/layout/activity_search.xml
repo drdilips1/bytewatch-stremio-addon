@@ -62,6 +62,14 @@
             android:src="@drawable/ic_search" />
     </LinearLayout>
 
+    <!-- Categories, nonfiction first (filled in by SearchActivity). -->
+    <LinearLayout
+        android:id="@+id/categories"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="6dp" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

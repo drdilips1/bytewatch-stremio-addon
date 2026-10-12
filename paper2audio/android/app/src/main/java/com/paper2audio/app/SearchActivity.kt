@@ -17,6 +17,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -43,6 +44,42 @@ class SearchActivity : Activity() {
         const val PAPERS = 2
     }
 
+    /** A category to browse: [term] searches Bookracy, [topic] is Project Gutenberg's subject. */
+    private class Category(val label: String, val term: String, val topic: String)
+
+    private val NONFICTION = listOf(
+        Category("Science", "science", "science"),
+        Category("History", "history", "history"),
+        Category("Biography & memoir", "biography", "biography"),
+        Category("Psychology", "psychology", "psychology"),
+        Category("Philosophy", "philosophy", "philosophy"),
+        Category("Self-help", "self help", "conduct of life"),
+        Category("Health & medicine", "health medicine", "medicine"),
+        Category("Business & economics", "economics business", "economics"),
+        Category("Politics & society", "politics", "political science"),
+        Category("Religion & spirituality", "spirituality", "religion"),
+        Category("Nature & environment", "nature", "nature"),
+        Category("Travel", "travel", "travel"),
+        Category("True crime", "true crime", "crime"),
+        Category("Essays", "essays", "essays"),
+        Category("Mathematics", "mathematics", "mathematics"),
+        Category("Art & music", "art", "art"),
+        Category("Education", "education", "education"),
+    )
+    private val FICTION = listOf(
+        Category("Literary fiction", "novel", "fiction"),
+        Category("Mystery & thriller", "mystery thriller", "detective"),
+        Category("Science fiction", "science fiction", "science fiction"),
+        Category("Fantasy", "fantasy", "fantasy"),
+        Category("Romance", "romance", "love stories"),
+        Category("Adventure", "adventure", "adventure"),
+        Category("Poetry", "poetry", "poetry"),
+        Category("Children's", "children", "children"),
+    )
+    /** The category being browsed (its label is in the search box). */
+    private var category: Category? = null
+    private lateinit var categories: LinearLayout
+
     private var mode = BOOKRACY
     private val papers get() = mode == PAPERS
     private var searchJob: Job? = null
@@ -68,6 +105,8 @@ class SearchActivity : Activity() {
         empty = findViewById(R.id.empty)
         sourceNote = findViewById(R.id.sourceNote)
         list = findViewById(R.id.results)
+        categories = findViewById(R.id.categories)
+        renderCategories()
 
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<ImageButton>(R.id.btnSearch).setOnClickListener { search() }
@@ -117,6 +156,7 @@ class SearchActivity : Activity() {
             tab.setBackgroundResource(if (on) R.drawable.bg_button else R.drawable.bg_button_soft)
             tab.setTextColor(color(if (on) R.attr.p2aOnAccent else R.attr.p2aText))
         }
+        if (::categories.isInitialized) renderCategories()
         query.hint = when (mode) {
             BOOKRACY -> "Title or author of any book"
             CLASSICS -> "Title or author of a classic book"
@@ -138,6 +178,49 @@ class SearchActivity : Activity() {
             mode != CLASSICS && query.text.isBlank() ->
                 showEmpty(if (mode == BOOKRACY) "Search Bookracy for a title or author." else "Search arXiv for a topic, title or author.")
             else -> search()
+        }
+    }
+
+    /** Two rows of category tags: nonfiction, then fiction. */
+    private fun renderCategories() {
+        categories.removeAllViews()
+        categories.visibility = if (papers) View.GONE else View.VISIBLE
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        for ((label, cats) in listOf("Nonfiction" to NONFICTION, "Fiction" to FICTION)) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(16), dp(4), dp(16), dp(4))
+            }
+            row.addView(TextView(this).apply {
+                text = label.uppercase()
+                textSize = 11f
+                letterSpacing = 0.08f
+                setTextColor(color(R.attr.p2aMuted))
+                setPadding(0, 0, dp(10), 0)
+            })
+            for (c in cats) {
+                val on = c === category
+                row.addView(TextView(this).apply {
+                    text = c.label
+                    textSize = 14f
+                    setPadding(dp(14), dp(8), dp(14), dp(8))
+                    setBackgroundResource(if (on) R.drawable.bg_chip_on else R.drawable.bg_chip)
+                    setTextColor(color(if (on) R.attr.p2aOnAccent else R.attr.p2aText))
+                    elevation = dp(1).toFloat()
+                    setOnClickListener {
+                        category = if (on) null else c
+                        query.setText(if (on) "" else c.label)
+                        renderCategories()
+                        if (!on) search()
+                    }
+                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) })
+            }
+            categories.addView(android.widget.HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                addView(row)
+            })
         }
     }
 
@@ -166,8 +249,16 @@ class SearchActivity : Activity() {
             if (found[m]?.first == q) continue
             running[m]?.cancel()
             running[m] = scope.launch {
+                // A category in the box browses it; anything typed is a normal search.
+                val cat = category?.takeIf { it.label == q }
                 val r = withContext(Dispatchers.IO) {
-                    runCatching { if (m == BOOKRACY) Metadata.searchBookracy(q) else Metadata.searchGutenberg(q) }
+                    runCatching {
+                        when {
+                            m == BOOKRACY -> Metadata.searchBookracy(cat?.term ?: q)
+                            cat != null -> Metadata.searchGutenbergTopic(cat.topic)
+                            else -> Metadata.searchGutenberg(q)
+                        }
+                    }
                 }
                 found[m] = q to r
                 if (mode == m && query.text.toString().trim() == q) showFound(m)
