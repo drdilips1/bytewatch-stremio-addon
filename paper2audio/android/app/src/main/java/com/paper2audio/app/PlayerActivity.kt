@@ -211,39 +211,43 @@ class PlayerActivity : Activity() {
         }
     }
 
-    /** Everything else for this book: reading look, sharing, Send to Kindle, details, car mode. */
+    /** Everything else for this book: reading look, characters, sharing, Send to Kindle, details, car mode. */
     private fun showMore() {
         val item = Library.get(this, Library.currentId)
         val doc = Speaker.doc
-        val options = arrayOf(
-            "Reading look\nFont, size, line spacing and paper color",
-            "Characters and voices\nFull cast: choose the voice of each character",
-            "Share a quote\nThe paragraph being read, as a picture",
-            "Send to Kindle",
-            "Share the file",
-            "Export highlights and notes",
-            "Book details and cover",
-            "Voice studio",
-            "Car mode\nBig buttons and voice commands",
-        )
-        AlertDialog.Builder(this)
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> ReadingLook.show(this) {
-                        applyPaper()
-                        readerAdapter.notifyDataSetChanged()
-                    }
-                    1 -> CastPicker.show(this, scope)
-                    2 -> doc?.paragraphs?.getOrNull(Speaker.index)?.let {
-                        Sharing.shareQuote(this, it, item?.title ?: doc.title, item?.author ?: doc.author)
-                    }
-                    3 -> item?.let { Sharing.sendToKindle(this, scope, it) }
-                    4 -> item?.let { Sharing.shareFile(this, scope, it) }
-                    5 -> item?.let { Sharing.exportNotes(this, scope, it) }
-                    6 -> showDetailsMenu()
-                    7 -> startActivity(Intent(this, VoiceStudioActivity::class.java))
-                    8 -> startActivity(Intent(this, CarModeActivity::class.java))
+        LiteSheet(this, item?.title ?: doc?.title ?: "This book", listOfNotNull(item?.author ?: doc?.author).firstOrNull())
+            .section("Reading")
+            .row(R.drawable.ic_text, "Reading look", "Font, line spacing and paper color") {
+                ReadingLook.show(this) {
+                    applyPaper()
+                    readerAdapter.notifyDataSetChanged()
                 }
+            }
+            .row(R.drawable.ic_people, "Characters and voices", "Full cast: choose the voice of each character") {
+                CastPicker.show(this, scope)
+            }
+            .section("Share")
+            .row(R.drawable.ic_share, "Share a quote", "The paragraph being read, as a picture") {
+                doc?.paragraphs?.getOrNull(Speaker.index)?.let {
+                    Sharing.shareQuote(this, it, item?.title ?: doc.title, item?.author ?: doc.author)
+                }
+            }
+            .row(R.drawable.ic_send, "Send to Kindle", "By email to your Kindle, or with the Kindle app") {
+                item?.let { Sharing.sendToKindle(this, scope, it) }
+            }
+            .row(R.drawable.ic_doc, "Share the file", "The book itself, to another app") {
+                item?.let { Sharing.shareFile(this, scope, it) }
+            }
+            .row(R.drawable.ic_save, "Export highlights and notes", "As a Markdown note, with the passages") {
+                item?.let { Sharing.exportNotes(this, scope, it) }
+            }
+            .section("More")
+            .row(R.drawable.ic_info, "Book details and cover", "Title, author, description, cover") { showDetailsMenu() }
+            .row(R.drawable.ic_voice, "Voice studio", "Voices, cloning, full cast") {
+                startActivity(Intent(this, VoiceStudioActivity::class.java))
+            }
+            .row(R.drawable.ic_car, "Car mode", "Big buttons and voice commands") {
+                startActivity(Intent(this, CarModeActivity::class.java))
             }
             .show()
     }
@@ -531,46 +535,42 @@ class PlayerActivity : Activity() {
     private fun paragraphMenu(position: Int) {
         val item = Library.get(this, Library.currentId)
         val text = Speaker.doc?.paragraphs?.getOrNull(position) ?: return
-        val options = mutableListOf(
-            "Play from here", "Add bookmark", "Add note…", "Copy text", "Explain or ask AI…",
-            "Highlight…", "Share as a quote card", "Fix how a word is said…",
-        )
-        AlertDialog.Builder(this)
-            .setTitle("Paragraph ${position + 1}")
-            .setItems(options.toTypedArray()) { _, which ->
-                when (which) {
-                    0 -> {
-                        lastUserScroll = 0
-                        Speaker.seek(position)
-                        if (!Speaker.playing) Speaker.play()
-                    }
-                    1 -> item?.let {
-                        Library.addNote(this, it, position, "")
-                        toast("Bookmarked")
-                        afterNotesChanged()
-                    }
-                    2 -> item?.let { askNote(it, position) }
-                    3 -> {
-                        getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("paragraph", text))
-                        toast("Copied")
-                    }
-                    4 -> explainMenu(position, null)
-                    5 -> item?.let { chooseHighlight(it, position) }
-                    6 -> {
-                        val doc = Speaker.doc
-                        Sharing.shareQuote(this, text, item?.title ?: doc?.title ?: "", item?.author ?: doc?.author)
-                    }
-                    7 -> {
-                        // Pick the word from this paragraph.
-                        val words = Regex("""[\p{L}][\p{L}\p{N}'’-]{2,}""").findAll(text).map { it.value }.distinct().take(60).toList()
-                        AlertDialog.Builder(this)
-                            .setTitle("Which word?")
-                            .setItems((words + "Another word…").toTypedArray()) { _, w ->
-                                Pronounce.show(this, words.getOrNull(w) ?: "")
-                            }
-                            .show()
-                    }
+        val doc = Speaker.doc
+        LiteSheet(this, "Paragraph ${position + 1}", text.take(90).let { if (text.length > 90) "$it…" else it })
+            .row(R.drawable.ic_play, "Play from here") {
+                lastUserScroll = 0
+                Speaker.seek(position)
+                if (!Speaker.playing) Speaker.play()
+            }
+            .row(R.drawable.ic_sparkle, "Explain or ask AI…") { explainMenu(position, null) }
+            .section("Mark")
+            .row(R.drawable.ic_bookmark, "Add bookmark") {
+                item?.let {
+                    Library.addNote(this, it, position, "")
+                    toast("Bookmarked")
+                    afterNotesChanged()
                 }
+            }
+            .row(R.drawable.ic_palette, "Highlight…", "Yellow, green, blue or pink") { item?.let { chooseHighlight(it, position) } }
+            .row(R.drawable.ic_text, "Add note…") { item?.let { askNote(it, position) } }
+            .section("Share")
+            .row(R.drawable.ic_paste, "Copy text") {
+                getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("paragraph", text))
+                toast("Copied")
+            }
+            .row(R.drawable.ic_share, "Share as a quote card", "A picture with the book's title") {
+                Sharing.shareQuote(this, text, item?.title ?: doc?.title ?: "", item?.author ?: doc?.author)
+            }
+            .section("Voice")
+            .row(R.drawable.ic_voice, "Fix how a word is said…", "For every voice, in every book") {
+                // Pick the word from this paragraph.
+                val words = Regex("""[\p{L}][\p{L}\p{N}'’-]{2,}""").findAll(text).map { it.value }.distinct().take(60).toList()
+                AlertDialog.Builder(this)
+                    .setTitle("Which word?")
+                    .setItems((words + "Another word…").toTypedArray()) { _, w ->
+                        Pronounce.show(this, words.getOrNull(w) ?: "")
+                    }
+                    .show()
             }
             .show()
     }

@@ -737,35 +737,25 @@ class LibraryActivity : Activity(), PagesHost {
     }
 
     override fun showAddMenu() {
-        val options = arrayOf(
-            "Find a book\nSearch Bookracy, free classics and research papers",
-            "Document file\nPDF, EPUB, Kindle (MOBI, AZW3), FB2, Word, PowerPoint, comics (CBZ), Markdown or text",
-            "A whole folder\nAdds every book and document in it",
-            "Link or arXiv ID\nWeb article, YouTube, or a link to a file",
-            "Scan pages with the camera",
-            "Photos or screenshots\nReads the text in the images",
-            "Paste text",
-            "Audio or video \u2192 text\nTranscribes lectures, podcasts, interviews and voice notes (Gemini)",
-            "Dictate\nSpeak, and it's typed for you",
-        )
-        AlertDialog.Builder(this)
-            .setTitle("Add to library")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> startActivity(Intent(this, SearchActivity::class.java))
-                    1 -> openPicker()
-                    2 -> pickFolder()
-                    3 -> askForLink()
-                    4 -> {
-                        clearScan()
-                        takePhoto()
-                    }
-                    5 -> pickImages()
-                    6 -> askForText()
-                    7 -> GeminiKeyDialog.withKey(this) { pickMedia() }
-                    8 -> askForText(dictate = true)
-                }
+        LiteSheet(this, "Add to library", "Books, papers, articles, scans and more")
+            .row(R.drawable.ic_search, "Find a book", "Bookracy, free classics and research papers") {
+                startActivity(Intent(this, SearchActivity::class.java))
             }
+            .section("From this phone")
+            .row(R.drawable.ic_doc, "Document file", "PDF, EPUB, Kindle (MOBI, AZW3), FB2, Word, PowerPoint, comics (CBZ), Markdown, text") { openPicker() }
+            .row(R.drawable.ic_folder, "A whole folder", "Adds every book and document in it") { pickFolder() }
+            .row(R.drawable.ic_image, "Photos or screenshots", "Reads the text in the images") { pickImages() }
+            .row(R.drawable.ic_headphones, "Audio or video → text", "Lectures, podcasts, interviews, voice notes (Gemini)") {
+                GeminiKeyDialog.withKey(this) { pickMedia() }
+            }
+            .section("Other ways")
+            .row(R.drawable.ic_link, "Link or arXiv ID", "Web article, YouTube, or a link to a file") { askForLink() }
+            .row(R.drawable.ic_camera, "Scan pages with the camera") {
+                clearScan()
+                takePhoto()
+            }
+            .row(R.drawable.ic_paste, "Paste text") { askForText() }
+            .row(R.drawable.ic_mic, "Dictate", "Speak, and it's typed for you") { askForText(dictate = true) }
             .show()
     }
 
@@ -924,29 +914,19 @@ class LibraryActivity : Activity(), PagesHost {
     }
 
     private fun itemMenu(item: Library.Item) {
-        val where = item.collection?.let { "Collection: $it" } ?: "Not in a collection"
+        val where = item.collection ?: "Not in a collection"
         val status = Library.status(this, item).label
-        AlertDialog.Builder(this)
-            .setTitle(item.title)
-            .setItems(
-                arrayOf(
-                    "Reading status…  ($status)",
-                    "Move to collection…  ($where)",
-                    "Send to Kindle",
-                    "Share the file",
-                    "Export highlights and notes",
-                    "Remove from library",
-                ),
-            ) { _, which ->
-                when (which) {
-                    0 -> chooseStatus(item)
-                    1 -> chooseCollection(item)
-                    2 -> Sharing.sendToKindle(this, scope, item)
-                    3 -> Sharing.shareFile(this, scope, item)
-                    4 -> Sharing.exportNotes(this, scope, item)
-                    else -> confirmRemove(item)
-                }
-            }
+        LiteSheet(this, item.title, item.author)
+            .row(R.drawable.ic_play, "Open and listen") { open(item) }
+            .section("Organize")
+            .row(R.drawable.ic_check, "Reading status", status) { chooseStatus(item) }
+            .row(R.drawable.ic_folder, "Move to collection", where) { chooseCollection(item) }
+            .section("Share")
+            .row(R.drawable.ic_send, "Send to Kindle", "By email to your Kindle, or with the Kindle app") { Sharing.sendToKindle(this, scope, item) }
+            .row(R.drawable.ic_doc, "Share the file", "The book itself, to another app") { Sharing.shareFile(this, scope, item) }
+            .row(R.drawable.ic_save, "Export highlights and notes", "As a Markdown note, with the passages") { Sharing.exportNotes(this, scope, item) }
+            .section("")
+            .row(R.drawable.ic_delete, "Remove from library") { confirmRemove(item) }
             .show()
     }
 
