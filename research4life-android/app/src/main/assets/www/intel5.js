@@ -400,7 +400,8 @@ Give 3-5 differentials. Base everything on what is visible; say so plainly when 
     box.innerHTML = `<div class="row wrap" style="margin:6px 0">
         <button class="btn small" data-act="ask" data-q="${esc(`How is ${dx} diagnosed and managed?`)}">${icon('chart')}Evidence answer</button>
         <button class="btn small" data-act="ev-from-search" data-q="${esc(`diagnosis and treatment of ${dx}`)}">${icon('list')}Evidence map</button>
-        <button class="btn small" data-act="dx-cases" data-q="${esc(dx)}">${icon('book')}Case reports</button></div>
+        <button class="btn small" data-act="dx-cases" data-q="${esc(dx)}">${icon('book')}Case reports</button>
+        ${/Histo/.test(dxShown?.kinds || '') ? `<button class="btn small" data-act="leeds-open">${icon('globe')}Leeds virtual slides</button>` : ''}</div>
       <div id="dx-imgs">${D.skeletons(1)}</div>`;
     const kind = dxShown?.kinds || '';
     const suffix = /Histo/.test(kind) ? ' histopathology' : /Dermoscopy|Tricho/.test(kind) ? ' dermoscopy' : '';

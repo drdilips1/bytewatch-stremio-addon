@@ -634,6 +634,8 @@
   actions['ev-utd'] = (b) => go('search?' + new URLSearchParams({ q: b.dataset.q, src: 'utd' }));
   actions['ev-r4l'] = () => Native.openPortal('https://portal.research4life.org/signin', '', '');
   actions['ev-dermnet'] = (b) => openUrl('https://dermnetnz.org/search?q=' + encodeURIComponent(b.dataset.q));
+  // Leeds Virtual Pathology: whole-slide histology (zoomable, free), opened in the in-app browser.
+  actions['leeds-open'] = () => openUrl('https://www.virtualpathology.leeds.ac.uk/slides/library/');
   actions['ev-ictrp'] = (b) => openUrl('https://trialsearch.who.int/?SearchAll=' + encodeURIComponent(trialTerm(b.dataset.q)));
 
   /** The AI panel: synthesis first, then matrix / contradictions / listen on request. */

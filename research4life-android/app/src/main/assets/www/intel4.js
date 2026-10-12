@@ -184,6 +184,7 @@
       <p class="small">Put your slide (or a photo of it) next to published histology of a diagnosis. The AI lists the features to look for and which it can see.</p>
       <input id="hs-dx" placeholder="Diagnosis to compare with, e.g. psoriasis (optional)" value="${esc(dx)}">
       <button class="btn primary full" data-act="hs-pick" style="margin-top:8px">${icon('camera')}Choose slide photo</button>
+      <button class="btn small" data-act="leeds-open" style="margin-top:8px">${icon('globe')}Leeds Virtual Pathology: whole slides to compare</button>
       <div class="panel small" style="margin-top:10px">${icon('alert')} ${esc(I.EDU || 'Educational use only.')}</div>
       <div id="hs-out"></div>`;
   }

@@ -597,7 +597,8 @@
       <div class="seg wide" style="margin:8px 0">${Object.entries(IMG_KINDS).map(([k, l]) => `<button class="${k === kind ? 'on' : ''}" data-act="img-kind" data-v="${k}">${l}</button>`).join('')}</div>
       <div class="row wrap"><button class="btn xs" data-act="img-ddx" ${query ? '' : 'disabled'}>${icon('school')}What looks similar?</button>
         <button class="btn xs" data-act="img-upload">${icon('camera')}My image: histopathology / clinical learning</button>
-        ${query ? `<button class="btn xs" data-act="ev-dermnet" data-q="${esc(query)}">${icon('globe')}DermNet</button>` : ''}</div>
+        ${query ? `<button class="btn xs" data-act="ev-dermnet" data-q="${esc(query)}">${icon('globe')}DermNet</button>` : ''}
+        ${kind === 'histo' ? `<button class="btn xs" data-act="leeds-open">${icon('globe')}Leeds virtual slides</button>` : ''}</div>
       <p class="muted small">${esc(EDU)}</p>
       <div id="img-ddx"></div><div id="img-grid">${query ? D.skeletons(2) : ''}</div>`;
     actions['img-kind'] = (b) => go('images?' + new URLSearchParams({ q: query, kind: b.dataset.v }), { replace: true });
