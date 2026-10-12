@@ -2754,7 +2754,9 @@
       const r = await Promise.race([getJSON(`${CROSSREF}journals/${encodeURIComponent(issn)}/works?${p}`), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))]);
       const today = new Date().toISOString().slice(0, 10);
       // Not yet in a printed issue: no print date (or one still to come), or no issue number.
-      return (r.message?.items || []).filter((x) => x.title?.[0] && (!x.issue || !crDate(x['published-print']) || isoOf(crDate(x['published-print'])) > today));
+      // Issue front matter (Copyright, Contents, Contributors, Preface…) is not a paper.
+      const FRONT = /^(copyright|contents|contributors|preface|foreword|editorial board|forthcoming issues?|index|dedication|erratum)$/i;
+      return (r.message?.items || []).filter((x) => x.title?.[0] && !FRONT.test(x.title[0].trim()) && (!x.issue || !crDate(x['published-print']) || isoOf(crDate(x['published-print'])) > today));
     } catch (e) { return { failed: (e && e.message) || 'no answer' }; }
   }
   async function inPressList(j) {
