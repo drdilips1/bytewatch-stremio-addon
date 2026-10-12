@@ -921,7 +921,8 @@
     if (saved.has(id)) return { ...cache.get(id), ...saved.get(id) };
     if (cache.has(id)) return cache.get(id);
     const [src, ext] = id.split(/_(.+)/);
-    const res = await epmcSearch(`EXT_ID:${ext} AND SRC:${src}`, { size: 1 });
+    // A paper known only from Crossref (online first): Europe PMC may have it by now.
+    const res = await epmcSearch(src === 'DOI' ? `DOI:"${ext}"` : `EXT_ID:${ext} AND SRC:${src}`, { size: 1 });
     if (!res.results.length) throw new Error('Article not found');
     return res.results[0];
   }
@@ -2677,6 +2678,36 @@
     const now = new Date();
     return y > now.getFullYear() || (y === now.getFullYear() && mo > now.getMonth());
   }
+  // Crossref has a paper as soon as the publisher registers its DOI (online first), often weeks
+  // before PubMed / Europe PMC list it (Elsevier's Clinics only reach PubMed with their issue).
+  const crDate = (d) => { const p = d?.['date-parts']?.[0]; return p && p[0] ? [p[0], p[1] || 1, p[2] || 1] : null; };
+  const isoOf = (p) => (p ? `${p[0]}-${String(p[1]).padStart(2, '0')}-${String(p[2]).padStart(2, '0')}` : '');
+  function fromCrossref(x, j) {
+    const online = crDate(x['published-online']) || crDate(x.published) || crDate(x.issued);
+    const a = {
+      id: 'DOI_' + x.DOI, source: 'DOI', extId: x.DOI, pmid: '', pmcid: '', doi: x.DOI,
+      title: stripTags((x.title || [''])[0] || 'Untitled').replace(/\.$/, ''),
+      authors: (x.author || []).map((p) => [p.family, (p.given || '').split(/[\s-]+/).map((g) => g[0] || '').join('')].filter(Boolean).join(' ')).join(', '),
+      journal: j.name || (x['container-title'] || [''])[0], jAbbr: j.abbr || '', issn: j.issn || '', essn: '',
+      year: online ? String(online[0]) : '', date: isoOf(online), pubDate: '', volume: x.volume || '', issue: x.issue || '', pages: x.page || '',
+      citedBy: 0, oa: false, inPMC: false, types: [], abstract: stripTags(x.abstract || '').replace(/^\s*Abstract\s*/i, ''),
+      links: [], keywords: [], mesh: [], hasRefs: false,
+    };
+    a.finding = keyFinding(a.abstract);
+    cache.set(a.id, a);
+    return a;
+  }
+  async function crossrefInPress(issn, from) {
+    if (!issn) return [];
+    const p = new URLSearchParams({ filter: `from-online-pub-date:${from},type:journal-article`, rows: '100', sort: 'published', order: 'desc',
+      select: 'DOI,title,author,volume,issue,page,published,published-online,published-print,issued,abstract,container-title', mailto: 'app@dermscholar.app' });
+    try {
+      const r = await Promise.race([getJSON(`${CROSSREF}journals/${encodeURIComponent(issn)}/works?${p}`), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))]);
+      const today = new Date().toISOString().slice(0, 10);
+      // Not yet in a printed issue: no print date (or one still to come), or no issue number.
+      return (r.message?.items || []).filter((x) => x.title?.[0] && (!x.issue || !crDate(x['published-print']) || isoOf(crDate(x['published-print'])) > today));
+    } catch { return []; }
+  }
   async function inPressList(j) {
     const from = new Date(Date.now() - 240 * 864e5).toISOString().slice(0, 10);
     const today = new Date().toISOString().slice(0, 10);
@@ -2685,10 +2716,15 @@
       Promise.all([loadYear(j, THIS_YEAR), loadYear(j, THIS_YEAR - 1)]).catch(() => [{ inPress: [] }, { inPress: [] }]),
       epmcSearch(q, { size: 100 }).catch(() => ({ results: [] })),
     ]);
+    const issn = j.issn || recent.results.find((a) => a.issn)?.issn || '';
+    const cr = await crossrefInPress(issn, from);
+    const inIssue = (doi) => recent.results.some((a) => (a.doi || '').toLowerCase() === doi.toLowerCase() && a.volume && a.issue && !issueLater(a));
     const seen = new Set();
+    const key = (a) => (a.doi ? 'doi:' + a.doi.toLowerCase() : a.id);
     return [...years[0].inPress, ...years[1].inPress].map(normalize)
       .concat(recent.results.filter((a) => !a.volume || !a.issue || issueLater(a)))
-      .filter((a) => !seen.has(a.id) && seen.add(a.id))
+      .concat(cr.filter((x) => !inIssue(x.DOI)).map((x) => fromCrossref(x, j)))
+      .filter((a) => !seen.has(key(a)) && seen.add(key(a)))
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
   }
   async function loadYear(j, y) {

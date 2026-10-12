@@ -13,7 +13,7 @@ window.JOURNALS = [
   { name: 'Journal of Dermatological Treatment', abbr: 'J Dermatolog Treat', issn: '0954-6634', publisher: 'Taylor & Francis', group: 'Leading clinical' },
   { name: 'Dermatologic Therapy', abbr: 'Dermatol Ther', publisher: 'Wiley', group: 'Leading clinical' },
   { name: 'Clinics in Dermatology', abbr: 'Clin Dermatol', issn: '0738-081X', publisher: 'Elsevier', group: 'Leading clinical' },
-  { name: 'Dermatologic Clinics', abbr: 'Dermatol Clin', publisher: 'Elsevier', group: 'Leading clinical' },
+  { name: 'Dermatologic Clinics', abbr: 'Dermatol Clin', issn: '0733-8635', publisher: 'Elsevier', group: 'Leading clinical' },
 
   // Research
   { name: 'Journal of Investigative Dermatology', abbr: 'J Invest Dermatol', issn: '0022-202X', publisher: 'Elsevier', group: 'Research', top: true },
