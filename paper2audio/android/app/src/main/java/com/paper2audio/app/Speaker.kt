@@ -1293,8 +1293,39 @@ object Speaker {
             var heard = false
             try {
                 withContext(Dispatchers.Default) {
-                    val pending = parts.map { t -> async(Dispatchers.IO) { AudioDecode.load(Renderer.render(app, v, sp, t)) } }
-                    for (p in pending) out.write(p.await(), p, style.sentencePause)
+                    // Like the book: the first sentence in two halves so sound starts at once, then only a few
+                    // sentences ahead. (Asking for all of them together made the first one wait ~20 s.)
+                    val head = Renderer.quickStart(parts.first(), vid)
+                    val queue = head.mapIndexed { i, t -> t to (if (i == head.lastIndex) style.sentencePause else 0) } +
+                        parts.drop(1).map { it to style.sentencePause }
+                    suspend fun load(t: String): Pcm16 {
+                        for (attempt in 1..3) {
+                            try {
+                                return AudioDecode.load(Renderer.render(app, v, sp, t))
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                if (attempt == 3) throw e
+                                delay(800L * attempt)
+                            }
+                        }
+                        error("unreachable")
+                    }
+                    val pending = ArrayDeque<Pair<Deferred<Pcm16>, Int>>()
+                    var next = 0
+                    fun fill() {
+                        while (pending.size < 3 && next < queue.size) {
+                            val (t, pause) = queue[next++]
+                            pending.addLast(async(Dispatchers.IO) { load(t) } to pause)
+                        }
+                    }
+                    fill()
+                    while (pending.isNotEmpty()) {
+                        val (job, pause) = pending.removeFirst()
+                        val pcm = job.await()
+                        fill()
+                        out.write(pcm, job, pause)
+                    }
                     out.drain()
                 }
                 heard = true
