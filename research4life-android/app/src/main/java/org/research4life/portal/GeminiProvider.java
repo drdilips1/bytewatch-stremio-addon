@@ -120,7 +120,8 @@ final class GeminiProvider implements LlmProvider {
 
                 HttpURLConnection c = (HttpURLConnection) new URL(BASE + model + ":generateContent").openConnection(java.net.Proxy.NO_PROXY);
                 c.setConnectTimeout(20000);
-                c.setReadTimeout(240000);
+                // A picture question gets a minute, so the next AI is tried while the person still waits.
+                c.setReadTimeout(imageB64 != null ? 60000 : 240000);
                 c.setRequestMethod("POST");
                 c.setDoOutput(true);
                 c.setRequestProperty("x-goog-api-key", apiKey);

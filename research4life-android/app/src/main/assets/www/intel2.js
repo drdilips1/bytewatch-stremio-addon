@@ -66,7 +66,13 @@
         return;
       }
       const id = 'vis' + (++imgSeq) + '_' + Date.now();
-      aiImgWait[id] = (evt) => (evt.state === 'done' ? resolve(evt.text) : reject(new Error(evt.message || 'AI request failed')));
+      // Never wait forever: after 3 minutes say so (a late answer is ignored).
+      const stop = setTimeout(() => {
+        if (!aiImgWait[id]) return;
+        delete aiImgWait[id];
+        reject(new Error("No AI answered about the picture within 3 minutes. They may be busy: try again, or check your Gemini key in Settings → AI (Gemini and Claude read pictures best)."));
+      }, 180000);
+      aiImgWait[id] = (evt) => { clearTimeout(stop); if (evt.state === 'done') resolve(evt.text); else reject(new Error(evt.message || 'AI request failed')); };
       Native.aiRunImage(id, system, task, dataUrl, 3500);
     });
   }

@@ -201,10 +201,13 @@
   // streamed reply, 150 s for a whole one (long structured answers take a minute or two).
   async function post(url, headers, body, name) {
     const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), body.stream || /stream/i.test(url) ? 45000 : 150000);
+    const json = JSON.stringify(body);
+    // A picture question gets 60 seconds per AI, so the next one is tried while you still wait.
+    const picture = /"inlineData"|"image_url"|"type":"image"/.test(json);
+    const t = setTimeout(() => ctl.abort(), body.stream || /stream/i.test(url) ? 45000 : picture ? 60000 : 150000);
     let res;
     try {
-      res = await realFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body), signal: ctl.signal });
+      res = await realFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: json, signal: ctl.signal });
     } catch (e) {
       throw new AiError(ctl.signal.aborted ? `${name} didn't answer in time.` : `Couldn't reach ${name} (${(e && e.message) || e}). Check your connection.`);
     } finally {

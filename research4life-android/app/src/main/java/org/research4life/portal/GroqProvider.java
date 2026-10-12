@@ -292,7 +292,7 @@ final class GroqProvider implements LlmProvider {
             body.put("messages", messages);
             body.put(or ? "max_tokens" : "max_completion_tokens", Math.min(maxTokens, 4000));
             body.put("temperature", 0.2);
-            JSONObject res = post("chat/completions", body);
+            JSONObject res = post("chat/completions", body, 60000);
             String text = res.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "").trim();
             if (text.isEmpty()) throw new AiException(name + " returned an empty answer. Try again.");
             visionModel.put(base, visionId);
@@ -340,9 +340,13 @@ final class GroqProvider implements LlmProvider {
     }
 
     private JSONObject post(String path, JSONObject body) throws Exception {
+        return post(path, body, 180000);
+    }
+
+    private JSONObject post(String path, JSONObject body, int readTimeout) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(base + path).openConnection(java.net.Proxy.NO_PROXY);
         c.setConnectTimeout(20000);
-        c.setReadTimeout(180000);
+        c.setReadTimeout(readTimeout);
         c.setRequestMethod("POST");
         c.setDoOutput(true);
         headers(c);
