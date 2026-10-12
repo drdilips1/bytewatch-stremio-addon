@@ -81,6 +81,7 @@ object Cast {
 
     /** Whether the text around [name] says they're a child ("little Tom", "the girl", "seven years old"). */
     fun isChild(name: String, text: String): Boolean {
+        if (name.length < 2 || !name.first().isLetter()) return false
         var child = 0
         var adult = 0
         for (m in Regex("""(.{0,40})\b${Regex.escape(name)}\b(.{0,80})""").findAll(text)) {

@@ -854,7 +854,7 @@ object Speaker {
      * engines have no child voices, so children get the lighter (female) voices there.
      */
     private fun childPool(main: String, boy: Boolean): List<String> = when {
-        main.startsWith(EDGE) -> if (boy) listOf("$EDGE" + "en-US-AnaNeural@-25", "$EDGE" + "en-GB-MaisieNeural@-25")
+        main.startsWith(EDGE) -> if (boy) listOf("$EDGE" + "en-US-AnaNeural@-10", "$EDGE" + "en-GB-MaisieNeural@-10")
         else listOf("$EDGE" + "en-US-AnaNeural", "$EDGE" + "en-GB-MaisieNeural")
         else -> pool(main, false)
     }
@@ -903,6 +903,10 @@ object Speaker {
     private val guessed = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     private fun guessGender(d: Doc, speaker: String): String? {
+        // Only real names: an unnamed speaker ("?") would match every question mark in the book.
+        if (speaker == "he") return "male"
+        if (speaker == "she") return "female"
+        if (speaker.length < 2 || !speaker.first().isLetter()) return null
         val key = d.key + "|" + speaker
         guessed[key]?.let { return it.ifEmpty { null } }
         val near = d.paragraphs.asSequence().filter { speaker in it }.take(120).joinToString(" ")
