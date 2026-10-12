@@ -15,9 +15,9 @@ import java.util.concurrent.TimeUnit
 /**
  * Book ratings on covers, and Goodreads.
  *
- * Goodreads closed its API, so readers' ratings come from Open Library (and Google Books when
- * Open Library has none), and from the reader's own Goodreads export: importing it brings
- * Goodreads' average ratings, their own stars and shelves (read, currently reading, to read).
+ * Ratings come from Goodreads (its public search suggestions, then the book's page for the
+ * whole work's rating, as Audiohub does), else Open Library or Google Books. Importing the
+ * reader's Goodreads export also brings their own stars and shelves.
  */
 object Ratings {
     class Found(val average: Float, val count: Int, val source: String)
@@ -30,17 +30,75 @@ object Ratings {
 
     fun setEnabled(c: Context, on: Boolean) = prefs(c).edit().putBoolean("showRatings", on).apply()
 
-    /** "★ 4.1" for a cover, or null. */
-    fun badge(c: Context, item: Library.Item): String? =
-        if (enabled(c) && item.rating > 0) "★ %.1f".format(item.rating) else null
+    /** "★ 4.12" for a cover (Goodreads' way), or null. */
+    fun badge(c: Context, item: Library.Item): String? = when {
+        !enabled(c) || item.rating <= 0 -> null
+        item.ratingSource == "Goodreads" -> "★ %.2f".format(item.rating)
+        else -> "★ %.1f".format(item.rating)
+    }
 
-    private fun get(url: String): String? = runCatching {
-        client.newCall(Request.Builder().url(url).header("User-Agent", "Paper2Audio-Android").build()).execute().use { r ->
+    private fun get(url: String, browser: Boolean = false): String? = runCatching {
+        val ua = if (browser) "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"
+        else "Paper2Audio-Android"
+        client.newCall(Request.Builder().url(url).header("User-Agent", ua).header("Accept-Language", "en-US,en;q=0.9").build()).execute().use { r ->
             if (r.isSuccessful) r.body?.string() else null
         }
     }.getOrNull()
 
-    private fun norm(t: String) = t.lowercase().substringBefore(':').substringBefore(" (").replace(Regex("""[^\p{L}\p{N}]+"""), " ").trim()
+    // ---- Goodreads ----
+
+    /** A match from Goodreads' search suggestions. */
+    internal class GrHit(val title: String, val author: String, val average: Float, val count: Int, val url: String)
+
+    /** Goodreads' search suggestions (book/auto_complete): the same book, the edition with the most ratings first. */
+    internal fun parseGoodreadsSuggestions(json: String, title: String, author: String?): GrHit? {
+        val arr = runCatching { JSONArray(json) }.getOrNull() ?: return null
+        val hits = (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val t = o.optString("bookTitleBare").ifBlank { o.optString("title") }
+            val a = o.optJSONObject("author")?.optString("name").orEmpty()
+            if (!sameBook(title, author, t, listOf(a))) return@mapNotNull null
+            val url = o.optString("bookUrl").substringBefore('?').let { if (it.startsWith("/")) "https://www.goodreads.com$it" else it }
+            GrHit(t, a, o.optString("avgRating").toFloatOrNull() ?: 0f, o.optInt("ratingsCount"), url)
+        }
+        val exact = norm(title)
+        return hits.sortedWith(compareByDescending<GrHit> { norm(it.title) == exact }.thenByDescending { it.count }).firstOrNull()
+    }
+
+    /** The whole work's rating from a Goodreads book page (all editions), or null. */
+    internal fun parseGoodreadsPage(html: String): Found? {
+        // The work's numbers (all editions) are in the page's data; the structured data has this edition's.
+        Regex(""""averageRating":([\d.]+),"ratingsCount":(\d+)""").find(html)?.let { m ->
+            val avg = m.groupValues[1].toFloatOrNull() ?: 0f
+            if (avg > 0) return Found(avg, m.groupValues[2].toIntOrNull() ?: 0, "Goodreads")
+        }
+        val ld = Regex("""<script type="application/ld\+json">(.*?)</script>""", RegexOption.DOT_MATCHES_ALL).find(html)?.groupValues?.get(1)
+        val agg = ld?.let { runCatching { JSONObject(it).optJSONObject("aggregateRating") }.getOrNull() } ?: return null
+        val avg = agg.optDouble("ratingValue", 0.0).toFloat()
+        return if (avg > 0) Found(avg, agg.optInt("ratingCount"), "Goodreads") else null
+    }
+
+    /** Goodreads' readers' rating: title + author, title + surname, then title alone. Call off the main thread. */
+    fun goodreads(title: String, author: String?): Found? {
+        val first = author?.split(Regex("""[;,&]| and """))?.firstOrNull()?.trim()?.let {
+            // "Wallace-Wells, David" -> "David Wallace-Wells"
+            if (author.contains(',') && !author.contains(';')) author.split(',').map { p -> p.trim() }.reversed().joinToString(" ") else it
+        }.orEmpty()
+        val surname = first.split(' ').lastOrNull().orEmpty()
+        val bare = title.substringBefore(':').substringBefore(" (").trim()
+        val tries = listOf("$bare $first", "$bare $surname", bare).map { it.trim() }.distinct().filter { it.length > 2 }
+        var hit: GrHit? = null
+        for (q in tries) {
+            val json = get("https://www.goodreads.com/book/auto_complete?format=json&q=" + java.net.URLEncoder.encode(q, "UTF-8"), browser = true) ?: continue
+            hit = parseGoodreadsSuggestions(json, title, author)
+            if (hit != null) break
+        }
+        val h = hit ?: return null
+        val page = h.url.takeIf { it.startsWith("https://www.goodreads.com/book/show/") }?.let { get(it, browser = true) }
+        return page?.let(::parseGoodreadsPage) ?: h.average.takeIf { it > 0 }?.let { Found(it, h.count, "Goodreads") }
+    }
+
+    internal fun norm(t: String) = t.lowercase().substringBefore(':').substringBefore(" (").replace(Regex("""[^\p{L}\p{N}]+"""), " ").trim()
 
     /** Whether a catalogue's [title]/[authors] are the same book as ours (not just a similar name). */
     internal fun sameBook(ourTitle: String, ourAuthor: String?, title: String, authors: List<String>): Boolean {
@@ -79,8 +137,9 @@ object Ratings {
         return null
     }
 
-    /** Readers' rating of a book, from Open Library or else Google Books. Call off the main thread. */
+    /** Readers' rating of a book: Goodreads, else Open Library, else Google Books. Call off the main thread. */
     fun lookup(title: String, author: String?): Found? {
+        runCatching { goodreads(title, author) }.getOrNull()?.let { return it }
         val ol = "https://openlibrary.org/search.json".toHttpUrl().newBuilder()
             .addQueryParameter("title", title.take(150))
             .apply { if (!author.isNullOrBlank()) addQueryParameter("author", author.take(80)) }
@@ -103,13 +162,16 @@ object Ratings {
         val p = prefs(context)
         val now = System.currentTimeMillis()
         var changed = false
+        // Books without a Goodreads rating yet (ones rated elsewhere are looked up on Goodreads once too).
         val todo = Library.items(context).filter { item ->
-            item.rating == 0f && item.kind in setOf(Loader.Kind.EPUB, Loader.Kind.PDF, Loader.Kind.HTML, Loader.Kind.DOCX) &&
-                item.words > 15_000 && now - p.getLong("ratingTried:${item.id}", 0) > 30L * 86_400_000
-        }.take(8)
+            item.ratingSource != "Goodreads" && item.kind in setOf(Loader.Kind.EPUB, Loader.Kind.PDF, Loader.Kind.HTML, Loader.Kind.DOCX) &&
+                item.words > 8_000 && now - p.getLong("grTried:${item.id}", 0) > 14L * 86_400_000
+        }.take(10)
         for (item in todo) {
-            p.edit().putLong("ratingTried:${item.id}", now).apply()
+            p.edit().putLong("grTried:${item.id}", now).apply()
             val found = lookup(item.title, item.author) ?: continue
+            if (found.source != "Goodreads" && item.rating > 0) continue // keep the one it has
+            Thread.sleep(300) // gently, a book at a time
             Library.setRating(context, item, found.average, found.count, found.source)
             changed = true
         }
