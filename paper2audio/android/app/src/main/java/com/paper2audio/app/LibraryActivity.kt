@@ -1361,7 +1361,8 @@ class LibraryActivity : Activity(), PagesHost {
             val h = view.tag as GridHolder
             val item = items[position]
             // Book-shaped covers (2:3), whatever the column width.
-            val colWidth = (parent.width - parent.paddingStart - parent.paddingEnd - (14 * 2 * resources.displayMetrics.density).toInt()) / 3
+            val colWidth = (parent as? GridView)?.columnWidth?.takeIf { it > 0 }
+                ?: ((parent.width - parent.paddingStart - parent.paddingEnd - (14 * 2 * resources.displayMetrics.density).toInt()) / 3)
             if (colWidth > 0) h.cover.layoutParams = h.cover.layoutParams.apply { height = colWidth * 3 / 2 }
             h.title.text = item.title
             val pct = Library.progress(this@LibraryActivity, item)

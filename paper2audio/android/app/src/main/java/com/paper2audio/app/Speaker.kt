@@ -247,6 +247,7 @@ object Speaker {
         app = context.applicationContext
         ModelPack.init(app)
         MyVoices.init(app)
+        Pronounce.init(app)
         speed = prefs.getFloat("speed", 1.0f)
         style = Style.of(prefs.getString("style", null))
         speedRendered = renderSpeed
@@ -348,6 +349,7 @@ object Speaker {
         AppLog.i("Player", "Voice $voiceId -> $id")
         voiceId = id
         prefs.edit().putString("voice2", id).apply()
+        doc?.let { if (!BuildConfig.LITE) prefs.edit().putString("voice:${it.key}", id).apply() }
         if (id.startsWith(SYSTEM)) tts?.let { t ->
             (t.voices?.firstOrNull { it.name == id.removePrefix(SYSTEM) } ?: t.defaultVoice)?.let { t.voice = it }
         }
@@ -396,6 +398,8 @@ object Speaker {
     fun setSpeed(value: Float) {
         speed = value
         prefs.edit().putFloat("speed", value).apply()
+        // Each book remembers its own speed (the Play Store edition keeps one for all).
+        doc?.let { if (!BuildConfig.LITE) prefs.edit().putFloat("speed:${it.key}", value).apply() }
         tts?.setSpeechRate(renderSpeed)
         // Only the part above what the engine renders changes: adjust the running stream.
         val s = stream
@@ -416,6 +420,7 @@ object Speaker {
         stopAll()
         AppLog.i("Player", "Opened ${newDoc.paragraphs.size} paragraphs, ${newDoc.chapters.size} chapters, start ${newDoc.start}")
         doc = newDoc
+        if (!BuildConfig.LITE) restoreBookSettings(newDoc)
         index = prefs.getInt("pos:${newDoc.key}", newDoc.start).coerceIn(0, maxOf(0, newDoc.paragraphs.size - 1))
         learnCharacters(newDoc)
         pieceIndex = prefs.getInt("pc:${newDoc.key}", 0).coerceAtLeast(0)
@@ -434,6 +439,26 @@ object Speaker {
         }
         scope.launch(Dispatchers.IO) { Renderer.trim(app) }
         notifyChanged()
+    }
+
+    /** The voice and speed last used for [d], if it has its own. */
+    private fun restoreBookSettings(d: Doc) {
+        val v = prefs.getString("voice:${d.key}", null)
+        if (v != null && v != voiceId && LocalTts.missing(v) == null && offlineFrom == null &&
+            !(v.startsWith(CLONE) && MyVoices.get(v.removePrefix(CLONE)) == null)
+        ) {
+            AppLog.i("Player", "This book's voice: $v")
+            voiceId = v
+            if (v.startsWith(SYSTEM)) tts?.let { t ->
+                (t.voices?.firstOrNull { it.name == v.removePrefix(SYSTEM) } ?: t.defaultVoice)?.let { t.voice = it }
+            }
+        }
+        val sp = prefs.getFloat("speed:${d.key}", speed)
+        if (sp != speed) {
+            speed = sp
+            tts?.setSpeechRate(renderSpeed)
+            speedRendered = renderSpeed
+        }
     }
 
     fun play() {

@@ -98,7 +98,7 @@ object Renderer {
 
     fun file(context: Context, v: Voicing, speed: Float, text: String): File {
         val es = (engineSpeed(v, speed) * 100).roundToInt()
-        val digest = MessageDigest.getInstance("SHA-1").digest("${v.key}|$es|$text".toByteArray())
+        val digest = MessageDigest.getInstance("SHA-1").digest("${v.key}|$es|${Pronounce.stamp.let { if (it.isEmpty()) "" else "$it|" }}$text".toByteArray())
         val ext = if (LocalTts.isLocal(v.voiceId)) "wav" else "mp3"
         return File(dir(context), digest.joinToString("") { "%02x".format(it) } + "." + ext)
     }

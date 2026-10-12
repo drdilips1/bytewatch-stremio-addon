@@ -592,6 +592,8 @@ class SettingsPage(activity: Activity, host: PagesHost) : Page(activity, host) {
             })
         }
 
+        look.addView(ui.textButton("Reading look: font, line spacing, paper color ›") { ReadingLook.show(activity) {} })
+
         // Playback.
         val play = ui.section(body, R.drawable.ic_play, "Playback", "playback")
         play.addView(ui.textButton("Speaking style: ${Speaker.style.label} ›") {
@@ -622,6 +624,7 @@ class SettingsPage(activity: Activity, host: PagesHost) : Page(activity, host) {
             Speaker.setStyle(if (on) Style.FAMILY else Style.STANDARD)
         }
         ui.switch(play, "Medical mode: read doses and trial abbreviations in full", Speaker.medical) { Speaker.setMedical(it) }
+        play.addView(ui.textButton("Pronunciations: fix how words are said ›") { Pronounce.show(activity) })
         play.addView(ui.textButton("Keep playing with the screen locked ›") { Battery.ask(activity) })
         play.addView(ui.textButton("Car mode: big buttons and voice commands ›") {
             activity.startActivity(Intent(activity, CarModeActivity::class.java))

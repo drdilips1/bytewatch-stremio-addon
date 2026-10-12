@@ -222,7 +222,7 @@ object Speech {
 
     /** The text as it should be spoken. */
     fun normalize(text: String, medical: Boolean = false): String {
-        var t = uncapitalize(text)
+        var t = uncapitalize(Pronounce.apply(text))
         for ((re, f) in rules) t = re.replace(t, f)
         for ((re, rep) in ABBREVIATIONS) t = re.replace(t, rep)
         if (medical) for ((re, rep) in MEDICAL) t = re.replace(t, rep)

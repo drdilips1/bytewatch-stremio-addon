@@ -111,6 +111,8 @@ class PlayerActivity : Activity() {
     private var shownPiece: String? = null
     private var lastUserScroll = 0L
     private var noteIndexes: Set<Int> = emptySet()
+    /** Highlighted paragraphs and their colors. */
+    private var highlights: Map<Int, Int> = emptyMap()
     private var offlinePercent: Int? = null
     private var offlineFor: String? = null
     private var textSizeSp = 17f
@@ -175,6 +177,7 @@ class PlayerActivity : Activity() {
 
         setupControls()
         setupReader()
+        applyPaper()
         showTab(options = false)
         Speaker.init(this) {
             setupVoices()
@@ -202,6 +205,51 @@ class PlayerActivity : Activity() {
         off.setTextColor(color(R.attr.p2aText))
         off.compoundDrawableTintList = android.content.res.ColorStateList.valueOf(color(R.attr.p2aText))
         if (options) refreshOfflineStatus()
+        findViewById<ImageButton>(R.id.btnOptions)?.let {
+            it.setImageResource(if (options) R.drawable.ic_text else R.drawable.ic_tune)
+            it.contentDescription = if (options) "Back to the text" else "Voice and options"
+        }
+    }
+
+    /** Everything else for this book: reading look, sharing, Send to Kindle, details, car mode. */
+    private fun showMore() {
+        val item = Library.get(this, Library.currentId)
+        val doc = Speaker.doc
+        val options = arrayOf(
+            "Reading look\nFont, size, line spacing and paper color",
+            "Share a quote\nThe paragraph being read, as a picture",
+            "Send to Kindle",
+            "Share the file",
+            "Export highlights and notes",
+            "Book details and cover",
+            "Voice studio",
+            "Car mode\nBig buttons and voice commands",
+        )
+        AlertDialog.Builder(this)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> ReadingLook.show(this) {
+                        applyPaper()
+                        readerAdapter.notifyDataSetChanged()
+                    }
+                    1 -> doc?.paragraphs?.getOrNull(Speaker.index)?.let {
+                        Sharing.shareQuote(this, it, item?.title ?: doc.title, item?.author ?: doc.author)
+                    }
+                    2 -> item?.let { Sharing.sendToKindle(this, scope, it) }
+                    3 -> item?.let { Sharing.shareFile(this, scope, it) }
+                    4 -> item?.let { Sharing.exportNotes(this, scope, it) }
+                    5 -> showDetailsMenu()
+                    6 -> startActivity(Intent(this, VoiceStudioActivity::class.java))
+                    7 -> startActivity(Intent(this, CarModeActivity::class.java))
+                }
+            }
+            .show()
+    }
+
+    /** The reader's paper color (Reading look), or the theme's. */
+    private fun applyPaper() {
+        val paper = ReadingLook.paper(this)
+        if (paper != null) reader.setBackgroundColor(paper.background) else reader.background = null
     }
 
     private fun setupControls() {
@@ -212,6 +260,10 @@ class PlayerActivity : Activity() {
         findViewById<ImageButton>(R.id.btnNotes).setOnClickListener { showNotes() }
         tabReader.setOnClickListener { showTab(options = false) }
         tabOptions.setOnClickListener { showTab(options = true) }
+        findViewById<ImageButton>(R.id.btnOptions).setOnClickListener { showTab(options = optionsPanel.visibility != View.VISIBLE) }
+        findViewById<ImageButton>(R.id.btnMore).setOnClickListener { showMore() }
+        cover.setOnClickListener { showDetailsMenu() }
+        docTitle.typeface = Themes.titleFont(this)
         docDescription.setOnClickListener {
             docDescription.maxLines = if (docDescription.maxLines == 4) Int.MAX_VALUE else 4
         }
@@ -436,7 +488,10 @@ class PlayerActivity : Activity() {
             val isHeading = doc?.chapters?.any { it.start == position && it.title == text } == true
             val current = position == Speaker.index
             tv.textSize = if (isHeading) textSizeSp + 3 else textSizeSp
-            tv.setTypeface(null, if (isHeading) Typeface.BOLD else Typeface.NORMAL)
+            val face = ReadingLook.typeface(this@PlayerActivity)
+            tv.setTypeface(if (isHeading) Themes.titleFont(this@PlayerActivity) else face, Typeface.NORMAL)
+            tv.setLineSpacing(0f, ReadingLook.spacing(this@PlayerActivity))
+            ReadingLook.paper(this@PlayerActivity)?.let { tv.setTextColor(it.text) } ?: tv.setTextColor(color(R.attr.p2aText))
             val shown = if (position in noteIndexes) "🔖 $text" else text
             val piece = Speaker.currentPiece
             if (current && piece != null && Speaker.playing) {
@@ -451,7 +506,21 @@ class PlayerActivity : Activity() {
             } else {
                 tv.text = shown
             }
-            if (current) tv.setBackgroundResource(R.drawable.bg_current) else tv.background = null
+            val paper = ReadingLook.paper(this@PlayerActivity)
+            when {
+                // On a chosen paper color, the current paragraph keeps that paper (slightly deeper) and an accent edge.
+                current && paper != null -> tv.background = android.graphics.drawable.GradientDrawable().apply {
+                    val bg = paper.background
+                    val deeper = if (paper.key == "night") 0xFF1E2126.toInt() else (0xFF shl 24) or
+                        (((bg shr 16 and 0xFF) * 94 / 100) shl 16) or (((bg shr 8 and 0xFF) * 94 / 100) shl 8) or ((bg and 0xFF) * 94 / 100)
+                    setColor(deeper)
+                    cornerRadius = 14 * resources.displayMetrics.density
+                    setStroke((2 * resources.displayMetrics.density).toInt(), color(R.attr.p2aAccent))
+                }
+                current -> tv.setBackgroundResource(R.drawable.bg_current)
+                position in highlights -> tv.setBackgroundColor(highlights.getValue(position))
+                else -> tv.background = null
+            }
             tv.alpha = if (current || !Speaker.playing) 1f else 0.72f
             return tv
         }
@@ -460,7 +529,10 @@ class PlayerActivity : Activity() {
     private fun paragraphMenu(position: Int) {
         val item = Library.get(this, Library.currentId)
         val text = Speaker.doc?.paragraphs?.getOrNull(position) ?: return
-        val options = mutableListOf("Play from here", "Add bookmark", "Add note…", "Copy text", "Explain or ask AI…")
+        val options = mutableListOf(
+            "Play from here", "Add bookmark", "Add note…", "Copy text", "Explain or ask AI…",
+            "Highlight…", "Share as a quote card", "Fix how a word is said…",
+        )
         AlertDialog.Builder(this)
             .setTitle("Paragraph ${position + 1}")
             .setItems(options.toTypedArray()) { _, which ->
@@ -481,7 +553,34 @@ class PlayerActivity : Activity() {
                         toast("Copied")
                     }
                     4 -> explainMenu(position, null)
+                    5 -> item?.let { chooseHighlight(it, position) }
+                    6 -> {
+                        val doc = Speaker.doc
+                        Sharing.shareQuote(this, text, item?.title ?: doc?.title ?: "", item?.author ?: doc?.author)
+                    }
+                    7 -> {
+                        // Pick the word from this paragraph.
+                        val words = Regex("""[\p{L}][\p{L}\p{N}'’-]{2,}""").findAll(text).map { it.value }.distinct().take(60).toList()
+                        AlertDialog.Builder(this)
+                            .setTitle("Which word?")
+                            .setItems((words + "Another word…").toTypedArray()) { _, w ->
+                                Pronounce.show(this, words.getOrNull(w) ?: "")
+                            }
+                            .show()
+                    }
                 }
+            }
+            .show()
+    }
+
+    private fun chooseHighlight(item: Library.Item, position: Int) {
+        val names = Library.HIGHLIGHT_COLORS.keys.toList()
+        val labels = names.map { it.replaceFirstChar { c -> c.uppercase() } } + "Remove highlight"
+        AlertDialog.Builder(this)
+            .setTitle("Highlight")
+            .setItems(labels.toTypedArray()) { _, which ->
+                Library.setHighlight(this, item, position, names.getOrNull(which))
+                afterNotesChanged()
             }
             .show()
     }
@@ -508,9 +607,15 @@ class PlayerActivity : Activity() {
     }
 
     private fun afterNotesChanged() {
-        noteIndexes = Library.get(this, Library.currentId)?.let { Library.notes(it).map { n -> n.index }.toSet() } ?: emptySet()
+        loadMarks(Library.get(this, Library.currentId))
         readerAdapter.notifyDataSetChanged()
         DriveSync.request(this)
+    }
+
+    private fun loadMarks(item: Library.Item?) {
+        val notes = item?.let { Library.notes(it) }.orEmpty()
+        noteIndexes = notes.filter { it.color == null || it.text.isNotBlank() }.map { it.index }.toSet()
+        highlights = notes.filter { it.color != null }.associate { it.index to (Library.HIGHLIGHT_COLORS[it.color] ?: 0x66F5C542) }
     }
 
     private fun showNotes() {
@@ -528,15 +633,20 @@ class PlayerActivity : Activity() {
         val labels = notes.map { n ->
             val where = doc?.chapterAt(n.index)?.title?.let { "$it · " } ?: ""
             val para = doc?.paragraphs?.getOrNull(n.index)?.take(70) ?: ""
-            if (n.isBookmark) "🔖 $where¶${n.index + 1}: $para…" else "📝 ${n.text}\n   $where¶${n.index + 1}"
+            when {
+                n.color != null && n.text.isBlank() -> "🖍 $where¶${n.index + 1}: $para…"
+                n.isBookmark -> "🔖 $where¶${n.index + 1}: $para…"
+                else -> "📝 ${n.text}\n   $where¶${n.index + 1}"
+            }
         }
         AlertDialog.Builder(this)
-            .setTitle("Bookmarks and notes")
+            .setTitle("Bookmarks, highlights and notes")
+            .setNeutralButton("Export all") { _, _ -> Sharing.exportNotes(this, scope, item) }
             .setItems(labels.toTypedArray()) { _, i ->
                 val n = notes[i]
                 AlertDialog.Builder(this)
-                    .setTitle(if (n.isBookmark) "Bookmark" else "Note")
-                    .setMessage(if (n.isBookmark) doc?.paragraphs?.getOrNull(n.index)?.take(300) else n.text)
+                    .setTitle(if (n.isBookmark) "Bookmark" else if (n.text.isBlank()) "Highlight" else "Note")
+                    .setMessage(if (n.text.isBlank()) doc?.paragraphs?.getOrNull(n.index)?.take(300) else n.text)
                     .setPositiveButton("Go there") { _, _ ->
                         lastUserScroll = 0
                         Speaker.seek(n.index)
@@ -969,8 +1079,13 @@ class PlayerActivity : Activity() {
         val item = doc?.let { Library.get(this, it.key) }
         docTitle.text = item?.title ?: doc?.title ?: ""
         val author = listOfNotNull(item?.author ?: doc?.author, item?.year?.takeIf { it > 0 }?.toString()).joinToString(" · ")
-        docAuthor.text = author
-        docAuthor.visibility = if (author.isNotEmpty()) View.VISIBLE else View.GONE
+        val status = when {
+            busy != null -> busy
+            Speaker.starting && Speaker.playing -> "Starting the voice…"
+            else -> null
+        }
+        docAuthor.text = status ?: listOfNotNull(author.ifBlank { null }, doc?.chapterAt(Speaker.index)?.title).joinToString(" · ")
+        docAuthor.visibility = if (docAuthor.text.isNotEmpty()) View.VISIBLE else View.GONE
         docDescription.text = item?.description ?: ""
         docDescription.visibility = if (item?.description != null) View.VISIBLE else View.GONE
         doc?.let { loadCover(it.key) }
@@ -981,7 +1096,7 @@ class PlayerActivity : Activity() {
         }
         if (doc != null && notesFor != doc.key) {
             notesFor = doc.key
-            noteIndexes = item?.let { Library.notes(it).map { n -> n.index }.toSet() } ?: emptySet()
+            loadMarks(item)
             readerAdapter.notifyDataSetChanged()
         }
         docInfo.text = when {
