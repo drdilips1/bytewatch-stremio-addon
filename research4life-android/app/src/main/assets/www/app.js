@@ -842,6 +842,53 @@
       return;
     }
     drawResults(state);
+    onlineFirst(f, state, key);
+  }
+
+  // ---- Online first: papers published online in the last 6 months that PubMed / Europe PMC don't
+  // list yet (Elsevier's Clinics, for one, only reach PubMed with their issue). From OpenAlex,
+  // which picks up new DOIs from Crossref within days.
+  const ofCache = new Map();
+  function fromOpenAlex(w) {
+    const doi = String(w.doi || '').replace(/^https?:\/\/doi\.org\//i, '');
+    const src = w.primary_location?.source || {};
+    const words = [];
+    for (const [word, at] of Object.entries(w.abstract_inverted_index || {})) for (const i of at) words[i] = word;
+    const a = {
+      id: 'DOI_' + doi, source: 'DOI', extId: doi, pmid: '', pmcid: '', doi,
+      title: stripTags(w.display_name || w.title || 'Untitled').replace(/\.$/, ''),
+      authors: (w.authorships || []).slice(0, 6).map((x) => { const n = String(x.author?.display_name || '').split(' '); return n.length > 1 ? `${n[n.length - 1]} ${n.slice(0, -1).map((g) => g[0]).join('')}` : n[0]; }).join(', '),
+      journal: src.display_name || '', jAbbr: src.display_name || '', issn: src.issn_l || '', essn: '',
+      year: String(w.publication_year || ''), date: w.publication_date || '', pubDate: '', volume: w.biblio?.volume || '', issue: w.biblio?.issue || '', pages: '',
+      citedBy: w.cited_by_count || 0, oa: !!w.open_access?.is_oa, inPMC: false, types: [], abstract: words.filter(Boolean).join(' '),
+      links: [], keywords: [], mesh: [], hasRefs: false,
+    };
+    a.finding = keyFinding(a.abstract);
+    cache.set(a.id, a);
+    return a;
+  }
+  async function onlineFirst(f, state, key) {
+    if (!f.q || idQuery(f.q) || /["():]|\b(AND|OR|NOT)\b/.test(f.q)) return;
+    let list = ofCache.get(key);
+    if (!list) {
+      const from = new Date(Date.now() - 183 * 864e5).toISOString().slice(0, 10);
+      const p = new URLSearchParams({ filter: `title_and_abstract.search:${f.q.replace(/[,|:]/g, ' ')},from_publication_date:${from},type:article`, sort: 'publication_date:desc', 'per-page': '50',
+        select: 'id,doi,display_name,publication_date,publication_year,authorships,primary_location,ids,abstract_inverted_index,biblio,open_access,cited_by_count', mailto: 'app@dermscholar.app' });
+      try {
+        const j = await Promise.race([getJSON(`${OPENALEX}works?${p}`), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000))]);
+        const have = new Set(state.results.map((a) => (a.doi || '').toLowerCase()).filter(Boolean));
+        list = (j.results || []).filter((w) => w.doi && !w.ids?.pmid).map(fromOpenAlex)
+          .filter((a) => !have.has(a.doi.toLowerCase()) && (!settings.derm || dermJournal(a) || DERM_WORDS.test(a.title)));
+      } catch { list = []; }
+      ofCache.set(key, list);
+    }
+    if (!list.length || current.name !== 'search' || searchHash(filtersFrom(current.params)) !== key) return;
+    const el = $('#results');
+    if (!el || el.querySelector('.online-first')) return;
+    el.insertAdjacentHTML('afterbegin', `<div class="section online-first"><div class="section-h"><h3>${icon('clock')}Online first · not yet in PubMed</h3><span class="muted small">${list.length}</span></div>
+      <div id="of-cards">${list.slice(0, 3).map((a) => card(a, { compact: true })).join('')}</div>
+      ${list.length > 3 ? `<button class="more" data-act="of-more">Show all ${list.length}</button>` : ''}</div>`);
+    actions['of-more'] = (b) => { $('#of-cards').innerHTML = list.map((a) => card(a, { compact: true })).join(''); b.remove(); };
   }
 
   function drawResults(state) {
