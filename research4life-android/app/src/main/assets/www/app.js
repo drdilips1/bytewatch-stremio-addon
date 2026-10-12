@@ -188,7 +188,10 @@
     },
   };
   function pruneAnswers() {
-    const old = Object.keys(localStorage).filter((k) => k.startsWith('ds.intel.')).map((k) => {
+    // Answers marked ☆ Keep in History are never cleared.
+    let kept = new Set();
+    try { kept = new Set((JSON.parse(localStorage.getItem('ds.history2')) || []).filter((x) => x.kept).flatMap((x) => (x.keys || []).map((k) => 'ds.intel.' + k))); } catch { /* none */ }
+    const old = Object.keys(localStorage).filter((k) => k.startsWith('ds.intel.') && !kept.has(k)).map((k) => {
       let at = 0;
       try { at = JSON.parse(localStorage.getItem(k))?.at || 0; } catch { /* unreadable: oldest */ }
       return { k, at };

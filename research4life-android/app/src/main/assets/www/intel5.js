@@ -180,7 +180,7 @@
       { doc, system: I.CITE_SYSTEM, max: 5000, onPartial: (t) => { my.text = t; my.ctx = ctx; paintJob(); } });
       const result = { question, text, counts: { ...st.c, cited: use.length }, searches: specs.map((sp, i) => ({ label: sp.label, hit: st.lines[i]?.n || 0 })), refs: use.map((r) => ({ n: r.n, type: r.type, a: slim(r.a) })), at: Date.now() };
       I.cacheSet(ck, result);
-      I.remember('review', question, 'review?' + new URLSearchParams({ q: question }));
+      I.remember('review', question, 'review?' + new URLSearchParams({ q: question }), { keys: [ck] });
       my.done = true;
       my.result = result;
       if (onPage(question)) { my.seen = true; show(question, result); } else my.seen = false;
@@ -297,7 +297,10 @@
   const thumb = (url) => I.shrink(url, 220);
 
   function renderDx(_, p = {}) {
-    if (p.at) { const old = dxRecent().find((x) => String(x.at) === String(p.at)); if (old && dxShown?.at !== old.at) { dxShown = old; dxPics = []; } }
+    if (p.at) {
+      const old = dxRecent().find((x) => String(x.at) === String(p.at)) || I.history().find((x) => x.kind === 'dx' && x.data && String(x.data.at) === String(p.at))?.data;
+      if (old && dxShown?.at !== old.at) { dxShown = old; dxPics = []; }
+    }
     view.innerHTML = `${D.topbar('Diagnose from picture')}
       <p class="small">Add up to three pictures of one case (e.g. clinical, dermoscopy and histology together). Use photos taken with consent, without faces or other identifying features.</p>
       <div class="row wrap" id="dx-kinds">${Object.entries(DX_KINDS).map(([k, [l]]) => `<button class="chip ${k === dxKind ? 'on' : ''}" data-act="dx-kind" data-v="${k}">${esc(l)}</button>`).join('')}</div>
@@ -307,7 +310,11 @@
       <div id="dx-out"></div>
       <div id="dx-recent"></div>`;
     paintPics();
-    if (dxShown) showDx(dxShown); else paintRecent();
+    if (dxJob) dxJob.seen = dxJob.state !== 'running' ? true : dxJob.seen;
+    dxBar();
+    if (dxJob?.state === 'running') $('#dx-out').innerHTML = busyDx();
+    else if (dxJob?.state === 'error' && !dxShown) { $('#dx-out').innerHTML = I.aiErr(new Error(dxJob.message)); dxJob = null; paintRecent(); }
+    else if (dxShown) showDx(dxShown); else paintRecent();
   }
   function paintPics() {
     const el = $('#dx-pics');
@@ -334,15 +341,34 @@
   actions['dx-clear'] = () => { store.set('dx.recent', []); $('#dx-recent').innerHTML = ''; };
   actions['dx-old'] = (b) => { const r = dxRecent()[+b.dataset.i]; if (r) { dxShown = r; showDx(r); window.scrollTo(0, 0); } };
 
+  // ---- The reading runs in the background: leave the screen and a bar above the tabs shows it,
+  // then "ready · Open"; the result is also in History.
+  let dxJob = null; // { state: 'running' | 'done' | 'error', entry, message, seen }
+  const onDx = () => D.current.name === 'dx';
+  const busyDx = () => I.busyHtml('Reading the pictures… this can take a minute or two. You can leave this screen and keep using the app: a bar shows when it is ready, and it is saved in History.');
+  function dxBar() {
+    let el = document.getElementById('dx-bar');
+    const show = dxJob && !onDx() && !dxJob.seen;
+    if (!show) { el?.remove(); return; }
+    if (!el) { el = document.createElement('button'); el.id = 'dx-bar'; el.className = 'rv-bar dx-bar'; el.dataset.act = 'dx-bar'; document.body.appendChild(el); }
+    el.innerHTML = dxJob.state === 'running' ? '<span class="spin"></span>🩺 Reading your pictures…'
+      : dxJob.state === 'done' ? `🩺 Diagnosis ready: ${esc((dxJob.entry.r.diagnosis || 'see result').slice(0, 40))} · <b>Open</b>` : '🩺 Diagnosis didn\'t finish · <b>Open</b>';
+  }
+  actions['dx-bar'] = () => { if (!dxJob) return; go(dxJob.entry ? 'dx?' + new URLSearchParams({ at: dxJob.entry.at }) : 'dx'); };
+  window.addEventListener('hashchange', () => setTimeout(dxBar, 50));
   actions['dx-go'] = async () => {
     const out = $('#dx-out');
     if (!dxPics.length) { toast('Add a picture first'); return; }
     if (!D.aiHasKey()) { out.innerHTML = I.keyCard(); return; }
+    if (dxJob?.state === 'running') { toast('Still reading the last pictures'); return; }
     const ctx = $('#dx-ctx').value.trim();
     store.set('dx.ctx', ctx);
     const pics = dxPics.slice();
-    out.innerHTML = I.busyHtml(pics.length > 1 ? 'Reading the pictures together…' : 'Reading the picture…');
+    dxShown = null;
+    dxJob = { state: 'running' };
+    out.innerHTML = busyDx();
     $('#dx-recent').innerHTML = '';
+    const job = dxJob;
     try {
       const image = await collage(pics);
       const what = pics.map((p, i) => `${pics.length > 1 ? `Picture ${i + 1} (labelled "${i + 1}. ${DX_KINDS[p.kind][0]}") is ` : 'The picture is '}${DX_KINDS[p.kind][1]}.`).join('\n');
@@ -368,8 +394,14 @@ Give 3-5 differentials. Base everything on what is visible; say so plainly when 
       store.set('dx.recent', [entry, ...dxRecent()].slice(0, 20));
       I.remember('dx', `${r.diagnosis || 'Picture'} · ${entry.kinds}`, 'dx?' + new URLSearchParams({ at: entry.at }), { thumb: entry.thumb });
       dxShown = { ...entry, image };
-      showDx(dxShown);
-    } catch (e) { out.innerHTML = I.aiErr(e); }
+      Object.assign(job, { state: 'done', entry, seen: onDx() });
+      if (onDx()) showDx(dxShown); else toast(`Diagnosis ready: ${r.diagnosis || 'see result'}`);
+    } catch (e) {
+      Object.assign(job, { state: 'error', message: e.message, seen: onDx() });
+      const o = $('#dx-out');
+      if (o) o.innerHTML = I.aiErr(e);
+    }
+    dxBar();
   };
 
   function showDx(e) {
@@ -407,6 +439,15 @@ Give 3-5 differentials. Base everything on what is visible; say so plainly when 
     paintThread(e);
   }
   // ---- Follow-up questions on a case: with the pictures while they are open, else from the findings.
+  /** A kept case's copy in History follows its new follow-ups and comparison. */
+  function syncKept(e) {
+    const all = I.history();
+    const x = all.find((y) => y.kind === 'dx' && y.kept && y.data && y.data.at === e.at);
+    if (!x) return;
+    const { image, ...rest } = e;
+    x.data = rest;
+    store.set(I.HIST, all);
+  }
   function paintThread(e) {
     const box = $('#dx-thread');
     if (!box) return;
@@ -432,6 +473,7 @@ Answer for a dermatologist in under 250 words, practical and specific, Markdown.
       e.thread = [...(e.thread || []), { q, a }];
       const all = dxRecent(); const k = all.findIndex((x) => x.at === e.at);
       if (k >= 0) { all[k].thread = e.thread; store.set('dx.recent', all); }
+      syncKept(e);
       out.innerHTML = md(a);
     } catch (err) { out.innerHTML = I.aiErr(err); }
   }
@@ -523,6 +565,7 @@ Answer only as JSON: {"best": "the diagnosis the clinician's picture matches bes
       e.cmp = v;
       const all = dxRecent(); const k = all.findIndex((x) => x.at === e.at);
       if (k >= 0) { all[k].cmp = v; store.set('dx.recent', all); }
+      syncKept(e);
       showCmp(v, image, rows);
     } catch (err) { box.innerHTML = I.aiErr(err); }
   };
@@ -577,20 +620,45 @@ Answer only as JSON: {"best": "the diagnosis the clinician's picture matches bes
     const days = Math.floor((new Date(now.toDateString()) - new Date(d.toDateString())) / 864e5);
     return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : days < 7 ? 'This week' : days < 31 ? 'This month' : 'Earlier';
   };
+  const DAY = 864e5;
+  const ageDays = (x) => (Date.now() - x.at) / DAY;
+  // Not kept and within 10 days of expiring / already expired (the question stays listed; opening it asks again).
+  const expiring = (x) => !x.kept && ageDays(x) >= I.KEEP_DAYS - 10 && ageDays(x) < I.KEEP_DAYS;
+  const expired = (x) => !x.kept && ageDays(x) >= I.KEEP_DAYS;
   const histRow = (x) => {
     const [e, label] = KINDS[x.kind] || ['•', ''];
-    return `<div class="hist-row"><button class="hist-open" data-act="hist-open" data-r="${esc(x.route)}">${x.thumb ? `<img src="${x.thumb}" alt="">` : `<span class="hist-e">${e}</span>`}
-      <span><b>${esc(x.title)}</b><small>${esc(label)} · ${new Date(x.at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></span></button>
+    const note = x.kept ? ' · ☆ Kept' : expired(x) ? ' · answer expired, tap to ask again' : expiring(x) ? ` · expires in ${Math.max(1, Math.ceil(I.KEEP_DAYS - ageDays(x)))} days` : '';
+    return `<div class="hist-row ${expired(x) ? 'old' : ''}"><button class="hist-open" data-act="hist-open" data-r="${esc(x.route)}">${x.thumb ? `<img src="${x.thumb}" alt="">` : `<span class="hist-e">${e}</span>`}
+      <span><b>${esc(x.title)}</b><small>${esc(label)} · ${new Date(x.at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${note}</small></span></button>
+      <button class="hist-keep ${x.kept ? 'on' : ''}" data-act="hist-keep" data-r="${esc(x.route)}" aria-label="${x.kept ? 'Kept' : 'Keep'}" title="${x.kept ? 'Kept: never expires' : 'Keep: never expires'}">${x.kept ? '★' : '☆'}</button>
       <button class="hist-x" data-act="hist-del" data-r="${esc(x.route)}" aria-label="Remove">×</button></div>`;
+  };
+  const warnHtml = () => {
+    const n = I.history().filter(expiring).length;
+    return n ? `<div class="panel small hist-warn">⏳ <b>${n} answer${n > 1 ? 's' : ''} will expire within 10 days.</b> Tap ☆ on the ones you want to keep; kept answers never expire.</div>` : '';
+  };
+  actions['hist-keep'] = (b) => {
+    const all = I.history();
+    const x = all.find((y) => y.route === b.dataset.r);
+    if (!x) return;
+    x.kept = !x.kept;
+    // Picture readings live in their own short lists: a kept one is copied into History itself.
+    if (x.kept && x.kind === 'dx') x.data = dxRecent().find((y) => String(y.at) === new URLSearchParams(x.route.split('?')[1]).get('at')) || x.data;
+    if (x.kept && x.kind === 'img') x.data = store.get('imgl.recent', []).find((y) => String(y.at) === new URLSearchParams(x.route.split('?')[1]).get('at')) || x.data;
+    if (!x.kept) delete x.data;
+    store.set(I.HIST, all);
+    toast(x.kept ? 'Kept: this answer won\'t expire' : 'No longer kept');
+    if (D.current.name === 'history') paintHistory(); else render();
   };
   function renderHistory() {
     const all = I.history();
     view.innerHTML = `${D.topbar('History')}
-      <input id="hist-q" placeholder="Search your questions" value="">
-      <div class="scroll-x" style="margin:8px 0"><button class="chip ${histKind ? '' : 'on'}" data-act="hist-kind" data-v="">All</button>${Object.entries(KINDS).filter(([k]) => all.some((x) => x.kind === k)).map(([k, [e, l]]) => `<button class="chip ${histKind === k ? 'on' : ''}" data-act="hist-kind" data-v="${k}">${e} ${esc(l)}</button>`).join('')}</div>
+      <input id="hist-q" class="dx-ctx" placeholder="Search your questions" value="">
+      <div class="scroll-x" style="margin:8px 0"><button class="chip ${histKind ? '' : 'on'}" data-act="hist-kind" data-v="">All</button><button class="chip ${histKind === 'kept' ? 'on' : ''}" data-act="hist-kind" data-v="kept">★ Kept</button>${Object.entries(KINDS).filter(([k]) => all.some((x) => x.kind === k)).map(([k, [e, l]]) => `<button class="chip ${histKind === k ? 'on' : ''}" data-act="hist-kind" data-v="${k}">${e} ${esc(l)}</button>`).join('')}</div>
+      ${warnHtml()}
       <div id="hist-list"></div>
       ${all.length ? '<button class="btn xs" data-act="hist-clear" style="margin-top:12px">Clear history</button>' : ''}
-      <p class="muted small">Answers are kept on this phone for 90 days; the oldest go first if the app's storage fills up.</p>`;
+      <p class="muted small">Answers are kept on this phone for ${I.KEEP_DAYS} days, and the oldest go first if the app's storage fills up; you are told 10 days before. ★ Kept answers stay until you remove them. Questions stay listed after their answer expires; opening one asks again.</p>`;
     paintHistory();
     $('#hist-q').addEventListener('input', paintHistory);
   }
@@ -598,7 +666,7 @@ Answer only as JSON: {"best": "the diagnosis the clinician's picture matches bes
     const el = $('#hist-list');
     if (!el) return;
     const q = ($('#hist-q')?.value || '').toLowerCase().trim();
-    const list = I.history().filter((x) => (!histKind || x.kind === histKind) && (!q || x.title.toLowerCase().includes(q)));
+    const list = I.history().filter((x) => (!histKind || (histKind === 'kept' ? x.kept : x.kind === histKind)) && (!q || x.title.toLowerCase().includes(q)));
     if (!list.length) { el.innerHTML = '<div class="empty"><b>Nothing here yet</b><div>Questions you ask and answers the AI writes appear here.</div></div>'; return; }
     let last = '';
     el.innerHTML = list.map((x) => { const w = when(x.at); const h = w !== last ? `<h4 class="hist-h">${w}</h4>` : ''; last = w; return h + histRow(x); }).join('');
@@ -611,7 +679,7 @@ Answer only as JSON: {"best": "the diagnosis the clinician's picture matches bes
   ext.homeRecent = () => {
     const list = I.history().slice(0, 3);
     return list.length ? `<div class="section"><div class="section-h"><h3>Recent answers</h3><button data-act="go-history">See all</button></div>
-      <div class="list-card hist-card">${list.map(histRow).join('')}</div></div>` : '';
+      ${warnHtml()}<div class="list-card hist-card">${list.map(histRow).join('')}</div></div>` : '';
   };
   actions['go-history'] = () => go('history');
 

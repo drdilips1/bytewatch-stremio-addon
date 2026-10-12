@@ -560,18 +560,26 @@
     const text = await D.ai(task, { doc: packText(refs), system: CITE_SYSTEM, schema, max });
     return D.aiJson(text);
   }
-  // Answers are kept 90 days (the oldest give way when the phone's storage for the app is full).
-  const cacheGet = (k) => { const v = store.get('intel.' + k, null); return v && Date.now() - v.at < 90 * 864e5 ? v.data : null; };
-
   // ---- History: every question asked and answer written, in one list (#history), newest first.
+  // Answers are kept 90 days; ones marked ☆ Keep never expire and are never cleared for space.
   const HIST = 'history2';
+  const KEEP_DAYS = 90;
   const history = () => store.get(HIST, []);
-  /** Records a question with the screen that answers it again (from its saved answer). */
+  const keptKeys = () => new Set(history().filter((x) => x.kept).flatMap((x) => x.keys || []));
+  const cacheGet = (k) => {
+    const v = store.get('intel.' + k, null);
+    return v && (Date.now() - v.at < KEEP_DAYS * 864e5 || keptKeys().has(k)) ? v.data : null;
+  };
+  /** Records a question with the screen that answers it again (from its saved answer, under {@code keys}). */
   function remember(kind, title, route, extra = {}) {
     if (!title || !route) return;
-    const list = history().filter((x) => x.route !== route);
-    list.unshift({ kind, title: String(title).slice(0, 240), route, at: Date.now(), ...extra });
-    store.set(HIST, list.slice(0, 200));
+    const all = history();
+    const was = all.find((x) => x.route === route);
+    const list = all.filter((x) => x.route !== route);
+    list.unshift({ kind, title: String(title).slice(0, 240), route, at: Date.now(), ...(was?.kept ? { kept: true, data: was.data } : {}), ...extra });
+    // At most 200, never dropping kept ones.
+    let n = 0;
+    store.set(HIST, list.filter((x) => x.kept || ++n <= 200));
   }
   const cacheSet = (k, data) => store.set('intel.' + k, { at: Date.now(), data });
 
@@ -714,7 +722,7 @@
         cacheSet(ck, r);
       } catch (e) { out.innerHTML = aiErr(e); return; }
     }
-    remember('ev', question, evHash(question));
+    remember('ev', question, evHash(question), { keys: [ck] });
     if (!$('#ev-out')) return;
     out.innerHTML = `<div class="panel synth">
       <div class="label">${icon('spark')}Bottom line ${strength(r.strength)}</div><p class="bottom">${citeHtml(esc(r.bottomLine), ctx)}</p>
@@ -954,7 +962,7 @@
     const keep = (sv) => {
       cacheSet(key, sv);
       const title = pick ? (sv.paper?.title || sel.selectedOptions[0]?.textContent || pick) + (input ? ' — ' + input : '') : input;
-      remember('desk', `${m.emoji} ${title}`, 'desk?' + new URLSearchParams({ mode, q: pick && !input ? asked : input, run: '1', ...(pick ? { paper: pick } : {}) }));
+      remember('desk', `${m.emoji} ${title}`, 'desk?' + new URLSearchParams({ mode, q: pick && !input ? asked : input, run: '1', ...(pick ? { paper: pick } : {}) }), { keys: [key] });
     };
     actions['desk-redo'] = () => runDesk(mode, input, true);
     if (saved) { deskShow(out, saved); return; }
@@ -1414,6 +1422,6 @@
     api, q, epmc, trials, trialOf, trialTerm, gather, refsFrom, packText, bestRefs, basedOn, newCtx, contexts, citeHtml, citeBtns, strength, refRow, trialCard,
     keyCard, aiErr, busyHtml, aiJsonCall, cacheGet, cacheSet, obj, S, CITE_SYSTEM, paperText, openUrl, evHash, today, daysAgo, TILES, DISEASES,
     needKey, GUIDE, STANDARD, SAFETY, TREAT, isTreatmentQ, planSearch, evidencePool, stepsHtml, absShort, exportBtns, offerExport, STRENGTH,
-    remember, history, HIST,
+    remember, history, HIST, KEEP_DAYS,
   };
 })();

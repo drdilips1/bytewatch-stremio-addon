@@ -700,7 +700,10 @@
   let shownImg = null;
   function renderImgRead(_, q = {}) {
     // From History: a reading kept on this phone.
-    if (q.at && !pendingImg) { const old = store.get('imgl.recent', []).find((x) => String(x.at) === String(q.at)); if (old) shownImg = { dataUrl: old.thumb, html: old.html, kind: old.kind }; }
+    if (q.at && !pendingImg) {
+      const old = store.get('imgl.recent', []).find((x) => String(x.at) === String(q.at)) || I.history().find((x) => x.kind === 'img' && x.data && String(x.data.at) === String(q.at))?.data;
+      if (old) shownImg = { dataUrl: old.thumb, html: old.html, kind: old.kind };
+    }
     const p = pendingImg || shownImg;
     if (!p) { go('images', { replace: true }); return; }
     pendingImg = null;

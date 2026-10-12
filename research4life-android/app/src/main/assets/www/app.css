@@ -1412,3 +1412,8 @@ td > .strength .meter i { width: 6px; height: 18px; border-radius: 3px; }
 .hist-h { margin: 14px 0 2px; color: var(--text-3); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
 #hist-list { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 14px; }
 #hist-list .empty { padding: 20px 0; }
+.hist-keep { border: 0; background: none; color: var(--text-3); font-size: 19px; padding: 6px 4px; }
+.hist-keep.on { color: var(--accent); }
+.hist-row.old .hist-open b { color: var(--text-3); font-weight: 500; }
+.hist-warn { margin-bottom: 8px; border-color: #e3a008; }
+.dx-bar { bottom: calc(var(--nav-h) + 62px); }
