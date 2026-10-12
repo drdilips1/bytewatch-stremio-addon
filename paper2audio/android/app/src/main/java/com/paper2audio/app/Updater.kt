@@ -57,13 +57,14 @@ object Updater {
         private set
 
     /**
-     * On every start (at most every 3 hours) checks for a newer version: [onNewer] shows it
+     * On every start (at most every 10 minutes) checks for a newer version: [onNewer] shows it
      * (the library's banner), and the first time a version is seen it is offered right away.
      */
     fun checkOnStart(activity: Activity, scope: CoroutineScope, onNewer: (Release) -> Unit) {
         available?.let { if (it.code > currentCode(activity)) onNewer(it) }
         val prefs = activity.getSharedPreferences("p2a", Context.MODE_PRIVATE)
-        if (System.currentTimeMillis() - prefs.getLong("updateCheckedAt", 0) < 3 * 3_600_000L && available == null) {
+        // A tiny file, so it's checked every time the app opens (at most every 10 minutes).
+        if (System.currentTimeMillis() - prefs.getLong("updateCheckedAt", 0) < 10 * 60_000L && available == null) {
             // Checked recently: still show a version found then.
             val code = prefs.getLong("updateSeen", 0)
             if (code > currentCode(activity)) onNewer(Release(code, prefs.getString("updateSeenName", "").orEmpty()).also { available = it })
