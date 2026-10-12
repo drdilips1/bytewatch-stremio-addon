@@ -22,6 +22,9 @@ object Themes {
     class Theme(val key: String, val label: String, val style: Int)
 
     val ALL = listOf(
+        Theme("grove", "🌲  Grove (forest green and gold)", R.style.Theme_P2A_Grove),
+        Theme("clay", "🏺  Clay (warm cream and burnt orange)", R.style.Theme_P2A_Clay),
+        Theme("harbor", "⚓  Harbor (off-white and blue)", R.style.Theme_P2A_Harbor),
         Theme("system", "⚙️  System (light or dark)", 0),
         Theme("ocean", "🔵  Ocean", R.style.Theme_P2A_Ocean),
         Theme("forest", "🟢  Forest", R.style.Theme_P2A_Forest),
@@ -35,18 +38,38 @@ object Themes {
 
     private fun prefs(context: Context) = context.getSharedPreferences("p2a", Context.MODE_PRIVATE)
 
-    fun currentKey(context: Context): String = prefs(context).getString("theme", "system") ?: "system"
+    /** The new look (6.2) starts everyone on Grove once; any theme can still be chosen afterwards. */
+    fun currentKey(context: Context): String {
+        val p = prefs(context)
+        if (BuildConfig.LITE) return p.getString("theme", "system") ?: "system" // Narrato keeps its own look
+        if (!p.getBoolean("look62", false)) {
+            p.edit().putBoolean("look62", true).putString("theme", "grove").apply()
+            return "grove"
+        }
+        return p.getString("theme", "grove") ?: "grove"
+    }
+
+    private var titleFace: android.graphics.Typeface? = null
+
+    /** The serif used for titles across the app (DM Serif Display). */
+    fun titleFont(context: Context): android.graphics.Typeface =
+        titleFace ?: (runCatching { context.resources.getFont(R.font.dm_serif_display) }.getOrNull()
+            ?: android.graphics.Typeface.SERIF).also { titleFace = it }
 
     fun set(context: Context, key: String) = prefs(context).edit().putString("theme", key).apply()
 
+    /** The themes offered (Narrato keeps its original set). */
+    val offered: List<Theme> get() = if (BuildConfig.LITE) ALL.drop(3) else ALL
+
     fun showPicker(activity: Activity) {
-        val current = ALL.indexOfFirst { it.key == currentKey(activity) }.coerceAtLeast(0)
+        val list = offered
+        val current = list.indexOfFirst { it.key == currentKey(activity) }.coerceAtLeast(0)
         android.app.AlertDialog.Builder(activity)
             .setTitle("Theme")
-            .setSingleChoiceItems(ALL.map { it.label }.toTypedArray(), current) { dialog, which ->
+            .setSingleChoiceItems(list.map { it.label }.toTypedArray(), current) { dialog, which ->
                 dialog.dismiss()
                 if (which != current) {
-                    set(activity, ALL[which].key)
+                    set(activity, list[which].key)
                     activity.recreate()
                 }
             }
@@ -111,7 +134,10 @@ object Opener {
     }
 
     /** Imports a new document into the library. Call off the main thread. */
-    fun import(context: Context, fetch: () -> Loader.Source, progress: (String) -> Unit = {}, url: String? = null): Pair<Library.Item, Doc> {
+    fun import(
+        context: Context, fetch: () -> Loader.Source, progress: (String) -> Unit = {}, url: String? = null,
+        checkDuplicate: Boolean = false,
+    ): Pair<Library.Item, Doc> {
         val src = fetch()
         val doc = try {
             if (src.kind == Loader.Kind.PDF) recognizeScannedPages(context, src.file, all = false, progress)
@@ -121,8 +147,18 @@ object Opener {
             src.file.delete()
             throw e
         }
+        if (checkDuplicate) Library.duplicateOf(context, doc)?.let { throw Duplicate(it, src, doc, url) }
+        return addParsed(context, src, doc, url)
+    }
+
+    /** Adds an already parsed document (e.g. "Add anyway" for a duplicate). Call off the main thread. */
+    fun addParsed(context: Context, src: Loader.Source, doc: Doc, url: String?): Pair<Library.Item, Doc> {
         val item = Library.add(context, src, doc)
         if (url != null) Library.setUrl(context, item, url)
         return item to doc
     }
+
+    /** The document being added is already in the library as [existing]. */
+    class Duplicate(val existing: Library.Item, val src: Loader.Source, val doc: Doc, val url: String?) :
+        Exception("“${existing.title}” is already in your library")
 }

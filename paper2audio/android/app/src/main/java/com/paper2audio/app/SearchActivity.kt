@@ -195,7 +195,14 @@ class SearchActivity : Activity() {
         scope.launch {
             try {
                 val (item, doc) = withContext(Dispatchers.IO) {
-                    val (item, doc) = Opener.import(this@SearchActivity, { Loader.download(this@SearchActivity, r.downloadUrl) }, url = r.downloadUrl)
+                    // Already in the library (downloaded before): open that copy instead of adding another.
+                    val have = Library.items(this@SearchActivity).firstOrNull { it.url == r.downloadUrl }
+                    val (item, doc) = if (have != null) have to Opener.parse(this@SearchActivity, have) else try {
+                        Opener.import(this@SearchActivity, { Loader.download(this@SearchActivity, r.downloadUrl) }, url = r.downloadUrl, checkDuplicate = true)
+                    } catch (d: Opener.Duplicate) {
+                        d.src.file.delete()
+                        d.existing to Opener.parse(this@SearchActivity, d.existing)
+                    }
                     // The catalogue's title/author/summary are cleaner than what's inside many files.
                     val found = Metadata.Found(r.title, r.author, r.year?.take(4)?.toIntOrNull(), r.summary, r.coverUrl, "search")
                     val cover = r.coverUrl?.let { runCatching { Metadata.bytes(it) }.getOrNull() }

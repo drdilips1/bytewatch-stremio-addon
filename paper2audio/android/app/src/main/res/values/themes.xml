@@ -184,4 +184,73 @@
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:alertDialogTheme">@android:style/Theme.Material.Dialog.Alert</item>
     </style>
+    <style name="Theme.P2A.Grove" parent="android:Theme.Material.NoActionBar">
+        <item name="p2aBg">#0E2A25</item>
+        <item name="p2aSurface">#163A33</item>
+        <item name="p2aSurface2">#1F4A41</item>
+        <item name="p2aAccent">#D4B26A</item>
+        <item name="p2aOnAccent">#1B1608</item>
+        <item name="p2aText">#F3EBDD</item>
+        <item name="p2aMuted">#A9B8B0</item>
+        <item name="p2aBackground">@drawable/bg_theme_grove</item>
+        <item name="android:colorPrimary">#D4B26A</item>
+        <item name="android:colorPrimaryDark">#123630</item>
+        <item name="android:colorAccent">#D4B26A</item>
+        <item name="android:colorControlActivated">#D4B26A</item>
+        <item name="android:colorControlNormal">#A9B8B0</item>
+        <item name="android:windowBackground">@drawable/bg_theme_grove</item>
+        <item name="android:statusBarColor">#123630</item>
+        <item name="android:navigationBarColor">#0B231F</item>
+        <item name="android:textColorPrimary">#F3EBDD</item>
+        <item name="android:textColorSecondary">#A9B8B0</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:alertDialogTheme">@android:style/Theme.Material.Dialog.Alert</item>
+    </style>
+    <style name="Theme.P2A.Clay" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="p2aBg">#FBF3E6</item>
+        <item name="p2aSurface">#FFFAF2</item>
+        <item name="p2aSurface2">#F2E2CB</item>
+        <item name="p2aAccent">#A9531A</item>
+        <item name="p2aOnAccent">#FFFFFF</item>
+        <item name="p2aText">#2B2118</item>
+        <item name="p2aMuted">#7A6A58</item>
+        <item name="p2aBackground">@drawable/bg_theme_clay</item>
+        <item name="android:colorPrimary">#A9531A</item>
+        <item name="android:colorPrimaryDark">#F4DDBE</item>
+        <item name="android:colorAccent">#A9531A</item>
+        <item name="android:colorControlActivated">#A9531A</item>
+        <item name="android:colorControlNormal">#7A6A58</item>
+        <item name="android:windowBackground">@drawable/bg_theme_clay</item>
+        <item name="android:statusBarColor">#F4DDBE</item>
+        <item name="android:navigationBarColor">#F7EBDA</item>
+        <item name="android:textColorPrimary">#2B2118</item>
+        <item name="android:textColorSecondary">#7A6A58</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:alertDialogTheme">@android:style/Theme.Material.Light.Dialog.Alert</item>
+    </style>
+    <style name="Theme.P2A.Harbor" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="p2aBg">#F5F2EC</item>
+        <item name="p2aSurface">#FFFFFF</item>
+        <item name="p2aSurface2">#E2E9F2</item>
+        <item name="p2aAccent">#2F5E8C</item>
+        <item name="p2aOnAccent">#FFFFFF</item>
+        <item name="p2aText">#18222E</item>
+        <item name="p2aMuted">#5D6878</item>
+        <item name="p2aBackground">@drawable/bg_theme_harbor</item>
+        <item name="android:colorPrimary">#2F5E8C</item>
+        <item name="android:colorPrimaryDark">#D5E1EE</item>
+        <item name="android:colorAccent">#2F5E8C</item>
+        <item name="android:colorControlActivated">#2F5E8C</item>
+        <item name="android:colorControlNormal">#5D6878</item>
+        <item name="android:windowBackground">@drawable/bg_theme_harbor</item>
+        <item name="android:statusBarColor">#D5E1EE</item>
+        <item name="android:navigationBarColor">#EEF1F5</item>
+        <item name="android:textColorPrimary">#18222E</item>
+        <item name="android:textColorSecondary">#5D6878</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:alertDialogTheme">@android:style/Theme.Material.Light.Dialog.Alert</item>
+    </style>
 </resources>

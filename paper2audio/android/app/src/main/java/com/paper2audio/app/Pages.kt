@@ -58,6 +58,9 @@ abstract class Page(protected val activity: Activity, protected val host: PagesH
     abstract fun title(): String
     protected abstract fun build()
 
+    /** The row at the right of the title, for the page's buttons. */
+    protected val actions: LinearLayout get() = ui.actionsOf(body)
+
     fun refresh() {
         // Keep the small app name and the title; rebuild the rest.
         while (body.childCount > 2) body.removeViewAt(2)
@@ -71,39 +74,51 @@ abstract class Page(protected val activity: Activity, protected val host: PagesH
 
 // ---------------------------------------------------------------------------------------------
 
-/** Home: continue listening, quick ways in, search for books. */
+/**
+ * Home: the book you're listening to (in its cover's colors), the ones to continue, and books
+ * picked for you. Everything else lives in the tabs below and the + button.
+ */
 class HomePage(activity: Activity, host: PagesHost) : Page(activity, host) {
-    override fun title() = "Home"
+    private var heroButton: android.widget.Button? = null
+    private var heroId: String? = null
+    private val prefs = activity.getSharedPreferences("p2a", android.content.Context.MODE_PRIVATE)
+
+    override fun title() = "Paper to Audio"
+
+    init {
+        actions.addView(ui.iconButton(R.drawable.ic_search, "Find a book") {
+            activity.startActivity(Intent(activity, SearchActivity::class.java))
+        }, LinearLayout.LayoutParams(ui.dp(44), ui.dp(44)).apply { marginEnd = ui.dp(8) })
+        actions.addView(ui.button("Add", icon = R.drawable.ic_add) { host.showAddMenu() }.apply {
+            minHeight = ui.dp(44)
+            minimumHeight = ui.dp(44)
+            setPadding(ui.dp(14), 0, ui.dp(16), 0)
+        })
+    }
+
+    private fun greeting(): String {
+        val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        return when (h) {
+            in 5..11 -> "Good morning"
+            in 12..16 -> "Good afternoon"
+            else -> "Good evening"
+        }
+    }
+
+    /** Keeps the hero's Play/Pause in step with the player. */
+    fun updatePlaying() {
+        val b = heroButton ?: return
+        val playing = Speaker.playing && Speaker.doc?.key == heroId
+        b.text = if (playing) "Pause" else "Resume"
+        b.setCompoundDrawablesRelativeWithIntrinsicBounds(if (playing) R.drawable.ic_pause else R.drawable.ic_play, 0, 0, 0)
+    }
 
     override fun build() {
-        // Search books (Bookracy and free classics) right at the top.
-        val search = LinearLayout(activity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setBackgroundResource(R.drawable.bg_card)
-            setPadding(ui.dp(16), 0, ui.dp(8), 0)
+        (body.getChildAt(0) as TextView).apply {
+            text = greeting()
+            textSize = 13f
+            letterSpacing = 0f
         }
-        search.addView(ImageView(activity).apply {
-            setImageResource(R.drawable.ic_search)
-            imageTintList = android.content.res.ColorStateList.valueOf(ui.color(R.attr.p2aMuted))
-        }, LinearLayout.LayoutParams(ui.dp(22), ui.dp(22)))
-        val q = EditText(activity).apply {
-            hint = "Find a book to listen to…"
-            background = null
-            isSingleLine = true
-            imeOptions = EditorInfo.IME_ACTION_SEARCH
-            minHeight = ui.dp(52)
-            setTextColor(ui.color(R.attr.p2aText))
-            setHintTextColor(ui.color(R.attr.p2aMuted))
-            setOnEditorActionListener { _, id, _ ->
-                if (id == EditorInfo.IME_ACTION_SEARCH) {
-                    activity.startActivity(Intent(activity, SearchActivity::class.java).putExtra("q", text.toString()))
-                }
-                id == EditorInfo.IME_ACTION_SEARCH
-            }
-        }
-        search.addView(q, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = ui.dp(10) })
-        body.addView(search, ui.full(12))
 
         Updater.available?.takeIf { it.code > Updater.currentCode(activity) }?.let { r ->
             ui.row(body, R.drawable.ic_sync, "Update ready: version ${r.name}", "Tap to install. Your library and voices stay.") {
@@ -111,50 +126,25 @@ class HomePage(activity: Activity, host: PagesHost) : Page(activity, host) {
             }
         }
 
-        // Continue listening.
-        val current = Speaker.doc?.let { Library.get(activity, it.key) }
-            ?: Library.items(activity).maxByOrNull { it.opened }
-        if (current != null) {
-            val c = ui.card(body, "🎧 Continue listening")
-            val row = LinearLayout(activity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                isClickable = true
-                setOnClickListener { host.openItem(current) }
-            }
-            val cover = ImageView(activity).apply {
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                setBackgroundResource(R.drawable.bg_thumb)
-            }
-            host.bindCover(cover, current.id)
-            row.addView(cover, LinearLayout.LayoutParams(ui.dp(64), ui.dp(88)))
-            val texts = LinearLayout(activity).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(ui.dp(14), 0, 0, 0)
-            }
-            texts.addView(ui.text(current.title, 17f, bold = true).apply { maxLines = 2 })
-            current.author?.let { texts.addView(ui.text(it, 13f, muted = true)) }
-            val pct = Library.progress(activity, current)
-            val left = Library.minutesLeft(activity, current, Speaker.speed)
-            texts.addView(ui.text("$pct% · ${if (left >= 60) "${left / 60} h ${left % 60} min" else "$left min"} left", 13f, muted = true))
-            row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            c.addView(row)
-            val buttons = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
-            val playing = Speaker.playing && Speaker.doc?.key == current.id
-            buttons.addView(ui.button(if (playing) "Pause" else "Play", icon = if (playing) R.drawable.ic_pause else R.drawable.ic_play) {
-                if (Speaker.doc?.key == current.id) Speaker.toggle() else host.openItem(current)
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = ui.dp(5) })
-            buttons.addView(ui.button("Car mode", soft = true, icon = R.drawable.ic_car) {
-                if (Speaker.doc?.key == current.id) activity.startActivity(Intent(activity, CarModeActivity::class.java))
-                else host.openItem(current)
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = ui.dp(5) })
-            c.addView(buttons, ui.full(12))
+        val all = Library.items(activity)
+        if (all.isEmpty()) {
+            val c = ui.card(body, "Welcome")
+            c.addView(ui.text("Add a book, a paper or a web article, and it's read aloud in a natural voice.", muted = true))
+            c.addView(ui.button("Add your first book", icon = R.drawable.ic_add) { host.showAddMenu() }, ui.full(12))
+            c.addView(ui.button("Find a free book", soft = true, icon = R.drawable.ic_search) {
+                activity.startActivity(Intent(activity, SearchActivity::class.java))
+            }, ui.full(8))
+            return
         }
 
-        // Recently opened, as covers.
-        val recent = Library.items(activity).sortedByDescending { it.opened }.filter { it.id != current?.id }.take(10)
+        // The book you're listening to.
+        val current = Speaker.doc?.let { Library.get(activity, it.key) } ?: all.maxByOrNull { it.opened }
+        if (current != null) hero(current)
+
+        // Continue: the others, as covers.
+        val recent = all.sortedByDescending { it.opened }.filter { it.id != current?.id }.take(12)
         if (recent.isNotEmpty()) {
-            body.addView(ui.text("Recently opened", 16f, bold = true), ui.full(18))
+            ui.heading(body, "Continue", link = "See all") { host.showTab(Tabs.LIBRARY) }
             val strip = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
             for (item in recent) {
                 val cell = LinearLayout(activity).apply {
@@ -165,31 +155,215 @@ class HomePage(activity: Activity, host: PagesHost) : Page(activity, host) {
                 val cover = ImageView(activity).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     setBackgroundResource(R.drawable.bg_thumb)
+                    elevation = ui.dp(4).toFloat()
+                    outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+                    clipToOutline = true
                 }
                 host.bindCover(cover, item.id)
-                cell.addView(cover, LinearLayout.LayoutParams(ui.dp(92), ui.dp(128)))
-                cell.addView(ui.text(item.title, 12f).apply { maxLines = 2; width = ui.dp(92) })
-                strip.addView(cell, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = ui.dp(12) })
+                cell.addView(cover, LinearLayout.LayoutParams(ui.dp(108), ui.dp(160)))
+                cell.addView(ProgressBar(activity, null, 0, R.style.P2A_Progress).apply {
+                    max = 100
+                    progress = Library.progress(activity, item)
+                }, LinearLayout.LayoutParams(ui.dp(108), ui.dp(3)).apply { topMargin = ui.dp(8) })
+                cell.addView(ui.text(item.title, 13f).apply {
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }, LinearLayout.LayoutParams(ui.dp(108), ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = ui.dp(6) })
+                strip.addView(cell, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = ui.dp(14) })
             }
             body.addView(HorizontalScrollView(activity).apply {
                 isHorizontalScrollBarEnabled = false
+                clipToPadding = false
+                setPadding(0, ui.dp(4), 0, ui.dp(4))
                 addView(strip)
-            }, ui.full(8))
+            }, ui.full(6))
         }
 
-        ui.row(body, R.drawable.ic_list, "📚  Books", "${Library.items(activity).size} in your library", top = 18) { host.showTab(Tabs.LIBRARY) }
-        val collections = Library.collections(activity)
-        if (collections.isNotEmpty()) {
-            ui.row(body, R.drawable.ic_bookmark, "🎓  Courses and collections", collections.take(4).joinToString(", ")) { host.showTab(Tabs.LIBRARY) }
+        // Picked for you (from Discover), each book its own card.
+        val picks = savedPicks()
+        if (!aiOff() && picks.isNotEmpty() && !prefs.getBoolean("hidePicks", false)) {
+            ui.heading(body, "✦  Picked for you", link = "Hide") {
+                prefs.edit().putBoolean("hidePicks", true).apply()
+                toast("Hidden. Your picks stay in Discover.")
+                refresh()
+            }
+            val strip = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+            for (r in picks.take(8)) strip.addView(pickCard(r), LinearLayout.LayoutParams(ui.dp(264), ViewGroup.LayoutParams.MATCH_PARENT).apply { marginEnd = ui.dp(12) })
+            body.addView(HorizontalScrollView(activity).apply {
+                isHorizontalScrollBarEnabled = false
+                addView(strip)
+            }, ui.full(6))
         }
-        if (!aiOff()) {
-            ui.row(body, R.drawable.ic_explore, "✨  AI Discover", "What to read next, for your taste") { host.showTab(Tabs.DISCOVER) }
-            ui.row(body, R.drawable.ic_sparkle, "🔍  Ask your library", "“What have I learned about…?”") {
-                AskSheet.forLibrary(activity, host.scope)
+    }
+
+    /** The current book, large, on a background made from its cover's colors. */
+    private fun hero(item: Library.Item) {
+        heroId = item.id
+        val card = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(ui.dp(18), ui.dp(18), ui.dp(18), ui.dp(18))
+            elevation = ui.dp(6).toFloat()
+        }
+        fun paint(tint: Int) {
+            card.background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                intArrayOf(tint, blend(tint, 0xFF0B1F1B.toInt(), 0.55f)),
+            ).apply { cornerRadius = ui.dp(26).toFloat() }
+        }
+        paint(0xFF1F5034.toInt())
+        host.scope.launch {
+            val bmp = Thumbs.load(Library.thumb(activity, item.id), ui.dp(96)) ?: return@launch
+            paint(ui.coverTint(bmp))
+        }
+        val light = 0xFFF6F1E7.toInt()
+        val soft = 0xCCF6F1E7.toInt()
+        val top = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.BOTTOM
+            isClickable = true
+            setOnClickListener { host.openItem(item) }
+        }
+        val cover = ImageView(activity).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setBackgroundResource(R.drawable.bg_thumb)
+            elevation = ui.dp(8).toFloat()
+            outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+            clipToOutline = true
+        }
+        host.bindCover(cover, item.id)
+        top.addView(cover, LinearLayout.LayoutParams(ui.dp(96), ui.dp(142)))
+        val texts = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(ui.dp(16), 0, 0, ui.dp(2))
+        }
+        val listening = Speaker.doc?.key == item.id
+        texts.addView(TextView(activity).apply {
+            text = if (listening) "NOW LISTENING" else "CONTINUE"
+            textSize = 11.5f
+            letterSpacing = 0.1f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(soft)
+        })
+        texts.addView(TextView(activity).apply {
+            text = item.title
+            textSize = 22f
+            maxLines = 3
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            typeface = Themes.titleFont(activity)
+            setTextColor(light)
+            setPadding(0, ui.dp(4), 0, ui.dp(2))
+        })
+        val chapter = Speaker.doc?.takeIf { listening }?.chapterAt(Speaker.index)?.title
+        listOfNotNull(item.author, chapter).joinToString(" · ").takeIf { it.isNotBlank() }?.let {
+            texts.addView(TextView(activity).apply {
+                text = it
+                textSize = 13.5f
+                maxLines = 2
+                setTextColor(soft)
+            })
+        }
+        top.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        card.addView(top)
+
+        val pct = Library.progress(activity, item)
+        val left = Library.minutesLeft(activity, item, Speaker.speed)
+        card.addView(ProgressBar(activity, null, 0, R.style.P2A_Progress).apply {
+            max = 100
+            progress = pct
+            progressTintList = android.content.res.ColorStateList.valueOf(light)
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0x33FFFFFF)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ui.dp(4)).apply { topMargin = ui.dp(16) })
+        val meta = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+        meta.addView(TextView(activity).apply {
+            text = "$pct%"
+            textSize = 12f
+            setTextColor(soft)
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        meta.addView(TextView(activity).apply {
+            text = "${if (left >= 60) "${left / 60} h ${left % 60} min" else "$left min"} left"
+            textSize = 12f
+            setTextColor(soft)
+        })
+        card.addView(meta, ui.full(6))
+
+        val buttons = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val play = android.widget.Button(activity, null, 0, R.style.P2A_Button).apply {
+            background = android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(0x22000000),
+                android.graphics.drawable.GradientDrawable().apply {
+                    setColor(light)
+                    cornerRadius = ui.dp(26).toFloat()
+                },
+                null,
+            )
+            setTextColor(0xFF10241F.toInt())
+            compoundDrawableTintList = android.content.res.ColorStateList.valueOf(0xFF10241F.toInt())
+            minHeight = ui.dp(52)
+            setOnClickListener { if (Speaker.doc?.key == item.id) Speaker.toggle() else host.openItem(item) }
+        }
+        heroButton = play
+        updatePlaying()
+        buttons.addView(play, LinearLayout.LayoutParams(0, ui.dp(52), 1f))
+        buttons.addView(ImageView(activity).apply {
+            setImageResource(R.drawable.ic_car)
+            contentDescription = "Car mode"
+            imageTintList = android.content.res.ColorStateList.valueOf(light)
+            setPadding(ui.dp(14), ui.dp(14), ui.dp(14), ui.dp(14))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setStroke(ui.dp(1), 0x66FFFFFF)
+            }
+            isClickable = true
+            setOnClickListener {
+                if (Speaker.doc?.key == item.id) activity.startActivity(Intent(activity, CarModeActivity::class.java))
+                else host.openItem(item)
+            }
+        }, LinearLayout.LayoutParams(ui.dp(52), ui.dp(52)).apply { marginStart = ui.dp(10) })
+        card.addView(buttons, ui.full(14))
+        body.addView(card, ui.full(10))
+    }
+
+    private fun blend(a: Int, b: Int, t: Float): Int {
+        fun ch(shift: Int) = (((a shr shift) and 0xFF) * (1 - t) + ((b shr shift) and 0xFF) * t).toInt() shl shift
+        return (0xFF shl 24) or ch(16) or ch(8) or ch(0)
+    }
+
+    private fun pickCard(r: Brain.Recommendation): View {
+        val card = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card)
+            setPadding(ui.dp(14), ui.dp(14), ui.dp(14), ui.dp(10))
+            isClickable = true
+            setOnClickListener {
+                activity.startActivity(Intent(activity, SearchActivity::class.java).putExtra("q", "${r.title} ${r.author}".trim()))
             }
         }
-        ui.row(body, R.drawable.ic_add, "⬆  Import", "Files, links, Bookracy, scans, pasted text") { host.showAddMenu() }
+        card.addView(TextView(activity).apply {
+            text = r.title
+            textSize = 16f
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            typeface = Themes.titleFont(activity)
+            setTextColor(ui.color(R.attr.p2aText))
+        })
+        if (r.author.isNotBlank()) card.addView(ui.text(r.author, 12.5f, muted = true))
+        if (r.why.isNotBlank()) card.addView(ui.text(r.why, 13f).apply {
+            maxLines = 3
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, ui.full(6))
+        card.addView(ui.textButton("Find and listen ›") {
+            activity.startActivity(Intent(activity, SearchActivity::class.java).putExtra("q", "${r.title} ${r.author}".trim()))
+        }.apply { setPadding(0, 0, 0, 0) })
+        return card
     }
+
+    private fun savedPicks(): List<Brain.Recommendation> = runCatching {
+        val arr = JSONArray(prefs.getString("lastRecs", "[]"))
+        (0 until arr.length()).map { arr.getJSONObject(it) }.map { Brain.Recommendation(it.optString("t"), it.optString("a"), it.optString("w")) }
+    }.getOrDefault(emptyList())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -350,18 +524,42 @@ class DiscoverPage(activity: Activity, host: PagesHost) : Page(activity, host) {
 
     private fun show(into: LinearLayout, recs: List<Brain.Recommendation>) {
         into.removeAllViews()
+        if (recs.isNotEmpty() && prefs.getBoolean("hidePicks", false)) {
+            into.addView(ui.textButton("Show these picks on Home again") {
+                prefs.edit().putBoolean("hidePicks", false).apply()
+                toast("They'll show on Home")
+                show(into, recs)
+            })
+        }
         for (r in recs) {
+            // Each book its own card, so one doesn't run into the next.
             val box = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(0, ui.dp(12), 0, ui.dp(4))
+                setBackgroundResource(R.drawable.bg_card)
+                setPadding(ui.dp(16), ui.dp(14), ui.dp(16), ui.dp(10))
             }
-            box.addView(ui.text(r.title, 16f, bold = true))
-            if (r.author.isNotBlank()) box.addView(ui.text(r.author, 13f, muted = true))
-            if (r.why.isNotBlank()) box.addView(ui.text(r.why, 14f))
-            box.addView(ui.textButton("Find and listen ›") {
-                activity.startActivity(Intent(activity, SearchActivity::class.java).putExtra("q", "${r.title} ${r.author}".trim()))
+            box.addView(TextView(activity).apply {
+                text = r.title
+                textSize = 18f
+                typeface = Themes.titleFont(activity)
+                setTextColor(ui.color(R.attr.p2aText))
             })
-            into.addView(box)
+            if (r.author.isNotBlank()) box.addView(ui.text(r.author, 13f, muted = true))
+            if (r.why.isNotBlank()) box.addView(ui.text(r.why, 14f), ui.full(6))
+            val row = LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            row.addView(ui.button("Find and listen") {
+                activity.startActivity(Intent(activity, SearchActivity::class.java).putExtra("q", "${r.title} ${r.author}".trim()))
+            }.apply { minHeight = ui.dp(40); minimumHeight = ui.dp(40) })
+            row.addView(ui.textButton("Not for me") {
+                val left = saved().filterNot { it.title == r.title && it.author == r.author }
+                save(left)
+                show(into, left)
+            })
+            box.addView(row, ui.full(10))
+            into.addView(box, ui.full(12))
         }
     }
 }

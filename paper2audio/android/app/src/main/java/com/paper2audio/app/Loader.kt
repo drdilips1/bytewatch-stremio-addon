@@ -66,6 +66,8 @@ object Loader {
     private fun store(context: Context, name: String, write: (java.io.OutputStream) -> Unit): Source {
         val tmp = File(context.filesDir, "incoming.tmp")
         tmp.outputStream().use(write)
+        // Kindle books and FictionBook files are stored as the web page they contain.
+        val name = Formats.convert(tmp, name) ?: name
         val kind = sniff(tmp, name)
         val id = java.util.UUID.randomUUID().toString().replace("-", "").take(16)
         val dest = File(Library.dir(context).apply { mkdirs() }, "$id." + kind.name.lowercase())

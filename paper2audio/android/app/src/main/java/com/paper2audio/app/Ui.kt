@@ -17,30 +17,87 @@ class Ui(val activity: Activity) {
     fun dp(v: Int) = (v * d).toInt()
     fun color(attr: Int) = Themes.color(activity, attr)
 
-    /** A scrolling page with a small spaced-out app name and a big title, like the reference design. */
+    /**
+     * A scrolling page: a small line above (the app name, or a greeting), a serif title, and room
+     * for buttons at the title's right ([actionsOf]).
+     */
     fun page(title: String): Pair<ScrollView, LinearLayout> {
         val body = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(18), dp(18), dp(24))
+            setPadding(dp(18), dp(16), dp(18), dp(24))
         }
         body.addView(TextView(activity).apply {
             text = "P A P E R   T O   A U D I O"
             textSize = 11f
-            letterSpacing = 0.15f
+            letterSpacing = 0.12f
             setTextColor(color(R.attr.p2aMuted))
         })
-        body.addView(TextView(activity).apply {
+        val titleRow = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        titleRow.addView(TextView(activity).apply {
             text = title
             textSize = 30f
-            setTypeface(typeface, Typeface.BOLD)
+            typeface = Themes.titleFont(activity)
             setTextColor(color(R.attr.p2aText))
-            setPadding(0, dp(6), 0, dp(4))
+            setPadding(0, dp(2), 0, dp(4))
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        titleRow.addView(LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         })
+        body.addView(titleRow)
         val scroll = ScrollView(activity).apply {
             isFillViewport = true
             addView(body)
         }
         return scroll to body
+    }
+
+    /** The row at the right of a page's title, for its buttons. */
+    fun actionsOf(body: LinearLayout): LinearLayout = (body.getChildAt(1) as LinearLayout).getChildAt(1) as LinearLayout
+
+    /** A round icon button with an outline (like the search button on Home). */
+    fun iconButton(icon: Int, description: String, onClick: () -> Unit) = ImageView(activity).apply {
+        setImageResource(icon)
+        contentDescription = description
+        imageTintList = android.content.res.ColorStateList.valueOf(color(R.attr.p2aText))
+        setPadding(dp(11), dp(11), dp(11), dp(11))
+        background = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            setStroke(dp(1), color(R.attr.p2aSurface2))
+        }
+        isClickable = true
+        setOnClickListener { onClick() }
+    }
+
+    /** A section heading in the serif, with an optional link at the right ("See all"). */
+    fun heading(parent: LinearLayout, title: String, top: Int = 22, link: String? = null, onLink: (() -> Unit)? = null) {
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(TextView(activity).apply {
+            text = title
+            textSize = 20f
+            typeface = Themes.titleFont(activity)
+            setTextColor(color(R.attr.p2aText))
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        if (link != null && onLink != null) row.addView(textButton(link, onLink).apply { minHeight = dp(36); minimumHeight = dp(36) })
+        parent.addView(row, full(top))
+    }
+
+    /** A dark, rich version of a cover's average color, for the background behind it. */
+    fun coverTint(bmp: android.graphics.Bitmap): Int {
+        val one = android.graphics.Bitmap.createScaledBitmap(bmp, 1, 1, true)
+        val c = one.getPixel(0, 0)
+        if (one != bmp) one.recycle()
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(c, hsv)
+        hsv[1] = (hsv[1] * 1.15f).coerceIn(0.25f, 0.85f)
+        hsv[2] = hsv[2].coerceIn(0.28f, 0.42f)
+        return android.graphics.Color.HSVToColor(hsv)
     }
 
     fun full(top: Int = 12) = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(top) }

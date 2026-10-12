@@ -37,6 +37,8 @@ object Library {
         var collection: String? = null,
         /** Where it was downloaded from, so other devices can fetch it again (account sync). */
         var url: String? = null,
+        /** Reading status the reader set ([Status]); null means worked out from progress. */
+        var status: String? = null,
     ) {
         fun toJson() = JSONObject()
             .put("id", id).put("title", title).put("author", author ?: "")
@@ -46,6 +48,7 @@ object Library {
             .put("chapters", chapters).put("pages", pages)
             .put("description", description ?: "").put("year", year)
             .put("notes", JSONArray(notes)).put("collection", collection ?: "").put("url", url ?: "")
+            .put("status", status ?: "")
 
         companion object {
             fun fromJson(o: JSONObject) = Item(
@@ -56,6 +59,7 @@ object Library {
                 o.optString("description").ifBlank { null }, o.optInt("year"),
                 o.optJSONArray("notes")?.toString() ?: "[]", o.optString("collection").ifBlank { null },
                 o.optString("url").ifBlank { null },
+                o.optString("status").ifBlank { null },
             )
         }
     }
@@ -146,27 +150,43 @@ object Library {
         }
     }
 
-    class Note(val index: Int, val text: String, val at: Long) {
-        val isBookmark get() = text.isBlank()
+    /** A bookmark (no text), a note, or a highlight ([color]: yellow, green, blue or pink). */
+    class Note(val index: Int, val text: String, val at: Long, val color: String? = null) {
+        val isBookmark get() = text.isBlank() && color == null
     }
+
+    val HIGHLIGHT_COLORS = linkedMapOf(
+        "yellow" to 0x66F5C542, "green" to 0x5577C98B, "blue" to 0x557FA8E0, "pink" to 0x55EE8FB4,
+    )
 
     fun notes(item: Item): List<Note> {
         val arr = runCatching { JSONArray(item.notes) }.getOrElse { JSONArray() }
         return (0 until arr.length()).map { arr.getJSONObject(it) }
-            .map { Note(it.optInt("i"), it.optString("t"), it.optLong("at")) }
+            .map { Note(it.optInt("i"), it.optString("t"), it.optLong("at"), it.optString("c").ifBlank { null }) }
             .sortedBy { it.index }
     }
 
     private fun saveNotes(context: Context, item: Item, notes: List<Note>) = synchronized(this) {
         val arr = JSONArray()
-        notes.forEach { arr.put(JSONObject().put("i", it.index).put("t", it.text).put("at", it.at)) }
+        notes.forEach { n ->
+            arr.put(JSONObject().put("i", n.index).put("t", n.text).put("at", n.at).apply { n.color?.let { put("c", it) } })
+        }
         item.notes = arr.toString()
         item.opened = maxOf(item.opened, System.currentTimeMillis())
         save(context)
     }
 
-    fun addNote(context: Context, item: Item, index: Int, text: String) =
-        saveNotes(context, item, notes(item) + Note(index, text.trim(), System.currentTimeMillis()))
+    fun addNote(context: Context, item: Item, index: Int, text: String, color: String? = null) =
+        saveNotes(context, item, notes(item) + Note(index, text.trim(), System.currentTimeMillis(), color))
+
+    /** The highlight color of paragraph [index], if it's highlighted. */
+    fun highlightAt(item: Item, index: Int): String? = notes(item).lastOrNull { it.index == index && it.color != null }?.color
+
+    /** Highlights paragraph [index] in [color], or removes its highlight (null). */
+    fun setHighlight(context: Context, item: Item, index: Int, color: String?) {
+        val kept = notes(item).filterNot { it.index == index && it.color != null && it.text.isBlank() }
+        saveNotes(context, item, if (color == null) kept else kept + Note(index, "", System.currentTimeMillis(), color))
+    }
 
     fun deleteNote(context: Context, item: Item, note: Note) =
         saveNotes(context, item, notes(item).filterNot { it.at == note.at })
@@ -273,6 +293,7 @@ object Library {
                 local.description = r.description
                 local.year = r.year
                 local.collection = r.collection
+                local.status = r.status
             }
             if (local != null) {
                 local.notes = mergeNotes(local.notes, r.notes)
@@ -302,6 +323,43 @@ object Library {
             arr.put(item.toJson().put("pos", p.getInt("pos:${item.id}", 0)).put("posAt", p.getLong("posAt:${item.id}", 0)))
         }
         Merged(list.toList(), deletedIds, JSONObject().put("items", arr).put("deleted", deleted))
+    }
+
+    /** Reading statuses, as the library's filter shows them. */
+    enum class Status(val key: String, val label: String) {
+        READING("reading", "Reading"),
+        NOT_STARTED("new", "Not started"),
+        WANT("want", "Want to read"),
+        FINISHED("finished", "Finished"),
+        DNF("dnf", "Didn't finish"),
+    }
+
+    /** [item]'s status: the one the reader set, else from how far they've listened. */
+    fun status(context: Context, item: Item): Status {
+        Status.entries.firstOrNull { it.key == item.status }?.let { return it }
+        val pct = progress(context, item)
+        return when {
+            pct >= 98 -> Status.FINISHED
+            pct > 0 || prefs(context).contains("pos:${item.id}") -> Status.READING
+            else -> Status.NOT_STARTED
+        }
+    }
+
+    fun setStatus(context: Context, item: Item, status: Status?) = synchronized(this) {
+        item.status = status?.key
+        item.opened = maxOf(item.opened, System.currentTimeMillis())
+        save(context)
+    }
+
+    /** A document already in the library that looks like the same one as [doc] (same title and length). */
+    fun duplicateOf(context: Context, doc: Doc): Item? {
+        fun norm(t: String) = t.lowercase().replace(Regex("""[^\p{L}\p{N}]+"""), " ").trim()
+        val title = norm(doc.title)
+        if (title.length < 3) return null
+        return items(context).firstOrNull { other ->
+            norm(other.title) == title && other.words > 0 &&
+                kotlin.math.abs(other.words - doc.words) <= maxOf(50, other.words / 50)
+        }
     }
 
     /** Listening progress, 0..100. */

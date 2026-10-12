@@ -21,6 +21,7 @@ import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.GridView
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -44,6 +45,7 @@ class LibraryActivity : Activity(), PagesHost {
         const val REQ_CAMERA = 3
         const val REQ_MEDIA = 4
         const val REQ_DICTATE = 5
+        const val REQ_FOLDER = 6
         val SORTS = arrayOf("Recently opened", "Recently added", "Title", "Author", "Progress")
     }
 
@@ -58,6 +60,12 @@ class LibraryActivity : Activity(), PagesHost {
     private var items: List<Library.Item> = emptyList()
     private var allItems: List<Library.Item> = emptyList()
     private var collection: String? = null
+    /** Reading status filter (null: all). */
+    private var statusFilter: Library.Status? = null
+    private lateinit var grid: GridView
+    private lateinit var miniProgress: ProgressBar
+    private lateinit var dockLine: View
+    private val gridMode get() = getSharedPreferences("p2a", MODE_PRIVATE).getBoolean("libraryGrid", true)
     private var query = ""
     /** Camera pages captured so far in the current scan. */
     private val scanPages = ArrayList<String>()
@@ -113,6 +121,25 @@ class LibraryActivity : Activity(), PagesHost {
             items.getOrNull(position)?.let(::itemMenu)
             true
         }
+        grid = findViewById(R.id.grid)
+        grid.adapter = gridAdapter
+        grid.setOnItemClickListener { _, _, position, _ -> items.getOrNull(position)?.let(::open) }
+        grid.setOnItemLongClickListener { _, _, position, _ ->
+            items.getOrNull(position)?.let(::itemMenu)
+            true
+        }
+        miniProgress = findViewById(R.id.miniProgress)
+        dockLine = findViewById(R.id.dockLine)
+        findViewById<TextView>(R.id.libraryTitle).typeface = Themes.titleFont(this)
+        findViewById<ImageButton>(R.id.btnAdd).setOnClickListener { showAddMenu() }
+        findViewById<ImageButton>(R.id.btnView).setOnClickListener {
+            getSharedPreferences("p2a", MODE_PRIVATE).edit().putBoolean("libraryGrid", !gridMode).apply()
+            applyFilter()
+        }
+        findViewById<EditText>(R.id.filter).setOnEditorActionListener { v, id, _ ->
+            if (id == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH && v.text.isNotBlank()) searchInside(v.text.toString().trim())
+            id == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+        }
         findViewById<Button>(R.id.btnAddFile).setOnClickListener { showAddMenu() }
         findViewById<Button>(R.id.btnScan).setOnClickListener { showScanMenu() }
         findViewById<Button>(R.id.btnAddLink).setOnClickListener { askForLink() }
@@ -167,13 +194,14 @@ class LibraryActivity : Activity(), PagesHost {
                 setPadding(0, (4 * d).toInt(), 0, (2 * d).toInt())
                 setOnClickListener { showTab(i) }
             }
+            item.contentDescription = Tabs.LABELS[i]
             item.addView(ImageView(this).apply {
                 setImageResource(Tabs.ICONS[i])
-                setPadding((14 * d).toInt(), (4 * d).toInt(), (14 * d).toInt(), (4 * d).toInt())
-            }, LinearLayout.LayoutParams((56 * d).toInt(), (32 * d).toInt()))
+                setPadding((16 * d).toInt(), (4 * d).toInt(), (16 * d).toInt(), (4 * d).toInt())
+            }, LinearLayout.LayoutParams((56 * d).toInt(), (30 * d).toInt()))
             item.addView(TextView(this).apply {
                 text = Tabs.LABELS[i]
-                textSize = 12f
+                textSize = 10.5f
                 gravity = Gravity.CENTER
             })
             tabBar.addView(item, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -198,8 +226,9 @@ class LibraryActivity : Activity(), PagesHost {
             val icon = item.getChildAt(0) as ImageView
             icon.imageTintList = android.content.res.ColorStateList.valueOf(if (on) accent else muted)
             icon.setBackgroundResource(if (on) R.drawable.bg_chip else 0)
-            (item.getChildAt(1) as TextView).setTextColor(if (on) Themes.color(this, R.attr.p2aText) else muted)
+            (item.getChildAt(1) as TextView).setTextColor(if (on) accent else muted)
         }
+        renderMiniPlayer()
     }
 
     override fun openItem(item: Library.Item) = open(item)
@@ -258,6 +287,7 @@ class LibraryActivity : Activity(), PagesHost {
         val words = query.lowercase().split(' ').filter { it.isNotBlank() }
         val filtered = allItems.filter { item ->
             (collection == null || item.collection == collection) &&
+                (statusFilter == null || Library.status(this, item) == statusFilter) &&
                 words.all { w ->
                     listOfNotNull(item.title, item.author, item.sourceName, item.collection, item.description)
                         .any { it.lowercase().contains(w) }
@@ -271,6 +301,10 @@ class LibraryActivity : Activity(), PagesHost {
             else -> filtered.sortedByDescending { it.opened }
         }
         adapter.notifyDataSetChanged()
+        gridAdapter.notifyDataSetChanged()
+        grid.visibility = if (gridMode) View.VISIBLE else View.GONE
+        list.visibility = if (gridMode) View.GONE else View.VISIBLE
+        findViewById<ImageButton>(R.id.btnView).setImageResource(if (gridMode) R.drawable.ic_list else R.drawable.ic_grid)
         emptyView.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         emptyView.text = if (allItems.isEmpty()) emptyText else "Nothing matches."
     }
@@ -278,20 +312,42 @@ class LibraryActivity : Activity(), PagesHost {
     private fun renderChips() {
         val names = Library.collections(this)
         if (collection != null && collection !in names) collection = null
-        chipScroll.visibility = if (names.isEmpty()) View.GONE else View.VISIBLE
+        chipScroll.visibility = if (allItems.isEmpty()) View.GONE else View.VISIBLE
         chips.removeAllViews()
         val d = resources.displayMetrics.density
-        for (name in listOf<String?>(null) + names) {
-            val on = name == collection
+        // Reading status first: All, Reading, Not started, Want to read, Finished, Didn't finish.
+        for (st in listOf<Library.Status?>(null) + Library.Status.entries) {
+            val on = st == statusFilter && collection == null
             chips.addView(TextView(this).apply {
-                text = name ?: "All"
+                text = st?.label ?: "All"
                 textSize = 14f
                 gravity = Gravity.CENTER
                 setPadding((14 * d).toInt(), (7 * d).toInt(), (14 * d).toInt(), (7 * d).toInt())
                 setBackgroundResource(if (on) R.drawable.bg_chip_on else R.drawable.bg_chip)
                 setTextColor(Themes.color(this@LibraryActivity, if (on) R.attr.p2aOnAccent else R.attr.p2aText))
                 setOnClickListener {
-                    collection = name
+                    statusFilter = st
+                    collection = null
+                    renderChips()
+                    applyFilter()
+                }
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                marginEnd = (8 * d).toInt()
+            })
+        }
+        // Then collections.
+        for (name in names) {
+            val on = name == collection
+            chips.addView(TextView(this).apply {
+                text = "📁 $name"
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setPadding((14 * d).toInt(), (7 * d).toInt(), (14 * d).toInt(), (7 * d).toInt())
+                setBackgroundResource(if (on) R.drawable.bg_chip_on else R.drawable.bg_chip)
+                setTextColor(Themes.color(this@LibraryActivity, if (on) R.attr.p2aOnAccent else R.attr.p2aText))
+                setOnClickListener {
+                    collection = if (collection == name) null else name
+                    statusFilter = null
                     renderChips()
                     applyFilter()
                 }
@@ -330,9 +386,15 @@ class LibraryActivity : Activity(), PagesHost {
     }
 
     private fun renderMiniPlayer() {
+        if (!::miniProgress.isInitialized) return
         val doc = Speaker.doc
-        miniPlayer.visibility = if (doc != null) View.VISIBLE else View.GONE
-        if (doc == null) return
+        val show = doc != null && tab != Tabs.HOME
+        miniPlayer.visibility = if (show) View.VISIBLE else View.GONE
+        miniProgress.visibility = miniPlayer.visibility
+        dockLine.visibility = miniPlayer.visibility
+        if (tab == Tabs.HOME) pageViews[Tabs.HOME]?.let { (it as? HomePage)?.updatePlaying() }
+        if (doc == null || !show) return
+        miniProgress.progress = if (doc.paragraphs.size > 1) Speaker.index * 100 / (doc.paragraphs.size - 1) else 0
         miniTitle.text = doc.title
         val chapter = doc.chapterAt(Speaker.index)?.title
         val pct = if (doc.paragraphs.size > 1) Speaker.index * 100 / (doc.paragraphs.size - 1) else 0
@@ -575,7 +637,7 @@ class LibraryActivity : Activity(), PagesHost {
         scope.launch {
             try {
                 val (item, doc) = withContext(Dispatchers.IO) {
-                    Opener.import(this@LibraryActivity, { fetch(progress) }, progress, url).also { after(it.first) }
+                    Opener.import(this@LibraryActivity, { fetch(progress) }, progress, url, checkDuplicate = true).also { after(it.first) }
                 }
                 thumbs.remove(item.id)
                 withContext(Dispatchers.IO) { Library.opened(this@LibraryActivity, item, doc) }
@@ -583,6 +645,26 @@ class LibraryActivity : Activity(), PagesHost {
                 reload()
                 DriveSync.request(this@LibraryActivity)
                 openPlayer()
+            } catch (d: Opener.Duplicate) {
+                AlertDialog.Builder(this@LibraryActivity)
+                    .setTitle("Already in your library")
+                    .setMessage("“${d.existing.title}” is already in your library. Open that copy, or add this one too?")
+                    .setPositiveButton("Open it") { _, _ ->
+                        d.src.file.delete()
+                        open(d.existing)
+                    }
+                    .setNeutralButton("Add anyway") { _, _ ->
+                        scope.launch {
+                            val (item, doc) = withContext(Dispatchers.IO) { Opener.addParsed(this@LibraryActivity, d.src, d.doc, d.url).also { after(it.first) } }
+                            withContext(Dispatchers.IO) { Library.opened(this@LibraryActivity, item, doc) }
+                            Speaker.load(doc)
+                            reload()
+                            DriveSync.request(this@LibraryActivity)
+                            openPlayer()
+                        }
+                    }
+                    .setNegativeButton("Cancel") { _, _ -> d.src.file.delete() }
+                    .show()
             } catch (e: Exception) {
                 AppLog.e("Import", label, e)
                 toast(e.message ?: "Could not open that")
@@ -594,8 +676,20 @@ class LibraryActivity : Activity(), PagesHost {
 
     private fun importUri(uri: Uri) {
         val type = contentResolver.getType(uri).orEmpty()
+        val name = runCatching {
+            contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        }.getOrNull()
         when {
             type.startsWith("image/") -> importImages(listOf(uri))
+            // A comic (CBZ): its pages are read with text recognition, like photos.
+            Formats.isComic(this, uri, name) -> scope.launch {
+                setBusy("Opening the comic…")
+                val pages = runCatching { withContext(Dispatchers.IO) { Formats.comicPages(this@LibraryActivity, uri) } }
+                setBusy(null)
+                pages.onSuccess { importImages(it) }.onFailure { toast(it.message ?: "Could not open that comic") }
+            }
             type.startsWith("audio/") || type.startsWith("video/") -> GeminiKeyDialog.withKey(this) { transcribe(uri) }
             else -> import("Adding to library…") { Loader.importUri(this, uri) }
         }
@@ -645,9 +739,12 @@ class LibraryActivity : Activity(), PagesHost {
     override fun showAddMenu() {
         val options = arrayOf(
             "Find a book\nSearch Bookracy, free classics and research papers",
-            "Document file\nPDF, EPUB, Word, PowerPoint, Markdown, text or saved web page",
-            "Paste text",
+            "Document file\nPDF, EPUB, Kindle (MOBI, AZW3), FB2, Word, PowerPoint, comics (CBZ), Markdown or text",
+            "A whole folder\nAdds every book and document in it",
+            "Link or arXiv ID\nWeb article, YouTube, or a link to a file",
+            "Scan pages with the camera",
             "Photos or screenshots\nReads the text in the images",
+            "Paste text",
             "Audio or video \u2192 text\nTranscribes lectures, podcasts, interviews and voice notes (Gemini)",
             "Dictate\nSpeak, and it's typed for you",
         )
@@ -657,10 +754,16 @@ class LibraryActivity : Activity(), PagesHost {
                 when (which) {
                     0 -> startActivity(Intent(this, SearchActivity::class.java))
                     1 -> openPicker()
-                    2 -> askForText()
-                    3 -> pickImages()
-                    4 -> GeminiKeyDialog.withKey(this) { pickMedia() }
-                    5 -> askForText(dictate = true)
+                    2 -> pickFolder()
+                    3 -> askForLink()
+                    4 -> {
+                        clearScan()
+                        takePhoto()
+                    }
+                    5 -> pickImages()
+                    6 -> askForText()
+                    7 -> GeminiKeyDialog.withKey(this) { pickMedia() }
+                    8 -> askForText(dictate = true)
                 }
             }
             .show()
@@ -822,12 +925,186 @@ class LibraryActivity : Activity(), PagesHost {
 
     private fun itemMenu(item: Library.Item) {
         val where = item.collection?.let { "Collection: $it" } ?: "Not in a collection"
+        val status = Library.status(this, item).label
         AlertDialog.Builder(this)
             .setTitle(item.title)
-            .setItems(arrayOf("Move to collection…  ($where)", "Remove from library")) { _, which ->
-                if (which == 0) chooseCollection(item) else confirmRemove(item)
+            .setItems(
+                arrayOf(
+                    "Reading status…  ($status)",
+                    "Move to collection…  ($where)",
+                    "Send to Kindle",
+                    "Share the file",
+                    "Export highlights and notes",
+                    "Remove from library",
+                ),
+            ) { _, which ->
+                when (which) {
+                    0 -> chooseStatus(item)
+                    1 -> chooseCollection(item)
+                    2 -> Sharing.sendToKindle(this, scope, item)
+                    3 -> Sharing.shareFile(this, scope, item)
+                    4 -> Sharing.exportNotes(this, scope, item)
+                    else -> confirmRemove(item)
+                }
             }
             .show()
+    }
+
+    private fun chooseStatus(item: Library.Item) {
+        val statuses = Library.Status.entries
+        val labels = statuses.map { it.label }.toTypedArray() + "Automatic (from how far you've listened)"
+        val current = statuses.indexOfFirst { it.key == item.status }.let { if (it < 0) labels.lastIndex else it }
+        AlertDialog.Builder(this)
+            .setTitle("Reading status")
+            .setSingleChoiceItems(labels, current) { d, which ->
+                d.dismiss()
+                Library.setStatus(this, item, statuses.getOrNull(which))
+                reload()
+                DriveSync.request(this)
+            }
+            .show()
+    }
+
+    // ---- A whole folder ----
+
+    private fun pickFolder() {
+        @Suppress("DEPRECATION")
+        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_FOLDER)
+    }
+
+    private val BOOK_FILE = Regex("""\.(pdf|epub|mobi|azw3?|fb2|docx|pptx|md|markdown|txt|html?|cbz)$""", RegexOption.IGNORE_CASE)
+
+    /** The documents in a folder (and its subfolders), as (name, uri). */
+    private fun filesIn(tree: Uri): List<Pair<String, Uri>> {
+        val found = ArrayList<Pair<String, Uri>>()
+        val pending = ArrayDeque(listOf(android.provider.DocumentsContract.getTreeDocumentId(tree)))
+        while (pending.isNotEmpty() && found.size < 500) {
+            val parent = pending.removeFirst()
+            val children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree, parent)
+            contentResolver.query(
+                children,
+                arrayOf(
+                    android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE,
+                ),
+                null, null, null,
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getString(0)
+                    val name = c.getString(1) ?: continue
+                    if (c.getString(2) == android.provider.DocumentsContract.Document.MIME_TYPE_DIR) pending.add(id)
+                    else if (BOOK_FILE.containsMatchIn(name)) found += name to android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, id)
+                }
+            }
+        }
+        return found.sortedBy { it.first.lowercase() }
+    }
+
+    /** Adds every document in a folder, one after another, skipping ones already in the library. */
+    private fun importFolder(tree: Uri) {
+        scope.launch {
+            val files = try {
+                withContext(Dispatchers.IO) { filesIn(tree) }
+            } catch (e: Exception) {
+                toast(e.message ?: "Couldn't read that folder")
+                return@launch
+            }
+            if (files.isEmpty()) {
+                toast("No books or documents found in that folder")
+                return@launch
+            }
+            var added = 0
+            var skipped = 0
+            var failed = 0
+            for ((i, f) in files.withIndex()) {
+                val (name, uri) = f
+                setBusy("Adding ${i + 1} of ${files.size}: $name")
+                try {
+                    withContext(Dispatchers.IO) {
+                        if (Formats.isComic(this@LibraryActivity, uri, name)) {
+                            val pages = Formats.comicPages(this@LibraryActivity, uri)
+                            val text = Ocr.images(this@LibraryActivity, pages) {}
+                            if (text.isBlank()) error("no text")
+                            Opener.import(this@LibraryActivity, { Loader.storeText(this@LibraryActivity, name.substringBeforeLast('.'), text) }, checkDuplicate = true)
+                        } else {
+                            Opener.import(this@LibraryActivity, { Loader.importUri(this@LibraryActivity, uri) }, checkDuplicate = true)
+                        }
+                    }
+                    added++
+                } catch (d: Opener.Duplicate) {
+                    d.src.file.delete()
+                    skipped++
+                } catch (e: Exception) {
+                    AppLog.e("Import", "Folder: $name", e)
+                    failed++
+                }
+                reload()
+            }
+            setBusy(null)
+            DriveSync.request(this@LibraryActivity)
+            toast(
+                listOfNotNull(
+                    "Added $added",
+                    if (skipped > 0) "$skipped already in your library" else null,
+                    if (failed > 0) "$failed couldn't be read" else null,
+                ).joinToString(" · ")
+            )
+        }
+    }
+
+    // ---- Search inside every book ----
+
+    /** Finds [query] in the text of every document in the library, and lists the passages. */
+    private fun searchInside(query: String) {
+        val all = Library.items(this)
+        if (all.isEmpty()) return
+        val words = query.lowercase().split(Regex("""\s+""")).filter { it.length > 1 }
+        if (words.isEmpty()) return
+        class Hit(val item: Library.Item, val index: Int, val text: String)
+        val hits = ArrayList<Hit>()
+        var job: kotlinx.coroutines.Job? = null
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Searching inside your books…")
+            .setMessage("Looking for “$query”")
+            .setNegativeButton("Stop") { _, _ -> job?.cancel() }
+            .show()
+        job = scope.launch {
+            for ((n, item) in all.withIndex()) {
+                dialog.setMessage("Looking for “$query” · ${n + 1} of ${all.size}: ${item.title}")
+                val found = withContext(Dispatchers.Default) {
+                    runCatching {
+                        if (!Library.hasFile(this@LibraryActivity, item)) return@runCatching emptyList<Hit>()
+                        val doc = Speaker.doc?.takeIf { it.key == item.id } ?: Opener.parse(this@LibraryActivity, item)
+                        doc.paragraphs.withIndex()
+                            .filter { (_, p) -> p.lowercase().let { t -> words.all { it in t } } }
+                            .take(20)
+                            .map { (i, p) -> Hit(item, i, p) }
+                    }.getOrDefault(emptyList())
+                }
+                hits += found
+            }
+            dialog.dismiss()
+            if (hits.isEmpty()) {
+                toast("“$query” isn't in any of your books")
+                return@launch
+            }
+            fun snippet(t: String): String {
+                val at = t.lowercase().indexOf(words.first()).coerceAtLeast(0)
+                val from = (at - 60).coerceAtLeast(0)
+                return (if (from > 0) "…" else "") + t.substring(from, (at + 140).coerceAtMost(t.length)).trim() + if (at + 140 < t.length) "…" else ""
+            }
+            AlertDialog.Builder(this@LibraryActivity)
+                .setTitle("“$query” · ${hits.size} passage${if (hits.size == 1) "" else "s"}")
+                .setItems(hits.map { "${it.item.title}\n${snippet(it.text)}" }.toTypedArray()) { _, which ->
+                    val h = hits[which]
+                    getSharedPreferences("p2a", MODE_PRIVATE).edit().putInt("pos:${h.item.id}", h.index).apply()
+                    if (Speaker.doc?.key == h.item.id) Speaker.seek(h.index)
+                    open(h.item)
+                }
+                .setNegativeButton("Close", null)
+                .show()
+        }
     }
 
     private fun chooseCollection(item: Library.Item) {
@@ -915,7 +1192,8 @@ class LibraryActivity : Activity(), PagesHost {
                     "application/pdf", "application/epub+zip", "text/plain", "text/markdown", "text/html",
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                    "application/octet-stream",
+                    "application/octet-stream", "application/x-mobipocket-ebook", "application/vnd.amazon.ebook",
+                    "application/x-fictionbook+xml", "application/vnd.comicbook+zip", "application/x-cbz", "application/zip",
                 ),
             )
         @Suppress("DEPRECATION")
@@ -927,6 +1205,7 @@ class LibraryActivity : Activity(), PagesHost {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_OPEN && resultCode == RESULT_OK) data?.data?.let(::importUri)
+        if (requestCode == REQ_FOLDER && resultCode == RESULT_OK) data?.data?.let(::importFolder)
         if (requestCode == REQ_IMAGES && resultCode == RESULT_OK && data != null) {
             val clip = data.clipData
             val uris = if (clip != null) (0 until clip.itemCount).map { clip.getItemAt(it).uri } else listOfNotNull(data.data)
@@ -1056,6 +1335,40 @@ class LibraryActivity : Activity(), PagesHost {
                 pct == 0 -> "New"
                 else -> "$pct%"
             }
+            bindThumb(h.thumb, item.id)
+            return view
+        }
+    }
+
+    private class GridHolder(root: View) {
+        val cover: View = root.findViewById(R.id.coverBox)
+        val thumb: ImageView = root.findViewById(R.id.thumb)
+        val badge: TextView = root.findViewById(R.id.badge)
+        val progress: ProgressBar = root.findViewById(R.id.progress)
+        val title: TextView = root.findViewById(R.id.title)
+    }
+
+    private val gridAdapter = object : BaseAdapter() {
+        override fun getCount() = items.size
+        override fun getItem(position: Int) = items[position]
+        override fun getItemId(position: Int) = position.toLong()
+
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val view = convertView ?: layoutInflater.inflate(R.layout.item_library_grid, parent, false).also {
+                it.tag = GridHolder(it)
+                rounded(it.findViewById(R.id.coverBox), 8)
+            }
+            val h = view.tag as GridHolder
+            val item = items[position]
+            // Book-shaped covers (2:3), whatever the column width.
+            val colWidth = (parent.width - parent.paddingStart - parent.paddingEnd - (14 * 2 * resources.displayMetrics.density).toInt()) / 3
+            if (colWidth > 0) h.cover.layoutParams = h.cover.layoutParams.apply { height = colWidth * 3 / 2 }
+            h.title.text = item.title
+            val pct = Library.progress(this@LibraryActivity, item)
+            h.progress.progress = pct
+            val status = Library.status(this@LibraryActivity, item)
+            h.badge.visibility = if (status == Library.Status.FINISHED || status == Library.Status.WANT || status == Library.Status.DNF) View.VISIBLE else View.GONE
+            h.badge.text = status.label
             bindThumb(h.thumb, item.id)
             return view
         }
