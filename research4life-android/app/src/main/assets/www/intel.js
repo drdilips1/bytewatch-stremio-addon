@@ -636,6 +636,8 @@
   actions['ev-dermnet'] = (b) => openUrl('https://dermnetnz.org/search?q=' + encodeURIComponent(b.dataset.q));
   // Leeds Virtual Pathology: whole-slide histology (zoomable, free), opened in the in-app browser.
   actions['leeds-open'] = () => openUrl('https://www.virtualpathology.leeds.ac.uk/slides/library/');
+  // PathPresenter's slide library: whole slides, many dermatopathology, also in the in-app browser.
+  actions['pp-open'] = () => openUrl('https://pathpresenter.net/slide-library');
   actions['ev-ictrp'] = (b) => openUrl('https://trialsearch.who.int/?SearchAll=' + encodeURIComponent(trialTerm(b.dataset.q)));
 
   /** The AI panel: synthesis first, then matrix / contradictions / listen on request. */

@@ -567,10 +567,12 @@
   const IMG_KINDS = { clinical: 'Clinical', dermoscopy: 'Dermoscopy', histo: 'Histopathology' };
   async function openI(query) {
     try {
-      const j = await D.getJSON(I.api('openi', 'search?' + new URLSearchParams({ query, m: '1', n: '24', it: 'g,ph,mc' })));
+      // Photographs and microscopy only (graphics brought flowcharts and diagrams).
+      const j = await D.getJSON(I.api('openi', 'search?' + new URLSearchParams({ query, m: '1', n: '24', it: 'ph,mc' })));
       return (j.list || []).map((x) => ({
         src: 'https://openi.nlm.nih.gov' + (x.imgLarge || x.imgThumbLarge || x.imgThumb),
-        thumb: 'https://openi.nlm.nih.gov' + (x.imgThumb || x.imgThumbLarge || x.imgLarge),
+        // The large thumbnail: the small one (150 px) looked blurred when shown bigger.
+        thumb: 'https://openi.nlm.nih.gov' + (x.imgThumbLarge || x.imgLarge || x.imgThumb),
         caption: D.stripTags(x.image?.caption || x.title || ''), source: 'Open-i (NLM) · ' + (x.journal_title || x.pmcid || 'PMC open access'),
         license: x.license || 'Open-access article figure', pmcid: x.pmcid || '',
       }));
@@ -598,7 +600,7 @@
       <div class="row wrap"><button class="btn xs" data-act="img-ddx" ${query ? '' : 'disabled'}>${icon('school')}What looks similar?</button>
         <button class="btn xs" data-act="img-upload">${icon('camera')}My image: histopathology / clinical learning</button>
         ${query ? `<button class="btn xs" data-act="ev-dermnet" data-q="${esc(query)}">${icon('globe')}DermNet</button>` : ''}
-        ${kind === 'histo' ? `<button class="btn xs" data-act="leeds-open">${icon('globe')}Leeds virtual slides</button>` : ''}</div>
+        ${kind === 'histo' ? `<button class="btn xs" data-act="leeds-open">${icon('globe')}Leeds virtual slides</button><button class="btn xs" data-act="pp-open">${icon('globe')}PathPresenter slides</button>` : ''}</div>
       <p class="muted small">${esc(EDU)}</p>
       <div id="img-ddx"></div><div id="img-grid">${query ? D.skeletons(2) : ''}</div>`;
     actions['img-kind'] = (b) => go('images?' + new URLSearchParams({ q: query, kind: b.dataset.v }), { replace: true });

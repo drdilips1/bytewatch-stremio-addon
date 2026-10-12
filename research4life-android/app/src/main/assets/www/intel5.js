@@ -505,7 +505,7 @@ Answer only as JSON: {"best": "the diagnosis the clinician's picture matches bes
         <button class="btn small" data-act="ask" data-q="${esc(`How is ${dx} diagnosed and managed?`)}">${icon('chart')}Evidence answer</button>
         <button class="btn small" data-act="ev-from-search" data-q="${esc(`diagnosis and treatment of ${dx}`)}">${icon('list')}Evidence map</button>
         <button class="btn small" data-act="dx-cases" data-q="${esc(dx)}">${icon('book')}Case reports</button>
-        ${/Histo/.test(dxShown?.kinds || '') ? `<button class="btn small" data-act="leeds-open">${icon('globe')}Leeds virtual slides</button>` : ''}</div>
+        ${/Histo/.test(dxShown?.kinds || '') ? `<button class="btn small" data-act="leeds-open">${icon('globe')}Leeds virtual slides</button><button class="btn small" data-act="pp-open">${icon('globe')}PathPresenter slides</button>` : ''}</div>
       <div id="dx-imgs">${D.skeletons(1)}</div>`;
     const kind = dxShown?.kinds || '';
     const suffix = /Histo/.test(kind) ? ' histopathology' : /Dermoscopy|Tricho/.test(kind) ? ' dermoscopy' : '';
