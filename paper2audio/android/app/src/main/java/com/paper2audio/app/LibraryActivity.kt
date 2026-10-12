@@ -46,6 +46,7 @@ class LibraryActivity : Activity(), PagesHost {
         const val REQ_MEDIA = 4
         const val REQ_DICTATE = 5
         const val REQ_FOLDER = 6
+        const val REQ_GOODREADS = 7
         val SORTS = arrayOf("Recently opened", "Recently added", "Title", "Author", "Progress")
     }
 
@@ -921,6 +922,10 @@ class LibraryActivity : Activity(), PagesHost {
             .section("Organize")
             .row(R.drawable.ic_check, "Reading status", status) { chooseStatus(item) }
             .row(R.drawable.ic_folder, "Move to collection", where) { chooseCollection(item) }
+            .row(R.drawable.ic_sparkle, "Your rating", if (item.myRating > 0) "★".repeat(item.myRating) else "Not rated yet") { chooseMyRating(item) }
+            .row(R.drawable.ic_explore, "Open on Goodreads", item.ratingSource?.let { "Readers' rating ★ %.1f (%s)".format(item.rating, it) }) {
+                Ratings.openOnGoodreads(this, item.title, item.author)
+            }
             .section("Share")
             .row(R.drawable.ic_send, "Send to Kindle", "By email to your Kindle, or with the Kindle app") { Sharing.sendToKindle(this, scope, item) }
             .row(R.drawable.ic_doc, "Share the file", "The book itself, to another app") { Sharing.shareFile(this, scope, item) }
@@ -928,6 +933,59 @@ class LibraryActivity : Activity(), PagesHost {
             .section("")
             .row(R.drawable.ic_delete, "Remove from library") { confirmRemove(item) }
             .show()
+    }
+
+    private fun chooseMyRating(item: Library.Item) {
+        val labels = arrayOf("★", "★★", "★★★", "★★★★", "★★★★★", "No rating")
+        AlertDialog.Builder(this)
+            .setTitle("Your rating")
+            .setSingleChoiceItems(labels, if (item.myRating in 1..5) item.myRating - 1 else 5) { d, which ->
+                d.dismiss()
+                Library.setRating(this, item, 0f, 0, "", if (which < 5) which + 1 else 0)
+                reload()
+                DriveSync.request(this)
+            }
+            .show()
+    }
+
+    // ---- Goodreads ----
+
+    fun importGoodreads() = Ratings.explainImport(this) {
+        @Suppress("DEPRECATION")
+        startActivityForResult(
+            Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+                .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/octet-stream")),
+            REQ_GOODREADS,
+        )
+    }
+
+    private fun importGoodreadsFile(uri: Uri) {
+        setBusy("Reading your Goodreads library…")
+        scope.launch {
+            try {
+                val r = withContext(Dispatchers.IO) {
+                    val csv = contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: error("Could not open the file")
+                    Ratings.importGoodreads(this@LibraryActivity, csv)
+                }
+                reload()
+                pageViews[tab]?.refresh()
+                DriveSync.request(this@LibraryActivity)
+                AlertDialog.Builder(this@LibraryActivity)
+                    .setTitle("Goodreads imported")
+                    .setMessage(
+                        "${r.total} books in your Goodreads library.\n\n" +
+                            "${r.matched} of them are here: they now show Goodreads' rating, your stars and your shelf.\n\n" +
+                            "${r.wantToRead} you want to read aren't here yet: find them in Discover."
+                    )
+                    .setPositiveButton("OK", null)
+                    .show()
+            } catch (e: Exception) {
+                AppLog.e("Goodreads", "Import failed", e)
+                toast(e.message ?: "Couldn't read that file")
+            } finally {
+                setBusy(null)
+            }
+        }
     }
 
     private fun chooseStatus(item: Library.Item) {
@@ -1125,6 +1183,12 @@ class LibraryActivity : Activity(), PagesHost {
         Library.setCollection(this, item, name)
         reload()
         DriveSync.request(this)
+        scope.launch {
+            if (withContext(Dispatchers.IO) { Ratings.refresh(this@LibraryActivity) }) {
+                reload()
+                pageViews[tab]?.refresh()
+            }
+        }
     }
 
     private fun askForLink() {
@@ -1186,6 +1250,7 @@ class LibraryActivity : Activity(), PagesHost {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_OPEN && resultCode == RESULT_OK) data?.data?.let(::importUri)
         if (requestCode == REQ_FOLDER && resultCode == RESULT_OK) data?.data?.let(::importFolder)
+        if (requestCode == REQ_GOODREADS && resultCode == RESULT_OK) data?.data?.let(::importGoodreadsFile)
         if (requestCode == REQ_IMAGES && resultCode == RESULT_OK && data != null) {
             val clip = data.clipData
             val uris = if (clip != null) (0 until clip.itemCount).map { clip.getItemAt(it).uri } else listOfNotNull(data.data)
@@ -1261,7 +1326,8 @@ class LibraryActivity : Activity(), PagesHost {
         }
         view.setImageDrawable(null)
         scope.launch {
-            val bmp = Thumbs.load(Library.thumb(this@LibraryActivity, id), (64 * resources.displayMetrics.density).toInt())
+            // Sharp enough for the big covers (thumbnails are stored at 360 px wide).
+            val bmp = Thumbs.load(Library.thumb(this@LibraryActivity, id), (180 * resources.displayMetrics.density).toInt())
                 ?: return@launch
             thumbs.put(id, bmp)
             if (view.tag == id) view.setImageBitmap(bmp)
@@ -1307,7 +1373,7 @@ class LibraryActivity : Activity(), PagesHost {
             val item = items[position]
             h.title.text = item.title
             h.author.text = item.author ?: item.sourceName
-            h.meta.text = describe(item)
+            h.meta.text = listOfNotNull(Ratings.badge(this@LibraryActivity, item), describe(item)).joinToString(" · ")
             val pct = Library.progress(this@LibraryActivity, item)
             h.progress.progress = pct
             h.percent.text = when {
@@ -1326,6 +1392,8 @@ class LibraryActivity : Activity(), PagesHost {
         val badge: TextView = root.findViewById(R.id.badge)
         val progress: ProgressBar = root.findViewById(R.id.progress)
         val title: TextView = root.findViewById(R.id.title)
+        val author: TextView = root.findViewById(R.id.author)
+        val rating: TextView = root.findViewById(R.id.rating)
     }
 
     private val gridAdapter = object : BaseAdapter() {
@@ -1336,15 +1404,19 @@ class LibraryActivity : Activity(), PagesHost {
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
             val view = convertView ?: layoutInflater.inflate(R.layout.item_library_grid, parent, false).also {
                 it.tag = GridHolder(it)
-                rounded(it.findViewById(R.id.coverBox), 8)
+                rounded(it.findViewById(R.id.coverBox), 12)
             }
             val h = view.tag as GridHolder
             val item = items[position]
-            // Book-shaped covers (2:3), whatever the column width.
+            // Big book-shaped covers (2:3), whatever the column width.
             val colWidth = (parent as? GridView)?.columnWidth?.takeIf { it > 0 }
-                ?: ((parent.width - parent.paddingStart - parent.paddingEnd - (14 * 2 * resources.displayMetrics.density).toInt()) / 3)
+                ?: ((parent.width - parent.paddingStart - parent.paddingEnd - (16 * resources.displayMetrics.density).toInt()) / 2)
             if (colWidth > 0) h.cover.layoutParams = h.cover.layoutParams.apply { height = colWidth * 3 / 2 }
             h.title.text = item.title
+            h.author.text = item.author ?: describe(item)
+            val stars = Ratings.badge(this@LibraryActivity, item)
+            h.rating.visibility = if (stars != null) View.VISIBLE else View.GONE
+            h.rating.text = stars
             val pct = Library.progress(this@LibraryActivity, item)
             h.progress.progress = pct
             val status = Library.status(this@LibraryActivity, item)

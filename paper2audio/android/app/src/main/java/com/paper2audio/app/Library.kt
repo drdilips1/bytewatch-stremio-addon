@@ -39,6 +39,12 @@ object Library {
         var url: String? = null,
         /** Reading status the reader set ([Status]); null means worked out from progress. */
         var status: String? = null,
+        /** Readers' average rating (0: unknown), how many ratings, and where from (Goodreads, Open Library…). */
+        var rating: Float = 0f,
+        var ratingCount: Int = 0,
+        var ratingSource: String? = null,
+        /** The reader's own stars, 1–5 (0: not rated). */
+        var myRating: Int = 0,
     ) {
         fun toJson() = JSONObject()
             .put("id", id).put("title", title).put("author", author ?: "")
@@ -49,6 +55,8 @@ object Library {
             .put("description", description ?: "").put("year", year)
             .put("notes", JSONArray(notes)).put("collection", collection ?: "").put("url", url ?: "")
             .put("status", status ?: "")
+            .put("rating", rating.toDouble()).put("ratingCount", ratingCount).put("ratingSource", ratingSource ?: "")
+            .put("myRating", myRating)
 
         companion object {
             fun fromJson(o: JSONObject) = Item(
@@ -60,6 +68,8 @@ object Library {
                 o.optJSONArray("notes")?.toString() ?: "[]", o.optString("collection").ifBlank { null },
                 o.optString("url").ifBlank { null },
                 o.optString("status").ifBlank { null },
+                o.optDouble("rating", 0.0).toFloat(), o.optInt("ratingCount"), o.optString("ratingSource").ifBlank { null },
+                o.optInt("myRating"),
             )
         }
     }
@@ -294,6 +304,12 @@ object Library {
                 local.year = r.year
                 local.collection = r.collection
                 local.status = r.status
+                local.myRating = r.myRating
+            }
+            if (local != null && r.rating > 0 && (local.rating == 0f || r.ratingSource == "Goodreads")) {
+                local.rating = r.rating
+                local.ratingCount = r.ratingCount
+                local.ratingSource = r.ratingSource
             }
             if (local != null) {
                 local.notes = mergeNotes(local.notes, r.notes)
@@ -348,6 +364,20 @@ object Library {
     fun setStatus(context: Context, item: Item, status: Status?) = synchronized(this) {
         item.status = status?.key
         item.opened = maxOf(item.opened, System.currentTimeMillis())
+        save(context)
+    }
+
+    /** Saves a rating found for [item] (readers' average, and optionally the reader's own stars). */
+    fun setRating(context: Context, item: Item, average: Float, count: Int, source: String, mine: Int? = null) = synchronized(this) {
+        if (average > 0) {
+            item.rating = average
+            item.ratingCount = count
+            item.ratingSource = source
+        }
+        if (mine != null) {
+            item.myRating = mine
+            item.opened = maxOf(item.opened, System.currentTimeMillis()) // newest wins in sync
+        }
         save(context)
     }
 

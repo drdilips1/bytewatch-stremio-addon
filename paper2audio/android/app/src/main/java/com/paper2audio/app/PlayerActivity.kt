@@ -242,6 +242,9 @@ class PlayerActivity : Activity() {
                 item?.let { Sharing.exportNotes(this, scope, it) }
             }
             .section("More")
+            .row(R.drawable.ic_explore, "Open on Goodreads", item?.takeIf { it.rating > 0 }?.let { "Readers' rating ★ %.1f (%s)".format(it.rating, it.ratingSource) }) {
+                Ratings.openOnGoodreads(this, item?.title ?: doc?.title ?: "", item?.author ?: doc?.author)
+            }
             .row(R.drawable.ic_info, "Book details and cover", "Title, author, description, cover") { showDetailsMenu() }
             .row(R.drawable.ic_voice, "Voice studio", "Voices, cloning, full cast") {
                 startActivity(Intent(this, VoiceStudioActivity::class.java))

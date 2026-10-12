@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The rating badge on a cover: "★ 4.1" on a dark pill. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#D9141414" />
+    <corners android:radius="10dp" />
+</shape>

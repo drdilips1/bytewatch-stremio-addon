@@ -152,24 +152,18 @@ class HomePage(activity: Activity, host: PagesHost) : Page(activity, host) {
                     isClickable = true
                     setOnClickListener { host.openItem(item) }
                 }
-                val cover = ImageView(activity).apply {
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    setBackgroundResource(R.drawable.bg_thumb)
-                    elevation = ui.dp(4).toFloat()
-                    outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
-                    clipToOutline = true
-                }
-                host.bindCover(cover, item.id)
-                cell.addView(cover, LinearLayout.LayoutParams(ui.dp(108), ui.dp(160)))
-                cell.addView(ProgressBar(activity, null, 0, R.style.P2A_Progress).apply {
-                    max = 100
-                    progress = Library.progress(activity, item)
-                }, LinearLayout.LayoutParams(ui.dp(108), ui.dp(3)).apply { topMargin = ui.dp(8) })
-                cell.addView(ui.text(item.title, 13f).apply {
+                cell.addView(bigCover(item, 150), LinearLayout.LayoutParams(ui.dp(150), ui.dp(225)))
+                cell.addView(ui.text(item.title, 14.5f, bold = true).apply {
                     maxLines = 2
                     ellipsize = android.text.TextUtils.TruncateAt.END
-                }, LinearLayout.LayoutParams(ui.dp(108), ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = ui.dp(6) })
-                strip.addView(cell, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = ui.dp(14) })
+                }, LinearLayout.LayoutParams(ui.dp(150), ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = ui.dp(10) })
+                item.author?.let {
+                    cell.addView(ui.text(it, 12.5f, muted = true).apply {
+                        maxLines = 1
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    }, LinearLayout.LayoutParams(ui.dp(150), ViewGroup.LayoutParams.WRAP_CONTENT))
+                }
+                strip.addView(cell, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = ui.dp(16) })
             }
             body.addView(HorizontalScrollView(activity).apply {
                 isHorizontalScrollBarEnabled = false
@@ -231,7 +225,7 @@ class HomePage(activity: Activity, host: PagesHost) : Page(activity, host) {
             clipToOutline = true
         }
         host.bindCover(cover, item.id)
-        top.addView(cover, LinearLayout.LayoutParams(ui.dp(96), ui.dp(142)))
+        top.addView(cover, LinearLayout.LayoutParams(ui.dp(116), ui.dp(172)))
         val texts = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(ui.dp(16), 0, 0, ui.dp(2))
@@ -254,7 +248,7 @@ class HomePage(activity: Activity, host: PagesHost) : Page(activity, host) {
             setPadding(0, ui.dp(4), 0, ui.dp(2))
         })
         val chapter = Speaker.doc?.takeIf { listening }?.chapterAt(Speaker.index)?.title
-        listOfNotNull(item.author, chapter).joinToString(" · ").takeIf { it.isNotBlank() }?.let {
+        listOfNotNull(item.author, chapter, Ratings.badge(activity, item)).joinToString(" · ").takeIf { it.isNotBlank() }?.let {
             texts.addView(TextView(activity).apply {
                 text = it
                 textSize = 13.5f
@@ -324,6 +318,42 @@ class HomePage(activity: Activity, host: PagesHost) : Page(activity, host) {
         }, LinearLayout.LayoutParams(ui.dp(52), ui.dp(52)).apply { marginStart = ui.dp(10) })
         card.addView(buttons, ui.full(14))
         body.addView(card, ui.full(10))
+    }
+
+    /** A large cover, rounded, with the readers' rating and a progress line on it. */
+    private fun bigCover(item: Library.Item, widthDp: Int): View {
+        val box = android.widget.FrameLayout(activity).apply {
+            elevation = ui.dp(8).toFloat()
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(v: View, o: android.graphics.Outline) =
+                    o.setRoundRect(0, 0, v.width, v.height, ui.dp(12).toFloat())
+            }
+            clipToOutline = true
+        }
+        val cover = ImageView(activity).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setBackgroundResource(R.drawable.bg_thumb)
+        }
+        host.bindCover(cover, item.id)
+        box.addView(cover, android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        Ratings.badge(activity, item)?.let { stars ->
+            box.addView(TextView(activity).apply {
+                text = stars
+                textSize = 12f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(0xFFF5C542.toInt())
+                setBackgroundResource(R.drawable.bg_rating)
+                setPadding(ui.dp(8), ui.dp(3), ui.dp(8), ui.dp(3))
+            }, android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply {
+                setMargins(ui.dp(8), ui.dp(8), 0, 0)
+            })
+        }
+        val pct = Library.progress(activity, item)
+        if (pct > 0) box.addView(ProgressBar(activity, null, 0, R.style.P2A_Progress).apply {
+            max = 100
+            progress = pct
+        }, android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ui.dp(4), Gravity.BOTTOM))
+        return box
     }
 
     private fun blend(a: Int, b: Int, t: Float): Int {
@@ -506,6 +536,28 @@ class DiscoverPage(activity: Activity, host: PagesHost) : Page(activity, host) {
         ask.addView(busy)
         ask.addView(results)
         show(results, saved())
+        val want = Ratings.goodreadsWant(activity)
+        if (want.isNotEmpty()) {
+            ui.heading(body, "From your Goodreads “Want to read”")
+            for ((title, author, rating) in want.take(30)) {
+                val box = LinearLayout(activity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setBackgroundResource(R.drawable.bg_card)
+                    setPadding(ui.dp(16), ui.dp(12), ui.dp(16), ui.dp(8))
+                }
+                box.addView(TextView(activity).apply {
+                    text = title
+                    textSize = 17f
+                    typeface = Themes.titleFont(activity)
+                    setTextColor(ui.color(R.attr.p2aText))
+                })
+                box.addView(ui.text(listOfNotNull(author.ifBlank { null }, if (rating > 0) "★ %.2f on Goodreads".format(rating) else null).joinToString(" · "), 13f, muted = true))
+                box.addView(ui.textButton("Find and listen ›") {
+                    activity.startActivity(Intent(activity, SearchActivity::class.java).putExtra("q", "$title $author".trim()))
+                }.apply { setPadding(0, 0, 0, 0) })
+                body.addView(box, ui.full(10))
+            }
+        }
         ui.row(body, R.drawable.ic_search, "Search books yourself", "Bookracy and free classics") {
             activity.startActivity(Intent(activity, SearchActivity::class.java))
         }
@@ -593,6 +645,15 @@ class SettingsPage(activity: Activity, host: PagesHost) : Page(activity, host) {
         }
 
         look.addView(ui.textButton("Reading look: font, line spacing, paper color ›") { ReadingLook.show(activity) {} })
+
+        // Ratings and Goodreads.
+        val gr = ui.section(body, R.drawable.ic_explore, "Ratings and Goodreads", "goodreads")
+        ui.switch(gr, "Show readers' ratings on covers", Ratings.enabled(activity)) {
+            Ratings.setEnabled(activity, it)
+            host.showTab(Tabs.SETTINGS)
+        }
+        gr.addView(ui.text("Ratings come from Open Library or Google Books, or from Goodreads when you import your Goodreads library. (Goodreads has no way for apps to look ratings up.)", 13f, muted = true), ui.full(4))
+        gr.addView(ui.textButton("Import my Goodreads library ›") { (activity as? LibraryActivity)?.importGoodreads() })
 
         // Playback.
         val play = ui.section(body, R.drawable.ic_play, "Playback", "playback")

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A book in the library's cover grid: cover, progress line and title. -->
+<!-- A book in the library's cover grid: a big cover (rating and status on it), title and author. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -8,8 +8,8 @@
     <FrameLayout
         android:id="@+id/coverBox"
         android:layout_width="match_parent"
-        android:layout_height="150dp"
-        android:elevation="4dp">
+        android:layout_height="240dp"
+        android:elevation="6dp">
 
         <ImageView
             android:id="@+id/thumb"
@@ -19,37 +19,64 @@
             android:scaleType="centerCrop" />
 
         <TextView
+            android:id="@+id/rating"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_margin="8dp"
+            android:background="@drawable/bg_rating"
+            android:paddingStart="8dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="3dp"
+            android:textColor="#FFF5C542"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
             android:id="@+id/badge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
-            android:layout_margin="6dp"
+            android:layout_margin="8dp"
             android:background="@drawable/bg_chip_on"
-            android:paddingStart="7dp"
-            android:paddingTop="2dp"
-            android:paddingEnd="7dp"
-            android:paddingBottom="2dp"
+            android:paddingStart="8dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="3dp"
             android:textColor="?attr/p2aOnAccent"
-            android:textSize="10sp"
+            android:textSize="11sp"
             android:textStyle="bold"
             android:visibility="gone" />
-    </FrameLayout>
 
-    <ProgressBar
-        android:id="@+id/progress"
-        style="@style/P2A.Progress"
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:layout_marginTop="7dp"
-        android:max="100" />
+        <ProgressBar
+            android:id="@+id/progress"
+            style="@style/P2A.Progress"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_gravity="bottom"
+            android:max="100" />
+    </FrameLayout>
 
     <TextView
         android:id="@+id/title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
+        android:layout_marginTop="10dp"
         android:ellipsize="end"
         android:maxLines="2"
         android:textColor="?attr/p2aText"
-        android:textSize="12.5sp" />
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/author"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:textColor="?attr/p2aMuted"
+        android:textSize="13sp" />
 </LinearLayout>
