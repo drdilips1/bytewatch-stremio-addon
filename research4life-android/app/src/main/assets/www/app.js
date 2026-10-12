@@ -673,6 +673,7 @@
       <div class="app-tiles">
         <button class="app-tile utd" data-act="utd-open"><span class="app-ico">${icon('book')}</span><b>UpToDate</b><span>${utd.saved ? (store.get('utdLoggedIn', false) ? 'Signed in · search in the app' : 'Login saved · tap to search') : 'Add your login'}</span></button>
         <button class="app-tile r4l" data-act="r4l-open"><span class="app-ico">${icon('key')}</span><b>Research4Life</b><span>${account('r4l').saved ? 'Access ready' : 'Add your login'}</span></button>
+        <button class="app-tile dx wide" data-act="intel-go" data-k="dx"><span class="app-ico">${icon('camera')}</span><b>Diagnose from picture</b><span>Clinical · dermoscopy · histology · KOH · Wood's lamp</span></button>
       </div>
 
       <div class="section">

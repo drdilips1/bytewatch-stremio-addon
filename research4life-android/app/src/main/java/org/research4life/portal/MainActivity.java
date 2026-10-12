@@ -588,6 +588,7 @@ public class MainActivity extends Activity {
                 StringBuilder also = new StringBuilder();
                 try {
                     String b64 = dataUrl == null ? "" : dataUrl.substring(dataUrl.indexOf(',') + 1);
+                    String mime = dataUrl != null && dataUrl.startsWith("data:") && dataUrl.contains(";") ? dataUrl.substring(5, dataUrl.indexOf(';')) : "image/jpeg";
                     for (String prov : aiOrder(0, true)) {
                         try {
                             String key = R4LSession.password(MainActivity.this, prov);
@@ -596,6 +597,7 @@ public class MainActivity extends Activity {
                             if ("gemini".equals(prov)) r = new GeminiProvider(key, modelFor("gemini")).completeWithImage(system, task, b64, maxTokens);
                             else if ("groq".equals(prov)) r = new GroqProvider(key, null).completeWithImage(system, task, b64, maxTokens);
                             else if ("openrouter".equals(prov)) r = GroqProvider.openRouter(key, null).completeWithImage(system, task, b64, maxTokens);
+                            else if ("claude".equals(prov)) r = new ClaudeProvider(key, modelFor("claude")).completeWithImage(system, task, b64, mime, maxTokens);
                             else continue;
                             recordUsage(r.model, r);
                             emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model));
@@ -604,7 +606,7 @@ public class MainActivity extends Activity {
                             if (first == null) first = e; else also.append(" · ").append(label(prov)).append(": ").append(e.getMessage());
                         }
                     }
-                    throw first != null ? withOthers(first, also) : new LlmProvider.AiException("Image questions work with Gemini, Groq or OpenRouter. Add a key in Settings → AI.");
+                    throw first != null ? withOthers(first, also) : new LlmProvider.AiException("Image questions work with Gemini, Claude, Groq or OpenRouter. Add a key in Settings → AI.");
                 } catch (LlmProvider.AiException e) {
                     emit(event("ai", "id", id, "state", "error", "message", e.getMessage()));
                 } catch (Exception e) {
@@ -1060,8 +1062,17 @@ public class MainActivity extends Activity {
          */
         private java.util.List<String> aiOrder(int docChars, boolean imageOnly) {
             java.util.List<String> order = new java.util.ArrayList<>();
+            if (imageOnly && !aiAuto()) { order.add(provider()); return order; }
+            if (imageOnly) {
+                // Pictures: the strongest readers of medical images first (Gemini free, then Claude), Groq's
+                // small vision model and OpenRouter's free one after.
+                for (String p : new String[]{"gemini", "claude", "groq", "openrouter"}) {
+                    if (R4LSession.hasCredentials(MainActivity.this, p)) order.add(p);
+                }
+                return order;
+            }
             String chosen = provider();
-            if (!imageOnly || !"claude".equals(chosen)) order.add(chosen);
+            order.add(chosen);
             if (aiAuto()) {
                 // Groq, then Claude when its key is saved (the owner's choice), then Gemini, then OpenRouter.
                 for (String p : new String[]{"groq", "claude", "gemini", "openrouter"}) {

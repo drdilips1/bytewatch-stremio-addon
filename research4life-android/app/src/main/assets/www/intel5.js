@@ -6,7 +6,7 @@
   'use strict';
   const D = window.DS;
   const I = window.DSI;
-  const { $, esc, icon, md, store, go, actions, ext } = D;
+  const { $, $$, esc, icon, md, store, go, actions, ext, toast } = D;
   const view = $('#view');
 
   const SCREEN = { type: 'object', additionalProperties: false, required: ['include'], properties: { include: { type: 'array', items: { type: 'integer' } } } };
@@ -244,7 +244,175 @@
     return { title: question, subtitle: `Literature review · ${new Date(r.at).toLocaleDateString()}`, blocks };
   }
 
+
+  // ================================================================ Diagnose from picture
+  // Clinical, dermoscopy, trichoscopy, nail, histopathology, KOH or other smears, Wood's lamp: up to
+  // three pictures of one case (e.g. clinical + dermoscopy + histology) are joined into one labelled
+  // image, read together with the clinical details, and answered as a structured differential that
+  // links to the evidence, published images and case reports.
+  const DX_KINDS = {
+    clinical: ['Clinical', 'a clinical photograph: describe the primary lesion, colour, surface, border, configuration, distribution and site'],
+    dermoscopy: ['Dermoscopy', 'a dermoscopy image: name the dermoscopic structures, colours, vessels and global pattern (use standard terminology, e.g. pigment network, dots/globules, blue-white veil, arborizing vessels)'],
+    tricho: ['Trichoscopy', 'a trichoscopy image: hair shafts, follicular openings, perifollicular and interfollicular signs (e.g. exclamation-mark hairs, yellow dots, perifollicular scale)'],
+    nail: ['Nail', 'a nail or onychoscopy image: nail plate, bed, folds, colour, pitting, onycholysis, longitudinal bands and their features'],
+    histo: ['Histopathology', 'a histopathology slide: stain if recognisable, magnification, architecture, epidermis, dermis and subcutis, infiltrate (type and pattern), and any organisms or deposits'],
+    koh: ['KOH / smear', 'a microscopy preparation (KOH mount, Tzanck smear, Gram or other stain, skin scraping for scabies, slit-skin smear, fungal culture): name the preparation if recognisable and describe hyphae, spores, cells, organisms, mites or eggs seen'],
+    woods: ["Wood's lamp", "a Wood's lamp image: the fluorescence colour, its distribution and what it suggests (e.g. coral-red erythrasma, yellow-green Microsporum, enhanced vitiligo)"],
+    other: ['Other', 'a dermatology-related image (patch test, culture plate, investigation, figure)'],
+  };
+  const LIKE = { high: ['strong', 'High', 9], moderate: ['moderate', 'Moderate', 6], low: ['limited', 'Low', 3] };
+  const likeHtml = (l) => {
+    const [cls, word, n] = LIKE[l] || LIKE.low;
+    return `<span class="strength s-${cls}" title="${word} likelihood"><span class="meter">${Array.from({ length: 10 }, (_, i) => `<i${i < n ? ' class="on"' : ''}></i>`).join('')}</span><em>${word}</em></span>`;
+  };
+  let dxPics = [];     // [{ url, kind }]
+  let dxKind = 'clinical';
+  let dxShown = null;  // the last answer, kept when you come back to the screen
+  const dxRecent = () => store.get('dx.recent', []);
+
+  /** Joins the pictures into one image, each labelled with its number and type. */
+  function collage(pics) {
+    if (pics.length === 1) return Promise.resolve(pics[0].url);
+    return Promise.all(pics.map((p) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = p.url; })))
+      .then((imgs) => {
+        const H = 900, GAP = 12, BAR = 44;
+        const sized = imgs.map((im) => (im ? { im, w: Math.round(im.width * (H / im.height)) } : null)).filter(Boolean);
+        let W = sized.reduce((s, x) => s + x.w, 0) + GAP * (sized.length - 1);
+        const k = Math.min(1, 2400 / W);
+        const c = document.createElement('canvas');
+        c.width = Math.round(W * k); c.height = Math.round((H + BAR) * k);
+        const g = c.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+        let x = 0;
+        sized.forEach((s, i) => {
+          g.drawImage(s.im, x * k, BAR * k, s.w * k, H * k);
+          g.fillStyle = '#111'; g.font = `bold ${Math.round(30 * k)}px sans-serif`;
+          g.fillText(`${i + 1}. ${DX_KINDS[pics[i].kind]?.[0] || 'Image'}`, (x + 8) * k, 32 * k);
+          x += s.w + GAP;
+        });
+        return c.toDataURL('image/jpeg', 0.85);
+      });
+  }
+  const thumb = (url) => I.shrink(url, 220);
+
+  function renderDx() {
+    view.innerHTML = `${D.topbar('Diagnose from picture')}
+      <p class="small">Add up to three pictures of one case (e.g. clinical, dermoscopy and histology together). Use photos taken with consent, without faces or other identifying features.</p>
+      <div class="row wrap" id="dx-kinds">${Object.entries(DX_KINDS).map(([k, [l]]) => `<button class="chip ${k === dxKind ? 'on' : ''}" data-act="dx-kind" data-v="${k}">${esc(l)}</button>`).join('')}</div>
+      <div id="dx-pics" class="dx-pics"></div>
+      <textarea id="dx-ctx" class="dx-ctx" rows="2" placeholder="Clinical details (optional): age, sex, site, duration, symptoms, stain or magnification" style="margin-top:8px">${esc(store.get('dx.ctx', ''))}</textarea>
+      <button class="btn primary full dx-go" data-act="dx-go">${icon('search')}Diagnose</button>
+      <div id="dx-out"></div>
+      <div id="dx-recent"></div>`;
+    paintPics();
+    if (dxShown) showDx(dxShown); else paintRecent();
+  }
+  function paintPics() {
+    const el = $('#dx-pics');
+    if (!el) return;
+    el.innerHTML = dxPics.map((p, i) => `<div class="dx-pic"><img src="${p.url}" alt=""><small>${i + 1}. ${esc(DX_KINDS[p.kind][0])}</small><button class="dx-x" data-act="dx-del" data-i="${i}" aria-label="Remove">×</button></div>`).join('')
+      + (dxPics.length < 3 ? `<button class="dx-add" data-act="dx-pick">${icon('camera')}<span>${dxPics.length ? 'Add another' : 'Add picture'}<br><small>${esc(DX_KINDS[dxKind][0])}</small></span></button>` : '');
+  }
+  function paintRecent() {
+    const el = $('#dx-recent');
+    const list = dxRecent();
+    if (!el || !list.length) return;
+    el.innerHTML = `<div class="section"><div class="section-h"><h3>Recent</h3><button data-act="dx-clear">Clear</button></div>
+      ${list.map((r, i) => `<button class="dx-row" data-act="dx-old" data-i="${i}"><img src="${r.thumb}" alt=""><span><b>${esc(r.r.diagnosis || 'Picture')}</b><small>${esc(r.kinds)} · ${new Date(r.at).toLocaleDateString()}</small></span></button>`).join('')}</div>`;
+  }
+  actions['dx-kind'] = (b) => { dxKind = b.dataset.v; $$('[data-act=dx-kind]').forEach((x) => x.classList.toggle('on', x === b)); paintPics(); };
+  actions['dx-pick'] = async () => {
+    let url;
+    try { url = await I.shrink(await I.pickImage(), 1400); } catch (e) { if (!/cancel/i.test(e.message || '')) toast(e.message || 'Couldn\'t open the photos'); return; }
+    dxPics.push({ url, kind: dxKind });
+    dxShown = null;
+    paintPics();
+  };
+  actions['dx-del'] = (b) => { dxPics.splice(+b.dataset.i, 1); paintPics(); };
+  actions['dx-clear'] = () => { store.set('dx.recent', []); $('#dx-recent').innerHTML = ''; };
+  actions['dx-old'] = (b) => { const r = dxRecent()[+b.dataset.i]; if (r) { dxShown = r; showDx(r); window.scrollTo(0, 0); } };
+
+  actions['dx-go'] = async () => {
+    const out = $('#dx-out');
+    if (!dxPics.length) { toast('Add a picture first'); return; }
+    if (!D.aiHasKey()) { out.innerHTML = I.keyCard(); return; }
+    const ctx = $('#dx-ctx').value.trim();
+    store.set('dx.ctx', ctx);
+    const pics = dxPics.slice();
+    out.innerHTML = I.busyHtml(pics.length > 1 ? 'Reading the pictures together…' : 'Reading the picture…');
+    $('#dx-recent').innerHTML = '';
+    try {
+      const image = await collage(pics);
+      const what = pics.map((p, i) => `${pics.length > 1 ? `Picture ${i + 1} (labelled "${i + 1}. ${DX_KINDS[p.kind][0]}") is ` : 'The picture is '}${DX_KINDS[p.kind][1]}.`).join('\n');
+      const text = await I.aiImage(`${what}
+${ctx ? 'Clinical details: ' + ctx : 'No clinical details were given.'}
+
+Work like an experienced dermatologist and dermatopathologist: first describe exactly what is visible, then reason from those findings (and the clinical details) to a diagnosis. Consider common conditions before rare ones, and name serious ones that must not be missed. If the pictures are of different types, use them together.
+Answer only as JSON:
+{"imageType": "what each picture is (preparation, stain, magnification if visible)",
+ "quality": "good | adequate | poor, with what limits reading it",
+ "findings": ["6-10 precise findings in standard dermatological / dermoscopic / histological terms"],
+ "diagnosis": "the single most likely diagnosis",
+ "likelihood": "high | moderate | low",
+ "why": "2-3 sentences linking the key findings to that diagnosis",
+ "differentials": [{"name": "", "likelihood": "high | moderate | low", "for": "findings that support it", "against": "findings against it or what is missing"}],
+ "mustNotMiss": ["serious diagnoses to exclude, if any"],
+ "nextSteps": ["the tests or views that would confirm it (biopsy site, stain, IHC, culture, KOH, dermoscopy, labs)"],
+ "pearl": "one teaching point that separates the top two possibilities"}
+Give 3-5 differentials. Base everything on what is visible; say so plainly when a picture can't show something.`, image,
+      'You are an expert dermatologist and dermatopathologist reviewing images for a fellow clinician. Be precise, use standard terminology, and never invent findings that are not visible. This supports, and does not replace, clinical examination and histopathology.');
+      const r = D.aiJson(text);
+      const entry = { r, at: Date.now(), kinds: pics.map((p) => DX_KINDS[p.kind][0]).join(' + '), thumb: await thumb(pics[0].url), ctx };
+      store.set('dx.recent', [entry, ...dxRecent()].slice(0, 10));
+      dxShown = { ...entry, image };
+      showDx(dxShown);
+    } catch (e) { out.innerHTML = I.aiErr(e); }
+  };
+
+  function showDx(e) {
+    const out = $('#dx-out');
+    if (!out) return;
+    const r = e.r || {};
+    const list = (a) => (Array.isArray(a) ? a : []).filter(Boolean);
+    const dx = r.diagnosis || '';
+    out.innerHTML = `${e.image ? '' : `<img class="dx-thumb" src="${e.thumb}" alt="">`}
+      <div class="panel synth dx-card">
+        <div class="label">${icon('search')}Most likely</div>
+        <h2 class="dx-name">${esc(dx || 'No clear diagnosis')}</h2>
+        <div>${likeHtml(r.likelihood)}</div>
+        ${r.why ? `<p>${esc(r.why)}</p>` : ''}
+        ${list(r.findings).length ? `<h4>What the picture shows</h4><ul>${list(r.findings).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+        ${r.imageType || r.quality ? `<p class="muted small">${esc([r.imageType, r.quality && 'Quality: ' + r.quality].filter(Boolean).join(' · '))}</p>` : ''}
+      </div>
+      ${list(r.differentials).length ? `<div class="section"><div class="section-h"><h3>Differential diagnosis</h3></div>
+        <div class="matrix-wrap"><table class="matrix"><thead><tr><th>Diagnosis</th><th>Likelihood</th><th>For</th><th>Against</th></tr></thead>
+        <tbody>${list(r.differentials).map((x) => `<tr data-act="dx-pickdx" data-q="${esc(x.name)}"><td><b>${esc(x.name)}</b></td><td>${likeHtml(x.likelihood)}</td><td>${esc(x.for || '')}</td><td>${esc(x.against || '')}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+      ${list(r.mustNotMiss).length ? `<div class="panel small dx-warn">${icon('alert')} <b>Don't miss:</b> ${list(r.mustNotMiss).map(esc).join(' · ')}</div>` : ''}
+      ${list(r.nextSteps).length ? `<div class="section"><div class="section-h"><h3>To confirm</h3></div><ul>${list(r.nextSteps).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+      ${r.pearl ? `<div class="panel small dx-tip">${icon('bulb')} ${esc(r.pearl)}</div>` : ''}
+      ${dx ? `<div class="section"><div class="section-h"><h3>Learn more</h3></div><div class="scroll-x">${[dx, ...list(r.differentials).map((x) => x.name)].filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 5).map((t, i) => `<button class="chip ${i === 0 ? 'on' : ''}" data-act="dx-pickdx" data-q="${esc(t)}">${esc(t)}</button>`).join('')}</div><div id="dx-more"></div></div>` : ''}
+      <p class="muted small">${esc(I.EDU)}</p>`;
+    if (dx) moreOn(dx);
+  }
+  async function moreOn(dx) {
+    const box = $('#dx-more');
+    if (!box) return;
+    box.innerHTML = `<div class="row wrap" style="margin:6px 0">
+        <button class="btn small" data-act="ask" data-q="${esc(`How is ${dx} diagnosed and managed?`)}">${icon('chart')}Evidence answer</button>
+        <button class="btn small" data-act="ev-from-search" data-q="${esc(`diagnosis and treatment of ${dx}`)}">${icon('list')}Evidence map</button>
+        <button class="btn small" data-act="dx-cases" data-q="${esc(dx)}">${icon('book')}Case reports</button></div>
+      <div id="dx-imgs">${D.skeletons(1)}</div>`;
+    const kind = dxShown?.kinds || '';
+    const suffix = /Histo/.test(kind) ? ' histopathology' : /Dermoscopy|Tricho/.test(kind) ? ' dermoscopy' : '';
+    const imgs = (await I.openI(dx + suffix).catch(() => [])).slice(0, 8);
+    const el = $('#dx-imgs');
+    if (el) el.innerHTML = imgs.length ? `<small class="muted">Published images: ${esc(dx + suffix)}</small><div class="hs-thumbs big">${imgs.map((m) => `<img src="${esc(m.thumb)}" alt="" data-act="vs-big" data-src="${esc(m.src)}">`).join('')}</div>` : '<p class="muted small">No open-access images found.</p>';
+  }
+  actions['dx-cases'] = (b) => go(D.searchHash(D.filtersFrom({ q: `${b.dataset.q} case report` })));
+  actions['dx-pickdx'] = (b) => { $$('[data-act=dx-pickdx].chip').forEach((x) => x.classList.toggle('on', x.dataset.q === b.dataset.q)); moreOn(b.dataset.q); };
+
   // On the Intel tab, beside the evidence map.
   I.TILES.splice(2, 0, ['review', '📑', 'Deep review', 'Screens 100+ papers · structured, referenced review']);
-  Object.assign(ext.routes, { review: renderReview });
+  I.TILES.splice(1, 0, ['dx', '🩺', 'Diagnose from picture', 'Clinical · dermoscopy · histology · KOH · Wood\'s lamp']);
+  Object.assign(ext.routes, { review: renderReview, dx: renderDx });
 })();

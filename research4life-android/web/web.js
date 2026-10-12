@@ -176,7 +176,10 @@
   function aiOrder(docChars, imageOnly) {
     const order = [];
     const chosen = provider();
-    if (!imageOnly || chosen !== 'claude') order.push(chosen);
+    // Pictures: the strongest readers of medical images first (Gemini free, then Claude), Groq's
+    // small vision model and OpenRouter's free one after.
+    if (imageOnly) return auto() ? ['gemini', 'claude', 'groq', 'openrouter'].filter((p) => keyFor(p)) : [chosen];
+    order.push(chosen);
     if (auto()) {
       // Groq, then Claude when its key is saved (the owner's choice), then Gemini, then OpenRouter.
       for (const p of ['groq', 'claude', 'gemini', 'openrouter']) if (!order.includes(p) && keyFor(p)) order.push(p);
@@ -460,10 +463,14 @@
 
   // ---- Claude (Anthropic API, direct from the browser)
   const takesFallback = (m) => ['claude-opus-5-5', 'claude-opus-5', 'claude-fable-5-1', 'claude-sonnet-5-5'].includes(m);
-  async function claude({ system, doc, task, max, schema, onText }) {
+  async function claude({ system, doc, task, max, schema, onText, image }) {
     const model = modelFor('claude');
     const content = [];
     if (doc) content.push({ type: 'text', text: doc, cache_control: { type: 'ephemeral' } });
+    if (image) {
+      const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,/.exec(image);
+      content.push({ type: 'image', source: { type: 'base64', media_type: m ? m[1] : 'image/jpeg', data: image.slice(image.indexOf(',') + 1) } });
+    }
     content.push({ type: 'text', text: task });
     const body = { model, max_tokens: max, system: system || '', messages: [{ role: 'user', content }] };
     const oc = {};
@@ -528,7 +535,6 @@
       // The quickest AI first only when a free AI is chosen: a chosen paid AI (Claude, OpenRouter) is used as chosen.
       if (fast && keyFor('groq') && (provider() === 'groq' || provider() === 'gemini')) order = ['groq', ...order.filter((p) => p !== 'groq')];
       for (const p of order) {
-        if (req.image && p === 'claude') continue;
         try {
           if (!keyFor(p)) throw new AiError(`Add your ${LABEL[p]} API key in Settings → AI.`);
           const r = await RUN[p](req);
@@ -542,7 +548,7 @@
       }
       // Why the fallback AIs failed too (a Gemini problem behind a Groq limit); TOO_LARGE stays as is.
       if (first && others.length && !/^TOO_LARGE:/.test(first.message)) first = new AiError(first.message + ' · ' + others.join(' · '));
-      throw first || new AiError(imageOnly ? 'Image questions work with Gemini or Groq. Add a key in Settings → AI.' : `Add your ${LABEL[provider()]} API key in Settings → AI.`);
+      throw first || new AiError(imageOnly ? 'Image questions work with Gemini, Claude, Groq or OpenRouter. Add a key in Settings → AI.' : `Add your ${LABEL[provider()]} API key in Settings → AI.`);
     } catch (e) {
       emit({ type: 'ai', id, state: 'error', message: e.message || 'AI request failed' });
     }

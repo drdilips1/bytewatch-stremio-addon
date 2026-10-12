@@ -33,7 +33,6 @@ final class ClaudeProvider implements LlmProvider {
 
     @Override
     public Result complete(String system, String document, String task, int maxTokens, String jsonSchema) throws AiException {
-        JSONObject body = new JSONObject();
         try {
             JSONArray content = new JSONArray();
             if (document != null && !document.isEmpty()) {
@@ -42,6 +41,33 @@ final class ClaudeProvider implements LlmProvider {
                         .put("cache_control", new JSONObject().put("type", "ephemeral")));
             }
             content.put(new JSONObject().put("type", "text").put("text", task));
+            return run(system, content, maxTokens, jsonSchema);
+        } catch (AiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AiException("Internal error: bad answer format");
+        }
+    }
+
+    /** A picture (base64, JPEG/PNG/WebP/GIF) and a question about it. */
+    Result completeWithImage(String system, String task, String imageBase64, String mime, int maxTokens) throws AiException {
+        try {
+            String type = mime == null || !mime.matches("image/(jpeg|png|webp|gif)") ? "image/jpeg" : mime;
+            JSONArray content = new JSONArray()
+                    .put(new JSONObject().put("type", "image").put("source", new JSONObject()
+                            .put("type", "base64").put("media_type", type).put("data", imageBase64)))
+                    .put(new JSONObject().put("type", "text").put("text", task));
+            return run(system, content, maxTokens, null);
+        } catch (AiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AiException("Internal error: bad answer format");
+        }
+    }
+
+    private Result run(String system, JSONArray content, int maxTokens, String jsonSchema) throws AiException {
+        JSONObject body = new JSONObject();
+        try {
             body.put("model", model)
                     .put("max_tokens", maxTokens)
                     .put("system", system == null ? "" : system)
