@@ -113,17 +113,25 @@ object Renderer {
         val pace = when {
             // Engine settings changed (pace, natural pauses, one seed per voice): don't reuse older audio.
             v.voiceId.startsWith(Speaker.SUPER) -> "p5|"
-            v.voiceId.startsWith(Speaker.CLONE) -> "c4|"
+            v.voiceId.startsWith(Speaker.CLONE) -> "c3|"
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""
         }
-        val digest = MessageDigest.getInstance("SHA-1").digest("${v.key}|$es|$pace${Pronounce.stamp.let { if (it.isEmpty()) "" else "$it|" }}$text".toByteArray())
+        val digest = MessageDigest.getInstance("SHA-1").digest("${v.key}|$es|$pace${Pronounce.stamp.let { if (it.isEmpty()) "" else "$it|" }}${if (LocalTts.isLocal(v.voiceId)) plainQuotes(text) else text}".toByteArray())
         val ext = if (LocalTts.isLocal(v.voiceId)) "wav" else "mp3"
         return File(dir(context), digest.joinToString("") { "%02x".format(it) } + "." + ext)
     }
 
-    internal fun plainQuotes(t: String) = t.replace('\u2019', '\'').replace('\u2018', '\'')
-        .replace('\u02BC', '\'').replace('\u201C', '"').replace('\u201D', '"')
+    /**
+     * Text as the on-device voices read it best: plain apostrophes (they read won’t as "won t"),
+     * and no brackets or quote marks, which aren't spoken and, at the end of a sentence
+     * ("…anywhere.)"), hide the full stop so the voice runs on mumbling.
+     */
+    internal fun plainQuotes(t: String) = t.replace('\u2019', '\'').replace('\u2018', '\'').replace('\u02BC', '\'')
+        .replace(Regex("""[\u201C\u201D"«»()\[\]{}]"""), " ")
+        .replace(Regex("""\s+([,.;:!?…])"""), "$1")
+        .replace(Regex("""\s{2,}"""), " ")
+        .trim()
 
     fun isCached(context: Context, v: Voicing, speed: Float, text: String) = file(context, v, speed, text).length() > 0
 
