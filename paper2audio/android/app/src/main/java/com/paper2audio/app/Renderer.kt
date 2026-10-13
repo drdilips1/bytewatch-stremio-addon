@@ -75,7 +75,12 @@ object Renderer {
     fun playbackBoost(v: Voicing, speed: Float): Float {
         val boost = speed / engineSpeed(v, speed)
         // Supertonic is slowed mostly by the player (see LocalTts.SUPERTONIC_PACE).
-        return if (v.voiceId.startsWith(Speaker.SUPER)) boost * LocalTts.SUPERTONIC_PLAYBACK else boost
+        return when {
+            v.voiceId.startsWith(Speaker.SUPER) -> boost * LocalTts.SUPERTONIC_PLAYBACK
+            // Copied voices speak at their speaker's pace: evened out to a normal reading pace.
+            v.voiceId.startsWith(Speaker.CLONE) -> boost * MyVoices.paceFactor(v.voiceId.removePrefix(Speaker.CLONE))
+            else -> boost
+        }
     }
 
     /**

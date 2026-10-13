@@ -212,7 +212,9 @@ object LocalTts {
         if (audio.samples.isEmpty()) error("The voice produced no audio")
         val samples = if (voiceId.startsWith(Speaker.CLONE)) {
             // Copied voices: cut any run-on, then clean the hiss the copy picked up from its recording.
-            CloneCheck.dehiss(RunOn.trim(audio.samples, audio.sampleRate, text), audio.sampleRate)
+            CloneCheck.dehiss(RunOn.trim(audio.samples, audio.sampleRate, text), audio.sampleRate).also {
+                MyVoices.recordPace(voiceId.substringAfter(':'), text.length, it.size.toDouble() / audio.sampleRate)
+            }
         } else audio.samples
         return Pcm(toPcm16(samples), audio.sampleRate)
     }

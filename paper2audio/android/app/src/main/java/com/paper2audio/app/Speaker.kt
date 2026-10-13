@@ -1266,6 +1266,8 @@ object Speaker {
     /** Called whenever playback reaches a new paragraph. */
     private fun moveTo(k: Int) {
         if (backPending) scope.launch { backOnline() }
+        // A copied voice's pace is learned as it reads: keep its playback speed up to date.
+        if (voiceId.startsWith(CLONE)) doc?.let { stream?.setBoost(Renderer.playbackBoost(voicing(it), renderSpeed)) }
         val d = doc
         val oldChapter = d?.chapterAt(index)
         if (d != null && k > index && d.chapterAt(k) != oldChapter) markFinished(d, oldChapter)

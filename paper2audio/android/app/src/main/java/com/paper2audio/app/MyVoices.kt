@@ -101,6 +101,30 @@ object MyVoices {
 
     fun get(id: String) = list().firstOrNull { it.id == id }
 
+    // ---- Reading pace: copied voices speak as fast as the person recorded; bring them to a normal pace ----
+
+    /** A normal audiobook pace: about 150 words a minute, in characters a second. */
+    private const val NORMAL_PACE = 14.0
+
+    private val pacePrefs get() = app.getSharedPreferences("p2a", Context.MODE_PRIVATE)
+
+    /** Notes how fast copied voice [id] read a sentence (averaged over the sentences it makes). */
+    fun recordPace(id: String, chars: Int, seconds: Double) {
+        if (!::app.isInitialized || chars < 25 || seconds < 1.0) return
+        val now = chars / seconds
+        val old = pacePrefs.getFloat("pace:$id", -1f)
+        val avg = if (old < 0f) now else old * 0.85 + now * 0.15
+        pacePrefs.edit().putFloat("pace:$id", avg.toFloat()).apply()
+    }
+
+    /** The playback speed that brings copied voice [id] to a normal pace (1 until it has been heard). */
+    fun paceFactor(id: String): Float {
+        if (!::app.isInitialized) return 1f
+        val cps = pacePrefs.getFloat("pace:$id", -1f)
+        if (cps <= 0f) return 1f
+        return (NORMAL_PACE / cps).toFloat().coerceIn(0.75f, 1.1f)
+    }
+
     @Volatile
     private var pauses: Map<String, Int>? = null
 
@@ -298,6 +322,7 @@ object MyVoices {
     fun rename(id: String, name: String) = save(own().map { if (it.id == id) it.copy(name = name.trim().ifBlank { it.name }) else it })
 
     fun delete(id: String) {
+        if (::app.isInitialized) pacePrefs.edit().remove("pace:$id").apply()
         synchronized(cache) { cache.remove(id) }
         File(dir, "$id.wav").delete()
         save(own().filter { it.id != id })
