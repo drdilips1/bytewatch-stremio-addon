@@ -164,10 +164,12 @@ class LiteCopyVoiceActivity : Activity() {
     }
 
     private fun record() {
-        recorder?.takeIf { it.isRunning }?.let { r ->
-            val samples = r.stop()
+        // Stop (or the recorder already stopped itself at the time limit): keep what was recorded.
+        recorder?.let { r ->
             recorder = null
+            val samples = r.stop()
             level.progress = 0
+            btnRecord.text = "Record with the microphone"
             render()
             askName { name -> scope.launch { make(name, samples, MyVoices.RATE) } }
             return
@@ -180,7 +182,7 @@ class LiteCopyVoiceActivity : Activity() {
             .setTitle("Read this aloud")
             .setMessage(
                 "Hold the phone about a hand's width away, in a quiet room, and read naturally:\n\n“${MyVoices.SCRIPT}”\n\n" +
-                    "Or play the voice you want to copy near the phone. Tap Stop when it's done (20 seconds or more is best)."
+                    "Or play the voice you want to copy near the phone. Tap Stop when it's done (20 seconds or more is best; it stops by itself after 90)."
             )
             .setPositiveButton("Start") { _, _ -> startRecording() }
             .setNegativeButton("Cancel", null)
@@ -188,14 +190,19 @@ class LiteCopyVoiceActivity : Activity() {
     }
 
     private fun startRecording() {
-        val r = VoiceRecorder { peak, secs ->
+        val r = VoiceRecorder(MAX_RECORD_SECONDS) { peak, secs ->
             runOnUiThread {
-                if (recorder?.isRunning != true) {
-                    if (recorder != null) record() // reached the maximum length
+                if (recorder == null) return@runOnUiThread
+                if (secs >= MAX_RECORD_SECONDS - 0.2f) {
+                    record() // reached the maximum length: finish as if Stop was tapped
                     return@runOnUiThread
                 }
                 level.progress = (peak * 140).toInt().coerceAtMost(100)
-                status.text = "Recording… ${secs.toInt()} s" + if (secs >= MyVoices.MIN_SECONDS + 6) " · tap Stop when you finish" else ""
+                status.text = "Recording… ${secs.toInt()} s" + when {
+                    secs < MyVoices.MIN_SECONDS + 6 -> ""
+                    secs < 25 -> " · keep going (20 s or more is best)"
+                    else -> " · tap Stop when you finish"
+                }
             }
         }
         try {
@@ -277,5 +284,7 @@ class LiteCopyVoiceActivity : Activity() {
     companion object {
         private const val REQ_FILE = 41
         private const val REQ_MIC = 42
+        /** Recordings stop by themselves after this long (the best 20 seconds are used). */
+        private const val MAX_RECORD_SECONDS = 90
     }
 }

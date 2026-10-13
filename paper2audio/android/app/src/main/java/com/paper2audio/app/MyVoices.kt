@@ -415,7 +415,7 @@ object MyVoices {
 }
 
 /** Records the microphone as mono 24 kHz samples. Needs the RECORD_AUDIO permission. */
-class VoiceRecorder(private val onLevel: (Float, Float) -> Unit) {
+class VoiceRecorder(private val maxSeconds: Int = MyVoices.MAX_SECONDS + 5, private val onLevel: (Float, Float) -> Unit) {
     @Volatile
     private var running = false
     private var thread: Thread? = null
@@ -447,7 +447,7 @@ class VoiceRecorder(private val onLevel: (Float, Float) -> Unit) {
                         }
                     }
                     onLevel(peak, samples.size / rate.toFloat())
-                    if (samples.size >= (MyVoices.MAX_SECONDS + 5) * rate) running = false
+                    if (samples.size >= maxSeconds * rate) running = false
                 }
             } finally {
                 runCatching { rec.stop() }
