@@ -29,11 +29,12 @@ import kotlinx.coroutines.withContext
 /**
  * Narrato's "Copy a voice": from an audio clip (an audiobook sample, a recording of someone
  * reading) or the microphone. The copy takes the voice's sound and its rhythm (the pauses
- * between sentences); the best 10 seconds of a longer clip are used.
+ * between sentences); the clearest 30 (or 10) seconds of a longer clip are used.
  */
 class LiteCopyVoiceActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var consent: CheckBox
+    private lateinit var longSample: CheckBox
     private lateinit var status: TextView
     private lateinit var level: ProgressBar
     private lateinit var btnFile: Button
@@ -77,7 +78,7 @@ class LiteCopyVoiceActivity : Activity() {
         )
         text(
             "• Best: one person reading clearly, with no music or other voices.\n" +
-                "• A clip of 15 seconds to 2 minutes is ideal. Narrato picks its clearest 10 seconds: the copying engine works best with that.\n" +
+                "• A clip of 40 seconds to 2 minutes is ideal. Narrato picks its clearest 30 seconds (or 10, if you untick the longer sample).\n" +
                 "• Everything happens on your phone; the recording isn't uploaded.",
             14f, muted = true,
         )
@@ -91,6 +92,12 @@ class LiteCopyVoiceActivity : Activity() {
             setTextColor(color(R.attr.p2aText))
             setOnCheckedChangeListener { _, _ -> render() }
             box.addView(this, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(16) })
+        }
+        longSample = CheckBox(this).apply {
+            text = "Longer sample (30 seconds): closer to the real voice. Untick for a 10-second sample, which can be steadier."
+            isChecked = true
+            setTextColor(color(R.attr.p2aText))
+            box.addView(this, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
         }
         btnFile = button("Choose an audio clip") { pickFile() }
         btnRecord = button("Record with the microphone") { record() }
@@ -185,7 +192,7 @@ class LiteCopyVoiceActivity : Activity() {
             .setTitle("Read this aloud")
             .setMessage(
                 "Hold the phone about a hand's width away, in a quiet room, and read naturally:\n\n“${MyVoices.SCRIPT}”\n\n" +
-                    "Or play the voice you want to copy near the phone. Recording starts after a 3-second countdown. Tap Stop when it's done (15 seconds or more is best; it stops by itself after 90)."
+                    "Or play the voice you want to copy near the phone. Recording starts after a 3-second countdown. Tap Stop when it's done (35 seconds or more for the longer sample; it stops by itself after 90)."
             )
             .setPositiveButton("Start") { _, _ -> startRecording() }
             .setNegativeButton("Cancel", null)
@@ -224,6 +231,7 @@ class LiteCopyVoiceActivity : Activity() {
                 level.progress = (peak * 140).toInt().coerceAtMost(100)
                 status.text = "Recording… ${secs.toInt()} s" + when {
                     secs < MyVoices.MIN_SECONDS + 6 -> ""
+                    secs < 35 && longSample.isChecked -> " · keep going (35 s or more for the longer sample)"
                     secs < 15 -> " · keep going (15 s or more is best)"
                     else -> " · tap Stop when you finish"
                 }
@@ -279,7 +287,8 @@ class LiteCopyVoiceActivity : Activity() {
     private suspend fun make(name: String, samples: FloatArray, rate: Int) {
         busy("Finding the best part and copying the voice…")
         try {
-            val voice = withContext(Dispatchers.Default) { MyVoices.add(name, samples, rate) }
+            val seconds = if (longSample.isChecked) MyVoices.LONG_REFERENCE_SECONDS else MyVoices.REFERENCE_SECONDS
+            val voice = withContext(Dispatchers.Default) { MyVoices.add(name, samples, rate, seconds) }
             Speaker.refreshVoices()
             done("“${voice.name}” is ready.")
             val id = Speaker.CLONE + voice.id
@@ -316,7 +325,7 @@ class LiteCopyVoiceActivity : Activity() {
     companion object {
         private const val REQ_FILE = 41
         private const val REQ_MIC = 42
-        /** Recordings stop by themselves after this long (the clearest 10 seconds are used). */
+        /** Recordings stop by themselves after this long (the clearest 30 or 10 seconds are used). */
         private const val MAX_RECORD_SECONDS = 90
     }
 }

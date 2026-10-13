@@ -169,8 +169,10 @@ object LocalTts {
                 // instead of running on from the recording's last word (which garbled first words like "He").
                 // (The engine hears only the first 10 s, so the recording is shortened to make room for it.)
                 val pause = ref.sampleRate * 4 / 10
-                val room = MyVoices.REFERENCE_SECONDS * ref.sampleRate - pause
+                val room = MyVoices.LONG_REFERENCE_SECONDS * ref.sampleRate - pause
                 val lead = ref.samples.copyOf(minOf(ref.samples.size, room)) + FloatArray(pause)
+                // The engine hears the whole stored sample (about 10 s, or 30 s for a "longer sample" voice).
+                val hears = (lead.size + ref.sampleRate - 1) / ref.sampleRate
                 val spoken = TextCleaner.endSentence(text)
                 fun take(seed: Int) = tts.generateWithConfig(
                     spoken,
@@ -182,9 +184,9 @@ object LocalTts {
                         extra = mapOf(
                             // One fixed seed per voice: the same person on every line.
                             "seed" to seed.toString(),
-                            // The model is made for about 10 seconds of reference (more made it mumble);
-                            // the recording keeps its best stretch first.
-                            "max_reference_audio_len" to "${MyVoices.REFERENCE_SECONDS}",
+                            // The model is made for about 10 seconds of reference; a "longer sample" voice
+                            // keeps 30 for a closer likeness.
+                            "max_reference_audio_len" to "$hears",
                             // A little below the engine's usual 0.7: steadier from sentence to sentence; lower
                             // than this made it skip words.
                             "temperature" to "0.6",
