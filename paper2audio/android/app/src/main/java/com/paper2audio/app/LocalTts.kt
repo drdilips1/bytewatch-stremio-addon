@@ -387,12 +387,16 @@ object CloneCheck {
             kotlin.math.sqrt(s / frame).toFloat()
         }
         val loud = rms.sorted()[(n * 0.9).toInt().coerceAtMost(n - 1)]
-        val floor = loud * 0.04f
+        // Quiet moments (under 3% of the speech level) turned down to 30%; soft sounds like the "h"
+        // in "hello" come just before louder ones, and the gate opens 80 ms ahead of those.
+        val floor = loud * 0.03f
+        val ahead = 8
         var g = 1f
         for (f in 0 until n) {
-            val target = if (rms[f] < floor) 0.15f else 1f
+            val soon = (f until minOf(n, f + ahead + 1)).any { rms[it] >= floor }
+            val target = if (soon) 1f else 0.3f
             // Smooth: open quickly for speech, close slowly.
-            g = if (target > g) target else g + (target - g) * 0.3f
+            g = if (target > g) target else g + (target - g) * 0.2f
             for (i in f * frame until (f + 1) * frame) y[i] *= g
         }
         return y

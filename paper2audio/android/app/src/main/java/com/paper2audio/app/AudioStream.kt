@@ -250,7 +250,8 @@ object AudioDecode {
         var first = s.indexOfFirst { abs(it.toInt()) > SILENCE }
         var last = s.indexOfLast { abs(it.toInt()) > SILENCE }
         if (first < 0) return Pcm16(ShortArray(0), p.sampleRate)
-        first = (first - p.sampleRate * 30 / 1000).coerceAtLeast(0)
+        // 80 ms before the first clear sound: a soft start ("h", "f", "s") is quieter than that threshold.
+        first = (first - p.sampleRate * 80 / 1000).coerceAtLeast(0)
         last = (last + p.sampleRate * 60 / 1000).coerceAtMost(s.size - 1)
         return Pcm16(s.copyOfRange(first, last + 1), p.sampleRate)
     }

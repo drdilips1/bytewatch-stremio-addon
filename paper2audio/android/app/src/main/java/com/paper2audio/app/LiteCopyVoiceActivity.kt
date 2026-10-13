@@ -304,14 +304,21 @@ class LiteCopyVoiceActivity : Activity() {
             }
             AlertDialog.Builder(this)
                 .setTitle("“${voice.name}” is ready")
-                .setMessage("Listen to it, or use it to read your books.$rhythm$tip")
+                .setMessage("Listen to it: if the first word (\"Hello\") sounds clear, the copy is good. Use it, or discard it and try another recording.$rhythm$tip")
                 .setPositiveButton("Use it") { _, _ ->
                     Speaker.stopPreview()
                     Speaker.setVoice(id)
                     finish()
                 }
                 .setNeutralButton("Listen", null)
-                .setNegativeButton("Close") { _, _ -> Speaker.stopPreview() }
+                // Not good enough: throw it away here, no need to find it in the voice list.
+                .setNegativeButton("Discard") { _, _ ->
+                    Speaker.stopPreview()
+                    MyVoices.delete(voice.id)
+                    Speaker.refreshVoices()
+                    done("“${voice.name}” was discarded. Try another recording.")
+                }
+                .setOnCancelListener { Speaker.stopPreview() }
                 .show()
                 .getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { Speaker.preview(voice = id) }
         } catch (e: Exception) {
