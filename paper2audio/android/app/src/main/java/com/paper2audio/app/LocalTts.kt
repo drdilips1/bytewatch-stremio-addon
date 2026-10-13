@@ -1,5 +1,6 @@
 package com.paper2audio.app
 
+import com.k2fsa.sherpa.onnx.GeneratedAudio
 import com.k2fsa.sherpa.onnx.GenerationConfig
 import com.k2fsa.sherpa.onnx.OfflineTts
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig
@@ -173,8 +174,8 @@ object LocalTts {
                 // The engine hears the whole stored sample (about 10 s, or 30 s for a "longer sample" voice).
                 val hears = (lead.size + ref.sampleRate - 1) / ref.sampleRate
                 val spoken = CloneCheck.prepareText(TextCleaner.endSentence(text))
-                fun take(seed: Int) = tts.generateWithConfig(
-                    spoken,
+                fun gen(say: String, seed: Int, extraFrames: Int = 0) = tts.generateWithConfig(
+                    say,
                     GenerationConfig(
                         referenceAudio = lead,
                         referenceSampleRate = ref.sampleRate,
@@ -191,11 +192,20 @@ object LocalTts {
                             "temperature" to "0.6",
                             "chunk_size" to "15",
                             // Stops a sentence whose end the model misses from running on as babble.
-                            "max_frames" to maxFrames(spoken.trim()).toString(),
+                            "max_frames" to (maxFrames(spoken.trim()) + extraFrames).toString(),
                             "frames_after_eos" to "2",
                         ),
                     ),
                 )
+                // The engine fumbles the very start of what it says ("ello" for "Hello"). So it first says a
+                // throwaway "Well." and that is cut off at the pause after it: the sentence's own first word
+                // comes out whole. If no clear pause is found, the sentence is made the plain way.
+                fun take(seed: Int): GeneratedAudio {
+                    val led = gen(" ".repeat(8) + "Well. " + spoken.trim(), seed, extraFrames = 12)
+                    val cut = CloneCheck.afterLeadIn(led.samples, led.sampleRate)
+                    return if (cut != null) GeneratedAudio(led.samples.copyOfRange(cut, led.samples.size), led.sampleRate)
+                    else gen(spoken, seed)
+                }
                 val seed = seedFor(voiceId)
                 val first = take(seed)
                 // Far too long or too short for its words means the model lost its way (mumbling or
@@ -389,6 +399,39 @@ object CloneCheck {
         if (!s[0].isUpperCase()) s = s[0].uppercaseChar() + s.substring(1)
         if (s.split(Regex("""\s+""")).size < 5) s = " ".repeat(8) + s
         return s
+    }
+
+    /**
+     * Where the sentence starts after the throwaway "Well.": the end of the first clear pause (90 ms or
+     * more of quiet) between 0.15 and 1.6 s in, less 30 ms so the first sound keeps its start. Null when
+     * there's no such pause (then the throwaway word can't be cut off safely).
+     */
+    fun afterLeadIn(x: FloatArray, rate: Int): Int? {
+        val frame = rate / 100
+        val n = x.size / frame
+        if (n < 40) return null
+        val rms = FloatArray(n) { f ->
+            var s = 0.0
+            for (i in f * frame until (f + 1) * frame) s += x[i] * x[i]
+            kotlin.math.sqrt(s / frame).toFloat()
+        }
+        val loud = rms.sorted()[(n * 0.9).toInt().coerceAtMost(n - 1)]
+        val onset = rms.indexOfFirst { it > loud * 0.2f }.takeIf { it >= 0 } ?: return null
+        val quiet = loud * 0.06f
+        var f = onset + 15
+        while (f < minOf(n, 160)) {
+            if (rms[f] < quiet) {
+                var e = f
+                while (e < n && rms[e] < quiet) e++
+                if (e - f >= 9) {
+                    // Speech must follow, or this was the end, not the pause after "Well."
+                    val after = (e until minOf(n, e + 30)).count { rms[it] > loud * 0.2f }
+                    return if (after >= 5) maxOf(0, e - 3) * frame else null
+                }
+                f = e
+            } else f++
+        }
+        return null
     }
 
     /** Seconds a sentence should take: about 13 characters a second, plus a little. */

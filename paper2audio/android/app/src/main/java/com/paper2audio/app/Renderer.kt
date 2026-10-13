@@ -121,7 +121,7 @@ object Renderer {
         val pace = when {
             // Engine settings changed (pace, natural pauses, one seed per voice): don't reuse older audio.
             v.voiceId.startsWith(Speaker.SUPER) -> "p5|"
-            v.voiceId.startsWith(Speaker.CLONE) -> "c5|"
+            v.voiceId.startsWith(Speaker.CLONE) -> "c6|"
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""
         }
