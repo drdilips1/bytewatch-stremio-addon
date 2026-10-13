@@ -1065,6 +1065,14 @@ object Speaker {
     }
 
     /** The pause after a piece: longer after paragraphs, longest after headings. */
+    /** Whether piece [p], the last of its paragraph, stops mid-sentence and the next paragraph carries it on. */
+    private fun continuesIn(d: Doc, p: Piece): Boolean {
+        val end = p.text.trimEnd().trimEnd('\u201D', '\u2019', '"', '\'', ')').lastOrNull() ?: return false
+        if (end in ".!?\u2026:") return false
+        val next = d.paragraphs.getOrNull(p.paragraph + 1) ?: return false
+        return TextCleaner.startsLower(next)
+    }
+
     private fun pauseAfter(d: Doc, p: Piece): Int {
         // A copied voice keeps the rhythm of the person it was copied from.
         val own = if (p.voice.startsWith(CLONE)) MyVoices.pauseOf(p.voice.removePrefix(CLONE)) else 0
@@ -1085,6 +1093,12 @@ object Speaker {
                 else -> if (local) 120 else 40
             }
             d.chapters.any { it.start == p.paragraph } && d.paragraphs[p.paragraph].length < 150 -> style.headingPause + if (local) 250 else 0
+            // A sentence that runs on into the next paragraph (a page or column break in a PDF): no pause
+            // as if it had ended.
+            continuesIn(d, p) -> when (p.text.trimEnd().lastOrNull()) {
+                ',', ';', ':', '\u2014', '\u2013' -> sentence / 2
+                else -> if (local) 120 else 40
+            }
             else -> if (own > 0) maxOf(paragraph, own * 2) else paragraph
         }
     }

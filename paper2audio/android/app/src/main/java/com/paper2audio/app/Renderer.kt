@@ -101,7 +101,10 @@ object Renderer {
      * comma or semicolon, so the first words are heard after rendering only the first half.
      */
     fun quickStart(text: String, voiceId: String): List<String> {
-        val limit = if (LocalTts.isLocal(voiceId)) 90 else 140
+        // Each half ends on a falling, "finished" tone, as if the sentence ended at the comma: the online
+        // voices are quick enough to make the sentence whole; on-device ones split only very long ones.
+        if (!LocalTts.isLocal(voiceId)) return listOf(text)
+        val limit = 200
         if (text.length <= limit) return listOf(text)
         val cut = Regex("""[,;:\u2014]\s""").findAll(text)
             .map { it.range.first + 1 }
