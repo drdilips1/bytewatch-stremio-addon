@@ -73,7 +73,7 @@ object VoiceInput {
                     when (error) {
                         SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "I didn't catch that. Tap the mic and try again."
                         SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech recognition needs the internet right now."
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Allow the microphone for Paper to Audio in Android settings."
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Allow the microphone for ${activity.getString(R.string.app_name)} in Android settings."
                         else -> "Voice input stopped (error $error). Tap the mic to try again."
                     }
                 )
