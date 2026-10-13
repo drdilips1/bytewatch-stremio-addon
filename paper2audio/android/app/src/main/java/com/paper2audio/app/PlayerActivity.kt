@@ -22,6 +22,7 @@ import android.text.SpannableString
 import android.text.style.BackgroundColorSpan
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
@@ -488,8 +489,15 @@ class PlayerActivity : Activity() {
                 Speaker.play()
             }
         }
-        reader.setOnItemLongClickListener { _, _, position, _ ->
-            paragraphMenu(position)
+        reader.setOnTouchListener { _, e ->
+            if (e.actionMasked == MotionEvent.ACTION_DOWN) {
+                touchX = e.x
+                touchY = e.y
+            }
+            false
+        }
+        reader.setOnItemLongClickListener { _, view, position, _ ->
+            paragraphMenu(position, wordAt(view, position))
             true
         }
         reader.setOnScrollListener(object : AbsListView.OnScrollListener {
@@ -574,11 +582,59 @@ class PlayerActivity : Activity() {
         }
     }
 
-    private fun paragraphMenu(position: Int) {
+    /** Where the finger last went down on the reading text, to find the word pressed. */
+    private var touchX = 0f
+    private var touchY = 0f
+
+    /** The word under the finger in paragraph [position] (shown as [view]), as a range in the paragraph. */
+    private fun wordAt(view: View?, position: Int): IntRange? {
+        val tv = view as? TextView ?: return null
+        val para = Speaker.doc?.paragraphs?.getOrNull(position) ?: return null
+        val layout = tv.layout ?: return null
+        val x = touchX - tv.left
+        val y = touchY - tv.top
+        val line = layout.getLineForVertical((y - tv.totalPaddingTop).toInt())
+        val lx = x - tv.totalPaddingLeft
+        if (lx < layout.getLineLeft(line) - 8 || lx > layout.getLineRight(line) + 8) return null
+        val shown = tv.text ?: return null
+        val prefix = shown.length - para.length
+        val at = tv.getOffsetForPosition(x, y) - prefix
+        fun inWord(i: Int) = i in para.indices && (para[i].isLetterOrDigit() || (para[i] in "'’-" && i > 0 && i + 1 < para.length && para[i - 1].isLetter() && para[i + 1].isLetter()))
+        val hit = when {
+            inWord(at) -> at
+            inWord(at - 1) -> at - 1
+            else -> return null
+        }
+        var a = hit
+        var b = hit + 1
+        while (inWord(a - 1)) a--
+        while (inWord(b)) b++
+        return a until b
+    }
+
+    private fun paragraphMenu(position: Int, word: IntRange? = null) {
         val item = Library.get(this, Library.currentId)
         val text = Speaker.doc?.paragraphs?.getOrNull(position) ?: return
         val doc = Speaker.doc
-        LiteSheet(this, "Paragraph ${position + 1}", text.take(90).let { if (text.length > 90) "$it…" else it })
+        val sheet = LiteSheet(this, "Paragraph ${position + 1}", text.take(90).let { if (text.length > 90) "$it…" else it })
+        if (word != null) {
+            // The word that was pressed: look it up or mark it in one tap.
+            val w = text.substring(word.first, word.last + 1)
+            sheet.section("“$w”")
+                .row(R.drawable.ic_text, "Dictionary", "Meaning of “$w”") { LookUp.dictionary(this, scope, w) }
+                .row(R.drawable.ic_explore, "Wikipedia", "About “$w”") { LookUp.wikipedia(this, scope, w) }
+                .row(R.drawable.ic_palette, "Highlight this word", "Yellow, green, blue or pink") {
+                    item?.let { it2 ->
+                        pickColor { c ->
+                            if (c == null) Library.removeSpans(this, it2, position, word.first, word.last + 1)
+                            else Library.addSpan(this, it2, position, word.first, word.last + 1, c)
+                            afterNotesChanged()
+                        }
+                    }
+                }
+                .section("Paragraph")
+        }
+        sheet
             .row(R.drawable.ic_play, "Play from here") {
                 lastUserScroll = 0
                 Speaker.seek(position)
