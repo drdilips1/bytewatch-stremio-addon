@@ -15,8 +15,8 @@ android {
         targetSdk = 34
         // Samsung Galaxy and nearly all current phones are 64-bit ARM; this keeps the APK small.
         ndk { abiFilters += "arm64-v8a" }
-        versionCode = 26
-        versionName = "6.6"
+        versionCode = 27
+        versionName = "6.7"
     }
 
     buildFeatures { buildConfig = true }
