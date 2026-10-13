@@ -275,14 +275,45 @@ class PlayerActivity : Activity() {
                 startActivity(Intent(this, LiteCopyVoiceActivity::class.java))
             }
         sheet.section("Stories")
-            .row(R.drawable.ic_people, "Full cast", if (Speaker.fullCast) "On: a voice for each character" else "Off: one voice for everything",
-                checked = Speaker.fullCast) { Speaker.setFullCast(!Speaker.fullCast) }
-            .row(R.drawable.ic_people, "Characters and voices", "Choose each character's voice or gender") { CastPicker.show(this, scope) }
+            .row(R.drawable.ic_people, "Full cast", if (Speaker.fullCast) "On: narrator, men's and women's voices" else "Off: one voice for everything") {
+                showCastSetup()
+            }
         sheet.section("More")
             .row(R.drawable.ic_tune, "Voice studio", "Voice packs, voice design, stories, all settings") {
                 startActivity(Intent(this, VoiceStudioActivity::class.java))
             }
         sheet.show()
+    }
+
+    /** Full cast in one place: on/off, the narrator, the men's and the women's voices, each character, a sample. */
+    private fun showCastSetup() {
+        fun names(male: Boolean) = Speaker.castChoice(male).map { VoicePicker.label(it).substringBefore(" · ") }
+            .ifEmpty { listOf("Automatic (voices like the narrator's)") }.joinToString(", ")
+        fun pick(male: Boolean) {
+            val what = if (male) "men" else "women"
+            VoicePicker.pickMany(
+                this, "Voices for the $what", Speaker.castChoice(male).toSet(),
+                // Phone voices can't be mixed into the audio stream.
+                filter = { e -> !e.id.startsWith(Speaker.SYSTEM) && e.male != !male },
+            ) { picked ->
+                if (male) Speaker.setCastVoices(picked, Speaker.castChoice(false)) else Speaker.setCastVoices(Speaker.castChoice(true), picked)
+                picked.mapNotNull { LocalTts.missing(it) }.firstOrNull { !it.installing }?.let { promptDownload(it) }
+                showCastSetup()
+            }
+        }
+        LiteSheet(this, "Full cast", "A voice for the narrator, and for each man and woman in the story")
+            .row(R.drawable.ic_people, if (Speaker.fullCast) "Full cast is on" else "Full cast is off",
+                if (Speaker.fullCast) "Tap to read everything in one voice" else "Tap to give characters their own voices",
+                checked = Speaker.fullCast) { Speaker.setFullCast(!Speaker.fullCast); showCastSetup() }
+            .section("Voices")
+            .row(R.drawable.ic_voice, "Narrator", VoicePicker.label(Speaker.voiceId)) { chooseVoice() }
+            .row(R.drawable.ic_voice, "Men", names(true)) { pick(true) }
+            .row(R.drawable.ic_voice, "Women", names(false)) { pick(false) }
+            .row(R.drawable.ic_people, "Each character", "Set a character's voice or gender (it's remembered)") { CastPicker.show(this, scope) }
+            .row(R.drawable.ic_play, "Hear a sample", "The narrator and two characters", dismiss = false) {
+                Speaker.previewCast("“Are you coming?” asked Maya. “In a minute,” said Tom, and he picked up his bag.")
+            }
+            .show()
     }
 
     /** Everything else for this book: reading look, characters, sharing, Send to Kindle, details, car mode. */
