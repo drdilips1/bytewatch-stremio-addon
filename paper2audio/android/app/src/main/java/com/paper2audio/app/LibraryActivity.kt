@@ -173,6 +173,8 @@ class LibraryActivity : Activity(), PagesHost {
             updateBanner.visibility = View.VISIBLE
         }
         AppLog.offerCrashReport(this)
+        // New users: a short tour, once.
+        LiteWelcome.showOnce(this) {}
     }
 
     // ---- Tabs: Home, Library, Ask AI, Discover, Settings ----
@@ -249,6 +251,7 @@ class LibraryActivity : Activity(), PagesHost {
             "Voice studio\nVoices, cloning, full cast",
             "Theme",
             "AI settings\nGroq or Gemini (free)",
+            "How Paper to Audio works\nA short tour",
             "Report a problem\nShare the app's error log",
         )
         AlertDialog.Builder(this)
@@ -261,6 +264,7 @@ class LibraryActivity : Activity(), PagesHost {
                     3 -> startActivity(Intent(this, VoiceStudioActivity::class.java))
                     4 -> Themes.showPicker(this)
                     5 -> AiKeyDialog.show(this)
+                    6 -> LiteWelcome.show(this)
                     else -> AppLog.showReport(this)
                 }
             }

@@ -113,6 +113,54 @@ class PlayerActivity : Activity() {
     private var shownIndex = -1
     private var shownPiece: String? = null
     private var lastUserScroll = 0L
+
+    /** Moves the read-along highlight through the words as they're spoken, and keeps the line in view. */
+    private val follower = object : Runnable {
+        override fun run() {
+            if (Speaker.playing) followWords()
+            main.postDelayed(this, 120)
+        }
+    }
+
+    private fun followWords() {
+        val i = Speaker.index
+        val tv = reader.getChildAt(i - reader.firstVisiblePosition) as? TextView ?: return
+        readerAdapter.getView(i, tv, reader)
+        if (System.currentTimeMillis() - lastUserScroll < 6_000) return
+        val layout = tv.layout ?: return
+        val text = tv.text?.toString() ?: return
+        val piece = Speaker.currentPiece ?: return
+        val start = text.indexOf(piece).takeIf { it >= 0 } ?: return
+        val at = (start + (piece.length * Speaker.pieceProgress()).toInt()).coerceIn(0, maxOf(0, text.length - 1))
+        val lineY = tv.top + tv.totalPaddingTop + layout.getLineTop(layout.getLineForOffset(at))
+        val h = reader.height
+        // The line being read stays near the middle, with a gentle scroll.
+        if (h > 0 && (lineY > h * 0.55 || lineY < h * 0.2)) reader.smoothScrollBy(lineY - (h * 0.4).toInt(), 700)
+    }
+
+    /**
+     * Read-along (as in Audiohub and Narrato): the sentence being read in full colour with the word
+     * being spoken in the accent colour, what's still to come dimmed, what's been read dimmer still.
+     * Paused, the sentence keeps a soft tint so you can see where you are.
+     */
+    private fun readAlong(span: SpannableString, shown: String, ink: Int) {
+        val piece = Speaker.currentPiece ?: return
+        val start = shown.indexOf(piece).takeIf { it >= 0 } ?: return
+        val end = start + piece.length
+        val accent = color(R.attr.p2aAccent)
+        if (!Speaker.playing) {
+            span.setSpan(BackgroundColorSpan((accent and 0x00FFFFFF) or 0x30000000), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return
+        }
+        val rgb = ink and 0x00FFFFFF
+        if (start > 0) span.setSpan(android.text.style.ForegroundColorSpan(rgb or 0x66000000), 0, start, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (end < shown.length) span.setSpan(android.text.style.ForegroundColorSpan(rgb or 0x8C000000.toInt()), end, shown.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        var at = start + (piece.length * Speaker.pieceProgress()).toInt().coerceIn(0, piece.length)
+        while (at < end && !shown[at].isWhitespace()) at++
+        var wordStart = at
+        while (wordStart > start && !shown[wordStart - 1].isWhitespace()) wordStart--
+        if (at > wordStart) span.setSpan(android.text.style.ForegroundColorSpan(accent), wordStart, at, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
     private var noteIndexes: Set<Int> = emptySet()
     /** Highlighted paragraphs and their colors. */
     private var highlights: Map<Int, Int> = emptyMap()
@@ -552,15 +600,7 @@ class PlayerActivity : Activity() {
             // Highlighted words, and words with a note (underlined).
             val offset = shown.length - text.length
             markWords(span, position, offset)
-            val piece = Speaker.currentPiece
-            if (current && piece != null && Speaker.playing) {
-                val start = shown.indexOf(piece)
-                if (start >= 0) {
-                    val accent = color(R.attr.p2aAccent)
-                    val tint = (accent and 0x00FFFFFF) or 0x40000000
-                    span.setSpan(BackgroundColorSpan(tint), start, start + piece.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
-            }
+            if (current) readAlong(span, shown, tv.currentTextColor)
             tv.text = span
             val paper = ReadingLook.paper(this@PlayerActivity)
             when {
@@ -573,11 +613,18 @@ class PlayerActivity : Activity() {
                     cornerRadius = 14 * resources.displayMetrics.density
                     setStroke((2 * resources.displayMetrics.density).toInt(), color(R.attr.p2aAccent))
                 }
+                // While reading, the highlight follows the words instead of boxing the paragraph.
+                current && Speaker.playing -> tv.background = null
                 current -> tv.setBackgroundResource(R.drawable.bg_current)
                 position in highlights -> tv.setBackgroundColor(highlights.getValue(position))
                 else -> tv.background = null
             }
-            tv.alpha = if (current || !Speaker.playing) 1f else 0.72f
+            // While reading: what's been read fades most, what's to come a little.
+            tv.alpha = when {
+                current || !Speaker.playing -> 1f
+                position < Speaker.index -> 0.4f
+                else -> 0.6f
+            }
             return tv
         }
     }
@@ -1404,10 +1451,12 @@ class PlayerActivity : Activity() {
             readerAdapter.notifyDataSetChanged()
             if (moved && System.currentTimeMillis() - lastUserScroll > 6_000) {
                 reader.post {
-                    // A jump, not a scroll (easier on the eyes), and only when the paragraph is out of view.
+                    // A smooth scroll when the next paragraph is out of view (a jump only when it's far away).
                     val i = Speaker.index
-                    if (i < reader.firstVisiblePosition || i >= reader.lastVisiblePosition) {
-                        reader.setSelectionFromTop(i, (60 * resources.displayMetrics.density).toInt())
+                    if (i < reader.firstVisiblePosition || i > reader.lastVisiblePosition) {
+                        val top = (60 * resources.displayMetrics.density).toInt()
+                        if (i < reader.firstVisiblePosition - 3 || i > reader.lastVisiblePosition + 3) reader.setSelectionFromTop(i, top)
+                        else reader.smoothScrollToPositionFromTop(i, top, 500)
                     }
                 }
             }
@@ -1837,6 +1886,7 @@ class PlayerActivity : Activity() {
         ModelPack.addListener(refresh)
         OfflineDownloader.addListener(refresh)
         if (Speaker.sleepAt > 0) main.postDelayed(tick, 30_000)
+        main.post(follower)
         render()
     }
 
@@ -1852,6 +1902,7 @@ class PlayerActivity : Activity() {
         ModelPack.removeListener(refresh)
         OfflineDownloader.removeListener(refresh)
         main.removeCallbacks(tick)
+        main.removeCallbacks(follower)
         super.onStop()
     }
 

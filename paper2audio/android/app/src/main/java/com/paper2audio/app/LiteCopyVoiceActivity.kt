@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Narrato's "Copy a voice": from an audio clip (an audiobook sample, a recording of someone
+ * "Copy a voice" (Narrato, and Voice Studio in Paper to Audio): from an audio clip (an audiobook sample, a recording of someone
  * reading) or the microphone. The copy takes the voice's sound and its rhythm (the pauses
  * between sentences); the clearest 30 (or 10) seconds of a longer clip are used.
  */
@@ -73,12 +73,12 @@ class LiteCopyVoiceActivity : Activity() {
         }
         text("Copy a voice", 24f, top = 4).typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.BOLD)
         text(
-            "Narrato can read your books in a voice copied from a recording. It copies how the voice sounds " +
+            "${getString(R.string.app_name)} can read your books in a voice copied from a recording. It copies how the voice sounds " +
                 "and its rhythm: how long the speaker pauses between sentences."
         )
         text(
             "• Best: one person reading clearly, with no music or other voices.\n" +
-                "• A clip of 40 seconds to 2 minutes is ideal. Narrato picks its clearest 30 seconds (or 10, if you untick the longer sample).\n" +
+                "• A clip of 40 seconds to 2 minutes is ideal. ${getString(R.string.app_name)} picks its clearest 30 seconds (or 10, if you untick the longer sample).\n" +
                 "• Everything happens on your phone; the recording isn't uploaded.",
             14f, muted = true,
         )
@@ -250,7 +250,7 @@ class LiteCopyVoiceActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_MIC && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) record()
-        else if (requestCode == REQ_MIC) toast("Narrato needs the microphone to record a voice. You can choose an audio clip instead.")
+        else if (requestCode == REQ_MIC) toast("${getString(R.string.app_name)} needs the microphone to record a voice. You can choose an audio clip instead.")
     }
 
     private fun askName(then: (String) -> Unit) {

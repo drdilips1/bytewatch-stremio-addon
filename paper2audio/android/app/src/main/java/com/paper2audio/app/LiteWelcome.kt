@@ -13,11 +13,39 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 
-/** A short walkthrough the first time Narrato opens (and again from the menu). */
+/** A short walkthrough the first time the app opens (and again from the menu): Narrato's or Paper to Audio's. */
 object LiteWelcome {
     private class Page(val icon: String, val title: String, val body: String, val action: String? = null, val run: ((Activity) -> Unit)? = null)
 
-    private val PAGES = listOf(
+    private val PAGES get() = if (BuildConfig.LITE) NARRATO else PAPER_TO_AUDIO
+
+    private val PAPER_TO_AUDIO = listOf(
+        Page(
+            "📚", "Welcome to Paper to Audio",
+            "Listen to research papers, books, PDFs, Word and PowerPoint files, web pages and YouTube talks.\n\n" +
+                "Tap + to add one, or find free books and papers under Discover.",
+        ),
+        Page(
+            "🎧", "Natural voices",
+            "Paper to Audio reads with natural online voices when you're connected.\n\n" +
+                "For listening without internet, download the on-device voices (Supertonic or Kokoro) in Voice studio. " +
+                "If the internet drops, an on-device voice carries on by itself.",
+            "Open Voice studio",
+        ) { it.startActivity(android.content.Intent(it, VoiceStudioActivity::class.java)) },
+        Page(
+            "▶", "While you listen",
+            "The word being read lights up as the voice goes. Tap any sentence to read from there; " +
+                "press and hold a word for the dictionary, Wikipedia or a highlight.\n\n" +
+                "Ask AI about what you're reading, use Car mode on the road, and keep listening with the screen off.",
+        ),
+        Page(
+            "🎙", "Copy a voice",
+            "Paper to Audio can also read in a voice copied from a recording, such as your own or a family member's (with their permission).\n\n" +
+                "Voice studio › Clone a voice.",
+        ),
+    )
+
+    private val NARRATO = listOf(
         Page(
             "📚", "Welcome to Narrato",
             "Narrato reads aloud whatever you'd otherwise have to read: books (EPUB), PDFs, Word files, web pages, " +

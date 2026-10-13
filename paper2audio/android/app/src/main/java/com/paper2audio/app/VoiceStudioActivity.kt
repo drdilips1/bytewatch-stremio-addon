@@ -277,14 +277,16 @@ class VoiceStudioActivity : Activity() {
     private fun buildOwnVoices() {
         val c = card(
             "Clone a voice",
-            "Record 15–20 seconds of your own voice (or import a recording), and the app will read in that voice, on your phone. " +
+            "Record a voice (or import a clip of 40 seconds or more), and the app will read in that voice, on your phone. " +
                 "Only clone voices with the speaker's permission.",
         )
         val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        buttons.addView(button("Record", onClick = { withMic { recordVoice() } }).apply {
+        // Both open the Copy a voice screen (countdown, clearest part of the clip, quality check, Discard).
+        val copy = { startActivity(Intent(this, LiteCopyVoiceActivity::class.java)) }
+        buttons.addView(button("Record", onClick = copy).apply {
             setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_mic, 0, 0, 0)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(5) })
-        buttons.addView(button("Import", soft = true, onClick = { importVoice() }),
+        buttons.addView(button("Import", soft = true, onClick = copy),
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(5) })
         c.addFull(buttons)
         for (v in MyVoices.own()) {
