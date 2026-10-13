@@ -183,7 +183,8 @@ object TextCleaner {
         val out = ArrayList<String>()
         for (part in parts) {
             val prev = out.lastOrNull()
-            if (prev != null && joinsNext(prev)) out[out.lastIndex] = "$prev $part" else out += part
+            // "wait... and then", "Really? she asked": a lowercase word after it means the sentence goes on.
+            if (prev != null && (joinsNext(prev) || startsLower(part))) out[out.lastIndex] = "$prev $part" else out += part
         }
         return out.filter { it.isNotBlank() }
     }
@@ -191,6 +192,10 @@ object TextCleaner {
     private val NO_BREAK_AFTER = Regex(
         """(?i)(?:\b(?:fig|figs|eq|eqs|tab|ref|refs|vol|no|nos|pp|p|ch|sec|dr|mr|mrs|ms|prof|st|vs|approx|ca|cf|al|etc|resp|dept|univ|jr|sr|inc|ltd|co|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|e\.g|i\.e)\.|\b[A-Z]\.)$"""
     )
+
+    /** Whether [text] begins (after any opening quote or bracket) with a lowercase letter. */
+    internal fun startsLower(text: String): Boolean =
+        text.trimStart().trimStart('"', '\'', '\u201C', '\u2018', '(', '\u2014', '\u2013').firstOrNull()?.isLowerCase() == true
 
     private fun joinsNext(sentence: String): Boolean {
         val t = sentence.trimEnd()

@@ -74,6 +74,9 @@ object LocalTts {
     /** The model [voiceId] still needs to download, if any. */
     fun missing(voiceId: String): ModelPack? = packFor(voiceId)?.takeUnless { it.isInstalled() }
 
+    /** Supertonic speaks quickly at its 1x; this is the pace the app calls normal. */
+    const val SUPERTONIC_PACE = 0.88f
+
     fun supertonicVoice(name: String) = SUPERTONIC_VOICES.firstOrNull { it.name == name }
 
     /** Fastest speed each engine renders itself; the player speeds up beyond it. */
@@ -141,7 +144,8 @@ object LocalTts {
                 val code = lang?.takeIf { it in SUPERTONIC_LANGS } ?: "en"
                 tts.generateWithConfig(
                     text,
-                    GenerationConfig(sid = v.sid, speed = speed, numSteps = 6, extra = mapOf("lang" to code)),
+                    // Supertonic's own 1x is brisk: "normal" is a calmer reading pace.
+                    GenerationConfig(sid = v.sid, speed = speed * SUPERTONIC_PACE, numSteps = 6, extra = mapOf("lang" to code)),
                 )
             }
             else -> {

@@ -1027,7 +1027,10 @@ object Speaker {
             }
             // On-device voices read quotes flatly inside a long sentence: give dialogue its own piece,
             // so there's a narrator's breath between "she said," and the words spoken.
-            LocalTts.isLocal(vid) -> Stories.split(para)?.takeIf { it.size > 1 }?.map { it.second to vid } ?: listOf(para to vid)
+            // A quote and the words after it that carry on the sentence ("“Really?” she asked.") stay together.
+            LocalTts.isLocal(vid) -> Stories.split(para)?.takeIf { it.size > 1 }?.map { it.second }
+                ?.fold(ArrayList<String>()) { acc, t -> acc.apply { if (isNotEmpty() && TextCleaner.startsLower(t)) this[lastIndex] = this[lastIndex] + " " + t else add(t) } }
+                ?.map { it to vid } ?: listOf(para to vid)
             else -> listOf(para to vid)
         }
         val out = ArrayList<Piece>()
