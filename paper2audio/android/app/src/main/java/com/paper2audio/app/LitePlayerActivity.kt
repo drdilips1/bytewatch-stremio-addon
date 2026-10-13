@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AbsListView
@@ -85,29 +86,34 @@ class LitePlayerActivity : Activity() {
         val at = (start + (piece.length * Speaker.pieceProgress()).toInt()).coerceIn(0, maxOf(0, text.length - 1))
         val lineY = tv.top + tv.totalPaddingTop + layout.getLineTop(layout.getLineForOffset(at))
         val h = reader.height
-        if (h > 0 && (lineY > h * 0.6 || lineY < 0)) reader.smoothScrollBy(lineY - (h * 0.3).toInt(), 600)
+        // The line being read stays near the middle, like Audiohub's read-along.
+        if (h > 0 && (lineY > h * 0.55 || lineY < h * 0.2)) reader.smoothScrollBy(lineY - (h * 0.4).toInt(), 700)
     }
 
     /**
-     * The paragraph text, and for the one being read: the sentence softly tinted, the words already
-     * spoken a little stronger, and the word being spoken now strongest.
+     * Read-along like Audiohub's: the sentence being read in full color with the word being spoken
+     * in the accent color, what's still to come dimmed, and what's been read dimmer still.
      */
     private fun highlighted(text: String, current: Boolean): CharSequence {
         val piece = Speaker.currentPiece
-        // Paused: the sentence stays marked, so you can see where you are.
         val start = if (current && piece != null) text.indexOf(piece) else -1
         if (start < 0) return text
         val end = start + piece!!.length
-        val accent = Themes.color(this, R.attr.p2aAccent) and 0x00FFFFFF
+        val ink = Themes.color(this, R.attr.p2aText) and 0x00FFFFFF
         val span = SpannableString(text)
-        span.setSpan(BackgroundColorSpan(accent or 0x22000000), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (!Speaker.playing) {
+            // Paused: the sentence stays marked, so you can see where you are.
+            span.setSpan(BackgroundColorSpan((Themes.color(this, R.attr.p2aAccent) and 0x00FFFFFF) or 0x30000000), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return span
+        }
+        if (start > 0) span.setSpan(ForegroundColorSpan(ink or 0x59000000), 0, start, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE) // read
+        if (end < text.length) span.setSpan(ForegroundColorSpan(ink or 0x80000000.toInt()), end, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE) // to come
         // Where the voice is, estimated from how much of the sentence's audio has played.
         var at = start + (piece.length * Speaker.pieceProgress()).toInt().coerceIn(0, piece.length)
         while (at < end && !text[at].isWhitespace()) at++ // to the end of the word being spoken
         var wordStart = at
         while (wordStart > start && !text[wordStart - 1].isWhitespace()) wordStart--
-        if (wordStart > start) span.setSpan(BackgroundColorSpan(accent or 0x40000000), start, wordStart, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-        if (at > wordStart) span.setSpan(BackgroundColorSpan(accent or 0x80000000.toInt()), wordStart, at, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (at > wordStart) span.setSpan(ForegroundColorSpan(Themes.color(this, R.attr.p2aAccent)), wordStart, at, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         return span
     }
 
@@ -379,7 +385,12 @@ class LitePlayerActivity : Activity() {
             tv.text = highlighted(text, current)
             // No box around the paragraph: the highlight follows the words instead.
             tv.background = null
-            tv.alpha = if (current || !Speaker.playing) 1f else 0.78f
+            // While reading: what's been read fades most, what's to come a little.
+            tv.alpha = when {
+                current || !Speaker.playing -> 1f
+                position < Speaker.index -> 0.35f
+                else -> 0.5f
+            }
             return tv
         }
     }
