@@ -241,11 +241,25 @@ object Speech {
      */
     internal fun uncapitalize(text: String): String {
         val letters = text.filter { it.isLetter() }
-        if (letters.length < 6 || letters.count { it.isUpperCase() } < letters.length * 0.8) return text
-        return CAPS_WORD.replace(text) { m ->
-            val w = m.value
-            if (w in KEEP_CAPS || (w.length <= 3 && w.none { it in "AEIOU" })) w
-            else w.lowercase().replaceFirstChar { it.uppercase() }.let { if (m.range.first == 0) it else it.lowercase() }
+        if (letters.length < 6) return text
+        // Shouting inside a normal sentence ('yelled: "MOTORCYCLES DON'T FLY!"'): two or more capitalized
+        // words in a row are read as ordinary words too.
+        if (letters.count { it.isUpperCase() } < letters.length * 0.8) {
+            return SHOUTED_RUN.replace(text) { run ->
+                // Only real shouting: at least one long word ("US UK" stays as it is).
+                if (CAPS_WORD.findAll(run.value).none { it.value.length >= 4 }) run.value
+                else CAPS_WORD.replace(run.value) { m -> lower(m.value, false) }
+            }
         }
+        return CAPS_WORD.replace(text) { m -> lower(m.value, m.range.first == 0) }
     }
+
+    /** A capitalized word in normal case, unless it's an acronym ("DNA", "BBC"; Y counts as a vowel, so "FLY" is a word). */
+    private fun lower(w: String, first: Boolean): String =
+        // In shouted text "WHO" is the word "who", not the World Health Organization.
+        if (w != "WHO" && (w in KEEP_CAPS || (w.length <= 3 && w.none { it in "AEIOUY" }))) w
+        else w.lowercase().replaceFirstChar { it.uppercase() }.let { if (first) it else it.lowercase() }
+
+    /** Two or more capitalized words in a row. */
+    private val SHOUTED_RUN = Regex("""\b[A-Z][A-Z'’]+(?:[\s,!?.-]+[A-Z][A-Z'’]+)+\b""")
 }

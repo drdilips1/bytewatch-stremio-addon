@@ -122,7 +122,7 @@ object Renderer {
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""
         }
-        val digest = MessageDigest.getInstance("SHA-1").digest("${v.key}|$es|$pace${Pronounce.stamp.let { if (it.isEmpty()) "" else "$it|" }}${if (LocalTts.isLocal(v.voiceId)) plainQuotes(text) else text}".toByteArray())
+        val digest = MessageDigest.getInstance("SHA-1").digest("${v.key}|$es|$pace${Pronounce.stamp.let { if (it.isEmpty()) "" else "$it|" }}${if (LocalTts.isLocal(v.voiceId)) plainQuotes(Speech.normalize(text, v.medical)) else text}".toByteArray())
         val ext = if (LocalTts.isLocal(v.voiceId)) "wav" else "mp3"
         return File(dir(context), digest.joinToString("") { "%02x".format(it) } + "." + ext)
     }
