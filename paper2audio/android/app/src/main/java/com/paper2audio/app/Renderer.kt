@@ -132,6 +132,13 @@ object Renderer {
         .replace(Regex("""\s+([,.;:!?…])"""), "$1")
         .replace(Regex("""\s{2,}"""), " ")
         .trim()
+        // An ellipsis doesn't sound finished to them either ("…and then she…" ran on mumbling):
+        // at the end it becomes a full stop, inside a sentence a comma (still a short pause).
+        .replace(Regex("""(?:…|\.{2,})(?=\s*$)"""), ".")
+        .replace(Regex("""(?:…|\.{2,})\s*"""), ", ")
+        .replace(Regex(""",\s*([,.;:!?])"""), "$1")
+        .replace(Regex("""^,\s*"""), "")
+        .trim()
 
     fun isCached(context: Context, v: Voicing, speed: Float, text: String) = file(context, v, speed, text).length() > 0
 
