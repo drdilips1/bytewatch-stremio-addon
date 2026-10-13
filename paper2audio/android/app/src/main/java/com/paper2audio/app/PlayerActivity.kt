@@ -262,6 +262,29 @@ class PlayerActivity : Activity() {
         }
     }
 
+    /**
+     * The one place for voices: the reading voice (choose, hear), copied voices, full cast and the
+     * characters' voices, and Voice studio for everything else.
+     */
+    private fun showVoiceHub() {
+        val sheet = LiteSheet(this, "Voice", VoicePicker.label(Speaker.voiceId))
+        sheet.section("Reading voice")
+            .row(R.drawable.ic_voice, "Choose a voice", VoicePicker.label(Speaker.voiceId)) { chooseVoice() }
+            .row(R.drawable.ic_play, "Hear it", "A short sample in this voice", dismiss = false) { Speaker.preview() }
+            .row(R.drawable.ic_mic, "Copy a voice", "From a recording or an audio clip") {
+                startActivity(Intent(this, LiteCopyVoiceActivity::class.java))
+            }
+        sheet.section("Stories")
+            .row(R.drawable.ic_people, "Full cast", if (Speaker.fullCast) "On: a voice for each character" else "Off: one voice for everything",
+                checked = Speaker.fullCast) { Speaker.setFullCast(!Speaker.fullCast) }
+            .row(R.drawable.ic_people, "Characters and voices", "Choose each character's voice or gender") { CastPicker.show(this, scope) }
+        sheet.section("More")
+            .row(R.drawable.ic_tune, "Voice studio", "Voice packs, voice design, stories, all settings") {
+                startActivity(Intent(this, VoiceStudioActivity::class.java))
+            }
+        sheet.show()
+    }
+
     /** Everything else for this book: reading look, characters, sharing, Send to Kindle, details, car mode. */
     private fun showMore() {
         val item = Library.get(this, Library.currentId)
@@ -270,9 +293,6 @@ class PlayerActivity : Activity() {
             .section("Reading")
             .row(R.drawable.ic_text, "Reading look", "Font, size, spacing, margins, alignment, day or night") {
                 ReadingLook.show(this) { applyReadingLook() }
-            }
-            .row(R.drawable.ic_people, "Characters and voices", "Full cast: choose the voice of each character") {
-                CastPicker.show(this, scope)
             }
             .section("Share")
             .row(R.drawable.ic_share, "Share a quote", "The paragraph being read, as a picture") {
@@ -294,9 +314,7 @@ class PlayerActivity : Activity() {
                 Ratings.openOnGoodreads(this, item?.title ?: doc?.title ?: "", item?.author ?: doc?.author)
             }
             .row(R.drawable.ic_info, "Book details and cover", "Title, author, description, cover") { showDetailsMenu() }
-            .row(R.drawable.ic_voice, "Voice studio", "Voices, cloning, full cast") {
-                startActivity(Intent(this, VoiceStudioActivity::class.java))
-            }
+            .row(R.drawable.ic_voice, "Voice", "Choose, copy a voice, full cast and characters") { showVoiceHub() }
             .row(R.drawable.ic_car, "Car mode", "Big buttons and voice commands") {
                 startActivity(Intent(this, CarModeActivity::class.java))
             }
@@ -322,7 +340,11 @@ class PlayerActivity : Activity() {
 
     private fun setupControls() {
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
-        findViewById<ImageButton>(R.id.btnVoiceStudio).setOnClickListener { startActivity(Intent(this, VoiceStudioActivity::class.java)) }
+        findViewById<ImageButton>(R.id.btnVoiceStudio).apply {
+            visibility = View.VISIBLE
+            contentDescription = "Voice"
+            setOnClickListener { showVoiceHub() }
+        }
         findViewById<ImageButton>(R.id.btnTheme).setOnClickListener { startActivity(Intent(this, CarModeActivity::class.java)) }
         findViewById<ImageButton>(R.id.btnDetails).setOnClickListener { showDetailsMenu() }
         findViewById<ImageButton>(R.id.btnNotes).setOnClickListener { showNotes() }
@@ -430,7 +452,8 @@ class PlayerActivity : Activity() {
         }
 
         findViewById<Button>(R.id.btnPreview).setOnClickListener { Speaker.preview() }
-        findViewById<Button>(R.id.btnStudio).setOnClickListener { startActivity(Intent(this, VoiceStudioActivity::class.java)) }
+        // Everything about voices is in one place now (the Voice button).
+        findViewById<Button>(R.id.btnStudio).visibility = View.GONE
         findViewById<Button>(R.id.btnMoreVoices).setOnClickListener {
             try {
                 startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
@@ -1029,7 +1052,12 @@ class PlayerActivity : Activity() {
         voicesShown = Speaker.voicesVersion
         voiceShownFor = Speaker.voiceId
         voiceButton.text = "Voice: " + VoicePicker.label(Speaker.voiceId) + "  ▾"
-        voiceButton.setOnClickListener {
+        voiceButton.setOnClickListener { showVoiceHub() }
+    }
+
+    /** Choosing the reading voice (from the Voice menu). */
+    private fun chooseVoice() {
+        run {
             VoicePicker.pickOne(this, "Reading voice", Speaker.voiceId) { id ->
                 if (id == Speaker.voiceId) return@pickOne
                 Speaker.setVoice(id)

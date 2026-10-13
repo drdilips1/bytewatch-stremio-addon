@@ -110,14 +110,33 @@ class VoiceStudioActivity : Activity() {
 
     // ---- Building blocks ----
 
+    /**
+     * A section that folds: only its title shows until tapped (remembered). The reading voice starts
+     * open, the rest folded, so the studio isn't a wall of headings and explanations.
+     */
     private fun card(title: String, intro: String? = null): LinearLayout {
         val card = LinearLayout(this, null, 0, R.style.P2A_Card).apply { orientation = LinearLayout.VERTICAL }
         content.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = dp(14)
+            topMargin = dp(10)
         })
-        card.addView(TextView(this, null, 0, R.style.P2A_CardTitle).apply { text = title })
-        intro?.let { card.addView(muted(it)) }
-        return card
+        val key = "studioOpen:" + title.filter { it.isLetterOrDigit() || it == ' ' }.trim()
+        val studioPrefs = getSharedPreferences("p2a", MODE_PRIVATE)
+        val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val header = TextView(this, null, 0, R.style.P2A_CardTitle)
+        fun show(open: Boolean) {
+            body.visibility = if (open) View.VISIBLE else View.GONE
+            header.text = (if (open) "▾  " else "▸  ") + title
+        }
+        show(studioPrefs.getBoolean(key, title == "Reading voice"))
+        header.setOnClickListener {
+            val open = body.visibility != View.VISIBLE
+            studioPrefs.edit().putBoolean(key, open).apply()
+            show(open)
+        }
+        card.addView(header)
+        card.addView(body)
+        intro?.let { body.addView(muted(it)) }
+        return body
     }
 
     private fun muted(t: String) = TextView(this, null, 0, R.style.P2A_Muted).apply {
