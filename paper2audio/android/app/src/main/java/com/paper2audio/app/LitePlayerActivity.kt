@@ -64,6 +64,53 @@ class LitePlayerActivity : Activity() {
         }
     }
 
+    /** Moves the highlight along the words as they are spoken, and keeps them in view. */
+    private val follower = object : Runnable {
+        override fun run() {
+            if (Speaker.playing) followWords()
+            reader.postDelayed(this, 120)
+        }
+    }
+
+    private fun followWords() {
+        val i = Speaker.index
+        val tv = reader.getChildAt(i - reader.firstVisiblePosition) as? TextView ?: return
+        val text = Speaker.doc?.paragraphs?.getOrNull(i) ?: return
+        tv.text = highlighted(text, true)
+        // Keep the line being read in the upper part of the screen, with a gentle scroll.
+        if (System.currentTimeMillis() - lastUserScroll < 6_000) return
+        val layout = tv.layout ?: return
+        val piece = Speaker.currentPiece ?: return
+        val start = text.indexOf(piece).takeIf { it >= 0 } ?: return
+        val at = (start + (piece.length * Speaker.pieceProgress()).toInt()).coerceIn(0, maxOf(0, text.length - 1))
+        val lineY = tv.top + tv.totalPaddingTop + layout.getLineTop(layout.getLineForOffset(at))
+        val h = reader.height
+        if (h > 0 && (lineY > h * 0.6 || lineY < 0)) reader.smoothScrollBy(lineY - (h * 0.3).toInt(), 600)
+    }
+
+    /**
+     * The paragraph text, and for the one being read: the sentence softly tinted, the words already
+     * spoken a little stronger, and the word being spoken now strongest.
+     */
+    private fun highlighted(text: String, current: Boolean): CharSequence {
+        val piece = Speaker.currentPiece
+        // Paused: the sentence stays marked, so you can see where you are.
+        val start = if (current && piece != null) text.indexOf(piece) else -1
+        if (start < 0) return text
+        val end = start + piece!!.length
+        val accent = Themes.color(this, R.attr.p2aAccent) and 0x00FFFFFF
+        val span = SpannableString(text)
+        span.setSpan(BackgroundColorSpan(accent or 0x22000000), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        // Where the voice is, estimated from how much of the sentence's audio has played.
+        var at = start + (piece.length * Speaker.pieceProgress()).toInt().coerceIn(0, piece.length)
+        while (at < end && !text[at].isWhitespace()) at++ // to the end of the word being spoken
+        var wordStart = at
+        while (wordStart > start && !text[wordStart - 1].isWhitespace()) wordStart--
+        if (wordStart > start) span.setSpan(BackgroundColorSpan(accent or 0x40000000), start, wordStart, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (at > wordStart) span.setSpan(BackgroundColorSpan(accent or 0x80000000.toInt()), wordStart, at, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        return span
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         Themes.apply(this)
         super.onCreate(savedInstanceState)
@@ -169,6 +216,7 @@ class LitePlayerActivity : Activity() {
         Exporter.addListener(refresh)
         ModelPack.addListener(refresh)
         reader.post(ticker)
+        reader.post(follower)
         shownIndex = -1
         render()
     }
@@ -178,6 +226,7 @@ class LitePlayerActivity : Activity() {
         Exporter.removeListener(refresh)
         ModelPack.removeListener(refresh)
         reader.removeCallbacks(ticker)
+        reader.removeCallbacks(follower)
         super.onStop()
     }
 
@@ -236,9 +285,13 @@ class LitePlayerActivity : Activity() {
             readerAdapter.notifyDataSetChanged()
             if (moved && System.currentTimeMillis() - lastUserScroll > 6_000) {
                 reader.post {
-                    // A jump, not a scroll (easier on the eyes), and only when the paragraph is out of view.
+                    // A smooth scroll to the next paragraph when it's out of view (a jump only when it's far away).
                     val i = Speaker.index
-                    if (i < reader.firstVisiblePosition || i >= reader.lastVisiblePosition) reader.setSelectionFromTop(i, LiteUi.dp(this, 80))
+                    if (i < reader.firstVisiblePosition || i > reader.lastVisiblePosition) {
+                        val far = i < reader.firstVisiblePosition - 3 || i > reader.lastVisiblePosition + 3
+                        if (far) reader.setSelectionFromTop(i, LiteUi.dp(this, 80))
+                        else reader.smoothScrollToPositionFromTop(i, LiteUi.dp(this, 80), 500)
+                    }
                 }
             }
         }
@@ -323,18 +376,10 @@ class LitePlayerActivity : Activity() {
             val current = position == Speaker.index
             tv.textSize = if (isHeading) textSizeSp + 4 else textSizeSp
             tv.setTypeface(null, if (isHeading) Typeface.BOLD else Typeface.NORMAL)
-            val piece = Speaker.currentPiece
-            val start = if (current && piece != null && Speaker.playing) text.indexOf(piece) else -1
-            if (start >= 0) {
-                val span = SpannableString(text)
-                val accent = Themes.color(this@LitePlayerActivity, R.attr.p2aAccent)
-                span.setSpan(BackgroundColorSpan((accent and 0x00FFFFFF) or 0x48000000), start, start + piece!!.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                tv.text = span
-            } else {
-                tv.text = text
-            }
-            if (current) tv.setBackgroundResource(R.drawable.bg_current) else tv.background = null
-            tv.alpha = if (current || !Speaker.playing) 1f else 0.7f
+            tv.text = highlighted(text, current)
+            // No box around the paragraph: the highlight follows the words instead.
+            tv.background = null
+            tv.alpha = if (current || !Speaker.playing) 1f else 0.78f
             return tv
         }
     }

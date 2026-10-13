@@ -216,6 +216,9 @@ object Speaker {
     /** The sentence(s) being read right now, for highlighting in the reader. */
     var currentPiece: String? = null
         private set
+
+    /** How much of [currentPiece] has been spoken, 0 to 1 (estimated from the audio heard). */
+    fun pieceProgress(): Float = if (playing) stream?.currentProgress() ?: 0f else 0f
     private var warmJob: Job? = null
 
     /** Bumped on every restart so callbacks from stopped audio are ignored. */

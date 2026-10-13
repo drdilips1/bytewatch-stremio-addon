@@ -24,7 +24,7 @@ import kotlin.math.abs
  * what is being heard.
  */
 class AudioStream(context: Context, boost: Float) {
-    private class Mark(val frame: Long, val tag: Any)
+    private class Mark(val frame: Long, val tag: Any, val length: Long = 0)
 
     private var track: AudioTrack? = null
     private var rate = 0
@@ -68,7 +68,7 @@ class AudioStream(context: Context, boost: Float) {
     suspend fun write(pcm: Pcm16, tag: Any, pauseMs: Int) {
         val t = track ?: create(pcm.sampleRate)
         val samples = if (pcm.sampleRate == rate) pcm.samples else resample(pcm.samples, pcm.sampleRate, rate)
-        synchronized(marks) { marks += Mark(written, tag) }
+        synchronized(marks) { marks += Mark(written, tag, samples.size.toLong()) }
         push(t, samples)
         push(t, ShortArray(rate * pauseMs / 1000))
     }
@@ -123,6 +123,16 @@ class AudioStream(context: Context, boost: Float) {
             // Drop marks long past, keep the one being heard.
             while (marks.size > 1 && marks[1].frame <= pos) marks.removeAt(0)
             return marks.firstOrNull()?.takeIf { it.frame <= pos }?.tag
+        }
+    }
+
+    /** How far into the piece being heard the listener is, 0 to 1 (for following the words). */
+    fun currentProgress(): Float {
+        val pos = heard
+        synchronized(marks) {
+            val m = marks.lastOrNull { it.frame <= pos } ?: return 0f
+            if (m.length <= 0) return 1f
+            return ((pos - m.frame).toFloat() / m.length).coerceIn(0f, 1f)
         }
     }
 

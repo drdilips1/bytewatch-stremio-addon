@@ -158,9 +158,9 @@ object LocalTts {
                         referenceSampleRate = ref.sampleRate,
                         numSteps = 5,
                         extra = mapOf(
-                            // Lower than the engine's usual 0.7: every sentence in the same tone and pace,
-                            // instead of a slightly different take on the voice each time.
-                            "temperature" to "0.45",
+                            // A little below the engine's usual 0.7: steadier from sentence to sentence; lower
+                            // than this made it skip words.
+                            "temperature" to "0.6",
                             "chunk_size" to "15",
                             // Stops a sentence whose end the model misses from running on as babble.
                             "max_frames" to maxFrames(spoken).toString(),
@@ -176,7 +176,8 @@ object LocalTts {
     }
 
     /** At most ~1.6x the expected length (12.5 frames a second, ~15 characters a second). */
-    internal fun maxFrames(text: String) = (text.length * 0.95 + 10).toInt().coerceIn(20, 400)
+    // Room for a slow, unhurried speaker (about 11 characters a second) plus a breath.
+    internal fun maxFrames(text: String) = (text.length * 1.15 + 15).toInt().coerceIn(25, 400)
 
 
     private fun engineKey(voiceId: String) = when {
@@ -286,11 +287,13 @@ object RunOn {
      * where the sentence should have ended.
      */
     fun trim(samples: FloatArray, rate: Int, text: String): FloatArray {
-        val expected = maxOf(1.0, text.length / 14.0) // seconds: about 14 characters a second
+        // Only clear run-ons: well past what even a slow reader (11 characters a second) needs.
+        // Cutting sooner clipped the end of real sentences.
+        val expected = maxOf(1.5, text.length / 11.0)
         val seconds = samples.size.toDouble() / rate
-        if (seconds <= expected * 1.3) return samples
+        if (seconds <= expected * 1.5) return samples
         val frame = rate / 20 // 50 ms
-        val from = (expected * 0.85 * rate).toInt() / frame
+        val from = (expected * 1.05 * rate).toInt() / frame
         val to = samples.size / frame
         if (to - from < 2) return samples
         val energy = DoubleArray(to) { f ->

@@ -82,7 +82,9 @@ object Renderer {
         // On-device voices: one sentence per piece (only very short ones joined), so every sentence
         // gets the same pause whatever the text, and the first sound comes sooner.
         // Long sentences stay whole up to 320 characters: every cut sounds like a sentence ending.
-        if (LocalTts.isLocal(voiceId)) TextCleaner.pieces(paragraph, 14, hardMax = 320)
+        // Copied voices lose their way in long sentences (skipped words, run-ons): shorter parts.
+        if (voiceId.startsWith(Speaker.CLONE)) TextCleaner.pieces(paragraph, 14, hardMax = 160)
+        else if (LocalTts.isLocal(voiceId)) TextCleaner.pieces(paragraph, 14, hardMax = 320)
         else TextCleaner.pieces(paragraph, 50, hardMax = 900)
 
     /**
@@ -106,7 +108,7 @@ object Renderer {
         // Supertonic's pace changed (calmer): don't reuse audio made at the old pace.
         val pace = when {
             v.voiceId.startsWith(Speaker.SUPER) -> "p2|"
-            v.voiceId.startsWith(Speaker.CLONE) -> "t45|" // steadier copied voices: don't reuse older audio
+            v.voiceId.startsWith(Speaker.CLONE) -> "t60|" // steadier copied voices: don't reuse older audio
             else -> ""
         }
         val digest = MessageDigest.getInstance("SHA-1").digest("${v.key}|$es|$pace${Pronounce.stamp.let { if (it.isEmpty()) "" else "$it|" }}$text".toByteArray())
