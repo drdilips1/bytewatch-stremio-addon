@@ -165,11 +165,17 @@ object LocalTts {
             }
             else -> {
                 val ref = MyVoices.reference(name) ?: error("That voice was deleted")
+                // A short silence after the recording: each sentence then starts as if after a breath,
+                // instead of running on from the recording's last word (which garbled first words like "He").
+                // (The engine hears only the first 10 s, so the recording is shortened to make room for it.)
+                val pause = ref.sampleRate * 4 / 10
+                val room = MyVoices.REFERENCE_SECONDS * ref.sampleRate - pause
+                val lead = ref.samples.copyOf(minOf(ref.samples.size, room)) + FloatArray(pause)
                 val spoken = TextCleaner.endSentence(text)
                 fun take(seed: Int) = tts.generateWithConfig(
                     spoken,
                     GenerationConfig(
-                        referenceAudio = ref.samples,
+                        referenceAudio = lead,
                         referenceSampleRate = ref.sampleRate,
                         numSteps = 5,
                         silenceScale = 1f,
