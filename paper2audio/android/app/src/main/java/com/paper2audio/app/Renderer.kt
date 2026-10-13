@@ -66,6 +66,8 @@ object Renderer {
     fun engineSpeed(voiceId: String, speed: Float) = if (isStreamed(voiceId)) minOf(speed, maxSpeed(voiceId)) else speed
 
     fun engineSpeed(v: Voicing, speed: Float): Float {
+        // Copied voices always speak at the recorded pace; the player slows or speeds them (pitch kept).
+        if (v.voiceId.startsWith(Speaker.CLONE)) return 1f
         val max = listOfNotNull(v.voiceId, v.dialogue).filter { isStreamed(it) }.minOfOrNull { maxSpeed(it) } ?: return speed
         return minOf(speed, max)
     }

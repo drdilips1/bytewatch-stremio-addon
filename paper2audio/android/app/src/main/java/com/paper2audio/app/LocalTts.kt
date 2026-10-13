@@ -169,11 +169,13 @@ object LocalTts {
             }
         }
         if (audio.samples.isEmpty()) error("The voice produced no audio")
-        return Pcm(toPcm16(audio.samples), audio.sampleRate)
+        val samples = if (voiceId.startsWith(Speaker.CLONE)) RunOn.trim(audio.samples, audio.sampleRate, text) else audio.samples
+        return Pcm(toPcm16(samples), audio.sampleRate)
     }
 
     /** At most ~1.6x the expected length (12.5 frames a second, ~15 characters a second). */
-    internal fun maxFrames(text: String) = (text.length / 1.2 * 1.3 + 12).toInt().coerceIn(20, 500)
+    internal fun maxFrames(text: String) = (text.length * 0.95 + 10).toInt().coerceIn(20, 400)
+
 
     private fun engineKey(voiceId: String) = when {
         voiceId.startsWith(Speaker.KOKORO) -> if (Kokoro.voice(voiceId.substringAfter(':'))?.british == true) "kokoro-gb" else "kokoro-us"
@@ -271,5 +273,33 @@ object LocalTts {
         val bytes = ByteArray(info.dataSize.toInt())
         java.io.RandomAccessFile(file, "r").use { it.seek(info.dataOffset); it.readFully(bytes) }
         return Pcm(bytes, info.sampleRate)
+    }
+}
+
+/** Cutting off the babble a copied voice sometimes adds after a sentence. */
+object RunOn {
+    /**
+     * Copied voices sometimes miss the end of a sentence and run on in a muffled babble. When the
+     * audio is much longer than the text needs, it is cut at the quietest moment after the point
+     * where the sentence should have ended.
+     */
+    fun trim(samples: FloatArray, rate: Int, text: String): FloatArray {
+        val expected = maxOf(1.0, text.length / 14.0) // seconds: about 14 characters a second
+        val seconds = samples.size.toDouble() / rate
+        if (seconds <= expected * 1.3) return samples
+        val frame = rate / 20 // 50 ms
+        val from = (expected * 0.85 * rate).toInt() / frame
+        val to = samples.size / frame
+        if (to - from < 2) return samples
+        val energy = DoubleArray(to) { f ->
+            var e = 0.0
+            for (i in f * frame until minOf(samples.size, (f + 1) * frame)) e += samples[i] * samples[i]
+            e / frame
+        }
+        val speech = energy.sorted()[(energy.size * 0.7).toInt().coerceAtMost(energy.size - 1)]
+        // The first real gap after the expected end, else the quietest moment there.
+        val cut = (from until to).firstOrNull { f -> f + 1 < to && energy[f] < speech * 0.02 && energy[f + 1] < speech * 0.02 }
+            ?: (from until to).minByOrNull { energy[it] }!!
+        return samples.copyOf(cut * frame)
     }
 }

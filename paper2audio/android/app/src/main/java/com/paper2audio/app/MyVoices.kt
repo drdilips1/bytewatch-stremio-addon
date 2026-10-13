@@ -119,14 +119,16 @@ object MyVoices {
             val seconds = clean(raw).size / RATE.toFloat()
             error("That recording has only ${"%.0f".format(seconds)} seconds of speech. Record at least $MIN_SECONDS seconds (10–20 is best).")
         }
-        val noisy = Denoise.noiseRatio(raw) > 0.12f
-        // Noise makes a cloned voice mumble, but the noise remover also dulls the voice (it works at
-        // 16 kHz): only use it on recordings that need it, and keep clean ones at full quality.
-        val cleaned = if (noisy) Denoise.speech(app, raw, RATE) else Denoise.highPass(raw, RATE)
+        val ratio = Denoise.noiseRatio(raw)
+        val noisy = ratio > 0.12f
+        // Any hiss in the sample is copied into every sentence, so the noise remover runs on all but
+        // truly studio-clean clips (it dulls the voice slightly, which is the lesser evil).
+        val cleaned = if (ratio > 0.015f) Denoise.speech(app, raw, RATE) else Denoise.highPass(raw, RATE)
         // The speaker's rhythm: how long they pause between sentences.
         val pause = sentencePause(cleaned, RATE)
-        // Long silences in the sample make the copy hesitate: shorten them.
-        val clean = clean(tightenSilences(cleaned, RATE))
+        // Only real hesitations (over 0.7 s) are shortened: the speaker's normal pauses are their
+        // rhythm, and squeezing them out made the copy hurry.
+        val clean = clean(tightenSilences(cleaned, RATE, maxMs = 700))
         val seconds = clean.size / RATE.toFloat()
         if (seconds < MIN_SECONDS) error("That recording has only ${"%.0f".format(seconds)} seconds of clear speech. Record at least $MIN_SECONDS seconds (10–20 is best) in a quiet room.")
         val id = java.util.UUID.randomUUID().toString().take(8)
