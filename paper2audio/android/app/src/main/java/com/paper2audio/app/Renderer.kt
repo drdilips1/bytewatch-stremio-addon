@@ -113,7 +113,7 @@ object Renderer {
         val pace = when {
             // Engine settings changed (pace, natural pauses, one seed per voice): don't reuse older audio.
             v.voiceId.startsWith(Speaker.SUPER) -> "p5|"
-            v.voiceId.startsWith(Speaker.CLONE) -> "c3|"
+            v.voiceId.startsWith(Speaker.CLONE) -> "c4|"
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""
         }
@@ -121,6 +121,9 @@ object Renderer {
         val ext = if (LocalTts.isLocal(v.voiceId)) "wav" else "mp3"
         return File(dir(context), digest.joinToString("") { "%02x".format(it) } + "." + ext)
     }
+
+    internal fun plainQuotes(t: String) = t.replace('\u2019', '\'').replace('\u2018', '\'')
+        .replace('\u02BC', '\'').replace('\u201C', '"').replace('\u201D', '"')
 
     fun isCached(context: Context, v: Voicing, speed: Float, text: String) = file(context, v, speed, text).length() > 0
 
@@ -175,7 +178,10 @@ object Renderer {
         val voice = if (segments?.singleOrNull()?.first == true) v.dialogue!! else v.voiceId
         val tmp = File(target.path + ".part" + System.nanoTime())
         // What the voice is given: numbers, units, symbols and abbreviations spelled out.
-        val spoken = Speech.normalize(text, v.medical).ifBlank { text }
+        val normalized = Speech.normalize(text, v.medical).ifBlank { text }
+        // Books use curly apostrophes (won’t); the on-device voices only know the plain one and
+        // read "won t". Plain quotes and apostrophes for them.
+        val spoken = if (LocalTts.isLocal(voice)) plainQuotes(normalized) else normalized
         try {
             val es = engineSpeed(v, speed)
             if (LocalTts.isLocal(voice)) {
