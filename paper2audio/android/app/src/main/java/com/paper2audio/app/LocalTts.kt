@@ -78,7 +78,7 @@ object LocalTts {
     private fun seedFor(voiceId: String) = (voiceId.hashCode() and 0x7fffffff) % 100_000 + 1
 
     /** Supertonic speaks quickly at its 1x; this is the pace the app calls normal. */
-    const val SUPERTONIC_PACE = 0.88f
+    const val SUPERTONIC_PACE = 0.82f
 
     fun supertonicVoice(name: String) = SUPERTONIC_VOICES.firstOrNull { it.name == name }
 

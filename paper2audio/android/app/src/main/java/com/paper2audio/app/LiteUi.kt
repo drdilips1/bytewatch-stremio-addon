@@ -128,7 +128,10 @@ object LiteUi {
                         askNotifications(activity)
                         p.install {
                             // Switch to the new voices when they're ready (if still on the phone voice).
-                            if (Speaker.voiceId.startsWith(Speaker.SYSTEM)) voices.firstOrNull()?.let { Speaker.setVoice(it.first) }
+                            if (Speaker.voiceId.startsWith(Speaker.SYSTEM)) {
+                                // Supertonic: start with Lena; otherwise the first voice of the pack.
+                                (voices.firstOrNull { it.first == Speaker.SUPER + "F2" } ?: voices.firstOrNull())?.let { Speaker.setVoice(it.first) }
+                            }
                             onChosen()
                         }
                         fillVoices(activity, sheet, onChosen)
