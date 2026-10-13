@@ -155,7 +155,9 @@ class LiteCopyVoiceActivity : Activity() {
             scope.launch {
                 try {
                     val ref = withContext(Dispatchers.IO) { MyVoices.decode(this@LiteCopyVoiceActivity, uri) }
-                    make(name, ref.samples, ref.sampleRate)
+                    // The first couple of seconds of a clip are often a click, a breath or an intro: skip them.
+                    val skip = if (ref.samples.size > 15 * ref.sampleRate) 2 * ref.sampleRate else 0
+                    make(name, ref.samples.copyOfRange(skip, ref.samples.size), ref.sampleRate)
                 } catch (e: Exception) {
                     done("Couldn't read that clip: ${e.message}")
                 }
@@ -164,6 +166,7 @@ class LiteCopyVoiceActivity : Activity() {
     }
 
     private fun record() {
+        if (countdown?.isActive == true) return startRecording() // cancels the countdown
         // Stop (or the recorder already stopped itself at the time limit): keep what was recorded.
         recorder?.let { r ->
             recorder = null
@@ -182,14 +185,35 @@ class LiteCopyVoiceActivity : Activity() {
             .setTitle("Read this aloud")
             .setMessage(
                 "Hold the phone about a hand's width away, in a quiet room, and read naturally:\n\n“${MyVoices.SCRIPT}”\n\n" +
-                    "Or play the voice you want to copy near the phone. Tap Stop when it's done (15 seconds or more is best; it stops by itself after 90)."
+                    "Or play the voice you want to copy near the phone. Recording starts after a 3-second countdown. Tap Stop when it's done (15 seconds or more is best; it stops by itself after 90)."
             )
             .setPositiveButton("Start") { _, _ -> startRecording() }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
+    private var countdown: kotlinx.coroutines.Job? = null
+
+    /** A 3-second countdown first: time to settle, or to start playing the voice near the phone. */
     private fun startRecording() {
+        if (countdown?.isActive == true) {
+            // Tapped again during the countdown: cancel.
+            countdown?.cancel()
+            btnRecord.text = "Record with the microphone"
+            status.text = ""
+            return
+        }
+        btnRecord.text = "Cancel"
+        countdown = scope.launch {
+            for (n in 3 downTo 1) {
+                status.text = "Recording starts in $n…"
+                kotlinx.coroutines.delay(1_000)
+            }
+            beginRecording()
+        }
+    }
+
+    private fun beginRecording() {
         val r = VoiceRecorder(MAX_RECORD_SECONDS) { peak, secs ->
             runOnUiThread {
                 if (recorder == null) return@runOnUiThread
