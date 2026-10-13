@@ -483,8 +483,8 @@ object Speaker {
         }
         if (isStreamed) {
             val s = stream
-            // After a long pause the audio output may have gone stale (other apps, Bluetooth): start afresh.
-            val fresh = System.currentTimeMillis() - pausedAt > 120_000
+            // After a long pause (10 min) the audio output may have gone stale (other apps, Bluetooth): start afresh.
+            val fresh = System.currentTimeMillis() - pausedAt > 600_000
             if (s != null && session?.isActive == true && !fresh && !starting) s.resume() else startStreaming()
             watchStart()
         } else {
@@ -1178,7 +1178,9 @@ object Speaker {
                         while (queue.size < lookahead() && pieces.hasNext()) {
                             val p = pieces.next()
                             // The very first sentence is spoken in two halves when it's long, so sound starts sooner.
-                            val parts = if (first) Renderer.quickStart(p.text, p.voice) else listOf(p.text)
+                            // Already made (heard before a pause or a seek back): play it whole, at once.
+                            val ready = Renderer.isCached(app, base.copy(voiceId = p.voice), currentSpeed, p.text)
+                            val parts = if (first && !ready) Renderer.quickStart(p.text, p.voice) else listOf(p.text)
                             first = false
                             queue.addLast(p to parts.map { t -> async(Dispatchers.IO) { load(p, t) } })
                         }
@@ -1253,7 +1255,10 @@ object Speaker {
         warmJob = scope.launch(Dispatchers.IO) {
             val first = pieceSequence(d, from, fromPiece, vid).take(3).toList()
             // Same parts as playback renders, so pressing Play finds them ready.
-            first.firstOrNull()?.let { p -> Renderer.quickStart(p.text, p.voice).forEach { t -> runCatching { Renderer.render(app, v.copy(voiceId = p.voice), sp, t) } } }
+            first.firstOrNull()?.let { p ->
+                val pv = v.copy(voiceId = p.voice)
+                if (!Renderer.isCached(app, pv, sp, p.text)) Renderer.quickStart(p.text, p.voice).forEach { t -> runCatching { Renderer.render(app, pv, sp, t) } }
+            }
             for (p in first.drop(1)) runCatching { Renderer.render(app, v.copy(voiceId = p.voice), sp, p.text) }
         }
     }

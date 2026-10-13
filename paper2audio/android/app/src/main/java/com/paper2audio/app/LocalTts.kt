@@ -155,8 +155,7 @@ object LocalTts {
                     text,
                     // Supertonic's own 1x is brisk: "normal" is a calmer reading pace.
                     GenerationConfig(
-                        // 8 refinement steps (was 6): clearer words for a little more work.
-                        sid = v.sid, speed = speed * SUPERTONIC_PACE, numSteps = 8,
+                        sid = v.sid, speed = speed * SUPERTONIC_PACE, numSteps = 6,
                         // Pauses inside a sentence at their natural length (the engine's default shrinks them to a fifth).
                         silenceScale = 1f,
                         // The same "take" on the voice for every sentence, instead of fresh random variation each time.
