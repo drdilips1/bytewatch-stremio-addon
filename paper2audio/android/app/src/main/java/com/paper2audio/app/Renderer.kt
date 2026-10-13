@@ -329,8 +329,15 @@ object Stories {
     private const val OPEN = '\u201C'
     private const val CLOSE = '\u201D'
 
-    /** (isDialogue, text) segments in order; null when there's no dialogue at all. */
-    fun split(text: String): List<Pair<Boolean, String>>? {
+    private const val OPEN1 = '\u2018'
+    private const val CLOSE1 = '\u2019'
+
+    /**
+     * (isDialogue, text) segments in order; null when there's no dialogue at all. [single]: the book
+     * puts dialogue in single quotes (‘…’); a ’ inside a word ("don’t") is an apostrophe, not a close.
+     */
+    fun split(text: String, single: Boolean = false): List<Pair<Boolean, String>>? {
+        if (single) return splitSingle(text)
         if (OPEN !in text && CLOSE !in text) return null
         val out = ArrayList<Pair<Boolean, String>>()
         // A piece can start in the middle of a quotation: then its first quote mark closes.
@@ -367,6 +374,43 @@ object Stories {
         }
         flush()
         return out
+    }
+
+    private fun splitSingle(text: String): List<Pair<Boolean, String>>? {
+        if (OPEN1 !in text) return null
+        val out = ArrayList<Pair<Boolean, String>>()
+        var inQuote = false
+        val sb = StringBuilder()
+        fun flush() {
+            val t = sb.toString().trim()
+            sb.setLength(0)
+            if (t.isEmpty()) return
+            if (t.none { it.isLetterOrDigit() } && out.isNotEmpty()) {
+                out[out.lastIndex] = out.last().first to out.last().second + t
+                return
+            }
+            if (out.isNotEmpty() && out.last().first == inQuote) out[out.lastIndex] = inQuote to out.last().second + " " + t
+            else out += inQuote to t
+        }
+        for ((i, c) in text.withIndex()) {
+            when {
+                // Opens at the start of a word: ‘Come in,’ … not ‘90s inside a sentence after a letter.
+                c == OPEN1 && !inQuote && (i == 0 || !text[i - 1].isLetterOrDigit()) -> {
+                    flush()
+                    inQuote = true
+                    sb.append(c)
+                }
+                // Closes when no letter follows (don’t, it’s: letters follow, so those are apostrophes).
+                c == CLOSE1 && inQuote && (i + 1 == text.length || !text[i + 1].isLetter()) -> {
+                    sb.append(c)
+                    flush()
+                    inQuote = false
+                }
+                else -> sb.append(c)
+            }
+        }
+        flush()
+        return out.takeIf { it.any { p -> p.first } }
     }
 }
 

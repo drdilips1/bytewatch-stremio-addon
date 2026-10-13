@@ -918,8 +918,9 @@ object Speaker {
         if (speaker.length < 2 || !speaker.first().isLetter()) return null
         val key = d.key + "|" + speaker
         guessed[key]?.let { return it.ifEmpty { null } }
-        val near = d.paragraphs.asSequence().filter { speaker in it }.take(120).joinToString(" ")
-        var g = Cast.genderOf(speaker, near, castVoices.keys + speakersOf(d))
+        // From the whole book (every he/she near the name, titles, then common first names).
+        val near = d.paragraphs.asSequence().filter { speaker in it }.take(400).joinToString(" ")
+        var g = Cast.of(d).genders[speaker] ?: Cast.genderOf(speaker, near, castVoices.keys + speakersOf(d))
         if (g != null && Cast.isChild(speaker, near)) g = if (g == "male") "boy" else "girl"
         guessed[key] = g ?: ""
         return g
@@ -948,6 +949,8 @@ object Speaker {
 
     /** Asks the AI (once per book, in the background) who the characters are and whether they're men or women. */
     private fun learnCharacters(d: Doc) {
+        // Read the book's cast now, in the background, so the first lines don't wait for it.
+        if (fullCast) scope.launch(Dispatchers.Default) { runCatching { Cast.of(d) } }
         if (!fullCast || aiGenders.containsKey(d.key) || AiLevel.of(app) == AiLevel.PURE || !Llm.ready(app)) return
         aiGenders[d.key] = emptyMap()
         scope.launch(Dispatchers.IO) {
@@ -1022,7 +1025,8 @@ object Speaker {
             !isStreamed -> listOf(para to vid)
             // "Host: …": the label isn't read; the speaker's voice reads the rest.
             script != null -> listOf(script.second to castVoice(d, script.first))
-            fullCast || dialogueVoice != null -> Cast.storySegments(para).map { s ->
+            // The book's cast, read once: who speaks every line, following conversations across paragraphs.
+            fullCast || dialogueVoice != null -> (Cast.of(d).segments[k] ?: listOf(Cast.Segment(para, null))).map { s ->
                 s.text to when {
                     s.speaker == null -> vid
                     fullCast -> castVoice(d, s.speaker)
