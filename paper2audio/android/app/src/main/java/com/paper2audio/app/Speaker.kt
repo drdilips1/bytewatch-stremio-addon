@@ -1057,16 +1057,24 @@ object Speaker {
     private fun pauseAfter(d: Doc, p: Piece): Int {
         // A copied voice keeps the rhythm of the person it was copied from.
         val own = if (p.voice.startsWith(CLONE)) MyVoices.pauseOf(p.voice.removePrefix(CLONE)) else 0
-        val sentence = if (own > 0) own else style.sentencePause
+        // On-device voices speak one sentence at a time, and the silence they make around it is
+        // trimmed: they need longer pauses than the online voices to breathe like a reader.
+        val local = LocalTts.isLocal(p.voice)
+        val sentence = when {
+            own > 0 -> own
+            local -> style.sentencePause + 220
+            else -> style.sentencePause
+        }
+        val paragraph = style.paragraphPause + if (local) 250 else 0
         return when {
             // A piece that stops mid-sentence (a long sentence cut, or before a quote) runs on: no full stop pause.
             !p.lastInParagraph -> when (p.text.trimEnd().trimEnd('\u201D', '\u2019', '"', '\'', ')').lastOrNull()) {
                 '.', '!', '?', '\u2026' -> sentence
                 ',', ';', ':', '\u2014', '\u2013' -> sentence / 2
-                else -> 40
+                else -> if (local) 120 else 40
             }
-            d.chapters.any { it.start == p.paragraph } && d.paragraphs[p.paragraph].length < 150 -> style.headingPause
-            else -> if (own > 0) maxOf(style.paragraphPause, own * 2) else style.paragraphPause
+            d.chapters.any { it.start == p.paragraph } && d.paragraphs[p.paragraph].length < 150 -> style.headingPause + if (local) 250 else 0
+            else -> if (own > 0) maxOf(paragraph, own * 2) else paragraph
         }
     }
 
