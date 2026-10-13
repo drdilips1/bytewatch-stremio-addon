@@ -602,23 +602,9 @@ class PlayerActivity : Activity() {
             markWords(span, position, offset)
             if (current) readAlong(span, shown, tv.currentTextColor)
             tv.text = span
-            val paper = ReadingLook.paper(this@PlayerActivity)
-            when {
-                // On a chosen paper color, the current paragraph keeps that paper (slightly deeper) and an accent edge.
-                current && paper != null -> tv.background = android.graphics.drawable.GradientDrawable().apply {
-                    val bg = paper.background
-                    val deeper = if (paper.key == "night") 0xFF1E2126.toInt() else (0xFF shl 24) or
-                        (((bg shr 16 and 0xFF) * 94 / 100) shl 16) or (((bg shr 8 and 0xFF) * 94 / 100) shl 8) or ((bg and 0xFF) * 94 / 100)
-                    setColor(deeper)
-                    cornerRadius = 14 * resources.displayMetrics.density
-                    setStroke((2 * resources.displayMetrics.density).toInt(), color(R.attr.p2aAccent))
-                }
-                // While reading, the highlight follows the words instead of boxing the paragraph.
-                current && Speaker.playing -> tv.background = null
-                current -> tv.setBackgroundResource(R.drawable.bg_current)
-                position in highlights -> tv.setBackgroundColor(highlights.getValue(position))
-                else -> tv.background = null
-            }
+            // No box around the paragraph being read: the text reads on as one, and the highlight follows
+            // the words (paused, the sentence keeps a soft tint). Paragraphs you highlighted keep their colour.
+            if (position in highlights) tv.setBackgroundColor(highlights.getValue(position)) else tv.background = null
             // While reading: what's been read fades most, what's to come a little.
             tv.alpha = when {
                 current || !Speaker.playing -> 1f
