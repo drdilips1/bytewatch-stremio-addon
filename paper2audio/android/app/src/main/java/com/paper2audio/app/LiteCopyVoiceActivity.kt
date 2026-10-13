@@ -285,7 +285,14 @@ class LiteCopyVoiceActivity : Activity() {
             val id = Speaker.CLONE + voice.id
             val used = "\n\nUsed: the clearest ${"%.0f".format(voice.seconds)} seconds of the recording."
             val rhythm = used + if (voice.pause > 0) "\nIts pause between sentences: ${voice.pause} ms, as in the recording." else ""
-            val tip = if (voice.noisy) "\n\nThe recording had background noise. It was removed, but a quieter recording gives a truer copy." else ""
+            // How good the recording was: a poor one gives a poor copy, so say so and why.
+            val tip = when {
+                voice.problems.isEmpty() -> "\n\nRecording quality: good."
+                voice.problems.size == 1 && voice.problems[0].startsWith("some") ->
+                    "\n\nRecording quality: fair (${voice.problems[0]}). It may have small glitches."
+                else -> "\n\nRecording quality: poor. The copy may mumble or sound wrong because of:\n• " +
+                    voice.problems.joinToString("\n• ") + "\n\nFor a better copy, remove this voice and record again in a quiet room, a hand's width from the phone."
+            }
             AlertDialog.Builder(this)
                 .setTitle("“${voice.name}” is ready")
                 .setMessage("Listen to it, or use it to read your books.$rhythm$tip")

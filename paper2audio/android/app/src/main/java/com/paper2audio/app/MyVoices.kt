@@ -45,6 +45,8 @@ object MyVoices {
         val version: Int = 2,
         /** Set by [add] when the recording had noticeable background noise. */
         val noisy: Boolean = false,
+        /** Set by [add]: what's wrong with the recording, if anything (empty = good). */
+        val problems: List<String> = emptyList(),
         /** The speaker's own pause between sentences, measured from the recording (ms; 0 = not known). */
         val pause: Int = 0,
     )
@@ -138,7 +140,26 @@ object MyVoices {
         writeRef(File(dir, "$id.wav"), clean)
         val voice = Voice(id, name.trim().ifBlank { "My voice" }, System.currentTimeMillis(), seconds, pause = pause)
         save(own() + voice)
-        return voice.copy(noisy = noisy)
+        return voice.copy(noisy = noisy, problems = problems(raw, RATE, ratio, seconds))
+    }
+
+    /**
+     * What in a recording will make a poor copy, in plain words: background noise, distortion
+     * (too close or too loud), too quiet, too short, or long silences / several voices.
+     */
+    internal fun problems(x: FloatArray, rate: Int, noise: Float, seconds: Float): List<String> {
+        val out = ArrayList<String>()
+        if (noise > 0.12f) out += "a lot of background noise (fan, traffic, TV or music)"
+        else if (noise > 0.05f) out += "some background noise"
+        val clipped = x.count { abs(it) > 0.98f }
+        if (clipped > x.size / 2000) out += "distortion: the voice was too loud or too close to the microphone"
+        val e = frames(x, rate)
+        val v = voiced(e)
+        val speech = e.filterIndexed { i, _ -> v[i] }
+        if (speech.isNotEmpty() && speech.sorted()[speech.size / 2] < 0.02f) out += "the voice is very quiet (move closer, or speak up)"
+        if (seconds < 8f) out += "only ${"%.0f".format(seconds)} seconds of clear speech (10 or more is best)"
+        if (v.isNotEmpty() && v.count { it } < v.size * 0.45) out += "long silences or gaps in the speech"
+        return out
     }
 
     /** Loudness of each 20 ms frame. */
