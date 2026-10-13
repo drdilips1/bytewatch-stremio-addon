@@ -1489,7 +1489,7 @@ object Speaker {
                     setDataSource(f.path)
                     prepare()
                     val boost = Renderer.playbackBoost(v, sp)
-                    if (boost > 1.01f) runCatching { playbackParams = playbackParams.setSpeed(boost) }
+                    if (kotlin.math.abs(boost - 1f) > 0.01f) runCatching { playbackParams = playbackParams.setSpeed(boost) }
                     setOnCompletionListener {
                         it.release()
                         if (previewPlayer === it) previewPlayer = null

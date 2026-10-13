@@ -72,7 +72,11 @@ object Renderer {
         return minOf(speed, max)
     }
 
-    fun playbackBoost(v: Voicing, speed: Float) = speed / engineSpeed(v, speed)
+    fun playbackBoost(v: Voicing, speed: Float): Float {
+        val boost = speed / engineSpeed(v, speed)
+        // Supertonic is slowed mostly by the player (see LocalTts.SUPERTONIC_PACE).
+        return if (v.voiceId.startsWith(Speaker.SUPER)) boost * LocalTts.SUPERTONIC_PLAYBACK else boost
+    }
 
     /**
      * Playback pieces for one paragraph: about one sentence each (very short ones
@@ -108,7 +112,7 @@ object Renderer {
         // Supertonic's pace changed (calmer): don't reuse audio made at the old pace.
         val pace = when {
             // Engine settings changed (pace, natural pauses, one seed per voice): don't reuse older audio.
-            v.voiceId.startsWith(Speaker.SUPER) -> "p4|"
+            v.voiceId.startsWith(Speaker.SUPER) -> "p5|"
             v.voiceId.startsWith(Speaker.CLONE) -> "c3|"
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""

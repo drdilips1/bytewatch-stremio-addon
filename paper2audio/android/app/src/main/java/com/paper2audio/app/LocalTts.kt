@@ -77,8 +77,14 @@ object LocalTts {
     /** A fixed random seed for each voice, so every sentence is the same take on it. */
     private fun seedFor(voiceId: String) = (voiceId.hashCode() and 0x7fffffff) % 100_000 + 1
 
-    /** Supertonic speaks quickly at its 1x; this is the pace the app calls normal. */
-    const val SUPERTONIC_PACE = 0.82f
+    /**
+     * Supertonic speaks quickly at its 1x. Asked to go much slower, it stretches words until
+     * syllables repeat ("val-au-au-ling", "She she"), so it only slows a little itself
+     * ([SUPERTONIC_PACE]) and the player does the rest ([SUPERTONIC_PLAYBACK], pitch kept):
+     * about 0.83 of its 1x together, the pace the app calls normal.
+     */
+    const val SUPERTONIC_PACE = 0.95f
+    const val SUPERTONIC_PLAYBACK = 0.87f
 
     fun supertonicVoice(name: String) = SUPERTONIC_VOICES.firstOrNull { it.name == name }
 
@@ -149,7 +155,8 @@ object LocalTts {
                     text,
                     // Supertonic's own 1x is brisk: "normal" is a calmer reading pace.
                     GenerationConfig(
-                        sid = v.sid, speed = speed * SUPERTONIC_PACE, numSteps = 6,
+                        // 8 refinement steps (was 6): clearer words for a little more work.
+                        sid = v.sid, speed = speed * SUPERTONIC_PACE, numSteps = 8,
                         // Pauses inside a sentence at their natural length (the engine's default shrinks them to a fifth).
                         silenceScale = 1f,
                         // The same "take" on the voice for every sentence, instead of fresh random variation each time.
