@@ -1025,6 +1025,9 @@ object Speaker {
                     else -> dialogueVoice!!
                 }
             }
+            // On-device voices read quotes flatly inside a long sentence: give dialogue its own piece,
+            // so there's a narrator's breath between "she said," and the words spoken.
+            LocalTts.isLocal(vid) -> Stories.split(para)?.takeIf { it.size > 1 }?.map { it.second to vid } ?: listOf(para to vid)
             else -> listOf(para to vid)
         }
         val out = ArrayList<Piece>()
@@ -1052,7 +1055,12 @@ object Speaker {
 
     /** The pause after a piece: longer after paragraphs, longest after headings. */
     private fun pauseAfter(d: Doc, p: Piece): Int = when {
-        !p.lastInParagraph -> style.sentencePause
+        // A piece that stops mid-sentence (a long sentence cut, or before a quote) runs on: no full stop pause.
+        !p.lastInParagraph -> when (p.text.trimEnd().trimEnd('\u201D', '\u2019', '"', '\'', ')').lastOrNull()) {
+            '.', '!', '?', '\u2026' -> style.sentencePause
+            ',', ';', ':', '\u2014', '\u2013' -> style.sentencePause / 2
+            else -> 40
+        }
         d.chapters.any { it.start == p.paragraph } && d.paragraphs[p.paragraph].length < 150 -> style.headingPause
         else -> style.paragraphPause
     }

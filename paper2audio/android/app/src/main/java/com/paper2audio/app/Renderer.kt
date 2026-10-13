@@ -79,7 +79,8 @@ object Renderer {
     fun pieces(paragraph: String, voiceId: String): List<String> =
         // On-device voices: one sentence per piece (only very short ones joined), so every sentence
         // gets the same pause whatever the text, and the first sound comes sooner.
-        if (LocalTts.isLocal(voiceId)) TextCleaner.pieces(paragraph, 14, hardMax = 200)
+        // Long sentences stay whole up to 320 characters: every cut sounds like a sentence ending.
+        if (LocalTts.isLocal(voiceId)) TextCleaner.pieces(paragraph, 14, hardMax = 320)
         else TextCleaner.pieces(paragraph, 50, hardMax = 900)
 
     /**
