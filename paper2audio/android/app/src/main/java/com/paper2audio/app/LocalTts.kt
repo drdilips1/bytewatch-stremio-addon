@@ -158,7 +158,9 @@ object LocalTts {
                         referenceSampleRate = ref.sampleRate,
                         numSteps = 5,
                         extra = mapOf(
-                            "temperature" to "0.7",
+                            // Lower than the engine's usual 0.7: every sentence in the same tone and pace,
+                            // instead of a slightly different take on the voice each time.
+                            "temperature" to "0.45",
                             "chunk_size" to "15",
                             // Stops a sentence whose end the model misses from running on as babble.
                             "max_frames" to maxFrames(spoken).toString(),

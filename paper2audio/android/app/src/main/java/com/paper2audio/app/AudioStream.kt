@@ -193,14 +193,45 @@ object AudioDecode {
     private const val SILENCE = 330
 
     fun load(file: File): Pcm16 {
-        val raw = if (file.name.endsWith(".wav")) {
+        val local = file.name.endsWith(".wav")
+        val raw = if (local) {
             val pcm = LocalTts.readWav(file)
             val sb = java.nio.ByteBuffer.wrap(pcm.bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
             Pcm16(ShortArray(sb.remaining()).also { sb.get(it) }, pcm.sampleRate)
         } else {
             decode(file)
         }
-        return trim(raw)
+        // On-device voices make each sentence separately and some come out louder or softer:
+        // bring every sentence to the same speaking level.
+        return trim(raw).let { if (local) level(it) else it }
+    }
+
+    /** The voice's usual speaking level (RMS of voiced parts), averaged over recent sentences. */
+    @Volatile
+    private var usual = 0.0
+
+    internal fun level(p: Pcm16): Pcm16 {
+        val s = p.samples
+        var sum = 0.0
+        var n = 0
+        var peak = 1
+        for (v in s) {
+            val a = abs(v.toInt())
+            if (a > SILENCE * 3) {
+                sum += a.toDouble() * a
+                n++
+            }
+            if (a > peak) peak = a
+        }
+        if (n < p.sampleRate / 10) return p // too little speech to judge
+        val rms = kotlin.math.sqrt(sum / n)
+        // Each sentence is brought toward the voice's own recent level (a new voice resets it).
+        val target = if (usual <= 0.0 || rms / usual !in 0.33..3.0) rms else usual
+        usual = target * 0.8 + rms * 0.2
+        // Gentle: at most 40% up or down, and never clipping.
+        val gain = (target / rms).coerceIn(0.7, 1.4).coerceAtMost(31000.0 / peak)
+        if (kotlin.math.abs(gain - 1.0) < 0.05) return p
+        return Pcm16(ShortArray(s.size) { (s[it] * gain).toInt().coerceIn(-32768, 32767).toShort() }, p.sampleRate)
     }
 
     /** Removes silence before and after the speech, keeping a few milliseconds so words aren't clipped. */
