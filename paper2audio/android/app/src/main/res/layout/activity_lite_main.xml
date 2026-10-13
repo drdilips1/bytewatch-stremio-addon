@@ -100,6 +100,64 @@
             android:tint="?attr/p2aOnAccent" />
     </FrameLayout>
 
+    <!-- Now playing: back to the player, or play/pause, without opening the book again. -->
+    <LinearLayout
+        android:id="@+id/miniPlayer"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/bg_card"
+        android:elevation="4dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="4dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/miniCover"
+            android:layout_width="34dp"
+            android:layout_height="44dp"
+            android:background="@drawable/bg_thumb"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/miniTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="?attr/p2aText"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/miniSub"
+                style="@style/P2A.Muted"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/miniPlay"
+            style="@style/P2A.Icon"
+            android:contentDescription="Play"
+            android:src="@drawable/ic_play" />
+    </LinearLayout>
+
     <FrameLayout
         android:id="@+id/adBanner"
         android:layout_width="match_parent"

@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.content.ClipData
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Outline
 import android.net.Uri
 import android.os.Bundle
@@ -17,6 +18,7 @@ import android.view.ViewOutlineProvider
 import android.widget.BaseAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.ListView
 import android.widget.ProgressBar
@@ -42,7 +44,11 @@ class LiteMainActivity : Activity() {
     private lateinit var busy: TextView
     private var working = false
     private var photo: File? = null
-    private val refresh: () -> Unit = { adapter.notifyDataSetChanged() }
+    private val refresh: () -> Unit = {
+        adapter.notifyDataSetChanged()
+        renderMini()
+    }
+    private var miniCoverFor: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Themes.apply(this)
@@ -60,6 +66,8 @@ class LiteMainActivity : Activity() {
         }
         findViewById<View>(R.id.btnAdd).setOnClickListener { showAddMenu() }
         findViewById<View>(R.id.btnMenu).setOnClickListener { showMenu() }
+        findViewById<View>(R.id.miniPlayer).setOnClickListener { openPlayer() }
+        findViewById<View>(R.id.miniPlay).setOnClickListener { Speaker.toggle() }
         savedInstanceState?.getString("photo")?.let { photo = File(it) }
 
         Speaker.init(this) {}
@@ -83,6 +91,7 @@ class LiteMainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         Speaker.addListener(refresh)
+        renderMini()
         reload()
     }
 
@@ -94,6 +103,36 @@ class LiteMainActivity : Activity() {
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()
+    }
+
+    /** The strip at the bottom: the book being read, with play/pause; tap it for the player. */
+    private fun renderMini() {
+        val strip = findViewById<View>(R.id.miniPlayer)
+        val doc = Speaker.doc
+        if (doc == null) {
+            strip.visibility = View.GONE
+            return
+        }
+        strip.visibility = View.VISIBLE
+        findViewById<TextView>(R.id.miniTitle).text = doc.title
+        val chapter = doc.chapterAt(Speaker.index)?.title
+        val pct = if (doc.paragraphs.isEmpty()) 0 else Speaker.index * 100 / doc.paragraphs.size
+        findViewById<TextView>(R.id.miniSub).text = listOfNotNull(if (Speaker.playing) "Playing" else "Paused", chapter, "$pct%").joinToString(" · ")
+        findViewById<ImageButton>(R.id.miniPlay).apply {
+            setImageResource(if (Speaker.playing) R.drawable.ic_pause else R.drawable.ic_play)
+            contentDescription = if (Speaker.playing) "Pause" else "Play"
+        }
+        if (miniCoverFor != doc.key) {
+            miniCoverFor = doc.key
+            val cover = findViewById<ImageView>(R.id.miniCover)
+            cover.setImageDrawable(null)
+            scope.launch {
+                val bmp = withContext(Dispatchers.IO) {
+                    runCatching { Library.thumb(this@LiteMainActivity, doc.key).takeIf { it.exists() }?.let { BitmapFactory.decodeFile(it.path) } }.getOrNull()
+                }
+                if (miniCoverFor == doc.key) cover.setImageBitmap(bmp)
+            }
+        }
     }
 
     private fun reload() {
