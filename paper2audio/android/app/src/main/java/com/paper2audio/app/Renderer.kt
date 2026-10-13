@@ -144,6 +144,18 @@ object Renderer {
         .replace(Regex(""",\s*([,.;:!?])"""), "$1")
         .replace(Regex("""^,\s*"""), "")
         .trim()
+        .let(::unstutter)
+
+    /** "t-t-to" → "to", "sp-spoils" → "spoils": written stutters trip the on-device voices up. */
+    private val STUTTER = Regex("""(?i)\b([a-z]{1,3})-(?=\1)""")
+    internal fun unstutter(t: String): String {
+        var s = t
+        while (true) {
+            val next = STUTTER.replace(s, "")
+            if (next == s) return s
+            s = next
+        }
+    }
 
     fun isCached(context: Context, v: Voicing, speed: Float, text: String) = file(context, v, speed, text).length() > 0
 

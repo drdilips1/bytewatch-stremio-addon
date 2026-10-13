@@ -361,10 +361,13 @@ object CloneCheck {
     /** How far [seconds] is from what [text] needs, as a ratio (0 = exactly right). */
     fun distance(seconds: Double, text: String) = kotlin.math.abs(kotlin.math.ln(seconds / expected(text)))
 
-    /** Within reason for a slow or quick reader: between 45% and 175% of the expected length. */
+    /**
+     * Within reason for a slow or quick reader: between 60% and 175% of the expected length.
+     * (45% let a sentence that stopped early, missing its last words, pass as fine.)
+     */
     fun plausible(seconds: Double, text: String): Boolean {
         val r = seconds / expected(text)
-        return r in 0.45..1.75
+        return r in 0.6..1.75
     }
 
     /**
