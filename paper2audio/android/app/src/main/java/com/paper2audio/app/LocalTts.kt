@@ -221,7 +221,9 @@ object LocalTts {
         if (audio.samples.isEmpty()) error("The voice produced no audio")
         val samples = if (voiceId.startsWith(Speaker.CLONE)) {
             // Copied voices: cut any run-on, then clean the hiss the copy picked up from its recording.
-            CloneCheck.dehiss(RunOn.trim(audio.samples, audio.sampleRate, text), audio.sampleRate).also {
+            CloneCheck.dehiss(RunOn.trim(audio.samples, audio.sampleRate, text), audio.sampleRate,
+                // A voice copied from a full-quality recording keeps its brightness.
+                lowPass = MyVoices.denoised(voiceId.substringAfter(':'))).also {
                 MyVoices.recordPace(voiceId.substringAfter(':'), text.length, it.size.toDouble() / audio.sampleRate)
             }
         } else audio.samples
@@ -454,9 +456,10 @@ object CloneCheck {
      * about 7.5 kHz is noise; and the quiet moments between words, where hiss is heard most, are
      * turned down (gently, so breaths and word endings stay).
      */
-    fun dehiss(x: FloatArray, rate: Int): FloatArray {
+    fun dehiss(x: FloatArray, rate: Int, lowPass: Boolean = true): FloatArray {
         if (x.isEmpty()) return x
-        val y = if (rate > 16_000) Denoise.lowPass(x, rate, 7_500.0) else x.copyOf()
+        // Above 7.5 kHz a copy learned from a 16 kHz (noise-removed) recording has only hiss.
+        val y = if (lowPass && rate > 16_000) Denoise.lowPass(x, rate, 7_500.0) else x.copyOf()
         val frame = rate / 100 // 10 ms
         val n = y.size / frame
         if (n < 5) return y

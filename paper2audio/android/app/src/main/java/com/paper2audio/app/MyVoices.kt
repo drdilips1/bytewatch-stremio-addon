@@ -51,6 +51,8 @@ object MyVoices {
         val problems: List<String> = emptyList(),
         /** The speaker's own pause between sentences, measured from the recording (ms; 0 = not known). */
         val pause: Int = 0,
+        /** Whether the recording went through the noise remover (16 kHz, duller); older voices: yes. */
+        val denoised: Boolean = true,
     )
 
     /**
@@ -95,6 +97,7 @@ object MyVoices {
                 it.getString("id"), it.getString("name"), it.optLong("created"), it.optDouble("seconds", 0.0).toFloat(),
                 version = it.optInt("v", 1),
                 pause = it.optInt("pause", 0),
+                denoised = it.optBoolean("dn", true),
             )
         }.filter { File(dir, "${it.id}.wav").exists() }
     }
@@ -128,14 +131,21 @@ object MyVoices {
     @Volatile
     private var pauses: Map<String, Int>? = null
 
+    /** Whether copied voice [id]'s recording was put through the noise remover. */
+    fun denoised(id: String): Boolean = (cleanedMap ?: own().associate { it.id to it.denoised }.also { cleanedMap = it })[id] ?: true
+
+    @Volatile
+    private var cleanedMap: Map<String, Boolean>? = null
+
     /** The measured pause between sentences of cloned voice [id] (ms), or 0. */
     fun pauseOf(id: String): Int = (pauses ?: own().associate { it.id to it.pause }.also { pauses = it })[id] ?: 0
 
     private fun save(voices: List<Voice>) {
         pauses = null
+        cleanedMap = null
         val arr = JSONArray()
         voices.forEach {
-            arr.put(JSONObject().put("id", it.id).put("name", it.name).put("created", it.created).put("seconds", it.seconds.toDouble()).put("v", it.version).put("pause", it.pause))
+            arr.put(JSONObject().put("id", it.id).put("name", it.name).put("created", it.created).put("seconds", it.seconds.toDouble()).put("v", it.version).put("pause", it.pause).put("dn", it.denoised))
         }
         index.writeText(arr.toString())
     }
@@ -154,7 +164,10 @@ object MyVoices {
         val noisy = ratio > 0.12f
         // Any hiss in the sample is copied into every sentence, so the noise remover runs on all but
         // truly studio-clean clips (it dulls the voice slightly, which is the lesser evil).
-        val cleaned = if (ratio > 0.015f) Denoise.speech(app, raw, RATE) else Denoise.highPass(raw, RATE)
+        // The noise remover works at 16 kHz and takes away the brightness that makes a voice recognisable,
+        // so only clearly noisy recordings go through it; light hiss is handled when the copy reads.
+        val denoise = ratio > 0.05f
+        val cleaned = if (denoise) Denoise.speech(app, raw, RATE) else Denoise.highPass(raw, RATE)
         // The speaker's rhythm: how long they pause between sentences.
         val pause = sentencePause(cleaned, RATE)
         // Only real hesitations (over 0.7 s) are shortened: the speaker's normal pauses are their
@@ -164,7 +177,7 @@ object MyVoices {
         if (seconds < MIN_SECONDS) error("That recording has only ${"%.0f".format(seconds)} seconds of clear speech. Record at least $MIN_SECONDS seconds (10–20 is best) in a quiet room.")
         val id = java.util.UUID.randomUUID().toString().take(8)
         writeRef(File(dir, "$id.wav"), clean)
-        val voice = Voice(id, name.trim().ifBlank { "My voice" }, System.currentTimeMillis(), seconds, pause = pause)
+        val voice = Voice(id, name.trim().ifBlank { "My voice" }, System.currentTimeMillis(), seconds, pause = pause, denoised = denoise)
         save(own() + voice)
         return voice.copy(noisy = noisy, problems = problems(raw, RATE, ratio, seconds))
     }
