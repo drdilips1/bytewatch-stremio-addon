@@ -92,18 +92,44 @@ object LocalTts {
         if (totalKb >= 5_500_000L) 2 else 1
     }
 
-    fun release() = synchronized(lock) {
-        engines.values.forEach { it.release() }
-        engines.clear()
+    /**
+     * A second copy of the model, used only for saving audiobooks, so saving doesn't queue behind
+     * listening and the two halves of the book are made side by side. Only on phones with plenty
+     * of memory (the same ones that keep two models).
+     */
+    private val spareLock = Any()
+    private var spare: Pair<String, OfflineTts>? = null
+    val hasSpare: Boolean get() = keepEngines >= 2
+
+    fun releaseSpare() = synchronized(spareLock) {
+        spare?.second?.release()
+        spare = null
+    }
+
+    fun release() {
+        synchronized(lock) {
+            engines.values.forEach { it.release() }
+            engines.clear()
+        }
+        releaseSpare()
     }
 
     /** Loads the model for [voiceId] without generating anything, so Play starts quickly. */
     fun prepare(voiceId: String) = synchronized(lock) { engineFor(voiceId) }
 
     /** Generates [text] as 16-bit PCM. [lang] is the document's language (Supertonic). */
-    fun synthesize(voiceId: String, text: String, speed: Float, lang: String?): Pcm = synchronized(lock) {
+    fun synthesize(voiceId: String, text: String, speed: Float, lang: String?, useSpare: Boolean = false): Pcm =
+        if (useSpare && hasSpare) synchronized(spareLock) {
+            val key = engineKey(voiceId)
+            val tts = spare?.takeIf { it.first == key }?.second ?: run {
+                spare?.second?.release()
+                newEngine(key).also { spare = key to it }
+            }
+            generate(tts, voiceId, text, speed, lang)
+        } else synchronized(lock) { generate(engineFor(voiceId), voiceId, text, speed, lang) }
+
+    private fun generate(tts: OfflineTts, voiceId: String, text: String, speed: Float, lang: String?): Pcm {
         missing(voiceId)?.let { error("Download the ${it.title} first") }
-        val tts = engineFor(voiceId)
         val name = voiceId.substringAfter(':')
         val audio = when {
             voiceId.startsWith(Speaker.KOKORO) -> {
@@ -139,23 +165,29 @@ object LocalTts {
             }
         }
         if (audio.samples.isEmpty()) error("The voice produced no audio")
-        Pcm(toPcm16(audio.samples), audio.sampleRate)
+        return Pcm(toPcm16(audio.samples), audio.sampleRate)
     }
 
     /** At most ~1.6x the expected length (12.5 frames a second, ~15 characters a second). */
     internal fun maxFrames(text: String) = (text.length / 1.2 * 1.3 + 12).toInt().coerceIn(20, 500)
 
+    private fun engineKey(voiceId: String) = when {
+        voiceId.startsWith(Speaker.KOKORO) -> if (Kokoro.voice(voiceId.substringAfter(':'))?.british == true) "kokoro-gb" else "kokoro-us"
+        voiceId.startsWith(Speaker.SUPER) -> "supertonic"
+        else -> "pocket"
+    }
+
     private fun engineFor(voiceId: String): OfflineTts {
-        val key = when {
-            voiceId.startsWith(Speaker.KOKORO) -> if (Kokoro.voice(voiceId.substringAfter(':'))?.british == true) "kokoro-gb" else "kokoro-us"
-            voiceId.startsWith(Speaker.SUPER) -> "supertonic"
-            else -> "pocket"
-        }
+        val key = engineKey(voiceId)
         engines.remove(key)?.let { engines[key] = it; return it }
         while (engines.size >= keepEngines) {
             val oldest = engines.keys.first()
             engines.remove(oldest)?.release()
         }
+        return newEngine(key).also { engines[key] = it }
+    }
+
+    private fun newEngine(key: String): OfflineTts {
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
         val model = when (key) {
             "supertonic" -> SUPERTONIC_PACK.let { p ->
@@ -201,7 +233,7 @@ object LocalTts {
                 )
             }
         }
-        return OfflineTts(config = OfflineTtsConfig(model = model)).also { engines[key] = it }
+        return OfflineTts(config = OfflineTtsConfig(model = model))
     }
 
     private fun toPcm16(samples: FloatArray): ByteArray {

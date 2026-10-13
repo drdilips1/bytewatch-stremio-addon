@@ -55,6 +55,8 @@ object Renderer {
 
     /** The on-device engines run one generation at a time; keep their work on one thread. */
     val localThread = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    /** The spare voice engine's own thread (saving audiobooks). */
+    private val spareThread = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
     fun isStreamed(voiceId: String) = voiceId.startsWith(Speaker.EDGE) || LocalTts.isLocal(voiceId)
 
@@ -115,7 +117,7 @@ object Renderer {
     private val work = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** Returns the audio for [text], rendering it if it isn't cached yet. */
-    suspend fun render(context: Context, v: Voicing, speed: Float, text: String): File {
+    suspend fun render(context: Context, v: Voicing, speed: Float, text: String, spare: Boolean = false): File {
         val target = file(context, v, speed, text)
         if (target.length() > 0) {
             target.setLastModified(System.currentTimeMillis())
@@ -124,7 +126,7 @@ object Renderer {
         val key = target.path
         val flight = synchronized(inFlight) {
             inFlight.getOrPut(key) {
-                val d = work.async(start = kotlinx.coroutines.CoroutineStart.LAZY) { renderNow(context, v, speed, text, target) }
+                val d = work.async(start = kotlinx.coroutines.CoroutineStart.LAZY) { renderNow(context, v, speed, text, target, spare) }
                 Flight(d).also { f -> d.invokeOnCompletion { synchronized(inFlight) { if (inFlight[key] === f) inFlight.remove(key) } } }
             }.also { it.waiters++ }
         }
@@ -142,13 +144,13 @@ object Renderer {
         }
     }
 
-    private suspend fun renderNow(context: Context, v: Voicing, speed: Float, text: String, target: File): File {
+    private suspend fun renderNow(context: Context, v: Voicing, speed: Float, text: String, target: File, spare: Boolean = false): File {
         if (target.length() > 0) return target
         val segments = v.dialogue?.let { Stories.split(text) }
         if (segments != null && segments.size > 1) {
             // Narration and dialogue in their own voices, joined into one file.
             val parts = segments.map { (quoted, part) ->
-                render(context, v.copy(voiceId = if (quoted) v.dialogue else v.voiceId, dialogue = null), engineSpeed(v, speed), part)
+                render(context, v.copy(voiceId = if (quoted) v.dialogue else v.voiceId, dialogue = null), engineSpeed(v, speed), part, spare)
             }
             withContext(Dispatchers.IO) { join(parts, target, local = LocalTts.isLocal(v.voiceId)) }
             return target
@@ -160,9 +162,9 @@ object Renderer {
         try {
             val es = engineSpeed(v, speed)
             if (LocalTts.isLocal(voice)) {
-                withContext(localThread) {
+                withContext(if (spare && LocalTts.hasSpare) spareThread else localThread) {
                     val t0 = System.nanoTime()
-                    val pcm = LocalTts.synthesize(voice, spoken, es, v.lang)
+                    val pcm = LocalTts.synthesize(voice, spoken, es, v.lang, useSpare = spare)
                     RenderSpeed.record(context, voice, (System.nanoTime() - t0) / 1e9, pcm.bytes.size / 2.0 / pcm.sampleRate)
                     LocalTts.writeWav(tmp, pcm)
                 }
@@ -443,7 +445,9 @@ object RenderSpeed {
         context.getSharedPreferences("p2a", Context.MODE_PRIVATE).getFloat("rtf:" + kind(voiceId), -1f)
             .takeIf { it > 0f }?.toDouble() ?: guess(kind(voiceId))
 
-    /** Minutes to make [audioMinutes] of audio with [voiceId]. */
-    fun minutesFor(context: Context, voiceId: String, audioMinutes: Int): Int =
-        (audioMinutes * of(context, voiceId)).toInt().coerceAtLeast(1)
+    /** Minutes to make [audioMinutes] of audio with [voiceId] when saving (two on-device engines where the phone allows). */
+    fun minutesFor(context: Context, voiceId: String, audioMinutes: Int): Int {
+        val engines = if (LocalTts.isLocal(voiceId) && LocalTts.hasSpare) 1.7 else 1.0
+        return (audioMinutes * of(context, voiceId) / engines).toInt().coerceAtLeast(1)
+    }
 }

@@ -173,6 +173,8 @@ object Exporter {
                 AppLog.e("Export", "Saving audio failed", e)
                 update { message = "Saving failed: ${e.message ?: e.javaClass.simpleName}" }
             } finally {
+                // Free the spare voice engine's memory.
+                runCatching { LocalTts.releaseSpare() }
                 update { running = false }
             }
         }
@@ -202,7 +204,8 @@ object Exporter {
             ParcelFileDescriptor.AutoCloseOutputStream(out.pfd).buffered().use { os ->
                 if (mp3) tags?.let { os.write(Id3.tag(it)) }
                 coroutineScope {
-                    val parallel = if (local) 1 else 10
+                    // On-device: two engines side by side where the phone has the memory (the spare one never waits for listening).
+                    val parallel = if (!local) 10 else if (LocalTts.hasSpare) 2 else 1
                     val inFlight = ArrayDeque<kotlinx.coroutines.Deferred<File>>()
                     var next = 0
                     var done = 0
@@ -210,7 +213,8 @@ object Exporter {
                     while (done < plan.size) {
                         while (inFlight.size < parallel && next < plan.size) {
                             val (text, v) = plan[next++]
-                            inFlight.addLast(async(Dispatchers.IO) { renderRetrying(context, v, speed, text) })
+                            val spare = local && LocalTts.hasSpare && (next % 2 == 0)
+                            inFlight.addLast(async(Dispatchers.IO) { renderRetrying(context, v, speed, text, spare) })
                         }
                         val file = inFlight.removeFirst().await()
                         if (mp3) {
@@ -254,17 +258,17 @@ object Exporter {
         return b
     }
 
-    private suspend fun renderRetrying(context: Context, v: Voicing, speed: Float, text: String): File {
+    private suspend fun renderRetrying(context: Context, v: Voicing, speed: Float, text: String, spare: Boolean = false): File {
         var wait = 2_000L
         repeat(3) {
             try {
-                return Renderer.render(context, v, speed, text)
+                return Renderer.render(context, v, speed, text, spare)
             } catch (e: IOException) {
                 delay(wait)
                 wait *= 2
             }
         }
-        return Renderer.render(context, v, speed, text) // last try; its error is reported
+        return Renderer.render(context, v, speed, text, spare) // last try; its error is reported
     }
 
     /** One document per chapter (text before the first chapter joins it), titled "01 Chapter". */
