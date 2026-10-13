@@ -29,7 +29,7 @@ import kotlinx.coroutines.withContext
 /**
  * Narrato's "Copy a voice": from an audio clip (an audiobook sample, a recording of someone
  * reading) or the microphone. The copy takes the voice's sound and its rhythm (the pauses
- * between sentences); the best 20 seconds of a longer clip are used.
+ * between sentences); the best 10 seconds of a longer clip are used.
  */
 class LiteCopyVoiceActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -77,7 +77,7 @@ class LiteCopyVoiceActivity : Activity() {
         )
         text(
             "• Best: one person reading clearly, with no music or other voices.\n" +
-                "• A clip of 20 seconds to 2 minutes is ideal. With a longer clip, Narrato picks its best 20 seconds.\n" +
+                "• A clip of 15 seconds to 2 minutes is ideal. Narrato picks its clearest 10 seconds: the copying engine works best with that.\n" +
                 "• Everything happens on your phone; the recording isn't uploaded.",
             14f, muted = true,
         )
@@ -182,7 +182,7 @@ class LiteCopyVoiceActivity : Activity() {
             .setTitle("Read this aloud")
             .setMessage(
                 "Hold the phone about a hand's width away, in a quiet room, and read naturally:\n\n“${MyVoices.SCRIPT}”\n\n" +
-                    "Or play the voice you want to copy near the phone. Tap Stop when it's done (20 seconds or more is best; it stops by itself after 90)."
+                    "Or play the voice you want to copy near the phone. Tap Stop when it's done (15 seconds or more is best; it stops by itself after 90)."
             )
             .setPositiveButton("Start") { _, _ -> startRecording() }
             .setNegativeButton("Cancel", null)
@@ -200,7 +200,7 @@ class LiteCopyVoiceActivity : Activity() {
                 level.progress = (peak * 140).toInt().coerceAtMost(100)
                 status.text = "Recording… ${secs.toInt()} s" + when {
                     secs < MyVoices.MIN_SECONDS + 6 -> ""
-                    secs < 25 -> " · keep going (20 s or more is best)"
+                    secs < 15 -> " · keep going (15 s or more is best)"
                     else -> " · tap Stop when you finish"
                 }
             }
@@ -259,7 +259,8 @@ class LiteCopyVoiceActivity : Activity() {
             Speaker.refreshVoices()
             done("“${voice.name}” is ready.")
             val id = Speaker.CLONE + voice.id
-            val rhythm = if (voice.pause > 0) "\n\nIts pause between sentences: ${voice.pause} ms, as in the recording." else ""
+            val used = "\n\nUsed: the clearest ${"%.0f".format(voice.seconds)} seconds of the recording."
+            val rhythm = used + if (voice.pause > 0) "\nIts pause between sentences: ${voice.pause} ms, as in the recording." else ""
             val tip = if (voice.noisy) "\n\nThe recording had background noise. It was removed, but a quieter recording gives a truer copy." else ""
             AlertDialog.Builder(this)
                 .setTitle("“${voice.name}” is ready")
@@ -284,7 +285,7 @@ class LiteCopyVoiceActivity : Activity() {
     companion object {
         private const val REQ_FILE = 41
         private const val REQ_MIC = 42
-        /** Recordings stop by themselves after this long (the best 20 seconds are used). */
+        /** Recordings stop by themselves after this long (the clearest 10 seconds are used). */
         private const val MAX_RECORD_SECONDS = 90
     }
 }

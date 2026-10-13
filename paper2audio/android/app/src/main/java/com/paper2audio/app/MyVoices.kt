@@ -24,6 +24,8 @@ object MyVoices {
     const val RATE = 24_000
     const val MIN_SECONDS = 4
     const val MAX_SECONDS = 25
+    /** How much of a recording the copying engine hears: it is built for about 10 seconds. */
+    const val REFERENCE_SECONDS = 10
 
     /** Read aloud when recording a new voice: about 20 seconds of varied, natural speech. */
     const val SCRIPT = "The old lighthouse stood at the edge of the cliff, watching over the harbor. " +
@@ -114,7 +116,8 @@ object MyVoices {
     fun add(name: String, samples: FloatArray, sampleRate: Int): Voice {
         // A long clip (an audiobook sample, a talk): use its best 20 seconds of steady speech,
         // not the start, which is often an intro, credits or music.
-        val raw = bestWindow(resample(samples, sampleRate, RATE), RATE)
+        // The engine hears 10 seconds: keep the best stretch of the clip (with a little to spare for trimming).
+        val raw = bestWindow(resample(samples, sampleRate, RATE), RATE, seconds = REFERENCE_SECONDS + 2)
         if (clean(raw).size < MIN_SECONDS * RATE) {
             val seconds = clean(raw).size / RATE.toFloat()
             error("That recording has only ${"%.0f".format(seconds)} seconds of speech. Record at least $MIN_SECONDS seconds (10–20 is best).")

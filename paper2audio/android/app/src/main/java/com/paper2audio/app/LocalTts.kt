@@ -160,7 +160,7 @@ object LocalTts {
             else -> {
                 val ref = MyVoices.reference(name) ?: error("That voice was deleted")
                 val spoken = TextCleaner.endSentence(text)
-                tts.generateWithConfig(
+                fun take(seed: Int) = tts.generateWithConfig(
                     spoken,
                     GenerationConfig(
                         referenceAudio = ref.samples,
@@ -169,9 +169,10 @@ object LocalTts {
                         silenceScale = 1f,
                         extra = mapOf(
                             // One fixed seed per voice: the same person on every line.
-                            "seed" to seedFor(voiceId).toString(),
-                            // The engine listens to only 10 s of the recording unless told otherwise.
-                            "max_reference_audio_len" to "${MyVoices.MAX_SECONDS}",
+                            "seed" to seed.toString(),
+                            // The model is made for about 10 seconds of reference (more made it mumble);
+                            // the recording keeps its best stretch first.
+                            "max_reference_audio_len" to "${MyVoices.REFERENCE_SECONDS}",
                             // A little below the engine's usual 0.7: steadier from sentence to sentence; lower
                             // than this made it skip words.
                             "temperature" to "0.6",
@@ -182,14 +183,26 @@ object LocalTts {
                         ),
                     ),
                 )
+                val seed = seedFor(voiceId)
+                val first = take(seed)
+                // Far too long or too short for its words means the model lost its way (mumbling or
+                // skipping): make it once more with another take, and keep the more plausible one.
+                if (CloneCheck.plausible(first.samples.size.toDouble() / first.sampleRate, spoken)) first
+                else take(seed + 7919).let { second ->
+                    val d1 = CloneCheck.distance(first.samples.size.toDouble() / first.sampleRate, spoken)
+                    val d2 = CloneCheck.distance(second.samples.size.toDouble() / second.sampleRate, spoken)
+                    if (d2 < d1) second else first
+                }
             }
         }
         if (audio.samples.isEmpty()) error("The voice produced no audio")
-        val samples = if (voiceId.startsWith(Speaker.CLONE)) RunOn.trim(audio.samples, audio.sampleRate, text) else audio.samples
+        val samples = if (voiceId.startsWith(Speaker.CLONE)) {
+            // Copied voices: cut any run-on, then clean the hiss the copy picked up from its recording.
+            CloneCheck.dehiss(RunOn.trim(audio.samples, audio.sampleRate, text), audio.sampleRate)
+        } else audio.samples
         return Pcm(toPcm16(samples), audio.sampleRate)
     }
 
-    /** At most ~1.6x the expected length (12.5 frames a second, ~15 characters a second). */
     // Room for a slow, unhurried speaker (about 11 characters a second) plus a breath.
     internal fun maxFrames(text: String) = (text.length * 1.15 + 15).toInt().coerceIn(25, 400)
 
@@ -321,5 +334,48 @@ object RunOn {
         val cut = (from until to).firstOrNull { f -> f + 1 < to && energy[f] < speech * 0.02 && energy[f + 1] < speech * 0.02 }
             ?: (from until to).minByOrNull { energy[it] }!!
         return samples.copyOf(cut * frame)
+    }
+}
+
+/** Checks and clean-up for copied voices. */
+object CloneCheck {
+    /** Seconds a sentence should take: about 13 characters a second, plus a little. */
+    private fun expected(text: String) = 0.3 + text.length / 13.0
+
+    /** How far [seconds] is from what [text] needs, as a ratio (0 = exactly right). */
+    fun distance(seconds: Double, text: String) = kotlin.math.abs(kotlin.math.ln(seconds / expected(text)))
+
+    /** Within reason for a slow or quick reader: between 45% and 175% of the expected length. */
+    fun plausible(seconds: Double, text: String): Boolean {
+        val r = seconds / expected(text)
+        return r in 0.45..1.75
+    }
+
+    /**
+     * Removes hiss: the copy was learned from a recording cleaned at 16 kHz, so anything above
+     * about 7.5 kHz is noise; and the quiet moments between words, where hiss is heard most, are
+     * turned down (gently, so breaths and word endings stay).
+     */
+    fun dehiss(x: FloatArray, rate: Int): FloatArray {
+        if (x.isEmpty()) return x
+        val y = if (rate > 16_000) Denoise.lowPass(x, rate, 7_500.0) else x.copyOf()
+        val frame = rate / 100 // 10 ms
+        val n = y.size / frame
+        if (n < 5) return y
+        val rms = FloatArray(n) { f ->
+            var s = 0.0
+            for (i in f * frame until (f + 1) * frame) s += y[i] * y[i]
+            kotlin.math.sqrt(s / frame).toFloat()
+        }
+        val loud = rms.sorted()[(n * 0.9).toInt().coerceAtMost(n - 1)]
+        val floor = loud * 0.04f
+        var g = 1f
+        for (f in 0 until n) {
+            val target = if (rms[f] < floor) 0.15f else 1f
+            // Smooth: open quickly for speech, close slowly.
+            g = if (target > g) target else g + (target - g) * 0.3f
+            for (i in f * frame until (f + 1) * frame) y[i] *= g
+        }
+        return y
     }
 }
