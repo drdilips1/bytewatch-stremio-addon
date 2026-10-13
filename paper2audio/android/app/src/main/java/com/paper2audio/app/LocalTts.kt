@@ -74,6 +74,9 @@ object LocalTts {
     /** The model [voiceId] still needs to download, if any. */
     fun missing(voiceId: String): ModelPack? = packFor(voiceId)?.takeUnless { it.isInstalled() }
 
+    /** A fixed random seed for each voice, so every sentence is the same take on it. */
+    private fun seedFor(voiceId: String) = (voiceId.hashCode() and 0x7fffffff) % 100_000 + 1
+
     /** Supertonic speaks quickly at its 1x; this is the pace the app calls normal. */
     const val SUPERTONIC_PACE = 0.88f
 
@@ -145,7 +148,13 @@ object LocalTts {
                 tts.generateWithConfig(
                     text,
                     // Supertonic's own 1x is brisk: "normal" is a calmer reading pace.
-                    GenerationConfig(sid = v.sid, speed = speed * SUPERTONIC_PACE, numSteps = 6, extra = mapOf("lang" to code)),
+                    GenerationConfig(
+                        sid = v.sid, speed = speed * SUPERTONIC_PACE, numSteps = 6,
+                        // Pauses inside a sentence at their natural length (the engine's default shrinks them to a fifth).
+                        silenceScale = 1f,
+                        // The same "take" on the voice for every sentence, instead of fresh random variation each time.
+                        extra = mapOf("lang" to code, "seed" to seedFor(voiceId).toString()),
+                    ),
                 )
             }
             else -> {
@@ -157,7 +166,12 @@ object LocalTts {
                         referenceAudio = ref.samples,
                         referenceSampleRate = ref.sampleRate,
                         numSteps = 5,
+                        silenceScale = 1f,
                         extra = mapOf(
+                            // One fixed seed per voice: the same person on every line.
+                            "seed" to seedFor(voiceId).toString(),
+                            // The engine listens to only 10 s of the recording unless told otherwise.
+                            "max_reference_audio_len" to "${MyVoices.MAX_SECONDS}",
                             // A little below the engine's usual 0.7: steadier from sentence to sentence; lower
                             // than this made it skip words.
                             "temperature" to "0.6",
@@ -242,7 +256,8 @@ object LocalTts {
                 )
             }
         }
-        return OfflineTts(config = OfflineTtsConfig(model = model))
+        // silenceScale 1: the engines' default (0.2) shrinks every pause inside a sentence to a fifth.
+        return OfflineTts(config = OfflineTtsConfig(model = model, silenceScale = 1f))
     }
 
     private fun toPcm16(samples: FloatArray): ByteArray {

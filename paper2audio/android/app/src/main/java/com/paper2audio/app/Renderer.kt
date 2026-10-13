@@ -107,8 +107,10 @@ object Renderer {
         val es = (engineSpeed(v, speed) * 100).roundToInt()
         // Supertonic's pace changed (calmer): don't reuse audio made at the old pace.
         val pace = when {
-            v.voiceId.startsWith(Speaker.SUPER) -> "p2|"
-            v.voiceId.startsWith(Speaker.CLONE) -> "t60|" // steadier copied voices: don't reuse older audio
+            // Engine settings changed (pace, natural pauses, one seed per voice): don't reuse older audio.
+            v.voiceId.startsWith(Speaker.SUPER) -> "p3|"
+            v.voiceId.startsWith(Speaker.CLONE) -> "t60s|"
+            v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""
         }
         val digest = MessageDigest.getInstance("SHA-1").digest("${v.key}|$es|$pace${Pronounce.stamp.let { if (it.isEmpty()) "" else "$it|" }}$text".toByteArray())
