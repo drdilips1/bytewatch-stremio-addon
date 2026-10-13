@@ -20,7 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Narrato builds only when asked: "[narrato]" in the commit message, or the box when run by hand.
-      BUILD_NARRATO: ${{ contains(github.event.head_commit.message, '[narrato]') || inputs.narrato == true }}
+      # "[narrato-only]" builds and publishes Narrato alone, leaving Paper to Audio's release as it is.
+      BUILD_NARRATO: ${{ contains(github.event.head_commit.message, '[narrato]') || contains(github.event.head_commit.message, '[narrato-only]') || inputs.narrato == true }}
+      NARRATO_ONLY: ${{ contains(github.event.head_commit.message, '[narrato-only]') }}
     defaults:
       run:
         working-directory: paper2audio/android
@@ -61,6 +63,13 @@ jobs:
             export P2A_KEYSTORE="$RUNNER_TEMP/p2a.keystore"
           fi
           chmod +x gradlew
+          if [ "$NARRATO_ONLY" = "true" ]; then
+            ./gradlew assembleLiteRelease bundleLiteRelease --no-daemon --stacktrace
+            cp app/build/outputs/apk/lite/release/app-lite-release.apk Narrato.apk
+            cp app/build/outputs/bundle/liteRelease/app-lite-release.aab Narrato.aab
+            ls -la Narrato.apk Narrato.aab
+            exit 0
+          fi
           if [ "$BUILD_NARRATO" = "true" ]; then
             ./gradlew assembleFullRelease assembleLiteRelease bundleLiteRelease --no-daemon --stacktrace
             # Play Store edition: the bundle to upload, and an APK to try it on a phone.
@@ -80,6 +89,7 @@ jobs:
           cat version.json
 
       - name: Show signing certificate (SHA-1 must match the Google Cloud OAuth client)
+        if: env.NARRATO_ONLY != 'true'
         env:
           HAS_KEY: ${{ (secrets.P2A_KEYSTORE_B64 || secrets.SIGNING_KEY) != '' }}
         run: |
@@ -132,6 +142,7 @@ jobs:
             **Narrato.apk** installs on a phone for testing (separate from Paper to Audio).
 
       - name: Publish to the permanent download link
+        if: env.NARRATO_ONLY != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: paper2audio-apk
