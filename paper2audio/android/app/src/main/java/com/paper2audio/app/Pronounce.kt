@@ -78,6 +78,14 @@ object Pronounce {
             setPadding((20 * d).toInt(), (8 * d).toInt(), (20 * d).toInt(), 0)
             addView(wordBox)
             addView(sayBox)
+            // Try it before saving: the current voice says it the way it's written in the second box.
+            addView(android.widget.Button(activity, null, 0, R.style.P2A_Button_Text).apply {
+                text = "▶ Hear it"
+                setOnClickListener {
+                    val t = sayBox.text.toString().trim().ifEmpty { wordBox.text.toString().trim() }
+                    if (t.isNotEmpty()) Speaker.preview(text = t)
+                }
+            })
         }
         val b = AlertDialog.Builder(activity)
             .setTitle(if (word.isBlank()) "Add a pronunciation" else "Pronunciation")

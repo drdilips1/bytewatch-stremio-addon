@@ -656,6 +656,7 @@ class PlayerActivity : Activity() {
             sheet.section("“$w”")
                 .row(R.drawable.ic_text, "Dictionary", "Meaning of “$w”") { LookUp.dictionary(this, scope, w) }
                 .row(R.drawable.ic_explore, "Wikipedia", "About “$w”") { LookUp.wikipedia(this, scope, w) }
+                .row(R.drawable.ic_voice, "Fix how “$w” is said", "Type it the way it sounds; every voice uses it") { Pronounce.show(this, w) }
                 .row(R.drawable.ic_palette, "Highlight this word", "Yellow, green, blue or pink") {
                     item?.let { it2 ->
                         pickColor { c ->

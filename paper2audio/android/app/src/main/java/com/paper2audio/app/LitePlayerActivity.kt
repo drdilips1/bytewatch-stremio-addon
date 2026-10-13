@@ -145,6 +145,18 @@ class LitePlayerActivity : Activity() {
             Speaker.seek(i)
             if (!Speaker.playing) Speaker.play()
         }
+        // Press and hold a word: fix how it's said, or play from there.
+        reader.setOnTouchListener { _, e ->
+            if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+                touchX = e.x
+                touchY = e.y
+            }
+            false
+        }
+        reader.setOnItemLongClickListener { _, view, i, _ ->
+            wordMenu(view, i)
+            true
+        }
         reader.setOnScrollListener(object : AbsListView.OnScrollListener {
             override fun onScrollStateChanged(view: AbsListView, state: Int) {
                 if (state != AbsListView.OnScrollListener.SCROLL_STATE_IDLE) lastUserScroll = System.currentTimeMillis()
@@ -417,8 +429,28 @@ class LitePlayerActivity : Activity() {
         sheet.show()
     }
 
+    private var touchX = 0f
+    private var touchY = 0f
+
+    private fun wordMenu(view: View?, i: Int) {
+        val para = Speaker.doc?.paragraphs?.getOrNull(i) ?: return
+        val tv = view as? TextView
+        val range = tv?.let { LookUp.wordAt(it, para, touchX - it.left, touchY - it.top) }
+        val word = range?.let { para.substring(it.first, it.last + 1) }
+        val sheet = LiteSheet(this, word?.let { "“$it”" } ?: "Paragraph ${i + 1}", null)
+        if (word != null) sheet.row(R.drawable.ic_voice, "Fix how “$word” is said", "Type it the way it sounds; every voice uses it") { Pronounce.show(this, word) }
+        sheet.row(R.drawable.ic_play, "Play from here", null) {
+            lastUserScroll = 0
+            Speaker.seek(i)
+            if (!Speaker.playing) Speaker.play()
+        }
+        sheet.row(R.drawable.ic_list, "Pronunciations", "All the words you've fixed") { Pronounce.show(this) }
+        sheet.show()
+    }
+
     private fun showMore() {
         LiteSheet(this, Speaker.doc?.title, null)
+            .row(R.drawable.ic_voice, "Pronunciations", "Fix how words are said (or press and hold a word)") { Pronounce.show(this) }
             .row(R.drawable.ic_text, "Save the text", "As plain text, Markdown or PDF") { exportTranscript() }
             .row(R.drawable.ic_tune, "Text size", "Larger or smaller reading text") { textSize() }
             .row(R.drawable.ic_bug, "Report a problem", "Share the app's error log to get it fixed") { AppLog.showReport(this) }

@@ -122,7 +122,12 @@ object Renderer {
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""
         }
-        val digest = MessageDigest.getInstance("SHA-1").digest("${v.key}|$es|$pace${Pronounce.stamp.let { if (it.isEmpty()) "" else "$it|" }}${if (LocalTts.isLocal(v.voiceId)) plainQuotes(Speech.normalize(text, v.medical)) else text}".toByteArray())
+        val digest = MessageDigest.getInstance("SHA-1").digest(
+            // On-device audio is keyed on the text as spoken (pronunciations included), so a new pronunciation
+            // remakes only the sentences with that word; online audio on the written text plus the list's stamp.
+            if (LocalTts.isLocal(v.voiceId)) "${v.key}|$es|$pace${plainQuotes(Speech.normalize(text, v.medical))}".toByteArray()
+            else "${v.key}|$es|$pace${Pronounce.stamp.let { if (it.isEmpty()) "" else "$it|" }}$text".toByteArray()
+        )
         val ext = if (LocalTts.isLocal(v.voiceId)) "wav" else "mp3"
         return File(dir(context), digest.joinToString("") { "%02x".format(it) } + "." + ext)
     }

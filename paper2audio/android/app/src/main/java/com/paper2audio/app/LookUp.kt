@@ -169,6 +169,30 @@ object LookUp {
         }
     }
 
+    /**
+     * The word at ([x], [y]) in [tv] (view coordinates), as a range in [para], the paragraph's own text
+     * (the view may show a few extra characters before it). Null when the press wasn't on a word.
+     */
+    fun wordAt(tv: TextView, para: String, x: Float, y: Float): IntRange? {
+        val layout = tv.layout ?: return null
+        val line = layout.getLineForVertical((y - tv.totalPaddingTop).toInt())
+        val lx = x - tv.totalPaddingLeft
+        if (lx < layout.getLineLeft(line) - 8 || lx > layout.getLineRight(line) + 8) return null
+        val prefix = (tv.text?.length ?: 0) - para.length
+        val at = tv.getOffsetForPosition(x, y) - prefix
+        fun inWord(i: Int) = i in para.indices && (para[i].isLetterOrDigit() || (para[i] in "'’-" && i > 0 && i + 1 < para.length && para[i - 1].isLetter() && para[i + 1].isLetter()))
+        val hit = when {
+            inWord(at) -> at
+            inWord(at - 1) -> at - 1
+            else -> return null
+        }
+        var a = hit
+        var b = hit + 1
+        while (inWord(a - 1)) a--
+        while (inWord(b)) b++
+        return a until b
+    }
+
     fun webSearch(activity: Activity, phrase: String) {
         runCatching {
             activity.startActivity(Intent(Intent.ACTION_WEB_SEARCH).putExtra(android.app.SearchManager.QUERY, phrase.trim()))
