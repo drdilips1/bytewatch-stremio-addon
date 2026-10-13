@@ -1146,6 +1146,8 @@ object Speaker {
             }
 
             var failure: Exception? = null
+            // The sentence being waited for: if it fails, playback carries on from it, not from the one heard.
+            var waitingFor: Piece? = null
             try {
                 // Planning, rendering and feeding the audio all happen off the main thread, so a busy
                 // screen (or working out a novel's cast) can never starve the audio and cause a gap.
@@ -1162,8 +1164,9 @@ object Speaker {
                     var first = true
                     suspend fun loadIn(voice: String, text: String): Pcm16 {
                         val pv = base.copy(voiceId = voice)
-                        // Networks drop requests: online voices get three tries, a little apart.
-                        val tries = if (LocalTts.isLocal(pv.voiceId)) 2 else 3
+                        // Networks and the voice service drop requests: online voices get five tries over about
+                        // 12 seconds (the sentences already made keep playing meanwhile), unless the internet is down.
+                        val tries = if (LocalTts.isLocal(pv.voiceId)) 2 else 5
                         var file: java.io.File? = null
                         for (attempt in 1..tries) {
                             try {
@@ -1173,7 +1176,10 @@ object Speaker {
                                 throw e
                             } catch (e: Exception) {
                                 if (attempt == tries) throw e
-                                if (!LocalTts.isLocal(pv.voiceId)) delay(1_200L * attempt)
+                                if (!LocalTts.isLocal(pv.voiceId)) {
+                                    if (attempt == 2 && !internetUp()) throw e // really offline: switch voices now
+                                    delay(1_200L * attempt)
+                                }
                             }
                         }
                         return AudioDecode.load(file!!)
@@ -1206,6 +1212,7 @@ object Speaker {
                     while (true) {
                         fill()
                         val (piece, pending) = queue.removeFirstOrNull() ?: break
+                        waitingFor = piece
                         for ((k, part) in pending.withIndex()) {
                             val pcm = part.await()
                             if (g != generation) return@withContext
@@ -1228,12 +1235,34 @@ object Speaker {
                 if (vid.startsWith(EDGE) && isNetworkError(failure)) {
                     val now = System.currentTimeMillis()
                     hiccups.removeAll { now - it > 180_000 }
-                    if (hiccups.size < 3 && withContext(Dispatchers.IO) { internetUp() }) {
-                        // The internet is fine; the voice service had a hiccup. Carry on from this sentence.
+                    if (hiccups.size < 6 && withContext(Dispatchers.IO) { internetUp() }) {
+                        // The internet is fine; the voice service had a hiccup. Let the sentences already made
+                        // finish, then carry on from the one that failed: nothing is heard twice.
                         hiccups += now
                         AppLog.i("Player", "Voice service hiccup (${failure.message}); carrying on")
-                        delay(1_000)
+                        // (The highlight keeps following while they play.)
+                        val following = launch {
+                            var shown: Piece? = null
+                            while (true) {
+                                val p = out.currentTag() as Piece?
+                                if (p != null && p !== shown && g == generation) {
+                                    shown = p
+                                    if (p.paragraph != index) moveTo(p.paragraph)
+                                    pieceIndex = p.index
+                                    currentPiece = p.text
+                                    notifyChanged()
+                                }
+                                delay(60)
+                            }
+                        }
+                        kotlinx.coroutines.withTimeoutOrNull(90_000) { out.drain() }
+                        following.cancel()
                         if (g == generation && playing) {
+                            waitingFor?.let { at ->
+                                index = at.paragraph
+                                pieceIndex = at.index
+                                savePosition()
+                            }
                             stopAll()
                             play()
                         }
