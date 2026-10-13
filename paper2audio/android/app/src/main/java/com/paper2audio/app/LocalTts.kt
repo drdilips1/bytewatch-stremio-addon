@@ -165,15 +165,14 @@ object LocalTts {
             }
             else -> {
                 val ref = MyVoices.reference(name) ?: error("That voice was deleted")
-                // A short silence after the recording: each sentence then starts as if after a breath,
-                // instead of running on from the recording's last word (which garbled first words like "He").
-                // (The engine hears only the first 10 s, so the recording is shortened to make room for it.)
-                val pause = ref.sampleRate * 4 / 10
-                val room = MyVoices.LONG_REFERENCE_SECONDS * ref.sampleRate - pause
-                val lead = ref.samples.copyOf(minOf(ref.samples.size, room)) + FloatArray(pause)
+                // The sample must end on exactly 80 ms of silence, as the engine was trained: ending on speech
+                // makes it continue that word, and a long silence (the 0.4 s added before) swallows the
+                // first sound of every sentence ("ello" for "Hello").
+                val room = MyVoices.LONG_REFERENCE_SECONDS * ref.sampleRate - ref.sampleRate / 10
+                val lead = CloneCheck.endOnPause(ref.samples.copyOf(minOf(ref.samples.size, room)), ref.sampleRate)
                 // The engine hears the whole stored sample (about 10 s, or 30 s for a "longer sample" voice).
                 val hears = (lead.size + ref.sampleRate - 1) / ref.sampleRate
-                val spoken = TextCleaner.endSentence(text)
+                val spoken = CloneCheck.prepareText(TextCleaner.endSentence(text))
                 fun take(seed: Int) = tts.generateWithConfig(
                     spoken,
                     GenerationConfig(
@@ -192,7 +191,7 @@ object LocalTts {
                             "temperature" to "0.6",
                             "chunk_size" to "15",
                             // Stops a sentence whose end the model misses from running on as babble.
-                            "max_frames" to maxFrames(spoken).toString(),
+                            "max_frames" to maxFrames(spoken.trim()).toString(),
                             "frames_after_eos" to "2",
                         ),
                     ),
@@ -201,10 +200,10 @@ object LocalTts {
                 val first = take(seed)
                 // Far too long or too short for its words means the model lost its way (mumbling or
                 // skipping): make it once more with another take, and keep the more plausible one.
-                if (CloneCheck.plausible(first.samples.size.toDouble() / first.sampleRate, spoken)) first
+                if (CloneCheck.plausible(first.samples.size.toDouble() / first.sampleRate, spoken.trim())) first
                 else take(seed + 7919).let { second ->
-                    val d1 = CloneCheck.distance(first.samples.size.toDouble() / first.sampleRate, spoken)
-                    val d2 = CloneCheck.distance(second.samples.size.toDouble() / second.sampleRate, spoken)
+                    val d1 = CloneCheck.distance(first.samples.size.toDouble() / first.sampleRate, spoken.trim())
+                    val d2 = CloneCheck.distance(second.samples.size.toDouble() / second.sampleRate, spoken.trim())
                     if (d2 < d1) second else first
                 }
             }
@@ -355,6 +354,43 @@ object RunOn {
 
 /** Checks and clean-up for copied voices. */
 object CloneCheck {
+    /**
+     * Ends the voice sample on exactly 80 ms of silence (the engine makers' end_on_pause): trailing
+     * quiet (20 ms frames over 35 dB below the loudest) is cut, the last 20 ms faded out, 80 ms of
+     * silence added.
+     */
+    fun endOnPause(x: FloatArray, rate: Int): FloatArray {
+        val frame = maxOf(1, rate / 50)
+        val n = x.size / frame
+        if (n == 0) return x
+        val db = DoubleArray(n) { f ->
+            var s = 0.0
+            for (i in f * frame until (f + 1) * frame) s += x[i] * x[i]
+            20 * kotlin.math.log10(kotlin.math.sqrt(s / frame) + 1e-12)
+        }
+        val max = db.max()
+        val lastLoud = db.indices.last { db[it] > max - 35 }
+        val end = (lastLoud + 1) * frame
+        val out = x.copyOf(end + rate * 8 / 100)
+        val fade = minOf(rate / 50, end)
+        for (k in 0 until fade) out[end - fade + k] *= 1f - k.toFloat() / fade
+        for (i in end until out.size) out[i] = 0f
+        return out
+    }
+
+    /**
+     * Text the way the engine makers prepare it: a capital first letter, semicolons as commas, a
+     * sentence mark not followed by a stray comma ("Hi?, she said" once quotes are gone), and very
+     * short lines padded with spaces at the front (the model does poorly on very few tokens).
+     */
+    fun prepareText(t: String): String {
+        var s = t.trim().replace(';', ',').replace(Regex("""([.!?\u2026])\s*[,;:]"""), "$1")
+        if (s.isEmpty()) return s
+        if (!s[0].isUpperCase()) s = s[0].uppercaseChar() + s.substring(1)
+        if (s.split(Regex("""\s+""")).size < 5) s = " ".repeat(8) + s
+        return s
+    }
+
     /** Seconds a sentence should take: about 13 characters a second, plus a little. */
     private fun expected(text: String) = 0.3 + text.length / 13.0
 
