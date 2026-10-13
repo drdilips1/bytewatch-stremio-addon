@@ -142,6 +142,9 @@ object Renderer {
      */
     internal fun plainQuotes(t: String) = t.replace('\u2019', '\'').replace('\u2018', '\'').replace('\u02BC', '\'')
         .replace(Regex("""[\u201C\u201D"«»()\[\]{}]"""), " ")
+        // Single quote marks around dialogue (‘Not today.’, common in British and Indian editions) hide
+        // the full stop just like double ones: an apostrophe stays only between two letters (don't, it's).
+        .replace(Regex("""(?<![\p{L}])'|'(?![\p{L}])"""), " ")
         .replace(Regex("""\s+([,.;:!?…])"""), "$1")
         .replace(Regex("""\s{2,}"""), " ")
         .trim()
