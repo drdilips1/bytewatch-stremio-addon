@@ -64,7 +64,8 @@ class LiteMainActivity : Activity() {
 
         Speaker.init(this) {}
         Library.loadCurrentId(this)
-        Ads.init(this) { Ads.banner(this, findViewById<FrameLayout>(R.id.adBanner)) }
+        // New users get a short walkthrough first; ads (and their consent form) come after it.
+        LiteWelcome.showOnce(this) { Ads.init(this) { Ads.banner(this, findViewById<FrameLayout>(R.id.adBanner)) } }
         AppLog.offerCrashReport(this)
         handleIntent(intent)
     }
@@ -357,6 +358,7 @@ class LiteMainActivity : Activity() {
 
     private fun showMenu() {
         LiteSheet(this, getString(R.string.app_name), "Version ${Updater.currentName(this)} · free and unlimited")
+            .row(R.drawable.ic_info, "How Narrato works", "The short tour, and getting better voices") { LiteWelcome.show(this) }
             .row(R.drawable.ic_palette, "Theme", "Colors of the app") { Themes.showPicker(this) }
             .row(R.drawable.ic_bug, "Report a problem", "Share the app's error log to get it fixed") { AppLog.showReport(this) }
             .section("Privacy")

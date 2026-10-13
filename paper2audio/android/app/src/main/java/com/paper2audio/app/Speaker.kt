@@ -256,8 +256,8 @@ object Speaker {
         voiceId = prefs.getString("voice2", null) ?: defaultVoice()
         // A cloned voice that no longer exists (deleted, or a retired ready-made one) falls back to the default.
         if (voiceId.startsWith(CLONE) && MyVoices.get(voiceId.removePrefix(CLONE)) == null) voiceId = defaultVoice()
-        // The Play Store edition has on-device and phone voices only.
-        if (BuildConfig.LITE && (voiceId.startsWith(EDGE) || voiceId.startsWith(CLONE))) voiceId = defaultVoice()
+        // The Play Store edition has on-device voices (including copied ones) and phone voices only.
+        if (BuildConfig.LITE && voiceId.startsWith(EDGE)) voiceId = defaultVoice()
         warmUpLocal()
         pendingReady += onReady
         tts = TextToSpeech(app) { status ->
@@ -1054,15 +1054,20 @@ object Speaker {
     }
 
     /** The pause after a piece: longer after paragraphs, longest after headings. */
-    private fun pauseAfter(d: Doc, p: Piece): Int = when {
-        // A piece that stops mid-sentence (a long sentence cut, or before a quote) runs on: no full stop pause.
-        !p.lastInParagraph -> when (p.text.trimEnd().trimEnd('\u201D', '\u2019', '"', '\'', ')').lastOrNull()) {
-            '.', '!', '?', '\u2026' -> style.sentencePause
-            ',', ';', ':', '\u2014', '\u2013' -> style.sentencePause / 2
-            else -> 40
+    private fun pauseAfter(d: Doc, p: Piece): Int {
+        // A copied voice keeps the rhythm of the person it was copied from.
+        val own = if (p.voice.startsWith(CLONE)) MyVoices.pauseOf(p.voice.removePrefix(CLONE)) else 0
+        val sentence = if (own > 0) own else style.sentencePause
+        return when {
+            // A piece that stops mid-sentence (a long sentence cut, or before a quote) runs on: no full stop pause.
+            !p.lastInParagraph -> when (p.text.trimEnd().trimEnd('\u201D', '\u2019', '"', '\'', ')').lastOrNull()) {
+                '.', '!', '?', '\u2026' -> sentence
+                ',', ';', ':', '\u2014', '\u2013' -> sentence / 2
+                else -> 40
+            }
+            d.chapters.any { it.start == p.paragraph } && d.paragraphs[p.paragraph].length < 150 -> style.headingPause
+            else -> if (own > 0) maxOf(style.paragraphPause, own * 2) else style.paragraphPause
         }
-        d.chapters.any { it.start == p.paragraph } && d.paragraphs[p.paragraph].length < 150 -> style.headingPause
-        else -> style.paragraphPause
     }
 
     private fun startStreaming() {

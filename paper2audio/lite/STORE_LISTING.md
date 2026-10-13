@@ -15,7 +15,7 @@ Narrato reads it aloud while highlighting each sentence, so you can follow along
 • Natural on-device voices (one-time download), plus your phone's own voices
 • Works offline: voices run on your phone
 • Speed from 0.5x to 3x, sleep timer, chapters, sentence back and forward
-• Make an audiobook: save the whole book as one file, a file per chapter, or in parts
+• Copy a voice: have books read in a voice copied from a recording (yours, or with the speaker's permission)
 • Skips page numbers, headers and other clutter in PDFs; opens books at the first chapter
 • Reads text from photos of printed pages
 • Save the text as plain text, Markdown or PDF
@@ -32,16 +32,18 @@ Free, supported by ads. Ads never interrupt listening.
   collected by the Google Mobile Ads SDK for advertising and analytics; shared with Google.
 - Data encrypted in transit: Yes. Users can request deletion: by uninstalling; no account.
 - No personal info, files, photos, audio or location is collected by the app itself.
+- Microphone (Copy a voice): audio is processed on the device only and not collected or shared.
+  In the form, "Audio" is not collected (on-device processing is exempt).
 
 ## Declarations
 - Ads: Yes (contains ads).
 - Target audience: 13+ (not designed for children).
 - Foreground services: media playback (reading aloud with the screen off) and data sync
-  (downloading voice packs and saving audiobooks the user asked for).
+  (downloading the voice packs the user asked for).
 - Content rating: answer the questionnaire; no user-generated content shared with others.
 
 ## Screenshots to take (phone, portrait)
 1. Library with a few books and the + button
 2. Player with a highlighted sentence
 3. Voice picker showing the natural voices
-4. Audiobook options dialog
+4. Copy a voice screen

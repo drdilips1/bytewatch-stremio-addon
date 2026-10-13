@@ -679,7 +679,7 @@ class VoiceStudioActivity : Activity() {
             .setTitle("Clone this recording?")
             .setMessage(
                 "Best: 10–25 seconds of one person speaking clearly, without music or other voices. " +
-                    "Only the first 25 seconds of speech are used.\n\n" +
+                    "With a longer clip, its best 20 seconds are used.\n\n" +
                     "Only clone your own voice, or a voice whose owner has given you permission."
             )
             .setPositiveButton("My voice / I have permission") { _, _ -> importNamed(uri) }

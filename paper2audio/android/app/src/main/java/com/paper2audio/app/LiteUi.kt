@@ -47,6 +47,7 @@ object LiteUi {
         id.startsWith(Speaker.SYSTEM) -> "Phone · " + id.removePrefix(Speaker.SYSTEM).take(18)
         id.startsWith(Speaker.SUPER) -> supertonicName(id.removePrefix(Speaker.SUPER))
         id.startsWith(Speaker.KOKORO) -> Kokoro.VOICES.firstOrNull { Speaker.KOKORO + it.name == id }?.label?.substringBefore(" ·") ?: "Kokoro"
+        id.startsWith(Speaker.CLONE) -> MyVoices.get(id.removePrefix(Speaker.CLONE))?.name ?: "Copied voice"
         else -> "Voice"
     }
 
@@ -156,6 +157,29 @@ object LiteUi {
                 Triple(Speaker.KOKORO + v.name, name, rest.replaceFirstChar { it.uppercase() })
             }
             pack(LocalTts.KOKORO_PACK, kokoro)
+
+            // Voices the user copied from a recording (the voice-copying engine is a separate download).
+            sheet.section("Copied voices · from a recording")
+            val own = MyVoices.own()
+            if (LocalTts.POCKET_PACK.isInstalled() || LocalTts.POCKET_PACK.installing) {
+                pack(LocalTts.POCKET_PACK, own.map { Triple(Speaker.CLONE + it.id, it.name, "Copied voice") })
+            }
+            sheet.row(R.drawable.ic_mic, "Copy a voice", "From an audio clip or the microphone: its sound and rhythm") {
+                activity.startActivity(android.content.Intent(activity, LiteCopyVoiceActivity::class.java))
+            }
+            if (own.isNotEmpty()) sheet.row(R.drawable.ic_delete, "Remove a copied voice", null, dismiss = false) {
+                AlertDialog.Builder(activity)
+                    .setTitle("Remove a copied voice")
+                    .setItems(own.map { it.name }.toTypedArray()) { _, i ->
+                        val v = own[i]
+                        if (Speaker.voiceId == Speaker.CLONE + v.id) Speaker.setVoice(Speaker.PHONE_DEFAULT)
+                        MyVoices.delete(v.id)
+                        Speaker.refreshVoices()
+                        fillVoices(activity, sheet, onChosen)
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
         }
     }
 

@@ -43,6 +43,8 @@ object MyVoices {
         val version: Int = 2,
         /** Set by [add] when the recording had noticeable background noise. */
         val noisy: Boolean = false,
+        /** The speaker's own pause between sentences, measured from the recording (ms; 0 = not known). */
+        val pause: Int = 0,
     )
 
     /**
@@ -86,37 +88,157 @@ object MyVoices {
             Voice(
                 it.getString("id"), it.getString("name"), it.optLong("created"), it.optDouble("seconds", 0.0).toFloat(),
                 version = it.optInt("v", 1),
+                pause = it.optInt("pause", 0),
             )
         }.filter { File(dir, "${it.id}.wav").exists() }
     }
 
     fun get(id: String) = list().firstOrNull { it.id == id }
 
+    @Volatile
+    private var pauses: Map<String, Int>? = null
+
+    /** The measured pause between sentences of cloned voice [id] (ms), or 0. */
+    fun pauseOf(id: String): Int = (pauses ?: own().associate { it.id to it.pause }.also { pauses = it })[id] ?: 0
+
     private fun save(voices: List<Voice>) {
+        pauses = null
         val arr = JSONArray()
         voices.forEach {
-            arr.put(JSONObject().put("id", it.id).put("name", it.name).put("created", it.created).put("seconds", it.seconds.toDouble()).put("v", it.version))
+            arr.put(JSONObject().put("id", it.id).put("name", it.name).put("created", it.created).put("seconds", it.seconds.toDouble()).put("v", it.version).put("pause", it.pause))
         }
         index.writeText(arr.toString())
     }
 
     /** Stores a new voice from raw mono samples; throws with an explanation when the recording is unusable. */
     fun add(name: String, samples: FloatArray, sampleRate: Int): Voice {
-        val raw = resample(samples, sampleRate, RATE)
+        // A long clip (an audiobook sample, a talk): use its best 20 seconds of steady speech,
+        // not the start, which is often an intro, credits or music.
+        val raw = bestWindow(resample(samples, sampleRate, RATE), RATE)
         if (clean(raw).size < MIN_SECONDS * RATE) {
             val seconds = clean(raw).size / RATE.toFloat()
             error("That recording has only ${"%.0f".format(seconds)} seconds of speech. Record at least $MIN_SECONDS seconds (10–20 is best).")
         }
         val noisy = Denoise.noiseRatio(raw) > 0.12f
-        // Background noise is what makes a cloned voice come out as mumbling: remove it first.
-        val clean = clean(Denoise.speech(app, raw, RATE))
+        // Noise makes a cloned voice mumble, but the noise remover also dulls the voice (it works at
+        // 16 kHz): only use it on recordings that need it, and keep clean ones at full quality.
+        val cleaned = if (noisy) Denoise.speech(app, raw, RATE) else Denoise.highPass(raw, RATE)
+        // The speaker's rhythm: how long they pause between sentences.
+        val pause = sentencePause(cleaned, RATE)
+        // Long silences in the sample make the copy hesitate: shorten them.
+        val clean = clean(tightenSilences(cleaned, RATE))
         val seconds = clean.size / RATE.toFloat()
         if (seconds < MIN_SECONDS) error("That recording has only ${"%.0f".format(seconds)} seconds of clear speech. Record at least $MIN_SECONDS seconds (10–20 is best) in a quiet room.")
         val id = java.util.UUID.randomUUID().toString().take(8)
         writeRef(File(dir, "$id.wav"), clean)
-        val voice = Voice(id, name.trim().ifBlank { "My voice" }, System.currentTimeMillis(), seconds)
+        val voice = Voice(id, name.trim().ifBlank { "My voice" }, System.currentTimeMillis(), seconds, pause = pause)
         save(own() + voice)
         return voice.copy(noisy = noisy)
+    }
+
+    /** Loudness of each 20 ms frame. */
+    private fun frames(x: FloatArray, rate: Int): FloatArray {
+        val frame = rate / 50
+        return FloatArray(x.size / frame) { f ->
+            var s = 0.0
+            for (i in f * frame until (f + 1) * frame) s += x[i] * x[i]
+            sqrt(s / frame).toFloat()
+        }
+    }
+
+    /** Which 20 ms frames are speech (above a level set by the loud parts of the clip). */
+    private fun voiced(e: FloatArray): BooleanArray {
+        if (e.isEmpty()) return BooleanArray(0)
+        val loud = e.sorted()[(e.size * 0.9).toInt().coerceAtMost(e.size - 1)]
+        val threshold = maxOf(loud * 0.08f, 0.003f)
+        return BooleanArray(e.size) { e[it] > threshold }
+    }
+
+    /**
+     * The best [seconds]-long stretch of a longer recording: mostly speech, without long gaps,
+     * and with a clear difference between speech and the quiet between words (music under the
+     * voice blurs that). Clips that are short enough come back as they are.
+     */
+    internal fun bestWindow(x: FloatArray, rate: Int, seconds: Int = 20): FloatArray {
+        val win = seconds * 50
+        val e = frames(x, rate)
+        if (e.size <= win + 50) return x
+        val v = voiced(e)
+        // Long recordings often open with an introduction: skip the first 10 seconds of those.
+        val from = if (e.size > 60 * 50) 10 * 50 else 0
+        var best = from
+        var bestScore = -1.0
+        var start = from
+        while (start + win <= e.size) {
+            var speech = 0
+            var gap = 0
+            var longest = 0
+            var loudSum = 0.0
+            var quietSum = 0.0
+            var quietN = 0
+            for (i in start until start + win) {
+                if (v[i]) {
+                    speech++
+                    loudSum += e[i]
+                    gap = 0
+                } else {
+                    quietSum += e[i]
+                    quietN++
+                    gap++
+                    longest = maxOf(longest, gap)
+                }
+            }
+            val ratio = speech.toDouble() / win
+            val contrast = if (speech == 0) 0.0 else {
+                val loud = loudSum / speech
+                val quiet = if (quietN == 0) loud * 0.05 else quietSum / quietN
+                (loud / (quiet + 1e-5)).coerceAtMost(60.0) / 60.0
+            }
+            // Mostly speech (but some natural pauses), no gap over 1.5 s, clean background.
+            val score = minOf(ratio, 0.85) + 0.5 * contrast - if (longest > 75) 0.5 else 0.0
+            if (score > bestScore) {
+                bestScore = score
+                best = start
+            }
+            start += 50
+        }
+        val frame = rate / 50
+        return x.copyOfRange(best * frame, minOf(x.size, (best + win) * frame))
+    }
+
+    /**
+     * The speaker's usual pause between sentences (ms), from the gaps in the recording: gaps of
+     * 0.3–2 s are sentence and phrase breaks; their median is the speaker's rhythm. 0 when unsure.
+     */
+    internal fun sentencePause(x: FloatArray, rate: Int): Int {
+        val v = voiced(frames(x, rate))
+        val gaps = ArrayList<Int>()
+        var run = 0
+        var spoke = false
+        for (f in v) {
+            if (f) {
+                if (spoke && run in 15..100) gaps += run * 20
+                run = 0
+                spoke = true
+            } else run++
+        }
+        if (gaps.size < 2) return 0
+        return gaps.sorted()[gaps.size / 2].coerceIn(200, 900)
+    }
+
+    /** Shortens every silence longer than [maxMs] to [maxMs] (the engine copies hesitation too). */
+    internal fun tightenSilences(x: FloatArray, rate: Int, maxMs: Int = 300): FloatArray {
+        val frame = rate / 50
+        val v = voiced(frames(x, rate))
+        val keep = maxMs / 20
+        val out = FloatBuf()
+        var run = 0
+        for ((f, speech) in v.withIndex()) {
+            run = if (speech) 0 else run + 1
+            if (run <= keep) for (i in f * frame until (f + 1) * frame) out.add(x[i])
+        }
+        for (i in v.size * frame until x.size) out.add(x[i])
+        return out.toArray()
     }
 
     private fun writeRef(file: File, x: FloatArray) {
@@ -226,7 +348,7 @@ object MyVoices {
 
     // ---- Importing a recording from a file (any format Android can decode) ----
 
-    fun decode(context: Context, uri: Uri, maxSeconds: Int = 60): Ref =
+    fun decode(context: Context, uri: Uri, maxSeconds: Int = 150): Ref =
         decode(maxSeconds) { it.setDataSource(context, uri, null) }
 
     private fun decode(maxSeconds: Int, source: (MediaExtractor) -> Unit): Ref {

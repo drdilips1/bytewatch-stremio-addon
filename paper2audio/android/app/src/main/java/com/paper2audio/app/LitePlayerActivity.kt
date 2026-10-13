@@ -29,8 +29,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * The Play Store edition's player: the text, with the sentence being read
- * highlighted; play, sentence back and forward; speed, voice, sleep timer; and
- * "Audiobook" to save the whole thing as audio files.
+ * highlighted; play, sentence back and forward; speed, voice and sleep timer.
  */
 class LitePlayerActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -113,7 +112,6 @@ class LitePlayerActivity : Activity() {
         btnSpeed.setOnClickListener { LiteUi.showSpeed(this) { render() } }
         btnVoice.setOnClickListener { LiteUi.showVoices(this) { render() } }
         btnSleep.setOnClickListener { LiteUi.showSleep(this) { render() } }
-        findViewById<View>(R.id.btnAudiobook).setOnClickListener { LiteUi.showAudiobook(this) }
         taskCancel.setOnClickListener {
             when {
                 Exporter.running -> Exporter.cancel()
@@ -365,7 +363,6 @@ class LitePlayerActivity : Activity() {
 
     private fun showMore() {
         LiteSheet(this, Speaker.doc?.title, null)
-            .row(R.drawable.ic_save, "Make an audiobook", "Save it as audio files in Downloads") { LiteUi.showAudiobook(this) }
             .row(R.drawable.ic_text, "Save the text", "As plain text, Markdown or PDF") { exportTranscript() }
             .row(R.drawable.ic_tune, "Text size", "Larger or smaller reading text") { textSize() }
             .row(R.drawable.ic_bug, "Report a problem", "Share the app's error log to get it fixed") { AppLog.showReport(this) }
