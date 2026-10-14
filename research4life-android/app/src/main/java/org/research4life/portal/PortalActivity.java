@@ -141,10 +141,10 @@ public class PortalActivity extends Activity {
         boolean loginPage = path != null && path.toLowerCase().matches(".*(login|signin|sign-in).*");
         if (loginPage && url.equals(lastSignInUrl)) signInRepeats++;
         else if (loginPage) { lastSignInUrl = url; signInRepeats = 0; }
-        // Fill in the saved login only; the person taps Sign in, as in a browser. Submitting it
-        // automatically (and following "try again") could loop into Research4Life's login failure.
-        String js = R4LSession.signInScriptFor(this, url, false);
-        if (js != null) webView.evaluateJavascript(js, null);
+        // Signs in by itself once; it never re-submits or follows "try again" here (that looped into
+        // Research4Life's login failure). If that one try fails, the filled-in form waits for a tap.
+        String js = R4LSession.signInScriptFor(this, url, signInRepeats < 1);
+        if (js != null) webView.evaluateJavascript("window.__dsNoRetry=1;" + js, null);
         if (loginPage && signInRepeats == 2) {
             Toast.makeText(this, "Sign-in didn't go through. Check your saved password in Settings.", Toast.LENGTH_LONG).show();
         }

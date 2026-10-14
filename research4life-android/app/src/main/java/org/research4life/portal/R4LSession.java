@@ -493,7 +493,7 @@ final class R4LSession {
                 // Research4Life's "Login failure" page (also seen in normal browsers, after a double
                 // submit or a stale sign-in): follow its own "try again" link once (the portal if none),
                 // which carries on when the sign-in did work.
-                + "if(" + autoSubmit + "&&/research4life\\.org$/.test(location.hostname)&&(/login\\s*failure/i.test(document.title)||/Incorrect login credentials/i.test((document.body&&document.body.innerText)||''))){"
+                + "if(" + autoSubmit + "&&!window.__dsNoRetry&&/research4life\\.org$/.test(location.hostname)&&(/login\\s*failure/i.test(document.title)||/Incorrect login credentials/i.test((document.body&&document.body.innerText)||''))){"
                 + "try{var lf=+(sessionStorage.getItem('dsR4lFail')||0);if(Date.now()-lf>60000){sessionStorage.setItem('dsR4lFail',Date.now());var ta=[].slice.call(document.querySelectorAll('a[href]')).filter(function(a){return /try\\s*again/i.test(a.textContent||'');})[0];location.replace(ta?ta.href:'https://portal.research4life.org/');return;}}catch(e){}}"
                 + "var U=" + (user == null ? "null" : jsString(user)) + ",P=" + (pass == null ? "null" : jsString(pass)) + ",AUTO=" + autoSubmit + ";"
                 + "function vis(e){return e&&e.offsetParent!==null&&!e.disabled;}"
@@ -511,7 +511,8 @@ final class R4LSession {
                 + "if(f&&(f.user||window.__dsStep1||tries>6)){clearInterval(t);if(f.user)set(f.user,U);set(f.pw,P);if(window.DSR4L)DSR4L.status('signing-in');"
                 + "if(!AUTO)return;"
                 // Never submit twice within 20 s (a second submit is what Research4Life calls a login failure).
-                + "try{if(Date.now()-(+(sessionStorage.getItem('dsR4lSubmit')||0))<20000)return;sessionStorage.setItem('dsR4lSubmit',Date.now());}catch(e){}"
+                // (Browsing: one automatic sign-in in 3 minutes, so a failure never turns into a loop.)
+                + "try{if(Date.now()-(+(sessionStorage.getItem('dsR4lSubmit')||0))<(window.__dsNoRetry?180000:20000))return;sessionStorage.setItem('dsR4lSubmit',Date.now());}catch(e){}"
                 + "setTimeout(function(){var form=f.pw.form;"
                 + "var btn=(form&&form.querySelector('button[type=submit],input[type=submit],button:not([type])'))"
                 + "||[].slice.call(document.querySelectorAll('button,input[type=submit],[role=button]')).filter(vis).filter(function(b){return /sign\\s*in|log\\s*in|login|submit|continue/i.test(b.textContent||b.value||'');})[0];"
