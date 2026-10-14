@@ -55,7 +55,7 @@ class ModelPack(
     private val zipArchive: File get() = File(app.filesDir, "$folder.zip.part")
 
     /** Megabytes already downloaded by an interrupted or cancelled download (it resumes from there). */
-    fun partialMb(): Int = (maxOf(if (zipArchive.exists()) zipArchive.length() else 0L, if (archive.exists()) archive.length() else 0L) / 1_000_000).toInt()
+    fun partialMb(): Int = if (!initialized) 0 else (maxOf(if (zipArchive.exists()) zipArchive.length() else 0L, if (archive.exists()) archive.length() else 0L) / 1_000_000).toInt()
 
     fun isInstalled(): Boolean = initialized && marker.exists()
 

@@ -55,6 +55,9 @@ class LiteCopyVoiceActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         Themes.apply(this)
         super.onCreate(savedInstanceState)
+        // Android can reopen this screen straight after restarting the app: set up the voice
+        // downloads and the voice list first (as every screen that uses them does).
+        Speaker.init(this) {}
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(18), dp(22), dp(28))
