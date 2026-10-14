@@ -171,3 +171,55 @@ jobs:
             Listening samples from Jugnu Pocket TTS (altslate labs, CC BY 4.0).
             voice1 / voice2 = the recording being copied (also attached);
             lite / base = model size (lite is the one that would go on the phone).
+
+  voice-pack:
+    # The converted Hindi engine as an app download: zip parts on the p2a-voices release,
+    # the same layout as the other voice packs (see p2a-voice-packs.yml). No outside code here.
+    needs: convert
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      F: jugnu-pocket-tts-hi-lite-2026-10-14
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: converted
+          path: conv
+      - name: Split into parts
+        run: |
+          Z=$(find conv -name "jugnu-lite-adapted.zip" | head -1)
+          test -n "$Z" || { echo "no converted pack"; exit 1; }
+          cp "$Z" "$F.zip"
+          zip -q -d "$F.zip" tokenizer.model || true
+          printf '%s\n' \
+            "Jugnu Pocket TTS Lite (Hindi, Hinglish, English voice copying) by altslate labs," \
+            "https://github.com/AltSlate-Labs/jugnu-pocket-tts - weights CC BY 4.0, used under its terms." \
+            "Sound codec: Kyutai Pocket TTS (CC BY 4.0). Converted to ONNX for sherpa-onnx." > CREDITS.txt
+          zip -q "$F.zip" CREDITS.txt
+          unzip -l "$F.zip"
+          split -b 100M -d -a 3 --numeric-suffixes=1 "$F.zip" "$F.zip."
+          rm "$F.zip"
+          python3 - <<'PY'
+          import json, os
+          f = os.environ["F"]
+          parts = sorted(p for p in os.listdir(".") if p.startswith(f + ".zip."))
+          info = {"parts": [{"name": p, "size": os.path.getsize(p)} for p in parts]}
+          json.dump(info, open(f + ".json", "w"))
+          print(info)
+          PY
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: p2a-voices
+          name: Voice packs for Paper to Audio
+          prerelease: true
+          overwrite_files: true
+          files: |
+            ${{ env.F }}.zip.*
+            ${{ env.F }}.json
+          body: |
+            On-device voice models (from the sherpa-onnx project) repacked for quick,
+            resumable downloads inside the app. Kokoro is Apache-2.0; see each
+            model's original license in the sherpa-onnx tts-models release.
+            Hindi voice copying: Jugnu Pocket TTS Lite by altslate labs (CC BY 4.0),
+            https://github.com/AltSlate-Labs/jugnu-pocket-tts, converted for sherpa-onnx.
