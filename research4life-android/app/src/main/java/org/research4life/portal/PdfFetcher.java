@@ -659,6 +659,7 @@ final class PdfFetcher {
             saveDirect(pageFetchUrl, pageFetchUa, pageFetchName);
             return;
         }
+        if (data.length > 4 && PdfStore.startsWithPdfMagic(data, data.length)) status("downloading", "Saving the PDF…");
         io.execute(() -> {
             try {
                 PdfStore.saveBytes(app, j.key, data, j.title != null ? j.title : pageFetchName, pageFetchUrl);
@@ -689,7 +690,8 @@ final class PdfFetcher {
         status("finding", "Looking for the PDF…");
         io.execute(() -> {
             try {
-                PdfStore.download(app, j.key, url, j.title != null ? j.title : fileName, userAgent);
+                PdfStore.download(app, j.key, url, j.title != null ? j.title : fileName, userAgent,
+                        () -> main.post(() -> { if (job == j) status("downloading", "Downloading the PDF…"); }));
                 main.post(() -> {
                     if (j.viaClinicalKey && !j.viaCollege) R4LSession.markClinicalKey(app);
                     if (listener != null) listener.onSaved(j.key, j.title);

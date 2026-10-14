@@ -131,6 +131,12 @@ final class PdfStore {
      */
     static void download(Context ctx, String key, String url, String title, String userAgent)
             throws IOException {
+        download(ctx, key, url, title, userAgent, null);
+    }
+
+    /** As above; {@code onPdf} runs (on this thread) once the response is known to be a PDF. */
+    static void download(Context ctx, String key, String url, String title, String userAgent, Runnable onPdf)
+            throws IOException {
         HttpURLConnection conn = null;
         String current = url;
         for (int i = 0; i < MAX_REDIRECTS; i++) {
@@ -174,6 +180,7 @@ final class PdfStore {
                     if (!startsWithPdfMagic(buf, n)) {
                         throw new IOException("NOT_PDF");
                     }
+                    if (onPdf != null) onPdf.run();
                 }
                 out.write(buf, 0, n);
             }
@@ -211,7 +218,7 @@ final class PdfStore {
         record(ctx, key, title, "import");
     }
 
-    private static boolean startsWithPdfMagic(byte[] buf, int n) {
+    static boolean startsWithPdfMagic(byte[] buf, int n) {
         // Some servers prepend whitespace or a BOM; look for %PDF in the first 1 KB.
         int limit = Math.min(n, 1024) - 4;
         for (int i = 0; i <= limit; i++) {
