@@ -57,7 +57,7 @@ enum SignIn {
     }
 
     /// Research4Life's sign-in page: the saved login fills in there (its home page stays signed out).
-    static let portal = URL(string: "https://portal.research4life.org/signin")!
+    static let portal = URL(string: "https://portal.research4life.org/")!
 
     /// Research4Life's way into ClinicalKey (the owner's link from the Research4Life portal):
     /// Elsevier's institution login through WHO's Research4Life sign-in, returning to `article`.
@@ -86,7 +86,7 @@ enum SignIn {
     if(!window.DSR4L)window.DSR4L={credentials:function(u,p){try{webkit.messageHandlers.dsr4l.postMessage({u:u,p:p})}catch(e){}},status:function(s){try{webkit.messageHandlers.dsr4l.postMessage({status:s})}catch(e){}}};
     if(window.__dsSignIn)return;window.__dsSignIn=1;
     if(/research4life\.org$/.test(location.hostname)&&(/login\s*failure/i.test(document.title)||/Incorrect login credentials/i.test((document.body&&document.body.innerText)||''))){
-    try{var lf=+(sessionStorage.getItem('dsR4lFail')||0);if(Date.now()-lf>(window.__dsNoRetry?180000:60000)){sessionStorage.setItem('dsR4lFail',Date.now());var ta=[].slice.call(document.querySelectorAll('a[href]')).filter(function(a){return /try\s*again/i.test(a.textContent||'');})[0];location.replace(ta?ta.href:'https://portal.research4life.org/');return;}}catch(e){}}
+    try{var lf=+(sessionStorage.getItem('dsR4lFail')||0);if(Date.now()-lf>(window.__dsNoRetry?180000:60000)){sessionStorage.setItem('dsR4lFail',Date.now());var ta=[].slice.call(document.querySelectorAll('a[href]')).filter(function(a){return /try\s*again/i.test(a.textContent||'');})[0];location.replace('https://portal.research4life.org/');return;}}catch(e){}}
     var U=A[0],P=A[1];
     function vis(e){return e&&e.offsetParent!==null&&!e.disabled;}
     function fields(){var pw=[].slice.call(document.querySelectorAll('input[type=password]')).filter(vis)[0];if(!pw)return null;
@@ -97,6 +97,7 @@ enum SignIn {
     document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('button,input[type=submit],[role=button]'))report();},true);
     document.addEventListener('keydown',function(e){if(e.key==='Enter')report();},true);
     if(!U||!P)return;
+    if(AUTO&&/research4life\.org$/.test(location.hostname)&&!document.querySelector('input[type=password]')){setTimeout(function(){if(document.querySelector('input[type=password]'))return;var ls=[].slice.call(document.querySelectorAll('a,button')).filter(function(e){return e.offsetParent!==null;});var out=ls.some(function(e){return /log\s*out|sign\s*out/i.test(e.textContent||'');});var li=ls.filter(function(e){return /^\s*(log\s*in|sign\s*in)\s*$/i.test(e.textContent||'');})[0];try{var g=+(sessionStorage.getItem('dsR4lGo')||0);if(!out&&li&&Date.now()-g>180000){sessionStorage.setItem('dsR4lGo',Date.now());li.click();}}catch(e){}},1500);}
     function set(el,v){var d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d.set.call(el,v);
     el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}
     var tries=0;var t=setInterval(function(){tries++;var f=fields();

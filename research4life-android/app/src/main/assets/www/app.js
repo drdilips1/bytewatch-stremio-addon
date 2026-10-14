@@ -91,7 +91,7 @@
 
   const EPMC = hasNative ? '/proxy/epmc/' : 'https://www.ebi.ac.uk/europepmc/webservices/rest/';
   const OPENALEX = hasNative ? '/proxy/openalex/' : 'https://api.openalex.org/';
-  const PORTAL = 'https://portal.research4life.org/signin';
+  const PORTAL = 'https://portal.research4life.org/';
 
   // Title/abstract terms that keep results dermatological.
   const DERM_FILTER = '(TITLE_ABS:skin OR TITLE_ABS:cutaneous OR TITLE_ABS:dermatolog* OR TITLE_ABS:dermatitis OR TITLE_ABS:dermal OR TITLE_ABS:epiderm* OR TITLE_ABS:mucocutaneous)';

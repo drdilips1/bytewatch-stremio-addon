@@ -28,7 +28,7 @@ import javax.crypto.spec.GCMParameterSpec;
  */
 final class R4LSession {
 
-    static final String PORTAL_URL = "https://portal.research4life.org/signin";
+    static final String PORTAL_URL = "https://portal.research4life.org/";
     static final String PROXY_PREFIX = "https://login.research4life.org/tacsgr1";
 
     private static final String KEY_ALIAS = "dermscholar_r4l";
@@ -495,7 +495,7 @@ final class R4LSession {
                 // which carries on when the sign-in did work.
                 // (Even when not submitting: the sign-in usually did work, and "try again" shows it.)
                 + "if(/research4life\\.org$/.test(location.hostname)&&(/login\\s*failure/i.test(document.title)||/Incorrect login credentials/i.test((document.body&&document.body.innerText)||''))){"
-                + "try{var lf=+(sessionStorage.getItem('dsR4lFail')||0);if(Date.now()-lf>(window.__dsNoRetry?180000:60000)){sessionStorage.setItem('dsR4lFail',Date.now());var ta=[].slice.call(document.querySelectorAll('a[href]')).filter(function(a){return /try\\s*again/i.test(a.textContent||'');})[0];location.replace(ta?ta.href:'https://portal.research4life.org/');return;}}catch(e){}}"
+                + "try{var lf=+(sessionStorage.getItem('dsR4lFail')||0);if(Date.now()-lf>(window.__dsNoRetry?180000:60000)){sessionStorage.setItem('dsR4lFail',Date.now());var ta=[].slice.call(document.querySelectorAll('a[href]')).filter(function(a){return /try\\s*again/i.test(a.textContent||'');})[0];location.replace('https://portal.research4life.org/');return;}}catch(e){}}"
                 + "var U=" + (user == null ? "null" : jsString(user)) + ",P=" + (pass == null ? "null" : jsString(pass)) + ",AUTO=" + autoSubmit + ";"
                 + "function vis(e){return e&&e.offsetParent!==null&&!e.disabled;}"
                 + "function fields(){var pw=[].slice.call(document.querySelectorAll('input[type=password]')).filter(vis)[0];if(!pw)return null;"
@@ -506,6 +506,13 @@ final class R4LSession {
                 + "document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('button,input[type=submit],[role=button]'))report();},true);"
                 + "document.addEventListener('keydown',function(e){if(e.key==='Enter')report();},true);"
                 + "if(!U||!P)return;"
+                // Research4Life's own pages without a sign-in form: signed out (a Log in link, no Log
+                // out) → tap Log in once; signed in → nothing (signing in again is its "Login failure").
+                + "if(AUTO&&/research4life\\.org$/.test(location.hostname)&&!document.querySelector('input[type=password]')){setTimeout(function(){if(document.querySelector('input[type=password]'))return;"
+                + "var ls=[].slice.call(document.querySelectorAll('a,button')).filter(function(e){return e.offsetParent!==null;});"
+                + "var out=ls.some(function(e){return /log\\s*out|sign\\s*out/i.test(e.textContent||'');});"
+                + "var li=ls.filter(function(e){return /^\\s*(log\\s*in|sign\\s*in)\\s*$/i.test(e.textContent||'');})[0];"
+                + "try{var g=+(sessionStorage.getItem('dsR4lGo')||0);if(!out&&li&&Date.now()-g>180000){sessionStorage.setItem('dsR4lGo',Date.now());li.click();}}catch(e){}},1500);}"
                 + "function set(el,v){var d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d.set.call(el,v);"
                 + "el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}"
                 + "var tries=0;var t=setInterval(function(){tries++;var f=fields();"

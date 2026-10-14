@@ -652,7 +652,7 @@
   };
   actions['ev-papers'] = (b) => go(D.searchHash(D.filtersFrom({ q: b.dataset.q })));
   actions['ev-utd'] = (b) => go('search?' + new URLSearchParams({ q: b.dataset.q, src: 'utd' }));
-  actions['ev-r4l'] = () => Native.openPortal('https://portal.research4life.org/signin', '', '');
+  actions['ev-r4l'] = () => Native.openPortal('https://portal.research4life.org/', '', '');
   // The diagnosis on screen (Histology side by side reads its box when the button has none).
   const dxOf = (b) => (b.dataset.q || $('#hs-dx')?.value || '').trim();
   actions['ev-dermnet'] = (b) => openUrl('https://dermnetnz.org/search?q=' + encodeURIComponent(dxOf(b)));
