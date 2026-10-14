@@ -493,8 +493,9 @@ final class R4LSession {
                 // Research4Life's "Login failure" page (also seen in normal browsers, after a double
                 // submit or a stale sign-in): follow its own "try again" link once (the portal if none),
                 // which carries on when the sign-in did work.
-                + "if(" + autoSubmit + "&&!window.__dsNoRetry&&/research4life\\.org$/.test(location.hostname)&&(/login\\s*failure/i.test(document.title)||/Incorrect login credentials/i.test((document.body&&document.body.innerText)||''))){"
-                + "try{var lf=+(sessionStorage.getItem('dsR4lFail')||0);if(Date.now()-lf>60000){sessionStorage.setItem('dsR4lFail',Date.now());var ta=[].slice.call(document.querySelectorAll('a[href]')).filter(function(a){return /try\\s*again/i.test(a.textContent||'');})[0];location.replace(ta?ta.href:'https://portal.research4life.org/');return;}}catch(e){}}"
+                // (Even when not submitting: the sign-in usually did work, and "try again" shows it.)
+                + "if(/research4life\\.org$/.test(location.hostname)&&(/login\\s*failure/i.test(document.title)||/Incorrect login credentials/i.test((document.body&&document.body.innerText)||''))){"
+                + "try{var lf=+(sessionStorage.getItem('dsR4lFail')||0);if(Date.now()-lf>(window.__dsNoRetry?180000:60000)){sessionStorage.setItem('dsR4lFail',Date.now());var ta=[].slice.call(document.querySelectorAll('a[href]')).filter(function(a){return /try\\s*again/i.test(a.textContent||'');})[0];location.replace(ta?ta.href:'https://portal.research4life.org/');return;}}catch(e){}}"
                 + "var U=" + (user == null ? "null" : jsString(user)) + ",P=" + (pass == null ? "null" : jsString(pass)) + ",AUTO=" + autoSubmit + ";"
                 + "function vis(e){return e&&e.offsetParent!==null&&!e.disabled;}"
                 + "function fields(){var pw=[].slice.call(document.querySelectorAll('input[type=password]')).filter(vis)[0];if(!pw)return null;"
