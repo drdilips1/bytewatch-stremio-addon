@@ -514,7 +514,7 @@ final class R4LSession {
                 // "Log in" / "Log in here"; on login.research4life.org's chooser, the complete-collections box
                 // (Hinari, AGORA… all at once): only after choosing it is the session active (ClinicalKey green).
                 + "var li=ls.filter(function(e){return /complete\\s+collections/i.test(e.textContent||'');})[0]||ls.filter(function(e){return /^\\s*(log\\s*in|sign\\s*in)(\\s+here)?\\s*$/i.test(e.textContent||'');})[0];"
-                + "try{var g=+(sessionStorage.getItem('dsR4lGo')||0);if(!out&&li&&Date.now()-g>180000){sessionStorage.setItem('dsR4lGo',Date.now());li.click();}}catch(e){}"
+                + "try{var g=+(sessionStorage.getItem('dsR4lGo')||0);if(!out&&li&&Date.now()-g>(window.__dsCk?20000:180000)){sessionStorage.setItem('dsR4lGo',Date.now());li.click();}}catch(e){}"
                 // Get PDF into ClinicalKey (window.__dsCk): signed in → Reference Sources → Clinical Key,
                 // the way Research4Life activates ClinicalKey access.
                 + "if(window.__dsCk&&!li){var as=[].slice.call(document.querySelectorAll('a[href]'));var ck=as.filter(function(a){return /^\\s*clinical\\s*key\\s*$/i.test(a.textContent||'');})[0];var rs=as.filter(function(a){return /^\\s*reference\\s+sources\\s*$/i.test(a.textContent||'');})[0];var go=ck||rs;try{var k='dsCk'+(ck?1:0),c=+(sessionStorage.getItem(k)||0);if(go&&Date.now()-c>60000){sessionStorage.setItem(k,Date.now());location.href=go.href;}}catch(e){}}},1500);}"
