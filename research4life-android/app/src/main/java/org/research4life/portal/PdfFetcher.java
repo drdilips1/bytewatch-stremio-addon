@@ -59,8 +59,8 @@ final class PdfFetcher {
         boolean ckFresh;
         /** ClinicalKey was tried and gave no PDF (usually: not signed in to ClinicalKey yet). */
         boolean clinicalKeyFailed;
-        /** ClinicalKey's sign-in was renewed through Research4Life (once per paper). */
-        boolean ckRenewed;
+        /** Times ClinicalKey's sign-in was renewed through Research4Life for this paper (at most 2). */
+        int ckRenewals;
         /** The link renewing ClinicalKey's sign-in, while it's being opened. */
         String renewUrl;
         /** Whether the article link was already reopened after landing on a site's bare home page. */
@@ -224,6 +224,16 @@ final class PdfFetcher {
         main.postDelayed(timeout, JOB_TIMEOUT_MS);
         // The college proxy only for the college route; Research4Life and ClinicalKey go direct.
         final Job j = job;
+        // ClinicalKey not used today: open Research4Life's own ClinicalKey link first (the one the
+        // person tapped in the portal). Access only becomes active once that link has been opened;
+        // when ClinicalKey itself appears, onPageLoaded goes on to the paper.
+        String ckEntry = R4LSession.clinicalKeyEntry(app);
+        if (j.viaClinicalKey && !j.viaCollege && !j.ckFresh && ckEntry != null) {
+            j.renewUrl = ckEntry;
+            status("signing-in", "Opening ClinicalKey through Research4Life…");
+            webView.loadUrl(ckEntry);
+            return;
+        }
         CollegeProxy.use(app, j.viaCollege, () -> { if (job == j) webView.loadUrl(j.startUrl()); });
     }
 
@@ -718,10 +728,13 @@ final class PdfFetcher {
             main.postDelayed(this::next, 500);
             return;
         }
-        // Once more through Research4Life's ClinicalKey sign-in (a fresh session).
-        String entry = r == null ? null : R4LSession.clinicalKeyLogin(R4LSession.clinicalKeyUrl(r.pii));
-        if (r != null && r.viaClinicalKey && !r.viaCollege && !r.ckRenewed && r.loads <= MAX_LOADS) {
-            r.ckRenewed = true;
+        // Once more into ClinicalKey (twice at most): through Research4Life's own ClinicalKey link
+        // when known (it often needs opening more than once before access is active), else through
+        // the Research4Life institution sign-in.
+        String saved = R4LSession.clinicalKeyEntry(app);
+        String entry = r == null ? null : saved != null && r.ckRenewals == 0 ? saved : R4LSession.clinicalKeyLogin(R4LSession.clinicalKeyUrl(r.pii));
+        if (r != null && r.viaClinicalKey && !r.viaCollege && r.ckRenewals < 2 && r.loads <= MAX_LOADS) {
+            r.ckRenewals++;
             r.renewUrl = entry;
             tried.clear();
             pdfAttempts = 0;

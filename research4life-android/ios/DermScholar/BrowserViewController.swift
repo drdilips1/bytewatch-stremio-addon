@@ -51,7 +51,9 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         startURL = url
         if SignIn.isClinicalKeyArticle(url) {
             ckArticle = url
-            firstURL = SignIn.clinicalKeyLogin(returningTo: url)
+            // Research4Life's own ClinicalKey link (tapped once in the portal) first: access only
+            // becomes active once that link is opened; then ClinicalKey opens the article.
+            firstURL = SignIn.clinicalKeyEntry ?? SignIn.clinicalKeyLogin(returningTo: url)
         } else {
             firstURL = url
         }
