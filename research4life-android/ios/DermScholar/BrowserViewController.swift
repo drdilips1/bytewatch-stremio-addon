@@ -363,7 +363,9 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             return
         }
         let saved = Keychain.load(provider: p)
-        webView.evaluateJavaScript(SignIn.script(user: saved?.user, password: saved?.password, auto: autoSignIns < 2), completionHandler: nil)
+        // Get PDF signs in by itself; browsing Research4Life (the R4L tab, Show page) only fills in the
+        // saved login and the person taps Sign in, as in a browser (automatic submits could loop).
+        webView.evaluateJavaScript(SignIn.script(user: saved?.user, password: saved?.password, auto: !key.isEmpty && covering && autoSignIns < 2), completionHandler: nil)
     }
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
