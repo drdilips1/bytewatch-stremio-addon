@@ -26,7 +26,14 @@ pip install -q onnx onnxruntime
 python "$W/hindi-trial/io.py" "$EN"
 
 echo "===== Exporter (lookbe fork of KevinAHM/pocket-tts-onnx-export)"
-git clone https://github.com/lookbe/pocket-tts-onnx-export exporter
+git clone --recurse-submodules https://github.com/lookbe/pocket-tts-onnx-export exporter
+echo "----- .gitmodules"; cat exporter/.gitmodules 2>/dev/null
+if [ ! -f exporter/pocket_tts/models/model_state.py ]; then
+  # The fork's copy of the engine is incomplete: use the Pocket TTS that Jugnu installed.
+  echo "exporter's pocket_tts is incomplete: using the installed one"
+  rm -rf exporter/pocket_tts
+fi
+python -c "import pocket_tts, os; print('pocket_tts from', os.path.dirname(pocket_tts.__file__))"
 echo "exporter commit: $(git -C exporter rev-parse HEAD)"
 git -C exporter log --oneline | head -15
 find exporter -type f -not -path "*/.git/*" | head -60
@@ -44,17 +51,12 @@ echo "----- exporter english.yaml"; cat exporter/pocket_tts/config/english.yaml
 echo "----- Jugnu config"; cat "$JUGNU_CONFIG"
 WEIGHTS=$(grep weights_path "$JUGNU_CONFIG" | awk '{print $2}')
 echo "Jugnu weights: $WEIGHTS"
-# The exporter reads its English config: put Jugnu's in its place (same schema, Pocket TTS).
-cp exporter/pocket_tts/config/english.yaml english.kyutai.yaml
-cp "$JUGNU_CONFIG" exporter/pocket_tts/config/english.yaml
-diff english.kyutai.yaml exporter/pocket_tts/config/english.yaml || true
-
 echo "===== Export (legacy full-cache layout, as in the English pack)"
 mkdir -p variants/legacy
 (
   cd exporter && export PYTHONPATH=. && mkdir -p onnx &&
-  python scripts/export_mimi_and_conditioner.py --output_dir onnx --weights_path "$WEIGHTS" &&
-  python scripts/export_flow_lm.py --output_dir onnx --weights_path "$WEIGHTS" --no_kv_delta &&
+  python scripts/export_mimi_and_conditioner.py --output_dir onnx --weights_path "$WEIGHTS" --config "$JUGNU_CONFIG" &&
+  python scripts/export_flow_lm.py --output_dir onnx --weights_path "$WEIGHTS" --config "$JUGNU_CONFIG" --no_kv_delta &&
   python scripts/quantize.py --input_dir onnx --output_dir onnx
 ) || echo "EXPORT FAILED"
 ls -la exporter/onnx 2>/dev/null
