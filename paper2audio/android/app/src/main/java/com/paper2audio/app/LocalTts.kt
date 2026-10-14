@@ -224,7 +224,11 @@ object LocalTts {
                 // throwaway "Well." and that is cut off at the pause after it: the sentence's own first word
                 // comes out whole. If no clear pause is found, the sentence is made the plain way.
                 fun take(seed: Int): GeneratedAudio {
-                    val led = gen(" ".repeat(8) + (if (hindi) "अच्छा. " else "Well. ") + spoken.trim(), seed, extraFrames = 12)
+                    // Not for the Hindi engine: it pauses for over a second after a throwaway word, which ate
+                    // into the sentence, and the cut then fell inside it (a word or two left of the preview).
+                    // Said plainly, it speaks whole sentences reliably.
+                    if (hindi) return gen(spoken, seed)
+                    val led = gen(" ".repeat(8) + "Well. " + spoken.trim(), seed, extraFrames = 12)
                     val cut = CloneCheck.afterLeadIn(led.samples, led.sampleRate)
                     return if (cut != null) GeneratedAudio(led.samples.copyOfRange(cut, led.samples.size), led.sampleRate)
                     else gen(spoken, seed)
