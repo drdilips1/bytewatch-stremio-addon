@@ -1,0 +1,128 @@
+name: Hindi voice copying trial
+
+# One-off trial of Jugnu Pocket TTS (Hindi, Hinglish and English with voice copying,
+# altslate labs, CC BY 4.0): listening samples before any conversion for the apps.
+#
+# Kept in three walled-off jobs, because Jugnu is outside code:
+#   1. download - only the official Hugging Face downloader sees HF_TOKEN; no Jugnu code.
+#   2. samples  - runs Jugnu's code with no secrets, read-only repo access, offline models.
+#   3. publish  - puts the samples on the hindi-voice-trial prerelease; no Jugnu code.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/hindi-voice-trial]
+    paths:
+      - ".github/workflows/hindi-voice-trial.yml"
+      - "hindi-trial/**"
+
+permissions:
+  contents: read
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download the models (official Hugging Face downloader only)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HOME: ${{ github.workspace }}/hf
+        run: |
+          test -n "$HF_TOKEN" || { echo "HF_TOKEN secret is missing"; exit 1; }
+          pip install -q huggingface_hub
+          python - <<'PY'
+          from huggingface_hub import HfApi, snapshot_download
+          api = HfApi()
+          print("logged in as:", api.whoami()["name"])
+          for repo in ["altslate/jugnu-pocket-tts", "kyutai/pocket-tts"]:
+              files = api.list_repo_files(repo)
+              print(f"\n{repo}: {len(files)} files")
+              for f in files: print("  ", f)
+              snapshot_download(repo)
+          PY
+          tar cf hf.tar hf && ls -la hf.tar
+      - name: Reference voices (two English speakers from the sherpa-onnx pack)
+        run: |
+          pip install -q soundfile
+          curl -fsSL -o pocket.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-pocket-tts-int8-2026-01-26.tar.bz2
+          tar xjf pocket.tar.bz2 --wildcards "*/test_wavs/*"
+          mkdir -p refs
+          python - <<'PY'
+          import glob, soundfile as sf
+          for i, p in enumerate(sorted(glob.glob("*/test_wavs/*.wav"))[:2]):
+              x, sr = sf.read(p)
+              sf.write(f"refs/voice{i + 1}.wav", x[: sr * 12], sr)
+              print(p, "->", f"refs/voice{i + 1}.wav")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: models
+          path: |
+            hf.tar
+            refs/
+          retention-days: 3
+
+  samples:
+    needs: download
+    runs-on: ubuntu-latest
+    # No secrets here, and the repo is read-only.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: models
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Jugnu
+        run: |
+          tar xf hf.tar && rm hf.tar
+          git clone --depth 1 https://github.com/AltSlate-Labs/jugnu-pocket-tts jugnu-src
+          echo "Jugnu commit: $(git -C jugnu-src rev-parse HEAD)"
+          find jugnu-src -type f -not -path "*/.git/*" | head -100
+          echo "----- release/assemble.py -----"; head -150 jugnu-src/release/assemble.py 2>/dev/null || true
+          for f in $(find jugnu-src -path "*jugnu_tts*" -name "*.py" | head -10); do echo "===== $f"; head -150 "$f"; done
+          pip install -q soundfile ./jugnu-src
+          pip list | grep -i -E "jugnu|pocket|torch|huggingface|sentencepiece" || true
+      - name: Make samples (offline)
+        env:
+          HF_HOME: ${{ github.workspace }}/hf
+          HF_HUB_OFFLINE: "1"
+        run: |
+          python hindi-trial/samples.py
+          cp refs/*.wav out/ && ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: samples
+          path: out/*.wav
+          retention-days: 7
+
+  publish:
+    needs: samples
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: samples
+          path: out
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: hindi-voice-trial
+          target_commitish: ${{ github.sha }}
+          name: Hindi voice copying trial (samples)
+          prerelease: true
+          overwrite_files: true
+          files: out/*.wav
+          body: |
+            Listening samples from Jugnu Pocket TTS (altslate labs, CC BY 4.0).
+            voice1 / voice2 = the recording being copied (also attached);
+            lite / base = model size (lite is the one that would go on the phone).
