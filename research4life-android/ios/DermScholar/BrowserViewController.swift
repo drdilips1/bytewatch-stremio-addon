@@ -437,6 +437,27 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     }
 
     private var downloads: [ObjectIdentifier: (file: URL, name: String, auto: Bool)] = [:]
+    private var ckButtonPressed = false
+
+    /// The PDF button on ClinicalKey's article page (it builds itself: looked for for about 15 s).
+    private func pressClinicalKeyPdf(tries: Int) {
+        let js = "(function(){window.open=function(u){if(u)location.href=u;return null;};"
+            + "var all=[].slice.call(document.querySelectorAll('a,button,[role=button]'));"
+            + "var el=all.filter(function(e){var t=((e.textContent||'')+' '+(e.getAttribute('aria-label')||'')+' '+(e.getAttribute('title')||'')+' '+(e.getAttribute('href')||'')).toLowerCase();"
+            + "return /pdf/.test(t)&&!/epub|citation|export/.test(t)&&e.offsetParent!==null;})[0];"
+            + "if(!el){var im=[].slice.call(document.querySelectorAll('img[alt*=PDF i],img[src*=pdf i]'))[0];el=im&&(im.closest('a,button,[role=button]')||im);}"
+            + "if(!el)return 'none';if(el.tagName==='A')el.removeAttribute('target');el.click();return 'clicked';})()"
+        webView.evaluateJavaScript(js) { [weak self] v, _ in
+            guard let self = self else { return }
+            if (v as? String) == "clicked" { return }
+            if tries < 7 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.pressClinicalKeyPdf(tries: tries + 1) }
+            } else if !self.leaveRoute() {
+                self.liftCover()
+                self.notice("ClinicalKey didn't give the PDF. Tap Show page and its PDF button.")
+            }
+        }
+    }
 
     private func start(_ d: WKDownload, auto: Bool) {
         d.delegate = self
@@ -459,6 +480,14 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         let data = try? Data(contentsOf: d.file)
         try? FileManager.default.removeItem(at: d.file)
         guard let pdf = data, pdf.prefix(1024).range(of: Data("%PDF".utf8)) != nil else {
+            // ClinicalKey's PDF address gave its article page: press the article's own PDF button
+            // (ClinicalKey hands the PDF out that way), once; its download comes back here.
+            if !ckButtonPressed, SignIn.isClinicalKeyHost(webView.url?.host) {
+                ckButtonPressed = true
+                status("Opening the PDF from ClinicalKey…")
+                pressClinicalKeyPdf(tries: 0)
+                return
+            }
             // That link gave a page, not the PDF: try the page's next link.
             if leaveRoute() { return }
             if covering, autoTried.count < 4 { autoLooks = 3; DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.autoFindPdf() }; return }

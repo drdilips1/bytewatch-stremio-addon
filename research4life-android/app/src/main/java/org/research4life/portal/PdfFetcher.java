@@ -61,6 +61,8 @@ final class PdfFetcher {
         boolean clinicalKeyFailed;
         /** Times ClinicalKey's sign-in was renewed through Research4Life for this paper (at most 2). */
         int ckRenewals;
+        /** When the PDF button on ClinicalKey's article page was pressed (0: not yet). */
+        long ckClickedAt;
         /** The link renewing ClinicalKey's sign-in, while it's being opened. */
         String renewUrl;
         /** Whether the article link was already reopened after landing on a site's bare home page. */
@@ -443,6 +445,32 @@ final class PdfFetcher {
         return doi != null && !doi.isEmpty() && CollegeProxy.usable(app) && R4LSession.sourceOn(app, CollegeProxy.PX);
     }
 
+    /** The PDF button on ClinicalKey's article page: found (the page builds itself) and pressed. */
+    private static final String CK_PDF_BUTTON = "(function(){"
+            + "window.open=function(u){if(u)location.href=u;return null;};"
+            + "var all=[].slice.call(document.querySelectorAll('a,button,[role=button]'));"
+            + "var el=all.filter(function(e){var t=((e.textContent||'')+' '+(e.getAttribute('aria-label')||'')+' '+(e.getAttribute('title')||'')+' '+(e.getAttribute('href')||'')+' '+(e.className&&e.className.baseVal!==undefined?e.className.baseVal:e.className||'')).toLowerCase();"
+            + "return /pdf/.test(t)&&!/epub|citation|\\bris\\b|export/.test(t)&&e.offsetParent!==null;})[0];"
+            + "if(!el){var im=[].slice.call(document.querySelectorAll('img[alt*=PDF i],img[src*=pdf i],svg[aria-label*=PDF i]'))[0];el=im&&(im.closest('a,button,[role=button]')||im);}"
+            + "if(!el)return 'none';if(el.tagName==='A')el.removeAttribute('target');el.click();return 'clicked';})()";
+
+    private void pressClinicalKeyPdf(Job j, int tries) {
+        if (job != j || saving) return;
+        if (tries == 0) status("opening", "Opening the PDF from ClinicalKey…");
+        webView.evaluateJavascript(CK_PDF_BUTTON, v -> {
+            if (job != j || saving) return;
+            if (v != null && v.contains("clicked")) {
+                j.ckClickedAt = System.currentTimeMillis();
+                // No PDF from the button within 25 s: say so (Show page shows where it stopped).
+                main.postDelayed(() -> { if (job == j && !saving) failNow("ClinicalKey didn't give the PDF, even from its PDF button.", true); }, 25_000);
+                return;
+            }
+            // Not built yet: look again (about 15 s in all), then give up as before.
+            if (tries < 7) main.postDelayed(() -> pressClinicalKeyPdf(j, tries + 1), 2000);
+            else { j.ckClickedAt = 1; failNow("ClinicalKey didn't give the PDF.", true); }
+        });
+    }
+
     private void findPdf(String pageUrl) {
         webView.evaluateJavascript(R4LSession.FIND_PDF_SCRIPT, value -> {
             if (job == null || saving) return;
@@ -466,7 +494,14 @@ final class PdfFetcher {
             }
             if (next == null) {
                 // ClinicalKey showed a page instead of the PDF: go straight to the usual route.
-                if (job.viaClinicalKey && !job.viaCollege && pdfAttempts > 0) { failNow("ClinicalKey didn't give the PDF.", true); return; }
+                if (job.viaClinicalKey && !job.viaCollege && pdfAttempts > 0) {
+                    // Its PDF address gave the article page: press the article's own PDF button
+                    // (ClinicalKey hands the PDF out that way), once.
+                    if (job.ckClickedAt == 0) { pressClinicalKeyPdf(job, 0); return; }
+                    if (System.currentTimeMillis() - job.ckClickedAt < 25_000) return;
+                    failNow("ClinicalKey didn't give the PDF.", true);
+                    return;
+                }
                 if (pdfAttempts == 0) { waitOrFail(pageUrl); return; }
                 // Every PDF link was tried and none gave a PDF: say so soon, instead of waiting out the timeout.
                 final Job j = job;
