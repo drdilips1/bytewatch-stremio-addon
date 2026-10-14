@@ -515,7 +515,7 @@ final class PdfFetcher {
                 return;
             }
             tried.add(next);
-            status("downloading", "Downloading the PDF…");
+            status("finding", "Looking for the PDF…");
             webView.loadUrl(next);
             // A link that neither downloads nor opens a page: look again after 20 s (next link or a clear failure).
             final Job jl = job;
@@ -630,7 +630,7 @@ final class PdfFetcher {
         final Job j = job;
         saving = true;
         main.removeCallbacks(timeout);
-        status("downloading", "Saving the PDF…");
+        status("finding", "Looking for the PDF…");
         final String id = "p" + System.nanoTime();
         synchronized (pageBridge) {
             pageBridge.id = id;
@@ -686,7 +686,7 @@ final class PdfFetcher {
         final Job j = job;
         saving = true;
         main.removeCallbacks(timeout);
-        status("downloading", "Saving the PDF…");
+        status("finding", "Looking for the PDF…");
         io.execute(() -> {
             try {
                 PdfStore.download(app, j.key, url, j.title != null ? j.title : fileName, userAgent);
