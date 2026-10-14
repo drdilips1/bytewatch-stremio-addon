@@ -35,7 +35,8 @@ object TextCleaner {
     private val CONTROL = Regex("[\\x00-\\x08\\x0b-\\x1f]")
     private val SPACE_BEFORE_PUNCT = Regex("""\s+([,.;:])""")
     private val MULTI_SPACE = Regex("""\s{2,}""")
-    private val SENTENCE_BREAK = Regex("""(?<=[.!?])\s+""")
+    // The Hindi full stops (। ॥) end sentences too.
+    private val SENTENCE_BREAK = Regex("""(?<=[.!?\u0964\u0965])\s+""")
 
     private val SPOKEN = listOf(
         "e.g." to "for example",
@@ -233,7 +234,7 @@ object TextCleaner {
     }
 
     private val NUMBERED_TITLE = Regex("""^(\d+(?:\.\d+)*)\.\s+""")
-    private const val SENTENCE_ENDINGS = ".!?\u2026:;\"\u201D')"
+    private const val SENTENCE_ENDINGS = ".!?\u2026:;\"\u201D')\u0964\u0965"
 
     /**
      * Straight double quotes become curly ones (“…”), so dialogue can be told apart
