@@ -511,7 +511,9 @@ final class R4LSession {
                 + "if(AUTO&&/research4life\\.org$/.test(location.hostname)&&!document.querySelector('input[type=password]')){setTimeout(function(){if(document.querySelector('input[type=password]'))return;"
                 + "var ls=[].slice.call(document.querySelectorAll('a,button')).filter(function(e){return e.offsetParent!==null;});"
                 + "var out=ls.some(function(e){return /log\\s*out|sign\\s*out/i.test(e.textContent||'');});"
-                + "var li=ls.filter(function(e){return /^\\s*(log\\s*in|sign\\s*in)\\s*$/i.test(e.textContent||'');})[0];"
+                // "Log in" / "Log in here"; on login.research4life.org's chooser, the complete-collections box
+                // (Hinari, AGORA… all at once): only after choosing it is the session active (ClinicalKey green).
+                + "var li=ls.filter(function(e){return /complete\\s+collections/i.test(e.textContent||'');})[0]||ls.filter(function(e){return /^\\s*(log\\s*in|sign\\s*in)(\\s+here)?\\s*$/i.test(e.textContent||'');})[0];"
                 + "try{var g=+(sessionStorage.getItem('dsR4lGo')||0);if(!out&&li&&Date.now()-g>180000){sessionStorage.setItem('dsR4lGo',Date.now());li.click();}}catch(e){}},1500);}"
                 + "function set(el,v){var d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d.set.call(el,v);"
                 + "el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}"
