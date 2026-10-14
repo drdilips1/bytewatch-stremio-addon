@@ -54,8 +54,11 @@ def fix_empty_reshapes(g, size_by_rank):
     for n in g.node:
         if n.op_type == "Constant":
             for a in n.attribute:
+                v = helper.get_attribute_value(a)
                 if a.name == "value":
-                    consts[n.output[0]] = numpy_helper.to_array(a.t)
+                    consts[n.output[0]] = numpy_helper.to_array(v)
+                elif a.name in ("value_ints", "value_int"):
+                    consts[n.output[0]] = np.array(v, np.int64).reshape(-1)
     producer = {o: n for n in g.node for o in n.output}
     fixed = 0
     for n in g.node:
@@ -86,7 +89,8 @@ def fix_empty_reshapes(g, size_by_rank):
         for n in g.node:
             if n.op_type == "Reshape" and "rope" in n.name.lower():
                 p = producer.get(n.input[1])
-                print(" ", n.name, "shape from", p.op_type if p else "input/const", list(p.input) if p else n.input[1])
+                print(" ", n.name, "shape from", p.op_type if p else "input/const", list(p.input) if p else n.input[1],
+                      [(a.name, helper.get_attribute_value(a)) for a in p.attribute] if p is not None and p.op_type == "Constant" else "")
                 if p is not None:
                     for i in p.input:
                         q = producer.get(i)
