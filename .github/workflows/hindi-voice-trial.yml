@@ -34,14 +34,16 @@ jobs:
           test -n "$HF_TOKEN" || { echo "HF_TOKEN secret is missing"; exit 1; }
           pip install -q huggingface_hub
           python - <<'PY'
-          from huggingface_hub import HfApi, snapshot_download
+          from huggingface_hub import HfApi, hf_hub_download, snapshot_download
           api = HfApi()
           print("logged in as:", api.whoami()["name"])
-          for repo in ["altslate/jugnu-pocket-tts", "kyutai/pocket-tts"]:
-              files = api.list_repo_files(repo)
-              print(f"\n{repo}: {len(files)} files")
-              for f in files: print("  ", f)
-              snapshot_download(repo)
+          files = api.list_repo_files("altslate/jugnu-pocket-tts")
+          print(f"altslate/jugnu-pocket-tts: {len(files)} files")
+          for f in files: print("  ", f)
+          snapshot_download("altslate/jugnu-pocket-tts")
+          # Jugnu takes only the sound codec from Kyutai's model, at this exact revision.
+          hf_hub_download("kyutai/pocket-tts", "languages/english_2026-04_24l/model.safetensors",
+                          revision="492522650173a0653b7575cdc25ae09810e5d741")
           PY
           tar cf hf.tar hf && ls -la hf.tar
       - name: Reference voices (two English speakers from the sherpa-onnx pack)
@@ -97,6 +99,7 @@ jobs:
           HF_HUB_OFFLINE: "1"
         run: |
           python hindi-trial/samples.py
+          ls out/*.wav >/dev/null 2>&1 || { echo "No samples were made"; exit 1; }
           cp refs/*.wav out/ && ls -la out
       - uses: actions/upload-artifact@v4
         with:
