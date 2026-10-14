@@ -174,6 +174,7 @@ object LocalTts {
                 // The engine hears the whole stored sample (about 10 s, or 30 s for a "longer sample" voice).
                 val hears = (lead.size + ref.sampleRate - 1) / ref.sampleRate
                 val spoken = CloneCheck.prepareText(TextCleaner.endSentence(text))
+                val pace = MyVoices.pace(name)
                 fun gen(say: String, seed: Int, extraFrames: Int = 0) = tts.generateWithConfig(
                     say,
                     GenerationConfig(
@@ -208,12 +209,13 @@ object LocalTts {
                 }
                 val seed = seedFor(voiceId)
                 val first = take(seed)
-                // Far too long or too short for its words means the model lost its way (mumbling or
-                // skipping): make it once more with another take, and keep the more plausible one.
-                if (CloneCheck.plausible(first.samples.size.toDouble() / first.sampleRate, spoken.trim())) first
+                // Far too long or too short for its words means the model lost its way (mumbling,
+                // skipping, or saying the sentence twice): make it once more with another take, and keep
+                // the more plausible one. Judged against this voice's own usual pace once it is known.
+                if (CloneCheck.plausible(first.samples.size.toDouble() / first.sampleRate, spoken.trim(), pace)) first
                 else take(seed + 7919).let { second ->
-                    val d1 = CloneCheck.distance(first.samples.size.toDouble() / first.sampleRate, spoken.trim())
-                    val d2 = CloneCheck.distance(second.samples.size.toDouble() / second.sampleRate, spoken.trim())
+                    val d1 = CloneCheck.distance(first.samples.size.toDouble() / first.sampleRate, spoken.trim(), pace)
+                    val d2 = CloneCheck.distance(second.samples.size.toDouble() / second.sampleRate, spoken.trim(), pace)
                     if (d2 < d1) second else first
                 }
             }
@@ -221,7 +223,7 @@ object LocalTts {
         if (audio.samples.isEmpty()) error("The voice produced no audio")
         val samples = if (voiceId.startsWith(Speaker.CLONE)) {
             // Copied voices: cut any run-on, then clean the hiss the copy picked up from its recording.
-            CloneCheck.dehiss(RunOn.trim(audio.samples, audio.sampleRate, text), audio.sampleRate,
+            CloneCheck.dehiss(RunOn.trim(audio.samples, audio.sampleRate, text, MyVoices.pace(voiceId.substringAfter(':'))), audio.sampleRate,
                 // A voice copied from a full-quality recording keeps its brightness.
                 lowPass = MyVoices.denoised(voiceId.substringAfter(':'))).also {
                 MyVoices.recordPace(voiceId.substringAfter(':'), text.length, it.size.toDouble() / audio.sampleRate)
@@ -341,14 +343,24 @@ object RunOn {
      * audio is much longer than the text needs, it is cut at the quietest moment after the point
      * where the sentence should have ended.
      */
-    fun trim(samples: FloatArray, rate: Int, text: String): FloatArray {
-        // Only clear run-ons: well past what even a slow reader (11 characters a second) needs.
-        // Cutting sooner clipped the end of real sentences.
-        val expected = maxOf(1.5, text.length / 11.0)
+    fun trim(samples: FloatArray, rate: Int, text: String, pace: Double? = null): FloatArray {
         val seconds = samples.size.toDouble() / rate
-        if (seconds <= expected * 1.5) return samples
+        val expected: Double
+        if (pace == null) {
+            // Only clear run-ons: well past what even a slow reader (11 characters a second) needs.
+            // Cutting sooner clipped the end of real sentences.
+            expected = maxOf(1.5, text.length / 11.0)
+            if (seconds <= expected * 1.5) return samples
+        } else {
+            // This voice's own usual pace is known: a sentence said over again (common on short lines)
+            // stands out against it, while its normal ups and downs stay well inside.
+            expected = maxOf(1.0, 0.3 + text.length / pace)
+            if (seconds <= expected * 1.4 || seconds - expected < 0.8) return samples
+        }
         val frame = rate / 20 // 50 ms
-        val from = (expected * 1.05 * rate).toInt() / frame
+        // A repeat starts right where the sentence ends, so with the voice's pace known the search
+        // starts a little before that.
+        val from = (expected * (if (pace == null) 1.05 else 0.9) * rate).toInt() / frame
         val to = samples.size / frame
         if (to - from < 2) return samples
         val energy = DoubleArray(to) { f ->
@@ -436,19 +448,23 @@ object CloneCheck {
         return null
     }
 
-    /** Seconds a sentence should take: about 13 characters a second, plus a little. */
-    private fun expected(text: String) = 0.3 + text.length / 13.0
+    /** Seconds a sentence should take: about 13 characters a second (or the voice's own [pace]), plus a little. */
+    private fun expected(text: String, pace: Double? = null) = 0.3 + text.length / (pace ?: 13.0)
 
     /** How far [seconds] is from what [text] needs, as a ratio (0 = exactly right). */
-    fun distance(seconds: Double, text: String) = kotlin.math.abs(kotlin.math.ln(seconds / expected(text)))
+    fun distance(seconds: Double, text: String, pace: Double? = null) = kotlin.math.abs(kotlin.math.ln(seconds / expected(text, pace)))
 
     /**
      * Within reason for a slow or quick reader: between 60% and 175% of the expected length.
      * (45% let a sentence that stopped early, missing its last words, pass as fine.)
      */
-    fun plausible(seconds: Double, text: String): Boolean {
-        val r = seconds / expected(text)
-        return r in 0.6..1.75
+    fun plausible(seconds: Double, text: String, pace: Double? = null): Boolean {
+        val e = expected(text, pace)
+        val r = seconds / e
+        if (r < 0.6) return false
+        // With the voice's own pace known, a sentence said twice (about double) is caught even when
+        // short; small overruns of under 0.8 s are a slow word or a breath, not a repeat.
+        return if (pace == null) r <= 1.75 else r <= 1.4 || seconds - e < 0.8
     }
 
     /**

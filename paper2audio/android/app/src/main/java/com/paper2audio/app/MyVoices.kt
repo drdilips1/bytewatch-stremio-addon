@@ -120,6 +120,12 @@ object MyVoices {
         pacePrefs.edit().putFloat("pace:$id", avg.toFloat()).apply()
     }
 
+    /** How fast copied voice [id] usually reads, in characters a second (null until it has been heard). */
+    fun pace(id: String): Double? {
+        if (!::app.isInitialized) return null
+        return pacePrefs.getFloat("pace:$id", -1f).takeIf { it > 0f }?.toDouble()?.coerceIn(8.0, 22.0)
+    }
+
     /** The playback speed that brings copied voice [id] to a normal pace (1 until it has been heard). */
     fun paceFactor(id: String): Float {
         if (!::app.isInitialized) return 1f
