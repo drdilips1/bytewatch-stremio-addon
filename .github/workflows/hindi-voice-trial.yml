@@ -133,16 +133,12 @@ jobs:
           HF_HOME: ${{ github.workspace }}/hf
           HF_HUB_OFFLINE: "1"
         run: bash hindi-trial/convert.sh
-      - name: Zip the pack
-        run: |
-          (cd pack && zip -q -r ../jugnu-lite-sherpa-pack.zip .) || true
-          ls -la jugnu-lite-sherpa-pack.zip out || true
       - uses: actions/upload-artifact@v4
         with:
           name: converted
           path: |
             out/*.wav
-            jugnu-lite-sherpa-pack.zip
+            jugnu-lite-*.zip
           retention-days: 7
 
   publish:
@@ -169,8 +165,8 @@ jobs:
           prerelease: true
           overwrite_files: true
           files: |
-            out/*.wav
-            out/*.zip
+            out/**/*.wav
+            out/**/*.zip
           body: |
             Listening samples from Jugnu Pocket TTS (altslate labs, CC BY 4.0).
             voice1 / voice2 = the recording being copied (also attached);

@@ -4,71 +4,67 @@
 # Each stage logs what it finds; a failing stage doesn't hide what the others show.
 set -u
 W=$PWD
-mkdir -p pack out
+mkdir -p out
 
 echo "===== Jugnu Lite config"
 python - <<'PY'
-import inspect, pocket_tts
 from jugnu_tts import api as J
-print("MODELS:", J.MODELS)
 cfg = J._assemble(J.MODELS["lite"])
 print("config:", cfg)
 open("jugnu_config_path", "w").write(str(cfg))
-try:
-    print(open(cfg).read()[:3000])
-except Exception as e:
-    print("(not text)", e)
-print("load_model signature:", inspect.signature(pocket_tts.TTSModel.load_model))
 PY
 export JUGNU_CONFIG=$(cat jugnu_config_path)
-echo "JUGNU_CONFIG=$JUGNU_CONFIG"
-ls -la "$(dirname "$JUGNU_CONFIG")" || true
+TOK=$(grep tokenizer_path "$JUGNU_CONFIG" | awk '{print $2}')
+echo "JUGNU_CONFIG=$JUGNU_CONFIG tokenizer=$TOK"
 
-echo "===== Exporter"
-git clone --depth 1 https://github.com/KevinAHM/pocket-tts-onnx-export exporter || true
-git clone --depth 1 https://github.com/KevinAHM/pocket-tts-onnx pocket-tts-onnx || true
-echo "exporter commit: $(git -C exporter rev-parse HEAD 2>/dev/null)"
+echo "===== The English pack the apps use now (for its I/O layout, and its sound codec)"
+curl -fsSL -o en.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-pocket-tts-int8-2026-01-26.tar.bz2
+tar xjf en.tar.bz2 && rm en.tar.bz2
+EN=$(ls -d sherpa-onnx-pocket-tts-int8-2026-01-26)
+ls -la "$EN"
+pip install -q onnx onnxruntime
+python "$W/hindi-trial/io.py" "$EN"
+
+echo "===== Exporter (lookbe fork of KevinAHM/pocket-tts-onnx-export)"
+git clone https://github.com/lookbe/pocket-tts-onnx-export exporter
+echo "exporter commit: $(git -C exporter rev-parse HEAD)"
+git -C exporter log --oneline | head -15
 find exporter -type f -not -path "*/.git/*" | head -60
-echo "----- README"; head -200 exporter/README.md 2>/dev/null
-echo "----- export.py"; head -250 exporter/export.py 2>/dev/null
+echo "----- README"; head -150 exporter/README.md
+echo "----- export.py"; cat exporter/export.py | head -300
 [ -f exporter/requirements.txt ] && { echo "----- requirements"; cat exporter/requirements.txt; pip install -q -r exporter/requirements.txt; }
-pip install -q onnx onnxruntime onnxscript || true
+pip install -q onnxscript || true
+mkdir -p pocket-tts-onnx
 (cd exporter && python export.py --help) || true
 
-echo "===== Export (Jugnu config swapped in for Kyutai's)"
-(cd exporter && PYTHONPATH=$W/hindi-trial/patch python export.py --language english_2026-04 --quantize) \
-  || (cd exporter && PYTHONPATH=$W/hindi-trial/patch python export.py --language english_2026-04) || echo "EXPORT FAILED"
-echo "----- ONNX files made"
-find exporter pocket-tts-onnx -name "*.onnx" -newer jugnu_config_path -exec ls -la {} \; 2>/dev/null
+export_variant() {  # $1 = name, rest = extra flags
+  local name=$1; shift
+  echo "===== Export variant '$name' (Jugnu config swapped in for Kyutai's): $*"
+  touch marker
+  (cd exporter && PYTHONPATH=$W/hindi-trial/patch python export.py --language english_2026-04 --quantize "$@") \
+    || echo "EXPORT '$name' FAILED"
+  mkdir -p "variants/$name"
+  find exporter pocket-tts-onnx -name "*.onnx" -newer marker -print -exec cp {} "variants/$name/" \;
+  ls -la "variants/$name"
+}
+export_variant default
+export_variant legacy --legacy_kv_cache
 
 echo "===== Tokenizer"
-TOK=$(find hf -name "tokenizer.model" -path "*jugnu*" | head -1)
-echo "Jugnu tokenizer: $TOK"
-git clone --depth 1 --filter=blob:none --sparse https://github.com/k2-fsa/sherpa-onnx sherpa-src && git -C sherpa-src sparse-checkout set scripts/pocket-tts
-head -80 sherpa-src/scripts/pocket-tts/convert_tokenizer.py
 pip install -q sentencepiece protobuf
-cp "$TOK" pack/tokenizer.model 2>/dev/null
-(cd pack && python ../sherpa-src/scripts/pocket-tts/convert_tokenizer.py) || (cd pack && python ../sherpa-src/scripts/pocket-tts/convert_tokenizer.py --help) || true
-ls -la pack
+mkdir -p tok && cp "$TOK" tok/tokenizer.model
+git clone --depth 1 --filter=blob:none --sparse https://github.com/k2-fsa/sherpa-onnx sherpa-src && git -C sherpa-src sparse-checkout set scripts/pocket-tts
+(cd tok && python ../sherpa-src/scripts/pocket-tts/convert_tokenizer.py)
+ls -la tok
 
-echo "===== Gather the pack in sherpa-onnx names"
-python - <<'PY'
-import glob, os, shutil
-names = {"flow_lm_main": "lm_main", "flow_lm_flow": "lm_flow", "mimi_encoder": "encoder",
-         "mimi_decoder": "decoder", "text_conditioner": "text_conditioner"}
-found = [p for p in glob.glob("exporter/**/*.onnx", recursive=True) + glob.glob("pocket-tts-onnx/**/*.onnx", recursive=True)
-         if os.path.getmtime(p) > os.path.getmtime("jugnu_config_path")]
-for p in sorted(found): print(p, os.path.getsize(p))
-for src, dst in names.items():
-    for suffix, out in (("_int8.onnx", ".int8.onnx"), (".int8.onnx", ".int8.onnx"), (".onnx", ".onnx")):
-        c = [p for p in found if os.path.basename(p) == src + suffix]
-        if c:
-            shutil.copy(c[0], f"pack/{dst}{out}")
-            print(c[0], "->", f"pack/{dst}{out}")
-PY
-ls -la pack
-
-echo "===== Check with sherpa-onnx"
+echo "===== Build a sherpa pack per variant and check it"
 pip install -q sherpa-onnx soundfile
-python "$W/hindi-trial/check_pack.py" || echo "CHECK FAILED"
-ls -la out
+for v in variants/*; do
+  name=$(basename "$v")
+  pack="pack-$name"
+  python "$W/hindi-trial/gather.py" "$v" "$EN" tok "$pack" || continue
+  python "$W/hindi-trial/io.py" "$pack"
+  python "$W/hindi-trial/check_pack.py" "$pack" "$name" || echo "CHECK '$name' FAILED"
+  (cd "$pack" && zip -q -r "../jugnu-lite-$name.zip" .)
+done
+ls -la out *.zip
