@@ -33,16 +33,16 @@ lines = {
     "hindi_story": "एक छोटे से गाँव में एक बूढ़ा किसान रहता था। हर सुबह वह सूरज निकलने से पहले अपने खेतों में चला जाता था, और शाम को थककर लौटता था।",
     "hinglish": "मैंने अपना laptop restart किया और फिर meeting join की।",
 }
-for key, text in lines.items():
+for temp, (key, text) in [(t, kv) for t in ("0.3", "0.6") for kv in lines.items()]:
     g = sherpa_onnx.GenerationConfig()
     g.reference_audio = ref.tolist()
     g.reference_sample_rate = sr
     g.num_steps = 5
-    g.extra = {"seed": "1", "temperature": "0.6", "max_reference_audio_len": "12"}
+    g.extra = {"seed": "1", "temperature": temp, "max_reference_audio_len": "12"}
     t0 = time.time()
     a = tts.generate(text, g)
     took = time.time() - t0
-    out = f"out/phone_{name}_voice1_{key}.wav"
+    out = f"out/phone_{name}_t{temp}_voice1_{key}.wav"
     sf.write(out, np.array(a.samples, dtype=np.float32), a.sample_rate)
     secs = len(a.samples) / a.sample_rate
-    print(f"{key}: {secs:.2f}s audio in {took:.2f}s -> {out}")
+    print(f"temp {temp} {key}: {secs:.2f}s audio in {took:.2f}s -> {out}")

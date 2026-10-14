@@ -230,11 +230,17 @@ def pick(*names):
     sys.exit(f"missing: {names}")
 
 
+full = os.path.join(out, "..", os.path.basename(out) + "_fp32")
+os.makedirs(full, exist_ok=True)
 adapt_lm_main(pick("flow_lm_main_int8.onnx"), os.path.join(out, "flow_lm_main_int8.onnx"))
 adapt_lm_flow(pick("flow_lm_flow_int8.onnx"), os.path.join(out, "flow_lm_flow_int8.onnx"))
+# The same without the int8 shrinking, to see if it blurs the end-of-sentence signal.
+adapt_lm_main(pick("flow_lm_main.onnx"), os.path.join(full, "flow_lm_main.onnx"))
+adapt_lm_flow(pick("flow_lm_flow.onnx"), os.path.join(full, "flow_lm_flow.onnx"))
 bos = os.path.join(src, "bos_before_voice.npy")
-if os.path.exists(bos):
-    adapt_encoder(pick("mimi_encoder_int8.onnx", "mimi_encoder.onnx"), os.path.join(out, "mimi_encoder.onnx"), bos)
-else:
-    os.system(f"cp {pick('mimi_encoder_int8.onnx', 'mimi_encoder.onnx')} {out}/mimi_encoder.onnx")
-os.system(f"cp {pick('text_conditioner.onnx')} {out}/text_conditioner.onnx")
+for d, enc in ((out, pick("mimi_encoder_int8.onnx", "mimi_encoder.onnx")), (full, pick("mimi_encoder.onnx"))):
+    if os.path.exists(bos):
+        adapt_encoder(enc, os.path.join(d, "mimi_encoder.onnx"), bos)
+    else:
+        os.system(f"cp {enc} {d}/mimi_encoder.onnx")
+    os.system(f"cp {pick('text_conditioner.onnx')} {d}/text_conditioner.onnx")
