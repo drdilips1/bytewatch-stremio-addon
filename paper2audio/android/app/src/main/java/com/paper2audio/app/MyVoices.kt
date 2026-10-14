@@ -29,12 +29,6 @@ object MyVoices {
     /** The longer sample, for a closer likeness (the engine re-reads it for every sentence). */
     const val LONG_REFERENCE_SECONDS = 30
 
-    /** [SCRIPT] in Hindi, for copying a Hindi voice. */
-    const val SCRIPT_HI = "पुराना प्रकाशस्तंभ चट्टान के किनारे खड़ा था और बंदरगाह पर नज़र रखता था। " +
-        "हर शाम, सूरज ढलने से ठीक पहले, हम घुमावदार रास्ते से ऊपर जाकर नावों को घर लौटते देखते थे। " +
-        "कुछ रातों में समुद्र शांत और चाँदी जैसा होता था; और कुछ रातों में हवा गरजती थी और लहरें नीचे टकराती थीं। " +
-        "सच कहें तो, वे तूफ़ानी शामें हमें सबसे ज़्यादा पसंद थीं।"
-
     /** Read aloud when recording a new voice: about 20 seconds of varied, natural speech. */
     const val SCRIPT = "The old lighthouse stood at the edge of the cliff, watching over the harbor. " +
         "Every evening, just before sunset, I would walk up the winding path to see the boats come home. " +
@@ -59,8 +53,6 @@ object MyVoices {
         val pause: Int = 0,
         /** Whether the recording went through the noise remover (16 kHz, duller); older voices: yes. */
         val denoised: Boolean = true,
-        /** The language the voice was copied in: "hi" reads with the Hindi engine (Hindi and English). */
-        val lang: String = "en",
     )
 
     /**
@@ -106,7 +98,6 @@ object MyVoices {
                 version = it.optInt("v", 1),
                 pause = it.optInt("pause", 0),
                 denoised = it.optBoolean("dn", true),
-                lang = it.optString("lang", "en"),
             )
         }.filter { File(dir, "${it.id}.wav").exists() }
     }
@@ -149,12 +140,6 @@ object MyVoices {
     /** Whether copied voice [id]'s recording was put through the noise remover. */
     fun denoised(id: String): Boolean = (cleanedMap ?: own().associate { it.id to it.denoised }.also { cleanedMap = it })[id] ?: true
 
-    /** The language voice [id] was copied in ("en" for the ready-made voices). */
-    fun lang(id: String): String = (langMap ?: own().associate { it.id to it.lang }.also { langMap = it })[id] ?: "en"
-
-    @Volatile
-    private var langMap: Map<String, String>? = null
-
     @Volatile
     private var cleanedMap: Map<String, Boolean>? = null
 
@@ -164,16 +149,15 @@ object MyVoices {
     private fun save(voices: List<Voice>) {
         pauses = null
         cleanedMap = null
-        langMap = null
         val arr = JSONArray()
         voices.forEach {
-            arr.put(JSONObject().put("id", it.id).put("name", it.name).put("created", it.created).put("seconds", it.seconds.toDouble()).put("v", it.version).put("pause", it.pause).put("dn", it.denoised).put("lang", it.lang))
+            arr.put(JSONObject().put("id", it.id).put("name", it.name).put("created", it.created).put("seconds", it.seconds.toDouble()).put("v", it.version).put("pause", it.pause).put("dn", it.denoised))
         }
         index.writeText(arr.toString())
     }
 
     /** Stores a new voice from raw mono samples; throws with an explanation when the recording is unusable. */
-    fun add(name: String, samples: FloatArray, sampleRate: Int, sampleSeconds: Int = REFERENCE_SECONDS, lang: String = "en"): Voice {
+    fun add(name: String, samples: FloatArray, sampleRate: Int, sampleSeconds: Int = REFERENCE_SECONDS): Voice {
         // A long clip (an audiobook sample, a talk): use its best 20 seconds of steady speech,
         // not the start, which is often an intro, credits or music.
         // The engine hears 10 seconds: keep the best stretch of the clip (with a little to spare for trimming).
@@ -199,7 +183,7 @@ object MyVoices {
         if (seconds < MIN_SECONDS) error("That recording has only ${"%.0f".format(seconds)} seconds of clear speech. Record at least $MIN_SECONDS seconds (10–20 is best) in a quiet room.")
         val id = java.util.UUID.randomUUID().toString().take(8)
         writeRef(File(dir, "$id.wav"), clean)
-        val voice = Voice(id, name.trim().ifBlank { "My voice" }, System.currentTimeMillis(), seconds, pause = pause, denoised = denoise, lang = lang)
+        val voice = Voice(id, name.trim().ifBlank { "My voice" }, System.currentTimeMillis(), seconds, pause = pause, denoised = denoise)
         save(own() + voice)
         return voice.copy(noisy = noisy, problems = problems(raw, RATE, ratio, seconds))
     }

@@ -37,26 +37,7 @@ object LocalTts {
         ),
         skip = { it.startsWith("test_wavs/") },
     )
-    /**
-     * Hindi (and Hinglish, and English) voice copying: Jugnu Pocket TTS Lite by altslate labs
-     * (CC BY 4.0), the same kind of engine as [POCKET_PACK] trained on Hindi, converted for
-     * sherpa-onnx (see the hindi-voice-trial branch).
-     */
-    val POCKET_HI_PACK = ModelPack(
-        "pocket-hi", "Hindi voice copying", "jugnu-pocket-tts-hi-lite-2026-10-14", 115,
-        required = listOf(
-            "lm_flow.int8.onnx", "lm_main.int8.onnx", "encoder.onnx", "decoder.int8.onnx",
-            "text_conditioner.onnx", "vocab.json", "token_scores.json",
-        ),
-    )
-    val PACKS = listOf(KOKORO_PACK, SUPERTONIC_PACK, POCKET_PACK, POCKET_HI_PACK)
-
-    private val DEVANAGARI = Regex("[\u0900-\u097F]")
-
-    /** Whether copied voice [voiceId] reads [text] with the Hindi engine: Hindi text, or a voice copied in Hindi. */
-    fun hindiEngine(voiceId: String, text: String): Boolean =
-        voiceId.startsWith(Speaker.CLONE) && POCKET_HI_PACK.isInstalled() &&
-            (MyVoices.lang(voiceId.substringAfter(':')) == "hi" || DEVANAGARI.containsMatchIn(text))
+    val PACKS = listOf(KOKORO_PACK, SUPERTONIC_PACK, POCKET_PACK)
 
     /** Supertonic 3's ten built-in voices; sid is the style index in voice.bin. */
     data class SVoice(val name: String, val sid: Int, val label: String)
@@ -87,8 +68,7 @@ object LocalTts {
     fun packFor(voiceId: String): ModelPack? = when {
         voiceId.startsWith(Speaker.KOKORO) -> KOKORO_PACK
         voiceId.startsWith(Speaker.SUPER) -> SUPERTONIC_PACK
-        voiceId.startsWith(Speaker.CLONE) ->
-            if (MyVoices.lang(voiceId.substringAfter(':')) == "hi") POCKET_HI_PACK else POCKET_PACK
+        voiceId.startsWith(Speaker.CLONE) -> POCKET_PACK
         else -> null
     }
 
@@ -153,17 +133,16 @@ object LocalTts {
     /** Generates [text] as 16-bit PCM. [lang] is the document's language (Supertonic). */
     fun synthesize(voiceId: String, text: String, speed: Float, lang: String?, useSpare: Boolean = false): Pcm =
         if (useSpare && hasSpare) synchronized(spareLock) {
-            val key = engineKey(voiceId, text)
+            val key = engineKey(voiceId)
             val tts = spare?.takeIf { it.first == key }?.second ?: run {
                 spare?.second?.release()
                 newEngine(key).also { spare = key to it }
             }
             generate(tts, voiceId, text, speed, lang)
-        } else synchronized(lock) { generate(engineFor(voiceId, text), voiceId, text, speed, lang) }
+        } else synchronized(lock) { generate(engineFor(voiceId), voiceId, text, speed, lang) }
 
     private fun generate(tts: OfflineTts, voiceId: String, text: String, speed: Float, lang: String?): Pcm {
-        val hindi = hindiEngine(voiceId, text)
-        if (!hindi) missing(voiceId)?.let { error("Download the ${it.title} first") }
+        missing(voiceId)?.let { error("Download the ${it.title} first") }
         val name = voiceId.substringAfter(':')
         val audio = when {
             voiceId.startsWith(Speaker.KOKORO) -> {
@@ -211,8 +190,7 @@ object LocalTts {
                             "max_reference_audio_len" to "$hears",
                             // A little below the engine's usual 0.7: steadier from sentence to sentence; lower
                             // than this made it skip words.
-                            // The Hindi engine is made for 0.3 (its makers' setting, as in the samples heard).
-                            "temperature" to if (hindi) "0.3" else "0.6",
+                            "temperature" to "0.6",
                             "chunk_size" to "15",
                             // Stops a sentence whose end the model misses from running on as babble.
                             "max_frames" to (maxFrames(spoken.trim()) + extraFrames).toString(),
@@ -224,10 +202,6 @@ object LocalTts {
                 // throwaway "Well." and that is cut off at the pause after it: the sentence's own first word
                 // comes out whole. If no clear pause is found, the sentence is made the plain way.
                 fun take(seed: Int): GeneratedAudio {
-                    // Not for the Hindi engine: it pauses for over a second after a throwaway word, which ate
-                    // into the sentence, and the cut then fell inside it (a word or two left of the preview).
-                    // Said plainly, it speaks whole sentences reliably.
-                    if (hindi) return gen(spoken, seed)
                     val led = gen(" ".repeat(8) + "Well. " + spoken.trim(), seed, extraFrames = 12)
                     val cut = CloneCheck.afterLeadIn(led.samples, led.sampleRate)
                     return if (cut != null) GeneratedAudio(led.samples.copyOfRange(cut, led.samples.size), led.sampleRate)
@@ -262,15 +236,14 @@ object LocalTts {
     internal fun maxFrames(text: String) = (text.length * 1.15 + 15).toInt().coerceIn(25, 400)
 
 
-    private fun engineKey(voiceId: String, text: String = "") = when {
+    private fun engineKey(voiceId: String) = when {
         voiceId.startsWith(Speaker.KOKORO) -> if (Kokoro.voice(voiceId.substringAfter(':'))?.british == true) "kokoro-gb" else "kokoro-us"
         voiceId.startsWith(Speaker.SUPER) -> "supertonic"
-        hindiEngine(voiceId, text) -> "pocket-hi"
         else -> "pocket"
     }
 
-    private fun engineFor(voiceId: String, text: String = ""): OfflineTts {
-        val key = engineKey(voiceId, text)
+    private fun engineFor(voiceId: String): OfflineTts {
+        val key = engineKey(voiceId)
         engines.remove(key)?.let { engines[key] = it; return it }
         while (engines.size >= keepEngines) {
             val oldest = engines.keys.first()
@@ -296,7 +269,7 @@ object LocalTts {
                     numThreads = threads,
                 )
             }
-            "pocket", "pocket-hi" -> (if (key == "pocket-hi") POCKET_HI_PACK else POCKET_PACK).let { p ->
+            "pocket" -> POCKET_PACK.let { p ->
                 OfflineTtsModelConfig(
                     pocket = OfflineTtsPocketModelConfig(
                         lmFlow = p.file("lm_flow.int8.onnx").path,
@@ -435,9 +408,7 @@ object CloneCheck {
      * short lines padded with spaces at the front (the model does poorly on very few tokens).
      */
     fun prepareText(t: String): String {
-        // The Hindi full stops (। ॥) become ".": the engine runs on past them without ever ending.
-        var s = t.trim().replace(';', ',').replace('\u0964', '.').replace('\u0965', '.')
-            .replace(Regex("""([.!?\u2026])\s*[,;:]"""), "$1")
+        var s = t.trim().replace(';', ',').replace(Regex("""([.!?\u2026])\s*[,;:]"""), "$1")
         if (s.isEmpty()) return s
         if (!s[0].isUpperCase()) s = s[0].uppercaseChar() + s.substring(1)
         if (s.split(Regex("""\s+""")).size < 5) s = " ".repeat(8) + s

@@ -149,9 +149,7 @@ object Speaker {
     fun voiceFits(lang: String, id: String = voiceId): Boolean = when {
         id.startsWith(EDGE) -> "Multilingual" in id || id.removePrefix(EDGE).startsWith("$lang-")
         id.startsWith(SUPER) -> lang in LocalTts.SUPERTONIC_LANGS
-        // Copied voices read Hindi with the Hindi voice-copying engine, once it's downloaded.
-        id.startsWith(CLONE) -> lang == "en" || lang == "hi" && LocalTts.POCKET_HI_PACK.isInstalled()
-        id.startsWith(KOKORO) -> lang == "en"
+        id.startsWith(KOKORO) || id.startsWith(CLONE) -> lang == "en"
         else -> true // phone voices: can't tell
     }
 
@@ -322,14 +320,9 @@ object Speaker {
         if (LocalTts.supported) {
             // Pocket voices: natural, on the phone; ready-made ones and the user's own.
             val pNote = if (LocalTts.POCKET_PACK.isInstalled()) "offline" else "one-time download"
-            val hNote = if (LocalTts.POCKET_HI_PACK.isInstalled()) "offline" else "one-time download"
             for (v in MyVoices.list()) {
                 val what = if (v.builtIn) v.description else "your voice"
-                out += VoiceOption(
-                    CLONE + v.id,
-                    if (v.lang == "hi") "♥ ${v.name} · $what (Hindi and English, $hNote)"
-                    else "♥ ${v.name} · $what (English${if (LocalTts.POCKET_HI_PACK.isInstalled()) ", Hindi" else ""}, $pNote)",
-                )
+                out += VoiceOption(CLONE + v.id, "♥ ${v.name} · $what (English, $pNote)")
             }
         }
         edgeVoices.take(curatedCount).drop(EdgeTts.FAVORITES.size).forEach { edge(it, "•") }
@@ -1354,9 +1347,6 @@ object Speaker {
     private const val PREVIEW_TEXT =
         "Hello! This is how I will sound reading your papers and books aloud. Choose the voice you like best."
 
-    /** The preview for a voice copied in Hindi. */
-    const val PREVIEW_TEXT_HI = "नमस्ते! अब आपकी किताबें और लेख इसी आवाज़ में पढ़े जाएँगे।"
-
     private var castPreview: Job? = null
     private var castStream: AudioStream? = null
 
@@ -1372,11 +1362,8 @@ object Speaker {
     }
 
     /** Speaks [text] once with [voice] (default: the current voice), e.g. a voice preview. */
-    fun preview(text: String? = null, voice: String = voiceId, pitchHz: Int = pitch) =
-        previewVoicing(
-            text ?: if (voice.startsWith(CLONE) && MyVoices.lang(voice.substringAfter(':')) == "hi") PREVIEW_TEXT_HI else PREVIEW_TEXT,
-            Voicing(voice, lang = doc?.lang, pitch = pitchHz),
-        )
+    fun preview(text: String = PREVIEW_TEXT, voice: String = voiceId, pitchHz: Int = pitch) =
+        previewVoicing(text, Voicing(voice, lang = doc?.lang, pitch = pitchHz))
 
     /** Plays a story sample: narration in the current voice, dialogue in [dialogue]. */
     fun previewStory(text: String, dialogue: String) = previewVoicing(text, voicing().copy(dialogue = dialogue))

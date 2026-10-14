@@ -226,6 +226,9 @@ class PlayerActivity : Activity() {
         }
         cover.clipToOutline = true
 
+        // Android can reopen the player straight after restarting the app: the speaker's settings
+        // must be loaded before the controls read them.
+        Speaker.init(this) {}
         setupControls()
         setupReader()
         applyPaper()

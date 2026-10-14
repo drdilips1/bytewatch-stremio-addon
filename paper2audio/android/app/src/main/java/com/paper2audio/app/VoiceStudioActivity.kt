@@ -216,8 +216,7 @@ class VoiceStudioActivity : Activity() {
         val pack = LocalTts.packFor(id)
         if (pack != null && !pack.isInstalled()) return needPack(pack) { }
         toast("Playing a preview…")
-        val hindi = id.startsWith(Speaker.CLONE) && MyVoices.lang(id.substringAfter(':')) == "hi"
-        Speaker.preview(if (hindi && text == DESIGN_SAMPLE) Speaker.PREVIEW_TEXT_HI else text, id, pitch)
+        Speaker.preview(text, id, pitch)
     }
 
     private fun use(id: String) {
@@ -318,8 +317,6 @@ class VoiceStudioActivity : Activity() {
         val c = card("On-device voice packs", "Downloaded once, then they work without internet.")
         val about = mapOf(
             "pocket" to "Needed for the natural voices above and for cloned voices.",
-            "pocket-hi" to "Lets copied voices read Hindi (and Hindi mixed with English), and copy a voice in Hindi. " +
-                "Jugnu Pocket TTS by altslate labs (CC BY 4.0).",
             "supertonic" to "10 voices (◆ Supertonic) that read 31 languages, including Hindi, Spanish, French, German and Japanese.",
             "kokoro" to "15 English voices (◆ Kokoro).",
         )

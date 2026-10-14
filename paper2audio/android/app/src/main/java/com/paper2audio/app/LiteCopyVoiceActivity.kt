@@ -16,8 +16,6 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
-import android.widget.RadioButton
-import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -43,10 +41,6 @@ class LiteCopyVoiceActivity : Activity() {
     private lateinit var btnRecord: Button
     private lateinit var btnEngine: Button
     private var recorder: VoiceRecorder? = null
-    /** Copying a Hindi voice: the Hindi engine, a Hindi passage to read and a Hindi test line. */
-    private var hindi = false
-    private lateinit var credit: TextView
-    private val pack get() = if (hindi) LocalTts.POCKET_HI_PACK else LocalTts.POCKET_PACK
     private val refresh: () -> Unit = { runOnUiThread { render() } }
 
     private fun dp(v: Int) = LiteUi.dp(this, v)
@@ -91,32 +85,8 @@ class LiteCopyVoiceActivity : Activity() {
                 "• Everything happens on your phone; the recording isn't uploaded.",
             14f, muted = true,
         )
-        text("Language of the voice", 15f, top = 16).setTypeface(null, android.graphics.Typeface.BOLD)
-        RadioGroup(this).apply {
-            orientation = RadioGroup.HORIZONTAL
-            val en = RadioButton(this@LiteCopyVoiceActivity).apply {
-                id = View.generateViewId(); text = "English"; isChecked = true
-                setTextColor(color(R.attr.p2aText))
-            }
-            val hi = RadioButton(this@LiteCopyVoiceActivity).apply {
-                id = View.generateViewId(); text = "हिन्दी (Hindi)"
-                setTextColor(color(R.attr.p2aText))
-            }
-            addView(en)
-            addView(hi, RadioGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(16) })
-            setOnCheckedChangeListener { _, checked ->
-                hindi = checked == hi.id
-                render()
-            }
-            box.addView(this, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4) })
-        }
-        credit = text(
-            "A Hindi voice reads Hindi books, Hindi mixed with English words, and English. " +
-                "Hindi voice copying uses Jugnu Pocket TTS by altslate labs (CC BY 4.0).",
-            13f, muted = true, top = 4,
-        )
         btnEngine = button("", top = 16) {
-            val p = pack
+            val p = LocalTts.POCKET_PACK
             if (p.installing) p.cancelInstall() else p.install { refresh() }
             render()
         }
@@ -156,15 +126,13 @@ class LiteCopyVoiceActivity : Activity() {
     }
 
     private fun render() {
-        val p = pack
+        val p = LocalTts.POCKET_PACK
         val ready = p.isInstalled()
-        credit.visibility = if (hindi) View.VISIBLE else View.GONE
-        val engine = if (hindi) "Hindi voice-copying engine" else "voice-copying engine"
         btnEngine.visibility = if (ready) View.GONE else View.VISIBLE
         btnEngine.text = when {
             p.installing -> "Pause the download · ${p.progress}%"
-            p.partialMb() > 0 -> "Resume the $engine download"
-            else -> "First, download the $engine (${p.sizeMb} MB, once)"
+            p.partialMb() > 0 -> "Resume the voice-copying engine download"
+            else -> "First, download the voice-copying engine (${p.sizeMb} MB, once)"
         }
         val recording = recorder?.isRunning == true
         btnFile.isEnabled = ready && consent.isChecked && !recording
@@ -226,7 +194,7 @@ class LiteCopyVoiceActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("Read this aloud")
             .setMessage(
-                "Hold the phone about a hand's width away, in a quiet room, and read naturally:\n\n“${if (hindi) MyVoices.SCRIPT_HI else MyVoices.SCRIPT}”\n\n" +
+                "Hold the phone about a hand's width away, in a quiet room, and read naturally:\n\n“${MyVoices.SCRIPT}”\n\n" +
                     "Or play the voice you want to copy near the phone. Recording starts after a 3-second countdown. Tap Stop when it's done (35 seconds or more for the longer sample; it stops by itself after 90)."
             )
             .setPositiveButton("Start") { _, _ -> startRecording() }
@@ -323,8 +291,7 @@ class LiteCopyVoiceActivity : Activity() {
         busy("Finding the best part and copying the voice…")
         try {
             val seconds = if (longSample.isChecked) MyVoices.LONG_REFERENCE_SECONDS else MyVoices.REFERENCE_SECONDS
-            val lang = if (hindi) "hi" else "en"
-            val voice = withContext(Dispatchers.Default) { MyVoices.add(name, samples, rate, seconds, lang) }
+            val voice = withContext(Dispatchers.Default) { MyVoices.add(name, samples, rate, seconds) }
             Speaker.refreshVoices()
             done("“${voice.name}” is ready.")
             val id = Speaker.CLONE + voice.id
@@ -340,7 +307,7 @@ class LiteCopyVoiceActivity : Activity() {
             }
             AlertDialog.Builder(this)
                 .setTitle("“${voice.name}” is ready")
-                .setMessage("Listen to it: if the first word (\"${if (lang == "hi") "नमस्ते" else "Hello"}\") sounds clear, the copy is good. Use it, or discard it and try another recording.$rhythm$tip")
+                .setMessage("Listen to it: if the first word (\"Hello\") sounds clear, the copy is good. Use it, or discard it and try another recording.$rhythm$tip")
                 .setPositiveButton("Use it") { _, _ ->
                     Speaker.stopPreview()
                     Speaker.setVoice(id)
