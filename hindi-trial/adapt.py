@@ -87,6 +87,50 @@ def fix_empty_reshapes(m):
     print(f"fixed {fixed} empty-input reshapes")
 
 
+def guard_empty(m):
+    """The runtime sometimes steps the model with nothing in it (no latent frames, no text).
+    The newer graph can't run on an empty input, and an empty step changes nothing anyway:
+    in that case the states pass through unchanged (zero conditioning and EOS logit, unused)."""
+    g = m.graph
+    outs = list(g.output)
+    ins = list(g.input)
+    for o in outs:
+        rename_output(g, o.name, o.name + "_else")
+    else_outs = []
+    for o in outs:
+        vi = onnx.ValueInfoProto()
+        vi.CopyFrom(o)
+        vi.name = o.name + "_else"
+        else_outs.append(vi)
+    else_graph = helper.make_graph(list(g.node), "full_step", [], else_outs, initializer=list(g.initializer))
+
+    then_nodes, then_outs = [], []
+    zeros = {0: np.zeros((1, 1024), np.float32), 1: np.zeros((1, 1), np.float32)}
+    for idx, o in enumerate(outs):
+        name = o.name + "_then"
+        if idx in zeros:
+            then_nodes.append(helper.make_node("Constant", [], [name], value=numpy_helper.from_array(zeros[idx])))
+        else:
+            then_nodes.append(helper.make_node("Identity", [ins[idx].name], [name]))  # state k in -> state k out
+        vi = onnx.ValueInfoProto()
+        vi.CopyFrom(o)
+        vi.name = name
+        then_outs.append(vi)
+    then_graph = helper.make_graph(then_nodes, "empty_step", [], then_outs)
+
+    del g.node[:]
+    del g.initializer[:]
+    lens = []
+    for i, x in enumerate((ins[0].name, ins[1].name)):
+        g.node.append(helper.make_node("Shape", [x], [f"guard_s{i}"]))
+        g.node.append(helper.make_node("Gather", [f"guard_s{i}", const(g, f"guard_i{i}", np.array(1, np.int64))], [f"guard_l{i}"], axis=0))
+        lens.append(f"guard_l{i}")
+    g.node.append(helper.make_node("Add", lens, ["guard_total"]))
+    g.node.append(helper.make_node("Equal", ["guard_total", const(g, "guard_zero", np.array(0, np.int64))], ["guard_empty"]))
+    g.node.append(helper.make_node("If", ["guard_empty"], [o.name for o in outs], then_branch=then_graph, else_branch=else_graph))
+    print("guarded empty steps")
+
+
 def adapt_lm_main(path, dst):
     m = onnx.load(path)
     g = m.graph
@@ -140,6 +184,7 @@ def adapt_lm_main(path, dst):
     g.input.extend(new_in)
     del g.output[:]
     g.output.extend(heads + new_out)
+    guard_empty(m)
     onnx.checker.check_model(m)
     onnx.save(m, dst)
     print("adapted", path, "->", dst)
