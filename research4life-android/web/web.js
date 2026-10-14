@@ -589,8 +589,7 @@
     if (!it) { tts.playing = false; ttsEvt('ended'); return; }
     const u = new SpeechSynthesisUtterance(it.t || ' ');
     const v = findVoice(it.voice) || findVoice(tts.voice);
-    // Devanagari with no voice chosen: let iOS pick its Hindi voice.
-    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = /[\u0900-\u097F]/.test(it.t || '') ? 'hi-IN' : 'en-US';
+    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'en-US';
     u.rate = Math.max(0.5, Math.min(2, tts.rate || 1));
     if (it.pitch > 0) u.pitch = Math.max(0.5, Math.min(2, it.pitch));
     u.onend = () => {
@@ -625,7 +624,7 @@
   const N = {
     isWeb: !IOS,
     isIos: !!IOS,
-    version: () => (IOS ? '5.35 iOS' : '5.35 web'),
+    version: () => (IOS ? '5.36 iOS' : '5.36 web'),
 
     // ---- PDFs
     listPdfs: () => JSON.stringify(Object.entries(pdfIndex()).map(([key, o]) => ({ ...o, key }))),

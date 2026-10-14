@@ -1421,4 +1421,3 @@ td > .strength .meter i { width: 6px; height: 18px; border-radius: 3px; }
 .hist-warn { margin-bottom: 8px; border-color: #e3a008; }
 .dx-bar { bottom: calc(var(--nav-h) + 62px); }
 .online-first h3 svg { width: 15px; height: 15px; vertical-align: -2px; margin-right: 4px; }
-.hi-text { font-size: 21px; line-height: 1.55; margin: 0 0 8px; text-align: left; }
