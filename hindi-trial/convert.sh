@@ -37,18 +37,29 @@ pip install -q onnxscript || true
 mkdir -p pocket-tts-onnx
 (cd exporter && python export.py --help) || true
 
-export_variant() {  # $1 = name, rest = extra flags
-  local name=$1; shift
-  echo "===== Export variant '$name' (Jugnu config swapped in for Kyutai's): $*"
-  touch marker
-  (cd exporter && PYTHONPATH=$W/hindi-trial/patch python export.py --language english_2026-04 --quantize "$@") \
-    || echo "EXPORT '$name' FAILED"
-  mkdir -p "variants/$name"
-  find exporter pocket-tts-onnx -name "*.onnx" -newer marker -print -exec cp {} "variants/$name/" \;
-  ls -la "variants/$name"
-}
-export_variant default
-export_variant legacy --legacy_kv_cache
+echo "----- how the scripts take their model"
+grep -n "add_argument\|load_model\|yaml\|config" exporter/scripts/export_flow_lm.py exporter/scripts/export_mimi_and_conditioner.py exporter/scripts/quantize.py | head -80
+grep -n "def load_model\|def from_config\|config" exporter/pocket_tts/models/tts_model.py | head -40
+echo "----- exporter english.yaml"; cat exporter/pocket_tts/config/english.yaml
+echo "----- Jugnu config"; cat "$JUGNU_CONFIG"
+WEIGHTS=$(grep weights_path "$JUGNU_CONFIG" | awk '{print $2}')
+echo "Jugnu weights: $WEIGHTS"
+# The exporter reads its English config: put Jugnu's in its place (same schema, Pocket TTS).
+cp exporter/pocket_tts/config/english.yaml english.kyutai.yaml
+cp "$JUGNU_CONFIG" exporter/pocket_tts/config/english.yaml
+diff english.kyutai.yaml exporter/pocket_tts/config/english.yaml || true
+
+echo "===== Export (legacy full-cache layout, as in the English pack)"
+mkdir -p variants/legacy
+(
+  cd exporter && export PYTHONPATH=. && mkdir -p onnx &&
+  python scripts/export_mimi_and_conditioner.py --output_dir onnx --weights_path "$WEIGHTS" &&
+  python scripts/export_flow_lm.py --output_dir onnx --weights_path "$WEIGHTS" --no_kv_delta &&
+  python scripts/quantize.py --input_dir onnx --output_dir onnx
+) || echo "EXPORT FAILED"
+ls -la exporter/onnx 2>/dev/null
+cp exporter/onnx/*.onnx variants/legacy/ 2>/dev/null
+ls -la variants/legacy
 
 echo "===== Tokenizer"
 pip install -q sentencepiece protobuf
