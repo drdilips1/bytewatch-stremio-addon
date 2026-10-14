@@ -60,8 +60,10 @@ mkdir -p variants/legacy
   python scripts/quantize.py --input_dir onnx --output_dir onnx
 ) || echo "EXPORT FAILED"
 ls -la exporter/onnx 2>/dev/null
-cp exporter/onnx/*.onnx variants/legacy/ 2>/dev/null
-ls -la variants/legacy
+rmdir variants/legacy
+echo "----- adapting to the English pack's layout"
+python "$W/hindi-trial/adapt.py" exporter/onnx variants/adapted || echo "ADAPT FAILED"
+ls -la variants/adapted
 
 echo "===== Tokenizer"
 pip install -q sentencepiece protobuf
