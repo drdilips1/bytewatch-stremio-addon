@@ -226,14 +226,13 @@ final class PdfFetcher {
         main.postDelayed(timeout, JOB_TIMEOUT_MS);
         // The college proxy only for the college route; Research4Life and ClinicalKey go direct.
         final Job j = job;
-        // ClinicalKey not used today: open Research4Life's own ClinicalKey link first (the one the
-        // person tapped in the portal). Access only becomes active once that link has been opened;
-        // when ClinicalKey itself appears, onPageLoaded goes on to the paper.
-        String ckEntry = R4LSession.clinicalKeyEntry(app);
-        if (j.viaClinicalKey && !j.viaCollege && !j.ckFresh && ckEntry != null) {
-            j.renewUrl = ckEntry;
+        // ClinicalKey not used today: go in the way a person does, Research4Life's home → Reference
+        // Sources → Clinical Key (the sign-in script taps these, window.__dsCk). Access only becomes
+        // active that way; when ClinicalKey itself appears, onPageLoaded goes on to the paper.
+        if (j.viaClinicalKey && !j.viaCollege && !j.ckFresh) {
+            j.renewUrl = R4LSession.PORTAL_URL;
+            webView.loadUrl(j.renewUrl);
             status("signing-in", "Opening ClinicalKey through Research4Life…");
-            webView.loadUrl(ckEntry);
             return;
         }
         CollegeProxy.use(app, j.viaCollege, () -> { if (job == j) webView.loadUrl(j.startUrl()); });
@@ -361,8 +360,9 @@ final class PdfFetcher {
                 status("signing-in", "Signing in to Research4Life as " + R4LSession.username(app) + "…");
             }
             String pass = R4LSession.hasCredentials(app) ? R4LSession.password(app) : null;
-            webView.evaluateJavascript(R4LSession.signInScript(R4LSession.username(app), pass, true), null);
-            if (!isSignInPage(u) && u.getHost() != null && u.getHost().startsWith("portal.")
+            boolean toCk = job.viaClinicalKey && job.renewUrl != null;
+            webView.evaluateJavascript((toCk ? "window.__dsCk=1;" : "") + R4LSession.signInScript(R4LSession.username(app), pass, true), null);
+            if (!toCk && !isSignInPage(u) && u.getHost() != null && u.getHost().startsWith("portal.")
                     && signInPages > 0 && reloadsAfterSignIn < 2) {
                 reloadsAfterSignIn++;
                 status("opening", "Signed in. Opening the paper…");
@@ -767,7 +767,7 @@ final class PdfFetcher {
         // when known (it often needs opening more than once before access is active), else through
         // the Research4Life institution sign-in.
         String saved = R4LSession.clinicalKeyEntry(app);
-        String entry = r == null ? null : saved != null && r.ckRenewals == 0 ? saved : R4LSession.clinicalKeyLogin(R4LSession.clinicalKeyUrl(r.pii));
+        String entry = r == null ? null : r.ckRenewals == 0 ? R4LSession.PORTAL_URL : saved != null ? saved : R4LSession.clinicalKeyLogin(R4LSession.clinicalKeyUrl(r.pii));
         if (r != null && r.viaClinicalKey && !r.viaCollege && r.ckRenewals < 2 && r.loads <= MAX_LOADS) {
             r.ckRenewals++;
             r.renewUrl = entry;

@@ -51,9 +51,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         startURL = url
         if SignIn.isClinicalKeyArticle(url) {
             ckArticle = url
-            // Research4Life's own ClinicalKey link (tapped once in the portal) first: access only
-            // becomes active once that link is opened; then ClinicalKey opens the article.
-            firstURL = SignIn.clinicalKeyEntry ?? SignIn.clinicalKeyLogin(returningTo: url)
+            // Into ClinicalKey the way a person does: Research4Life's home → Reference Sources →
+            // Clinical Key (the sign-in script taps these, window.__dsCk); access only becomes active
+            // that way. Then ClinicalKey opens the article.
+            firstURL = SignIn.portal
         } else {
             firstURL = url
         }
@@ -367,7 +368,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         // signs in by itself once, never re-submitting or following "try again" (that looped into
         // Research4Life's login failure); if that one try fails, the filled-in form waits for a tap.
         let background = !key.isEmpty && covering
-        webView.evaluateJavaScript((background ? "" : "window.__dsNoRetry=1;") + SignIn.script(user: saved?.user, password: saved?.password, auto: background ? autoSignIns < 2 : autoSignIns < 1), completionHandler: nil)
+        webView.evaluateJavaScript((background ? "" : "window.__dsNoRetry=1;") + (ckArticle != nil ? "window.__dsCk=1;" : "") + SignIn.script(user: saved?.user, password: saved?.password, auto: background ? autoSignIns < 2 : autoSignIns < 1), completionHandler: nil)
     }
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
