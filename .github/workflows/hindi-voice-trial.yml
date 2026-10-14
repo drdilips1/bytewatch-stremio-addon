@@ -107,8 +107,47 @@ jobs:
           path: out/*.wav
           retention-days: 7
 
+  convert:
+    needs: download
+    runs-on: ubuntu-latest
+    # Outside code again (Jugnu, the ONNX exporter): no secrets, read-only repo.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: models
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Jugnu
+        run: |
+          tar xf hf.tar && rm hf.tar
+          git clone --depth 1 https://github.com/AltSlate-Labs/jugnu-pocket-tts jugnu-src
+          pip install -q soundfile ./jugnu-src
+      - name: Convert Jugnu Lite for the phone, and check it
+        env:
+          HF_HOME: ${{ github.workspace }}/hf
+          HF_HUB_OFFLINE: "1"
+        run: bash hindi-trial/convert.sh
+      - name: Zip the pack
+        run: |
+          (cd pack && zip -q -r ../jugnu-lite-sherpa-pack.zip .) || true
+          ls -la jugnu-lite-sherpa-pack.zip out || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: converted
+          path: |
+            out/*.wav
+            jugnu-lite-sherpa-pack.zip
+          retention-days: 7
+
   publish:
-    needs: samples
+    needs: [samples, convert]
+    if: always() && needs.samples.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -117,6 +156,11 @@ jobs:
         with:
           name: samples
           path: out
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: converted
+          path: out
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: hindi-voice-trial
@@ -124,7 +168,9 @@ jobs:
           name: Hindi voice copying trial (samples)
           prerelease: true
           overwrite_files: true
-          files: out/*.wav
+          files: |
+            out/*.wav
+            out/*.zip
           body: |
             Listening samples from Jugnu Pocket TTS (altslate labs, CC BY 4.0).
             voice1 / voice2 = the recording being copied (also attached);
