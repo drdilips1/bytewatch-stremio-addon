@@ -122,7 +122,7 @@ object Renderer {
             // Engine settings changed (pace, natural pauses, one seed per voice): don't reuse older audio.
             v.voiceId.startsWith(Speaker.SUPER) -> "p5|"
             // The Hindi engine reads differently from the English one: keep their audio apart.
-            v.voiceId.startsWith(Speaker.CLONE) -> if (LocalTts.hindiEngine(v.voiceId, text)) "c6h|" else "c6|"
+            v.voiceId.startsWith(Speaker.CLONE) -> if (LocalTts.hindiEngine(v.voiceId, text)) "c7h|" else "c6|"
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""
         }
