@@ -683,9 +683,95 @@ Answer only as JSON: {"best": "the diagnosis the clinician's picture matches bes
   };
   actions['go-history'] = () => go('history');
 
+
+  // ================================================================ Speak in Hindi (#hindi)
+  // Type, paste or say something in English; the AI puts it into simple spoken Hindi and the
+  // phone's Hindi voice reads it aloud (Repeat as often as needed). For explaining to patients.
+  const hiRecent = () => store.get('hindi.recent', []);
+  const hiVoice = () => (D.voiceList() || []).find((v) => /^hi\b|^hi-/i.test(v.lang || v.locale || '') || /hindi/i.test(v.locale || ''))?.name || '';
+  let hiStyle = store.get('hindi.style', 'simple');
+  let hiShown = null;
+  function hiSpeak(text) {
+    const voice = hiVoice();
+    if (!voice && D.hasNative) toast('No Hindi voice on this phone yet: add Hindi in Settings → Text-to-speech (Google), then try again.');
+    D.ttsPlayScript('Hindi', [{ t: text, voice }], { title: 'Speak in Hindi' });
+  }
+  function renderHindi() {
+    view.innerHTML = `${D.topbar('Speak in Hindi')}
+      <p class="small">Type, paste or say something in English. It is put into Hindi and read aloud; tap Repeat as often as needed.</p>
+      <div class="row wrap"><button class="chip ${hiStyle === 'simple' ? 'on' : ''}" data-act="hi-style" data-v="simple">Simple, for patients</button>
+        <button class="chip ${hiStyle === 'exact' ? 'on' : ''}" data-act="hi-style" data-v="exact">Exact translation</button></div>
+      <textarea id="hi-in" class="dx-ctx" rows="3" placeholder="e.g. Apply the cream twice a day for two weeks, then once a day. Avoid the sun.">${esc(store.get('hindi.draft', ''))}</textarea>
+      <div class="row" style="gap:8px;margin-top:8px">${D.Native?.listen || window.Native?.listen ? `<button class="btn" data-act="hi-mic">${icon('mic')}Speak</button>` : ''}
+        <button class="btn primary" style="flex:1" data-act="hi-go">${icon('audio')}Hindi, aloud</button></div>
+      <div id="hi-out"></div>
+      <div id="hi-recent"></div>`;
+    if (hiShown) showHindi(hiShown);
+    paintHiRecent();
+  }
+  function showHindi(r) {
+    const el = $('#hi-out');
+    if (!el) return;
+    el.innerHTML = `<div class="panel synth hi-card"><p class="hi-text" lang="hi">${esc(r.hi)}</p>
+      <p class="muted small">${esc(r.en)}</p>
+      <div class="row wrap"><button class="btn primary" data-act="hi-again">${icon('audio')}Repeat</button>
+        <button class="btn" data-act="hi-copy">${icon('quote')}Copy</button></div></div>`;
+  }
+  function paintHiRecent() {
+    const el = $('#hi-recent');
+    const list = hiRecent();
+    if (!el || !list.length) return;
+    el.innerHTML = `<div class="section"><div class="section-h"><h3>Recent</h3><button data-act="hi-clear">Clear</button></div>
+      <div class="list-card">${list.map((r, i) => `<button class="example" data-act="hi-old" data-i="${i}">${icon('audio')}<span><span lang="hi">${esc(r.hi.slice(0, 80))}</span><br><small class="muted">${esc(r.en.slice(0, 80))}</small></span></button>`).join('')}</div></div>`;
+  }
+  actions['hi-style'] = (b) => { hiStyle = b.dataset.v; store.set('hindi.style', hiStyle); $$('[data-act=hi-style]').forEach((x) => x.classList.toggle('on', x === b)); };
+  actions['hi-again'] = () => { if (hiShown) hiSpeak(hiShown.hi); };
+  actions['hi-copy'] = () => { if (hiShown) D.copyText(hiShown.hi); };
+  actions['hi-clear'] = () => { store.set('hindi.recent', []); $('#hi-recent').innerHTML = ''; };
+  actions['hi-old'] = (b) => { const r = hiRecent()[+b.dataset.i]; if (!r) return; hiShown = r; showHindi(r); hiSpeak(r.hi); };
+  let hiListening = false;
+  actions['hi-mic'] = () => {
+    const N = window.Native || D.Native;
+    if (!N?.listen) return;
+    // Voice input answers through the "speech" event, shared with the reader's Ask: take this one.
+    const prev = ext.events.speech;
+    hiListening = true;
+    ext.events.speech = (evt) => {
+      if (!hiListening) { prev?.(evt); return; }
+      hiListening = false;
+      ext.events.speech = prev;
+      if (evt.text && $('#hi-in')) { $('#hi-in').value = evt.text; actions['hi-go'](); } else if (evt.error) toast(evt.error);
+    };
+    N.listen();
+  };
+  actions['hi-go'] = async () => {
+    const en = ($('#hi-in')?.value || '').trim();
+    const out = $('#hi-out');
+    if (!en) { toast('Type or say something first'); return; }
+    if (!D.aiHasKey()) { out.innerHTML = I.keyCard(); return; }
+    store.set('hindi.draft', en);
+    // Said before: no new AI request.
+    const known = hiRecent().find((r) => r.en.toLowerCase() === en.toLowerCase() && r.style === hiStyle);
+    if (known) { hiShown = known; showHindi(known); hiSpeak(known.hi); return; }
+    out.innerHTML = I.busyHtml('Putting it into Hindi…');
+    try {
+      const task = hiStyle === 'simple'
+        ? `Put this into simple, warm, spoken Hindi that a patient in India understands (everyday Hindustani words, short sentences). Keep drug names, and medical words patients use in English (cream, tablet, dose, biopsy), in English written in Devanagari or as they are. Keep every instruction, number and dose exactly. Output only the Hindi in Devanagari script, nothing else.\n\nText:\n${en}`
+        : `Translate this into accurate Hindi in Devanagari script, keeping every detail, number and dose exactly; keep drug names as they are. Output only the Hindi, nothing else.\n\nText:\n${en}`;
+      const hi = (await D.ai(task, { system: 'You are a careful medical translator for a dermatologist in India.', max: 1200, fast: true })).trim().replace(/^["“]|["”]$/g, '');
+      const r = { en, hi, style: hiStyle, at: Date.now() };
+      store.set('hindi.recent', [r, ...hiRecent().filter((x) => x.en.toLowerCase() !== en.toLowerCase())].slice(0, 15));
+      hiShown = r;
+      showHindi(r);
+      paintHiRecent();
+      hiSpeak(hi);
+    } catch (e) { out.innerHTML = I.aiErr(e); }
+  };
+
   // On the Intel tab, beside the evidence map.
   I.TILES.splice(2, 0, ['review', '📑', 'Deep review', 'Screens 100+ papers · structured, referenced review']);
   I.TILES.splice(1, 0, ['dx', '🩺', 'Diagnose from picture', 'Clinical · dermoscopy · histology · KOH · Wood\'s lamp']);
   I.TILES.splice(1, 0, ['history', '🕘', 'History', 'Every question and answer, kept 90 days']);
-  Object.assign(ext.routes, { review: renderReview, dx: renderDx, history: renderHistory });
+  I.TILES.push(['hindi', '🗣️', 'Speak in Hindi', 'Say it in English, hear it in Hindi · for patients']);
+  Object.assign(ext.routes, { review: renderReview, dx: renderDx, history: renderHistory, hindi: renderHindi });
 })();
