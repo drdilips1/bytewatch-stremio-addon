@@ -46,9 +46,59 @@ def rename_output(g, old, new):
         n.input[:] = [new if i == old else i for i in n.input]
 
 
+def fix_empty_reshapes(g, size_by_rank):
+    """A Reshape whose target has a -1 fails on an empty input (the runtime primes the model
+    with zero-length steps). Puts the real size where the -1 is, for the rotary-embedding
+    reshapes, whose last two sizes are known: (head_dim / 2, 2)."""
+    consts = {i.name: numpy_helper.to_array(i) for i in g.initializer}
+    for n in g.node:
+        if n.op_type == "Constant":
+            for a in n.attribute:
+                if a.name == "value":
+                    consts[n.output[0]] = numpy_helper.to_array(a.t)
+    producer = {o: n for n in g.node for o in n.output}
+    fixed = 0
+    for n in g.node:
+        if n.op_type != "Reshape" or "rope" not in n.name.lower():
+            continue
+        shp = n.input[1]
+        if shp in consts:
+            v = consts[shp]
+            if -1 in v.tolist() and len(v) in size_by_rank:
+                nv = np.array([size_by_rank[len(v)][k] if x == -1 else x for k, x in enumerate(v.tolist())], np.int64)
+                n.input[1] = const(g, shp + "_fixed", nv)
+                fixed += 1
+            continue
+        p = producer.get(shp)
+        if p is None or p.op_type != "Concat":
+            continue
+        rank = len(p.input)
+        if rank not in size_by_rank:
+            continue
+        for k, inp in enumerate(list(p.input)):
+            if inp in consts and consts[inp].size == 1 and int(consts[inp].reshape(-1)[0]) == -1:
+                want = size_by_rank[rank][k]
+                if want is not None and want != -1:
+                    p.input[k] = const(g, f"{inp}_fixed_{n.name.replace('/', '_')}_{k}", np.array([want], np.int64))
+                    fixed += 1
+    print(f"fixed {fixed} empty-input reshapes")
+    if fixed == 0:  # show how the rope reshapes get their shape, for the next try
+        for n in g.node:
+            if n.op_type == "Reshape" and "rope" in n.name.lower():
+                p = producer.get(n.input[1])
+                print(" ", n.name, "shape from", p.op_type if p else "input/const", list(p.input) if p else n.input[1])
+                if p is not None:
+                    for i in p.input:
+                        q = producer.get(i)
+                        print("     ", i, "<-", q.op_type if q else ("const " + str(consts[i].tolist()) if i in consts else "?"))
+                break
+
+
 def adapt_lm_main(path, dst):
     m = onnx.load(path)
     g = m.graph
+    # q/k [B, T, H, D] -> [B, T, H, D/2, 2] in the rotary embedding: D = 64.
+    fix_empty_reshapes(g, {5: [None, None, None, 32, 2]})
     ins, outs = list(g.input), list(g.output)
     head_in, states_in = ins[:2], ins[2:]
     head_out, states_out = outs[:2], outs[2:]
