@@ -457,7 +457,8 @@ object EpubExtractor {
             val bodyHref = bodyStart(opf, base, manifest, ::read)
 
             // Chapter names from the book's own table of contents, like an e-reader shows them.
-            val toc = tocTitles(opf, base, manifest, ::read)
+            val tocInfo = tocTitles(opf, base, manifest, ::read)
+            val toc = tocInfo.titles
 
             val sections = ArrayList<Pair<String?, List<String>>>()
             val names = ArrayList<String?>()
@@ -471,30 +472,36 @@ object EpubExtractor {
                 if ("html" !in item.attr("media-type")) continue
                 val path = resolve(base, item.attr("href"))
                 val html = read(path) ?: continue
-                val front = guessed < 0 && isFront(html, path)
+                val fileFront = guessed < 0 && isFront(html, path)
                 if (path == bodyHref) bodyReached = true
-                val (heading, lines) = chapterLines(html)
-                // With a table of contents, files it doesn't list continue the chapter before
-                // (and a highlighted line inside a chapter isn't taken for a new one).
-                val chapter: String? = if (toc.isNotEmpty()) toc[path] else heading
-                val name = chapter ?: heading ?: ""
-                if (SKIP_CHAPTER.containsMatchIn(name) || lines.none { it.isNotBlank() }) continue
-                if (o.skipReferences && (TextCleaner.END_SECTION.containsMatchIn(name) ||
-                        TextCleaner.NOTES.containsMatchIn(name))) continue
-                if (o.skipAcknowledgements && TextCleaner.ACK.containsMatchIn(name)) continue
-                if (o.skipAppendix && TextCleaner.APPENDIX.containsMatchIn(name)) continue
-                val text = TextCleaner.clean(lines, o)
-                if (startSection < 0 && bodyReached) startSection = sections.size
-                if (guessed < 0) {
-                    // A short page headed by nothing, or by the book's title, is a title or dedication page.
-                    val short = text.sumOf { it.split(' ').size } < 120
-                    val named = chapter ?: heading
-                    val titlePage = short && (named == null || named.equals(title, ignoreCase = true) ||
-                        author != null && named.equals(author, ignoreCase = true))
-                    if (!front && !titlePage && !(named != null && FRONT_TITLE.matches(named))) guessed = sections.size
+                // A file the table of contents points into at several places (some books are one file
+                // for the whole text) is split there: each part is a chapter of its own, so one part
+                // named "Contents" or "Copyright" no longer drops the whole book.
+                val marks = tocInfo.anchors[path].orEmpty()
+                val parts = if (marks.size >= 2) chapterParts(html, marks)
+                else chapterLines(html).let { (h, l) -> listOf(Triple(if (toc.isNotEmpty()) toc[path] else h, h, l)) }
+                for ((partIndex, part) in parts.withIndex()) {
+                    val (chapter, heading, lines) = part
+                    val front = fileFront && partIndex == 0
+                    val name = chapter ?: heading ?: ""
+                    if (SKIP_CHAPTER.containsMatchIn(name) || lines.none { it.isNotBlank() }) continue
+                    if (o.skipReferences && (TextCleaner.END_SECTION.containsMatchIn(name) ||
+                            TextCleaner.NOTES.containsMatchIn(name))) continue
+                    if (o.skipAcknowledgements && TextCleaner.ACK.containsMatchIn(name)) continue
+                    if (o.skipAppendix && TextCleaner.APPENDIX.containsMatchIn(name)) continue
+                    val text = TextCleaner.clean(lines, o)
+                    if (startSection < 0 && bodyReached) startSection = sections.size
+                    if (guessed < 0) {
+                        // A short page headed by nothing, or by the book's title, is a title or dedication page.
+                        val short = text.sumOf { it.split(' ').size } < 120
+                        val named = chapter ?: heading
+                        val titlePage = short && (named == null || named.equals(title, ignoreCase = true) ||
+                            author != null && named.equals(author, ignoreCase = true))
+                        if (!front && !titlePage && !(named != null && FRONT_TITLE.matches(named))) guessed = sections.size
+                    }
+                    sections += chapter to text
+                    names += chapter ?: heading
                 }
-                sections += chapter to text
-                names += chapter ?: heading
             }
             // Watermarks stamped through pirated or converted books ("OceanofPDF.com"): a bare web
             // address, or a short line repeated in many chapters.
@@ -508,13 +515,22 @@ object EpubExtractor {
         }
     }
 
+    /** A table of contents: each file's first title, and the places inside files ("#id") it points to, in order. */
+    private class Toc(val titles: Map<String, String>, val anchors: Map<String, List<Pair<String, String>>>)
+
     /** Table of contents entries: file path to its first title (EPUB 3 nav, else EPUB 2 NCX). */
-    private fun tocTitles(opf: Document, base: String, manifest: Map<String, Element>, read: (String) -> String?): Map<String, String> {
+    private fun tocTitles(opf: Document, base: String, manifest: Map<String, Element>, read: (String) -> String?): Toc {
         val out = LinkedHashMap<String, String>()
+        val anchors = LinkedHashMap<String, MutableList<Pair<String, String>>>()
         fun add(dir: String, href: String, title: String) {
             val t = WS.replace(title, " ").trim()
             if (href.isBlank() || t.isEmpty()) return
-            out.putIfAbsent(resolve(dir, href), t.take(120))
+            val path = resolve(dir, href)
+            out.putIfAbsent(path, t.take(120))
+            val frag = percentDecode(href.substringAfter('#', ""))
+            if (frag.isNotEmpty()) anchors.getOrPut(path) { ArrayList() }.let { list ->
+                if (list.none { it.first == frag }) list += frag to t.take(120)
+            }
         }
         manifest.values.firstOrNull { "nav" in it.attr("properties").split(' ') }?.let { nav ->
             val navPath = resolve(base, nav.attr("href"))
@@ -538,7 +554,7 @@ object EpubExtractor {
                 }
             }
         }
-        return out
+        return Toc(out, anchors)
     }
 
     /** The file where the main text begins, from the EPUB 3 landmarks or the EPUB 2 guide. */
@@ -603,7 +619,15 @@ object EpubExtractor {
         return out.toString("UTF-8")
     }
 
-    private fun chapterLines(html: String): Pair<String?, List<String>> {
+    private fun chapterLines(html: String): Pair<String?, List<String>> =
+        chapterParts(html, emptyList()).first().let { it.second to it.third }
+
+    /**
+     * The file's text, split where the table of contents points inside it ([marks]: id to title):
+     * (chapter title, first h1/h2 heading, lines) per part. Text before the first mark is a part of
+     * its own, titled by its heading.
+     */
+    private fun chapterParts(html: String, marks: List<Pair<String, String>>): List<Triple<String?, String?, List<String>>> {
         val doc = Jsoup.parse(html)
         // <sup> is almost always a footnote number in e-books.
         doc.select("script, style, svg, math, nav, table, sup").remove()
@@ -612,9 +636,12 @@ object EpubExtractor {
             types.any { it in NOTE_TYPES }
         }.forEach { if (it.parent() != null) it.remove() }
 
-        val lines = ArrayList<String>()
+        val titleOf = marks.toMap()
+        val parts = ArrayList<Triple<String?, String?, List<String>>>()
+        var lines = ArrayList<String>()
         val buf = StringBuilder()
         var heading: String? = null
+        var title: String? = null
         fun flush() {
             val t = WS.replace(buf, " ").trim()
             buf.setLength(0)
@@ -629,6 +656,15 @@ object EpubExtractor {
                     is TextNode -> buf.append(node.wholeText)
                     is Element -> {
                         val tag = node.normalName()
+                        val mark = titleOf[node.id()] ?: node.attr("name").takeIf { it.isNotEmpty() }?.let { titleOf[it] }
+                        if (mark != null) {
+                            // A new part starts here.
+                            flush()
+                            if (lines.any { it.isNotBlank() }) parts += Triple(title ?: heading, heading, lines)
+                            lines = ArrayList()
+                            heading = null
+                            title = mark
+                        }
                         if (tag in BLOCK) flush()
                         // Only top-level headings name a chapter; h3 and below are headings inside one.
                         if (heading == null && (tag == "h1" || tag == "h2")) {
@@ -643,6 +679,7 @@ object EpubExtractor {
             }
         }, doc.body())
         flush()
-        return heading to lines
+        parts += Triple(title ?: heading, heading, lines)
+        return parts
     }
 }
