@@ -44,6 +44,22 @@ function Section({ icon, title, children }) {
   );
 }
 
+function MusicToggle() {
+  const [on, setOn] = useState(!!debrid.get().showMusic);
+  return (
+    <Toggle
+      label="Show music albums"
+      hint="Off: music in your TorBox / Real-Debrid (albums, discographies, FLAC) is left out of your library, so only audiobooks show"
+      on={on}
+      onChange={(v) => {
+        debrid.patch({ showMusic: v });
+        cloud.forget?.();
+        setOn(v);
+      }}
+    />
+  );
+}
+
 function SsToggle() {
   const [on, setOn] = useState(ssBadges.get());
   return (
@@ -1083,6 +1099,7 @@ export function Settings() {
       <Section icon="download" title="Real-Debrid">
         <DebridCard provider="realdebrid" label="Real-Debrid" keyHint="real-debrid.com/apitoken" keyUrl="https://real-debrid.com/apitoken" />
       </Section>
+      <MusicToggle />
       <PreferredDebrid />
       <Section icon="puzzle" title="Addons">
         <AddonsCard />

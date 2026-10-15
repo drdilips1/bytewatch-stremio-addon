@@ -31,6 +31,35 @@ export function cleanTitle(name) {
     .trim() || String(name);
 }
 
+// ---- music in the same cloud ----------------------------------------------------
+// Many people keep music albums in TorBox / Real-Debrid too. An item is treated as
+// music (and hidden unless "Show music" is on) only when it clearly looks like it;
+// anything book-like always stays.
+const BOOKISH = /\b(audio ?books?|unabridged|abridged|narrated|read by|novel|memoir|chapters?|book \d+|m4b)\b/i;
+const MUSICAL = /\b(discography|albums?|ost|soundtrack|deluxe edition|remaster(ed)?|greatest hits|anthology|single|mixtape|live at|vinyl|hi-?res|24 ?bit|16 ?bit|\d{2,3}(\.\d)? ?khz|web-?flac|cd ?rip|feat\.?|ft\.)\b/i;
+export function looksLikeMusic(name, files = []) {
+  const n = String(name || '');
+  if (BOOKISH.test(n)) return false;
+  const fname = (f) => baseName(f.short_name || f.name || f.filename || f.path || '');
+  const audio = files.filter((f) => AUDIO.test(fname(f)));
+  if (audio.some((f) => /\.m4b$/i.test(fname(f)))) return false;
+  if (audio.some((f) => /chapter|kapitel|chapitre|capitulo|\bpart ?\d|\bdisc ?\d+.*\bpart\b/i.test(fname(f)))) return false;
+  if (MUSICAL.test(n)) return true;
+  if (audio.length >= 2 && audio.filter((f) => /\.flac$/i.test(fname(f))).length / audio.length > 0.5) return true;
+  // An album: 6–30 tracks of a few MB each (under ~200 MB in all), with different titles ("01 - Song name").
+  const sizes = audio.map((f) => Number(f.size || f.bytes) || 0);
+  if (audio.length >= 6 && audio.length <= 30 && sizes.every(Boolean)) {
+    const avg = sizes.reduce((a, b) => a + b, 0) / sizes.length;
+    const stems = audio.map((f) => fname(f).replace(/\.[a-z0-9]+$/i, '').replace(/^[\d\s._\-–)(\]\[]+/, '').replace(/[\d\s._\-–]+$/, '').toLowerCase());
+    const distinct = new Set(stems.filter(Boolean)).size / audio.length;
+    const total = sizes.reduce((a, b) => a + b, 0);
+    // A whole audiobook is rarely under ~200 MB; an album usually is.
+    if (avg < 12e6 && total < 200e6 && distinct >= 0.7) return true;
+  }
+  return false;
+}
+export const showMusic = () => !!debrid.get().showMusic;
+
 function splitAuthor(title) {
   const m = /^(.+?)\s[-–]\s(.+)$/.exec(title);
   return m && m[1].length < 40 ? { author: m[1], title: m[2] } : { author: '', title };
@@ -99,6 +128,7 @@ async function torboxLibraryRaw() {
       const files = (it.files || []).filter((f) => AUDIO.test(f.name || f.short_name || ''));
       const ebooks = files.length ? [] : (it.files || []).filter((f) => EBOOK.test(f.name || f.short_name || ''));
       if (!files.length && !ebooks.length) continue;
+      if (files.length && !showMusic() && looksLikeMusic(it.name, it.files || [])) continue;
       const done = code !== 't' || !!(it.download_finished || it.download_present);
       const b = toBook('tb', 'tb', `${code}:${it.id}`, it.name, files.length ? files : ebooks, code === 't' && it.hash ? { hash: String(it.hash).toLowerCase() } : {});
       if (!files.length) Object.assign(b, { kind: 'text', format: fmtOf(ebooks[0].name || ebooks[0].short_name || '') });
@@ -196,6 +226,7 @@ async function realdebridLibraryRaw() {
   return (items || [])
     .filter((t) => t.status === 'downloaded')
     .filter((t) => AUDIO.test(t.filename) || !/\.(mkv|avi|mp4|iso|exe|apk)$/i.test(t.filename))
+    .filter((t) => showMusic() || !looksLikeMusic(t.filename))
     .map((t) => ({ ...toBook('rd', 'rd', t.id, t.filename, t.links || [], t.hash ? { hash: String(t.hash).toLowerCase() } : {}), addedAt: Date.parse(t.added) || 0 }));
 }
 
