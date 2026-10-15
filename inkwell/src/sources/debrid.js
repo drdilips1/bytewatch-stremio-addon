@@ -46,6 +46,10 @@ export function looksLikeMusic(name, files = []) {
   if (audio.some((f) => /chapter|kapitel|chapitre|capitulo|\bpart ?\d|\bdisc ?\d+.*\bpart\b/i.test(fname(f)))) return false;
   if (MUSICAL.test(n)) return true;
   if (audio.length >= 2 && audio.filter((f) => /\.flac$/i.test(fname(f))).length / audio.length > 0.5) return true;
+  // Single songs (e.g. saved by music apps like Eclipse, one track per item): 1–3 small
+  // files. Even a short audiobook is rarely under ~40 MB.
+  const all = audio.map((f) => Number(f.size || f.bytes) || 0);
+  if (audio.length && audio.length <= 3 && all.every(Boolean) && all.reduce((a, b) => a + b, 0) < 40e6) return true;
   // An album: 6–30 tracks of a few MB each (under ~200 MB in all), with different titles ("01 - Song name").
   const sizes = audio.map((f) => Number(f.size || f.bytes) || 0);
   if (audio.length >= 6 && audio.length <= 30 && sizes.every(Boolean)) {
