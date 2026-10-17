@@ -7649,14 +7649,3 @@ button.stats {
   margin-top: 1px;
 }
 
-/* Smooth scrolling: rows and cards below the screen aren't drawn until they're near,
-   and each card is laid out on its own */
-.row,
-.st-card,
-.cat-section {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 320px;
-}
-.book-card {
-  contain: layout style;
-}

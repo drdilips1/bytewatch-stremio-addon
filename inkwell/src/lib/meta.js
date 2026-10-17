@@ -197,8 +197,7 @@ export function lookup(book, { fresh = false } = {}) {
 
 // Sources whose items benefit from lookups.
 const ENRICH = new Set(['loc', 'tb', 'rd', 'addon', 'gr']);
-// Phone books always look up (a cover from the audio file still leaves the author unknown).
-export const wantsMeta = (book) => !!book && ENRICH.has(book.source) && (!book.cover || book.source === 'tb' || book.source === 'rd' || book.source === 'loc');
+export const wantsMeta = (book) => !!book && ENRICH.has(book.source) && (!book.cover || book.source === 'tb' || book.source === 'rd');
 /** Metadata already found for a book (no lookup), e.g. to sort phone books by author. */
 export const metaNow = (book) => fixFor(book?.uid) || (wantsMeta(book) ? cache.get()[keyFor(queryFor(book))]?.v || null : null);
 
