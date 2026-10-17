@@ -8,6 +8,9 @@ import { ttsCfg, nativeReader } from './lib/tts.js';
 // later choices (Settings → Appearance) stick.
 try {
   if ((settings.get().themeV || 0) < 4) settings.set((s) => ({ ...s, accent: 'studio', palette: 'studio', themeV: 4 }));
+  // Atelier look (v5): anyone still on the untouched Studio default moves to Atelier once.
+  const s = settings.get();
+  if ((s.themeV || 0) < 5) settings.set((x) => ({ ...x, ...(x.palette === 'studio' && x.accent === 'studio' ? { palette: 'atelier', accent: 'brass' } : {}), themeV: 5 }));
 } catch {}
 
 // Libby was removed: forget its saved sign-in and library links.

@@ -78,8 +78,8 @@ export function useStoreKey(store, key) {
 
 export const settings = persisted('settings', {
   mode: 'dark', // dark | light | amoled
-  accent: 'studio',
-  palette: 'studio', // colour theme (see PALETTES in theme.js)
+  accent: 'brass',
+  palette: 'atelier', // colour theme (see PALETTES in theme.js)
   playerBg: 'cover', // cover | living | plain | photo | wall:<name>
   playerDim: 0.45, // how much the player background is darkened (0–0.8)
   dynamicColor: true,
