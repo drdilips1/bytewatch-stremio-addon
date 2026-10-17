@@ -12,6 +12,7 @@ import { useTileRating } from '../lib/ratings.js';
 import { openExternal } from '../sources/summaries.js';
 import { useStoryShots, chooseStoryShots } from '../sources/storyshots.js';
 import { useLocalCover } from '../sources/local.js';
+import { audioFormat } from '../sources/debrid.js';
 
 export function Cover({ book, class: cls = '', eager }) {
   const { src, failed: proxyFailed } = useImage(book?.cover || '');
@@ -113,14 +114,12 @@ function SafeCard({ book, wide }) {
   );
 }
 
-const KIND_LABEL = { audio: 'Audiobook', text: 'Ebook', discover: 'Audiobook' };
-/** Small line under the author: type · length · narrator (what's known). */
+/** Small lines under the author: file format · length (e.g. "M4B · 11h 10m"), then the narrator. */
 function CardFacts({ book, meta }) {
-  const type = book.source === 'pod' ? 'Podcast' : KIND_LABEL[book.kind] || '';
   const secs = Number(book.duration) || Number(meta?.runtime) || 0;
   const narrator = str(book.narrator || meta?.narrator).split(',')[0].trim();
-  const hours = secs >= 3600 ? `${Math.round(secs / 3600)}h` : secs ? `${Math.max(1, Math.round(secs / 60))}m` : '';
-  const line = [type, hours].filter(Boolean).join(' · ');
+  const format = str(book.format).toUpperCase() || (Array.isArray(book.files) ? audioFormat(book.files) : ''); // phone books scanned before formats were noted
+  const line = [format, secs ? fmtDuration(secs) : ''].filter(Boolean).join(' · ');
   if (!line && !narrator) return null;
   return (
     <>

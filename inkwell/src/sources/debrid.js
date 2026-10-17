@@ -87,8 +87,19 @@ export function splitAuthor(title) {
   return left.length < 40 ? { author: left, title: right } : { author: '', title };
 }
 
+/** The audio format of a set of files ("MP3", "M4B"…): the most common extension. */
+export function audioFormat(files) {
+  const n = {};
+  for (const f of files || []) {
+    const ext = /\.([a-z0-9]{2,4})$/i.exec(baseName(f.short_name || f.name || f.filename || f.path || f.uri || ''))?.[1];
+    if (ext && AUDIO.test('x.' + ext)) n[ext.toUpperCase()] = (n[ext.toUpperCase()] || 0) + 1;
+  }
+  return Object.entries(n).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+}
+
 function toBook(prefix, source, id, name, files, extra = {}) {
   const clean = cleanTitle(name);
+  const format = audioFormat(files) || audioFormat([{ name }]);
   const { author, title } = splitAuthor(clean);
   return {
     uid: `${prefix}:${id}`,
@@ -99,6 +110,7 @@ function toBook(prefix, source, id, name, files, extra = {}) {
     cover: '',
     rawName: name,
     parts: files.length,
+    ...(format ? { format } : {}),
     ...extra,
   };
 }

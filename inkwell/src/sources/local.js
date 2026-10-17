@@ -4,7 +4,7 @@
 // files at the top become one book each.
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { persisted, useStore } from '../lib/store.js';
-import { cleanTitle, splitAuthor } from './debrid.js';
+import { cleanTitle, splitAuthor, audioFormat } from './debrid.js';
 
 const Native = registerPlugin('InkwellLocal');
 export const available = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellLocal');
@@ -103,6 +103,7 @@ function group(folder, files, covers = []) {
       author,
       cover: '',
       parts: list.length,
+      format: audioFormat(list),
       size: list.reduce((a, f) => a + (Number(f.size) || 0), 0),
       folder: folder.uri,
       // A cover image in the book's folder (or its CD1 / Disc 1 folder).
