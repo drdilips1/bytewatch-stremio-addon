@@ -39,7 +39,7 @@ export function queryFor(book) {
     .replace(/[._]+/g, ' ')
     .replace(/[\[({][^\])}]*[\])}]/g, ' ')
     .replace(/\|/g, ' ')
-    .replace(/\b(unabridged|abridged|audiobook|audio ?book|english|retail|\d{2,3} ?kbps|vbr|cbr|mp3|m4b|aac|flac|read by|narrated by|\d{3,4}p|web|dl)\b/gi, ' ')
+    .replace(/\b(a novel|a memoir|unabridged|abridged|audiobook|audio ?book|english|retail|\d{2,3} ?kbps|vbr|cbr|mp3|m4b|aac|flac|read by|narrated by|\d{3,4}p|web|dl)\b/gi, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
@@ -192,7 +192,10 @@ export function lookup(book, { fresh = false } = {}) {
 
 // Sources whose items benefit from lookups.
 const ENRICH = new Set(['loc', 'tb', 'rd', 'addon', 'gr']);
-export const wantsMeta = (book) => !!book && ENRICH.has(book.source) && (!book.cover || book.source === 'tb' || book.source === 'rd');
+// Phone books always look up (a cover from the audio file still leaves the author unknown).
+export const wantsMeta = (book) => !!book && ENRICH.has(book.source) && (!book.cover || book.source === 'tb' || book.source === 'rd' || book.source === 'loc');
+/** Metadata already found for a book (no lookup), e.g. to sort phone books by author. */
+export const metaNow = (book) => fixFor(book?.uid) || (wantsMeta(book) ? cache.get()[keyFor(queryFor(book))]?.v || null : null);
 
 /** Hook: enriched fields for cards (cover / tidy title / author). */
 export function useMeta(book) {

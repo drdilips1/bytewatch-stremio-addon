@@ -4,6 +4,7 @@ import { Icon } from '../components/icons.jsx';
 import { library, progress, useStore, forgetBook, persisted } from '../lib/store.js';
 import { localSrc } from '../sources/index.js';
 import { fmtDuration } from '../lib/format.js';
+import { metaNow } from '../lib/meta.js';
 import { downloads, removeDownload } from '../lib/downloads.js';
 import { forgetEbook } from '../lib/epub.js';
 import { nav } from '../lib/nav.js';
@@ -27,11 +28,21 @@ const SORTS = [
   ['author', 'Author'],
   ['length', 'Length'],
 ];
+const surname = (name) => String(name).split(',')[0].trim().split(/\s+/).pop() || '';
 const libView = persisted('libraryView', { list: false, sort: 'recent' });
-const lengthOf = (b) => b.duration || b.size || 0;
+const lengthOf = (b) => b.duration || metaNow(b)?.runtime || b.size || 0;
+// Phone and cloud books often get their author from the online lookup.
+const authorOf = (b) => metaNow(b)?.author || b.author || '';
+const titleOf = (b) => (b.source === 'loc' && metaNow(b)?.title) || b.title || '';
 const SORTERS = {
-  title: (a, b) => (a.title || '').localeCompare(b.title || '', undefined, { numeric: true }),
-  author: (a, b) => (a.author || '~').localeCompare(b.author || '~') || SORTERS.title(a, b),
+  title: (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { numeric: true }),
+  // By surname; books with no known author go last.
+  author: (a, b) => {
+    const x = surname(authorOf(a));
+    const y = surname(authorOf(b));
+    if (!x !== !y) return x ? -1 : 1;
+    return x.localeCompare(y) || SORTERS.title(a, b);
+  },
   length: (a, b) => lengthOf(b) - lengthOf(a),
 };
 

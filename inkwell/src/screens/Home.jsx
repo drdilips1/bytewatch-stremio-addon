@@ -543,30 +543,17 @@ export function Home() {
   return (
     <div class="screen home">
       <header class="home-top">
-        <div class="home-logo">
-          <svg viewBox="0 0 512 512" aria-hidden="true">
-            <defs>
-              <linearGradient id="ah-brand" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#7cf0ff" />
-                <stop offset=".5" stop-color="#a78bfa" />
-                <stop offset="1" stop-color="#ff7ab6" />
-              </linearGradient>
-            </defs>
-            <path d="M136 400 L256 112 L376 400" fill="none" stroke="url(#ah-brand)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M170 300 h26 l14 -34 l20 70 l22 -96 l22 112 l18 -52 h30 l14 22 h24" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          <div class="home-hello">
-            <b>{greeting()}</b>
-            <small>{today()}</small>
-          </div>
+        <div class="home-greet">
+          <small>{today()}</small>
+          <b>{greeting()}</b>
         </div>
         <div class="home-top-actions">
-          <button class="icon-btn glass drive-btn" onClick={() => openDrive()} aria-label="Driving mode">
-            🚗
+          <button class="hdr-btn" onClick={() => openDrive()} aria-label="Driving mode">
+            <Icon name="car" size={18} />
           </button>
-          <AskButton glass />
-          <button class="icon-btn glass" onClick={() => nav.tab('discover')} aria-label="Search">
-            <Icon name="search" />
+          <AskButton cls="hdr-btn" />
+          <button class="hdr-btn" onClick={() => nav.tab('discover')} aria-label="Search">
+            <Icon name="search" size={18} />
           </button>
         </div>
       </header>

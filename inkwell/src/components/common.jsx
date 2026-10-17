@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { memo } from 'preact/compat';
 import { Component } from 'preact';
-import { hashHue } from '../lib/format.js';
+import { hashHue, fmtDuration } from '../lib/format.js';
 import { SOURCES, sourceOf } from '../sources/index.js';
 import { Icon } from './icons.jsx';
 import { nav } from '../lib/nav.js';
@@ -113,6 +113,27 @@ function SafeCard({ book, wide }) {
   );
 }
 
+const KIND_LABEL = { audio: 'Audiobook', text: 'Ebook', discover: 'Audiobook' };
+/** Small line under the author: type · length · narrator (what's known). */
+function CardFacts({ book, meta }) {
+  const type = book.source === 'pod' ? 'Podcast' : KIND_LABEL[book.kind] || '';
+  const secs = Number(book.duration) || Number(meta?.runtime) || 0;
+  const narrator = str(book.narrator || meta?.narrator).split(',')[0].trim();
+  const hours = secs >= 3600 ? `${Math.round(secs / 3600)}h` : secs ? `${Math.max(1, Math.round(secs / 60))}m` : '';
+  const line = [type, hours].filter(Boolean).join(' · ');
+  if (!line && !narrator) return null;
+  return (
+    <>
+      {line && <div class="book-card-facts">{line}</div>}
+      {narrator && (
+        <div class="book-card-facts">
+          <Icon name="mic" size={10} /> {narrator}
+        </div>
+      )}
+    </>
+  );
+}
+
 // Memoized, and it listens to its own book's progress only: saving the position of
 // the book that's playing (every few seconds) no longer re-renders every card.
 export const BookCard = memo(function BookCard({ book: raw, wide }) {
@@ -171,6 +192,7 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
       </div>
       <div class="book-card-title">{book.title}</div>
       <div class="book-card-author">{book.author || ' '}</div>
+      <CardFacts book={book} meta={meta} />
     </button>
   );
 });
@@ -292,14 +314,14 @@ export function Skeleton() {
 }
 
 /** ✨ Ask AI, in the top corner of every screen: about this book, or about all your books. */
-export function AskButton({ book = null }) {
+export function AskButton({ book = null, cls = 'icon-btn ask-btn glass' }) {
   return (
     <button
-      class="icon-btn ask-btn glass"
+      class={cls}
       aria-label={book ? 'Ask AI about this book' : 'Ask AI about your books'}
       onClick={() => nav.push('ask', book ? { book, description: book.description || '' } : {})}
     >
-      <Icon name="sparkle" size={20} />
+      <Icon name="sparkle" size={cls.includes('hdr-btn') ? 18 : 20} />
     </button>
   );
 }

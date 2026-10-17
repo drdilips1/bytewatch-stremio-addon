@@ -25,7 +25,7 @@ export function cleanTitle(name) {
     .replace(/\.(zip|rar|7z|m4b|mp3|epub|pdf|mobi|azw3?)$/i, '')
     .replace(/[._]+/g, ' ')
     .replace(/[\[({][^\])}]*[\])}]/g, ' ')
-    .replace(/\b(unabridged|abridged|audiobook|audio ?book|\d{2,3} ?kbps|mp3|m4b|aac|flac|retail|vbr|cbr|epub|pdf|mobi|azw3|ebook)\b/gi, ' ')
+    .replace(/\b(a novel|unabridged|abridged|audiobook|audio ?book|\d{2,3} ?kbps|mp3|m4b|aac|flac|retail|vbr|cbr|epub|pdf|mobi|azw3|ebook)\b/gi, ' ')
     .replace(/\s{2,}/g, ' ')
     .replace(/^[\s\-–]+|[\s\-–]+$/g, '')
     .trim() || String(name);
