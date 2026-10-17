@@ -31,6 +31,14 @@ try {
   }
 } catch {}
 
+// Podcast art is often a huge original (1–3 MB, up to 3000 px): lists load a small copy.
+// Apple's art comes in any size; other hosts go through a free resizing service, and
+// the original is used if that fails.
+export function thumbUrl(url, size = 200) {
+  if (!url || !/^https?:\/\//i.test(url)) return url || '';
+  if (/mzstatic\.com/.test(url)) return url.replace(/\/\d+x\d+[a-z]*\.(jpg|jpeg|png|webp)(\?.*)?$/i, `/${size}x${size}bb.jpg`);
+  return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=${size}&h=${size}&fit=cover&output=jpg&q=78`;
+}
 // ---------------------------------------------------------------- directory
 const fromItunes = (r) => ({
   feedUrl: r.feedUrl,
@@ -150,7 +158,9 @@ export async function subscribe(input) {
   const feedUrl = typeof input === 'string' ? input.trim() : input.feedUrl;
   if (!/^https?:\/\//i.test(feedUrl)) throw new Error('Paste a podcast feed address (https://…)');
   const { podcast } = await loadFeed(feedUrl, { fresh: true });
-  podcasts.set((p) => ({ ...p, subs: [...p.subs.filter((s) => s.feedUrl !== feedUrl), { ...podcast, addedAt: Date.now() }] }));
+  // Keep Apple's artwork when following from search: it comes in small sizes (the feed's own is often huge).
+  const cover = (typeof input === 'object' && input.cover) || podcast.cover;
+  podcasts.set((p) => ({ ...p, subs: [...p.subs.filter((s) => s.feedUrl !== feedUrl), { ...podcast, cover, addedAt: Date.now() }] }));
   return podcast.title;
 }
 
@@ -217,7 +227,7 @@ export function asBook(ep, podcast) {
     kind: 'audio',
     title: ep.title,
     author: show,
-    cover: ep.image || podcast?.cover || ep.podcast?.cover || '',
+    cover: thumbUrl(ep.image || podcast?.cover || ep.podcast?.cover || '', 600),
     description: ep.notes || '',
     duration: ep.duration || 0,
     feedUrl: ep.feedUrl,

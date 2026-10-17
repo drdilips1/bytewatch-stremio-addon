@@ -105,7 +105,7 @@ export function EpisodeRow({ ep, podcast, showShow = false }) {
   return (
     <div class={'ep' + (played ? ' played' : '') + (current ? ' current' : '')}>
       <div class="ep-main" onClick={() => setOpen(!open)}>
-        {showShow && (ep.image || ep.podcast?.cover || podcast?.cover) && <img class="ep-art" src={ep.image || ep.podcast?.cover || podcast?.cover} alt="" loading="lazy" />}
+        {showShow && (ep.image || ep.podcast?.cover || podcast?.cover) && <Thumb class="ep-art" src={ep.image || ep.podcast?.cover || podcast?.cover} size={120} />}
         <div class="ep-text">
           {showShow && <small class="ep-show">{ep.podcast?.title || ep.show || podcast?.title}</small>}
           <b>{ep.title}</b>
@@ -156,6 +156,7 @@ export function Podcasts() {
   const p = useStore(pod.podcasts);
   const [q, setQ] = useState('');
   const [results, setResults] = useState(null);
+  const [searching, setSearching] = useState(false);
   const [latest, setLatest] = useState(null);
   const [charts, setCharts] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -180,7 +181,14 @@ export function Podcasts() {
     const term = q.trim();
     if (term.length < 2 || /^https?:\/\//i.test(term)) return setResults(null);
     let alive = true;
-    const t = setTimeout(() => pod.search(term).then((r) => alive && setResults(r)).catch(() => alive && setResults([])), 400);
+    const t = setTimeout(() => {
+      setSearching(true);
+      pod
+        .search(term)
+        .then((r) => alive && setResults(r))
+        .catch(() => alive && setResults([]))
+        .finally(() => alive && setSearching(false));
+    }, 350);
     return () => {
       alive = false;
       clearTimeout(t);
@@ -230,9 +238,10 @@ export function Podcasts() {
         </button>
       )}
 
+      {searching && !results && <p class="muted pad">Searching…</p>}
       {results ? (
         <section class="pad">
-          <h3 class="section-label">Results</h3>
+          <h3 class="section-label">Results {searching && <span class="spinner" />}</h3>
           <ShowGrid shows={results} />
           {!results.length && <p class="muted">No podcasts found.</p>}
         </section>
@@ -325,12 +334,18 @@ export function Podcasts() {
   );
 }
 
+export function Thumb({ src, size = 200, class: cls = '' }) {
+  const [broken, setBroken] = useState(false);
+  const small = pod.thumbUrl(src, size);
+  return <img class={cls} src={broken ? src : small} alt="" loading="lazy" decoding="async" onError={() => small !== src && !broken && setBroken(true)} />;
+}
+
 export function ShowGrid({ shows, small }) {
   return (
     <div class={'show-grid' + (small ? ' small' : '')}>
       {shows.map((s) => (
         <button class="show-card" onClick={() => nav.push('podcast', { show: s })}>
-          {s.cover ? <img src={s.cover} alt="" loading="lazy" /> : <div class="show-ph">{s.title?.[0]}</div>}
+          {s.cover ? <Thumb src={s.cover} size={small ? 160 : 240} /> : <div class="show-ph">{s.title?.[0]}</div>}
           <b>{s.title}</b>
           {!small && <small>{s.author}</small>}
         </button>
@@ -367,7 +382,7 @@ export function Podcast({ show }) {
     <div class="screen podcast">
       <TopBar title={info.title} />
       <div class="pod-hero">
-        {info.cover && <img src={info.cover} alt="" />}
+        {info.cover && <Thumb src={info.cover} size={400} />}
         <div>
           <h2>{info.title}</h2>
           <p class="muted">{info.author}</p>
