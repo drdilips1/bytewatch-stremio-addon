@@ -105,6 +105,9 @@ export function Library() {
       <div class="library-head">
         <h1 class="screen-title">Library</h1>
         <div class="library-head-actions">
+          <button class="icon-btn glass" onClick={() => nav.push('stats')} aria-label="Listening stats">
+            <Icon name="chart" size={20} />
+          </button>
           <button class={'pill small' + (editing ? ' active' : '')} onClick={() => setEditing(!editing)}>
             {editing ? 'Done' : 'Edit'}
           </button>
@@ -124,9 +127,6 @@ export function Library() {
           <b>{stats.done}</b>
           <span>finished</span>
         </div>
-        <em class="stats-more">
-          Listening stats <Icon name="chevron" size={14} />
-        </em>
       </button>
       <div class="segmented scroll">
         {TABS.map(([k, label]) => (
