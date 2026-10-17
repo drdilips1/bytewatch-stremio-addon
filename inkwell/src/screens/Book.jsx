@@ -49,7 +49,7 @@ import {
 } from "../lib/downloads.js";
 import { sourceAddons } from "../sources/sourceaddons.js";
 import * as player from "../lib/player.js";
-import { usePlayer, useCoverColor } from "../components/player-ui.jsx";
+import { usePlayerBasics, useCoverColor } from "../components/player-ui.jsx";
 import { RelatedRows } from "../components/related.jsx";
 import {
   openUrl,
@@ -73,7 +73,7 @@ export function Book({ book: initial }) {
   const [editions, setEditions] = useState(null);
   const saved = !!useStore(library)[initial.uid];
   const allProgress = useStore(progress);
-  const ps = usePlayer();
+  const ps = usePlayerBasics();
   const color = useCoverColor(book);
   const isCurrent = ps.book?.uid === book.uid;
   const [hcStatus, setHcStatus] = useState(null);

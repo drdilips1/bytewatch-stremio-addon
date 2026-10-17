@@ -17,7 +17,7 @@ export const PROVIDERS = {
   openlibrary: { name: 'Open Library', blurb: 'Open catalogue, good for older titles' },
 };
 
-const cache = persisted('metaCache', {});
+const cache = persisted('metaCache', {}, { delay: 3000 });
 // Details you picked yourself ("Find cover & details" on a book page): uid -> meta.
 export const metaFixes = persisted('metaFixes', {});
 export const fixFor = (uid) => (uid && metaFixes.get()[uid]) || null;
@@ -138,18 +138,21 @@ export function enabledProviders() {
 }
 
 // Small queue so a page of 30 covers doesn't fire 120 requests at once.
+// Covers come first; extra details for books that already have a cover (e.g. the author
+// of a phone book) wait until no cover is waiting, one at a time.
 let active = 0;
 const queue = [];
+const later = [];
 const pending = new Map();
-function schedule(fn) {
+function schedule(fn, low = false) {
   return new Promise((resolve, reject) => {
-    queue.push({ fn, resolve, reject });
+    (low ? later : queue).push({ fn, resolve, reject });
     pump();
   });
 }
 function pump() {
-  while (active < 3 && queue.length) {
-    const { fn, resolve, reject } = queue.shift();
+  while ((active < 3 && queue.length) || (active === 0 && later.length)) {
+    const { fn, resolve, reject } = queue.length ? queue.shift() : later.shift();
     active++;
     fn()
       .then(resolve, reject)
@@ -183,9 +186,11 @@ export function lookup(book, { fresh = false } = {}) {
       merged.genres = genres;
       if (merged.cover && merged.description) break;
     }
-    cache.set((c) => ({ ...c, [key]: { t: Date.now(), v: merged } }));
+    // Saved copy: description shortened (the book page loads the full one from its source).
+    const saved = merged?.description?.length > 900 ? { ...merged, description: merged.description.slice(0, 900) + '…' } : merged;
+    cache.set((c) => ({ ...c, [key]: { t: Date.now(), v: saved } }));
     return merged;
-  }).finally(() => pending.delete(key));
+  }, !!book.cover).finally(() => pending.delete(key));
   pending.set(key, p);
   return p;
 }

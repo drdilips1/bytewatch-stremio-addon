@@ -24,6 +24,20 @@ export function usePlayer() {
   return s;
 }
 
+/** Just which book / part is playing and whether it plays: no redraw on every second of playback. */
+export function usePlayerBasics() {
+  const pick = (s) => ({ book: s.book ? { uid: s.book.uid } : null, playing: !!s.playing, index: s.index });
+  const [v, setV] = useState(() => pick(player.getState()));
+  useEffect(
+    () =>
+      player.subscribe((s) =>
+        setV((cur) => (cur.book?.uid === s.book?.uid && cur.playing === !!s.playing && cur.index === s.index ? cur : pick(s)))
+      ),
+    []
+  );
+  return v;
+}
+
 export function useCoverColor(book) {
   const st = useStore(settings);
   const [c, setC] = useState(null);

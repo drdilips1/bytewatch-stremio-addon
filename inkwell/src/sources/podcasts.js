@@ -20,7 +20,7 @@ export function setShowPref(feedUrl, patch) {
   });
 }
 // Local cache of episode lists (refreshed from the feeds).
-const feedsCache = persisted('podcastFeeds', {});
+const feedsCache = persisted('podcastFeeds', {}, { delay: 2000 });
 // Saved copies from before the size limit: trim once, so they fit in storage again.
 try {
   const c = feedsCache.get();

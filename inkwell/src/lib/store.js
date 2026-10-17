@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { emergencyTrim } from './storage-trim.js'; // runs first: trims oversized caches before stores load
 
 // Tiny persistent reactive store backed by localStorage.
 // Pending saves are written at once when the app is backgrounded or closed,
@@ -10,7 +11,7 @@ if (typeof window !== 'undefined') {
   document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flushAll());
 }
 
-export function persisted(key, initial) {
+export function persisted(key, initial, { delay = 150 } = {}) {
   let value = initial;
   try {
     const raw = localStorage.getItem('inkwell:' + key);
@@ -27,12 +28,20 @@ export function persisted(key, initial) {
       const write = () => {
         clearTimeout(saveTimer);
         pending.delete(key);
+        const text = JSON.stringify(value);
         try {
-          localStorage.setItem('inkwell:' + key, JSON.stringify(value));
-        } catch {}
+          localStorage.setItem('inkwell:' + key, text);
+        } catch {
+          // Storage full: make room in the caches and try once more (progress and settings must save).
+          emergencyTrim();
+          try {
+            localStorage.setItem('inkwell:' + key, text);
+          } catch {}
+        }
       };
       pending.set(key, write);
-      saveTimer = setTimeout(write, 150);
+      // Big caches are written less often (each write re-saves the whole thing).
+      saveTimer = setTimeout(write, delay);
     },
     patch(part) {
       store.set((v) => ({ ...v, ...part }));

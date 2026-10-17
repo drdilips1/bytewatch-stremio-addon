@@ -197,7 +197,7 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
 });
 
 // Last contents of slow rows (your cloud, your server), shown at once on the next open.
-const rowCache = persisted('rowCache', {});
+const rowCache = persisted('rowCache', {}, { delay: 1500 });
 /** The last list a cached row showed (e.g. Home's recommendations), or []. */
 export const cachedRow = (key) => rowCache.get()[key] || [];
 const ROW_KEEP = ['uid', 'source', 'kind', 'title', 'author', 'narrator', 'cover', 'year', 'duration', 'addedAt', 'hash', 'format', 'fetching', 'genres'];
