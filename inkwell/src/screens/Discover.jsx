@@ -82,27 +82,46 @@ function PickOfWeek() {
 }
 
 // Each mood is a shelf: Audible best sellers for a few keywords, ranked for your taste.
-const moodShelf = (keys, { hours, sort } = {}) => async () => {
-  const pools = await Promise.all(keys.map((k) => audible.pool(k).catch(() => [])));
-  const seen = new Set();
-  const all = [];
-  for (let i = 0; i < 150; i++)
-    for (const p of pools) {
-      const b = p[i];
-      if (b && !seen.has(b.uid)) seen.add(b.uid) && all.push(b);
+// One request per keyword (Audible's 40 best sellers), all at once; the list is kept
+// for 12 hours so opening a mood again is instant (and refreshed in the background).
+const moodCache = persisted('moodShelves', {}, { delay: 2000 });
+const KEEP = ['uid', 'source', 'kind', 'title', 'author', 'narrator', 'cover', 'duration', 'rating', 'ratings', 'genres', 'year', 'released', 'link', 'match', 'why'];
+const slimBook = (b) => Object.fromEntries(KEEP.filter((k) => b[k] !== undefined && b[k] !== '').map((k) => [k, k === 'genres' ? b[k].slice(0, 6) : b[k]]));
+const moodShelf = (keys, { hours, sort } = {}) => {
+  const fetchList = async () => {
+    const lists = await Promise.all((typeof keys === 'function' ? keys() : keys).map((k) => audible.genre(k).catch(() => [])));
+    const seen = new Set();
+    const all = [];
+    for (let i = 0; i < 40; i++)
+      for (const p of lists) {
+        const b = p[i];
+        if (b && !seen.has(b.uid)) seen.add(b.uid) && all.push(b);
+      }
+    let list = notOwned(all).filter((b) => fitsHours(b, hours));
+    const ranked = rankForYou(list);
+    list = ranked.length >= 8 ? ranked : list;
+    if (sort) list = [...list].sort(sort);
+    return list.slice(0, 60).map(({ rank, ...b }) => slimBook(b));
+  };
+  return async () => {
+    const id = (typeof keys === 'function' ? keys() : keys).join('|') + (hours || '');
+    const hit = moodCache.get()[id];
+    const save = (items) => items.length && moodCache.set((c) => ({ ...c, [id]: { t: Date.now(), items } }));
+    if (hit?.items?.length) {
+      if (Date.now() - hit.t > 12 * 3600e3) fetchList().then(save).catch(() => {});
+      return hit.items;
     }
-  let list = notOwned(all).filter((b) => fitsHours(b, hours));
-  const ranked = rankForYou(list);
-  list = ranked.length >= 8 ? ranked : list;
-  if (sort) list = [...list].sort(sort);
-  return list.slice(0, 60).map(({ rank, ...b }) => b);
+    const items = await fetchList();
+    save(items);
+    return items;
+  };
 };
 const byRating = (a, b) => (b.rating || 0) * Math.log10((b.ratings || 0) + 10) - (a.rating || 0) * Math.log10((a.ratings || 0) + 10);
 const MOODS = [
   ['💡', 'Learn something', 'big ideas, science', 160, moodShelf(['popular science', 'big ideas'])],
   ['🌙', 'Wind down', 'calm, gentle', 250, moodShelf(['cozy', 'nature writing', 'meditation'])],
   ['😂', 'Make me laugh', 'humour, memoir', 40, moodShelf(['humor', 'comedy memoir'])],
-  ['⏱', 'Short listen', 'under 5 hours', 190, async () => moodShelf(tasteTopics().map((g) => g.au || g.name), { hours: '0-5', sort: byRating })()],
+  ['⏱', 'Short listen', 'under 5 hours', 190, moodShelf(() => tasteTopics().map((g) => g.au || g.name), { hours: '0-5', sort: byRating })],
   ['🔥', 'Can’t stop', 'thrillers, sci-fi', 0, moodShelf(['thriller', 'science fiction'])],
   ['🧘', 'Grow', 'self-help', 300, moodShelf(['self development', 'personal success'])],
 ];

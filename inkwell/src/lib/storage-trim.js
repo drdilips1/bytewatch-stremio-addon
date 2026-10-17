@@ -18,6 +18,7 @@ const BUDGETS = {
   rowCache: 300_000,
   storyshotsFound: 100_000,
   askThreads: 300_000,
+  moodShelves: 200_000,
 };
 
 const stamp = (v) => (v && typeof v === 'object' ? v.t || v.updatedAt || v.at || 0 : 0);
