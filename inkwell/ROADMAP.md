@@ -8,17 +8,22 @@ Noted while building; to pick up after Saturday.
 - Episode ratings + "not interested", fed into the taste engine, with a "Recommended episodes" row.
 - Auto-download new episodes: first version downloads on Wi-Fi when the app opens, for shows marked "auto-download"; background version later.
 
-**Look & layout (proposed, waiting for go-ahead)**
-- Discover: compact bookseller (suggestions in one sideways row), genre picture tiles in a 2-row sideways grid + "All genres", book rows (Trending, Best of the year, New in your genres), sources moved out to Settings.
-- Home: big "Continue listening" card. Book page: blurred cover backdrop. Library: grid/list + sort. Equal-height cards. Player: one row of buttons + "More".
+**Next batch (agreed, in the pipeline)**
+- Series: group a series in Library, reading order, progress across the series, "next in series".
+- Podcast auto-download rules ("new episodes from these shows, keep the last 5").
+- Storage manager: space used per book, one-tap cleanup of finished downloads.
+- Sleep timer "end of chapter" inside single-file M4B books.
+- Notes on bookmarks; search inside transcripts.
+- Smart shelves: Short listens (under 5 h), Not started, Recently added.
+- Player: one row of main buttons + "More".
+- Later: paste any link (direct MP3/M4B, archive.org) to add a book; home-screen widget; Android Auto; keep your place when a book's files are replaced.
 
 **Public repo (on "update public repo")**
-- Bring over: music + video filter, player fixes (offline downloads, screen-off next part, whole-book progress, speeds), books on the phone (+ covers), podcast batch 1, StoryShots.
+- Bring over: music + video filter, player fixes (offline downloads, screen-off next part, whole-book progress, speeds), books on the phone (+ covers), podcast batch 1, StoryShots, new design (Atelier, Discover, Library), listening stats.
 - Remove Supabase sign-in and Send to Kindle; short plain README with a "built with AI help" note; add-on backup links on GitHub.
 
-## Done, waiting for the next build
-- Phone books: covers (folder image / built-in art / online), tidy titles and authors, no Offline button.
-- "Show music too" inside the TorBox / Real-Debrid cards; Real-Debrid films and TV series left out.
+## Done (v1.0.114–115)
+- Atelier look; Discover (pick of the week, moods, genre tiles, trending, search + bookseller in one box); Library (On this phone, sort, list); big Continue card; cards with format · length · narrator; listening stats; faster AI.
 
 ## Done earlier
 - Driving mode (🚗 on Home and in the player; app-icon shortcuts "Driving mode" and "Ask AI")

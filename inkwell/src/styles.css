@@ -7286,8 +7286,8 @@ button.rt {
   --on-grad: #1c140a;
   --rim: rgba(255, 255, 255, 0.075);
   --rim-top: rgba(255, 255, 255, 0.11);
-  --lift: 0 1px 2px rgba(0, 0, 0, 0.35), 0 14px 32px -20px rgba(0, 0, 0, 0.75);
-  --lift-hi: 0 2px 4px rgba(0, 0, 0, 0.3), 0 24px 48px -24px rgba(0, 0, 0, 0.85);
+  --lift: 0 6px 14px -10px rgba(0, 0, 0, 0.75);
+  --lift-hi: 0 12px 24px -14px rgba(0, 0, 0, 0.85);
 }
 :root[data-mode='dark'][data-palette='atelier'] {
   --bg: #0f0e0d;
@@ -7319,8 +7319,8 @@ button.rt {
   --grad: linear-gradient(135deg, var(--accent), var(--accent-2));
   --rim: rgba(60, 40, 20, 0.09);
   --rim-top: rgba(255, 255, 255, 0.9);
-  --lift: 0 1px 2px rgba(60, 40, 20, 0.08), 0 12px 28px -18px rgba(60, 40, 20, 0.35);
-  --lift-hi: 0 2px 4px rgba(60, 40, 20, 0.08), 0 22px 44px -22px rgba(60, 40, 20, 0.45);
+  --lift: 0 6px 14px -10px rgba(60, 40, 20, 0.35);
+  --lift-hi: 0 12px 24px -14px rgba(60, 40, 20, 0.45);
 }
 
 /* Titles: an editorial serif, slightly tightened */
@@ -7357,11 +7357,11 @@ button.rt {
 /* Covers: a fine light rim and a grounded shadow, like a printed jacket */
 :root[data-palette='atelier'] .book-card-cover,
 :root[data-palette='atelier'] .cover {
-  box-shadow: 0 0 0 1px var(--rim), 0 2px 4px rgba(0, 0, 0, 0.25), 0 14px 26px -16px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 0 1px var(--rim), 0 6px 12px -8px rgba(0, 0, 0, 0.7);
 }
 :root[data-mode='light'][data-palette='atelier'] .book-card-cover,
 :root[data-mode='light'][data-palette='atelier'] .cover {
-  box-shadow: 0 0 0 1px var(--rim), 0 2px 4px rgba(60, 40, 20, 0.1), 0 14px 26px -16px rgba(60, 40, 20, 0.45);
+  box-shadow: 0 0 0 1px var(--rim), 0 6px 12px -8px rgba(60, 40, 20, 0.4);
 }
 
 /* Colour tiles: deeper, quieter tones with a sheen and a rim (no candy colours) */
@@ -7389,9 +7389,9 @@ button.rt {
   background: var(--grad);
 }
 :root[data-palette='atelier'] .tabbar {
-  background: color-mix(in srgb, var(--bg) 97%, transparent);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border-top: 1px solid var(--rim);
 }
 :root[data-palette='atelier'] .tabbar button.on {
@@ -7415,7 +7415,7 @@ button.rt {
   background:
     radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--tint) 7%, transparent), transparent 60%),
     var(--bg);
-  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
 :root[data-palette='atelier'] .row-head h2,
 :root[data-palette='atelier'] .section-label {
@@ -7647,4 +7647,16 @@ button.stats {
 .st-foot .icon {
   flex: none;
   margin-top: 1px;
+}
+
+/* Smooth scrolling: rows and cards below the screen aren't drawn until they're near,
+   and each card is laid out on its own */
+.row,
+.st-card,
+.cat-section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+.book-card {
+  contain: layout style;
 }

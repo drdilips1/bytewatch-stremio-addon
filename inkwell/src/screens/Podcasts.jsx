@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../components/icons.jsx';
 import { toast, Empty, TopBar, AskButton } from '../components/common.jsx';
-import { useStore, progress, useStoreKey } from '../lib/store.js';
+import { useStore, progress, useStoreKey, useSelect } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { fmtDuration } from '../lib/format.js';
 import * as player from '../lib/player.js';
@@ -22,7 +22,14 @@ const FILTERS = [
   ['downloaded', 'Downloaded'],
   ['started', 'Started'],
 ];
-function passes(ep, f, dls, prog) {
+// Which episodes are started / finished: changes rarely, unlike the position saves every few seconds.
+const progSig = (all) =>
+  Object.entries(all || {})
+    .filter(([, p]) => p && ((p.time || 0) > 0 || p.finished))
+    .map(([k, p]) => (p.finished ? k + '!' : k))
+    .join('|');
+
+function passes(ep, f, dls, prog = progress.get()) {
   if (f === 'short') return ep.duration > 0 && ep.duration < 30 * 60;
   if (f === 'downloaded') return dls[ep.uid]?.status === 'done';
   if (f === 'started') return (prog[ep.uid]?.time || 0) > 0 && !prog[ep.uid]?.finished;
@@ -158,6 +165,9 @@ export function Podcasts() {
   useEffect(() => {
     if (!p.subs.length) return setLatest([]);
     let alive = true;
+    // Saved episodes at once; feeds that are out of date update in the background.
+    const saved = pod.cachedLatest();
+    if (saved.length) setLatest(saved);
     pod.refreshAll().then((r) => alive && setLatest(r));
     return () => (alive = false);
   }, [p.subs.length]);
@@ -190,7 +200,8 @@ export function Podcasts() {
   const isFeed = /^https?:\/\//i.test(q.trim());
   const [epFilter, setEpFilter] = useState('all');
   const dls = useStore(downloads);
-  const prog = useStore(progress);
+  useSelect(progress, progSig);
+  const prog = progress.get();
   const unplayed = (latest || []).filter((e) => !pod.isPlayed(e) && passes(e, epFilter, dls, prog)).slice(0, 25);
 
   return (
@@ -346,7 +357,9 @@ export function Podcast({ show }) {
   }, [show.feedUrl]);
   const info = { ...show, ...(feed?.podcast || {}) };
   const dls = useStore(downloads);
-  const prog = useStore(progress);
+  useSelect(progress, progSig);
+  const prog = progress.get();
+  const [shown, setShown] = useState(40);
   const [showSet, setShowSet] = useState(false);
   const hasPrefs = !!useStore(pod.showPrefs)[show.feedUrl];
   const eps = (feed?.episodes || []).filter((e) => passes(e, filter, dls, prog));
@@ -395,7 +408,16 @@ export function Podcast({ show }) {
             <span class="spinner small" /> Loading episodes…
           </p>
         ) : eps.length ? (
-          eps.map((ep) => <EpisodeRow ep={ep} podcast={info} />)
+          <>
+            {eps.slice(0, shown).map((ep) => (
+              <EpisodeRow ep={ep} podcast={info} />
+            ))}
+            {eps.length > shown && (
+              <button class="btn ghost-wide" onClick={() => setShown(shown + 60)}>
+                Show more ({eps.length - shown})
+              </button>
+            )}
+          </>
         ) : (
           <p class="muted">No episodes match this filter.</p>
         )}

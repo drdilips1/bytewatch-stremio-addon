@@ -21,6 +21,15 @@ export function setShowPref(feedUrl, patch) {
 }
 // Local cache of episode lists (refreshed from the feeds).
 const feedsCache = persisted('podcastFeeds', {});
+// Saved copies from before the size limit: trim once, so they fit in storage again.
+try {
+  const c = feedsCache.get();
+  if (Object.values(c).some((f) => f?.episodes?.length > 120 || f?.episodes?.slice(20).some((e) => e.notes?.length > 301))) {
+    const out = {};
+    for (const [k, f] of Object.entries(c)) if (f?.episodes) out[k] = { ...f, episodes: f.episodes.slice(0, 120).map((e, i) => (i < 20 || !e.notes || e.notes.length <= 300 ? e : { ...e, notes: e.notes.slice(0, 300) + '…' })) };
+    feedsCache.set(out);
+  }
+} catch {}
 
 // ---------------------------------------------------------------- directory
 const fromItunes = (r) => ({
@@ -127,7 +136,9 @@ export async function loadFeed(feedUrl, { fresh = false } = {}) {
   if (!fresh && cached && Date.now() - cached.t < 30 * 60e3) return cached;
   const xml = await getText(feedUrl, { timeout: 30000, feed: true, headers: { Accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.5' } });
   const { podcast, episodes } = parseFeed(xml, feedUrl);
-  const entry = { t: Date.now(), podcast, episodes: episodes.slice(0, 150) };
+  // Keep the saved copy small (phone storage is limited to a few MB for everything):
+  // full show notes for the newest episodes, a short preview for older ones.
+  const entry = { t: Date.now(), podcast, episodes: episodes.slice(0, 120).map((e, i) => (i < 20 || !e.notes || e.notes.length <= 300 ? e : { ...e, notes: e.notes.slice(0, 300) + '…' })) };
   feedsCache.set((c) => ({ ...c, [feedUrl]: entry }));
   return entry;
 }
@@ -147,15 +158,28 @@ export function unsubscribe(feedUrl) {
   podcasts.set((p) => ({ ...p, subs: p.subs.filter((s) => s.feedUrl !== feedUrl), queue: p.queue.filter((q) => q.feedUrl !== feedUrl) }));
 }
 
-/** Refresh every subscription (a few at a time); resolves the newest episodes across them. */
+const newest = (feeds) => {
+  const out = [];
+  for (const f of feeds) if (f) out.push(...f.episodes.slice(0, 15).map((e) => ({ ...e, podcast: f.podcast })));
+  return out.sort((a, b) => b.date - a.date);
+};
+
+/** The newest episodes from the saved feeds, without going online (instant). */
+export const cachedLatest = () => newest(podcasts.get().subs.map((s) => feedsCache.get()[s.feedUrl]));
+
+/** Refresh every subscription (six at a time); resolves the newest episodes across them. */
 export async function refreshAll({ fresh = false } = {}) {
   const subs = podcasts.get().subs;
-  const out = [];
-  for (let i = 0; i < subs.length; i += 4) {
-    const batch = await Promise.all(subs.slice(i, i + 4).map((s) => loadFeed(s.feedUrl, { fresh }).catch(() => feedsCache.get()[s.feedUrl] || null)));
-    for (const f of batch) if (f) out.push(...f.episodes.slice(0, 15).map((e) => ({ ...e, podcast: f.podcast })));
-  }
-  return out.sort((a, b) => b.date - a.date);
+  const feeds = new Array(subs.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < subs.length) {
+      const i = next++;
+      feeds[i] = await loadFeed(subs[i].feedUrl, { fresh }).catch(() => feedsCache.get()[subs[i].feedUrl] || null);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, subs.length) }, worker));
+  return newest(feeds);
 }
 
 // ---------------------------------------------------------------- episodes

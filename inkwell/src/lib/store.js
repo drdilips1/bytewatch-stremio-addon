@@ -67,6 +67,23 @@ export function useStore(store) {
  * One entry of a keyed store (e.g. one book's progress): the component only
  * re-renders when that entry changes, not on every save of any book.
  */
+/**
+ * Subscribe to a summary of a store (`select` returns a string or number): the screen
+ * only redraws when that summary changes, not on every save (e.g. playback position).
+ */
+export function useSelect(store, select) {
+  const [v, setV] = useState(() => select(store.get()));
+  useEffect(() => {
+    let cur = select(store.get());
+    setV(cur);
+    return store.subscribe((all) => {
+      const next = select(all);
+      if (next !== cur) setV((cur = next));
+    });
+  }, [store]);
+  return v;
+}
+
 export function useStoreKey(store, key) {
   const [v, setV] = useState(() => store.get()[key]);
   useEffect(() => {
