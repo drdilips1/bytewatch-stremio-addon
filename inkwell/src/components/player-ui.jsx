@@ -3,6 +3,7 @@ import { wallpaperUrl, useCustomWallpaper } from '../lib/wallpaper.js';
 import { loadImage } from '../lib/image.js';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import * as player from '../lib/player.js';
+import { isNative as isNativeEngine } from '../lib/engine.js';
 import { Cover, toast } from './common.jsx';
 import { Icon, SkipIcon } from './icons.jsx';
 import { fmtTime } from '../lib/format.js';
@@ -335,6 +336,35 @@ export function FullPlayer() {
                   ))}
                 </div>
                 <input type="range" min="0.5" max="3" step="0.05" value={s.rate} style={{ '--pct': ((s.rate - 0.5) / 2.5) * 100 + '%' }} onInput={(e) => player.setRate(+(+e.currentTarget.value).toFixed(2))} />
+                {isNativeEngine && (
+                  <>
+                    <label class="set-row">
+                      <div>
+                        <b>Skip silence</b>
+                        <small>Cuts the quiet gaps between sentences — saves minutes on chatty podcasts.</small>
+                      </div>
+                      <input type="checkbox" class="switch" checked={!!st.skipSilence} onChange={(e) => player.setAudio({ skipSilence: e.currentTarget.checked })} />
+                    </label>
+                    <div class="set-row">
+                      <div>
+                        <b>Volume boost</b>
+                        <small>Makes quiet recordings louder.</small>
+                      </div>
+                    </div>
+                    <div class="chips">
+                      {[
+                        [0, 'Off'],
+                        [3, 'Low'],
+                        [6, 'Medium'],
+                        [10, 'High'],
+                      ].map(([db, label]) => (
+                        <button class={'pill small' + ((st.boost || 0) === db ? ' active' : '')} onClick={() => player.setAudio({ boost: db })}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </>
             )}
             {sheet === 'sleep' && (

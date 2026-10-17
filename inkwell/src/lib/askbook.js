@@ -56,6 +56,7 @@ export const COMPANION = [
   ['challenge', '🔍', 'Challenge', "Challenge what the author argues around this point: the claim, the evidence given, the strongest support, the strongest criticism, and what remains uncertain. Mention related research or books."],
   ['rabbit', '🐇', 'Rabbit hole', 'Take me down a short rabbit hole (about 2 minutes to listen, under 250 words) on the most interesting idea at this point: what is actually known, myths vs evidence, key thinkers, and 2–3 related books or documentaries.'],
   ['related', '📚', 'Related', 'Which other books (especially ones in my library) discuss the idea at this point, and how do they agree or disagree?'],
+  ['recall', '🎯', 'Recall', 'Help me remember what I have heard so far. Give 5 short recall questions (mix facts, ideas and one "why" question), each on its own line. Then a line "Answers:" with a one-line answer to each. Then "In short:" with the 3–4 key points to keep. Use only what was actually said so far when a transcript is given; do not reveal anything later.'],
 ];
 
 // "Remember this": ideas you save while listening, kept as cards and searchable by Ask my books.

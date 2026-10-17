@@ -50,13 +50,13 @@ export function TranscriptView({ s }) {
   const userScroll = useRef(0);
   useEffect(() => subscribeTranscript(setT), []);
   useEffect(() => {
-    if (transcriptAvailable) follow(s); // start straight away when opened
+    if (transcriptAvailable || s.book?.transcript) follow(s); // start straight away when opened
   }, [s.book?.uid, s.index]);
 
   const segs = t?.segments || [];
   let active = -1;
   for (let i = segs.length - 1; i >= 0; i--) {
-    if (segs[i].start <= s.time + 0.2) {
+    if (segs[i].start != null && segs[i].start <= s.time + 0.2) {
       active = i;
       break;
     }
@@ -69,7 +69,7 @@ export function TranscriptView({ s }) {
     b.scrollTo({ top: el.offsetTop - b.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' });
   }, [active]);
 
-  if (!transcriptAvailable) {
+  if (!transcriptAvailable && !s.book?.transcript) {
     return (
       <div class="transcript empty">
         <p>The live transcript works in the Android app.</p>
@@ -92,13 +92,14 @@ export function TranscriptView({ s }) {
           ) : (
             <>
               <span class="spinner small" />
-              <p>{t?.status === 'loading' ? 'Starting speech recognition…' : 'Listening… the words appear a few seconds ahead of the audio.'}</p>
+              <p>{t?.published ? 'Loading the transcript from the podcast…' : t?.status === 'loading' ? 'Starting speech recognition…' : 'Listening… the words appear a few seconds ahead of the audio.'}</p>
             </>
           )}
         </div>
       )}
+      {t?.published && segs.length > 0 && <p class="tl-source">Transcript from the podcast</p>}
       {segs.map((g, i) => (
-        <p data-i={i} class={'tl' + (i === active ? ' on' : i < active ? ' past' : '')} onClick={() => player.seek(g.start)}>
+        <p data-i={i} class={'tl' + (i === active ? ' on' : i < active ? ' past' : '')} onClick={() => g.start != null && player.seek(g.start)}>
           {withNames(g.text, names, (n) => setCard(lookup.get(n)))}
         </p>
       ))}

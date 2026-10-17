@@ -7,6 +7,18 @@ import { stripHtml } from '../lib/format.js';
 
 // Synced: what you follow, your queue and what you've finished.
 export const podcasts = persisted('podcasts', { subs: [], queue: [], played: {} });
+// Per-show settings: feedUrl -> { speed, intro, outro } (seconds to skip).
+export const showPrefs = persisted('podcastShowPrefs', {});
+export const prefsFor = (feedUrl) => (feedUrl && showPrefs.get()[feedUrl]) || null;
+export function setShowPref(feedUrl, patch) {
+  showPrefs.set((all) => {
+    const next = { ...(all[feedUrl] || {}), ...patch };
+    for (const k of Object.keys(next)) if (!next[k]) delete next[k];
+    const out = { ...all, [feedUrl]: next };
+    if (!Object.keys(next).length) delete out[feedUrl];
+    return out;
+  });
+}
 // Local cache of episode lists (refreshed from the feeds).
 const feedsCache = persisted('podcastFeeds', {});
 
@@ -82,6 +94,14 @@ export function parseFeed(xml, feedUrl) {
       const img = [...it.children].find((c) => c.tagName === 'itunes:image')?.getAttribute('href');
       const dur = [...it.children].find((c) => c.tagName === 'itunes:duration')?.textContent?.trim();
       const notes = [...it.children].find((c) => c.tagName === 'content:encoded')?.textContent || txt(it, 'description') || [...it.children].find((c) => c.tagName === 'itunes:summary')?.textContent || '';
+      // Podcasting 2.0: the publisher's own transcript and chapters.
+      const kids = [...it.children];
+      const rank = (t) => (/json/.test(t) ? 0 : /vtt/.test(t) ? 1 : /srt|subrip/.test(t) ? 2 : /html/.test(t) ? 3 : 4);
+      const tr = kids
+        .filter((c) => c.tagName === 'podcast:transcript' && c.getAttribute('url'))
+        .map((c) => ({ url: c.getAttribute('url'), type: (c.getAttribute('type') || '').toLowerCase() }))
+        .sort((a, b) => rank(a.type) - rank(b.type))[0];
+      const chaptersUrl = kids.find((c) => c.tagName === 'podcast:chapters')?.getAttribute('url') || '';
       return {
         uid: 'pe:' + hash(feedUrl + '|' + guid),
         feedUrl,
@@ -93,6 +113,8 @@ export function parseFeed(xml, feedUrl) {
         duration: seconds(dur),
         image: (img || '').replace(/^http:/, 'https:'),
         notes: stripHtml(notes).slice(0, 4000),
+        ...(tr ? { transcript: { url: tr.url.replace(/^http:/, 'https:'), type: tr.type } } : {}),
+        ...(chaptersUrl ? { chaptersUrl: chaptersUrl.replace(/^http:/, 'https:') } : {}),
       };
     })
     .filter(Boolean)
@@ -175,8 +197,23 @@ export function asBook(ep, podcast) {
     description: ep.notes || '',
     duration: ep.duration || 0,
     feedUrl: ep.feedUrl,
+    ...(ep.transcript ? { transcript: ep.transcript } : {}),
+    ...(ep.chaptersUrl ? { chaptersUrl: ep.chaptersUrl } : {}),
     tracks: [{ title: ep.title, url: ep.url, duration: ep.duration || 0, index: 0 }],
   };
+}
+
+/** The publisher's chapters (Podcasting 2.0 JSON): [{ title, start, end }] in seconds (tapping one seeks there). */
+export async function loadChapters(url, duration = 0) {
+  const j = await getJson(url, { timeout: 15000 });
+  const list = (Array.isArray(j?.chapters) ? j.chapters : [])
+    .filter((c) => c && typeof c.startTime === 'number' && c.toc !== false)
+    .sort((a, b) => a.startTime - b.startTime);
+  return list.map((c, i) => ({
+    title: String(c.title || `Chapter ${i + 1}`),
+    start: c.startTime,
+    end: list[i + 1]?.startTime ?? (c.endTime || duration || c.startTime),
+  }));
 }
 export const details = async (book) => book;
 
@@ -207,6 +244,23 @@ export async function importOpml(text, onProgress) {
 
 // When an episode finishes: mark it played and continue with Up Next.
 import * as player from '../lib/player.js';
+
+// Per-show speed / intro / outro, applied by the player.
+player.setShowPrefsSource(
+  (book) => (book?.source === 'pod' ? prefsFor(book.feedUrl) : null),
+  (book, patch) => setShowPref(book.feedUrl, patch),
+);
+
+// Episodes with the publisher's chapters: fetch them once the episode is playing.
+let chaptersFor = '';
+player.subscribe((ps) => {
+  const b = ps.book;
+  if (!b?.chaptersUrl || b.chaptersMeta || chaptersFor === b.uid) return;
+  chaptersFor = b.uid;
+  loadChapters(b.chaptersUrl, b.duration || ps.duration)
+    .then((list) => list.length > 1 && player.patchBook(b.uid, { chaptersMeta: list }))
+    .catch(() => {});
+});
 player.onFinished((book) => {
   if (book?.source !== 'pod') return;
   markPlayed({ uid: book.uid });

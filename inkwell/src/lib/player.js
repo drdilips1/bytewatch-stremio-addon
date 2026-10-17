@@ -47,7 +47,7 @@ function set(p) {
 }
 
 // --- engine -----------------------------------------------------------------
-const engine = createEngine({
+const handlers = {
   time(pos, dur) {
     // A new link reports 0 until it has jumped to the resume point: don't lose the spot.
     if (loadingAt && loadingAt.at > 1 && pos < 0.5) return;
@@ -55,6 +55,13 @@ const engine = createEngine({
     if (t && dur > 0) t.duration = dur;
     set({ time: pos, duration: dur || state.duration });
     saveProgress();
+    // The show's outro: treat it as the end of the episode.
+    const o = showPrefsFor(state.book)?.outro || 0;
+    if (o > 0 && dur > o * 2 && pos >= dur - o && !outroAt) {
+      outroAt = pos;
+      engine.pause();
+      handlers.ended();
+    }
     if (state.sleepUntil && Date.now() >= state.sleepUntil) fadeOutAndPause();
   },
   playing(on) {
@@ -118,7 +125,26 @@ const engine = createEngine({
     if (action === 'next') skip(s.skipForward || 30);
     else if (action === 'previous') skip(-(s.skipBack || 15));
   },
-});
+};
+const engine = createEngine(handlers);
+
+// Skip silence and volume boost (Settings, per listener; Android only).
+export function applyAudio() {
+  const s = settings.get();
+  engine.setSkipSilence?.(!!s.skipSilence)?.catch?.(() => {});
+  engine.setBoost?.(s.boost || 0)?.catch?.(() => {});
+}
+applyAudio();
+export function setAudio(patch) {
+  settings.patch(patch);
+  applyAudio();
+}
+
+// Per-show podcast settings: own speed, skip the intro / the outro.
+let showPrefsFor = () => null;
+let showPrefsSave = null;
+export const setShowPrefsSource = (get, save) => ((showPrefsFor = get), (showPrefsSave = save));
+let outroAt = 0; // seconds into the episode where its outro starts (0 = none)
 
 // --- Audiobookshelf: carry on from the same second on the server's other address ---
 const isAbs = (b) => (b?.uid || '').startsWith('abs:');
@@ -190,6 +216,7 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
   if (!t) return;
   if (state.preparing) stopWaiting();
   loadingAt = { index: i, at: startAt };
+  outroAt = 0;
   set({ index: i, loading: true, error: null, time: startAt, duration: t.duration || 0, phase: !t.url && t.resolve ? 'Getting the audio link…' : 'Connecting…' });
   try {
     let url = t.url;
@@ -337,6 +364,11 @@ export async function playBook(details, { index, time, globalStart } = {}) {
     if (g != null) ({ i, t } = locate(g));
     // Gentle rewind when resuming after a break.
     if (resume && index == null && time == null && Date.now() - saved.updatedAt > 5 * 60e3) t = Math.max(0, t - 10);
+    // The show's own speed, and skip its intro when starting from the top.
+    const pref = showPrefsFor(details) || {};
+    const rate = pref.speed || settings.get().speed || 1;
+    if (rate !== state.rate) set({ rate });
+    if (pref.intro && !t && (i || 0) === 0) t = pref.intro;
     await loadTrack(Math.min(i, tracks.length - 1), t);
   } catch (e) {
     set({ loading: false, phase: '', error: e.message || String(e) });
@@ -409,7 +441,9 @@ export function jumpTo(i, t = 0) {
 export function setRate(r) {
   engine.setRate(r);
   set({ rate: r });
-  settings.patch({ speed: r });
+  // A show with its own speed keeps the change for that show.
+  if (showPrefsFor(state.book)?.speed && showPrefsSave) showPrefsSave(state.book, { speed: r });
+  else settings.patch({ speed: r });
 }
 export function setSleep(mode) {
   const wasTrack = state.sleepEndOfTrack;
@@ -418,6 +452,11 @@ export function setSleep(mode) {
   if (mode === 'track') set({ sleepUntil: null, sleepEndOfTrack: true });
   else if (!mode) set({ sleepUntil: null, sleepEndOfTrack: false });
   else set({ sleepUntil: Date.now() + mode * 60e3, sleepEndOfTrack: false });
+}
+
+/** Add details to the book that's playing (e.g. chapters fetched afterwards). */
+export function patchBook(uid, patch) {
+  if (state.book?.uid === uid) set({ book: { ...state.book, ...patch } });
 }
 
 /** Stop playback and dismiss the player completely. */
@@ -447,7 +486,7 @@ function saveProgress(force = false) {
   const total = totalDuration();
   const g = globalTime();
   const d = state.duration;
-  const finished = state.index === state.tracks.length - 1 && d > 0 && state.time >= d - 2;
+  const finished = state.index === state.tracks.length - 1 && ((d > 0 && state.time >= d - 2) || outroAt > 0);
   const uid = state.book.uid;
   progress.set((p) => ({
     ...p,

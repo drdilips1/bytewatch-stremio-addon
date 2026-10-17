@@ -6891,3 +6891,22 @@ button.rt {
   color: #9db9ff;
   border-color: #5b8cff;
 }
+.tl-source {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.show-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.show-settings b {
+  margin-top: 8px;
+  font-size: 14px;
+}
+.ep-filters {
+  margin: 4px 0 10px;
+}

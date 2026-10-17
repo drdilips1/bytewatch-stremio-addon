@@ -121,8 +121,16 @@ public class InkwellPlayerPlugin extends Plugin {
             @Override
             public void onPlaybackStateChanged(int state) {
                 emitState();
-                if (state == Player.STATE_READY) emitProgress();
+                if (state == Player.STATE_READY) {
+                    emitProgress();
+                    if (boostMb > 0) applyBoost();
+                }
                 if (state == Player.STATE_ENDED) notifyListeners("ended", new JSObject());
+            }
+
+            // (no @Override: present in Player.Listener on current Media3, harmless otherwise)
+            public void onAudioSessionIdChanged(int audioSessionId) {
+                applyBoost();
             }
 
             @Override
@@ -398,6 +406,50 @@ public class InkwellPlayerPlugin extends Plugin {
     public void setRate(PluginCall call) {
         onMain(call, c -> {
             player.setPlaybackParameters(new PlaybackParameters(c.getFloat("rate", 1f)));
+            c.resolve();
+        });
+    }
+
+    /** Skip the quiet gaps (pauses between sentences, dead air) while playing. */
+    @PluginMethod
+    public void setSkipSilence(PluginCall call) {
+        onMain(call, c -> {
+            player.setSkipSilenceEnabled(c.getBoolean("on", false));
+            c.resolve();
+        });
+    }
+
+    // Volume boost: a loudness enhancer on the player's audio session.
+    private android.media.audiofx.LoudnessEnhancer booster;
+    private int boostMb = 0; // millibels
+    private int boostSession = 0;
+
+    private void applyBoost() {
+        try {
+            int session = player.getAudioSessionId();
+            if (boostMb <= 0) {
+                if (booster != null) booster.setEnabled(false);
+                return;
+            }
+            if (session == 0) return;
+            if (booster == null || boostSession != session) {
+                if (booster != null) booster.release();
+                booster = new android.media.audiofx.LoudnessEnhancer(session);
+                boostSession = session;
+            }
+            booster.setTargetGain(boostMb);
+            booster.setEnabled(true);
+        } catch (Exception ignored) {
+            // Some phones don't offer the effect: playback simply stays at normal volume.
+        }
+    }
+
+    /** Make quiet recordings louder: 0 (off) to about 10 dB. */
+    @PluginMethod
+    public void setBoost(PluginCall call) {
+        onMain(call, c -> {
+            boostMb = (int) Math.round(Math.max(0, Math.min(15, c.getDouble("db", 0.0))) * 100);
+            applyBoost();
             c.resolve();
         });
     }

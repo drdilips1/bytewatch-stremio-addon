@@ -64,6 +64,8 @@ function nativeEngine(h) {
       wantPlay = autoplay;
       await Native.load({ url, headers: headers || {}, position: start, autoplay, rate, ...meta });
     },
+    setSkipSilence: (on) => Native.setSkipSilence({ on: !!on }),
+    setBoost: (db) => Native.setBoost({ db: Number(db) || 0 }),
     /** The parts after the current one, played next by the phone itself. */
     queue: (items) => Native.queue({ items }),
     play: () => ((wantPlay = true), Native.play()),

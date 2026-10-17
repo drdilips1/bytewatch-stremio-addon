@@ -3,6 +3,7 @@
 // a little ahead of the playback position.
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { persisted } from './store.js';
+import { getText } from './http.js';
 import { installedIds, download as downloadPackage, remove as removePackage, builtinAvailable } from './voices.js';
 import * as player from './player.js';
 import { isHindi } from '../screens/hindi.js';
@@ -138,12 +139,93 @@ async function startJob(ps, at) {
   }
 }
 
+// ---- the publisher's own transcript (podcast episodes that ship one) ----------
+// Timed lines straight from the feed: no speech recognition needed.
+const clock = (t) => String(t).trim().replace(',', '.').split(':').reduce((a, x) => a * 60 + Number(x || 0), 0);
+// Some publishers time every word: join them into readable lines.
+function joinShort(segs) {
+  const out = [];
+  for (const g of segs) {
+    const last = out[out.length - 1];
+    if (last && last.text.length < 140 && !/[.!?]["')\]]?$/.test(last.text) && g.start - last.end < 2 && last.speaker === g.speaker) {
+      last.text += ' ' + g.text;
+      last.end = g.end;
+    } else out.push({ ...g });
+  }
+  return out;
+}
+export function parsePublished(text, type = '') {
+  const t = String(text || '').replace(/\r/g, '');
+  if (/json/.test(type) || /^\s*[{[]/.test(t)) {
+    try {
+      const j = JSON.parse(t);
+      const segs = (j.segments || j || [])
+        .map((g) => ({ start: Number(g.startTime) || 0, end: Number(g.endTime) || Number(g.startTime) || 0, text: String(g.body || '').trim(), speaker: g.speaker || '' }))
+        .filter((g) => g.text);
+      if (segs.length) return joinShort(segs);
+    } catch {}
+  }
+  if (/-->/.test(t)) {
+    const segs = [];
+    for (const block of t.split(/\n{2,}/)) {
+      const lines = block.split('\n');
+      const k = lines.findIndex((l) => l.includes('-->'));
+      if (k < 0) continue;
+      const [a, b] = lines[k].split('-->');
+      const words = lines
+        .slice(k + 1)
+        .join(' ')
+        .replace(/<v\s+([^>]+)>/g, '$1: ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (words) segs.push({ start: clock(a), end: clock(b.split(/\s/).filter(Boolean)[0]), text: words, speaker: '' });
+    }
+    if (segs.length) return joinShort(segs);
+  }
+  // Plain text or a web page: untimed paragraphs.
+  const plainText = /<[a-z][\s\S]*>/i.test(t) ? new DOMParser().parseFromString(t, 'text/html').body.innerText || '' : t;
+  return plainText
+    .split(/\n\s*\n|\n(?=[A-Z][\w ]{0,30}:)/)
+    .map((x) => x.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .map((text) => ({ start: null, end: null, text }));
+}
+
+const failedTranscripts = new Set();
+function followPublished(ps) {
+  const key = `${ps.book.uid}#pub`;
+  if (key === state.key || failedTranscripts.has(ps.book.transcript.url)) return;
+  stopTranscript();
+  const { url, type } = ps.book.transcript;
+  set({ key, segments: [], status: 'loading', error: '', published: true });
+  getText(url, { timeout: 20000 })
+    .then((txt) => {
+      if (state.key !== key) return;
+      const segments = parsePublished(txt, type);
+      if (!segments.length) throw new Error('The transcript was empty');
+      set({ segments, status: 'done' });
+    })
+    .catch((e) => {
+      failedTranscripts.add(url);
+      if (state.key !== key) return;
+      // Couldn't get it: recognise the speech on the phone instead, where possible.
+      if (transcriptAvailable && transcriptCfg.get().open) {
+        set({ key: '', published: false });
+        follow({ ...ps, book: { ...ps.book, transcript: null } });
+      } else set({ status: 'error', error: `Couldn't load the transcript (${e.message})` });
+    });
+}
+
 /**
  * Keep the transcript in step with the player. Called on every player update
  * while the transcript is on screen.
  */
 export function follow(ps) {
-  if (!transcriptAvailable || !ps.book) return;
+  if (!ps.book) return;
+  if (ps.book.transcript?.url && !failedTranscripts.has(ps.book.transcript.url)) return followPublished(ps);
+  if (!transcriptAvailable) return;
+  if (state.published) set({ published: false });
   const key = `${ps.book.uid}#${ps.index}`;
   const from = () => {
     const c = coveredUntil(ps.time);
@@ -183,10 +265,14 @@ export function restartTranscript() {
 
 // Keep transcribing while the Text view is switched on, even with the player
 // screen closed (e.g. moving on to the next part).
-if (transcriptAvailable) {
+{
   let last = 0;
   player.subscribe((ps) => {
-    if (!transcriptCfg.get().open || !ps.book) return;
+    if (!ps.book) return;
+    // The publisher's transcript is one small download: fetch it for every such
+    // episode (Ask AI uses it too). Speech recognition only runs with Text open.
+    if (ps.book.transcript?.url && !failedTranscripts.has(ps.book.transcript.url)) return followPublished(ps);
+    if (!transcriptCfg.get().open || !transcriptAvailable) return;
     const now = Date.now();
     if (now - last < 1000 && ps.index === player.getState().index && `${ps.book.uid}#${ps.index}` === state.key) return;
     last = now;
@@ -199,6 +285,11 @@ if (transcriptAvailable) {
  * earlier parts in full, the current part up to `time`. Keeps the last maxChars.
  */
 export function heardText(bookUid, index, time, maxChars = 14000) {
+  // The publisher's transcript: what was said up to now (untimed: all of it).
+  if (state.key === `${bookUid}#pub` && state.segments.length) {
+    const all = state.segments.filter((s) => s.start == null || s.start <= time).map((s) => s.text).join(' ');
+    return all.length > maxChars ? '…' + all.slice(-maxChars) : all;
+  }
   const parts = saved.get().parts || {};
   const chunks = [];
   for (let i = 0; i <= index; i++) {
