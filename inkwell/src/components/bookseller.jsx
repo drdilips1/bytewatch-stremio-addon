@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { Cover } from './common.jsx';
 import { nav } from '../lib/nav.js';
@@ -32,9 +32,24 @@ try {
   localStorage.removeItem('inkwell:bookseller'); // the saved copy from the previous version
 } catch {}
 
-export function AskBookseller() {
+// compact: a single bar that opens into the full box when tapped (Discover).
+export function AskBookseller({ compact = false }) {
   const { res, err, busy } = useStore(last);
   const [q, setQ] = useState(last.get().q);
+  const [open, setOpen] = useState(!compact || !!last.get().q);
+  const input = useRef();
+  useEffect(() => {
+    if (open && compact && !q) input.current?.focus();
+  }, [open]);
+  if (!open)
+    return (
+      <button class="bookseller-bar" onClick={() => setOpen(true)}>
+        <Icon name="sparkle" size={18} />
+        <span>
+          <b>Ask the bookseller</b> “something like Sapiens, but shorter”
+        </span>
+      </button>
+    );
   const ask = async (text) => {
     const t = (text ?? q).trim();
     if (!t) return;
@@ -70,7 +85,7 @@ export function AskBookseller() {
             ask();
           }}
         >
-          <textarea rows={2} value={q} placeholder="e.g. atmospheric sci-fi under 12 hours that feels like Project Hail Mary" onInput={(e) => setQ(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), ask())} />
+          <textarea ref={input} rows={2} value={q} placeholder="e.g. atmospheric sci-fi under 12 hours that feels like Project Hail Mary" onInput={(e) => setQ(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), ask())} />
           <button class="btn primary" disabled={busy || !q.trim()} aria-label="Ask">
             {busy ? <span class="spinner" /> : <Icon name="sparkle" size={16} />}
           </button>
@@ -112,6 +127,7 @@ export function AskBookseller() {
               onClick={() => {
                 setQ('');
                 last.set({ q: '', res: null, err: '', busy: false });
+                if (compact) setOpen(false);
               }}
             >
               Clear

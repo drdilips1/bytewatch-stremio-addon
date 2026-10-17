@@ -36,7 +36,7 @@ const ownedTitles = () => {
   for (const p of Object.values(progress.get())) if (p?.book?.title) t.add(mainTitle(p.book.title).toLowerCase());
   return t;
 };
-const notOwned = (list) => {
+export const notOwned = (list) => {
   const owned = ownedTitles();
   return (list || []).filter((b) => b?.title && !owned.has(mainTitle(b.title).toLowerCase()));
 };
@@ -51,7 +51,7 @@ const FICTION = /fiction|romance|fantasy|thriller|mystery|suspense|horror|teen|y
 const isFiction = (b) => (b.genres || []).some((g) => FICTION.test(g));
 const nonFiction = (list) => (list || []).filter((b) => !isFiction(b));
 const DEFAULT_TOPICS = ['Psychology & Human Behavior', 'Science & Biology', 'History & Civilization'];
-function tasteTopics() {
+export function tasteTopics() {
   const p = profile();
   const scored = GENRES.filter((g) => g.au) // the non-fiction categories
     .map((g) => {
@@ -70,7 +70,7 @@ const topicNames = () =>
     .map((g) => g.name.split(/ & |, /)[0])
     .join(', ');
 // Best sellers in your topics, merged in rank order (1st of each, then 2nd of each…).
-async function topicPool() {
+export async function topicPool() {
   const pools = await Promise.all(tasteTopics().map((g) => audible.pool(g.au || g.name).catch(() => [])));
   const out = [];
   const seen = new Set();
@@ -81,7 +81,7 @@ async function topicPool() {
     }
   return nonFiction(out);
 }
-async function recommendedForYou() {
+export async function recommendedForYou() {
   const r = await picksForYou().catch(() => []);
   const noRank = ({ rank, ...b }) => b;
   const picks = nonFiction(r.length ? rankForYou(notOwned(r)) : []);

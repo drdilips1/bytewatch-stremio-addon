@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { memo } from 'preact/compat';
-import { Grid, Empty, Skeleton, AskButton } from '../components/common.jsx';
+import { Grid, Empty, Skeleton, AskButton, Row, Cover } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
-import { searchAll, SOURCES, sourceRank, sourceOrder, ia, gb, ol, absSrc, cloud, hc, gr } from '../sources/index.js';
-import { openExternal } from '../sources/summaries.js';
-import { audible, googleBooks } from '../sources/catalogs.js';
-import { settings } from '../lib/store.js';
-import { HINDI_ALL } from './hindi.js';
+import { searchAll, SOURCES, sourceRank } from '../sources/index.js';
+import { audible } from '../sources/catalogs.js';
 import { persisted, useStore } from '../lib/store.js';
-import { GenreChips } from './Home.jsx';
+import { GenreChips, recommendedForYou, topicPool, tasteTopics, notOwned } from './Home.jsx';
+import { GENRES } from './genres.js';
+import { rankForYou, fitsHours } from '../lib/taste.js';
+import { fmtDuration } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
 import { AskBookseller } from '../components/bookseller.jsx';
 import { SourceResults } from '../components/source-results.jsx';
@@ -23,37 +23,145 @@ export function openSearch(q) {
   pendingQuery = q;
   nav.tab('discover');
 }
-/** What tapping a source tile opens: its books, or Settings when it isn't set up. */
-function openSource(k) {
-  const shelf = (title, subtitle, load) => nav.push('shelf', { title, subtitle, load });
-  const setup = () => nav.tab('settings');
-  switch (k) {
-    case 'abs':
-      return absSrc.connected() ? shelf('Audiobookshelf', 'Your whole library', absSrc.all) : setup();
-    case 'tb':
-      return cloud.tbConnected() ? shelf('Your TorBox', 'Audiobooks in your TorBox cloud', cloud.torboxLibrary) : setup();
-    case 'rd':
-      return cloud.rdConnected() ? shelf('Your Real-Debrid', 'Audiobooks in your Real-Debrid cloud', cloud.realdebridLibrary) : setup();
-    case 'hc':
-      return hc.connected() ? shelf('Hardcover', 'All your shelves', () => hc.allShelves()) : setup();
-    case 'gr':
-      return gr.shelves().length ? shelf('Goodreads', 'All your shelves', async () => gr.shelves().flatMap((x) => gr.shelf(x))) : setup();
-    case 'au':
-      return shelf('Audible bestsellers', 'Audible catalog', () => audible.genre('bestsellers'));
-    case 'gbk':
-      return shelf('Google Books', 'Popular listings', () => googleBooks.search('bestseller'));
-    case 'ia':
-    case 'lv':
-      return shelf('Most listened', 'LibriVox via Internet Archive', ia.popular);
-    case 'gb':
-      return shelf('Classics to read', 'Project Gutenberg · most downloaded', () => gb.popular(settings.get().language));
-    case 'ol':
-      return shelf('Trending this week', 'Open Library readers', () => ol.trending('weekly'));
-    case 'hi':
-      return nav.push('browse', { genre: HINDI_ALL });
-    default:
-      return setup();
-  }
+// ---- Browsing (nothing typed yet) ----------------------------------------------
+
+const weekNo = () => Math.floor((Date.now() / 864e5 + 4) / 7); // changes every Monday
+const pickCache = persisted('pickOfWeek', { week: 0, book: null });
+
+/** One book worth your week: the top of your recommendations, held for seven days. */
+function PickOfWeek() {
+  const cached = useStore(pickCache);
+  const [book, setBook] = useState(cached.week === weekNo() ? cached.book : null);
+  useEffect(() => {
+    if (book) return;
+    let alive = true;
+    recommendedForYou()
+      .then((r) => {
+        const b = r[weekNo() % Math.min(r.length, 5)];
+        if (!alive || !b) return;
+        const slim = { uid: b.uid, source: b.source, title: b.title, author: b.author, cover: b.cover, duration: b.duration, rating: b.rating, match: b.match, why: b.why, kind: b.kind, genres: b.genres };
+        pickCache.set({ week: weekNo(), book: slim });
+        setBook(slim);
+      })
+      .catch(() => {});
+    return () => (alive = false);
+  }, []);
+  if (!book) return <div class="pick-hero pick-skel" />;
+  const open = () => nav.push('book', { book });
+  return (
+    <button class="pick-hero" onClick={open}>
+      {book.cover && <div class="pick-bg" style={{ backgroundImage: `url("${book.cover}")` }} />}
+      <Cover book={book} eager />
+      <div class="pick-text">
+        <em>Pick of the week</em>
+        <b>{book.title}</b>
+        <small>
+          {book.author}
+          {book.duration ? ` · ${fmtDuration(book.duration)}` : ''}
+        </small>
+        <small>
+          {book.rating ? `★ ${Number(book.rating).toFixed(1)}` : ''}
+          {book.rating && book.match ? ' · ' : ''}
+          {book.match ? `fits your taste ${book.match}%` : ''}
+        </small>
+        <span class="pick-btn">
+          <Icon name="play" size={14} /> Listen
+        </span>
+      </div>
+    </button>
+  );
+}
+
+// Each mood is a shelf: Audible best sellers for a few keywords, ranked for your taste.
+const moodShelf = (keys, { hours, sort } = {}) => async () => {
+  const pools = await Promise.all(keys.map((k) => audible.pool(k).catch(() => [])));
+  const seen = new Set();
+  const all = [];
+  for (let i = 0; i < 150; i++)
+    for (const p of pools) {
+      const b = p[i];
+      if (b && !seen.has(b.uid)) seen.add(b.uid) && all.push(b);
+    }
+  let list = notOwned(all).filter((b) => fitsHours(b, hours));
+  const ranked = rankForYou(list);
+  list = ranked.length >= 8 ? ranked : list;
+  if (sort) list = [...list].sort(sort);
+  return list.slice(0, 60).map(({ rank, ...b }) => b);
+};
+const byRating = (a, b) => (b.rating || 0) * Math.log10((b.ratings || 0) + 10) - (a.rating || 0) * Math.log10((a.ratings || 0) + 10);
+const MOODS = [
+  ['💡', 'Learn something', 'big ideas, science', 160, moodShelf(['popular science', 'big ideas'])],
+  ['🌙', 'Wind down', 'calm, gentle', 250, moodShelf(['cozy', 'nature writing', 'meditation'])],
+  ['😂', 'Make me laugh', 'humour, memoir', 40, moodShelf(['humor', 'comedy memoir'])],
+  ['⏱', 'Short listen', 'under 5 hours', 190, async () => moodShelf(tasteTopics().map((g) => g.au || g.name), { hours: '0-5', sort: byRating })()],
+  ['🔥', 'Can’t stop', 'thrillers, sci-fi', 0, moodShelf(['thriller', 'science fiction'])],
+  ['🧘', 'Grow', 'self-help', 300, moodShelf(['self development', 'personal success'])],
+];
+
+function MoodTiles() {
+  return (
+    <section class="mood-section">
+      <h3 class="section-label">What are you in the mood for?</h3>
+      <div class="mood-grid">
+        {MOODS.map(([icon, title, sub, hue, load]) => (
+          <button class="mood-tile" style={{ '--h': hue }} onClick={() => nav.push('shelf', { title: `${icon} ${title}`, subtitle: sub[0].toUpperCase() + sub.slice(1), load })}>
+            <i>{icon}</i>
+            <b>{title}</b>
+            <small>{sub}</small>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const FAV_GENRES = [
+  ['🧠', 'Psychology', 'Psychology & Human Behavior'],
+  ['🧬', 'Science', 'Science & Biology'],
+  ['🔭', 'Cosmos', 'Cosmos & Physics'],
+  ['🏛', 'History', 'History & Civilization'],
+  ['💰', 'Money', 'Money, Economics & Capitalism'],
+  ['🕉', 'Spirituality', 'Spirituality & Consciousness'],
+];
+
+function GenreTiles() {
+  const [all, setAll] = useState(false);
+  return (
+    <section>
+      <h3 class="section-label">
+        Browse by genre
+        <button class="link-btn label-more" onClick={() => setAll(!all)}>
+          {all ? 'Less' : 'All ›'}
+        </button>
+      </h3>
+      {all ? (
+        <div class="genre-grid">
+          <GenreChips />
+        </div>
+      ) : (
+        <div class="genre-tiles">
+          {FAV_GENRES.map(([icon, label, name]) => {
+            const g = GENRES.find((x) => x.name === name);
+            return (
+              g && (
+                <button class="genre-tile" style={{ '--h': g.hue }} onClick={() => nav.push('browse', { genre: g })}>
+                  <i>{icon}</i>
+                  <b>{label}</b>
+                </button>
+              )
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+async function trending() {
+  const now = Date.now();
+  const all = notOwned(await topicPool());
+  const fresh = all.filter((b) => b.released && b.released >= now - 548 * 864e5);
+  return (fresh.length >= 8 ? fresh : all).slice(0, 30).map(({ rank, ...b }) => b);
 }
 
 const FILTERS = [
@@ -124,7 +232,6 @@ export function Discover() {
 
       {term.length < 2 ? (
         <>
-          <AskBookseller />
           {history.length > 0 && (
             <section class="recent">
               <h3>Recent</h3>
@@ -140,20 +247,11 @@ export function Discover() {
               </div>
             </section>
           )}
-          <h3 class="section-label">Browse genres</h3>
-          <div class="genre-grid">
-            <GenreChips />
-          </div>
-          <h3 class="section-label">Sources</h3>
-          <div class="source-cards">
-            {sourceOrder().map((k) => [k, SOURCES[k]]).map(([k, s]) => (
-              <button class="source-card" style={{ '--h': s.hue }} onClick={() => openSource(k)}>
-                <b>{s.name}</b>
-                <span>{s.blurb}</span>
-                <em>{s.kind}</em>
-              </button>
-            ))}
-          </div>
+          <PickOfWeek />
+          <MoodTiles />
+          <GenreTiles />
+          <Row title="Trending this week" subtitle="Best sellers in your topics" cacheKey="discTrend" load={trending} deps={[]} onMore={() => nav.push('shelf', { title: 'Trending this week', subtitle: 'Best sellers in your topics', load: trending })} />
+          <AskBookseller compact />
         </>
       ) : (
         <Results results={results} filter={filter} setFilter={setFilter} term={term} pending={pending} />
