@@ -177,6 +177,8 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
 
 // Last contents of slow rows (your cloud, your server), shown at once on the next open.
 const rowCache = persisted('rowCache', {});
+/** The last list a cached row showed (e.g. Home's recommendations), or []. */
+export const cachedRow = (key) => rowCache.get()[key] || [];
 const ROW_KEEP = ['uid', 'source', 'kind', 'title', 'author', 'narrator', 'cover', 'year', 'duration', 'addedAt', 'hash', 'format', 'fetching', 'genres'];
 const slim = (b) => Object.fromEntries(ROW_KEEP.filter((k) => b?.[k] !== undefined).map((k) => [k, b[k]]));
 

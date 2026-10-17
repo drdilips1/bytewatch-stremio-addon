@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { memo } from 'preact/compat';
-import { Grid, Empty, Skeleton, AskButton, Row, Cover } from '../components/common.jsx';
+import { Grid, Empty, Skeleton, AskButton, Row, Cover, cachedRow } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { searchAll, SOURCES, sourceRank } from '../sources/index.js';
 import { audible } from '../sources/catalogs.js';
@@ -31,22 +31,31 @@ const pickCache = persisted('pickOfWeek', { week: 0, book: null });
 /** One book worth your week: the top of your recommendations, held for seven days. */
 function PickOfWeek() {
   const cached = useStore(pickCache);
-  const [book, setBook] = useState(cached.week === weekNo() ? cached.book : null);
+  const [book, setBook] = useState(cached.week === weekNo() && cached.book ? cached.book : null);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (book) return;
     let alive = true;
-    recommendedForYou()
-      .then((r) => {
-        const b = r[weekNo() % Math.min(r.length, 5)];
-        if (!alive || !b) return;
-        const slim = { uid: b.uid, source: b.source, title: b.title, author: b.author, cover: b.cover, duration: b.duration, rating: b.rating, match: b.match, why: b.why, kind: b.kind, genres: b.genres };
-        pickCache.set({ week: weekNo(), book: slim });
-        setBook(slim);
-      })
-      .catch(() => {});
+    const choose = (list) => {
+      const r = (list || []).filter((b) => b?.title && b.cover);
+      if (!r.length) return false;
+      const b = r[weekNo() % Math.min(r.length, 5)];
+      const slim = { uid: b.uid, source: b.source, title: b.title, author: b.author, cover: b.cover, duration: b.duration, rating: b.rating, match: b.match, why: b.why, kind: b.kind, genres: b.genres };
+      pickCache.set({ week: weekNo(), book: slim });
+      if (alive) setBook(slim);
+      return true;
+    };
+    // Home's recommendations are usually loaded already; otherwise ask, then fall back to best sellers.
+    (async () => {
+      if (choose(cachedRow('homeRec'))) return;
+      if (choose(await recommendedForYou().catch(() => []))) return;
+      if (choose(await trending().catch(() => []))) return;
+      if (alive) setFailed(true);
+    })();
     return () => (alive = false);
   }, []);
-  if (!book) return <div class="pick-hero pick-skel" />;
+  if (failed) return null;
+  if (!book) return <div class="pick-hero pick-skel shimmer" />;
   const open = () => nav.push('book', { book });
   return (
     <button class="pick-hero" onClick={open}>
