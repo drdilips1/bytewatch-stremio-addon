@@ -64,9 +64,22 @@ export function looksLikeMusic(name, files = []) {
 }
 export const showMusic = () => !!debrid.get().showMusic;
 
-function splitAuthor(title) {
+// Looks like a person's name: 2–4 capitalised words, no digits or title words.
+const TITLE_WORDS = /\b(the|of|and|a|an|in|on|to|for|how|why|what|my|your|our|with|from|book|vol|volume|part|series|habits|money|life|world|history|power|art)\b/i;
+const nameLike = (s) => {
+  const w = String(s).trim().split(/\s+/);
+  return w.length >= 2 && w.length <= 4 && w.every((x) => /^[A-Z][\p{L}'.-]*$/u.test(x) || /^[A-Z]\.$/.test(x)) && !TITLE_WORDS.test(s);
+};
+
+// "Author - Title", or "Title - Author" when only the second half reads like a name.
+export function splitAuthor(title) {
   const m = /^(.+?)\s[-–]\s(.+)$/.exec(title);
-  return m && m[1].length < 40 ? { author: m[1], title: m[2] } : { author: '', title };
+  if (!m) return { author: '', title };
+  const [, left, right] = m;
+  const words = (x) => x.trim().split(/\s+/).length;
+  // Only the second half reads like a name, or both do and it's the shorter one.
+  if (nameLike(right) && (!nameLike(left) || words(right) < words(left))) return { author: right, title: left };
+  return left.length < 40 ? { author: left, title: right } : { author: '', title };
 }
 
 function toBook(prefix, source, id, name, files, extra = {}) {
@@ -187,6 +200,7 @@ async function tbDetails(book) {
     tracks: files.map((f, i) => ({
       title: f.name.replace(AUDIO, ''),
       index: i,
+      size: Number(f.size || f.bytes) || 0, // estimates the part's length before it plays
       // Download links expire, so they're requested right before playback.
       resolve: async () => {
         // Still downloading on TorBox: the link would be a partial file, so report progress instead.
@@ -299,6 +313,7 @@ async function rdDetails(book) {
     tracks: files.map((f, i) => ({
       title: f.name.replace(AUDIO, ''),
       index: i,
+      size: Number(f.size || f.bytes) || 0, // estimates the part's length before it plays
       resolve: async () => {
         const r = await sendForm(`${RD}/unrestrict/link`, 'POST', { link: f.link }, rdHeaders());
         if (!r?.download) throw new Error('Real-Debrid did not return a link');

@@ -116,7 +116,7 @@ export function MiniPlayer() {
   );
 }
 
-const SPEEDS = [0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+const SPEEDS = [0.75, 0.9, 1, 1.1, 1.2, 1.25, 1.3, 1.4, 1.5, 1.6, 1.7, 1.75, 1.8, 1.9, 2, 2.25, 2.5, 3];
 const SLEEP = [5, 10, 15, 30, 45, 60, 90];
 
 export function FullPlayer() {
@@ -234,7 +234,11 @@ export function FullPlayer() {
         />
         <div class="fp-times">
           <span>{fmtTime(t)}</span>
-          {total > dur + 1 && <span class="fp-total">{Math.round((g / total) * 100)}% of book · {fmtTime(total - g)} left</span>}
+          {total > dur + 1 && (
+            <span class="fp-total">
+              {Math.min(99, Math.round((g / total) * 100))}% of book · {s.rate && s.rate !== 1 ? `${fmtTime((total - g) / s.rate)} left at ${s.rate}×` : `${fmtTime(total - g)} left`}
+            </span>
+          )}
           <span>-{fmtTime(Math.max(0, dur - t))}</span>
         </div>
       </div>
@@ -407,7 +411,7 @@ export function FullPlayer() {
                         >
                           <span class="ch-num">{i + 1}</span>
                           <span class="ch-title">{c.title}</span>
-                          <span class="ch-time">{c.end ? fmtTime(c.end - c.start) : ''}</span>
+                          <span class="ch-time">{c.end > c.start ? (c.estimated ? '≈ ' : '') + fmtTime(c.end - c.start) : ''}</span>
                         </button>
                       </li>
                     );

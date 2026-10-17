@@ -5,6 +5,7 @@ import { createEngine } from './engine.js';
 import { progress, bookmarks, settings, summarize } from './store.js';
 import { syncProgress, switchTracks } from '../sources/audiobookshelf.js';
 import { fetchStatus } from '../sources/debrid.js';
+import { applyLocal, isDownloaded } from './downloads.js';
 
 const state = {
   book: null,
@@ -81,6 +82,15 @@ const engine = createEngine({
     if (on) set({ playing: false, loading: false, phase: '', interrupted: true });
     else set({ interrupted: false });
   },
+  // The phone's player moved on to a queued part by itself.
+  advanced(item) {
+    const i = queueBase + item;
+    if (!state.tracks[i] || i === state.index) return;
+    loadingAt = null;
+    set({ index: i, time: 0, duration: state.tracks[i].duration || 0 });
+    saveProgress(true);
+    queueAhead(loadToken);
+  },
   ended() {
     if (state.sleepEndOfTrack) {
       set({ sleepEndOfTrack: false, playing: false });
@@ -136,28 +146,46 @@ function trySwitch() {
 }
 
 // --- time helpers (global position across tracks) ---------------------------
+// A part's length is only known once it has played. Until then it's estimated:
+// from its file size at the rate of the parts already played, else as their
+// average — so "% of book" and "time left" cover the whole book, not one file.
+function estDuration(i) {
+  const t = state.tracks[i];
+  if (!t) return 0;
+  if (t.duration > 0) return t.duration;
+  const known = state.tracks.filter((x) => x.duration > 0);
+  if (!known.length) return 0;
+  const sized = known.filter((x) => x.size > 0);
+  if (t.size > 0 && sized.length) return (t.size * sized.reduce((a, x) => a + x.duration, 0)) / sized.reduce((a, x) => a + x.size, 0);
+  return known.reduce((a, x) => a + x.duration, 0) / known.length;
+}
 function trackOffset(i) {
   const t = state.tracks[i];
   if (t && typeof t.offset === 'number') return t.offset;
   let o = 0;
-  for (let k = 0; k < i; k++) o += state.tracks[k]?.duration || 0;
+  for (let k = 0; k < i; k++) o += estDuration(k);
   return o;
 }
 export function totalDuration() {
-  return state.tracks.reduce((a, t) => a + (t.duration || 0), 0) || state.duration;
+  return state.tracks.reduce((a, _, i) => a + estDuration(i), 0) || state.duration;
 }
 export function globalTime() {
   return trackOffset(state.index) + state.time;
 }
 export function chapters() {
   if (state.book?.chaptersMeta?.length) return state.book.chaptersMeta;
-  return state.tracks.map((t, i) => ({ title: t.title, start: trackOffset(i), end: trackOffset(i) + (t.duration || 0), track: i }));
+  return state.tracks.map((t, i) => ({ title: t.title, start: trackOffset(i), end: trackOffset(i) + estDuration(i), track: i, estimated: !(t.duration > 0) }));
 }
 
 // --- loading ----------------------------------------------------------------
 let loadToken = 0;
 async function loadTrack(i, startAt = 0, autoplay = true) {
   const token = ++loadToken;
+  // Downloaded (maybe after this book was opened): play the files on the phone.
+  if (state.book && !state.book.offline && isDownloaded(state.book.uid)) {
+    const local = applyLocal(state.book);
+    if (local.tracks?.length === state.tracks.length) set({ book: local, tracks: local.tracks });
+  }
   const t = state.tracks[i];
   if (!t) return;
   if (state.preparing) stopWaiting();
@@ -181,6 +209,8 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
       meta: { title: t.title || b.title, artist: b.author || '', album: b.title, artwork: b.cover || '' },
     });
     if (!autoplay) set({ loading: false, phase: '' });
+    queueBase = i;
+    queueAhead(token);
   } catch (e) {
     if (token !== loadToken || e?.name === 'AbortError') return;
     if (e.pending) return waitForCloud(i, startAt, e.pending);
@@ -188,6 +218,28 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
     if (token !== loadToken) return;
     set({ loading: false, playing: false, phase: '', error: e.message || 'Playback failed' });
   }
+}
+
+// --- the next parts, queued in the phone's player -----------------------------
+// Android plays them one after another by itself, even with the screen off and
+// the app asleep (the app's own code may not run then to start the next part).
+let queueBase = 0; // the track the phone's player list starts with
+const AHEAD = 3;
+async function queueAhead(token) {
+  if (!engine.queue || state.sleepEndOfTrack) return;
+  const b = state.book;
+  const items = [];
+  for (let k = state.index + 1; k < Math.min(state.tracks.length, state.index + 1 + AHEAD); k++) {
+    const t = state.tracks[k];
+    try {
+      if (!t.url && t.resolve) t.url = await t.resolve();
+    } catch {
+      break; // e.g. still downloading on TorBox: the app starts it itself later
+    }
+    if (token !== loadToken || !t.url) break;
+    items.push({ url: t.url, title: t.title || b.title, artist: b.author || '', album: b.title, artwork: b.cover || '' });
+  }
+  if (token === loadToken) engine.queue(items).catch?.(() => {});
 }
 
 // --- still downloading on TorBox / Real-Debrid --------------------------------
@@ -264,6 +316,7 @@ export async function openAndPlay(book, getDetails, opts) {
 
 export async function playBook(details, { index, time, globalStart } = {}) {
   stopWaiting();
+  if (details && !details.offline && isDownloaded(details.uid)) details = applyLocal(details);
   set({ loading: true, error: null, book: details, phase: 'Opening the book…' });
   try {
     let tracks = details.tracks;
@@ -359,6 +412,9 @@ export function setRate(r) {
   settings.patch({ speed: r });
 }
 export function setSleep(mode) {
+  const wasTrack = state.sleepEndOfTrack;
+  if (mode === 'track') engine.queue?.([]);
+  else if (wasTrack && state.book) setTimeout(() => queueAhead(loadToken));
   if (mode === 'track') set({ sleepUntil: null, sleepEndOfTrack: true });
   else if (!mode) set({ sleepUntil: null, sleepEndOfTrack: false });
   else set({ sleepUntil: Date.now() + mode * 60e3, sleepEndOfTrack: false });

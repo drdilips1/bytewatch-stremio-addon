@@ -126,6 +126,17 @@ public class InkwellPlayerPlugin extends Plugin {
             }
 
             @Override
+            public void onMediaItemTransition(MediaItem mediaItem, int reason) {
+                // Moved on to a queued part by itself: tell the app which one.
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                    JSObject o = new JSObject();
+                    o.put("item", player.getCurrentMediaItemIndex());
+                    notifyListeners("advanced", o);
+                    emitProgress();
+                }
+            }
+
+            @Override
             public void onPlaybackSuppressionReasonChanged(int reason) {
                 emitState();
             }
@@ -257,6 +268,7 @@ public class InkwellPlayerPlugin extends Plugin {
         o.put("playWhenReady", player.getPlayWhenReady());
         o.put("buffering", player.getPlaybackState() == Player.STATE_BUFFERING);
         o.put("ended", player.getPlaybackState() == Player.STATE_ENDED);
+        o.put("item", player.getCurrentMediaItemIndex());
         o.put("idle", player.getPlaybackState() == Player.STATE_IDLE);
         o.put("suppressed", player.getPlaybackSuppressionReason() != Player.PLAYBACK_SUPPRESSION_REASON_NONE);
         return o;
@@ -319,6 +331,35 @@ public class InkwellPlayerPlugin extends Plugin {
             player.setVolume(1f);
             player.prepare();
             player.setPlayWhenReady(c.getBoolean("autoplay", true));
+            c.resolve();
+        });
+    }
+
+    /** Replace what plays after the current part: [{ url, title, artist, album, artwork }]. */
+    @PluginMethod
+    public void queue(PluginCall call) {
+        onMain(call, c -> {
+            int cur = player.getCurrentMediaItemIndex();
+            int count = player.getMediaItemCount();
+            if (count > cur + 1) player.removeMediaItems(cur + 1, count);
+            com.getcapacitor.JSArray items = c.getArray("items");
+            java.util.List<MediaItem> list = new java.util.ArrayList<>();
+            if (items != null) {
+                for (int i = 0; i < items.length(); i++) {
+                    org.json.JSONObject it = items.optJSONObject(i);
+                    if (it == null) continue;
+                    String url = it.optString("url", "");
+                    if (url.isEmpty()) continue;
+                    MediaMetadata.Builder meta = new MediaMetadata.Builder()
+                        .setTitle(it.optString("title", ""))
+                        .setArtist(it.optString("artist", ""))
+                        .setAlbumTitle(it.optString("album", ""));
+                    String art = it.optString("artwork", "");
+                    if (!art.isEmpty()) meta.setArtworkUri(Uri.parse(art));
+                    list.add(new MediaItem.Builder().setUri(url).setMediaMetadata(meta.build()).build());
+                }
+            }
+            if (!list.isEmpty()) player.addMediaItems(list);
             c.resolve();
         });
     }
