@@ -1,6 +1,7 @@
 // Global audiobook player: multi-track books, chapters, speed, sleep timer,
 // bookmarks, progress persistence and system media controls. Audio output is
 // delegated to an engine (native Media3 on Android, <audio> on the web).
+import * as stats from './stats.js';
 import { createEngine } from './engine.js';
 import { progress, bookmarks, settings, summarize } from './store.js';
 import { syncProgress, switchTracks } from '../sources/audiobookshelf.js';
@@ -55,6 +56,7 @@ const handlers = {
     if (t && dur > 0) t.duration = dur;
     set({ time: pos, duration: dur || state.duration });
     saveProgress();
+    stats.tick(state.playing, state.rate, state.book, globalTime());
     // The show's outro: treat it as the end of the episode.
     const o = showPrefsFor(state.book)?.outro || 0;
     if (o > 0 && dur > o * 2 && pos >= dur - o && !outroAt) {
@@ -68,7 +70,7 @@ const handlers = {
     if (on) loadingAt = null;
     set({ playing: on, ...(on ? { loading: false, error: null, phase: '', interrupted: false } : {}) });
     if (on) clearTimeout(resumeTimer), clearTimeout(stallTimer), (stallTimer = null);
-    if (!on) saveProgress(true);
+    if (!on) saveProgress(true), stats.tick(false);
   },
   waiting() {
     if (!state.loading) set({ loading: true, phase: 'Buffering…' });

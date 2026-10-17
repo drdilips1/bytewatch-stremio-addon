@@ -1,5 +1,6 @@
 import * as qbit from './sources/qbit.js';
 import { Ask } from './screens/Ask.jsx';
+import { Stats } from './screens/Stats.jsx';
 import { DriveMode, openDrive } from './components/drive-mode.jsx';
 import { useEffect, useState } from 'preact/hooks';
 import { App as CapApp } from '@capacitor/app';
@@ -56,7 +57,7 @@ if (Capacitor.isNativePlatform()) {
     .catch(() => {});
 }
 
-const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast, ask: Ask };
+const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast, ask: Ask, stats: Stats };
 
 export function App() {
   const [route, setRoute] = useState(nav.state());

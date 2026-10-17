@@ -111,7 +111,7 @@ export function Library() {
           <AskButton />
         </div>
       </div>
-      <div class="stats">
+      <button class="stats" onClick={() => nav.push('stats')} aria-label="Listening stats">
         <div>
           <b>{stats.books}</b>
           <span>started</span>
@@ -124,7 +124,10 @@ export function Library() {
           <b>{stats.done}</b>
           <span>finished</span>
         </div>
-      </div>
+        <em class="stats-more">
+          Listening stats <Icon name="chevron" size={14} />
+        </em>
+      </button>
       <div class="segmented scroll">
         {TABS.map(([k, label]) => (
           <button class={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
