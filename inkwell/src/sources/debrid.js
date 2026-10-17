@@ -64,6 +64,11 @@ export function looksLikeMusic(name, files = []) {
 }
 export const showMusic = () => !!debrid.get().showMusic;
 
+// Films and TV in the same cloud (Real-Debrid only gives the item's name):
+// "Show.S01E02.1080p.WEB-DL.x265", "Movie (2023) 2160p BluRay", season packs…
+const VIDEO = /\b(s\d{1,2}(e\d{1,3})?|season[\s._-]?\d+|\d{3,4}p|4k|uhd|hdr|x26[45]|h\.?26[45]|hevc|av1|web[\s._-]?(dl|rip)|blu[\s._-]?ray|bdrip|brrip|hdtv|dvdrip|remux|imax|nf|amzn|dsnp|hmax|atvp|ddp?\d|dts|aac2|10bit)\b|\.(mkv|avi|mp4|m4v|mov|wmv|iso|ts)$/i;
+export const looksLikeVideo = (name) => VIDEO.test(String(name || '').replace(/[._]/g, ' ')) && !/\b(audio ?books?|unabridged|m4b|mp3)\b/i.test(String(name || ''));
+
 // Looks like a person's name: 2–4 capitalised words, no digits or title words.
 const TITLE_WORDS = /\b(the|of|and|a|an|in|on|to|for|how|why|what|my|your|our|with|from|book|vol|volume|part|series|habits|money|life|world|history|power|art)\b/i;
 const nameLike = (s) => {
@@ -244,6 +249,7 @@ async function realdebridLibraryRaw() {
   return (items || [])
     .filter((t) => t.status === 'downloaded')
     .filter((t) => AUDIO.test(t.filename) || !/\.(mkv|avi|mp4|iso|exe|apk)$/i.test(t.filename))
+    .filter((t) => !looksLikeVideo(t.filename))
     .filter((t) => showMusic() || !looksLikeMusic(t.filename))
     .map((t) => ({ ...toBook('rd', 'rd', t.id, t.filename, t.links || [], t.hash ? { hash: String(t.hash).toLowerCase() } : {}), addedAt: Date.parse(t.added) || 0 }));
 }
