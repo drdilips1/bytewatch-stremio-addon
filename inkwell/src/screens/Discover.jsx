@@ -10,7 +10,7 @@ import { GENRES } from './genres.js';
 import { rankForYou, fitsHours } from '../lib/taste.js';
 import { fmtDuration } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
-import { AskBookseller } from '../components/bookseller.jsx';
+import { BooksellerAnswer, askNow, looksLikeRequest, EXAMPLES } from '../components/bookseller.jsx';
 import { SourceResults } from '../components/source-results.jsx';
 import { sourceAddons } from '../sources/sourceaddons.js';
 import { RelatedRows } from '../components/related.jsx';
@@ -182,6 +182,7 @@ export function Discover() {
   const [pending, setPending] = useState(0);
   const [filter, setFilter] = useState('all');
   const history = useStore(recent);
+  const [hint] = useState(() => EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)]);
   const inputRef = useRef();
 
   useEffect(() => {
@@ -201,7 +202,8 @@ export function Discover() {
     return () => (alive = false);
   }, [term]);
 
-  const commit = () => {
+  const commit = (enter) => {
+    if (enter && looksLikeRequest(q)) askNow(q);
     if (term.length < 2) return;
     recent.set((h) => [term, ...h.filter((x) => x.toLowerCase() !== term.toLowerCase())].slice(0, 8));
   };
@@ -217,10 +219,10 @@ export function Discover() {
         <input
           ref={inputRef}
           value={q}
-          placeholder="Titles, authors, subjects…"
+          placeholder="Search, or describe what you want…"
           onInput={(e) => setQ(e.currentTarget.value)}
-          onKeyDown={(e) => e.key === 'Enter' && (commit(), e.currentTarget.blur())}
-          onBlur={commit}
+          onKeyDown={(e) => e.key === 'Enter' && (commit(true), e.currentTarget.blur())}
+          onBlur={() => commit()}
           enterkeyhint="search"
         />
         {q && (
@@ -232,6 +234,9 @@ export function Discover() {
 
       {term.length < 2 ? (
         <>
+          <button class="search-hint" onClick={() => (setQ(hint), askNow(hint))}>
+            <Icon name="sparkle" size={14} /> Try “{hint}”
+          </button>
           {history.length > 0 && (
             <section class="recent">
               <h3>Recent</h3>
@@ -251,7 +256,6 @@ export function Discover() {
           <MoodTiles />
           <GenreTiles />
           <Row title="Trending this week" subtitle="Best sellers in your topics" cacheKey="discTrend" load={trending} deps={[]} onMore={() => nav.push('shelf', { title: 'Trending this week', subtitle: 'Best sellers in your topics', load: trending })} />
-          <AskBookseller compact />
         </>
       ) : (
         <Results results={results} filter={filter} setFilter={setFilter} term={term} pending={pending} />
@@ -272,6 +276,7 @@ const Results = memo(function Results({ results, filter, setFilter, term, pendin
   const seed = results.au?.items?.[0] || groups.flatMap(([, i]) => i).find((b) => b.kind !== 'text') || null;
   return (
     <>
+      {term.split(/\s+/).length >= 3 && <BooksellerAnswer q={term} />}
       <div class="segmented">
         {FILTERS.map(([k, label]) => (
           <button class={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>

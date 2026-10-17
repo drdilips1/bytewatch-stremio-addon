@@ -7091,3 +7091,19 @@ button.rt {
   color: var(--text);
   margin-right: 4px;
 }
+.search-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 24px 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+}
+.search-hint .icon {
+  color: var(--accent);
+  flex: none;
+}
+.discover .bookseller-bar {
+  margin-top: 14px;
+}
