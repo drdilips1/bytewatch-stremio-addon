@@ -368,40 +368,53 @@ function ContinueRow() {
     [prog]
   );
   if (!items.length) return null;
+  const open = (p) => {
+    if (p.kind === 'text') return nav.push('reader', { book: p.book });
+    nav.openOverlay('player');
+    player.openAndPlay(p.book, getDetails);
+  };
+  const left = (p) => (p.kind === 'text' ? 'Reading' : p.total ? `${fmtDuration(p.total - p.global)} left` : 'Listening');
+  const [[, top], ...rest] = items;
   return (
-    <section class="row">
-      <header class="row-head">
-        <div>
-          <h2>
-            <Icon name="headphones" size={18} /> Continue
-          </h2>
-          <p>Pick up where you left off</p>
+    <section class="continue-section">
+      {/* The book you were last on, big; the others in a row below. */}
+      <button class="continue-big" onClick={() => open(top)}>
+        {top.book.cover && <div class="continue-big-bg" style={{ backgroundImage: `url("${top.book.cover}")` }} />}
+        <Cover book={top.book} eager />
+        <div class="continue-big-text">
+          <em>{top.kind === 'text' ? 'Continue reading' : 'Continue listening'}</em>
+          <b>{top.book.title}</b>
+          {top.book.author && <small>{top.book.author}</small>}
+          <div class="progress-bar">
+            <div style={{ width: Math.round((top.percent || 0) * 100) + '%' }} />
+          </div>
+          <small>
+            {Math.round((top.percent || 0) * 100)}% · {left(top)}
+          </small>
         </div>
-      </header>
-      <div class="row-scroll continue">
-        {items.map(([uid, p]) => (
-          <button
-            class="continue-card"
-            onClick={async () => {
-              if (p.kind === 'text') return nav.push('reader', { book: p.book });
-              nav.openOverlay('player');
-              player.openAndPlay(p.book, getDetails);
-            }}
-          >
-            <Cover book={p.book} />
-            <div class="continue-meta">
-              <b>{p.book.title}</b>
-              <span>{p.kind === 'text' ? 'Reading' : p.total ? `${fmtDuration(p.total - p.global)} left` : 'Listening'}</span>
-              <div class="progress-bar">
-                <div style={{ width: Math.round((p.percent || 0) * 100) + '%' }} />
+        <span class="continue-big-play">
+          <Icon name={top.kind === 'text' ? 'book' : 'play'} size={24} />
+        </span>
+      </button>
+      {rest.length > 0 && (
+        <div class="row-scroll continue">
+          {rest.map(([uid, p]) => (
+            <button class="continue-card" onClick={() => open(p)}>
+              <Cover book={p.book} />
+              <div class="continue-meta">
+                <b>{p.book.title}</b>
+                <span>{left(p)}</span>
+                <div class="progress-bar">
+                  <div style={{ width: Math.round((p.percent || 0) * 100) + '%' }} />
+                </div>
               </div>
-            </div>
-            <span class="continue-play">
-              <Icon name={p.kind === 'text' ? 'book' : 'play'} size={16} />
-            </span>
-          </button>
-        ))}
-      </div>
+              <span class="continue-play">
+                <Icon name={p.kind === 'text' ? 'book' : 'play'} size={16} />
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -560,8 +573,8 @@ export function Home() {
 
       <Hero />
 
-      <WaitingRow />
       <ContinueRow />
+      <WaitingRow />
       <Row title="Recommended for you" subtitle="Non-fiction from your listening and ratings" icon="sparkle" cacheKey="homeRec" shuffle load={recommendedForYou} deps={[]} />
       <Row title="New releases" subtitle={`New in ${topicNames()}`} icon="flame" cacheKey="homeNew" shuffle load={newReleases} deps={[]} />
       <Row title="Top titles this month" subtitle={`Best sellers in ${topicNames()}`} icon="star" cacheKey="homeTop" shuffle load={topThisMonth} deps={[]} />
