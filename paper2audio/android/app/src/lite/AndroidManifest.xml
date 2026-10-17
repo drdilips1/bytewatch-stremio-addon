@@ -2,7 +2,7 @@
 <!-- The Play Store edition: a library and a player; on-device voices; ads. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Copy a voice: recording someone reading (stays on the phone). -->
+    <!-- "Say it" when fixing how a word is said: the phone's speech recognizer. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application>
@@ -46,11 +46,6 @@
             android:exported="false"
             android:launchMode="singleTop"
             android:parentActivityName=".LiteMainActivity" />
-
-        <activity
-            android:name=".LiteCopyVoiceActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:exported="false" />
 
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"

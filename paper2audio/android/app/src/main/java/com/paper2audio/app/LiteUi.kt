@@ -161,15 +161,15 @@ object LiteUi {
             }
             pack(LocalTts.KOKORO_PACK, kokoro)
 
-            // Voices the user copied from a recording (the voice-copying engine is a separate download).
-            sheet.section("Copied voices · from a recording")
+            // Ready-made natural voices (people who agreed to lend their voice), on the Pocket engine.
+            // Narrato has no Copy a voice: only these come with the app.
+            sheet.section("Natural voices · English")
             val own = MyVoices.own()
-            if (LocalTts.POCKET_PACK.isInstalled() || LocalTts.POCKET_PACK.installing) {
-                pack(LocalTts.POCKET_PACK, own.map { Triple(Speaker.CLONE + it.id, it.name, "Copied voice") })
-            }
-            sheet.row(R.drawable.ic_mic, "Copy a voice", "From an audio clip or the microphone: its sound and rhythm") {
-                activity.startActivity(android.content.Intent(activity, LiteCopyVoiceActivity::class.java))
-            }
+            pack(
+                LocalTts.POCKET_PACK,
+                MyVoices.BUILT_IN.map { Triple(Speaker.CLONE + it.id, it.name, it.description.replaceFirstChar { c -> c.uppercase() }) } +
+                    own.map { Triple(Speaker.CLONE + it.id, it.name, "Copied voice") },
+            )
             if (own.isNotEmpty()) sheet.row(R.drawable.ic_delete, "Remove a copied voice", null, dismiss = false) {
                 AlertDialog.Builder(activity)
                     .setTitle("Remove a copied voice")

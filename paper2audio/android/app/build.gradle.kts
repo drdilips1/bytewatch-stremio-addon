@@ -77,6 +77,10 @@ android {
     lint {
         checkReleaseBuilds = false
     }
+    // Ready-made voices shared from Paper to Audio are WAV files read straight from the APK.
+    androidResources {
+        noCompress += "wav"
+    }
     packaging {
         resources {
             // BouncyCastle (pulled in by pdfbox-android) and Apache Commons ship duplicate metadata.

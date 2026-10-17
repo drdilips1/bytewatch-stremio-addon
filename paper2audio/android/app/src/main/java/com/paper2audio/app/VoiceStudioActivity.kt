@@ -765,11 +765,34 @@ class VoiceStudioActivity : Activity() {
         }
     }
 
+    /**
+     * Sends the copied voice's cleaned sample as a WAV file, e.g. to be bundled with Narrato as a
+     * ready-made voice. The name carries what the voice needs besides the sound: its pause between
+     * sentences (p, ms) and whether it went through the noise remover (d).
+     */
+    private fun shareVoice(v: MyVoices.Voice) {
+        val src = MyVoices.referenceFile(v.id)
+        if (!src.exists()) return toast("That voice's recording is missing")
+        val safe = v.name.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').ifEmpty { "voice" }
+        val dir = java.io.File(cacheDir, "share").apply { mkdirs() }
+        val out = java.io.File(dir, "${safe}__p${v.pause}__d${if (v.denoised) 1 else 0}.wav")
+        src.copyTo(out, overwrite = true)
+        val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.files", out)
+        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+            type = "audio/wav"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "Voice: ${v.name}")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }, "Share the voice file"))
+    }
+
     private fun voiceMenu(v: MyVoices.Voice) {
         AlertDialog.Builder(this)
             .setTitle(v.name)
-            .setItems(arrayOf("Rename", "Delete")) { _, which ->
-                if (which == 0) {
+            .setItems(arrayOf("Rename", "Delete", "Share the voice file")) { _, which ->
+                if (which == 2) {
+                    shareVoice(v)
+                } else if (which == 0) {
                     val input = EditText(this).apply { setText(v.name); isSingleLine = true }
                     AlertDialog.Builder(this)
                         .setTitle("Rename")

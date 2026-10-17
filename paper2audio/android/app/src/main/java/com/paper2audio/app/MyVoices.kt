@@ -138,13 +138,13 @@ object MyVoices {
     private var pauses: Map<String, Int>? = null
 
     /** Whether copied voice [id]'s recording was put through the noise remover. */
-    fun denoised(id: String): Boolean = (cleanedMap ?: own().associate { it.id to it.denoised }.also { cleanedMap = it })[id] ?: true
+    fun denoised(id: String): Boolean = (cleanedMap ?: list().associate { it.id to it.denoised }.also { cleanedMap = it })[id] ?: true
 
     @Volatile
     private var cleanedMap: Map<String, Boolean>? = null
 
     /** The measured pause between sentences of cloned voice [id] (ms), or 0. */
-    fun pauseOf(id: String): Int = (pauses ?: own().associate { it.id to it.pause }.also { pauses = it })[id] ?: 0
+    fun pauseOf(id: String): Int = (pauses ?: list().associate { it.id to it.pause }.also { pauses = it })[id] ?: 0
 
     private fun save(voices: List<Voice>) {
         pauses = null
@@ -403,7 +403,9 @@ object MyVoices {
 
     /** Decodes a ready-made voice's seed clip once and keeps it as a 24 kHz WAV. */
     private fun unpackBuiltIn(id: String, target: File) {
-        val ref = app.assets.openFd("voices/$id.mp3").use { afd ->
+        // A seed clip (mp3), or a voice copied in Paper to Audio and shared from there (wav, already cleaned).
+        val asset = listOf("voices/$id.mp3", "voices/$id.wav").first { name -> runCatching { app.assets.openFd(name).close() }.isSuccess }
+        val ref = app.assets.openFd(asset).use { afd ->
             decode(maxSeconds = MAX_SECONDS) { it.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length) }
         }
         val x = resample(ref.samples, ref.sampleRate, RATE)

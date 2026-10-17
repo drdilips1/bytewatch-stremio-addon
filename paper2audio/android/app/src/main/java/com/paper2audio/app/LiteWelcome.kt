@@ -66,9 +66,9 @@ object LiteWelcome {
                 "Reading carries on with the screen off, with controls on the lock screen.",
         ),
         Page(
-            "🎙", "Copy a voice",
-            "Narrato can also read in a voice copied from a recording, such as your own or a family member's (with their permission).\n\n" +
-                "In the player: Voice › Copy a voice.",
+            "🎙", "Natural voices",
+            "Narrato also has natural, human-sounding voices that run on your phone: ready-made voices of real " +
+                "readers, offline and unlimited.\n\nIn the player: Voice › Natural voices.",
         ),
     )
 
