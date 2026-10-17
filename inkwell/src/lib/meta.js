@@ -191,7 +191,7 @@ export function lookup(book, { fresh = false } = {}) {
 }
 
 // Sources whose items benefit from lookups.
-const ENRICH = new Set(['tb', 'rd', 'addon', 'gr']);
+const ENRICH = new Set(['loc', 'tb', 'rd', 'addon', 'gr']);
 export const wantsMeta = (book) => !!book && ENRICH.has(book.source) && (!book.cover || book.source === 'tb' || book.source === 'rd');
 
 /** Hook: enriched fields for cards (cover / tidy title / author). */

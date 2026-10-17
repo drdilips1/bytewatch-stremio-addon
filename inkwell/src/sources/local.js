@@ -3,7 +3,7 @@
 // "CD1 / Disc 2" style subfolders count as part of their book, and loose audio
 // files at the top become one book each.
 import { Capacitor, registerPlugin } from '@capacitor/core';
-import { persisted } from '../lib/store.js';
+import { persisted, useStore } from '../lib/store.js';
 import { cleanTitle, splitAuthor } from './debrid.js';
 
 const Native = registerPlugin('InkwellLocal');
@@ -36,20 +36,48 @@ export function removeFolder(uri) {
 export async function rescan() {
   const books = [];
   const errors = [];
+  const before = new Map(localCfg.get().books.map((b) => [b.uid, b]));
   for (const folder of localCfg.get().folders) {
     try {
-      const { files = [] } = await Native.scan({ uri: folder.uri });
-      books.push(...group(folder, files));
+      const { files = [], covers = [] } = await Native.scan({ uri: folder.uri });
+      // Keep covers already made for books that are still there.
+      books.push(...group(folder, files, covers).map((b) => ({ ...b, cover: before.get(b.uid)?.cover || '' })));
     } catch (e) {
       errors.push(`${folder.name}: ${e.message}`);
     }
   }
   localCfg.set((c) => ({ ...c, books, scannedAt: Date.now() }));
   if (errors.length && !books.length) throw new Error(errors.join(' · '));
+  makeCovers();
   return books;
 }
 
-function group(folder, files) {
+// Covers: the folder's cover image, else the art inside the first audio file —
+// made one book at a time in the background (books without either get a cover
+// from the online lookup, like other books).
+let coversRunning = false;
+async function makeCovers() {
+  if (coversRunning) return;
+  coversRunning = true;
+  try {
+    for (const b of localCfg.get().books) {
+      if (b.cover || b.noCover) continue;
+      let path = '';
+      try {
+        ({ path } = await Native.cover({ key: b.uid.replace(':', '_'), image: b.coverImage || '', audio: b.files?.[0]?.uri || '' }));
+      } catch {}
+      const cover = path ? Capacitor.convertFileSrc(path) : '';
+      localCfg.set((c) => ({ ...c, books: c.books.map((x) => (x.uid === b.uid ? { ...x, cover, noCover: !cover } : x)) }));
+    }
+  } finally {
+    coversRunning = false;
+  }
+}
+if (available) setTimeout(makeCovers, 4000); // books scanned before covers existed
+
+function group(folder, files, covers = []) {
+  const coverIn = new Map();
+  for (const c of covers) if (!coverIn.has(c.dir || '')) coverIn.set(c.dir || '', c.uri);
   const byDir = new Map();
   for (const f of files) {
     if (!AUDIO.test(f.name)) continue;
@@ -77,6 +105,8 @@ function group(folder, files) {
       parts: list.length,
       size: list.reduce((a, f) => a + (Number(f.size) || 0), 0),
       folder: folder.uri,
+      // A cover image in the book's folder (or its CD1 / Disc 1 folder).
+      coverImage: parts.length ? coverIn.get(parts.join('/')) || list.map((f) => coverIn.get(f.dir || '')).find(Boolean) || '' : '',
       files: list.map((f) => ({ uri: f.uri, name: f.name, size: Number(f.size) || 0 })),
       addedAt: Date.now(),
     });
@@ -107,4 +137,11 @@ export async function details(book) {
     offline: true,
     tracks: b.files.map((f, i) => ({ title: f.name.replace(AUDIO, ''), url: f.uri, size: f.size, index: i })),
   };
+}
+
+/** Hook for cards: a phone book's cover as soon as it has been made. */
+export function useLocalCover(book) {
+  const cfg = useStore(localCfg);
+  if (book?.source !== 'loc') return '';
+  return cfg.books.find((b) => b.uid === book.uid)?.cover || '';
 }

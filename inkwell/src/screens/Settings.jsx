@@ -93,8 +93,8 @@ function MusicToggle() {
   const [on, setOn] = useState(!!debrid.get().showMusic);
   return (
     <Toggle
-      label="Show music albums"
-      hint="Off: music in your TorBox / Real-Debrid (albums, discographies, FLAC) is left out of your library, so only audiobooks show"
+      label="Show music too"
+      hint="Off (usual): music albums and songs in your cloud are left out, so only audiobooks show"
       on={on}
       onChange={(v) => {
         debrid.patch({ showMusic: v });
@@ -1143,11 +1143,12 @@ export function Settings() {
       </Section>
       <Section icon="download" title="TorBox">
         <DebridCard provider="torbox" label="TorBox" keyHint="torbox.app/settings" keyUrl="https://torbox.app/settings" />
+        <MusicToggle />
       </Section>
       <Section icon="download" title="Real-Debrid">
         <DebridCard provider="realdebrid" label="Real-Debrid" keyHint="real-debrid.com/apitoken" keyUrl="https://real-debrid.com/apitoken" />
+        <MusicToggle />
       </Section>
-      <MusicToggle />
       <PreferredDebrid />
       <Section icon="puzzle" title="Addons">
         <AddonsCard />

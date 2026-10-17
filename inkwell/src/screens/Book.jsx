@@ -281,7 +281,7 @@ export function Book({ book: initial }) {
       {cloudEbooks.length > 0 && (
         <CloudEbooks book={book} files={cloudEbooks} />
       )}
-      {((canListen && canDownload && book.source !== "tts") ||
+      {((canListen && canDownload && book.source !== "tts" && book.source !== "loc") ||
         (book.hash &&
           (book.source === "tb" || book.source === "rd") &&
           qb.available)) && (
@@ -289,6 +289,7 @@ export function Book({ book: initial }) {
           {canListen &&
             canDownload &&
             book.source !== "tts" &&
+            book.source !== "loc" &&
             (!dl || dl.status === "error" ? (
               <button
                 class="tool"

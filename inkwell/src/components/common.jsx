@@ -11,6 +11,7 @@ import { useMeta } from '../lib/meta.js';
 import { useTileRating } from '../lib/ratings.js';
 import { openExternal } from '../sources/summaries.js';
 import { useStoryShots, chooseStoryShots } from '../sources/storyshots.js';
+import { useLocalCover } from '../sources/local.js';
 
 export function Cover({ book, class: cls = '', eager }) {
   const { src, failed: proxyFailed } = useImage(book?.cover || '');
@@ -57,7 +58,7 @@ export function SourceBadge({ uid, book }) {
 export function withMeta(book, meta) {
   if (!meta) return book;
   if (meta.fixed) return { ...book, cover: meta.cover || book.cover || '', title: meta.title || book.title, author: meta.author || book.author || '' };
-  const cloudItem = book.source === 'tb' || book.source === 'rd';
+  const cloudItem = book.source === 'tb' || book.source === 'rd' || book.source === 'loc';
   return {
     ...book,
     cover: book.cover || meta.cover || '',
@@ -115,8 +116,9 @@ function SafeCard({ book, wide }) {
 // Memoized, and it listens to its own book's progress only: saving the position of
 // the book that's playing (every few seconds) no longer re-renders every card.
 export const BookCard = memo(function BookCard({ book: raw, wide }) {
-  const meta = useMeta(raw);
-  const merged = withMeta(raw, meta);
+  const localCover = useLocalCover(raw);
+  const meta = useMeta(localCover ? { ...raw, cover: localCover } : raw);
+  const merged = withMeta(localCover ? { ...raw, cover: localCover } : raw, meta);
   // Data from many sources: make sure what we print is plain text / numbers.
   const book = { ...merged, title: str(merged.title), author: str(merged.author), rating: Number(merged.rating) || 0, ratings: Number(merged.ratings) || 0 };
   const prog = useStoreKey(progressStore, book.uid);

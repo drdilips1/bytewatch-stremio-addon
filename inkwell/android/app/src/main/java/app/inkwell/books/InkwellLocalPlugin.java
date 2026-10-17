@@ -79,6 +79,84 @@ public class InkwellLocalPlugin extends Plugin {
         });
     }
 
+    /**
+     * A book's cover as a small JPEG in the app's cache: the folder's cover image if
+     * given, else the art built into the audio file. Resolves { path } ("" = none).
+     */
+    @PluginMethod
+    public void cover(PluginCall call) {
+        String image = call.getString("image", "");
+        String audio = call.getString("audio", "");
+        String key = call.getString("key", "cover");
+        getBridge().execute(() -> {
+            JSObject o = new JSObject();
+            try {
+                java.io.File dir = new java.io.File(getContext().getCacheDir(), "local-covers");
+                //noinspection ResultOfMethodCallIgnored
+                dir.mkdirs();
+                java.io.File out = new java.io.File(dir, key.replaceAll("[^A-Za-z0-9_-]", "_") + ".jpg");
+                if (out.length() > 0) {
+                    o.put("path", out.getAbsolutePath());
+                    call.resolve(o);
+                    return;
+                }
+                android.graphics.Bitmap bmp = null;
+                if (!image.isEmpty()) {
+                    try (java.io.InputStream in = getContext().getContentResolver().openInputStream(Uri.parse(image))) {
+                        bmp = decodeSmall(readAll(in));
+                    } catch (Exception ignored) {
+                    }
+                }
+                if (bmp == null && !audio.isEmpty()) {
+                    android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
+                    try {
+                        r.setDataSource(getContext(), Uri.parse(audio));
+                        byte[] art = r.getEmbeddedPicture();
+                        if (art != null) bmp = decodeSmall(art);
+                    } catch (Exception ignored) {
+                    } finally {
+                        try {
+                            r.release();
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+                if (bmp == null) {
+                    o.put("path", "");
+                } else {
+                    try (java.io.FileOutputStream fo = new java.io.FileOutputStream(out)) {
+                        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, fo);
+                    }
+                    o.put("path", out.getAbsolutePath());
+                }
+                call.resolve(o);
+            } catch (Exception e) {
+                o.put("path", "");
+                call.resolve(o);
+            }
+        });
+    }
+
+    private static byte[] readAll(java.io.InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream();
+        byte[] buf = new byte[16384];
+        int n;
+        while ((n = in.read(buf)) > 0) b.write(buf, 0, n);
+        return b.toByteArray();
+    }
+
+    /** Decode at most ~500 px wide, so covers stay small. */
+    private static android.graphics.Bitmap decodeSmall(byte[] data) {
+        android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, o);
+        int scale = 1;
+        while (o.outWidth / (scale * 2) >= 500) scale *= 2;
+        android.graphics.BitmapFactory.Options d = new android.graphics.BitmapFactory.Options();
+        d.inSampleSize = scale;
+        return android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, d);
+    }
+
     private void walk(Uri tree, String docId, String dir, JSArray files, JSArray covers, int depth) {
         if (depth > 6 || files.length() >= MAX_FILES) return;
         ContentResolver cr = getContext().getContentResolver();
