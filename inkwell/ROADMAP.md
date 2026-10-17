@@ -2,7 +2,25 @@
 
 Noted while building; to pick up after Saturday.
 
+## Pending — agreed, not started yet
+**Podcasts, second batch**
+- Timestamped notes while listening (extend Saved ideas): note at this moment, tap to jump back, search all notes.
+- Episode ratings + "not interested", fed into the taste engine, with a "Recommended episodes" row.
+- Auto-download new episodes: first version downloads on Wi-Fi when the app opens, for shows marked "auto-download"; background version later.
+
+**Look & layout (proposed, waiting for go-ahead)**
+- Discover: compact bookseller (suggestions in one sideways row), genre picture tiles in a 2-row sideways grid + "All genres", book rows (Trending, Best of the year, New in your genres), sources moved out to Settings.
+- Home: big "Continue listening" card. Book page: blurred cover backdrop. Library: grid/list + sort. Equal-height cards. Player: one row of buttons + "More".
+
+**Public repo (on "update public repo")**
+- Bring over: music + video filter, player fixes (offline downloads, screen-off next part, whole-book progress, speeds), books on the phone (+ covers), podcast batch 1, StoryShots.
+- Remove Supabase sign-in and Send to Kindle; short plain README with a "built with AI help" note; add-on backup links on GitHub.
+
 ## Done, waiting for the next build
+- Phone books: covers (folder image / built-in art / online), tidy titles and authors, no Offline button.
+- "Show music too" inside the TorBox / Real-Debrid cards; Real-Debrid films and TV series left out.
+
+## Done earlier
 - Driving mode (🚗 on Home and in the player; app-icon shortcuts "Driving mode" and "Ask AI")
 - Ask AI answers in Microsoft natural voices, with an "Answer voice" picker (Indian voices first)
 - ✨ Ask AI button in the top corner of every screen (already in v1.0.104)
