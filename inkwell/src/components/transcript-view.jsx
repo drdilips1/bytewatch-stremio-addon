@@ -92,7 +92,17 @@ export function TranscriptView({ s }) {
           ) : (
             <>
               <span class="spinner small" />
-              <p>{t?.published ? 'Loading the transcript from the podcast…' : t?.status === 'loading' ? 'Starting speech recognition…' : 'Listening… the words appear a few seconds ahead of the audio.'}</p>
+              <p>
+                {t?.published
+                  ? 'Loading the transcript from the podcast…'
+                  : t?.status === 'loading'
+                    ? t.error === 'model'
+                      ? 'Loading the speech model…'
+                      : t.error === 'audio'
+                        ? 'Opening the book’s audio…'
+                        : 'Starting speech recognition…'
+                    : 'Listening… the words appear a few seconds ahead of the audio.'}
+              </p>
             </>
           )}
         </div>
