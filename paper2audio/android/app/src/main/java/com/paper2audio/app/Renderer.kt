@@ -51,6 +51,12 @@ data class Voicing(
  */
 object Renderer {
     private const val EDGE_MAX_SPEED = 3.0f
+
+    /**
+     * The online voices' own pace (Microsoft's +0%) is slow for listening: 1.25x of it sounded
+     * normal, so that is what 1x asks for.
+     */
+    private const val EDGE_NATURAL_RATE = 1.25f
     private const val CACHE_LIMIT = 2_000_000_000L
 
     /** The on-device engines run one generation at a time; keep their work on one thread. */
@@ -123,6 +129,8 @@ object Renderer {
             v.voiceId.startsWith(Speaker.SUPER) -> "p5|"
             v.voiceId.startsWith(Speaker.CLONE) -> "c6|"
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
+            // Online voices' 1x got brisker (EDGE_NATURAL_RATE).
+            v.voiceId.startsWith(Speaker.EDGE) -> "e1|"
             else -> ""
         }
         val digest = MessageDigest.getInstance("SHA-1").digest(
@@ -235,7 +243,7 @@ object Renderer {
                     LocalTts.writeWav(tmp, pcm)
                 }
             } else {
-                val rate = ((es - 1f) * 100).roundToInt().coerceIn(-50, 200)
+                val rate = ((es * EDGE_NATURAL_RATE - 1f) * 100).roundToInt().coerceIn(-50, 200)
                 // "edge:Name@-20": the voice with its own pitch shift (children's voices in full cast).
                 val name = voice.removePrefix(Speaker.EDGE).substringBefore('@')
                 val shift = voice.substringAfter('@', "0").toIntOrNull() ?: 0
