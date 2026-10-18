@@ -106,9 +106,8 @@ object MyVoices {
 
     // ---- Reading pace: copied voices speak as fast as the person recorded; bring them to a normal pace ----
 
-    /** The pace 1x means for a copied voice: about 185 words a minute, in characters a second. */
-    // Set by ear: 14 made 1x sound slow (1.25x sounded normal), so the target is a quarter brisker.
-    private const val NORMAL_PACE = 17.5
+    /** A normal audiobook pace: about 150 words a minute, in characters a second. */
+    private const val NORMAL_PACE = 14.0
 
     private val pacePrefs get() = app.getSharedPreferences("p2a", Context.MODE_PRIVATE)
 
@@ -132,7 +131,7 @@ object MyVoices {
         if (!::app.isInitialized) return 1f
         val cps = pacePrefs.getFloat("pace:$id", -1f)
         if (cps <= 0f) return 1f
-        return (NORMAL_PACE / cps).toFloat().coerceIn(0.85f, 1.35f)
+        return (NORMAL_PACE / cps).toFloat().coerceIn(0.75f, 1.1f)
     }
 
     @Volatile
