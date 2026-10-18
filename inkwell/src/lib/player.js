@@ -222,8 +222,12 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
   set({ index: i, loading: true, error: null, time: startAt, duration: t.duration || 0, phase: !t.url && t.resolve ? 'Getting the audio link…' : 'Connecting…' });
   try {
     let url = t.url;
+    // A link fetched ahead of time that's getting old: fetch a new one.
+    if (url && t.resolve && t.urlAt && Date.now() - t.urlAt > LINK_FRESH) url = null;
     if (!url && t.resolve) {
       url = await t.resolve();
+      t.urlAt = Date.now();
+      t.early = false;
       if (token === loadToken) set({ phase: 'Buffering… large files can take a few seconds' });
       t.url = url;
     }
@@ -243,6 +247,12 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
   } catch (e) {
     if (token !== loadToken || e?.name === 'AbortError') return;
     if (e.pending) return waitForCloud(i, startAt, e.pending);
+    // A link fetched ahead of time may have expired: get a fresh one, once.
+    if (t.early && t.resolve) {
+      t.early = false;
+      t.url = null;
+      return loadTrack(i, startAt, autoplay);
+    }
     if (isAbs(state.book) && (await trySwitch())) return;
     if (token !== loadToken) return;
     set({ loading: false, playing: false, phase: '', error: e.message || 'Playback failed' });
@@ -332,11 +342,46 @@ async function checkCloud(i, startAt, msg) {
  * Show the player straight away while a book's details are still being
  * fetched, so a tap on Play always gives visible feedback.
  */
+// ---- getting ready before you press play ------------------------------------
+// The book page and Home's "Continue" fetch the book's parts and the audio link of the
+// part you'll resume in the background, so pressing play starts at once.
+const LINK_FRESH = 20 * 60e3; // cloud links expire; older ones are fetched again
+const ready = new Map(); // uid -> { t, details }
+
+/** Fetch the audio link for the part this book would resume at (no-op if not needed). */
+export async function prepare(details) {
+  try {
+    if (!details?.tracks?.length || details.offline || isDownloaded(details.uid)) return details;
+    const saved = progress.get()[details.uid];
+    const i = saved && !saved.finished ? Math.min(saved.track || 0, details.tracks.length - 1) : 0;
+    const t = details.tracks[i];
+    if (t && t.resolve && (!t.url || Date.now() - (t.urlAt || 0) > LINK_FRESH)) {
+      t.url = await t.resolve();
+      t.urlAt = Date.now();
+      t.early = true;
+    }
+  } catch {} // e.g. still downloading: playing will show that
+  return details;
+}
+
+/** Get a book ready to play (details + link), kept for 15 minutes. */
+export function prefetch(book, getDetails) {
+  if (!book?.uid || ready.has(book.uid) || state.book?.uid === book.uid) return;
+  const entry = { t: Date.now(), details: null };
+  ready.set(book.uid, entry);
+  getDetails(book, { fast: true })
+    .then((d) => prepare(d))
+    .then((d) => (entry.details = d))
+    .catch(() => ready.delete(book.uid));
+}
+
 export async function openAndPlay(book, getDetails, opts) {
   stopWaiting();
   set({ book, loading: true, error: null, playing: false, phase: 'Opening the book…' });
   try {
-    const details = await getDetails(book);
+    const early = ready.get(book.uid);
+    ready.delete(book.uid);
+    const details = early?.details && Date.now() - early.t < 15 * 60e3 ? early.details : await getDetails(book, { fast: true });
     return playBook(details, opts);
   } catch (e) {
     set({ loading: false, phase: '', error: e.message || String(e) });

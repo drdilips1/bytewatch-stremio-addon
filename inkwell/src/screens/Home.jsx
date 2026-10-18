@@ -369,6 +369,15 @@ function ContinueRow() {
         .slice(0, 12),
     [prog]
   );
+  // Get the book you're most likely to resume ready to play (its parts and audio link).
+  const topUid = items[0]?.[0];
+  useEffect(() => {
+    if (!topUid) return;
+    const p = items[0][1];
+    if (p.kind === 'text') return;
+    const t = setTimeout(() => player.prefetch(p.book, getDetails), 1500);
+    return () => clearTimeout(t);
+  }, [topUid]);
   if (!items.length) return null;
   const open = (p) => {
     if (p.kind === 'text') return nav.push('reader', { book: p.book });

@@ -89,7 +89,12 @@ export function Book({ book: initial }) {
     let alive = true;
     setLoading(true);
     getDetails(initial)
-      .then((d) => alive && setBook(d))
+      .then((d) => {
+        if (!alive) return;
+        setBook(d);
+        // Fetch the audio link now, so Play starts at once.
+        if (d.kind === "audio" && player.getState().book?.uid !== d.uid) player.prepare(d);
+      })
       .catch((e) => alive && setError(e.message))
       .finally(() => alive && setLoading(false));
     if (initial.kind === "discover")

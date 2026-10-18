@@ -93,8 +93,12 @@ public class InkwellPlayerPlugin extends Plugin {
         // Seek by bitrate in big MP3s without a seek table, so resuming mid-book
         // doesn't have to read the file from the start.
         DefaultExtractorsFactory extractors = new DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true).setConstantBitrateSeekingAlwaysEnabled(true);
-        // Start playing after 1s of audio instead of 2.5s; speech needs little buffer.
-        DefaultLoadControl loadControl = new DefaultLoadControl.Builder().setBufferDurationsMs(15000, 60000, 1000, 2000).build();
+        // Start after 1 s of audio (2 s after a stall), then keep up to 10 minutes loaded:
+        // audio is small (~1 MB a minute at most), and a long lead rides out patchy mobile data.
+        DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
+            .setBufferDurationsMs(30000, 600000, 1000, 2000)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build();
 
         player = new ExoPlayer.Builder(getContext())
             .setMediaSourceFactory(new DefaultMediaSourceFactory(withHeaders, extractors))

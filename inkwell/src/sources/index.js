@@ -14,7 +14,7 @@ import * as ttsb from './ttsbooks.js';
 import { audible, googleBooks } from './catalogs.js';
 import { settings } from '../lib/store.js';
 import { matches, mainTitle } from '../lib/match.js';
-import { lookup, wantsMeta, fixFor } from '../lib/meta.js';
+import { lookup, wantsMeta, fixFor, metaNow } from '../lib/meta.js';
 import { applyLocal, isDownloaded } from '../lib/downloads.js';
 import { translit, hasDevanagari } from '../lib/translit.js';
 
@@ -66,14 +66,18 @@ export function sourceOf(uid) {
   return p === 'addon' ? 'addon' : p;
 }
 
-export async function getDetails(book) {
+/**
+ * Everything needed to show and play a book. `fast` (pressing play): don't wait for the
+ * online details lookup — use what's already known, so playback starts sooner.
+ */
+export async function getDetails(book, { fast = false } = {}) {
   const src = SOURCES[sourceOf(book.uid || '')];
   // No source to ask (e.g. a direct ebook link): show what we already know.
   if (!src?.impl?.details) return applyLocal({ ...book });
   let d;
   let meta;
   try {
-    [d, meta] = await Promise.all([src.impl.details(book), wantsMeta(book) ? lookup(book).catch(() => null) : null]);
+    [d, meta] = await Promise.all([src.impl.details(book), !wantsMeta(book) ? null : fast ? metaNow(book) : lookup(book).catch(() => null)]);
   } catch (e) {
     // Offline but downloaded: play from the phone anyway.
     if (isDownloaded(book.uid)) return applyLocal({ ...book, tracks: [] });
