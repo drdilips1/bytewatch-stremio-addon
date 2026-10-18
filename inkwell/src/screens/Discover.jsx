@@ -19,8 +19,14 @@ const recent = persisted('recentSearches', []);
 let pendingQuery = '';
 
 /** Jump to the Discover tab with a query already typed in. */
+// Discover stays alive between tab switches: an open screen gets the query directly.
+const searchSubs = new Set();
 export function openSearch(q) {
   pendingQuery = q;
+  if (searchSubs.size) {
+    searchSubs.forEach((f) => f(q));
+    pendingQuery = '';
+  }
   nav.tab('discover');
 }
 // ---- Browsing (nothing typed yet) ----------------------------------------------
@@ -210,6 +216,11 @@ export function Discover() {
   const [pending, setPending] = useState(0);
   const [filter, setFilter] = useState('all');
   const history = useStore(recent);
+  useEffect(() => {
+    const f = (x) => setQ(x);
+    searchSubs.add(f);
+    return () => searchSubs.delete(f);
+  }, []);
   const [hint] = useState(() => EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)]);
   const inputRef = useRef();
 

@@ -336,7 +336,9 @@ function Hero() {
   const count = useRef(0);
   count.current = items?.length || 0;
   useEffect(() => {
-    const t = setInterval(() => count.current && setI((x) => (x + 1) % count.current), 7000);
+    // Only while Home is on screen (it stays alive in the background on other tabs).
+    const onScreen = () => document.visibilityState === 'visible' && nav.state().tab === 'home' && !nav.state().top && !nav.state().overlay;
+    const t = setInterval(() => count.current && onScreen() && setI((x) => (x + 1) % count.current), 7000);
     return () => clearInterval(t);
   }, [paused]);
   if (!items) return <section class="feature shimmer" />;
