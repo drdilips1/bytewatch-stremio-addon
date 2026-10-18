@@ -241,8 +241,14 @@ object Speaker {
     var style: Style = Style.STANDARD
         private set
 
-    /** The speed audio is rendered at: the chosen speed times the style's pace. */
-    val renderSpeed: Float get() = speed * style.rate
+    /** The speed audio is rendered at: the chosen speed times the style's pace and the base pace. */
+    val renderSpeed: Float get() = speed * style.rate * BASE_PACE
+
+    /**
+     * What 1x means. In Paper to Audio every voice sounded slow at 1x (1.25x sounded normal), so
+     * 1x is that pace; Narrato's 1x already sounds right.
+     */
+    private val BASE_PACE = if (BuildConfig.LITE) 1f else 1.25f
 
     fun init(context: Context, onReady: () -> Unit) {
         if (initialized) {
