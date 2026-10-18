@@ -9,7 +9,6 @@ import okio.ByteString
 import org.json.JSONArray
 import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -27,7 +26,8 @@ object EdgeTts {
 
     private const val TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
     private const val BASE = "speech.platform.bing.com/consumer/speech/synthesize/readaloud"
-    private const val GEC_VERSION = "1-143.0.3650.75"
+    // "2-": the v2 token (EdgeGec); the service answers the old one with 403 since October 2026.
+    private const val GEC_VERSION = "2-143.0.3650.75"
     private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" +
         " (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
     private const val WIN_EPOCH = 11644473600L
@@ -72,9 +72,7 @@ object EdgeTts {
     fun secMsGec(nowSeconds: Long = System.currentTimeMillis() / 1000 + skewSeconds): String {
         var t = nowSeconds + WIN_EPOCH
         t -= t % 300
-        val ticks = t * 10_000_000L
-        val digest = MessageDigest.getInstance("SHA-256").digest("$ticks$TOKEN".toByteArray(Charsets.US_ASCII))
-        return digest.joinToString("") { "%02X".format(it) }
+        return EdgeGec.token(t * 10_000_000L, TOKEN)
     }
 
     private fun muid() = UUID.randomUUID().toString().replace("-", "").uppercase(Locale.US)
