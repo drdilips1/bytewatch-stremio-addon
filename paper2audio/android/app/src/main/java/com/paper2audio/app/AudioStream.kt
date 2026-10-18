@@ -136,6 +136,23 @@ class AudioStream(context: Context, boost: Float) {
         }
     }
 
+    /**
+     * Runs [block] (waiting for the next sentence to be made) with the player stopped once what's
+     * queued has been heard. Running dry while sped up made Android's speed changer drop audio
+     * (parts of sentences skipped at higher speeds, with copied voices that are made only about as
+     * fast as they're heard); a clean pause instead means at worst a short wait, never lost words.
+     */
+    suspend fun <T> holdWhile(block: suspend () -> T): T {
+        val t = track ?: return block()
+        drain()
+        if (!paused) t.pause()
+        try {
+            return block()
+        } finally {
+            if (!paused && !released) t.play()
+        }
+    }
+
     /** Waits until everything written has been heard. */
     suspend fun drain() {
         while (!released && heard < written) delay(50)

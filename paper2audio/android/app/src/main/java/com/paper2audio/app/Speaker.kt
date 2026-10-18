@@ -1214,7 +1214,8 @@ object Speaker {
                         val (piece, pending) = queue.removeFirstOrNull() ?: break
                         waitingFor = piece
                         for ((k, part) in pending.withIndex()) {
-                            val pcm = part.await()
+                            // Not made yet: let the player finish what it has and stop cleanly while waiting.
+                            val pcm = if (part.isCompleted) part.await() else out.holdWhile { part.await() }
                             if (g != generation) return@withContext
                             fill() // keep rendering ahead while this piece plays
                             out.write(pcm, piece, if (k == pending.lastIndex) pauseAfter(d, piece) else 0)
