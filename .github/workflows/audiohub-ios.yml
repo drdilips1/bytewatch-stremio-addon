@@ -35,7 +35,10 @@ jobs:
         run: |
           npm ci
           CORE=$(node -p "require('@capacitor/core/package.json').version")
-          npm i --no-save "@capacitor/ios@$CORE"
+          # iPhone-only plugin (live transcript via Apple speech recognition). Listed as a
+          # dependency here only, so the Android app and its build are unaffected.
+          npm pkg set "dependencies.inkwell-transcribe-ios=file:ios-plugins/transcribe"
+          npm i --install-links --no-audit --no-fund "@capacitor/ios@$CORE" ./ios-plugins/transcribe
 
       - name: Build the screens
         env:
@@ -47,6 +50,8 @@ jobs:
           npx cap add ios
           npx cap sync ios
           ls ios/App
+          echo "--- plugins in the iPhone app:"; cat ios/App/App/capacitor.config.json | grep -A8 packageClassList || true
+          cat ios/App/CapApp-SPM/Package.swift || true
 
       - name: Icon, splash and permissions
         run: |
@@ -69,7 +74,7 @@ jobs:
           pb "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true"
           pb "Add :NSLocalNetworkUsageDescription string Audiohub connects to your home server (Audiobookshelf, qBittorrent)."
           pb "Add :NSMicrophoneUsageDescription string Ask questions about your book by voice."
-          pb "Add :NSSpeechRecognitionUsageDescription string Ask questions about your book by voice."
+          pb "Add :NSSpeechRecognitionUsageDescription string Shows the words of your audiobook as it plays (Text), and lets you ask questions by voice."
           pb "Add :ITSAppUsesNonExemptEncryption bool false"
           /usr/libexec/PlistBuddy -c Print "$P"
 

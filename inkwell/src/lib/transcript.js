@@ -9,7 +9,10 @@ import * as player from './player.js';
 import { isHindi } from '../screens/hindi.js';
 
 const T = registerPlugin('InkwellTranscribe');
-export const transcriptAvailable = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellTranscribe') && builtinAvailable;
+// iPhone: the same plugin name, built on Apple's own speech recognition (no download).
+const IOS = Capacitor.getPlatform() === 'ios' && Capacitor.isPluginAvailable('InkwellTranscribe');
+export const transcriptAvailable = IOS || (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellTranscribe') && builtinAvailable);
+const APPLE = { id: 'apple-speech', name: 'Apple speech recognition', type: 'apple', languages: ['*'] };
 
 const ASR = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/';
 
@@ -77,6 +80,7 @@ function coveredUntil(t) {
 
 export async function installedModels() {
   if (!transcriptAvailable) return [];
+  if (IOS) return (installed = [APPLE]);
   const ids = await installedIds();
   installed = MODELS.filter((m) => ids.includes(m.id));
   return installed;
@@ -130,7 +134,7 @@ async function startJob(ps, at) {
       headers: t.headers || {},
       model: m.id,
       type: m.type,
-      language: m.type === 'whisper' ? lang : 'en',
+      language: m.type === 'whisper' || m.type === 'apple' ? lang : 'en',
       start: at,
       ahead: 90,
     });
