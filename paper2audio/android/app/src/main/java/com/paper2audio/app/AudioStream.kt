@@ -153,9 +153,29 @@ class AudioStream(context: Context, boost: Float) {
         }
     }
 
-    /** Waits until everything written has been heard. */
+    /**
+     * Waits until everything written has been heard, or until playback stops moving (paused, or a very
+     * short start, like a chapter heading, that Android doesn't begin playing until more audio comes):
+     * waiting on that forever froze playback after jumping to a far-away chapter.
+     */
     suspend fun drain() {
-        while (!released && heard < written) delay(50)
+        var last = heard
+        var still = 0
+        while (!released && heard < written) {
+            delay(50)
+            val now = heard
+            // Paused by the listener: just keep waiting for them.
+            if (paused) {
+                still = 0
+                continue
+            }
+            if (now == last) {
+                if (++still >= 20) return // a second without progress
+            } else {
+                still = 0
+                last = now
+            }
+        }
     }
 
     fun pause() {
