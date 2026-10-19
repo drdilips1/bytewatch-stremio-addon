@@ -248,7 +248,8 @@ export function follow(ps) {
   const covered = coveredUntil(ps.time);
   // Jumped somewhere this job won't reach soon (and that isn't transcribed yet): start from there.
   const behind = ps.time < jobStart - 1 && (covered == null || covered < jobStart - 1);
-  const ahead = ps.time > frontier + 45 && state.status !== 'done';
+  // (On iPhone the transcriber catches up with the listener by itself.)
+  const ahead = !IOS && ps.time > frontier + 45 && state.status !== 'done';
   if (behind || ahead) return startJob(ps, from());
   T.position({ pos: ps.time }).catch(() => {});
 }

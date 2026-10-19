@@ -52,7 +52,7 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
         lock.unlock()
         call.resolve()
 
-        task = Task.detached(priority: .utility) { [weak self] in
+        task = Task.detached(priority: .userInitiated) { [weak self] in
             await self?.run(job: job, url: url, headers: headers, from: from, ahead: ahead, knownDuration: duration, language: language)
         }
     }
@@ -195,32 +195,60 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        var at = from
+        // Pieces are fetched and recognised two at a time, so the text keeps ahead of the
+        // listener; the first one is short, so text shows up quickly. When the listener gets
+        // ahead of the text anyway (or skips forward), the work jumps to where they are.
+        var source = PieceSource.missing
+        if mp3Size > 0 {
+            source = .mp3(size: mp3Size, audioStart: mp3Start)
+        } else if let a = localAsset {
+            source = .local(a)
+        }
+        var next = from
+        var first = true
+        var queue: [(at: Double, length: Double, work: Task<[SFTranscriptionSegment], Error>)] = []
+        defer { queue.forEach { $0.work.cancel() } }
         var running = false
         var failures = 0
         var deaf = 0 // pieces in a row the recognizer refused
-        var onDevice = recognizer.supportsOnDeviceRecognition
+        setOnDevice(recognizer.supportsOnDeviceRecognition)
         while isCurrent(job) {
-            if total > 0 && at >= total - 0.5 {
-                status(job, "done")
-                return
+            let pos = listening()
+            // Pieces the listener has already passed are no use for following along: drop them.
+            if let last = queue.last, last.at + last.length < pos - 2 {
+                queue.forEach { $0.work.cancel() }
+                queue = []
             }
-            // Stay about `ahead` seconds in front of the listener, no further.
-            if at > listening() + ahead {
+            if queue.isEmpty && next < pos - 8 {
+                next = max(0, pos - 2)
+                first = true
+            }
+            while queue.count < 2 && (total <= 0 || next < total - 0.5) && next <= pos + ahead {
+                var length = first ? 15 : pieceLength
+                if total > 0 { length = min(length, total - next) }
+                let at = next, len = length, src = source, whole = total
+                queue.append((at, len, Task(priority: .userInitiated) { [weak self] in
+                    guard let self = self else { throw CancellationError() }
+                    return try await self.piece(src, url: url, headers: headers, total: whole, start: at, length: len, recognizer: recognizer)
+                }))
+                next += length
+                first = false
+            }
+            if queue.isEmpty {
+                if total > 0 && next >= total - 0.5 {
+                    status(job, "done")
+                    return
+                }
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 continue
             }
-            let length = total > 0 ? min(pieceLength, total - at) : pieceLength
-            let file: URL
+            let p = queue.removeFirst()
+            var words: [SFTranscriptionSegment] = []
             do {
-                if mp3Size > 0 {
-                    file = try await mp3Piece(url, headers: headers, size: mp3Size, audioStart: mp3Start, total: total, start: at, length: length)
-                } else if let a = localAsset {
-                    file = try await cut(a, start: at, length: length)
-                } else {
-                    throw fail("no audio")
-                }
-            } catch {
+                words = try await p.work.value
+                failures = 0
+                deaf = 0
+            } catch PieceError.fetch(let error) {
                 if !isCurrent(job) { return }
                 if total == 0 && failures > 0 { status(job, "done"); return } // past the end of a file of unknown length
                 failures += 1
@@ -228,39 +256,74 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
                     status(job, "error", "Couldn't read this book's audio for the transcript (\(error.localizedDescription)).")
                     return
                 }
+                // Try this stretch again.
+                queue.forEach { $0.work.cancel() }
+                queue = []
+                next = p.at
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 continue
-            }
-            failures = 0
-            defer { try? FileManager.default.removeItem(at: file) }
-            // A piece with no speech (music, silence) just has no lines.
-            var words: [SFTranscriptionSegment] = []
-            do {
-                words = try await recognize(file, with: recognizer, onDevice: onDevice)
-                deaf = 0
-            } catch {
+            } catch PieceError.recognize(let error) {
                 guard isCurrent(job) else { return }
-                if onDevice {
-                    // The on-device model may not be downloaded: use Apple's servers instead.
-                    onDevice = false
-                    do { words = try await recognize(file, with: recognizer, onDevice: false); deaf = 0 } catch { deaf += 1 }
-                } else if !Self.noSpeech(error) {
-                    deaf += 1
-                }
+                if !Self.noSpeech(error) { deaf += 1 }
                 if deaf >= 2 {
                     status(job, "error", Self.explain(error))
                     return
                 }
+            } catch {
+                if !isCurrent(job) { return }
             }
             guard isCurrent(job) else { return }
             if !running {
                 running = true
                 status(job, "running")
             }
-            for line in lines(words, offset: at) {
+            for line in lines(words, offset: p.at) {
                 notifyListeners("segment", data: ["job": job, "start": line.start, "end": line.end, "text": line.text])
             }
-            at += length
+        }
+    }
+
+    private enum PieceSource {
+        case mp3(size: Int64, audioStart: Int64)
+        case local(AVURLAsset)
+        case missing
+    }
+
+    private enum PieceError: Error {
+        case fetch(Error)
+        case recognize(Error)
+    }
+
+    private var onDevice = false
+    private func setOnDevice(_ v: Bool) { lock.lock(); onDevice = v; lock.unlock() }
+    private func useOnDevice() -> Bool { lock.lock(); defer { lock.unlock() }; return onDevice }
+
+    /// Fetch one piece and recognise it.
+    private func piece(_ source: PieceSource, url: URL, headers: [String: String], total: Double, start: Double, length: Double, recognizer: SFSpeechRecognizer) async throws -> [SFTranscriptionSegment] {
+        let file: URL
+        do {
+            switch source {
+            case .mp3(let size, let audioStart):
+                file = try await mp3Piece(url, headers: headers, size: size, audioStart: audioStart, total: total, start: start, length: length)
+            case .local(let asset):
+                file = try await cut(asset, start: start, length: length)
+            case .missing:
+                throw fail("no audio")
+            }
+        } catch {
+            throw PieceError.fetch(error)
+        }
+        defer { try? FileManager.default.removeItem(at: file) }
+        try Task.checkCancellation()
+        let device = useOnDevice()
+        do {
+            return try await recognize(file, with: recognizer, onDevice: device)
+        } catch {
+            try Task.checkCancellation()
+            guard device, !Self.noSpeech(error) else { throw PieceError.recognize(error) }
+            // The on-device model may not be downloaded: use Apple's servers from now on.
+            setOnDevice(false)
+            do { return try await recognize(file, with: recognizer, onDevice: false) } catch { throw PieceError.recognize(error) }
         }
     }
 
@@ -374,18 +437,23 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
         request.shouldReportPartialResults = false
         request.requiresOnDeviceRecognition = onDevice
         if #available(iOS 16, *) { request.addsPunctuation = true }
-        return try await withCheckedThrowingContinuation { c in
-            var finished = false
-            recognizer.recognitionTask(with: request) { result, error in
-                if finished { return }
-                if let error = error {
-                    finished = true
-                    c.resume(throwing: error)
-                } else if let result = result, result.isFinal {
-                    finished = true
-                    c.resume(returning: result.bestTranscription.segments)
-                }
+        let box = RecognitionBox()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { c in
+                var finished = false
+                box.set(recognizer.recognitionTask(with: request) { result, error in
+                    if finished { return }
+                    if let error = error {
+                        finished = true
+                        c.resume(throwing: error)
+                    } else if let result = result, result.isFinal {
+                        finished = true
+                        c.resume(returning: result.bestTranscription.segments)
+                    }
+                })
             }
+        } onCancel: {
+            box.cancel()
         }
     }
 
@@ -413,5 +481,26 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         flush()
         return out
+    }
+}
+
+/// Holds a running recognition so a cancelled piece can stop it.
+private final class RecognitionBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: SFSpeechRecognitionTask?
+    private var cancelled = false
+    func set(_ t: SFSpeechRecognitionTask) {
+        lock.lock()
+        task = t
+        let stop = cancelled
+        lock.unlock()
+        if stop { t.cancel() }
+    }
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let t = task
+        lock.unlock()
+        t?.cancel()
     }
 }
