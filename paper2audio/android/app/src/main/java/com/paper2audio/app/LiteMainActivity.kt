@@ -279,6 +279,9 @@ class LiteMainActivity : Activity() {
         intent ?: return
         when (intent.action) {
             Intent.ACTION_VIEW -> intent.data?.let(::importUri)
+            // Text selected in another app ("Listen with Narrato").
+            Intent.ACTION_PROCESS_TEXT -> intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+                ?.takeIf { it.isNotBlank() }?.let(::importText)
             Intent.ACTION_SEND -> {
                 @Suppress("DEPRECATION")
                 val stream = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)

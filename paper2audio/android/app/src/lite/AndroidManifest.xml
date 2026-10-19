@@ -38,6 +38,12 @@
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
                 <data android:mimeType="image/*" />
             </intent-filter>
+            <!-- "Listen with Narrato" in any app's text-selection menu. -->
+            <intent-filter android:label="Listen with Narrato">
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
 
         <activity

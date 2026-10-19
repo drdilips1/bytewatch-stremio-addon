@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Narrato's own look: warm ivory and midnight ink, with sage teal for actions. -->
+<resources>
+    <style name="Theme.P2A.Ivory" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="p2aBg">#F6F3ED</item>
+        <item name="p2aSurface">#FFFDF9</item>
+        <item name="p2aSurface2">#ECE6DA</item>
+        <item name="p2aAccent">#3E776A</item>
+        <item name="p2aOnAccent">#FFFFFF</item>
+        <item name="p2aText">#202A3B</item>
+        <item name="p2aMuted">#6B6A66</item>
+        <item name="p2aBackground">@drawable/bg_theme_ivory</item>
+        <item name="android:colorPrimary">#3E776A</item>
+        <item name="android:colorPrimaryDark">#F6F3ED</item>
+        <item name="android:colorAccent">#3E776A</item>
+        <item name="android:colorControlActivated">#3E776A</item>
+        <item name="android:colorControlNormal">#6B6A66</item>
+        <item name="android:windowBackground">@drawable/bg_theme_ivory</item>
+        <item name="android:statusBarColor">#F6F3ED</item>
+        <item name="android:navigationBarColor">#F6F3ED</item>
+        <item name="android:textColorPrimary">#202A3B</item>
+        <item name="android:textColorSecondary">#6B6A66</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:alertDialogTheme">@android:style/Theme.Material.Light.Dialog.Alert</item>
+    </style>
+
+    <style name="Theme.P2A.Ink" parent="android:Theme.Material.NoActionBar">
+        <item name="p2aBg">#161C27</item>
+        <item name="p2aSurface">#202A3B</item>
+        <item name="p2aSurface2">#2B3649</item>
+        <item name="p2aAccent">#7CC1AF</item>
+        <item name="p2aOnAccent">#10161F</item>
+        <item name="p2aText">#F1EDE5</item>
+        <item name="p2aMuted">#A3AAB8</item>
+        <item name="p2aBackground">@drawable/bg_theme_ink</item>
+        <item name="android:colorPrimary">#7CC1AF</item>
+        <item name="android:colorPrimaryDark">#161C27</item>
+        <item name="android:colorAccent">#7CC1AF</item>
+        <item name="android:colorControlActivated">#7CC1AF</item>
+        <item name="android:colorControlNormal">#A3AAB8</item>
+        <item name="android:windowBackground">@drawable/bg_theme_ink</item>
+        <item name="android:statusBarColor">#161C27</item>
+        <item name="android:navigationBarColor">#161C27</item>
+        <item name="android:textColorPrimary">#F1EDE5</item>
+        <item name="android:textColorSecondary">#A3AAB8</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:alertDialogTheme">@android:style/Theme.Material.Dialog.Alert</item>
+    </style>
+</resources>

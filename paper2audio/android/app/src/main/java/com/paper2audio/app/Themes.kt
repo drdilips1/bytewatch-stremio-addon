@@ -34,6 +34,8 @@ object Themes {
         Theme("sepia", "📜  Sepia (easy on the eyes)", R.style.Theme_P2A_Sepia),
         Theme("midnight", "🌙  Midnight (dark)", R.style.Theme_P2A_Midnight),
         Theme("black", "⚫  Black (dark, saves battery on OLED)", R.style.Theme_P2A_Black),
+        Theme("ivory", "🤍  Ivory (warm ivory and teal)", R.style.Theme_P2A_Ivory),
+        Theme("ink", "🖋  Ink (midnight ink, dark)", R.style.Theme_P2A_Ink),
     )
 
     private fun prefs(context: Context) = context.getSharedPreferences("p2a", Context.MODE_PRIVATE)
@@ -59,7 +61,9 @@ object Themes {
     fun set(context: Context, key: String) = prefs(context).edit().putString("theme", key).apply()
 
     /** The themes offered (Narrato keeps its original set). */
-    val offered: List<Theme> get() = if (BuildConfig.LITE) ALL.drop(3) else ALL
+    val offered: List<Theme> get() =
+        if (BuildConfig.LITE) ALL.filter { it.key in setOf("system", "ivory", "ink") } + ALL.drop(4).filter { it.key !in setOf("ivory", "ink") }
+        else ALL.filter { it.key !in setOf("ivory", "ink") }
 
     fun showPicker(activity: Activity) {
         val list = offered
@@ -81,7 +85,9 @@ object Themes {
         val theme = ALL.firstOrNull { it.key == currentKey(activity) } ?: ALL[0]
         val style = if (theme.style != 0) theme.style else {
             val night = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-            if (night == Configuration.UI_MODE_NIGHT_YES) R.style.Theme_P2A_Midnight else R.style.Theme_P2A_Ocean
+            // Narrato's own look follows the phone: Ivory by day, Ink by night.
+            if (BuildConfig.LITE) { if (night == Configuration.UI_MODE_NIGHT_YES) R.style.Theme_P2A_Ink else R.style.Theme_P2A_Ivory }
+            else if (night == Configuration.UI_MODE_NIGHT_YES) R.style.Theme_P2A_Midnight else R.style.Theme_P2A_Ocean
         }
         activity.setTheme(style)
     }
