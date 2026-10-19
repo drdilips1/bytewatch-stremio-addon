@@ -253,7 +253,10 @@ object LocalTts {
     }
 
     private fun newEngine(key: String): OfflineTts {
-        val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
+        // Two threads, for battery. More only busy-wait: on four, the voice-copying engine did nearly five
+        // times the work of one (3.5 vs 0.7 CPU-seconds per second of speech) and Supertonic twice that of
+        // two (1.0 vs 0.5), neither any faster. Two stay well ahead of listening.
+        val threads = 2
         val model = when (key) {
             "supertonic" -> SUPERTONIC_PACK.let { p ->
                 OfflineTtsModelConfig(
