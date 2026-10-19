@@ -141,7 +141,7 @@ object Renderer {
      * and no brackets or quote marks, which aren't spoken and, at the end of a sentence
      * ("…anywhere.)"), hide the full stop so the voice runs on mumbling.
      */
-    internal fun plainQuotes(t: String) = t.replace('\u2019', '\'').replace('\u2018', '\'').replace('\u02BC', '\'')
+    internal fun plainQuotes(t: String) = speakable(t).replace('\u2019', '\'').replace('\u2018', '\'').replace('\u02BC', '\'')
         .replace(Regex("""[\u201C\u201D"«»()\[\]{}]"""), " ")
         // Single quote marks around dialogue (‘Not today.’, common in British and Indian editions) hide
         // the full stop just like double ones: an apostrophe stays only between two letters (don't, it's).
@@ -163,6 +163,99 @@ object Renderer {
         .replace(Regex("""^,\s*"""), "")
         .trim()
         .let(::unstutter)
+
+    // ---- Book text as the on-device voices can say it ----
+
+    private val UNITS_WORDS = listOf("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen")
+    private val TENS_WORDS = listOf("", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+
+    internal fun cardinal(n: Int): String = when {
+        n < 20 -> UNITS_WORDS[n]
+        n < 100 -> TENS_WORDS[n / 10] + if (n % 10 > 0) "-" + UNITS_WORDS[n % 10] else ""
+        n < 1000 -> UNITS_WORDS[n / 100] + " hundred" + if (n % 100 > 0) " " + cardinal(n % 100) else ""
+        else -> n.toString()
+    }
+
+    internal fun ordinal(n: Int): String {
+        val c = cardinal(n)
+        val irregular = mapOf("one" to "first", "two" to "second", "three" to "third", "five" to "fifth", "eight" to "eighth",
+            "nine" to "ninth", "twelve" to "twelfth")
+        val last = c.substringAfterLast('-').substringAfterLast(' ')
+        val head = c.dropLast(last.length)
+        return head + (irregular[last] ?: if (last.endsWith("y")) last.dropLast(1) + "ieth" else last + "th")
+    }
+
+    private val ROMAN = Regex("""^M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$""")
+    internal fun roman(s: String): Int? {
+        if (s.isEmpty() || !ROMAN.matches(s)) return null
+        val v = mapOf('I' to 1, 'V' to 5, 'X' to 10, 'L' to 50, 'C' to 100, 'D' to 500, 'M' to 1000)
+        var total = 0
+        for (i in s.indices) {
+            val x = v.getValue(s[i])
+            total += if (i + 1 < s.length && x < v.getValue(s[i + 1])) -x else x
+        }
+        return total.takeIf { it in 1..3999 }
+    }
+
+    /** "Chapter IV", "Part II", "World War I": a number said as a number. */
+    private val ROMAN_AFTER_WORD = Regex(
+        """\b(Chapter|Part|Book|Act|Scene|Section|Volume|Vol|Appendix|Lesson|Unit|Phase|Stage|Article|Canto|Psalm|Class|Type|Level|Episode|Round|War|Lecture|Letter|Stave|Epilogue|Prologue)\s+([IVXLCDM]+)\b(?!['’])""",
+        RegexOption.IGNORE_CASE,
+    )
+    /** "Henry VIII", "Elizabeth II", "John Paul II": a ruler's number, said "the eighth". */
+    private val ROMAN_AFTER_NAME = Regex("""\b(\p{Lu}\p{Ll}+)\s+([IVXLC]{2,})\b(?!['’])""")
+    private val RULERS = "Henry|Edward|Elizabeth|Charles|James|George|William|Richard|Louis|Peter|Catherine|Mary|Victoria|" +
+        "Philip|Frederick|Napoleon|John|Paul|Pius|Leo|Gregory|Alexander|Nicholas|Ivan|Ferdinand|Francis|Innocent|Clement|Benedict|" +
+        "Urban|Boniface|Ramesses|Ptolemy|Darius|Cyrus|Otto|Rudolf|Wilhelm|Friedrich|Constantine|Justinian|Selim|Mehmed|Suleiman"
+    /** "Henry I", "Napoleon I": only after a ruler's name, since "I" is mostly just "I". */
+    private val ROMAN_ONE_AFTER_RULER = Regex("""\b($RULERS)\s+([IVX])\b(?!['’]|\s+(?:am|was|have|had|will|would|could|should|can|do|did|think|know|said|went|saw|felt|thought|love|like|want|need)\b)""")
+
+    private val CURRENCY = Regex("""([$£€₹])\s?(\d[\d,]*(?:\.\d+)?)(\s+(?:thousand|million|billion|trillion))?""")
+    private val FRACTION = Regex("""(?<![\d/.])\b([1-9])/([2-9]|10)\b(?![\d/])""")
+    private val URL = Regex("""\b(?:https?://)?(?:[A-Za-z0-9-]+\.)+(?:com|org|net|edu|gov|io|co|uk|in|de|fr|info|ai|app|dev|me|us|eu)\b(?:/[^\s,;)]*)?""")
+    private val EMAIL = Regex("""\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b""")
+
+    /**
+     * Book text as the on-device voices can say it: a dot inside a sentence (a.m., web addresses) reads as
+     * its end and the voice stops there; brackets and dashes vanish into run-on sentences; Roman numerals,
+     * money, fractions and footnote marks come out as letters and symbols. The screen keeps the original.
+     */
+    internal fun speakable(input: String): String {
+        var t = input
+        // A line of only symbols ("* * *", a scene break) has nothing to say.
+        if (t.none { it.isLetterOrDigit() }) return ""
+        t = t.replace(EMAIL) { it.value.replace("@", " at ").replace(".", " dot ") }
+        t = t.replace(URL) { m ->
+            m.value.removePrefix("https://").removePrefix("http://").trimEnd('/').replace(".", " dot ").replace("/", " slash ")
+        }
+        // Numbered citations ("[1]", "[2, 3]", "[4–6]") and footnote marks glued to a word ("loved it.2").
+        t = t.replace(Regex("""\s?\[\d+(?:\s*[,–-]\s*\d+)*]"""), "")
+        t = t.replace(Regex("""(?<=\p{Ll}[.!?,;:])\d{1,3}(?=\s|$)"""), "")
+        t = t.replace(ROMAN_AFTER_WORD) { m -> roman(m.groupValues[2].uppercase())?.let { "${m.groupValues[1]} ${cardinal(it)}" } ?: m.value }
+        t = t.replace(ROMAN_AFTER_NAME) { m -> roman(m.groupValues[2])?.let { "${m.groupValues[1]} the ${ordinal(it)}" } ?: m.value }
+        t = t.replace(ROMAN_ONE_AFTER_RULER) { m -> roman(m.groupValues[2])?.let { "${m.groupValues[1]} the ${ordinal(it)}" } ?: m.value }
+        t = t.replace(Regex("""\b([aApP])\.\s?[mM]\.""")) { "${it.groupValues[1].uppercase()} M" }
+        t = t.replace(CURRENCY) { m ->
+            val unit = when (m.groupValues[1]) { "$" -> "dollars"; "£" -> "pounds"; "€" -> "euros"; else -> "rupees" }
+            "${m.groupValues[2]}${m.groupValues[3]} $unit"
+        }
+        t = t.replace(FRACTION) { m ->
+            val n = m.groupValues[1].toInt()
+            val d = m.groupValues[2].toInt()
+            val denom = if (d == 2) "half" else if (d == 4) "quarter" else ordinal(d)
+            "${cardinal(n)} " + if (n == 1) denom else if (d == 2) "halves" else denom + "s"
+        }
+        t = t.replace(Regex("""#(?=\d)"""), "number ")
+        // "file_name" → "file name"; *emphasis* and _emphasis_ marks go.
+        t = t.replace(Regex("""(?<=\w)_(?=\w)"""), " ").replace(Regex("""[*_~^|\\]+"""), " ")
+        // Brackets become a short pause on both sides: "(see Table 2)" is an aside, not run into the sentence.
+        t = t.replace(Regex("""\s*[(\[{]\s*"""), ", ").replace(Regex("""\s*[)\]}]"""), ",")
+        // Dashes: a break mid-sentence is a pause; one at the very end ("I was going to—") ends it.
+        t = t.replace(Regex("""\s*(?:[—―]|--+|\s–\s)\s*(?=$|[”"’']\s*(?:$|[“"‘']))"""), ".")
+        t = t.replace(Regex("""\s*(?:[—―]|--+|\s–\s)\s*"""), ", ")
+        return t
+    }
 
     private val ABBREVIATIONS = mapOf(
         "mr" to "Mister", "mrs" to "Missus", "ms" to "Miz", "dr" to "Doctor", "prof" to "Professor",
@@ -263,7 +356,10 @@ object Renderer {
         val spoken = if (LocalTts.isLocal(voice)) plainQuotes(normalized) else normalized
         try {
             val es = engineSpeed(v, speed)
-            if (LocalTts.isLocal(voice)) {
+            if (LocalTts.isLocal(voice) && spoken.none { it.isLetterOrDigit() }) {
+                // Nothing to say ("* * *", a scene break): a short silence in its place.
+                LocalTts.writeWav(tmp, LocalTts.Pcm(ByteArray(24_000 * 2 * 3 / 10), 24_000))
+            } else if (LocalTts.isLocal(voice)) {
                 withContext(if (spare && LocalTts.hasSpare) spareThread else localThread) {
                     val t0 = System.nanoTime()
                     val pcm = LocalTts.synthesize(voice, spoken, es, v.lang, useSpare = spare)
