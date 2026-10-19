@@ -81,8 +81,8 @@ object MyVoices {
      */
     val NARRATO get() = listOf(
         Voice("ava", "Ava", 0, 0f, true, "female · English", pause = 640, denoised = true),
-        Voice("clara", "Clara", 0, 0f, true, "female · English", pause = 580, denoised = true),
-        Voice("maya", "Maya", 0, 0f, true, "female · English", pause = 660, denoised = true),
+        Voice("clara", "Clara", 0, 0f, true, "female · English", pause = 580, denoised = true, seed = 90001),
+        Voice("maya", "Maya", 0, 0f, true, "female · English", pause = 660, denoised = true, seed = 101),
         Voice("nora", "Hazel", 0, 0f, true, "female · English", pause = 600, denoised = true),
         Voice("rose", "Rose", 0, 0f, true, "female · English", pause = 300, denoised = true),
         Voice("leo", "Noah", 0, 0f, true, "male · English", pause = 620, denoised = false),
