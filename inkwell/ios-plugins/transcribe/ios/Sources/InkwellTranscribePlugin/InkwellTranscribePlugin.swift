@@ -32,7 +32,7 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func start(_ call: CAPPluginCall) {
         let job = call.getString("job") ?? ""
-        guard let address = call.getString("url"), let url = URL(string: address) else {
+        guard let address = call.getString("url"), let url = Self.fileUrl(address) ?? URL(string: address) else {
             call.reject("No audio address")
             return
         }
@@ -76,6 +76,13 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
 
     // MARK: - work
 
+    /// "capacitor://localhost/_capacitor_file_/…" (a file on the phone, as the web view sees it) → file URL.
+    private static func fileUrl(_ address: String) -> URL? {
+        guard let r = address.range(of: "/_capacitor_file_") else { return nil }
+        let path = String(address[r.upperBound...]).removingPercentEncoding ?? String(address[r.upperBound...])
+        return URL(fileURLWithPath: path)
+    }
+
     private func isCurrent(_ job: String) -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -115,18 +122,26 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    /// Size and type of a remote file, from a one-byte range request.
-    private func probe(_ url: URL, headers: [String: String]) async throws -> (size: Int64, type: String, ranges: Bool) {
+    /// Size and type of a remote file, and where its audio starts (after an ID3 tag, which
+    /// can hold megabytes of cover art), from a small range request.
+    private func probe(_ url: URL, headers: [String: String]) async throws -> (size: Int64, type: String, ranges: Bool, audioStart: Int64) {
         var req = URLRequest(url: url, timeoutInterval: 30)
         for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
-        req.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-        let (_, resp) = try await URLSession.shared.data(for: req)
+        req.setValue("bytes=0-9", forHTTPHeaderField: "Range")
+        let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw fail("no answer from the server") }
+        guard http.statusCode < 400 else { throw fail("the server answered \(http.statusCode)") }
         let type = (http.value(forHTTPHeaderField: "Content-Type") ?? "").lowercased()
-        if http.statusCode == 206, let cr = http.value(forHTTPHeaderField: "Content-Range"), let total = cr.split(separator: "/").last.flatMap({ Int64($0) }) {
-            return (total, type, true)
+        var audioStart: Int64 = 0
+        let b = [UInt8](data.prefix(10))
+        if b.count == 10, b[0] == 0x49, b[1] == 0x44, b[2] == 0x33 { // "ID3"
+            let size = (Int64(b[6] & 0x7f) << 21) | (Int64(b[7] & 0x7f) << 14) | (Int64(b[8] & 0x7f) << 7) | Int64(b[9] & 0x7f)
+            audioStart = 10 + size + ((b[5] & 0x10) != 0 ? 10 : 0)
         }
-        return (http.expectedContentLength, type, false)
+        if http.statusCode == 206, let cr = http.value(forHTTPHeaderField: "Content-Range"), let total = cr.split(separator: "/").last.flatMap({ Int64($0) }) {
+            return (total, type, true, audioStart)
+        }
+        return (http.expectedContentLength, type, false, audioStart)
     }
 
     private func run(job: String, url: URL, headers: [String: String], from: Double, ahead: Double, knownDuration: Double, language: String) async {
@@ -144,6 +159,7 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
         status(job, "loading", "audio")
         // Work out how to get pieces of this part.
         var mp3Size: Int64 = 0 // > 0: fetch MP3 pieces by byte range
+        var mp3Start: Int64 = 0
         var localAsset: AVURLAsset?
         do {
             if url.isFileURL {
@@ -153,6 +169,7 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
                 let isMp3 = url.pathExtension.lowercased() == "mp3" || info.type.contains("mpeg") || info.type.contains("mp3")
                 if isMp3 && info.ranges && info.size > 0 {
                     mp3Size = info.size
+                    mp3Start = min(info.audioStart, info.size / 2)
                 } else {
                     if info.size > 900_000_000 {
                         status(job, "error", "This part is too big to transcribe on iPhone (\(info.size / 1_000_000) MB).")
@@ -181,6 +198,8 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
         var at = from
         var running = false
         var failures = 0
+        var deaf = 0 // pieces in a row the recognizer refused
+        var onDevice = recognizer.supportsOnDeviceRecognition
         while isCurrent(job) {
             if total > 0 && at >= total - 0.5 {
                 status(job, "done")
@@ -195,7 +214,7 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
             let file: URL
             do {
                 if mp3Size > 0 {
-                    file = try await mp3Piece(url, headers: headers, size: mp3Size, total: total, start: at, length: length)
+                    file = try await mp3Piece(url, headers: headers, size: mp3Size, audioStart: mp3Start, total: total, start: at, length: length)
                 } else if let a = localAsset {
                     file = try await cut(a, start: at, length: length)
                 } else {
@@ -215,7 +234,24 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
             failures = 0
             defer { try? FileManager.default.removeItem(at: file) }
             // A piece with no speech (music, silence) just has no lines.
-            let words = (try? await recognize(file, with: recognizer)) ?? []
+            var words: [SFTranscriptionSegment] = []
+            do {
+                words = try await recognize(file, with: recognizer, onDevice: onDevice)
+                deaf = 0
+            } catch {
+                guard isCurrent(job) else { return }
+                if onDevice {
+                    // The on-device model may not be downloaded: use Apple's servers instead.
+                    onDevice = false
+                    do { words = try await recognize(file, with: recognizer, onDevice: false); deaf = 0 } catch { deaf += 1 }
+                } else if !Self.noSpeech(error) {
+                    deaf += 1
+                }
+                if deaf >= 2 {
+                    status(job, "error", Self.explain(error))
+                    return
+                }
+            }
             guard isCurrent(job) else { return }
             if !running {
                 running = true
@@ -229,10 +265,10 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     /// One MP3 piece: the matching byte range, saved as a small file (MP3 frames re-sync on their own).
-    private func mp3Piece(_ url: URL, headers: [String: String], size: Int64, total: Double, start: Double, length: Double) async throws -> URL {
-        let perSecond = Double(size) / total
-        let first = max(0, Int64(start * perSecond))
-        let last = min(size - 1, Int64((start + length) * perSecond) + 4096)
+    private func mp3Piece(_ url: URL, headers: [String: String], size: Int64, audioStart: Int64, total: Double, start: Double, length: Double) async throws -> URL {
+        let perSecond = Double(size - audioStart) / total
+        let first = audioStart + max(0, Int64(start * perSecond))
+        let last = min(size - 1, audioStart + Int64((start + length) * perSecond) + 4096)
         var req = URLRequest(url: url, timeoutInterval: 60)
         for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
         req.setValue("bytes=\(first)-\(last)", forHTTPHeaderField: "Range")
@@ -240,9 +276,39 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
         guard let http = resp as? HTTPURLResponse, http.statusCode == 206 || http.statusCode == 200, !data.isEmpty else {
             throw fail("the server didn't send this part of the audio")
         }
+        // Start the file on a real frame, so iOS reads it as MP3.
+        let bytes = [UInt8](data)
+        guard let sync = Self.firstFrame(bytes) else { throw fail("this part of the audio isn't readable MP3") }
         let out = FileManager.default.temporaryDirectory.appendingPathComponent("transcript-\(UUID().uuidString).mp3")
-        try data.write(to: out)
+        try Data(bytes[sync...]).write(to: out)
         return out
+    }
+
+    /// Length of the MPEG audio frame whose header starts at i, or nil if it isn't one.
+    private static func frameLength(_ b: [UInt8], _ i: Int) -> Int? {
+        guard i + 4 <= b.count, b[i] == 0xFF, b[i + 1] & 0xE0 == 0xE0 else { return nil }
+        let version = (b[i + 1] >> 3) & 3 // 3 = MPEG1, 2 = MPEG2, 0 = MPEG2.5
+        let layer = (b[i + 1] >> 1) & 3   // 1 = Layer III
+        let rateIndex = Int(b[i + 2] >> 4)
+        let srIndex = Int((b[i + 2] >> 2) & 3)
+        let padding = Int((b[i + 2] >> 1) & 1)
+        guard version != 1, layer == 1, rateIndex != 0, rateIndex != 15, srIndex != 3 else { return nil }
+        let v1 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
+        let v2 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
+        let rates = [44100, 48000, 32000]
+        let kbps = version == 3 ? v1[rateIndex] : v2[rateIndex]
+        let sr = rates[srIndex] / (version == 3 ? 1 : version == 2 ? 2 : 4)
+        return (version == 3 ? 144 : 72) * kbps * 1000 / sr + padding
+    }
+
+    /// First frame header followed by two more valid frames (so a stray 0xFF in the data doesn't count).
+    private static func firstFrame(_ b: [UInt8]) -> Int? {
+        var i = 0
+        while i + 4 <= b.count {
+            if let n = frameLength(b, i), let m = frameLength(b, i + n), frameLength(b, i + n + m) != nil { return i }
+            i += 1
+        }
+        return nil
     }
 
     /// The whole part on the phone (formats that can't be fetched in pieces), reused while it's the same part.
@@ -288,10 +354,25 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
         return out
     }
 
-    private func recognize(_ file: URL, with recognizer: SFSpeechRecognizer) async throws -> [SFTranscriptionSegment] {
+    /// "No speech detected": a quiet or musical piece, not a failure.
+    private static func noSpeech(_ error: Error) -> Bool {
+        let e = error as NSError
+        return e.code == 1110 || e.localizedDescription.lowercased().contains("no speech")
+    }
+
+    private static func explain(_ error: Error) -> String {
+        let e = error as NSError
+        let text = e.localizedDescription
+        if e.code == 201 || text.lowercased().contains("siri") || text.lowercased().contains("dictation") {
+            return "Turn on Dictation for the transcript: iPhone Settings → General → Keyboard → Enable Dictation (and Siri, if it asks)."
+        }
+        return "Speech recognition failed on this iPhone (\(text), \(e.domain) \(e.code))."
+    }
+
+    private func recognize(_ file: URL, with recognizer: SFSpeechRecognizer, onDevice: Bool) async throws -> [SFTranscriptionSegment] {
         let request = SFSpeechURLRecognitionRequest(url: file)
         request.shouldReportPartialResults = false
-        if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
+        request.requiresOnDeviceRecognition = onDevice
         if #available(iOS 16, *) { request.addsPunctuation = true }
         return try await withCheckedThrowingContinuation { c in
             var finished = false
