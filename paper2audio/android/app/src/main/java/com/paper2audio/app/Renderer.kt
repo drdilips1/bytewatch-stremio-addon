@@ -92,7 +92,8 @@ object Renderer {
         // gets the same pause whatever the text, and the first sound comes sooner.
         // Long sentences stay whole up to 320 characters: every cut sounds like a sentence ending.
         // Copied voices lose their way in long sentences (skipped words, run-ons): shorter parts.
-        if (voiceId.startsWith(Speaker.CLONE)) TextCleaner.pieces(paragraph, 14, hardMax = 160)
+        // Very short sentences on their own go wrong too ("Stop!" said twice): they join their neighbours.
+        if (voiceId.startsWith(Speaker.CLONE)) TextCleaner.pieces(paragraph, 60, hardMax = 160)
         else if (LocalTts.isLocal(voiceId)) TextCleaner.pieces(paragraph, 14, hardMax = 320)
         else TextCleaner.pieces(paragraph, 50, hardMax = 900)
 
@@ -233,6 +234,11 @@ object Renderer {
         t = t.replace(Regex("""\s?\[\d+(?:\s*[,–-]\s*\d+)*]"""), "")
         t = t.replace(Regex("""(?<=\p{Ll}[.!?,;:])\d{1,3}(?=\s|$)"""), "")
         t = t.replace(ROMAN_AFTER_WORD) { m -> roman(m.groupValues[2].uppercase())?.let { "${m.groupValues[1]} ${cardinal(it)}" } ?: m.value }
+        // Lowercase list numbers: "item ii", "(iii)".
+        t = t.replace(Regex("""\b(item|point|step|stage|part|clause|paragraph|note|case|option|section|chapter|appendix)\s+([ivx]{1,4})\b""", RegexOption.IGNORE_CASE)) { m ->
+            roman(m.groupValues[2].uppercase())?.takeIf { m.groupValues[2].all { it.isLowerCase() } }?.let { "${m.groupValues[1]} ${cardinal(it)}" } ?: m.value
+        }
+        t = t.replace(Regex("""\(([ivx]{1,4})\)""")) { m -> roman(m.groupValues[1].uppercase())?.let { "${cardinal(it)}," } ?: m.value }
         t = t.replace(ROMAN_AFTER_NAME) { m -> roman(m.groupValues[2])?.let { "${m.groupValues[1]} the ${ordinal(it)}" } ?: m.value }
         t = t.replace(ROMAN_ONE_AFTER_RULER) { m -> roman(m.groupValues[2])?.let { "${m.groupValues[1]} the ${ordinal(it)}" } ?: m.value }
         t = t.replace(Regex("""\b([aApP])\.\s?[mM]\.""")) { "${it.groupValues[1].uppercase()} M" }

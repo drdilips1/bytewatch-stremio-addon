@@ -1026,6 +1026,13 @@ object Speaker {
     }
 
     /** The pieces of paragraph [k], each with its voice. */
+    private fun joinShort(parts: List<String>): List<String> = parts.fold(ArrayList()) { acc, t ->
+        acc.apply {
+            val last = lastOrNull()
+            if (last != null && (last.length < 45 || t.length < 45) && last.length + t.length < 150) this[lastIndex] = "$last $t" else add(t)
+        }
+    }
+
     private fun piecesOf(d: Doc, k: Int, vid: String): List<Piece> {
         val para = d.paragraphs[k]
         val speakers = speakersOf(d)
@@ -1047,6 +1054,9 @@ object Speaker {
             // A quote and the words after it that carry on the sentence ("“Really?” she asked.") stay together.
             LocalTts.isLocal(vid) -> Stories.split(para)?.takeIf { it.size > 1 }?.map { it.second }
                 ?.fold(ArrayList<String>()) { acc, t -> acc.apply { if (isNotEmpty() && TextCleaner.startsLower(t)) this[lastIndex] = this[lastIndex] + " " + t else add(t) } }
+                // Copied voices fumble a few words on their own ("Yes," said Harry. came out "Yes, say."): short
+                // lines of dialogue go together with their neighbour.
+                ?.let { if (vid.startsWith(CLONE)) joinShort(it) else it }
                 ?.map { it to vid } ?: listOf(para to vid)
             else -> listOf(para to vid)
         }
