@@ -137,6 +137,7 @@ async function startJob(ps, at) {
       language: m.type === 'whisper' || m.type === 'apple' ? lang : 'en',
       start: at,
       ahead: 90,
+      duration: t.duration || ps.duration || 0,
     });
   } catch (e) {
     set({ status: 'error', error: e.message });
