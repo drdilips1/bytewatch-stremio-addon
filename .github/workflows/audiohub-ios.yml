@@ -106,3 +106,33 @@ jobs:
             --title "Audiohub iPhone app (build ${{ github.run_number }})" \
             --notes "Unsigned iPhone app. Install with AltStore on the Mac (AltServer menu, hold Option → Sideload .ipa), signed with a free Apple ID (renewed every 7 days). Your library stays when you reinstall." \
             --prerelease
+
+      # AltStore source (add in AltStore → Sources → +): lists this build, so new ones show up as updates.
+      # Fixed link: https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/audiohub-ios-source/altstore.json
+      - name: Update AltStore source
+        working-directory: inkwell/ios/App
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.run_number }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+        run: |
+          SIZE=$(stat -f%z Audiohub.ipa)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          node -e '
+            const [run, repo, ref, size, date] = process.argv.slice(1);
+            const url = `https://github.com/${repo}/releases/download/audiohub-ios-${run}/Audiohub.ipa`;
+            const version = { version: `1.0.${run}`, buildVersion: run, date, downloadURL: url, size: +size, localizedDescription: `Build ${run}`, minOSVersion: "15.0" };
+            const app = {
+              name: "Audiohub", bundleIdentifier: "app.inkwell.books", developerName: "Audiohub",
+              subtitle: "Audiobooks, podcasts and live text", localizedDescription: "Audiohub audiobook player.",
+              iconURL: `https://raw.githubusercontent.com/${repo}/${ref}/inkwell/public/icon-512.png`, tintColor: "#C9A46A",
+              versions: [version], version: version.version, versionDate: date, downloadURL: url, size: +size,
+              appPermissions: { entitlements: [], privacy: {} },
+            };
+            require("fs").writeFileSync("altstore.json", JSON.stringify({ name: "Audiohub", identifier: "app.inkwell.books.source", apps: [app], news: [] }, null, 2));
+          ' "$RUN" "$REPO" "$REF" "$SIZE" "$DATE"
+          cat altstore.json
+          gh release view audiohub-ios-source >/dev/null 2>&1 || gh release create audiohub-ios-source --target "${{ github.sha }}" \
+            --title "Audiohub AltStore source" --notes "Add this source in AltStore: the link to altstore.json below." --prerelease
+          gh release upload audiohub-ios-source altstore.json --clobber
