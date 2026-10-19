@@ -84,6 +84,8 @@ object MyVoices {
      * Narrato only (src/lite/assets/voices): friends and colleagues who agreed to lend their voice,
      * copied in Paper to Audio and shared from there. Pause and noise removal measured from each file.
      */
+    // Ethan and Oliver (owen, max) are left out for now: their recordings made the copying engine loop
+    // and cut sentences short in testing. New recordings can bring them back.
     val NARRATO get() = listOf(
         Voice("ava", "Ava", 0, 0f, true, "female · English", pause = 640, denoised = true),
         Voice("clara", "Clara", 0, 0f, true, "female · English", pause = 580, denoised = true, seed = 90001),
@@ -91,10 +93,8 @@ object MyVoices {
         Voice("nora", "Hazel", 0, 0f, true, "female · English", pause = 600, denoised = true, seed = 90001),
         Voice("rose", "Rose", 0, 0f, true, "female · English", pause = 300, denoised = true, seed = 90001),
         Voice("leo", "Noah", 0, 0f, true, "male · English", pause = 620, denoised = false, seed = 101),
-        Voice("owen", "Ethan", 0, 0f, true, "male · English", pause = 480, denoised = false, seed = 31337),
         Voice("sam", "Lucas", 0, 0f, true, "male · English", pause = 680, denoised = true),
         Voice("theo", "Theo", 0, 0f, true, "male · English", pause = 680, denoised = false),
-        Voice("max", "Oliver", 0, 0f, true, "male · English", pause = 520, denoised = false, seed = 2024),
     )
 
     class Ref(val samples: FloatArray, val sampleRate: Int)

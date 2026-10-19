@@ -15,7 +15,7 @@ Narrato reads it aloud while highlighting each sentence, so you can follow along
 • Natural on-device voices (one-time download), plus your phone's own voices
 • Works offline: voices run on your phone
 • Speed from 0.5x to 3x, sleep timer, chapters, sentence back and forward
-• Ten ready-made natural voices of real readers (five female, five male), on your phone: offline and unlimited
+• Eight ready-made natural voices of real readers (five female, three male), on your phone: offline and unlimited
 • Skips page numbers, headers and other clutter in PDFs; opens books at the first chapter
 • Reads text from photos of printed pages
 • Save the text as plain text, Markdown or PDF
