@@ -87,6 +87,7 @@ object MyVoices {
         Voice("owen", "Owen", 0, 0f, true, "male · English", pause = 480, denoised = false),
         Voice("sam", "Sam", 0, 0f, true, "male · English", pause = 680, denoised = true),
         Voice("theo", "Theo", 0, 0f, true, "male · English", pause = 680, denoised = false),
+        Voice("max", "Max", 0, 0f, true, "male · English", pause = 520, denoised = false),
     )
 
     class Ref(val samples: FloatArray, val sampleRate: Int)

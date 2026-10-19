@@ -6,3 +6,5 @@ __pycache__/
 
 # Seed clips for the built-in voices ship with the app.
 !android/app/src/main/assets/voices/*.mp3
+# Narrato's ready-made voices ship with the app.
+!android/app/src/lite/assets/voices/*.wav
