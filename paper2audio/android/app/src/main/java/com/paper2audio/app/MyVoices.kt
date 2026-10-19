@@ -77,17 +77,17 @@ object MyVoices {
      * Narrato only (src/lite/assets/voices): friends and colleagues who agreed to lend their voice,
      * copied in Paper to Audio and shared from there. Pause and noise removal measured from each file.
      */
-    private val NARRATO get() = listOf(
+    val NARRATO get() = listOf(
         Voice("ava", "Ava", 0, 0f, true, "female · English", pause = 640, denoised = true),
         Voice("clara", "Clara", 0, 0f, true, "female · English", pause = 580, denoised = true),
         Voice("maya", "Maya", 0, 0f, true, "female · English", pause = 660, denoised = true),
-        Voice("nora", "Nora", 0, 0f, true, "female · English", pause = 600, denoised = true),
+        Voice("nora", "Hazel", 0, 0f, true, "female · English", pause = 600, denoised = true),
         Voice("rose", "Rose", 0, 0f, true, "female · English", pause = 300, denoised = true),
-        Voice("leo", "Leo", 0, 0f, true, "male · English", pause = 620, denoised = false),
-        Voice("owen", "Owen", 0, 0f, true, "male · English", pause = 480, denoised = false),
-        Voice("sam", "Sam", 0, 0f, true, "male · English", pause = 680, denoised = true),
+        Voice("leo", "Noah", 0, 0f, true, "male · English", pause = 620, denoised = false),
+        Voice("owen", "Ethan", 0, 0f, true, "male · English", pause = 480, denoised = false),
+        Voice("sam", "Lucas", 0, 0f, true, "male · English", pause = 680, denoised = true),
         Voice("theo", "Theo", 0, 0f, true, "male · English", pause = 680, denoised = false),
-        Voice("max", "Max", 0, 0f, true, "male · English", pause = 520, denoised = false),
+        Voice("max", "Oliver", 0, 0f, true, "male · English", pause = 520, denoised = false),
     )
 
     class Ref(val samples: FloatArray, val sampleRate: Int)

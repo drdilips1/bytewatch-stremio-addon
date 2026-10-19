@@ -140,6 +140,31 @@ object LiteUi {
             }
         }
 
+        // Ready-made natural voices (people who agreed to lend their voice), on the Pocket engine. First, as
+        // Narrato's own voices; Narrato has no Copy a voice, so only these come with the app.
+        if (LocalTts.supported) {
+            sheet.section("Narrato voices · real readers")
+            val own = MyVoices.own()
+            pack(
+                LocalTts.POCKET_PACK,
+                MyVoices.NARRATO.map { Triple(Speaker.CLONE + it.id, it.name, it.description.replaceFirstChar { c -> c.uppercase() }) } +
+                    own.map { Triple(Speaker.CLONE + it.id, it.name, "Copied voice") },
+            )
+            if (own.isNotEmpty()) sheet.row(R.drawable.ic_delete, "Remove a copied voice", null, dismiss = false) {
+                AlertDialog.Builder(activity)
+                    .setTitle("Remove a copied voice")
+                    .setItems(own.map { it.name }.toTypedArray()) { _, i ->
+                        val v = own[i]
+                        if (Speaker.voiceId == Speaker.CLONE + v.id) Speaker.setVoice(Speaker.PHONE_DEFAULT)
+                        MyVoices.delete(v.id)
+                        Speaker.refreshVoices()
+                        fillVoices(activity, sheet, onChosen)
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        }
+
         sheet.section("On your phone · instant")
         choice(Speaker.PHONE_DEFAULT, "Phone's default voice", "Works offline; quality depends on your phone")
         sheet.row(R.drawable.ic_list, "Other phone voices", "Including Indian English, if your phone has it") {
@@ -160,29 +185,6 @@ object LiteUi {
                 Triple(Speaker.KOKORO + v.name, name, rest.replaceFirstChar { it.uppercase() })
             }
             pack(LocalTts.KOKORO_PACK, kokoro)
-
-            // Ready-made natural voices (people who agreed to lend their voice), on the Pocket engine.
-            // Narrato has no Copy a voice: only these come with the app.
-            sheet.section("Natural voices · English")
-            val own = MyVoices.own()
-            pack(
-                LocalTts.POCKET_PACK,
-                MyVoices.BUILT_IN.map { Triple(Speaker.CLONE + it.id, it.name, it.description.replaceFirstChar { c -> c.uppercase() }) } +
-                    own.map { Triple(Speaker.CLONE + it.id, it.name, "Copied voice") },
-            )
-            if (own.isNotEmpty()) sheet.row(R.drawable.ic_delete, "Remove a copied voice", null, dismiss = false) {
-                AlertDialog.Builder(activity)
-                    .setTitle("Remove a copied voice")
-                    .setItems(own.map { it.name }.toTypedArray()) { _, i ->
-                        val v = own[i]
-                        if (Speaker.voiceId == Speaker.CLONE + v.id) Speaker.setVoice(Speaker.PHONE_DEFAULT)
-                        MyVoices.delete(v.id)
-                        Speaker.refreshVoices()
-                        fillVoices(activity, sheet, onChosen)
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
         }
     }
 
