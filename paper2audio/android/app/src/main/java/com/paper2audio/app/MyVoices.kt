@@ -60,7 +60,7 @@ object MyVoices {
      * (MIT/Apache-2.0); the male voices are cloned from seed clips made with the
      * openly licensed Supertonic (MIT) and Kokoro (Apache-2.0) voices.
      */
-    val BUILT_IN = listOf(
+    val BUILT_IN = (if (BuildConfig.LITE) NARRATO else emptyList()) + listOf(
         Voice("luna", "Luna", 0, 0f, true, "female · US"),
         Voice("bria", "Bria", 0, 0f, true, "female · US"),
         Voice("carter", "Carter", 0, 0f, true, "male · US"),
@@ -71,6 +71,22 @@ object MyVoices {
         Voice("hugo", "Hugo", 0, 0f, true, "male · US"),
         Voice("ian", "Ian", 0, 0f, true, "male · US, lighter"),
         Voice("james", "James", 0, 0f, true, "male · British"),
+    )
+
+    /**
+     * Narrato only (src/lite/assets/voices): friends and colleagues who agreed to lend their voice,
+     * copied in Paper to Audio and shared from there. Pause and noise removal measured from each file.
+     */
+    private val NARRATO get() = listOf(
+        Voice("ava", "Ava", 0, 0f, true, "female · English", pause = 640, denoised = true),
+        Voice("clara", "Clara", 0, 0f, true, "female · English", pause = 580, denoised = true),
+        Voice("maya", "Maya", 0, 0f, true, "female · English", pause = 660, denoised = true),
+        Voice("nora", "Nora", 0, 0f, true, "female · English", pause = 600, denoised = true),
+        Voice("rose", "Rose", 0, 0f, true, "female · English", pause = 300, denoised = true),
+        Voice("leo", "Leo", 0, 0f, true, "male · English", pause = 620, denoised = false),
+        Voice("owen", "Owen", 0, 0f, true, "male · English", pause = 480, denoised = false),
+        Voice("sam", "Sam", 0, 0f, true, "male · English", pause = 680, denoised = true),
+        Voice("theo", "Theo", 0, 0f, true, "male · English", pause = 680, denoised = false),
     )
 
     class Ref(val samples: FloatArray, val sampleRate: Int)
