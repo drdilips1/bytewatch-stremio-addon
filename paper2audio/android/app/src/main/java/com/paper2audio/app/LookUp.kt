@@ -173,6 +173,8 @@ object LookUp {
      * The word at ([x], [y]) in [tv] (view coordinates), as a range in [para], the paragraph's own text
      * (the view may show a few extra characters before it). Null when the press wasn't on a word.
      */
+    private val INITIALS = Regex("""(?:\p{L}\.)+\p{L}""")
+
     fun wordAt(tv: TextView, para: String, x: Float, y: Float): IntRange? {
         val layout = tv.layout ?: return null
         val line = layout.getLineForVertical((y - tv.totalPaddingTop).toInt())
@@ -180,7 +182,8 @@ object LookUp {
         if (lx < layout.getLineLeft(line) - 8 || lx > layout.getLineRight(line) + 8) return null
         val prefix = (tv.text?.length ?: 0) - para.length
         val at = tv.getOffsetForPosition(x, y) - prefix
-        fun inWord(i: Int) = i in para.indices && (para[i].isLetterOrDigit() || (para[i] in "'’-" && i > 0 && i + 1 < para.length && para[i - 1].isLetter() && para[i + 1].isLetter()))
+        // Apostrophes and hyphens inside a word, and the dots of initials ("U.S."), belong to it.
+        fun inWord(i: Int) = i in para.indices && (para[i].isLetterOrDigit() || (para[i] in "'’-." && i > 0 && i + 1 < para.length && para[i - 1].isLetter() && para[i + 1].isLetter()))
         val hit = when {
             inWord(at) -> at
             inWord(at - 1) -> at - 1
@@ -190,6 +193,8 @@ object LookUp {
         var b = hit + 1
         while (inWord(a - 1)) a--
         while (inWord(b)) b++
+        // Initials keep their final dot: "U.S." rather than "U.S".
+        if (b < para.length && para[b] == '.' && INITIALS.matches(para.substring(a, b))) b++
         return a until b
     }
 

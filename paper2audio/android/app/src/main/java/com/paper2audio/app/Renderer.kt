@@ -145,6 +145,9 @@ object Renderer {
         // Single quote marks around dialogue (‘Not today.’, common in British and Indian editions) hide
         // the full stop just like double ones: an apostrophe stays only between two letters (don't, it's).
         .replace(Regex("""(?<![\p{L}])'|'(?![\p{L}])"""), " ")
+        // Dotted initials ("U.S.", "U.K.") lose their dots: on-device voices took the dot after "U" for the
+        // end of the sentence, said "U" and stopped.
+        .replace(Regex("""\b(?:\p{Lu}\.){2,}""")) { it.value.replace(".", "") }
         .replace(Regex("""\s+([,.;:!?…])"""), "$1")
         .replace(Regex("""\s{2,}"""), " ")
         .trim()
