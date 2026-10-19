@@ -38,8 +38,8 @@ android {
             // Permanent once uploaded to Google Play.
             applicationId = "com.narrato.reader"
             targetSdk = 36
-            versionCode = 11
-            versionName = "1.9.1"
+            versionCode = 12
+            versionName = "1.9.2"
             buildConfigField("boolean", "LITE", "true")
             // AdMob IDs from the environment (GitHub secrets); Google's test IDs otherwise.
             fun env(name: String, test: String) = System.getenv(name)?.takeIf { it.isNotBlank() } ?: test
