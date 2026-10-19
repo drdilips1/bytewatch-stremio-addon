@@ -417,6 +417,10 @@ object CloneCheck {
      */
     fun prepareText(t: String): String {
         var s = t.trim().replace(';', ',').replace(Regex("""([.!?\u2026])\s*[,;:]"""), "$1")
+            // A colon (not in a time, 10:30) and "!" before a lowercase word ("Stop! he cried") are a comma's
+            // pause: the voices took them for the end and repeated or garbled what came after.
+            .replace(Regex("""(?<!\d):(?!\d)"""), ",")
+            .replace(Regex("""!\s+(?=\p{Ll})"""), ", ")
         if (s.isEmpty()) return s
         if (!s[0].isUpperCase()) s = s[0].uppercaseChar() + s.substring(1)
         if (s.split(Regex("""\s+""")).size < 5) s = " ".repeat(8) + s
@@ -438,7 +442,9 @@ object CloneCheck {
             kotlin.math.sqrt(s / frame).toFloat()
         }
         val loud = rms.sorted()[(n * 0.9).toInt().coerceAtMost(n - 1)]
-        val onset = rms.indexOfFirst { it > loud * 0.2f }.takeIf { it >= 0 } ?: return null
+        // Where "Well" starts: the first sound that lasts (a click or breath before it is not the word; taking
+        // one for it cut before "Well" and the throwaway word stayed in, as with Rose).
+        val onset = (0 until n - 12).firstOrNull { f -> (f until f + 12).count { rms[it] > loud * 0.2f } >= 10 } ?: return null
         val quiet = loud * 0.06f
         var f = onset + 15
         while (f < minOf(n, 160)) {
