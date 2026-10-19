@@ -52,7 +52,8 @@ object Speaker {
     /** Microsoft Andrew in the full edition; in the Play Store edition the best voice already on the phone. */
     fun defaultVoice(): String = when {
         !BuildConfig.LITE -> DEFAULT_VOICE
-        // Lena: the steadiest-sounding Supertonic voice for long reading.
+        // Narrato's own readers first (Ava), then Lena, the steadiest-sounding Supertonic voice.
+        LocalTts.supported && LocalTts.POCKET_PACK.isInstalled() -> CLONE + MyVoices.NARRATO.first().id
         LocalTts.supported && LocalTts.SUPERTONIC_PACK.isInstalled() -> SUPER + "F2"
         LocalTts.supported && LocalTts.KOKORO_PACK.isInstalled() -> KOKORO + Kokoro.VOICES.first().name
         else -> PHONE_DEFAULT

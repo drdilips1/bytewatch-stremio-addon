@@ -52,12 +52,11 @@ object LiteWelcome {
                 "pasted text, even photos of printed pages.\n\nTap + on the home screen to add your first one.",
         ),
         Page(
-            "🎧", "Get the best voices, free",
+            "🎧", "Real voices, free",
             "Narrato starts with your phone's own voice, which can sound robotic.\n\n" +
-                "For natural, human-sounding reading, download the free natural voices once: open a book, tap Voice, " +
-                "and choose Supertonic (${LocalTts.SUPERTONIC_PACK.sizeMb} MB, 31 languages) or Kokoro " +
-                "(${LocalTts.KOKORO_PACK.sizeMb} MB, English). After that they work offline.",
-            "Choose voices now",
+                "For the real thing, download the natural voices once (${LocalTts.POCKET_PACK.sizeMb} MB): ${MyVoices.NARRATO.size} voices of real " +
+                "readers, offline and unlimited. Supertonic (31 languages) and Kokoro are there too.",
+            "Choose a voice now",
         ) { LiteUi.showVoices(it) },
         Page(
             "▶", "While you listen",
@@ -66,9 +65,9 @@ object LiteWelcome {
                 "Reading carries on with the screen off, with controls on the lock screen.",
         ),
         Page(
-            "🎙", "Natural voices",
-            "Narrato also has natural, human-sounding voices that run on your phone: ready-made voices of real " +
-                "readers, offline and unlimited.\n\nIn the player: Voice › Natural voices.",
+            "✨", "Listen from anywhere",
+            "Select text in any app (a web page, an email, a PDF) and choose Listen with Narrato, " +
+                "or share a link or file to Narrato.",
         ),
     )
 
