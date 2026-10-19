@@ -167,7 +167,7 @@ object LiteUi {
 
         sheet.collapsible("phone", "On your phone · instant", keepOpen = Speaker.voiceId.startsWith(Speaker.SYSTEM))
         choice(Speaker.PHONE_DEFAULT, "Phone's default voice", "Works offline; quality depends on your phone")
-        sheet.row(R.drawable.ic_list, "Other phone voices", "Including Indian English, if your phone has it") {
+        sheet.row(R.drawable.ic_list, "Other phone voices", "Every voice installed on your phone") {
             showPhoneVoices(activity) { onChosen() }
         }
 
@@ -180,7 +180,8 @@ object LiteUi {
                 },
             )
             sheet.collapsible("kokoro", "Natural · Kokoro · English", keepOpen = Speaker.voiceId.startsWith(Speaker.KOKORO), closed = true)
-            val kokoro = Kokoro.VOICES.sortedBy { if (it.indian) 0 else 1 }.map { v ->
+            // US and European listeners first: the Indian English voices come last.
+            val kokoro = Kokoro.VOICES.sortedBy { if (it.indian) 1 else 0 }.map { v ->
                 val (name, rest) = v.label.split(" · ", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
                 Triple(Speaker.KOKORO + v.name, name, rest.replaceFirstChar { it.uppercase() })
             }
@@ -203,7 +204,7 @@ object LiteUi {
                     return@runOnUiThread
                 }
                 val sheet = LiteSheet(activity, "Phone voices", "Tap one to hear it")
-                // Indian English and Indian languages first, then the phone's language, then the rest.
+                // The phone's language first, then the rest; Indian English and Indian languages last.
                 val indian = voices.filter { it.locale.country == "IN" }
                 val rest = voices - indian.toSet()
                 fun add(list: List<android.speech.tts.Voice>) {
@@ -220,12 +221,11 @@ object LiteUi {
                         }
                     }
                 }
+                add(rest)
                 if (indian.isNotEmpty()) {
                     sheet.section("Indian")
                     add(indian)
-                    sheet.section("Other languages")
                 }
-                add(rest)
                 sheet.onDismiss { Speaker.stopPreview() }
                 sheet.show()
             }

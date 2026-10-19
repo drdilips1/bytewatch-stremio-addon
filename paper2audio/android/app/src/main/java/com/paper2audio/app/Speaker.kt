@@ -477,6 +477,8 @@ object Speaker {
     fun play() {
         val d = doc ?: return
         if (d.paragraphs.isEmpty()) return
+        // A voice sample still playing (or being made) would talk over the book.
+        stopPreview()
         if (index >= d.paragraphs.size) index = 0
         lastError = null
         missingPack()?.let {
@@ -1351,14 +1353,20 @@ object Speaker {
     // ---- Voice preview ----
 
     private var previewPlayer: MediaPlayer? = null
-    private const val PREVIEW_TEXT =
-        "Hello! This is how I will sound reading your papers and books aloud. Choose the voice you like best."
+    /** The voice sample being made: a newer one (or Play) cancels it, so samples never pile up or play over the book. */
+    private var previewJob: Job? = null
+    private val PREVIEW_TEXT =
+        // Narrato: shorter, so a sample starts sooner when trying voice after voice.
+        if (BuildConfig.LITE) "Hello! This is how I sound reading your books aloud."
+        else "Hello! This is how I will sound reading your papers and books aloud. Choose the voice you like best."
 
     private var castPreview: Job? = null
     private var castStream: AudioStream? = null
 
     /** Stops a voice preview or a spoken AI answer. */
     fun stopPreview() {
+        previewJob?.cancel()
+        previewJob = null
         castPreview?.cancel()
         castPreview = null
         castStream?.release()
@@ -1542,9 +1550,13 @@ object Speaker {
             return
         }
         val sp = renderSpeed
-        scope.launch {
+        stopPreview()
+        // The sample first: the book's first sentences (made ahead for Play) wait until it's ready.
+        warmJob?.cancel()
+        previewJob = scope.launch {
             try {
                 val f = Renderer.render(app, v, sp, text)
+                if (playing) return@launch
                 previewPlayer?.release()
                 previewPlayer = MediaPlayer().apply {
                     setDataSource(f.path)
@@ -1557,6 +1569,9 @@ object Speaker {
                     }
                     start()
                 }
+                prewarm()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 AppLog.e("Preview", "Preview of ${v.voiceId} failed", e)
                 lastError = "Couldn't play the preview (${e.message})."
