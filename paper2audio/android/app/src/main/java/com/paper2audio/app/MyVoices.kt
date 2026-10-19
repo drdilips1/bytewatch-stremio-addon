@@ -148,7 +148,9 @@ object MyVoices {
         if (!::app.isInitialized) return 1f
         val cps = pacePrefs.getFloat("pace:$id", -1f)
         if (cps <= 0f) return 1f
-        return (NORMAL_PACE / cps).toFloat().coerceIn(0.75f, 1.1f)
+        // Narrato never slows a quick reader down: its readers sounded too slow at 1x (about 0.8x of how
+        // they actually talk); Paper to Audio's 1x is already 1.25x quicker (Speaker.BASE_PACE).
+        return (NORMAL_PACE / cps).toFloat().coerceIn(if (BuildConfig.LITE) 1f else 0.75f, 1.1f)
     }
 
     @Volatile
