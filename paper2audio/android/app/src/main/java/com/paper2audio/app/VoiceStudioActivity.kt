@@ -296,7 +296,7 @@ class VoiceStudioActivity : Activity() {
     private fun buildOwnVoices() {
         val c = card(
             "Clone a voice",
-            "Record a voice (or import a clip of 40 seconds or more), and the app will read in that voice, on your phone. " +
+            "Record about a minute of a voice (or import a clip of 40 seconds or more), and the app will read in that voice, on your phone. " +
                 "Only clone voices with the speaker's permission.",
         )
         val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -608,7 +608,7 @@ class VoiceStudioActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(8), dp(22), 0)
         }
-        box.addView(muted("Read this aloud in your normal voice, in a quiet room, about 20 cm from the phone:"))
+        box.addView(muted("Read this aloud in your normal voice, in a quiet room, about 20 cm from the phone. About a minute is best; its clearest 30 seconds are used:"))
         box.addFull(TextView(this).apply {
             text = MyVoices.SCRIPT
             textSize = 16f
@@ -657,7 +657,8 @@ class VoiceStudioActivity : Activity() {
                 else -> {
                     samples = null
                     redo.visibility = View.GONE
-                    recorder = VoiceRecorder { peak, secs ->
+                    // About a minute (it stops by itself at 75 seconds): the clearest 30 seconds are kept.
+                    recorder = VoiceRecorder(75) { peak, secs ->
                         runOnUiThread {
                             if (action.text != "Stop") return@runOnUiThread // already stopped
                             if (recorder?.isRunning == false) {
@@ -667,7 +668,8 @@ class VoiceStudioActivity : Activity() {
                             level.progress = (peak * 140).toInt().coerceAtMost(100)
                             status.text = "Recording… ${secs.toInt()} s" + when {
                                 secs < MyVoices.MIN_SECONDS + 6 -> ""
-                                secs >= MyVoices.MAX_SECONDS -> " (that's plenty: tap Stop)"
+                                secs < 45 -> " (keep going: about a minute is best)"
+                                secs >= 60 -> " (that's plenty: tap Stop)"
                                 else -> " (tap Stop when you finish)"
                             }
                         }
@@ -699,8 +701,8 @@ class VoiceStudioActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("Clone this recording?")
             .setMessage(
-                "Best: 10–25 seconds of one person speaking clearly, without music or other voices. " +
-                    "With a longer clip, its clearest 10 seconds are used.\n\n" +
+                "Best: 40 seconds to 2 minutes of one person speaking clearly, without music or other voices. " +
+                    "Its clearest 30 seconds are used.\n\n" +
                     "Only clone your own voice, or a voice whose owner has given you permission."
             )
             .setPositiveButton("My voice / I have permission") { _, _ -> importNamed(uri) }
@@ -740,7 +742,8 @@ class VoiceStudioActivity : Activity() {
         toast("Cleaning up the recording…")
         scope.launch {
             try {
-                val voice = withContext(Dispatchers.Default) { MyVoices.add(name, samples, rate) }
+                // The clearest 30 seconds: a closer likeness and a steadier tone than 10.
+                val voice = withContext(Dispatchers.Default) { MyVoices.add(name, samples, rate, MyVoices.LONG_REFERENCE_SECONDS) }
                 Speaker.refreshVoices()
                 val tip = if (voice.noisy) {
                     "\n\nThere was background noise in the recording. It was removed, but if the voice doesn't sound " +

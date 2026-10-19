@@ -29,11 +29,16 @@ object MyVoices {
     /** The longer sample, for a closer likeness (the engine re-reads it for every sentence). */
     const val LONG_REFERENCE_SECONDS = 30
 
-    /** Read aloud when recording a new voice: about 20 seconds of varied, natural speech. */
+    /** Read aloud when recording a new voice: about a minute of varied, natural speech (its clearest 30 seconds are kept). */
     const val SCRIPT = "The old lighthouse stood at the edge of the cliff, watching over the harbor. " +
         "Every evening, just before sunset, I would walk up the winding path to see the boats come home. " +
         "Some nights the sea was calm and silver; other nights, the wind howled and the waves crashed below. " +
-        "Honestly, I think those stormy evenings were my favorite."
+        "Honestly, I think those stormy evenings were my favorite.\n\n" +
+        "My grandmother lived in the small white house at the bottom of the hill. " +
+        "\"Where have you been?\" she would ask, smiling, as I came through the door with salt in my hair. " +
+        "She kept a jar of ginger biscuits on the kitchen table, and a stack of old books beside her chair. " +
+        "On Sundays she read to me for an hour, sometimes two, until the lamps were lit and the tea had gone cold. " +
+        "I still remember her voice: slow, warm, and patient, as if every story deserved to be told properly."
 
     data class Voice(
         val id: String,
@@ -188,7 +193,7 @@ object MyVoices {
         val raw = bestWindow(resample(samples, sampleRate, RATE), RATE, seconds = sampleSeconds + 2)
         if (clean(raw).size < MIN_SECONDS * RATE) {
             val seconds = clean(raw).size / RATE.toFloat()
-            error("That recording has only ${"%.0f".format(seconds)} seconds of speech. Record at least $MIN_SECONDS seconds (10–20 is best).")
+            error("That recording has only ${"%.0f".format(seconds)} seconds of speech. Record at least $MIN_SECONDS seconds (about a minute is best).")
         }
         val ratio = Denoise.noiseRatio(raw)
         val noisy = ratio > 0.12f
@@ -204,7 +209,7 @@ object MyVoices {
         // rhythm, and squeezing them out made the copy hurry.
         val clean = clean(tightenSilences(cleaned, RATE, maxMs = 700))
         val seconds = clean.size / RATE.toFloat()
-        if (seconds < MIN_SECONDS) error("That recording has only ${"%.0f".format(seconds)} seconds of clear speech. Record at least $MIN_SECONDS seconds (10–20 is best) in a quiet room.")
+        if (seconds < MIN_SECONDS) error("That recording has only ${"%.0f".format(seconds)} seconds of clear speech. Record at least $MIN_SECONDS seconds (about a minute is best) in a quiet room.")
         val id = java.util.UUID.randomUUID().toString().take(8)
         writeRef(File(dir, "$id.wav"), clean)
         val voice = Voice(id, name.trim().ifBlank { "My voice" }, System.currentTimeMillis(), seconds, pause = pause, denoised = denoise)
