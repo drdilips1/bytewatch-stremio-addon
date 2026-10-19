@@ -75,8 +75,13 @@ object LocalTts {
     /** The model [voiceId] still needs to download, if any. */
     fun missing(voiceId: String): ModelPack? = packFor(voiceId)?.takeUnless { it.isInstalled() }
 
-    /** A fixed random seed for each voice, so every sentence is the same take on it. */
-    private fun seedFor(voiceId: String) = (voiceId.hashCode() and 0x7fffffff) % 100_000 + 1
+    /**
+     * A fixed random seed for each voice, so every sentence is the same take on it. Ready-made copied
+     * voices carry one picked by listening tests: some seeds let the tone wander between sentences.
+     */
+    private fun seedFor(voiceId: String) =
+        voiceId.takeIf { it.startsWith(Speaker.CLONE) }?.let { MyVoices.seedOf(it.removePrefix(Speaker.CLONE)) }
+            ?.takeIf { it > 0 } ?: ((voiceId.hashCode() and 0x7fffffff) % 100_000 + 1)
 
     /**
      * Supertonic speaks quickly at its 1x. Asked to go much slower, it stretches words until

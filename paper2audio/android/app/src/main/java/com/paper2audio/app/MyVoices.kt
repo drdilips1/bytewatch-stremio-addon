@@ -53,6 +53,8 @@ object MyVoices {
         val pause: Int = 0,
         /** Whether the recording went through the noise remover (16 kHz, duller); older voices: yes. */
         val denoised: Boolean = true,
+        /** Ready-made voices: the engine seed that keeps the tone steadiest (0 = one from the voice's name). */
+        val seed: Int = 0,
     )
 
     /**
@@ -120,6 +122,9 @@ object MyVoices {
     }
 
     fun get(id: String) = list().firstOrNull { it.id == id }
+
+    /** The picked engine seed of ready-made voice [id] (0 = none). */
+    fun seedOf(id: String) = BUILT_IN.firstOrNull { it.id == id }?.seed ?: 0
 
     // ---- Reading pace: copied voices speak as fast as the person recorded; bring them to a normal pace ----
 

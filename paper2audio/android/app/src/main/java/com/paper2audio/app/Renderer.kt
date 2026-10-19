@@ -121,7 +121,8 @@ object Renderer {
         val pace = when {
             // Engine settings changed (pace, natural pauses, one seed per voice): don't reuse older audio.
             v.voiceId.startsWith(Speaker.SUPER) -> "p5|"
-            v.voiceId.startsWith(Speaker.CLONE) -> "c6|"
+            // A ready-made voice given a steadier seed: its older takes are remade.
+            v.voiceId.startsWith(Speaker.CLONE) -> "c6|" + (MyVoices.seedOf(v.voiceId.removePrefix(Speaker.CLONE)).takeIf { it > 0 }?.let { "s$it|" } ?: "")
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""
         }
