@@ -57,6 +57,30 @@ class LitePlayerActivity : Activity() {
     private var draggingPosition = false
     private var exportWasRunning = Exporter.running
     private var textSizeSp = 18f
+    private var fontKey = "sans"
+    private var justify = true
+    private var spacing = 1.35f
+    private var face: Typeface? = null
+
+    /** Reading fonts (bundled), as key to label. */
+    private val FONTS = listOf(
+        "sans" to "Clean (the phone's font)",
+        "lora" to "Lora (book serif)",
+        "crimson" to "Crimson (classic novel)",
+        "atkinson" to "Atkinson (extra legible)",
+        "lexend" to "Lexend (easy reading)",
+    )
+
+    private fun loadFace() {
+        val res = when (fontKey) {
+            "lora" -> R.font.reader_lora
+            "crimson" -> R.font.reader_crimson
+            "atkinson" -> R.font.reader_atkinson
+            "lexend" -> R.font.reader_lexend
+            else -> 0
+        }
+        face = if (res == 0) Typeface.DEFAULT else runCatching { resources.getFont(res) }.getOrDefault(Typeface.DEFAULT)
+    }
     private val refresh: () -> Unit = { render() }
     private val ticker = object : Runnable {
         override fun run() {
@@ -138,6 +162,10 @@ class LitePlayerActivity : Activity() {
         taskOpen = findViewById(R.id.taskOpen)
         taskCancel = findViewById(R.id.taskCancel)
         textSizeSp = prefs.getFloat("liteTextSize", 18f)
+        fontKey = prefs.getString("liteFont", "sans") ?: "sans"
+        justify = prefs.getBoolean("liteJustify", true)
+        spacing = prefs.getFloat("liteSpacing", 1.35f)
+        loadFace()
 
         reader.adapter = readerAdapter
         reader.setOnItemClickListener { _, _, i, _ ->
@@ -393,7 +421,10 @@ class LitePlayerActivity : Activity() {
             val isHeading = doc?.chapters?.any { it.start == position && it.title == text } == true
             val current = position == Speaker.index
             tv.textSize = if (isHeading) textSizeSp + 4 else textSizeSp
-            tv.setTypeface(null, if (isHeading) Typeface.BOLD else Typeface.NORMAL)
+            tv.setTypeface(face, if (isHeading) Typeface.BOLD else Typeface.NORMAL)
+            tv.justificationMode = if (justify && !isHeading) android.text.Layout.JUSTIFICATION_MODE_INTER_WORD
+            else android.text.Layout.JUSTIFICATION_MODE_NONE
+            tv.setLineSpacing(0f, spacing)
             tv.text = highlighted(text, current)
             // No box around the paragraph: the highlight follows the words instead.
             tv.background = null
@@ -452,9 +483,45 @@ class LitePlayerActivity : Activity() {
         LiteSheet(this, Speaker.doc?.title, null)
             .row(R.drawable.ic_voice, "Pronunciations", "Fix how words are said (or press and hold a word)") { Pronounce.show(this) }
             .row(R.drawable.ic_text, "Save the text", "As plain text, Markdown or PDF") { exportTranscript() }
-            .row(R.drawable.ic_tune, "Text size", "Larger or smaller reading text") { textSize() }
+            .row(R.drawable.ic_tune, "Reading", "Text size, font, spacing, justified text") { readingOptions() }
             .row(R.drawable.ic_bug, "Report a problem", "Share the app's error log to get it fixed") { AppLog.showReport(this) }
             .show()
+    }
+
+    private fun readingOptions() {
+        val sizeLabel = mapOf(14f to "Small", 16f to "Medium", 18f to "Default", 20f to "Large", 23f to "Larger", 26f to "Largest")
+        val spacingLabel = mapOf(1.2f to "Compact", 1.35f to "Normal", 1.6f to "Airy")
+        LiteSheet(this, "Reading")
+            .row(R.drawable.ic_tune, "Text size", sizeLabel[textSizeSp] ?: "Custom") { textSize() }
+            .row(R.drawable.ic_text, "Font", FONTS.firstOrNull { it.first == fontKey }?.second) { fontPicker() }
+            .row(R.drawable.ic_list, "Line spacing", spacingLabel[spacing] ?: "Normal") { spacingPicker() }
+            .row(R.drawable.ic_text, if (justify) "Justified text: on" else "Justified text: off", "Even edges on both sides, like a printed book") {
+                justify = !justify
+                prefs.edit().putBoolean("liteJustify", justify).apply()
+                readerAdapter.notifyDataSetChanged()
+            }
+            .show()
+    }
+
+    private fun fontPicker() {
+        val sheet = LiteSheet(this, "Font")
+        for ((key, label) in FONTS) sheet.row(null, label, null, checked = key == fontKey) {
+            fontKey = key
+            prefs.edit().putString("liteFont", key).apply()
+            loadFace()
+            readerAdapter.notifyDataSetChanged()
+        }
+        sheet.show()
+    }
+
+    private fun spacingPicker() {
+        val sheet = LiteSheet(this, "Line spacing")
+        for ((value, label) in listOf(1.2f to "Compact", 1.35f to "Normal", 1.6f to "Airy")) sheet.row(null, label, null, checked = value == spacing) {
+            spacing = value
+            prefs.edit().putFloat("liteSpacing", value).apply()
+            readerAdapter.notifyDataSetChanged()
+        }
+        sheet.show()
     }
 
     private fun textSize() {
