@@ -129,6 +129,12 @@ async function startJob(ps, at) {
   jobStart = at;
   // Drop what the new job will produce again.
   set({ segments: state.segments.filter((s) => s.end <= at + 0.5), status: 'loading', error: '', model: m });
+  // A start the phone never answered (not even "loading the model"): offer Try again instead of
+  // waiting forever. Slow but reporting starts are left to the native side's own limits.
+  const mine = job;
+  setTimeout(() => {
+    if (job === mine && state.status === 'loading' && !state.error) set({ status: 'error', error: 'Speech recognition didn’t start.' });
+  }, 75000);
   try {
     await T.start({
       job,
@@ -260,6 +266,8 @@ export function stopTranscript() {
   if (!transcriptAvailable) return;
   job = '';
   T.stop().catch(() => {});
+  // Nothing runs any more: say so, or turning Text back on would wait for this job forever.
+  if (state.status === 'loading' || state.status === 'running') set({ status: 'idle', error: '' });
 }
 
 /** Forget the current model choice (after downloading or removing one). */
