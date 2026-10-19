@@ -1,0 +1,36 @@
+name: Speech models for Text
+
+# Repacks sherpa-onnx's speech-recognition models for the app's live transcript:
+# only the files the app loads (int8), as .tar.gz (unpacks quickly on a phone).
+# Published to the "asr-models" release; run again only to change the models.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and repack
+        run: |
+          set -e
+          U=https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models
+          curl -fsSL "$U/sherpa-onnx-whisper-base.tar.bz2" | tar xj
+          curl -fsSL "$U/sherpa-onnx-moonshine-tiny-en-int8.tar.bz2" | tar xj
+          W=sherpa-onnx-whisper-base
+          tar cf - $W/base-encoder.int8.onnx $W/base-decoder.int8.onnx $W/base-tokens.txt | gzip -6 > asr-whisper-base-int8.tar.gz
+          tar cf - --exclude=test_wavs sherpa-onnx-moonshine-tiny-en-int8 | gzip -6 > asr-moonshine-tiny-en-int8.tar.gz
+          ls -l *.tar.gz
+          tar tzf asr-whisper-base-int8.tar.gz
+          tar tzf asr-moonshine-tiny-en-int8.tar.gz
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          R="${{ github.repository }}"
+          gh release view asr-models -R "$R" >/dev/null 2>&1 || gh release create asr-models -R "$R" --target "${{ github.sha }}" \
+            --title "Speech models for Text" --notes "Speech-recognition models used by the app's live transcript (repacked from sherpa-onnx)." --prerelease
+          gh release upload asr-models -R "$R" asr-whisper-base-int8.tar.gz asr-moonshine-tiny-en-int8.tar.gz --clobber

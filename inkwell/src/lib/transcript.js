@@ -14,7 +14,9 @@ const IOS = Capacitor.getPlatform() === 'ios' && Capacitor.isPluginAvailable('In
 export const transcriptAvailable = IOS || (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellTranscribe') && builtinAvailable);
 const APPLE = { id: 'apple-speech', name: 'Apple speech recognition', type: 'apple', languages: ['*'] };
 
-const ASR = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/';
+// Repacked from sherpa-onnx's releases (.github/workflows/asr-models.yml): only the files the
+// app uses, as .tar.gz, which unpacks far faster on the phone than the original .tar.bz2.
+const ASR = 'https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/asr-models/';
 
 /** Speech-recognition models you can download in the app. */
 export const MODELS = [
@@ -24,16 +26,16 @@ export const MODELS = [
     what: 'Moonshine · fast and accurate for English audiobooks',
     size: '≈ 100 MB',
     type: 'moonshine',
-    url: ASR + 'sherpa-onnx-moonshine-tiny-en-int8.tar.bz2',
+    url: ASR + 'asr-moonshine-tiny-en-int8.tar.gz',
     languages: ['en'],
   },
   {
     id: 'asr-whisper-base',
     name: 'Hindi + 90 languages',
     what: 'Whisper base · हिंदी and other languages · slower',
-    size: '≈ 200–300 MB',
+    size: '≈ 95 MB',
     type: 'whisper',
-    url: ASR + 'sherpa-onnx-whisper-base.tar.bz2',
+    url: ASR + 'asr-whisper-base-int8.tar.gz',
     languages: ['*'],
   },
 ];
