@@ -149,6 +149,9 @@ object Renderer {
         // Dotted initials ("U.S.", "U.K.") lose their dots: on-device voices took the dot after "U" for the
         // end of the sentence, said "U" and stopped.
         .replace(Regex("""\b(?:\p{Lu}\.){2,}""")) { it.value.replace(".", "") }
+        // Titles and other abbreviations inside a sentence ("Mr. Dursley", "e.g. this") said in full: the dot
+        // read as the end of the sentence, so the copied voices said "Mister" and stopped there.
+        .let(::spellAbbreviations)
         .replace(Regex("""\s+([,.;:!?…])"""), "$1")
         .replace(Regex("""\s{2,}"""), " ")
         .trim()
@@ -160,6 +163,35 @@ object Renderer {
         .replace(Regex("""^,\s*"""), "")
         .trim()
         .let(::unstutter)
+
+    private val ABBREVIATIONS = mapOf(
+        "mr" to "Mister", "mrs" to "Missus", "ms" to "Miz", "dr" to "Doctor", "prof" to "Professor",
+        "jr" to "Junior", "sr" to "Senior", "mt" to "Mount", "vs" to "versus", "approx" to "approximately",
+        "cf" to "compare", "etc" to "et cetera", "no" to "number", "nos" to "numbers", "fig" to "figure",
+        "figs" to "figures", "eq" to "equation", "eqs" to "equations", "vol" to "volume", "ch" to "chapter",
+        "dept" to "department", "univ" to "university", "inc" to "Inc", "ltd" to "Ltd",
+        "co" to "Co", "al" to "al", "jan" to "January", "feb" to "February", "mar" to "March",
+        "apr" to "April", "jun" to "June", "jul" to "July", "aug" to "August", "sep" to "September",
+        "sept" to "September", "oct" to "October", "nov" to "November", "dec" to "December",
+    )
+    private val ABBREVIATION = Regex("""\b(""" + ABBREVIATIONS.keys.joinToString("|") + """|st)\.(?=\s+(\S))""", RegexOption.IGNORE_CASE)
+    private val E_G = Regex("""\b(e\.g|i\.e)\.(?=\s+\S)""", RegexOption.IGNORE_CASE)
+
+    /** "Mr. Dursley" → "Mister Dursley", "St. Paul" → "Saint Paul", "e.g. this" → "for example this" (inside a sentence only). */
+    internal fun spellAbbreviations(t: String): String =
+        ABBREVIATION.replace(E_G.replace(t) { if (it.groupValues[1].lowercase() == "e.g") "for example," else "that is," }) { m ->
+            val word = m.groupValues[1]
+            val next = m.groupValues[2]
+            val key = word.lowercase()
+            when {
+                // "No. 5" is a number; "no. They" is the word "no" ending a sentence.
+                (key == "no" || key == "nos") && !next[0].isDigit() -> m.value
+                // Months only before a day or year ("Jan. 5"), so "mar." or "dec." elsewhere stay as written.
+                key in setOf("jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec") && !next[0].isDigit() -> m.value
+                key == "st" -> if (next[0].isUpperCase()) "Saint" else "Street"
+                else -> ABBREVIATIONS.getValue(key)
+            }
+        }
 
     /** "t-t-to" → "to", "sp-spoils" → "spoils": written stutters trip the on-device voices up. */
     private val STUTTER = Regex("""(?i)\b([a-z]{1,3})-(?=\1)""")
