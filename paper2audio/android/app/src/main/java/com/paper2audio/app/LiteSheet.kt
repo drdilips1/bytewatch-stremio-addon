@@ -37,6 +37,8 @@ class LiteSheet(private val activity: Activity, title: String?, subtitle: String
 
     private val dialog = Dialog(activity)
     private val body = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+    /** Where rows go: the sheet itself, or the group under a collapsible heading. */
+    private var target: ViewGroup = body
     private val text = Themes.color(activity, R.attr.p2aText)
     private val muted = Themes.color(activity, R.attr.p2aMuted)
     private val accent = Themes.color(activity, R.attr.p2aAccent)
@@ -155,34 +157,68 @@ class LiteSheet(private val activity: Activity, title: String?, subtitle: String
                 setColorFilter(accent)
             }, LinearLayout.LayoutParams(dp(22), dp(22)))
         }
-        body.addView(line)
+        target.addView(line)
         return this
     }
 
     fun row(icon: Int?, title: String, subtitle: String? = null, checked: Boolean = false, dismiss: Boolean = true, action: () -> Unit) =
         row(Row(icon, title, subtitle, checked, dismiss, action))
 
+    private fun heading(label: String) = TextView(activity).apply {
+        text = label.uppercase()
+        setTextColor(muted)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        letterSpacing = 0.08f
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        setPadding(dp(24), dp(14), dp(24), dp(4))
+    }
+
     /** A small heading between groups of rows. */
     fun section(label: String): LiteSheet {
-        body.addView(TextView(activity).apply {
-            text = label.uppercase()
-            setTextColor(muted)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            letterSpacing = 0.08f
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            setPadding(dp(24), dp(14), dp(24), dp(4))
-        })
+        target = body
+        body.addView(heading(label))
+        return this
+    }
+
+    /**
+     * A heading that folds away the rows after it (up to the next heading); tap it to open or close.
+     * The choice is remembered under [key] (else [closed] at first); [keepOpen] opens it anyway (e.g. it holds the chosen voice).
+     */
+    fun collapsible(key: String, label: String, keepOpen: Boolean = false, closed: Boolean = false): LiteSheet {
+        val prefs = activity.getSharedPreferences("lite_sheet", Activity.MODE_PRIVATE)
+        val group = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        val head = heading(label).apply {
+            minHeight = dp(40)
+            gravity = Gravity.CENTER_VERTICAL
+            val ripple = TypedValue()
+            activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, ripple, true)
+            setBackgroundResource(ripple.resourceId)
+        }
+        fun show(open: Boolean) {
+            group.visibility = if (open) View.VISIBLE else View.GONE
+            head.text = "${label.uppercase()}  ${if (open) "▾" else "▸"}"
+        }
+        show(keepOpen || !prefs.getBoolean("closed_$key", closed))
+        head.setOnClickListener {
+            val open = group.visibility != View.VISIBLE
+            prefs.edit().putBoolean("closed_$key", !open).apply()
+            show(open)
+        }
+        body.addView(head)
+        body.addView(group)
+        target = group
         return this
     }
 
     /** Any other content (a slider, a progress bar). */
     fun view(v: View): LiteSheet {
-        body.addView(v)
+        target.addView(v)
         return this
     }
 
     fun clear(): LiteSheet {
         body.removeAllViews()
+        target = body
         return this
     }
 

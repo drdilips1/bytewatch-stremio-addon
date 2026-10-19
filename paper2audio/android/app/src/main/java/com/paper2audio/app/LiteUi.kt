@@ -143,7 +143,7 @@ object LiteUi {
         // Ready-made natural voices (people who agreed to lend their voice), on the Pocket engine. First, as
         // Narrato's own voices; Narrato has no Copy a voice, so only these come with the app.
         if (LocalTts.supported) {
-            sheet.section("Narrato voices · real readers")
+            sheet.collapsible("readers", "Narrato voices · real readers", keepOpen = Speaker.voiceId.startsWith(Speaker.CLONE))
             val own = MyVoices.own()
             pack(
                 LocalTts.POCKET_PACK,
@@ -165,21 +165,21 @@ object LiteUi {
             }
         }
 
-        sheet.section("On your phone · instant")
+        sheet.collapsible("phone", "On your phone · instant", keepOpen = Speaker.voiceId.startsWith(Speaker.SYSTEM))
         choice(Speaker.PHONE_DEFAULT, "Phone's default voice", "Works offline; quality depends on your phone")
         sheet.row(R.drawable.ic_list, "Other phone voices", "Including Indian English, if your phone has it") {
             showPhoneVoices(activity) { onChosen() }
         }
 
         if (LocalTts.supported) {
-            sheet.section("Natural · Supertonic · 31 languages")
+            sheet.collapsible("supertonic", "Natural · Supertonic · 31 languages", keepOpen = Speaker.voiceId.startsWith(Speaker.SUPER), closed = true)
             pack(
                 LocalTts.SUPERTONIC_PACK,
                 LocalTts.SUPERTONIC_VOICES.map {
                     Triple(Speaker.SUPER + it.name, supertonicName(it.name), if (it.name.startsWith("F")) "Female · quick to start" else "Male · quick to start")
                 },
             )
-            sheet.section("Natural · Kokoro · English")
+            sheet.collapsible("kokoro", "Natural · Kokoro · English", keepOpen = Speaker.voiceId.startsWith(Speaker.KOKORO), closed = true)
             val kokoro = Kokoro.VOICES.sortedBy { if (it.indian) 0 else 1 }.map { v ->
                 val (name, rest) = v.label.split(" · ", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
                 Triple(Speaker.KOKORO + v.name, name, rest.replaceFirstChar { it.uppercase() })
