@@ -4,6 +4,9 @@ name: Speech models for Text
 # only the files the app loads (int8), as .tar.gz (unpacks quickly on a phone).
 # Published to the "asr-models" release; run again only to change the models.
 on:
+  push:
+    paths:
+      - '.github/workflows/asr-models.yml'
   workflow_dispatch:
 
 permissions:
