@@ -22,6 +22,25 @@ Noted while building; to pick up after Saturday.
 - Bring over: music + video filter, player fixes (offline downloads, screen-off next part, whole-book progress, speeds), books on the phone (+ covers), podcast batch 1, StoryShots, new design (Atelier, Discover, Library), listening stats.
 - Remove Supabase sign-in and Send to Kindle; short plain README with a "built with AI help" note; add-on backup links on GitHub.
 
+## Reported 21 Oct — to fix (not started)
+1. Available row: Audiobookshelf copy missing on a cloud book page (Cultish) while Sources says
+   "Already on your Audiobookshelf". Fix saved (564694b), needs a build to confirm.
+2. Phone ebook opened from Library (list view) goes to the book page and says "This book is no
+   longer in your folder — rescan" (local details only handle audio files).
+3. Phone ebooks have no covers; "Find cover & details" applies one, then it disappears.
+   Idea: take the cover from inside the EPUB; keep a chosen cover across rescans.
+4. Read aloud skips contents / preface / foreword (good), but a tap on that text (or its
+   chapter in Contents) should read it.
+5. Voice reading: "Part I" read as "Part i"; ":" read aloud as "colon". Clean these up
+   (Roman numerals after Part / Chapter / Book → numbers; colons as a pause).
+6. Headphones button in the reader opens a "Listen" panel every time: start reading straight
+   away, and pick the voice inside the reader (not Settings).
+7. While reading aloud, a tap on the page jumps the voice there, so the reader's menu can't be
+   opened. A tap should show / hide the bars; jumping needs its own gesture.
+8. Jumping to another paragraph still slow or stops (jump fix 8f52409 not built yet — check).
+9. Reader panels (Text / Contents / Listen) have no close button, and Back leaves the book
+   instead of closing the panel.
+
 ## Made for the public app (20 Oct), not in this app yet
 Built and tested in the public Audiohub (drdilips1/Audiohub, test build 1.0.12, not released).
 Port when wanted:
