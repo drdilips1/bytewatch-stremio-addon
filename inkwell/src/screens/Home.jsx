@@ -586,8 +586,8 @@ export function Home() {
 
       <ContinueRow />
       <WaitingRow />
-      <Row title="Recommended for you" subtitle="Non-fiction from your listening and ratings" icon="sparkle" cacheKey="homeRec" shuffle load={recommendedForYou} deps={[]} />
-      <Row title="New releases" subtitle={`New in ${topicNames()}`} icon="flame" cacheKey="homeNew" shuffle load={newReleases} deps={[]} />
+      <Row title="Recommended for you" subtitle="Non-fiction from your listening and ratings" icon="sparkle" cacheKey="homeRec" shuffle rec load={recommendedForYou} deps={[]} />
+      <Row title="New releases" subtitle={`New in ${topicNames()}`} icon="flame" cacheKey="homeNew" shuffle rec load={newReleases} deps={[]} />
       <Row title="Top titles this month" subtitle={`Best sellers in ${topicNames()}`} icon="star" cacheKey="homeTop" shuffle load={topThisMonth} deps={[]} />
       <CategoryTiles />
 

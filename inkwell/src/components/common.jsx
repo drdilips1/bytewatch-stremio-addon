@@ -5,7 +5,7 @@ import { hashHue, fmtDuration } from '../lib/format.js';
 import { SOURCES, sourceOf } from '../sources/index.js';
 import { Icon } from './icons.jsx';
 import { nav } from '../lib/nav.js';
-import { progress as progressStore, useStoreKey, persisted } from '../lib/store.js';
+import { progress as progressStore, useStoreKey, persisted, useStore } from '../lib/store.js';
 import { useImage } from '../lib/image.js';
 import { useMeta } from '../lib/meta.js';
 import { useTileRating } from '../lib/ratings.js';
@@ -13,6 +13,7 @@ import { openExternal } from '../sources/summaries.js';
 import { useStoryShots, chooseStoryShots } from '../sources/storyshots.js';
 import { useLocalCover } from '../sources/local.js';
 import { audioFormat } from '../sources/debrid.js';
+import { markNotInterested, notInterested, isNotInterested } from '../lib/taste.js';
 
 export function Cover({ book, class: cls = '', eager }) {
   const { src, failed: proxyFailed } = useImage(book?.cover || '');
@@ -97,7 +98,7 @@ const isReaderEbook = (b) => b?.kind === 'text' && /#ebook$/.test(b?.uid || '');
 const str = (v) => (v == null ? '' : typeof v === 'string' ? v : Array.isArray(v) ? v.filter((x) => typeof x === 'string').join(', ') : typeof v === 'object' ? String(v.name || v.title || '') : String(v));
 
 /** A book card that can't break its grid: bad data shows a plain placeholder. */
-function SafeCard({ book, wide }) {
+function SafeCard({ book, wide, rec }) {
   return (
     <Guard
       fallback={() => (
@@ -109,7 +110,7 @@ function SafeCard({ book, wide }) {
         </div>
       )}
     >
-      <BookCard book={book} wide={wide} />
+      <BookCard book={book} wide={wide} rec={rec} />
     </Guard>
   );
 }
@@ -135,7 +136,7 @@ function CardFacts({ book, meta }) {
 
 // Memoized, and it listens to its own book's progress only: saving the position of
 // the book that's playing (every few seconds) no longer re-renders every card.
-export const BookCard = memo(function BookCard({ book: raw, wide }) {
+export const BookCard = memo(function BookCard({ book: raw, wide, rec = false }) {
   const localCover = useLocalCover(raw);
   const meta = useMeta(localCover ? { ...raw, cover: localCover } : raw);
   const merged = withMeta(localCover ? { ...raw, cover: localCover } : raw, meta);
@@ -182,6 +183,21 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
             S
           </span>
         )}
+        {rec && (
+          <span
+            class="not-btn"
+            role="button"
+            aria-label="Not interested"
+            title="Not interested — show less like this"
+            onClick={(e) => {
+              e.stopPropagation();
+              markNotInterested(book);
+              toast('Hidden — you’ll see less like this (undo in Settings → AI)');
+            }}
+          >
+            ✕
+          </span>
+        )}
         {book.fetching != null && <span class="fetch-badge">{Math.round((book.fetching || 0) * 100)}%</span>}
         {pct > 0 && (
           <div class="progress-mini">
@@ -191,7 +207,7 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
       </div>
       <div class="book-card-title">{book.title}</div>
       <div class="book-card-author">{book.author || ' '}</div>
-      <CardFacts book={book} meta={meta} />
+      {rec && book.why ? <div class="book-card-why">{book.why}</div> : <CardFacts book={book} meta={meta} />}
     </button>
   );
 });
@@ -200,10 +216,11 @@ export const BookCard = memo(function BookCard({ book: raw, wide }) {
 const rowCache = persisted('rowCache', {}, { delay: 1500 });
 /** The last list a cached row showed (e.g. Home's recommendations), or []. */
 export const cachedRow = (key) => rowCache.get()[key] || [];
-const ROW_KEEP = ['uid', 'source', 'kind', 'title', 'author', 'narrator', 'cover', 'year', 'duration', 'addedAt', 'hash', 'format', 'fetching', 'genres'];
+const ROW_KEEP = ['uid', 'source', 'kind', 'title', 'author', 'narrator', 'cover', 'year', 'duration', 'addedAt', 'hash', 'format', 'fetching', 'genres', 'why', 'match'];
 const slim = (b) => Object.fromEntries(ROW_KEEP.filter((k) => b?.[k] !== undefined).map((k) => [k, b[k]]));
 
-export function Row({ title, subtitle, load, items: given, icon, onMore, deps = [], showErrors = false, emptyText = '', cacheKey = '', shuffle = false }) {
+export function Row({ title, subtitle, load, items: given, icon, onMore, deps = [], showErrors = false, emptyText = '', cacheKey = '', shuffle = false, rec = false }) {
+  const hidden = useStore(notInterested);
   const scroller = useRef(null);
   const [items, setItems] = useState(() => given || (cacheKey && rowCache.get()[cacheKey]) || null);
   const [error, setError] = useState(null);
@@ -273,7 +290,7 @@ export function Row({ title, subtitle, load, items: given, icon, onMore, deps = 
         )}
       </header>
       <div class="row-scroll" ref={scroller}>
-        {items ? items.map((b) => <SafeCard key={b.uid} book={b} />) : Array.from({ length: 6 }, (_, i) => <Skeleton key={i} />)}
+        {items ? items.filter((b) => !rec || !isNotInterested(b, hidden)).map((b) => <SafeCard key={b.uid} book={b} rec={rec} />) : Array.from({ length: 6 }, (_, i) => <Skeleton key={i} />)}
       </div>
     </section>
   );

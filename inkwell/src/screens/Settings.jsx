@@ -3,6 +3,7 @@ import { ssBadges } from '../sources/storyshots.js';
 import { Icon } from '../components/icons.jsx';
 import { toast, AskButton } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup } from '../lib/store.js';
+import { notInterested } from '../lib/taste.js';
 import { SOURCES, absSrc, addonSrc, cloud, localSrc, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl } from '../lib/http.js';
 import { searchSources, sourceAddons } from '../sources/sourceaddons.js';
@@ -386,6 +387,7 @@ function AiCard() {
         </div>
         <input type="checkbox" class="switch" checked={useStore(settings).aiNoSpoilers !== false} onChange={(e) => settings.patch({ aiNoSpoilers: e.currentTarget.checked })} />
       </label>
+      <HiddenRecs />
       <p class="muted small">
         <b>Groq</b> is the fastest and most generous (recommended). <b>OpenRouter</b> gives free Llama, DeepSeek and Qwen models. No card is needed for either.
       </p>
@@ -1449,6 +1451,26 @@ function PlayerBackgroundPicker({ st }) {
           <input type="range" min="0" max="0.8" step="0.05" value={st.playerDim ?? 0.45} onInput={(e) => settings.patch({ playerDim: +e.currentTarget.value })} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** Books you marked "Not interested" on recommendations: count, and show them again. */
+function HiddenRecs() {
+  const all = useStore(notInterested);
+  const n = Object.keys(all || {}).length;
+  if (!n) return null;
+  return (
+    <div class="set-row">
+      <div>
+        <b>Not interested</b>
+        <small>
+          {n} book{n > 1 ? 's' : ''} hidden from recommendations (and fewer like them)
+        </small>
+      </div>
+      <button class="pill small" onClick={() => (notInterested.set({}), toast('Recommendations reset'))}>
+        Show again
+      </button>
     </div>
   );
 }
