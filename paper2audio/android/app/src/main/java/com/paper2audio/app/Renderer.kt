@@ -376,7 +376,10 @@ object Renderer {
         val normalized = Speech.normalize(text, v.medical).ifBlank { text }
         // Books use curly apostrophes (won’t); the on-device voices only know the plain one and
         // read "won t". Plain quotes and apostrophes for them.
-        val spoken = if (LocalTts.isLocal(voice)) plainQuotes(normalized) else normalized
+        // Online voices ended the sentence at "U.S." too ("the U.S. Public Health Service"): inside a
+        // sentence initials lose their last dot ("U.S Public"), still read letter by letter.
+        val spoken = if (LocalTts.isLocal(voice)) plainQuotes(normalized)
+            else normalized.replace(Regex("""\b((?:\p{Lu}\.){1,}\p{Lu})\.(?=\s+[\p{L}\d])"""), "$1")
         try {
             val es = engineSpeed(v, speed)
             if (LocalTts.isLocal(voice) && spoken.none { it.isLetterOrDigit() }) {
