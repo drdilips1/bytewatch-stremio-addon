@@ -22,6 +22,30 @@ Noted while building; to pick up after Saturday.
 - Bring over: music + video filter, player fixes (offline downloads, screen-off next part, whole-book progress, speeds), books on the phone (+ covers), podcast batch 1, StoryShots, new design (Atelier, Discover, Library), listening stats.
 - Remove Supabase sign-in and Send to Kindle; short plain README with a "built with AI help" note; add-on backup links on GitHub.
 
+## Made for the public app (20 Oct), not in this app yet
+Built and tested in the public Audiohub (drdilips1/Audiohub, test build 1.0.12, not released).
+Port when wanted:
+
+1. **Backup saves a real file:** Export opens Android's Save screen (`audiohub-backup-<date>.json`
+   in Downloads), Import opens the file picker; "Paste a backup instead" for text backups.
+   Native `saveFile` / `openFile` in InkwellLocalPlugin.
+2. **Backup includes everything:** podcasts, ratings, stats, addons, settings, plus logins and API
+   keys (TorBox, Real-Debrid, Groq/OpenRouter, Audiobookshelf, qBittorrent, sync server) behind an
+   "Include logins & API keys" switch. Caches and phone-only data left out. Restore reloads the app.
+   This app's backup still holds only library, progress, bookmarks, addons and settings.
+3. **Account: one Continue button** (signs in, or creates the account), no confirmation email:
+   setup SQL adds `audiohub_confirm()` so the app confirms the account itself; also fixes accounts
+   stuck waiting for the email. Messages stay on screen. Needs that SQL run on this app's server.
+4. **Account: server URL tidied** (keeps only https://….supabase.co if /rest/v1/ is pasted) and
+   newer `sb_publishable_` keys work. Shorter setup steps with the phone-paste tip.
+
+(Already in this app, copied the other way: Ask AI; Microsoft voice not dropping to the phone
+voice after a silent piece.)
+
+## Done here, not built yet
+- Text: no endless "Starting speech recognition…" after turning Text off and on (Android + iPhone).
+- Text: smaller speech packs that unpack in seconds (.tar.gz; Hindi pack 94 MB instead of 208 MB).
+
 ## Done (v1.0.114–115)
 - Atelier look; Discover (pick of the week, moods, genre tiles, trending, search + bookseller in one box); Library (On this phone, sort, list); big Continue card; cards with format · length · narrator; listening stats; faster AI.
 
