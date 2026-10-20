@@ -11,6 +11,7 @@ import { mainTitle } from '../lib/match.js';
 import { Icon } from '../components/icons.jsx';
 import { ia, gb, ol, absSrc, addonSrc, cloud, localSrc, hc, gr, enabled, sourceOrder, sourceRank } from '../sources/index.js';
 import { Fragment } from 'preact';
+import { sameWork } from '../lib/works.js';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary } from '../lib/store.js';
 import { greeting, fmtDuration, hiResCover } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
@@ -366,6 +367,8 @@ function ContinueRow() {
       Object.entries(prog)
         .filter(([uid, p]) => !p.finished && p.book && !/^(lbl?|sum):/.test(uid))
         .sort((a, b) => b[1].updatedAt - a[1].updatedAt)
+        // One card per book: the copy (or format) you used last.
+        .filter(([, p], i, all) => !all.slice(0, i).some(([, q]) => sameWork(q.book, p.book)))
         .slice(0, 12),
     [prog]
   );

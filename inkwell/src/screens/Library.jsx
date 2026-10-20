@@ -6,6 +6,7 @@ import { localSrc } from '../sources/index.js';
 import { fmtDuration } from '../lib/format.js';
 import { metaNow } from '../lib/meta.js';
 import { seriesOf } from '../lib/series.js';
+import { oneEach } from '../lib/works.js';
 import { downloads, removeDownload } from '../lib/downloads.js';
 import { forgetEbook, savedEbooks } from '../lib/epub.js';
 import { nav } from '../lib/nav.js';
@@ -90,7 +91,8 @@ export function Library() {
         // Ebooks: the ones kept on the phone after opening them in the app.
         downloaded: k === 'audio' ? pick(downloaded) : Object.values(kept || {}).map((x) => x.book).filter(ok),
       };
-      sub.all = unique([...pick(started.map((p) => p.book)), ...sub.saved, ...sub.downloaded, ...sub.phone]);
+      // Every copy of a book (phone, download, server, cloud) shows once.
+      sub.all = oneEach(unique([...pick(started.map((p) => p.book)), ...sub.saved, ...sub.downloaded, ...sub.phone]));
       return sub;
     };
     return {

@@ -7,6 +7,7 @@ import { progress, bookmarks, settings, summarize } from './store.js';
 import { syncProgress, switchTracks } from '../sources/audiobookshelf.js';
 import { fetchStatus } from '../sources/debrid.js';
 import { applyLocal, isDownloaded, downloads } from './downloads.js';
+import { otherCopyProgress } from './works.js';
 
 // ---- safety net: a part that won't play --------------------------------------
 // First a fresh link and one more try; then another copy of the same book you
@@ -476,7 +477,9 @@ export async function playBook(details, { index, time, globalStart } = {}) {
     const resume = saved && !saved.finished;
     let i = index ?? (resume ? saved.track : 0) ?? 0;
     let t = time ?? (resume ? saved.time : 0);
-    const g = globalStart ?? (index == null && time == null && !resume && serverStart ? serverStart : null);
+    // Never played this copy, but another copy of the same book: continue from there.
+    const other = !saved && index == null && time == null && globalStart == null ? otherCopyProgress(details) : null;
+    const g = globalStart ?? (other ? other.global : null) ?? (index == null && time == null && !resume && serverStart ? serverStart : null);
     if (g != null) ({ i, t } = locate(g));
     // Gentle rewind when resuming after a break.
     if (resume && index == null && time == null && Date.now() - saved.updatedAt > 5 * 60e3) t = Math.max(0, t - 10);
