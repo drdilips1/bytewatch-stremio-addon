@@ -12,14 +12,18 @@ import { podcasts } from '../sources/podcasts.js';
 import { ShowGrid } from './Podcasts.jsx';
 
 const TABS = [
-  ['progress', 'In progress'],
-  ['saved', 'Saved'],
-  ['phone', 'On this phone'],
+  ['progress', 'Continue'],
   ['audio', 'Audiobooks'],
   ['text', 'Ebooks'],
   ['podcasts', 'Podcasts'],
-  ['downloaded', 'Downloaded'],
   ['finished', 'Finished'],
+];
+// Inside Audiobooks / Ebooks: where the books are.
+const WHERE = [
+  ['all', 'All'],
+  ['phone', 'On this phone'],
+  ['downloaded', 'Downloaded'],
+  ['saved', 'Saved'],
 ];
 
 const SORTS = [
@@ -29,7 +33,7 @@ const SORTS = [
   ['length', 'Length'],
 ];
 const surname = (name) => String(name).split(',')[0].trim().split(/\s+/).pop() || '';
-const libView = persisted('libraryView', { list: false, sort: 'recent' });
+const libView = persisted('libraryView', { list: false, sort: 'recent', tab: 'progress', where: 'all' });
 const lengthOf = (b) => b.duration || metaNow(b)?.runtime || b.size || 0;
 // Phone and cloud books often get their author from the online lookup.
 const authorOf = (b) => metaNow(b)?.author || b.author || '';
@@ -53,41 +57,52 @@ export function Library() {
   const prog = useStore(progress);
   const dls = useStore(downloads);
   const pods = useStore(podcasts);
-  const [tab, setTab] = useState('progress');
+  const tab = TABS.some(([k]) => k === view.tab) ? view.tab : 'progress';
+  const where = view.where || 'all';
+  const setTab = (t) => libView.set((v) => ({ ...v, tab: t, where: 'all' }));
+  const setWhere = (w) => libView.set((v) => ({ ...v, where: w }));
   const [editing, setEditing] = useState(false);
   const [editShown, setEditShown] = useState(60);
   const last = useRef([]);
-  const fresh = useMemo(() => {
+  // Every group of books, once per change.
+  const groups = useMemo(() => {
     // Defensive: skip anything malformed rather than failing the whole screen.
     const ok = (b) => b && typeof b === 'object' && typeof b.uid === 'string';
-    const saved = Object.values(lib || {}).filter((b) => ok(b) && !/^lbl?:/.test(b.uid)).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+    const saved = Object.values(lib || {}).filter((b) => ok(b) && !/^lbl?:/.test(b.uid) && b.source !== 'pod').sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
     const started = Object.values(prog || {}).filter((p) => p && ok(p.book)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    switch (tab) {
-      case 'progress':
-        return started.filter((p) => !p.finished).map((p) => p.book);
-      case 'finished':
-        return started.filter((p) => p.finished).map((p) => p.book);
-      case 'saved':
-        return saved;
-      case 'phone':
-        return local.books || [];
-      case 'podcasts':
-        // Episodes you've started and not finished.
-        return started.filter((p) => !p.finished && p.book.source === 'pod').map((p) => p.book);
-      case 'downloaded':
-        return Object.values(dls || {})
-          .filter((d) => d && ok(d.book) && d.status !== 'cancelled')
-          .map((d) => d.book);
-      default: {
-        // Audiobooks / Ebooks: everything saved or started of that kind.
-        const seen = new Set();
-        return [...saved, ...started.map((p) => p.book)].filter((b) => b.kind === tab && b.source !== 'pod' && !seen.has(b.uid) && seen.add(b.uid));
-      }
-    }
-  }, [lib, prog, tab, dls, local]);
+    const phone = (local.books || []).filter(ok);
+    const downloaded = Object.values(dls || {})
+      .filter((d) => d && ok(d.book) && d.status !== 'cancelled')
+      .map((d) => d.book);
+    const kindOf = (b) => (b.kind === 'text' ? 'text' : 'audio');
+    const unique = (list) => {
+      const seen = new Set();
+      return list.filter((b) => !seen.has(b.uid) && seen.add(b.uid));
+    };
+    const byKind = (k) => {
+      const pick = (list) => list.filter((b) => kindOf(b) === k && b.source !== 'pod');
+      const sub = {
+        saved: pick(saved),
+        phone: pick(phone),
+        downloaded: k === 'audio' ? pick(downloaded) : [],
+      };
+      sub.all = unique([...pick(started.map((p) => p.book)), ...sub.saved, ...sub.downloaded, ...sub.phone]);
+      return sub;
+    };
+    return {
+      progress: started.filter((p) => !p.finished).map((p) => p.book),
+      finished: started.filter((p) => p.finished).map((p) => p.book),
+      // Episodes you've started and not finished.
+      podcasts: started.filter((p) => !p.finished && p.book.source === 'pod').map((p) => p.book),
+      audio: byKind('audio'),
+      text: byKind('text'),
+    };
+  }, [lib, prog, dls, local]);
+  const subs = tab === 'audio' || tab === 'text' ? groups[tab] : null;
+  const fresh = subs ? subs[where] || subs.all : groups[tab];
   // Phone books are listed once a folder has been scanned.
   useEffect(() => {
-    if (tab === 'phone' && localSrc.connected() && !local.scannedAt) localSrc.rescan().catch(() => {});
+    if ((tab === 'audio' || tab === 'text') && localSrc.connected() && !local.scannedAt) localSrc.rescan().catch(() => {});
   }, [tab]);
   const sorted = useMemo(() => (view.sort !== 'recent' && SORTERS[view.sort] ? [...fresh].sort(SORTERS[view.sort]) : fresh), [fresh, view.sort]);
   // Position saves (every few seconds while playing) give new objects for one book at
@@ -138,6 +153,15 @@ export function Library() {
           </button>
         ))}
       </div>
+      {subs && (
+        <div class="lib-where">
+          {WHERE.filter(([k]) => k === 'all' || subs[k].length || (k === 'phone' && localSrc.available)).map(([k, label]) => (
+            <button class={'pill small' + (where === k ? ' active' : '')} onClick={() => setWhere(k)}>
+              {label} <span class="lib-count">{subs[k].length}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {tab !== 'podcasts' && items.length > 1 && (
         <div class="lib-tools">
           <div class="lib-sort">
@@ -152,7 +176,7 @@ export function Library() {
           </button>
         </div>
       )}
-      {tab === 'phone' && !items.length ? (
+      {subs && where === 'phone' && !items.length ? (
         <PhoneEmpty />
       ) : tab === 'podcasts' ? (
         <div class="lib-pods">
@@ -177,7 +201,7 @@ export function Library() {
             </Empty>
           )}
         </div>
-      ) : items.length && editing && tab !== 'phone' ? (
+      ) : items.length && editing && !(subs && where === 'phone') ? (
         <div class="lib-edit">
           {items.slice(0, editShown).map((b) => (
             <div class="lib-edit-row">
@@ -186,7 +210,7 @@ export function Library() {
                 <b>{b.title}</b>
                 <small>{b.author}</small>
               </div>
-              <button class="icon-btn" aria-label={`Remove ${b.title}`} onClick={() => remove(b, tab)}>
+              <button class="icon-btn" aria-label={`Remove ${b.title}`} onClick={() => remove(b, subs ? where : tab)}>
                 <Icon name="trash" size={18} />
               </button>
             </div>

@@ -62,13 +62,20 @@ function LocalBooksCard() {
   return (
     <div>
       <p class="muted">
-        Pick the folder where your audiobooks are (for example <b>Audiobooks</b> or <b>Download</b>). Each book folder inside becomes a book — with its parts in order — and plays straight from the phone, offline too. Android asks for access to that folder only.
+        Pick the folders where your audiobooks and ebooks are (for example <b>Audiobooks</b>, <b>Books</b> or <b>Download</b>). Each book folder becomes an audiobook — with its parts in order — and each EPUB or PDF an ebook, all straight from the phone, offline too. Android asks for access to those folders only.
       </p>
       {cfg.folders.map((f) => (
         <div class="set-row">
           <div>
             <b>{decodeURIComponent(f.name)}</b>
-            <small>{cfg.books.filter((b) => b.folder === f.uri).length} audiobooks</small>
+            <small>
+              {(() => {
+                const inIt = cfg.books.filter((b) => b.folder === f.uri);
+                const eb = inIt.filter((b) => b.kind === 'text').length;
+                const au = inIt.length - eb;
+                return [au && `${au} audiobook${au > 1 ? 's' : ''}`, eb && `${eb} ebook${eb > 1 ? 's' : ''}`].filter(Boolean).join(' · ') || 'No books yet';
+              })()}
+            </small>
           </div>
           <button class="pill small" onClick={() => localSrc.removeFolder(f.uri)}>
             Remove

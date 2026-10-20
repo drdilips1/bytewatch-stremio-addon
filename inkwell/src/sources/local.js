@@ -53,7 +53,7 @@ export async function rescan() {
       errors.push(`${folder.name}: ${e.message}`);
     }
   }
-  localCfg.set((c) => ({ ...c, books, scannedAt: Date.now() }));
+  localCfg.set((c) => ({ ...c, books, scannedAt: Date.now(), v: 2 }));
   if (errors.length && !books.length) throw new Error(errors.join(' · '));
   makeCovers();
   return books;
@@ -81,6 +81,8 @@ async function makeCovers() {
   }
 }
 if (available) setTimeout(makeCovers, 4000); // books scanned before covers existed
+// Folders scanned before ebooks were found: look again once, so EPUB / PDF files show up.
+if (available && connected() && (localCfg.get().v || 1) < 2) setTimeout(() => rescan().catch(() => {}), 2500);
 
 function group(folder, files, covers = []) {
   const coverIn = new Map();

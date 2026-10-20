@@ -7847,3 +7847,24 @@ button.stats {
   margin-top: 6px;
   opacity: 0.7;
 }
+
+/* Library: where the books are (inside Audiobooks / Ebooks) */
+.lib-where {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px;
+  margin: 2px 0 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.lib-where::-webkit-scrollbar {
+  display: none;
+}
+.lib-where .pill {
+  flex: none;
+}
+.lib-count {
+  opacity: 0.6;
+  font-weight: 500;
+  margin-left: 3px;
+}
