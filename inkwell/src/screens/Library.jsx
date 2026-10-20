@@ -105,6 +105,9 @@ export function Library() {
       <div class="library-head">
         <h1 class="screen-title">Library</h1>
         <div class="library-head-actions">
+          <button class="icon-btn glass" onClick={() => nav.push('notes')} aria-label="Highlights and notes">
+            <Icon name="bookmark" size={19} />
+          </button>
           <button class="icon-btn glass" onClick={() => nav.push('stats')} aria-label="Listening stats">
             <Icon name="chart" size={20} />
           </button>

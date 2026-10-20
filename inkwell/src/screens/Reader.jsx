@@ -11,6 +11,8 @@ import { paragraphs, estimate, textBlocks, isSkippable, skipFrontMatter, nativeR
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import * as player from '../lib/player.js';
 import { toast } from '../components/common.jsx';
+import { forBook, addHighlight, updateHighlight, removeHighlight, markText, unmark, selectionParts } from '../lib/highlights.js';
+import { SelectionBar, AiSheet, HighlightSheet } from '../components/reader-select.jsx';
 
 const THEMES = [
   ['night', 'Night'],
@@ -20,7 +22,7 @@ const THEMES = [
 ];
 
 
-export function Reader({ book, readAloud: autoAloud }) {
+export function Reader({ book, readAloud: autoAloud, at = null }) {
   const st = useStore(settings);
   const [doc, setDoc] = useState(null);
   const [error, setError] = useState(null);
@@ -31,6 +33,9 @@ export function Reader({ book, readAloud: autoAloud }) {
   const [aloud, setAloud] = useState(null); // { playing, index }
   const ctl = useRef(null);
   const [aiBusy, setAiBusy] = useState('');
+  // Selected words (long-press) → the action bar; sheet = AI answer or a highlight's note.
+  const [sel, setSel] = useState(null);
+  const [sheet, setSheet] = useState(null);
   // PDFs: the original pages (Pages) or the reflowed text (Text). The page view's
   // code loads only when it's first opened.
   const [pages, setPages] = useState(false);
@@ -182,13 +187,69 @@ export function Reader({ book, readAloud: autoAloud }) {
     const saved = progress.get()[book.uid];
     const el = scroller.current;
     requestAnimationFrame(() => {
-      const target = saved?.anchor >= 0 ? blocks()[saved.anchor] : null;
+      const target = at != null ? blocks()[at] : saved?.anchor >= 0 ? blocks()[saved.anchor] : null;
       if (target) {
         target.scrollIntoView({ block: 'start' });
         el.scrollTop -= 70;
       } else if (saved?.percent) el.scrollTop = saved.percent * (el.scrollHeight - el.clientHeight);
     });
   }, [doc]);
+
+  // Show this book's highlights in the text.
+  const markAll = () => {
+    const root = scroller.current?.querySelector('.reader-text');
+    if (!root) return;
+    unmark(root);
+    const list = blocks();
+    for (const h of forBook(book.uid)) for (const p of h.parts) markText(list[p.a], p.t, h.id);
+  };
+  useEffect(() => {
+    if (doc) requestAnimationFrame(markAll);
+  }, [doc]);
+
+  // Long-press selection → the action bar (after the selection settles).
+  useEffect(() => {
+    if (!doc) return;
+    let t;
+    const onSel = () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const s = window.getSelection();
+        const root = scroller.current?.querySelector('.reader-text');
+        if (!s || s.isCollapsed || !s.rangeCount || !root || !root.contains(s.anchorNode)) return setSel(null);
+        const range = s.getRangeAt(0);
+        const text = s.toString().trim();
+        if (!text) return setSel(null);
+        const parts = selectionParts(range, blocks());
+        const context = parts.length ? blocks()[parts[0].a]?.textContent || text : text;
+        setSel({ text, parts, context, rect: range.getBoundingClientRect() });
+      }, 250);
+    };
+    document.addEventListener('selectionchange', onSel);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('selectionchange', onSel);
+    };
+  }, [doc]);
+
+  const keepHighlight = (parts, note = '') => {
+    if (!parts?.length) return;
+    const h = addHighlight(book, parts, note);
+    const list = blocks();
+    for (const p of h.parts) markText(list[p.a], p.t, h.id);
+    window.getSelection()?.removeAllRanges();
+    setSel(null);
+    toast(note ? 'Highlighted with a note' : 'Highlighted');
+  };
+  const onSelAction = (kind) => {
+    const s = sel;
+    if (!s) return;
+    if (kind === 'highlight') return keepHighlight(s.parts);
+    window.getSelection()?.removeAllRanges();
+    setSel(null);
+    setPanel(null);
+    setSheet({ type: 'ai', kind, text: s.text, context: s.context, parts: s.parts });
+  };
 
   useEffect(() => {
     const el = scroller.current;
@@ -250,6 +311,12 @@ export function Reader({ book, readAloud: autoAloud }) {
         ref={scroller}
         onClick={(e) => {
           if (e.target.closest('a')) return;
+          if (sel) return; // finishing a selection, not a page tap
+          const mark = e.target.closest('mark.hl');
+          if (mark) {
+            const h = forBook(book.uid).find((x) => x.id === mark.dataset.id);
+            if (h) return setSheet({ type: 'hl', h });
+          }
           if (aloud) {
             const i = speakBlocks().findIndex((b) => b.contains(e.target));
             if (i >= 0) return startAloud(i);
@@ -287,6 +354,38 @@ export function Reader({ book, readAloud: autoAloud }) {
         <span>{Math.round(pct * 100)}%</span>
       </footer>
 
+      {sel && !sheet && <SelectionBar sel={sel} onAction={onSelAction} />}
+      {sheet?.type === 'ai' && (
+        <AiSheet
+          kind={sheet.kind}
+          text={sheet.text}
+          context={sheet.context}
+          book={book}
+          onClose={() => setSheet(null)}
+          onKeep={(answer) => {
+            keepHighlight(sheet.parts, answer);
+            setSheet(null);
+          }}
+        />
+      )}
+      {sheet?.type === 'hl' && (
+        <HighlightSheet
+          h={sheet.h}
+          onClose={() => setSheet(null)}
+          onSave={(note) => {
+            updateHighlight(book.uid, sheet.h.id, { note });
+            setSheet(null);
+            toast(note ? 'Note saved' : 'Saved');
+          }}
+          onRemove={() => {
+            removeHighlight(book.uid, sheet.h.id);
+            const root = scroller.current?.querySelector('.reader-text');
+            if (root) unmark(root, sheet.h.id);
+            setSheet(null);
+          }}
+          onAi={() => setSheet({ type: 'ai', kind: 'explain', text: sheet.h.text, context: sheet.h.text, parts: sheet.h.parts })}
+        />
+      )}
       {panel === 'listen' && doc && (
         <div class="reader-panel">
           <h3>Listen to this book</h3>
@@ -364,6 +463,29 @@ export function Reader({ book, readAloud: autoAloud }) {
               <li class="muted">No chapter headings in this edition.</li>
             )}
           </ol>
+          {forBook(book.uid).length > 0 && (
+            <>
+              <h3 class="toc-hl-title">Your highlights</h3>
+              <ol class="toc toc-hl">
+                {forBook(book.uid).map((h) => (
+                  <li>
+                    <button
+                      onClick={() => {
+                        const m = scroller.current.querySelector(`mark.hl[data-id="${h.id}"]`) || blocks()[h.parts[0].a];
+                        m?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        setPanel(null);
+                      }}
+                    >
+                      “{h.text.length > 90 ? h.text.slice(0, 90) + '…' : h.text}”{h.note && <small>{h.note.length > 80 ? h.note.slice(0, 80) + '…' : h.note}</small>}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+              <button class="link-btn" onClick={() => nav.push('notes')}>
+                All highlights & notes
+              </button>
+            </>
+          )}
         </div>
       )}
       {panel === 'style' && (

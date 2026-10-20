@@ -7700,3 +7700,150 @@ button.stats {
   margin: 0;
   height: 0;
 }
+
+/* Reader: selection bar, AI answers, highlights */
+.reader-text mark.hl {
+  background: color-mix(in srgb, #f5c84b 38%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.sel-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #1f1d26;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+  max-width: calc(100vw - 24px);
+  overflow-x: auto;
+}
+.sel-bar button {
+  flex: none;
+  padding: 9px 11px;
+  border-radius: 10px;
+  color: #f2eff8;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sel-bar button:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+.sel-bar .hl-btn {
+  color: #f5c84b;
+}
+.sel-sheet {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.sel-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sel-quote {
+  margin: 6px 0 12px;
+  padding: 8px 12px;
+  border-left: 3px solid #f5c84b;
+  font-style: italic;
+  opacity: 0.85;
+  font-size: 14px;
+}
+.sel-answer p {
+  margin: 0 0 10px;
+  line-height: 1.55;
+}
+.sel-ask {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.sel-ask input,
+.hl-note {
+  flex: 1;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--r-fg) 20%, transparent);
+  background: color-mix(in srgb, var(--r-fg) 6%, transparent);
+  color: var(--r-fg);
+  font: inherit;
+}
+.hl-note {
+  margin-bottom: 10px;
+  resize: vertical;
+}
+.link-btn.danger {
+  color: #e5675f;
+}
+.toc-hl-title {
+  margin-top: 18px;
+}
+.toc-hl small {
+  display: block;
+  margin-top: 3px;
+  opacity: 0.7;
+  font-style: normal;
+}
+.toc-hl button {
+  font-style: italic;
+}
+
+/* Highlights & notes screen */
+.notes-search {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+.notes-book {
+  margin: 8px 16px 18px;
+}
+.notes-book-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.notes-book-head .cover {
+  width: 44px;
+  flex: none;
+}
+.notes-book-head small {
+  display: block;
+  opacity: 0.7;
+}
+.note-card {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm, 12px);
+  background: var(--surface);
+}
+.note-quote {
+  display: block;
+  text-align: left;
+  font-family: Georgia, serif;
+  font-style: italic;
+  line-height: 1.5;
+  color: inherit;
+  border-left: 3px solid #f5c84b;
+  padding-left: 10px;
+}
+.note-text {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+}
+.note-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  opacity: 0.7;
+}

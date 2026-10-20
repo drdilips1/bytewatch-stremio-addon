@@ -1,6 +1,7 @@
 import * as qbit from './sources/qbit.js';
 import { Ask } from './screens/Ask.jsx';
 import { Stats } from './screens/Stats.jsx';
+import { Notes } from './screens/Notes.jsx';
 import { DriveMode, openDrive } from './components/drive-mode.jsx';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { memo } from 'preact/compat';
@@ -67,7 +68,7 @@ const KeptTab = memo(function KeptTab({ Root }) {
   );
 });
 
-const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast, ask: Ask, stats: Stats };
+const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast, ask: Ask, stats: Stats, notes: Notes };
 
 export function App() {
   const [route, setRoute] = useState(nav.state());
