@@ -1,25 +1,28 @@
 # Narrato – Google Play listing (draft)
 
-**App name (30 chars):** Narrato: Read Aloud & Audiobooks
+**App name (30 chars):** Narrato: Read Aloud Books
 
 **Short description (80 chars):**
-Turn books, PDFs, documents and web pages into audio. Unlimited, no account.
+Read books & PDFs aloud with natural voices. Private, offline, unlimited.
 
 **Full description:**
 Listen to anything you'd otherwise have to read.
 
-Add a book, PDF, Word file, PowerPoint, web page, pasted text or a photo of a page, and
-Narrato reads it aloud while highlighting each sentence, so you can follow along or just listen.
+Add a book, PDF, Word file, web page, pasted text or even a photo of a printed page, and Narrato reads it aloud while highlighting each sentence, so you can follow along or simply listen.
 
-• Unlimited: no word limits, no hour limits, no account, no sign-in
-• Natural on-device voices (one-time download), plus your phone's own voices
-• Works offline: voices run on your phone
-• Speed from 0.5x to 3x, sleep timer, chapters, sentence back and forward
-• Eight ready-made natural voices of real readers (five female, three male), on your phone: offline and unlimited
+• Private: your books never leave your phone. No uploads, no account, no limits
+• Natural voices of real readers: eight ready-made voices, five female and three male, that run right on your phone
+• More natural voices: Supertonic (31 languages) and Kokoro, plus your phone's own voices
+• Unlimited: no word limits, no hour limits, no sign-in
+• No internet needed while listening: the voices run on your phone
+• Listen with Narrato: select text in any app and hear it right away, or share a link or file
+• Speed control, sleep timer, chapters, and sentence back and forward
+• Reading view with adjustable font, text size, line spacing and justified text
+• Fix how a word is pronounced, once, everywhere
 • Skips page numbers, headers and other clutter in PDFs; opens books at the first chapter
 • Reads text from photos of printed pages
-• Save the text as plain text, Markdown or PDF
 • Keeps playing with the screen off, with controls on the lock screen
+• Light and dark themes
 
 Free, supported by ads. Ads never interrupt listening.
 
