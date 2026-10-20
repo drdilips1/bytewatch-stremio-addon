@@ -22,11 +22,14 @@ async function otherCopy(b) {
   const t = mainTitle(b.title || '');
   if (!t) return null;
   const same = (x) => x && x.uid !== b.uid && !rescueTried.has(x.uid) && x.kind !== 'text' && matches(t, `${x.title || ''} ${x.rawName || ''}`);
+  const o = await findOwned(b).catch(() => null);
+  // Real-Debrid failing: your TorBox copy is the closest match (same files), so it goes first.
+  const tb = b.source === 'rd' ? o?.cloud?.find((x) => x.source === 'tb' && same(x)) : null;
+  if (tb) return { book: tb, label: 'your TorBox' };
   const dl = Object.values(downloads.get()).find((d) => d?.status === 'done' && same(d.book));
   if (dl) return { book: dl.book, label: 'your downloaded copy' };
   const ph = (localSrc.localCfg.get().books || []).find(same);
   if (ph) return { book: ph, label: 'the copy on this phone' };
-  const o = await findOwned(b).catch(() => null);
   const s = o?.server?.find(same);
   if (s) return { book: s, label: 'your Audiobookshelf' };
   const c = o?.cloud?.find(same);
@@ -34,14 +37,17 @@ async function otherCopy(b) {
   return null;
 }
 /** Returns true when it took over (retrying or switching copies). */
-async function recover() {
+async function recover(msg = '') {
   const b = state.book;
   if (!b || b.source === 'pod') return false;
   const key = `${b.uid}#${state.index}`;
   if (rescue.key !== key) rescue = { key, step: 0 };
   const t = state.tracks[state.index];
   const at = state.time || loadingAt?.at || 0;
-  if (rescue.step === 0 && t?.resolve && !b.offline) {
+  // Real-Debrid saying its file server is down (503 hoster_unavailable…): another try won't
+  // help, go straight to TorBox.
+  const rdDown = b.source === 'rd' && /\b5\d\d\b|hoster|unavailable|not available|infringing|too many/i.test(String(msg));
+  if (rescue.step === 0 && t?.resolve && !b.offline && !rdDown) {
     rescue.step = 1;
     set({ loading: true, error: null, phase: 'Reconnecting…' });
     await delay(1500);
@@ -53,6 +59,22 @@ async function recover() {
     rescue.step = 2;
     rescueTried.add(b.uid);
     const g = globalTime();
+    // A Real-Debrid book: the same torrent from TorBox first (instant when TorBox has it).
+    if (b.source === 'rd' && b.hash) {
+      try {
+        const { cloud, getDetails } = await import('../sources/index.js');
+        if (cloud.tbConnected()) {
+          set({ loading: true, error: null, phase: 'Real-Debrid can’t serve this right now — playing it from TorBox…' });
+          const stub = await cloud.prepareMagnet('torbox', { hash: b.hash, title: b.title });
+          const d = await getDetails({ ...stub, title: b.title, author: b.author, cover: b.cover });
+          rescuing = true;
+          await playBook(d, { globalStart: g });
+          return true;
+        }
+      } catch {
+        rescuing = false;
+      }
+    }
     const alt = await otherCopy(b).catch(() => null);
     if (alt) {
       set({ loading: true, error: null, phase: `This copy won't play — switching to ${alt.label}…` });
@@ -182,7 +204,7 @@ const handlers = {
     const token = loadToken;
     if (isAbs(state.book) && (await trySwitch())) return;
     if (token !== loadToken) return; // something else started loading meanwhile
-    if (await recover()) return;
+    if (await recover(msg)) return;
     if (token !== loadToken) return;
     set({ loading: false, playing: false, phase: '', error: msg });
     checkCloud(state.index, state.time, msg);
@@ -320,7 +342,7 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
     }
     if (isAbs(state.book) && (await trySwitch())) return;
     if (token !== loadToken) return;
-    if (await recover()) return;
+    if (await recover(e.message)) return;
     if (token !== loadToken) return;
     set({ loading: false, playing: false, phase: '', error: e.message || 'Playback failed' });
   }
