@@ -3,11 +3,11 @@ import { TopBar, Cover, toast } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { nav } from '../lib/nav.js';
 import { aiReady } from '../lib/ai.js';
-import { MODES, STARTERS, LIBRARY_ASKS, ask, quiz, threadFor, clearThread, hearing, ideas, forgetIdea } from '../lib/askbook.js';
+import { MODES, STARTERS, LIBRARY_ASKS, ask, quiz, threadFor, clearThread, hearing, ideas, forgetIdea, spoilerLimit } from '../lib/askbook.js';
 import { keyIdeas, summaryBook } from '../sources/summaries.js';
 import { mainTitle } from '../lib/match.js';
 import { usePlayer } from '../components/player-ui.jsx';
-import { useStore } from '../lib/store.js';
+import { useStore, settings } from '../lib/store.js';
 import * as player from '../lib/player.js';
 import { canListen, listen, speakAnswer, stopAnswer, voiceLang, LANGS, askVoice, canPickVoice, ASK_VOICES, autoRead } from '../lib/voiceask.js';
 
@@ -177,6 +177,11 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
           🔊 Read answers aloud
           <input type="checkbox" class="switch" checked={readAloud} onChange={(e) => (autoRead.set(e.currentTarget.checked), e.currentTarget.checked || (stopAnswer(), setSpeaking(-1)))} />
         </label>
+        {book && spoilerLimit(book) && (
+          <button class="ask-spoiler" onClick={() => (settings.patch({ aiNoSpoilers: false }), toast('Spoilers allowed — switch back in Settings → AI'))}>
+            🙈 No spoilers past {spoilerLimit(book).pct}% · tap to allow
+          </button>
+        )}
         <p class="muted small ask-note">
           Answers use what the AI knows about {book ? 'the book' : 'your books'} and {book ? 'its description' : 'your listening history'} — it doesn't have the audio or text itself, and will say when it isn't sure.
         </p>

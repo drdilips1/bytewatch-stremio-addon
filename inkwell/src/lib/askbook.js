@@ -4,7 +4,7 @@
 // Answers come from what the AI knows about the book plus its description —
 // it doesn't have the audio or text itself, and is told to say so when unsure.
 import { askAi, parseJson } from './ai.js';
-import { persisted } from './store.js';
+import { persisted, progress, settings } from './store.js';
 import { mainTitle } from './match.js';
 import { tasteProfile } from './bookseller.js';
 import { fmtTime } from './format.js';
@@ -132,7 +132,29 @@ Use what you know about this book and the description below. You don't have the 
 ${desc ? `Description: """${desc}"""\n` : ''}${genres.length ? `Genres: ${genres.slice(0, 6).join(', ')}\n` : ''}`;
 }
 
-const STYLE = 'Reply in the language the reader used (English, Hindi or Hinglish). Answer in clear, warm, plain language. Use short paragraphs, and bullet points ("- ") or numbered lists where they help. Use **bold** for key terms. Keep it under about 250 words unless the question asks for more.';
+/**
+ * No spoilers (Settings → AI, on by default): answers stay within what you've heard
+ * or read so far. Finished books have no limit.
+ */
+export const noSpoilers = () => settings.get().aiNoSpoilers !== false;
+export function spoilerLimit(book) {
+  if (!book || !noSpoilers()) return null;
+  const uid = book.uid || '';
+  const p = progress.get()[uid] || progress.get()[`${uid.replace(/#ebook$/, '')}#ebook`];
+  if (p?.finished) return null;
+  const pct = Math.round((p?.percent || 0) * 100);
+  const where = hearing(book);
+  return { pct, label: where?.chapter ? `${where.chapter} (about ${pct}% through)` : `about ${pct}% through` };
+}
+export function spoilerRule(book) {
+  const lim = spoilerLimit(book);
+  if (!lim) return '';
+  return lim.pct <= 1
+    ? 'NO SPOILERS: the reader has only just started this book. Do not reveal anything beyond its premise (the description): no plot developments, twists, deaths, endings or later revelations. If the question needs them, say it would be a spoiler and offer to tell them if they ask again.'
+    : `NO SPOILERS: the reader has reached ${lim.label}. Do not reveal anything that happens after this point: no later plot developments, twists, deaths, endings or later revelations, and don't hint at them. If the question needs later events, say it would be a spoiler and offer to tell them if they ask again.`;
+}
+
+const STYLE = 'When something you say comes from outside the book itself (general knowledge, other sources, your interpretation), say so briefly, e.g. "Outside the book: …". Reply in the language the reader used (English, Hindi or Hinglish). Answer in clear, warm, plain language. Use short paragraphs, and bullet points ("- ") or numbered lists where they help. Use **bold** for key terms. Keep it under about 250 words unless the question asks for more.';
 
 /**
  * Ask a question. `msgs` is the conversation so far ({ role: 'user'|'ai', text }).
@@ -148,6 +170,8 @@ export async function ask(book, question, { msgs = [], description = '', genres 
     const taste = tasteProfile(40);
     if (taste.length) extra.push(`Books this reader owns, has read or is reading:\n${taste.map((t) => '- ' + t).join('\n')}\nConnect to these specifically where it makes sense.`);
   }
+  const spoil = spoilerRule(book);
+  if (spoil) extra.push(spoil);
   if (where && drive) extra.push(`The reader is listening right now at ${where.label}. If the question is about what they're hearing, answer about that part of the book as best you know it.`);
   else if (where) extra.push(`The reader is listening right now at ${where.label}. Answer about the part of the book around this point as best you know it; say if you can't be sure exactly what is said there.`);
   // Driving: the answer is only heard, so keep it short and easy to follow by ear.

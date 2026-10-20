@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { askAi, aiReady } from '../lib/ai.js';
 import { toast } from './common.jsx';
+import { spoilerRule } from '../lib/askbook.js';
 
 const clip = (s, n) => (s.length > n ? s.slice(0, n) + '…' : s);
 const hasDevanagari = (s) => /[ऀ-ॿ]/.test(s);
@@ -45,7 +46,8 @@ export function AiSheet({ kind, text, context, book, onClose, onKeep }) {
     if (!aiReady()) return toast('Add a free AI key in Settings → AI first');
     setBusy(true);
     try {
-      setAnswer((await askAi(PROMPTS[kind]({ text, context, book, question: q }))).trim());
+      const rule = kind === 'translate' ? '' : spoilerRule(book);
+      setAnswer((await askAi(PROMPTS[kind]({ text, context, book, question: q }) + (rule ? `\n\n${rule}` : ''))).trim());
     } catch (e) {
       setAnswer('');
       toast(e.message);

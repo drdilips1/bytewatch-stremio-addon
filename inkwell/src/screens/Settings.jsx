@@ -379,6 +379,13 @@ function AiCard() {
       {AI_PROVIDERS.map((p) => (
         <AiKey p={p} saved={cfg[p.keyField] || ''} />
       ))}
+      <label class="set-row">
+        <div>
+          <b>No spoilers</b>
+          <small>Ask AI, Explain and the player's AI only use the book up to where you are (finished books: no limit)</small>
+        </div>
+        <input type="checkbox" class="switch" checked={useStore(settings).aiNoSpoilers !== false} onChange={(e) => settings.patch({ aiNoSpoilers: e.currentTarget.checked })} />
+      </label>
       <p class="muted small">
         <b>Groq</b> is the fastest and most generous (recommended). <b>OpenRouter</b> gives free Llama, DeepSeek and Qwen models. No card is needed for either.
       </p>
