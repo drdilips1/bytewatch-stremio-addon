@@ -28,6 +28,8 @@ class ReaderService : Service() {
     companion object {
         private const val CHANNEL = "playback"
         private const val NOTIFICATION_ID = 1
+        /** Voice downloads get their own progress notification: phones show the player one as a media card. */
+        private const val DOWNLOAD_ID = 2
         private const val ACTION_TOGGLE = "toggle"
         private const val ACTION_NEXT = "next"
         private const val ACTION_PREV = "prev"
@@ -132,7 +134,29 @@ class ReaderService : Service() {
 
     private fun update() {
         updateSession()
-        if (foreground) getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, build())
+        val nm = getSystemService(NotificationManager::class.java)
+        if (foreground) nm.notify(NOTIFICATION_ID, build())
+        val pack = ModelPack.active
+        if (pack != null) nm.notify(DOWNLOAD_ID, downloadNotification(pack)) else nm.cancel(DOWNLOAD_ID)
+    }
+
+    /** "Downloading voices" with a progress bar, while a voice pack downloads (in the background too). */
+    private fun downloadNotification(pack: ModelPack): Notification {
+        val open = PendingIntent.getActivity(
+            this, 1,
+            Intent(this, if (BuildConfig.LITE) LitePlayerActivity::class.java else PlayerActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+        return Notification.Builder(this, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat)
+            .setContentTitle("Downloading voices")
+            .setContentText(pack.message ?: "${pack.progress}% of ${pack.sizeMb} MB")
+            .setProgress(100, pack.progress.coerceIn(0, 100), pack.progress <= 0)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(open)
+            .build()
     }
 
     /** What the lock screen, car stereo or watch shows: title, chapter, cover and play state. */
@@ -215,6 +239,7 @@ class ReaderService : Service() {
     }
 
     override fun onDestroy() {
+        runCatching { getSystemService(NotificationManager::class.java).cancel(DOWNLOAD_ID) }
         runCatching { unregisterReceiver(noisy) }
         session.isActive = false
         session.release()
