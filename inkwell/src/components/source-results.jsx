@@ -508,14 +508,14 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
         <div class="src-services">
           {providers.map((p) => {
             const a = acc(p);
-            const label = a ? (a.ready ? 'in your account · ready' : `in your account · ${Math.round((a.progress || 0) * 100)}%`) : cachedOn(p) ? 'cached · instant' : 'not cached';
+            const label = a ? (a.ready ? 'in account · ready' : `in account · ${Math.round((a.progress || 0) * 100)}%`) : cachedOn(p) ? 'instant' : 'not cached';
             return (
               <div class={'svc' + (readyOn(p) ? ' ok' : '')}>
-                <b>{LABEL[p]}</b>
+                <b>{SHORT[p]}</b>
                 <span>{label}</span>
                 {!a && (
                   <button class="pill small" disabled={!!busy} onClick={() => add(p)} aria-label={`Add to ${LABEL[p]}`}>
-                    {busy === 'add:' + p ? <span class="spinner small" /> : <Icon name="plus" size={14} />} {SHORT[p]}
+                    {busy === 'add:' + p ? <span class="spinner small" /> : <Icon name="plus" size={14} />}
                   </button>
                 )}
               </div>
@@ -523,10 +523,10 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
           })}
           {home && (
             <div class={'svc' + (sentHome ? ' ok' : '')}>
-              <b>Home server</b>
-              <span>{sentHome ? 'sent to qBittorrent' : 'qBittorrent'}</span>
+              <b>Home</b>
+              <span>{sentHome ? 'sent' : 'qBittorrent'}</span>
               <button class="pill small" disabled={!!busy} onClick={sendHome} aria-label="Send to your home server">
-                {busy === 'home' ? <span class="spinner small" /> : <Icon name={sentHome ? 'check' : 'plus'} size={14} />} Home
+                {busy === 'home' ? <span class="spinner small" /> : <Icon name={sentHome ? 'check' : 'plus'} size={14} />}
               </button>
             </div>
           )}
@@ -587,7 +587,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
             )}
             {provider && (
               <button class="btn secondary play-alt" disabled={!!busy} onClick={() => (links ? setLinks(null) : getLinks(playVia))} aria-label="Download links">
-                {busy === 'links' ? <span class="spinner" /> : <Icon name="link" size={14} />} Links
+                {busy === 'links' ? <span class="spinner" /> : <Icon name="link" size={14} />}
               </button>
             )}
           </>
