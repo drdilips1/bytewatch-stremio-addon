@@ -203,13 +203,14 @@ object TextCleaner {
         return NO_BREAK_AFTER.containsMatchIn(t) && !t.endsWith("etc.")
     }
 
-    fun pieces(p: String, target: Int, hardMax: Int = 1000, firstTarget: Int = target): List<String> {
+    fun pieces(p: String, target: Int, hardMax: Int = 1000, firstTarget: Int = target, minLength: Int = 0): List<String> {
         val out = ArrayList<String>()
         val buf = StringBuilder()
         for (sentence in sentences(p)) {
             if (sentence.isBlank()) continue
             val limit = if (out.isEmpty()) firstTarget else target
-            if (buf.isNotEmpty() && buf.length + sentence.length + 1 > limit) {
+            val tooShort = buf.length < minLength && buf.length + sentence.length + 1 <= hardMax
+            if (buf.isNotEmpty() && buf.length + sentence.length + 1 > limit && !tooShort) {
                 out += buf.toString()
                 buf.setLength(0)
             }
@@ -226,7 +227,9 @@ object TextCleaner {
      * ("1. Introduction"). Ending every piece with punctuation fixes that.
      */
     fun endSentence(text: String): String {
-        var t = text.trim()
+        // A long sentence cut at a comma ends "resistance,": the full stop added after it made ",." and the
+        // copied voices mumbled at the end. The comma (or dash, semicolon) goes first.
+        var t = text.trim().trimEnd(',', ';', '\u2014', '\u2013', '-').trimEnd()
         t = NUMBERED_TITLE.replace(t, "$1 ") // "1. Introduction" -> "1 Introduction"
         if (t.isNotEmpty() && t.last() !in SENTENCE_ENDINGS) t += "."
         return t

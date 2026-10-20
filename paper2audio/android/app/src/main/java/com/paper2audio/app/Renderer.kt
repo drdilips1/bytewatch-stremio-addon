@@ -93,8 +93,9 @@ object Renderer {
         // Long sentences stay whole up to 320 characters: every cut sounds like a sentence ending.
         // Copied voices lose their way in long sentences (skipped words, run-ons): shorter parts.
         // Very short sentences on their own go wrong too ("Stop!" said twice): they join their neighbours.
-        if (voiceId.startsWith(Speaker.CLONE)) TextCleaner.pieces(paragraph, 60, hardMax = 160)
-        else if (LocalTts.isLocal(voiceId)) TextCleaner.pieces(paragraph, 14, hardMax = 320)
+        // A one-word sentence ("Why?") read alone came out in an odd tone: it always joins the next one.
+        if (voiceId.startsWith(Speaker.CLONE)) TextCleaner.pieces(paragraph, 60, hardMax = 160, minLength = 20)
+        else if (LocalTts.isLocal(voiceId)) TextCleaner.pieces(paragraph, 14, hardMax = 320, minLength = 20)
         else TextCleaner.pieces(paragraph, 50, hardMax = 900)
 
     /**
@@ -260,6 +261,8 @@ object Renderer {
         // "file_name" → "file name"; *emphasis* and _emphasis_ marks go.
         t = t.replace(Regex("""(?<=\w)_(?=\w)"""), " ").replace(Regex("""[*_~^|\\]+"""), " ")
         // Brackets become a short pause on both sides: "(see Table 2)" is an aside, not run into the sentence.
+        // A sentence ending inside the bracket ("…98 percent are.)") ends there, with no pause after it.
+        t = t.replace(Regex("""([.!?\u2026])\s*[)\]}]+"""), "$1")
         t = t.replace(Regex("""\s*[(\[{]\s*"""), ", ").replace(Regex("""\s*[)\]}]"""), ",")
         // Dashes: a break mid-sentence is a pause; one at the very end ("I was going to—") ends it.
         t = t.replace(Regex("""\s*(?:[—―]|--+|\s–\s)\s*(?=$|[”"’']\s*(?:$|[“"‘']))"""), ".")
@@ -518,7 +521,10 @@ object Stories {
             val after = parts.getOrNull(i + 1)?.takeIf { !it.first }?.second
             val inside = (before?.lastOrNull()?.let { it !in ".!?:\u2026" } == true) || (after != null && TextCleaner.startsLower(after))
             val afterWords = before?.lastOrNull()?.isLetterOrDigit() == true
-            val asNarration = !quoted || (isTerm(t, afterWords) && inside)
+            // A quotation woven into the sentence (wrote that “the present widespread use…”) starts in lower case
+            // right after words: it is still the narrator's sentence, however long.
+            val woven = afterWords && t.trim().trimStart(OPEN, OPEN1, '"', '\'').firstOrNull()?.isLowerCase() == true
+            val asNarration = !quoted || (isTerm(t, afterWords) && inside) || woven
             if (asNarration && out.isNotEmpty() && !out.last().first) out[out.lastIndex] = false to out.last().second + " " + t
             else out += asNarration.not() to t
         }

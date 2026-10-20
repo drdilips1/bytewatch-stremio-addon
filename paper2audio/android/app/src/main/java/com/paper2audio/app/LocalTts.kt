@@ -421,6 +421,8 @@ object CloneCheck {
         var s = t.trim().replace(';', ',').replace(Regex("""([.!?\u2026])\s*[,;:]"""), "$1")
             // A colon (not in a time, 10:30) and "!" before a lowercase word ("Stop! he cried") are a comma's
             // pause: the voices took them for the end and repeated or garbled what came after.
+            // "a new fear emerged: The cure…" ends a sentence there; otherwise a colon is a short pause.
+            .replace(Regex("""(?<!\d):\s+(?=\p{Lu})"""), ". ")
             .replace(Regex("""(?<!\d):(?!\d)"""), ",")
             .replace(Regex("""!\s+(?=\p{Ll})"""), ", ")
         if (s.isEmpty()) return s
