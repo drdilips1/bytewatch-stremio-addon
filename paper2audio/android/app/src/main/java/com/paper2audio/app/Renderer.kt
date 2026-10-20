@@ -224,7 +224,10 @@ object Renderer {
      * money, fractions and footnote marks come out as letters and symbols. The screen keeps the original.
      */
     internal fun speakable(input: String): String {
-        var t = input
+        // Ebooks keep "Mrs. Bennet" on one line with a non-breaking (or thin) space after the title; the rules
+        // below look for ordinary spaces, so "Mrs." went through untouched and the voice stopped at its dot.
+        var t = input.replace(Regex("""[  -   ]"""), " ")
+            .replace(Regex("""\b(Mr|Mrs|Ms|Dr|St)\.(?=\p{Lu})"""), "$1. ")
         // A line of only symbols ("* * *", a scene break) has nothing to say.
         if (t.none { it.isLetterOrDigit() }) return ""
         t = t.replace(EMAIL) { it.value.replace("@", " at ").replace(".", " dot ") }
