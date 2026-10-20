@@ -114,6 +114,12 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     // start at the first paragraph visible on screen
     if (from == null) from = Math.max(0, firstVisible(els));
     from = Math.min(Math.max(0, from), els.length - 1);
+    // Show the jump straight away (the voice follows within a moment).
+    if (els[from]) {
+      lit.current?.classList.remove('aloud');
+      els[from].classList.add('aloud');
+      lit.current = els[from];
+    }
     // Native engine already reading this book: just move.
     if (ctl.current?.native) {
       ctl.current.seek(from);
@@ -477,6 +483,12 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
                       const el = scroller.current.querySelector('#' + CSS.escape(h.id));
                       el?.scrollIntoView({ behavior: 'smooth' });
                       setPanel(null);
+                      // Reading aloud: the voice moves to the chapter too.
+                      if (aloud && el) {
+                        const list = speakBlocks();
+                        const i = list.findIndex((b) => b === el || el.contains(b) || (el.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING));
+                        if (i >= 0) startAloud(i);
+                      }
                     }}
                   >
                     {h.text}
