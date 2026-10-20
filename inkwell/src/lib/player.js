@@ -59,7 +59,24 @@ async function recover(msg = '') {
     rescue.step = 2;
     rescueTried.add(b.uid);
     const g = globalTime();
-    // A Real-Debrid book: the same torrent from TorBox first (instant when TorBox has it).
+    // A Real-Debrid book: your Audiobookshelf copy first (checked like "Already on your
+    // Audiobookshelf"), then the same torrent from TorBox (instant when TorBox has it).
+    if (b.source === 'rd') {
+      try {
+        const { absSrc, getDetails } = await import('../sources/index.js');
+        const qb = await import('../sources/qbit.js');
+        const hit = absSrc.connected() ? await qb.onServer({ title: b.title, author: b.author || '' }) : null;
+        if (hit && !rescueTried.has(hit.uid)) {
+          set({ loading: true, error: null, phase: 'Real-Debrid can’t serve this right now — playing it from your Audiobookshelf…' });
+          const d = await getDetails(hit);
+          rescuing = true;
+          await playBook(d, { globalStart: g });
+          return true;
+        }
+      } catch {
+        rescuing = false;
+      }
+    }
     if (b.source === 'rd' && b.hash) {
       try {
         const { cloud, getDetails } = await import('../sources/index.js');
