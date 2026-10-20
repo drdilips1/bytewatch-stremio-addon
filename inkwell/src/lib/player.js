@@ -6,7 +6,69 @@ import { createEngine } from './engine.js';
 import { progress, bookmarks, settings, summarize } from './store.js';
 import { syncProgress, switchTracks } from '../sources/audiobookshelf.js';
 import { fetchStatus } from '../sources/debrid.js';
-import { applyLocal, isDownloaded } from './downloads.js';
+import { applyLocal, isDownloaded, downloads } from './downloads.js';
+
+// ---- safety net: a part that won't play --------------------------------------
+// First a fresh link and one more try; then another copy of the same book you
+// have (downloaded, on the phone, Audiobookshelf, TorBox / Real-Debrid), at the
+// same point in the book.
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+let rescue = { key: '', step: 0 };
+const rescueTried = new Set(); // copies already tried for this listen
+async function otherCopy(b) {
+  const { localSrc, findOwned } = await import('../sources/index.js');
+  const { matches, mainTitle } = await import('./match.js');
+  const t = mainTitle(b.title || '');
+  if (!t) return null;
+  const same = (x) => x && x.uid !== b.uid && !rescueTried.has(x.uid) && x.kind !== 'text' && matches(t, `${x.title || ''} ${x.rawName || ''}`);
+  const dl = Object.values(downloads.get()).find((d) => d?.status === 'done' && same(d.book));
+  if (dl) return { book: dl.book, label: 'your downloaded copy' };
+  const ph = (localSrc.localCfg.get().books || []).find(same);
+  if (ph) return { book: ph, label: 'the copy on this phone' };
+  const o = await findOwned(b).catch(() => null);
+  const s = o?.server?.find(same);
+  if (s) return { book: s, label: 'your Audiobookshelf' };
+  const c = o?.cloud?.find(same);
+  if (c) return { book: c, label: c.source === 'rd' ? 'your Real-Debrid' : 'your TorBox' };
+  return null;
+}
+/** Returns true when it took over (retrying or switching copies). */
+async function recover() {
+  const b = state.book;
+  if (!b || b.source === 'pod') return false;
+  const key = `${b.uid}#${state.index}`;
+  if (rescue.key !== key) rescue = { key, step: 0 };
+  const t = state.tracks[state.index];
+  const at = state.time || loadingAt?.at || 0;
+  if (rescue.step === 0 && t?.resolve && !b.offline) {
+    rescue.step = 1;
+    set({ loading: true, error: null, phase: 'Reconnecting…' });
+    await delay(1500);
+    t.url = null;
+    loadTrack(state.index, at);
+    return true;
+  }
+  if (rescue.step <= 1) {
+    rescue.step = 2;
+    rescueTried.add(b.uid);
+    const g = globalTime();
+    const alt = await otherCopy(b).catch(() => null);
+    if (alt) {
+      set({ loading: true, error: null, phase: `This copy won't play — switching to ${alt.label}…` });
+      try {
+        const { getDetails } = await import('../sources/index.js');
+        const d = await getDetails(alt.book);
+        rescuing = true;
+        await playBook(d, { globalStart: g });
+        return true;
+      } catch {
+        rescuing = false;
+      }
+    }
+  }
+  return false;
+}
+let rescuing = false;
 
 const state = {
   book: null,
@@ -119,6 +181,8 @@ const handlers = {
     const token = loadToken;
     if (isAbs(state.book) && (await trySwitch())) return;
     if (token !== loadToken) return; // something else started loading meanwhile
+    if (await recover()) return;
+    if (token !== loadToken) return;
     set({ loading: false, playing: false, phase: '', error: msg });
     checkCloud(state.index, state.time, msg);
   },
@@ -255,6 +319,8 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
     }
     if (isAbs(state.book) && (await trySwitch())) return;
     if (token !== loadToken) return;
+    if (await recover()) return;
+    if (token !== loadToken) return;
     set({ loading: false, playing: false, phase: '', error: e.message || 'Playback failed' });
   }
 }
@@ -390,6 +456,9 @@ export async function openAndPlay(book, getDetails, opts) {
 
 export async function playBook(details, { index, time, globalStart } = {}) {
   stopWaiting();
+  // A book you chose (not a switch by the safety net): start its list of tried copies afresh.
+  if (!rescuing) rescueTried.clear();
+  rescuing = false;
   if (details && !details.offline && isDownloaded(details.uid)) details = applyLocal(details);
   set({ loading: true, error: null, book: details, phase: 'Opening the book…' });
   try {
