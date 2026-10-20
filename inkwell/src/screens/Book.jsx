@@ -28,6 +28,7 @@ import { setFix } from "../lib/meta.js";
 import { audible as audibleCat, googleBooks } from "../sources/catalogs.js";
 import { SourceResults } from "../components/source-results.jsx";
 import { Available } from "../components/available.jsx";
+import { SeriesCard } from "../components/series-card.jsx";
 import { useRatings, useGoodreads } from "../lib/ratings.js";
 import {
   myRatings,
@@ -190,6 +191,7 @@ export function Book({ book: initial }) {
       {book.source !== "pod" && book.source !== "sum" && (
         <Available book={book} editions={editions} />
       )}
+      {book.source !== "pod" && book.source !== "sum" && <SeriesCard book={book} />}
       <StoryShotsLink book={book} />
       <div class="book-actions">
         {book.kind === "discover" && (

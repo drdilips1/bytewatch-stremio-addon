@@ -5,6 +5,7 @@ import { library, progress, useStore, forgetBook, persisted } from '../lib/store
 import { localSrc } from '../sources/index.js';
 import { fmtDuration } from '../lib/format.js';
 import { metaNow } from '../lib/meta.js';
+import { seriesOf } from '../lib/series.js';
 import { downloads, removeDownload } from '../lib/downloads.js';
 import { forgetEbook, savedEbooks } from '../lib/epub.js';
 import { nav } from '../lib/nav.js';
@@ -31,6 +32,7 @@ const SORTS = [
   ['title', 'Title'],
   ['author', 'Author'],
   ['length', 'Length'],
+  ['series', 'Series'],
 ];
 const surname = (name) => String(name).split(',')[0].trim().split(/\s+/).pop() || '';
 const libView = persisted('libraryView', { list: false, sort: 'recent', tab: 'progress', where: 'all' });
@@ -229,7 +231,7 @@ export function Library() {
           )}
         </div>
       ) : items.length ? (
-        view.list ? <ListView items={items} prog={prog} /> : <Grid items={items} />
+        view.sort === 'series' ? <SeriesGroups items={items} /> : view.list ? <ListView items={items} prog={prog} /> : <Grid items={items} />
       ) : (
         <Empty icon="library" title="Your shelf is empty">
           Tap the heart on any book to save it, or{' '}
@@ -328,4 +330,39 @@ async function remove(book, tab) {
   forgetBook(book.uid);
   if (book.kind === 'text') forgetEbook(book.uid);
   toast(`Removed "${book.title}"`);
+}
+
+/** Library sorted by series: each series in reading order, then books in no series. */
+function SeriesGroups({ items }) {
+  const groups = new Map();
+  const loose = [];
+  for (const b of items) {
+    const s = seriesOf(b);
+    if (!s?.name) {
+      loose.push(b);
+      continue;
+    }
+    const k = s.name.toLowerCase();
+    if (!groups.has(k)) groups.set(k, { name: s.name, books: [] });
+    groups.get(k).books.push({ b, n: s.n });
+  }
+  const list = [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <>
+      {list.map((g) => (
+        <section class="lib-series">
+          <h3 class="section-label pad">
+            {g.name} <small>{g.books.length} book{g.books.length > 1 ? 's' : ''}</small>
+          </h3>
+          <Grid items={g.books.sort((x, y) => (x.n ?? 1e9) - (y.n ?? 1e9)).map((x) => x.b)} />
+        </section>
+      ))}
+      {loose.length > 0 && (
+        <section class="lib-series">
+          <h3 class="section-label pad">{list.length ? 'Not in a series' : 'No series found yet'}</h3>
+          <Grid items={loose} />
+        </section>
+      )}
+    </>
+  );
 }

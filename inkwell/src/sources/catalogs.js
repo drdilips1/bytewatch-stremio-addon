@@ -67,6 +67,24 @@ export const audible = {
     }
     return products(d).map((b, i) => ({ ...b, rank: i + 1 }));
   },
+  /** Every book of a series on Audible, in reading order (by its number in the series). */
+  async series(name, author = '') {
+    const want = String(name || '').toLowerCase().trim();
+    if (!want) return [];
+    const d = await getJson(`${AUDIBLE}?` + qs({ keywords: `${name} ${author}`.trim(), num_results: 50, products_sort_by: 'Relevance', response_groups: GROUPS, image_sizes: '500,1024' }));
+    const byNum = new Map();
+    for (const p of d.products || []) {
+      const s = (p.series || []).find((x) => String(x.title || '').toLowerCase().trim() === want);
+      if (!s || !p.title || !wantedLanguage(p.language, p.title)) continue;
+      const n = parseFloat(s.sequence);
+      const key = Number.isFinite(n) ? n : `x:${p.asin}`;
+      const b = { ...fromAudible(p), series: `${s.title}${s.sequence ? ` #${s.sequence}` : ''}`, seriesN: Number.isFinite(n) ? n : null };
+      // One edition per number: the best-rated (unabridged, most listeners).
+      const cur = byNum.get(key);
+      if (!cur || (b.ratings || 0) > (cur.ratings || 0)) byNum.set(key, b);
+    }
+    return [...byNum.values()].sort((a, b) => (a.seriesN ?? 1e9) - (b.seriesN ?? 1e9));
+  },
   async search(term) {
     if (!term.trim()) return [];
     const d = await getJson(`${AUDIBLE}?` + qs({ keywords: term, num_results: 24, products_sort_by: 'Relevance', response_groups: GROUPS, image_sizes: '500,1024' }));
