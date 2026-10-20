@@ -31,6 +31,38 @@ import { directEbookFile, directReaderBook } from '../lib/epub.js';
 import { shareEbook } from '../lib/kindle.js';
 
 const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
+
+// ---- what's ready right now, for the book page's "Available" row --------------
+// Results that play at once (cached in your debrid, or ready in your account) and
+// direct ebook links that open in the reader, per book.
+let quickNow = {};
+const quickSubs = new Set();
+function publishQuick(uid, value) {
+  quickNow = { ...quickNow, [uid]: value };
+  quickSubs.forEach((f) => f());
+}
+export function useQuickSources(uid) {
+  const [v, setV] = useState(quickNow[uid] || null);
+  useEffect(() => {
+    const f = () => setV(quickNow[uid] || null);
+    quickSubs.add(f);
+    f();
+    return () => quickSubs.delete(f);
+  }, [uid]);
+  return v;
+}
+
+/** Play a source result straight away (from the Available row). */
+export async function quickPlay(r, via, book, onStatus) {
+  const stub = await cloud.prepareMagnet(via, r, (text) => onStatus?.(text));
+  const details = await getDetails({ ...stub, title: book?.title || stub.title, author: book?.author || r.author || stub.author, cover: book?.cover || stub.cover });
+  nav.openOverlay('player');
+  player.playBook(details);
+}
+export const readerBookFor = (r, book) => {
+  const f = directEbookFile(r);
+  return f ? directReaderBook(r, f, book) : null;
+};
 const SHORT = { torbox: 'TorBox', realdebrid: 'RD' };
 
 /** Results from installed source addons, with Add-to-debrid and Play actions. */
@@ -89,7 +121,6 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
     return () => clearTimeout(t);
   }, [title, author, query, count]);
 
-  if (!count) return null;
   // Your tracker (Settings → Tracker): open a search for this book there.
   const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
   const trackerFilter = trackerSite ? qb.trackerFilterLabel() : '';
@@ -114,6 +145,23 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const shownGroups = allGroups.filter((g) => !isLink(g));
   // The heading counts what's listed under it (audiobook results), not the folded-away links.
   const audioCount = shownGroups.length;
+
+  // Tell the Available row what plays at once and which ebook links open in the reader.
+  const readyVia = (r) =>
+    providers.find((p) => r.cache?.[p] || (p === 'realdebrid' && r.cache?.any && !r.cache?.torbox) || account.get(r.hash)?.ready);
+  const instant = shownGroups
+    .map((g) => g.items[0])
+    .filter((r) => (r.magnet || r.hash) && readyVia(r))
+    .map((r) => ({ r, via: readyVia(r) }));
+  const readable = linkGroups
+    .flatMap((g) => g.items)
+    .filter((r) => /^(EPUB|PDF)$/.test(directEbookFile(r)?.format || ''));
+  const quickKey = `${instant.map((x) => x.r.key + x.via).join()}|${readable.map((r) => r.key).join()}`;
+  useEffect(() => {
+    if (book?.uid) publishQuick(book.uid, { instant: instant.slice(0, 3), readable: readable.slice(0, 2), pending });
+  }, [quickKey, pending, book?.uid]);
+
+  if (!count) return null;
 
   return (
     <section class="source-results">

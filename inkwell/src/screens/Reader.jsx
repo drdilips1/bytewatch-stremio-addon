@@ -14,6 +14,27 @@ import { toast } from '../components/common.jsx';
 import { forBook, addHighlight, updateHighlight, removeHighlight, markText, unmark, selectionParts } from '../lib/highlights.js';
 import { SelectionBar, AiSheet, HighlightSheet } from '../components/reader-select.jsx';
 
+// Reading fonts (bundled, so they work offline). Literata is the default serif.
+const FONTS = [
+  ['serif', 'Literata'],
+  ['georgia', 'Classic serif'],
+  ['lora', 'Lora'],
+  ['sans', 'Sans'],
+  ['atkinson', 'Atkinson (easy to read)'],
+  ['dyslexic', 'OpenDyslexic'],
+];
+const LINES = [
+  [1.45, 'Tight'],
+  [1.72, 'Normal'],
+  [1.95, 'Relaxed'],
+  [2.25, 'Loose'],
+];
+const MARGINS = [
+  [12, 'Narrow'],
+  [24, 'Normal'],
+  [44, 'Wide'],
+];
+
 const THEMES = [
   ['night', 'Night'],
   ['amoled', 'Black'],
@@ -277,7 +298,10 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
   };
 
   return (
-    <div class={`reader theme-${st.readerTheme} font-${st.readerFont}`} style={{ '--rs': st.readerSize + 'px' }}>
+    <div
+      class={`reader theme-${st.readerTheme} font-${st.readerFont}${st.readerJustify === false ? ' nojustify' : ''}`}
+      style={{ '--rs': st.readerSize + 'px', '--rl': st.readerLine || 1.72, '--rm': (st.readerMargin ?? 24) + 'px' }}
+    >
       <header class={'reader-bar' + (chrome ? '' : ' hidden')}>
         <button class="icon-btn" onClick={() => nav.back()} aria-label="Back">
           <Icon name="back" />
@@ -500,13 +524,36 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
               A+
             </button>
           </div>
-          <div class="reader-row">
-            {['serif', 'sans'].map((f) => (
-              <button class={'pill' + (st.readerFont === f ? ' active' : '')} onClick={() => settings.patch({ readerFont: f })}>
-                {f === 'serif' ? 'Serif' : 'Sans'}
+          <div class="reader-fonts">
+            {FONTS.map(([f, label]) => (
+              <button class={`font-opt font-${f}` + (st.readerFont === f ? ' active' : '')} onClick={() => settings.patch({ readerFont: f })}>
+                {label}
               </button>
             ))}
           </div>
+          <div class="reader-row labeled">
+            <span>Line spacing</span>
+            {LINES.map(([v, label]) => (
+              <button class={'pill small' + (Math.abs((st.readerLine || 1.72) - v) < 0.01 ? ' active' : '')} onClick={() => settings.patch({ readerLine: v })}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div class="reader-row labeled">
+            <span>Margins</span>
+            {MARGINS.map(([v, label]) => (
+              <button class={'pill small' + ((st.readerMargin ?? 24) === v ? ' active' : '')} onClick={() => settings.patch({ readerMargin: v })}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <label class="reader-toggle">
+            <input type="checkbox" checked={st.readerJustify !== false} onChange={(e) => settings.patch({ readerJustify: e.currentTarget.checked })} />
+            <span>
+              <b>Justify text</b>
+              <small>Straight edges on both sides, with hyphenation</small>
+            </span>
+          </label>
           <label class="reader-toggle">
             <input type="checkbox" checked={st.skipFrontMatter !== false} onChange={(e) => settings.patch({ skipFrontMatter: e.currentTarget.checked })} />
             <span>

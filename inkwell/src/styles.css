@@ -2,6 +2,13 @@
 @import '@fontsource-variable/fraunces';
 @import '@fontsource-variable/outfit';
 @import '@fontsource-variable/literata';
+@import '@fontsource/lora/latin-400.css';
+@import '@fontsource/lora/latin-400-italic.css';
+@import '@fontsource/lora/latin-700.css';
+@import '@fontsource/atkinson-hyperlegible/latin-400.css';
+@import '@fontsource/atkinson-hyperlegible/latin-700.css';
+@import '@fontsource/opendyslexic/latin-400.css';
+@import '@fontsource/opendyslexic/latin-700.css';
 
 /* ---------- Tokens ---------- */
 :root {
@@ -1764,9 +1771,9 @@ select {
 .reader-text {
   max-width: 680px;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 var(--rm, 24px);
   font-size: var(--rs);
-  line-height: 1.72;
+  line-height: var(--rl, 1.72);
   font-family: 'Literata Variable', Georgia, serif;
   hyphens: auto;
   overflow-wrap: break-word;
@@ -7867,4 +7874,120 @@ button.stats {
   opacity: 0.6;
   font-weight: 500;
   margin-left: 3px;
+}
+
+/* Reader typography */
+.font-georgia .reader-text,
+.font-opt.font-georgia {
+  font-family: 'Noto Serif', Georgia, 'Times New Roman', serif;
+}
+.font-lora .reader-text,
+.font-opt.font-lora {
+  font-family: 'Lora', Georgia, serif;
+}
+.font-atkinson .reader-text,
+.font-opt.font-atkinson {
+  font-family: 'Atkinson Hyperlegible', var(--font);
+}
+.font-dyslexic .reader-text,
+.font-opt.font-dyslexic {
+  font-family: 'OpenDyslexic', var(--font);
+}
+.font-opt.font-serif {
+  font-family: 'Literata Variable', Georgia, serif;
+}
+.font-opt.font-sans {
+  font-family: var(--font);
+}
+/* Justified (default): every kind of paragraph block, not just <p>. */
+.reader:not(.nojustify) .reader-text :is(p, div, li, blockquote, dd) {
+  text-align: justify;
+  hyphens: auto;
+}
+.reader.nojustify .reader-text :is(p, div, li, blockquote, dd) {
+  text-align: left;
+  hyphens: manual;
+}
+.reader-fonts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 10px 0;
+}
+.font-opt {
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--r-fg) 16%, transparent);
+  color: var(--r-fg);
+  font-size: 15px;
+  text-align: center;
+}
+.font-opt.active {
+  border-color: var(--accent, #c9a46a);
+  background: color-mix(in srgb, var(--accent, #c9a46a) 18%, transparent);
+}
+.reader-row.labeled {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.reader-row.labeled > span {
+  width: 100%;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+/* Book page: "Available" — every way to listen / read right now */
+.available {
+  margin: 4px 16px 10px;
+}
+.available-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 6px;
+}
+.available-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.available-row::-webkit-scrollbar {
+  display: none;
+}
+.avail-chip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 10px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--dyn, var(--accent)) 35%, transparent);
+  color: inherit;
+  text-align: left;
+}
+.avail-chip span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.avail-chip b {
+  font-size: 13.5px;
+}
+.avail-chip small {
+  font-size: 11.5px;
+  opacity: 0.7;
+}
+.avail-chip.quick,
+.avail-chip.listen {
+  background: color-mix(in srgb, var(--dyn, var(--accent)) 18%, var(--surface));
+}
+.avail-chip.looking {
+  opacity: 0.7;
+  border-style: dashed;
 }

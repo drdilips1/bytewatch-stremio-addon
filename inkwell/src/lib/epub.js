@@ -4,6 +4,7 @@
 import { unzip, strFromU8 } from 'fflate';
 import { details as cloudDetails } from '../sources/debrid.js';
 import { getBytes } from './http.js';
+import { persisted, summarize, progress } from './store.js';
 import { textBlocks, speakable } from './tts.js';
 
 const IMG_TYPES = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
@@ -294,13 +295,40 @@ async function cachedBytes(uid) {
     return null;
   }
 }
-async function keepBytes(uid, bytes) {
+/** Ebooks kept on the phone (opened once in the app): readable offline, listed in Library → Ebooks → Downloaded. */
+export const savedEbooks = persisted('savedEbooks', {}); // uid -> { book, format, size, at }
+export const savedEbook = (uid) => savedEbooks.get()[uid] || null;
+// Ebooks kept before this list existed: add them (with what the reading history knows).
+setTimeout(async () => {
   try {
-    await (await caches.open(CACHE)).put(cacheKey(uid), new Response(bytes, { headers: { 'Content-Type': 'application/epub+zip' } }));
+    if (savedEbooks.get().__checked) return;
+    const keys = await (await caches.open(CACHE)).keys();
+    const prog = progress.get();
+    const found = {};
+    for (const req of keys) {
+      const uid = decodeURIComponent(req.url.split('/ebook/')[1] || '');
+      const book = prog[uid]?.book;
+      if (uid && book && !savedEbooks.get()[uid]) found[uid] = { book: { ...book, kind: 'text' }, format: book.ebookFormat || 'EPUB', size: 0, at: prog[uid].updatedAt || Date.now() };
+    }
+    savedEbooks.set((all) => ({ ...all, ...found, __checked: 1 }));
+  } catch {}
+}, 6000);
+async function keepBytes(book, bytes, format) {
+  try {
+    await (await caches.open(CACHE)).put(cacheKey(book.uid), new Response(bytes, { headers: { 'Content-Type': format === 'PDF' ? 'application/pdf' : 'application/epub+zip' } }));
+    savedEbooks.set((all) => ({ ...all, [book.uid]: { book: { ...summarize(book), kind: 'text' }, format, size: bytes.length, at: Date.now() } }));
+    // Ask Android not to clear the app's stored files when space runs low.
+    navigator.storage?.persist?.().catch(() => {});
   } catch {}
 }
 export async function forgetEbook(uid) {
   docs.delete(uid);
+  savedEbooks.set((all) => {
+    if (!all[uid]) return all;
+    const next = { ...all };
+    delete next[uid];
+    return next;
+  });
   try {
     await (await caches.open(CACHE)).delete(cacheKey(uid));
   } catch {}
@@ -338,6 +366,6 @@ async function loadEbook(book) {
   if (file.format !== 'EPUB' && file.format !== 'PDF') throw new Error(`${file.format} files can't be opened in the reader — use Send to Kindle / Open in another app on the book page`);
   const bytes = await getBytes(await file.resolve());
   const doc = await toDoc(bytes); // throws before caching if it isn't a readable EPUB / PDF
-  if (!book.uid.startsWith('loc:')) keepBytes(book.uid, bytes); // phone files are already on the phone
+  if (!book.uid.startsWith('loc:')) keepBytes(book, bytes, isPdf(bytes) ? 'PDF' : 'EPUB'); // phone files are already on the phone
   return remember(book.uid, doc);
 }

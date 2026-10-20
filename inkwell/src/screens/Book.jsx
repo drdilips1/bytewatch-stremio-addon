@@ -27,6 +27,7 @@ import { STARTERS } from "../lib/askbook.js";
 import { setFix } from "../lib/meta.js";
 import { audible as audibleCat, googleBooks } from "../sources/catalogs.js";
 import { SourceResults } from "../components/source-results.jsx";
+import { Available } from "../components/available.jsx";
 import { useRatings, useGoodreads } from "../lib/ratings.js";
 import {
   myRatings,
@@ -186,6 +187,9 @@ export function Book({ book: initial }) {
 
       <div class="book-body">
       <StatsStrip book={book} tracks={tracks} />
+      {book.source !== "pod" && book.source !== "sum" && (
+        <Available book={book} editions={editions} />
+      )}
       <StoryShotsLink book={book} />
       <div class="book-actions">
         {book.kind === "discover" && (

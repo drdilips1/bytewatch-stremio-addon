@@ -6,7 +6,7 @@ import { localSrc } from '../sources/index.js';
 import { fmtDuration } from '../lib/format.js';
 import { metaNow } from '../lib/meta.js';
 import { downloads, removeDownload } from '../lib/downloads.js';
-import { forgetEbook } from '../lib/epub.js';
+import { forgetEbook, savedEbooks } from '../lib/epub.js';
 import { nav } from '../lib/nav.js';
 import { podcasts } from '../sources/podcasts.js';
 import { ShowGrid } from './Podcasts.jsx';
@@ -57,6 +57,7 @@ export function Library() {
   const prog = useStore(progress);
   const dls = useStore(downloads);
   const pods = useStore(podcasts);
+  const kept = useStore(savedEbooks);
   const tab = TABS.some(([k]) => k === view.tab) ? view.tab : 'progress';
   const where = view.where || 'all';
   const setTab = (t) => libView.set((v) => ({ ...v, tab: t, where: 'all' }));
@@ -84,7 +85,8 @@ export function Library() {
       const sub = {
         saved: pick(saved),
         phone: pick(phone),
-        downloaded: k === 'audio' ? pick(downloaded) : [],
+        // Ebooks: the ones kept on the phone after opening them in the app.
+        downloaded: k === 'audio' ? pick(downloaded) : Object.values(kept || {}).map((x) => x.book).filter(ok),
       };
       sub.all = unique([...pick(started.map((p) => p.book)), ...sub.saved, ...sub.downloaded, ...sub.phone]);
       return sub;
@@ -97,7 +99,7 @@ export function Library() {
       audio: byKind('audio'),
       text: byKind('text'),
     };
-  }, [lib, prog, dls, local]);
+  }, [lib, prog, dls, local, kept]);
   const subs = tab === 'audio' || tab === 'text' ? groups[tab] : null;
   const fresh = subs ? subs[where] || subs.all : groups[tab];
   // Phone books are listed once a folder has been scanned.
@@ -311,6 +313,10 @@ function PhoneEmpty() {
 /** Remove a book from the library: saved copy, reading/listening history and, for ebooks, the file kept on the phone. */
 async function remove(book, tab) {
   if (tab === 'downloaded') {
+    if (book.kind === 'text') {
+      await forgetEbook(book.uid);
+      return toast('Removed from this phone');
+    }
     await removeDownload(book.uid).catch(() => {});
     return toast('Download removed');
   }

@@ -117,6 +117,9 @@ export const settings = persisted('settings', {
   readerSize: 19,
   readerTheme: 'night', // night | sepia | paper | amoled
   readerFont: 'serif',
+  readerJustify: true,
+  readerLine: 1.72,
+  readerMargin: 24,
   skipFrontMatter: true,
   kindleEmail: '', // Send to Kindle by e-mail // Listen / Read aloud skip contents, index, copyright pages
   language: 'en',

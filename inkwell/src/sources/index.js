@@ -177,4 +177,22 @@ export async function findEditions(book) {
   };
 }
 
+/**
+ * Copies of a book you already have elsewhere (your Audiobookshelf, your TorBox /
+ * Real-Debrid files) — for the book page's "Available" row. Only your own services
+ * are searched, so it's quick.
+ */
+export async function findOwned(book) {
+  const t = mainTitle(hasDevanagari(book.title) ? translit(book.title) : book.title);
+  const plain = t.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  if (!plain) return { server: [], cloud: [] };
+  const safe = (p) => p.catch(() => []);
+  const byTitle = (list) => list.filter((b) => matches(t, `${b.title} ${b.rawName || ''}`));
+  const [server, cloudHits] = await Promise.all([
+    enabled('abs') && absSrc.connected() ? safe(absSrc.search(plain)) : [],
+    (enabled('tb') && cloud.tbConnected()) || (enabled('rd') && cloud.rdConnected()) ? safe(cloud.search(plain)) : [],
+  ]);
+  return { server: byTitle(server), cloud: byTitle(cloudHits) };
+}
+
 export { ia, lv, gb, ol, absSrc, addonSrc, cloud, localSrc, hc, gr, enabled };
