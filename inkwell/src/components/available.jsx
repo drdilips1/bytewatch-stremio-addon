@@ -4,7 +4,8 @@ import { toast } from './common.jsx';
 import { useStore } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import * as player from '../lib/player.js';
-import { getDetails, findOwned, localSrc } from '../sources/index.js';
+import { getDetails, findOwned, localSrc, absSrc } from '../sources/index.js';
+import * as qb from '../sources/qbit.js';
 import { downloads } from '../lib/downloads.js';
 import { savedEbooks, cloudReaderBook } from '../lib/epub.js';
 import { mainTitle, matches } from '../lib/match.js';
@@ -25,7 +26,20 @@ export function Available({ book, editions }) {
   const kept = useStore(savedEbooks);
   const quick = useQuickSources(book.uid);
   const [owned, setOwned] = useState(null);
+  const [onAbs, setOnAbs] = useState(null);
   const [busy, setBusy] = useState('');
+
+  // Your Audiobookshelf, checked the same careful way as before sending a book home
+  // (your whole library list, then the server's own search) — works whatever the book's source.
+  useEffect(() => {
+    setOnAbs(null);
+    if (book.source === 'abs' || !book.title || !absSrc.connected()) return;
+    let alive = true;
+    qb.onServer({ title: book.title, author: book.author || '' })
+      .then((hit) => alive && setOnAbs(hit || null))
+      .catch(() => {});
+    return () => (alive = false);
+  }, [book.uid]);
 
   // Your own services, for books that aren't a search result (those have `editions`).
   useEffect(() => {
@@ -56,6 +70,7 @@ export function Available({ book, editions }) {
     for (const x of Object.values(kept || {}))
       if (x?.book && (x.book.uid === `${book.uid.replace(/#ebook$/, '')}#ebook` || same(x.book))) add({ key: 'kept:' + x.book.uid, icon: 'book', label: `Read ${x.format || ''}`.trim(), sub: 'saved on phone', act: read(x.book) });
     const mine = editions || owned;
+    if (onAbs && onAbs.uid !== book.uid) add({ key: onAbs.uid, icon: 'headphones', label: 'Listen', sub: 'Audiobookshelf', act: listen(onAbs) });
     for (const b of mine?.server || []) if (same(b)) add({ key: b.uid, icon: 'headphones', label: 'Listen', sub: 'Audiobookshelf', act: listen(b) });
     for (const b of mine?.cloud || [])
       if (same(b))
@@ -71,7 +86,7 @@ export function Available({ book, editions }) {
       if (rb) add({ key: 'qr:' + r.key, icon: 'book', label: `Read ${rb.ebookFormat || ''}`.trim(), sub: 'from sources', act: read(rb) });
     }
     return out.slice(0, 8);
-  }, [book, editions, owned, local, dls, kept, quick]);
+  }, [book, editions, owned, local, dls, kept, quick, onAbs]);
 
   const run = async (c) => {
     const a = c.act;
