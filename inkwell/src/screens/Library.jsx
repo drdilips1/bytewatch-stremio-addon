@@ -331,6 +331,7 @@ async function remove(book, tab) {
   }
   forgetBook(book.uid);
   if (book.kind === 'text') forgetEbook(book.uid);
+  if (book.imported) await localSrc.removeImported(book.uid);
   toast(`Removed "${book.title}"`);
 }
 

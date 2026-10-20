@@ -3,6 +3,10 @@ import { Ask } from './screens/Ask.jsx';
 import { Stats } from './screens/Stats.jsx';
 import { Notes } from './screens/Notes.jsx';
 import { Downloads } from './screens/Downloads.jsx';
+import { onIncoming } from './sources/local.js';
+
+// An EPUB / PDF opened with (or shared to) Audiohub from another app: straight into the reader.
+onIncoming((book, error) => (book ? setTimeout(() => nav.push('reader', { book }), 300) : error && toast(error)));
 import { DriveMode, openDrive } from './components/drive-mode.jsx';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { memo } from 'preact/compat';

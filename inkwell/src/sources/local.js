@@ -53,7 +53,7 @@ export async function rescan() {
       errors.push(`${folder.name}: ${e.message}`);
     }
   }
-  localCfg.set((c) => ({ ...c, books, scannedAt: Date.now(), v: 2 }));
+  localCfg.set((c) => ({ ...c, books: [...books, ...(c.imported || [])], scannedAt: Date.now(), v: 2 }));
   if (errors.length && !books.length) throw new Error(errors.join(' · '));
   makeCovers();
   return books;
@@ -179,4 +179,50 @@ export function useLocalCover(book) {
   const cfg = useStore(localCfg);
   if (book?.source !== 'loc') return '';
   return cfg.books.find((b) => b.uid === book.uid)?.cover || '';
+}
+
+// ---- ebooks opened with / shared to Audiohub from other apps -----------------
+// Android hands over the file; the app keeps its own copy (files/books) and lists it
+// under Library → Ebooks → On this phone.
+let openHandler = null;
+/** What to do with a book that just arrived (app.jsx opens it in the reader). */
+export const onIncoming = (fn) => (openHandler = fn);
+function receive(f) {
+  if (!f?.path) return f?.error && openHandler?.(null, f.error);
+  const { author, title } = splitAuthor(cleanTitle(String(f.name || 'Book').replace(EBOOK, '')));
+  const book = {
+    uid: `loc:f-${hash(f.path)}#ebook`,
+    source: 'loc',
+    kind: 'text',
+    title,
+    author,
+    cover: '',
+    format: f.format,
+    size: Number(f.size) || 0,
+    ebookName: f.name,
+    ebookFormat: f.format,
+    ebookUrl: localUrl('file://' + f.path),
+    path: f.path,
+    imported: true,
+    addedAt: Date.now(),
+  };
+  localCfg.set((c) => ({
+    ...c,
+    imported: [book, ...(c.imported || []).filter((b) => b.uid !== book.uid)],
+    books: [book, ...(c.books || []).filter((b) => b.uid !== book.uid)],
+  }));
+  openHandler?.(book);
+}
+if (available) {
+  Native.addListener('incoming', receive);
+  setTimeout(() => Native.incoming().then(receive).catch(() => {}), 800);
+}
+
+/** Remove a book that was opened with / shared to Audiohub (its copy too). */
+export async function removeImported(uid) {
+  const b = (localCfg.get().imported || []).find((x) => x.uid === uid);
+  if (!b) return false;
+  await Native.removeIncoming({ path: b.path }).catch(() => {});
+  localCfg.set((c) => ({ ...c, imported: (c.imported || []).filter((x) => x.uid !== uid), books: (c.books || []).filter((x) => x.uid !== uid) }));
+  return true;
 }

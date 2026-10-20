@@ -27,6 +27,74 @@ public class InkwellLocalPlugin extends Plugin {
     private static final Pattern IMAGE = Pattern.compile("(?i)^(cover|folder|front|album|art)[^/]*\\.(jpe?g|png|webp)$");
     private static final int MAX_FILES = 20000;
 
+    // ---- ebooks opened with / shared to Audiohub ---------------------------------
+
+    /** A file another app opened with / shared to Audiohub, if any is waiting (copied into the app). */
+    @PluginMethod
+    public void incoming(PluginCall call) {
+        Intent i = getActivity() != null ? getActivity().getIntent() : null;
+        JSObject o = takeBook(i);
+        if (o != null && getActivity() != null) getActivity().setIntent(new Intent()); // handled once
+        call.resolve(o != null ? o : new JSObject());
+    }
+
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        super.handleOnNewIntent(intent);
+        JSObject o = takeBook(intent);
+        if (o != null) notifyListeners("incoming", o);
+    }
+
+    private JSObject takeBook(Intent i) {
+        if (i == null) return null;
+        Uri uri = null;
+        if (Intent.ACTION_VIEW.equals(i.getAction())) uri = i.getData();
+        else if (Intent.ACTION_SEND.equals(i.getAction())) uri = i.getParcelableExtra(Intent.EXTRA_STREAM);
+        if (uri == null || "app.inkwell.books".equals(uri.getScheme())) return null;
+        String name = nameOf(uri);
+        if (name == null || name.isEmpty()) name = uri.getLastPathSegment() != null ? uri.getLastPathSegment() : "book";
+        String mime = i.getType() != null ? i.getType() : getContext().getContentResolver().getType(uri);
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        boolean pdf = lower.endsWith(".pdf") || "application/pdf".equals(mime);
+        boolean epub = lower.endsWith(".epub") || "application/epub+zip".equals(mime);
+        if (!pdf && !epub) return null;
+        if (!lower.endsWith(".pdf") && !lower.endsWith(".epub")) name = name + (pdf ? ".pdf" : ".epub");
+        // Keep a copy in the app: the other app's permission to read it ends soon.
+        java.io.File dir = new java.io.File(getContext().getFilesDir(), "books");
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        java.io.File out = new java.io.File(dir, name.replaceAll("[\\/:*?\"<>|]+", " ").trim());
+        try (java.io.InputStream in = getContext().getContentResolver().openInputStream(uri); java.io.OutputStream os = new java.io.FileOutputStream(out)) {
+            if (in == null) return null;
+            byte[] b = new byte[1 << 16];
+            int n;
+            while ((n = in.read(b)) > 0) os.write(b, 0, n);
+        } catch (Exception e) {
+            JSObject err = new JSObject();
+            err.put("error", "Couldn't open that file: " + e.getMessage());
+            return err;
+        }
+        JSObject o = new JSObject();
+        o.put("path", out.getAbsolutePath());
+        o.put("name", name);
+        o.put("format", pdf ? "PDF" : "EPUB");
+        o.put("size", out.length());
+        return o;
+    }
+
+    /** Delete a copied-in book. */
+    @PluginMethod
+    public void removeIncoming(PluginCall call) {
+        String path = call.getString("path", "");
+        java.io.File f = new java.io.File(path);
+        java.io.File dir = new java.io.File(getContext().getFilesDir(), "books");
+        if (f.getAbsolutePath().startsWith(dir.getAbsolutePath())) {
+            //noinspection ResultOfMethodCallIgnored
+            f.delete();
+        }
+        call.resolve();
+    }
+
     /** Save text as a file where the user chooses (Android's "Save to" screen, Downloads by default). */
     @PluginMethod
     public void saveFile(PluginCall call) {
