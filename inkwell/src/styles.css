@@ -7649,3 +7649,54 @@ button.stats {
   margin-top: 1px;
 }
 
+
+/* PDFs: original pages view */
+.pdf-pages {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 64px 8px 90px;
+  background: #3a3a3e;
+  -webkit-overflow-scrolling: touch;
+}
+.pdf-pg {
+  margin: 0 auto 10px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+.pdf-pg canvas {
+  display: block;
+}
+.pdf-zoom {
+  position: fixed;
+  right: 14px;
+  bottom: calc(52px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: rgba(20, 20, 24, 0.85);
+  color: #fff;
+  font-size: 12px;
+  z-index: 3;
+}
+.pdf-zoom button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+}
+.pdf-zoom button:disabled {
+  opacity: 0.35;
+}
+.reader-bar .pdf-mode {
+  flex: none;
+}
+.reader-text hr.pdf-page {
+  border: 0;
+  margin: 0;
+  height: 0;
+}

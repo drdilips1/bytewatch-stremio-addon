@@ -398,6 +398,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   const hasMagnet = !!(r.magnet || r.hash);
   // Direct ebook links (no torrent): EPUB opens in the reader; any ebook can be saved to another app.
   const ebook = hasMagnet ? null : directEbookFile(r);
+  const readable = ebook?.format === 'EPUB' || ebook?.format === 'PDF'; // opens in the app's reader
   const shareDirect = async () => {
     setBusy('share');
     setStatus({ text: 'Downloading the ebook…', pct: null });
@@ -497,19 +498,19 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
       <div class="src-actions ready">
         {!hasMagnet && ebook ? (
           <>
-            {ebook.format === 'EPUB' && (
+            {readable && (
               <button class="btn primary" onClick={() => nav.push('reader', { book: directReaderBook(r, ebook, book) })}>
                 <Icon name="book" size={16} /> Read
               </button>
             )}
             <button
-              class={ebook.format === 'EPUB' ? 'btn secondary play-alt' : 'btn primary'}
+              class={readable ? 'btn secondary play-alt' : 'btn primary'}
               disabled={!!busy}
               onClick={shareDirect}
               aria-label="Download and open in a reader app or Kindle"
             >
-              {busy === 'share' ? <span class="spinner" /> : <Icon name="upload" size={ebook.format === 'EPUB' ? 14 : 16} />}{' '}
-              {ebook.format === 'EPUB' ? 'Kindle' : 'Kindle / open in app'}
+              {busy === 'share' ? <span class="spinner" /> : <Icon name="upload" size={readable ? 14 : 16} />}{' '}
+              {readable ? 'Kindle' : 'Kindle / open in app'}
             </button>
             <a class="btn secondary play-alt src-web" href={r.link} target="_blank" rel="noopener" aria-label="Open in browser">
               <Icon name="external" size={14} />

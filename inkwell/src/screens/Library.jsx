@@ -261,12 +261,12 @@ function PhoneEmpty() {
   if (!localSrc.available)
     return (
       <Empty icon="library" title="Books on your phone">
-        Audiobooks already on the phone show here in the Android app.
+        Audiobooks and ebooks (EPUB, PDF) already on the phone show here in the Android app.
       </Empty>
     );
   return (
     <Empty icon="library" title={localSrc.connected() ? 'No books found' : 'Books on your phone'}>
-      {localSrc.connected() ? 'Nothing playable in your chosen folders yet.' : 'Choose the folder where your audiobooks are (e.g. Audiobooks). They play straight from the phone, no internet needed.'}
+      {localSrc.connected() ? 'Nothing playable in your chosen folders yet.' : 'Choose the folder where your audiobooks and ebooks are (e.g. Audiobooks or Books). Audiobooks play and EPUB / PDF open straight from the phone, no internet needed.'}
       <div class="phone-actions">
         <button class="btn primary" disabled={busy} onClick={run(localSrc.addFolder)}>
           {busy ? <span class="spinner" /> : 'Choose folder'}

@@ -31,6 +31,23 @@ export function Reader({ book, readAloud: autoAloud }) {
   const [aloud, setAloud] = useState(null); // { playing, index }
   const ctl = useRef(null);
   const [aiBusy, setAiBusy] = useState('');
+  // PDFs: the original pages (Pages) or the reflowed text (Text). The page view's
+  // code loads only when it's first opened.
+  const [pages, setPages] = useState(false);
+  const [PagesView, setPagesView] = useState(null);
+  const showPages = async (on) => {
+    if (on && !PagesView) {
+      const m = await import('../components/pdf-pages.jsx');
+      setPagesView(() => m.PdfPages);
+    }
+    setPages(on);
+    setPanel(null);
+  };
+  const savePage = (n, total) =>
+    progress.set((all) => ({
+      ...all,
+      [book.uid]: { ...(all[book.uid] || {}), kind: 'text', pdfPage: n, percent: n / total, finished: n >= total, updatedAt: Date.now(), book: summarize(book) },
+    }));
 
   // Readable paragraphs, worked out once per book (long ebooks have thousands).
   const blockCache = useRef(null);
@@ -135,6 +152,8 @@ export function Reader({ book, readAloud: autoAloud }) {
       if (attached) ctl.current = attached;
       else if (autoAloud) startAloud();
     }, 400);
+    // A scanned PDF has no text to reflow: show its pages.
+    if (doc.pdf?.scanned) showPages(true);
     // Opening a book puts it on the shelf (Library → Ebooks, Continue on Home) right away.
     if (doc && !progress.get()[book.uid])
       progress.set((all) => ({ ...all, [book.uid]: { kind: 'text', percent: 0, anchor: 0, finished: false, updatedAt: Date.now(), book: summarize(book) } }));
@@ -206,6 +225,11 @@ export function Reader({ book, readAloud: autoAloud }) {
           <b>{book.title}</b>
           <span>{book.author}</span>
         </div>
+        {doc?.pdf && (
+          <button class="pill small pdf-mode" onClick={() => showPages(!pages)} aria-label={pages ? 'Show as text' : 'Show the original pages'}>
+            {pages ? 'Text' : 'Pages'}
+          </button>
+        )}
         <button class="icon-btn" onClick={() => setPanel(panel === 'listen' ? null : 'listen')} aria-label="Listen">
           <Icon name="headphones" />
         </button>
@@ -217,8 +241,12 @@ export function Reader({ book, readAloud: autoAloud }) {
         </button>
       </header>
 
+      {pages && PagesView && doc?.bytes && (
+        <PagesView bytes={doc.bytes} startPage={progress.get()[book.uid]?.pdfPage || 1} onPage={savePage} />
+      )}
       <div
         class="reader-scroll"
+        style={pages ? { display: 'none' } : null}
         ref={scroller}
         onClick={(e) => {
           if (e.target.closest('a')) return;

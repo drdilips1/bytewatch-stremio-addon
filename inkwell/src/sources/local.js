@@ -13,6 +13,13 @@ export const localCfg = persisted('localBooks', { folders: [], books: [], scanne
 export const connected = () => available && localCfg.get().folders.length > 0;
 
 const AUDIO = /\.(mp3|m4b|m4a|aac|flac|ogg|oga|opus|wav|wma|mka)$/i;
+const EBOOK = /\.(epub|pdf)$/i;
+
+/**
+ * A phone file as the web view can fetch it. Relative, so the request goes to the
+ * app's own file server (an absolute localhost URL would be sent to the network).
+ */
+export const localUrl = (uri) => Capacitor.convertFileSrc(uri).replace(/^https?:\/\/[^/]+/, '');
 const DISC = /^(cd|disc|disk|part|vol(ume)?|teil)[\s._-]*\d+/i;
 const natural = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
 const hash = (s) => {
@@ -61,7 +68,7 @@ async function makeCovers() {
   coversRunning = true;
   try {
     for (const b of localCfg.get().books) {
-      if (b.cover || b.noCover) continue;
+      if (b.cover || b.noCover || b.kind === 'text') continue; // ebooks: cover from the online lookup
       let path = '';
       try {
         ({ path } = await Native.cover({ key: b.uid.replace(':', '_'), image: b.coverImage || '', audio: b.files?.[0]?.uri || '' }));
@@ -89,6 +96,31 @@ function group(folder, files, covers = []) {
     byDir.get(key).files.push(f);
   }
   const out = [];
+  // Ebooks (EPUB, PDF): each file is a book, read in the app's reader.
+  for (const f of files) {
+    if (!EBOOK.test(f.name)) continue;
+    const parts = (f.dir || '').split('/').filter(Boolean);
+    let { author, title } = splitAuthor(cleanTitle(f.name.replace(EBOOK, '')));
+    // "Author/Book.epub" (or Calibre's "Author/Title (12)/Title - Author.epub").
+    if (!author && parts.length) author = cleanTitle(parts[parts.length >= 2 && /\(\d+\)$/.test(parts[parts.length - 1]) ? parts.length - 2 : parts.length - 1]);
+    const format = EBOOK.exec(f.name)[1].toUpperCase();
+    out.push({
+      uid: `loc:${hash(folder.uri + '|' + f.uri)}#ebook`,
+      source: 'loc',
+      kind: 'text',
+      title,
+      author,
+      cover: '',
+      format,
+      size: Number(f.size) || 0,
+      folder: folder.uri,
+      ebookName: f.name,
+      ebookFormat: format,
+      ebookUri: f.uri,
+      ebookUrl: localUrl(f.uri),
+      addedAt: Date.now(),
+    });
+  }
   for (const [key, { parts, files: list }] of byDir) {
     list.sort((a, b) => (a.dir || '').localeCompare(b.dir || '', undefined, { numeric: true }) || natural(a, b));
     const name = parts.length ? parts[parts.length - 1] : list[0].name.replace(AUDIO, '');

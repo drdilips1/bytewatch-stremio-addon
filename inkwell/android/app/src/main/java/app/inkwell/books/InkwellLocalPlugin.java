@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 public class InkwellLocalPlugin extends Plugin {
 
     private static final Pattern AUDIO = Pattern.compile("(?i).*\\.(mp3|m4b|m4a|aac|flac|ogg|oga|opus|wav|wma|mka)$");
+    private static final Pattern EBOOK = Pattern.compile("(?i).*\\.(epub|pdf)$");
     private static final Pattern IMAGE = Pattern.compile("(?i)^(cover|folder|front|album|art)[^/]*\\.(jpe?g|png|webp)$");
     private static final int MAX_FILES = 20000;
 
@@ -172,7 +173,7 @@ public class InkwellLocalPlugin extends Plugin {
                 if (name == null || name.startsWith(".")) continue;
                 if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
                     walk(tree, id, dir.isEmpty() ? name : dir + "/" + name, files, covers, depth + 1);
-                } else if (AUDIO.matcher(name).matches()) {
+                } else if (AUDIO.matcher(name).matches() || EBOOK.matcher(name).matches()) {
                     JSObject f = new JSObject();
                     f.put("uri", DocumentsContract.buildDocumentUriUsingTree(tree, id).toString());
                     f.put("name", name);

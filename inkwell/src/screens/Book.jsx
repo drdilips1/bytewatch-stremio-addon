@@ -762,7 +762,7 @@ function CloudEbooks({ book, files }) {
             <b>{f.name}</b>
             {f.size > 1e5 && <small>{fmtBytes(f.size)}</small>}
           </div>
-          {f.format === "EPUB" && (
+          {(f.format === "EPUB" || f.format === "PDF") && (
             <button
               class="pill small"
               onClick={() =>

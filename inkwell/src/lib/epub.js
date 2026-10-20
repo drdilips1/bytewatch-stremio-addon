@@ -208,7 +208,7 @@ export async function epubToHtml(bytes) {
 // ---- ebooks in your TorBox / Real-Debrid -------------------------------------
 
 /** Reader UIDs for cloud ebooks look like "tb:t:123#ebook" (kept apart from the item's audio progress). */
-export const isCloudEbook = (book) => /^(tb|rd|src):/.test(book?.uid || '') && book.uid.endsWith('#ebook');
+export const isCloudEbook = (book) => /^(tb|rd|src|loc):/.test(book?.uid || '') && book.uid.endsWith('#ebook');
 
 // ---- direct ebook links from source addons (e.g. Bookracy) -------------------
 
@@ -314,9 +314,18 @@ export function loadCloudEbook(book) {
   return loading.get(book.uid);
 }
 
+// PDFs: pdf.js loads only now (it's big). The bytes stay with the doc for the Pages view.
+const isPdf = (bytes) => bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46; // %PDF
+async function toDoc(bytes) {
+  if (!isPdf(bytes)) return epubToHtml(bytes);
+  const { pdfToDoc } = await import('./pdf.js');
+  const doc = await pdfToDoc(bytes);
+  return { ...doc, bytes };
+}
+
 async function loadEbook(book) {
   const saved = await cachedBytes(book.uid);
-  if (saved) return remember(book.uid, await epubToHtml(saved));
+  if (saved) return remember(book.uid, await toDoc(saved));
   let file = book.ebookFile;
   // Direct links (reopened from Continue): the saved link is all we need.
   if (!file && book.ebookUrl) file = { name: book.ebookName || 'book.epub', format: book.ebookFormat || 'EPUB', resolve: async () => book.ebookUrl };
@@ -326,9 +335,9 @@ async function loadEbook(book) {
     file = list.find((e) => e.name === book.ebookName) || list.find((e) => e.format === 'EPUB') || list[0];
   }
   if (!file) throw new Error('This ebook is no longer in your cloud');
-  if (file.format !== 'EPUB') throw new Error(`${file.format} files can't be opened in the reader — use Send to Kindle / Open in another app on the book page`);
+  if (file.format !== 'EPUB' && file.format !== 'PDF') throw new Error(`${file.format} files can't be opened in the reader — use Send to Kindle / Open in another app on the book page`);
   const bytes = await getBytes(await file.resolve());
-  const doc = await epubToHtml(bytes); // throws before caching if it isn't a readable EPUB
-  keepBytes(book.uid, bytes);
+  const doc = await toDoc(bytes); // throws before caching if it isn't a readable EPUB / PDF
+  if (!book.uid.startsWith('loc:')) keepBytes(book.uid, bytes); // phone files are already on the phone
   return remember(book.uid, doc);
 }
