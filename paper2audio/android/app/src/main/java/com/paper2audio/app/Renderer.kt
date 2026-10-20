@@ -494,8 +494,38 @@ object Stories {
      * (isDialogue, text) segments in order; null when there's no dialogue at all. [single]: the book
      * puts dialogue in single quotes (‘…’); a ’ inside a word ("don’t") is an apostrophe, not a close.
      */
-    fun split(text: String, single: Boolean = false): List<Pair<Boolean, String>>? {
-        if (single) return splitSingle(text)
+    fun split(text: String, single: Boolean = false): List<Pair<Boolean, String>>? =
+        (if (single) splitSingle(text) else splitDouble(text))?.let(::keepScareQuotesInline)
+
+    /**
+     * A few words in quotes inside a sentence (Patients would be “directly observed” taking…) are a term or an
+     * aside, not someone speaking: read as part of the sentence, not split off in another tone. Speech has its
+     * own punctuation inside the quotes (“Yes,” said Harry / “Stop!”), so a short quote without any is a term.
+     */
+    private fun keepScareQuotesInline(parts: List<Pair<Boolean, String>>): List<Pair<Boolean, String>> {
+        fun isTerm(t: String, afterWords: Boolean): Boolean {
+            var inner = t.trim().trim(OPEN, CLOSE, OPEN1, CLOSE1, '"', '\'')
+            // American style keeps the comma inside: known as “DOTS,” aimed… Right after ordinary words (not
+            // after "said," or a full stop) that is still a term.
+            if (afterWords) inner = inner.trimEnd(',', '.')
+            return inner.isNotBlank() && inner.split(Regex("""\s+""")).size <= 5 && inner.none { it in ".,!?;:\u2026" }
+        }
+        val out = ArrayList<Pair<Boolean, String>>()
+        for ((i, part) in parts.withIndex()) {
+            val (quoted, t) = part
+            // Only inside a sentence: words before it that don't end a sentence, or words after it carrying on.
+            val before = out.lastOrNull()?.takeIf { !it.first }?.second?.trimEnd()
+            val after = parts.getOrNull(i + 1)?.takeIf { !it.first }?.second
+            val inside = (before?.lastOrNull()?.let { it !in ".!?:\u2026" } == true) || (after != null && TextCleaner.startsLower(after))
+            val afterWords = before?.lastOrNull()?.isLetterOrDigit() == true
+            val asNarration = !quoted || (isTerm(t, afterWords) && inside)
+            if (asNarration && out.isNotEmpty() && !out.last().first) out[out.lastIndex] = false to out.last().second + " " + t
+            else out += asNarration.not() to t
+        }
+        return out
+    }
+
+    private fun splitDouble(text: String): List<Pair<Boolean, String>>? {
         if (OPEN !in text && CLOSE !in text) return null
         val out = ArrayList<Pair<Boolean, String>>()
         // A piece can start in the middle of a quotation: then its first quote mark closes.
