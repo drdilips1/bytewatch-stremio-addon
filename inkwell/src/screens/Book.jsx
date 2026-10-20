@@ -299,13 +299,13 @@ export function Book({ book: initial }) {
             canDownload &&
             book.source !== "tts" &&
             book.source !== "loc" &&
-            (!dl || dl.status === "error" ? (
+            (!dl || dl.status === "error" || dl.status === "paused" ? (
               <button
                 class="tool"
                 disabled={loading && !book.tracks && !book.resolveTracks}
                 onClick={() =>
-                  downloadBook(book)
-                    .then(() => toast("Downloaded — plays offline now"))
+                  downloadBook(book, { resume: !!dl })
+                    .then(() => downloads.get()[book.uid]?.status === "done" && toast("Downloaded — plays offline now"))
                     .catch((e) => e.message !== "cancelled" && toast(e.message))
                 }
               >
@@ -313,11 +313,13 @@ export function Book({ book: initial }) {
                   <Icon name="download" size={18} />
                 </span>
                 <span class="tool-text">
-                  <b>{dl?.status === "error" ? "Retry download" : "Offline"}</b>
+                  <b>{dl?.status === "error" ? "Retry download" : dl?.status === "paused" ? "Resume download" : "Offline"}</b>
                   <small>
                     {dl?.status === "error"
                       ? dl.error || "Download failed"
-                      : "Save to this phone"}
+                      : dl?.status === "paused"
+                        ? `${dl.done || 0} of ${dl.total || "?"} parts saved`
+                        : "Save to this phone"}
                   </small>
                 </span>
               </button>

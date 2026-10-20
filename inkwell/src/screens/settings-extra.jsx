@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Icon } from '../components/icons.jsx';
+import { nav } from '../lib/nav.js';
 import { toast } from '../components/common.jsx';
 import { useStore } from '../lib/store.js';
 import * as sync from '../lib/sync.js';
@@ -487,6 +488,9 @@ export function DownloadsCard() {
   const target = pub ? st.downloadTarget || 'public' : 'app';
   return (
     <>
+      <button class="btn ghost-wide" onClick={() => nav.push('downloads')}>
+        <Icon name="download" size={16} /> Manage downloads — queue, pause, retry, sizes
+      </button>
       <div class="set-row column">
         <b>Save downloads to</b>
         <div class="dl-targets">

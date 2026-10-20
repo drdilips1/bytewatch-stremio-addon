@@ -8155,3 +8155,67 @@ button.stats {
   font-size: 12px;
   opacity: 0.7;
 }
+
+/* Downloads manager */
+.dl-storage {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+.dl-storage > div {
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--surface);
+  text-align: center;
+}
+.dl-storage b {
+  display: block;
+  font-size: 18px;
+}
+.dl-storage span {
+  font-size: 11.5px;
+  opacity: 0.7;
+}
+.dl-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 16px 10px;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--surface);
+}
+.dl-item .cover,
+.dl-open .cover {
+  width: 44px;
+  flex: none;
+}
+.dl-open {
+  flex: none;
+}
+.dl-main {
+  flex: 1;
+  min-width: 0;
+}
+.dl-main b {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+}
+.dl-main small {
+  display: block;
+  font-size: 12px;
+  opacity: 0.75;
+  margin: 2px 0 5px;
+}
+.dl-main small.err {
+  color: #e5675f;
+  opacity: 1;
+}
+.lib-manage {
+  margin: 0 16px 8px;
+  width: calc(100% - 32px);
+}

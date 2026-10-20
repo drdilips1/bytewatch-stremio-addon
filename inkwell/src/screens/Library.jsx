@@ -164,6 +164,11 @@ export function Library() {
           ))}
         </div>
       )}
+      {subs && where === 'downloaded' && (
+        <button class="btn ghost-wide lib-manage" onClick={() => nav.push('downloads')}>
+          <Icon name="download" size={16} /> Manage downloads
+        </button>
+      )}
       {tab !== 'podcasts' && items.length > 1 && (
         <div class="lib-tools">
           <div class="lib-sort">
