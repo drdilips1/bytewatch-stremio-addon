@@ -8108,3 +8108,50 @@ button.stats {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Customise Home */
+.home-customise {
+  margin: 18px 16px 0;
+  width: calc(100% - 32px);
+  opacity: 0.8;
+}
+.home-edit {
+  max-height: 82vh;
+}
+.home-edit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.home-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.home-edit-row.off .home-edit-text {
+  opacity: 0.5;
+}
+.home-edit-move {
+  display: flex;
+  flex-direction: column;
+}
+.home-edit-move .icon-btn {
+  width: 30px;
+  height: 26px;
+}
+.home-edit-text {
+  flex: 1;
+  min-width: 0;
+}
+.home-edit-text b {
+  display: block;
+  font-size: 14.5px;
+}
+.home-edit-text small {
+  display: block;
+  font-size: 12px;
+  opacity: 0.7;
+}

@@ -498,6 +498,7 @@ export function Home() {
   const hcCfg = useStore(hardcover);
   const grData = useStore(goodreads);
   const [addonRows, setAddonRows] = useState([]);
+  const [editing, setEditing] = useState(false);
   useEffect(() => {
     if (!enabled('addon')) return setAddonRows([]);
     addonSrc.catalogRows().then(setAddonRows).catch(() => setAddonRows([]));
@@ -582,19 +583,109 @@ export function Home() {
         </div>
       </header>
 
-      <Hero />
-
-      <ContinueRow />
-      <WaitingRow />
-      <Row title="Recommended for you" subtitle="Non-fiction from your listening and ratings" icon="sparkle" cacheKey="homeRec" shuffle rec load={recommendedForYou} deps={[]} />
-      <Row title="New releases" subtitle={`New in ${topicNames()}`} icon="flame" cacheKey="homeNew" shuffle rec load={newReleases} deps={[]} />
-      <Row title="Top titles this month" subtitle={`Best sellers in ${topicNames()}`} icon="star" cacheKey="homeTop" shuffle load={topThisMonth} deps={[]} />
-      <CategoryTiles />
-
-      {sourceOrder().map((k) => (
-        <Fragment key={k}>{blocks[k]}</Fragment>
-      ))}
+      {homeOrder(st).map((id) => {
+        if (homeHidden(st).includes(id)) return null;
+        switch (id) {
+          case 'hero':
+            return <Hero key={id} />;
+          case 'continue':
+            return (
+              <Fragment key={id}>
+                <ContinueRow />
+                <WaitingRow />
+              </Fragment>
+            );
+          case 'rec':
+            return <Row key={id} title="Recommended for you" subtitle="Non-fiction from your listening and ratings" icon="sparkle" cacheKey="homeRec" shuffle rec load={recommendedForYou} deps={[]} />;
+          case 'new':
+            return <Row key={id} title="New releases" subtitle={`New in ${topicNames()}`} icon="flame" cacheKey="homeNew" shuffle rec load={newReleases} deps={[]} />;
+          case 'top':
+            return <Row key={id} title="Top titles this month" subtitle={`Best sellers in ${topicNames()}`} icon="star" cacheKey="homeTop" shuffle load={topThisMonth} deps={[]} />;
+          case 'cats':
+            return <CategoryTiles key={id} />;
+          case 'sources':
+            return (
+              <Fragment key={id}>
+                {sourceOrder().map((k) => (
+                  <Fragment key={k}>{blocks[k]}</Fragment>
+                ))}
+              </Fragment>
+            );
+          default:
+            return null;
+        }
+      })}
+      <button class="btn ghost-wide home-customise" onClick={() => setEditing(true)}>
+        <Icon name="grid" size={16} /> Customise Home
+      </button>
+      {editing && <HomeEditor onClose={() => setEditing(false)} />}
       <div class="footer-space" />
+    </div>
+  );
+}
+
+// ---- Customise Home: order and hide its sections (saved with your settings) ----
+const HOME_SECTIONS = [
+  ['hero', 'Banner', 'Picked for you, top rated, your server & cloud'],
+  ['continue', 'Continue', 'What you’re listening to and reading'],
+  ['rec', 'Recommended for you', 'From your listening and ratings'],
+  ['new', 'New releases', 'In your topics'],
+  ['top', 'Top titles this month', 'Best sellers in your topics'],
+  ['cats', 'Explore categories', 'Genre tiles'],
+  ['sources', 'Your services', 'Audiobookshelf, phone, TorBox, Real-Debrid, Hardcover… (their order: Settings → Sources)'],
+];
+const homeOrder = (st) => {
+  const saved = (st.homeOrder || []).filter((id) => HOME_SECTIONS.some(([k]) => k === id));
+  return [...saved, ...HOME_SECTIONS.map(([k]) => k).filter((k) => !saved.includes(k))];
+};
+const homeHidden = (st) => st.homeHidden || [];
+
+function HomeEditor({ onClose }) {
+  const st = useStore(settings);
+  const order = homeOrder(st);
+  const hidden = homeHidden(st);
+  const move = (i, d) => {
+    const next = [...order];
+    const j = i + d;
+    if (j < 0 || j >= next.length) return;
+    [next[i], next[j]] = [next[j], next[i]];
+    settings.patch({ homeOrder: next });
+  };
+  const toggle = (id) => settings.patch({ homeHidden: hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id] });
+  return (
+    <div class="sheet-backdrop" onClick={onClose}>
+      <div class="sheet home-edit" onClick={(e) => e.stopPropagation()}>
+        <div class="home-edit-head">
+          <h3>Customise Home</h3>
+          <button class="link-btn" onClick={onClose}>
+            Done
+          </button>
+        </div>
+        {order.map((id, i) => {
+          const [, label, sub] = HOME_SECTIONS.find(([k]) => k === id);
+          const on = !hidden.includes(id);
+          return (
+            <div class={'home-edit-row' + (on ? '' : ' off')}>
+              <div class="home-edit-move">
+                <button class="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${label} up`}>
+                  <Icon name="up" size={16} />
+                </button>
+                <button class="icon-btn" disabled={i === order.length - 1} onClick={() => move(i, 1)} aria-label={`Move ${label} down`}>
+                  <Icon name="down" size={16} />
+                </button>
+              </div>
+              <div class="home-edit-text">
+                <b>{label}</b>
+                <small>{sub}</small>
+              </div>
+              <input type="checkbox" class="switch" checked={on} onChange={() => toggle(id)} aria-label={`Show ${label}`} />
+            </div>
+          );
+        })}
+        <button class="link-btn" onClick={() => settings.patch({ homeOrder: [], homeHidden: [] })}>
+          Reset to the usual layout
+        </button>
+      </div>
     </div>
   );
 }
