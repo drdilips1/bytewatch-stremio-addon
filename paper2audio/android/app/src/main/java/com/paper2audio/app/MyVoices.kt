@@ -92,14 +92,14 @@ object MyVoices {
     // Ethan and Oliver (owen, max) are left out for now: their recordings made the copying engine loop
     // and cut sentences short in testing. New recordings can bring them back.
     val NARRATO get() = listOf(
-        Voice("ava", "Ava", 0, 0f, true, "female · English", pause = 640, denoised = true),
+        Voice("ava", "Ava", 0, 0f, true, "female · English", pause = 640, denoised = true, leadIn = false),
         Voice("clara", "Clara", 0, 0f, true, "female · English", pause = 580, denoised = true, seed = 90001),
-        Voice("maya", "Maya", 0, 0f, true, "female · English", pause = 660, denoised = true, seed = 101),
+        Voice("maya", "Maya", 0, 0f, true, "female · English", pause = 660, denoised = true, seed = 101, leadIn = false),
         Voice("nora", "Hazel", 0, 0f, true, "female · English", pause = 600, denoised = true, seed = 90001),
-        Voice("rose", "Rose", 0, 0f, true, "female · English", pause = 300, denoised = true, seed = 90001),
+        Voice("rose", "Rose", 0, 0f, true, "female · English", pause = 300, denoised = true, seed = 90001, leadIn = false),
         Voice("leo", "Noah", 0, 0f, true, "male · English", pause = 620, denoised = false, seed = 101),
         Voice("sam", "Lucas", 0, 0f, true, "male · English", pause = 680, denoised = true),
-        Voice("theo", "Theo", 0, 0f, true, "male · English", pause = 680, denoised = false),
+        Voice("theo", "Theo", 0, 0f, true, "male · English", pause = 680, denoised = false, leadIn = false),
     )
 
     class Ref(val samples: FloatArray, val sampleRate: Int)
