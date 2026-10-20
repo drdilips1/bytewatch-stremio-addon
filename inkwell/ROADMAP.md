@@ -40,6 +40,10 @@ Noted while building; to pick up after Saturday.
 8. Jumping to another paragraph still slow or stops (jump fix 8f52409 not built yet — check).
 9. Reader panels (Text / Contents / Listen) have no close button, and Back leaves the book
    instead of closing the panel.
+10. Explain / Define / Ask sheet on the light themes (Sepia, Paper): "Highlight + keep this as a
+    note", "Copy" and "Close" are pale pink on beige — almost invisible. Use the reader theme's
+    colours for buttons in reader sheets.
+11. AI answers in that sheet show raw **stars** (Markdown): show bold properly, like Ask AI does.
 
 ## Made for the public app (20 Oct), not in this app yet
 Built and tested in the public Audiohub (drdilips1/Audiohub, test build 1.0.12, not released).
