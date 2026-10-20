@@ -277,8 +277,18 @@ object Renderer {
     private val ABBREVIATION = Regex("""\b(""" + ABBREVIATIONS.keys.joinToString("|") + """|st)\.(?=\s+(\S))""", RegexOption.IGNORE_CASE)
     private val E_G = Regex("""\b(e\.g|i\.e)\.(?=\s+\S)""", RegexOption.IGNORE_CASE)
 
+    /** British style, no full stop: "Mrs Bennet", "Mr Darcy", "Dr Jones", "St Paul's" (before a name only). */
+    private val TITLE_NO_DOT = Regex("""\b(Mr|Mrs|Ms|Dr|Prof|St)\b(?=\s+\p{Lu})""")
+
     /** "Mr. Dursley" → "Mister Dursley", "St. Paul" → "Saint Paul", "e.g. this" → "for example this" (inside a sentence only). */
-    internal fun spellAbbreviations(t: String): String =
+    internal fun spellAbbreviations(input: String): String {
+        val t = TITLE_NO_DOT.replace(input) { m ->
+            if (m.groupValues[1] == "St") "Saint" else ABBREVIATIONS.getValue(m.groupValues[1].lowercase())
+        }
+        return spellDotted(t)
+    }
+
+    private fun spellDotted(t: String): String =
         ABBREVIATION.replace(E_G.replace(t) { if (it.groupValues[1].lowercase() == "e.g") "for example," else "that is," }) { m ->
             val word = m.groupValues[1]
             val next = m.groupValues[2]
