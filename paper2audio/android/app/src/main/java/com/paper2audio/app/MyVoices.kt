@@ -60,6 +60,11 @@ object MyVoices {
         val denoised: Boolean = true,
         /** Ready-made voices: the engine seed that keeps the tone steadiest (0 = one from the voice's name). */
         val seed: Int = 0,
+        /**
+         * Whether each sentence starts with a throwaway "Well." (cut off) so its first word comes out whole.
+         * About a fifth of the work: voices that say their first words cleanly without it skip it.
+         */
+        val leadIn: Boolean = true,
     )
 
     /**
@@ -130,6 +135,9 @@ object MyVoices {
 
     /** The picked engine seed of ready-made voice [id] (0 = none). */
     fun seedOf(id: String) = BUILT_IN.firstOrNull { it.id == id }?.seed ?: 0
+
+    /** Whether voice [id] needs the throwaway lead-in (copied voices: yes; some ready-made ones don't). */
+    fun leadInOf(id: String) = BUILT_IN.firstOrNull { it.id == id }?.leadIn ?: true
 
     // ---- Reading pace: copied voices speak as fast as the person recorded; bring them to a normal pace ----
 

@@ -293,7 +293,44 @@ class LitePlayerActivity : Activity() {
 
     private var exportDone = true
 
+    private var lighterAsked = false
+    private var lighterCheckedAt = 0L
+
+    /**
+     * A real reader's voice on a phone too slow for it (reading keeps pausing), or on a low battery: offer a
+     * Supertonic voice, which runs smoothly and uses about a third of the power. Once per screen, and the
+     * low-battery one once a day.
+     */
+    private fun suggestLighterVoice() {
+        if (lighterAsked || !Speaker.playing || !Speaker.voiceId.startsWith(Speaker.CLONE)) return
+        val now = System.currentTimeMillis()
+        if (now - lighterCheckedAt < 30_000) return
+        lighterCheckedAt = now
+        val slow = RenderSpeed.tooSlow(this, Speaker.voiceId, Speaker.renderSpeed) && !prefs.getBoolean("keepSlowVoice", false)
+        val battery = getSystemService(android.os.BatteryManager::class.java)
+        val level = battery?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
+        val today = java.time.LocalDate.now().toString()
+        val low = level in 1..20 && battery?.isCharging != true && prefs.getString("lowBatteryAsked", "") != today
+        if (!slow && !low) return
+        lighterAsked = true
+        if (low && !slow) prefs.edit().putString("lowBatteryAsked", today).apply()
+        val ready = LocalTts.SUPERTONIC_PACK.isInstalled()
+        val message = (if (slow) "This phone makes the real readers' voices more slowly than they are read, so listening keeps pausing. " +
+            "Supertonic voices run smoothly here and use about a third of the power."
+        else "Battery is at $level%. The real readers' voices take a lot of power; a Supertonic voice uses about a third.") +
+            if (ready) "" else "\n\nSupertonic is a one-time ${LocalTts.SUPERTONIC_PACK.sizeMb} MB download."
+        AlertDialog.Builder(this)
+            .setTitle(if (slow) "A smoother voice for this phone" else "Save battery?")
+            .setMessage(message)
+            .setPositiveButton(if (ready) "Use Lena" else "Choose a voice") { _, _ ->
+                if (ready) Speaker.setVoice(Speaker.SUPER + "F2") else LiteUi.showVoices(this) { render() }
+            }
+            .setNegativeButton("Keep this voice") { _, _ -> if (slow) prefs.edit().putBoolean("keepSlowVoice", true).apply() }
+            .show()
+    }
+
     private fun render() {
+        suggestLighterVoice()
         val doc = Speaker.doc
         title.text = doc?.title ?: ""
         btnPlay.setImageResource(if (Speaker.playing) R.drawable.ic_pause else R.drawable.ic_play)

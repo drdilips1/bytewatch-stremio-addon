@@ -123,7 +123,8 @@ object Renderer {
             // Engine settings changed (pace, natural pauses, one seed per voice): don't reuse older audio.
             v.voiceId.startsWith(Speaker.SUPER) -> "p5|"
             // A ready-made voice given a steadier seed: its older takes are remade.
-            v.voiceId.startsWith(Speaker.CLONE) -> "c6|" + (MyVoices.seedOf(v.voiceId.removePrefix(Speaker.CLONE)).takeIf { it > 0 }?.let { "s$it|" } ?: "")
+            v.voiceId.startsWith(Speaker.CLONE) -> "c6|" + (MyVoices.seedOf(v.voiceId.removePrefix(Speaker.CLONE)).takeIf { it > 0 }?.let { "s$it|" } ?: "") +
+                (if (MyVoices.leadInOf(v.voiceId.removePrefix(Speaker.CLONE))) "" else "nl|")
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""
         }
@@ -688,6 +689,14 @@ object RenderSpeed {
         val avg = if (old < 0f) now else old * 0.8 + now * 0.2
         prefs.edit().putFloat(key, avg.toFloat()).apply()
     }
+
+    /** The measured work per second of audio on this phone, or null until something has been made with this kind of voice. */
+    fun measured(context: Context, voiceId: String): Double? =
+        context.getSharedPreferences("p2a", Context.MODE_PRIVATE).getFloat("rtf:" + kind(voiceId), -1f).takeIf { it > 0f }?.toDouble()
+
+    /** Whether this phone makes [voiceId] slower than it's heard at [speed] (so reading keeps pausing). */
+    fun tooSlow(context: Context, voiceId: String, speed: Float = 1f): Boolean =
+        (measured(context, voiceId) ?: 0.0) > 0.95 / speed.coerceAtLeast(0.5f)
 
     fun of(context: Context, voiceId: String): Double =
         context.getSharedPreferences("p2a", Context.MODE_PRIVATE).getFloat("rtf:" + kind(voiceId), -1f)

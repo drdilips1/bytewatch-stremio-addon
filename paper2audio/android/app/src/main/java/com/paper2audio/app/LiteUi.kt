@@ -147,7 +147,11 @@ object LiteUi {
             val own = MyVoices.own()
             pack(
                 LocalTts.POCKET_PACK,
-                MyVoices.NARRATO.map { Triple(Speaker.CLONE + it.id, it.name, it.description.replaceFirstChar { c -> c.uppercase() }) } +
+                // On a phone that makes these voices slower than they're heard, say so (reading would keep pausing).
+                MyVoices.NARRATO.map {
+                    val slow = RenderSpeed.tooSlow(activity, Speaker.CLONE + it.id, Speaker.renderSpeed)
+                    Triple(Speaker.CLONE + it.id, it.name, it.description.replaceFirstChar { c -> c.uppercase() } + if (slow) " · may pause on this phone" else "")
+                } +
                     own.map { Triple(Speaker.CLONE + it.id, it.name, "Copied voice") },
             )
             if (own.isNotEmpty()) sheet.row(R.drawable.ic_delete, "Remove a copied voice", null, dismiss = false) {

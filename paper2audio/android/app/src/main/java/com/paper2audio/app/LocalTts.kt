@@ -206,7 +206,9 @@ object LocalTts {
                 // The engine fumbles the very start of what it says ("ello" for "Hello"). So it first says a
                 // throwaway "Well." and that is cut off at the pause after it: the sentence's own first word
                 // comes out whole. If no clear pause is found, the sentence is made the plain way.
+                val leadIn = MyVoices.leadInOf(name)
                 fun take(seed: Int): GeneratedAudio {
+                    if (!leadIn) return gen(spoken, seed)
                     val led = gen(" ".repeat(8) + "Well. " + spoken.trim(), seed, extraFrames = 12)
                     val cut = CloneCheck.afterLeadIn(led.samples, led.sampleRate)
                     return if (cut != null) GeneratedAudio(led.samples.copyOfRange(cut, led.samples.size), led.sampleRate)
