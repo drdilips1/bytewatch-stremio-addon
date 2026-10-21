@@ -6915,6 +6915,28 @@ button.rt {
   color: #9db9ff;
   border-color: #5b8cff;
 }
+.tl-ebook {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tl-ebook .link-btn {
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 0;
+}
+.tl-ebook-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+.tl-ebook-add .pill {
+  flex-shrink: 0;
+}
 .tl-source {
   font-size: 12px;
   opacity: 0.6;

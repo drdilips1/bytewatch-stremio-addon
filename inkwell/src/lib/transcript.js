@@ -73,20 +73,35 @@ function remember() {
 // The book's own words (when its ebook is on hand): recognised lines are matched to it.
 let bt = null;
 let btUid = '';
-function bookTextFor(book) {
-  if (!book || book.uid === btUid) return;
+// bookText: { state: 'loading' | 'on' | 'none' | 'error', title, error }
+function bookTextFor(book, again = false) {
+  if (!book || (book.uid === btUid && !again)) return;
   btUid = book.uid;
   bt = null;
-  set({ bookText: '' });
+  for (const s of state.segments) delete s.at, delete s.book;
+  set({ bookText: { state: 'loading' } });
   import('./booktext.js')
     .then((m) => m.loadBookText(book))
     .then((x) => {
-      if (btUid !== book.uid || !x) return;
+      if (btUid !== book.uid) return;
+      if (!x) return set({ bookText: { state: 'none' } });
       bt = x;
-      set({ bookText: x.title || 'your ebook' });
+      set({ bookText: { state: 'on', title: x.title || '' } });
       align();
     })
-    .catch(() => {});
+    .catch((e) => btUid === book.uid && set({ bookText: { state: 'error', error: e?.message || String(e) } }));
+}
+
+/** Pick the ebook (EPUB / PDF from the phone) whose words the transcript should show. */
+export async function chooseEbook() {
+  const ps = player.getState();
+  if (!ps.book) return;
+  const { pickBooks } = await import('../sources/local.js');
+  const [eb] = await pickBooks({ books: true });
+  if (!eb) return;
+  const { linkEbook } = await import('./booktext.js');
+  linkEbook(ps.book.uid, eb);
+  bookTextFor(ps.book, true);
 }
 let locate = null;
 import('./booktext.js').then((m) => (locate = m.locate)).catch(() => {});

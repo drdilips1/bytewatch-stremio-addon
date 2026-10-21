@@ -6,7 +6,7 @@ import { toast } from './common.jsx';
 import * as player from '../lib/player.js';
 import { knownCharacters, CharacterCard } from './story-sheet.jsx';
 import { useStore } from '../lib/store.js';
-import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript } from '../lib/transcript.js';
+import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, chooseEbook } from '../lib/transcript.js';
 
 // Wrap known character names in tappable spans.
 function withNames(text, names, onTap) {
@@ -33,6 +33,38 @@ function withNames(text, names, onTap) {
   }
   out.push(text.slice(last));
   return out;
+}
+
+/** Whether the lines show the ebook's exact words, and a way to add the ebook. */
+function EbookStatus({ b }) {
+  const [busy, setBusy] = useState(false);
+  const add = async () => {
+    setBusy(true);
+    try {
+      await chooseEbook();
+    } catch (e) {
+      if (!/cancelled/i.test(e?.message || '')) toast(e?.message || String(e));
+    }
+    setBusy(false);
+  };
+  if (!b || b.state === 'loading') return b ? <p class="tl-source">Looking for your ebook of this book…</p> : null;
+  if (b.state === 'on')
+    return (
+      <p class="tl-source tl-ebook">
+        Exact words from your ebook{b.title ? ` · ${b.title}` : ''}
+        <button class="link-btn" disabled={busy} onClick={add}>
+          Change
+        </button>
+      </p>
+    );
+  return (
+    <div class="tl-ebook-add">
+      <span>{b.state === 'error' ? `Couldn't use your ebook: ${b.error}` : 'Words are recognised from the audio, so some may be wrong. Have the ebook? Its exact words show here instead.'}</span>
+      <button class="pill small" disabled={busy} onClick={add}>
+        {busy ? <span class="spinner small" /> : 'Add the ebook (EPUB)'}
+      </button>
+    </div>
+  );
 }
 
 export function TranscriptView({ s }) {
@@ -108,7 +140,7 @@ export function TranscriptView({ s }) {
         </div>
       )}
       {t?.published && segs.length > 0 && <p class="tl-source">Transcript from the podcast</p>}
-      {!t?.published && t?.bookText && segs.length > 0 && <p class="tl-source">Words from your ebook of this book</p>}
+      {!t?.published && <EbookStatus b={t?.bookText} />}
       {segs.map((g, i) => (
         <p data-i={i} class={'tl' + (i === active ? ' on' : i < active ? ' past' : '')} onClick={() => g.start != null && player.seek(g.start)}>
           {withNames(!t?.published && g.book ? g.book : g.text, names, (n) => setCard(lookup.get(n)))}

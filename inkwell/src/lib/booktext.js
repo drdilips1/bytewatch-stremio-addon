@@ -5,6 +5,11 @@
 import { savedEbooks, loadCloudEbook, cloudReaderBook } from './epub.js';
 import { localCfg } from '../sources/local.js';
 import { mainTitle, matches } from './match.js';
+import { persisted } from './store.js';
+
+/** Ebooks you chose for an audiobook's transcript: audiobook uid -> ebook (book summary). */
+export const ebookLinks = persisted('ebookLinks', {});
+export const linkEbook = (audioUid, ebook) => ebookLinks.set((all) => ({ ...all, [audioUid]: ebook }));
 import { paragraphs, listenParagraphs } from './tts.js';
 
 const surname = (a) => String(a || '').split(',')[0].trim().split(/\s+/).pop()?.toLowerCase() || '';
@@ -12,6 +17,8 @@ const norm = (w) => w.toLowerCase().replace(/[’‘]/g, "'").replace(/[^\p{L}\p
 
 /** The ebook of this audiobook, if one is on hand. */
 export function ebookFor(book) {
+  const linked = ebookLinks.get()[book.uid];
+  if (linked) return linked;
   const own = (book.ebooks || []).find((f) => f.format === 'EPUB');
   if (own) return cloudReaderBook(book, own);
   const t = mainTitle(book.title || '');
@@ -42,6 +49,7 @@ export async function loadBookText(book) {
     if (!at) index.set(k, [i]);
     else if (at.length < 40) at.push(i); // very common phrases tell us little
   }
+  if (tokens.length < 50) throw new Error('No readable text in that ebook');
   return { tokens, keys, index, title: eb.title };
 }
 

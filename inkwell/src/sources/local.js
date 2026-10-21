@@ -233,6 +233,7 @@ function receive(f) {
   }));
   setTimeout(makeCovers, 1500);
   openHandler?.(book);
+  return book;
 }
 if (available) {
   Native.addListener('incoming', receive);
@@ -240,18 +241,19 @@ if (available) {
 }
 
 /** Pick EPUB / PDF files from the phone to add (Library → On this phone → Add files). */
-export async function pickBooks() {
+export async function pickBooks(opts = {}) {
   if (!available) throw new Error('Adding ebook files works in the Android app');
   const r = await Native.pickBook();
   const list = (r?.books || []).filter((f) => f?.path);
   const keep = openHandler;
   openHandler = null; // several files: add them all, don't open each
+  let added = [];
   try {
-    list.forEach(receive);
+    added = list.map(receive).filter(Boolean);
   } finally {
     openHandler = keep;
   }
-  return list.length;
+  return opts.books ? added : added.length;
 }
 
 /** Remove a book that was opened with / shared to Audiohub (its copy too). */
