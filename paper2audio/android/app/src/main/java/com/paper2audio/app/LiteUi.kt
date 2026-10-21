@@ -64,6 +64,7 @@ object LiteUi {
      * plays a short sample; the sheet stays open to try others.
      */
     fun showVoices(activity: Activity, onChosen: () -> Unit = {}) {
+        voiceTab = null
         val sheet = LiteSheet(activity, "Choose a voice", "Tap a voice to hear it")
         val listener: () -> Unit = { if (sheet.isShowing) fillVoices(activity, sheet, onChosen) }
         ModelPack.addListener(listener)
@@ -74,6 +75,9 @@ object LiteUi {
         fillVoices(activity, sheet, onChosen)
         sheet.show()
     }
+
+    /** Which card the voice sheet shows: "readers" (Narrato voices) or "light" (Supertonic). */
+    private var voiceTab: String? = null
 
     private fun fillVoices(activity: Activity, sheet: LiteSheet, onChosen: () -> Unit) {
         sheet.clear()
@@ -140,56 +144,68 @@ object LiteUi {
             }
         }
 
-        // Ready-made natural voices (people who agreed to lend their voice), on the Pocket engine. First, as
-        // Narrato's own voices; Narrato has no Copy a voice, so only these come with the app.
+        // Ready-made natural voices (people who agreed to lend their voice), on the Pocket engine, side by side
+        // with the light Supertonic voices: what each needs and costs (battery) is said on its card. The other
+        // voices (Kokoro, the phone's own) come below.
         if (LocalTts.supported) {
-            sheet.collapsible("readers", "Narrato voices · real readers", keepOpen = Speaker.voiceId.startsWith(Speaker.CLONE))
-            val own = MyVoices.own()
-            pack(
-                LocalTts.POCKET_PACK,
-                // On a phone that makes these voices slower than they're heard, say so (reading would keep pausing).
-                MyVoices.NARRATO.map {
-                    val slow = RenderSpeed.tooSlow(activity, Speaker.CLONE + it.id, Speaker.renderSpeed)
-                    Triple(Speaker.CLONE + it.id, it.name, it.description.replaceFirstChar { c -> c.uppercase() } + if (slow) " · may pause on this phone" else "")
-                } +
-                    own.map { Triple(Speaker.CLONE + it.id, it.name, "Copied voice") },
-            )
-            if (own.isNotEmpty()) sheet.row(R.drawable.ic_delete, "Remove a copied voice", null, dismiss = false) {
-                AlertDialog.Builder(activity)
-                    .setTitle("Remove a copied voice")
-                    .setItems(own.map { it.name }.toTypedArray()) { _, i ->
-                        val v = own[i]
-                        if (Speaker.voiceId == Speaker.CLONE + v.id) Speaker.setVoice(Speaker.PHONE_DEFAULT)
-                        MyVoices.delete(v.id)
-                        Speaker.refreshVoices()
-                        fillVoices(activity, sheet, onChosen)
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
+            // The side tapped in this sheet; at first, the side of the voice in use.
+            val tab = voiceTab ?: if (Speaker.voiceId.startsWith(Speaker.SUPER)) "light" else "readers"
+            // Tapping a card only shows its voices: the voice changes when one of them is tapped.
+            fun pick(t: String) {
+                voiceTab = t
+                fillVoices(activity, sheet, onChosen)
             }
-        }
-
-        sheet.collapsible("phone", "On your phone · instant", keepOpen = Speaker.voiceId.startsWith(Speaker.SYSTEM))
-        choice(Speaker.PHONE_DEFAULT, "Phone's default voice", "Works offline; quality depends on your phone")
-        sheet.row(R.drawable.ic_list, "Other phone voices", "Every voice installed on your phone") {
-            showPhoneVoices(activity) { onChosen() }
-        }
-
-        if (LocalTts.supported) {
-            sheet.collapsible("supertonic", "Natural · Supertonic · 31 languages", keepOpen = Speaker.voiceId.startsWith(Speaker.SUPER), closed = true)
-            pack(
-                LocalTts.SUPERTONIC_PACK,
-                LocalTts.SUPERTONIC_VOICES.map {
-                    Triple(Speaker.SUPER + it.name, supertonicName(it.name), if (it.name.startsWith("F")) "Female · quick to start" else "Male · quick to start")
-                },
-            )
-            sheet.collapsible("kokoro", "Natural · Kokoro · English", keepOpen = Speaker.voiceId.startsWith(Speaker.KOKORO), closed = true)
+            sheet.cards(listOf(
+                LiteSheet.Card("Real readers", listOf("Recorded by real people", "Offline after one download", "Uses more battery"), tab == "readers") { pick("readers") },
+                LiteSheet.Card("Light voices", listOf("Natural, quick to start", "Offline after one download", "Easy on battery"), tab == "light") { pick("light") },
+            ))
+            if (tab == "light") {
+                sheet.section("Light voices · Supertonic · 31 languages")
+                pack(
+                    LocalTts.SUPERTONIC_PACK,
+                    LocalTts.SUPERTONIC_VOICES.map {
+                        Triple(Speaker.SUPER + it.name, supertonicName(it.name), if (it.name.startsWith("F")) "Female · quick to start" else "Male · quick to start")
+                    },
+                )
+            } else {
+                sheet.section("Real readers · Narrato voices")
+                val own = MyVoices.own()
+                pack(
+                    LocalTts.POCKET_PACK,
+                    // On a phone that makes these voices slower than they're heard, say so (reading would keep pausing).
+                    MyVoices.NARRATO.map {
+                        val slow = RenderSpeed.tooSlow(activity, Speaker.CLONE + it.id, Speaker.renderSpeed)
+                        Triple(Speaker.CLONE + it.id, it.name, it.description.replaceFirstChar { c -> c.uppercase() } + if (slow) " · may pause on this phone" else "")
+                    } +
+                        own.map { Triple(Speaker.CLONE + it.id, it.name, "Copied voice") },
+                )
+                if (own.isNotEmpty()) sheet.row(R.drawable.ic_delete, "Remove a copied voice", null, dismiss = false) {
+                    AlertDialog.Builder(activity)
+                        .setTitle("Remove a copied voice")
+                        .setItems(own.map { it.name }.toTypedArray()) { _, i ->
+                            val v = own[i]
+                            if (Speaker.voiceId == Speaker.CLONE + v.id) Speaker.setVoice(Speaker.PHONE_DEFAULT)
+                            MyVoices.delete(v.id)
+                            Speaker.refreshVoices()
+                            fillVoices(activity, sheet, onChosen)
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+            }
+            sheet.collapsible("kokoro", "More voices · Kokoro · English · medium battery", keepOpen = Speaker.voiceId.startsWith(Speaker.KOKORO), closed = true)
             // US and European listeners first: the Indian English voices come last.
             val kokoro = Kokoro.VOICES.sortedBy { if (it.indian) 1 else 0 }.map { v ->
                 val (name, rest) = v.label.split(" · ", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
                 Triple(Speaker.KOKORO + v.name, name, rest.replaceFirstChar { it.uppercase() })
             }
             pack(LocalTts.KOKORO_PACK, kokoro)
+        }
+
+        sheet.collapsible("phone", "On your phone · instant · lightest on battery", keepOpen = Speaker.voiceId.startsWith(Speaker.SYSTEM))
+        choice(Speaker.PHONE_DEFAULT, "Phone's default voice", "Works offline; quality depends on your phone")
+        sheet.row(R.drawable.ic_list, "Other phone voices", "Every voice installed on your phone") {
+            showPhoneVoices(activity) { onChosen() }
         }
     }
 

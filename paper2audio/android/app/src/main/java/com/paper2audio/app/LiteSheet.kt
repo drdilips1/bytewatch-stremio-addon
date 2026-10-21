@@ -210,6 +210,50 @@ class LiteSheet(private val activity: Activity, title: String?, subtitle: String
         return this
     }
 
+    class Card(val title: String, val lines: List<String>, val selected: Boolean, val action: () -> Unit)
+
+    /** Choices side by side, each a card with a title and a few short lines (what it needs, what it costs). */
+    fun cards(cards: List<Card>): LiteSheet {
+        target = body
+        val line = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(16), dp(6), dp(16), dp(6))
+        }
+        cards.forEachIndexed { i, c ->
+            val card = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                background = GradientDrawable().apply {
+                    setColor(surface2)
+                    cornerRadius = dp(16).toFloat()
+                    setStroke(dp(2), if (c.selected) accent else surface2)
+                }
+                isClickable = true
+                setOnClickListener { c.action() }
+            }
+            card.addView(TextView(activity).apply {
+                text = c.title
+                setTextColor(if (c.selected) accent else this@LiteSheet.text)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.5f)
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setPadding(0, 0, 0, dp(4))
+            })
+            c.lines.forEach { l ->
+                card.addView(TextView(activity).apply {
+                    text = "• $l"
+                    setTextColor(muted)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
+                    setPadding(0, dp(2), 0, 0)
+                })
+            }
+            line.addView(card, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
+                if (i > 0) marginStart = dp(10)
+            })
+        }
+        body.addView(line)
+        return this
+    }
+
     /** Any other content (a slider, a progress bar). */
     fun view(v: View): LiteSheet {
         target.addView(v)
