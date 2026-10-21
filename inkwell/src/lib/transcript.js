@@ -92,15 +92,20 @@ function bookTextFor(book, again = false) {
     .catch((e) => btUid === book.uid && set({ bookText: { state: 'error', error: e?.message || String(e) } }));
 }
 
-/** Pick the ebook (EPUB / PDF from the phone) whose words the transcript should show. */
-export async function chooseEbook() {
+/** Search your sources for this audiobook's ebook: [{ r, file, source, book }]. */
+export async function findEbook() {
+  const ps = player.getState();
+  if (!ps.book) return [];
+  const { findEbookInSources } = await import('./booktext.js');
+  return findEbookInSources(ps.book);
+}
+
+/** Download one of those, keep it, and show its words in the transcript. */
+export async function takeEbook(hit) {
   const ps = player.getState();
   if (!ps.book) return;
-  const { pickBooks } = await import('../sources/local.js');
-  const [eb] = await pickBooks({ books: true });
-  if (!eb) return;
-  const { linkEbook } = await import('./booktext.js');
-  linkEbook(ps.book.uid, eb);
+  const { keepFoundEbook } = await import('./booktext.js');
+  await keepFoundEbook(ps.book.uid, hit);
   bookTextFor(ps.book, true);
 }
 let locate = null;

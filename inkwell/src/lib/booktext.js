@@ -2,7 +2,7 @@
 // unusual words wrong; when the same book's ebook is on the phone (kept, in a phone
 // folder, or in the audiobook's own folder), each recognised line is found in the
 // ebook and its real words are shown instead — recognition only supplies the timing.
-import { savedEbooks, loadCloudEbook, cloudReaderBook } from './epub.js';
+import { savedEbooks, loadCloudEbook, cloudReaderBook, directEbookFile, directReaderBook } from './epub.js';
 import { localCfg } from '../sources/local.js';
 import { mainTitle, matches } from './match.js';
 import { persisted } from './store.js';
@@ -87,4 +87,32 @@ export function locate(bt, text, near = null) {
   if (r.n < need || r.best == null) return null;
   const from = Math.max(0, r.from);
   return { from, to: Math.max(from + 1, Math.min(bt.tokens.length, r.to)) };
+}
+
+/**
+ * This book's ebook in your source results: direct EPUB links first (then PDF),
+ * as [{ r, file, book }] ready to download and keep.
+ */
+export async function findEbookInSources(book) {
+  const { searchSources } = await import('../sources/sourceaddons.js');
+  const t = mainTitle(book.title || '');
+  const sn = surname(book.author);
+  const found = [];
+  await searchSources({ title: book.title, author: book.author || '', query: '' }, (name, results) => {
+    for (const r of results || []) {
+      const file = !(r.magnet || r.hash) && directEbookFile(r);
+      if (!file || (file.format !== 'EPUB' && file.format !== 'PDF')) continue;
+      if (t && !matches(t, `${r.title || ''} ${file.name}`)) continue;
+      if (sn && r.author && !String(r.author).toLowerCase().includes(sn)) continue;
+      if (found.some((x) => x.r.link === r.link)) continue;
+      found.push({ r, file, source: name, book: directReaderBook(r, file, book) });
+    }
+  });
+  return found.sort((a, b) => (a.file.format === 'EPUB' ? 0 : 1) - (b.file.format === 'EPUB' ? 0 : 1));
+}
+
+/** Download a found ebook, keep it on the phone and use it for this audiobook's transcript. */
+export async function keepFoundEbook(audioUid, hit) {
+  await loadCloudEbook(hit.book);
+  linkEbook(audioUid, hit.book);
 }

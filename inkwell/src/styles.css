@@ -8664,3 +8664,42 @@ button.stats {
   width: 40px;
   height: 40px;
 }
+
+.tl-ebook-hits {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.tl-ebook-hit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: inherit;
+  text-align: left;
+}
+.tl-ebook-hit span {
+  flex: 1;
+  min-width: 0;
+}
+.tl-ebook-hit b {
+  display: block;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tl-ebook-hit small {
+  font-size: 11.5px;
+  opacity: 0.7;
+}
+.tl-ebook-hit em {
+  font-style: normal;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--accent);
+}
