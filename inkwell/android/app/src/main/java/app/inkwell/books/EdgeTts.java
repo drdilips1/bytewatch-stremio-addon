@@ -136,11 +136,22 @@ public final class EdgeTts {
     /** MP3 audio (24 kHz mono) for [text]. ratePercent is -50..+200. */
     public static byte[] synthesize(String text, String voice, int ratePercent) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        for (String piece : splitLong(text, PIECE_CHARS)) out.write(synthesizePiece(piece, voice, ratePercent, true));
+        for (String piece : splitLong(text, PIECE_CHARS)) {
+            byte[] b;
+            try {
+                // A connection that stalls is dropped quickly and tried once more on a new
+                // one, instead of leaving a long silence between paragraphs.
+                b = synthesizePiece(piece, voice, ratePercent, true, 10);
+            } catch (IOException e) {
+                if (String.valueOf(e.getMessage()).contains("no audio") || "Stopped".equals(e.getMessage())) throw e;
+                b = synthesizePiece(piece, voice, ratePercent, true, 20);
+            }
+            out.write(b);
+        }
         return out.toByteArray();
     }
 
-    private static byte[] synthesizePiece(String text, String voice, int ratePercent, boolean retryOnAuth) throws IOException {
+    private static byte[] synthesizePiece(String text, String voice, int ratePercent, boolean retryOnAuth, int timeoutSec) throws IOException {
         Request request = new Request.Builder()
             .url(socketBase + "/edge/v1?TrustedClientToken=" + TOKEN + "&ConnectionId=" + muid().toLowerCase(Locale.US)
                 + "&Sec-MS-GEC=" + secMsGec() + "&Sec-MS-GEC-Version=" + GEC_VERSION)
@@ -153,6 +164,7 @@ public final class EdgeTts {
             .build();
 
         final ByteArrayOutputStream audio = new ByteArrayOutputStream();
+        final long[] lastAudio = {0};
         final CountDownLatch done = new CountDownLatch(1);
         final Throwable[] failure = {null};
         final Response[] failedResponse = {null};
@@ -189,6 +201,7 @@ public final class EdgeTts {
                 byte[] payload = audioPayload(bytes.toByteArray());
                 if (payload != null) synchronized (audio) {
                     audio.write(payload, 0, payload.length);
+                    lastAudio[0] = System.currentTimeMillis();
                 }
             }
 
@@ -206,9 +219,27 @@ public final class EdgeTts {
         });
 
         try {
-            if (!done.await(30, TimeUnit.SECONDS)) {
-                ws.cancel();
-                throw new IOException("The voice service timed out");
+            // Normally the service says "turn.end". If that is late but the audio has
+            // stopped coming for a moment, the piece is complete: don't sit waiting.
+            long deadline = System.currentTimeMillis() + timeoutSec * 1000L;
+            boolean finished = false;
+            while (!finished) {
+                finished = done.await(250, TimeUnit.MILLISECONDS);
+                if (finished) break;
+                long now = System.currentTimeMillis();
+                long last;
+                synchronized (audio) {
+                    last = audio.size() > 0 ? lastAudio[0] : 0;
+                }
+                if (last > 0 && now - last > 3500) {
+                    ws.close(1000, null);
+                    break;
+                }
+                if (now > deadline) {
+                    ws.cancel();
+                    if (last > 0) break; // keep what arrived
+                    throw new IOException("The voice service timed out");
+                }
             }
         } catch (InterruptedException e) {
             ws.cancel();
@@ -217,7 +248,7 @@ public final class EdgeTts {
         Integer code = failedResponse[0] != null ? failedResponse[0].code() : null;
         if (code != null && code == 403 && retryOnAuth) {
             adjustSkew(failedResponse[0]);
-            return synthesizePiece(text, voice, ratePercent, false);
+            return synthesizePiece(text, voice, ratePercent, false, timeoutSec);
         }
         if (failure[0] != null) throw new IOException(code != null ? "Voice service error (HTTP " + code + ")" : String.valueOf(failure[0].getMessage()), failure[0]);
         byte[] bytes;

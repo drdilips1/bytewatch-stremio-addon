@@ -63,7 +63,7 @@ public final class ReadAloudEngine {
         }
     }
 
-    private static final int LOOKAHEAD = 3;
+    private static final int LOOKAHEAD = 5; // a slow piece now and then stays hidden
     private static int maxPiece = 700;
 
     private static Context app;
