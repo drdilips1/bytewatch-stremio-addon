@@ -5,7 +5,7 @@ import { hashHue, fmtDuration } from '../lib/format.js';
 import { SOURCES, sourceOf } from '../sources/index.js';
 import { Icon } from './icons.jsx';
 import { nav } from '../lib/nav.js';
-import { progress as progressStore, useStoreKey, persisted, useStore } from '../lib/store.js';
+import { progress as progressStore, useStoreKey, persisted, useStore, settings } from '../lib/store.js';
 import { useImage } from '../lib/image.js';
 import { useMeta } from '../lib/meta.js';
 import { useTileRating } from '../lib/ratings.js';
@@ -44,8 +44,13 @@ export function Cover({ book, class: cls = '', eager }) {
   );
 }
 
+// Paper & Ink: where a book lives, in plain words, instead of each provider's name and colour.
+const PLAIN = { abs: 'Server', tb: 'Cloud', rd: 'Cloud', loc: 'Local' };
+
 export function SourceBadge({ uid, book }) {
   const key = sourceOf(uid || '');
+  const plain = useStore(settings).palette === 'paperink' && PLAIN[key];
+  if (plain) return <span class="badge">{plain}</span>;
   // Books from places without a source entry (e.g. direct ebook links) get a plain badge.
   const s = SOURCES[key] || { short: book?.addon || (book?.kind === 'text' ? 'Ebook' : 'Book'), hue: 210 };
   const label = key === 'addon' ? book?.addonName || s.short : book?.via === 'lv' ? 'LibriVox' : s.short;

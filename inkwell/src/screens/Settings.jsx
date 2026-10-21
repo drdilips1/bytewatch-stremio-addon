@@ -9,7 +9,7 @@ import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayU
 import { searchSources, sourceAddons } from '../sources/sourceaddons.js';
 import { ai, PROVIDERS as AI_PROVIDERS, testProvider } from '../lib/ai.js';
 import relayCode from '../../relay/index.ts?raw';
-import { ACCENTS, PALETTES } from '../lib/theme.js';
+import { ACCENTS, PALETTES, resolvedMode } from '../lib/theme.js';
 import { WALLPAPERS, wallpaperUrl, saveCustom, useCustomWallpaper } from '../lib/wallpaper.js';
 import { APP_VERSION } from '../components/update.jsx';
 import { ReportCard } from '../components/report.jsx';
@@ -1139,9 +1139,9 @@ export function Settings() {
         <div class="set-row">
           <b>Mode</b>
           <div class="chips">
-            {['dark', 'amoled', 'light'].map((m) => (
+            {['system', 'light', 'dark', 'amoled'].map((m) => (
               <button class={'pill small' + (st.mode === m ? ' active' : '')} onClick={() => settings.patch({ mode: m })}>
-                {m === 'amoled' ? 'Black' : m[0].toUpperCase() + m.slice(1)}
+                {m === 'amoled' ? 'Black' : m === 'system' ? 'Like phone' : m[0].toUpperCase() + m.slice(1)}
               </button>
             ))}
           </div>
@@ -1150,7 +1150,7 @@ export function Settings() {
           <div class="set-row column">
             <b>Theme</b>
             <div class="palette-grid">
-              {PALETTES.filter((p) => p.light === (st.mode === 'light')).map((p) => (
+              {PALETTES.filter((p) => p.light === (resolvedMode(st) === 'light')).map((p) => (
                 <button
                   class={'palette' + ((st.palette || 'default') === p.id ? ' active' : '')}
                   style={{ background: `linear-gradient(160deg, ${p.swatch[0]} 45%, ${p.swatch[1]})`, color: p.light ? '#1b1b1f' : '#f1eef8' }}
@@ -1163,7 +1163,7 @@ export function Settings() {
             </div>
           </div>
         )}
-        <div class="set-row column">
+        {st.palette !== 'paperink' && <div class="set-row column">
           <b>Accent</b>
           <div class="accent-grid">
             {Object.entries(ACCENTS).map(([k, a]) => (
@@ -1177,7 +1177,7 @@ export function Settings() {
               </button>
             ))}
           </div>
-        </div>
+        </div>}
         <SsToggle />
         <Toggle label="Dynamic colour" hint="Tint the player and book pages from the cover art" on={st.dynamicColor} onChange={(v) => settings.patch({ dynamicColor: v })} />
         <PlayerBackgroundPicker st={st} />

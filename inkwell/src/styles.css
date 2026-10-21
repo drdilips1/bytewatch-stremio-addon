@@ -8370,3 +8370,297 @@ button.stats {
   font-size: 10.5px;
   font-weight: 700;
 }
+
+/* =====================================================================
+   Paper & Ink: a quiet digital library. Warm paper, ink type, a muted
+   forest-green accent used only for actions and selection. Flat, no glows,
+   no colour washes; covers and spacing do the work.
+   ===================================================================== */
+:root[data-palette='paperink'] {
+  --display: var(--font);
+  --radius: 16px;
+  --radius-sm: 12px;
+  --card-r: 14px;
+  --grad: var(--accent);
+  --on-grad: #fff;
+  --font: 'Inter', 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --dyn: var(--accent);
+}
+:root[data-mode='light'][data-palette='paperink'] {
+  --bg: #f6f2e9;
+  --bg-2: #fffefa;
+  --surface: #fffefa;
+  --surface-2: #efeadf;
+  --border: #e6dfd2;
+  --text: #242720;
+  --muted: #817f75;
+  --faint: #a19e93;
+  --sage: #dde5d9;
+  --shadow: 0 6px 18px -10px rgba(36, 39, 32, 0.18);
+}
+:root[data-mode='dark'][data-palette='paperink'] {
+  --bg: #191b18;
+  --bg-2: #242720;
+  --surface: #242720;
+  --surface-2: #2d302a;
+  --border: #383a33;
+  --text: #f3f0e9;
+  --muted: #b1b0a5;
+  --faint: #85847b;
+  --sage: #2f3a31;
+  --shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.5);
+}
+:root[data-palette='paperink'] body {
+  background: var(--bg);
+}
+:root[data-palette='paperink'] .ambient {
+  display: none;
+}
+/* Type: one clean sans; book titles in the player keep a restrained serif. */
+:root[data-palette='paperink'] .screen-title,
+:root[data-palette='paperink'] .book .book-hero h1,
+:root[data-palette='paperink'] .section-label,
+:root[data-palette='paperink'] h2,
+:root[data-palette='paperink'] h3 {
+  font-family: var(--font);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+:root[data-palette='paperink'] .fp-meta h2 {
+  font-family: 'Literata Variable', Georgia, serif;
+  font-weight: 500;
+}
+/* Buttons: forest with white text for the one main action; others quiet. */
+:root[data-palette='paperink'] .btn.primary,
+:root[data-palette='paperink'] .book .book-actions .btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 12px;
+  box-shadow: none;
+}
+:root[data-mode='dark'][data-palette='paperink'] .btn.primary,
+:root[data-mode='dark'][data-palette='paperink'] .book .book-actions .btn.primary {
+  color: #191b18;
+}
+:root[data-palette='paperink'] .btn.secondary,
+:root[data-palette='paperink'] .btn.ghost-wide {
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+:root[data-palette='paperink'] .pill {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+:root[data-palette='paperink'] .pill.active,
+:root[data-palette='paperink'] .segmented button.on {
+  background: var(--sage);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: none;
+}
+:root[data-palette='paperink'] .segmented {
+  background: var(--surface-2);
+}
+/* Cards and sheets: Book White, hairline borders, soft shadows only. */
+:root[data-palette='paperink'] .set-card,
+:root[data-palette='paperink'] .continue-card,
+:root[data-palette='paperink'] .lib-row,
+:root[data-palette='paperink'] .note-card,
+:root[data-palette='paperink'] .series-card,
+:root[data-palette='paperink'] .phone-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+:root[data-palette='paperink'] .cover {
+  border-radius: 10px;
+  box-shadow: 0 4px 14px -8px rgba(36, 39, 32, 0.35);
+}
+/* Tab bar: plain paper, the current tab in forest. */
+:root[data-palette='paperink'] .tabbar {
+  background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-top: 1px solid var(--border);
+}
+:root[data-palette='paperink'] .tabbar button.on {
+  color: var(--accent);
+}
+:root[data-palette='paperink'] .tabbar button.on .icon {
+  background: none;
+}
+:root[data-palette='paperink'] .icon-btn.glass,
+:root[data-palette='paperink'] .home-top .home-logo {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-palette='paperink'] .home-hello b,
+:root[data-palette='paperink'] .home-hello small {
+  color: var(--text);
+}
+/* Source labels: small and neutral (Server / Cloud / Local), no provider colours. */
+:root[data-palette='paperink'] .badge {
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 3px 8px;
+}
+/* Sliders on paper. */
+:root[data-palette='paperink'] input[type='range']::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, var(--accent) var(--pct), var(--border) var(--pct));
+}
+:root[data-palette='paperink'] input[type='range']::-webkit-slider-thumb {
+  background: var(--accent);
+  box-shadow: none;
+}
+:root[data-palette='paperink'] input[type='range']::-moz-range-track {
+  background: linear-gradient(90deg, var(--accent) var(--pct), var(--border) var(--pct));
+}
+:root[data-palette='paperink'] input[type='range']::-moz-range-thumb {
+  background: var(--accent);
+}
+
+/* The player: paper (or night) background, the cover is the picture, no glows. */
+:root[data-palette='paperink'] .full-player {
+  background: var(--bg);
+  color: var(--text);
+}
+:root[data-palette='paperink'] .fp-bg {
+  display: none;
+}
+:root[data-palette='paperink'] .fp-controls .icon-btn,
+:root[data-palette='paperink'] .fp-top .icon-btn {
+  color: var(--text);
+}
+:root[data-palette='paperink'] .play-btn {
+  background: var(--accent);
+  color: #fff;
+}
+:root[data-mode='dark'][data-palette='paperink'] .play-btn {
+  color: #191b18;
+}
+:root[data-palette='paperink'] .play-btn.big {
+  box-shadow: none;
+}
+:root[data-palette='paperink'] .fp-art .cover {
+  box-shadow: 0 14px 34px -18px rgba(36, 39, 32, 0.45);
+}
+:root[data-palette='paperink'] .chip-btn,
+:root[data-palette='paperink'] .comp-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+:root[data-palette='paperink'] .chip-btn.active {
+  background: var(--sage);
+  color: var(--text);
+}
+:root[data-palette='paperink'] .transcript .tl {
+  color: color-mix(in srgb, var(--text) 45%, transparent);
+}
+:root[data-palette='paperink'] .transcript .tl.past {
+  color: color-mix(in srgb, var(--text) 30%, transparent);
+}
+:root[data-palette='paperink'] .transcript .tl.on {
+  color: var(--text);
+}
+:root[data-palette='paperink'] .sheet {
+  background: var(--bg-2);
+  color: var(--text);
+  border-top: 1px solid var(--border);
+}
+:root[data-palette='paperink'] .sheet-handle {
+  background: var(--border);
+}
+:root[data-palette='paperink'] .sheet .pill {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+:root[data-palette='paperink'] .sheet .pill.active {
+  background: var(--sage);
+  color: var(--text);
+}
+:root[data-palette='paperink'] .sheet .ch-num {
+  background: var(--surface-2);
+}
+:root[data-palette='paperink'] .sheet-backdrop {
+  background: rgba(36, 39, 32, 0.35);
+}
+:root[data-palette='paperink'] .mini-player {
+  background: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 22px -14px rgba(36, 39, 32, 0.4);
+}
+:root[data-palette='paperink'] .mini-progress {
+  background: var(--accent);
+}
+:root[data-palette='paperink'] .mini-sub .err {
+  color: #a4473b;
+}
+/* Home under Paper & Ink: the Continue card is a book-white card, the cover is the colour. */
+:root[data-palette='paperink'] .continue-big {
+  background: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+:root[data-palette='paperink'] .continue-big-bg {
+  display: none;
+}
+:root[data-palette='paperink'] .continue-big .cover {
+  box-shadow: 0 8px 20px -12px rgba(36, 39, 32, 0.45);
+}
+:root[data-palette='paperink'] .continue-big-text em {
+  color: var(--muted);
+}
+:root[data-palette='paperink'] .continue-big-text small {
+  color: var(--muted);
+}
+:root[data-palette='paperink'] .continue-big-text .progress-bar {
+  background: var(--border);
+}
+:root[data-palette='paperink'] .continue-big-play {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: none;
+}
+:root[data-mode='dark'][data-palette='paperink'] .continue-big-play {
+  color: #191b18;
+}
+:root[data-palette='paperink'] .progress-bar > div {
+  background: var(--accent);
+}
+/* Category tiles: quiet, earthy tints instead of bright gradients. */
+:root[data-palette='paperink'] .cat-tile {
+  background: linear-gradient(135deg, hsl(var(--h) 18% 42%), hsl(calc(var(--h) + 20) 16% 30%));
+}
+:root[data-palette='paperink'] .cat-tile::after {
+  display: none;
+}
+/* Header buttons never push past the screen edge (wider fonts, "Done"). */
+.library-head-actions {
+  flex-shrink: 0;
+}
+.library-head .screen-title {
+  min-width: 0;
+}
+:root[data-palette='paperink'] .library-head-actions {
+  gap: 6px;
+}
+:root[data-palette='paperink'] .screen-title,
+:root[data-palette='paperink'] .library-head .screen-title {
+  font-size: 30px;
+}
+:root[data-palette='paperink'] .library-head-actions .icon-btn {
+  width: 40px;
+  height: 40px;
+}

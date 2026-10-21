@@ -15,7 +15,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { nav } from './lib/nav.js';
 import { settings, useStore } from './lib/store.js';
-import { applyTheme } from './lib/theme.js';
+import { applyTheme, onThemeApplied } from './lib/theme.js';
 import { Icon } from './components/icons.jsx';
 import { Toaster, Guard } from './components/common.jsx';
 import { StoryShotsSheet } from './components/ss-sheet.jsx';
@@ -105,11 +105,9 @@ export function App() {
     return () => (clearTimeout(t), clearInterval(iv), document.removeEventListener('visibilitychange', onResume));
   }, []);
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) onThemeApplied((light) => StatusBar.setStyle({ style: light ? Style.Light : Style.Dark }).catch(() => {}));
     applyTheme(st);
-    if (Capacitor.isNativePlatform()) {
-      StatusBar.setStyle({ style: st.mode === 'light' ? Style.Light : Style.Dark }).catch(() => {});
-    }
-  }, [st.mode, st.accent]);
+  }, [st.mode, st.accent, st.palette]);
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const h = CapApp.addListener('backButton', () => {

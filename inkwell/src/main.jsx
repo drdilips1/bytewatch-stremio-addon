@@ -11,6 +11,8 @@ try {
   // Atelier look (v5): anyone still on the untouched Studio default moves to Atelier once.
   const s = settings.get();
   if ((s.themeV || 0) < 5) settings.set((x) => ({ ...x, ...(x.palette === 'studio' && x.accent === 'studio' ? { palette: 'atelier', accent: 'brass' } : {}), themeV: 5 }));
+  // Paper & Ink (v6): the signature look, following the phone's light / dark setting.
+  if ((settings.get().themeV || 0) < 6) settings.set((x) => ({ ...x, palette: 'paperink', mode: 'system', themeV: 6 }));
 } catch {}
 
 // Libby was removed: forget its saved sign-in and library links.
