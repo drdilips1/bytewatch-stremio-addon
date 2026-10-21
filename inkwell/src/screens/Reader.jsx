@@ -340,6 +340,8 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
 
   const lastTap = useRef(null);
   const tapTimer = useRef(null);
+  const downAt = useRef(null);
+  const doubleAt = useRef(0);
   const page = (dir) => {
     const el = scroller.current;
     el.scrollBy({ top: dir * (el.clientHeight - 60), behavior: 'smooth' });
@@ -385,8 +387,33 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         class="reader-scroll"
         style={pages ? { display: 'none' } : null}
         ref={scroller}
+        // Double tap on a paragraph: read aloud from there. Detected from the touches
+        // themselves: on phones the second tap of a double tap often selects a word
+        // instead of producing a click.
+        onPointerDown={(e) => (downAt.current = { t: Date.now(), x: e.clientX, y: e.clientY })}
+        onPointerUp={(e) => {
+          const d = downAt.current;
+          if (!d || Date.now() - d.t > 350 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 20) return; // a scroll or a long press
+          const now = Date.now();
+          const prev = lastTap.current;
+          lastTap.current = { at: now, x: e.clientX, y: e.clientY };
+          if (!prev || now - prev.at > 400 || Math.hypot(e.clientX - prev.x, e.clientY - prev.y) > 50) return;
+          lastTap.current = null;
+          const x = e.clientX / window.innerWidth;
+          if (!aloud && (x < 0.22 || x > 0.78)) return; // double tap at the edges: just page turns
+          const block = blocks().find((b) => b.contains(e.target));
+          if (!block) return;
+          clearTimeout(tapTimer.current);
+          doubleAt.current = now;
+          setTimeout(() => {
+            window.getSelection()?.removeAllRanges();
+            setSel(null);
+          }, 300);
+          readFrom(block);
+        }}
         onClick={(e) => {
           if (e.target.closest('a')) return;
+          if (Date.now() - doubleAt.current < 500) return; // the second tap of a double tap
           if (sel) return; // finishing a selection, not a page tap
           const mark = e.target.closest('mark.hl');
           if (mark) {
@@ -400,21 +427,11 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
             else setChrome((c) => !c);
             setPanel(null);
           };
-          // Reading aloud: a tap shows / hides the bars as usual; a double tap on a
-          // paragraph reads from there.
+          // Reading aloud: a tap shows / hides the bars, after a moment in case it is
+          // the first tap of a double tap (handled above).
           if (!aloud) return tap();
-          const now = Date.now();
-          const prev = lastTap.current;
-          lastTap.current = { at: now, target: e.target };
           clearTimeout(tapTimer.current);
-          if (prev && now - prev.at < 320) {
-            lastTap.current = null;
-            window.getSelection()?.removeAllRanges();
-            const block = blocks().find((b) => b.contains(e.target));
-            if (block) readFrom(block);
-            return;
-          }
-          tapTimer.current = setTimeout(tap, 320);
+          tapTimer.current = setTimeout(tap, 380);
         }}
       >
         {error ? (
