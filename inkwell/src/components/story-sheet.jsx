@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
-import { nav } from '../lib/nav.js';
+import { nav, useBackClose } from '../lib/nav.js';
 import * as player from '../lib/player.js';
 import { persisted } from '../lib/store.js';
 import { aiReady, recap, characters, position } from '../lib/ai.js';
@@ -207,6 +207,7 @@ function Characters() {
 
 /** Small card for a character tapped in the transcript. */
 export function CharacterCard({ c, close }) {
+  useBackClose(true, close);
   return (
     <div class="sheet-backdrop" onClick={close}>
       <div class="sheet char-card" onClick={(e) => e.stopPropagation()}>

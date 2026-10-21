@@ -8,7 +8,7 @@ import { Cover, toast } from './common.jsx';
 import { Icon, SkipIcon } from './icons.jsx';
 import { fmtTime } from '../lib/format.js';
 import { coverColor } from '../lib/color.js';
-import { nav } from '../lib/nav.js';
+import { nav, useBackClose } from '../lib/nav.js';
 import { bookmarks, settings, useStore } from '../lib/store.js';
 import { openDrive } from './drive-mode.jsx';
 import { COMPANION, rememberHere } from '../lib/askbook.js';
@@ -140,6 +140,7 @@ export function FullPlayer() {
   const bms = useStore(bookmarks)[s.book?.uid] || [];
   const color = useCoverColor(s.book);
   const [sheet, setSheet] = useState(null); // 'chapters' | 'speed' | 'sleep' | 'bookmarks'
+  useBackClose(!!sheet, () => setSheet(null));
   const [scrub, setScrub] = useState(null);
   const [, tick] = useState(0);
   const [drag, setDrag] = useState(0);

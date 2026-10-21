@@ -1050,7 +1050,7 @@ function PreferredDebrid() {
   const d = useStore(debrid);
   if (!d.torbox || !d.realdebrid) return null;
   return (
-    <Section icon="download" title="Default debrid">
+    <Section icon="cloud" title="Default debrid">
       <div class="set-row">
         <div>
           <b>Use for Add / Play</b>
@@ -1088,7 +1088,7 @@ export function Settings() {
         </Section>
       )}
       <p class="set-group">Account</p>
-      <Section icon="server" title="Account & sync">
+      <Section icon="user" title="Account & sync">
         <AccountCard />
       </Section>
 
@@ -1102,11 +1102,11 @@ export function Settings() {
       <Section icon="external" title="Tracker">
         <TrackerCard />
       </Section>
-      <Section icon="download" title="TorBox">
+      <Section icon="cloud" title="TorBox">
         <DebridCard provider="torbox" label="TorBox" keyHint="torbox.app/settings" keyUrl="https://torbox.app/settings" />
         <MusicToggle />
       </Section>
-      <Section icon="download" title="Real-Debrid">
+      <Section icon="cloud" title="Real-Debrid">
         <DebridCard provider="realdebrid" label="Real-Debrid" keyHint="real-debrid.com/apitoken" keyUrl="https://real-debrid.com/apitoken" />
         <MusicToggle />
       </Section>
@@ -1124,7 +1124,7 @@ export function Settings() {
       <Section icon="headphones" title="Voices">
         <VoicesCard />
       </Section>
-      <Section icon="sparkle" title="Metadata providers">
+      <Section icon="info" title="Metadata providers">
         <MetadataCard />
       </Section>
       <Section icon="book" title="Hardcover">
@@ -1193,12 +1193,12 @@ export function Settings() {
       </Section>
 
 
-      <Section icon="sparkle" title="Sources">
+      <Section icon="list" title="Sources">
         <SourceOrder st={st} setSource={setSource} />
         <Stepper label="Ebook language" value={st.language} options={['en', 'fr', 'de', 'es', 'it', 'pt', 'nl']} fmt={(v) => v.toUpperCase()} onChange={(v) => settings.patch({ language: v })} />
       </Section>
 
-      <Section icon="download" title="Data">
+      <Section icon="database" title="Data">
         <div class="set-row">
           <div>
             <b>Backup</b>
@@ -1257,12 +1257,12 @@ export function Settings() {
       </Section>
 
       <p class="set-group">Help</p>
-      <Section icon="sparkle" title="Report a problem">
+      <Section icon="alert" title="Report a problem">
         <ReportCard />
       </Section>
 
       <p class="about">
-        Audiohub {APP_VERSION} · Built-in sources are free and public domain.
+        Audiohub {APP_VERSION}
         <br />
         Addons and servers you add are your responsibility.
       </p>

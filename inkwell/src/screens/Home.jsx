@@ -14,7 +14,7 @@ import { Fragment } from 'preact';
 import { sameWork } from '../lib/works.js';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary } from '../lib/store.js';
 import { greeting, fmtDuration, hiResCover } from '../lib/format.js';
-import { nav } from '../lib/nav.js';
+import { nav, useBackClose } from '../lib/nav.js';
 import { GENRES } from './genres.js';
 import { HINDI_ALL } from './hindi.js';
 import { audible } from '../sources/catalogs.js';
@@ -644,6 +644,7 @@ const homeOrder = (st) => {
 const homeHidden = (st) => st.homeHidden || [];
 
 function HomeEditor({ onClose }) {
+  useBackClose(true, onClose);
   const st = useStore(settings);
   const order = homeOrder(st);
   const hidden = homeHidden(st);

@@ -116,6 +116,29 @@ const unzipAsync = (bytes) =>
     unzip(bytes, (err, files) => (err ? reject(new Error("This file isn't a readable EPUB")) : resolve(files)))
   );
 
+/** The cover picture inside an EPUB (Uint8Array), or null. Unpacks only the files it needs. */
+export async function epubCover(bytes) {
+  const pick = (want) =>
+    new Promise((resolve) => unzip(bytes, { filter: (f) => want(f.name) }, (err, files) => resolve(err ? {} : files)));
+  const meta = await pick((n) => n === 'META-INF/container.xml' || n.endsWith('.opf'));
+  const text = (p) => (meta[p] ? strFromU8(meta[p]) : '');
+  const opfPath = parseXml(text('META-INF/container.xml')).querySelector('rootfile')?.getAttribute('full-path') || Object.keys(meta).find((f) => f.endsWith('.opf'));
+  let href = '';
+  if (opfPath && meta[opfPath]) {
+    const opf = parseXml(text(opfPath));
+    const items = [...opf.querySelectorAll('manifest > item')];
+    const img = (it) => /^image\//.test(it.getAttribute('media-type') || '');
+    const id = opf.querySelector('meta[name="cover"]')?.getAttribute('content');
+    const it =
+      items.find((x) => /(^|\s)cover-image(\s|$)/.test(x.getAttribute('properties') || '')) ||
+      (id && items.find((x) => x.getAttribute('id') === id && img(x))) ||
+      items.find((x) => img(x) && /cover/i.test(`${x.getAttribute('id')} ${x.getAttribute('href')}`));
+    if (it) href = join(opfPath, it.getAttribute('href') || '');
+  }
+  const files = await pick((n) => (href ? n === href : /cover[^/]*\.(jpe?g|png|gif|webp)$/i.test(n)));
+  return files[href] || Object.values(files)[0] || null;
+}
+
 /**
  * Returns { html, headings, title, author, urls }. `bytes` is the EPUB file
  * (Uint8Array). Works in small steps so a big book never freezes the app.

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { askAi, aiReady } from '../lib/ai.js';
 import { toast } from './common.jsx';
 import { spoilerRule } from '../lib/askbook.js';
+import { Answer } from '../screens/Ask.jsx';
 
 const clip = (s, n) => (s.length > n ? s.slice(0, n) + '…' : s);
 const hasDevanagari = (s) => /[ऀ-ॿ]/.test(s);
@@ -89,9 +90,7 @@ export function AiSheet({ kind, text, context, book, onClose, onKeep }) {
       ) : answer ? (
         <>
           <div class="sel-answer">
-            {answer.split(/\n{2,}/).map((p) => (
-              <p>{p}</p>
-            ))}
+            <Answer text={answer} />
           </div>
           <div class="btn-row">
             <button class="btn secondary" onClick={() => onKeep(answer)}>

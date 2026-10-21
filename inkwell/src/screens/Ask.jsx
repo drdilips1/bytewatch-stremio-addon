@@ -269,7 +269,7 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
 }
 
 /** Light formatting for answers: paragraphs, bullet/numbered lists, **bold**, ### headings. */
-function Answer({ text }) {
+export function Answer({ text }) {
   const inline = (s) =>
     String(s)
       .split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|_[^_\s][^_]*_)/g)

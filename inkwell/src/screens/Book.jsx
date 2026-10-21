@@ -14,10 +14,11 @@ import {
   ia,
   hc,
   sourceOf,
+  localSrc,
 } from "../sources/index.js";
 import { library, progress, toggleLibrary, useStore } from "../lib/store.js";
 import { fmtDuration, fmtTime } from "../lib/format.js";
-import { nav } from "../lib/nav.js";
+import { nav, useBackClose } from "../lib/nav.js";
 import * as qb from "../sources/qbit.js";
 import { canSendToKindle, sendToKindle, shareEbook } from "../lib/kindle.js";
 import { cloudReaderBook } from "../lib/epub.js";
@@ -1020,6 +1021,7 @@ function GoodreadsCard({ gr }) {
 
 /** ⋯ More: the things you need now and then — fix details, Hardcover shelf, web page. */
 function BookMenu({ book, onClose, onFixed, hcStatus, setHcStatus }) {
+  useBackClose(true, onClose);
   return (
     <div class="sheet-backdrop" onClick={onClose}>
       <div class="sheet book-menu" onClick={(e) => e.stopPropagation()}>
@@ -1118,6 +1120,8 @@ function FixDetails({ book, onFixed }) {
       source: m.source === "au" ? "Audible" : "Google Books",
     };
     setFix(book.uid, fix);
+    // A phone book keeps the cover with its file details too (survives rescans).
+    if (book.source === "loc" && fix.cover) localSrc.setCover(book.uid, fix.cover);
     onFixed({ ...fix, metaSource: fix.source, fixed: true });
     setOpen(false);
     toast("Details saved for this book");

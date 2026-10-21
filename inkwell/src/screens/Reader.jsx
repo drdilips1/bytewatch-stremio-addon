@@ -5,9 +5,10 @@ import { loadSummary } from '../sources/summaries.js';
 import { loadStoryShots } from '../sources/storyshots.js';
 import { isCloudEbook, loadCloudEbook } from '../lib/epub.js';
 import { progress, settings, summarize, useStore } from '../lib/store.js';
-import { nav } from '../lib/nav.js';
+import { nav, useBackClose } from '../lib/nav.js';
 import { readAloud, attachAloud } from '../lib/readaloud.js';
-import { paragraphs, estimate, textBlocks, isSkippable, skipFrontMatter, nativeReader } from '../lib/tts.js';
+import { paragraphs, estimate, textBlocks, isSkippable, skipFrontMatter, nativeReader, ttsCfg, voiceSpec } from '../lib/tts.js';
+import { VoicesCard } from './settings-extra.jsx';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import * as player from '../lib/player.js';
 import { toast } from '../components/common.jsx';
@@ -42,6 +43,18 @@ const THEMES = [
   ['paper', 'Paper'],
 ];
 
+/** A reader panel's title with its Close button. */
+function PanelHead({ title, onClose }) {
+  return (
+    <div class="sel-sheet-head">
+      <h3>{title}</h3>
+      <button class="link-btn" onClick={onClose}>
+        Close
+      </button>
+    </div>
+  );
+}
+
 
 export function Reader({ book, readAloud: autoAloud, at = null }) {
   const st = useStore(settings);
@@ -57,6 +70,13 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
   // Selected words (long-press) → the action bar; sheet = AI answer or a highlight's note.
   const [sel, setSel] = useState(null);
   const [sheet, setSheet] = useState(null);
+  // Back closes what's open (answer sheet, panel, selection bar) before leaving the book.
+  useBackClose(!!sheet, () => setSheet(null));
+  useBackClose(!!panel, () => setPanel(null));
+  useBackClose(!!sel && !sheet, () => {
+    window.getSelection()?.removeAllRanges();
+    setSel(null);
+  });
   // PDFs: the original pages (Pages) or the reflowed text (Text). The page view's
   // code loads only when it's first opened.
   const [pages, setPages] = useState(false);
@@ -108,8 +128,10 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     },
   });
 
-  const startAloud = (from) => {
-    const els = speakBlocks();
+  // `all`: read from every paragraph, contents / preface included (a tap or chapter there).
+  const aloudAll = useRef(false);
+  const startAloud = (from, all = false, restart = false) => {
+    const els = all ? blocks() : speakBlocks();
     if (!els.length) return;
     // start at the first paragraph visible on screen
     if (from == null) from = Math.max(0, firstVisible(els));
@@ -120,8 +142,8 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
       els[from].classList.add('aloud');
       lit.current = els[from];
     }
-    // Native engine already reading this book: just move.
-    if (ctl.current?.native) {
+    // Native engine already reading this book (same list of paragraphs): just move.
+    if (ctl.current?.native && aloudAll.current === all && !restart) {
       ctl.current.seek(from);
       ctl.current.resume();
       setAloud({ playing: true, index: from });
@@ -129,6 +151,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     }
     ctl.current?.stop();
     player.pause();
+    aloudAll.current = all;
     setAloud({ playing: true, index: from });
     ctl.current = readAloud(els, from, aloudHandlers(), { uid: book.uid, title: book.title });
   };
@@ -137,11 +160,28 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     else ctl.current?.stop();
     setAloud((a) => a && { ...a, playing: false });
   };
+  /** Read from this element (a tapped paragraph or a chapter), even in skipped front matter. */
+  const readFrom = (el) => {
+    const all = blocks();
+    const target = all.find((b) => b === el || el.contains(b) || el.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    if (!target) return;
+    const i = speakBlocks().indexOf(target);
+    if (i >= 0) startAloud(i);
+    else startAloud(all.indexOf(target), true);
+  };
+  // A different voice picked while reading: carry on in it from the same paragraph.
+  const voice = JSON.stringify(voiceSpec(useStore(ttsCfg)));
+  const lastVoice = useRef(voice);
+  useEffect(() => {
+    if (voice === lastVoice.current) return;
+    lastVoice.current = voice;
+    if (aloud?.playing) startAloud(aloud.index, aloudAll.current, true);
+  }, [voice]);
   const playAloud = (i) => {
     if (ctl.current?.native) {
       ctl.current.resume();
       setAloud((a) => a && { ...a, playing: true });
-    } else startAloud(i);
+    } else startAloud(i, aloudAll.current);
   };
   const closeAloud = () => {
     ctl.current?.stop();
@@ -298,6 +338,8 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     return () => el.removeEventListener('scroll', onScroll);
   }, [doc, chrome]);
 
+  const lastTap = useRef(null);
+  const tapTimer = useRef(null);
   const page = (dir) => {
     const el = scroller.current;
     el.scrollBy({ top: dir * (el.clientHeight - 60), behavior: 'smooth' });
@@ -321,7 +363,11 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
             {pages ? 'Text' : 'Pages'}
           </button>
         )}
-        <button class="icon-btn" onClick={() => setPanel(panel === 'listen' ? null : 'listen')} aria-label="Listen">
+        <button
+          class={'icon-btn' + (aloud ? ' on' : '')}
+          onClick={() => (aloud ? setPanel(panel === 'listen' ? null : 'listen') : (setPanel(null), startAloud()))}
+          aria-label={aloud ? 'Voice' : 'Read aloud'}
+        >
           <Icon name="headphones" />
         </button>
         <button class="icon-btn" onClick={() => setPanel(panel === 'toc' ? null : 'toc')} aria-label="Contents">
@@ -347,15 +393,28 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
             const h = forBook(book.uid).find((x) => x.id === mark.dataset.id);
             if (h) return setSheet({ type: 'hl', h });
           }
-          if (aloud) {
-            const i = speakBlocks().findIndex((b) => b.contains(e.target));
-            if (i >= 0) return startAloud(i);
-          }
           const x = e.clientX / window.innerWidth;
-          if (x < 0.22) page(-1);
-          else if (x > 0.78) page(1);
-          else setChrome(!chrome);
-          setPanel(null);
+          const tap = () => {
+            if (x < 0.22) page(-1);
+            else if (x > 0.78) page(1);
+            else setChrome((c) => !c);
+            setPanel(null);
+          };
+          // Reading aloud: a tap shows / hides the bars as usual; a double tap on a
+          // paragraph reads from there.
+          if (!aloud) return tap();
+          const now = Date.now();
+          const prev = lastTap.current;
+          lastTap.current = { at: now, target: e.target };
+          clearTimeout(tapTimer.current);
+          if (prev && now - prev.at < 320) {
+            lastTap.current = null;
+            window.getSelection()?.removeAllRanges();
+            const block = blocks().find((b) => b.contains(e.target));
+            if (block) readFrom(block);
+            return;
+          }
+          tapTimer.current = setTimeout(tap, 320);
         }}
       >
         {error ? (
@@ -417,8 +476,8 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         />
       )}
       {panel === 'listen' && doc && (
-        <div class="reader-panel">
-          <h3>Listen to this book</h3>
+        <div class="reader-panel voice-panel">
+          <PanelHead title="Voice" onClose={() => setPanel(null)} />
           {canNarrate() && !nativeReader && (
             <button class="listen-opt ai" disabled={!!aiBusy} onClick={listenAsAudiobook}>
               {aiBusy ? <span class="spinner" /> : <Icon name="headphones" size={18} />}
@@ -434,38 +493,24 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
               </div>
             </button>
           )}
-          <button
-            class="listen-opt"
-            onClick={() => {
-              setPanel(null);
-              startAloud();
-            }}
-          >
-            <Icon name="book" size={18} />
-            <div>
-              <b>{nativeReader ? 'Listen' : 'Read along here'}</b>
-              <small>
-                {nativeReader
-                  ? 'Natural voice · keeps going with the screen off or the app closed · highlights as it reads'
-                  : "Highlights each paragraph as it's spoken · tap any paragraph to jump"}
-              </small>
-            </div>
-          </button>
-          <p class="muted small-note">Choose or download a voice in Settings → Voices.</p>
+          <VoicesCard />
         </div>
       )}
       {aloud && (
         <div class="aloud-bar">
-          <button class="icon-btn" onClick={() => startAloud(Math.max(0, aloud.index - 1))} aria-label="Previous paragraph">
+          <button class="icon-btn" onClick={() => startAloud(Math.max(0, aloud.index - 1), aloudAll.current)} aria-label="Previous paragraph">
             <Icon name="prev" size={20} />
           </button>
           <button class="play-btn small" onClick={() => (aloud.playing ? pauseAloud() : playAloud(aloud.index))} aria-label={aloud.playing ? 'Pause' : 'Play'}>
             <Icon name={aloud.playing ? 'pause' : 'play'} size={20} />
           </button>
-          <button class="icon-btn" onClick={() => startAloud(aloud.index + 1)} aria-label="Next paragraph">
+          <button class="icon-btn" onClick={() => startAloud(aloud.index + 1, aloudAll.current)} aria-label="Next paragraph">
             <Icon name="next" size={20} />
           </button>
-          <span class="aloud-label">{nativeReader ? 'Keeps reading with the screen off · tap a paragraph to jump' : 'Reading along · tap any paragraph to jump'}</span>
+          <span class="aloud-label">{nativeReader ? 'Keeps reading with the screen off · double-tap a paragraph to read from there' : 'Double-tap a paragraph to read from there'}</span>
+          <button class="icon-btn" onClick={() => setPanel(panel === 'listen' ? null : 'listen')} aria-label="Choose a voice">
+            <Icon name="mic" size={18} />
+          </button>
           <button class="icon-btn" onClick={closeAloud} aria-label="Stop reading aloud">
             <Icon name="close" size={18} />
           </button>
@@ -473,7 +518,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
       )}
       {panel === 'toc' && doc && (
         <div class="reader-panel">
-          <h3>Contents</h3>
+          <PanelHead title="Contents" onClose={() => setPanel(null)} />
           <ol class="toc">
             {doc.headings.length ? (
               doc.headings.map((h) => (
@@ -483,12 +528,8 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
                       const el = scroller.current.querySelector('#' + CSS.escape(h.id));
                       el?.scrollIntoView({ behavior: 'smooth' });
                       setPanel(null);
-                      // Reading aloud: the voice moves to the chapter too.
-                      if (aloud && el) {
-                        const list = speakBlocks();
-                        const i = list.findIndex((b) => b === el || el.contains(b) || (el.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING));
-                        if (i >= 0) startAloud(i);
-                      }
+                      // Reading aloud: the voice moves to the chapter too (preface etc. included).
+                      if (aloud && el) readFrom(el);
                     }}
                   >
                     {h.text}
@@ -526,7 +567,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
       )}
       {panel === 'style' && (
         <div class="reader-panel">
-          <h3>Text</h3>
+          <PanelHead title="Text" onClose={() => setPanel(null)} />
           <div class="reader-row">
             <button class="pill" onClick={() => settings.patch({ readerSize: Math.max(13, st.readerSize - 1) })}>
               A−

@@ -264,6 +264,8 @@ public class InkwellLocalPlugin extends Plugin {
     public void cover(PluginCall call) {
         String image = call.getString("image", "");
         String audio = call.getString("audio", "");
+        String pdf = call.getString("pdf", "");
+        String data = call.getString("data", "");
         String key = call.getString("key", "cover");
         getBridge().execute(() -> {
             JSObject o = new JSObject();
@@ -298,6 +300,15 @@ public class InkwellLocalPlugin extends Plugin {
                         }
                     }
                 }
+                // An ebook's own cover image (found inside the EPUB by the app).
+                if (bmp == null && !data.isEmpty()) {
+                    try {
+                        bmp = decodeSmall(android.util.Base64.decode(data, android.util.Base64.DEFAULT));
+                    } catch (Exception ignored) {
+                    }
+                }
+                // A PDF: its first page.
+                if (bmp == null && !pdf.isEmpty()) bmp = pdfFirstPage(pdf);
                 if (bmp == null) {
                     o.put("path", "");
                 } else {
@@ -312,6 +323,38 @@ public class InkwellLocalPlugin extends Plugin {
                 call.resolve(o);
             }
         });
+    }
+
+    private android.graphics.Bitmap pdfFirstPage(String uri) {
+        android.os.ParcelFileDescriptor fd = null;
+        android.graphics.pdf.PdfRenderer r = null;
+        try {
+            fd = uri.startsWith("/")
+                ? android.os.ParcelFileDescriptor.open(new java.io.File(uri), android.os.ParcelFileDescriptor.MODE_READ_ONLY)
+                : getContext().getContentResolver().openFileDescriptor(Uri.parse(uri), "r");
+            if (fd == null) return null;
+            r = new android.graphics.pdf.PdfRenderer(fd);
+            if (r.getPageCount() == 0) return null;
+            android.graphics.pdf.PdfRenderer.Page page = r.openPage(0);
+            int w = 400;
+            int h = Math.max(1, Math.round(w * (float) page.getHeight() / Math.max(1, page.getWidth())));
+            android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
+            bmp.eraseColor(android.graphics.Color.WHITE);
+            page.render(bmp, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+            page.close();
+            return bmp;
+        } catch (Exception e) {
+            return null;
+        } finally {
+            try {
+                if (r != null) r.close();
+            } catch (Exception ignored) {
+            }
+            try {
+                if (fd != null) fd.close();
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     private static byte[] readAll(java.io.InputStream in) throws java.io.IOException {

@@ -2,7 +2,7 @@
 // podcast) here, hear or read their written summary here, or open StoryShots.
 import { useEffect, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
-import { nav } from '../lib/nav.js';
+import { nav, useBackClose } from '../lib/nav.js';
 import * as player from '../lib/player.js';
 import { registerChooser, storyShotsBook, storyShotsEpisodeBook, openStoryShots, checkStoryShots } from '../sources/storyshots.js';
 
@@ -20,6 +20,7 @@ export function StoryShotsSheet() {
     // From a cover only the podcast is known: look for the written summary too.
     if (pick && !pick.url) checkStoryShots(pick.book).then((u) => u && setFound(u));
   }, [pick]);
+  useBackClose(!!pick, () => setPick(null));
   if (!pick) return null;
   const close = () => setPick(null);
   const { book, ep } = pick;

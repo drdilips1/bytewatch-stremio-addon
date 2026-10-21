@@ -161,7 +161,7 @@ export function Library() {
       </div>
       {subs && (
         <div class="lib-where">
-          {WHERE.filter(([k]) => k === 'all' || subs[k].length || (k === 'phone' && localSrc.available)).map(([k, label]) => (
+          {WHERE.filter(([k]) => k === 'all' || (subs[k].length && !(k === 'saved' && subs.saved.length === subs.all.length)) || (k === 'phone' && localSrc.available)).map(([k, label]) => (
             <button class={'pill small' + (where === k ? ' active' : '')} onClick={() => setWhere(k)}>
               {label} <span class="lib-count">{subs[k].length}</span>
             </button>
@@ -258,7 +258,7 @@ function ListView({ items, prog }) {
         const p = prog?.[b.uid];
         const pct = p && !p.finished ? Math.round((p.percent || 0) * 100) : 0;
         return (
-          <button class="lib-row" onClick={() => nav.push('book', { book: b })}>
+          <button class="lib-row" onClick={() => nav.push(b.kind === 'text' && /#ebook$/.test(b.uid) ? 'reader' : 'book', { book: b })}>
             <Cover book={b} />
             <div>
               <b>{b.title}</b>

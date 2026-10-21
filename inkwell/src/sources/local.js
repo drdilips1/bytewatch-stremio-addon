@@ -59,26 +59,44 @@ export async function rescan() {
   return books;
 }
 
-// Covers: the folder's cover image, else the art inside the first audio file —
-// made one book at a time in the background (books without either get a cover
-// from the online lookup, like other books).
+// Covers: the folder's cover image, else the art inside the first audio file;
+// ebooks: the cover inside the EPUB, or a PDF's first page — made one book at a
+// time in the background (books without any get a cover from the online lookup).
 let coversRunning = false;
+const toBase64 = (u8) => {
+  let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+async function ebookCover(b) {
+  if (b.ebookFormat === 'PDF') return { pdf: b.path || b.ebookUri || '' };
+  const { epubCover } = await import('../lib/epub.js');
+  const bytes = new Uint8Array(await (await fetch(b.ebookUrl)).arrayBuffer());
+  const img = await epubCover(bytes);
+  return img ? { data: toBase64(img) } : {};
+}
 async function makeCovers() {
   if (coversRunning) return;
   coversRunning = true;
   try {
     for (const b of localCfg.get().books) {
-      if (b.cover || b.noCover || b.kind === 'text') continue; // ebooks: cover from the online lookup
+      if (b.cover || b.noCover) continue;
       let path = '';
       try {
-        ({ path } = await Native.cover({ key: b.uid.replace(':', '_'), image: b.coverImage || '', audio: b.files?.[0]?.uri || '' }));
+        const from = b.kind === 'text' ? await ebookCover(b) : { image: b.coverImage || '', audio: b.files?.[0]?.uri || '' };
+        ({ path } = await Native.cover({ key: b.uid.replace(/[:#]/g, '_'), ...from }));
       } catch {}
-      const cover = path ? Capacitor.convertFileSrc(path) : '';
-      localCfg.set((c) => ({ ...c, books: c.books.map((x) => (x.uid === b.uid ? { ...x, cover, noCover: !cover } : x)) }));
+      setCover(b.uid, path ? Capacitor.convertFileSrc(path) : '', !path);
     }
   } finally {
     coversRunning = false;
   }
+}
+
+/** Set a phone book's cover (made here, or picked with Find cover & details); kept across rescans. */
+export function setCover(uid, cover, noCover = false) {
+  const put = (list) => (list || []).map((x) => (x.uid === uid ? { ...x, cover, noCover } : x));
+  localCfg.set((c) => ({ ...c, books: put(c.books), imported: put(c.imported) }));
 }
 if (available) setTimeout(makeCovers, 4000); // books scanned before covers existed
 // Folders scanned before ebooks were found: look again once, so EPUB / PDF files show up.
@@ -165,6 +183,8 @@ export async function search(q) {
 /** Playable details: the files, in order, played straight from the phone. */
 export async function details(book) {
   const b = localCfg.get().books.find((x) => x.uid === book.uid) || book;
+  // An ebook: nothing to play, the book page offers Read.
+  if (b.kind === 'text') return { ...book, ...b, offline: true };
   if (!b.files?.length) throw new Error('This book is no longer in your folder — rescan in Library → On this phone → Folders & files');
   return {
     ...book,
@@ -211,6 +231,7 @@ function receive(f) {
     imported: [book, ...(c.imported || []).filter((b) => b.uid !== book.uid)],
     books: [book, ...(c.books || []).filter((b) => b.uid !== book.uid)],
   }));
+  setTimeout(makeCovers, 1500);
   openHandler?.(book);
 }
 if (available) {
