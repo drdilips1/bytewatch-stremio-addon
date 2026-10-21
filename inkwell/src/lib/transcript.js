@@ -70,6 +70,52 @@ function remember() {
   }, 3000);
 }
 
+// The book's own words (when its ebook is on hand): recognised lines are matched to it.
+let bt = null;
+let btUid = '';
+function bookTextFor(book) {
+  if (!book || book.uid === btUid) return;
+  btUid = book.uid;
+  bt = null;
+  set({ bookText: '' });
+  import('./booktext.js')
+    .then((m) => m.loadBookText(book))
+    .then((x) => {
+      if (btUid !== book.uid || !x) return;
+      bt = x;
+      set({ bookText: x.title || 'your ebook' });
+      align();
+    })
+    .catch(() => {});
+}
+let locate = null;
+import('./booktext.js').then((m) => (locate = m.locate)).catch(() => {});
+/** Give each recognised line the ebook's words for it (`book`), gaps between lines filled. */
+function align() {
+  if (!bt || !locate || state.published) return;
+  const segs = state.segments;
+  let near = null;
+  let prev = null;
+  for (const s of segs) {
+    if (!s.at) {
+      const r = locate(bt, s.text, near);
+      if (r) s.at = [r.from, r.to];
+    }
+    if (s.at) {
+      if (prev?.at) {
+        const gap = s.at[0] - prev.at[1];
+        // A few words fell between two lines (or they overlap): the earlier line ends where this one starts.
+        if ((gap > 0 && gap <= 12) || (gap < 0 && s.at[0] > prev.at[0])) prev.at = [prev.at[0], s.at[0]];
+        prev.book = bt.tokens.slice(prev.at[0], prev.at[1]).join(' ');
+      }
+      s.book = bt.tokens.slice(s.at[0], s.at[1]).join(' ');
+      near = s.at[1];
+      prev = s;
+    }
+  }
+  set({ segments: segs.slice() });
+}
+
 /** End of the run of transcribed lines (gaps under 20s) that covers time t, or null. */
 function coveredUntil(t) {
   const segs = state.segments;
@@ -110,6 +156,7 @@ if (transcriptAvailable) {
     while (i > 0 && segs[i - 1].start > e.start) i--;
     segs.splice(i, 0, { start: e.start, end: e.end, text: e.text });
     set({ segments: segs.slice(), status: 'running' });
+    align();
     remember();
   });
   T.addListener('status', (e) => {
@@ -240,6 +287,7 @@ export function follow(ps) {
   if (!transcriptAvailable) return;
   if (state.published) set({ published: false });
   const key = `${ps.book.uid}#${ps.index}`;
+  bookTextFor(ps.book);
   const from = () => {
     const c = coveredUntil(ps.time);
     return c != null ? Math.max(0, c - 1) : Math.max(0, ps.time - 2);
@@ -247,6 +295,7 @@ export function follow(ps) {
   if (key !== state.key) {
     stopTranscript();
     set({ key, segments: (saved.get().parts[key] || []).slice(), status: 'idle', error: '' });
+    align();
     return startJob(ps, from());
   }
   if (state.status === 'no-model' || state.status === 'loading' || state.status === 'error') return;

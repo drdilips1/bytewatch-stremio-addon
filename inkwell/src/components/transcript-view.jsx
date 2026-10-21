@@ -108,9 +108,10 @@ export function TranscriptView({ s }) {
         </div>
       )}
       {t?.published && segs.length > 0 && <p class="tl-source">Transcript from the podcast</p>}
+      {!t?.published && t?.bookText && segs.length > 0 && <p class="tl-source">Words from your ebook of this book</p>}
       {segs.map((g, i) => (
         <p data-i={i} class={'tl' + (i === active ? ' on' : i < active ? ' past' : '')} onClick={() => g.start != null && player.seek(g.start)}>
-          {withNames(g.text, names, (n) => setCard(lookup.get(n)))}
+          {withNames(!t?.published && g.book ? g.book : g.text, names, (n) => setCard(lookup.get(n)))}
         </p>
       ))}
       {segs.length > 0 && t?.status === 'error' && <p class="err small">{t.error}</p>}

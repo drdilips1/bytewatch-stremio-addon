@@ -22,33 +22,20 @@ Noted while building; to pick up after Saturday.
 - Bring over: music + video filter, player fixes (offline downloads, screen-off next part, whole-book progress, speeds), books on the phone (+ covers), podcast batch 1, StoryShots, new design (Atelier, Discover, Library), listening stats.
 - Remove Supabase sign-in and Send to Kindle; short plain README with a "built with AI help" note; add-on backup links on GitHub.
 
-## Reported 21 Oct — to fix (not started)
-1. Available row: Audiobookshelf copy missing on a cloud book page (Cultish) while Sources says
-   "Already on your Audiobookshelf". Fix saved (564694b), needs a build to confirm.
-2. Phone ebook opened from Library (list view) goes to the book page and says "This book is no
-   longer in your folder — rescan" (local details only handle audio files).
-3. Phone ebooks have no covers; "Find cover & details" applies one, then it disappears.
-   Idea: take the cover from inside the EPUB; keep a chosen cover across rescans.
-4. Read aloud skips contents / preface / foreword (good), but a tap on that text (or its
-   chapter in Contents) should read it.
-5. Voice reading: "Part I" read as "Part i"; ":" read aloud as "colon". Clean these up
-   (Roman numerals after Part / Chapter / Book → numbers; colons as a pause).
-6. Headphones button in the reader opens a "Listen" panel every time: start reading straight
-   away, and pick the voice inside the reader (not Settings).
-7. While reading aloud, a tap on the page jumps the voice there, so the reader's menu can't be
-   opened. A tap should show / hide the bars; jumping needs its own gesture.
-8. Jumping to another paragraph still slow or stops (jump fix 8f52409 not built yet — check).
-9. Reader panels (Text / Contents / Listen) have no close button, and Back leaves the book
-   instead of closing the panel.
-10. Explain / Define / Ask sheet on the light themes (Sepia, Paper): "Highlight + keep this as a
-    note", "Copy" and "Close" are pale pink on beige — almost invisible. Use the reader theme's
-    colours for buttons in reader sheets.
-11. AI answers in that sheet show raw **stars** (Markdown): show bold properly, like Ask AI does.
-12. Player transcript: the words often differ from what the narrator says (Moonshine tiny,
-    the small English model, misses names and unusual words). Plan: (a) when the book's ebook is
-    available (kept, on phone, cloud), show the ebook's real text lined up with the recognised
-    words, so only the timing comes from recognition; (b) otherwise offer a more accurate
-    English model (Moonshine base, larger download, a bit slower) beside the fast one.
+## Reported 21 Oct — fixed, not built yet
+All 12 done (plus the screen-tour fixes: Home width, Back closes sheets everywhere, Settings
+icons and footer, Library sort row fade, Saved filter hidden when it equals All). Check on the phone:
+- Available row shows your Audiobookshelf copy (Cultish).
+- Phone ebooks: list view opens the reader; the book page works; covers from inside the EPUB /
+  the PDF's first page; a cover picked with Find cover & details stays after rescans.
+- Read aloud: headphones starts at once (voice picker: headphones again, or the mic in the bar);
+  a tap shows / hides the bars, a double tap reads from that paragraph; a tapped preface or its
+  chapter in Contents is read; "Part I" → "Part 1"; colons are a pause; jumping is quick.
+- Reader panels have Close; Back closes panels / sheets / selection before leaving the book.
+- AI sheet readable on Sepia / Paper; **bold** shown properly.
+- Transcript: when the book's ebook is on the phone (kept, phone folder, the audiobook's own
+  folder), the lines show the ebook's real words ("Words from your ebook of this book").
+  Not done: a larger, more accurate English speech model (for books with no ebook).
 
 ## Made for the public app (20 Oct), not in this app yet
 Built and tested in the public Audiohub (drdilips1/Audiohub, test build 1.0.12, not released).
