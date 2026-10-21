@@ -27,7 +27,7 @@ const trackerWords = (name, book) => {
   return mainTitle(parts.slice(0, 2).join(' ')).split(/\s+/).slice(0, 8).join(' ');
 };
 import { openExternal } from '../sources/summaries.js';
-import { directEbookFile, directReaderBook } from '../lib/epub.js';
+import { directEbookFile, directReaderBook, loadCloudEbook, savedEbooks } from '../lib/epub.js';
 import { shareEbook } from '../lib/kindle.js';
 
 const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
@@ -459,6 +459,23 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
       setBusy(null);
     }
   };
+  // Save an EPUB / PDF on the phone (read offline any time: Library → Ebooks → Downloaded).
+  const rb = readable ? directReaderBook(r, ebook, book) : null;
+  const kept = useStore(savedEbooks);
+  const saved = !!(rb && kept[rb.uid]);
+  const saveEbook = async () => {
+    setBusy('save-ebook');
+    setStatus({ text: 'Downloading the ebook…', pct: null });
+    try {
+      await loadCloudEbook(rb);
+      toast('Saved on this phone — Library → Ebooks → Downloaded');
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setStatus(null);
+      setBusy(null);
+    }
+  };
   const home = hasMagnet && qb.available && qb.configured();
   const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
   const trackerFilter = trackerSite ? qb.trackerFilterLabel() : '';
@@ -549,6 +566,11 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
             {readable && (
               <button class="btn primary" onClick={() => nav.push('reader', { book: directReaderBook(r, ebook, book) })}>
                 <Icon name="book" size={16} /> Read
+              </button>
+            )}
+            {readable && (
+              <button class="btn secondary play-alt" disabled={!!busy || saved} onClick={saveEbook} aria-label="Save to this phone">
+                {busy === 'save-ebook' ? <span class="spinner" /> : <Icon name={saved ? 'check' : 'download'} size={14} />} {saved ? 'Saved' : 'Save'}
               </button>
             )}
             <button
