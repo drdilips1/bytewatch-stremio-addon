@@ -7169,9 +7169,29 @@ button.rt {
 }
 .phone-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
   margin-top: 16px;
+}
+.phone-manage .lib-manage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.phone-manage .lib-manage small {
+  margin-left: auto;
+  opacity: 0.7;
+  font-size: 12px;
+}
+.phone-panel {
+  margin: 0 16px 12px;
+  padding: 4px 12px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+}
+.phone-panel .phone-actions {
+  margin-top: 10px;
 }
 
 /* Home: the last book, big */

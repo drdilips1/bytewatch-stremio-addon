@@ -82,6 +82,42 @@ public class InkwellLocalPlugin extends Plugin {
         return o;
     }
 
+    /** Pick EPUB / PDF files to add (copied into the app, like Open with). */
+    @PluginMethod
+    public void pickBook(PluginCall call) {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("*/*");
+        i.putExtra(Intent.EXTRA_MIME_TYPES, new String[] { "application/epub+zip", "application/pdf", "application/octet-stream" });
+        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        startActivityForResult(call, i, "onPickBook");
+    }
+
+    @ActivityCallback
+    private void onPickBook(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        Intent data = result.getData();
+        java.util.List<Uri> uris = new java.util.ArrayList<>();
+        if (data != null && data.getClipData() != null) for (int k = 0; k < data.getClipData().getItemCount(); k++) uris.add(data.getClipData().getItemAt(k).getUri());
+        else if (data != null && data.getData() != null) uris.add(data.getData());
+        if (uris.isEmpty()) {
+            call.reject("cancelled");
+            return;
+        }
+        getBridge().execute(() -> {
+            JSArray books = new JSArray();
+            for (Uri u : uris) {
+                Intent v = new Intent(Intent.ACTION_VIEW);
+                v.setData(u);
+                JSObject o = takeBook(v);
+                if (o != null) books.put(o);
+            }
+            JSObject r = new JSObject();
+            r.put("books", books);
+            call.resolve(r);
+        });
+    }
+
     /** Delete a copied-in book. */
     @PluginMethod
     public void removeIncoming(PluginCall call) {

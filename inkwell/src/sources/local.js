@@ -165,7 +165,7 @@ export async function search(q) {
 /** Playable details: the files, in order, played straight from the phone. */
 export async function details(book) {
   const b = localCfg.get().books.find((x) => x.uid === book.uid) || book;
-  if (!b.files?.length) throw new Error('This book is no longer in your folder — rescan in Settings → Books on this phone');
+  if (!b.files?.length) throw new Error('This book is no longer in your folder — rescan in Library → On this phone → Folders & files');
   return {
     ...book,
     ...b,
@@ -216,6 +216,21 @@ function receive(f) {
 if (available) {
   Native.addListener('incoming', receive);
   setTimeout(() => Native.incoming().then(receive).catch(() => {}), 800);
+}
+
+/** Pick EPUB / PDF files from the phone to add (Library → On this phone → Add files). */
+export async function pickBooks() {
+  if (!available) throw new Error('Adding ebook files works in the Android app');
+  const r = await Native.pickBook();
+  const list = (r?.books || []).filter((f) => f?.path);
+  const keep = openHandler;
+  openHandler = null; // several files: add them all, don't open each
+  try {
+    list.forEach(receive);
+  } finally {
+    openHandler = keep;
+  }
+  return list.length;
 }
 
 /** Remove a book that was opened with / shared to Audiohub (its copy too). */

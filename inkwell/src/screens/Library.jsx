@@ -168,6 +168,7 @@ export function Library() {
           ))}
         </div>
       )}
+      {subs && where === 'phone' && items.length > 0 && <PhoneManage />}
       {subs && where === 'downloaded' && (
         <button class="btn ghost-wide lib-manage" onClick={() => nav.push('downloads')}>
           <Icon name="download" size={16} /> Manage downloads
@@ -284,18 +285,96 @@ function ListView({ items, prog }) {
   );
 }
 
+/** Run a phone-books action with a busy flag and a short result toast. */
+function usePhoneRun() {
+  const [busy, setBusy] = useState('');
+  const run = (label, fn) => async () => {
+    setBusy(label);
+    try {
+      const r = await fn();
+      if (typeof r === 'number') toast(r ? `${r} book${r > 1 ? 's' : ''} added` : 'Nothing added');
+      else if (Array.isArray(r)) toast(`${r.length} book${r.length === 1 ? '' : 's'} found`);
+    } catch (e) {
+      if (!/no folder chosen|cancelled/i.test(e.message)) toast(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
+  return [busy, run];
+}
+
+/** Choose folder / Add EPUB or PDF files / Rescan. */
+function PhoneButtons({ busy, run }) {
+  const cfg = useStore(localSrc.localCfg);
+  return (
+    <div class="phone-actions">
+      <button class="btn primary" disabled={!!busy} onClick={run('add', localSrc.addFolder)}>
+        {busy === 'add' ? <span class="spinner" /> : <Icon name="plus" size={16} />} {cfg.folders.length ? 'Add folder' : 'Choose folder'}
+      </button>
+      <button class="btn secondary" disabled={!!busy} onClick={run('files', localSrc.pickBooks)}>
+        {busy === 'files' ? <span class="spinner" /> : <Icon name="book" size={16} />} Add EPUB / PDF
+      </button>
+      {cfg.folders.length > 0 && (
+        <button class="btn secondary" disabled={!!busy} onClick={run('scan', localSrc.rescan)}>
+          {busy === 'scan' ? <span class="spinner" /> : <Icon name="shuffle" size={16} />} Rescan
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** "On this phone" with books: the folders it reads (with counts), add / remove / rescan. */
+function PhoneManage() {
+  const cfg = useStore(localSrc.localCfg);
+  const [open, setOpen] = useState(false);
+  const [busy, run] = usePhoneRun();
+  const count = (list) => {
+    const eb = list.filter((b) => b.kind === 'text').length;
+    const au = list.length - eb;
+    return [au && `${au} audiobook${au > 1 ? 's' : ''}`, eb && `${eb} ebook${eb > 1 ? 's' : ''}`].filter(Boolean).join(' · ') || 'No books yet';
+  };
+  const added = cfg.imported || [];
+  return (
+    <div class="phone-manage">
+      <button class="btn ghost-wide lib-manage" onClick={() => setOpen(!open)}>
+        <Icon name="library" size={16} /> Folders & files
+        <small>
+          {cfg.folders.length} folder{cfg.folders.length === 1 ? '' : 's'}
+          {added.length ? ` · ${added.length} added` : ''}
+        </small>
+        <Icon name="down" size={16} />
+      </button>
+      {open && (
+        <div class="phone-panel">
+          {cfg.folders.map((f) => (
+            <div class="set-row">
+              <div>
+                <b>{decodeURIComponent(f.name)}</b>
+                <small>{count(cfg.books.filter((b) => b.folder === f.uri))}</small>
+              </div>
+              <button class="pill small" onClick={() => confirm(`Stop reading “${decodeURIComponent(f.name)}”? The files stay on the phone.`) && localSrc.removeFolder(f.uri)}>
+                Remove
+              </button>
+            </div>
+          ))}
+          {added.length > 0 && (
+            <div class="set-row">
+              <div>
+                <b>Added files</b>
+                <small>{count(added)} · opened with or shared to Audiohub</small>
+              </div>
+            </div>
+          )}
+          <PhoneButtons busy={busy} run={run} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** "On this phone" before a folder is chosen (or when it has no books). */
 function PhoneEmpty() {
-  const [busy, setBusy] = useState(false);
-  const run = (fn) => async () => {
-    setBusy(true);
-    try {
-      await fn();
-    } catch (e) {
-      toast(e.message);
-    }
-    setBusy(false);
-  };
+  const [busy, run] = usePhoneRun();
   if (!localSrc.available)
     return (
       <Empty icon="library" title="Books on your phone">
@@ -304,17 +383,10 @@ function PhoneEmpty() {
     );
   return (
     <Empty icon="library" title={localSrc.connected() ? 'No books found' : 'Books on your phone'}>
-      {localSrc.connected() ? 'Nothing playable in your chosen folders yet.' : 'Choose the folder where your audiobooks and ebooks are (e.g. Audiobooks or Books). Audiobooks play and EPUB / PDF open straight from the phone, no internet needed.'}
-      <div class="phone-actions">
-        <button class="btn primary" disabled={busy} onClick={run(localSrc.addFolder)}>
-          {busy ? <span class="spinner" /> : 'Choose folder'}
-        </button>
-        {localSrc.connected() && (
-          <button class="btn" disabled={busy} onClick={run(localSrc.rescan)}>
-            Rescan
-          </button>
-        )}
-      </div>
+      {localSrc.connected()
+        ? 'Nothing playable in your chosen folders yet.'
+        : 'Choose the folder where your audiobooks and ebooks are (e.g. Audiobooks or Books), or add single EPUB / PDF files. They play and open straight from the phone, no internet needed.'}
+      <PhoneButtons busy={busy} run={run} />
     </Empty>
   );
 }
