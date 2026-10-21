@@ -44,6 +44,11 @@ Noted while building; to pick up after Saturday.
     note", "Copy" and "Close" are pale pink on beige — almost invisible. Use the reader theme's
     colours for buttons in reader sheets.
 11. AI answers in that sheet show raw **stars** (Markdown): show bold properly, like Ask AI does.
+12. Player transcript: the words often differ from what the narrator says (Moonshine tiny,
+    the small English model, misses names and unusual words). Plan: (a) when the book's ebook is
+    available (kept, on phone, cloud), show the ebook's real text lined up with the recognised
+    words, so only the timing comes from recognition; (b) otherwise offer a more accurate
+    English model (Moonshine base, larger download, a bit slower) beside the fast one.
 
 ## Made for the public app (20 Oct), not in this app yet
 Built and tested in the public Audiohub (drdilips1/Audiohub, test build 1.0.12, not released).
