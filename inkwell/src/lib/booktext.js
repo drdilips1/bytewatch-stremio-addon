@@ -98,17 +98,33 @@ export async function findEbookInSources(book) {
   const t = mainTitle(book.title || '');
   const sn = surname(book.author);
   const found = [];
-  await searchSources({ title: book.title, author: book.author || '', query: '' }, (name, results) => {
+  const take = (name, results) => {
     for (const r of results || []) {
       const file = !(r.magnet || r.hash) && directEbookFile(r);
       if (!file || (file.format !== 'EPUB' && file.format !== 'PDF')) continue;
       if (t && !matches(t, `${r.title || ''} ${file.name}`)) continue;
-      if (sn && r.author && !String(r.author).toLowerCase().includes(sn)) continue;
       if (found.some((x) => x.r.link === r.link)) continue;
       found.push({ r, file, source: name, book: directReaderBook(r, file, book) });
     }
-  });
+  };
+  // Two searches, like the main search box: the clean title (no "Unabridged" etc.) with
+  // the author, and the plain words "title surname" — between them far more ebook links.
+  await Promise.all([
+    searchSources({ title: t, author: book.author || '', query: '' }, take),
+    searchSources({ title: '', author: '', query: `${t} ${sn}`.trim() }, take),
+  ]);
   return found.sort((a, b) => (a.file.format === 'EPUB' ? 0 : 1) - (b.file.format === 'EPUB' ? 0 : 1));
+}
+
+/** Ebooks already on the phone (saved, phone folders, added files): this book's first. */
+export function ebooksOnHand(book) {
+  const t = mainTitle(book.title || '');
+  const seen = new Set();
+  const all = [...Object.values(savedEbooks.get()).map((x) => x?.book), ...(localCfg.get().books || []).filter((b) => b.kind === 'text')].filter(
+    (b) => b && !seen.has(b.uid) && seen.add(b.uid)
+  );
+  const hit = (b) => (t && matches(t, `${b.title || ''} ${b.ebookName || ''}`) ? 0 : 1);
+  return all.sort((a, b) => hit(a) - hit(b));
 }
 
 /** Download a found ebook, keep it on the phone and use it for this audiobook's transcript. */

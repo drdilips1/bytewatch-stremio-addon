@@ -6,7 +6,7 @@ import { toast } from './common.jsx';
 import * as player from '../lib/player.js';
 import { knownCharacters, CharacterCard } from './story-sheet.jsx';
 import { useStore } from '../lib/store.js';
-import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook } from '../lib/transcript.js';
+import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone } from '../lib/transcript.js';
 
 // Wrap known character names in tappable spans.
 function withNames(text, names, onTap) {
@@ -38,28 +38,54 @@ function withNames(text, names, onTap) {
 /** Whether the lines show the ebook's exact words, and a way to get the ebook from your sources. */
 function EbookStatus({ b }) {
   const [hits, setHits] = useState(null); // null: not searched; [] none found
+  const [mine, setMine] = useState(null); // ebooks already on the phone
   const [busy, setBusy] = useState(''); // 'search' | link being downloaded
   const search = async () => {
     setBusy('search');
+    setMine(await ebooksOnPhone());
     try {
       setHits(await findEbook());
     } catch (e) {
       toast(e?.message || String(e));
+      setHits([]);
     }
     setBusy('');
+  };
+  const pickMine = async (eb) => {
+    setHits(null);
+    setMine(null);
+    await takeOnPhone(eb);
   };
   const take = async (h) => {
     setBusy(h.r.link);
     try {
       await takeEbook(h);
       setHits(null);
+      setMine(null);
     } catch (e) {
       toast(e?.message || String(e));
     }
     setBusy('');
   };
   if (!b || b.state === 'loading') return b ? <p class="tl-source">Looking for your ebook of this book…</p> : null;
-  const list =
+  const phoneList = mine?.length > 0 && (
+    <div class="tl-ebook-hits">
+      <p class="tl-source">On this phone</p>
+      {mine.slice(0, 8).map((eb) => (
+        <button class="tl-ebook-hit" disabled={busy && busy !== 'search'} onClick={() => pickMine(eb)}>
+          <span>
+            <b>{eb.title}</b>
+            <small>
+              {eb.ebookFormat || eb.format || 'Ebook'}
+              {eb.author ? ` · ${eb.author}` : ''}
+            </small>
+          </span>
+          <em>Use</em>
+        </button>
+      ))}
+    </div>
+  );
+  const srcList =
     hits &&
     (hits.length ? (
       <div class="tl-ebook-hits">
@@ -79,6 +105,20 @@ function EbookStatus({ b }) {
     ) : (
       <p class="tl-source">No EPUB of this book in your sources.</p>
     ));
+  const list =
+    (mine || hits) && (
+      <>
+        {phoneList}
+        {busy === 'search' ? (
+          <p class="tl-source">
+            <span class="spinner small" /> Searching your sources…
+          </p>
+        ) : (
+          hits && <p class="tl-source">From your sources</p>
+        )}
+        {srcList}
+      </>
+    );
   if (b.state === 'on')
     return (
       <>

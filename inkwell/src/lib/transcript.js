@@ -100,6 +100,31 @@ export async function findEbook() {
   return findEbookInSources(ps.book);
 }
 
+/** Ebooks already on the phone to choose from (this book's first). */
+export async function ebooksOnPhone() {
+  const ps = player.getState();
+  if (!ps.book) return [];
+  const { ebooksOnHand } = await import('./booktext.js');
+  return ebooksOnHand(ps.book);
+}
+
+/** Use an ebook already on the phone for this audiobook's transcript. */
+export async function takeOnPhone(eb) {
+  const ps = player.getState();
+  if (!ps.book) return;
+  const { linkEbook } = await import('./booktext.js');
+  linkEbook(ps.book.uid, eb);
+  bookTextFor(ps.book, true);
+}
+
+// An ebook saved after the transcript looked (e.g. from the main search): look again.
+import('./epub.js').then(({ savedEbooks }) =>
+  savedEbooks.subscribe(() => {
+    const ps = player.getState();
+    if (ps.book && state.bookText?.state === 'none') bookTextFor(ps.book, true);
+  })
+);
+
 /** Download one of those, keep it, and show its words in the transcript. */
 export async function takeEbook(hit) {
   const ps = player.getState();
