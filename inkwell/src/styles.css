@@ -8703,3 +8703,74 @@ button.stats {
   font-weight: 700;
   color: var(--accent);
 }
+/* Library → Ebooks: find an ebook on the phone, in the cloud, in your sources */
+.ebook-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 16px 12px;
+  padding: 0 6px 0 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.ebook-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.ebook-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 16px;
+}
+.ebook-results .section-label.pad {
+  padding: 0;
+  margin-top: 10px;
+}
+.ebook-results .muted.pad-s {
+  padding: 0;
+}
+.er-act {
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  padding-right: 6px;
+}
+.er-src {
+  gap: 8px;
+  padding: 10px 12px;
+}
+.er-src > div {
+  flex: 1;
+  min-width: 0;
+}
+.er-src b {
+  display: block;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.er-src small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ebook-results h3.section-label {
+  padding: 0 4px;
+  margin: 10px 0 0;
+}
+.ebook-results p.muted {
+  padding: 0 4px;
+  margin: 0;
+  font-size: 13px;
+}

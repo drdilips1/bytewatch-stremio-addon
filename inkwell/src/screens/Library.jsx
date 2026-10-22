@@ -12,6 +12,7 @@ import { forgetEbook, savedEbooks } from '../lib/epub.js';
 import { nav } from '../lib/nav.js';
 import { podcasts } from '../sources/podcasts.js';
 import { ShowGrid } from './Podcasts.jsx';
+import { EbookSearchBox, EbookSearchResults } from '../components/ebook-search.jsx';
 
 const TABS = [
   ['progress', 'Continue'],
@@ -66,6 +67,8 @@ export function Library() {
   const setTab = (t) => libView.set((v) => ({ ...v, tab: t, where: 'all' }));
   const setWhere = (w) => libView.set((v) => ({ ...v, where: w }));
   const [editing, setEditing] = useState(false);
+  const [ebookQ, setEbookQ] = useState('');
+  const findingEbook = tab === 'text' && ebookQ.trim().length > 1;
   const [editShown, setEditShown] = useState(60);
   const last = useRef([]);
   // Every group of books, once per change.
@@ -168,6 +171,11 @@ export function Library() {
           ))}
         </div>
       )}
+      {tab === 'text' && <EbookSearchBox q={ebookQ} setQ={setEbookQ} />}
+      {findingEbook ? (
+        <EbookSearchResults q={ebookQ} />
+      ) : (
+        <>
       {subs && where === 'phone' && items.length > 0 && <PhoneManage />}
       {subs && where === 'downloaded' && (
         <button class="btn ghost-wide lib-manage" onClick={() => nav.push('downloads')}>
@@ -243,6 +251,8 @@ export function Library() {
           </a>
           .
         </Empty>
+      )}
+        </>
       )}
       <div class="footer-space" />
     </div>
