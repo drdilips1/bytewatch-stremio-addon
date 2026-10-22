@@ -188,6 +188,20 @@ export function cleanProgress(all) {
 }
 
 /** Remove a book from the library and its history (Library → Edit). */
+/** Take books off Home's Continue row (the place is kept; listening or reading again brings them back). */
+export function hideFromContinue(uids) {
+  progress.set((all) => {
+    const next = { ...all };
+    for (const u of uids) if (next[u]) next[u] = { ...next[u], hidden: true };
+    return next;
+  });
+}
+
+/** Clear podcast listening history: where you were in episodes you haven't finished. */
+export function clearPodcastHistory() {
+  progress.set((all) => Object.fromEntries(Object.entries(all).filter(([, p]) => !(p?.book?.source === 'pod' && !p.finished))));
+}
+
 export function forgetBook(uid) {
   markRemoved(uid, { lib: true, prog: true });
   library.set((lib) => {

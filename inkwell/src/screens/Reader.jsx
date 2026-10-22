@@ -92,7 +92,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
   const savePage = (n, total) =>
     progress.set((all) => ({
       ...all,
-      [book.uid]: { ...(all[book.uid] || {}), kind: 'text', pdfPage: n, percent: n / total, finished: n >= total, updatedAt: Date.now(), book: summarize(book) },
+      [book.uid]: { ...(all[book.uid] || {}), hidden: false, kind: 'text', pdfPage: n, percent: n / total, finished: n >= total, updatedAt: Date.now(), book: summarize(book) },
     }));
 
   // Readable paragraphs, worked out once per book (long ebooks have thousands).

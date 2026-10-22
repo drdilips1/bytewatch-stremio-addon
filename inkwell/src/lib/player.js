@@ -481,9 +481,13 @@ export function prefetch(book, getDetails) {
     .catch(() => ready.delete(book.uid));
 }
 
+// A different book: drop the previous one's parts at once, so nothing (the transcript,
+// the progress bar) takes the old audio for the new book while it opens.
+const freshBook = (book) => (state.book?.uid === book?.uid ? {} : { tracks: [], index: 0, time: 0, duration: 0 });
+
 export async function openAndPlay(book, getDetails, opts) {
   stopWaiting();
-  set({ book, loading: true, error: null, playing: false, phase: 'Opening the book…' });
+  set({ ...freshBook(book), book, loading: true, error: null, playing: false, phase: 'Opening the book…' });
   try {
     const early = ready.get(book.uid);
     ready.delete(book.uid);
@@ -500,7 +504,7 @@ export async function playBook(details, { index, time, globalStart } = {}) {
   if (!rescuing) rescueTried.clear();
   rescuing = false;
   if (details && !details.offline && isDownloaded(details.uid)) details = applyLocal(details);
-  set({ loading: true, error: null, book: details, phase: 'Opening the book…' });
+  set({ ...freshBook(details), loading: true, error: null, book: details, phase: 'Opening the book…' });
   try {
     let tracks = details.tracks;
     let serverStart = 0;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Grid, Empty, Cover, toast, AskButton } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
-import { library, progress, useStore, forgetBook, persisted } from '../lib/store.js';
+import { library, progress, useStore, forgetBook, persisted, clearPodcastHistory } from '../lib/store.js';
 import { localSrc } from '../sources/index.js';
 import { fmtDuration } from '../lib/format.js';
 import { metaNow } from '../lib/meta.js';
@@ -202,7 +202,15 @@ export function Library() {
         <div class="lib-pods">
           {items.length > 0 && (
             <>
-              <h3 class="section-label pad">Episodes in progress</h3>
+              <div class="lib-pod-head">
+                <h3 class="section-label pad">Episodes in progress</h3>
+                <button
+                  class="link-btn"
+                  onClick={() => confirm('Clear podcast history? Episodes you haven’t finished lose their place and leave this list and Home.') && (clearPodcastHistory(), toast('Podcast history cleared'))}
+                >
+                  Clear history
+                </button>
+              </div>
               <Grid items={items} />
             </>
           )}

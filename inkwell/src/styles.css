@@ -8774,3 +8774,38 @@ button.stats {
   margin: 0;
   font-size: 13px;
 }
+
+/* Home → Continue: ✕ takes a book off the row */
+.continue-big,
+.continue-card {
+  position: relative;
+}
+.continue-hide {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  color: var(--muted);
+  opacity: 0.85;
+}
+.lib-pod-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-right: 20px;
+}
+.lib-pod-head .link-btn {
+  font-size: 13px;
+}
+.continue-card .continue-hide {
+  top: 4px;
+  right: auto;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+}

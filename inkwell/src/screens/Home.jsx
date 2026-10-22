@@ -12,7 +12,7 @@ import { Icon } from '../components/icons.jsx';
 import { ia, gb, ol, absSrc, addonSrc, cloud, localSrc, hc, gr, enabled, sourceOrder, sourceRank } from '../sources/index.js';
 import { Fragment } from 'preact';
 import { sameWork } from '../lib/works.js';
-import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary } from '../lib/store.js';
+import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary, hideFromContinue } from '../lib/store.js';
 import { greeting, fmtDuration, hiResCover } from '../lib/format.js';
 import { nav, useBackClose } from '../lib/nav.js';
 import { GENRES } from './genres.js';
@@ -365,7 +365,7 @@ function ContinueRow() {
   const items = useMemo(
     () =>
       Object.entries(prog)
-        .filter(([uid, p]) => !p.finished && p.book && !/^(lbl?|sum):/.test(uid))
+        .filter(([uid, p]) => !p.finished && !p.hidden && p.book && !/^(lbl?|sum):/.test(uid))
         .sort((a, b) => b[1].updatedAt - a[1].updatedAt)
         // One card per book: the copy (or format) you used last.
         .filter(([, p], i, all) => !all.slice(0, i).some(([, q]) => sameWork(q.book, p.book)))
@@ -388,6 +388,17 @@ function ContinueRow() {
     player.openAndPlay(p.book, getDetails);
   };
   const left = (p) => (p.kind === 'text' ? 'Reading' : p.total ? `${fmtDuration(p.total - p.global)} left` : 'Listening');
+  // ✕: off the Continue row (every copy of that book), its place kept for later.
+  const hide = (e, p) => {
+    e.stopPropagation();
+    hideFromContinue(Object.entries(prog).filter(([, q]) => q.book && sameWork(q.book, p.book)).map(([u]) => u));
+    toast('Removed from Continue — your place is kept');
+  };
+  const Hide = ({ p }) => (
+    <span class="continue-hide" role="button" aria-label={`Remove ${p.book.title} from Continue`} onClick={(e) => hide(e, p)}>
+      <Icon name="close" size={14} />
+    </span>
+  );
   const [[, top], ...rest] = items;
   return (
     <section class="continue-section">
@@ -409,6 +420,7 @@ function ContinueRow() {
         <span class="continue-big-play">
           <Icon name={top.kind === 'text' ? 'book' : 'play'} size={24} />
         </span>
+        <Hide p={top} />
       </button>
       {rest.length > 0 && (
         <div class="row-scroll continue">
@@ -425,6 +437,7 @@ function ContinueRow() {
               <span class="continue-play">
                 <Icon name={p.kind === 'text' ? 'book' : 'play'} size={16} />
               </span>
+              <Hide p={p} />
             </button>
           ))}
         </div>
