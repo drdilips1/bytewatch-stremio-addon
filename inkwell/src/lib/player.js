@@ -291,7 +291,7 @@ function estDuration(i) {
   if (t.size > 0 && sized.length) return (t.size * sized.reduce((a, x) => a + x.duration, 0)) / sized.reduce((a, x) => a + x.size, 0);
   return known.reduce((a, x) => a + x.duration, 0) / known.length;
 }
-function trackOffset(i) {
+export function trackOffset(i) {
   const t = state.tracks[i];
   if (t && typeof t.offset === 'number') return t.offset;
   let o = 0;

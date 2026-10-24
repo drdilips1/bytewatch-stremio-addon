@@ -15,6 +15,7 @@ import { COMPANION, rememberHere } from '../lib/askbook.js';
 import { aiReady } from '../lib/ai.js';
 import { TranscriptView } from './transcript-view.jsx';
 import { StorySheet } from './story-sheet.jsx';
+import { XrayStrip, XraySheet } from './xray.jsx';
 import { transcriptCfg, stopTranscript } from '../lib/transcript.js';
 import { sleepDetectAvailable, setSleepDetect } from '../lib/sleepdetect.js';
 
@@ -234,6 +235,8 @@ export function FullPlayer() {
         {s.error && !s.preparing && <p class="err">{s.error}</p>}
       </div>
 
+      <XrayStrip s={s} open={() => setSheet('xray')} />
+
       <div class="fp-scrub">
         <input
           type="range"
@@ -299,6 +302,9 @@ export function FullPlayer() {
         <button class="chip-btn" onClick={() => openDrive()} aria-label="Driving mode">
           🚗 Drive
         </button>
+        <button class="chip-btn" onClick={() => setSheet('xray')} aria-label="X-Ray: who and where">
+          <b>X</b> X-Ray
+        </button>
         <button class="chip-btn" onClick={() => setSheet('story')} aria-label="Recap and characters">
           <Icon name="sparkle" size={16} /> Story
         </button>
@@ -345,6 +351,7 @@ export function FullPlayer() {
           <div class="sheet" onClick={(e) => e.stopPropagation()}>
             <div class="sheet-handle" />
             {sheet === 'story' && <StorySheet close={() => setSheet(null)} />}
+            {sheet === 'xray' && <XraySheet s={s} />}
             {sheet === 'speed' && (
               <>
                 <h3>Playback speed</h3>

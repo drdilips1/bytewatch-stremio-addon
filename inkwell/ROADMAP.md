@@ -37,11 +37,16 @@ icons and footer, Library sort row fade, Saved filter hidden when it equals All)
   folder), the lines show the ebook's real words ("Words from your ebook of this book").
   Not done: a larger, more accurate English speech model (for books with no ebook).
 
-## From the 24 Oct notes — planned (not started)
-- Voice command on Home: "play when Harry first boards the Hogwarts Express" → find the book
-  (phone, then cloud), find the scene (transcript / matched ebook), start 30 s before it.
-- X-Ray: who's in the scene and where, while listening; tap a character for every chapter
-  they appear in (grows out of the Story sheet's characters).
+## From the 24 Oct notes — done, not built yet
+- Voice command on Home (mic button): "play when Harry first boards the Hogwarts Express" →
+  AI names the book, chapter and how far in; your copy is found (playing, phone, downloads,
+  played before, Audiobookshelf, TorBox / RD — else Search) and starts 30 s before it. A line
+  heard earlier with the transcript on gives the exact moment.
+- X-Ray in the player: a quiet line of the chapter's topic and who / where is in the scene
+  (from the transcript's last 3 minutes, else the chapter's cast); the X-Ray sheet lists people
+  and places so far — tap one for every chapter they're in and jump there. Spoiler-safe.
+- Sources: EPUB / PDF torrents show Read · TorBox / RD (opens the reader) and Save keeps the ebook.
+- Recommended cards: no description line.
 
 ## Made for the public app (20 Oct), not in this app yet
 Built and tested in the public Audiohub (drdilips1/Audiohub, test build 1.0.12, not released).

@@ -27,7 +27,7 @@ const trackerWords = (name, book) => {
   return mainTitle(parts.slice(0, 2).join(' ')).split(/\s+/).slice(0, 8).join(' ');
 };
 import { openExternal } from '../sources/summaries.js';
-import { directEbookFile, directReaderBook, loadCloudEbook, savedEbooks } from '../lib/epub.js';
+import { directEbookFile, directReaderBook, loadCloudEbook, savedEbooks, cloudReaderBook } from '../lib/epub.js';
 import { shareEbook } from '../lib/kindle.js';
 
 const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
@@ -321,6 +321,35 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
     }
   };
 
+  // An ebook torrent: fetch it through TorBox / Real-Debrid and open it in the reader
+  // (or keep it on the phone with Save).
+  const readTorrent = async (via, keep = false) => {
+    if (!need()) return;
+    setBusy(keep ? 'save' : via === playVia ? 'play' : 'play:' + via);
+    setStatus({ text: readyOn(via) ? `Getting it from your ${LABEL[via]}…` : 'Contacting ' + LABEL[via] + '…', pct: null });
+    try {
+      const stub = await cloud.prepareMagnet(via, r, (text, pct) => setStatus({ text, pct }), { ebook: true });
+      autoSend();
+      const details = await getDetails({ ...stub, title: book?.title || stub.title, author: book?.author || r.author || stub.author, cover: book?.cover || stub.cover });
+      const files = details.ebooks || [];
+      const file = files.find((f) => f.format === 'EPUB') || files.find((f) => f.format === 'PDF');
+      if (!file) throw new Error(files.length ? `Only ${[...new Set(files.map((f) => f.format))].join(' / ')} in this one — the reader opens EPUB and PDF` : 'No ebook files in this one');
+      const rb = cloudReaderBook(details, file);
+      if (keep) {
+        setStatus({ text: 'Saving to this phone…', pct: null });
+        await loadCloudEbook(rb);
+        toast('Saved — Library → Ebooks');
+      } else nav.push('reader', { book: rb });
+      setStatus(null);
+    } catch (e) {
+      setStatus(null);
+      toast(e.pending ? `${e.message} — tap Read again once it's ready` : e.message);
+      onChanged();
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const play = async (chosen) => {
     if (!need()) return;
     const via = typeof chosen === 'string' ? chosen : playVia;
@@ -444,6 +473,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   }, [!!downloading]);
 
   const hasMagnet = !!(r.magnet || r.hash);
+  const ebookTorrent = hasMagnet && qb.isEbookName(`${r.title} ${r.format || ''}`);
   // Direct ebook links (no torrent): EPUB opens in the reader; any ebook can be saved to another app.
   const ebook = hasMagnet ? null : directEbookFile(r);
   const readable = ebook?.format === 'EPUB' || ebook?.format === 'PDF'; // opens in the app's reader
@@ -592,18 +622,19 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
           </a>
         ) : (
           <>
-            <button class="btn primary" disabled={!!busy} onClick={() => play(playVia)}>
-              {busy === 'play' ? <span class="spinner" /> : <Icon name="play" size={16} />} Play{providers.length > 1 && playVia ? ` · ${LABEL[playVia]}` : ''}
+            <button class="btn primary" disabled={!!busy} onClick={() => (ebookTorrent ? readTorrent(playVia) : play(playVia))}>
+              {busy === 'play' ? <span class="spinner" /> : <Icon name={ebookTorrent ? 'book' : 'play'} size={16} />} {ebookTorrent ? 'Read' : 'Play'}
+              {providers.length > 1 && playVia ? ` · ${LABEL[playVia]}` : ''}
             </button>
             {providers
               .filter((p) => p !== playVia)
               .map((p) => (
-                <button class="btn secondary play-alt" disabled={!!busy} onClick={() => play(p)} aria-label={`Play through ${LABEL[p]}`}>
-                  {busy === 'play:' + p ? <span class="spinner" /> : <Icon name="play" size={14} />} {SHORT[p]}
+                <button class="btn secondary play-alt" disabled={!!busy} onClick={() => (ebookTorrent ? readTorrent(p) : play(p))} aria-label={`${ebookTorrent ? 'Read' : 'Play'} through ${LABEL[p]}`}>
+                  {busy === 'play:' + p ? <span class="spinner" /> : <Icon name={ebookTorrent ? 'book' : 'play'} size={14} />} {SHORT[p]}
                 </button>
               ))}
-            {canDownload && (
-              <button class="btn secondary play-alt" disabled={!!busy} onClick={save} aria-label="Save to this phone">
+            {(canDownload || ebookTorrent) && (
+              <button class="btn secondary play-alt" disabled={!!busy} onClick={() => (ebookTorrent ? readTorrent(playVia, true) : save())} aria-label="Save to this phone">
                 {busy === 'save' ? <span class="spinner" /> : <Icon name="download" size={14} />} Save
               </button>
             )}

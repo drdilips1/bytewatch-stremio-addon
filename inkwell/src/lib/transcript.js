@@ -465,3 +465,18 @@ export function heardText(bookUid, index, time, maxChars = 14000) {
   const all = chunks.join('\n\n');
   return all.length > maxChars ? '…' + all.slice(-maxChars) : all;
 }
+
+/** Every line heard of this book so far, with its part: [{ track, start, text }] (X-Ray, voice command). */
+export function heardLines(bookUid) {
+  const parts = saved.get().parts || {};
+  const out = [];
+  const keys = new Set(Object.keys(parts).filter((k) => k.startsWith(bookUid + '#')));
+  if (state.key.startsWith(bookUid + '#')) keys.add(state.key);
+  for (const key of keys) {
+    const track = +key.slice(bookUid.length + 1);
+    if (!Number.isInteger(track)) continue;
+    const segs = key === state.key && state.segments.length ? state.segments : parts[key] || [];
+    for (const s of segs) if (s.start != null) out.push({ track, start: s.start, text: s.book || s.text });
+  }
+  return out.sort((a, b) => a.track - b.track || a.start - b.start);
+}
