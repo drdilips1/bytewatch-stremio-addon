@@ -27,7 +27,25 @@ export function SceneButton({ chip = false }) {
   );
 }
 
-function SceneSheet({ close }) {
+// Opened from outside (the widget, the app-icon shortcut): one sheet for the whole app.
+const hostSubs = new Set();
+/** Open "Play a scene"; `listenNow` starts listening at once. */
+let pending = null; // asked for before the app had drawn (opened from the widget)
+export function openScene(listenNow = false) {
+  if (!hostSubs.size) pending = { listenNow };
+  hostSubs.forEach((f) => f({ listenNow }));
+}
+export function SceneHost() {
+  const [req, setReq] = useState(() => pending);
+  useEffect(() => {
+    pending = null;
+    hostSubs.add(setReq);
+    return () => hostSubs.delete(setReq);
+  }, []);
+  return req ? createPortal(<SceneSheet close={() => setReq(null)} listenNow={req.listenNow} />, document.body) : null;
+}
+
+function SceneSheet({ close, listenNow = false }) {
   useBackClose(true, close);
   const [text, setText] = useState('');
   const [hearing, setHearing] = useState(false);
@@ -66,6 +84,9 @@ function SceneSheet({ close }) {
       toast(e.message);
     }
   };
+  useEffect(() => {
+    if (listenNow && canListen() && aiReady()) hear();
+  }, []);
   return (
     <div class="sheet-backdrop" onClick={close}>
       <div class="sheet scene-cmd" onClick={(e) => e.stopPropagation()}>

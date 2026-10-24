@@ -12,7 +12,7 @@ import { fmtTime } from '../lib/format.js';
 import { canListen, listen, speakAnswer, stopAnswer, voiceLang } from '../lib/voiceask.js';
 
 let pendingListen = false;
-/** Open driving mode; `listenNow` starts listening for a question straight away. */
+/** Open driving mode; `listenNow` starts listening for a question straight away ('scene': for a scene to play). */
 export function openDrive(listenNow = false) {
   pendingListen = listenNow;
   nav.openOverlay('drive');
@@ -43,7 +43,7 @@ export function DriveMode() {
     grab();
     const onVis = () => document.visibilityState === 'visible' && grab();
     document.addEventListener('visibilitychange', onVis);
-    if (pendingListen) setTimeout(() => askNow(), 500);
+    if (pendingListen) setTimeout(() => (pendingListen === 'scene' ? sceneNow() : askNow()), 500);
     pendingListen = false;
     return () => {
       alive.current = false;
@@ -57,6 +57,49 @@ export function DriveMode() {
     setPhase('idle');
     if (resumeAfter.current && !player.getState().playing) player.toggle();
     resumeAfter.current = false;
+  };
+
+  // "Play a scene": say the moment; it's found and plays from 30 s before it.
+  const sceneNow = async (preset = '') => {
+    if (!canListen() && !preset) return toast('Voice input is not available on this device');
+    if (!aiReady()) return toast('Add an AI key in Settings → AI first');
+    stopAnswer();
+    const wasPlaying = player.getState().playing;
+    if (wasPlaying) player.pause();
+    let q = preset;
+    if (!q) {
+      setPhase('listening-scene');
+      try {
+        q = (await listen('Which scene should I play?')).trim();
+      } catch (e) {
+        toast(e.message || 'Voice input failed');
+      }
+    }
+    if (!alive.current) return;
+    if (!q) {
+      setPhase('idle');
+      if (wasPlaying) player.toggle();
+      return;
+    }
+    setSaid(q);
+    setAnswer('');
+    setPhase('scene');
+    try {
+      const { playScene } = await import('../lib/voicecmd.js');
+      const r = await playScene(q, () => {});
+      if (!alive.current) return;
+      setPhase('idle');
+      toast(`▶ ${r.scene || r.book.title}${r.where ? ` · ${r.where}` : ''}`);
+    } catch (e) {
+      if (!alive.current) return;
+      setAnswer(e.message);
+      setPhase('speaking');
+      speakAnswer(e.message, () => {
+        if (!alive.current) return;
+        setPhase('idle');
+        if (wasPlaying && !player.getState().playing) player.toggle();
+      });
+    }
   };
 
   const askNow = async (followUp = false) => {
@@ -75,6 +118,11 @@ export function DriveMode() {
     }
     if (!alive.current) return;
     if (!q) return carryOn();
+    // "Play when …" / "Go to the part where …": that's a scene to play, not a question.
+    if (/^(play|go to|jump to|take me to|skip to|start (from|at))\b/i.test(q)) {
+      resumeAfter.current = false;
+      return sceneNow(q);
+    }
     setSaid(q);
     setAnswer('');
     setPhase('thinking');
@@ -106,6 +154,8 @@ export function DriveMode() {
   const status = {
     idle: book ? 'Tap anywhere here to ask about this book' : 'Tap anywhere here to ask about your books',
     listening: 'Listening… ask your question',
+    'listening-scene': 'Listening… which scene?',
+    scene: 'Finding the scene…',
     thinking: 'Thinking…',
     speaking: 'Answering — tap to stop',
   }[phase];
@@ -148,10 +198,16 @@ export function DriveMode() {
         </div>
       )}
 
+      <button class="drive-scene" disabled={phase !== 'idle'} onClick={() => sceneNow()}>
+        🎬 <b>Play a scene</b>
+        <small>“when Harry first boards the Hogwarts Express”</small>
+      </button>
+
       <button class={'drive-ask ' + phase} onClick={onBig} aria-label={status}>
-        <span class="drive-mic">{phase === 'thinking' ? <span class="spinner" /> : '🎙'}</span>
+        <span class="drive-mic">{phase === 'thinking' || phase === 'scene' ? <span class="spinner" /> : '🎙'}</span>
         <b>{status}</b>
         {said && phase !== 'idle' && <small class="drive-said">“{said}”</small>}
+        {phase === 'idle' && <small class="drive-said">Or say “play when …” to jump to a scene</small>}
         {answer && phase === 'speaking' && <p class="drive-answer">{answer.replace(/[*_#`]/g, '')}</p>}
       </button>
 

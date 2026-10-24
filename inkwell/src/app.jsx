@@ -8,6 +8,7 @@ import { onIncoming } from './sources/local.js';
 // An EPUB / PDF opened with (or shared to) Audiohub from another app: straight into the reader.
 onIncoming((book, error) => (book ? setTimeout(() => nav.push('reader', { book }), 300) : error && toast(error)));
 import { DriveMode, openDrive } from './components/drive-mode.jsx';
+import { SceneHost, openScene } from './components/scene-cmd.jsx';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { memo } from 'preact/compat';
 import { App as CapApp } from '@capacitor/app';
@@ -52,10 +53,13 @@ player.subscribe((s) => {
   lastPlayerError = s.error || '';
 });
 
-// App shortcuts (long-press the icon, or Google Assistant): app.inkwell.books://drive and ://ask.
+// App shortcuts (long-press the icon, Google Assistant) and the home-screen widget:
+// app.inkwell.books://drive, ://ask, ://scene (Play a scene, listening) and ://drivescene.
 function openShortcut(url) {
-  const m = /^app\.inkwell\.books:\/\/(drive|ask)/.exec(url || '');
-  if (m) setTimeout(() => openDrive(m[1] === 'ask'), 300);
+  const m = /^app\.inkwell\.books:\/\/(drivescene|drive|ask|scene)/.exec(url || '');
+  if (!m) return;
+  if (m[1] === 'scene') return setTimeout(() => openScene(true), 400);
+  setTimeout(() => openDrive(m[1] === 'ask' ? true : m[1] === 'drivescene' ? 'scene' : false), 300);
 }
 if (Capacitor.isNativePlatform()) {
   CapApp.addListener('appUrlOpen', ({ url }) => openShortcut(url));
@@ -159,6 +163,7 @@ export function App() {
       )}
       {route.overlay === 'player' && <FullPlayer />}
       {route.overlay === 'drive' && <DriveMode />}
+      <SceneHost />
       <UpdatePrompt />
       <StoryShotsSheet />
       <Toaster />

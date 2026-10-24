@@ -9044,3 +9044,34 @@ button.notes-book-head {
 .scene-btns .btn {
   flex: 1;
 }
+.drive-scene {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 10px;
+  padding: 18px 16px;
+  border-radius: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 26px;
+}
+.drive-scene b {
+  font-size: 22px;
+}
+.drive-scene small {
+  flex-basis: 100%;
+  font-size: 14px;
+  opacity: 0.7;
+}
+.drive-scene:disabled {
+  opacity: 0.5;
+}
+.drive-ask.listening-scene {
+  border-color: #ff6b8b;
+}
+.drive-ask.listening-scene .drive-mic {
+  background: #ff6b8b;
+  animation: drive-pulse 1.2s ease-in-out infinite;
+}

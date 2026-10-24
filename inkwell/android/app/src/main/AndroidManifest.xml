@@ -43,6 +43,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="app.inkwell.books" android:host="drive" />
                 <data android:scheme="app.inkwell.books" android:host="ask" />
+                <data android:scheme="app.inkwell.books" android:host="scene" />
             </intent-filter>
             <!-- Open with / Share: EPUB and PDF files open in the reader -->
             <intent-filter>
@@ -63,6 +64,17 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
 
         </activity>
+
+        <!-- Home-screen widget: Play a scene, Driving mode -->
+        <receiver
+            android:name=".SceneWidget"
+            android:label="@string/widget_scene"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_scene_info" />
+        </receiver>
 
         <!-- Background audiobook playback (Media3) -->
         <service
