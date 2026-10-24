@@ -2900,13 +2900,14 @@ pre.sql {
 
 /* Live transcript in the full player */
 .transcript {
+  position: relative; /* lines measure their place from here (keeps the current one in view) */
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   margin: 8px 0;
   padding: 30% 4px 0;
-  -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
-  mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+  -webkit-mask-image: linear-gradient(transparent, #000 10%, #000 85%, transparent);
+  mask-image: linear-gradient(transparent, #000 10%, #000 85%, transparent);
   overscroll-behavior: contain;
 }
 .transcript .tl {
@@ -2923,6 +2924,13 @@ pre.sql {
 }
 .transcript .tl.on {
   color: #fff;
+  font-weight: 600;
+  margin-left: -10px;
+  margin-right: -6px;
+  padding: 6px 6px 6px 10px;
+  border-left: 4px solid var(--accent);
+  border-radius: 6px 12px 12px 6px;
+  background: rgba(255, 255, 255, 0.12);
 }
 .transcript-pad {
   height: 45%;
@@ -8572,6 +8580,7 @@ button.stats {
 }
 :root[data-palette='paperink'] .transcript .tl.on {
   color: var(--text);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 :root[data-palette='paperink'] .sheet {
   background: var(--bg-2);
