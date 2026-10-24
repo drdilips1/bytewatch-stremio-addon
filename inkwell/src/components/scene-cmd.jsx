@@ -47,44 +47,59 @@ function SceneSheet({ close }) {
       if (e.want) import('../screens/Discover.jsx').then((m) => m.openSearch(`${e.want.title} ${e.want.author || ''}`.trim()));
     }
   };
+  // What was heard goes in the box first: it plays by itself in a moment, unless you
+  // tap the box to fix a misheard word (then ▶ when ready).
+  const [soon, setSoon] = useState(null);
+  const cancelSoon = () => soon && (clearTimeout(soon), setSoon(null));
+  useEffect(() => () => soon && clearTimeout(soon), [soon]);
   const hear = async () => {
+    cancelSoon();
     setHearing(true);
     try {
       const said = await listen('Which scene should I play?');
       setHearing(false);
-      if (said) run(said);
+      if (!said) return;
+      setText(said);
+      setSoon(setTimeout(() => run(said), 2500));
     } catch (e) {
       setHearing(false);
       toast(e.message);
     }
   };
-  useEffect(() => {
-    if (canListen() && aiReady()) hear();
-  }, []);
   return (
     <div class="sheet-backdrop" onClick={close}>
       <div class="sheet scene-cmd" onClick={(e) => e.stopPropagation()}>
         <div class="sheet-handle" />
         <h3>Play a scene</h3>
-        <p class="muted small">Say a moment from a book, like “play when Harry first boards the Hogwarts Express”. It starts 30 seconds before it.</p>
+        <p class="muted small">Type or say a moment from a book, like “when Harry first boards the Hogwarts Express in Philosopher’s Stone”. It starts 30 seconds before it.</p>
         <form
-          class="scene-row"
+          class="scene-form"
           onSubmit={(e) => {
             e.preventDefault();
+            cancelSoon();
             run(text);
           }}
         >
-          <input value={text}  placeholder="Or type it here" onInput={(e) => setText(e.currentTarget.value)} />
-          {canListen() && (
-            <button type="button" class={'icon-btn' + (hearing ? ' active' : '')} disabled={hearing} onClick={hear} aria-label="Speak">
-              <Icon name="mic" />
+          <textarea
+            rows={2}
+            value={text}
+            placeholder="Type the scene (and the book)"
+            onFocus={cancelSoon}
+            onInput={(e) => (cancelSoon(), setText(e.currentTarget.value))}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), cancelSoon(), run(text))}
+          />
+          <div class="scene-btns">
+            {canListen() && (
+              <button type="button" class={'btn secondary' + (hearing ? ' active' : '')} disabled={hearing} onClick={hear}>
+                <Icon name="mic" size={16} /> {hearing ? 'Listening…' : 'Speak'}
+              </button>
+            )}
+            <button type="submit" class="btn primary" disabled={!text.trim()}>
+              <Icon name="play" size={16} /> Play
             </button>
-          )}
-          <button type="submit" class="icon-btn" disabled={!text.trim()} aria-label="Play">
-            <Icon name="play" />
-          </button>
+          </div>
         </form>
-        {hearing && <p class="muted">Listening…</p>}
+        {soon && <p class="muted small">Playing in a moment — tap the text to fix it first.</p>}
         {!aiReady() && <p class="err small">This uses your AI service — add a key in Settings → AI.</p>}
       </div>
     </div>

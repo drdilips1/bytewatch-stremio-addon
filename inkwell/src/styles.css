@@ -9020,3 +9020,27 @@ button.notes-book-head {
 .find-order .link-btn {
   align-self: flex-start;
 }
+.scene-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 4px;
+}
+.scene-form textarea {
+  width: 100%;
+  resize: none;
+  font: inherit;
+  font-size: 16px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.35));
+  background: var(--surface);
+  color: var(--text);
+}
+.scene-btns {
+  display: flex;
+  gap: 10px;
+}
+.scene-btns .btn {
+  flex: 1;
+}
