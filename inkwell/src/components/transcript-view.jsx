@@ -1,6 +1,7 @@
 // Live transcript panel for the full player: lines appear a little ahead of the
 // audio, the current one is highlighted and kept in view; tap a line to jump.
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { useBackClose } from '../lib/nav.js';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
 import * as player from '../lib/player.js';
@@ -27,7 +28,7 @@ function withNames(text, names, onTap) {
         }}
       >
         {name}
-      </span>
+      </span>,
     );
     last = m.index + name.length;
   }
@@ -67,7 +68,14 @@ function EbookStatus({ b }) {
     }
     setBusy('');
   };
-  if (!b || b.state === 'loading') return b ? <p class="tl-source">Looking for your ebook of this book…</p> : null;
+  if (!b || b.state === 'loading')
+    return b ? (
+      <div class="tl-bar">
+        <span>
+          <span class="spinner small" /> Looking for your ebook of this book…
+        </span>
+      </div>
+    ) : null;
   const phoneList = mine?.length > 0 && (
     <div class="tl-ebook-hits">
       <p class="tl-source">On this phone</p>
@@ -105,42 +113,57 @@ function EbookStatus({ b }) {
     ) : (
       <p class="tl-source">No EPUB of this book in your sources.</p>
     ));
-  const list =
-    (mine || hits) && (
-      <>
-        {phoneList}
-        {busy === 'search' ? (
-          <p class="tl-source">
-            <span class="spinner small" /> Searching your sources…
-          </p>
-        ) : (
-          hits && <p class="tl-source">From your sources</p>
-        )}
-        {srcList}
-      </>
-    );
+  const open = !!(mine || hits || busy === 'search');
+  const close = () => {
+    setHits(null);
+    setMine(null);
+  };
+  const sheet = open && (
+    <PickSheet close={close}>
+      <h3>{b.state === 'on' ? 'Use another ebook' : 'Get the ebook'}</h3>
+      <p class="muted small">With the ebook of this book, the transcript shows its exact words.</p>
+      {phoneList}
+      {busy === 'search' ? (
+        <p class="tl-source">
+          <span class="spinner small" /> Searching your sources…
+        </p>
+      ) : (
+        hits && <p class="tl-source">From your sources</p>
+      )}
+      {srcList}
+    </PickSheet>
+  );
+  // A small bar above the text (it doesn't scroll away): which words you're reading, and a way to change it.
   if (b.state === 'on')
     return (
-      <>
-        <p class="tl-source tl-ebook">
-          Exact words from your ebook{b.title ? ` · ${b.title}` : ''} · lines in italics aren’t in it (credits, intros)
-          <button class="link-btn" disabled={!!busy} onClick={search}>
-            {busy === 'search' ? 'Searching…' : 'Change'}
-          </button>
-        </p>
-        {list}
-      </>
+      <div class="tl-bar">
+        <span>📖 Ebook{b.title ? `: ${b.title}` : ''}</span>
+        <button class="link-btn" disabled={!!busy} onClick={search}>
+          Change
+        </button>
+        {sheet}
+      </div>
     );
   return (
-    <>
-      <div class="tl-ebook-add">
-        <span>{b.state === 'error' ? `Couldn't use your ebook: ${b.error}` : 'Words are recognised from the audio, so some may be wrong. With the ebook, its exact words show here instead.'}</span>
-        <button class="pill small" disabled={!!busy} onClick={search}>
-          {busy === 'search' ? <span class="spinner small" /> : 'Get the ebook'}
-        </button>
+    <div class={'tl-bar' + (b.state === 'error' ? ' err' : '')}>
+      <span>{b.state === 'error' ? `Couldn't use your ebook: ${b.error}` : 'Heard from the audio, some words may be wrong'}</span>
+      <button class="pill small" disabled={!!busy} onClick={search}>
+        {busy === 'search' ? <span class="spinner small" /> : 'Get the ebook'}
+      </button>
+      {sheet}
+    </div>
+  );
+}
+
+function PickSheet({ close, children }) {
+  useBackClose(true, close);
+  return (
+    <div class="sheet-backdrop" onClick={close}>
+      <div class="sheet tl-pick" onClick={(e) => e.stopPropagation()}>
+        <div class="sheet-handle" />
+        {children}
       </div>
-      {list}
-    </>
+    </div>
   );
 }
 
@@ -175,7 +198,10 @@ export function TranscriptView({ s }) {
     const el = box.current?.querySelector(`[data-i="${active}"]`);
     if (!el) return;
     const b = box.current;
-    b.scrollTo({ top: el.offsetTop - b.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' });
+    b.scrollTo({
+      top: el.offsetTop - b.clientHeight / 2 + el.clientHeight / 2,
+      behavior: 'smooth',
+    });
   }, [active]);
 
   if (!transcriptAvailable && !s.book?.transcript) {
@@ -188,48 +214,50 @@ export function TranscriptView({ s }) {
   if (t?.status === 'no-model') return <ModelPicker />;
 
   return (
-    <div class="transcript" ref={box} onTouchMove={() => (userScroll.current = Date.now())} onWheel={() => (userScroll.current = Date.now())}>
-      {segs.length === 0 && (
-        <div class="transcript-wait">
-          {t?.status === 'error' ? (
-            <>
-              <p class="err">{t.error || 'The transcript stopped.'}</p>
-              <button class="pill small" onClick={restartTranscript}>
-                Try again
-              </button>
-            </>
-          ) : (
-            <>
-              <span class="spinner small" />
-              <p>
-                {t?.published
-                  ? 'Loading the transcript from the podcast…'
-                  : t?.status === 'loading'
-                    ? t.error === 'model'
-                      ? 'Loading the speech model…'
-                      : t.error === 'audio'
-                        ? 'Opening the book’s audio…'
-                        : 'Starting speech recognition…'
-                    : 'Listening… the words appear a few seconds ahead of the audio.'}
-              </p>
-            </>
-          )}
-        </div>
-      )}
-      {t?.published && segs.length > 0 && <p class="tl-source">Transcript from the podcast</p>}
+    <div class="transcript-col">
       {!t?.published && <EbookStatus b={t?.bookText} />}
-      {segs.map((g, i) => (
-        <p
-          data-i={i}
-          class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '')}
-          onClick={() => g.start != null && player.seek(g.start)}
-        >
-          {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : g.text, names, (n) => setCard(lookup.get(n)))}
-        </p>
-      ))}
-      {segs.length > 0 && t?.status === 'error' && <p class="err small">{t.error}</p>}
-      {card && <CharacterCard c={card} close={() => setCard(null)} />}
-      <div class="transcript-pad" />
+      <div class="transcript" ref={box} onTouchMove={() => (userScroll.current = Date.now())} onWheel={() => (userScroll.current = Date.now())}>
+        {segs.length === 0 && (
+          <div class="transcript-wait">
+            {t?.status === 'error' ? (
+              <>
+                <p class="err">{t.error || 'The transcript stopped.'}</p>
+                <button class="pill small" onClick={restartTranscript}>
+                  Try again
+                </button>
+              </>
+            ) : (
+              <>
+                <span class="spinner small" />
+                <p>
+                  {t?.published
+                    ? 'Loading the transcript from the podcast…'
+                    : t?.status === 'loading'
+                      ? t.error === 'model'
+                        ? 'Loading the speech model…'
+                        : t.error === 'audio'
+                          ? 'Opening the book’s audio…'
+                          : 'Starting speech recognition…'
+                      : 'Listening… the words appear a few seconds ahead of the audio.'}
+                </p>
+              </>
+            )}
+          </div>
+        )}
+        {t?.published && segs.length > 0 && <p class="tl-source">Transcript from the podcast</p>}
+        {segs.map((g, i) => (
+          <p
+            data-i={i}
+            class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '')}
+            onClick={() => g.start != null && player.seek(g.start)}
+          >
+            {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : g.text, names, (n) => setCard(lookup.get(n)))}
+          </p>
+        ))}
+        {segs.length > 0 && t?.status === 'error' && <p class="err small">{t.error}</p>}
+        {card && <CharacterCard c={card} close={() => setCard(null)} />}
+        <div class="transcript-pad" />
+      </div>
     </div>
   );
 }
@@ -243,7 +271,13 @@ function ModelPicker() {
   const get = async (m) => {
     setBusy({ id: m.id, pct: 0 });
     try {
-      await downloadModel(m, (e) => setBusy({ id: m.id, pct: e.phase === 'unpack' ? 100 : e.total ? Math.round((e.received / e.total) * 100) : 0, phase: e.phase }));
+      await downloadModel(m, (e) =>
+        setBusy({
+          id: m.id,
+          pct: e.phase === 'unpack' ? 100 : e.total ? Math.round((e.received / e.total) * 100) : 0,
+          phase: e.phase,
+        }),
+      );
       toast(`${m.name} transcript model ready`);
       restartTranscript();
     } catch (e) {
@@ -280,4 +314,3 @@ function ModelPicker() {
     </div>
   );
 }
-
