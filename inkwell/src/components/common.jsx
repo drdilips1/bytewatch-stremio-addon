@@ -216,7 +216,7 @@ export const BookCard = memo(function BookCard({ book: raw, wide, rec = false })
       </div>
       <div class="book-card-title">{book.title}</div>
       <div class="book-card-author">{book.author || ' '}</div>
-      {rec && book.why ? <div class="book-card-why">{book.why}</div> : <CardFacts book={book} meta={meta} />}
+      <CardFacts book={book} meta={meta} />
     </button>
   );
 });
