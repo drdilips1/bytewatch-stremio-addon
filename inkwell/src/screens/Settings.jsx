@@ -14,7 +14,7 @@ import { WALLPAPERS, wallpaperUrl, saveCustom, useCustomWallpaper } from '../lib
 import { APP_VERSION } from '../components/update.jsx';
 import { ReportCard } from '../components/report.jsx';
 import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
-import { AccountCard, NameRow, VoicesCard, DownloadsCard } from './settings-extra.jsx';
+import { AccountCard, NameRow, VoicesCard, DownloadsCard, FindOrderCard } from './settings-extra.jsx';
 import { UpdateCard } from '../components/update.jsx';
 import { nav } from '../lib/nav.js';
 import * as qb from '../sources/qbit.js';
@@ -1127,6 +1127,9 @@ export function Settings() {
         <MusicToggle />
       </Section>
       <PreferredDebrid />
+      <Section icon="search" title="Finding your books">
+        <FindOrderCard />
+      </Section>
       <Section icon="puzzle" title="Addons">
         <AddonsCard />
       </Section>

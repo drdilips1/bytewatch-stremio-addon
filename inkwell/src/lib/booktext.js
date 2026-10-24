@@ -6,6 +6,7 @@ import { savedEbooks, loadCloudEbook, cloudReaderBook, directEbookFile, directRe
 import { localCfg } from '../sources/local.js';
 import { mainTitle, matches } from './match.js';
 import { persisted } from './store.js';
+import { findOrder, autoEbook } from './findorder.js';
 
 /** Ebooks you chose for an audiobook's transcript: audiobook uid -> ebook (book summary). */
 export const ebookLinks = persisted('ebookLinks', {});
@@ -32,7 +33,7 @@ export function ebookFor(book) {
 
 /** Load the ebook's words and an index of word triples → positions. */
 export async function loadBookText(book) {
-  const eb = ebookFor(book);
+  const eb = ebookFor(book) || (autoEbook() ? await autoFindEbook(book) : null);
   if (!eb) return null;
   const doc = await loadCloudEbook(eb);
   // Everything, title page and contents included: the narrator reads those too.
@@ -132,4 +133,73 @@ export function ebooksOnHand(book) {
 export async function keepFoundEbook(audioUid, hit) {
   await loadCloudEbook(hit.book);
   linkEbook(audioUid, hit.book);
+}
+
+// ---- Finding the ebook by itself -------------------------------------------------
+// When an audiobook plays, its ebook is looked for in the order set in Settings (phone,
+// sources, TorBox / Real-Debrid, Audiobookshelf by default), kept on the phone and
+// attached to the transcript. Only what's ready: nothing new is added to a debrid service.
+const tried = persisted('ebookTried', {}); // audiobook uid -> when nothing was found (looked again after a day)
+const finding = new Map();
+
+/** Find, keep and attach this audiobook's ebook; resolves the ebook (book summary) or null. */
+export function autoFindEbook(book) {
+  if (!book?.uid || book.source === 'pod' || book.kind === 'text') return Promise.resolve(null);
+  const have = ebookFor(book);
+  if (have) return Promise.resolve(have);
+  if (Date.now() - (tried.get()[book.uid] || 0) < 86400e3) return Promise.resolve(null);
+  if (!finding.has(book.uid))
+    finding.set(
+      book.uid,
+      lookEverywhere(book)
+        .then((eb) => {
+          if (eb) linkEbook(book.uid, eb);
+          else tried.set((all) => ({ ...Object.fromEntries(Object.entries(all).slice(-200)), [book.uid]: Date.now() }));
+          return eb;
+        })
+        .catch(() => null)
+        .finally(() => finding.delete(book.uid))
+    );
+  return finding.get(book.uid);
+}
+
+async function lookEverywhere(book) {
+  const t = mainTitle(book.title || '');
+  if (!t) return null;
+  const sn = surname(book.author);
+  const same = (b) => b && matches(t, `${b.title || ''} ${b.rawName || ''} ${b.ebookName || ''}`) && (!sn || !b.author || String(b.author).toLowerCase().includes(sn));
+  const { getDetails, findOwned } = await import('../sources/index.js');
+  let owned = null;
+  const mine = async () => (owned ||= await findOwned({ title: book.title, author: book.author || '' }).catch(() => ({ server: [], cloud: [] })));
+  // An EPUB (else a PDF) in a book of yours: kept on the phone for next time.
+  const fromCopy = async (b) => {
+    const d = await getDetails(b).catch(() => null);
+    const files = d?.ebooks || [];
+    const file = files.find((f) => f.format === 'EPUB') || files.find((f) => f.format === 'PDF');
+    if (!file) return null;
+    const rb = cloudReaderBook(d, file);
+    await loadCloudEbook(rb);
+    return rb;
+  };
+  for (const place of findOrder('ebook')) {
+    try {
+      if (place === 'local') {
+        const eb = ebookFor(book);
+        if (eb) return eb;
+      } else if (place === 'sources') {
+        const hits = await findEbookInSources(book);
+        if (hits[0]) {
+          await loadCloudEbook(hits[0].book);
+          return hits[0].book;
+        }
+      } else if (place === 'debrid' || place === 'abs') {
+        const o = await mine();
+        for (const b of (place === 'abs' ? o.server : o.cloud).filter(same)) {
+          const eb = await fromCopy(b);
+          if (eb) return eb;
+        }
+      }
+    } catch {}
+  }
+  return null;
 }

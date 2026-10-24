@@ -444,6 +444,27 @@ export function restartTranscript() {
   });
 }
 
+// An audiobook that has played for a little while: find its ebook in the background
+// (Settings → Finding books), so the transcript shows the book's words straight away.
+{
+  let uid = '';
+  let timer = null;
+  player.subscribe((ps) => {
+    const b = ps.book;
+    if (!b || !ps.playing || b.uid === uid || b.source === 'pod' || b.transcript?.url) return;
+    if (!transcriptAvailable && !IOS) return;
+    uid = b.uid;
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const [{ autoFindEbook }, { autoEbook }] = await Promise.all([import('./booktext.js'), import('./findorder.js')]);
+      if (!autoEbook() || player.getState().book?.uid !== b.uid) return;
+      const eb = await autoFindEbook(player.getState().book);
+      // The transcript looked before this was found: show the book's words now.
+      if (eb && btUid === b.uid && state.bookText?.state === 'none') bookTextFor(player.getState().book, true);
+    }, 8000);
+  });
+}
+
 /**
  * What you've heard of this book so far (from the live transcript, if it ran):
  * earlier parts in full, the current part up to `time`. Keeps the last maxChars.

@@ -10,6 +10,7 @@ import { localCfg } from '../sources/local.js';
 import { getDetails, findOwned } from '../sources/index.js';
 import { heardLines } from './transcript.js';
 import * as player from './player.js';
+import { findOrder, placeOf } from './findorder.js';
 
 const LEAD = 30; // seconds before the scene
 const surname = (a) => String(a || '').split(',')[0].trim().split(/\s+/).pop()?.toLowerCase() || '';
@@ -34,9 +35,9 @@ If they don't name or describe a book you can identify, return {"title":""}.`,
 }
 
 /**
- * Your own copies of the book, in the order to try: your default debrid service (TorBox /
- * Real-Debrid), the other one, then the phone (folders, downloads), Audiobookshelf, and
- * anything else you've played. The book playing now always comes first (nothing to reopen).
+ * Your own copies of the book, in the order set in Settings (by default: TorBox / Real-Debrid
+ * — your default one first — then the phone, Audiobookshelf, anything else you've played).
+ * The book playing now always comes first (nothing to reopen).
  */
 async function findCopies(want) {
   const t = mainTitle(want.title || '');
@@ -54,11 +55,12 @@ async function findCopies(want) {
   for (const p of Object.values(progress.get() || {}).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))) add(p.book);
   const first = settings.get().debridPreferred === 'realdebrid' ? 'rd' : 'tb';
   const src = (b) => String(b.source || b.uid || '').split(':')[0];
+  const order = findOrder('audio');
   const rank = ({ b, local }) => {
     if (b.uid === player.getState().book?.uid) return -1;
-    if (local) return 2;
-    const k = src(b);
-    return k === first ? 0 : k === 'tb' || k === 'rd' ? 1 : k === 'loc' ? 2 : k === 'abs' ? 3 : 4;
+    const place = placeOf(b, local);
+    // Within TorBox / Real-Debrid: your default one first.
+    return order.indexOf(place) * 2 + (place === 'debrid' && src(b) !== first ? 1 : 0);
   };
   return out.sort((x, y) => rank(x) - rank(y)).map((x) => x.b);
 }

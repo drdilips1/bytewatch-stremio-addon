@@ -8985,3 +8985,38 @@ button.notes-book-head {
 .lib-find input {
   width: 100%;
 }
+.find-order {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 14px;
+}
+.find-order ol {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 4px;
+  display: grid;
+  gap: 4px;
+}
+.find-order li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+.find-n {
+  width: 18px;
+  font-weight: 700;
+  opacity: 0.6;
+}
+.find-name {
+  flex: 1;
+}
+.find-order li .icon-btn:disabled {
+  opacity: 0.25;
+}
+.find-order .link-btn {
+  align-self: flex-start;
+}
