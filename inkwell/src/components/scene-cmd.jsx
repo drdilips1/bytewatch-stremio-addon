@@ -8,13 +8,20 @@ import { nav, useBackClose } from '../lib/nav.js';
 import { aiReady } from '../lib/ai.js';
 import { canListen, listen } from '../lib/voiceask.js';
 
-export function SceneButton() {
+/** chip: the player's small button ("Scene"), else Home's round one. */
+export function SceneButton({ chip = false }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button class="icon-btn glass" onClick={() => setOpen(true)} aria-label="Play a scene by voice">
-        <Icon name="mic" />
-      </button>
+      {chip ? (
+        <button class="chip-btn" onClick={() => setOpen(true)} aria-label="Play a scene by voice">
+          <Icon name="mic" size={16} /> Scene
+        </button>
+      ) : (
+        <button class="icon-btn glass" onClick={() => setOpen(true)} aria-label="Play a scene by voice">
+          <Icon name="mic" />
+        </button>
+      )}
       {open && createPortal(<SceneSheet close={() => setOpen(false)} />, document.body)}
     </>
   );

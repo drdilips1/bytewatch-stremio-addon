@@ -16,6 +16,7 @@ import { aiReady } from '../lib/ai.js';
 import { TranscriptView } from './transcript-view.jsx';
 import { StorySheet } from './story-sheet.jsx';
 import { XrayStrip, XraySheet } from './xray.jsx';
+import { SceneButton } from './scene-cmd.jsx';
 import { transcriptCfg, stopTranscript } from '../lib/transcript.js';
 import { sleepDetectAvailable, setSleepDetect } from '../lib/sleepdetect.js';
 
@@ -302,6 +303,7 @@ export function FullPlayer() {
         <button class="chip-btn" onClick={() => openDrive()} aria-label="Driving mode">
           <Icon name="car" size={16} /> Drive
         </button>
+        {s.book.source !== 'pod' && <SceneButton chip />}
         <button class="chip-btn" onClick={() => setSheet('xray')} aria-label="X-Ray: who and where">
           <Icon name="xray" size={16} /> X-Ray
         </button>

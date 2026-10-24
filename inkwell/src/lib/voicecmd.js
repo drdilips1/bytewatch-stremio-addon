@@ -17,8 +17,10 @@ const norm = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '
 
 /** What was asked for: { title, author, scene, chapter, chapterTitle, at, quote } (title '' if not a book request). */
 async function understand(said) {
+  const now = player.getState().book;
+  const playing = now && now.source !== 'pod' ? `\nThey are listening to "${now.title}"${now.author ? ` by ${now.author}` : ''}: if they don't name another book, they mean this one.` : '';
   const raw = await askAi(
-    `Someone said to their audiobook app: "${said}"
+    `Someone said to their audiobook app: "${said}"${playing}
 Work out which book they mean and where in it the moment they describe happens.
 Return JSON: {"title":"the book's title","author":"","scene":"the moment, in under 12 words","chapter":0,"chapterTitle":"","at":0.0,"quote":""}
 - chapter: the chapter number in the printed book (0 if it's in a prologue or you don't know).
