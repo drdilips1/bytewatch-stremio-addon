@@ -771,14 +771,15 @@ class VoiceStudioActivity : Activity() {
     /**
      * Sends the copied voice's cleaned sample as a WAV file, e.g. to be bundled with Narrato as a
      * ready-made voice. The name carries what the voice needs besides the sound: its pause between
-     * sentences (p, ms) and whether it went through the noise remover (d).
+     * sentences (p, ms), whether it went through the noise remover (d), and its id (the copy's seed
+     * comes from it: with another seed the same sample read like a different person in Narrato).
      */
     private fun shareVoice(v: MyVoices.Voice) {
         val src = MyVoices.referenceFile(v.id)
         if (!src.exists()) return toast("That voice's recording is missing")
         val safe = v.name.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').ifEmpty { "voice" }
         val dir = java.io.File(cacheDir, "share").apply { mkdirs() }
-        val out = java.io.File(dir, "${safe}__p${v.pause}__d${if (v.denoised) 1 else 0}.wav")
+        val out = java.io.File(dir, "${safe}__p${v.pause}__d${if (v.denoised) 1 else 0}__id${v.id}.wav")
         src.copyTo(out, overwrite = true)
         val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.files", out)
         startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
