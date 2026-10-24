@@ -61,7 +61,7 @@ export function DriveMode() {
 
   const askNow = async (followUp = false) => {
     if (!canListen()) return toast('Voice input is not available on this device');
-    if (!aiReady()) return toast('Add a free AI key in Settings → AI first');
+    if (!aiReady()) return toast('Add an AI key in Settings → AI first');
     stopAnswer();
     if (!followUp) resumeAfter.current = resumeAfter.current || player.getState().playing;
     if (player.getState().playing) player.pause();

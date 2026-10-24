@@ -44,7 +44,7 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
   const run = async (q, extra = {}) => {
     if (!q.trim() || busy) return;
     if (!aiReady()) {
-      toast('Add a free AI key in Settings → AI first');
+      toast('Add an AI key in Settings → AI first');
       return nav.tab('settings');
     }
     const shown = extra.where ? `🎧 ${q} (at ${extra.where.label})` : extra.voice ? `🎙 ${q}` : q;

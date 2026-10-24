@@ -555,7 +555,7 @@ function Companion({ book }) {
   if (!book || book.source === 'pod') return null;
   const go = (question) => {
     if (!aiReady()) {
-      toast('Add a free AI key in Settings → AI first');
+      toast('Add an AI key in Settings → AI first');
       return;
     }
     player.pause();

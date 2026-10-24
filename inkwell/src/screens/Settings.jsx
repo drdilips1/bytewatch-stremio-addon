@@ -316,7 +316,7 @@ function WebRelayCard() {
   );
 }
 
-/** Free AI keys (Groq, OpenRouter) for the bookseller, recaps and the character guide. */
+/** AI keys (Groq, Gemini, OpenRouter free; Claude paid) for the bookseller, recaps and the character guide. */
 function AiCard() {
   const cfg = useStore(ai);
   return (
@@ -328,6 +328,20 @@ function AiCard() {
       {AI_PROVIDERS.map((p) => (
         <AiKey p={p} saved={cfg[p.keyField] || ''} />
       ))}
+      {AI_PROVIDERS.filter((p) => cfg[p.keyField]).length > 1 && (
+        <div class="set-row">
+          <div>
+            <b>Use first</b>
+            <small>The others take over when it's busy</small>
+          </div>
+          <select value={cfg.prefer || ''} onChange={(e) => ai.patch({ prefer: e.currentTarget.value })}>
+            <option value="">Automatic (free ones first)</option>
+            {AI_PROVIDERS.filter((p) => cfg[p.keyField]).map((p) => (
+              <option value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <label class="set-row">
         <div>
           <b>No spoilers</b>
@@ -337,7 +351,8 @@ function AiCard() {
       </label>
       <HiddenRecs />
       <p class="muted small">
-        <b>Groq</b> is the fastest and most generous (recommended). <b>OpenRouter</b> gives free Llama, DeepSeek and Qwen models. No card is needed for either.
+        <b>Groq</b> is the fastest and most generous (recommended). <b>Gemini</b> (Google AI Studio) has a free tier too. <b>OpenRouter</b> gives free Llama, DeepSeek and Qwen models. No card is needed for these three.
+        <b> Claude</b> gives the most careful answers but is paid per use (a key from platform.claude.com with credit on it); short book answers cost very little.
       </p>
     </>
   );
@@ -351,7 +366,7 @@ function AiKey({ p, saved }) {
     <div class="ai-key">
       <div class="ai-key-head">
         <b>{p.name}</b>
-        <small class="muted">free key at {p.site}</small>
+        <small class="muted">{p.anthropic ? 'key' : 'free key'} at {p.site}</small>
         {saved && state === 'ok' && <span class="ok-dot">Working</span>}
       </div>
       <div class="set-row">

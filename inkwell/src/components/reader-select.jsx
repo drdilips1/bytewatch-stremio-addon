@@ -44,7 +44,7 @@ export function AiSheet({ kind, text, context, book, onClose, onKeep }) {
   const [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState(false);
   const run = async (q = '') => {
-    if (!aiReady()) return toast('Add a free AI key in Settings → AI first');
+    if (!aiReady()) return toast('Add an AI key in Settings → AI first');
     setBusy(true);
     try {
       const rule = kind === 'translate' ? '' : spoilerRule(book);
