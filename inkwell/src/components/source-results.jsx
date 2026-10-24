@@ -156,9 +156,16 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const readable = linkGroups
     .flatMap((g) => g.items)
     .filter((r) => /^(EPUB|PDF)$/.test(directEbookFile(r)?.format || ''));
-  const quickKey = `${instant.map((x) => x.r.key + x.via).join()}|${readable.map((r) => r.key).join()}`;
+  // Audiobooks with seeders that aren't ready yet: your debrid service fetches them first.
+  const fetchable = provider
+    ? shownGroups
+        .map((g) => g.items[0])
+        .filter((r) => (r.magnet || r.hash) && !readyVia(r) && r.seeders > 0 && !qb.isEbookName(`${r.title} ${r.format || ''}`))
+        .map((r) => ({ r, via: provider }))
+    : [];
+  const quickKey = `${instant.map((x) => x.r.key + x.via).join()}|${readable.map((r) => r.key).join()}|${fetchable.map((x) => x.r.key).join()}`;
   useEffect(() => {
-    if (book?.uid) publishQuick(book.uid, { instant: instant.slice(0, 3), readable: readable.slice(0, 2), pending });
+    if (book?.uid) publishQuick(book.uid, { instant: instant.slice(0, 3), readable: readable.slice(0, 2), fetch: instant.length ? [] : fetchable.slice(0, 2), pending });
   }, [quickKey, pending, book?.uid]);
 
   if (!count) return null;

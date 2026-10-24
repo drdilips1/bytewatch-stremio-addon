@@ -10,6 +10,9 @@ import { downloads } from '../lib/downloads.js';
 import { savedEbooks, cloudReaderBook } from '../lib/epub.js';
 import { mainTitle, matches } from '../lib/match.js';
 import { useQuickSources, quickPlay, readerBookFor } from './source-results.jsx';
+import { wait } from '../lib/waitlist.js';
+
+const fmtMb = (b) => (b >= 1073741824 ? `${(b / 1073741824).toFixed(1)} GB` : `${Math.round(b / 1048576)} MB`);
 
 const SVC = { tb: 'TorBox', rd: 'Real-Debrid', abs: 'Audiobookshelf', torbox: 'TorBox', realdebrid: 'Real-Debrid' };
 const surname = (a) => String(a || '').split(',')[0].trim().split(/\s+/).pop()?.toLowerCase() || '';
@@ -81,6 +84,8 @@ export function Available({ book, editions }) {
         );
     // Source results that play at once / open in the reader.
     for (const { r, via } of quick?.instant || []) add({ key: 'q:' + r.key, icon: 'play', label: 'Play now', sub: `instant · ${SVC[via]}`, act: { kind: 'quick', r, via } });
+    // Not ready yet: fetched through TorBox / Real-Debrid, plays when it's there.
+    for (const { r, via } of quick?.fetch || []) add({ key: 'f:' + r.key, icon: 'download', label: 'Get & play', sub: `${SVC[via]} · ${r.seeders} seed${r.seeders === 1 ? '' : 's'}${r.size ? ` · ${fmtMb(r.size)}` : ''}`, act: { kind: 'fetch', r, via } });
     for (const r of quick?.readable || []) {
       const rb = readerBookFor(r, book);
       if (rb) add({ key: 'qr:' + r.key, icon: 'book', label: `Read ${rb.ebookFormat || ''}`.trim(), sub: 'from sources', act: read(rb) });
@@ -95,6 +100,16 @@ export function Available({ book, editions }) {
     setBusy(c.key);
     try {
       if (a.kind === 'quick') await quickPlay(a.r, a.via, book, (text) => toast(text));
+      else if (a.kind === 'fetch') {
+        try {
+          await quickPlay(a.r, a.via, book, (text) => toast(text));
+        } catch (e) {
+          if (!e.pending) throw e;
+          // Still downloading on the service: it starts playing by itself when it's ready.
+          wait({ ...e.pending, magnet: a.r.magnet, title: a.r.title, bookTitle: book.title || '', author: book.author || a.r.author || '', cover: book.cover || '' });
+          toast(`${e.message} — it will start playing when it's ready`);
+        }
+      }
       else {
         const d = await getDetails(a.book);
         nav.openOverlay('player');
