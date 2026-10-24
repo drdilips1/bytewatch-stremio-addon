@@ -22,7 +22,8 @@ async function understand(said) {
   const playing = now && now.source !== 'pod' ? `\nThey are listening to "${now.title}"${now.author ? ` by ${now.author}` : ''}: if they don't name another book, they mean this one.` : '';
   const raw = await askAi(
     `Someone said to their audiobook app: "${said}"${playing}
-Work out which book they mean and where in it the moment they describe happens.
+It comes from speech recognition, so it may be misheard: Indian-accented English, Hindi or Hinglish, names written as they sounded ("dumble door" = Dumbledore, "harry potter ki pehli train" = Harry boarding the Hogwarts Express). Work out what they meant.
+Work out which book they mean and where in it the moment they describe happens. The JSON is always in English, with names spelled as in the book.
 Return JSON: {"title":"the book's title","author":"","scene":"the moment, in under 12 words","chapter":0,"chapterTitle":"","at":0.0,"quote":"","keywords":[""]}
 - chapter: the chapter number in the printed book (0 if it's in a prologue or you don't know).
 - chapterTitle: that chapter's title, if it has one.
