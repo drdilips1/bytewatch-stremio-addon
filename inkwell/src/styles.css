@@ -9084,3 +9084,38 @@ button.notes-book-head {
   background: #ff6b8b;
   animation: drive-pulse 1.2s ease-in-out infinite;
 }
+/* Library layouts */
+.lib-views {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+.lib-views .icon-btn {
+  width: 34px;
+  height: 34px;
+  opacity: 0.55;
+}
+.lib-views .icon-btn.active {
+  opacity: 1;
+  background: var(--surface);
+  color: var(--accent);
+}
+.cover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+  padding: 0 16px;
+}
+.cover-tile {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.cover-tile .cover {
+  border-radius: 8px;
+}
+.lib-shelf .row-head h3 small {
+  opacity: 0.55;
+  font-weight: 500;
+  margin-left: 4px;
+}

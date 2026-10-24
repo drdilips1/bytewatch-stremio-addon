@@ -41,6 +41,8 @@ const P = {
   compass: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM15.5 8.5l-2 5-5 2 2-5z',
   target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
   pin: 'M9 4h6l-1 6 3 3H7l3-3zM12 13v7',
+  covers: 'M3 3h5v5H3zM9.5 3h5v5h-5zM16 3h5v5h-5zM3 9.5h5v5H3zM9.5 9.5h5v5h-5zM16 9.5h5v5h-5zM3 16h5v5H3zM9.5 16h5v5h-5zM16 16h5v5h-5z',
+  shelves: 'M3 9h18M3 15h18M3 21h18M5 9V4h3v5M10 9V5h3v4M16 15v-5h3v5M5 15v-4h3v4M11 21v-4h3v4M16 21v-5h3v5',
   xray: 'M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM7.5 17a4.5 4.5 0 0 1 9 0',
   download: 'M12 4v11m0 0-4-4m4 4 4-4M5 20h14',
   upload: 'M12 16V5m0 0-4 4m4-4 4 4M5 20h14',

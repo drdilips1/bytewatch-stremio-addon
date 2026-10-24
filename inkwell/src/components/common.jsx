@@ -31,7 +31,7 @@ export function Cover({ book, class: cls = '', eager }) {
   return (
     <div class={'cover ' + cls} style={{ '--h': hue }}>
       <div class="cover-fallback">
-        <span class="cover-title">{book?.title}</span>
+        <span class="cover-title">{String(book?.title || '').replace(/^[\s\-–—_.,:;]+/, '')}</span>
         <span class="cover-author">{book?.author}</span>
       </div>
       {!failed && src && (
@@ -223,7 +223,7 @@ export const BookCard = memo(function BookCard({ book: raw, wide, rec = false })
           </div>
         )}
       </div>
-      <div class="book-card-title">{book.title}</div>
+      <div class="book-card-title">{String(book.title || '').replace(/^[\s\-–—_.,:;]+/, '')}</div>
       <div class="book-card-author">{book.author || ' '}</div>
       <CardFacts book={book} meta={meta} />
     </button>

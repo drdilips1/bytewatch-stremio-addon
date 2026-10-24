@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Grid, Empty, Cover, toast, AskButton } from '../components/common.jsx';
+import { Grid, Empty, Cover, toast, AskButton, BookCard } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { library, progress, useStore, forgetBook, persisted, clearPodcastHistory } from '../lib/store.js';
 import { localSrc } from '../sources/index.js';
@@ -29,6 +29,77 @@ const WHERE = [
   ['saved', 'Saved'],
 ];
 
+// How the books are laid out.
+const VIEWS = [
+  ['list', 'list', 'list'],
+  ['grid', 'grid', 'grid'],
+  ['covers', 'covers', 'covers only'],
+  ['shelves', 'shelves', 'shelves'],
+];
+
+/** The books in the chosen layout: a list, a grid with titles, or small covers only. */
+function Books({ items, mode, prog }) {
+  if (mode === 'list') return <ListView items={items} prog={prog} />;
+  if (mode === 'covers') return <CoverGrid items={items} />;
+  return <Grid items={items} />;
+}
+
+/** Small covers only, four or five to a row: more books on the screen at once. */
+function CoverGrid({ items }) {
+  const [count, setCount] = useState(80);
+  return (
+    <>
+      <div class="cover-grid">
+        {items.slice(0, count).map((b) => (
+          <button class="cover-tile" aria-label={titleOf(b)} onClick={() => (b.kind === 'text' && !String(b.uid).startsWith('lbl') ? nav.push('reader', { book: b }) : nav.push('book', { book: b }))}>
+            <Cover book={b} />
+          </button>
+        ))}
+      </div>
+      {items.length > count && (
+        <button class="btn ghost-wide" onClick={() => setCount(count + 120)}>
+          Show more ({items.length - count})
+        </button>
+      )}
+    </>
+  );
+}
+
+/** Shelves: a sideways row per author (or per series), most books first. */
+function Shelves({ items, by }) {
+  const groups = new Map();
+  for (const b of items) {
+    const name = by === 'series' ? seriesOf(b)?.name || 'Not in a series' : authorOf(b) || 'Unknown author';
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(b);
+  }
+  const list = [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  const [count, setCount] = useState(20);
+  return (
+    <>
+      {list.slice(0, count).map(([name, books]) => (
+        <section class="row lib-shelf">
+          <header class="row-head">
+            <h3>
+              {name} <small>{books.length}</small>
+            </h3>
+          </header>
+          <div class="row-scroll">
+            {books.slice(0, 40).map((b) => (
+              <BookCard key={b.uid} book={b} />
+            ))}
+          </div>
+        </section>
+      ))}
+      {list.length > count && (
+        <button class="btn ghost-wide" onClick={() => setCount(count + 20)}>
+          More shelves ({list.length - count})
+        </button>
+      )}
+    </>
+  );
+}
+
 const SORTS = [
   ['recent', 'Recent'],
   ['title', 'Title'],
@@ -41,7 +112,9 @@ const libView = persisted('libraryView', { list: false, sort: 'recent', tab: 'pr
 const lengthOf = (b) => b.duration || metaNow(b)?.runtime || b.size || 0;
 // Phone and cloud books often get their author from the online lookup.
 const authorOf = (b) => metaNow(b)?.author || b.author || '';
-const titleOf = (b) => (b.source === 'loc' && metaNow(b)?.title) || b.title || '';
+// "- A Court of Mist and Fury" (a file name with the author cut off): no leading dash.
+const bare = (t) => String(t || '').replace(/^[\s\-–—_.,:;]+/, '');
+const titleOf = (b) => bare((b.source === 'loc' && metaNow(b)?.title) || b.title || '');
 const SORTERS = {
   title: (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { numeric: true }),
   // By surname; books with no known author go last.
@@ -64,6 +137,7 @@ export function Library() {
   const kept = useStore(savedEbooks);
   const tab = TABS.some(([k]) => k === view.tab) ? view.tab : 'progress';
   const where = view.where || 'all';
+  const mode = view.mode || (view.list ? 'list' : 'grid');
   const setTab = (t) => libView.set((v) => ({ ...v, tab: t, where: 'all' }));
   const setWhere = (w) => libView.set((v) => ({ ...v, where: w }));
   const [editing, setEditing] = useState(false);
@@ -175,7 +249,7 @@ export function Library() {
           <h3 class="section-label pad">
             {found.length ? `In your library · ${found.length}` : `Nothing in your library matches “${libQ.trim()}”`}
           </h3>
-          {found.length > 0 && (view.list ? <ListView items={found} prog={prog} /> : <Grid items={found} />)}
+          {found.length > 0 && <Books items={found} mode={mode === 'shelves' ? 'grid' : mode} prog={prog} />}
           {!found.length && (
             <button class="btn ghost-wide lib-manage" onClick={() => import('./Discover.jsx').then((m) => m.openSearch(libQ.trim()))}>
               <Icon name="search" size={16} /> Search everywhere for “{libQ.trim()}”
@@ -234,9 +308,13 @@ export function Library() {
               </button>
             ))}
           </div>
-          <button class="icon-btn" aria-label={view.list ? 'Show as grid' : 'Show as list'} onClick={() => libView.set((v) => ({ ...v, list: !v.list }))}>
-            <Icon name={view.list ? 'grid' : 'list'} size={20} />
-          </button>
+          <div class="lib-views" role="group" aria-label="Show as">
+            {VIEWS.map(([k, icon, label]) => (
+              <button class={'icon-btn' + (mode === k ? ' active' : '')} aria-label={`Show as ${label}`} onClick={() => libView.set((v) => ({ ...v, mode: k, list: k === 'list' }))}>
+                <Icon name={icon} size={18} />
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {subs && where === 'phone' && !items.length ? (
@@ -293,7 +371,7 @@ export function Library() {
           )}
         </div>
       ) : items.length ? (
-        view.sort === 'series' ? <SeriesGroups items={items} /> : view.list ? <ListView items={items} prog={prog} /> : <Grid items={items} />
+        mode === 'shelves' ? <Shelves items={items} by={view.sort === 'series' ? 'series' : 'author'} /> : view.sort === 'series' ? <SeriesGroups items={items} mode={mode} prog={prog} /> : <Books items={items} mode={mode} prog={prog} />
       ) : (
         <Empty icon="library" title="Your shelf is empty">
           Tap the heart on any book to save it, or{' '}
@@ -324,7 +402,7 @@ function ListView({ items, prog }) {
           <button class="lib-row" onClick={() => nav.push(b.kind === 'text' && /#ebook$/.test(b.uid) ? 'reader' : 'book', { book: b })}>
             <Cover book={b} />
             <div>
-              <b>{b.title}</b>
+              <b>{bare(b.title)}</b>
               <small>
                 {b.author}
                 {b.duration ? ` · ${fmtDuration(b.duration)}` : ''}
@@ -471,7 +549,7 @@ async function remove(book, tab) {
 }
 
 /** Library sorted by series: each series in reading order, then books in no series. */
-function SeriesGroups({ items }) {
+function SeriesGroups({ items, mode = 'grid', prog }) {
   const groups = new Map();
   const loose = [];
   for (const b of items) {
@@ -492,13 +570,13 @@ function SeriesGroups({ items }) {
           <h3 class="section-label pad">
             {g.name} <small>{g.books.length} book{g.books.length > 1 ? 's' : ''}</small>
           </h3>
-          <Grid items={g.books.sort((x, y) => (x.n ?? 1e9) - (y.n ?? 1e9)).map((x) => x.b)} />
+          <Books items={g.books.sort((x, y) => (x.n ?? 1e9) - (y.n ?? 1e9)).map((x) => x.b)} mode={mode} prog={prog} />
         </section>
       ))}
       {loose.length > 0 && (
         <section class="lib-series">
           <h3 class="section-label pad">{list.length ? 'Not in a series' : 'No series found yet'}</h3>
-          <Grid items={loose} />
+          <Books items={loose} mode={mode} prog={prog} />
         </section>
       )}
     </>
