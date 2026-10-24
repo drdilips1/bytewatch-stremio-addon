@@ -9,4 +9,7 @@ object Ads {
     fun banner(activity: Activity, container: ViewGroup) = Unit
     fun interstitial(activity: Activity, moment: String, then: () -> Unit = {}) = then()
     fun privacyOptions(activity: Activity): Boolean = false
+    fun pause(container: ViewGroup?) = Unit
+    fun resume(container: ViewGroup?) = Unit
+    fun destroy(container: ViewGroup?) = Unit
 }

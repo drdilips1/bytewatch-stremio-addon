@@ -84,6 +84,13 @@ object Ads {
         ad.loadAd(AdRequest.Builder().build())
     }
 
+    /** The banner stops loading and refreshing while its screen is hidden (Google's advice; it used CPU). */
+    fun pause(container: ViewGroup?) = (container?.getChildAt(0) as? AdView)?.pause()
+
+    fun resume(container: ViewGroup?) = (container?.getChildAt(0) as? AdView)?.resume()
+
+    fun destroy(container: ViewGroup?) = (container?.getChildAt(0) as? AdView)?.destroy()
+
     private fun preload(activity: Activity) {
         if (!started || loading || interstitial != null) return
         loading = true

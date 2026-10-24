@@ -90,6 +90,7 @@ class LiteMainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        Ads.resume(findViewById(R.id.adBanner))
         Speaker.addListener(refresh)
         renderMini()
         reload()
@@ -97,10 +98,13 @@ class LiteMainActivity : Activity() {
 
     override fun onStop() {
         Speaker.removeListener(refresh)
+        // The banner kept refreshing behind the player and while listening with the screen off.
+        Ads.pause(findViewById(R.id.adBanner))
         super.onStop()
     }
 
     override fun onDestroy() {
+        Ads.destroy(findViewById(R.id.adBanner))
         scope.cancel()
         super.onDestroy()
     }
