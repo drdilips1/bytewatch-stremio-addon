@@ -3,7 +3,9 @@
 Noted while building; to pick up after Saturday.
 
 ## Reported 24 Oct (v1.0.125) — noted, not looked at yet
-- Transcript: the text doesn't move along with the audio and the current line isn't highlighted.
+- Transcript: the text does move with the audio, but the current line's highlight is too faint
+  (low contrast, hard to see). And the current line sits too high, partly hidden under the
+  top fade; it should be a bit lower, clearly in view.
 
 ## Pending — agreed, not started yet
 **Podcasts, second batch**
