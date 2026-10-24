@@ -198,8 +198,8 @@ export function TranscriptView({ s }) {
     const el = box.current?.querySelector(`[data-i="${active}"]`);
     if (!el) return;
     const b = box.current;
-    // About 40% down: clear of the fade at the top, with what's coming next in view.
-    b.scrollTo({ top: el.offsetTop - b.clientHeight * 0.4, behavior: 'smooth' });
+    // In the middle of the text area.
+    b.scrollTo({ top: el.offsetTop - b.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' });
   }, [active]);
 
   if (!transcriptAvailable && !s.book?.transcript) {
