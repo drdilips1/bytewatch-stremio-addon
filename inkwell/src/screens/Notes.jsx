@@ -5,11 +5,13 @@ import { useStore } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { highlights, allHighlights, removeHighlight, toMarkdown } from '../lib/highlights.js';
 import { Native as Files, available as files } from '../sources/local.js';
+import { AllBookmarks } from '../components/bookmarks.jsx';
 
 /** Every highlight and note from your ebooks: search, open at its place, export. */
 export function Notes() {
   const all = useStore(highlights);
   const [q, setQ] = useState('');
+  const [tab, setTab] = useState('highlights');
   const list = useMemo(() => allHighlights(q), [all, q]);
   // Grouped by book, books with the newest highlight first.
   const groups = useMemo(() => {
@@ -48,17 +50,34 @@ export function Notes() {
   return (
     <div class="screen notes-screen">
       <TopBar
-        title="Highlights & notes"
+        title="Notes & bookmarks"
         ask={false}
         right={
-          total > 0 && (
+          tab === 'highlights' && total > 0 && (
             <button class="pill small" onClick={exportAll}>
               Export
             </button>
           )
         }
       />
-      {total === 0 ? (
+      <div class="pad">
+        <div class="segmented">
+          <button class={tab === 'highlights' ? 'on' : ''} onClick={() => setTab('highlights')}>
+            Highlights
+          </button>
+          <button class={tab === 'bookmarks' ? 'on' : ''} onClick={() => setTab('bookmarks')}>
+            Bookmarks
+          </button>
+        </div>
+      </div>
+      {tab === 'bookmarks' ? (
+        <>
+          <div class="pad">
+            <input class="notes-search" type="search" placeholder="Search your bookmarks" value={q} onInput={(e) => setQ(e.currentTarget.value)} />
+          </div>
+          <AllBookmarks q={q} />
+        </>
+      ) : total === 0 ? (
         <p class="muted pad">
           In any ebook, press and hold on a word or drag across a passage, then tap <b>Highlight</b> — or Explain, Define, Ask, Translate.
           Your highlights and notes collect here.

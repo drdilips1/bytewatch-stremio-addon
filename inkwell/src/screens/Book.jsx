@@ -1,4 +1,5 @@
 import { BgImage } from "../components/bg-image.jsx";
+import { BookBookmarks } from '../components/bookmarks.jsx';
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
   Cover,
@@ -561,6 +562,8 @@ export function Book({ book: initial }) {
           items={editions.text}
         />
       )}
+
+      <BookBookmarks book={book} />
 
       {tracks.length > 0 && (
         <section class="pad">

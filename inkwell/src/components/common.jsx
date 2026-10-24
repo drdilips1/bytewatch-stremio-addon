@@ -6,7 +6,7 @@ import { SOURCES, sourceOf } from '../sources/index.js';
 import { Icon } from './icons.jsx';
 import { nav } from '../lib/nav.js';
 import { progress as progressStore, useStoreKey, persisted, useStore, settings } from '../lib/store.js';
-import { useImage } from '../lib/image.js';
+import { useImage, coverFrame, frameStyle } from '../lib/image.js';
 import { useMeta } from '../lib/meta.js';
 import { useTileRating } from '../lib/ratings.js';
 import { openExternal } from '../sources/summaries.js';
@@ -20,6 +20,14 @@ export function Cover({ book, class: cls = '', eager }) {
   const [failed, setFailed] = useState(!book?.cover);
   useEffect(() => setFailed(!book?.cover || proxyFailed), [book?.cover, proxyFailed]);
   const hue = hashHue(book?.title || '');
+  const [frame, setFrame] = useState(null);
+  useEffect(() => {
+    setFrame(null);
+    if (!src) return;
+    let alive = true;
+    coverFrame(src).then((f) => alive && setFrame(f));
+    return () => (alive = false);
+  }, [src]);
   return (
     <div class={'cover ' + cls} style={{ '--h': hue }}>
       <div class="cover-fallback">
@@ -32,6 +40,7 @@ export function Cover({ book, class: cls = '', eager }) {
           alt=""
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"
+          style={frameStyle(frame)}
           onError={() => setFailed(true)}
           onLoad={(e) => {
             // Open Library returns a 1x1 gif for missing covers.

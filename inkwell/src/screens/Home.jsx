@@ -594,7 +594,7 @@ export function Home() {
         </div>
         <div class="home-top-actions">
           <button class="icon-btn glass drive-btn" onClick={() => openDrive()} aria-label="Driving mode">
-            🚗
+            <Icon name="car" />
           </button>
           <SceneButton />
           <AskButton glass />

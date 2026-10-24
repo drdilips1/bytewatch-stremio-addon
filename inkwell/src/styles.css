@@ -6129,7 +6129,6 @@ button.rt {
   color: #fff;
   font-weight: 700;
 }
-.drive-btn { font-size: 19px; }
 .report textarea {
   width: 100%;
   padding: 10px 12px;
@@ -8919,4 +8918,15 @@ button.stats {
 .scene-row input {
   flex: 1;
   min-width: 0;
+}
+button.notes-book-head {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+.bm-list {
+  margin: 0;
 }

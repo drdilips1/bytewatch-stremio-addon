@@ -13,7 +13,7 @@ import * as player from './player.js';
 export const MODES = [
   {
     id: 'understand',
-    icon: '🔍',
+    icon: 'scale',
     label: 'Understand',
     asks: ['Explain the main concept simply', "Explain it like I'm 10", 'Give me a real-life example of the core idea', 'What are the difficult parts, explained?'],
   },
@@ -25,7 +25,7 @@ export const MODES = [
   },
   {
     id: 'remember',
-    icon: '🧠',
+    icon: 'bulb',
     label: 'Remember',
     asks: ['Quiz me (5 questions)', 'Make flashcards of the key concepts', 'Give me memorable analogies for the main ideas'],
   },
@@ -54,9 +54,9 @@ export const STARTERS = ['What is this book about?', 'What are the 5 most import
 export const COMPANION = [
   ['explain', '🧠', 'Explain', 'Explain what is being said at this point in simple words, with one real-life example.'],
   ['challenge', '🔍', 'Challenge', "Challenge what the author argues around this point: the claim, the evidence given, the strongest support, the strongest criticism, and what remains uncertain. Mention related research or books."],
-  ['rabbit', '🐇', 'Rabbit hole', 'Take me down a short rabbit hole (about 2 minutes to listen, under 250 words) on the most interesting idea at this point: what is actually known, myths vs evidence, key thinkers, and 2–3 related books or documentaries.'],
-  ['related', '📚', 'Related', 'Which other books (especially ones in my library) discuss the idea at this point, and how do they agree or disagree?'],
-  ['recall', '🎯', 'Recall', 'Help me remember what I have heard so far. Give 5 short recall questions (mix facts, ideas and one "why" question), each on its own line. Then a line "Answers:" with a one-line answer to each. Then "In short:" with the 3–4 key points to keep. Use only what was actually said so far when a transcript is given; do not reveal anything later.'],
+  ['rabbit', 'compass', 'Rabbit hole', 'Take me down a short rabbit hole (about 2 minutes to listen, under 250 words) on the most interesting idea at this point: what is actually known, myths vs evidence, key thinkers, and 2–3 related books or documentaries.'],
+  ['related', 'library', 'Related', 'Which other books (especially ones in my library) discuss the idea at this point, and how do they agree or disagree?'],
+  ['recall', 'target', 'Recall', 'Help me remember what I have heard so far. Give 5 short recall questions (mix facts, ideas and one "why" question), each on its own line. Then a line "Answers:" with a one-line answer to each. Then "In short:" with the 3–4 key points to keep. Use only what was actually said so far when a transcript is given; do not reveal anything later.'],
 ];
 
 // "Remember this": ideas you save while listening, kept as cards and searchable by Ask my books.

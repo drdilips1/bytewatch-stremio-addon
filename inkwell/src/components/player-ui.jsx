@@ -300,10 +300,10 @@ export function FullPlayer() {
           <Icon name="text" size={16} /> Text
         </button>
         <button class="chip-btn" onClick={() => openDrive()} aria-label="Driving mode">
-          🚗 Drive
+          <Icon name="car" size={16} /> Drive
         </button>
         <button class="chip-btn" onClick={() => setSheet('xray')} aria-label="X-Ray: who and where">
-          <b>X</b> X-Ray
+          <Icon name="xray" size={16} /> X-Ray
         </button>
         <button class="chip-btn" onClick={() => setSheet('story')} aria-label="Recap and characters">
           <Icon name="sparkle" size={16} /> Story
@@ -582,16 +582,18 @@ function Companion({ book }) {
   return (
     <div class="fp-companion">
       <button class="comp-btn" onClick={() => go('')}>
-        <span>✨</span>Ask
+        <Icon name="sparkle" size={19} />
+        Ask
       </button>
       {COMPANION.map(([id, icon, label, q]) => (
         <button class="comp-btn" key={id} onClick={() => go(q)}>
-          <span>{icon}</span>
+          <Icon name={icon} size={19} />
           {label}
         </button>
       ))}
       <button class="comp-btn" disabled={saving} onClick={remember}>
-        <span>{saving ? '…' : '💾'}</span>Remember
+        {saving ? <span class="spinner small" /> : <Icon name="pin" size={19} />}
+        Remember
       </button>
     </div>
   );
