@@ -123,7 +123,7 @@ function EbookStatus({ b }) {
     return (
       <>
         <p class="tl-source tl-ebook">
-          Exact words from your ebook{b.title ? ` · ${b.title}` : ''}
+          Exact words from your ebook{b.title ? ` · ${b.title}` : ''} · lines in italics aren’t in it (credits, intros)
           <button class="link-btn" disabled={!!busy} onClick={search}>
             {busy === 'search' ? 'Searching…' : 'Change'}
           </button>
@@ -219,7 +219,11 @@ export function TranscriptView({ s }) {
       {t?.published && segs.length > 0 && <p class="tl-source">Transcript from the podcast</p>}
       {!t?.published && <EbookStatus b={t?.bookText} />}
       {segs.map((g, i) => (
-        <p data-i={i} class={'tl' + (i === active ? ' on' : i < active ? ' past' : '')} onClick={() => g.start != null && player.seek(g.start)}>
+        <p
+          data-i={i}
+          class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '')}
+          onClick={() => g.start != null && player.seek(g.start)}
+        >
           {withNames(!t?.published && g.book ? g.book : g.text, names, (n) => setCard(lookup.get(n)))}
         </p>
       ))}

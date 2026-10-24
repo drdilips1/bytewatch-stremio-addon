@@ -8809,3 +8809,9 @@ button.stats {
   width: 22px;
   height: 22px;
 }
+
+/* Transcript with the ebook: lines not in the book (credits, intros) are only what was heard */
+.transcript .tl.heard {
+  font-style: italic;
+  opacity: 0.75;
+}

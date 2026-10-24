@@ -10,7 +10,7 @@ import { persisted } from './store.js';
 /** Ebooks you chose for an audiobook's transcript: audiobook uid -> ebook (book summary). */
 export const ebookLinks = persisted('ebookLinks', {});
 export const linkEbook = (audioUid, ebook) => ebookLinks.set((all) => ({ ...all, [audioUid]: ebook }));
-import { paragraphs, listenParagraphs } from './tts.js';
+import { paragraphs } from './tts.js';
 
 const surname = (a) => String(a || '').split(',')[0].trim().split(/\s+/).pop()?.toLowerCase() || '';
 const norm = (w) => w.toLowerCase().replace(/[’‘]/g, "'").replace(/[^\p{L}\p{N}']/gu, '');
@@ -35,7 +35,8 @@ export async function loadBookText(book) {
   const eb = ebookFor(book);
   if (!eb) return null;
   const doc = await loadCloudEbook(eb);
-  const tokens = listenParagraphs(paragraphs(doc.html))
+  // Everything, title page and contents included: the narrator reads those too.
+  const tokens = paragraphs(doc.html)
     .map((p) => p.text)
     .join(' ')
     .split(/\s+/)

@@ -139,26 +139,76 @@ import('./booktext.js').then((m) => (locate = m.locate)).catch(() => {});
 function align() {
   if (!bt || !locate || state.published) return;
   const segs = state.segments;
+  // 1. Find each line in the book, searching near where the previous one ended.
   let near = null;
-  let prev = null;
   for (const s of segs) {
+    if (s.fill) delete s.at, delete s.fill; // filled in last time: work it out again
     if (!s.at) {
       const r = locate(bt, s.text, near);
       if (r) s.at = [r.from, r.to];
     }
-    if (s.at) {
-      if (prev?.at) {
-        const gap = s.at[0] - prev.at[1];
-        // A few words fell between two lines (or they overlap): the earlier line ends where this one starts.
-        if ((gap > 0 && gap <= 12) || (gap < 0 && s.at[0] > prev.at[0])) prev.at = [prev.at[0], s.at[0]];
-        prev.book = bt.tokens.slice(prev.at[0], prev.at[1]).join(' ');
-      }
-      s.book = bt.tokens.slice(s.at[0], s.at[1]).join(' ');
-      near = s.at[1];
-      prev = s;
-    }
+    if (s.at) near = s.at[1];
   }
+  // 2. Between two lines that were found: the book's words in between go to the lines that
+  //    weren't (too short to find, or misheard), shared by how many words each had; with no
+  //    line in between, the earlier one simply ends where the next begins.
+  let prevI = -1;
+  for (let i = 0; i < segs.length; i++) {
+    if (!segs[i].at) continue;
+    const prev = prevI >= 0 ? segs[prevI] : null;
+    if (prev) {
+      const mid = segs.slice(prevI + 1, i);
+      const gap = segs[i].at[0] - prev.at[1];
+      if (mid.length && gap > 0 && gap <= 25 * mid.length + 20) {
+        const weights = mid.map((m) => Math.max(1, m.text.split(/\s+/).length));
+        const total = weights.reduce((x, y) => x + y, 0);
+        let at = prev.at[1];
+        mid.forEach((m, k) => {
+          const n = k === mid.length - 1 ? segs[i].at[0] - at : Math.max(1, Math.round((gap * weights[k]) / total));
+          m.at = [at, Math.min(segs[i].at[0], at + n)];
+          m.fill = true;
+          at = m.at[1];
+        });
+      } else if (!mid.length && ((gap > 0 && gap <= 12) || (gap < 0 && segs[i].at[0] > prev.at[0]))) prev.at = [prev.at[0], segs[i].at[0]];
+    }
+    prevI = i;
+  }
+  // 3. A short misheard line just before (or after) a found one ("Be he" for "Behave"): the
+  //    book's few words there, when they sound alike (letters in common).
+  const near1 = (s, from, to) => to > from && from >= 0 && to <= bt.tokens.length && similar(s.text, bt.tokens.slice(from, to).join(' '));
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i];
+    if (s.at || s.text.split(/\s+/).length > 4) continue;
+    const next = segs[i + 1];
+    const prev = segs[i - 1];
+    for (let k = 1; k <= 3 && !s.at; k++) {
+      if (next?.at && near1(s, next.at[0] - k, next.at[0])) s.at = [next.at[0] - k, next.at[0]];
+      else if (prev?.at && near1(s, prev.at[1], prev.at[1] + k)) s.at = [prev.at[1], prev.at[1] + k];
+    }
+    if (s.at) s.fill = true;
+  }
+  for (const s of segs) s.book = s.at && s.at[1] > s.at[0] ? bt.tokens.slice(s.at[0], s.at[1]).join(' ') : undefined;
   set({ segments: segs.slice() });
+}
+
+/** Do two short bits of text sound alike? Shared letter pairs (Dice), spaces and case ignored. */
+function similar(a, b) {
+  const pairs = (s) => {
+    const t = String(s).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const out = [];
+    for (let i = 0; i < t.length - 1; i++) out.push(t.slice(i, i + 2));
+    return out;
+  };
+  const x = pairs(a);
+  const y = pairs(b);
+  if (!x.length || !y.length) return false;
+  const pool = [...y];
+  let hit = 0;
+  for (const p of x) {
+    const j = pool.indexOf(p);
+    if (j >= 0) hit++, pool.splice(j, 1);
+  }
+  return (2 * hit) / (x.length + y.length) >= 0.5;
 }
 
 /** End of the run of transcribed lines (gaps under 20s) that covers time t, or null. */
