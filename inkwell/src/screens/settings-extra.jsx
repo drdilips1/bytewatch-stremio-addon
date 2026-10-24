@@ -24,6 +24,21 @@ async function copy(text) {
   }
 }
 
+/** Your name, for Home's "Good evening, …". */
+export function NameRow() {
+  const st = useStore(settings);
+  const a = useStore(sync.account);
+  return (
+    <label class="set-row">
+      <div>
+        <b>Your name</b>
+        <small>{st.myName ? 'Shown on Home: “Good evening, ' + st.myName.trim().slice(0, 24) + '”' : a.name || a.email ? 'Leave empty to use the name from your account' : 'Shown on Home after the greeting'}</small>
+      </div>
+      <input class="set-name" value={st.myName || ''} placeholder="First name" maxLength={24} onInput={(e) => settings.patch({ myName: e.currentTarget.value })} />
+    </label>
+  );
+}
+
 export function AccountCard() {
   const a = useStore(sync.account);
   const [url, setUrl] = useState(a.url);

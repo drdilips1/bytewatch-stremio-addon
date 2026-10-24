@@ -5164,6 +5164,8 @@ textarea {
   font-size: 16px;
   color: #f4f1fb;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .home-hello small {
   font-size: 11.5px;
@@ -8929,4 +8931,12 @@ button.notes-book-head {
 }
 .bm-list {
   margin: 0;
+}
+
+.set-name {
+  width: 9.5em;
+  flex: none;
+}
+.home-logo {
+  min-width: 0;
 }

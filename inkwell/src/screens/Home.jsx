@@ -14,7 +14,8 @@ import { ia, gb, ol, absSrc, addonSrc, cloud, localSrc, hc, gr, enabled, sourceO
 import { Fragment } from 'preact';
 import { sameWork } from '../lib/works.js';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary, hideFromContinue } from '../lib/store.js';
-import { greeting, fmtDuration, hiResCover } from '../lib/format.js';
+import { greeting, firstName, fmtDuration, hiResCover } from '../lib/format.js';
+import { account } from '../lib/sync.js';
 import { nav, useBackClose } from '../lib/nav.js';
 import { GENRES } from './genres.js';
 import { HINDI_ALL } from './hindi.js';
@@ -511,6 +512,7 @@ export function GenreChips() {
 
 export function Home() {
   const st = useStore(settings);
+  const acct = useStore(account);
   const addonList = useStore(addons);
   const absCfg = useStore(abs);
   const deb = useStore(debrid);
@@ -572,6 +574,7 @@ export function Home() {
         </>
       ),
   };
+  const me = firstName(st.myName, acct);
   return (
     <div class="screen home">
       <header class="home-top">
@@ -588,8 +591,17 @@ export function Home() {
             <path d="M170 300 h26 l14 -34 l20 70 l22 -96 l22 112 l18 -52 h30 l14 22 h24" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
           <div class="home-hello">
-            <b>{greeting()}</b>
-            <small>{today()}</small>
+            {me ? (
+              <>
+                <small>{greeting()},</small>
+                <b>{me}</b>
+              </>
+            ) : (
+              <>
+                <b>{greeting()}</b>
+                <small>{today()}</small>
+              </>
+            )}
           </div>
         </div>
         <div class="home-top-actions">
