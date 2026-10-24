@@ -31,25 +31,22 @@ If they don't name or describe a book you can identify, return {"title":""}.`,
   return parseJson(raw);
 }
 
-/** Your own copy of the book: playing now, phone, downloads, played before, then your server and cloud. */
-async function findCopy(want) {
+/** Your own copies of the book, best first: playing now, phone, downloads, played before, then your server and cloud. */
+async function findCopies(want) {
   const t = mainTitle(want.title || '');
   const sn = surname(want.author);
   const same = (b) => b && b.kind !== 'text' && !String(b.uid || '').endsWith('#ebook') && matches(t, `${b.title || ''} ${b.rawName || ''}`) && (!sn || !b.author || String(b.author).toLowerCase().includes(sn));
-  const now = player.getState().book;
-  if (same(now)) return now;
-  const quick = [
-    ...(localCfg.get().books || []),
-    ...Object.values(downloads.get() || {})
-      .filter((d) => d?.status === 'done')
-      .map((d) => d.book),
-    ...Object.values(progress.get() || {})
-      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-      .map((p) => p.book),
-  ].find(same);
-  if (quick) return quick;
-  const owned = await findOwned({ title: want.title, author: want.author || '' });
-  return [...owned.server, ...owned.cloud].find(same) || null;
+  const out = [];
+  const add = (b) => same(b) && !out.some((x) => x.uid === b.uid) && out.push(b);
+  add(player.getState().book);
+  for (const b of localCfg.get().books || []) add(b);
+  for (const d of Object.values(downloads.get() || {})) if (d?.status === 'done') add(d.book);
+  for (const p of Object.values(progress.get() || {}).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))) add(p.book);
+  try {
+    const owned = await findOwned({ title: want.title, author: want.author || '' });
+    for (const b of [...owned.server, ...owned.cloud]) add(b);
+  } catch {}
+  return out;
 }
 
 /** The chapter the AI named, in this audiobook's own chapter list. */
@@ -106,16 +103,25 @@ export async function playScene(said, step = () => {}) {
   const want = await understand(said);
   if (!want?.title) throw new Error(`Couldn't tell which book you meant — try "play when … in <book title>"`);
   step(`Looking for ${want.title}…`);
-  const book = await findCopy(want);
-  if (!book) {
-    const e = new Error(`${want.title} isn't in your library — showing it in Search`);
+  // A copy can be gone (removed from TorBox, an old link): then the next one.
+  let details = null;
+  const copies = await findCopies(want);
+  for (const book of copies) {
+    step(`Opening ${book.title}…`);
+    try {
+      details = await getDetails(book, { fast: true });
+      if (details?.tracks?.length || details?.resolveTracks) {
+        player.playBook(details);
+        if (await loaded()) break;
+      }
+    } catch {}
+    details = null;
+  }
+  if (!details) {
+    const e = new Error(copies.length ? `Couldn't open your copy of ${want.title} — showing it in Search` : `${want.title} isn't in your library — showing it in Search`);
     e.want = want;
     throw e;
   }
-  step(`Opening ${book.title}…`);
-  const details = await getDetails(book, { fast: true });
-  player.playBook(details);
-  if (!(await loaded())) throw new Error(player.getState().error || 'The book did not start');
   // Where: the line heard before (exact), else the chapter and how far into it.
   let g = findHeard(details.uid, want.quote);
   let where = '';
