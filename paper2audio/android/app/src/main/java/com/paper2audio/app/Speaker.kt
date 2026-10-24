@@ -1045,6 +1045,9 @@ object Speaker {
             fullCast || dialogueVoice != null -> (Cast.of(d).segments[k] ?: listOf(Cast.Segment(para, null))).map { s ->
                 s.text to when {
                     s.speaker == null -> vid
+                    // Nobody worked out ("?"): a contrasting voice gave a woman's line a man's voice and back
+                    // again mid-scene, so the narrator reads it.
+                    fullCast && s.speaker == "?" -> vid
                     fullCast -> castVoice(d, s.speaker)
                     else -> dialogueVoice!!
                 }

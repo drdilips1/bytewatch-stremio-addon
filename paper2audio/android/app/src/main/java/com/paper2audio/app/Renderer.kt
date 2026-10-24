@@ -231,6 +231,8 @@ object Renderer {
             .replace(Regex("""\b(Mr|Mrs|Ms|Dr|St)\.(?=\p{Lu})"""), "$1. ")
         // A line of only symbols ("* * *", a scene break) has nothing to say.
         if (t.none { it.isLetterOrDigit() }) return ""
+        // "Shhh!" has no vowel: the copied voices left it out or garbled it; "Shush" they say.
+        t = t.replace(Regex("""\b[Ss]+[Hh]+\b""")) { if (it.value.first().isUpperCase()) "Shush" else "shush" }
         t = t.replace(EMAIL) { it.value.replace("@", " at ").replace(".", " dot ") }
         t = t.replace(URL) { m ->
             m.value.removePrefix("https://").removePrefix("http://").trimEnd('/').replace(".", " dot ").replace("/", " slash ")
@@ -379,7 +381,9 @@ object Renderer {
         // Online voices ended the sentence at "U.S." too ("the U.S. Public Health Service"): inside a
         // sentence initials lose their last dot ("U.S Public"), still read letter by letter.
         val spoken = if (LocalTts.isLocal(voice)) plainQuotes(normalized)
-            else normalized.replace(Regex("""\b((?:\p{Lu}\.){1,}\p{Lu})\.(?=\s+[\p{L}\d])"""), "$1")
+            // and paused after "Mr." as if it ended one: without its dot ("Mr Dursley") it reads right.
+            else normalized.replace(Regex("""\b(Mr|Mrs|Ms|Dr|Prof|St)\.[\s\u00A0\u202F]+(?=\p{Lu})"""), "$1 ")
+                .replace(Regex("""\b((?:\p{Lu}\.){1,}\p{Lu})\.(?=\s+[\p{L}\d])"""), "$1")
         try {
             val es = engineSpeed(v, speed)
             if (LocalTts.isLocal(voice) && spoken.none { it.isLetterOrDigit() }) {
