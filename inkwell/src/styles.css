@@ -8148,10 +8148,10 @@ button.stats {
 /* Recommendations: Not interested + why */
 .not-btn {
   position: absolute;
-  top: 6px;
-  left: 6px;
-  width: 24px;
-  height: 24px;
+  top: 7px;
+  right: 7px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
   border-radius: 50%;

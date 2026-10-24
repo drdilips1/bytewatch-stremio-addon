@@ -156,9 +156,12 @@ export const BookCard = memo(function BookCard({ book: raw, wide, rec = false })
     <button class={'book-card' + (wide ? ' wide' : '')} onClick={() => (isReaderEbook(book) ? nav.push('reader', { book }) : nav.push('book', { book }))}>
       <div class="book-card-cover">
         <Cover book={book} />
-        <span class="kind-dot" title={book.kind}>
-          <Icon name={book.kind === 'text' ? 'book' : book.kind === 'discover' ? 'sparkle' : 'headphones'} size={13} />
-        </span>
+        {/* Recommendations: the ✕ (Not interested) takes the corner, off the match %. */}
+        {!rec && (
+          <span class="kind-dot" title={book.kind}>
+            <Icon name={book.kind === 'text' ? 'book' : book.kind === 'discover' ? 'sparkle' : 'headphones'} size={13} />
+          </span>
+        )}
         {book.rank > 0 && <span class="rank-badge">#{book.rank}</span>}
         {book.copies > 1 && <span class="copies-badge">{book.copies} copies</span>}
         {!(book.rank > 0) && book.match > 0 && <span class={'match-badge' + (book.match >= 80 ? ' hi' : '')}>{book.match}% match</span>}

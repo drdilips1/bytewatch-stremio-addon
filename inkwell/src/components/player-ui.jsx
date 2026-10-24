@@ -308,8 +308,13 @@ export function FullPlayer() {
         <button
           class="chip-btn"
           onClick={() => {
-            player.addBookmark();
+            const bm = player.addBookmark();
             toast('Bookmark added');
+            // Named after what was being said (from the live transcript), when there is one.
+            import('../lib/bookmarkname.js')
+              .then((m) => m.nameBookmark(s.book, bm))
+              .then((label) => label && toast(`🔖 ${label}`))
+              .catch(() => {});
           }}
           onContextMenu={(e) => {
             e.preventDefault();
@@ -555,7 +560,7 @@ function Companion({ book }) {
     }
     player.pause();
     nav.closeOverlay();
-    nav.push('ask', { book, description: book.description || '', question, here: !!question });
+    nav.push('ask', { book, description: book.description || '', question, here: !!question, askId: question ? `${Date.now()}` : '' });
   };
   const remember = async () => {
     setSaving(true);

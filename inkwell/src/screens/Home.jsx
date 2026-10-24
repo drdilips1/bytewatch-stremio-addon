@@ -360,6 +360,9 @@ function Hero() {
 /** Date line under the greeting, e.g. "Friday, 26 September". */
 const today = () => new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
 
+// "Audiobooks in your folders / cloud" rows: audiobooks only (ebooks are in Library → Ebooks).
+const audioOnly = (load) => () => load().then((list) => (list || []).filter((b) => b.kind !== 'text'));
+
 function ContinueRow() {
   const prog = useStore(progress);
   const items = useMemo(
@@ -538,9 +541,9 @@ export function Home() {
           <Row title="Recently added" subtitle="Audiobookshelf" icon="server" cacheKey="absRecent" load={absSrc.recent} deps={[absCfg.token, absCfg.libraryId]} onMore={() => nav.push('shelf', { title: 'Audiobookshelf', subtitle: 'Your whole library', load: absSrc.all })} showErrors emptyText={absSrc.emptyHint} />
         </>
       ),
-    loc: localSrc.connected() && enabled('loc') && <Row title="On this phone" subtitle="Audiobooks in your folders" icon="headphones" cacheKey="loc" load={localSrc.library} deps={[localCfg.scannedAt]} onMore={() => nav.push('shelf', { title: 'On this phone', subtitle: 'Audiobooks in your folders', load: localSrc.library })} emptyText="No audiobooks found in your folder." />,
-    tb: cloud.tbConnected() && enabled('tb') && <Row title="Your TorBox" subtitle="Audiobooks in your cloud" icon="download" cacheKey="tb" load={cloud.torboxLibrary} deps={[deb.torbox]} onMore={() => nav.push('shelf', { title: 'Your TorBox', subtitle: 'Audiobooks in your TorBox cloud', load: cloud.torboxLibrary })} showErrors emptyText="No audiobooks in your TorBox yet." />,
-    rd: cloud.rdConnected() && enabled('rd') && <Row title="Your Real-Debrid" subtitle="Audiobooks in your cloud" icon="download" cacheKey="rd" load={cloud.realdebridLibrary} deps={[deb.realdebrid]} onMore={() => nav.push('shelf', { title: 'Your Real-Debrid', subtitle: 'Audiobooks in your Real-Debrid cloud', load: cloud.realdebridLibrary })} showErrors emptyText="No audiobooks in your Real-Debrid yet." />,
+    loc: localSrc.connected() && enabled('loc') && <Row title="On this phone" subtitle="Audiobooks in your folders" icon="headphones" cacheKey="loc" load={audioOnly(localSrc.library)} deps={[localCfg.scannedAt]} onMore={() => nav.push('shelf', { title: 'On this phone', subtitle: 'Audiobooks in your folders', load: audioOnly(localSrc.library) })} emptyText="No audiobooks found in your folder." />,
+    tb: cloud.tbConnected() && enabled('tb') && <Row title="Your TorBox" subtitle="Audiobooks in your cloud" icon="download" cacheKey="tb" load={audioOnly(cloud.torboxLibrary)} deps={[deb.torbox]} onMore={() => nav.push('shelf', { title: 'Your TorBox', subtitle: 'Audiobooks in your TorBox cloud', load: audioOnly(cloud.torboxLibrary) })} showErrors emptyText="No audiobooks in your TorBox yet." />,
+    rd: cloud.rdConnected() && enabled('rd') && <Row title="Your Real-Debrid" subtitle="Audiobooks in your cloud" icon="download" cacheKey="rd" load={audioOnly(cloud.realdebridLibrary)} deps={[deb.realdebrid]} onMore={() => nav.push('shelf', { title: 'Your Real-Debrid', subtitle: 'Audiobooks in your Real-Debrid cloud', load: audioOnly(cloud.realdebridLibrary) })} showErrors emptyText="No audiobooks in your Real-Debrid yet." />,
     hc: hc.connected() && enabled('hc') && (
         <>
           <Row title="Currently reading" subtitle="Hardcover" icon="book" load={() => hc.shelf(hc.STATUS.reading)} deps={[hcCfg.token]} onMore={() => nav.push('shelf', { title: 'Currently reading', subtitle: 'Hardcover', load: () => hc.shelf(hc.STATUS.reading) })} showErrors emptyText="Nothing on your Hardcover Currently Reading shelf." />

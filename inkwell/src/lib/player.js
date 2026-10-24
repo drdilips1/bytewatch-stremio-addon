@@ -516,13 +516,16 @@ export async function playBook(details, { index, time, globalStart } = {}) {
     }
     if (!tracks?.length) throw new Error('No audio tracks found for this title');
     set({ book: details, tracks, playing: false });
-    const saved = progress.get()[details.uid];
+    let saved = progress.get()[details.uid];
+    // One place per book, whatever the copy: if you listened further on in another copy
+    // (another source, a download, your server) more recently, carry on from there.
+    const other = index == null && time == null && globalStart == null ? otherCopyProgress(details) : null;
+    const useOther = other && (!saved || saved.finished || other.updatedAt > (saved.updatedAt || 0) + 60e3);
+    if (useOther) saved = null;
     const resume = saved && !saved.finished;
     let i = index ?? (resume ? saved.track : 0) ?? 0;
     let t = time ?? (resume ? saved.time : 0);
-    // Never played this copy, but another copy of the same book: continue from there.
-    const other = !saved && index == null && time == null && globalStart == null ? otherCopyProgress(details) : null;
-    const g = globalStart ?? (other ? other.global : null) ?? (index == null && time == null && !resume && serverStart ? serverStart : null);
+    const g = globalStart ?? (useOther ? other.global : null) ?? (index == null && time == null && !resume && serverStart ? serverStart : null);
     if (g != null) ({ i, t } = locate(g));
     // Gentle rewind when resuming after a break.
     if (resume && index == null && time == null && Date.now() - saved.updatedAt > 5 * 60e3) t = Math.max(0, t - 10);
@@ -628,6 +631,12 @@ export function stop() {
   Promise.resolve(engine.stop()).catch(() => {});
   stopWaiting();
   set({ book: null, tracks: [], playing: false, loading: false, error: null, time: 0, duration: 0, sleepUntil: null, sleepEndOfTrack: false });
+}
+
+/** Give a bookmark a better name (it's found by the moment it was made). */
+export function renameBookmark(uid, createdAt, label) {
+  if (!label) return;
+  bookmarks.set((all) => ({ ...all, [uid]: (all[uid] || []).map((b) => (b.createdAt === createdAt ? { ...b, label } : b)) }));
 }
 
 export function addBookmark(label) {

@@ -1,6 +1,7 @@
 // "Story" sheet in the player: a spoiler-safe recap (read or listen) and a
 // character glossary with a timeline slider that never goes past where you are.
 import { useEffect, useState } from 'preact/hooks';
+import { askVoice } from '../lib/voiceask.js';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
 import { nav, useBackClose } from '../lib/nav.js';
@@ -82,7 +83,7 @@ function Recap() {
     player.pause();
     setReading(true);
     try {
-      for (const para of text.split(/\n+/).filter((x) => x.trim())) await speak(para);
+      for (const para of text.split(/\n+/).filter((x) => x.trim())) await speak(para, askVoice.get() === 'phone' ? { mode: 'system' } : {});
     } catch {}
     setReading(false);
   };

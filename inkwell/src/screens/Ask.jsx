@@ -15,7 +15,11 @@ import { canListen, listen, speakAnswer, stopAnswer, voiceLang, LANGS, askVoice,
  * Ask AI about one book (params.book) or about your whole library (no book).
  * params: { book, description, genres, mode, question }
  */
-export function Ask({ book = null, description = '', genres = [], mode: startMode = '', question = '', here = false }) {
+// Questions an Ask screen was opened with that have already been asked: coming back to the
+// screen (from the player, another tab) must not ask them again.
+const asked = new Set();
+
+export function Ask({ book = null, description = '', genres = [], mode: startMode = '', question = '', here = false, askId = '' }) {
   const [msgs, setMsgs] = useState(() => threadFor(book));
   const [mode, setMode] = useState(startMode);
   const [text, setText] = useState('');
@@ -107,8 +111,11 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
   };
 
   useEffect(() => {
-    if (question) run(question, here && where ? { where } : {});
-    else if (msgs.length) scrollEnd();
+    const id = askId || question;
+    if (question && !asked.has(id)) {
+      asked.add(id);
+      run(question, here && where ? { where } : {});
+    } else if (msgs.length) scrollEnd();
   }, []);
 
   const current = MODES.find((m) => m.id === mode);
@@ -164,6 +171,7 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
                 askVoice.set(e.currentTarget.value);
               }}
             >
+              <option value="phone">Phone voice — instant</option>
               <option value="">Same as Settings → Voices</option>
               {ASK_VOICES.map(([id, name, desc]) => (
                 <option value={id}>

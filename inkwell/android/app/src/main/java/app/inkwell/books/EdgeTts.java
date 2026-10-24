@@ -30,7 +30,11 @@ public final class EdgeTts {
 
     private static final String TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
     private static final String BASE = "speech.platform.bing.com/consumer/speech/synthesize/readaloud";
-    private static final String GEC_VERSION = "1-143.0.3650.75";
+    // Microsoft moved to a new token ("v2", Oct 2026; see EdgeToken). If it ever refuses that,
+    // the old one is tried before giving up on Microsoft voices.
+    private static final String CHROMIUM = "143.0.3650.75";
+    private static volatile boolean useV1 = false;
+    private static volatile boolean triedOther = false;
     private static final String USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0";
     private static final long WIN_EPOCH = 11644473600L;
@@ -54,6 +58,7 @@ public final class EdgeTts {
         long t = System.currentTimeMillis() / 1000 + skewSeconds + WIN_EPOCH;
         t -= t % 300;
         long ticks = t * 10_000_000L;
+        if (!useV1) return EdgeToken.forText(ticks + TOKEN);
         try {
             byte[] d = MessageDigest.getInstance("SHA-256").digest((ticks + TOKEN).getBytes("US-ASCII"));
             StringBuilder sb = new StringBuilder();
@@ -154,7 +159,7 @@ public final class EdgeTts {
     private static byte[] synthesizePiece(String text, String voice, int ratePercent, boolean retryOnAuth, int timeoutSec) throws IOException {
         Request request = new Request.Builder()
             .url(socketBase + "/edge/v1?TrustedClientToken=" + TOKEN + "&ConnectionId=" + muid().toLowerCase(Locale.US)
-                + "&Sec-MS-GEC=" + secMsGec() + "&Sec-MS-GEC-Version=" + GEC_VERSION)
+                + "&Sec-MS-GEC=" + secMsGec() + "&Sec-MS-GEC-Version=" + (useV1 ? "1-" : "2-") + CHROMIUM)
             .header("Pragma", "no-cache")
             .header("Cache-Control", "no-cache")
             .header("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold")
@@ -249,6 +254,17 @@ public final class EdgeTts {
         if (code != null && code == 403 && retryOnAuth) {
             adjustSkew(failedResponse[0]);
             return synthesizePiece(text, voice, ratePercent, false, timeoutSec);
+        }
+        // Refused even with the clock corrected: try the other token kind once (and keep it if it works).
+        if (code != null && code == 403 && !triedOther) {
+            triedOther = true;
+            useV1 = !useV1;
+            try {
+                return synthesizePiece(text, voice, ratePercent, false, timeoutSec);
+            } catch (IOException e) {
+                useV1 = !useV1;
+                throw e;
+            }
         }
         if (failure[0] != null) throw new IOException(code != null ? "Voice service error (HTTP " + code + ")" : String.valueOf(failure[0].getMessage()), failure[0]);
         byte[] bytes;

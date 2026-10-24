@@ -119,7 +119,8 @@ export function Book({ book: initial }) {
   const cloudEbooks = book.ebooks || [];
   const cloudEpub = cloudEbooks.find((e) => e.format === "EPUB");
   const readBook = cloudEpub ? cloudReaderBook(book, cloudEpub) : book;
-  const canRead = book.kind === "text" && (book.readUrl || cloudEpub);
+  // Phone ebooks, saved ones and direct links open in the reader too (Read, never Play).
+  const canRead = book.kind === "text" && (book.readUrl || cloudEpub || book.ebookUrl || /#ebook$/.test(book.uid));
   const prog = allProgress[canRead ? readBook.uid : initial.uid];
   const tracks = book.tracks || [];
   const partsOpen = showParts ?? tracks.length <= 5;

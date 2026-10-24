@@ -224,7 +224,7 @@ export function TranscriptView({ s }) {
           class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '')}
           onClick={() => g.start != null && player.seek(g.start)}
         >
-          {withNames(!t?.published && g.book ? g.book : g.text, names, (n) => setCard(lookup.get(n)))}
+          {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : g.text, names, (n) => setCard(lookup.get(n)))}
         </p>
       ))}
       {segs.length > 0 && t?.status === 'error' && <p class="err small">{t.error}</p>}

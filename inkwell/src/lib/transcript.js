@@ -64,7 +64,8 @@ function remember() {
     saved.set((c) => {
       const order = [key, ...c.order.filter((k) => k !== key)].slice(0, 4);
       const parts = {};
-      for (const k of order) parts[k] = k === key ? segments.slice(-2500) : c.parts[k];
+      // Only what was heard: the ebook's words are matched again each time (the ebook may change).
+      for (const k of order) parts[k] = k === key ? segments.slice(-2500).map(({ start, end, text }) => ({ start, end, text })) : c.parts[k];
       return { order, parts };
     });
   }, 3000);
@@ -73,23 +74,25 @@ function remember() {
 // The book's own words (when its ebook is on hand): recognised lines are matched to it.
 let bt = null;
 let btUid = '';
+let btRun = 0; // the latest ebook load: an older, slower one must not win
 // bookText: { state: 'loading' | 'on' | 'none' | 'error', title, error }
 function bookTextFor(book, again = false) {
   if (!book || (book.uid === btUid && !again)) return;
   btUid = book.uid;
   bt = null;
-  for (const s of state.segments) delete s.at, delete s.book;
-  set({ bookText: { state: 'loading' } });
+  const run = ++btRun;
+  for (const s of state.segments) delete s.at, delete s.book, delete s.fill;
+  set({ segments: state.segments.slice(), bookText: { state: 'loading' } });
   import('./booktext.js')
     .then((m) => m.loadBookText(book))
     .then((x) => {
-      if (btUid !== book.uid) return;
+      if (run !== btRun) return;
       if (!x) return set({ bookText: { state: 'none' } });
       bt = x;
       set({ bookText: { state: 'on', title: x.title || '' } });
       align();
     })
-    .catch((e) => btUid === book.uid && set({ bookText: { state: 'error', error: e?.message || String(e) } }));
+    .catch((e) => run === btRun && set({ bookText: { state: 'error', error: e?.message || String(e) } }));
 }
 
 /** Search your sources for this audiobook's ebook: [{ r, file, source, book }]. */
@@ -137,7 +140,8 @@ let locate = null;
 import('./booktext.js').then((m) => (locate = m.locate)).catch(() => {});
 /** Give each recognised line the ebook's words for it (`book`), gaps between lines filled. */
 function align() {
-  if (!bt || !locate || state.published) return;
+  // Only this book's ebook, only on this book's lines.
+  if (!bt || !locate || state.published || !state.key.startsWith(btUid + '#')) return;
   const segs = state.segments;
   // 1. Find each line in the book, searching near where the previous one ended.
   let near = null;
@@ -389,7 +393,7 @@ export function follow(ps) {
   };
   if (key !== state.key) {
     stopTranscript();
-    set({ key, segments: (saved.get().parts[key] || []).slice(), status: 'idle', error: '' });
+    set({ key, segments: (saved.get().parts[key] || []).map(({ start, end, text }) => ({ start, end, text })), status: 'idle', error: '' });
     align();
     return startJob(ps, from());
   }
