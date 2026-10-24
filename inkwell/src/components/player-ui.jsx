@@ -484,7 +484,7 @@ export function FullPlayer() {
                     <li>
                       <button
                         onClick={() => {
-                          player.jumpTo(b.track, b.time);
+                          player.playBookmark(b);
                           setSheet(null);
                         }}
                       >

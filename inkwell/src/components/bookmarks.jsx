@@ -14,8 +14,8 @@ export const bookOf = (uid) => (player.getState().book?.uid === uid && player.ge
 export function playBookmark(book, bm) {
   if (!book) return toast('Open this book once to use its bookmarks');
   nav.openOverlay('player');
-  if (player.getState().book?.uid === book.uid && player.getState().tracks.length) player.jumpTo(bm.track, bm.time);
-  else player.openAndPlay(book, getDetails, { index: bm.track, time: bm.time });
+  if (player.getState().book?.uid === book.uid && player.getState().tracks.length) player.playBookmark(bm);
+  else player.openAndPlay(book, getDetails, bm.time >= player.BOOKMARK_LEAD || !bm.track ? { index: bm.track, time: Math.max(0, bm.time - player.BOOKMARK_LEAD) } : { globalStart: Math.max(0, (bm.global ?? 0) - player.BOOKMARK_LEAD) });
 }
 
 const remove = (uid, bm) => bookmarks.set((all) => ({ ...all, [uid]: (all[uid] || []).filter((b) => b.createdAt !== bm.createdAt) }));
