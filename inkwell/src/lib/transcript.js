@@ -124,7 +124,7 @@ export async function takeOnPhone(eb) {
 import('./epub.js').then(({ savedEbooks }) =>
   savedEbooks.subscribe(() => {
     const ps = player.getState();
-    if (ps.book && state.bookText?.state === 'none') bookTextFor(ps.book, true);
+    if (ps.book && ['none', 'error'].includes(state.bookText?.state)) bookTextFor(ps.book, true);
   })
 );
 
@@ -145,10 +145,14 @@ function align() {
   const segs = state.segments;
   // 1. Find each line in the book, searching near where the previous one ended.
   let near = null;
+  // Roughly where in the book a moment of the audio is (how far in you are), to look there first.
+  const part = +state.key.slice(btUid.length + 1);
+  const total = player.totalDuration();
+  const guessAt = (t) => (total > 0 && Number.isInteger(part) ? Math.round((bt.tokens.length * (player.trackOffset(part) + t)) / total) : null);
   for (const s of segs) {
     if (s.fill) delete s.at, delete s.fill; // filled in last time: work it out again
     if (!s.at) {
-      const r = locate(bt, s.text, near);
+      const r = locate(bt, s.text, near, guessAt(s.start));
       if (r) s.at = [r.from, r.to];
     }
     if (s.at) near = s.at[1];
@@ -460,7 +464,7 @@ export function restartTranscript() {
       if (!autoEbook() || player.getState().book?.uid !== b.uid) return;
       const eb = await autoFindEbook(player.getState().book);
       // The transcript looked before this was found: show the book's words now.
-      if (eb && btUid === b.uid && state.bookText?.state === 'none') bookTextFor(player.getState().book, true);
+      if (eb && btUid === b.uid && ['none', 'error'].includes(state.bookText?.state)) bookTextFor(player.getState().book, true);
     }, 8000);
   });
 }
