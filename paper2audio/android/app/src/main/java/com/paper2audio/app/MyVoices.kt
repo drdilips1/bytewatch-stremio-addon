@@ -97,18 +97,19 @@ object MyVoices {
         Voice("maya", "Maya", 0, 0f, true, "female · English", pause = 660, denoised = true, seed = 101),
         Voice("nora", "Hazel", 0, 0f, true, "female · English", pause = 600, denoised = true, seed = 90001),
         Voice("rose", "Rose", 0, 0f, true, "female · English", pause = 300, denoised = true, seed = 90001),
-        // Recorded later and copied in Paper to Audio: clean recordings, read well with the lead-in; each
-        // keeps the seed it was tested with (2.5–4% of words misheard by speech recognition).
-        Voice("emma", "Emma", 0, 0f, true, "female · English", pause = 700, denoised = false, seed = 38508),
-        Voice("grace", "Grace", 0, 0f, true, "female · English", pause = 480, denoised = false, seed = 81547),
-        Voice("isla", "Isla", 0, 0f, true, "female · English", pause = 700, denoised = false, seed = 2217),
-        Voice("sophie", "Sophie", 0, 0f, true, "female · English", pause = 700, denoised = false, seed = 45256),
+        // Recorded later and copied in Paper to Audio, with exactly the settings they have there (shared as
+        // Name__p<pause>__d<noise removal>__id<id>.wav): the seed is the one Paper to Audio derives from the
+        // id, so they sound as they do there.
+        Voice("emma", "Emma", 0, 0f, true, "female · English", pause = 700, denoised = false, seed = 64194),
+        Voice("grace", "Grace", 0, 0f, true, "female · English", pause = 480, denoised = false, seed = 34312),
+        Voice("isla", "Isla", 0, 0f, true, "female · English", pause = 900, denoised = false, seed = 4618),
+        Voice("sophie", "Sophie", 0, 0f, true, "female · English", pause = 700, denoised = false, seed = 92620),
         Voice("leo", "Noah", 0, 0f, true, "male · English", pause = 620, denoised = false, seed = 101),
         Voice("sam", "Lucas", 0, 0f, true, "male · English", pause = 680, denoised = true),
         Voice("theo", "Theo", 0, 0f, true, "male · English", pause = 680, denoised = false),
-        Voice("daniel", "Daniel", 0, 0f, true, "male · English", pause = 700, denoised = false, seed = 79466),
-        Voice("henry", "Henry", 0, 0f, true, "male · English", pause = 700, denoised = false, seed = 92013),
-        Voice("oscar", "Oscar", 0, 0f, true, "male · English", pause = 700, denoised = false, seed = 50315),
+        Voice("daniel", "Daniel", 0, 0f, true, "male · English", pause = 740, denoised = false, seed = 20604),
+        Voice("henry", "Henry", 0, 0f, true, "male · English", pause = 900, denoised = false, seed = 54287),
+        Voice("oscar", "Oscar", 0, 0f, true, "male · English", pause = 800, denoised = false, seed = 15734),
     )
 
     class Ref(val samples: FloatArray, val sampleRate: Int)
