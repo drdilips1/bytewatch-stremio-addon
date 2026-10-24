@@ -179,14 +179,18 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content" />
 
-    <!-- Home, Library, Voices, Settings (filled in by LiteMainActivity). -->
+    <!-- Home, Library, Voices, Settings (filled in by LiteMainActivity): a floating dock, as in Paper to Audio. -->
     <LinearLayout
         android:id="@+id/bottomNav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?attr/p2aSurface"
-        android:elevation="8dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/bg_dock"
+        android:elevation="10dp"
         android:orientation="horizontal"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp" />
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp" />
 </LinearLayout>

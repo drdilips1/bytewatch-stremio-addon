@@ -140,7 +140,8 @@ class LiteMainActivity : Activity() {
     private fun renderMini() {
         val strip = findViewById<View>(R.id.miniPlayer)
         val doc = Speaker.doc
-        if (doc == null) {
+        // As in Paper to Audio: the Now listening card above already has the book and Resume.
+        if (doc == null || items.any { it.id == doc.key }) {
             strip.visibility = View.GONE
             return
         }
@@ -171,6 +172,7 @@ class LiteMainActivity : Activity() {
             items = withContext(Dispatchers.IO) { Library.items(this@LiteMainActivity) }.sortedByDescending { it.opened }
             adapter.notifyDataSetChanged()
             renderHeader()
+            renderMini()
         }
     }
 
@@ -536,6 +538,29 @@ class LiteMainActivity : Activity() {
         bindThumb(this, id, wDp)
     }
 
+    /** A large cover with rounded corners, a shadow and the listening progress along its foot (as in Paper to Audio). */
+    private fun bigCover(item: Library.Item): View {
+        val box = FrameLayout(this).apply {
+            elevation = dp(8).toFloat()
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(v: View, o: Outline) = o.setRoundRect(0, 0, v.width, v.height, dp(12).toFloat())
+            }
+            clipToOutline = true
+        }
+        box.addView(ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setBackgroundResource(R.drawable.bg_thumb)
+            bindThumb(this, item.id, 150)
+        }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        val pct = Library.progress(this, item)
+        if (pct > 0) box.addView(ProgressBar(this, null, 0, R.style.P2A_Progress).apply {
+            max = 100
+            progress = pct
+        }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(4), android.view.Gravity.BOTTOM))
+        box.layoutParams = LinearLayout.LayoutParams(dp(150), dp(225))
+        return box
+    }
+
     /** Rebuilt only when something it shows changed (the player reports often). */
     private fun renderHeader() {
         if (!::header.isInitialized) return
@@ -560,7 +585,18 @@ class LiteMainActivity : Activity() {
 
         val others = items.filter { it.id != current?.id }.take(10)
         if (others.isNotEmpty()) {
-            header.addView(text("Continue", 19f, serif = true).apply { setPadding(dp(8), dp(22), dp(8), dp(8)) })
+            val head = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(8), dp(22), dp(8), dp(10))
+            }
+            head.addView(text("Continue", 22f, serif = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            head.addView(text("See all", 15f).apply {
+                setTextColor(color(R.attr.p2aAccent))
+                setPadding(dp(12), dp(8), dp(4), dp(8))
+                setOnClickListener { list.setSelection(list.headerViewsCount) }
+            })
+            header.addView(head)
             val strip = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 setPadding(dp(8), 0, dp(8), 0)
@@ -572,26 +608,28 @@ class LiteMainActivity : Activity() {
                     setOnClickListener { open(item) }
                     setOnLongClickListener { itemMenu(item); true }
                 }
-                cell.addView(cover(item.id, 104, 156))
-                cell.addView(text(item.title, 13.5f, bold = true).apply {
+                cell.addView(bigCover(item))
+                cell.addView(text(item.title, 14.5f, bold = true).apply {
                     maxLines = 2
                     ellipsize = android.text.TextUtils.TruncateAt.END
-                    setPadding(0, dp(8), 0, 0)
-                }, LinearLayout.LayoutParams(dp(104), ViewGroup.LayoutParams.WRAP_CONTENT))
-                (item.author ?: item.sourceName)?.let {
-                    cell.addView(text(it, 12f, muted = true).apply {
+                    setPadding(0, dp(10), 0, 0)
+                }, LinearLayout.LayoutParams(dp(150), ViewGroup.LayoutParams.WRAP_CONTENT))
+                (item.author ?: item.sourceName).takeIf { it.isNotBlank() }?.let {
+                    cell.addView(text(it, 12.5f, muted = true).apply {
                         maxLines = 1
                         ellipsize = android.text.TextUtils.TruncateAt.END
-                    }, LinearLayout.LayoutParams(dp(104), ViewGroup.LayoutParams.WRAP_CONTENT))
+                    }, LinearLayout.LayoutParams(dp(150), ViewGroup.LayoutParams.WRAP_CONTENT))
                 }
-                strip.addView(cell, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(14) })
+                strip.addView(cell, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(16) })
             }
             header.addView(HorizontalScrollView(this).apply {
                 isHorizontalScrollBarEnabled = false
+                clipToPadding = false
+                setPadding(0, dp(4), 0, dp(8))
                 addView(strip)
             })
         }
-        header.addView(text("Your library", 19f, serif = true).apply { setPadding(dp(8), dp(22), dp(8), dp(4)) })
+        header.addView(text("Your library", 22f, serif = true).apply { setPadding(dp(8), dp(18), dp(8), dp(4)) })
     }
 
     /** The book being listened to, on a light card with a wash of the theme's colour (as in Paper to Audio). */
@@ -618,7 +656,7 @@ class LiteMainActivity : Activity() {
             isClickable = true
             setOnClickListener { open(item) }
         }
-        top.addView(cover(item.id, 96, 144))
+        top.addView(cover(item.id, 116, 172))
         val texts = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), 0, 0, dp(2))
@@ -627,7 +665,7 @@ class LiteMainActivity : Activity() {
             letterSpacing = 0.1f
             setTextColor(accent)
         })
-        texts.addView(text(item.title, 20f, serif = true).apply {
+        texts.addView(text(item.title, 22f, serif = true).apply {
             maxLines = 3
             ellipsize = android.text.TextUtils.TruncateAt.END
             setPadding(0, dp(4), 0, dp(2))
@@ -681,27 +719,27 @@ class LiteMainActivity : Activity() {
 
     private fun buildBottomNav() {
         val bar = findViewById<LinearLayout>(R.id.bottomNav)
+        // As Paper to Audio's tabs: the icon in a soft chip when selected, the label under it.
         fun item(icon: Int, label: String, selected: Boolean, action: () -> Unit) {
             val tint = color(if (selected) R.attr.p2aAccent else R.attr.p2aMuted)
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = android.view.Gravity.CENTER
-                minimumHeight = dp(52)
                 isClickable = true
                 contentDescription = label
-                val ripple = android.util.TypedValue()
-                theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true)
-                setBackgroundResource(ripple.resourceId)
+                setPadding(0, dp(4), 0, dp(2))
                 setOnClickListener { action() }
             }
             cell.addView(ImageView(this).apply {
                 setImageResource(icon)
                 imageTintList = android.content.res.ColorStateList.valueOf(tint)
+                setPadding(dp(16), dp(4), dp(16), dp(4))
+                if (selected) setBackgroundResource(R.drawable.bg_chip)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LinearLayout.LayoutParams(dp(24), dp(24)))
-            cell.addView(text(label, 12f).apply {
+            }, LinearLayout.LayoutParams(dp(56), dp(30)))
+            cell.addView(text(label, 10.5f).apply {
                 setTextColor(tint)
-                if (selected) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                gravity = android.view.Gravity.CENTER
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             })
             bar.addView(cell, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
