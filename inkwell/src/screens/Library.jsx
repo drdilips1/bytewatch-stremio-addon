@@ -70,6 +70,9 @@ export function Library() {
   const [ebookQ, setEbookQ] = useState('');
   const findingEbook = tab === 'text' && ebookQ.trim().length > 1;
   const [editShown, setEditShown] = useState(60);
+  // Search everything in your library (any tab): saved, started, finished, phone, downloads, ebooks.
+  const [finding, setFinding] = useState(false);
+  const [libQ, setLibQ] = useState('');
   const last = useRef([]);
   // Every group of books, once per change.
   const groups = useMemo(() => {
@@ -118,6 +121,17 @@ export function Library() {
   // most: keep the same list when nothing else changed, so the grid isn't redone.
   const items = sorted.length === last.current.length && sorted.every((b, i) => b === last.current[i]) ? last.current : (last.current = sorted);
 
+  const found = useMemo(() => {
+    const words = libQ.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return null;
+    const seen = new Set();
+    const all = [...groups.progress, ...groups.audio.all, ...groups.text.all, ...groups.finished].filter((b) => !seen.has(b.uid) && seen.add(b.uid));
+    return oneEach(all).filter((b) => {
+      const hay = `${titleOf(b)} ${b.title || ''} ${authorOf(b)} ${b.narrator || ''} ${b.series || ''} ${b.rawName || ''} ${b.ebookName || ''}`.toLowerCase();
+      return words.every((w) => hay.includes(w));
+    });
+  }, [libQ, groups]);
+
   const stats = useMemo(() => {
     const vals = Object.values(prog || {}).filter((p) => p && typeof p === 'object');
     const seconds = vals.reduce((a, p) => a + (p.global || 0), 0);
@@ -129,6 +143,16 @@ export function Library() {
       <div class="library-head">
         <h1 class="screen-title">Library</h1>
         <div class="library-head-actions">
+          <button
+            class={'icon-btn glass' + (finding ? ' active' : '')}
+            onClick={() => {
+              if (finding) setLibQ('');
+              setFinding(!finding);
+            }}
+            aria-label="Search your library"
+          >
+            <Icon name="search" size={19} />
+          </button>
           <button class="icon-btn glass" onClick={() => nav.push('notes')} aria-label="Notes and bookmarks">
             <Icon name="bookmark" size={19} />
           </button>
@@ -141,6 +165,25 @@ export function Library() {
           <AskButton />
         </div>
       </div>
+      {finding && (
+        <div class="pad lib-find">
+          <input type="search" autoFocus placeholder="Search your library — title, author, narrator, series" value={libQ} onInput={(e) => setLibQ(e.currentTarget.value)} />
+        </div>
+      )}
+      {found ? (
+        <>
+          <h3 class="section-label pad">
+            {found.length ? `In your library · ${found.length}` : `Nothing in your library matches “${libQ.trim()}”`}
+          </h3>
+          {found.length > 0 && (view.list ? <ListView items={found} prog={prog} /> : <Grid items={found} />)}
+          {!found.length && (
+            <button class="btn ghost-wide lib-manage" onClick={() => import('./Discover.jsx').then((m) => m.openSearch(libQ.trim()))}>
+              <Icon name="search" size={16} /> Search everywhere for “{libQ.trim()}”
+            </button>
+          )}
+        </>
+      ) : (
+        <>
       <button class="stats" onClick={() => nav.push('stats')} aria-label="Listening stats">
         <div>
           <b>{stats.books}</b>
@@ -259,6 +302,8 @@ export function Library() {
           </a>
           .
         </Empty>
+      )}
+        </>
       )}
         </>
       )}

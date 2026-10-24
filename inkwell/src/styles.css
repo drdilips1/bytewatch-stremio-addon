@@ -8982,3 +8982,6 @@ button.notes-book-head {
   max-height: 50vh;
   overflow-y: auto;
 }
+.lib-find input {
+  width: 100%;
+}
