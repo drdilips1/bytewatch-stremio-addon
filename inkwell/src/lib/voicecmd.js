@@ -23,11 +23,12 @@ async function understand(said) {
   const raw = await askAi(
     `Someone said to their audiobook app: "${said}"${playing}
 Work out which book they mean and where in it the moment they describe happens.
-Return JSON: {"title":"the book's title","author":"","scene":"the moment, in under 12 words","chapter":0,"chapterTitle":"","at":0.0,"quote":""}
+Return JSON: {"title":"the book's title","author":"","scene":"the moment, in under 12 words","chapter":0,"chapterTitle":"","at":0.0,"quote":"","keywords":[""]}
 - chapter: the chapter number in the printed book (0 if it's in a prologue or you don't know).
 - chapterTitle: that chapter's title, if it has one.
 - at: how far into that chapter the moment starts, from 0.0 (its start) to 1.0 (its end).
 - quote: 6–12 words of the book's own text from the start of that moment, only if you're sure of them, else "".
+- keywords: 5–8 words that appear in the book's own text right at that moment and rarely elsewhere — names, places, objects, unusual words (for "Dumbledore awards the House Cup": "Dumbledore", "House Cup", "points", "Neville", "Slytherin", "decorations"). Not common words.
 If they don't name or describe a book you can identify, return {"title":""}.`,
     { json: true }
   );
@@ -111,6 +112,23 @@ const loaded = () =>
     setTimeout(() => done(false), 25e3);
   });
 
+/** The scene's time, found in the book's ebook (when there is one): { g, where } or null. */
+async function inEbook(book, want, chapters) {
+  const { loadBookText } = await import('./booktext.js');
+  const bt = await Promise.race([loadBookText(book), new Promise((r) => setTimeout(() => r(null), 40e3))]);
+  if (!bt) return null;
+  const total = player.totalDuration();
+  if (!total) return null;
+  const { anchorsFor, timeOf, sceneInText, rangeOf } = await import('./scenefind.js');
+  const anchors = anchorsFor(bt, chapters, total, book.title);
+  const ci = want.chapterTitle || want.chapter ? pickChapter(chapters, want) : -1;
+  const tok = sceneInText(bt, [...(want.keywords || []), want.quote || ''], rangeOf(anchors, chapters, ci));
+  if (tok == null) return null;
+  const g = timeOf(anchors, tok);
+  const at = chapters.findIndex((c) => g >= c.start && g < (c.end || Infinity));
+  return { g, where: `${chapters[at]?.title || 'found'} · from the ebook` };
+}
+
 /**
  * Do it. `step(text)` reports progress. Resolves { book, scene, where } or throws
  * an Error whose `want` (when set) is the book to search the sources for.
@@ -145,10 +163,16 @@ export async function playScene(said, step = () => {}) {
     e.want = want;
     throw e;
   }
-  // Where: the line heard before (exact), else the chapter and how far into it.
+  // Where: the line heard before (exact), else the scene found in the ebook's words,
+  // else the chapter the AI named and how far into it.
   let g = findHeard(details.uid, want.quote);
   let where = '';
   const chapters = player.chapters();
+  if (g == null) {
+    step('Finding the scene in the book…');
+    const hit = await inEbook(details, want, chapters).catch(() => null);
+    if (hit) ({ g, where } = hit);
+  }
   if (g == null) {
     const ci = pickChapter(chapters, want);
     if (ci >= 0) {
