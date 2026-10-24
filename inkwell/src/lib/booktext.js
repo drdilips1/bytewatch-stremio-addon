@@ -35,6 +35,21 @@ export function ebookFor(book) {
 export async function loadBookText(book) {
   const eb = ebookFor(book) || (autoEbook() ? await autoFindEbook(book) : null);
   if (!eb) return null;
+  return textOfEbook(eb);
+}
+
+/** An ebook of yours (linked, kept, on the phone) with this title — one book of a series, say. */
+export function ebookByTitle(title, author = '') {
+  const t = mainTitle(title || '');
+  if (!t) return null;
+  const sn = surname(author);
+  const same = (b) => b && matches(t, `${b.title || ''} ${b.ebookName || ''}`) && (!sn || !b.author || String(b.author).toLowerCase().includes(sn));
+  const list = [...Object.values(ebookLinks.get()), ...Object.values(savedEbooks.get()).map((x) => x?.book), ...(localCfg.get().books || []).filter((b) => b.kind === 'text')].filter(same);
+  return list.find((b) => (b.ebookFormat || b.format) !== 'PDF') || list[0] || null;
+}
+
+/** The words of one ebook, with the index used to find lines in it. */
+export async function textOfEbook(eb) {
   const doc = await loadCloudEbook(eb);
   // Everything, title page and contents included: the narrator reads those too.
   const tokens = paragraphs(doc.html)

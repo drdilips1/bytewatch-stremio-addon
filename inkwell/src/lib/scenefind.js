@@ -47,10 +47,12 @@ function headingVariants(title, bookTitle) {
  * every heading close together — those are skipped (a heading counts only when the next
  * chapter's heading comes well after it).
  */
-export function anchorsFor(bt, chapters, total, bookTitle) {
+export const STOPWORDS = STOP;
+export function anchorsFor(bt, chapters, total, bookTitle, from = 0) {
   const keys = bt.keys;
   const occ = chapters.map((c) => [...new Set(headingVariants(c.title || '', bookTitle).flatMap((v) => phraseAt(keys, v)))].sort((a, b) => a - b));
-  const anchors = [{ tok: 0, g: 0 }];
+  // `from`: where this book starts in the audio (a series in one audiobook: its own parts only).
+  const anchors = [{ tok: 0, g: from }];
   let pos = 0;
   for (let i = 0; i < chapters.length; i++) {
     const next = occ.slice(i + 1).find((o) => o.length);
