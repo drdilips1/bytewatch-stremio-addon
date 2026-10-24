@@ -3,7 +3,7 @@
 // the book is found on your phone, in your downloads, books you've played, then your
 // Audiobookshelf and TorBox / Real-Debrid; it starts 30 seconds before the scene.
 import { askAi, parseJson } from './ai.js';
-import { mainTitle, matches } from './match.js';
+import { mainTitle, matches, words } from './match.js';
 import { progress, settings } from './store.js';
 import { downloads } from './downloads.js';
 import { localCfg } from '../sources/local.js';
@@ -14,6 +14,7 @@ import { findOrder, placeOf } from './findorder.js';
 import { STOPWORDS } from './scenefind.js';
 
 const LEAD = 30; // seconds before the scene
+const NOISE = new Set(['unabridged', 'abridged', 'audiobook', 'audio', 'book', 'a', 'novel', 'edition', 'mp3', 'm4b', 'by', 'read', 'narrated', 'the', 'and']);
 const surname = (a) => String(a || '').split(',')[0].trim().split(/\s+/).pop()?.toLowerCase() || '';
 const norm = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
 
@@ -25,7 +26,8 @@ async function understand(said) {
     `Someone said to their audiobook app: "${said}"${playing}
 It comes from speech recognition, so it may be misheard: Indian-accented English, Hindi or Hinglish, names written as they sounded ("dumble door" = Dumbledore, "harry potter ki pehli train" = Harry boarding the Hogwarts Express). Work out what they meant.
 Work out which book they mean and where in it the moment they describe happens. The JSON is always in English, with names spelled as in the book.
-Return JSON: {"title":"the book's title","book":"","author":"","scene":"the moment, in under 12 words","chapter":0,"chapterTitle":"","at":0.0,"quote":"","keywords":[""]}
+Return JSON: {"title":"the book's title","book":"","author":"","moment":true,"scene":"the moment, in under 12 words","chapter":0,"chapterTitle":"","at":0.0,"quote":"","keywords":[""]}
+- moment: false when they only ask to play the book itself ("play The Secret by Rhonda Byrne") — then leave scene, chapter, quote and keywords empty.
 - title: the single book the moment is in (in a series, that volume: "Harry Potter and the Philosopher's Stone", not "Harry Potter"); book: the same title as printed in the UK edition, if different.
 - chapter: the chapter number in that book (0 if it's in a prologue or you don't know).
 - chapterTitle: that chapter's title, if it has one.
@@ -47,7 +49,15 @@ async function findCopies(want) {
   const t = mainTitle(want.title || '');
   const sn = surname(want.author);
   const audio = (b) => b && b.kind !== 'text' && !String(b.uid || '').endsWith('#ebook') && (!sn || !b.author || String(b.author).toLowerCase().includes(sn));
-  const same = (b) => matches(t, `${b.title || ''} ${b.rawName || ''}`);
+  // The book's own title: "The Secret" is not "The Secret History" — extra words are allowed
+  // only when they're the author's name, a year or the usual noise ("Unabridged").
+  const authorWords = new Set(words(want.author));
+  const fits = (title) => {
+    if (!title || !matches(t, title)) return false;
+    const mine = new Set(words(t));
+    return words(mainTitle(title)).every((w) => mine.has(w) || authorWords.has(w) || NOISE.has(w) || /^\d+$/.test(w));
+  };
+  const same = (b) => fits(b.title) || (!b.title && fits(b.rawName));
   // The whole series in one audiobook ("Harry Potter (Pottermore)" for "Harry Potter and the
   // Philosopher's Stone"): it has the book too, tried after copies of the book itself.
   const series = (b) => !!mainTitle(b.title || '') && matches(mainTitle(b.title || ''), t);
@@ -195,6 +205,11 @@ export async function playScene(said, step = () => {}) {
   }
   // Where: the line heard before (exact), else the scene found in the ebook's words,
   // else the chapter the AI named and how far into it.
+  // Just the book, no moment asked for: it plays from where you left off.
+  if (want.moment === false || (!want.scene && !(want.keywords || []).filter(Boolean).length && !want.chapter && !want.chapterTitle)) {
+    if (!player.getState().playing) player.toggle();
+    return { book: details, scene: details.title, where: 'from where you left off' };
+  }
   let g = null;
   let where = '';
   const chapters = volumeOf(player.chapters(), details, want);
