@@ -639,6 +639,13 @@ export function renameBookmark(uid, createdAt, label) {
   bookmarks.set((all) => ({ ...all, [uid]: (all[uid] || []).map((b) => (b.createdAt === createdAt ? { ...b, label } : b)) }));
 }
 
+/** Play from a moment in the book (seconds from its start), whether playing or paused. */
+export function playAt(g) {
+  const at = locate(Math.max(0, g));
+  if (at.i === state.index && state.playing) seek(at.t);
+  else loadTrack(at.i, at.t, true);
+}
+
 /** Bookmarks play from a little before the marked moment, to catch the start of it. */
 export const BOOKMARK_LEAD = 15;
 export function playBookmark(bm) {

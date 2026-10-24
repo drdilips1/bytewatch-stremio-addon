@@ -106,7 +106,13 @@ export async function playScene(said, step = () => {}) {
   // A copy can be gone (removed from TorBox, an old link): then the next one.
   let details = null;
   const copies = await findCopies(want);
+  const now = player.getState();
   for (const book of copies) {
+    // Already playing this book: just move to the scene, nothing to reopen.
+    if (book.uid === now.book?.uid && now.tracks.length && !now.error) {
+      details = now.book;
+      break;
+    }
     step(`Opening ${book.title}…`);
     try {
       details = await getDetails(book, { fast: true });
@@ -136,6 +142,7 @@ export async function playScene(said, step = () => {}) {
       where = c.title || `Part ${ci + 1}`;
     }
   } else where = 'where you heard it';
-  if (g != null) player.seekGlobal(Math.max(0, g - LEAD));
+  if (g != null) player.playAt(g - LEAD);
+  else if (!player.getState().playing) player.toggle();
   return { book: details, scene: want.scene || '', where };
 }
