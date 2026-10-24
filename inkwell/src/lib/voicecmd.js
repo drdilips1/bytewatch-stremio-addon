@@ -4,7 +4,7 @@
 // Audiobookshelf and TorBox / Real-Debrid; it starts 30 seconds before the scene.
 import { askAi, parseJson } from './ai.js';
 import { mainTitle, matches } from './match.js';
-import { progress } from './store.js';
+import { progress, settings } from './store.js';
 import { downloads } from './downloads.js';
 import { localCfg } from '../sources/local.js';
 import { getDetails, findOwned } from '../sources/index.js';
@@ -31,22 +31,34 @@ If they don't name or describe a book you can identify, return {"title":""}.`,
   return parseJson(raw);
 }
 
-/** Your own copies of the book, best first: playing now, phone, downloads, played before, then your server and cloud. */
+/**
+ * Your own copies of the book, in the order to try: your default debrid service (TorBox /
+ * Real-Debrid), the other one, then the phone (folders, downloads), Audiobookshelf, and
+ * anything else you've played. The book playing now always comes first (nothing to reopen).
+ */
 async function findCopies(want) {
   const t = mainTitle(want.title || '');
   const sn = surname(want.author);
   const same = (b) => b && b.kind !== 'text' && !String(b.uid || '').endsWith('#ebook') && matches(t, `${b.title || ''} ${b.rawName || ''}`) && (!sn || !b.author || String(b.author).toLowerCase().includes(sn));
   const out = [];
-  const add = (b) => same(b) && !out.some((x) => x.uid === b.uid) && out.push(b);
+  const add = (b, local = false) => same(b) && !out.some((x) => x.b.uid === b.uid) && out.push({ b, local });
   add(player.getState().book);
-  for (const b of localCfg.get().books || []) add(b);
-  for (const d of Object.values(downloads.get() || {})) if (d?.status === 'done') add(d.book);
-  for (const p of Object.values(progress.get() || {}).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))) add(p.book);
+  for (const b of localCfg.get().books || []) add(b, true);
+  for (const d of Object.values(downloads.get() || {})) if (d?.status === 'done') add(d.book, true);
   try {
     const owned = await findOwned({ title: want.title, author: want.author || '' });
-    for (const b of [...owned.server, ...owned.cloud]) add(b);
+    for (const b of [...owned.cloud, ...owned.server]) add(b);
   } catch {}
-  return out;
+  for (const p of Object.values(progress.get() || {}).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))) add(p.book);
+  const first = settings.get().debridPreferred === 'realdebrid' ? 'rd' : 'tb';
+  const src = (b) => String(b.source || b.uid || '').split(':')[0];
+  const rank = ({ b, local }) => {
+    if (b.uid === player.getState().book?.uid) return -1;
+    if (local) return 2;
+    const k = src(b);
+    return k === first ? 0 : k === 'tb' || k === 'rd' ? 1 : k === 'loc' ? 2 : k === 'abs' ? 3 : 4;
+  };
+  return out.sort((x, y) => rank(x) - rank(y)).map((x) => x.b);
 }
 
 /** The chapter the AI named, in this audiobook's own chapter list. */
@@ -91,7 +103,8 @@ const loaded = () =>
       if (s.error) done(false);
       else if (!s.loading && s.tracks.length && (s.duration > 0 || s.playing)) done(true);
     });
-    setTimeout(() => done(false), 90e3);
+    // A copy that hasn't started within 25 s: on to the next one.
+    setTimeout(() => done(false), 25e3);
   });
 
 /**
