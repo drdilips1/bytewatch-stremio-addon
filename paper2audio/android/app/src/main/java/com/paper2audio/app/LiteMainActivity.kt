@@ -18,8 +18,10 @@ import android.view.ViewOutlineProvider
 import android.widget.BaseAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -47,7 +49,11 @@ class LiteMainActivity : Activity() {
     private val refresh: () -> Unit = {
         adapter.notifyDataSetChanged()
         renderMini()
+        renderHeader()
     }
+    /** Above the library: the greeting, the book being listened to and the others to continue. */
+    private lateinit var header: LinearLayout
+    private var headerShown: String? = null
     private var miniCoverFor: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,15 +63,29 @@ class LiteMainActivity : Activity() {
         LiteUi.fitSystemBars(this, findViewById(R.id.liteRoot))
         list = findViewById(R.id.list)
         busy = findViewById(R.id.busy)
+        header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(8), 0, dp(8), 0)
+        }
+        list.addHeaderView(header, null, false)
         list.adapter = adapter
         list.emptyView = findViewById(R.id.empty)
-        list.setOnItemClickListener { _, _, position, _ -> open(items[position]) }
-        list.setOnItemLongClickListener { _, _, position, _ ->
-            itemMenu(items[position])
+        // Positions count the header too: the item is looked up through the list.
+        list.setOnItemClickListener { parent, _, position, _ -> (parent.getItemAtPosition(position) as? Library.Item)?.let(::open) }
+        list.setOnItemLongClickListener { parent, _, position, _ ->
+            (parent.getItemAtPosition(position) as? Library.Item)?.let(::itemMenu)
             true
         }
+        findViewById<TextView>(R.id.appTitle).apply {
+            typeface = Themes.titleFont(this@LiteMainActivity)
+            setTypeface(typeface, android.graphics.Typeface.NORMAL)
+            text = android.text.SpannableString("narrato.").apply {
+                setSpan(android.text.style.ForegroundColorSpan(Themes.color(this@LiteMainActivity, R.attr.p2aAccent)), length - 1, length, 0)
+            }
+        }
         findViewById<View>(R.id.btnAdd).setOnClickListener { showAddMenu() }
-        findViewById<View>(R.id.btnMenu).setOnClickListener { showMenu() }
+        findViewById<View>(R.id.btnAddTop).setOnClickListener { showAddMenu() }
+        buildBottomNav()
         findViewById<View>(R.id.miniPlayer).setOnClickListener { openPlayer() }
         findViewById<View>(R.id.miniPlay).setOnClickListener { Speaker.toggle() }
         savedInstanceState?.getString("photo")?.let { photo = File(it) }
@@ -73,7 +93,14 @@ class LiteMainActivity : Activity() {
         Speaker.init(this) {}
         Library.loadCurrentId(this)
         // New users get a short walkthrough first; ads (and their consent form) come after it.
-        LiteWelcome.showOnce(this) { Ads.init(this) { Ads.banner(this, findViewById<FrameLayout>(R.id.adBanner)) } }
+        LiteWelcome.showOnce(this) {
+            // After the tour, once: the name the greeting uses (optional).
+            if (!prefs().getBoolean("askedName", false)) {
+                prefs().edit().putBoolean("askedName", true).apply()
+                askName()
+            }
+            Ads.init(this) { Ads.banner(this, findViewById<FrameLayout>(R.id.adBanner)) }
+        }
         AppLog.offerCrashReport(this)
         handleIntent(intent)
     }
@@ -143,6 +170,7 @@ class LiteMainActivity : Activity() {
         scope.launch {
             items = withContext(Dispatchers.IO) { Library.items(this@LiteMainActivity) }.sortedByDescending { it.opened }
             adapter.notifyDataSetChanged()
+            renderHeader()
         }
     }
 
@@ -406,6 +434,7 @@ class LiteMainActivity : Activity() {
         LiteSheet(this, getString(R.string.app_name), "Version ${Updater.currentName(this)} · free and unlimited")
             .row(R.drawable.ic_info, "How Narrato works", "The short tour, and getting better voices") { LiteWelcome.show(this) }
             .row(R.drawable.ic_palette, "Theme", "Colors of the app") { Themes.showPicker(this) }
+            .row(R.drawable.ic_account, "Your name", userName()?.let { "Greeted as $it" } ?: "For the greeting on the first screen") { askName() }
             .row(R.drawable.ic_bug, "Report a problem", "Share the app's error log to get it fixed") { AppLog.showReport(this) }
             .section("Privacy")
             .row(R.drawable.ic_shield, "Privacy policy", "What the app stores and shares") {
@@ -430,18 +459,257 @@ class LiteMainActivity : Activity() {
 
     // ---- List ----
 
-    private fun bindThumb(view: ImageView, id: String) {
-        view.tag = id
-        thumbs.get(id)?.let {
+    private fun bindThumb(view: ImageView, id: String, widthDp: Int = 64) {
+        val key = if (widthDp == 64) id else "$id@$widthDp"
+        view.tag = key
+        thumbs.get(key)?.let {
             view.setImageBitmap(it)
             return
         }
         view.setImageDrawable(null)
         scope.launch {
-            val bmp = Thumbs.load(Library.thumb(this@LiteMainActivity, id), LiteUi.dp(this@LiteMainActivity, 64)) ?: return@launch
-            thumbs.put(id, bmp)
-            if (view.tag == id) view.setImageBitmap(bmp)
+            val bmp = Thumbs.load(Library.thumb(this@LiteMainActivity, id), LiteUi.dp(this@LiteMainActivity, widthDp)) ?: return@launch
+            thumbs.put(key, bmp)
+            if (view.tag == key) view.setImageBitmap(bmp)
         }
+    }
+
+    // ---- Home: greeting, Now listening, Continue ----
+
+    private fun prefs() = getSharedPreferences("p2a", MODE_PRIVATE)
+
+    private fun dp(v: Int) = LiteUi.dp(this, v)
+
+    private fun color(attr: Int) = Themes.color(this, attr)
+
+    private fun userName(): String? = prefs().getString("userName", null)?.takeIf { it.isNotBlank() }
+
+    private fun askName() {
+        val input = EditText(this).apply {
+            hint = "Your first name"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS or InputType.TYPE_TEXT_VARIATION_PERSON_NAME
+            isSingleLine = true
+            setText(userName() ?: "")
+        }
+        val box = FrameLayout(this).apply {
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("What should we call you?")
+            .setMessage("So Narrato can greet you. It stays on this phone only.")
+            .setView(box)
+            .setPositiveButton("Save") { _, _ ->
+                prefs().edit().putString("userName", input.text.toString().trim().take(30)).apply()
+                headerShown = null
+                renderHeader()
+            }
+            .setNegativeButton("Skip", null)
+            .show()
+    }
+
+    private fun greeting(): String {
+        val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        return when (h) {
+            in 5..11 -> "Good morning"
+            in 12..16 -> "Good afternoon"
+            else -> "Good evening"
+        }
+    }
+
+    private fun text(value: CharSequence, sp: Float, muted: Boolean = false, serif: Boolean = false, bold: Boolean = false) = TextView(this).apply {
+        text = value
+        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sp)
+        setTextColor(color(if (muted) R.attr.p2aMuted else R.attr.p2aText))
+        if (serif) typeface = Themes.titleFont(this@LiteMainActivity)
+        if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+    }
+
+    private fun cover(id: String, wDp: Int, hDp: Int) = ImageView(this).apply {
+        scaleType = ImageView.ScaleType.CENTER_CROP
+        setBackgroundResource(R.drawable.bg_thumb)
+        outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(v: View, outline: Outline) = outline.setRoundRect(0, 0, v.width, v.height, 10 * resources.displayMetrics.density)
+        }
+        clipToOutline = true
+        layoutParams = LinearLayout.LayoutParams(dp(wDp), dp(hDp))
+        bindThumb(this, id, wDp)
+    }
+
+    /** Rebuilt only when something it shows changed (the player reports often). */
+    private fun renderHeader() {
+        if (!::header.isInitialized) return
+        val current = Speaker.doc?.let { d -> items.firstOrNull { it.id == d.key } } ?: items.firstOrNull()
+        val listening = current != null && Speaker.doc?.key == current.id
+        val pct = current?.let { Library.progress(this, it) }
+        val chapter = if (listening) Speaker.doc?.chapterAt(Speaker.index)?.title else null
+        val shown = listOf(userName(), greeting(), current?.id, listening, Speaker.playing, pct, chapter, items.joinToString(",") { it.id }).joinToString("|")
+        if (shown == headerShown) return
+        headerShown = shown
+        header.removeAllViews()
+        if (items.isEmpty()) return
+
+        val name = userName()
+        header.addView(text(if (name != null) "${greeting()}, $name" else greeting(), 25f, serif = true).apply {
+            setPadding(dp(8), dp(14), dp(8), 0)
+            setOnClickListener { askName() }
+        })
+        header.addView(text("A little time for listening.", 14f, muted = true).apply { setPadding(dp(8), dp(2), dp(8), 0) })
+
+        if (current != null) header.addView(heroCard(current, listening, pct ?: 0, chapter))
+
+        val others = items.filter { it.id != current?.id }.take(10)
+        if (others.isNotEmpty()) {
+            header.addView(text("Continue", 19f, serif = true).apply { setPadding(dp(8), dp(22), dp(8), dp(8)) })
+            val strip = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dp(8), 0, dp(8), 0)
+            }
+            for (item in others) {
+                val cell = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    isClickable = true
+                    setOnClickListener { open(item) }
+                    setOnLongClickListener { itemMenu(item); true }
+                }
+                cell.addView(cover(item.id, 104, 156))
+                cell.addView(text(item.title, 13.5f, bold = true).apply {
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    setPadding(0, dp(8), 0, 0)
+                }, LinearLayout.LayoutParams(dp(104), ViewGroup.LayoutParams.WRAP_CONTENT))
+                (item.author ?: item.sourceName)?.let {
+                    cell.addView(text(it, 12f, muted = true).apply {
+                        maxLines = 1
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    }, LinearLayout.LayoutParams(dp(104), ViewGroup.LayoutParams.WRAP_CONTENT))
+                }
+                strip.addView(cell, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(14) })
+            }
+            header.addView(HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                addView(strip)
+            })
+        }
+        header.addView(text("Your library", 19f, serif = true).apply { setPadding(dp(8), dp(22), dp(8), dp(4)) })
+    }
+
+    /** The book being listened to, on a light card with a wash of the theme's colour (as in Paper to Audio). */
+    private fun heroCard(item: Library.Item, listening: Boolean, pct: Int, chapter: String?): View {
+        val accent = color(R.attr.p2aAccent)
+        val surface = color(R.attr.p2aSurface)
+        val wash = android.graphics.Color.rgb(
+            (android.graphics.Color.red(accent) * 0.12f + android.graphics.Color.red(surface) * 0.88f).toInt(),
+            (android.graphics.Color.green(accent) * 0.12f + android.graphics.Color.green(surface) * 0.88f).toInt(),
+            (android.graphics.Color.blue(accent) * 0.12f + android.graphics.Color.blue(surface) * 0.88f).toInt(),
+        )
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, intArrayOf(wash, surface)).apply {
+                cornerRadius = dp(24).toFloat()
+                setStroke(dp(1), color(R.attr.p2aSurface2))
+            }
+            elevation = dp(2).toFloat()
+        }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.BOTTOM
+            isClickable = true
+            setOnClickListener { open(item) }
+        }
+        top.addView(cover(item.id, 96, 144))
+        val texts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), 0, 0, dp(2))
+        }
+        texts.addView(text(if (listening) "NOW LISTENING" else "CONTINUE", 11.5f, bold = true).apply {
+            letterSpacing = 0.1f
+            setTextColor(accent)
+        })
+        texts.addView(text(item.title, 20f, serif = true).apply {
+            maxLines = 3
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setPadding(0, dp(4), 0, dp(2))
+        })
+        listOfNotNull(item.author, chapter).joinToString(" · ").takeIf { it.isNotBlank() }?.let {
+            texts.addView(text(it, 13.5f, muted = true).apply { maxLines = 2 })
+        }
+        top.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        card.addView(top)
+
+        card.addView(ProgressBar(this, null, 0, R.style.P2A_Progress).apply {
+            max = 100
+            progress = pct
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(4)).apply { topMargin = dp(16) })
+        val left = Library.minutesLeft(this, item, Speaker.speed)
+        val meta = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        meta.addView(text("$pct%", 12f, muted = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        meta.addView(text("${if (left >= 60) "${left / 60} h ${left % 60} min" else "$left min"} left", 12f, muted = true))
+        card.addView(meta, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
+
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        val playing = listening && Speaker.playing
+        buttons.addView(android.widget.Button(this, null, 0, R.style.P2A_Button).apply {
+            text = if (playing) "Pause" else "Resume"
+            setCompoundDrawablesRelativeWithIntrinsicBounds(if (playing) R.drawable.ic_pause else R.drawable.ic_play, 0, 0, 0)
+            setOnClickListener { if (listening) Speaker.toggle() else open(item) }
+        }, LinearLayout.LayoutParams(0, dp(52), 1f))
+        buttons.addView(ImageButton(this).apply {
+            setImageResource(R.drawable.ic_headphones)
+            contentDescription = "Open the player"
+            imageTintList = android.content.res.ColorStateList.valueOf(color(R.attr.p2aText))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(surface)
+                setStroke(dp(1), color(R.attr.p2aSurface2))
+            }
+            setOnClickListener { open(item) }
+        }, LinearLayout.LayoutParams(dp(52), dp(52)).apply { marginStart = dp(10) })
+        card.addView(buttons, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(14) })
+
+        return FrameLayout(this).apply {
+            setPadding(dp(4), dp(16), dp(4), dp(4))
+            addView(card)
+        }
+    }
+
+    // ---- The bar at the bottom ----
+
+    private fun buildBottomNav() {
+        val bar = findViewById<LinearLayout>(R.id.bottomNav)
+        fun item(icon: Int, label: String, selected: Boolean, action: () -> Unit) {
+            val tint = color(if (selected) R.attr.p2aAccent else R.attr.p2aMuted)
+            val cell = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER
+                minimumHeight = dp(52)
+                isClickable = true
+                contentDescription = label
+                val ripple = android.util.TypedValue()
+                theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true)
+                setBackgroundResource(ripple.resourceId)
+                setOnClickListener { action() }
+            }
+            cell.addView(ImageView(this).apply {
+                setImageResource(icon)
+                imageTintList = android.content.res.ColorStateList.valueOf(tint)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(dp(24), dp(24)))
+            cell.addView(text(label, 12f).apply {
+                setTextColor(tint)
+                if (selected) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            })
+            bar.addView(cell, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        item(R.drawable.ic_home, "Home", true) { list.smoothScrollToPosition(0) }
+        item(R.drawable.ic_list, "Library", false) { list.setSelection(list.headerViewsCount) }
+        item(R.drawable.ic_voice, "Voices", false) { LiteUi.showVoices(this) }
+        item(R.drawable.ic_settings, "Settings", false) { showMenu() }
     }
 
     private class Holder(root: View) {

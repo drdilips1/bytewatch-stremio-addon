@@ -25,6 +25,31 @@
         <item name="android:alertDialogTheme">@android:style/Theme.Material.Light.Dialog.Alert</item>
     </style>
 
+    <!-- Paper and ink, as in Audiohub's Paper theme: cool paper white, white cards, ink text, deep teal. -->
+    <style name="Theme.P2A.Paper" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="p2aBg">#F5F6F8</item>
+        <item name="p2aSurface">#FFFFFF</item>
+        <item name="p2aSurface2">#E3E6EC</item>
+        <item name="p2aAccent">#0E7490</item>
+        <item name="p2aOnAccent">#FFFFFF</item>
+        <item name="p2aText">#141821</item>
+        <item name="p2aMuted">#58606F</item>
+        <item name="p2aBackground">@drawable/bg_theme_paper</item>
+        <item name="android:colorPrimary">#0E7490</item>
+        <item name="android:colorPrimaryDark">#F5F6F8</item>
+        <item name="android:colorAccent">#0E7490</item>
+        <item name="android:colorControlActivated">#0E7490</item>
+        <item name="android:colorControlNormal">#58606F</item>
+        <item name="android:windowBackground">@drawable/bg_theme_paper</item>
+        <item name="android:statusBarColor">#F5F6F8</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:textColorPrimary">#141821</item>
+        <item name="android:textColorSecondary">#58606F</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:alertDialogTheme">@android:style/Theme.Material.Light.Dialog.Alert</item>
+    </style>
+
     <style name="Theme.P2A.Ink" parent="android:Theme.Material.NoActionBar">
         <item name="p2aBg">#161C27</item>
         <item name="p2aSurface">#202A3B</item>
