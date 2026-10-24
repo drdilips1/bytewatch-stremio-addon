@@ -2,6 +2,9 @@
 
 Noted while building; to pick up after Saturday.
 
+## Reported 24 Oct (v1.0.125) — noted, not looked at yet
+- Transcript: the text doesn't move along with the audio and the current line isn't highlighted.
+
 ## Pending — agreed, not started yet
 **Podcasts, second batch**
 - Timestamped notes while listening (extend Saved ideas): note at this moment, tap to jump back, search all notes.
@@ -37,7 +40,7 @@ icons and footer, Library sort row fade, Saved filter hidden when it equals All)
   folder), the lines show the ebook's real words ("Words from your ebook of this book").
   Not done: a larger, more accurate English speech model (for books with no ebook).
 
-## From the 24 Oct notes — done, not built yet
+## From the 24 Oct notes — built in v1.0.125
 - Voice command on Home (mic button): "play when Harry first boards the Hogwarts Express" →
   AI names the book, chapter and how far in; your copy is found (playing, phone, downloads,
   played before, Audiobookshelf, TorBox / RD — else Search) and starts 30 s before it. A line
