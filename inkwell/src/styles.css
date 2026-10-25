@@ -9647,3 +9647,26 @@ button.notes-book-head {
 :root[data-palette][data-mode] .cover-fallback {
   padding-top: 24%;
 }
+/* Light themes: greeting in the theme's ink, and the logo's "A" in the accent (the pale
+   cyan → pink gradient vanishes on a light chip). */
+:root[data-mode='light']:is([data-palette='linen'], [data-palette='cloud'], [data-palette='apricot'], [data-palette='sage'], [data-palette='lilac'], [data-palette='stone'], [data-palette='sepia'], [data-palette='paper'], [data-palette='blossom'], [data-palette='mint'], [data-palette='default'], [data-palette='studio'], [data-palette='paperink']) {
+  & .home-hello b {
+    color: var(--text);
+  }
+  & .home-hello small {
+    color: var(--muted);
+    opacity: 1;
+  }
+  & .home-logo span {
+    color: var(--text);
+  }
+  & .home-logo stop:nth-child(1) {
+    stop-color: var(--accent);
+  }
+  & .home-logo stop:nth-child(2) {
+    stop-color: color-mix(in srgb, var(--accent) 50%, var(--accent-2));
+  }
+  & .home-logo stop:nth-child(3) {
+    stop-color: var(--accent-2);
+  }
+}
