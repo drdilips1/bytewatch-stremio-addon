@@ -19,10 +19,10 @@
   },
   "adapters": {
     "source": {
-      "cacheNotifyUrl": "https://audiohub.dilip-aiims.workers.dev/abb/api/debrid-notify",
+      "cacheNotifyUrl": "https://api.audiohubapp.com/abb/api/debrid-notify",
       "request": {
         "method": "POST",
-        "url": "https://audiohub.dilip-aiims.workers.dev/abb/api/search",
+        "url": "https://api.audiohubapp.com/abb/api/search",
         "timeout": 30000,
         "headers": {
           "Accept": "application/json",

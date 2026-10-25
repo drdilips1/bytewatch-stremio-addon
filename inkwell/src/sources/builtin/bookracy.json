@@ -19,10 +19,10 @@
   },
   "adapters": {
     "source": {
-      "cacheNotifyUrl": "https://audiohub.dilip-aiims.workers.dev/bookracy/notify",
+      "cacheNotifyUrl": "https://api.audiohubapp.com/bookracy/notify",
       "request": {
         "method": "GET",
-        "url": "https://audiohub.dilip-aiims.workers.dev/bookracy/search?q={QUERY}",
+        "url": "https://api.audiohubapp.com/bookracy/search?q={QUERY}",
         "timeout": 30000,
         "headers": {
           "Accept": "application/json"

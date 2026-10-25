@@ -17,7 +17,7 @@
     "source": {
       "request": {
         "method": "POST",
-        "url": "https://audiohub.dilip-aiims.workers.dev/knaben/ebooks",
+        "url": "https://api.audiohubapp.com/knaben/ebooks",
         "headers": {
           "Content-Type": "application/json"
         },
