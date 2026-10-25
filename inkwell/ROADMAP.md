@@ -7,6 +7,18 @@ Noted while building; to pick up after Saturday.
   (low contrast, hard to see). And the current line sits too high, partly hidden under the
   top fade; it should be a bit lower, clearly in view.
 
+## Public app — waiting on its `work` branch (test build later, then release)
+Done and pushed, not built:
+- Sources: audiobooks first, then ebooks; ready to play first, then the most seeded.
+- Ebook sources' results open with Read, never "Play now" (fixes "Getting the file list…" hangs).
+- "Getting the file list": stops at once with the reason (no audio / ebook files, TorBox not answering).
+- Report a problem includes TorBox file-list errors.
+- Backup: saving a big backup no longer crashes the app (empty file).
+- Addon links that can't be reached say which site; broken addon icons show the puzzle piece.
+- No ready-made (one-tap) addons — the public app ships with no sources.
+- Share these addon links (own domain): https://api.audiohubapp.com/addons/{audiobookbay,knaben-audiobooks,knaben-ebooks,bookracy}.json
+- Later: README screenshots + feature list; optional Sponsor / Ko-fi button.
+
 ## To do — noted 25 Oct (main app, not started, don't build yet)
 - Book page sources: back to the old order — **Audiobooks first, then Ebooks**.
   Each section collapsed except its **top 3 results**, with "Show all" to open the rest.
