@@ -3,6 +3,7 @@
 // "ask about what I'm hearing" using where you are in the book right now.
 // Answers come from what the AI knows about the book plus its description —
 // it doesn't have the audio or text itself, and is told to say so when unsure.
+import { heardText } from './transcript.js';
 import { askAi, parseJson } from './ai.js';
 import { persisted, progress, settings } from './store.js';
 import { mainTitle } from './match.js';
@@ -108,7 +109,9 @@ export function hearing(book) {
   if (!book || !st.book || st.book.uid !== book.uid) return null;
   const g = player.globalTime();
   const ch = player.chapters().find((c) => g >= c.start && g < (c.end || Infinity));
-  return { chapter: ch?.title || '', time: g, label: `${ch?.title ? `${ch.title}, ` : ''}${fmtTime(g)}` };
+  // What was just said (from the live transcript, when it ran): the last few minutes.
+  const heard = heardText(st.book.uid, st.index, st.time + 2, 3500).replace(/^…/, '').trim();
+  return { chapter: ch?.title || '', time: g, label: `${ch?.title ? `${ch.title}, ` : ''}${fmtTime(g)}`, heard };
 }
 
 function savedIdeas() {
@@ -160,7 +163,7 @@ const STYLE = 'When something you say comes from outside the book itself (genera
  * Ask a question. `msgs` is the conversation so far ({ role: 'user'|'ai', text }).
  * Returns the answer text and saves the thread.
  */
-export async function ask(book, question, { msgs = [], description = '', genres = [], mode = '', where = null, drive = false } = {}) {
+export async function ask(book, question, { msgs = [], description = '', genres = [], mode = '', where = null, drive = false, voice = false } = {}) {
   const history = msgs
     .slice(-6)
     .map((m) => `${m.role === 'user' ? 'Reader' : 'You'}: ${m.quiz ? '(a quiz)' : m.text}`)
@@ -174,6 +177,10 @@ export async function ask(book, question, { msgs = [], description = '', genres 
   if (spoil) extra.push(spoil);
   if (where && drive) extra.push(`The reader is listening right now at ${where.label}. If the question is about what they're hearing, answer about that part of the book as best you know it.`);
   else if (where) extra.push(`The reader is listening right now at ${where.label}. Answer about the part of the book around this point as best you know it; say if you can't be sure exactly what is said there.`);
+  if (where?.heard)
+    extra.push(`What the listener just heard (speech-recognised, a few words may be wrong; the last line is where they are now):\n"""${where.heard}"""\nAnswer from this passage first.`);
+  // Spoken questions are recognised by the phone and can be misheard ("items" for "atoms").
+  if (voice || drive) extra.push('The question was spoken and recognised by the phone, so a word may be misheard: if it makes little sense, answer what they most likely meant (especially a word from the passage above) and say so briefly.');
   // Driving: the answer is only heard, so keep it short and easy to follow by ear.
   if (drive) extra.push('The reader is driving and will only hear your answer read aloud: reply in 2–5 short spoken sentences (under 90 words), no lists, headings or symbols.');
   const prompt = `${context(book, { description, genres })}
