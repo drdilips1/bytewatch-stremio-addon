@@ -74,8 +74,15 @@ function toBytes(num, unit) {
 
 const page = (url) => fetch(url, { headers: { "User-Agent": UA, Accept: "text/html", "Accept-Language": "en-US,en;q=0.9" } });
 
+// Words of a title, for matching ("The Project Hail Mary!" → project, hail, mary).
+const words = (t) => String(t || "").toLowerCase().normalize("NFKD").replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((w) => w.length > 1 && !["the", "a", "an", "of", "and"].includes(w));
+
 async function abbDirect(title, author, limit = 12) {
-  const q = [title, author].filter(Boolean).join(" ").trim();
+  // AudiobookBay's search gets confused by author names: search the title, then keep
+  // only results that carry most of its words.
+  const q = String(title || author || "").trim();
+  const want = words(q);
+  const fits = (name) => !want.length || want.filter((w) => words(name).includes(w)).length / want.length >= 0.6;
   let host = "", html = "";
   for (const h of ABB_MIRRORS) {
     try {
@@ -109,7 +116,7 @@ async function abbDirect(title, author, limit = 12) {
         language: (/Language:\s*([A-Z][a-z]+)/.exec(info) || [])[1] || ""
       };
     })
-    .filter(Boolean)
+    .filter((x) => x && fits(x.title))
     .slice(0, limit);
   // Each result's own page has its info hash.
   const withHash = await Promise.all(
