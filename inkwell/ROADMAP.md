@@ -7,6 +7,10 @@ Noted while building; to pick up after Saturday.
   (low contrast, hard to see). And the current line sits too high, partly hidden under the
   top fade; it should be a bit lower, clearly in view.
 
+## To do — noted 25 Oct (main app, not started, don't build yet)
+- Book page sources: back to the old order — **Audiobooks first, then Ebooks**.
+  Each section collapsed except its **top 3 results**, with "Show all" to open the rest.
+
 ## Later — agreed 25 Oct, remember these (not started)
 - Search in a book: a box on the book page that searches the ebook text and the heard transcript, tap to jump.
 - Personal tags (Psychology, Science, Spirituality…) with Library filters.
