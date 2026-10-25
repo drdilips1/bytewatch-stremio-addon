@@ -9149,3 +9149,56 @@ button.notes-book-head {
   gap: 6px;
   margin: 8px 0 4px;
 }
+.tl-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.tl-top .tl-bar {
+  flex: 1;
+  min-width: 0;
+}
+.tl-grow {
+  flex: 1;
+}
+.tl-find-btn {
+  flex: none;
+  margin-top: 6px;
+}
+.tl-find {
+  flex: none;
+  margin: 8px 4px 0;
+}
+.tl-find input {
+  width: 100%;
+}
+.tl-find-hits {
+  max-height: 34vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+.tl-find-hits button {
+  display: flex;
+  gap: 10px;
+  text-align: left;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: 14px;
+}
+.tl-find-hits small {
+  flex: none;
+  opacity: 0.6;
+  padding-top: 1px;
+}
+.tl-find-hits mark {
+  background: var(--accent);
+  color: #111;
+  border-radius: 3px;
+  padding: 0 2px;
+}

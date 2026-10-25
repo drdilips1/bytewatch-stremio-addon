@@ -167,6 +167,11 @@ const handlers = {
       handlers.ended();
     }
     if (state.sleepUntil && Date.now() >= state.sleepUntil) fadeOutAndPause();
+    // "End of chapter" inside one long file (an M4B with chapter marks): stop at the mark.
+    if (state.sleepChapterEnd && globalTime() >= state.sleepChapterEnd - 0.3) {
+      set({ sleepChapterEnd: null, sleepEndOfTrack: false });
+      fadeOutAndPause();
+    }
   },
   playing(on) {
     if (on) loadingAt = null;
@@ -363,6 +368,15 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
       meta: { title: t.title || b.title, artist: b.author || '', album: b.title, artwork: b.cover || '' },
     });
     if (!autoplay) set({ loading: false, phase: '' });
+    // One long file with chapter marks inside (M4B): read them, for the chapter list,
+    // "end of chapter" and "next chapter".
+    if (state.tracks.length === 1 && !b.chaptersMeta?.length) {
+      const uid = b.uid;
+      import('./m4bchapters.js')
+        .then((m) => m.m4bChapters(uid, url, t.headers, t.duration || state.duration))
+        .then((list) => list.length && state.book?.uid === uid && patchBook(uid, { chaptersMeta: list }))
+        .catch(() => {});
+    }
     queueBase = i;
     queueAhead(token);
   } catch (e) {
@@ -637,9 +651,16 @@ export function setSleep(mode) {
   const wasTrack = state.sleepEndOfTrack;
   if (mode === 'track') engine.queue?.([]);
   else if (wasTrack && state.book) setTimeout(() => queueAhead(loadToken));
-  if (mode === 'track') set({ sleepUntil: null, sleepEndOfTrack: true });
-  else if (!mode) set({ sleepUntil: null, sleepEndOfTrack: false });
-  else set({ sleepUntil: Date.now() + mode * 60e3, sleepEndOfTrack: false });
+  // A book with chapter marks inside its file(s): the end of the chapter you're in.
+  let chapterEnd = null;
+  if (mode === 'track' && state.book?.chaptersMeta?.length) {
+    const g = globalTime();
+    const c = state.book.chaptersMeta.find((x) => g >= x.start && g < (x.end || Infinity));
+    if (c?.end) chapterEnd = c.end;
+  }
+  if (mode === 'track') set({ sleepUntil: null, sleepEndOfTrack: true, sleepChapterEnd: chapterEnd });
+  else if (!mode) set({ sleepUntil: null, sleepEndOfTrack: false, sleepChapterEnd: null });
+  else set({ sleepUntil: Date.now() + mode * 60e3, sleepEndOfTrack: false, sleepChapterEnd: null });
 }
 
 /** Add details to the book that's playing (e.g. chapters fetched afterwards). */

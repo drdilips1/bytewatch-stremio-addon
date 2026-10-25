@@ -7,7 +7,8 @@ import { toast } from './common.jsx';
 import * as player from '../lib/player.js';
 import { knownCharacters, CharacterCard } from './story-sheet.jsx';
 import { useStore } from '../lib/store.js';
-import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone } from '../lib/transcript.js';
+import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines } from '../lib/transcript.js';
+import { fmtTime } from '../lib/format.js';
 
 // Wrap known character names in tappable spans.
 function withNames(text, names, onTap) {
@@ -171,6 +172,7 @@ export function TranscriptView({ s }) {
   const [t, setT] = useState(null);
   const chars = useStore(knownCharacters);
   const [card, setCard] = useState(null);
+  const [finding, setFinding] = useState(false);
   const list = chars.uid === s.book?.uid ? chars.list : [];
   // Full names, aliases and distinctive first names all link to the same character.
   const lookup = new Map();
@@ -213,7 +215,13 @@ export function TranscriptView({ s }) {
 
   return (
     <div class="transcript-col">
-      {!t?.published && <EbookStatus b={t?.bookText} />}
+      <div class="tl-top">
+        {!t?.published ? <EbookStatus b={t?.bookText} /> : <span class="tl-grow" />}
+        <button class={'icon-btn tl-find-btn' + (finding ? ' active' : '')} aria-label="Search what you've heard" onClick={() => setFinding(!finding)}>
+          <Icon name={finding ? 'close' : 'search'} size={18} />
+        </button>
+      </div>
+      {finding && <FindHeard s={s} close={() => setFinding(false)} />}
       <div class="transcript" ref={box} onTouchMove={() => (userScroll.current = Date.now())} onWheel={() => (userScroll.current = Date.now())}>
         {segs.length === 0 && (
           <div class="transcript-wait">
@@ -309,6 +317,47 @@ function ModelPicker() {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Search everything heard of this book so far (all parts); tap a line to play from there. */
+function FindHeard({ s, close }) {
+  const [q, setQ] = useState('');
+  const words = q.toLowerCase().split(/\s+/).filter((w) => w.length > 1);
+  const hits = words.length
+    ? heardLines(s.book.uid)
+        .filter((l) => words.every((w) => l.text.toLowerCase().includes(w)))
+        .slice(0, 40)
+    : [];
+  const mark = (text) => {
+    const w = words.find((x) => text.toLowerCase().includes(x));
+    if (!w) return text;
+    const i = text.toLowerCase().indexOf(w);
+    return [text.slice(0, i), <mark>{text.slice(i, i + w.length)}</mark>, text.slice(i + w.length)];
+  };
+  return (
+    <div class="tl-find">
+      <input type="search" autoFocus placeholder="Search what you've heard in this book" value={q} onInput={(e) => setQ(e.currentTarget.value)} />
+      {words.length > 0 && (
+        <div class="tl-find-hits">
+          {hits.map((l) => {
+            const g = player.trackOffset(l.track) + l.start;
+            return (
+              <button
+                onClick={() => {
+                  player.playAt(Math.max(0, g - 3));
+                  close();
+                }}
+              >
+                <small>{fmtTime(g)}</small>
+                <span>{mark(l.text)}</span>
+              </button>
+            );
+          })}
+          {!hits.length && <p class="muted small">Not in what you've heard yet (only parts played with Text on are searchable).</p>}
+        </div>
+      )}
     </div>
   );
 }
