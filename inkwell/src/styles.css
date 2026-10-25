@@ -9233,3 +9233,13 @@ button.notes-book-head {
   color: var(--text);
   font-size: 13.5px;
 }
+.paste-link {
+  margin-top: 12px;
+}
+.paste-btns {
+  display: flex;
+  gap: 10px;
+}
+.paste-btns .btn {
+  flex: 1;
+}

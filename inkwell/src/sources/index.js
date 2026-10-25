@@ -71,6 +71,11 @@ export function sourceOf(uid) {
  * online details lookup — use what's already known, so playback starts sooner.
  */
 export async function getDetails(book, { fast = false } = {}) {
+  // A pasted link (direct MP3 / M4B…): the link is in its id, so Continue can reopen it.
+  if ((book.uid || '').startsWith('url:') && book.kind !== 'text') {
+    const url = decodeURIComponent(book.uid.slice(4));
+    return applyLocal({ ...book, tracks: book.tracks?.length ? book.tracks : [{ title: book.title, url, index: 0 }] });
+  }
   const src = SOURCES[sourceOf(book.uid || '')];
   // No source to ask (e.g. a direct ebook link): show what we already know.
   if (!src?.impl?.details) return applyLocal({ ...book });

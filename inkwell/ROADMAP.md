@@ -20,7 +20,18 @@ Noted while building; to pick up after Saturday.
 - Cross-library passage map: related passages in other books, tap to jump (needs those books' ebooks).
 - Highlights from transcript lines linked to audio timestamps.
 
-## Pending — agreed, being built 25 Oct
+## Built 25 Oct (v1.0.128)
+- Bookmark notes (✎) and one Markdown export (highlights, bookmarks, saved ideas); welcome-back recap
+  after 14+ days; per-book speed and volume boost; your own OpenAI-compatible AI + what-leaves-the-phone note.
+- Podcasts: episode 👍 / 👎 / Not interested, Recommended episodes, auto-download per show on Wi-Fi.
+- Library smart shelves (Not started, Short listens, Recently added), series progress; Downloads storage
+  (biggest first, remove finished).
+- Chapter marks read from one-file M4B books (chapter list, end-of-chapter sleep, next chapter);
+  search what you've heard in the transcript; player one row + More; paste a link to add / play / read.
+- Not done from this list: updating the public repo (on "update public repo"); Android Auto (later);
+  "keep your place when a book's files are replaced"; episode votes not yet fed into the book taste engine.
+
+## Pending — older list (most of it built 25 Oct, see above)
 **Podcasts, second batch**
 - Timestamped notes while listening (extend Saved ideas): note at this moment, tap to jump back, search all notes.
 - Episode ratings + "not interested", fed into the taste engine, with a "Recommended episodes" row.

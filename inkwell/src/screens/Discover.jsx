@@ -14,6 +14,7 @@ import { BooksellerAnswer, askNow, looksLikeRequest, EXAMPLES } from '../compone
 import { SourceResults } from '../components/source-results.jsx';
 import { sourceAddons } from '../sources/sourceaddons.js';
 import { RelatedRows } from '../components/related.jsx';
+import { PasteLink, isLink } from '../components/paste-link.jsx';
 
 const recent = persisted('recentSearches', []);
 let pendingQuery = '';
@@ -230,7 +231,7 @@ export function Discover() {
   }, [q]);
 
   useEffect(() => {
-    if (term.length < 2) return setResults({});
+    if (term.length < 2 || isLink(term)) return setResults({});
     let alive = true;
     setResults({});
     setPending(1);
@@ -258,7 +259,7 @@ export function Discover() {
         <input
           ref={inputRef}
           value={q}
-          placeholder="Search, or describe what you want…"
+          placeholder="Search, describe what you want, or paste a link…"
           onInput={(e) => setQ(e.currentTarget.value)}
           onKeyDown={(e) => e.key === 'Enter' && (commit(true), e.currentTarget.blur())}
           onBlur={() => commit()}
@@ -271,7 +272,9 @@ export function Discover() {
         )}
       </div>
 
-      {term.length < 2 ? (
+      {isLink(q) ? (
+        <PasteLink q={q} />
+      ) : term.length < 2 ? (
         <>
           <button class="search-hint" onClick={() => (setQ(hint), askNow(hint))}>
             <Icon name="sparkle" size={14} /> Try “{hint}”
