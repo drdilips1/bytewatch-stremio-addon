@@ -136,17 +136,21 @@ object LocalTts {
     fun prepare(voiceId: String) = synchronized(lock) { engineFor(voiceId) }
 
     /** Generates [text] as 16-bit PCM. [lang] is the document's language (Supertonic). */
-    fun synthesize(voiceId: String, text: String, speed: Float, lang: String?, useSpare: Boolean = false): Pcm =
+    fun synthesize(voiceId: String, text: String, speed: Float, lang: String?, useSpare: Boolean = false, seed: Int? = null): Pcm =
         if (useSpare && hasSpare) synchronized(spareLock) {
             val key = engineKey(voiceId)
             val tts = spare?.takeIf { it.first == key }?.second ?: run {
                 spare?.second?.release()
                 newEngine(key).also { spare = key to it }
             }
-            generate(tts, voiceId, text, speed, lang)
-        } else synchronized(lock) { generate(engineFor(voiceId), voiceId, text, speed, lang) }
+            generate(tts, voiceId, text, speed, lang, seed)
+        } else synchronized(lock) { generate(engineFor(voiceId), voiceId, text, speed, lang, seed) }
 
-    private fun generate(tts: OfflineTts, voiceId: String, text: String, speed: Float, lang: String?): Pcm {
+    /** The seed copied voice [voiceId] reads with: the one picked for it, else one from its id. */
+    fun currentSeed(voiceId: String) = seedFor(voiceId)
+
+    /** [seed]: a copied voice's take with another seed (to pick the best take); null = its own. */
+    private fun generate(tts: OfflineTts, voiceId: String, text: String, speed: Float, lang: String?, seedOverride: Int? = null): Pcm {
         missing(voiceId)?.let { error("Download the ${it.title} first") }
         val name = voiceId.substringAfter(':')
         val audio = when {
@@ -214,7 +218,7 @@ object LocalTts {
                     return if (cut != null) GeneratedAudio(led.samples.copyOfRange(cut, led.samples.size), led.sampleRate)
                     else gen(spoken, seed)
                 }
-                val seed = seedFor(voiceId)
+                val seed = seedOverride ?: seedFor(voiceId)
                 val first = take(seed)
                 // Far too long or too short for its words means the model lost its way (mumbling,
                 // skipping, or saying the sentence twice): make it once more with another take, and keep

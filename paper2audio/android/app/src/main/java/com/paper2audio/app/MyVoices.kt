@@ -146,14 +146,18 @@ object MyVoices {
                 version = it.optInt("v", 1),
                 pause = it.optInt("pause", 0),
                 denoised = it.optBoolean("dn", true),
+                seed = it.optInt("seed", 0),
             )
         }.filter { File(dir, "${it.id}.wav").exists() }
     }
 
     fun get(id: String) = list().firstOrNull { it.id == id }
 
-    /** The picked engine seed of ready-made voice [id] (0 = none). */
-    fun seedOf(id: String) = BUILT_IN.firstOrNull { it.id == id }?.seed ?: 0
+    /** The picked engine seed of voice [id] (0 = none: one from its id). Copied voices get one from "Pick the best take". */
+    fun seedOf(id: String) = BUILT_IN.firstOrNull { it.id == id }?.seed ?: own().firstOrNull { it.id == id }?.seed ?: 0
+
+    /** Keeps [seed] for copied voice [id]: every sentence is then read with that take of the voice. */
+    fun setSeed(id: String, seed: Int) = save(own().map { if (it.id == id) it.copy(seed = seed) else it })
 
     /** Whether voice [id] needs the throwaway lead-in (copied voices: yes; some ready-made ones don't). */
     fun leadInOf(id: String) = BUILT_IN.firstOrNull { it.id == id }?.leadIn ?: true
@@ -207,7 +211,7 @@ object MyVoices {
         cleanedMap = null
         val arr = JSONArray()
         voices.forEach {
-            arr.put(JSONObject().put("id", it.id).put("name", it.name).put("created", it.created).put("seconds", it.seconds.toDouble()).put("v", it.version).put("pause", it.pause).put("dn", it.denoised))
+            arr.put(JSONObject().put("id", it.id).put("name", it.name).put("created", it.created).put("seconds", it.seconds.toDouble()).put("v", it.version).put("pause", it.pause).put("dn", it.denoised).put("seed", it.seed))
         }
         index.writeText(arr.toString())
     }

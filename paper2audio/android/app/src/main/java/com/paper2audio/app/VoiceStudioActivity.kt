@@ -35,6 +35,8 @@ import java.util.Locale
  */
 class VoiceStudioActivity : Activity() {
     private companion object {
+        /** One line for every take of "Pick the best take": a little narration and a little speech, as in a book. */
+        const val TAKE_LINE = "She opened the door, looked outside, and smiled. \u201CNearly there,\u201D she said quietly, \u201Cjust a little further.\u201D"
         const val REQ_IMPORT = 1
         const val REQ_MIC = 2
         const val DIALOGUE_SAMPLE = "“Are you coming with us tonight?” asked Maya. Tom looked out at the rain " +
@@ -751,10 +753,19 @@ class VoiceStudioActivity : Activity() {
                 } else ""
                 AlertDialog.Builder(this@VoiceStudioActivity)
                     .setTitle("“${voice.name}” is ready")
-                    .setMessage("Listen to it, or use it to read your documents.$tip")
-                    .setPositiveButton("Use it") { _, _ -> use(Speaker.CLONE + voice.id) }
+                    .setMessage(
+                        "Every copy comes out a little different. Pick the best take: hear four and keep the one " +
+                            "that sounds most like the speaker. Or listen to it, or use it as it is.$tip",
+                    )
+                    .setPositiveButton("Pick the best take") { _, _ ->
+                        Speaker.stopPreview()
+                        pickTake(voice)
+                    }
                     .setNeutralButton("Listen", null)
-                    .setNegativeButton("Close") { _, _ -> Speaker.stopPreview() }
+                    .setNegativeButton("Use it") { _, _ ->
+                        Speaker.stopPreview()
+                        use(Speaker.CLONE + voice.id)
+                    }
                     .show()
                     .getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { preview(Speaker.CLONE + voice.id) }
             } catch (e: Exception) {
@@ -779,7 +790,9 @@ class VoiceStudioActivity : Activity() {
         if (!src.exists()) return toast("That voice's recording is missing")
         val safe = v.name.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').ifEmpty { "voice" }
         val dir = java.io.File(cacheDir, "share").apply { mkdirs() }
-        val out = java.io.File(dir, "${safe}__p${v.pause}__d${if (v.denoised) 1 else 0}__id${v.id}.wav")
+        // s: the take picked with "Pick the best take" (without it, the seed comes from the id).
+        val seed = if (v.seed > 0) "__s${v.seed}" else ""
+        val out = java.io.File(dir, "${safe}__p${v.pause}__d${if (v.denoised) 1 else 0}__id${v.id}$seed.wav")
         src.copyTo(out, overwrite = true)
         val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.files", out)
         startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
@@ -793,8 +806,10 @@ class VoiceStudioActivity : Activity() {
     private fun voiceMenu(v: MyVoices.Voice) {
         AlertDialog.Builder(this)
             .setTitle(v.name)
-            .setItems(arrayOf("Rename", "Delete", "Share the voice file")) { _, which ->
-                if (which == 2) {
+            .setItems(arrayOf("Rename", "Delete", "Share the voice file", "Pick the best take")) { _, which ->
+                if (which == 3) {
+                    pickTake(v)
+                } else if (which == 2) {
                     shareVoice(v)
                 } else if (which == 0) {
                     val input = EditText(this).apply { setText(v.name); isSingleLine = true }
@@ -823,6 +838,64 @@ class VoiceStudioActivity : Activity() {
                 }
             }
             .show()
+    }
+
+    /**
+     * The same recording copied twice can sound like two people: the engine's seed decides. Four takes of
+     * one line (the voice's own and three others) to hear one after another; the one kept is used for
+     * every sentence from then on, and goes with the voice when it's shared.
+     */
+    private fun pickTake(v: MyVoices.Voice) {
+        val voiceId = Speaker.CLONE + v.id
+        val current = LocalTts.currentSeed(voiceId)
+        val seeds = listOf(current) + generateSequence { kotlin.random.Random.nextInt(1, 100_000) }.filter { it != current }.distinct().take(3)
+        val dir = java.io.File(cacheDir, "takes").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
+        val progress = AlertDialog.Builder(this)
+            .setTitle("Making four takes…")
+            .setMessage("About half a minute. Each one reads the same line.")
+            .setCancelable(false)
+            .show()
+        scope.launch {
+            val files = try {
+                withContext(Dispatchers.Default) {
+                    seeds.mapIndexed { i, s ->
+                        java.io.File(dir, "take$i.wav").also { LocalTts.writeWav(it, LocalTts.synthesize(voiceId, TAKE_LINE, 1f, "en", seed = s)) }
+                    }
+                }
+            } catch (e: Exception) {
+                AppLog.e("Studio", "Couldn't make the takes", e)
+                progress.dismiss()
+                toast(e.message ?: "Couldn't make the takes")
+                return@launch
+            }
+            progress.dismiss()
+            var player: android.media.MediaPlayer? = null
+            fun play(i: Int) {
+                player?.release()
+                player = android.media.MediaPlayer().apply {
+                    setDataSource(files[i].path)
+                    prepare()
+                    start()
+                }
+            }
+            var chosen = 0
+            val labels = seeds.indices.map { i -> if (i == 0) "Take 1 (the one it has now)" else "Take ${i + 1}" }.toTypedArray()
+            AlertDialog.Builder(this@VoiceStudioActivity)
+                .setTitle("Tap a take to hear it")
+                .setSingleChoiceItems(labels, 0) { _, which ->
+                    chosen = which
+                    runCatching { play(which) }
+                }
+                .setPositiveButton("Keep this take") { _, _ ->
+                    if (seeds[chosen] != current) MyVoices.setSeed(v.id, seeds[chosen])
+                    Speaker.refreshVoices()
+                    toast("“${v.name}” now reads with take ${chosen + 1}")
+                }
+                .setNegativeButton("Cancel", null)
+                .setOnDismissListener { player?.release() }
+                .show()
+            runCatching { play(0) }
+        }
     }
 
     private fun toast(msg: String) {
