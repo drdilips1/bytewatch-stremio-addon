@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "my-knaben-ebooks",
+  "name": "Knaben Ebooks",
+  "version": "1.0.0",
+  "description": "Ebook torrent search via my Audiohub Worker",
+  "icon": "https://knaben.org/favicon.ico",
+  "provides": [
+    "source"
+  ],
+  "contentType": "ebook",
+  "matching": {
+    "algorithm": "fuzzy",
+    "threshold": 0.6
+  },
+  "adapters": {
+    "source": {
+      "request": {
+        "method": "POST",
+        "url": "https://audiohub.dilip-aiims.workers.dev/knaben/ebooks",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "query": "{TITLE}",
+          "search_field": "title",
+          "size": 50,
+          "categories": [
+            9001000,
+            9000000,
+            10000000
+          ]
+        }
+      },
+      "response": {
+        "type": "json",
+        "resultsPath": "hits",
+        "mapping": {
+          "title": "title",
+          "magnetUrl": "magnetUrl",
+          "sizeBytes": "bytes",
+          "seeders": "seeders",
+          "infoHash": "hash"
+        }
+      }
+    }
+  }
+}

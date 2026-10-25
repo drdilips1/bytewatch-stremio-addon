@@ -10,7 +10,20 @@ import { infoHash, torboxCached } from './debrid.js';
 
 export const isSourceManifest = (m) => !!(m && typeof m === 'object' && m.id && m.name && m.adapters?.source?.request?.url);
 
-export const sourceAddons = () => addons.get().filter((a) => a.kind === 'source');
+// Built in and always on (not listed in Settings → Addons): torrent search for
+// audiobooks and ebooks through Audiohub's own worker. Addons you install are added to these.
+import abb from './builtin/audiobookbay.json';
+import knabenAudio from './builtin/knaben-audiobooks.json';
+import knabenEbooks from './builtin/knaben-ebooks.json';
+import bookracy from './builtin/bookracy.json';
+const BUILTIN = [knabenAudio, abb, knabenEbooks, bookracy].map((manifest) => ({ kind: 'source', url: '', builtin: true, manifest }));
+// Installed copies of the built-in ones (older or newer links) — they'd only repeat the same results.
+export const BUILTIN_IDS = new Set([
+  ...BUILTIN.map((a) => a.manifest.id),
+  ...BUILTIN.map((a) => a.manifest.id.replace(/^my-/, '')),
+]);
+
+export const sourceAddons = () => [...BUILTIN, ...addons.get().filter((a) => a.kind === 'source' && !BUILTIN_IDS.has(a.manifest.id))];
 
 // ---- helpers ----------------------------------------------------------------
 function fill(v, vars, encode) {
