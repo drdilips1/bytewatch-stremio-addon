@@ -8881,7 +8881,7 @@ button.stats {
   margin-top: 6px;
 }
 .xray-now .xray-chip {
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.1);
   padding: 6px 12px;
   font-size: 14px;
 }
@@ -8906,8 +8906,8 @@ button.stats {
   padding: 10px 12px;
   border: 0;
   border-radius: 12px;
-  background: var(--surface);
-  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
 }
 .xray-tl small {
   grid-column: 1;
@@ -9042,9 +9042,9 @@ button.notes-book-head {
   font-size: 16px;
   padding: 10px 14px;
   border-radius: 14px;
-  border: 1px solid var(--line, rgba(127, 127, 127, 0.35));
-  background: var(--surface);
-  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
 }
 .scene-btns {
   display: flex;
@@ -9229,8 +9229,9 @@ button.notes-book-head {
   padding: 16px 6px;
   border: 0;
   border-radius: 16px;
-  background: var(--surface);
-  color: var(--text);
+  /* Sheets are always dark: light text on a light tint, whatever the theme */
+  background: rgba(255, 255, 255, 0.09);
+  color: inherit;
   font-size: 13.5px;
 }
 .paste-link {
@@ -9242,4 +9243,25 @@ button.notes-book-head {
 }
 .paste-btns .btn {
   flex: 1;
+}
+/* Lists inside sheets follow the sheet's own colours (dark in the player, whatever the theme) */
+.sheet .char-list li,
+.sheet .timeline {
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  color: inherit;
+}
+.sheet .char-head span,
+.sheet .xray-tl small,
+.sheet .xray-tl .xray-at,
+.sheet .timeline-head {
+  color: inherit;
+  opacity: 0.68;
+}
+.sheet .timeline-head b {
+  color: inherit;
+}
+.sheet .fp-more button,
+.sheet .xray-tl button,
+.sheet .xray-now .xray-chip {
+  background: color-mix(in srgb, currentColor 10%, transparent);
 }
