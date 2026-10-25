@@ -27,6 +27,10 @@ const WHERE = [
   ['phone', 'On this phone'],
   ['downloaded', 'Downloaded'],
   ['saved', 'Saved'],
+  // Smart shelves
+  ['notstarted', 'Not started'],
+  ['short', 'Short listens'],
+  ['recent', 'Recently added'],
 ];
 
 // How the books are laid out.
@@ -173,6 +177,12 @@ export function Library() {
       };
       // Every copy of a book (phone, download, server, cloud) shows once.
       sub.all = oneEach(unique([...pick(started.map((p) => p.book)), ...sub.saved, ...sub.downloaded, ...sub.phone]));
+      // Smart shelves: never played; under 5 hours (audiobooks); added in the last 30 days.
+      sub.notstarted = sub.all.filter((b) => !prog?.[b.uid]);
+      const secs = (b) => Number(b.duration) || Number(metaNow(b)?.runtime) || 0;
+      sub.short = k === 'audio' ? sub.all.filter((b) => secs(b) > 0 && secs(b) < 5 * 3600) : [];
+      const month = Date.now() - 30 * 864e5;
+      sub.recent = sub.all.filter((b) => (b.addedAt || 0) > month || (lib?.[b.uid]?.addedAt || 0) > month).sort((a, b) => (b.addedAt || lib?.[b.uid]?.addedAt || 0) - (a.addedAt || lib?.[a.uid]?.addedAt || 0));
       return sub;
     };
     return {
@@ -550,6 +560,13 @@ async function remove(book, tab) {
 }
 
 /** Library sorted by series: each series in reading order, then books in no series. */
+/** "3 of 7 finished · 1 in progress". */
+function seriesLine(books, prog) {
+  const done = books.filter((b) => prog?.[b.uid]?.finished).length;
+  const going = books.filter((b) => prog?.[b.uid] && !prog[b.uid].finished).length;
+  return [`${books.length} book${books.length > 1 ? 's' : ''}`, done && `${done} finished`, going && `${going} in progress`].filter(Boolean).join(' · ');
+}
+
 function SeriesGroups({ items, mode = 'grid', prog }) {
   const groups = new Map();
   const loose = [];
@@ -569,7 +586,7 @@ function SeriesGroups({ items, mode = 'grid', prog }) {
       {list.map((g) => (
         <section class="lib-series">
           <h3 class="section-label pad">
-            {g.name} <small>{g.books.length} book{g.books.length > 1 ? 's' : ''}</small>
+            {g.name} <small>{seriesLine(g.books.map((x) => x.b), prog)}</small>
           </h3>
           <Books items={g.books.sort((x, y) => (x.n ?? 1e9) - (y.n ?? 1e9)).map((x) => x.b)} mode={mode} prog={prog} />
         </section>

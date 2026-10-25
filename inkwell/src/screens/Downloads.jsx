@@ -1,6 +1,7 @@
+import { useState } from 'preact/hooks';
 import { TopBar, Cover, toast } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
-import { useStore, settings } from '../lib/store.js';
+import { useStore, settings, progress } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { downloads, pauseDownload, resumeDownload, cancelDownload, removeDownload, fmtBytes, canDownload, isRunning } from '../lib/downloads.js';
 import { savedEbooks, forgetEbook } from '../lib/epub.js';
@@ -19,7 +20,14 @@ export function Downloads() {
   const list = Object.entries(all || {}).filter(([, d]) => d?.book);
   const active = list.filter(([, d]) => d.status === 'downloading');
   const waiting = list.filter(([, d]) => d.status === 'paused' || d.status === 'error');
-  const done = list.filter(([, d]) => d.status === 'done').sort((a, b) => (b[1].finishedAt || 0) - (a[1].finishedAt || 0));
+  // Storage: biggest first if you like, and finished books to clear in one go.
+  const [sortBy, setSortBy] = useState('recent');
+  const prog = useStore(progress);
+  const done = list
+    .filter(([, d]) => d.status === 'done')
+    .sort((a, b) => (sortBy === 'size' ? (b[1].bytes || 0) - (a[1].bytes || 0) : (b[1].finishedAt || 0) - (a[1].finishedAt || 0)));
+  const finished = done.filter(([uid]) => prog?.[uid]?.finished);
+  const finishedBytes = finished.reduce((n, [, d]) => n + (d.bytes || 0), 0);
   const ebooks = Object.entries(kept || {}).filter(([, x]) => x?.book);
   const audioBytes = done.reduce((n, [, d]) => n + (d.bytes || 0), 0);
   const ebookBytes = ebooks.reduce((n, [, x]) => n + (x.size || 0), 0);
@@ -96,6 +104,26 @@ export function Downloads() {
         </div>
       ))}
 
+      {finished.length > 0 && (
+        <button
+          class="btn ghost-wide lib-manage"
+          onClick={() => confirm(`Remove ${finished.length} finished book${finished.length > 1 ? 's' : ''} from this phone (${fmtBytes(finishedBytes)})?`) && Promise.all(finished.map(([uid]) => removeDownload(uid))).then(() => toast(`Freed ${fmtBytes(finishedBytes)}`))}
+        >
+          <Icon name="trash" size={16} /> Remove finished · {fmtBytes(finishedBytes)}
+        </button>
+      )}
+      {done.length > 1 && (
+        <div class="lib-sort pad dl-sort">
+          {[
+            ['recent', 'Recent'],
+            ['size', 'Biggest first'],
+          ].map(([k, label]) => (
+            <button class={'pill small' + (sortBy === k ? ' active' : '')} onClick={() => setSortBy(k)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       {done.length > 0 && <h3 class="section-label pad">Audiobooks on this phone</h3>}
       {done.map(([uid, d]) => (
         <div class="dl-item">
@@ -106,6 +134,7 @@ export function Downloads() {
             <b>{d.book.title}</b>
             <small>
               {fmtBytes(d.bytes || 0)} · {d.total || d.tracks?.length || 0} part{(d.total || 0) === 1 ? '' : 's'} · {d.location || ''}
+              {prog?.[uid]?.finished ? ' · Finished' : ''}
             </small>
           </div>
           <button class="icon-btn" aria-label="Remove download" onClick={() => confirm(`Remove “${d.book.title}” from this phone?`) && removeDownload(uid)}>
