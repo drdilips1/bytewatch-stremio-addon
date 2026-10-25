@@ -162,7 +162,14 @@ async function inEbook(book, want, part) {
   const end = part[part.length - 1].end || total;
   const anchors = anchorsFor(bt, part, end, want.title, part[0].start);
   const ci = want.chapterTitle || want.chapter ? pickChapter(part, want) : -1;
-  const tok = sceneInText(bt, [...(want.keywords || []), want.quote || ''], rangeOf(anchors, part, ci));
+  const words = [...(want.keywords || []), want.quote || ''];
+  // The chapter the AI named, found in the ebook itself: the scene is looked for there
+  // first (near how far in it said), the whole book only if it isn't there.
+  const { chapterRange } = await import('./scenefind.js');
+  const ch = chapterRange(bt, want.chapter, want.chapterTitle);
+  const inCh = Math.min(0.95, Math.max(0, Number(want.at) || 0));
+  let tok = ch ? sceneInText(bt, words, ch, { strict: true, target: ch[0] + inCh * (ch[1] - ch[0]) }) : null;
+  if (tok == null) tok = sceneInText(bt, words, rangeOf(anchors, part, ci));
   if (tok == null) return null;
   const g = timeOf(anchors, tok);
   const at = part.findIndex((c) => g >= c.start && g < (c.end || Infinity));
