@@ -1,0 +1,20 @@
+name: ss-probe
+on:
+  push:
+    paths: [".github/workflows/ss-probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for id in dee75259b6b8e0630dce 526af6fc28a90bed10c8 3356bd187611b2a29f40 bd3157954016bd9fd1ed; do
+            r=$(curl -sS -m 25 -D /tmp/h -H 'Origin: https://localhost' "https://api.npoint.io/$id" -o /tmp/b -w 'code=%{http_code} time=%{time_total} ip=%{remote_ip}' 2>&1)
+            echo "::notice title=$id::$r | $(grep -i 'access-control-allow-origin\|^server\|content-type' /tmp/h | tr -d '\r' | tr '\n' ' ') | $(python3 -c "
+          import json
+          try:
+            j=json.load(open('/tmp/b')); s=(j.get('adapters') or {}).get('source',{}).get('request',{})
+            print(j.get('id'), '|', j.get('name'), '|', j.get('contentType'), '|', s.get('method'), s.get('url'))
+          except Exception as e: print('not json', open('/tmp/b').read()[:200])
+          ")"
+          done
+          dig +short api.npoint.io | head -3 | tr '\n' ' ' | xargs -I{} echo "::notice title=dns::{}"
