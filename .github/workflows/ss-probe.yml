@@ -1,0 +1,14 @@
+name: ss-probe
+on:
+  push:
+    paths: [".github/workflows/ss-probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for id in QL9DT RYHKB 1OYO3; do
+            curl -sS -m 25 "https://jsonkeeper.com/b/$id" | python3 -c "import sys,json;print(json.dumps(json.load(sys.stdin),separators=(',',':')))" > /tmp/$id.json || echo "{}" > /tmp/$id.json
+            b=$(base64 -w0 /tmp/$id.json); n=0
+            while [ -n "$b" ]; do echo "::notice title=$id-$n::${b:0:3000}"; b=${b:3000}; n=$((n+1)); done
+          done
