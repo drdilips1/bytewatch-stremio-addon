@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Grid, Empty, Cover, toast, AskButton, BookCard } from '../components/common.jsx';
+import { Grid, Empty, Cover, BookCover, toast, AskButton, BookCard } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { library, progress, useStore, forgetBook, persisted, clearPodcastHistory } from '../lib/store.js';
 import { localSrc } from '../sources/index.js';
 import { fmtDuration } from '../lib/format.js';
-import { metaNow } from '../lib/meta.js';
+import { metaNow, metaFixes, coverNow, findMissingCovers } from '../lib/meta.js';
 import { seriesOf } from '../lib/series.js';
 import { oneEach } from '../lib/works.js';
 import { downloads, removeDownload } from '../lib/downloads.js';
@@ -52,7 +52,7 @@ function CoverGrid({ items }) {
       <div class="cover-grid">
         {items.slice(0, count).map((b) => (
           <button class="cover-tile" aria-label={titleOf(b)} onClick={() => (b.kind === 'text' && !String(b.uid).startsWith('lbl') ? nav.push('reader', { book: b }) : nav.push('book', { book: b }))}>
-            <Cover book={b} />
+            <BookCover book={b} />
           </button>
         ))}
       </div>
@@ -317,6 +317,7 @@ export function Library() {
           </div>
         </div>
       )}
+      {tab !== 'podcasts' && <MissingCovers items={items} local={local} />}
       {subs && where === 'phone' && !items.length ? (
         <PhoneEmpty />
       ) : tab === 'podcasts' ? (
@@ -354,7 +355,7 @@ export function Library() {
         <div class="lib-edit">
           {items.slice(0, editShown).map((b) => (
             <div class="lib-edit-row">
-              <Cover book={b} />
+              <BookCover book={b} />
               <div>
                 <b>{b.title}</b>
                 <small>{b.author}</small>
@@ -400,7 +401,7 @@ function ListView({ items, prog }) {
         const pct = p && !p.finished ? Math.round((p.percent || 0) * 100) : 0;
         return (
           <button class="lib-row" onClick={() => nav.push(b.kind === 'text' && /#ebook$/.test(b.uid) ? 'reader' : 'book', { book: b })}>
-            <Cover book={b} />
+            <BookCover book={b} />
             <div>
               <b>{bare(b.title)}</b>
               <small>
@@ -580,5 +581,33 @@ function SeriesGroups({ items, mode = 'grid', prog }) {
         </section>
       )}
     </>
+  );
+}
+
+/** "Find 37 missing covers": looks them all up in one go (Audible, Apple, Google, Open Library). */
+function MissingCovers({ items, local }) {
+  useStore(metaFixes);
+  const [run, setRun] = useState(null); // { done, total, found }
+  const phoneCover = (b) => b.source === 'loc' && (local.books || []).find((x) => x.uid === b.uid)?.cover;
+  const missing = items.filter((b) => !coverNow(b) && !phoneCover(b));
+  if (!missing.length && !run) return null;
+  const go = async () => {
+    setRun({ done: 0, total: missing.length, found: 0 });
+    const r = await findMissingCovers(missing, (done, total, found) => setRun({ done, total, found }));
+    setRun(null);
+    toast(r.found ? `Found ${r.found} of ${r.total} covers` : 'No covers found for these — try “Find cover & details” on a book');
+  };
+  return (
+    <button class="btn ghost-wide lib-manage" disabled={!!run} onClick={go}>
+      {run ? (
+        <>
+          <span class="spinner small" /> Finding covers {run.done}/{run.total} · {run.found} found
+        </>
+      ) : (
+        <>
+          <Icon name="covers" size={16} /> Find {missing.length} missing cover{missing.length === 1 ? '' : 's'}
+        </>
+      )}
+    </button>
   );
 }

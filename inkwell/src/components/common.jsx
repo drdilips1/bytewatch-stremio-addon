@@ -53,6 +53,13 @@ export function Cover({ book, class: cls = '', eager }) {
   );
 }
 
+/** A book's cover with whatever was found for it (its phone file's cover, a looked-up one). */
+export function BookCover({ book, class: cls = '' }) {
+  const localCover = useLocalCover(book);
+  const b = localCover ? { ...book, cover: localCover } : book;
+  return <Cover book={withMeta(b, useMeta(b))} class={cls} />;
+}
+
 // Paper & Ink: where a book lives, in plain words, instead of each provider's name and colour.
 const PLAIN = { abs: 'Server', tb: 'Cloud', rd: 'Cloud', loc: 'Local' };
 

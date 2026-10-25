@@ -197,7 +197,8 @@ export function lookup(book, { fresh = false } = {}) {
 
 // Sources whose items benefit from lookups.
 const ENRICH = new Set(['loc', 'tb', 'rd', 'addon', 'gr']);
-export const wantsMeta = (book) => !!book && ENRICH.has(book.source) && (!book.cover || book.source === 'tb' || book.source === 'rd');
+// Any book of yours without a cover gets one looked up too (not podcasts).
+export const wantsMeta = (book) => !!book && ((ENRICH.has(book.source) && (!book.cover || book.source === 'tb' || book.source === 'rd')) || (!book.cover && book.source !== 'pod' && !!book.title));
 /** Metadata already found for a book (no lookup), e.g. to sort phone books by author. */
 export const metaNow = (book) => fixFor(book?.uid) || (wantsMeta(book) ? cache.get()[keyFor(queryFor(book))]?.v || null : null);
 
@@ -217,4 +218,39 @@ export function useMeta(book) {
 
 export function clearMetaCache() {
   cache.set({});
+}
+
+// ---- Finding missing covers for a whole list at once (Library) -------------------
+const bare = (t) => String(t || '').replace(/^[\s\-–—_.,:;]+/, '').replace(/\.(epub|pdf|m4b|mp3|mobi|azw3?)$/i, '');
+/** The cover a book shows now (its own, one found for it, or one you picked), or ''. */
+export const coverNow = (book) => (book && (fixFor(book.uid)?.cover || book.cover || (wantsMeta(book) ? cache.get()[keyFor(queryFor(book))]?.v?.cover : ''))) || '';
+
+/**
+ * Look up covers for every book here that has none — the release name first, then the bare
+ * title with the author, then the title alone. Found covers are kept for good (like picking
+ * one by hand). onProgress(done, total, found). Resolves { found, total }.
+ */
+export async function findMissingCovers(books, onProgress = () => {}) {
+  const todo = books.filter((b) => b && b.source !== 'pod' && !coverNow(b));
+  let done = 0;
+  let found = 0;
+  const one = async (b) => {
+    const tries = [b, { title: bare(b.title), author: b.author || '' }, { title: bare(b.title) }];
+    for (const t of tries) {
+      if (!t.title && !t.rawName) continue;
+      const m = await lookup(t, { fresh: t === b }).catch(() => null);
+      if (m?.cover) {
+        setFix(b.uid, { ...(fixFor(b.uid) || {}), cover: m.cover });
+        found++;
+        break;
+      }
+    }
+    onProgress(++done, todo.length, found);
+  };
+  // A few at a time (the lookups queue themselves too).
+  const queue = [...todo];
+  await Promise.all(Array.from({ length: 4 }, async () => {
+    while (queue.length) await one(queue.shift());
+  }));
+  return { found, total: todo.length };
 }

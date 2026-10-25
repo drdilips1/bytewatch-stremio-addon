@@ -8287,7 +8287,7 @@ button.stats {
   color: #e5675f;
   opacity: 1;
 }
-.lib-manage {
+.btn.ghost-wide.lib-manage {
   margin: 0 16px 8px;
   width: calc(100% - 32px);
 }
