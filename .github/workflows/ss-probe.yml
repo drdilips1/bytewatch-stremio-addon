@@ -20,6 +20,9 @@ jobs:
           note('fetch', `status=${r.status} url=${r.url} len=${t.length} posts=${(t.match(/<div class="post"/g) || []).length} postTitle=${(t.match(/postTitle/g) || []).length} title=${(/<title>([^<]*)/.exec(t) || [])[1]}`);
           note('snippet', t.slice(t.indexOf('postTitle') - 200, t.indexOf('postTitle') + 300).replace(/:/g, '\\u003a'));
           note('words', JSON.stringify(words('Project Hail Mary')) + ' / ' + JSON.stringify(words('Project Hail Mary - Andy Weir')));
+          const d = await page('https://audiobookbay.lu/abss/proaject-hail-mary-andy-weir/'); const dt = await d.text();
+          const i = dt.indexOf('Info Hash');
+          note('detail', `status=${d.status} url=${d.url} len=${dt.length} infoHashAt=${i} title=${(/<title>([^<]*)/.exec(dt) || [])[1]} | ` + dt.slice(Math.max(0, i - 100), i + 300).replace(/:/g, '\\u003a'));
           const res = await abbDirect('Project Hail Mary', 'Andy Weir', 12);
           note('direct', `n=${res.length} ${JSON.stringify(res.slice(0, 2))}`);
           JS
