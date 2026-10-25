@@ -9202,3 +9202,34 @@ button.notes-book-head {
   border-radius: 3px;
   padding: 0 2px;
 }
+/* Player: one row of buttons, the rest under More */
+.fp-actions.one-row {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.fp-actions.one-row .chip-btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+.fp-actions.one-row .chip-btn .icon[stroke] {
+  stroke-width: 2;
+}
+.fp-more {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 4px 0 8px;
+}
+.fp-more button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 6px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+}

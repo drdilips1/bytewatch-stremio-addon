@@ -301,12 +301,14 @@ export function FullPlayer() {
 
       <Companion book={s.book} />
 
-      <div class="fp-actions">
-        <button class="chip-btn" onClick={() => setSheet('speed')}>
-          <b>{s.rate}×</b> Speed
+      {/* One row of the everyday buttons; the rest under More. */}
+      <div class="fp-actions one-row">
+        <button class="chip-btn" onClick={() => setSheet('speed')} aria-label="Speed">
+          <b>{s.rate}×</b>
         </button>
-        <button class={'chip-btn' + (s.sleepUntil || s.sleepEndOfTrack ? ' active' : '')} onClick={() => setSheet('sleep')}>
-          <Icon name="moon" size={16} /> {s.sleepUntil ? fmtTime(sleepLeft) : s.sleepEndOfTrack ? 'End of part' : 'Sleep'}
+        <button class={'chip-btn' + (s.sleepUntil || s.sleepEndOfTrack ? ' active' : '')} onClick={() => setSheet('sleep')} aria-label="Sleep timer">
+          <Icon name="moon" size={16} />
+          {s.sleepUntil ? ` ${fmtTime(sleepLeft)}` : s.sleepEndOfTrack ? ' Ch.' : ''}
         </button>
         <button
           class={'chip-btn' + (showText ? ' active' : '')}
@@ -318,21 +320,10 @@ export function FullPlayer() {
         >
           <Icon name="text" size={16} /> Text
         </button>
-        <button class="chip-btn" onClick={() => openDrive()} aria-label="Driving mode">
-          <Icon name="car" size={16} /> Drive
-        </button>
         {s.book.source !== 'pod' && <SceneButton chip />}
-        <button class="chip-btn" onClick={() => setSheet('xray')} aria-label="X-Ray: who and where">
-          <Icon name="xray" size={16} /> X-Ray
-        </button>
-        <button class="chip-btn" onClick={() => setSheet('story')} aria-label="Recap and characters">
-          <Icon name="sparkle" size={16} /> Story
-        </button>
-        <button class="chip-btn" onClick={() => setSheet('chapters')}>
-          <Icon name="list" size={16} /> {chapters.length}
-        </button>
         <button
           class="chip-btn"
+          aria-label="Add a bookmark (hold for the list)"
           onClick={() => {
             const bm = player.addBookmark();
             toast('Bookmark added');
@@ -347,22 +338,11 @@ export function FullPlayer() {
             setSheet('bookmarks');
           }}
         >
-          <Icon name="bookmark" size={16} /> {bms.length || ''}
+          <Icon name="bookmark" size={16} />
+          {bms.length ? ` ${bms.length}` : ''}
         </button>
-        {bms.length > 0 && (
-          <button class="chip-btn" onClick={() => setSheet('bookmarks')}>
-            Marks
-          </button>
-        )}
-        <button
-          class="chip-btn"
-          aria-label="Stop playback"
-          onClick={() => {
-            nav.closeOverlay();
-            player.stop();
-          }}
-        >
-          <Icon name="close" size={16} />
+        <button class="chip-btn" onClick={() => setSheet('more')} aria-label="More">
+          <Icon name="dots" size={18} stroke={3.5} />
         </button>
       </div>
 
@@ -373,6 +353,40 @@ export function FullPlayer() {
             {sheet === 'story' && <StorySheet close={() => setSheet(null)} />}
             {sheet === 'recap' && <StorySheet close={() => setSheet(null)} start="story" />}
             {sheet === 'xray' && <XraySheet s={s} />}
+            {sheet === 'more' && (
+              <div class="fp-more">
+                <button onClick={() => (setSheet(null), openDrive())}>
+                  <Icon name="car" size={22} />
+                  Drive
+                </button>
+                <button onClick={() => setSheet('xray')}>
+                  <Icon name="xray" size={22} />
+                  X-Ray
+                </button>
+                <button onClick={() => setSheet('story')}>
+                  <Icon name="sparkle" size={22} />
+                  Story
+                </button>
+                <button onClick={() => setSheet('chapters')}>
+                  <Icon name="list" size={22} />
+                  Chapters · {chapters.length}
+                </button>
+                <button onClick={() => setSheet('bookmarks')}>
+                  <Icon name="bookmark" size={22} />
+                  Bookmarks · {bms.length}
+                </button>
+                <button
+                  onClick={() => {
+                    setSheet(null);
+                    nav.closeOverlay();
+                    player.stop();
+                  }}
+                >
+                  <Icon name="close" size={22} />
+                  Stop
+                </button>
+              </div>
+            )}
             {sheet === 'speed' && (
               <>
                 <h3>Playback speed</h3>
