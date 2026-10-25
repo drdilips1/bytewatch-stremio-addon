@@ -60,17 +60,17 @@ export function DriveMode() {
   };
 
   // "Play a scene": say the moment; it's found and plays from 30 s before it.
-  const sceneNow = async (preset = '') => {
+  const sceneNow = async (preset = '', playingBefore = null) => {
     if (!canListen() && !preset) return toast('Voice input is not available on this device');
     if (!aiReady()) return toast('Add an AI key in Settings → AI first');
     stopAnswer();
-    const wasPlaying = player.getState().playing;
+    const wasPlaying = playingBefore ?? player.getState().playing;
     if (wasPlaying) player.pause();
     let q = preset;
     if (!q) {
       setPhase('listening-scene');
       try {
-        q = (await listen('Which scene should I play?')).trim();
+        q = (await listen('Say a scene, a book or a command')).trim();
       } catch (e) {
         toast(e.message || 'Voice input failed');
       }
@@ -85,11 +85,15 @@ export function DriveMode() {
     setAnswer('');
     setPhase('scene');
     try {
-      const { playScene } = await import('../lib/voicecmd.js');
-      const r = await playScene(q, () => {});
+      const { runCommand } = await import('../lib/voicecmd.js');
+      const r = await runCommand(q, () => {});
       if (!alive.current) return;
       setPhase('idle');
-      toast(`▶ ${r.scene || r.book.title}${r.where ? ` · ${r.where}` : ''}`);
+      if (r.message) {
+        // A control: the book carries on (unless you asked to pause).
+        if (wasPlaying && r.action !== 'pause' && !player.getState().playing) player.toggle();
+        toast(r.message);
+      } else toast(`▶ ${r.scene || r.book.title}${r.where ? ` · ${r.where}` : ''}`);
     } catch (e) {
       if (!alive.current) return;
       setAnswer(e.message);
@@ -119,9 +123,11 @@ export function DriveMode() {
     if (!alive.current) return;
     if (!q) return carryOn();
     // "Play when …" / "Go to the part where …": that's a scene to play, not a question.
-    if (/^(play|go to|jump to|take me to|skip to|start (from|at))\b/i.test(q)) {
+    const { isCommand } = await import('../lib/voicecmd.js');
+    if (isCommand(q)) {
+      const before = resumeAfter.current;
       resumeAfter.current = false;
-      return sceneNow(q);
+      return sceneNow(q, before);
     }
     setSaid(q);
     setAnswer('');
@@ -199,15 +205,15 @@ export function DriveMode() {
       )}
 
       <button class="drive-scene" disabled={phase !== 'idle'} onClick={() => sceneNow()}>
-        🎬 <b>Play a scene</b>
-        <small>“when Harry first boards the Hogwarts Express”</small>
+        🎙 <b>Voice command</b>
+        <small>a scene · a book · “back 30 seconds” · “next chapter”</small>
       </button>
 
       <button class={'drive-ask ' + phase} onClick={onBig} aria-label={status}>
         <span class="drive-mic">{phase === 'thinking' || phase === 'scene' ? <span class="spinner" /> : '🎙'}</span>
         <b>{status}</b>
         {said && phase !== 'idle' && <small class="drive-said">“{said}”</small>}
-        {phase === 'idle' && <small class="drive-said">Or say “play when …” to jump to a scene</small>}
+        {phase === 'idle' && <small class="drive-said">Commands work here too: “play when …”, “back 30 seconds”, “next chapter”</small>}
         {answer && phase === 'speaking' && <p class="drive-answer">{answer.replace(/[*_#`]/g, '')}</p>}
       </button>
 

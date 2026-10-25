@@ -8,8 +8,8 @@
     <string name="shortcut_ask_long">Ask AI about this book</string>
     <string name="shortcut_drive">Driving mode</string>
     <string name="shortcut_drive_long">Driving mode</string>
-    <string name="shortcut_scene">Play a scene</string>
-    <string name="shortcut_scene_long">Play a scene by voice</string>
-    <string name="widget_scene">Play a scene</string>
-    <string name="widget_scene_long">Say a moment from a book and it plays from there</string>
+    <string name="shortcut_scene">Voice command</string>
+    <string name="shortcut_scene_long">Voice command: a scene, a book, back 30 s…</string>
+    <string name="widget_scene">Voice command</string>
+    <string name="widget_scene_long">Say a scene, a book, or a command like back 30 seconds</string>
 </resources>

@@ -21,12 +21,16 @@ const norm = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '
 /** What was asked for: { title, author, scene, chapter, chapterTitle, at, quote } (title '' if not a book request). */
 async function understand(said) {
   const now = player.getState().book;
-  const playing = now && now.source !== 'pod' ? `\nThey are listening to "${now.title}"${now.author ? ` by ${now.author}` : ''}: if they don't name another book, they mean this one.` : '';
+  const playing =
+    now && now.source !== 'pod'
+      ? `\nThey are listening to "${now.title}"${now.author ? ` by ${now.author}` : ''}. Only when they describe a moment and name no book do they mean this one. If their words are, or sound like, a book's title ("12 rules of life" = "12 Rules for Life" by Jordan Peterson), it is that book, whatever is playing.`
+      : '';
   const raw = await askAi(
     `Someone said to their audiobook app: "${said}"${playing}
 It comes from speech recognition, so it may be misheard: Indian-accented English, Hindi or Hinglish, names written as they sounded ("dumble door" = Dumbledore, "harry potter ki pehli train" = Harry boarding the Hogwarts Express). Work out what they meant.
 Work out which book they mean and where in it the moment they describe happens. The JSON is always in English, with names spelled as in the book.
-Return JSON: {"title":"the book's title","book":"","author":"","moment":true,"scene":"the moment, in under 12 words","chapter":0,"chapterTitle":"","at":0.0,"quote":"","keywords":[""]}
+First decide the action: "scene" (play a moment of a book), "play_book" (play a book itself), or a control of what's playing: "pause", "resume", "rewind", "forward" (with "seconds"), "next_chapter", "previous_chapter", "go_chapter" (with "chapter"), "speed" (with "speed", e.g. 1.25), "sleep" (with "minutes", or 0 to cancel, -1 for the end of the chapter), "bookmark"; else "unknown".
+Return JSON: {"action":"scene","seconds":0,"speed":0,"minutes":0,"title":"the book's title","book":"","author":"","moment":true,"scene":"the moment, in under 12 words","chapter":0,"chapterTitle":"","at":0.0,"quote":"","keywords":[""]}
 - moment: false when they only ask to play the book itself ("play The Secret by Rhonda Byrne") — then leave scene, chapter, quote and keywords empty.
 - title: the single book the moment is in (in a series, that volume: "Harry Potter and the Philosopher's Stone", not "Harry Potter"); book: the same title as printed in the UK edition, if different.
 - chapter: the chapter number in that book (0 if it's in a prologue or you don't know).
@@ -34,7 +38,7 @@ Return JSON: {"title":"the book's title","book":"","author":"","moment":true,"sc
 - at: how far into that chapter the moment starts, from 0.0 (its start) to 1.0 (its end).
 - quote: 6–12 words of the book's own text from the start of that moment, only if you're sure of them, else "".
 - keywords: 5–8 words that appear in the book's own text right at that moment and rarely elsewhere — names, places, objects, unusual words (for "Dumbledore awards the House Cup": "Dumbledore", "House Cup", "points", "Neville", "Slytherin", "decorations"). Not common words.
-If they don't name or describe a book you can identify, return {"title":""}.`,
+For a control, only "action" and its number matter. If they don't name or describe a book you can identify, and it isn't a control, return {"action":"unknown","title":""}.`,
     { json: true }
   );
   return parseJson(raw);
@@ -180,9 +184,9 @@ async function inEbook(book, want, part) {
  * Do it. `step(text)` reports progress. Resolves { book, scene, where } or throws
  * an Error whose `want` (when set) is the book to search the sources for.
  */
-export async function playScene(said, step = () => {}) {
+export async function playScene(said, step = () => {}, preset = null) {
   step('Working out the book and the scene…');
-  const want = await understand(said);
+  const want = preset || (await understand(said));
   if (!want?.title) throw new Error(`Couldn't tell which book you meant — try "play when … in <book title>"`);
   step(`Looking for ${want.title}…`);
   // A copy can be gone (removed from TorBox, an old link): then the next one.
@@ -240,4 +244,120 @@ export async function playScene(said, step = () => {}) {
   if (g != null) player.playAt(g - LEAD);
   else if (!player.getState().playing) player.toggle();
   return { book: details, scene: want.scene || '', where };
+}
+
+// ---- Voice commands for what's playing ---------------------------------------------
+// The everyday ones ("pause", "back 30 seconds", "next chapter", "speed 1.5") are worked out
+// here at once, without the AI; anything else goes to the AI, which also finds books and scenes.
+const NUMS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, ek: 1, do: 2, teen: 3, char: 4, paanch: 5, das: 10, bees: 20, tees: 30 };
+const num = (w) => (w == null ? null : /^\d+(\.\d+)?$/.test(w) ? +w : NUMS[w] ?? null);
+const AMOUNT = /(\d+(?:\.\d+)?|a|an|one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty|forty|fifty|sixty|ek|do|teen|char|paanch|das|bees|tees)\s*(seconds?|secs?|s|minutes?|mins?|m|minat|second)?\b/;
+
+/** A command worked out without the AI: { action, seconds, chapter, speed, minutes } or null. */
+function quick(said) {
+  const t = String(said || '').toLowerCase().replace(/[^\p{L}\p{N}.\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  if (!t || /\b(when|where|scene|part where)\b/.test(t)) return null;
+  const amount = (def) => {
+    const m = t.match(AMOUNT);
+    const n = m ? num(m[1]) : null;
+    if (n == null) return def;
+    return /^m/.test(m[2] || '') ? n * 60 : n;
+  };
+  if (/^(pause|stop|hold on|wait|ruko|roko|rok do|band karo)\b/.test(t)) return { action: 'pause' };
+  if (/^(resume|continue|carry on|unpause|keep (going|playing)|play|start|chalao|chalu karo|shuru karo)( (it|again|playing|the book|please|now))*$/.test(t)) return { action: 'resume' };
+  if (/\b(next|agla|agle) (chapter|part|track)\b/.test(t) || /^skip (this |the )?(chapter|part)$/.test(t)) return { action: 'next_chapter' };
+  if (/\b(previous|last|pichla|pichhle|pichle) (chapter|part|track)\b/.test(t)) return { action: 'previous_chapter' };
+  const ch = t.match(/^(?:go to |play |start |jump to |skip to |open )?(?:chapter|part) (\d+|[a-z]+)$/);
+  if (ch && num(ch[1])) return { action: 'go_chapter', chapter: num(ch[1]) };
+  if (/\b(rewind|go back|back|skip back|peeche|pichhe|piche)\b/.test(t) && !/chapter|book/.test(t)) return { action: 'rewind', seconds: amount(30) };
+  if (/\b(forward|fast forward|ahead|skip ahead|skip|aage)\b/.test(t) && !/chapter|book|to /.test(t)) return { action: 'forward', seconds: amount(30) };
+  const sp = t.match(/\bspeed\b.*?(\d+(?:\.\d+)?)|(\d(?:\.\d+)?)\s*x\b/);
+  if (sp) return { action: 'speed', speed: +(sp[1] || sp[2]) };
+  if (/\b(faster|speed up|tez)\b/.test(t)) return { action: 'speed', speed: Math.min(3, (player.getState().rate || 1) + 0.25) };
+  if (/\b(slower|slow down|dheere|dheeme)\b/.test(t)) return { action: 'speed', speed: Math.max(0.5, (player.getState().rate || 1) - 0.25) };
+  if (/\bsleep\b/.test(t)) {
+    if (/\b(cancel|off|stop|no)\b/.test(t)) return { action: 'sleep', minutes: 0 };
+    if (/end of (the )?(chapter|part)/.test(t)) return { action: 'sleep', minutes: -1 };
+    return { action: 'sleep', minutes: amount(0) ? Math.round(amount(0) / 60) || amount(0) : 30 };
+  }
+  if (/^(add (a )?)?bookmark( (this|it|here))?$|^mark (this|it|here)$|^save (this|the) (spot|place|moment)$/.test(t)) return { action: 'bookmark' };
+  return null;
+}
+
+/** Sounds like a command for the player or a book/scene to play (not a question)? */
+export const isCommand = (said) => !!quick(said) || /^(play|go to|jump to|take me to|skip to|start (from|at)|open|resume|continue|chalao|sunao)\b/i.test(String(said || '').trim());
+
+const CONTROLS = new Set(['pause', 'resume', 'rewind', 'forward', 'next_chapter', 'previous_chapter', 'go_chapter', 'speed', 'sleep', 'bookmark']);
+const mmss = (s) => (s >= 60 ? `${Math.round((s / 60) * 10) / 10} min` : `${Math.round(s)} s`);
+
+/** Do a control on what's playing; resolves the message to show. */
+async function control(c) {
+  const s = player.getState();
+  if (!s.book) throw new Error('Nothing is playing — say a book to play');
+  const play = () => !player.getState().playing && player.toggle();
+  switch (c.action) {
+    case 'pause':
+      player.pause();
+      return '⏸ Paused';
+    case 'resume':
+      play();
+      return '▶ Playing';
+    case 'rewind': {
+      const sec = Math.max(1, Number(c.seconds) || 30);
+      player.playAt(player.globalTime() - sec);
+      return `⏪ Back ${mmss(sec)}`;
+    }
+    case 'forward': {
+      const sec = Math.max(1, Number(c.seconds) || 30);
+      player.playAt(player.globalTime() + sec);
+      return `⏩ Forward ${mmss(sec)}`;
+    }
+    case 'next_chapter':
+    case 'previous_chapter':
+    case 'go_chapter': {
+      const chapters = player.chapters();
+      const g = player.globalTime();
+      let ci = chapters.findIndex((x) => g >= x.start && g < (x.end || Infinity));
+      if (c.action === 'next_chapter') ci += 1;
+      else if (c.action === 'previous_chapter') ci -= 1;
+      else ci = pickChapter(chapters, { chapter: c.chapter });
+      if (ci < 0 || ci >= chapters.length) throw new Error(c.action === 'go_chapter' ? `There's no chapter ${c.chapter}` : 'No more chapters that way');
+      player.playAt(chapters[ci].start);
+      return `▶ ${chapters[ci].title || `Part ${ci + 1}`}`;
+    }
+    case 'speed': {
+      const r = Math.min(3, Math.max(0.5, Math.round((Number(c.speed) || 1) * 20) / 20));
+      player.setRate(r);
+      return `Speed ${r}×`;
+    }
+    case 'sleep': {
+      const m = Number(c.minutes);
+      if (!m) return player.setSleep(null), 'Sleep timer off';
+      if (m < 0) return player.setSleep('track'), '🌙 Stops at the end of this chapter';
+      player.setSleep(m);
+      return `🌙 Stops in ${m} min`;
+    }
+    case 'bookmark': {
+      const bm = player.addBookmark();
+      import('./bookmarkname.js').then((x) => x.nameBookmark(s.book, bm)).catch(() => {});
+      return '🔖 Bookmarked';
+    }
+  }
+  throw new Error("Didn't catch that");
+}
+
+/**
+ * Anything said to the app: a control of what's playing, a book to play, or a scene.
+ * Resolves { message } for a control, else { book, scene, where }.
+ */
+export async function runCommand(said, step = () => {}) {
+  const q = quick(said);
+  if (q) return { message: await control(q), action: q.action };
+  step('Working it out…');
+  const want = await understand(said);
+  const action = want?.action && want.action !== 'unknown' ? want.action : want?.title ? (want.moment === false ? 'play_book' : 'scene') : 'unknown';
+  if (CONTROLS.has(action)) return { message: await control({ ...want, action }), action };
+  if (action === 'unknown' || !want?.title) throw new Error(`Didn't catch that — try "back 30 seconds", "next chapter" or "play when … in <book>"`);
+  if (action === 'play_book') want.moment = false;
+  return playScene(said, step, want);
 }

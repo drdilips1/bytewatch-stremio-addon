@@ -1,4 +1,5 @@
-// "Play a scene" on Home: say (or type) a moment from a book; it finds your copy and
+// Voice command (Home, the player): say or type a scene, a book, or a command for what's
+// playing ("back 30 seconds"). A scene: it finds your copy and
 // starts 30 seconds before it.
 import { useEffect, useState } from 'preact/hooks';
 import { createPortal } from 'preact/compat';
@@ -14,11 +15,11 @@ export function SceneButton({ chip = false }) {
   return (
     <>
       {chip ? (
-        <button class="chip-btn" onClick={() => setOpen(true)} aria-label="Play a scene by voice">
-          <Icon name="mic" size={16} /> Scene
+        <button class="chip-btn" onClick={() => setOpen(true)} aria-label="Voice command">
+          <Icon name="mic" size={16} /> Voice
         </button>
       ) : (
-        <button class="icon-btn glass" onClick={() => setOpen(true)} aria-label="Play a scene by voice">
+        <button class="icon-btn glass" onClick={() => setOpen(true)} aria-label="Voice command">
           <Icon name="mic" />
         </button>
       )}
@@ -54,10 +55,10 @@ function SceneSheet({ close, listenNow = false }) {
     if (!said.trim()) return;
     if (!aiReady()) return toast('Add an AI key in Settings → AI first');
     close();
-    toast(`🎧 Finding “${said.trim().slice(0, 60)}”…`);
     try {
-      const { playScene } = await import('../lib/voicecmd.js');
-      const r = await playScene(said, (t) => t.startsWith('Opening') && toast(t));
+      const { runCommand } = await import('../lib/voicecmd.js');
+      const r = await runCommand(said, (t) => (t.startsWith('Opening') || t.startsWith('Working')) && toast(t === 'Working it out…' ? `🎧 “${said.trim().slice(0, 60)}”…` : t));
+      if (r.message) return toast(r.message);
       nav.openOverlay('player');
       toast(`▶ ${r.scene || r.book.title}${r.where ? ` · ${r.where}` : ''}`);
     } catch (e) {
@@ -74,7 +75,7 @@ function SceneSheet({ close, listenNow = false }) {
     cancelSoon();
     setHearing(true);
     try {
-      const said = await listen('Which scene should I play?');
+      const said = await listen('Say a scene, a book or a command');
       setHearing(false);
       if (!said) return;
       setText(said);
@@ -91,8 +92,11 @@ function SceneSheet({ close, listenNow = false }) {
     <div class="sheet-backdrop" onClick={close}>
       <div class="sheet scene-cmd" onClick={(e) => e.stopPropagation()}>
         <div class="sheet-handle" />
-        <h3>Play a scene</h3>
-        <p class="muted small">Type or say a moment from a book, like “when Harry first boards the Hogwarts Express in Philosopher’s Stone”. It starts 30 seconds before it.</p>
+        <h3>Voice command</h3>
+        <p class="muted small">
+          Say or type a moment from a book (“when Harry first boards the Hogwarts Express”), a book to play, or a command: “back 30 seconds”, “forward 2 minutes”, “next chapter”, “chapter 7”, “speed 1.5”, “sleep in 20
+          minutes”, “bookmark”, “pause”.
+        </p>
         <form
           class="scene-form"
           onSubmit={(e) => {
@@ -104,7 +108,7 @@ function SceneSheet({ close, listenNow = false }) {
           <textarea
             rows={2}
             value={text}
-            placeholder="Type the scene (and the book)"
+            placeholder="A scene, a book, or a command"
             onFocus={cancelSoon}
             onInput={(e) => (cancelSoon(), setText(e.currentTarget.value))}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), cancelSoon(), run(text))}
