@@ -137,6 +137,15 @@ export function MiniPlayer() {
 const SPEEDS = [0.75, 0.9, 1, 1.1, 1.2, 1.25, 1.3, 1.4, 1.5, 1.6, 1.7, 1.75, 1.8, 1.9, 2, 2.25, 2.5, 3];
 const SLEEP = [5, 10, 15, 30, 45, 60, 90];
 
+/** "Chapter 3 of 33 · The Mirror of Erised" (its own title when it says more than the number). */
+function chapterLabel(chapters, g) {
+  let i = chapters.findIndex((c) => g >= c.start && g < (c.end || Infinity));
+  if (i < 0) i = 0;
+  const t = String(chapters[i]?.title || '').trim();
+  const plain = !t || /^(chapter|part|track)?\s*\d+$/i.test(t);
+X
+}
+
 export function FullPlayer() {
   const s = usePlayer();
   const st = useStore(settings);
@@ -215,10 +224,15 @@ export function FullPlayer() {
 
       <div class="fp-meta">
         <h2>{s.tracks[s.index]?.title || s.book.title}</h2>
-        <p>
-          {s.book.author}
-          {s.tracks.length > 1 && ` · Part ${s.index + 1} of ${s.tracks.length}`}
-        </p>
+        <p>{s.book.author}</p>
+        {/* Chapters: where you are, one tap to the list (used all the time, so not under More). */}
+        {chapters.length > 1 && (
+          <button class="fp-chapters" onClick={() => setSheet('chapters')}>
+            <Icon name="list" size={16} />
+            <span>{chapterLabel(chapters, g)}</span>
+            <Icon name="chevron" size={14} />
+          </button>
+        )}
         {s.preparing && <PrepBar st={s.preparing} />}
         {s.interrupted && !s.loading && (
           <div class="loading-line">

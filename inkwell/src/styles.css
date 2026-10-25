@@ -9265,3 +9265,22 @@ button.notes-book-head {
 .sheet .xray-now .xray-chip {
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
+.fp-chapters {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  margin-top: 10px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+.fp-chapters span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
