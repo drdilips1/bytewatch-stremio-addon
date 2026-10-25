@@ -1,0 +1,18 @@
+name: ss-probe
+on:
+  push:
+    paths: [".github/workflows/ss-probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          W=https://api.audiohubapp.com
+          for n in audiobookbay knaben-audiobooks knaben-ebooks bookracy; do
+            r=$(curl -sS -m 20 -D /tmp/h -H 'Origin: https://localhost' "$W/addons/$n.json" -o /tmp/b -w 'code=%{http_code}' 2>&1)
+            echo "::notice title=$n::$r cors=$(grep -i access-control-allow-origin /tmp/h | tr -d '\r') | $(python3 -c "import json;j=json.load(open('/tmp/b'));print(j['id'],j['name'],j['adapters']['source']['request']['url'])")"
+          done
+          r=$(curl -sS -m 40 -X POST -H 'Content-Type: application/json' -d '{"title":"Project Hail Mary","author":"Andy Weir","limit":20}' "$W/abb/api/search" -o /tmp/b -w 'code=%{http_code}')
+          echo "::notice title=abb search::$r $(python3 -c "import json;j=json.load(open('/tmp/b'));print(j.get('source'),len(j.get('results',[])))")"
+          r=$(curl -sS -m 40 -X POST -H 'Content-Type: application/json' -d '{"query":"atomic habits","search_field":"title","size":5,"categories":[1003000]}' "$W/knaben/audiobooks" -o /tmp/b -w 'code=%{http_code}')
+          echo "::notice title=knaben search::$r $(python3 -c "import json;j=json.load(open('/tmp/b'));print(len(j.get('hits',[])))")"
