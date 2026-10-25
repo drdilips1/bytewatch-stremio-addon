@@ -1,22 +1,39 @@
 {
   "schemaVersion": "1.0.0",
   "id": "inkandecho-v2-bestsearch-audiobook",
-  "name": "Ink & Echo",
+  "name": "Ink & Echo Audiobooks",
   "version": "1.0.0",
   "description": "Ink & Echo source for audiobooks. Search mode: Best. Resolver: TorBox. Language: English.",
   "icon": "https://i.ibb.co/wJ13Y1y/logo.png",
-  "provides": ["source", "search"],
+  "provides": [
+    "source",
+    "search"
+  ],
   "contentType": "audiobook",
-  "rateLimit": { "requestsPerMinute": 10, "retryAfterMs": 6000 },
-  "matching": { "algorithm": "fuzzy", "threshold": 0.4 },
+  "rateLimit": {
+    "requestsPerMinute": 10,
+    "retryAfterMs": 6000
+  },
+  "matching": {
+    "algorithm": "fuzzy",
+    "threshold": 0.4
+  },
   "adapters": {
     "source": {
       "request": {
         "method": "POST",
         "url": "https://inkandecho-builder.pages.dev/audiobook/search?debrid=torbox&torboxTier=standard&lang=en&profile=best&client=ie_bbb06c1c17904fdfd1a0bdc7&experimental=1&cacheBust=comics-evidence-v8&titleStyle=clean",
         "timeout": 30000,
-        "headers": { "Accept": "application/json", "Content-Type": "application/json" },
-        "body": { "title": "{TITLE}", "author": "{AUTHOR}", "limit": 80, "contentType": "audiobook" }
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "title": "{TITLE}",
+          "author": "{AUTHOR}",
+          "limit": 80,
+          "contentType": "audiobook"
+        }
       },
       "response": {
         "type": "json",

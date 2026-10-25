@@ -17,12 +17,21 @@ import knabenAudio from './builtin/knaben-audiobooks.json';
 import knabenEbooks from './builtin/knaben-ebooks.json';
 import bookracy from './builtin/bookracy.json';
 import inkEcho from './builtin/inkandecho-audiobooks.json';
-const BUILTIN = [knabenAudio, abb, inkEcho, knabenEbooks, bookracy].map((manifest) => ({ kind: 'source', url: '', builtin: true, manifest }));
+import inkEchoEbooks from './builtin/inkandecho-ebooks.json';
+const BUILTIN = [knabenAudio, abb, inkEcho, knabenEbooks, inkEchoEbooks, bookracy].map((manifest) => ({ kind: 'source', url: '', builtin: true, manifest }));
 // Installed copies of the built-in ones (older or newer links) — they'd only repeat the same results.
 export const BUILTIN_IDS = new Set([
   ...BUILTIN.map((a) => a.manifest.id),
   ...BUILTIN.map((a) => a.manifest.id.replace(/^my-/, '')),
 ]);
+
+// Built-in sources are shown by what they find ("Audiobook" / "Ebook"), not by name;
+// addons you install keep their own name.
+const BUILTIN_LABEL = new Map(BUILTIN.map((a) => [a.manifest.name, a.manifest.contentType === 'ebook' ? 'Ebook' : 'Audiobook']));
+export const sourceLabel = (name) => BUILTIN_LABEL.get(name) || name;
+export const isBuiltinSource = (name) => BUILTIN_LABEL.has(name);
+// Leading tags some sources put on titles: "[EPUB] …", "M4B • Standard • ABB • …".
+const cleanTitle = (t) => String(t).replace(/^\s*\[[^\]]{1,24}\]\s*/, '').replace(/^(?:[A-Za-z0-9+]{2,10}\s*•\s*){2,4}/, '').trim() || String(t);
 
 export const sourceAddons = () => [...BUILTIN, ...addons.get().filter((a) => a.kind === 'source' && !BUILTIN_IDS.has(a.manifest.id))];
 
@@ -201,7 +210,7 @@ async function searchOnce(addon, vars, key, { title = '', author = '', query = '
       const r = {
         key: `${addon.manifest.id}:${i}:${get(row, 'infoHash') || get(row, 'title')}`,
         addon: addon.manifest.name,
-        title: String(get(row, 'title') || 'Untitled'),
+        title: BUILTIN_LABEL.has(addon.manifest.name) ? cleanTitle(get(row, 'title') || 'Untitled') : String(get(row, 'title') || 'Untitled'),
         author: get(row, 'author') || '',
         narrator: get(row, 'narrator') || '',
         magnet: get(row, 'magnetUrl') || get(row, 'magnet') || '',

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
-import { searchSources, sourceAddons, fmtSize } from '../sources/sourceaddons.js';
+import { searchSources, sourceAddons, fmtSize, sourceLabel, isBuiltinSource } from '../sources/sourceaddons.js';
 import { cloud, getDetails } from '../sources/index.js';
 import { settings, useStore, debrid, library, toggleLibrary } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
@@ -200,7 +200,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
       )}
       {pending && !total && !looseCount && (
         <p class="muted pad-s">
-          <span class="spinner small" /> Searching {sourceAddons().map((a) => a.manifest.name).join(', ')}…
+          <span class="spinner small" /> Searching for audiobooks and ebooks{sourceAddons().some((a) => !isBuiltinSource(a.manifest.name)) ? `, plus ${sourceAddons().map((a) => a.manifest.name).filter((n) => !isBuiltinSource(n)).join(', ')}` : ''}…
         </p>
       )}
       {entries.some(([, g]) => g.slow) && (
@@ -208,7 +208,8 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           <span class="spinner small" />{' '}
           {entries
             .filter(([, g]) => g.slow)
-            .map(([name]) => name)
+            .map(([name]) => sourceLabel(name))
+            .filter((n, i, all) => all.indexOf(n) === i)
             .join(', ')}{' '}
           slow to answer — still trying…
         </p>
@@ -217,7 +218,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
         <p class="src-errors">
           {entries
             .filter(([, g]) => g.error)
-            .map(([name, g]) => `${name} ${friendlyError(g.error)}`)
+            .map(([name, g]) => `${sourceLabel(name)} ${friendlyError(g.error)}`)
             .join(' · ')}{' '}
           <button
             class="link-btn src-retry"
@@ -546,7 +547,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
         {r.size > 0 && <span class="chip">{fmtSize(r.size)}</span>}
         {hasMagnet && <span class={'chip seeds ' + seedClass(r.seeders)}>{r.seeders} seed{r.seeders === 1 ? '' : 's'}</span>}
         {r.language && <span class="chip">{r.language}</span>}
-        <span class="chip ghost">{r.addon}</span>
+        <span class="chip ghost">{sourceLabel(r.addon)}</span>
         {trackerSite && trackerFilter && (
           <button class="chip tracker-chip" onClick={() => qb.openTracker(trackerWords(r.title, book), true, qb.isEbookName(`${r.title} ${r.format || ''}`)).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} (${trackerFilter}) for this`}>
             <Icon name="search" size={12} /> {trackerFilter}
@@ -827,7 +828,7 @@ function SourceFolder({ g, provider, providers, book, account, onChanged }) {
           <b>{first.title.replace(/\.(mp3|m4a|m4b|aac|flac|ogg|opus)$/i, '').replace(/[\s._-]*(part|pt|chapter|ch|track|cd)?\s*\d{1,3}\s*$/i, '') || first.title}</b>
           <small>
             {g.items.length} files{size ? ` · ${fmtSize(size)}` : ''}
-            {seeds ? ` · ${seeds} seeds` : ''} · {first.addon}
+            {seeds ? ` · ${seeds} seeds` : ''} · {sourceLabel(first.addon)}
           </small>
         </span>
         <Icon name={open ? 'up' : 'down'} size={18} />
