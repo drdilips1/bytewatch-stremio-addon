@@ -1,0 +1,21 @@
+name: ss-probe
+on:
+  push:
+    paths: [".github/workflows/ss-probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          U='https://inkandecho-builder.pages.dev/audiobook/search?debrid=torbox&torboxTier=standard&lang=en&profile=best&client=ie_bbb06c1c17904fdfd1a0bdc7&experimental=1&cacheBust=comics-evidence-v8&titleStyle=clean'
+          for o in "" "Origin: https://drdilips1.github.io"; do
+            r=$(curl -sS -m 60 -o /tmp/b -D /tmp/h ${o:+-H "$o"} -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"title":"The Psychology of Money","author":"Morgan Housel","limit":80,"contentType":"audiobook"}' "$U" -w 'code=%{http_code} time=%{time_total}' 2>&1)
+            echo "::notice title=inkecho ${o:+(web)}::$r | $(grep -i 'access-control-allow-origin' /tmp/h | tr -d '\r') | $(python3 -c "
+          import json
+          try:
+            j=json.load(open('/tmp/b')); l=j.get('results') or []
+            keep=['fileTypeTitle','author','sizeBytes','seeders','mediaKind','posted','debridCache','infoHash','magnetUrl','audioUrl','ebookUrl','sourceName']
+            print(len(l),'results |', json.dumps([{k:(str(x.get(k))[:60]) for k in keep if x.get(k) is not None} for x in l[:2]]), '| has magnet/hash:', sum(1 for x in l if x.get('magnetUrl') or x.get('infoHash')), '| other keys:', [k for k in j if k!='results'])
+          except Exception as e: print('not json', open('/tmp/b').read()[:300])
+          ")"
+          done
