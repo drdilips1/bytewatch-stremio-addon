@@ -104,15 +104,13 @@ object MyVoices {
         Voice("oscar", "Oscar", 0, 0f, true, "male · English", pause = 800, denoised = false, seed = 15734),
         Voice("jack", "Jack", 0, 0f, true, "male · English", pause = 520, denoised = false, seed = 81386),
         Voice("arthur", "Arthur", 0, 0f, true, "male · English", pause = 840, denoised = false, seed = 57008),
-    )
+    ) + FIRST_READERS
 
     /**
-     * The first readers (Ava, Clara, Maya, Hazel, Rose, Noah, Lucas, Theo), hidden for now: their copies in
-     * Paper to Audio are gone, so their settings couldn't be matched, and on the phone they skipped and
-     * garbled lines. Their recordings stay in src/lite/assets/voices.
+     * The first readers (Ava, Clara, Maya, Hazel, Rose, Noah, Lucas, Theo), after the others: their copies in
+     * Paper to Audio are gone, so they keep the settings found in testing rather than Paper to Audio's.
      */
-    @Suppress("unused")
-    private val FIRST_READERS = listOf(
+    private val FIRST_READERS get() = listOf(
         Voice("ava", "Ava", 0, 0f, true, "female · English", pause = 640, denoised = true),
         Voice("clara", "Clara", 0, 0f, true, "female · English", pause = 580, denoised = true, seed = 90001),
         Voice("maya", "Maya", 0, 0f, true, "female · English", pause = 660, denoised = true, seed = 101),

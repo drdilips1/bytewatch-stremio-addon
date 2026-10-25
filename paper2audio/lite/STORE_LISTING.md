@@ -11,7 +11,7 @@ Listen to anything you'd otherwise have to read.
 Add a book, PDF, Word file, web page, pasted text or even a photo of a printed page, and Narrato reads it aloud while highlighting each sentence, so you can follow along or simply listen.
 
 • Private: your books never leave your phone. No uploads, no account, no limits
-• Natural voices of real readers: ten ready-made voices, five female and five male, that run right on your phone
+• Natural voices of real readers: eighteen ready-made voices, ten female and eight male, that run right on your phone
 • More natural voices: Supertonic (31 languages) and Kokoro, plus your phone's own voices
 • Unlimited: no word limits, no hour limits, no sign-in
 • No internet needed while listening: the voices run on your phone
