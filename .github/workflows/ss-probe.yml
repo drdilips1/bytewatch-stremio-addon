@@ -1,0 +1,19 @@
+name: ss-probe
+on:
+  push:
+    paths: [".github/workflows/ss-probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          U='https://inkandecho-builder.pages.dev/audiobook/search?debrid=torbox&torboxTier=standard&lang=en&profile=best&client=ie_bbb06c1c17904fdfd1a0bdc7&experimental=1&cacheBust=comics-evidence-v8&titleStyle=clean'
+          for q in "Project Hail Mary|Andy Weir" "Sapiens|Yuval Noah Harari"; do
+            t=${q%%|*}; a=${q##*|}
+            curl -sS -m 60 -o /tmp/b -X POST -H 'Content-Type: application/json' -d "{\"title\":\"$t\",\"author\":\"$a\",\"limit\":80,\"contentType\":\"audiobook\"}" "$U"
+            echo "::notice title=ie $t::$(python3 -c "
+          import json,collections
+          j=json.load(open('/tmp/b')); l=j.get('results') or []
+          print(len(l),'results; by source:', dict(collections.Counter(x.get('sourceName') or x.get('source') or x.get('indexer') for x in l)), '| sources:', json.dumps(j.get('sources'))[:500], '| providerStatus:', json.dumps(j.get('providerStatus'))[:900])
+          ")"
+          done
