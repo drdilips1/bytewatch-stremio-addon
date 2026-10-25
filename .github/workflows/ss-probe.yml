@@ -11,24 +11,16 @@ jobs:
         with: { node-version: 22 }
       - run: |
           cp inkwell/workers/audiohub.js /tmp/w.mjs
-          sed 's#https://inkshelf-debrid-proxy.tbm-a.workers.dev#https://nonexistent.invalid#' inkwell/workers/audiohub.js > /tmp/w2.mjs
+          echo 'export { abbDirect, words, page };' >> /tmp/w.mjs
           cat > /tmp/t.mjs <<'JS'
-          const note = (t, m) => console.log(`::notice title=${t}::${String(m).replace(/\n/g, ' ').slice(0, 1200)}`);
-          const W = 'https://api.audiohubapp.com';
-          for (const [file, label] of [['/tmp/w.mjs', 'normal'], ['/tmp/w2.mjs', 'proxy down']]) {
-            const w = (await import(file)).default;
-            const t0 = Date.now();
-            const r = await w.fetch(new Request(W + '/abb/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Project Hail Mary', author: 'Andy Weir', limit: 20 }) }));
-            const j = await r.json();
-            note(`ABB ${label} ${r.status} ${Date.now() - t0}ms`, `source=${j.source} n=${j.results?.length} ` + JSON.stringify((j.results || []).slice(0, 2).map((x) => ({ t: x.title, h: x.infoHash, s: x.sizeBytes, f: x.format, seed: x.seeders }))));
-          }
-          const w = (await import('/tmp/w.mjs')).default;
-          let r = await w.fetch(new Request(W + '/bookracy/search?q=atomic%20habits'));
-          let txt = await r.text();
-          note(`Bookracy ${r.status}`, `old host left: ${txt.includes('drdilipgreat.workers.dev')} | rewritten: ${txt.includes(W + '/bookracy/download')} | ${txt.slice(0, 300)}`);
-          r = await w.fetch(new Request(W + '/knaben/ebooks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: 'atomic habits', search_field: 'title', size: 5, categories: [9001000] }) }));
-          note(`Knaben ${r.status}`, (await r.text()).slice(0, 200));
-          r = await w.fetch(new Request(W + '/health')); note('health', await r.text());
+          const note = (t, m) => console.log(`::notice title=${t}::${String(m).replace(/\n/g, ' ').slice(0, 1500)}`);
+          const { abbDirect, words, page } = await import('/tmp/w.mjs');
+          const r = await page('https://audiobookbay.lu/?s=project+hail+mary&tt=1');
+          const t = await r.text();
+          note('fetch', `status=${r.status} url=${r.url} len=${t.length} posts=${(t.match(/<div class="post"/g) || []).length} postTitle=${(t.match(/postTitle/g) || []).length} title=${(/<title>([^<]*)/.exec(t) || [])[1]}`);
+          note('snippet', t.slice(t.indexOf('postTitle') - 200, t.indexOf('postTitle') + 300).replace(/:/g, '\\u003a'));
+          note('words', JSON.stringify(words('Project Hail Mary')) + ' / ' + JSON.stringify(words('Project Hail Mary - Andy Weir')));
+          const res = await abbDirect('Project Hail Mary', 'Andy Weir', 12);
+          note('direct', `n=${res.length} ${JSON.stringify(res.slice(0, 2))}`);
           JS
           node /tmp/t.mjs
-# rerun 1792944773
