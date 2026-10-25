@@ -1,0 +1,13 @@
+name: ss-probe
+on:
+  push:
+    paths: [".github/workflows/ss-probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for q in "atomic%20habits" "sapiens"; do
+            r=$(curl -sS -m 40 -D /tmp/h -H "Origin: https://drdilips1.github.io" "https://bookracy-proxy.drdilipgreat.workers.dev/bookracy/search?q=$q" -o /tmp/b -w 'code=%{http_code} time=%{time_total}' 2>&1)
+            echo "::notice title=bookracy $q::$r | $(grep -i 'access-control-allow-origin' /tmp/h | tr -d '\r') | $(head -c 600 /tmp/b | tr '\n' ' ')"
+          done
