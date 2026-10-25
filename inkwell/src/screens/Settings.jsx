@@ -1225,7 +1225,7 @@ export function Settings() {
                   class={'palette' + (activePalette(st, light ? 'light' : 'dark') === p.id && !(st.mode === 'amoled' && !light) ? ' active' : '')}
                   style={{ background: `linear-gradient(160deg, ${p.swatch[0]} 45%, ${p.swatch[1]})`, color: p.light ? '#1b1b1f' : '#f1eef8' }}
                   // Shown at once (switches to that mode), and kept for that mode when you go back to "Like phone".
-                  onClick={() => settings.patch({ palette: p.id, [light ? 'paletteLight' : 'paletteDark']: p.id, mode: light ? 'light' : 'dark' })}
+                  onClick={() => settings.patch({ palette: p.id, [light ? 'paletteLight' : 'paletteDark']: p.id, mode: light ? 'light' : 'dark', ...(p.accent ? { accent: p.accent } : {}) })}
                 >
                   <span class="palette-dot" />
                   {p.name}

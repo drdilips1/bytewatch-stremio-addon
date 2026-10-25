@@ -1,3 +1,4 @@
+@import '@fontsource-variable/figtree';
 @import '@fontsource-variable/plus-jakarta-sans';
 @import '@fontsource-variable/fraunces';
 @import '@fontsource-variable/outfit';
@@ -28,7 +29,7 @@
   --radius-sm: 12px;
   --shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.6);
   --grad: linear-gradient(135deg, var(--accent), var(--accent-2));
-  --font: 'Plus Jakarta Sans Variable', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --font: 'Figtree Variable', 'Plus Jakarta Sans Variable', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   --display: 'Fraunces Variable', Georgia, serif;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -8392,7 +8393,7 @@ button.stats {
   --card-r: 14px;
   --grad: var(--accent);
   --on-grad: #fff;
-  --font: 'Inter', 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font: 'Figtree Variable', 'Inter', 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --dyn: var(--accent);
 }
 :root[data-mode='light'][data-palette='paperink'] {
@@ -9315,4 +9316,404 @@ button.notes-book-head {
   font-size: 12px;
   font-weight: 600;
   opacity: 0.7;
+}
+
+/* =====================================================================
+   Sources, redesigned (Oct 2026): slim rows — audiobooks, then ebooks,
+   top three each — and one full card for the result you open.
+   ===================================================================== */
+.source-results {
+  --ready: #3ecf8e;
+}
+:root[data-mode='light'] .source-results {
+  --ready: #11845a;
+}
+.src-head .section-label {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.src-counts {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+.book .src-head {
+  margin-top: 22px;
+}
+.src-sec + .src-sec {
+  margin-top: 18px;
+}
+.src-sec-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 4px 2px 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.src-sec .src-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.src-sec .src-list > * {
+  min-width: 0;
+}
+.src-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 2px 0;
+  padding: 6px 0;
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+/* Format badge: MP3 / M4B / EPUB… */
+.src-fmt {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.is-ebook > .src-fmt,
+.is-ebook .src-top .src-fmt {
+  color: #6aa9ff;
+  background: color-mix(in srgb, #6aa9ff 13%, var(--surface));
+  border-color: color-mix(in srgb, #6aa9ff 26%, transparent);
+}
+:root[data-mode='light'] .is-ebook > .src-fmt,
+:root[data-mode='light'] .is-ebook .src-top .src-fmt {
+  color: #1d5fb8;
+}
+/* Slim row */
+.src-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 10px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.2s;
+}
+.src-line:active {
+  transform: scale(0.99);
+}
+.src-line.is-ready {
+  border-color: color-mix(in srgb, var(--ready) 45%, transparent);
+  box-shadow: inset 3px 0 0 var(--ready);
+}
+.src-line > .src-fmt {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  font-size: 10.5px;
+}
+.src-line-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.src-line-text b {
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.src-line-text small,
+.src-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.src-line-text small span + span::before,
+.src-meta span + span::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--faint);
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.src-line .ok,
+.src-meta .ok {
+  color: var(--ready);
+}
+.seeds.good {
+  color: var(--ready);
+}
+.src-go {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: var(--surface-2);
+  color: var(--accent);
+}
+.src-go.play {
+  background: var(--grad);
+  color: var(--on-grad, #fff);
+  box-shadow: 0 8px 18px -10px var(--accent);
+}
+/* Full card */
+.src-row {
+  border-radius: 20px;
+  padding: 14px;
+}
+.src-row.is-ready {
+  border-color: color-mix(in srgb, var(--ready) 45%, transparent);
+  box-shadow: inset 3px 0 0 var(--ready);
+}
+.src-top {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.src-top[role='button'] {
+  cursor: pointer;
+}
+.src-top > svg {
+  flex: none;
+  color: var(--faint);
+  margin-top: 2px;
+}
+.src-names {
+  flex: 1;
+  min-width: 0;
+}
+.src-names .src-title {
+  font-size: 16px;
+}
+.src-raw {
+  margin-top: 4px;
+  font: 500 10.5px/1.3 ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.src-meta {
+  margin-top: 10px;
+}
+.src-row .src-services {
+  margin-top: 10px;
+}
+.src-row .src-actions.ready {
+  margin-top: 12px;
+}
+.src-row .src-actions.ready > .btn:first-child {
+  height: 46px;
+  border-radius: 14px;
+  font-size: 15px;
+}
+.src-row .src-actions.ready > .btn:not(:first-child) {
+  height: 46px;
+  min-width: 46px;
+  border-radius: 14px;
+}
+.src-dots.on {
+  color: var(--accent);
+}
+
+/* =====================================================================
+   Covers, polished (Oct 2026) — applies on top of every theme.
+   Real covers: soft two-layer shadow, a fine rim and a faint sheen.
+   No image: a printed jacket — spine, serif title, author under a rule.
+   ===================================================================== */
+:root[data-palette][data-mode] .cover {
+  isolation: isolate;
+  box-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.3), 0 12px 24px -14px rgba(0, 0, 0, 0.7);
+}
+:root[data-palette][data-mode='light'] .cover {
+  box-shadow: 0 1px 1.5px rgba(50, 35, 20, 0.14), 0 12px 24px -16px rgba(50, 35, 20, 0.42);
+}
+.cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0) 30%);
+}
+:root[data-mode='light'] .cover::after {
+  box-shadow: inset 0 0 0 1px rgba(30, 20, 10, 0.08);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 30%);
+}
+/* The jacket (shown until — or instead of — a cover image) */
+:root[data-palette][data-mode] .cover-fallback {
+  padding: 13% 11% 11% 16%;
+  justify-content: space-between;
+  color: hsl(var(--h) 60% 94%);
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0) 6%, rgba(255, 255, 255, 0.09) 7.5%, rgba(255, 255, 255, 0) 10%),
+    radial-gradient(130% 90% at 90% 0%, hsl(calc(var(--h) + 35) 70% 62% / 0.32), transparent 62%),
+    linear-gradient(165deg, hsl(var(--h) 42% 30%), hsl(calc(var(--h) + 25) 48% 14%));
+}
+:root[data-palette][data-mode='light'] .cover-fallback {
+  color: hsl(var(--h) 45% 16%);
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0) 6%, rgba(255, 255, 255, 0.5) 7.5%, rgba(255, 255, 255, 0) 10%),
+    radial-gradient(130% 90% at 90% 0%, rgba(255, 255, 255, 0.55), transparent 60%),
+    linear-gradient(165deg, hsl(var(--h) 42% 86%), hsl(calc(var(--h) + 25) 34% 72%));
+}
+:root[data-palette][data-mode] .cover-title {
+  font-family: 'Fraunces Variable', Georgia, serif;
+  font-weight: 600;
+  font-size: 12.5cqw;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  -webkit-line-clamp: 5;
+}
+:root[data-palette][data-mode] .cover-author {
+  margin-top: 0;
+  padding-top: 6%;
+  border-top: 1px solid currentColor;
+  border-top-color: color-mix(in srgb, currentColor 35%, transparent);
+  font-size: 6.2cqw;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.cover-author:empty {
+  display: none;
+}
+/* Little marks on covers: frosted glass */
+:root[data-palette][data-mode] .kind-dot {
+  width: 24px;
+  height: 24px;
+  top: 7px;
+  right: 7px;
+  background: rgba(12, 10, 8, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(10px) saturate(1.4);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+  color: #fff;
+  z-index: 3;
+}
+:root[data-palette][data-mode] :is(.rank-badge, .match-badge, .copies-badge) {
+  z-index: 3;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(10px) saturate(1.4);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+}
+/* Title and author under a cover */
+.book-card-title {
+  margin-top: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+.book-card:active .cover {
+  transform: scale(0.985);
+}
+
+/* Light colour themes added Oct 2026 (each picks its own accent in Settings). */
+:root[data-mode='light'][data-palette='linen'] {
+  --bg: #f8f3eb;
+  --bg-2: #fffdf9;
+  --surface: rgba(110, 70, 30, 0.05);
+  --surface-2: rgba(110, 70, 30, 0.09);
+  --border: rgba(110, 70, 30, 0.12);
+  --text: #2b2219;
+  --muted: #6f6152;
+  --faint: #a39482;
+}
+:root[data-mode='light'][data-palette='cloud'] {
+  --bg: #f3f6fb;
+  --bg-2: #ffffff;
+  --surface: rgba(30, 60, 120, 0.05);
+  --surface-2: rgba(30, 60, 120, 0.09);
+  --border: rgba(30, 60, 120, 0.12);
+  --text: #142033;
+  --muted: #56637a;
+  --faint: #8d98ab;
+}
+:root[data-mode='light'][data-palette='apricot'] {
+  --bg: #fff6ef;
+  --bg-2: #fffdfb;
+  --surface: rgba(170, 80, 20, 0.05);
+  --surface-2: rgba(170, 80, 20, 0.09);
+  --border: rgba(170, 80, 20, 0.12);
+  --text: #2e1a10;
+  --muted: #7a5848;
+  --faint: #ad8c7c;
+}
+:root[data-mode='light'][data-palette='sage'] {
+  --bg: #f2f4ec;
+  --bg-2: #fbfcf8;
+  --surface: rgba(60, 90, 40, 0.05);
+  --surface-2: rgba(60, 90, 40, 0.09);
+  --border: rgba(60, 90, 40, 0.12);
+  --text: #1d2419;
+  --muted: #5b6653;
+  --faint: #8f9a86;
+}
+:root[data-mode='light'][data-palette='lilac'] {
+  --bg: #f6f3fc;
+  --bg-2: #fdfcff;
+  --surface: rgba(90, 60, 160, 0.05);
+  --surface-2: rgba(90, 60, 160, 0.09);
+  --border: rgba(90, 60, 160, 0.12);
+  --text: #1f1830;
+  --muted: #625a78;
+  --faint: #9790ab;
+}
+:root[data-mode='light'][data-palette='stone'] {
+  --bg: #f2f0ed;
+  --bg-2: #fbfaf8;
+  --surface: rgba(60, 50, 40, 0.05);
+  --surface-2: rgba(60, 50, 40, 0.09);
+  --border: rgba(60, 50, 40, 0.12);
+  --text: #1d1b19;
+  --muted: #625d57;
+  --faint: #98928b;
+}
+/* Light themes: header buttons as clean light circles in the theme's own colours, not frosted grey. */
+:root[data-mode='light']:is([data-palette='linen'], [data-palette='cloud'], [data-palette='apricot'], [data-palette='sage'], [data-palette='lilac'], [data-palette='stone'], [data-palette='sepia'], [data-palette='paper'], [data-palette='blossom'], [data-palette='mint'], [data-palette='default']) :is(.icon-btn.glass, .home-top .home-logo) {
+  background: var(--bg-2);
+  color: var(--text);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+/* The jacket's title starts below the little mark in the corner. */
+:root[data-palette][data-mode] .cover-fallback {
+  padding-top: 24%;
 }

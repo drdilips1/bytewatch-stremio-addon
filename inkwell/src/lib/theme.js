@@ -86,4 +86,11 @@ export const PALETTES = [
   { id: 'paper', name: 'Paper', light: true, bg: '#f5f6f8', swatch: ['#f5f6f8', '#dfe3ea'] },
   { id: 'blossom', name: 'Blossom', light: true, bg: '#fff4f6', swatch: ['#fff4f6', '#fbd9e1'] },
   { id: 'mint', name: 'Mint', light: true, bg: '#f1f8f4', swatch: ['#f1f8f4', '#d3eadd'] },
+  // Light looks with their own accent (picked along with them; any accent can still be chosen after).
+  { id: 'linen', name: 'Linen', light: true, bg: '#f8f3eb', swatch: ['#f8f3eb', '#8f4c2a'], accent: 'peach' },
+  { id: 'cloud', name: 'Cloud', light: true, bg: '#f3f6fb', swatch: ['#f3f6fb', '#335f9e'], accent: 'sky' },
+  { id: 'apricot', name: 'Apricot', light: true, bg: '#fff6ef', swatch: ['#fff6ef', '#c2410c'], accent: 'sunset' },
+  { id: 'sage', name: 'Sage', light: true, bg: '#f2f4ec', swatch: ['#f2f4ec', '#047857'], accent: 'emerald' },
+  { id: 'lilac', name: 'Lilac', light: true, bg: '#f6f3fc', swatch: ['#f6f3fc', '#6750a4'], accent: 'lavender' },
+  { id: 'stone', name: 'Stone & Brass', light: true, bg: '#f2f0ed', swatch: ['#f2f0ed', '#8a6322'], accent: 'brass' },
 ];
