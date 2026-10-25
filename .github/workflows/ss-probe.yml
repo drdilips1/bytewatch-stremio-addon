@@ -10,7 +10,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: |
-          cp inkwell/workers/audiohub.js /tmp/w.mjs
+          cp inkwell/workers/audiohub.js /tmp/w.mjs  # v2
           echo 'export { abbDirect, words, page };' >> /tmp/w.mjs
           cat > /tmp/t.mjs <<'JS'
           const note = (t, m) => console.log(`::notice title=${t}::${String(m).replace(/\n/g, ' ').slice(0, 1500)}`);
@@ -23,6 +23,8 @@ jobs:
           const d = await page('https://audiobookbay.lu/abss/proaject-hail-mary-andy-weir/'); const dt = await d.text();
           const i = dt.indexOf('Info Hash');
           note('detail', `status=${d.status} url=${d.url} len=${dt.length} infoHashAt=${i} title=${(/<title>([^<]*)/.exec(dt) || [])[1]} | ` + dt.slice(Math.max(0, i - 100), i + 300).replace(/:/g, '\\u003a'));
+          const cap = await (await page('https://audiobookbay.lu/?s=Project+Hail+Mary&tt=1')).text();
+          note('capitals', `posts=${(cap.match(/<div class="post"/g) || []).length}`);
           const res = await abbDirect('Project Hail Mary', 'Andy Weir', 12);
           note('direct', `n=${res.length} ${JSON.stringify(res.slice(0, 2))}`);
           JS

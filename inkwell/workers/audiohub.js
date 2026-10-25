@@ -80,7 +80,7 @@ const words = (t) => String(t || "").toLowerCase().normalize("NFKD").replace(/[^
 async function abbDirect(title, author, limit = 12) {
   // AudiobookBay's search gets confused by author names: search the title, then keep
   // only results that carry most of its words.
-  const q = String(title || author || "").trim();
+  const q = String(title || author || "").trim().toLowerCase();
   const want = words(q);
   const fits = (name) => !want.length || want.filter((w) => words(name).includes(w)).length / want.length >= 0.6;
   let host = "", html = "";

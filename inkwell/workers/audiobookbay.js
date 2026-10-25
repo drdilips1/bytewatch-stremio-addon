@@ -87,6 +87,7 @@ async function get(url) {
 
 // The search page, from the first mirror that answers with results markup.
 async function searchPage(q) {
+  q = q.toLowerCase(); // its title search misses capitalised words
   let last = '';
   for (const host of MIRRORS) {
     try {
