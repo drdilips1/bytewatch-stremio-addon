@@ -59,78 +59,51 @@ export async function textOfEbook(eb) {
     .filter(Boolean);
   const keys = tokens.map(norm);
   const index = new Map();
-  // Word pairs too: a line with a couple of misheard words still has some pairs right.
-  const pairs = new Map();
-  for (let i = 0; i + 1 < keys.length; i++) {
-    if (!keys[i] || !keys[i + 1]) continue;
-    const k2 = `${keys[i]} ${keys[i + 1]}`;
-    const at2 = pairs.get(k2);
-    if (!at2) pairs.set(k2, [i]);
-    else if (at2.length < 80) at2.push(i);
-    if (!keys[i + 2]) continue;
-    const k = `${k2} ${keys[i + 2]}`;
+  for (let i = 0; i + 2 < keys.length; i++) {
+    if (!keys[i] || !keys[i + 1] || !keys[i + 2]) continue;
+    const k = `${keys[i]} ${keys[i + 1]} ${keys[i + 2]}`;
     const at = index.get(k);
     if (!at) index.set(k, [i]);
     else if (at.length < 40) at.push(i); // very common phrases tell us little
   }
   if (tokens.length < 50) throw new Error('No readable text in that ebook');
-  return { tokens, keys, index, pairs, title: eb.title };
+  return { tokens, keys, index, title: eb.title };
 }
 
 /**
  * Where a recognised line is in the book: { from, to } word positions, or null.
  * `near`: where the previous line ended — searched first, the whole book after.
  */
-export function locate(bt, text, near = null, guess = null) {
+export function locate(bt, text, near = null) {
   const seg = String(text || '').split(/\s+/).map(norm).filter(Boolean);
-  if (seg.length < 2) return null;
-  // Votes for where the line starts in the book, from matching word runs (n words long).
-  const vote = (n, lo, hi) => {
-    const map = n === 3 ? bt.index : bt.pairs;
-    if (!map) return { n: 0 };
+  if (seg.length < 3) return null;
+  const vote = (lo, hi) => {
     const votes = new Map();
     const hits = [];
-    for (let j = 0; j + n <= seg.length; j++) {
-      for (const p of map.get(seg.slice(j, j + n).join(' ')) || []) {
+    for (let j = 0; j + 2 < seg.length; j++) {
+      for (const p of bt.index.get(`${seg[j]} ${seg[j + 1]} ${seg[j + 2]}`) || []) {
         if (p < lo || p > hi) continue;
         hits.push([p, j]);
-        // Nearby starts count together (a word missed or added shifts it by one or two).
-        const off = p - j;
-        votes.set(off, (votes.get(off) || 0) + 1);
+        votes.set(p - j, (votes.get(p - j) || 0) + 1);
       }
     }
     let best = null;
-    let c = 0;
-    for (const [off] of votes) {
-      const v = (votes.get(off - 2) || 0) + (votes.get(off - 1) || 0) + votes.get(off) + (votes.get(off + 1) || 0) + (votes.get(off + 2) || 0);
-      if (v > c || (v === c && best != null && Math.abs(off - (near ?? guess ?? off)) < Math.abs(best - (near ?? guess ?? best)))) (best = off), (c = v);
-    }
+    let n = 0;
+    for (const [off, c] of votes) if (c > n) (best = off), (n = c);
     // The line's ends, measured from the matches nearest each end (the book and the
     // recognised words rarely have the same number of words in between).
     const ok = hits.filter(([p, j]) => Math.abs(p - j - best) <= 8).sort((x, y) => x[1] - y[1]);
     const first = ok[0];
     const last = ok[ok.length - 1];
-    return { best, n: c, from: first ? first[0] - first[1] : best, to: last ? last[0] + seg.length - last[1] : best + seg.length };
+    return { best, n, from: first ? first[0] - first[1] : best, to: last ? last[0] + seg.length - last[1] : best + seg.length };
   };
-  const tries = [];
-  // Just after the line before: word triples, then (closer in) word pairs.
-  if (near != null) tries.push([3, near - 400, near + 4000, 2], [2, near - 60, near + 400, 3]);
-  // Roughly where the audio is in the book (from how far in you are): a wider stretch.
-  if (guess != null) {
-    const span = Math.max(1500, Math.round(bt.tokens.length * 0.06));
-    tries.push([3, guess - span, guess + span, 2], [2, guess - span, guess + span, 4]);
-  }
-  // Anywhere in the book: a few triples must agree, else it's a guess.
-  tries.push([3, 0, Infinity, Math.min(3, Math.max(2, seg.length - 2))]);
-  for (const [n, lo, hi, need] of tries) {
-    if (seg.length < n + (n === 2 ? 1 : 0)) continue;
-    const r = vote(n, lo, hi);
-    if (r.n >= need && r.best != null) {
-      const from = Math.max(0, r.from);
-      return { from, to: Math.max(from + 1, Math.min(bt.tokens.length, r.to)) };
-    }
-  }
-  return null;
+  let r = near != null ? vote(near - 400, near + 4000) : { n: 0 };
+  if (r.n < 2) r = vote(0, Infinity);
+  // Need a few matching triples (more for a whole-book search), else it's a guess.
+  const need = near != null ? 2 : Math.min(3, seg.length - 2);
+  if (r.n < need || r.best == null) return null;
+  const from = Math.max(0, r.from);
+  return { from, to: Math.max(from + 1, Math.min(bt.tokens.length, r.to)) };
 }
 
 /**

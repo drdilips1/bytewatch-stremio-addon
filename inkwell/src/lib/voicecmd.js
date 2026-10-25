@@ -403,18 +403,11 @@ export async function runCommand(said, step = () => {}, withAi = true) {
   if (action === 'find') return { find: true, query: said.trim() };
   // Anything else: a question for Ask AI (never "didn't catch that").
   if (action === 'unknown' || !want?.title) return { question: true, ...questionBook(want || {}) };
-  // "the scene where…", "when…", "the story of the beggar": a moment, whatever the AI said.
-  const sceneish = /\b(where|when|scene|story|moment|part|jab|jahan|jisme|wala|wali)\b/i.test(said);
-  if (action === 'play_book' && !sceneish) want.moment = false;
-  else if (sceneish) {
-    want.moment = true;
-    // No words to look for from the AI: the ones you said ("beggar", "story") — minus the book's title.
-    if (!(want.keywords || []).filter(Boolean).length) {
-      const title = new Set(words(`${want.title || ''} ${want.book || ''} ${want.author || ''}`));
-      want.keywords = [...new Set(String(said).toLowerCase().match(/[\p{L}']{4,}/gu) || [])].filter((w) => !title.has(w) && !STOPWORDS.has(w) && !/^(play|scene|story|where|when|told|tells|about|part|chapter|book)$/.test(w));
-    }
-    if (!want.scene) want.scene = String(said).replace(/^\s*(play|go to|jump to|take me to)\s+/i, '').slice(0, 80);
-  }
+  // Jumping to a scene ("play when…", "the chapter where…") is switched off for now — it wasn't
+  // reliable enough. Such a request goes to Ask AI as a question instead.
+  const sceneish = /\b(where|when|scene|story|moment|jab|jahan|jisme)\b/i.test(said);
+  if (action === 'scene' || (action === 'play_book' && sceneish)) return { question: true, ...questionBook(want) };
+  want.moment = false;
   return playScene(said, step, want);
 }
 

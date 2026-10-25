@@ -59,7 +59,7 @@ export function DriveMode() {
     resumeAfter.current = false;
   };
 
-  // "Play a scene": say the moment; it's found and plays from 30 s before it.
+  // Voice command button in driving mode: a command, a book to play, or a question.
   const sceneNow = async (preset = '', playingBefore = null) => {
     if (!canListen() && !preset) return toast('Voice input is not available on this device');
     if (!aiReady()) return toast('Add an AI key in Settings → AI first');
@@ -70,7 +70,7 @@ export function DriveMode() {
     if (!q) {
       setPhase('listening-scene');
       try {
-        q = (await listen('Say a scene, a book or a command')).trim();
+        q = (await listen('Say a book or a command')).trim();
       } catch (e) {
         toast(e.message || 'Voice input failed');
       }
@@ -142,7 +142,7 @@ export function DriveMode() {
     }
     if (!alive.current) return;
     if (!q) return carryOn();
-    // "Play when …" / "Go to the part where …": that's a scene to play, not a question.
+    // A command ("back 30 seconds", "play Sapiens"): done, not answered.
     const { isCommand } = await import('../lib/voicecmd.js');
     if (isCommand(q)) {
       const before = resumeAfter.current;
@@ -226,14 +226,14 @@ export function DriveMode() {
 
       <button class="drive-scene" disabled={phase !== 'idle'} onClick={() => sceneNow()}>
         🎙 <b>Voice command</b>
-        <small>a scene · a book · “back 30 seconds” · “next chapter”</small>
+        <small>a book · “back 30 seconds” · “next chapter” · a question</small>
       </button>
 
       <button class={'drive-ask ' + phase} onClick={onBig} aria-label={status}>
         <span class="drive-mic">{phase === 'thinking' || phase === 'scene' ? <span class="spinner" /> : '🎙'}</span>
         <b>{status}</b>
         {said && phase !== 'idle' && <small class="drive-said">“{said}”</small>}
-        {phase === 'idle' && <small class="drive-said">Commands work here too: “play when …”, “back 30 seconds”, “next chapter”</small>}
+        {phase === 'idle' && <small class="drive-said">Commands work here too: “back 30 seconds”, “next chapter”, “play Sapiens”</small>}
         {answer && phase === 'speaking' && <p class="drive-answer">{answer.replace(/[*_#`]/g, '')}</p>}
       </button>
 

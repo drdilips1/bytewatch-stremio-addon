@@ -69,14 +69,19 @@ function savedFrames() {
   }
   return saved;
 }
+// Saved a few seconds after the last one found (not once per cover while scrolling).
+let saveTimer = null;
 function keep(url, f) {
   const all = savedFrames();
   all[url] = f;
-  const keys = Object.keys(all);
-  if (keys.length > 1500) for (const k of keys.slice(0, 300)) delete all[k];
-  try {
-    localStorage.setItem(FRAME_KEY, JSON.stringify(all));
-  } catch {}
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const keys = Object.keys(all);
+    if (keys.length > 1500) for (const k of keys.slice(0, 300)) delete all[k];
+    try {
+      localStorage.setItem(FRAME_KEY, JSON.stringify(all));
+    } catch {}
+  }, 4000);
 }
 
 /** The real cover inside a padded picture as fractions { x, y, w, h }, or null (nothing to trim). */

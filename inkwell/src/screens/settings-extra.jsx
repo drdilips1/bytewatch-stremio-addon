@@ -623,7 +623,7 @@ export function FindOrderCard() {
   };
   return (
     <>
-      <List kind="audio" title="Audiobooks (Play a scene)" note="Where your copy is looked for. Within TorBox / Real-Debrid, your default one first." />
+      <List kind="audio" title="Audiobooks (voice: play a book)" note="Where your copy is looked for. Within TorBox / Real-Debrid, your default one first." />
       <List kind="ebook" title="Ebooks (for the transcript)" note="Where the audiobook's ebook is looked for." />
       <label class="set-row">
         <div>

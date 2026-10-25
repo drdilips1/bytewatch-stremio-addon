@@ -20,6 +20,14 @@ Noted while building; to pick up after Saturday.
 - Cross-library passage map: related passages in other books, tap to jump (needs those books' ebooks).
 - Highlights from transcript lines linked to audio timestamps.
 
+## 26 Oct — fixed, not built yet
+- Battery / wayward transcript: the transcript's ebook matching is back to word triples near the line
+  before (the looser pair / "where in the book" matching of 24 Oct re-ran on every line and misplaced some).
+  Cover trimming saves its list once after a burst; X-Ray builds its name matching once.
+- Voice: jumping to a scene ("play when…", "the chapter where…") switched off — such requests go to
+  Ask AI as a question. Commands, play a book, chapter N, find books and questions stay.
+  (Scene finding code kept for later: src/lib/scenefind.js.)
+
 ## Built 25 Oct (v1.0.129) — main app wrapped up for now
 - Voice button does everything: commands, books, scenes, "the chapter where…", find / recommend books
   (Discover + bookseller), anything else to Ask AI; car mode answers aloud.

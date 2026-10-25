@@ -48,7 +48,7 @@ export async function voiceNow() {
   toast('🎙 Listening…');
   let said = '';
   try {
-    said = (await listen('Say a command, a scene, a book or a question')).trim();
+    said = (await listen('Say a command, a book or a question')).trim();
   } catch (e) {
     toast(e.message || 'Voice input failed');
   }
@@ -74,11 +74,11 @@ export function SceneButton({ chip = false }) {
   return (
     <>
       {chip ? (
-        <button class="chip-btn" {...press} aria-label="Voice: speak a command, scene, book or question (hold to type)">
+        <button class="chip-btn" {...press} aria-label="Voice: speak a command, a book or a question (hold to type)">
           <Icon name="mic" size={16} /> Voice
         </button>
       ) : (
-        <button class="icon-btn glass" {...press} aria-label="Voice: speak a command, scene, book or question (hold to type)">
+        <button class="icon-btn glass" {...press} aria-label="Voice: speak a command, a book or a question (hold to type)">
           <Icon name="mic" />
         </button>
       )}
@@ -122,7 +122,7 @@ function SceneSheet({ close }) {
       <div class="sheet scene-cmd" onClick={(e) => e.stopPropagation()}>
         <div class="sheet-handle" />
         <h3>Type a command</h3>
-        <p class="muted small">A scene (“when Harry first boards the Hogwarts Express”), a book to play, a question about a book, or “back 30 seconds”, “next chapter”, “speed 1.5”, “sleep in 20 minutes”. Tap 🎤 to just say it.</p>
+        <p class="muted small">A book to play, a book to find, a question about a book, or “back 30 seconds”, “next chapter”, “chapter 7”, “speed 1.5”, “sleep in 20 minutes”. Tap 🎤 to just say it.</p>
         <form
           class="scene-form"
           onSubmit={(e) => {
@@ -130,7 +130,7 @@ function SceneSheet({ close }) {
             go(text);
           }}
         >
-          <textarea rows={2} value={text} autoFocus placeholder="A scene, a book, a question or a command" onInput={(e) => setText(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), go(text))} />
+          <textarea rows={2} value={text} autoFocus placeholder="A book, a question or a command" onInput={(e) => setText(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), go(text))} />
           <div class="scene-btns">
             <button type="submit" class="btn primary" disabled={!text.trim()}>
               <Icon name="play" size={16} /> Go

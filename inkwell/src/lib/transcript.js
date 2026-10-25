@@ -145,14 +145,10 @@ function align() {
   const segs = state.segments;
   // 1. Find each line in the book, searching near where the previous one ended.
   let near = null;
-  // Roughly where in the book a moment of the audio is (how far in you are), to look there first.
-  const part = +state.key.slice(btUid.length + 1);
-  const total = player.totalDuration();
-  const guessAt = (t) => (total > 0 && Number.isInteger(part) ? Math.round((bt.tokens.length * (player.trackOffset(part) + t)) / total) : null);
   for (const s of segs) {
     if (s.fill) delete s.at, delete s.fill; // filled in last time: work it out again
     if (!s.at) {
-      const r = locate(bt, s.text, near, guessAt(s.start));
+      const r = locate(bt, s.text, near);
       if (r) s.at = [r.from, r.to];
     }
     if (s.at) near = s.at[1];

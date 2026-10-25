@@ -16,7 +16,15 @@ export function namesOf(x) {
   if (parts.length > 1) for (const p of [parts[0], parts[parts.length - 1]]) if (p.length > 3 && !/^(the|mr|mrs|miss|dr|sir|lady|lord|king|queen|uncle|aunt|professor)\.?$/i.test(p)) out.add(p);
   return [...out].filter((n) => n && n.length > 2);
 }
-const matcher = (x) => new RegExp(`\\b(${namesOf(x).map(esc).sort((a, b) => b.length - a.length).join('|')})\\b`, 'i');
+// Built once per name (the X-Ray line checks them several times a second while playing).
+const matchers = new Map();
+const matcher = (x) => {
+  if (!matchers.has(x.name)) {
+    if (matchers.size > 300) matchers.clear();
+    matchers.set(x.name, new RegExp(`\\b(${namesOf(x).map(esc).sort((a, b) => b.length - a.length).join('|')})\\b`, 'i'));
+  }
+  return matchers.get(x.name);
+};
 
 const asList = (a) => (Array.isArray(a) ? a : []).filter((x) => x && x.name);
 const nums = (a) => (Array.isArray(a) ? a.map(Number).filter((n) => Number.isInteger(n) && n > 0) : []);
