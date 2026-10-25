@@ -91,7 +91,7 @@ export function timeOf(anchors, tok) {
  * 300-word stretch where most of them gather (rare words count more). `range` [from, to]
  * (the chapter the AI named, when known) is preferred. null when the words aren't there.
  */
-export function sceneInText(bt, keywords, range = null, { strict = false, target = null } = {}) {
+export function sceneInText(bt, keywords, range = null, { strict = false, target = null, details = null } = {}) {
   const keys = bt.keys;
   const want = [...new Set((keywords || []).flatMap((k) => norm(k)).filter((w) => w.length > 2 && !STOP.has(w)))];
   if (want.length < 2) return null;
@@ -126,8 +126,14 @@ export function sceneInText(bt, keywords, range = null, { strict = false, target
   }
   if (!best || best.distinct < Math.min(2, weight.size)) return null;
   // The scene starts at the first of its words in that stretch.
-  for (let i = best.start; i < Math.min(keys.length, best.start + W); i++) if (weight.has(keys[i])) return i;
-  return best.start;
+  let tok = best.start;
+  for (let i = best.start; i < Math.min(keys.length, best.start + W); i++)
+    if (weight.has(keys[i])) {
+      tok = i;
+      break;
+    }
+  if (details) details.hit = { s: best.s, distinct: best.distinct };
+  return tok;
 }
 
 /**

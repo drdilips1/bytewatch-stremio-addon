@@ -38,7 +38,8 @@ Return JSON: {"action":"scene","seconds":0,"speed":0,"minutes":0,"title":"the bo
 - chapterTitle: that chapter's title, if it has one.
 - at: how far into that chapter the moment starts, from 0.0 (its start) to 1.0 (its end).
 - quote: 6–12 words of the book's own text from the start of that moment, only if you're sure of them, else "".
-- keywords: 5–8 words that appear in the book's own text right at that moment and rarely elsewhere — names, places, objects, unusual words (for "Dumbledore awards the House Cup": "Dumbledore", "House Cup", "points", "Neville", "Slytherin", "decorations"). Not common words.
+- keywords: 6–10 words that appear in the book's own text right at that moment and rarely elsewhere — names, places, objects, unusual words (for "Dumbledore awards the House Cup": "Dumbledore", "House Cup", "points", "Neville", "Slytherin", "decorations"). Prefer the details that set this moment apart from similar ones elsewhere in the book (for "Hagrid tells who gave him the egg": "Hog's Head", "stranger", "hood", "cards", "Fluffy" — not just "dragon" and "egg"). Not common words.
+- chapter: be careful — if the same subject comes up in more than one chapter, give the chapter of this exact moment.
 For a control, only "action" and its number matter. If they don't name or describe a book you can identify, and it isn't a control, return {"action":"unknown","title":""}.`,
     { json: true }
   );
@@ -180,8 +181,14 @@ async function inEbook(book, want, part) {
   const { chapterRange } = await import('./scenefind.js');
   const ch = chapterRange(bt, want.chapter, want.chapterTitle);
   const inCh = Math.min(0.95, Math.max(0, Number(want.at) || 0));
-  let tok = ch ? sceneInText(bt, words, ch, { strict: true, target: ch[0] + inCh * (ch[1] - ch[0]) }) : null;
-  if (tok == null) tok = sceneInText(bt, words, rangeOf(anchors, part, ci));
+  const inside = {};
+  const anywhere = {};
+  let tok = ch ? sceneInText(bt, words, ch, { strict: true, target: ch[0] + inCh * (ch[1] - ch[0]), details: inside }) : null;
+  // The whole book too: the AI can name the wrong chapter (the egg is talked about in two). If
+  // somewhere else has clearly more of the scene's telling words, that's the scene.
+  const all = sceneInText(bt, words, null, { details: anywhere });
+  if (tok == null) tok = all ?? sceneInText(bt, words, rangeOf(anchors, part, ci));
+  else if (all != null && anywhere.hit && inside.hit && (anywhere.hit.distinct > inside.hit.distinct + 1 || anywhere.hit.s > inside.hit.s * 1.4)) tok = all;
   if (tok == null) return null;
   const g = timeOf(anchors, tok);
   const at = part.findIndex((c) => g >= c.start && g < (c.end || Infinity));
