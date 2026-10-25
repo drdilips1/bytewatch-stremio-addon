@@ -20,6 +20,14 @@ Noted while building; to pick up after Saturday.
 - Cross-library passage map: related passages in other books, tap to jump (needs those books' ebooks).
 - Highlights from transcript lines linked to audio timestamps.
 
+## Built 25 Oct (v1.0.129) — main app wrapped up for now
+- Voice button does everything: commands, books, scenes, "the chapter where…", find / recommend books
+  (Discover + bookseller), anything else to Ask AI; car mode answers aloud.
+- Scenes: exact book of a series, whole-book check beside the AI's chapter, your own words when the AI
+  gives none, "couldn't find" said plainly. Ask about what you're hearing gets the transcript.
+- Player: chapter pill under the title; sheets readable in light theme. Book page: slim Ask AI row,
+  your copies side by side. Appearance: all colour themes under Mode, each mode keeps its own.
+
 ## Built 25 Oct (v1.0.128)
 - Bookmark notes (✎) and one Markdown export (highlights, bookmarks, saved ideas); welcome-back recap
   after 14+ days; per-book speed and volume boost; your own OpenAI-compatible AI + what-leaves-the-phone note.
