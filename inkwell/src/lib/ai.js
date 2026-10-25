@@ -6,7 +6,7 @@ import { persisted } from './store.js';
 import * as player from './player.js';
 import { heardText } from './transcript.js';
 
-export const ai = persisted('ai', { groqKey: '', openrouterKey: '', geminiKey: '', claudeKey: '', prefer: '', last: '' });
+export const ai = persisted('ai', { groqKey: '', openrouterKey: '', geminiKey: '', claudeKey: '', customUrl: '', customModel: '', customKey: '', prefer: '', last: '' });
 
 /**
  * Services, in the order they are tried (the one picked in Settings → AI goes first).
@@ -55,7 +55,22 @@ export const PROVIDERS = [
     anthropic: true,
     models: ['claude-opus-5-5'],
   },
+  {
+    // Your own: any service that speaks the OpenAI chat format (Ollama or LM Studio on your
+    // computer, a company endpoint, Together, Mistral…). Address and model from Settings → AI.
+    id: 'custom',
+    name: 'Your own AI',
+    keyField: 'customUrl',
+    custom: true,
+    json: false,
+  },
 ];
+
+/** Where your own AI answers: the address as given, with /chat/completions added if missing. */
+const customEndpoint = () => {
+  const u = (ai.get().customUrl || '').trim().replace(/\/+$/, '');
+  return /\/chat\/completions$/.test(u) ? u : `${u}/chat/completions`;
+};
 
 // Gemini models that answer text, newest "flash" first (fast and in the free tier); cached for a day.
 const geminiList = persisted('aiGeminiModels', { t: 0, ids: [] });
@@ -109,6 +124,7 @@ async function freeRouterModels() {
 // Never waits for the list: the saved one (or the built-in fallback) is used at once
 // and refreshed in the background when it's old.
 async function modelsFor(p) {
+  if (p.custom) return [ai.get().customModel.trim()];
   if (!p.discover) return p.models;
   p.discover().catch(() => {});
   const ids = p.cached();
@@ -119,7 +135,8 @@ async function modelsFor(p) {
 const POLICY = /data policy|privacy|free model (publication|training)|No endpoints found matching/i;
 const policyHelp = (name) => `${name} is blocking its free models: open openrouter.ai/settings/privacy and turn on the options for free models (training / publication), then try again`;
 
-const keyOf = (p) => (ai.get()[p.keyField] || '').trim();
+// Your own AI may need no key (Ollama): it's ready once it has an address and a model.
+const keyOf = (p) => (p.custom ? (ai.get().customUrl?.trim() && ai.get().customModel?.trim() ? ai.get().customKey?.trim() || 'none' : '') : (ai.get()[p.keyField] || '').trim());
 export const aiReady = () => PROVIDERS.some(keyOf);
 
 const cache = persisted('aiCache', {}); // prompt key -> { t, v }
@@ -158,7 +175,7 @@ async function call(p, model, prompt, json) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 30000);
   try {
-    const res = await fetch(p.url, {
+    const res = await fetch(p.custom ? customEndpoint() : p.url, {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keyOf(p)}`, ...(p.headers || {}) },

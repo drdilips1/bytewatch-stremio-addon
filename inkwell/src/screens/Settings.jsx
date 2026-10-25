@@ -325,9 +325,10 @@ function AiCard() {
         Powers the <b>bookseller</b>, <b>Picked for you</b> and <b>Story</b> in the player (spoiler-free recaps and characters). Add one or more free keys: if one service is busy the app switches to the next automatically.
         Without a key the bookseller still works from the Audible catalogue.
       </p>
-      {AI_PROVIDERS.map((p) => (
+      {AI_PROVIDERS.filter((p) => !p.custom).map((p) => (
         <AiKey p={p} saved={cfg[p.keyField] || ''} />
       ))}
+      <CustomAi cfg={cfg} />
       {AI_PROVIDERS.filter((p) => cfg[p.keyField]).length > 1 && (
         <div class="set-row">
           <div>
@@ -351,10 +352,53 @@ function AiCard() {
       </label>
       <HiddenRecs />
       <p class="muted small">
+        <b>What leaves your phone:</b> only when you use an AI feature, the question and what it needs — the book's title and author, where you are in it, and (for questions about
+        what you're hearing) the last few minutes of the transcript — go to the service you set up here, under your own key. Playback, downloads, your library, bookmarks and
+        voice commands like “back 30 seconds” never use AI and work without any key. Nothing goes to us: there is no Audiohub server.
+      </p>
+      <p class="muted small">
         <b>Groq</b> is the fastest and most generous (recommended). <b>Gemini</b> (Google AI Studio) has a free tier too. <b>OpenRouter</b> gives free Llama, DeepSeek and Qwen models. No card is needed for these three.
         <b> Claude</b> gives the most careful answers but is paid per use (a key from platform.claude.com with credit on it); short book answers cost very little.
       </p>
     </>
+  );
+}
+
+/** Your own AI: any OpenAI-compatible address (Ollama, LM Studio, a company endpoint…). */
+function CustomAi({ cfg }) {
+  const [url, setUrl] = useState(cfg.customUrl || '');
+  const [model, setModel] = useState(cfg.customModel || '');
+  const [key, setKey] = useState(cfg.customKey || '');
+  const [busy, setBusy] = useState(false);
+  const changed = url.trim() !== (cfg.customUrl || '') || model.trim() !== (cfg.customModel || '') || key.trim() !== (cfg.customKey || '');
+  const save = async () => {
+    ai.patch({ customUrl: url.trim(), customModel: model.trim(), customKey: key.trim() });
+    if (!url.trim()) return toast('Your own AI removed');
+    if (!model.trim()) return toast('Add the model name too');
+    setBusy(true);
+    try {
+      toast(await testProvider('custom'));
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div class="ai-key">
+      <div class="ai-key-head">
+        <b>Your own AI</b>
+        <small class="muted">any OpenAI-compatible address — Ollama, LM Studio, your company's…</small>
+      </div>
+      <input value={url} placeholder="Address, e.g. http://192.168.1.10:11434/v1" onInput={(e) => setUrl(e.currentTarget.value)} autocomplete="off" />
+      <input value={model} placeholder="Model, e.g. llama3.1" onInput={(e) => setModel(e.currentTarget.value)} autocomplete="off" />
+      <div class="set-row">
+        <input type="password" value={key} placeholder="Key (if it needs one)" onInput={(e) => setKey(e.currentTarget.value)} autocomplete="off" />
+        <button class="btn" disabled={busy || !changed} onClick={save}>
+          {busy ? <span class="spinner small" /> : 'Save'}
+        </button>
+      </div>
+    </div>
   );
 }
 

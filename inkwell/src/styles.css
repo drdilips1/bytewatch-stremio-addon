@@ -9139,3 +9139,7 @@ button.notes-book-head {
 .welcome-back > span {
   flex: 1;
 }
+.ai-key > input {
+  width: 100%;
+  margin: 6px 0 0;
+}
