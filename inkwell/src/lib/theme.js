@@ -42,15 +42,19 @@ let onApplied = null;
 /** Called after each theme change with whether it is light (status bar icons). */
 export const onThemeApplied = (f) => (onApplied = f);
 
+/** The colour theme in use: each mode keeps its own (light colours by day, dark at night). */
+export const activePalette = (st, mode = resolvedMode(st)) => (mode === 'light' ? st.paletteLight : st.paletteDark) || st.palette || 'default';
+
 export function applyTheme(st) {
   lastSt = st;
   const mode = resolvedMode(st);
-  const a = st.palette === 'paperink' ? FOREST : ACCENTS[st.accent] || ACCENTS[LEGACY[st.accent]] || ACCENTS.brass;
+  const pid = activePalette(st, mode);
+  const a = pid === 'paperink' ? FOREST : ACCENTS[st.accent] || ACCENTS[LEGACY[st.accent]] || ACCENTS.brass;
   const root = document.documentElement;
   const light = mode === 'light';
   root.dataset.mode = mode;
   // Palette: the colour of the whole app (backgrounds and text), per mode.
-  const pal = PALETTES.find((p) => p.id === st.palette && p.light === light);
+  const pal = PALETTES.find((p) => p.id === pid && p.light === light);
   root.dataset.palette = pal ? pal.id : 'default';
   root.style.setProperty('--accent', light && a.l ? a.l : a.a);
   root.style.setProperty('--accent-2', light && a.lb ? a.lb : a.b);

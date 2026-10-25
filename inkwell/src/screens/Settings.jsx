@@ -9,7 +9,7 @@ import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayU
 import { searchSources, sourceAddons } from '../sources/sourceaddons.js';
 import { ai, PROVIDERS as AI_PROVIDERS, testProvider } from '../lib/ai.js';
 import relayCode from '../../relay/index.ts?raw';
-import { ACCENTS, PALETTES, resolvedMode } from '../lib/theme.js';
+import { ACCENTS, PALETTES, resolvedMode, activePalette } from '../lib/theme.js';
 import { WALLPAPERS, wallpaperUrl, saveCustom, useCustomWallpaper } from '../lib/wallpaper.js';
 import { APP_VERSION } from '../components/update.jsx';
 import { ReportCard } from '../components/report.jsx';
@@ -1199,8 +1199,11 @@ export function Settings() {
 
       <p class="set-group">App</p>
       <Section icon="palette" title="Appearance">
-        <div class="set-row">
-          <b>Mode</b>
+        <div class="set-row column">
+          <div>
+            <b>Mode</b>
+            <small>Like phone: light by day, dark at night — each with the colours you last picked for it below</small>
+          </div>
           <div class="chips">
             {['system', 'light', 'dark', 'amoled'].map((m) => (
               <button class={'pill small' + (st.mode === m ? ' active' : '')} onClick={() => settings.patch({ mode: m })}>
@@ -1209,24 +1212,35 @@ export function Settings() {
             ))}
           </div>
         </div>
-        {st.mode !== 'amoled' && (
+        {/* Every colour theme right here, light and dark: one tap sets the mode and the colours. */}
+        {[
+          ['Light', true],
+          ['Dark', false],
+        ].map(([label, light]) => (
           <div class="set-row column">
-            <b>Theme</b>
+            <b>{label} colours</b>
             <div class="palette-grid">
-              {PALETTES.filter((p) => p.light === (resolvedMode(st) === 'light')).map((p) => (
+              {PALETTES.filter((p) => p.light === light).map((p) => (
                 <button
-                  class={'palette' + ((st.palette || 'default') === p.id ? ' active' : '')}
+                  class={'palette' + (activePalette(st, light ? 'light' : 'dark') === p.id && !(st.mode === 'amoled' && !light) ? ' active' : '')}
                   style={{ background: `linear-gradient(160deg, ${p.swatch[0]} 45%, ${p.swatch[1]})`, color: p.light ? '#1b1b1f' : '#f1eef8' }}
-                  onClick={() => settings.patch({ palette: p.id })}
+                  // Shown at once (switches to that mode), and kept for that mode when you go back to "Like phone".
+                  onClick={() => settings.patch({ palette: p.id, [light ? 'paletteLight' : 'paletteDark']: p.id, mode: light ? 'light' : 'dark' })}
                 >
                   <span class="palette-dot" />
                   {p.name}
                 </button>
               ))}
+              {!light && (
+                <button class={'palette' + (st.mode === 'amoled' ? ' active' : '')} style={{ background: '#000', color: '#f1eef8' }} onClick={() => settings.patch({ mode: 'amoled' })}>
+                  <span class="palette-dot" />
+                  Black
+                </button>
+              )}
             </div>
           </div>
-        )}
-        {st.palette !== 'paperink' && <div class="set-row column">
+        ))}
+        {activePalette(st) !== 'paperink' && <div class="set-row column">
           <b>Accent</b>
           <div class="accent-grid">
             {Object.entries(ACCENTS).map(([k, a]) => (
