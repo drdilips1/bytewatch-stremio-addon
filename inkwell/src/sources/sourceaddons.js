@@ -16,7 +16,8 @@ import abb from './builtin/audiobookbay.json';
 import knabenAudio from './builtin/knaben-audiobooks.json';
 import knabenEbooks from './builtin/knaben-ebooks.json';
 import bookracy from './builtin/bookracy.json';
-const BUILTIN = [knabenAudio, abb, knabenEbooks, bookracy].map((manifest) => ({ kind: 'source', url: '', builtin: true, manifest }));
+import inkEcho from './builtin/inkandecho-audiobooks.json';
+const BUILTIN = [knabenAudio, abb, inkEcho, knabenEbooks, bookracy].map((manifest) => ({ kind: 'source', url: '', builtin: true, manifest }));
 // Installed copies of the built-in ones (older or newer links) — they'd only repeat the same results.
 export const BUILTIN_IDS = new Set([
   ...BUILTIN.map((a) => a.manifest.id),
