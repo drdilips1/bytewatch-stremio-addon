@@ -128,7 +128,7 @@ async function abbDirect(title, author, limit = 12) {
         if (!hash) return null;
         const infoHash = hash.toLowerCase();
         const tr = TRACKERS.map((x) => `&tr=${encodeURIComponent(x)}`).join("");
-        return { ...item, infoHash, magnetUrl: `magnet:?xt=urn:btih:${infoHash}&dn=${encodeURIComponent(item.title)}${tr}`, seeders: 0 };
+        return { ...item, infoHash, magnetUrl: `magnet:?xt=urn:btih:${infoHash}&dn=${encodeURIComponent(item.title)}${tr}` };
       } catch {
         return null;
       }
