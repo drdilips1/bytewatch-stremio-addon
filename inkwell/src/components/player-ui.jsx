@@ -143,7 +143,7 @@ function chapterLabel(chapters, g) {
   if (i < 0) i = 0;
   const t = String(chapters[i]?.title || '').trim();
   const plain = !t || /^(chapter|part|track)?\s*\d+$/i.test(t);
-X
+  return `Chapter ${i + 1} of ${chapters.length}${plain ? '' : ` · ${t}`}`;
 }
 
 export function FullPlayer() {
