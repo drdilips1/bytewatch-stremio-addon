@@ -86,7 +86,8 @@ async function abbDirect(title, author, limit = 12) {
   let host = "", html = "";
   for (const h of ABB_MIRRORS) {
     try {
-      const r = await page(`https://${h}/?s=${encodeURIComponent(q).replace(/%20/g, "+")}&cat=undefined%2Cundefined`);
+      // tt=1: search titles only (the plain search returns collections and near misses).
+      const r = await page(`https://${h}/?s=${encodeURIComponent(q).replace(/%20/g, "+")}&tt=1`);
       const t = await r.text();
       if (r.ok && /class="post"|postTitle|Nothing Found|No results/i.test(t)) {
         host = new URL(r.url).host;

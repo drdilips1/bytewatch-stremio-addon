@@ -90,7 +90,8 @@ async function searchPage(q) {
   let last = '';
   for (const host of MIRRORS) {
     try {
-      const r = await get(`https://${host}/?s=${encodeURIComponent(q).replace(/%20/g, '+')}&cat=undefined%2Cundefined`);
+      // tt=1: search titles only (the plain search returns collections and near misses).
+      const r = await get(`https://${host}/?s=${encodeURIComponent(q).replace(/%20/g, '+')}&tt=1`);
       const html = await r.text();
       if (r.ok && /class="post"|postTitle|Nothing Found|No results/i.test(html)) return { host: new URL(r.url).host, html };
       last = `${host}: HTTP ${r.status}`;
