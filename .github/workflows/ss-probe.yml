@@ -1,0 +1,28 @@
+name: ss-probe
+on:
+  push:
+    paths: [".github/workflows/ss-probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: |
+          cp inkwell/workers/torrents.js /tmp/w.mjs
+          cat > /tmp/t.mjs <<'JS'
+          globalThis.caches = { default: { match: async () => null, put: async () => {} } };
+          const w = (await import('/tmp/w.mjs')).default;
+          const ctx = { waitUntil() {} };
+          const note = (t, m) => console.log(`::notice title=${t}::${String(m).replace(/\n/g, ' ').slice(0, 1500)}`);
+          for (const [kind, q] of [['audiobooks','sapiens'], ['audiobooks','project hail mary'], ['ebooks','sapiens'], ['ebooks','psychology of money'], ['ebooks', 'atomic habits']]) {
+            const t0 = Date.now();
+            const r = await w.fetch(new Request(`https://x.workers.dev/${kind}/search?q=` + encodeURIComponent(q)), {}, ctx);
+            const j = await r.json();
+            note(`${kind} "${q}" HTTP ${r.status} ${Date.now()-t0}ms`, `n=${j.results.length} errors=${JSON.stringify(j.errors||j.error||null)} | ` + j.results.slice(0, 5).map(x => `[${x.format}|${x.seeders}s|${Math.round(x.sizeBytes/1e6)}MB|${x.source}] ${x.title}`).join(' ;; '));
+          }
+          const m = await (await w.fetch(new Request('https://x.workers.dev/ebooks/manifest.json'), {}, ctx)).json();
+          note('manifest', m.name + ' ' + m.adapters.source.request.url);
+          JS
+          node /tmp/t.mjs
