@@ -9284,3 +9284,20 @@ button.notes-book-head {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Book page: Ask AI as one slim row of one-tap questions */
+.ask-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 4px 0 8px;
+}
+.ask-chips::-webkit-scrollbar {
+  display: none;
+}
+.ask-chips .pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

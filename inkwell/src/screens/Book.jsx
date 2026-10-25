@@ -451,7 +451,6 @@ export function Book({ book: initial }) {
         expanded={expanded}
         setExpanded={setExpanded}
       />
-      {gr && <GoodreadsCard gr={gr} />}
       {book.source !== "sum" && book.source !== "pod" && (
         <AskCard
           book={book}
@@ -459,6 +458,7 @@ export function Book({ book: initial }) {
           genres={(gr?.genres || []).map((g) => g.name)}
         />
       )}
+      {gr && <GoodreadsCard gr={gr} />}
 
       {book.metaSource && (
         <p class="muted pad meta-credit">Details from {book.metaSource}</p>
@@ -1201,30 +1201,25 @@ function FixDetails({ book, onFixed }) {
   );
 }
 
-/** Ask AI about this book: a few quick questions and the six modes; one tap opens the full screen. */
+/** Ask AI about this book: one slim row of one-tap questions, and "Ask…" for your own. */
 function AskCard({ book, description, genres }) {
   const open = (extra = {}) =>
     nav.push("ask", { book, description, genres, ...extra });
+  const QUICK = [
+    ["What's it about?", STARTERS[0]],
+    ["5 key ideas", STARTERS[1]],
+    ["Worth my time?", STARTERS[2]],
+  ];
   return (
-    <section class="pad ask-card-wrap">
-      <h3 class="section-label">
-        <Icon name="sparkle" size={16} /> Ask AI
-      </h3>
-      <div class="ask-card">
-        <p class="muted small">
-          Summaries, key ideas, a quiz, or anything you're curious about.
-        </p>
-        <div class="ask-card-qs">
-          {STARTERS.slice(0, 2).map((q) => (
-            <button class="ask-q" onClick={() => open({ question: q })}>
-              {q}
-            </button>
-          ))}
-        </div>
-        <button class="btn primary ask-open" onClick={() => open()}>
-          <Icon name="sparkle" size={16} /> Ask a question
+    <div class="ask-chips pad">
+      {QUICK.map(([label, q]) => (
+        <button class="pill small" onClick={() => open({ question: q, askId: `${Date.now()}` })}>
+          {label === QUICK[0][0] && <Icon name="sparkle" size={14} />} {label}
         </button>
-      </div>
-    </section>
+      ))}
+      <button class="pill small" onClick={() => open()}>
+        Ask…
+      </button>
+    </div>
   );
 }
