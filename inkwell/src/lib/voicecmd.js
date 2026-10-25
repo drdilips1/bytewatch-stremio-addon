@@ -273,7 +273,11 @@ export async function playScene(said, step = () => {}, preset = null) {
     return { book: details, scene: want.scene ? `The chapter: ${want.scene}` : '', where: `start of ${own?.title || 'the chapter'}${where.includes('ebook') ? ' · from the ebook' : ''}` };
   }
   if (g != null) player.playAt(g - LEAD);
-  else if (!player.getState().playing) player.toggle();
+  else {
+    // Not found: say so, rather than quietly carrying on from where you were.
+    if (!player.getState().playing) player.toggle();
+    return { book: details, scene: `Couldn't find that scene${(want.keywords || []).length ? '' : ' (no ebook or chapter to go on)'} — playing from where you left off`, where: '' };
+  }
   return { book: details, scene: want.scene || '', where };
 }
 
@@ -394,7 +398,18 @@ export async function runCommand(said, step = () => {}, withAi = true) {
   if (CONTROLS.has(action)) return { message: await control({ ...want, action }), action };
   if (action === 'question') return { question: true, ...questionBook(want) };
   if (action === 'unknown' || !want?.title) throw new Error(`Didn't catch that — try "back 30 seconds", "next chapter" or "play when … in <book>"`);
-  if (action === 'play_book') want.moment = false;
+  // "the scene where…", "when…", "the story of the beggar": a moment, whatever the AI said.
+  const sceneish = /\b(where|when|scene|story|moment|part|jab|jahan|jisme|wala|wali)\b/i.test(said);
+  if (action === 'play_book' && !sceneish) want.moment = false;
+  else if (sceneish) {
+    want.moment = true;
+    // No words to look for from the AI: the ones you said ("beggar", "story") — minus the book's title.
+    if (!(want.keywords || []).filter(Boolean).length) {
+      const title = new Set(words(`${want.title || ''} ${want.book || ''} ${want.author || ''}`));
+      want.keywords = [...new Set(String(said).toLowerCase().match(/[\p{L}']{4,}/gu) || [])].filter((w) => !title.has(w) && !STOPWORDS.has(w) && !/^(play|scene|story|where|when|told|tells|about|part|chapter|book)$/.test(w));
+    }
+    if (!want.scene) want.scene = String(said).replace(/^\s*(play|go to|jump to|take me to)\s+/i, '').slice(0, 80);
+  }
   return playScene(said, step, want);
 }
 
