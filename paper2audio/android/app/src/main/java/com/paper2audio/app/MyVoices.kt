@@ -92,24 +92,35 @@ object MyVoices {
     // Ethan and Oliver (owen, max) are left out for now: their recordings made the copying engine loop
     // and cut sentences short in testing. New recordings can bring them back.
     val NARRATO get() = listOf(
+        // As shared from Paper to Audio (Name__p<pause>__d<noise removal>__id<id>.wav), with exactly the settings
+        // they have there: the seed is the one Paper to Audio derives from the id, so they sound as they do there.
+        Voice("emma", "Emma", 0, 0f, true, "female · English", pause = 700, denoised = false, seed = 64194),
+        Voice("lily", "Lily", 0, 0f, true, "female · English", pause = 700, denoised = false, seed = 90538),
+        Voice("grace", "Grace", 0, 0f, true, "female · English", pause = 480, denoised = false, seed = 34312),
+        Voice("isla", "Isla", 0, 0f, true, "female · English", pause = 900, denoised = false, seed = 4618),
+        Voice("sophie", "Sophie", 0, 0f, true, "female · English", pause = 700, denoised = false, seed = 92620),
+        Voice("daniel", "Daniel", 0, 0f, true, "male · English", pause = 740, denoised = false, seed = 20604),
+        Voice("henry", "Henry", 0, 0f, true, "male · English", pause = 900, denoised = false, seed = 54287),
+        Voice("oscar", "Oscar", 0, 0f, true, "male · English", pause = 800, denoised = false, seed = 15734),
+        Voice("jack", "Jack", 0, 0f, true, "male · English", pause = 520, denoised = false, seed = 81386),
+        Voice("arthur", "Arthur", 0, 0f, true, "male · English", pause = 840, denoised = false, seed = 57008),
+    )
+
+    /**
+     * The first readers (Ava, Clara, Maya, Hazel, Rose, Noah, Lucas, Theo), hidden for now: their copies in
+     * Paper to Audio are gone, so their settings couldn't be matched, and on the phone they skipped and
+     * garbled lines. Their recordings stay in src/lite/assets/voices.
+     */
+    @Suppress("unused")
+    private val FIRST_READERS = listOf(
         Voice("ava", "Ava", 0, 0f, true, "female · English", pause = 640, denoised = true),
         Voice("clara", "Clara", 0, 0f, true, "female · English", pause = 580, denoised = true, seed = 90001),
         Voice("maya", "Maya", 0, 0f, true, "female · English", pause = 660, denoised = true, seed = 101),
         Voice("nora", "Hazel", 0, 0f, true, "female · English", pause = 600, denoised = true, seed = 90001),
         Voice("rose", "Rose", 0, 0f, true, "female · English", pause = 300, denoised = true, seed = 90001),
-        // Recorded later and copied in Paper to Audio, with exactly the settings they have there (shared as
-        // Name__p<pause>__d<noise removal>__id<id>.wav): the seed is the one Paper to Audio derives from the
-        // id, so they sound as they do there.
-        Voice("emma", "Emma", 0, 0f, true, "female · English", pause = 700, denoised = false, seed = 64194),
-        Voice("grace", "Grace", 0, 0f, true, "female · English", pause = 480, denoised = false, seed = 34312),
-        Voice("isla", "Isla", 0, 0f, true, "female · English", pause = 900, denoised = false, seed = 4618),
-        Voice("sophie", "Sophie", 0, 0f, true, "female · English", pause = 700, denoised = false, seed = 92620),
         Voice("leo", "Noah", 0, 0f, true, "male · English", pause = 620, denoised = false, seed = 101),
         Voice("sam", "Lucas", 0, 0f, true, "male · English", pause = 680, denoised = true),
         Voice("theo", "Theo", 0, 0f, true, "male · English", pause = 680, denoised = false),
-        Voice("daniel", "Daniel", 0, 0f, true, "male · English", pause = 740, denoised = false, seed = 20604),
-        Voice("henry", "Henry", 0, 0f, true, "male · English", pause = 900, denoised = false, seed = 54287),
-        Voice("oscar", "Oscar", 0, 0f, true, "male · English", pause = 800, denoised = false, seed = 15734),
     )
 
     class Ref(val samples: FloatArray, val sampleRate: Int)
