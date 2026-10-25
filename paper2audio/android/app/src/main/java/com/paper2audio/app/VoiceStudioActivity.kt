@@ -35,8 +35,6 @@ import java.util.Locale
  */
 class VoiceStudioActivity : Activity() {
     private companion object {
-        /** One line for every take of "Pick the best take": a little narration and a little speech, as in a book. */
-        const val TAKE_LINE = "She opened the door, looked outside, and smiled. \u201CNearly there,\u201D she said quietly, \u201Cjust a little further.\u201D"
         const val REQ_IMPORT = 1
         const val REQ_MIC = 2
         const val DIALOGUE_SAMPLE = "“Are you coming with us tonight?” asked Maya. Tom looked out at the rain " +
@@ -840,63 +838,7 @@ class VoiceStudioActivity : Activity() {
             .show()
     }
 
-    /**
-     * The same recording copied twice can sound like two people: the engine's seed decides. Four takes of
-     * one line (the voice's own and three others) to hear one after another; the one kept is used for
-     * every sentence from then on, and goes with the voice when it's shared.
-     */
-    private fun pickTake(v: MyVoices.Voice) {
-        val voiceId = Speaker.CLONE + v.id
-        val current = LocalTts.currentSeed(voiceId)
-        val seeds = listOf(current) + generateSequence { kotlin.random.Random.nextInt(1, 100_000) }.filter { it != current }.distinct().take(3)
-        val dir = java.io.File(cacheDir, "takes").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
-        val progress = AlertDialog.Builder(this)
-            .setTitle("Making four takes…")
-            .setMessage("About half a minute. Each one reads the same line.")
-            .setCancelable(false)
-            .show()
-        scope.launch {
-            val files = try {
-                withContext(Dispatchers.Default) {
-                    seeds.mapIndexed { i, s ->
-                        java.io.File(dir, "take$i.wav").also { LocalTts.writeWav(it, LocalTts.synthesize(voiceId, TAKE_LINE, 1f, "en", seed = s)) }
-                    }
-                }
-            } catch (e: Exception) {
-                AppLog.e("Studio", "Couldn't make the takes", e)
-                progress.dismiss()
-                toast(e.message ?: "Couldn't make the takes")
-                return@launch
-            }
-            progress.dismiss()
-            var player: android.media.MediaPlayer? = null
-            fun play(i: Int) {
-                player?.release()
-                player = android.media.MediaPlayer().apply {
-                    setDataSource(files[i].path)
-                    prepare()
-                    start()
-                }
-            }
-            var chosen = 0
-            val labels = seeds.indices.map { i -> if (i == 0) "Take 1 (the one it has now)" else "Take ${i + 1}" }.toTypedArray()
-            AlertDialog.Builder(this@VoiceStudioActivity)
-                .setTitle("Tap a take to hear it")
-                .setSingleChoiceItems(labels, 0) { _, which ->
-                    chosen = which
-                    runCatching { play(which) }
-                }
-                .setPositiveButton("Keep this take") { _, _ ->
-                    if (seeds[chosen] != current) MyVoices.setSeed(v.id, seeds[chosen])
-                    Speaker.refreshVoices()
-                    toast("“${v.name}” now reads with take ${chosen + 1}")
-                }
-                .setNegativeButton("Cancel", null)
-                .setOnDismissListener { player?.release() }
-                .show()
-            runCatching { play(0) }
-        }
-    }
+    private fun pickTake(v: MyVoices.Voice) = VoiceTakes.pick(this, scope, v)
 
     private fun toast(msg: String) {
         AppLog.i("Studio", msg)

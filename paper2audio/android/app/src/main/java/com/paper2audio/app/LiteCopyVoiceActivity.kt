@@ -305,9 +305,24 @@ class LiteCopyVoiceActivity : Activity() {
                 else -> "\n\nRecording quality: poor. The copy may mumble or sound wrong because of:\n• " +
                     voice.problems.joinToString("\n• ") + "\n\nFor a better copy, remove this voice and record again in a quiet room, a hand's width from the phone."
             }
-            AlertDialog.Builder(this)
+            // Every copy comes out a little different (the engine's seed): the first thing offered is to hear four
+            // takes and keep the best.
+            var ready: AlertDialog? = null
+            val pick = Button(this).apply {
+                text = "Pick the best take (hear 4, keep the best)"
+                isAllCaps = false
+                setOnClickListener {
+                    ready?.dismiss()
+                    VoiceTakes.pick(this@LiteCopyVoiceActivity, scope, voice)
+                }
+            }
+            ready = AlertDialog.Builder(this)
                 .setTitle("“${voice.name}” is ready")
-                .setMessage("Listen to it: if the first word (\"Hello\") sounds clear, the copy is good. Use it, or discard it and try another recording.$rhythm$tip")
+                .setMessage("Every copy comes out a little different. Pick the best take: hear four and keep the one that sounds most like the speaker. Or listen to it: if the first word (\"Hello\") sounds clear, the copy is good.$rhythm$tip")
+                .setView(LinearLayout(this).apply {
+                    setPadding((20 * resources.displayMetrics.density).toInt(), 0, (20 * resources.displayMetrics.density).toInt(), 0)
+                    addView(pick, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                })
                 .setPositiveButton("Use it") { _, _ ->
                     Speaker.stopPreview()
                     Speaker.setVoice(id)
@@ -323,7 +338,7 @@ class LiteCopyVoiceActivity : Activity() {
                 }
                 .setOnCancelListener { Speaker.stopPreview() }
                 .show()
-                .getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { Speaker.preview(voice = id) }
+            ready.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { Speaker.preview(voice = id) }
         } catch (e: Exception) {
             AppLog.e("CopyVoice", "Couldn't copy the voice", e)
             done(e.message ?: "Couldn't copy the voice")
