@@ -40,7 +40,11 @@ import java.io.File
  */
 class LiteMainActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val thumbs = LruCache<String, Bitmap>(40)
+    // Covers kept in memory, by size: 40 large covers (about 50 MB) left the voice engine, which runs in the
+    // same app, short of memory, and the reading stuttered, skipped and repeated sentences.
+    private val thumbs = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+    }
     private var items: List<Library.Item> = emptyList()
     private lateinit var list: ListView
     private lateinit var busy: TextView
@@ -127,6 +131,11 @@ class LiteMainActivity : Activity() {
         Speaker.removeListener(refresh)
         // The banner kept refreshing behind the player and while listening with the screen off.
         Ads.pause(findViewById(R.id.adBanner))
+        // The covers are let go while Home is hidden (behind the player, screen off): the memory goes to the
+        // voice engine. They come back from their files when Home shows again.
+        header.removeAllViews()
+        headerShown = null
+        thumbs.evictAll()
         super.onStop()
     }
 
@@ -470,7 +479,8 @@ class LiteMainActivity : Activity() {
         }
         view.setImageDrawable(null)
         scope.launch {
-            val bmp = Thumbs.load(Library.thumb(this@LiteMainActivity, id), LiteUi.dp(this@LiteMainActivity, widthDp)) ?: return@launch
+            // No sharper than needed: at most 300 pixels wide.
+            val bmp = Thumbs.load(Library.thumb(this@LiteMainActivity, id), minOf(LiteUi.dp(this@LiteMainActivity, widthDp), 300)) ?: return@launch
             thumbs.put(key, bmp)
             if (view.tag == key) view.setImageBitmap(bmp)
         }
