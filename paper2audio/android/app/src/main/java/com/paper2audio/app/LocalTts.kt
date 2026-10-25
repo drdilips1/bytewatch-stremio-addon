@@ -219,7 +219,9 @@ object LocalTts {
                 // Far too long or too short for its words means the model lost its way (mumbling,
                 // skipping, or saying the sentence twice): make it once more with another take, and keep
                 // the more plausible one. Judged against this voice's own usual pace once it is known.
-                if (CloneCheck.plausible(first.samples.size.toDouble() / first.sampleRate, spoken.trim(), pace)) first
+                // Lines the model often fumbles (very short ones, stammers like "thirty… thirty…", lines that
+                // start with "Well" like the throwaway lead-in) always get a second take to choose from.
+                if (!CloneCheck.risky(spoken) && CloneCheck.plausible(first.samples.size.toDouble() / first.sampleRate, spoken.trim(), pace)) first
                 else take(seed + 7919).let { second ->
                     val d1 = CloneCheck.distance(first.samples.size.toDouble() / first.sampleRate, spoken.trim(), pace)
                     val d2 = CloneCheck.distance(second.samples.size.toDouble() / second.sampleRate, spoken.trim(), pace)
@@ -468,6 +470,19 @@ object CloneCheck {
 
     /** Seconds a sentence should take: about 13 characters a second (or the voice's own [pace]), plus a little. */
     private fun expected(text: String, pace: Double? = null) = 0.3 + text.length / (pace ?: 13.0)
+
+    private val STAMMER = Regex("""(?i)\b(\p{L}+)\b[\s,.\u2026-]+\1\b""")
+    private val STARTS_WELL = Regex("""(?i)^\W*well\b""")
+
+    /**
+     * Lines a copied voice often gets wrong on the phone, skipping, doubling or garbling them: four words
+     * or fewer, a word said twice ("thirty, thirty"), or a start like the "Well." lead-in.
+     */
+    fun risky(text: String): Boolean {
+        val t = text.trim()
+        return t.split(Regex("""\s+""")).count { w -> w.any { it.isLetterOrDigit() } } <= 4 ||
+            STAMMER.containsMatchIn(t) || STARTS_WELL.containsMatchIn(t)
+    }
 
     /** How far [seconds] is from what [text] needs, as a ratio (0 = exactly right). */
     fun distance(seconds: Double, text: String, pace: Double? = null) = kotlin.math.abs(kotlin.math.ln(seconds / expected(text, pace)))
