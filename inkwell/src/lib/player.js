@@ -498,7 +498,7 @@ export async function openAndPlay(book, getDetails, opts) {
   }
 }
 
-export async function playBook(details, { index, time, globalStart } = {}) {
+export async function playBook(details, { index, time, globalStart, autoplay = true } = {}) {
   stopWaiting();
   // A book you chose (not a switch by the safety net): start its list of tried copies afresh.
   if (!rescuing) rescueTried.clear();
@@ -534,7 +534,8 @@ export async function playBook(details, { index, time, globalStart } = {}) {
     const rate = pref.speed || settings.get().speed || 1;
     if (rate !== state.rate) set({ rate });
     if (pref.intro && !t && (i || 0) === 0) t = pref.intro;
-    await loadTrack(Math.min(i, tracks.length - 1), t);
+    // autoplay false: ready but quiet (e.g. a scene is looked up first, then it plays from there).
+    await loadTrack(Math.min(i, tracks.length - 1), t, autoplay);
   } catch (e) {
     set({ loading: false, phase: '', error: e.message || String(e) });
   }

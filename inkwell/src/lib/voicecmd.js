@@ -50,7 +50,7 @@ For a control, only "action" and its number matter. If they don't name or descri
  * — your default one first — then the phone, Audiobookshelf, anything else you've played).
  * The book playing now always comes first (nothing to reopen).
  */
-async function findCopies(want) {
+async function findCopies(want, onHand = false) {
   const t = mainTitle(want.title || '');
   const sn = surname(want.author);
   const audio = (b) => b && b.kind !== 'text' && !String(b.uid || '').endsWith('#ebook') && (!sn || !b.author || String(b.author).toLowerCase().includes(sn));
@@ -71,11 +71,14 @@ async function findCopies(want) {
   add(player.getState().book);
   for (const b of localCfg.get().books || []) add(b, true);
   for (const d of Object.values(downloads.get() || {})) if (d?.status === 'done') add(d.book, true);
-  try {
-    const owned = await findOwned({ title: want.title, author: want.author || '' });
-    for (const b of [...owned.cloud, ...owned.server]) add(b);
-  } catch {}
   for (const p of Object.values(progress.get() || {}).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))) add(p.book);
+  // On the phone, downloaded or played before: no need to search your services (slow) first.
+  if (!onHand && !out.some((x) => !x.loose)) {
+    try {
+      const owned = await findOwned({ title: want.title, author: want.author || '' });
+      for (const b of [...owned.cloud, ...owned.server]) add(b);
+    } catch {}
+  }
   const first = settings.get().debridPreferred === 'realdebrid' ? 'rd' : 'tb';
   const src = (b) => String(b.source || b.uid || '').split(':')[0];
   const order = findOrder('audio');
@@ -142,13 +145,14 @@ function volumeOf(chapters, book, want) {
   return own.length ? own : chapters;
 }
 
-const loaded = () =>
+// quiet: opened without playing (a scene is looked up first) — ready once it has loaded.
+const loaded = (quiet = false) =>
   new Promise((resolve) => {
     let un = null;
     const done = (v) => (un && un(), resolve(v));
     un = player.subscribe((s) => {
       if (s.error) done(false);
-      else if (!s.loading && s.tracks.length && (s.duration > 0 || s.playing)) done(true);
+      else if (!s.loading && s.tracks.length && (quiet || s.duration > 0 || s.playing)) done(true);
     });
     // A copy that hasn't started within 25 s: on to the next one.
     setTimeout(() => done(false), 25e3);
@@ -195,6 +199,7 @@ export async function playScene(said, step = () => {}, preset = null) {
   step('Working out the book and the scene…');
   const want = preset || (await understand(said));
   if (!want?.title) throw new Error(`Couldn't tell which book you meant — try "play when … in <book title>"`);
+  const justBook = want.moment === false || (!want.scene && !(want.keywords || []).filter(Boolean).length && !want.chapter && !want.chapterTitle);
   step(`Looking for ${want.title}…`);
   // A copy can be gone (removed from TorBox, an old link): then the next one.
   let details = null;
@@ -210,8 +215,10 @@ export async function playScene(said, step = () => {}, preset = null) {
     try {
       details = await getDetails(book, { fast: true });
       if (details?.tracks?.length || details?.resolveTracks) {
-        player.playBook(details);
-        if (await loaded()) break;
+        // Just the book: it plays at once. A scene: opened quietly, then played from the scene
+        // (not loaded at your old place first and then again at the scene).
+        player.playBook(details, { autoplay: justBook });
+        if (await loaded(!justBook)) break;
       }
     } catch {}
     details = null;
@@ -224,7 +231,7 @@ export async function playScene(said, step = () => {}, preset = null) {
   // Where: the line heard before (exact), else the scene found in the ebook's words,
   // else the chapter the AI named and how far into it.
   // Just the book, no moment asked for: it plays from where you left off.
-  if (want.moment === false || (!want.scene && !(want.keywords || []).filter(Boolean).length && !want.chapter && !want.chapterTitle)) {
+  if (justBook) {
     if (!player.getState().playing) player.toggle();
     return { book: details, scene: details.title, where: 'from where you left off' };
   }
@@ -370,6 +377,9 @@ async function control(c) {
 export async function runCommand(said, step = () => {}, withAi = true) {
   const q = quick(said);
   if (q) return { message: await control(q), action: q.action };
+  // "Play <a book you have>": straight away, no AI needed.
+  const mine = await quickBook(said);
+  if (mine) return playScene(said, step, mine);
   if (!withAi) throw new Error('Commands like “back 30 seconds” work as they are; books, scenes and questions need an AI key (Settings → AI)');
   step('Working it out…');
   const want = await understand(said);
@@ -389,4 +399,13 @@ function questionBook(want) {
   if (now && matches(t, now.title || '')) return { book: now, here: true };
   const mine = [...Object.values(progress.get() || {}).map((p) => p.book), ...(localCfg.get().books || [])].find((b) => b && matches(t, b.title || ''));
   return { book: mine || { uid: '', title: want.title, author: want.author || '' }, here: false };
+}
+
+/** "Play Sapiens", "resume The Secret by Rhonda Byrne": a book already on hand, by its title. */
+async function quickBook(said) {
+  const m = String(said || '').trim().match(/^(?:play|resume|start|open|continue|listen to|sunao|chalao)\s+(?:the book\s+)?(.+?)(?:\s+by\s+(.+))?$/i);
+  if (!m || /\b(when|where|chapter|scene|part|jab|jahan)\b/i.test(m[1])) return null;
+  const want = { action: 'play_book', moment: false, title: m[1].trim(), author: (m[2] || '').trim() };
+  const copies = await findCopies(want, true);
+  return copies.length ? want : null;
 }
