@@ -123,8 +123,9 @@ object Renderer {
         val pace = when {
             // Engine settings changed (pace, natural pauses, one seed per voice): don't reuse older audio.
             v.voiceId.startsWith(Speaker.SUPER) -> "p5|"
-            // A ready-made voice given a steadier seed: its older takes are remade.
-            v.voiceId.startsWith(Speaker.CLONE) -> "c6|" + (MyVoices.seedOf(v.voiceId.removePrefix(Speaker.CLONE)).takeIf { it > 0 }?.let { "s$it|" } ?: "") +
+            // A ready-made voice given a steadier seed: its older takes are remade. Narrato's (c8): audio saved
+            // while 1.9.11-1.9.12 read badly is not replayed.
+            v.voiceId.startsWith(Speaker.CLONE) -> (if (BuildConfig.LITE) "c8|" else "c6|") + (MyVoices.seedOf(v.voiceId.removePrefix(Speaker.CLONE)).takeIf { it > 0 }?.let { "s$it|" } ?: "") +
                 (if (MyVoices.leadInOf(v.voiceId.removePrefix(Speaker.CLONE))) "" else "nl|")
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""
