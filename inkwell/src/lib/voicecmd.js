@@ -30,7 +30,8 @@ async function understand(said) {
 It comes from speech recognition, so it may be misheard: Indian-accented English, Hindi or Hinglish, names written as they sounded ("dumble door" = Dumbledore, "harry potter ki pehli train" = Harry boarding the Hogwarts Express). Work out what they meant.
 Work out which book they mean and where in it the moment they describe happens. The JSON is always in English, with names spelled as in the book.
 First decide the action: "scene" (play a moment of a book), "play_book" (play a book itself), "question" (they ask about a book or books — what, why, explain, summarise, "what are the 12 rules in 12 Rules for Life" — instead of asking to play; title: the book it's about, "" if it's about books in general), or a control of what's playing: "pause", "resume", "rewind", "forward" (with "seconds"), "next_chapter", "previous_chapter", "go_chapter" (with "chapter"), "speed" (with "speed", e.g. 1.25), "sleep" (with "minutes", or 0 to cancel, -1 for the end of the chapter), "bookmark"; else "unknown".
-Return JSON: {"action":"scene","seconds":0,"speed":0,"minutes":0,"title":"the book's title","book":"","author":"","moment":true,"scene":"the moment, in under 12 words","chapter":0,"chapterTitle":"","at":0.0,"quote":"","keywords":[""]}
+Return JSON: {"action":"scene","seconds":0,"speed":0,"minutes":0,"title":"the book's title","book":"","author":"","moment":true,"wholeChapter":false,"scene":"the moment, in under 12 words","chapter":0,"chapterTitle":"","at":0.0,"quote":"","keywords":[""]}
+- wholeChapter: true when they ask for the chapter a moment is in ("play the chapter where Harry finds the mirror"), not the moment itself.
 - moment: false when they only ask to play the book itself ("play The Secret by Rhonda Byrne") — then leave scene, chapter, quote and keywords empty.
 - title: the single book the moment is in (in a series, that volume: "Harry Potter and the Philosopher's Stone", not "Harry Potter"); book: the same title as printed in the UK edition, if different.
 - chapter: the chapter number in that book (0 if it's in a prologue or you don't know).
@@ -86,6 +87,9 @@ async function findCopies(want) {
   };
   return out.sort((x, y) => rank(x) - rank(y)).map((x) => x.b);
 }
+
+/** Asked for the chapter a moment is in, not the moment ("play the chapter where …")? */
+const wholeChapter = (said, want) => want?.wholeChapter === true || /\b(the |that |which )?chapter (where|when|in which|that|with|jisme|jismein|jab)\b/i.test(said || '');
 
 /** The chapter the AI named, in this audiobook's own chapter list. */
 function pickChapter(chapters, want) {
@@ -177,7 +181,10 @@ async function inEbook(book, want, part) {
   if (tok == null) return null;
   const g = timeOf(anchors, tok);
   const at = part.findIndex((c) => g >= c.start && g < (c.end || Infinity));
-  return { g, where: `${part[at]?.title || 'found'} · from the ebook` };
+  // The start of the chapter it's in (for "play the chapter where …").
+  const { chapterStartBefore } = await import('./scenefind.js');
+  const head = ch && tok >= ch[0] && tok < ch[1] ? ch[0] : chapterStartBefore(bt, tok);
+  return { g, chapterG: head != null ? timeOf(anchors, head) : null, where: `${part[at]?.title || 'found'} · from the ebook` };
 }
 
 /**
@@ -226,7 +233,8 @@ export async function playScene(said, step = () => {}, preset = null) {
   const chapters = volumeOf(player.chapters(), details, want);
   step('Finding the scene in the book…');
   const hit = await inEbook(details, want, chapters).catch(() => null);
-  if (hit) ({ g, where } = hit);
+  let chapterG = null;
+  if (hit) ({ g, where, chapterG } = hit);
   if (g == null) {
     g = findHeard(details.uid, want.quote, chapters);
     if (g != null) where = 'where you heard it';
@@ -240,6 +248,15 @@ export async function playScene(said, step = () => {}, preset = null) {
       g = c.start + at * len;
       where = `${c.title || `Part ${ci + 1}`} · a guess (no ebook)`;
     }
+  }
+  // "Play the chapter where …": from the start of the chapter the scene is in.
+  if (g != null && wholeChapter(said, want)) {
+    const ci = chapters.findIndex((c) => g >= c.start && g < (c.end || Infinity));
+    const own = chapters[ci];
+    // The audiobook's own chapter start is exact when it's the same chapter as the book's.
+    const start = own && (chapterG == null || Math.abs(own.start - chapterG) < 120) ? own.start : (chapterG ?? own?.start ?? g);
+    player.playAt(start);
+    return { book: details, scene: want.scene ? `The chapter: ${want.scene}` : '', where: `start of ${own?.title || 'the chapter'}${where.includes('ebook') ? ' · from the ebook' : ''}` };
   }
   if (g != null) player.playAt(g - LEAD);
   else if (!player.getState().playing) player.toggle();

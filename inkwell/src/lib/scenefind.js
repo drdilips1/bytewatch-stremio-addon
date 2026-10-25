@@ -177,3 +177,15 @@ export function rangeOf(anchors, chapters, ci) {
   const b = anchors.find((x) => x.tok > a.tok);
   return [a.tok, b ? b.tok : Infinity];
 }
+
+/** Where the chapter holding a place in the text begins (its heading), or null. */
+export function chapterStartBefore(bt, tok) {
+  const keys = bt.keys;
+  const isNum = (w) => /^(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty)$/.test(w || '');
+  for (let i = Math.min(tok, keys.length - 2); i >= 0; i--) {
+    if (keys[i] !== 'chapter' || !isNum(keys[i + 1])) continue;
+    // Not the contents pages: a real heading has text after it, not another heading.
+    if (!keys.slice(i + 3, i + 300).some((w, k, a) => w === 'chapter' && isNum(a[k + 1]))) return i;
+  }
+  return null;
+}
