@@ -20,9 +20,6 @@ jobs:
             try { const r = await fetch(`https://${h}/?s=atomic+habits&cat=undefined%2Cundefined`, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36' } });
               const t = await r.text(); note('mirror ' + h, `HTTP ${r.status} url=${r.url} len=${t.length} posts=${(t.match(/class="post"/g)||[]).length} title=${(/<title>([^<]*)/.exec(t)||[])[1]}`); } catch (e) { note('mirror ' + h, e.message); }
           }
-          { const t = await (await fetch('https://audiobookbay.lu/?s=atomic+habits&cat=undefined%2Cundefined', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36' } })).text();
-            const post = t.split(/<div class="post"[^>]*>/)[2] || '';
-            for (let i = 0; i < 4; i++) note('post html ' + i, post.slice(i * 900, i * 900 + 900).replace(/:/g, '\u003a')); }
           const m = await (await w.fetch(new Request('https://x.workers.dev/manifest.json'), {}, ctx)).json();
           note('manifest', m.adapters.source.request.url);
           for (const q of ['atomic habits', 'deep medicine topol']) {

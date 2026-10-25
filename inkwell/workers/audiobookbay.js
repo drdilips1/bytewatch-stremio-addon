@@ -11,7 +11,7 @@
 //
 // Routes:
 //   /manifest.json      the addon file (points back at this worker)
-//   /search?q=…         { results: [{ title, infoHash, magnetUrl, sizeBytes, format, date, pageUrl }] }
+//   /search?q=…         { results: [{ title, infoHash, magnetUrl, sizeBytes, format, date, language, pageUrl }] }
 
 // AudiobookBay moves between addresses; the first one that answers is used.
 const MIRRORS = ['audiobookbay.lu', 'audiobookbay.is', 'theaudiobookbay.se', 'audiobookbay.fi'];
@@ -52,7 +52,7 @@ function manifest(origin) {
         request: { method: 'GET', url: `${origin}/search?q={QUERY}`, timeout: 45000 },
         response: {
           resultsPath: 'results',
-          mapping: { title: 'title', infoHash: 'infoHash', magnetUrl: 'magnetUrl', sizeBytes: 'sizeBytes', format: 'format', date: 'date', pageUrl: 'pageUrl' },
+          mapping: { title: 'title', infoHash: 'infoHash', magnetUrl: 'magnetUrl', sizeBytes: 'sizeBytes', format: 'format', date: 'date', language: 'language', pageUrl: 'pageUrl' },
         },
       },
     },
@@ -107,7 +107,8 @@ function parseSearch(html, host) {
     .map((p) => {
       const a = /class="postTitle"[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i.exec(p);
       if (!a) return null;
-      const info = decode((/class="postContent"[\s\S]*?<\/div>/i.exec(p) || [''])[0]);
+      // "Language: English … Posted: 17 Aug 2024 Format: M4B / Bitrate: ? File Size: 153.12 MBs"
+      const info = decode(p);
       const size = /File Size:\s*([\d.,]+)\s*([KMGT]?B)s?/i.exec(info);
       return {
         title: decode(a[2]),
@@ -115,6 +116,7 @@ function parseSearch(html, host) {
         format: (/Format:\s*([^\s/]+)/i.exec(info) || [])[1] || '',
         sizeBytes: size ? toBytes(size[1], size[2]) : 0,
         date: (/Posted:\s*([0-9]{1,2} [A-Za-z]{3} [0-9]{4})/i.exec(info) || [])[1] || '',
+        language: (/Language:\s*([A-Za-z]+)/i.exec(info) || [])[1] || '',
       };
     })
     .filter(Boolean);
