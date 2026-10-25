@@ -68,6 +68,9 @@ if (Capacitor.isNativePlatform()) {
     .catch(() => {});
 }
 
+// New podcast episodes for shows set to download by themselves (on Wi-Fi), soon after opening.
+setTimeout(() => import('./lib/podauto.js').then((m) => m.autoDownload()).catch(() => {}), 20000);
+
 // A kept-alive tab: redraws only when its own data changes, not on every tab switch.
 const KeptTab = memo(function KeptTab({ Root }) {
   return (

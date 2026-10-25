@@ -9143,3 +9143,9 @@ button.notes-book-head {
   width: 100%;
   margin: 6px 0 0;
 }
+.ep-votes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+}

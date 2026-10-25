@@ -80,7 +80,28 @@ function ShowSettings({ feedUrl }) {
           </button>
         ))}
       </div>
-      <small class="muted">Applies to every episode of this show. The outro skip ends the episode early and moves on to Up Next.</small>
+      {canDownload && (
+        <>
+          <b>Download new episodes by themselves</b>
+          <div class="chips">
+            {[0, 1, 3, 5, 10].map((n) => (
+              <button
+                class={'pill small' + ((prefs.autoDl || 0) === n ? ' active' : '')}
+                onClick={() => {
+                  set({ autoDl: n });
+                  if (n) import('../lib/podauto.js').then((m) => m.autoDownload({ refresh: false }));
+                }}
+              >
+                {n ? `Newest ${n}` : 'Off'}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <small class="muted">
+        Applies to every episode of this show. The outro skip ends the episode early and moves on to Up Next. New episodes download on Wi-Fi when the app opens; played ones beyond the newest few
+        are removed.
+      </small>
     </div>
   );
 }
@@ -97,6 +118,7 @@ export function EpisodeRow({ ep, podcast, showShow = false }) {
   const dl = useStore(downloads)[ep.uid];
   const ps = usePlayer();
   const [open, setOpen] = useState(false);
+  const vote = useStore(pod.episodeVotes)[ep.uid];
   const played = !!p.played[ep.uid] || !!prog?.finished;
   const queued = p.queue.some((q) => q.uid === ep.uid);
   const current = ps.book?.uid === ep.uid;
@@ -147,6 +169,19 @@ export function EpisodeRow({ ep, podcast, showShow = false }) {
           <Icon name="check" size={16} />
         </button>
       </div>
+      {open && (
+        <div class="ep-votes">
+          <button class={'pill small' + (vote === 1 ? ' active' : '')} onClick={() => pod.voteEpisode(ep, 1)}>
+            👍 Liked it
+          </button>
+          <button class={'pill small' + (vote === -1 ? ' active' : '')} onClick={() => pod.voteEpisode(ep, -1)}>
+            👎 Not for me
+          </button>
+          <button class={'pill small' + (vote === 'no' ? ' active' : '')} onClick={() => (pod.voteEpisode(ep, 'no'), vote !== 'no' && toast('Hidden from new episodes'))}>
+            Not interested
+          </button>
+        </div>
+      )}
       {open && ep.notes && <p class="ep-notes">{ep.notes}</p>}
     </div>
   );
@@ -169,7 +204,10 @@ export function Podcasts() {
     // Saved episodes at once; feeds that are out of date update in the background.
     const saved = pod.cachedLatest();
     if (saved.length) setLatest(saved);
-    pod.refreshAll().then((r) => alive && setLatest(r));
+    pod.refreshAll().then((r) => {
+      if (alive) setLatest(r);
+      import('../lib/podauto.js').then((m) => m.autoDownload({ refresh: false }));
+    });
     return () => (alive = false);
   }, [p.subs.length]);
   useEffect(() => {
@@ -210,7 +248,9 @@ export function Podcasts() {
   const dls = useStore(downloads);
   useSelect(progress, progSig);
   const prog = progress.get();
-  const unplayed = (latest || []).filter((e) => !pod.isPlayed(e) && passes(e, epFilter, dls, prog)).slice(0, 25);
+  useStore(pod.episodeVotes);
+  const unplayed = (latest || []).filter((e) => !pod.isPlayed(e) && !pod.isHidden(e) && passes(e, epFilter, dls, prog)).slice(0, 25);
+  const picks = latest ? pod.recommendedEpisodes(latest, prog) : [];
 
   return (
     <div class="screen podcasts">
@@ -263,6 +303,17 @@ export function Podcasts() {
                 <Icon name="headphones" size={16} /> Subscriptions <small>{p.subs.length}</small>
               </h3>
               <ShowGrid shows={p.subs} small />
+            </section>
+          )}
+          {picks.length > 0 && (
+            <section class="pad">
+              <h3 class="section-label">
+                <Icon name="star" size={16} /> Recommended episodes
+              </h3>
+              <p class="muted small">From shows you like and finish, about what you liked. Rate an episode (open it) to steer this.</p>
+              {picks.map((ep) => (
+                <EpisodeRow ep={ep} podcast={ep.podcast} showShow />
+              ))}
             </section>
           )}
           {p.subs.length > 0 && (

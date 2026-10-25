@@ -301,3 +301,46 @@ player.onFinished((book) => {
   const next = podcasts.get().queue.find((q) => q.uid !== book.uid);
   if (next) player.playBook(asBook(next));
 });
+
+// ---------------------------------------------------------------- your taste in episodes
+// 👍 / 👎 and "Not interested" per episode (uid -> 1 | -1 | 'no'). Not interested hides it.
+export const episodeVotes = persisted('episodeVotes', {});
+export function voteEpisode(ep, v) {
+  episodeVotes.set((all) => {
+    const next = { ...all };
+    if (v == null || next[ep.uid] === v) delete next[ep.uid];
+    else next[ep.uid] = v;
+    return next;
+  });
+}
+export const isHidden = (ep) => episodeVotes.get()[ep.uid] === 'no';
+
+const words = (t) => String(t || '').toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || [];
+/**
+ * Recommended episodes: unplayed new ones, from shows you like and finish, about what the
+ * episodes you liked were about; shows and topics you said no to count against.
+ */
+export function recommendedEpisodes(latest, prog = progress.get()) {
+  const votes = episodeVotes.get();
+  const known = new Map(); // uid -> episode (to read titles of ones you voted on)
+  for (const e of latest || []) known.set(e.uid, e);
+  for (const q of podcasts.get().queue) known.set(q.uid, q);
+  const show = new Map();
+  const liked = new Map();
+  const bump = (m, k, n) => k && m.set(k, (m.get(k) || 0) + n);
+  for (const [uid, v] of Object.entries(votes)) {
+    const e = known.get(uid);
+    const n = v === 1 ? 2 : v === -1 ? -2 : -1;
+    bump(show, e?.feedUrl, n);
+    for (const w of words(e?.title)) bump(liked, w, n > 0 ? 1 : -0.5);
+  }
+  // Episodes you finished say you like the show.
+  for (const p of Object.values(prog || {})) if (p?.finished && p.book?.source === 'pod') bump(show, p.book.feedUrl, 0.5);
+  return (latest || [])
+    .filter((e) => !isPlayed(e) && !votes[e.uid])
+    .map((e) => ({ e, s: (show.get(e.feedUrl) || 0) + words(e.title).reduce((a, w) => a + (liked.get(w) || 0), 0) + (Date.now() - e.date < 7 * 864e5 ? 0.5 : 0) }))
+    .filter((x) => x.s > 0.5)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 8)
+    .map((x) => x.e);
+}
