@@ -1,0 +1,18 @@
+name: ss-probe
+on:
+  push:
+    paths: [".github/workflows/ss-probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          t() { r=$(curl -sS -m 30 -o /tmp/b -D /tmp/h "$@" -w 'code=%{http_code}' 2>&1); echo "::notice title=$1 $2::$r | $(grep -i '^location' /tmp/h | tr -d '\r') | $(head -c 200 /tmp/b | tr '\n' ' ')"; }
+          t -X POST https://api.torbox.app/v1/api/torrents/createtorrent
+          t -X GET "https://api.torbox.app/v1/api/torrents/checkcached?hash=7b99e2b63b0f2427f17fcfdc3636562bc04cbc95&format=object"
+          t -X GET https://api.torbox.app/v1/api/torrents/mylist
+          t -X POST https://api.torbox.app/v1/api/torrents/checkcached
+          t -X POST -H "Content-Type: application/json" -d '{"query":"psychology of money","search_field":"title","size":5,"categories":[9001000]}' https://api.knaben.org/v1
+          t -X GET "https://bookracy-proxy.drdilipgreat.workers.dev/bookracy/search?q=psychology%20of%20money"
+          t -X POST -H "Content-Type: application/json" -d '{"title":"psychology of money","author":"","limit":5}' https://inkshelf-debrid-proxy.tbm-a.workers.dev/abb/api/search
+          t -X GET https://api.torbox.app/v1/api/user/me
