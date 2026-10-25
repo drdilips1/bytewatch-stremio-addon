@@ -92,7 +92,8 @@ async function torrentCsv(q, k) {
 
 // The Pirate Bay's API: searched in the audiobook / ebook categories.
 async function pirateBay(q, k) {
-  const lists = await Promise.all(k.tpbCats.map((c) => getJson(`https://apibay.org/q.php?q=${encodeURIComponent(q)}&cat=${c}`).catch(() => [])));
+  // Its Cloudflare check refuses some Cloudflare locations ("Just a moment…"); that shows in `errors`.
+  const lists = await Promise.all(k.tpbCats.map((c) => getJson(`https://apibay.org/q.php?q=${encodeURIComponent(q)}&cat=${c}`)));
   return lists
     .flat()
     .filter((t) => t && t.info_hash && !/^0+$/.test(t.info_hash))
