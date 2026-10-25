@@ -9319,8 +9319,8 @@ button.notes-book-head {
 }
 
 /* =====================================================================
-   Sources, redesigned (Oct 2026): slim rows — audiobooks, then ebooks,
-   top three each — and one full card for the result you open.
+   Sources, redesigned (Oct 2026): audiobooks, then ebooks, top three
+   of each as clean cards (format badge, readable title, one big action).
    ===================================================================== */
 .source-results {
   --ready: #3ecf8e;
@@ -9393,58 +9393,17 @@ button.notes-book-head {
   background: color-mix(in srgb, var(--accent) 13%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
 }
-.is-ebook > .src-fmt,
 .is-ebook .src-top .src-fmt {
   color: #6aa9ff;
   background: color-mix(in srgb, #6aa9ff 13%, var(--surface));
   border-color: color-mix(in srgb, #6aa9ff 26%, transparent);
 }
-:root[data-mode='light'] .is-ebook > .src-fmt,
 :root[data-mode='light'] .is-ebook .src-top .src-fmt {
   color: #1d5fb8;
 }
-/* Slim row */
-.src-line {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 10px 10px 10px;
-  border-radius: 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: transform 0.12s, border-color 0.2s;
+.src-meta .ok {
+  color: var(--ready);
 }
-.src-line:active {
-  transform: scale(0.99);
-}
-.src-line.is-ready {
-  border-color: color-mix(in srgb, var(--ready) 45%, transparent);
-  box-shadow: inset 3px 0 0 var(--ready);
-}
-.src-line > .src-fmt {
-  width: 40px;
-  height: 40px;
-  border-radius: 11px;
-  font-size: 10.5px;
-}
-.src-line-text {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-.src-line-text b {
-  font-size: 14.5px;
-  font-weight: 700;
-  line-height: 1.25;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-}
-.src-line-text small,
 .src-meta {
   display: flex;
   flex-wrap: wrap;
@@ -9454,7 +9413,6 @@ button.notes-book-head {
   font-weight: 600;
   color: var(--muted);
 }
-.src-line-text small span + span::before,
 .src-meta span + span::before {
   content: '';
   display: inline-block;
@@ -9465,28 +9423,8 @@ button.notes-book-head {
   margin-right: 8px;
   vertical-align: middle;
 }
-.src-line .ok,
-.src-meta .ok {
-  color: var(--ready);
-}
 .seeds.good {
   color: var(--ready);
-}
-.src-go {
-  flex: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  border: 0;
-  background: var(--surface-2);
-  color: var(--accent);
-}
-.src-go.play {
-  background: var(--grad);
-  color: var(--on-grad, #fff);
-  box-shadow: 0 8px 18px -10px var(--accent);
 }
 /* Full card */
 .src-row {
@@ -9501,14 +9439,6 @@ button.notes-book-head {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-}
-.src-top[role='button'] {
-  cursor: pointer;
-}
-.src-top > svg {
-  flex: none;
-  color: var(--faint);
-  margin-top: 2px;
 }
 .src-names {
   flex: 1;

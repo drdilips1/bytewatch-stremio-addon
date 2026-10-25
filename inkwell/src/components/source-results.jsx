@@ -94,7 +94,6 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const [showLoose, setShowLoose] = useState(false);
   const [moreAudio, setMoreAudio] = useState(false);
   const [moreEbooks, setMoreEbooks] = useState(false);
-  const [openKey, setOpenKey] = useState(null); // the one result shown as a full card
   // Already on your Audiobookshelf server? Say so before anything is added or downloaded again.
   const [onServer, setOnServer] = useState(null);
   useEffect(() => {
@@ -159,7 +158,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const allGroups = groupResults(visible);
   const linkGroups = allGroups.filter(isLink);
   const shownGroups = allGroups.filter((g) => !isLink(g));
-  // On screen: audiobooks first, then ebooks (torrents and direct links alike), top few of each.
+  // On screen: audiobooks first, then ebooks (torrents and direct links alike), top few of each as full cards.
   const ebookGroups = allGroups.filter((g) => g.items.every((r) => ebookLink(r) || isEbookResult(r)));
   const readyNow = (r) =>
     (r.magnet || r.hash) && providers.find((p) => r.cache?.[p] || (p === 'realdebrid' && r.cache?.any && !r.cache?.torbox) || account.get(r.hash)?.ready);
@@ -171,10 +170,8 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const item = (g) =>
     g.items.length > 1 && !g.key.startsWith('h:') ? (
       <SourceFolder key={g.key} g={g} provider={provider} providers={providers} book={book} account={account} onChanged={refreshAccount} />
-    ) : openKey === g.items[0].key ? (
-      <SourceRow key={g.items[0].key} r={g.items[0]} provider={provider} providers={providers} book={book} inAccount={account.get(g.items[0].hash)} onChanged={refreshAccount} onCollapse={() => setOpenKey(null)} />
     ) : (
-      <SourceLine key={g.items[0].key} r={g.items[0]} via={readyNow(g.items[0])} book={book} onOpen={() => setOpenKey(g.items[0].key)} />
+      <SourceRow key={g.items[0].key} r={g.items[0]} provider={provider} providers={providers} book={book} inAccount={account.get(g.items[0].hash)} onChanged={refreshAccount} />
     );
   const section = (name, groups, more, setMore) =>
     groups.length > 0 && (
@@ -305,7 +302,7 @@ function seedClass(n) {
   return n >= 10 ? 'good' : n > 0 ? 'low' : 'none';
 }
 
-function SourceRow({ r, provider, providers = [], book, inAccount, onChanged, onCollapse }) {
+function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) {
   const [extra, setExtra] = useState(false); // RD, links and tracker search, behind ⋯
   const [busy, setBusy] = useState(null); // 'add:<provider>' | 'play'
   const [status, setStatus] = useState(null); // { text, pct (0..1) | null }
@@ -558,7 +555,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged, on
 
   return (
     <div class={'src-row' + (ready ? ' is-ready' : '') + (dead ? ' is-dead' : '') + (isEbookResult(r) || ebook ? ' is-ebook' : '')}>
-      <div class="src-top" onClick={onCollapse} role={onCollapse ? 'button' : undefined}>
+      <div class="src-top">
         <span class="src-fmt">{formatOf(r) || <Icon name={isEbookResult(r) || ebook ? 'book' : 'headphones'} size={18} />}</span>
         <div class="src-names">
           <div class="src-title">{prettyName(r.title)}</div>
@@ -570,7 +567,6 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged, on
           )}
           {prettyName(r.title) !== r.title && <div class="src-raw">{r.title}</div>}
         </div>
-        {onCollapse && <Icon name="up" size={18} />}
       </div>
       <div class="src-meta">
         {r.size > 0 && <span>{fmtSize(r.size)}</span>}
@@ -913,37 +909,3 @@ function TrackerMini({ site, filter, words, ebook }) {
   );
 }
 
-/** One result as a slim row: tap it for the full card; ▶ plays at once when it's ready. */
-function SourceLine({ r, via, book, onOpen }) {
-  const [busy, setBusy] = useState(false);
-  const ebook = isEbookResult(r) || !(r.magnet || r.hash);
-  const playNow = via && !ebook;
-  const go = async (e) => {
-    e.stopPropagation();
-    if (!playNow) return onOpen();
-    setBusy(true);
-    try {
-      await quickPlay(r, via, book, (text) => toast(text));
-    } catch (err) {
-      toast(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div class={'src-line' + (via ? ' is-ready' : '') + (ebook ? ' is-ebook' : '')} onClick={onOpen} role="button">
-      <span class="src-fmt">{formatOf(r) || <Icon name={ebook ? 'book' : 'headphones'} size={16} />}</span>
-      <span class="src-line-text">
-        <b>{prettyName(r.title)}</b>
-        <small>
-          {[r.size > 0 && fmtSize(r.size), (r.magnet || r.hash) && `${r.seeders} seed${r.seeders === 1 ? '' : 's'}`, via ? 'Ready' : r.narrator || r.language || ''].filter(Boolean).map((x, i) => (
-            <span class={x === 'Ready' ? 'ok' : i === 1 ? 'seeds ' + seedClass(r.seeders) : ''}>{x}</span>
-          ))}
-        </small>
-      </span>
-      <button class={'src-go' + (playNow ? ' play' : '')} onClick={go} aria-label={playNow ? 'Play now' : 'Show options'}>
-        {busy ? <span class="spinner small" /> : <Icon name={playNow ? 'play' : ebook ? 'book' : 'plus'} size={16} />}
-      </button>
-    </div>
-  );
-}
