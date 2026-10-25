@@ -17,6 +17,7 @@ import { TranscriptView } from './transcript-view.jsx';
 import { StorySheet } from './story-sheet.jsx';
 import { XrayStrip, XraySheet } from './xray.jsx';
 import { SceneButton } from './scene-cmd.jsx';
+import { Rows as BookmarkRows } from './bookmarks.jsx';
 import { transcriptCfg, stopTranscript } from '../lib/transcript.js';
 import { sleepDetectAvailable, setSleepDetect } from '../lib/sleepdetect.js';
 
@@ -142,6 +143,9 @@ export function FullPlayer() {
   const bms = useStore(bookmarks)[s.book?.uid] || [];
   const color = useCoverColor(s.book);
   const [sheet, setSheet] = useState(null); // 'chapters' | 'speed' | 'sleep' | 'bookmarks'
+  // "Welcome back" offered once per book opening.
+  const [awayDone, setAwayDone] = useState(false);
+  useEffect(() => setAwayDone(false), [s.book?.uid]);
   useBackClose(!!sheet, () => setSheet(null));
   const [scrub, setScrub] = useState(null);
   const [, tick] = useState(0);
@@ -281,6 +285,20 @@ export function FullPlayer() {
         </button>
       </div>
 
+      {s.awayDays > 0 && !awayDone && (
+        <div class="welcome-back">
+          <span>
+            👋 Welcome back — {s.awayDays >= 60 ? `${Math.round(s.awayDays / 30)} months` : s.awayDays >= 21 ? `${Math.round(s.awayDays / 7)} weeks` : `${s.awayDays} days`} since you listened.
+          </span>
+          <button class="pill small" onClick={() => (setAwayDone(true), setSheet('recap'))}>
+            Recap
+          </button>
+          <button class="icon-btn" aria-label="No thanks" onClick={() => setAwayDone(true)}>
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+      )}
+
       <Companion book={s.book} />
 
       <div class="fp-actions">
@@ -353,10 +371,12 @@ export function FullPlayer() {
           <div class="sheet" onClick={(e) => e.stopPropagation()}>
             <div class="sheet-handle" />
             {sheet === 'story' && <StorySheet close={() => setSheet(null)} />}
+            {sheet === 'recap' && <StorySheet close={() => setSheet(null)} start="story" />}
             {sheet === 'xray' && <XraySheet s={s} />}
             {sheet === 'speed' && (
               <>
                 <h3>Playback speed</h3>
+                {s.book.source !== 'pod' && <p class="muted small">Kept for this book (and the volume boost too); a new book starts with the last you used.</p>}
                 <div class="speed-grid">
                   {SPEEDS.map((r) => (
                     <button class={'pill' + (r === s.rate ? ' active' : '')} onClick={() => player.setRate(r)}>
@@ -387,7 +407,7 @@ export function FullPlayer() {
                         [6, 'Medium'],
                         [10, 'High'],
                       ].map(([db, label]) => (
-                        <button class={'pill small' + ((st.boost || 0) === db ? ' active' : '')} onClick={() => player.setAudio({ boost: db })}>
+                        <button class={'pill small' + ((player.bookPrefs.get()[s.book.uid]?.boost ?? st.boost ?? 0) === db ? ' active' : '')} onClick={() => player.setAudio({ boost: db })}>
                           {label}
                         </button>
                       ))}
@@ -481,31 +501,7 @@ export function FullPlayer() {
             {sheet === 'bookmarks' && (
               <>
                 <h3>Bookmarks</h3>
-                <ol class="chapter-list">
-                  {bms.map((b, i) => (
-                    <li>
-                      <button
-                        onClick={() => {
-                          player.playBookmark(b);
-                          setSheet(null);
-                        }}
-                      >
-                        <span class="ch-num">
-                          <Icon name="bookmark" size={14} />
-                        </span>
-                        <span class="ch-title">{b.label}</span>
-                        <span class="ch-time">{fmtTime(b.time)}</span>
-                      </button>
-                      <button
-                        class="icon-btn"
-                        aria-label="Delete bookmark"
-                        onClick={() => bookmarks.set((all) => ({ ...all, [s.book.uid]: bms.filter((_, k) => k !== i) }))}
-                      >
-                        <Icon name="trash" size={16} />
-                      </button>
-                    </li>
-                  ))}
-                </ol>
+                <BookmarkRows uid={s.book.uid} book={s.book} list={bms} onPlay={() => setSheet(null)} />
               </>
             )}
           </div>

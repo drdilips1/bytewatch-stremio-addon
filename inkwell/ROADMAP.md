@@ -7,7 +7,20 @@ Noted while building; to pick up after Saturday.
   (low contrast, hard to see). And the current line sits too high, partly hidden under the
   top fade; it should be a bit lower, clearly in view.
 
-## Pending — agreed, not started yet
+## Later — agreed 25 Oct, remember these (not started)
+- Search in a book: a box on the book page that searches the ebook text and the heard transcript, tap to jump.
+- Personal tags (Psychology, Science, Spirituality…) with Library filters.
+- Listen-later / Up next queue across sources (books and saved passages), each keeping its place;
+  handles unavailable sources, interrupted downloads and network changes.
+- Audio playlists ("Best ideas about wealth") built from saved passages across books (book + timestamp each).
+- Chapter summaries to browse (AI, kept once per book) and indexed passages.
+- Listening plans: 10 / 30 / 60 minutes from unfinished books and saved passages, with topics/books excluded.
+  Helpful, no streaks or nagging notifications.
+- Android Auto.
+- Cross-library passage map: related passages in other books, tap to jump (needs those books' ebooks).
+- Highlights from transcript lines linked to audio timestamps.
+
+## Pending — agreed, being built 25 Oct
 **Podcasts, second batch**
 - Timestamped notes while listening (extend Saved ideas): note at this moment, tap to jump back, search all notes.
 - Episode ratings + "not interested", fed into the taste engine, with a "Recommended episodes" row.

@@ -3,7 +3,7 @@
 // delegated to an engine (native Media3 on Android, <audio> on the web).
 import * as stats from './stats.js';
 import { createEngine } from './engine.js';
-import { progress, bookmarks, settings, summarize } from './store.js';
+import { progress, bookmarks, settings, summarize, persisted } from './store.js';
 import { syncProgress, switchTracks } from '../sources/audiobookshelf.js';
 import { fetchStatus } from '../sources/debrid.js';
 import { applyLocal, isDownloaded, downloads } from './downloads.js';
@@ -235,14 +235,31 @@ const handlers = {
 const engine = createEngine(handlers);
 
 // Skip silence and volume boost (Settings, per listener; Android only).
+// Each audiobook remembers its own speed and volume boost (uid -> { speed, boost });
+// a new book starts with the last ones you used.
+export const bookPrefs = persisted('bookPrefs', {});
+const prefOf = (b) => (b?.uid && b.source !== 'pod' ? bookPrefs.get()[b.uid] : null) || {};
+function savePref(patch) {
+  const uid = state.book?.uid;
+  if (!uid || state.book.source === 'pod') return;
+  bookPrefs.set((all) => {
+    const keys = Object.keys(all);
+    const next = keys.length > 400 ? Object.fromEntries(keys.slice(-300).map((k) => [k, all[k]])) : { ...all };
+    next[uid] = { ...(all[uid] || {}), ...patch };
+    return next;
+  });
+}
+
 export function applyAudio() {
   const s = settings.get();
+  const boost = prefOf(state.book).boost;
   engine.setSkipSilence?.(!!s.skipSilence)?.catch?.(() => {});
-  engine.setBoost?.(s.boost || 0)?.catch?.(() => {});
+  engine.setBoost?.(boost ?? s.boost ?? 0)?.catch?.(() => {});
 }
 applyAudio();
 export function setAudio(patch) {
   settings.patch(patch);
+  if ('boost' in patch) savePref({ boost: patch.boost });
   applyAudio();
 }
 
@@ -529,10 +546,15 @@ export async function playBook(details, { index, time, globalStart, autoplay = t
     if (g != null) ({ i, t } = locate(g));
     // Gentle rewind when resuming after a break.
     if (resume && index == null && time == null && Date.now() - saved.updatedAt > 5 * 60e3) t = Math.max(0, t - 10);
+    // Back after two weeks or more: the player offers a recap (fiction: characters too).
+    const away = resume && saved.updatedAt ? Math.floor((Date.now() - saved.updatedAt) / 86400e3) : 0;
+    set({ awayDays: away >= 14 ? away : 0 });
     // The show's own speed, and skip its intro when starting from the top.
     const pref = showPrefsFor(details) || {};
-    const rate = pref.speed || settings.get().speed || 1;
+    const rate = pref.speed || prefOf(details).speed || settings.get().speed || 1;
     if (rate !== state.rate) set({ rate });
+    // This book's own volume boost.
+    applyAudio();
     if (pref.intro && !t && (i || 0) === 0) t = pref.intro;
     // autoplay false: ready but quiet (e.g. a scene is looked up first, then it plays from there).
     await loadTrack(Math.min(i, tracks.length - 1), t, autoplay);
@@ -609,7 +631,7 @@ export function setRate(r) {
   set({ rate: r });
   // A show with its own speed keeps the change for that show.
   if (showPrefsFor(state.book)?.speed && showPrefsSave) showPrefsSave(state.book, { speed: r });
-  else settings.patch({ speed: r });
+  else settings.patch({ speed: r }), savePref({ speed: r });
 }
 export function setSleep(mode) {
   const wasTrack = state.sleepEndOfTrack;

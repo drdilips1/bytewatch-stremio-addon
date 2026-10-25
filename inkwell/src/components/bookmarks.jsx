@@ -18,19 +18,33 @@ export function playBookmark(book, bm) {
   else player.openAndPlay(book, getDetails, bm.time >= player.BOOKMARK_LEAD || !bm.track ? { index: bm.track, time: Math.max(0, bm.time - player.BOOKMARK_LEAD) } : { globalStart: Math.max(0, (bm.global ?? 0) - player.BOOKMARK_LEAD) });
 }
 
+/** Your own note on a bookmark (empty removes it). */
+export function noteBookmark(uid, bm) {
+  const note = window.prompt('Note for this bookmark', bm.note || '');
+  if (note == null) return;
+  bookmarks.set((all) => ({ ...all, [uid]: (all[uid] || []).map((b) => (b.createdAt === bm.createdAt ? { ...b, note: note.trim() } : b)) }));
+}
+
 const remove = (uid, bm) => bookmarks.set((all) => ({ ...all, [uid]: (all[uid] || []).filter((b) => b.createdAt !== bm.createdAt) }));
 
-function Rows({ uid, book, list }) {
+/** Bookmark rows: tap to play from there, ✎ to add a note, bin to delete. */
+export function Rows({ uid, book, list, onPlay }) {
   return (
     <ol class="chapter-list bm-list">
       {list.map((bm) => (
         <li>
-          <button onClick={() => playBookmark(book, bm)}>
+          <button onClick={() => (playBookmark(book, bm), onPlay?.())}>
             <span class="ch-num">
               <Icon name="bookmark" size={14} />
             </span>
-            <span class="ch-title">{bm.label}</span>
+            <span class="ch-title">
+              {bm.label}
+              {bm.note && <small class="bm-note">{bm.note}</small>}
+            </span>
             <span class="ch-time">{fmtTime(bm.global ?? bm.time)}</span>
+          </button>
+          <button class="icon-btn" aria-label={bm.note ? 'Edit note' : 'Add a note'} onClick={() => noteBookmark(uid, bm)}>
+            <Icon name="edit" size={16} />
           </button>
           <button class="icon-btn" aria-label="Delete bookmark" onClick={() => confirm('Delete this bookmark?') && remove(uid, bm)}>
             <Icon name="trash" size={16} />
@@ -84,4 +98,20 @@ export function AllBookmarks({ q = '' }) {
       <Rows uid={uid} book={book} list={items} />
     </section>
   ));
+}
+
+/** All bookmarks as Markdown (for Notes → Export). */
+export function bookmarksMarkdown() {
+  const out = ['# My bookmarks', ''];
+  for (const [uid, list] of Object.entries(bookmarks.get() || {})) {
+    if (!list?.length) continue;
+    const b = bookOf(uid);
+    out.push(`## ${b?.title || 'Book'}${b?.author ? ` — ${b.author}` : ''}`, '');
+    for (const bm of list) {
+      out.push(`- **${fmtTime(bm.global ?? bm.time)}** ${bm.label}`);
+      if (bm.note) out.push(`  ${bm.note}`);
+    }
+    out.push('');
+  }
+  return out.length > 2 ? out.join('\n') : '';
 }

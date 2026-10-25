@@ -25,8 +25,13 @@ export function Notes() {
   }, [list]);
 
   const exportAll = async () => {
-    const text = toMarkdown(list);
-    const name = `highlights-${new Date().toISOString().slice(0, 10)}.md`;
+    // Highlights, bookmarks (with your notes) and saved ideas, as one Markdown file.
+    const { bookmarksMarkdown } = await import('../components/bookmarks.jsx');
+    const { ideas } = await import('../lib/askbook.js');
+    const saved = (ideas.get() || []).map((c) => `- ${c.text}${c.title ? ` — *${c.title}*` : ''}${c.where ? ` (${c.where})` : ''}`);
+    const text = [total ? toMarkdown(list) : '', bookmarksMarkdown(), saved.length ? ['# Saved ideas', '', ...saved].join('\n') : ''].filter(Boolean).join('\n\n');
+    if (!text.trim()) return toast('Nothing to export yet');
+    const name = `audiohub-notes-${new Date().toISOString().slice(0, 10)}.md`;
     if (files) {
       try {
         const r = await Files.saveFile({ name, text, mime: 'text/markdown' });
@@ -53,7 +58,8 @@ export function Notes() {
         title="Notes & bookmarks"
         ask={false}
         right={
-          tab === 'highlights' && total > 0 && (
+          (
+
             <button class="pill small" onClick={exportAll}>
               Export
             </button>
