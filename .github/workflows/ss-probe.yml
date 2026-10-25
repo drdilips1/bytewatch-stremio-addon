@@ -1,0 +1,21 @@
+name: ss-probe
+on:
+  push:
+    paths: [".github/workflows/ss-probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sS -m 30 'https://inkandecho-builder.pages.dev/provider.json?type=ebook&debridChoice=torbox&lang=en&strict=1&mode=best&profile=best&limit=80&timeout=30000&match=0.4&titleStyle=clean&revision=comics-evidence-v8&experimental=1&client=ie_bbb06c1c17904fdfd1a0bdc7' -o /tmp/m.json
+          b=$(python3 -c "import json;j=json.load(open('/tmp/m.json'));s=j['adapters']['source'];print(json.dumps({'id':j['id'],'name':j['name'],'icon':j.get('icon'),'contentType':j.get('contentType'),'rateLimit':j.get('rateLimit'),'matching':j.get('matching'),'request':s['request'],'resultsPath':s['response'].get('resultsPath'),'mapping':s['response'].get('mapping')}))" | base64 -w0)
+          n=0; while [ -n "$b" ]; do echo "::notice title=M-$n::${b:0:3000}"; b=${b:3000}; n=$((n+1)); done
+          U=$(python3 -c "import json;print(json.load(open('/tmp/m.json'))['adapters']['source']['request']['url'])")
+          for q in "Atomic Habits|James Clear" "Sapiens|Yuval Noah Harari"; do t=${q%%|*}; a=${q##*|}
+            r=$(curl -sS -m 60 -o /tmp/b -X POST -H 'Content-Type: application/json' -H 'Origin: https://drdilips1.github.io' -d "{\"title\":\"$t\",\"author\":\"$a\",\"limit\":80,\"contentType\":\"ebook\"}" "$U" -w 'code=%{http_code} time=%{time_total}' 2>&1)
+            echo "::notice title=S $t::$r | $(python3 -c "
+          import json,collections
+          j=json.load(open('/tmp/b')); l=j.get('results') or []
+          print(len(l), dict(collections.Counter(x.get('sourceName') for x in l)), '| magnets', sum(1 for x in l if x.get('magnetUrl') or x.get('infoHash')), '| direct', sum(1 for x in l if x.get('ebookUrl')), '|', json.dumps([{k:str(x.get(k))[:70] for k in ('fileTypeTitle','fileType','sizeBytes','seeders','ebookUrl','infoHash') if x.get(k)} for x in l[:3]]))
+          ")"
+          done
