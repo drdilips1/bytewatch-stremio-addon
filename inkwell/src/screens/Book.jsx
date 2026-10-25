@@ -5,6 +5,7 @@ import {
   Cover,
   SourceBadge,
   Row,
+  BookCard,
   toast,
   AskButton,
 } from "../components/common.jsx";
@@ -499,30 +500,7 @@ export function Book({ book: initial }) {
           ) : null}
         </section>
       )}
-      {editions?.server?.length > 0 && (
-        <Row
-          title="On your server"
-          subtitle="Audiobookshelf"
-          icon="server"
-          items={editions.server}
-        />
-      )}
-      {editions?.cloud?.length > 0 && (
-        <Row
-          title="In your cloud"
-          subtitle="TorBox / Real-Debrid"
-          icon="download"
-          items={editions.cloud}
-        />
-      )}
-      {editions?.addons?.length > 0 && (
-        <Row
-          title="From your addons"
-          subtitle="Addon results"
-          icon="puzzle"
-          items={editions.addons}
-        />
-      )}
+      <YourCopies editions={editions} />
       {book.kind === "discover" && sourceAddons().length > 0 && !loading && (
         <SourceResults
           title={mainTitle(book.title)}
@@ -1221,5 +1199,32 @@ function AskCard({ book, description, genres }) {
         Ask…
       </button>
     </div>
+  );
+}
+
+/** Your copies side by side in one row — server, cloud, addons — each labelled where it is. */
+function YourCopies({ editions }) {
+  const items = [
+    ...(editions?.server || []).map((b) => ["server", "Audiobookshelf", b]),
+    ...(editions?.cloud || []).map((b) => ["download", b.source === "rd" ? "Real-Debrid" : "TorBox", b]),
+    ...(editions?.addons || []).map((b) => ["puzzle", b.addonName || "Addon", b]),
+  ];
+  if (!items.length) return null;
+  return (
+    <section class="row your-copies">
+      <header class="row-head">
+        <h3>Your copies</h3>
+      </header>
+      <div class="row-scroll">
+        {items.map(([icon, where, b]) => (
+          <div class="copy-col">
+            <small class="copy-where">
+              <Icon name={icon} size={13} /> {where}
+            </small>
+            <BookCard book={b} />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

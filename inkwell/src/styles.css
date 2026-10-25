@@ -9301,3 +9301,18 @@ button.notes-book-head {
   align-items: center;
   gap: 4px;
 }
+/* Book page: your copies side by side, each labelled where it is */
+.copy-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: none;
+}
+.copy-where {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.7;
+}
