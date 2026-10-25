@@ -157,24 +157,35 @@ object MyVoices {
     private val pacePrefs get() = app.getSharedPreferences("p2a", Context.MODE_PRIVATE)
 
     /** Notes how fast copied voice [id] read a sentence (averaged over the sentences it makes). */
+    /**
+     * Where a voice's learned pace is kept. A ready-made voice's changes with its settings (seed, lead-in):
+     * Narrato's older voices kept a pace learned under earlier settings, judged good sentences wrong and
+     * bad ones right, and read with skips and repeats.
+     */
+    private fun paceKey(id: String): String =
+        BUILT_IN.firstOrNull { it.id == id }?.let { "pace2:$id:${it.seed}:${if (it.leadIn) 1 else 0}" } ?: "pace:$id"
+
     fun recordPace(id: String, chars: Int, seconds: Double) {
         if (!::app.isInitialized || chars < 25 || seconds < 1.0) return
         val now = chars / seconds
-        val old = pacePrefs.getFloat("pace:$id", -1f)
+        val key = paceKey(id)
+        val old = pacePrefs.getFloat(key, -1f)
+        // A sentence far off the usual pace was a bad take (cut short, said twice): not learned from.
+        if (old > 0f && (now < old * 0.7 || now > old * 1.4)) return
         val avg = if (old < 0f) now else old * 0.85 + now * 0.15
-        pacePrefs.edit().putFloat("pace:$id", avg.toFloat()).apply()
+        pacePrefs.edit().putFloat(key, avg.toFloat()).apply()
     }
 
     /** How fast copied voice [id] usually reads, in characters a second (null until it has been heard). */
     fun pace(id: String): Double? {
         if (!::app.isInitialized) return null
-        return pacePrefs.getFloat("pace:$id", -1f).takeIf { it > 0f }?.toDouble()?.coerceIn(8.0, 22.0)
+        return pacePrefs.getFloat(paceKey(id), -1f).takeIf { it > 0f }?.toDouble()?.coerceIn(8.0, 22.0)
     }
 
     /** The playback speed that brings copied voice [id] to a normal pace (1 until it has been heard). */
     fun paceFactor(id: String): Float {
         if (!::app.isInitialized) return 1f
-        val cps = pacePrefs.getFloat("pace:$id", -1f)
+        val cps = pacePrefs.getFloat(paceKey(id), -1f)
         if (cps <= 0f) return 1f
         // Narrato never slows a quick reader down: its readers sounded too slow at 1x (about 0.8x of how
         // they actually talk); Paper to Audio's 1x is already 1.25x quicker (Speaker.BASE_PACE).
