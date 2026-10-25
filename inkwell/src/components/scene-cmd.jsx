@@ -17,6 +17,14 @@ export async function runSaid(said) {
     const { runCommand } = await import('../lib/voicecmd.js');
     const r = await runCommand(said, (t) => (t.startsWith('Opening') || t.startsWith('Working')) && toast(t === 'Working it out…' ? `🎧 “${said.trim().slice(0, 60)}”…` : t), aiReady());
     if (r.message) return toast(r.message);
+    if (r.find) {
+      // Books to find or recommend: Discover, with the bookseller's answer and your sources.
+      nav.closeOverlay();
+      const [{ openSearch }, { askNow }] = await Promise.all([import('../screens/Discover.jsx'), import('./bookseller.jsx')]);
+      openSearch(r.query);
+      askNow(r.query);
+      return;
+    }
     if (r.question) {
       // A question: Ask AI answers it and reads the answer out.
       if (player.getState().playing) player.pause();

@@ -89,6 +89,26 @@ export function DriveMode() {
       const r = await runCommand(q, () => {});
       if (!alive.current) return;
       setPhase('idle');
+      if (r.question || r.find) {
+        // A question, or books to find: answered out loud here (short, for driving).
+        setPhase('thinking');
+        const book = r.find ? null : r.book;
+        let a = '';
+        try {
+          a = await ask(book, q, { msgs: threadFor(book), description: book?.description || '', where: hearing(book), drive: true, voice: true });
+        } catch (e) {
+          a = e.message || "Sorry, I couldn't get an answer right now.";
+        }
+        if (!alive.current) return;
+        setAnswer(a);
+        setPhase('speaking');
+        speakAnswer(a, () => {
+          if (!alive.current) return;
+          setPhase('idle');
+          if (wasPlaying && !player.getState().playing) player.toggle();
+        });
+        return;
+      }
       if (r.message) {
         // A control: the book carries on (unless you asked to pause).
         if (wasPlaying && r.action !== 'pause' && !player.getState().playing) player.toggle();

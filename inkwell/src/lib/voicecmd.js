@@ -29,7 +29,7 @@ async function understand(said) {
     `Someone said to their audiobook app: "${said}"${playing}
 It comes from speech recognition, so it may be misheard: Indian-accented English, Hindi or Hinglish, names written as they sounded ("dumble door" = Dumbledore, "harry potter ki pehli train" = Harry boarding the Hogwarts Express). Work out what they meant.
 Work out which book they mean and where in it the moment they describe happens. The JSON is always in English, with names spelled as in the book.
-First decide the action: "scene" (play a moment of a book), "play_book" (play a book itself), "question" (they ask about a book or books — what, why, explain, summarise, "what are the 12 rules in 12 Rules for Life" — instead of asking to play; title: the book it's about, "" if it's about books in general), or a control of what's playing: "pause", "resume", "rewind", "forward" (with "seconds"), "next_chapter", "previous_chapter", "go_chapter" (with "chapter"), "speed" (with "speed", e.g. 1.25), "sleep" (with "minutes", or 0 to cancel, -1 for the end of the chapter), "bookmark"; else "unknown".
+First decide the action: "scene" (play a moment of a book), "play_book" (play a book itself), "find" (find or recommend books — "find a book on consciousness", "something short and funny"), "question" (they ask about a book or books — what, why, explain, summarise, "what are the 12 rules in 12 Rules for Life" — instead of asking to play; title: the book it's about, "" if it's about books in general), or a control of what's playing: "pause", "resume", "rewind", "forward" (with "seconds"), "next_chapter", "previous_chapter", "go_chapter" (with "chapter"), "speed" (with "speed", e.g. 1.25), "sleep" (with "minutes", or 0 to cancel, -1 for the end of the chapter), "bookmark"; else "unknown".
 Return JSON: {"action":"scene","seconds":0,"speed":0,"minutes":0,"title":"the book's title","book":"","author":"","moment":true,"wholeChapter":false,"scene":"the moment, in under 12 words","chapter":0,"chapterTitle":"","at":0.0,"quote":"","keywords":[""]}
 - wholeChapter: true when they ask for the chapter a moment is in ("play the chapter where Harry finds the mirror"), not the moment itself.
 - moment: false when they only ask to play the book itself ("play The Secret by Rhonda Byrne") — then leave scene, chapter, quote and keywords empty.
@@ -391,13 +391,18 @@ export async function runCommand(said, step = () => {}, withAi = true) {
   // "Play <a book you have>": straight away, no AI needed.
   const mine = await quickBook(said);
   if (mine) return playScene(said, step, mine);
+  // "Find a book on consciousness", "recommend something short": the bookseller (Discover).
+  if (/^(please\s+)?(find|search( for)?|look for|recommend|suggest|show me|get me|i want|i need|koi|mujhe)\b/i.test(said) && /\b(books?|audiobooks?|novels?|something|kitab|kuch|reads?|listens?)\b/i.test(said))
+    return { find: true, query: said.trim() };
   if (!withAi) throw new Error('Commands like “back 30 seconds” work as they are; books, scenes and questions need an AI key (Settings → AI)');
   step('Working it out…');
   const want = await understand(said);
   const action = want?.action && want.action !== 'unknown' ? want.action : want?.title ? (want.moment === false ? 'play_book' : 'scene') : 'unknown';
   if (CONTROLS.has(action)) return { message: await control({ ...want, action }), action };
   if (action === 'question') return { question: true, ...questionBook(want) };
-  if (action === 'unknown' || !want?.title) throw new Error(`Didn't catch that — try "back 30 seconds", "next chapter" or "play when … in <book>"`);
+  if (action === 'find') return { find: true, query: said.trim() };
+  // Anything else: a question for Ask AI (never "didn't catch that").
+  if (action === 'unknown' || !want?.title) return { question: true, ...questionBook(want || {}) };
   // "the scene where…", "when…", "the story of the beggar": a moment, whatever the AI said.
   const sceneish = /\b(where|when|scene|story|moment|part|jab|jahan|jisme|wala|wali)\b/i.test(said);
   if (action === 'play_book' && !sceneish) want.moment = false;
