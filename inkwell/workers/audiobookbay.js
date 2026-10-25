@@ -116,7 +116,7 @@ function parseSearch(html, host) {
         format: (/Format:\s*([^\s/]+)/i.exec(info) || [])[1] || '',
         sizeBytes: size ? toBytes(size[1], size[2]) : 0,
         date: (/Posted:\s*([0-9]{1,2} [A-Za-z]{3} [0-9]{4})/i.exec(info) || [])[1] || '',
-        language: (/Language:\s*([A-Za-z]+)/i.exec(info) || [])[1] || '',
+        language: (/Language:\s*([A-Z][a-z]+)/.exec(info) || [])[1] || '',
       };
     })
     .filter(Boolean);
