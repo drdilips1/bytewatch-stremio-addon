@@ -19,7 +19,7 @@ import { canListen, listen, speakAnswer, stopAnswer, voiceLang, LANGS, askVoice,
 // screen (from the player, another tab) must not ask them again.
 const asked = new Set();
 
-export function Ask({ book = null, description = '', genres = [], mode: startMode = '', question = '', here = false, askId = '' }) {
+export function Ask({ book = null, description = '', genres = [], mode: startMode = '', question = '', here = false, askId = '', voice: spoken = false }) {
   const [msgs, setMsgs] = useState(() => threadFor(book));
   const [mode, setMode] = useState(startMode);
   const [text, setText] = useState('');
@@ -114,7 +114,8 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
     const id = askId || question;
     if (question && !asked.has(id)) {
       asked.add(id);
-      run(question, here && where ? { where } : {});
+      // Asked with the voice button: shown as spoken, and the answer is read out.
+      run(question, { ...(here && where ? { where } : {}), ...(spoken ? { voice: true } : {}) });
     } else if (msgs.length) scrollEnd();
   }, []);
 
