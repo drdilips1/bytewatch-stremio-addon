@@ -7,6 +7,7 @@
 // nothing, is searched directly here.
 //
 // Deploy: Workers & Pages → audiohub → Edit code → replace everything with this file → Deploy.
+// Addon links to share: https://api.audiohubapp.com/addons/<name>.json (listed at /health).
 
 const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
@@ -17,6 +18,209 @@ const HEADERS = {
 
 const BOOKRACY = "https://bookracy-proxy.drdilipgreat.workers.dev";
 const ABB_PROXY = "https://inkshelf-debrid-proxy.tbm-a.workers.dev";
+
+// Addon files, installed by pasting https://api.audiohubapp.com/addons/<name>.json in Audiohub.
+const ADDONS = {
+  "audiobookbay": {
+    "schemaVersion": "1.0.0",
+    "id": "my-audiobookbay",
+    "name": "AudiobookBay",
+    "version": "1.0.0",
+    "description": "Audiobook search via my Audiohub Worker",
+    "icon": "https://audiobookbay.lu/apple-touch-icon.png",
+    "provides": [
+      "source"
+    ],
+    "contentType": "audiobook",
+    "rateLimit": {
+      "requestsPerMinute": 10,
+      "retryAfterMs": 6000
+    },
+    "matching": {
+      "algorithm": "fuzzy",
+      "threshold": 0.4
+    },
+    "adapters": {
+      "source": {
+        "cacheNotifyUrl": "https://api.audiohubapp.com/abb/api/debrid-notify",
+        "request": {
+          "method": "POST",
+          "url": "https://api.audiohubapp.com/abb/api/search",
+          "timeout": 30000,
+          "headers": {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "title": "{TITLE}",
+            "author": "{AUTHOR}",
+            "limit": 20
+          }
+        },
+        "response": {
+          "type": "json",
+          "resultsPath": "results",
+          "mapping": {
+            "title": "title",
+            "author": "author",
+            "narrator": "narrator",
+            "magnetUrl": "magnetUrl",
+            "infoHash": "infoHash",
+            "sizeBytes": "sizeBytes",
+            "seeders": "seeders",
+            "format": "format",
+            "language": "language",
+            "date": "posted",
+            "debridCache": "debridCache"
+          }
+        }
+      }
+    }
+  },
+  "knaben-audiobooks": {
+    "schemaVersion": "1.0.0",
+    "id": "my-knaben-audiobooks",
+    "name": "Knaben AudioBooks",
+    "version": "1.0.0",
+    "description": "Audiobook torrent search via my Audiohub Worker",
+    "icon": "https://knaben.org/favicon.ico",
+    "provides": [
+      "source"
+    ],
+    "contentType": "audiobook",
+    "matching": {
+      "algorithm": "fuzzy",
+      "threshold": 0.6
+    },
+    "adapters": {
+      "source": {
+        "request": {
+          "method": "POST",
+          "url": "https://api.audiohubapp.com/knaben/audiobooks",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "query": "{TITLE}",
+            "search_field": "title",
+            "size": 50,
+            "categories": [
+              1003000
+            ]
+          }
+        },
+        "response": {
+          "type": "json",
+          "resultsPath": "hits",
+          "mapping": {
+            "title": "title",
+            "magnetUrl": "magnetUrl",
+            "sizeBytes": "bytes",
+            "seeders": "seeders",
+            "infoHash": "hash"
+          }
+        }
+      }
+    }
+  },
+  "knaben-ebooks": {
+    "schemaVersion": "1.0.0",
+    "id": "my-knaben-ebooks",
+    "name": "Knaben Ebooks",
+    "version": "1.0.0",
+    "description": "Ebook torrent search via my Audiohub Worker",
+    "icon": "https://knaben.org/favicon.ico",
+    "provides": [
+      "source"
+    ],
+    "contentType": "ebook",
+    "matching": {
+      "algorithm": "fuzzy",
+      "threshold": 0.6
+    },
+    "adapters": {
+      "source": {
+        "request": {
+          "method": "POST",
+          "url": "https://api.audiohubapp.com/knaben/ebooks",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "query": "{TITLE}",
+            "search_field": "title",
+            "size": 50,
+            "categories": [
+              9001000,
+              9000000,
+              10000000
+            ]
+          }
+        },
+        "response": {
+          "type": "json",
+          "resultsPath": "hits",
+          "mapping": {
+            "title": "title",
+            "magnetUrl": "magnetUrl",
+            "sizeBytes": "bytes",
+            "seeders": "seeders",
+            "infoHash": "hash"
+          }
+        }
+      }
+    }
+  },
+  "bookracy": {
+    "schemaVersion": "1.0.0",
+    "id": "my-bookracy",
+    "name": "Bookracy",
+    "version": "1.0.0",
+    "description": "Ebook search via my Audiohub Worker",
+    "icon": "https://bookracy.com/favicon.ico",
+    "provides": [
+      "source"
+    ],
+    "contentType": "ebook",
+    "rateLimit": {
+      "requestsPerMinute": 10,
+      "retryAfterMs": 6000
+    },
+    "matching": {
+      "algorithm": "fuzzy",
+      "threshold": 0.4
+    },
+    "adapters": {
+      "source": {
+        "cacheNotifyUrl": "https://api.audiohubapp.com/bookracy/notify",
+        "request": {
+          "method": "GET",
+          "url": "https://api.audiohubapp.com/bookracy/search?q={QUERY}",
+          "timeout": 30000,
+          "headers": {
+            "Accept": "application/json"
+          }
+        },
+        "response": {
+          "type": "json",
+          "resultsPath": "results",
+          "mapping": {
+            "title": "title",
+            "author": "author",
+            "url": "url",
+            "format": "format",
+            "language": "language",
+            "date": "posted",
+            "sizeBytes": "sizeBytes",
+            "cover": "cover",
+            "description": "description",
+            "debridCache": "debridCache"
+          }
+        }
+      }
+    }
+  }
+};
 
 function reply(body, status = 200) {
   return new Response(body, { status, headers: HEADERS });
@@ -213,6 +417,13 @@ export default {
         return await proxy(`${ABB_PROXY}/abb/api/debrid-notify`, request, "POST");
       }
 
+      // Addon files: /addons/audiobookbay.json, /addons/knaben-audiobooks.json, …
+      const addon = /^\/addons\/([a-z-]+)(\.json)?$/.exec(path);
+      if (addon && request.method === "GET") {
+        const a = ADDONS[addon[1]];
+        return a ? reply(JSON.stringify(a, null, 2)) : reply(JSON.stringify({ error: "No such addon", addons: Object.keys(ADDONS) }), 404);
+      }
+
       if (path === "/" || path === "/health") {
         return reply(JSON.stringify({
           name: "Audiohub Sources",
@@ -225,7 +436,8 @@ export default {
             "/knaben/ebooks",
             "/abb/api/search",
             "/abb/api/debrid-notify"
-          ]
+          ],
+          addons: Object.keys(ADDONS).map((n) => `${url.origin}/addons/${n}.json`)
         }));
       }
 
