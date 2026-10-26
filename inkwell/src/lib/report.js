@@ -59,6 +59,23 @@ const when = (t) => {
   return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 };
 
+// How full the web storage is (about 5 MB for everything): total and the biggest parts.
+function storageLine() {
+  const sizes = [];
+  let total = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      const n = k.length + (localStorage.getItem(k) || '').length;
+      total += n;
+      sizes.push([k.replace(/^inkwell:/, ''), n]);
+    }
+  } catch {}
+  const kb = (n) => `${Math.round(n / 1024)} KB`;
+  const top = sizes.sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, n]) => `${k} ${kb(n)}`).join(', ');
+  return `Storage: ${kb(total)} used${top ? ` (${top})` : ''}`;
+}
+
 /** The report text. `setup` = short lines describing what's configured (no secrets). */
 export function buildReport({ note = '', version = '', setup = [] } = {}) {
   const st = nav.state();
@@ -73,6 +90,7 @@ export function buildReport({ note = '', version = '', setup = [] } = {}) {
     `Device: ${navigator.userAgent.replace(/\s*\(KHTML.*$/, '').slice(0, 140)}`,
     `Screen: ${screen}`,
     `Time: ${when(Date.now())} · Online: ${navigator.onLine ? 'yes' : 'no'}`,
+    storageLine(),
     '',
     'Set up:',
     ...(setup.length ? setup.map((l) => `- ${l}`) : ['- (nothing)']),

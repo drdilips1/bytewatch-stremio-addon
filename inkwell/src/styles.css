@@ -9902,3 +9902,22 @@ button.notes-book-head {
   opacity: 0.65;
   margin: 12px 0 0;
 }
+
+/* This book's notes (reader panel and player sheet) */
+.book-notes .section-label {
+  margin: 18px 0 4px;
+}
+.book-notes .note-foot > span {
+  display: flex;
+  gap: 2px;
+}
+.book-notes .note-quote {
+  width: 100%;
+}
+.book-notes > .muted {
+  margin: 8px 0;
+}
+.reader-panel .note-card {
+  background: color-mix(in srgb, var(--r-fg) 7%, transparent);
+  color: var(--r-fg);
+}

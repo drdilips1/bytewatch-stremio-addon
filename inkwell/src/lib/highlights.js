@@ -1,9 +1,9 @@
 // Highlights and notes in ebooks. Each one remembers its book, the paragraph(s) it's
 // in (index among the reader's text blocks) and the exact words, so it can be shown
 // again, listed in the notebook and opened at its place.
-import { persisted, summarize } from './store.js';
+import { highlights, highlightsGone, summarize } from './store.js';
 
-export const highlights = persisted('highlights', {}); // uid -> [{ id, parts: [{ a, t }], text, note, at, book }]
+export { highlights }; // uid -> [{ id, parts: [{ a, t }], text, note, at, book }]
 
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
@@ -33,6 +33,7 @@ export function updateHighlight(uid, id, patch) {
 }
 
 export function removeHighlight(uid, id) {
+  highlightsGone.set((g) => Object.fromEntries([...Object.entries(g), [id, Date.now()]].slice(-500)));
   highlights.set((all) => {
     const list = (all[uid] || []).filter((h) => h.id !== id);
     const next = { ...all };

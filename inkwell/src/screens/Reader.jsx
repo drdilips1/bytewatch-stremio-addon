@@ -14,7 +14,8 @@ import { VoicesCard } from './settings-extra.jsx';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import * as player from '../lib/player.js';
 import { toast } from '../components/common.jsx';
-import { forBook, forWork, addHighlight, updateHighlight, removeHighlight, markText, unmark, selectionParts } from '../lib/highlights.js';
+import { HighlightCards, AudioNotes, hasAudioNotes } from '../components/book-notes.jsx';
+import { highlights, forWork, addHighlight, updateHighlight, removeHighlight, markText, unmark, selectionParts } from '../lib/highlights.js';
 import { SelectionBar, AiSheet, HighlightSheet } from '../components/reader-select.jsx';
 
 // Reading fonts (bundled, so they work offline). Literata is the default serif.
@@ -289,7 +290,10 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
       }
   };
   useEffect(() => {
-    if (doc) requestAnimationFrame(markAll);
+    if (!doc) return;
+    requestAnimationFrame(markAll);
+    // A note edited or a highlight removed in the Notes panel (or synced in): redraw the marks.
+    return highlights.subscribe(() => requestAnimationFrame(markAll));
   }, [doc]);
 
   // Long-press selection → the action bar (after the selection settles).
@@ -389,6 +393,9 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
           aria-label={aloud ? 'Voice' : 'Read aloud'}
         >
           <Icon name="headphones" />
+        </button>
+        <button class="icon-btn" onClick={() => setPanel(panel === 'notes' ? null : 'notes')} aria-label="This book's notes">
+          <Icon name="edit" />
         </button>
         <button class="icon-btn" onClick={() => setPanel(panel === 'toc' ? null : 'toc')} aria-label="Contents">
           <Icon name="list" />
@@ -575,29 +582,26 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
               <li class="muted">No chapter headings in this edition.</li>
             )}
           </ol>
-          {forBook(book.uid).length > 0 && (
-            <>
-              <h3 class="toc-hl-title">Your highlights</h3>
-              <ol class="toc toc-hl">
-                {forBook(book.uid).map((h) => (
-                  <li>
-                    <button
-                      onClick={() => {
-                        const m = scroller.current.querySelector(`mark.hl[data-id="${h.id}"]`) || blocks()[h.parts[0].a];
-                        m?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        setPanel(null);
-                      }}
-                    >
-                      “{h.text.length > 90 ? h.text.slice(0, 90) + '…' : h.text}”{h.note && <small>{h.note.length > 80 ? h.note.slice(0, 80) + '…' : h.note}</small>}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-              <button class="link-btn" onClick={() => nav.push('notes')}>
-                All highlights & notes
-              </button>
-            </>
+        </div>
+      )}
+      {panel === 'notes' && doc && (
+        <div class="reader-panel book-notes">
+          <PanelHead title="This book's notes" onClose={() => setPanel(null)} />
+          <HighlightCards
+            book={book}
+            onOpen={(h) => {
+              const m = scroller.current.querySelector(`mark.hl[data-id="${h.id}"]`) || blocks()[h.parts[0].a];
+              m?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              setPanel(null);
+            }}
+          />
+          <AudioNotes book={book} onPlay={() => setPanel(null)} title="From the audiobook" />
+          {!forWork(book, sameWork).length && !hasAudioNotes(book) && (
+            <p class="muted">Press and hold on a word or drag across a passage, then tap Highlight. Your highlights and notes for this book — and bookmarks from its audiobook — show here.</p>
           )}
+          <button class="link-btn" onClick={() => nav.push('notes')}>
+            All highlights & notes
+          </button>
         </div>
       )}
       {panel === 'style' && (

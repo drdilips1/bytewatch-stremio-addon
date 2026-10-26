@@ -239,6 +239,7 @@ export function exportBackup() {
       bookmarks: bookmarks.get(),
       addons: addons.get(),
       bookTags: bookTags.get(),
+      highlights: highlights.get(),
     },
     null,
     2
@@ -254,6 +255,7 @@ export function importBackup(text) {
   if (data.bookmarks) bookmarks.set({ ...bookmarks.get(), ...data.bookmarks });
   if (Array.isArray(data.addons)) addons.set(data.addons);
   if (data.bookTags) bookTags.set({ ...bookTags.get(), ...data.bookTags });
+  if (data.highlights) highlights.set(mergeHighlights(highlights.get(), data.highlights));
 }
 
 export const debrid = persisted('debrid', { torbox: '', realdebrid: '' });
@@ -261,5 +263,22 @@ export const debrid = persisted('debrid', { torbox: '', realdebrid: '' });
 export const kindle = persisted('kindle', { targets: [], senders: [] });
 // Your own tags per book: uid -> ['Psychology', …]
 export const bookTags = persisted('bookTags', {});
+// Ebook highlights and notes: uid -> [{ id, parts: [{ a, t }], text, note, at, book }] (see highlights.js)
+export const highlights = persisted('highlights', {});
+// Ids of highlights you removed (id -> when), so a backup or another device doesn't bring them back.
+export const highlightsGone = persisted('highlightsGone', {});
+
+/** Highlights from two places (backup, another device): every one of both, by id. */
+export function mergeHighlights(local, remote) {
+  const out = { ...local };
+  for (const [uid, list] of Object.entries(remote || {})) {
+    if (!Array.isArray(list)) continue;
+    const have = new Set((out[uid] || []).map((h) => h.id));
+    const gone = highlightsGone.get();
+    const more = list.filter((h) => h?.id && h.parts?.length && !have.has(h.id) && !gone[h.id]);
+    if (more.length) out[uid] = [...(out[uid] || []), ...more].sort((x, y) => x.parts[0].a - y.parts[0].a);
+  }
+  return out;
+}
 export const hardcover = persisted('hardcover', { token: '', username: '' });
 export const goodreads = persisted('goodreads', { books: [], importedAt: 0 });
