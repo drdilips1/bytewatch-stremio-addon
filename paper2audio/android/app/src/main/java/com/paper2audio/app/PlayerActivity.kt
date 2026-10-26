@@ -587,6 +587,11 @@ class PlayerActivity : Activity() {
     private fun setupReader() {
         reader.adapter = readerAdapter
         reader.setOnItemClickListener { _, _, position, _ ->
+            // At the edges: a page turn (the voice carries on where it is).
+            if (ReadingLook.turnPage(reader, touchX)) {
+                lastUserScroll = System.currentTimeMillis()
+                return@setOnItemClickListener
+            }
             lastUserScroll = 0
             Speaker.seek(position)
             if (!Speaker.playing) {

@@ -93,6 +93,22 @@ object ReadingLook {
 
     fun alignment(c: Context): String = prefs(c).getString("readerAlign", "left") ?: "left"
 
+    /** Whether a tap near the left or right edge turns a page (as in Audiohub's reader). */
+    fun pageTurns(c: Context): Boolean = prefs(c).getBoolean("readerPageTurns", true)
+
+    /**
+     * A tap at [x] (in [list]'s own coordinates): in the outer fifth on either side it turns a page,
+     * back or on, by a screen less two lines (so the last lines stay in view). True when it did.
+     */
+    fun turnPage(list: android.widget.ListView, x: Float): Boolean {
+        if (!pageTurns(list.context) || list.width == 0) return false
+        val side = x / list.width
+        if (side > 0.22f && side < 0.78f) return false
+        val step = list.height - list.paddingTop - list.paddingBottom - (textSize(list.context) * 2.5f * list.resources.displayMetrics.scaledDensity).toInt()
+        list.smoothScrollBy(if (side <= 0.22f) -step else step, 220)
+        return true
+    }
+
     /** The paper chosen ("Auto" follows the phone's dark mode), or null for the theme's own colors. */
     fun paper(c: Context): Paper? = when (val key = prefs(c).getString("readerPaper", "theme")) {
         "theme" -> null
@@ -240,6 +256,20 @@ object ReadingLook {
         }
         renderAligns()
         panel.addView(aligns)
+
+        // Page turns: a tap at the left or right edge turns a page; in the middle it reads from there.
+        panel.addView(android.widget.Switch(activity).apply {
+            this.text = "Tap the left or right edge to turn the page"
+            textSize = 15f
+            setTextColor(text)
+            isChecked = pageTurns(activity)
+            setPadding(dp(24), dp(4), dp(24), dp(10))
+            thumbTintList = ColorStateList.valueOf(accent)
+            setOnCheckedChangeListener { _, on ->
+                p.edit().putBoolean("readerPageTurns", on).apply()
+                changed()
+            }
+        })
         panel.addView(View(activity).apply { setBackgroundColor(surface2) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
 
         // Paper: Day / Sepia / Cream / Night, Auto (follows the phone), or the theme's colors.

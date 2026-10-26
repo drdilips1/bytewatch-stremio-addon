@@ -161,6 +161,11 @@ class LitePlayerActivity : Activity() {
         loadLook()
         reader.adapter = readerAdapter
         reader.setOnItemClickListener { _, _, i, _ ->
+            // At the edges: a page turn (the voice carries on where it is).
+            if (ReadingLook.turnPage(reader, touchX)) {
+                lastUserScroll = System.currentTimeMillis()
+                return@setOnItemClickListener
+            }
             lastUserScroll = 0
             Speaker.seek(i)
             if (!Speaker.playing) Speaker.play()
