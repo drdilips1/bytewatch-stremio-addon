@@ -9986,3 +9986,6 @@ button.notes-book-head {
 .sel-answer {
   margin-bottom: 10px;
 }
+.reader-text {
+  -webkit-touch-callout: none;
+}

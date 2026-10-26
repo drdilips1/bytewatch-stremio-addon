@@ -6,8 +6,9 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 export const CHANGES = [
   {
     id: '2026-10-28',
-    title: 'Fixes',
+    title: 'Select by sliding, and fixes',
     items: [
+      ['👆', 'Press, hold and slide', 'In ebooks, press on a word, hold a moment, then slide your finger — the selection follows it, word by word (the page scrolls at the edges). Lift, then Highlight.'],
       ['📖', 'The ebook follows the audiobook', 'An ebook attached to an audiobook now works for every copy of it — another source, a download — so the Text view shows the book’s real words, not misheard ones.'],
     ],
   },

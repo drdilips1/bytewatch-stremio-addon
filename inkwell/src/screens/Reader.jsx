@@ -9,6 +9,7 @@ import { isCloudEbook, loadCloudEbook } from '../lib/epub.js';
 import { progress, settings, summarize, useStore } from '../lib/store.js';
 import { nav, useBackClose } from '../lib/nav.js';
 import { readAloud, attachAloud } from '../lib/readaloud.js';
+import { dragSelect } from '../lib/dragselect.js';
 import { trCfg, LANGS, lang, voiceFor, bookTranslation, translateParas } from '../lib/translate.js';
 import { paragraphs, estimate, textBlocks, isSkippable, skipFrontMatter, nativeReader, ttsCfg, voiceSpec, speakable, blockText, Reader as ReadAloudNative } from '../lib/tts.js';
 import { VoicesCard } from './settings-extra.jsx';
@@ -429,10 +430,26 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         setSel({ text, parts, context, rect: range.getBoundingClientRect(), range: range.cloneRange() });
       }, 250);
     };
-    document.addEventListener('selectionchange', onSel);
+    // Press, hold and slide to select (the bar shows once the finger lifts).
+    let dragging = false;
+    const off = dragSelect(scroller.current, '.reader-text', {
+      onStart: () => {
+        dragging = true;
+        selAt.current = Date.now();
+        setSel(null);
+      },
+      onDone: () => {
+        dragging = false;
+        selAt.current = Date.now();
+        onSel();
+      },
+    });
+    const onSelWhenFree = () => !dragging && onSel();
+    document.addEventListener('selectionchange', onSelWhenFree);
     return () => {
       clearTimeout(t);
-      document.removeEventListener('selectionchange', onSel);
+      off();
+      document.removeEventListener('selectionchange', onSelWhenFree);
     };
   }, [doc]);
 
