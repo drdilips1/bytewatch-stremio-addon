@@ -211,6 +211,49 @@ public class InkwellWebPlugin extends Plugin {
         }).start();
     }
 
+    /**
+     * Download a file and e-mail it straight to Kindle addresses through Gmail (an app
+     * password, see GmailSender) — no e-mail app or share menu.
+     */
+    @PluginMethod
+    public void mailFile(PluginCall call) {
+        String url = call.getString("url");
+        String name = call.getString("name", "book.epub").replaceAll("[\\\\/:*?\"<>|]", " ").trim();
+        String mime = call.getString("mime", "application/epub+zip");
+        String from = call.getString("from", "");
+        String password = call.getString("password", "");
+        java.util.List<String> to = new java.util.ArrayList<>();
+        try {
+            com.getcapacitor.JSArray list = call.getArray("to");
+            for (int i = 0; list != null && i < list.length(); i++) to.add(list.getString(i));
+        } catch (Exception ignored) {
+        }
+        if (url == null || to.isEmpty() || from.isEmpty() || password.isEmpty()) {
+            call.reject("Missing book, Kindle address or Gmail sender");
+            return;
+        }
+        new Thread(() -> {
+            File f = null;
+            try {
+                File dir = new File(getContext().getCacheDir(), "share");
+                //noinspection ResultOfMethodCallIgnored
+                dir.mkdirs();
+                f = new File(dir, name);
+                //noinspection ResultOfMethodCallIgnored
+                f.delete();
+                ParallelDownloader.fetch(url, f, 2, null);
+                if (looksLikeWebPage(f)) throw new Exception("the link gave a web page instead of the ebook file");
+                GmailSender.send(from, password, to, name.replaceAll("\\.[A-Za-z0-9]{2,5}$", ""), f, name, mime);
+                call.resolve();
+            } catch (Throwable e) {
+                call.reject("Couldn't send it: " + e.getMessage());
+            } finally {
+                //noinspection ResultOfMethodCallIgnored
+                if (f != null) f.delete();
+            }
+        }).start();
+    }
+
     /** A download that is really an HTML page (login, captcha, error) rather than the file. */
     private static boolean looksLikeWebPage(File f) {
         try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {

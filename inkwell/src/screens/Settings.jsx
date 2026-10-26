@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { ssBadges } from '../sources/storyshots.js';
 import { Icon } from '../components/icons.jsx';
 import { toast, AskButton } from '../components/common.jsx';
-import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup } from '../lib/store.js';
+import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup, kindle } from '../lib/store.js';
 import { notInterested } from '../lib/taste.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl } from '../lib/http.js';
@@ -1378,35 +1378,88 @@ function AutoSendStatus() {
   );
 }
 
-/** Your Kindle's e-mail address: Kindle buttons then open your e-mail app, addressed and with the book attached. */
+/** Send to Kindle: your Kindles (name + @kindle.com address) and the Gmail account(s) that send to them. */
 function KindleCard() {
-  const st = useStore(settings);
-  const [v, setV] = useState(st.kindleEmail || '');
-  const ok = !v.trim() || /^[^\s@]+@(free\.)?kindle\.(com|cn)$/i.test(v.trim());
+  const k = useStore(kindle);
+  const [t, setT] = useState({ name: '', email: '' });
+  const [g, setG] = useState({ email: '', password: '' });
+  const okKindle = /^[^\s@]+@(free\.)?kindle\.(com|cn)$/i.test(t.email.trim());
+  const okGmail = /^[^\s@]+@(gmail|googlemail)\.com$/i.test(g.email.trim()) || /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(g.email.trim());
+  const okPass = g.password.replace(/\s/g, '').length === 16;
+  const remove = (key, i) => kindle.set((x) => ({ ...x, [key]: x[key].filter((_, j) => j !== i) }));
   return (
     <>
       <p class="muted">
-        Enter your Kindle's e-mail address. Kindle buttons then open your e-mail app with the book attached and the address filled in — just tap Send. Without it, they open the share menu
-        (pick the Kindle app there).
+        With a Kindle and a Gmail account below, Kindle buttons e-mail the book <b>straight to the Kindle</b> — no e-mail app. With several Kindles, you pick one (or all) each
+        time. Without a Gmail account, Kindle buttons open your e-mail app instead.
       </p>
-      <p class="muted small">
-        Find the address and allow your own e-mail: <b>amazon.com → Manage Your Content and Devices → Preferences → Personal Document Settings</b>. Add the e-mail you send from to the
-        "Approved Personal Document E-mail List". EPUB and PDF work.
-      </p>
+
+      <b class="set-sub">Kindles</b>
+      {k.targets.map((x, i) => (
+        <div class="set-row">
+          <div>
+            <b>{x.name}</b>
+            <small>{x.email}</small>
+          </div>
+          <button class="icon-btn" aria-label={`Remove ${x.name}`} onClick={() => remove('targets', i)}>
+            <Icon name="trash" size={18} />
+          </button>
+        </div>
+      ))}
       <form
-        class="set-form inline"
+        class="set-form kindle-form"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!ok) return toast('That doesn\'t look like a Kindle address (…@kindle.com)');
-          settings.patch({ kindleEmail: v.trim() });
-          toast(v.trim() ? 'Saved — Kindle buttons will e-mail books there' : 'Removed');
+          if (!okKindle) return toast("That doesn't look like a Kindle address (…@kindle.com)");
+          kindle.set((x) => ({ ...x, targets: [...x.targets.filter((y) => y.email.toLowerCase() !== t.email.trim().toLowerCase()), { name: t.name.trim() || `Kindle ${x.targets.length + 1}`, email: t.email.trim() }] }));
+          setT({ name: '', email: '' });
+          toast('Kindle added');
         }}
       >
-        <input type="email" value={v} placeholder="yourname@kindle.com" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setV(e.currentTarget.value)} />
-        <button class="btn primary" disabled={v.trim() === (st.kindleEmail || '')}>
-          Save
+        <input value={t.name} placeholder="Name, e.g. Pooja's Kindle" onInput={(e) => setT({ ...t, name: e.currentTarget.value })} />
+        <input type="email" value={t.email} placeholder="name_abc123@kindle.com" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setT({ ...t, email: e.currentTarget.value })} />
+        <button class="btn primary" disabled={!t.email.trim()}>
+          <Icon name="plus" size={16} /> Add Kindle
         </button>
       </form>
+      <p class="muted small">
+        Find a Kindle's address: <b>amazon.com → Manage Your Content and Devices → Preferences → Personal Document Settings</b>.
+      </p>
+
+      <b class="set-sub">Send from (Gmail)</b>
+      {k.senders.map((x, i) => (
+        <div class="set-row">
+          <div>
+            <b>{x.email}</b>
+            <small>App password saved on this phone</small>
+          </div>
+          <button class="icon-btn" aria-label={`Remove ${x.email}`} onClick={() => remove('senders', i)}>
+            <Icon name="trash" size={18} />
+          </button>
+        </div>
+      ))}
+      <form
+        class="set-form kindle-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!okGmail) return toast('Enter the Gmail address to send from');
+          if (!okPass) return toast('An app password is 16 letters (Google shows it as 4 groups of 4)');
+          kindle.set((x) => ({ ...x, senders: [...x.senders.filter((y) => y.email.toLowerCase() !== g.email.trim().toLowerCase()), { email: g.email.trim(), password: g.password.replace(/\s/g, '') }] }));
+          setG({ email: '', password: '' });
+          toast('Gmail added — Kindle buttons now send directly');
+        }}
+      >
+        <input type="email" value={g.email} placeholder="you@gmail.com" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setG({ ...g, email: e.currentTarget.value })} />
+        <input type="password" value={g.password} placeholder="App password (16 letters)" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setG({ ...g, password: e.currentTarget.value })} />
+        <button class="btn primary" disabled={!g.email.trim() || !g.password.trim()}>
+          <Icon name="plus" size={16} /> Add Gmail
+        </button>
+      </form>
+      <p class="muted small">
+        <b>App password</b> (not your normal password): turn on 2-Step Verification in your Google account, then <b>myaccount.google.com/apppasswords</b> → create one named
+        "Audiohub" → copy the 16 letters here. Then add this Gmail address to each Kindle's <b>Approved Personal Document E-mail List</b> (same Amazon page as above). EPUB and PDF
+        work; Gmail sends books up to about 18 MB.
+      </p>
     </>
   );
 }

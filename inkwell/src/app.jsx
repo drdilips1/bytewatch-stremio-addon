@@ -37,6 +37,7 @@ import { PullToRefresh } from './components/pull-refresh.jsx';
 import { clearHttpCache } from './lib/http.js';
 import { cloud, hc, gr } from './sources/index.js';
 import { toast } from './components/common.jsx';
+import { KindleChooser } from './components/kindle-chooser.jsx';
 
 const TABS = [
   ['home', 'Home', 'home'],
@@ -169,6 +170,7 @@ export function App() {
       <SceneHost />
       <UpdatePrompt />
       <StoryShotsSheet />
+      <KindleChooser />
       <Toaster />
     </div>
   );

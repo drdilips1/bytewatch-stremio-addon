@@ -9670,3 +9670,58 @@ button.notes-book-head {
     stop-color: var(--accent-2);
   }
 }
+
+/* Send to Kindle: the forms in Settings and the "which Kindle?" sheet */
+.set-sub {
+  display: block;
+  margin: 16px 0 6px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.kindle-form {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0;
+}
+.kindle-list {
+  display: grid;
+  gap: 8px;
+}
+.kindle-pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+.kindle-pick span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.kindle-pick small {
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kindle-pick.all {
+  border-style: dashed;
+}
+.kindle-from {
+  margin-top: 14px;
+}
+.kindle-from small {
+  display: block;
+  opacity: 0.7;
+  margin-bottom: 6px;
+}

@@ -255,5 +255,7 @@ export function importBackup(text) {
 }
 
 export const debrid = persisted('debrid', { torbox: '', realdebrid: '' });
+// Send to Kindle: Kindle addresses ([{ name, email }]) and Gmail senders ([{ email, password }] — an app password).
+export const kindle = persisted('kindle', { targets: [], senders: [] });
 export const hardcover = persisted('hardcover', { token: '', username: '' });
 export const goodreads = persisted('goodreads', { books: [], importedAt: 0 });
