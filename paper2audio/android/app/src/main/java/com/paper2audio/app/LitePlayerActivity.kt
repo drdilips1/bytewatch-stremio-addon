@@ -553,6 +553,14 @@ class LitePlayerActivity : Activity() {
     private fun showMore() {
         LiteSheet(this, Speaker.doc?.title, null)
             .row(R.drawable.ic_voice, "Pronunciations", "Fix how words are said (or press and hold a word)") { Pronounce.show(this) }
+            .apply {
+                // A PDF: its pages as printed (the reader shows the text reflowed).
+                val item = Library.get(this@LitePlayerActivity, Library.currentId)
+                val doc = Speaker.doc
+                if (item?.kind == Loader.Kind.PDF && doc != null) row(R.drawable.ic_doc, "Original pages", "The PDF as printed, near where you are") {
+                    PdfPages.show(this@LitePlayerActivity, Library.source(this@LitePlayerActivity, item).file, Speaker.index.toFloat() / doc.paragraphs.size.coerceAtLeast(1))
+                }
+            }
             .row(R.drawable.ic_palette, "Highlights and notes", "Press and hold a word to add them") {
                 val item = Library.get(this, Library.currentId)
                 val doc = Speaker.doc

@@ -328,6 +328,12 @@ class PlayerActivity : Activity() {
             .row(R.drawable.ic_text, "Reading look", "Font, size, spacing, margins, alignment, day or night") {
                 ReadingLook.show(this) { applyReadingLook() }
             }
+            .apply {
+                // A PDF: its pages as printed (the reader shows the text reflowed).
+                if (item?.kind == Loader.Kind.PDF && doc != null) row(R.drawable.ic_doc, "Original pages", "The PDF as printed, near where you are") {
+                    PdfPages.show(this@PlayerActivity, Library.source(this@PlayerActivity, item).file, Speaker.index.toFloat() / doc.paragraphs.size.coerceAtLeast(1))
+                }
+            }
             .section("Share")
             .row(R.drawable.ic_share, "Share a quote", "The paragraph being read, as a picture") {
                 doc?.paragraphs?.getOrNull(Speaker.index)?.let {
