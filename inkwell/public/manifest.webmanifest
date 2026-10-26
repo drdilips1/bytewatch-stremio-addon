@@ -1,6 +1,6 @@
 {
-  "name": "Audiohub",
-  "short_name": "Audiohub",
+  "name": "Audiohub+",
+  "short_name": "Audiohub+",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#101012",
