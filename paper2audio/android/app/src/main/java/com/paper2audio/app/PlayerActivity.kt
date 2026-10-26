@@ -865,6 +865,8 @@ class PlayerActivity : Activity() {
                 menu.add(0, 4, 3, "Wikipedia")
                 menu.add(0, 5, 4, "Search")
                 menu.add(0, 6, 5, "Quote card")
+                // As in Audiohub's reader: ask AI about exactly the words chosen.
+                menu.add(0, 7, 6, "Ask AI")
                 return true
             }
 
@@ -905,6 +907,7 @@ class PlayerActivity : Activity() {
                     4 -> LookUp.wikipedia(this@PlayerActivity, scope, words)
                     5 -> LookUp.webSearch(this@PlayerActivity, words)
                     6 -> Sharing.shareQuote(this@PlayerActivity, words, item.title, item.author ?: doc.author)
+                    7 -> explainMenu(position, words)
                 }
                 mode.finish()
                 return true

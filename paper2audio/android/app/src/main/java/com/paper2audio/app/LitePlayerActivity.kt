@@ -112,6 +112,20 @@ class LitePlayerActivity : Activity() {
      * Read-along like Audiohub's: the sentence being read in full color with the word being spoken
      * in the accent color, what's still to come dimmed, and what's been read dimmer still.
      */
+    /** Highlights and notes on words, by paragraph, for the book open ([marksFor]). */
+    private var marks: Map<Int, List<Library.Note>> = emptyMap()
+    private var marksFor: String? = null
+
+    private fun loadMarks() {
+        marksFor = Library.currentId
+        marks = WordMarks.spans(Library.get(this, Library.currentId))
+    }
+
+    private fun afterMarksChanged() {
+        loadMarks()
+        readerAdapter.notifyDataSetChanged()
+    }
+
     private fun highlighted(text: String, current: Boolean): CharSequence {
         val piece = Speaker.currentPiece
         val start = if (current && piece != null) text.indexOf(piece) else -1
@@ -466,7 +480,10 @@ class LitePlayerActivity : Activity() {
             ReadingLook.paper(this@LitePlayerActivity)?.let { tv.setTextColor(it.text) }
                 ?: tv.setTextColor(Themes.color(this@LitePlayerActivity, R.attr.p2aText))
             tv.setLineSpacing(0f, spacing)
-            tv.text = highlighted(text, current)
+            if (marksFor != Library.currentId) loadMarks()
+            val shown = highlighted(text, current)
+            tv.text = if (marks[position].isNullOrEmpty()) shown
+            else ((shown as? Spannable) ?: SpannableString(shown)).also { WordMarks.mark(it, marks[position]) }
             // No box around the paragraph: the highlight follows the words instead.
             tv.background = null
             // While reading: what's been read fades most, what's to come a little.
@@ -511,6 +528,19 @@ class LitePlayerActivity : Activity() {
         val word = range?.let { para.substring(it.first, it.last + 1) }
         val sheet = LiteSheet(this, word?.let { "“$it”" } ?: "Paragraph ${i + 1}", null)
         if (word != null) sheet.row(R.drawable.ic_voice, "Fix how “$word” is said", "Type it the way it sounds; every voice uses it") { Pronounce.show(this, word) }
+        val item = Library.get(this, Library.currentId)
+        if (item != null) {
+            if (range != null) sheet.row(R.drawable.ic_palette, "Highlight “$word”", "Yellow, green, blue or pink") {
+                WordMarks.pickColor(this) { c ->
+                    if (c == null) Library.removeSpans(this, item, i, range.first, range.last + 1)
+                    else Library.addSpan(this, item, i, range.first, range.last + 1, c)
+                    afterMarksChanged()
+                }
+            }
+            sheet.row(R.drawable.ic_text, "Select words", "Highlight them or add a note") {
+                WordMarks.selectWords(this, item, i, para) { afterMarksChanged() }
+            }
+        }
         sheet.row(R.drawable.ic_play, "Play from here", null) {
             lastUserScroll = 0
             Speaker.seek(i)
@@ -523,6 +553,14 @@ class LitePlayerActivity : Activity() {
     private fun showMore() {
         LiteSheet(this, Speaker.doc?.title, null)
             .row(R.drawable.ic_voice, "Pronunciations", "Fix how words are said (or press and hold a word)") { Pronounce.show(this) }
+            .row(R.drawable.ic_palette, "Highlights and notes", "Press and hold a word to add them") {
+                val item = Library.get(this, Library.currentId)
+                val doc = Speaker.doc
+                if (item != null && doc != null) WordMarks.showAll(this, item, doc, { i ->
+                    lastUserScroll = 0
+                    reader.setSelection(i)
+                }) { afterMarksChanged() }
+            }
             .row(R.drawable.ic_text, "Save the text", "As plain text, Markdown or PDF") { exportTranscript() }
             .row(R.drawable.ic_tune, "Reading look", "Font, size, spacing, margins, alignment, page color") {
                 ReadingLook.show(this) {
