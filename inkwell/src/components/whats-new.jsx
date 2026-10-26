@@ -5,6 +5,13 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-10-28',
+    title: 'Fixes',
+    items: [
+      ['📖', 'The ebook follows the audiobook', 'An ebook attached to an audiobook now works for every copy of it — another source, a download — so the Text view shows the book’s real words, not misheard ones.'],
+    ],
+  },
+  {
     id: '2026-10-27',
     title: 'Share what you love',
     items: [

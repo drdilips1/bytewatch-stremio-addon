@@ -5,7 +5,8 @@
 import { savedEbooks, loadCloudEbook, cloudReaderBook, directEbookFile, directReaderBook } from './epub.js';
 import { localCfg } from '../sources/local.js';
 import { mainTitle, matches } from './match.js';
-import { persisted } from './store.js';
+import { persisted, progress, library } from './store.js';
+import { sameWork } from './works.js';
 import { findOrder, autoEbook } from './findorder.js';
 
 /** Ebooks you chose for an audiobook's transcript: audiobook uid -> ebook (book summary). */
@@ -18,15 +19,24 @@ const norm = (w) => w.toLowerCase().replace(/[’‘]/g, "'").replace(/[^\p{L}\p
 
 /** The ebook of this audiobook, if one is on hand. */
 export function ebookFor(book) {
-  const linked = ebookLinks.get()[book.uid];
+  const links = ebookLinks.get();
+  const linked = links[book.uid];
   if (linked) return linked;
+  // Linked to another copy of this audiobook (the same book from another source or a
+  // download): the same ebook.
+  const prog = progress.get();
+  const lib = library.get();
+  for (const [uid, eb] of Object.entries(links)) {
+    const other = prog[uid]?.book || lib[uid];
+    if (eb && other && other.kind !== 'text' && sameWork(other, book)) return eb;
+  }
   const own = (book.ebooks || []).find((f) => f.format === 'EPUB');
   if (own) return cloudReaderBook(book, own);
   const t = mainTitle(book.title || '');
   if (!t) return null;
   const sn = surname(book.author);
   const same = (b) => b && matches(t, `${b.title || ''} ${b.ebookName || ''}`) && (!sn || !b.author || String(b.author).toLowerCase().includes(sn));
-  const list = [...Object.values(savedEbooks.get()).map((x) => x?.book), ...(localCfg.get().books || []).filter((b) => b.kind === 'text')].filter(same);
+  const list = [...Object.values(links), ...Object.values(savedEbooks.get()).map((x) => x?.book), ...(localCfg.get().books || []).filter((b) => b.kind === 'text')].filter(same);
   // EPUB first: a PDF's text is often broken up by page headers.
   return list.find((b) => (b.ebookFormat || b.format) !== 'PDF') || list[0] || null;
 }
