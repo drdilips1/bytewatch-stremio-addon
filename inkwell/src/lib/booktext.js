@@ -4,7 +4,7 @@
 // ebook and its real words are shown instead — recognition only supplies the timing.
 import { savedEbooks, loadCloudEbook, cloudReaderBook, directEbookFile, directReaderBook, probeEbook } from './epub.js';
 import { localCfg } from '../sources/local.js';
-import { mainTitle, matches } from './match.js';
+import { mainTitle, matches, words } from './match.js';
 import { persisted, progress, library } from './store.js';
 import { sameWork } from './works.js';
 import { findOrder, autoEbook } from './findorder.js';
@@ -135,6 +135,8 @@ export async function findEbookInSources(book, query = '') {
       const file = unknown ? { name: String(r.title || 'Book').slice(0, 90), format: '?', size: r.size || 0, resolve: async () => r.link } : !(r.magnet || r.hash) && directEbookFile(r);
       if (!file || (file.format !== 'EPUB' && file.format !== 'PDF' && file.format !== '?')) continue;
       if (t && !matches(t, `${r.title || ''} ${file.name}`)) continue;
+      // A short title ("Civilization") is part of many other books' names: the author too.
+      if (!query && sn && words(t).length < 3 && !words(`${r.title || ''} ${r.author || ''} ${file.name}`).includes(sn)) continue;
       if (found.some((x) => x.r.link === r.link)) continue;
       found.push({ r, file, source: name, book: directReaderBook(r, file, book) });
     }

@@ -8,6 +8,7 @@ export const CHANGES = [
     id: '2026-10-29',
     title: 'Names heard right',
     items: [
+      ['🎯', 'Fewer wrong books', 'For a short title like “Civilization”, Your copies and Sources no longer show other books with that word in their name — the author has to match too (the rest wait under “loose matches”).'],
       ['📖', 'More ebooks for the Text view', 'Ebooks whose source doesn’t say the file type (Ink & Echo) can now be attached too — the app checks the file and uses it if it’s an EPUB or PDF. Or choose any ebook file on your phone (e.g. in Downloads).'],
       ['💾', 'Save any ebook', 'Every ebook result now has Save. MOBI and others go to your phone’s Downloads; a file of unknown type is checked first — if it’s really an EPUB or PDF, Read opens it in the app. MOBI / AZW3 results are tucked behind a button (the app can’t read them).'],
       ['🔎', 'Search for the right ebook', 'Text view → Change (or Get the ebook) now has a search box: type “harry potter chamber of secrets” when the audiobook is just called “Harry Potter”.'],

@@ -142,7 +142,8 @@ async function run(addon, params, onSlow) {
     for (let retry = 0; retry < 2; retry++) {
       try {
         const r = await runOnce(addon, p, retry);
-        if (r.length) return r;
+        // A wider search (title only) still has to be this book: same check as the precise one.
+        if (r.length) return title && author && !p.author ? sameBook(r, title, author) : r;
         break;
       } catch (e) {
         lastErr = e;
@@ -159,7 +160,7 @@ async function run(addon, params, onSlow) {
   }
   if (lastErr) {
     const old = fallback(addon, attempts);
-    if (old) return old;
+    if (old) return title && author ? Object.assign(sameBook(old, title, author), { older: old.older }) : old;
     throw lastErr;
   }
   return [];
