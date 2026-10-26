@@ -25,10 +25,14 @@ object ReadingLook {
 
     private val FONTS = listOf(
         Font("serif", "Default", null, Typeface.SERIF),
+        // Literata: the book serif Audiohub reads in (and Google Play Books).
+        Font("literata", "Literata", R.font.reader_literata, null),
         Font("lora", "Lora", R.font.reader_lora, null),
         Font("crimson", "Crimson", R.font.reader_crimson, null),
         Font("playfair", "Playfair", R.font.reader_playfair, null),
         Font("atkinson", "Easy read", R.font.reader_atkinson, null),
+        // For readers with dyslexia: heavier letter bottoms keep letters from turning.
+        Font("dyslexic", "OpenDyslexic", R.font.reader_opendyslexic, null),
         Font("lexend", "Lexend", R.font.reader_lexend, null),
         Font("sans", "Sans", null, Typeface.SANS_SERIF),
         Font("patrick", "Handwritten", R.font.reader_patrick, null),
@@ -44,6 +48,8 @@ object ReadingLook {
         Paper("sepia", "Sepia", 0xFFF2E6CF.toInt(), 0xFF3B2F22.toInt()),
         Paper("cream", "Cream", 0xFFFBF3E6.toInt(), 0xFF2B2118.toInt()),
         NIGHT,
+        // True black: easy in the dark, and saves battery on OLED screens.
+        Paper("black", "Black", 0xFF000000.toInt(), 0xFFC9C5BD.toInt()),
         Paper("theme", "Theme", 0, 0),
     )
 
@@ -53,6 +59,22 @@ object ReadingLook {
     private val loaded = HashMap<String, Typeface>()
 
     private fun prefs(c: Context) = c.getSharedPreferences("p2a", Context.MODE_PRIVATE)
+
+    /**
+     * Narrato had its own few reading settings (size, font, spacing, justified); they now live here, in the
+     * full Reading look. Moved over once, so the text looks as it did.
+     */
+    fun moveNarratoSettings(c: Context) {
+        val p = prefs(c)
+        if (p.getBoolean("liteLookMoved", false)) return
+        p.edit()
+            .putFloat("readerTextSize", p.getFloat("liteTextSize", 18f))
+            .putString("readerFont", p.getString("liteFont", "sans") ?: "sans")
+            .putFloat("readerSpacing", p.getFloat("liteSpacing", 1.35f))
+            .putString("readerAlign", if (p.getBoolean("liteJustify", true)) "justify" else "left")
+            .putBoolean("liteLookMoved", true)
+            .apply()
+    }
 
     private fun fontOf(c: Context, f: Font): Typeface =
         f.system ?: loaded.getOrPut(f.key) { runCatching { c.resources.getFont(f.res!!) }.getOrDefault(Typeface.SERIF) }
