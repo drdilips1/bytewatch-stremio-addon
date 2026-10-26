@@ -105,7 +105,7 @@ function EbookStatus({ b }) {
             <span>
               <b>{h.r.title || h.file.name}</b>
               <small>
-                {h.file.format}
+                {h.file.format === '?' ? 'Type unknown (checked when picked)' : h.file.format}
                 {h.r.size ? ` · ${(h.r.size / 1048576).toFixed(1)} MB` : ''} · {h.source}
               </small>
             </span>

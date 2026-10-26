@@ -2,7 +2,7 @@
 // unusual words wrong; when the same book's ebook is on the phone (kept, in a phone
 // folder, or in the audiobook's own folder), each recognised line is found in the
 // ebook and its real words are shown instead — recognition only supplies the timing.
-import { savedEbooks, loadCloudEbook, cloudReaderBook, directEbookFile, directReaderBook } from './epub.js';
+import { savedEbooks, loadCloudEbook, cloudReaderBook, directEbookFile, directReaderBook, probeEbook } from './epub.js';
 import { localCfg } from '../sources/local.js';
 import { mainTitle, matches } from './match.js';
 import { persisted, progress, library } from './store.js';
@@ -129,8 +129,11 @@ export async function findEbookInSources(book, query = '') {
   const found = [];
   const take = (name, results) => {
     for (const r of results || []) {
-      const file = !(r.magnet || r.hash) && directEbookFile(r);
-      if (!file || (file.format !== 'EPUB' && file.format !== 'PDF')) continue;
+      // A direct link from an ebook source with no file type given (Ink & Echo does that):
+      // a candidate too — it's checked when picked.
+      const unknown = !(r.magnet || r.hash) && r.contentType === 'ebook' && /^https?:/i.test(r.link || '') && !directEbookFile(r);
+      const file = unknown ? { name: String(r.title || 'Book').slice(0, 90), format: '?', size: r.size || 0, resolve: async () => r.link } : !(r.magnet || r.hash) && directEbookFile(r);
+      if (!file || (file.format !== 'EPUB' && file.format !== 'PDF' && file.format !== '?')) continue;
       if (t && !matches(t, `${r.title || ''} ${file.name}`)) continue;
       if (found.some((x) => x.r.link === r.link)) continue;
       found.push({ r, file, source: name, book: directReaderBook(r, file, book) });
@@ -143,7 +146,16 @@ export async function findEbookInSources(book, query = '') {
       ? [searchSources({ title: '', author: '', query }, take), searchSources({ title: query, author: '', query: '' }, take)]
       : [searchSources({ title: t, author: book.author || '', query: '' }, take), searchSources({ title: '', author: '', query: `${t} ${sn}`.trim() }, take)]
   );
-  return found.sort((a, b) => (a.file.format === 'EPUB' ? 0 : 1) - (b.file.format === 'EPUB' ? 0 : 1));
+  const rank = { EPUB: 0, PDF: 1, '?': 2 };
+  return found.sort((a, b) => rank[a.file.format] - rank[b.file.format]);
+}
+
+/** A found ebook ready to open: one of unknown type is fetched and checked first (EPUB / PDF only). */
+export async function readyHit(hit, book) {
+  if (hit.file.format !== '?') return hit.book;
+  const f = await probeEbook(hit.r);
+  if (!f || (f.format !== 'EPUB' && f.format !== 'PDF')) throw new Error(f ? `That one is a ${f.format} file — the transcript needs an EPUB or PDF` : "That file isn't an ebook the app can read");
+  return directReaderBook(hit.r, f, book);
 }
 
 /** Ebooks already on the phone (saved, phone folders, added files): this book's first. */
@@ -159,9 +171,10 @@ export function ebooksOnHand(book, query = '') {
 }
 
 /** Download a found ebook, keep it on the phone and use it for this audiobook's transcript. */
-export async function keepFoundEbook(audioUid, hit) {
-  await loadCloudEbook(hit.book);
-  linkEbook(audioUid, hit.book);
+export async function keepFoundEbook(audioUid, hit, book = null) {
+  const eb = await readyHit(hit, book || hit.book);
+  await loadCloudEbook(eb);
+  linkEbook(audioUid, eb);
 }
 
 // ---- Finding the ebook by itself -------------------------------------------------
@@ -216,10 +229,15 @@ async function lookEverywhere(book) {
         const eb = ebookFor(book);
         if (eb) return eb;
       } else if (place === 'sources') {
-        const hits = await findEbookInSources(book);
-        if (hits[0]) {
-          await loadCloudEbook(hits[0].book);
-          return hits[0].book;
+        // The first that really is an EPUB / PDF (files of unknown type are checked, a few at most).
+        let tries = 0;
+        for (const hit of await findEbookInSources(book)) {
+          if (hit.file.format === '?' && ++tries > 3) break;
+          try {
+            const eb = await readyHit(hit, book);
+            await loadCloudEbook(eb);
+            return eb;
+          } catch {}
         }
       } else if (place === 'debrid' || place === 'abs') {
         const o = await mine();

@@ -133,7 +133,7 @@ export async function takeEbook(hit) {
   const ps = player.getState();
   if (!ps.book) return;
   const { keepFoundEbook } = await import('./booktext.js');
-  await keepFoundEbook(ps.book.uid, hit);
+  await keepFoundEbook(ps.book.uid, hit, ps.book);
   bookTextFor(ps.book, true);
 }
 let locate = null;
