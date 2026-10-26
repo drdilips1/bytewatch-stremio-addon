@@ -17,6 +17,11 @@ object VoiceTakes {
     /** One line for every take: a little narration and a little speech, as in a book. */
     private const val LINE = "She opened the door, looked outside, and smiled. \u201CNearly there,\u201D she said quietly, \u201Cjust a little further.\u201D"
 
+    /** Closes [dialog] if its screen is still there: closing it after the screen went away crashed the app. */
+    private fun closeSafely(activity: Activity, dialog: AlertDialog) {
+        if (!activity.isDestroyed && dialog.isShowing) runCatching { dialog.dismiss() }
+    }
+
     fun pick(activity: Activity, scope: CoroutineScope, v: MyVoices.Voice, kept: () -> Unit = {}) {
         Speaker.stopPreview()
         val voiceId = Speaker.CLONE + v.id
@@ -35,14 +40,18 @@ object VoiceTakes {
                         java.io.File(dir, "take$i.wav").also { LocalTts.writeWav(it, LocalTts.synthesize(voiceId, LINE, 1f, "en", seed = s)) }
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // The screen closed while the takes were being made (back, rotation): nothing to show.
+                closeSafely(activity, progress)
+                throw e
             } catch (e: Exception) {
                 AppLog.e("Takes", "Couldn't make the takes", e)
-                progress.dismiss()
-                Toast.makeText(activity, e.message ?: "Couldn't make the takes", Toast.LENGTH_LONG).show()
+                closeSafely(activity, progress)
+                if (!activity.isFinishing && !activity.isDestroyed) Toast.makeText(activity, e.message ?: "Couldn't make the takes", Toast.LENGTH_LONG).show()
                 return@launch
             }
-            progress.dismiss()
-            if (activity.isFinishing) return@launch
+            closeSafely(activity, progress)
+            if (activity.isFinishing || activity.isDestroyed) return@launch
             var player: android.media.MediaPlayer? = null
             fun play(i: Int) {
                 player?.release()
