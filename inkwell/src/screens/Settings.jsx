@@ -1334,6 +1334,9 @@ export function Settings() {
       </Section>
 
       <p class="set-group">Help</p>
+      <button class="set-link" onClick={() => import('../components/whats-new.jsx').then((m) => m.showWhatsNew())}>
+        <Icon name="sparkle" size={18} /> What’s new in this version
+      </button>
       <Section icon="alert" title="Report a problem">
         <ReportCard />
       </Section>

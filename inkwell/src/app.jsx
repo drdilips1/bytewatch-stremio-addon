@@ -38,6 +38,7 @@ import { clearHttpCache } from './lib/http.js';
 import { cloud, hc, gr } from './sources/index.js';
 import { toast } from './components/common.jsx';
 import { KindleChooser } from './components/kindle-chooser.jsx';
+import { WhatsNew } from './components/whats-new.jsx';
 
 const TABS = [
   ['home', 'Home', 'home'],
@@ -171,6 +172,7 @@ export function App() {
       <UpdatePrompt />
       <StoryShotsSheet />
       <KindleChooser />
+      <WhatsNew />
       <Toaster />
     </div>
   );
