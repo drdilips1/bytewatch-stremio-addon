@@ -5,6 +5,13 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-10-29',
+    title: 'Names heard right',
+    items: [
+      ['🗣️', 'Snape, not snake', 'The Text view puts misheard character names right (“snake” → Snape, “hogwards” → Hogwarts), using X-Ray’s cast and the ebook when it’s attached — a real snake in the book stays a snake.'],
+    ],
+  },
+  {
     id: '2026-10-28',
     title: 'Select by sliding, and fixes',
     items: [

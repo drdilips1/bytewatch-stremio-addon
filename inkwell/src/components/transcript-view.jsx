@@ -7,7 +7,8 @@ import { toast } from './common.jsx';
 import * as player from '../lib/player.js';
 import { knownCharacters, CharacterCard } from './story-sheet.jsx';
 import { useStore, bookmarks } from '../lib/store.js';
-import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines } from '../lib/transcript.js';
+import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard } from '../lib/transcript.js';
+import { cachedXray } from '../lib/xray.js';
 import { fmtTime } from '../lib/format.js';
 
 // Wrap known character names in tappable spans.
@@ -204,6 +205,10 @@ export function TranscriptView({ s }) {
     for (const n of [c.name, ...(c.aliases || []), c.name.split(' ')[0]]) if (n && n.length > 2 && !lookup.has(n)) lookup.set(n, c);
   }
   const names = [...lookup.keys()];
+  // Everyone the book has (X-Ray's cast and places too): misheard names are put right.
+  const xr = s.book?.uid ? cachedXray(s.book.uid) : null;
+  const allNames = [...names, ...(xr ? [...xr.people, ...xr.places].flatMap((x) => [x.name, ...(x.aliases || [])]) : [])];
+  const heard = (text) => (typeof text === 'string' ? fixHeard(text, allNames) : text);
   const box = useRef();
   const userScroll = useRef(0);
   useEffect(() => subscribeTranscript(setT), []);
@@ -281,12 +286,12 @@ export function TranscriptView({ s }) {
             class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '') + (g.start != null && quoted(i) ? ' hl' : '')}
             onClick={() => (press.current.fired ? (press.current.fired = false) : g.start != null && player.seek(g.start))}
             onContextMenu={(e) => e.preventDefault()}
-            onPointerDown={() => g.start != null && hold(g.start, !t?.published && t?.bookText?.state === 'on' && g.book ? g.book : g.text)}
+            onPointerDown={() => g.start != null && hold(g.start, !t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text))}
             onPointerUp={release}
             onPointerLeave={release}
             onPointerCancel={release}
           >
-            {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : g.text, names, (n) => setCard(lookup.get(n)))}
+            {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text), names, (n) => setCard(lookup.get(n)))}
           </p>
         ))}
         {segs.length > 0 && t?.status === 'error' && <p class="err small">{t.error}</p>}

@@ -501,3 +501,69 @@ export function heardLines(bookUid) {
   }
   return out.sort((a, b) => a.track - b.track || a.start - b.start);
 }
+
+// ---- names the recogniser mishears ("snake" for Snape) ------------------------------
+// A heard word one letter off a character's name (two for long names), with the same
+// first letter, is shown as the name. With the ebook on hand, only when the book uses the
+// name far more often than the word (so a real snake stays a snake).
+const lev = (a, b) => {
+  if (Math.abs(a.length - b.length) > 2) return 9;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+};
+let counts = null;
+let countsOf = null;
+const bookCount = (w) => {
+  if (!bt) return null;
+  if (countsOf !== bt) {
+    counts = new Map();
+    for (const t of bt.tokens) {
+      const k = t.toLowerCase().replace(/[^\p{L}']/gu, '');
+      if (k) counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    countsOf = bt;
+  }
+  return counts.get(w) || 0;
+};
+// Names that are everyday words too: changed only when the ebook shows it's the name.
+const COMMON = new Set('will hope grace rose mark bill faith dawn june april summer rich frank jack page brown white black green young king wood stone hill field ford hunter baker cook miller smith carter mason fisher bishop cole lane long hall bell gray grey north west east south lord lady sage river storm star wolf fox bear hawk crow swift may sunny holly ivy lily daisy violet ruby pearl amber jade autumn winter'.split(' '));
+const fixCache = new Map();
+/** `text` with misheard character names put right. `names`: the book's people and places. */
+export function fixHeard(text, names) {
+  if (!text || !names?.length) return text;
+  const single = [...new Set(names.flatMap((n) => n.split(/\s+/)).filter((n) => n.length >= 4 && /^\p{Lu}/u.test(n)))];
+  const key = single.join('|');
+  if (fixCache.get('k') !== key) fixCache.clear(), fixCache.set('k', key);
+  return text.replace(/\p{L}[\p{L}']{3,}/gu, (w) => {
+    const lw = w.toLowerCase();
+    if (fixCache.has(lw)) return fixCache.get(lw) || w;
+    let best = null;
+    for (const n of single) {
+      const ln = n.toLowerCase();
+      if (ln === lw) {
+        best = w === n ? null : { n, d: 0 }; // "harry" → "Harry"
+        break;
+      }
+      if (ln[0] !== lw[0]) continue;
+      const d = lev(lw, ln);
+      if (d <= (ln.length >= 7 ? 2 : 1) && (!best || d < best.d)) best = { n, d };
+    }
+    let out = '';
+    if (best) {
+      const asWord = bookCount(lw);
+      if (COMMON.has(lw) && (asWord == null || bookCount(best.n.toLowerCase()) <= asWord * 3)) best = null;
+    }
+    if (best) {
+      const asWord = bookCount(lw);
+      const asName = bookCount(best.n.toLowerCase());
+      if (best.d === 0 || asWord == null || asName > Math.max(3, asWord * 3)) out = best.n;
+    }
+    fixCache.set(lw, out);
+    return out || w;
+  });
+}
