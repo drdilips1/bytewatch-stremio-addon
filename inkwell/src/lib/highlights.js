@@ -9,6 +9,19 @@ const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2
 
 export const forBook = (uid) => highlights.get()[uid] || [];
 
+/**
+ * Highlights to show in this ebook: its own, and those made in another copy of the same
+ * book (opened from a source, then from Downloads, re-downloaded…), found by their words.
+ */
+export function forWork(book, same) {
+  const all = highlights.get();
+  const own = all[book.uid] || [];
+  const others = Object.entries(all)
+    .filter(([uid, list]) => uid !== book.uid && list?.length && same(list[0].book, book))
+    .flatMap(([uid, list]) => list.map((h) => ({ ...h, elsewhere: true, home: uid })));
+  return [...own, ...others];
+}
+
 export function addHighlight(book, parts, note = '') {
   const h = { id: newId(), parts, text: parts.map((p) => p.t).join(' ').replace(/\s+/g, ' ').trim(), note, at: Date.now(), book: summarize(book) };
   highlights.set((all) => ({ ...all, [book.uid]: [...(all[book.uid] || []), h].sort((x, y) => x.parts[0].a - y.parts[0].a) }));

@@ -11,6 +11,7 @@ export const CHANGES = [
       ['💬', 'Share a quote', 'In Notes, tap Share on a highlight, transcript quote or bookmark: a quote card with a link goes to WhatsApp, Telegram, anywhere.'],
       ['🔗', 'Open shared quotes', 'Tap a shared link to read it — or open it in Audiohub to play from that exact moment (or the passage in the ebook).'],
       ['⬇️', 'Don’t have the book?', 'Get it first; when you play it, the app offers “Jump to the shared quote”.'],
+      ['🖍️', 'Highlights stay put', 'Ebook highlights show again however you open the book (source, Downloads, another copy); transcript highlights find their line each time you play.'],
     ],
   },
   {

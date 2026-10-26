@@ -172,7 +172,17 @@ export function TranscriptView({ s }) {
   // Long-press a line to highlight it (a bookmark with its words, in Notes); again to remove.
   const marks = useStore(bookmarks);
   const press = useRef({ timer: 0, fired: false });
-  const quoted = (start) => (marks[s.book?.uid] || []).some((b) => b.quote && b.track === s.index && Math.abs(b.time - start) < 1.5);
+  // A highlighted line: its moment falls within the line, or its words are the line's (lines
+  // are recognised afresh each time you play, so their exact start can shift a little).
+  const squash = (v) => String(v || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const quoted = (i) => {
+    const g = segs[i];
+    const next = segs.slice(i + 1).find((x) => x.start != null)?.start ?? g.start + 15;
+    const text = squash(typeof g.book === 'string' ? g.book : g.text);
+    return (marks[s.book?.uid] || []).some(
+      (b) => b.quote && b.track === s.index && ((b.time >= g.start - 1 && b.time < next) || (text.length > 20 && (text.includes(squash(b.label).slice(0, 60)) || squash(b.label).includes(text.slice(0, 60)))))
+    );
+  };
   const hold = (start, text) => {
     clearTimeout(press.current.timer);
     press.current.timer = setTimeout(() => {
@@ -268,7 +278,7 @@ export function TranscriptView({ s }) {
         {segs.map((g, i) => (
           <p
             data-i={i}
-            class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '') + (g.start != null && quoted(g.start) ? ' hl' : '')}
+            class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '') + (g.start != null && quoted(i) ? ' hl' : '')}
             onClick={() => (press.current.fired ? (press.current.fired = false) : g.start != null && player.seek(g.start))}
             onContextMenu={(e) => e.preventDefault()}
             onPointerDown={() => g.start != null && hold(g.start, !t?.published && t?.bookText?.state === 'on' && g.book ? g.book : g.text)}

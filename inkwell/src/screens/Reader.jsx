@@ -1,4 +1,5 @@
 import { pendingFor, clearPending, findQuoteBlock } from '../lib/quoteshare.js';
+import { sameWork } from '../lib/works.js';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../components/icons.jsx';
 import { gb } from '../sources/index.js';
@@ -13,7 +14,7 @@ import { VoicesCard } from './settings-extra.jsx';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import * as player from '../lib/player.js';
 import { toast } from '../components/common.jsx';
-import { forBook, addHighlight, updateHighlight, removeHighlight, markText, unmark, selectionParts } from '../lib/highlights.js';
+import { forBook, forWork, addHighlight, updateHighlight, removeHighlight, markText, unmark, selectionParts } from '../lib/highlights.js';
 import { SelectionBar, AiSheet, HighlightSheet } from '../components/reader-select.jsx';
 
 // Reading fonts (bundled, so they work offline). Literata is the default serif.
@@ -276,7 +277,16 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     if (!root) return;
     unmark(root);
     const list = blocks();
-    for (const h of forBook(book.uid)) for (const p of h.parts) markText(list[p.a], p.t, h.id);
+    const norm = (t) => String(t || '').replace(/\s+/g, ' ').trim();
+    for (const h of forWork(book, sameWork))
+      for (const p of h.parts) {
+        // Its paragraph first; else wherever its words are (another copy or edition).
+        if (!h.elsewhere && markText(list[p.a], p.t, h.id)) continue;
+        const words = norm(p.t);
+        const at = words.length > 12 ? list.findIndex((b) => norm(b.textContent).includes(words)) : -1;
+        if (at >= 0) markText(list[at], p.t, h.id);
+        else if (h.elsewhere) markText(list[p.a], p.t, h.id);
+      }
   };
   useEffect(() => {
     if (doc) requestAnimationFrame(markAll);
@@ -425,7 +435,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
           if (sel) return; // finishing a selection, not a page tap
           const mark = e.target.closest('mark.hl');
           if (mark) {
-            const h = forBook(book.uid).find((x) => x.id === mark.dataset.id);
+            const h = forWork(book, sameWork).find((x) => x.id === mark.dataset.id);
             if (h) return setSheet({ type: 'hl', h });
           }
           const x = e.clientX / window.innerWidth;
@@ -487,12 +497,12 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
           h={sheet.h}
           onClose={() => setSheet(null)}
           onSave={(note) => {
-            updateHighlight(book.uid, sheet.h.id, { note });
+            updateHighlight(sheet.h.home || book.uid, sheet.h.id, { note });
             setSheet(null);
             toast(note ? 'Note saved' : 'Saved');
           }}
           onRemove={() => {
-            removeHighlight(book.uid, sheet.h.id);
+            removeHighlight(sheet.h.home || book.uid, sheet.h.id);
             const root = scroller.current?.querySelector('.reader-text');
             if (root) unmark(root, sheet.h.id);
             setSheet(null);

@@ -718,7 +718,7 @@ export function toggleQuote(time, text) {
   const uid = state.book.uid;
   const label = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
   const list = bookmarks.get()[uid] || [];
-  const same = list.find((b) => b.quote && b.track === state.index && Math.abs(b.time - time) < 1.5);
+  const same = list.find((b) => b.quote && b.track === state.index && (Math.abs(b.time - time) < 1.5 || b.label === label));
   if (same) {
     bookmarks.set((all) => ({ ...all, [uid]: (all[uid] || []).filter((b) => b !== same) }));
     return false;
