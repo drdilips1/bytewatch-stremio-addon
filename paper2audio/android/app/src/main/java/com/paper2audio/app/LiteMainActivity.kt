@@ -79,7 +79,7 @@ class LiteMainActivity : Activity() {
         findViewById<TextView>(R.id.appTitle).apply {
             typeface = Themes.titleFont(this@LiteMainActivity)
             setTypeface(typeface, android.graphics.Typeface.NORMAL)
-            text = android.text.SpannableString("narrato.").apply {
+            text = android.text.SpannableString("Narrato.").apply {
                 setSpan(android.text.style.ForegroundColorSpan(Themes.color(this@LiteMainActivity, R.attr.p2aAccent)), length - 1, length, 0)
             }
         }

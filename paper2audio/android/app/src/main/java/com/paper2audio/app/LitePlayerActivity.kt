@@ -358,6 +358,19 @@ class LitePlayerActivity : Activity() {
         }
         status.text = message
         status.visibility = if (message == null) View.GONE else View.VISIBLE
+        if (message != null) {
+            // Clearly visible: a pale grey line was missed, and the wait looked like nothing happening.
+            val tint = Themes.color(this, if (Speaker.lastError != null) R.attr.p2aText else R.attr.p2aAccent)
+            status.setTextColor(tint)
+            status.textSize = 15f
+            status.setTypeface(status.typeface, Typeface.BOLD)
+            val pad = (10 * resources.displayMetrics.density).toInt()
+            status.setPadding(pad * 2, pad, pad * 2, pad)
+            status.background = android.graphics.drawable.GradientDrawable().apply {
+                setColor((Themes.color(this@LitePlayerActivity, R.attr.p2aAccent) and 0x00FFFFFF) or 0x24000000)
+                cornerRadius = pad * 2f
+            }
+        }
 
         renderTask()
 
