@@ -96,19 +96,19 @@ function bookTextFor(book, again = false) {
 }
 
 /** Search your sources for this audiobook's ebook: [{ r, file, source, book }]. */
-export async function findEbook() {
+export async function findEbook(query = '') {
   const ps = player.getState();
   if (!ps.book) return [];
   const { findEbookInSources } = await import('./booktext.js');
-  return findEbookInSources(ps.book);
+  return findEbookInSources(ps.book, query);
 }
 
 /** Ebooks already on the phone to choose from (this book's first). */
-export async function ebooksOnPhone() {
+export async function ebooksOnPhone(query = '') {
   const ps = player.getState();
   if (!ps.book) return [];
   const { ebooksOnHand } = await import('./booktext.js');
-  return ebooksOnHand(ps.book);
+  return ebooksOnHand(ps.book, query);
 }
 
 /** Use an ebook already on the phone for this audiobook's transcript. */

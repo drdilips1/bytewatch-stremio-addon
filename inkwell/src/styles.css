@@ -10011,3 +10011,18 @@ button.notes-book-head {
   min-width: 52px;
   font-variant-numeric: tabular-nums;
 }
+.tl-ebook-search {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+.tl-ebook-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}

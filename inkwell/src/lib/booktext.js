@@ -120,9 +120,11 @@ export function locate(bt, text, near = null) {
  * This book's ebook in your source results: direct EPUB links first (then PDF),
  * as [{ r, file, book }] ready to download and keep.
  */
-export async function findEbookInSources(book) {
+export async function findEbookInSources(book, query = '') {
   const { searchSources } = await import('../sources/sourceaddons.js');
-  const t = mainTitle(book.title || '');
+  query = query.trim();
+  // Your own words ("harry potter chamber of secrets"): every one of them in the result.
+  const t = query || mainTitle(book.title || '');
   const sn = surname(book.author);
   const found = [];
   const take = (name, results) => {
@@ -136,21 +138,23 @@ export async function findEbookInSources(book) {
   };
   // Two searches, like the main search box: the clean title (no "Unabridged" etc.) with
   // the author, and the plain words "title surname" — between them far more ebook links.
-  await Promise.all([
-    searchSources({ title: t, author: book.author || '', query: '' }, take),
-    searchSources({ title: '', author: '', query: `${t} ${sn}`.trim() }, take),
-  ]);
+  await Promise.all(
+    query
+      ? [searchSources({ title: '', author: '', query }, take), searchSources({ title: query, author: '', query: '' }, take)]
+      : [searchSources({ title: t, author: book.author || '', query: '' }, take), searchSources({ title: '', author: '', query: `${t} ${sn}`.trim() }, take)]
+  );
   return found.sort((a, b) => (a.file.format === 'EPUB' ? 0 : 1) - (b.file.format === 'EPUB' ? 0 : 1));
 }
 
 /** Ebooks already on the phone (saved, phone folders, added files): this book's first. */
-export function ebooksOnHand(book) {
-  const t = mainTitle(book.title || '');
+export function ebooksOnHand(book, query = '') {
+  const t = query.trim() || mainTitle(book.title || '');
   const seen = new Set();
   const all = [...Object.values(savedEbooks.get()).map((x) => x?.book), ...(localCfg.get().books || []).filter((b) => b.kind === 'text')].filter(
     (b) => b && !seen.has(b.uid) && seen.add(b.uid)
   );
   const hit = (b) => (t && matches(t, `${b.title || ''} ${b.ebookName || ''}`) ? 0 : 1);
+  if (query.trim()) return all.filter((b) => !hit(b));
   return all.sort((a, b) => hit(a) - hit(b));
 }
 

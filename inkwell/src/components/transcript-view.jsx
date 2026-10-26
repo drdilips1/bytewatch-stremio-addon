@@ -43,11 +43,12 @@ function EbookStatus({ b }) {
   const [hits, setHits] = useState(null); // null: not searched; [] none found
   const [mine, setMine] = useState(null); // ebooks already on the phone
   const [busy, setBusy] = useState(''); // 'search' | link being downloaded
-  const search = async () => {
+  const [query, setQuery] = useState(''); // your own words for the search ('' = the audiobook's title)
+  const search = async (q = '') => {
     setBusy('search');
-    setMine(await ebooksOnPhone());
+    setMine(await ebooksOnPhone(q));
     try {
-      setHits(await findEbook());
+      setHits(await findEbook(q));
     } catch (e) {
       toast(e?.message || String(e));
       setHits([]);
@@ -113,18 +114,32 @@ function EbookStatus({ b }) {
         ))}
       </div>
     ) : (
-      <p class="tl-source">No EPUB of this book in your sources.</p>
+      <p class="tl-source">No EPUB {query.trim() ? `for “${query.trim()}”` : 'of this book'} in your sources — try other words.</p>
     ));
   const open = !!(mine || hits || busy === 'search');
   const close = () => {
     setHits(null);
     setMine(null);
+    setQuery('');
   };
   const sheet = open && (
     <PickSheet close={close}>
       <h3>{b.state === 'on' ? 'Use another ebook' : 'Get the ebook'}</h3>
       <p class="muted small">With the ebook of this book, the transcript shows its exact words.</p>
+      <form
+        class="tl-ebook-search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          search(query);
+        }}
+      >
+        <input type="search" value={query} placeholder={`Search, e.g. “${player.getState().book?.title || 'title'} book 2”`} onInput={(e) => setQuery(e.currentTarget.value)} />
+        <button class="btn primary" disabled={busy === 'search'}>
+          Search
+        </button>
+      </form>
       {phoneList}
+      {mine && !mine.length && query.trim() && <p class="tl-source">Nothing on this phone matches “{query.trim()}”.</p>}
       {busy === 'search' ? (
         <p class="tl-source">
           <span class="spinner small" /> Searching your sources…
@@ -140,7 +155,7 @@ function EbookStatus({ b }) {
     return (
       <div class="tl-bar">
         <span>📖 Ebook{b.title ? `: ${b.title}` : ''}</span>
-        <button class="link-btn" disabled={!!busy} onClick={search}>
+        <button class="link-btn" disabled={!!busy} onClick={() => search()}>
           Change
         </button>
         {sheet}
@@ -149,7 +164,7 @@ function EbookStatus({ b }) {
   return (
     <div class={'tl-bar' + (b.state === 'error' ? ' err' : '')}>
       <span>{b.state === 'error' ? `Couldn't use your ebook: ${b.error}` : 'Heard from the audio, some words may be wrong'}</span>
-      <button class="pill small" disabled={!!busy} onClick={search}>
+      <button class="pill small" disabled={!!busy} onClick={() => search()}>
         {busy === 'search' ? <span class="spinner small" /> : 'Get the ebook'}
       </button>
       {sheet}
