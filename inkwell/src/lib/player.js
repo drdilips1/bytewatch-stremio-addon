@@ -708,6 +708,26 @@ export function addBookmark(label) {
   return bm;
 }
 
+/**
+ * Highlight a transcript line: a bookmark at that moment, labelled with the line's words
+ * (shown in Notes as a quote; tapping it plays from there). Highlighting it again removes it.
+ * Returns true when added, false when removed.
+ */
+export function toggleQuote(time, text) {
+  if (!state.book) return null;
+  const uid = state.book.uid;
+  const label = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+  const list = bookmarks.get()[uid] || [];
+  const same = list.find((b) => b.quote && b.track === state.index && Math.abs(b.time - time) < 1.5);
+  if (same) {
+    bookmarks.set((all) => ({ ...all, [uid]: (all[uid] || []).filter((b) => b !== same) }));
+    return false;
+  }
+  const bm = { track: state.index, time, global: trackOffset(state.index) + time, label, quote: true, createdAt: Date.now() };
+  bookmarks.set((all) => ({ ...all, [uid]: [...(all[uid] || []), bm].sort((a, b) => a.global - b.global) }));
+  return true;
+}
+
 // --- progress ---------------------------------------------------------------
 let lastSave = 0;
 function saveProgress(force = false) {

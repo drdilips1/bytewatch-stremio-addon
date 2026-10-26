@@ -6,7 +6,7 @@ import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
 import * as player from '../lib/player.js';
 import { knownCharacters, CharacterCard } from './story-sheet.jsx';
-import { useStore } from '../lib/store.js';
+import { useStore, bookmarks } from '../lib/store.js';
 import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines } from '../lib/transcript.js';
 import { fmtTime } from '../lib/format.js';
 
@@ -169,6 +169,20 @@ function PickSheet({ close, children }) {
 }
 
 export function TranscriptView({ s }) {
+  // Long-press a line to highlight it (a bookmark with its words, in Notes); again to remove.
+  const marks = useStore(bookmarks);
+  const press = useRef({ timer: 0, fired: false });
+  const quoted = (start) => (marks[s.book?.uid] || []).some((b) => b.quote && b.track === s.index && Math.abs(b.time - start) < 1.5);
+  const hold = (start, text) => {
+    clearTimeout(press.current.timer);
+    press.current.timer = setTimeout(() => {
+      press.current.fired = true;
+      const added = player.toggleQuote(start, typeof text === 'string' ? text : String(text || ''));
+      navigator.vibrate?.(15);
+      toast(added ? 'Highlighted — find it in Notes' : 'Highlight removed');
+    }, 550);
+  };
+  const release = () => clearTimeout(press.current.timer);
   const [t, setT] = useState(null);
   const chars = useStore(knownCharacters);
   const [card, setCard] = useState(null);
@@ -254,8 +268,13 @@ export function TranscriptView({ s }) {
         {segs.map((g, i) => (
           <p
             data-i={i}
-            class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '')}
-            onClick={() => g.start != null && player.seek(g.start)}
+            class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '') + (g.start != null && quoted(g.start) ? ' hl' : '')}
+            onClick={() => (press.current.fired ? (press.current.fired = false) : g.start != null && player.seek(g.start))}
+            onContextMenu={(e) => e.preventDefault()}
+            onPointerDown={() => g.start != null && hold(g.start, !t?.published && t?.bookText?.state === 'on' && g.book ? g.book : g.text)}
+            onPointerUp={release}
+            onPointerLeave={release}
+            onPointerCancel={release}
           >
             {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : g.text, names, (n) => setCard(lookup.get(n)))}
           </p>

@@ -19,6 +19,7 @@ import {
   localSrc,
 } from "../sources/index.js";
 import { library, progress, toggleLibrary, useStore } from "../lib/store.js";
+import { BookTags } from "../components/book-tags.jsx";
 import { fmtDuration, fmtTime } from "../lib/format.js";
 import { nav, useBackClose } from "../lib/nav.js";
 import * as qb from "../sources/qbit.js";
@@ -601,6 +602,7 @@ export function Book({ book: initial }) {
       {!loading && book.source !== "sum" && book.source !== "pod" && (
         <MyRating book={book} />
       )}
+      {!loading && book.source !== "sum" && book.source !== "pod" && <BookTags book={book} />}
       {!loading && <RelatedRows book={book} />}
       <div class="footer-space" />
       </div>
