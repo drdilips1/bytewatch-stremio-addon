@@ -9,7 +9,8 @@ import { isCloudEbook, loadCloudEbook } from '../lib/epub.js';
 import { progress, settings, summarize, useStore } from '../lib/store.js';
 import { nav, useBackClose } from '../lib/nav.js';
 import { readAloud, attachAloud } from '../lib/readaloud.js';
-import { paragraphs, estimate, textBlocks, isSkippable, skipFrontMatter, nativeReader, ttsCfg, voiceSpec } from '../lib/tts.js';
+import { trCfg, LANGS, lang, voiceFor, bookTranslation, translateParas } from '../lib/translate.js';
+import { paragraphs, estimate, textBlocks, isSkippable, skipFrontMatter, nativeReader, ttsCfg, voiceSpec, speakable, blockText, Reader as ReadAloudNative } from '../lib/tts.js';
 import { VoicesCard } from './settings-extra.jsx';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import * as player from '../lib/player.js';
@@ -116,6 +117,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
   const lit = useRef(null);
   const aloudHandlers = () => ({
     onIndex: (i, el) => {
+      if (trRef.current) keepAhead(el);
       lit.current?.classList.remove('aloud');
       el.classList.add('aloud');
       lit.current = el;
@@ -131,6 +133,117 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     },
   });
 
+  // ---- the book in another language: translated as you read (and kept) --------------
+  const tr = useStore(trCfg);
+  const trTo = tr.books?.[book.uid] || null;
+  const trRef = useRef(null); // { to, store } while the book is shown translated
+  const originals = useRef(new Map()); // paragraph -> its original HTML
+  const trBusy = useRef(new Set());
+  const aloudEls = useRef([]);
+  const [trWorking, setTrWorking] = useState(false);
+  const showTr = (el, text) => {
+    if (!originals.current.has(el)) originals.current.set(el, el.innerHTML);
+    el.textContent = text;
+    el.classList.add('translated');
+  };
+  const restoreOriginals = () => {
+    for (const [el, html] of originals.current) {
+      el.innerHTML = html;
+      el.classList.remove('translated');
+    }
+    originals.current.clear();
+  };
+  /** Translate paragraphs [from, from + n) of the page (those not done yet); returns the new ones. */
+  const translateRange = async (from, n) => {
+    const t = trRef.current;
+    if (!t) return [];
+    await t.store.loaded;
+    if (trRef.current !== t) return [];
+    const list = blocks();
+    const need = [];
+    for (let i = Math.max(0, from); i < Math.min(list.length, from + n); i++) {
+      const done = t.store.get(i);
+      if (done) !list[i].classList.contains('translated') && showTr(list[i], done);
+      else if (!trBusy.current.has(i) && speakable(list[i].textContent)) need.push(i);
+    }
+    const added = [];
+    while (need.length) {
+      // About a page per request: up to 8 paragraphs or 3,000 characters.
+      const batch = [];
+      let size = 0;
+      while (need.length && batch.length < 8 && (size < 3000 || !batch.length)) {
+        const i = need.shift();
+        batch.push(i);
+        size += list[i].textContent.length;
+      }
+      batch.forEach((i) => trBusy.current.add(i));
+      setTrWorking(true);
+      try {
+        const out = await translateParas(batch.map((i) => list[i].textContent), t.to);
+        batch.forEach((i, k) => {
+          if (!out[k]) return;
+          t.store.set(i, out[k]);
+          if (trRef.current === t) {
+            showTr(list[i], out[k]);
+            added.push(i);
+          }
+        });
+      } catch (e) {
+        toast(e.message);
+        break;
+      } finally {
+        batch.forEach((i) => trBusy.current.delete(i));
+        setTrWorking(trBusy.current.size > 0);
+      }
+    }
+    return added;
+  };
+  // On / off / another language: show the translation of what's on screen, or the original.
+  useEffect(() => {
+    if (!doc) return;
+    restoreOriginals();
+    trRef.current = trTo ? { to: trTo, store: bookTranslation(book.uid, trTo) } : null;
+    if (!trTo) return void requestAnimationFrame(markAll);
+    const el = scroller.current;
+    let t;
+    const onScroll = () => {
+      clearTimeout(t);
+      t = setTimeout(() => translateRange(Math.max(0, topBlock() - 1), 10), 400);
+    };
+    translateRange(Math.max(0, topBlock() - 1), 10);
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      clearTimeout(t);
+      el.removeEventListener('scroll', onScroll);
+    };
+  }, [doc, trTo]);
+  // Reading aloud translated: keep about 20 paragraphs ahead translated, and hand the
+  // new ones to the voice as they come.
+  const keepAhead = (el) => {
+    const bi = blocks().indexOf(el);
+    if (bi < 0) return;
+    translateRange(bi, 20).then((added) => {
+      if (!added.length || !ctl.current?.native) return;
+      const els = aloudEls.current;
+      const paras = added.map((i) => ({ i: els.indexOf(blocks()[i]), t: blockText(blocks()[i]) })).filter((p) => p.i >= 0);
+      if (paras.length) ReadAloudNative.addParas({ paras }).catch(() => {});
+    });
+  };
+  const startTranslatedAloud = async (els, from, all) => {
+    lit.current?.classList.remove('aloud');
+    els[from].classList.add('aloud');
+    lit.current = els[from];
+    ctl.current?.stop();
+    player.pause();
+    aloudAll.current = all;
+    aloudEls.current = els;
+    setAloud({ playing: true, index: from });
+    await translateRange(blocks().indexOf(els[from]), 8);
+    if (!trRef.current) return;
+    const paras = els.map((el) => (el.classList.contains('translated') ? blockText(el) : ''));
+    ctl.current = readAloud(els, from, aloudHandlers(), { uid: book.uid, title: book.title, paras, voice: { ...voiceSpec(), engine: 'edge', edgeVoice: voiceFor(trRef.current.to) } });
+  };
+
   // `all`: read from every paragraph, contents / preface included (a tap or chapter there).
   const aloudAll = useRef(false);
   const startAloud = (from, all = false, restart = false) => {
@@ -139,6 +252,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     // start at the first paragraph visible on screen
     if (from == null) from = Math.max(0, firstVisible(els));
     from = Math.min(Math.max(0, from), els.length - 1);
+    if (trRef.current) return startTranslatedAloud(els, from, all);
     // Show the jump straight away (the voice follows within a moment).
     if (els[from]) {
       lit.current?.classList.remove('aloud');
@@ -146,7 +260,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
       lit.current = els[from];
     }
     // Native engine already reading this book (same list of paragraphs): just move.
-    if (ctl.current?.native && aloudAll.current === all && !restart) {
+    if (ctl.current?.native && aloudAll.current === all && !restart && !trRef.current) {
       ctl.current.seek(from);
       ctl.current.resume();
       setAloud({ playing: true, index: from });
@@ -658,6 +772,38 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
               <small>When reading aloud or making an audiobook</small>
             </span>
           </label>
+          <div class="reader-tr">
+            <label class="reader-toggle">
+              <input
+                type="checkbox"
+                checked={!!trTo}
+                onChange={(e) => trCfg.set((c) => ({ ...c, books: { ...c.books, [book.uid]: e.currentTarget.checked ? c.to : undefined } }))}
+              />
+              <span>
+                <b>Read this book in {lang(tr.to)[1]} {trWorking && <span class="spinner small" />}</b>
+                <small>Translated by your AI as you read (and kept), read aloud in a natural {lang(tr.to)[1]} voice</small>
+              </span>
+            </label>
+            <div class="tr-langs one-row">
+              {LANGS.map(([code, name, own]) => (
+                <button
+                  class={'pill small' + (tr.to === code ? ' active' : '')}
+                  onClick={() => trCfg.set((c) => ({ ...c, to: code, books: c.books[book.uid] ? { ...c.books, [book.uid]: code } : c.books }))}
+                >
+                  {own === name ? name : own}
+                </button>
+              ))}
+            </div>
+            <div class="reader-row labeled">
+              <span>Voice</span>
+              <button class={'pill small' + (!tr.male ? ' active' : '')} onClick={() => trCfg.patch({ male: false })}>
+                Female
+              </button>
+              <button class={'pill small' + (tr.male ? ' active' : '')} onClick={() => trCfg.patch({ male: true })}>
+                Male
+              </button>
+            </div>
+          </div>
           <div class="reader-row themes">
             {THEMES.map(([k, label]) => (
               <button class={`theme-swatch t-${k}` + (st.readerTheme === k ? ' active' : '')} onClick={() => settings.patch({ readerTheme: k })}>

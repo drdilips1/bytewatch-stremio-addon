@@ -13,6 +13,8 @@ export const CHANGES = [
       ['⬇️', 'Don’t have the book?', 'Get it first; when you play it, the app offers “Jump to the shared quote”.'],
       ['🖍️', 'Highlights stay put', 'Highlights and notes are now also saved in the app’s own files, so a full phone storage can’t lose them — and they’re in backups and sync. They show however you open the book (source, Downloads, another copy).'],
       ['✂️', 'Easier highlighting', 'Long-press a word, then tap Sentence, Paragraph or + Next to select exactly that — no fiddly dragging. The page no longer jumps while you select, and the buttons stay at the bottom.'],
+      ['🌐', 'Translate into your language', 'Translate now works in Hindi, Bengali, Marathi, Tamil, Telugu, Gujarati, Urdu, Spanish, French and more — and 🔊 reads the translation in a natural voice for that language.'],
+      ['📖', 'Read a whole book in Hindi', 'In the reader, Text (T) → “Read this book in…”: pages are translated as you read (and kept), and Read aloud speaks them in a natural Hindi (or other) voice.'],
       ['📝', 'This book’s notes, right there', 'In the reader, tap ✎ at the top; in the player, More → Notes. Highlights, notes and bookmarks of that book — from its ebook and its audiobook — to jump to, edit or share.'],
     ],
   },

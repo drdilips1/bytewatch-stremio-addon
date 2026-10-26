@@ -9955,3 +9955,34 @@ button.notes-book-head {
   background: color-mix(in srgb, var(--r-fg) 7%, transparent);
   color: var(--r-fg);
 }
+.reader-tr {
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--r-fg) 10%, transparent);
+}
+.tr-langs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+.reader-text .translated {
+  hyphens: manual;
+}
+.tr-langs.one-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 10px -4px 12px;
+  padding: 0 4px 2px;
+}
+.tr-langs.one-row .pill {
+  flex: none;
+}
+.sel-sheet .btn-row {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sel-answer {
+  margin-bottom: 10px;
+}

@@ -3,9 +3,10 @@ import { askAi, aiReady } from '../lib/ai.js';
 import { toast } from './common.jsx';
 import { spoilerRule } from '../lib/askbook.js';
 import { Answer } from '../screens/Ask.jsx';
+import { LANGS, lang, trCfg, targetFor, translateText, speakText, stopSpeakingText } from '../lib/translate.js';
+import { useStore } from '../lib/store.js';
 
 const clip = (s, n) => (s.length > n ? s.slice(0, n) + '…' : s);
-const hasDevanagari = (s) => /[ऀ-ॿ]/.test(s);
 
 /** What each AI button asks, given the selected words and their sentence/paragraph. */
 const PROMPTS = {
@@ -13,8 +14,6 @@ const PROMPTS = {
     `From the book "${book.title}"${book.author ? ` by ${book.author}` : ''}. Explain this passage in simple, plain language, under 120 words. If it depends on something earlier in the book, say so briefly.\n\nPassage: """${clip(text, 1500)}"""`,
   define: ({ text, context, book }) =>
     `Define "${clip(text, 80)}" as it is used here (from "${book.title}"): """${clip(context, 500)}"""\nGive the meaning in this context, the part of speech, and one simple example sentence. Under 70 words. Answer in the same language as the word.`,
-  translate: ({ text }) =>
-    `Translate into ${hasDevanagari(text) ? 'English' : 'Hindi'}, naturally (not word for word). Give only the translation.\n\n"""${clip(text, 1500)}"""`,
   ask: ({ text, book, question }) =>
     `From the book "${book.title}"${book.author ? ` by ${book.author}` : ''}, this passage: """${clip(text, 1500)}"""\n\nQuestion: ${question}\nAnswer clearly in under 150 words. Say when something isn't in the passage and comes from general knowledge.`,
 };
@@ -55,11 +54,16 @@ export function AiSheet({ kind, text, context, book, onClose, onKeep }) {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState(false);
-  const run = async (q = '') => {
+  const tr = useStore(trCfg);
+  const [to, setTo] = useState(() => targetFor(text));
+  const [speaking, setSpeaking] = useState(false);
+  useEffect(() => () => speaking && stopSpeakingText(), [speaking]);
+  const run = async (q = '', into = to) => {
     if (!aiReady()) return toast('Add an AI key in Settings → AI first');
     setBusy(true);
     try {
-      const rule = kind === 'translate' ? '' : spoilerRule(book);
+      if (kind === 'translate') return setAnswer(await translateText(text, into));
+      const rule = spoilerRule(book);
       setAnswer((await askAi(PROMPTS[kind]({ text, context, book, question: q }) + (rule ? `\n\n${rule}` : ''))).trim());
     } catch (e) {
       setAnswer('');
@@ -81,6 +85,24 @@ export function AiSheet({ kind, text, context, book, onClose, onKeep }) {
         </button>
       </div>
       <blockquote class="sel-quote">{clip(text, 300)}</blockquote>
+      {kind === 'translate' && (
+        <div class="tr-langs one-row">
+          {LANGS.map(([code, name, own]) => (
+            <button
+              class={'pill small' + (code === to ? ' active' : '')}
+              onClick={() => {
+                if (code === to) return;
+                setTo(code);
+                if (code !== 'en') trCfg.patch({ to: code }); // remembered for next time
+                setAnswer('');
+                run('', code);
+              }}
+            >
+              {own}
+            </button>
+          ))}
+        </div>
+      )}
       {kind === 'ask' && !answer && (
         <form
           class="sel-ask"
@@ -105,6 +127,23 @@ export function AiSheet({ kind, text, context, book, onClose, onKeep }) {
             <Answer text={answer} />
           </div>
           <div class="btn-row">
+            {kind === 'translate' && (
+              <button
+                class="btn primary"
+                onClick={() => {
+                  if (speaking) return stopSpeakingText(), setSpeaking(false);
+                  setSpeaking(true);
+                  speakText(answer, to).catch((e) => (toast(e.message), setSpeaking(false)));
+                }}
+              >
+                {speaking ? '■ Stop' : `🔊 Listen in ${lang(to)[1]}`}
+              </button>
+            )}
+            {kind === 'translate' && (
+              <button class="pill small" onClick={() => trCfg.patch({ male: !tr.male })} title="Voice">
+                {tr.male ? '♂ Male voice' : '♀ Female voice'}
+              </button>
+            )}
             <button class="btn secondary" onClick={() => onKeep(answer)}>
               Highlight + keep this as a note
             </button>
