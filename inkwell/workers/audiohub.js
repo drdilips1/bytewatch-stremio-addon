@@ -365,6 +365,65 @@ async function abbSearch(request) {
   return reply(JSON.stringify({ success: true, source: "audiobookbay-direct", results }));
 }
 
+
+// ---- Shared quotes: /q/<data> — a page anyone can read, with "Open in Audiohub" ----
+// <data> is the quote itself (base64url JSON, made by the app); nothing is stored.
+const esc = (v) => String(v || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const fmtAt = (s) => {
+  s = Math.max(0, Math.round(Number(s) || 0));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}` : `${m}:${String(x).padStart(2, "0")}`;
+};
+function readQuote(data) {
+  try {
+    const b = atob(data.replace(/-/g, "+").replace(/_/g, "/"));
+    const d = JSON.parse(new TextDecoder().decode(Uint8Array.from(b, (c) => c.charCodeAt(0))));
+    return d && d.t && d.q ? d : null;
+  } catch {
+    return null;
+  }
+}
+function quotePage(data, origin) {
+  const d = readQuote(data);
+  if (!d) return new Response("This shared quote link is broken.", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  const audio = d.k !== "e";
+  const at = audio && d.g != null ? fmtAt(d.g) : "";
+  const where = audio ? (at ? `audiobook at ${at}` : "audiobook") : "ebook";
+  const app = `audiohub://q/${data}`;
+  const intent = `intent://q/${data}#Intent;scheme=audiohub;package=app.inkwell.books;end`;
+  const short = d.q.length > 140 ? d.q.slice(0, 137).replace(/\s+\S*$/, "") + "…" : d.q;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>“${esc(short)}” — ${esc(d.t)}</title>
+<meta property="og:title" content="“${esc(short)}”">
+<meta property="og:description" content="${esc(d.t)}${d.a ? " — " + esc(d.a) : ""} · ${esc(where)} · shared from Audiohub">
+${d.c ? `<meta property="og:image" content="${esc(d.c)}">` : ""}
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&family=Fraunces:opsz,wght@9..144,500&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(120% 70% at 85% 0%,#4a1d10 0%,#140d09 55%,#0c0a08 100%);color:#f3ede4;font-family:Figtree,system-ui,sans-serif;display:flex;justify-content:center}
+main{width:100%;max-width:520px;padding:28px 18px 40px}
+.top{display:flex;align-items:center;gap:8px;font-weight:800;color:#f7b267;margin-bottom:20px}
+.card{background:rgba(27,24,19,.85);border:1px solid #2f281f;border-radius:24px;padding:26px 22px}
+.q{font-family:Fraunces,Georgia,serif;font-weight:500;font-size:22px;line-height:1.45;color:#fff3e6;margin:0}
+.note{margin:14px 0 0;padding-left:12px;border-left:3px solid #f7931e;color:#d9c3ae;font-size:15px;line-height:1.5}
+.book{display:flex;gap:14px;align-items:center;margin:20px 4px}
+.book img{width:64px;height:64px;border-radius:12px;object-fit:cover;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+.book b{display:block;font-size:17px}.book small{color:#a59c8d}
+.btn{display:flex;justify-content:center;align-items:center;gap:8px;height:54px;border-radius:16px;font-weight:800;font-size:16px;text-decoration:none;margin-top:10px;border:0;width:100%;cursor:pointer;font-family:inherit}
+.p{background:linear-gradient(135deg,#f7991c,#ff7a00);color:#1d1000}.s{background:#25211a;color:#f3ede4}
+.fine{font-size:13px;color:#857b6c;text-align:center;margin-top:18px;line-height:1.6}.fine a{color:#f7b267}
+</style></head><body><main>
+<div class="top">◭ Audiohub · shared quote</div>
+<div class="card"><p class="q">“${esc(d.q)}”</p>${d.n ? `<p class="note">${esc(d.n)}</p>` : ""}</div>
+<div class="book">${d.c ? `<img src="${esc(d.c)}" alt="">` : ""}<div><b>${esc(d.t)}</b><small>${esc(d.a)}${d.a ? " · " : ""}${esc(where)}</small></div></div>
+<a class="btn p" id="open" href="${esc(app)}">▶ Open in Audiohub</a>
+<button class="btn s" onclick="document.getElementById('open').style.display='none';this.style.display='none'">Just read it</button>
+<p class="fine">Opens the book in Audiohub at this ${audio ? "moment" : "passage"}.<br>Don't have Audiohub? <a href="https://github.com/drdilips1/Audiohub">Get it free</a></p>
+</main><script>if(/Android/i.test(navigator.userAgent))document.getElementById('open').href=${JSON.stringify(intent)};</script></body></html>`;
+  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=86400" } });
+}
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
@@ -416,6 +475,10 @@ export default {
       if (path === "/abb/api/debrid-notify" && request.method === "POST") {
         return await proxy(`${ABB_PROXY}/abb/api/debrid-notify`, request, "POST");
       }
+
+      // Shared quotes: /q/<data>
+      const shared = /^\/q\/([A-Za-z0-9_-]{8,})$/.exec(path);
+      if (shared && request.method === "GET") return quotePage(shared[1], url.origin);
 
       // Addon files: /addons/audiobookbay.json, /addons/knaben-audiobooks.json, …
       const addon = /^\/addons\/([a-z-]+)(\.json)?$/.exec(path);

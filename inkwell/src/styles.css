@@ -9846,3 +9846,59 @@ button.notes-book-head {
   font: inherit;
   font-weight: 700;
 }
+
+/* Shared quotes: the sheet when one is opened, and the "jump there" offer */
+.shared-quote .sq-kicker {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f7b267;
+}
+.shared-quote .sq-quote {
+  font-family: 'Fraunces Variable', Georgia, serif;
+  font-size: 21px;
+  line-height: 1.45;
+  margin: 10px 0 0;
+  color: #fff3e6;
+}
+.shared-quote .sq-quote.small {
+  font-size: 17px;
+}
+.shared-quote .sq-note {
+  margin: 12px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid #f7931e;
+  font-size: 14.5px;
+  opacity: 0.85;
+}
+.shared-quote .sq-book {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 18px 0 4px;
+}
+.shared-quote .sq-book .cover {
+  width: 56px;
+  flex: none;
+}
+.shared-quote .sq-book span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.shared-quote .sq-book small {
+  opacity: 0.7;
+}
+.shared-quote .sq-actions {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+.shared-quote .sq-hint {
+  font-size: 13px;
+  opacity: 0.65;
+  margin: 12px 0 0;
+}
