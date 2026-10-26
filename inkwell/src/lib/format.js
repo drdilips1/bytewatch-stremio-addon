@@ -58,8 +58,9 @@ export function hashHue(str = '') {
 /** First name for the greeting: the one you typed in Settings, else your sign-in's name or email. */
 export function firstName(typed, account = {}) {
   const pick = (s) => String(s || '').trim().split(/\s+/)[0] || '';
-  // Only a typed name with letters in it (a lone "." or "-" means no name).
-  if (/\p{L}/u.test(String(typed || ''))) return String(typed).trim().slice(0, 24);
+  const t = String(typed || '').trim();
+  // Something typed without letters (a lone "." or "-") means "no name": greet without one.
+  if (t) return /\p{L}/u.test(t) ? t.slice(0, 24) : '';
   if (account.name) return pick(account.name);
   // dilip.aiims@… → Dilip (only a plain word; skip addresses like x7f2k@…)
   const w = String(account.email || '').split('@')[0].split(/[._\-+\d]/)[0];
