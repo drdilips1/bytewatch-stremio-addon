@@ -107,18 +107,20 @@ object MyVoices {
     ) + FIRST_READERS
 
     /**
-     * The first readers (Ava, Clara, Maya, Hazel, Rose, Noah, Lucas, Theo), after the others: their copies in
-     * Paper to Audio are gone, so they keep the settings found in testing rather than Paper to Audio's.
+     * The second set shared from Paper to Audio, under the first readers' names (so a listener's choice
+     * keeps its name), plus Ethan and Ryan; exact settings, as above (Ethan's take was picked by ear).
      */
     private val FIRST_READERS get() = listOf(
-        Voice("ava", "Ava", 0, 0f, true, "female · English", pause = 640, denoised = true),
-        Voice("clara", "Clara", 0, 0f, true, "female · English", pause = 580, denoised = true, seed = 90001),
-        Voice("maya", "Maya", 0, 0f, true, "female · English", pause = 660, denoised = true, seed = 101),
-        Voice("nora", "Hazel", 0, 0f, true, "female · English", pause = 600, denoised = true, seed = 90001),
-        Voice("rose", "Rose", 0, 0f, true, "female · English", pause = 300, denoised = true, seed = 90001),
-        Voice("leo", "Noah", 0, 0f, true, "male · English", pause = 620, denoised = false, seed = 101),
-        Voice("sam", "Lucas", 0, 0f, true, "male · English", pause = 680, denoised = true),
-        Voice("theo", "Theo", 0, 0f, true, "male · English", pause = 680, denoised = false),
+        Voice("ava", "Ava", 0, 0f, true, "female · English", pause = 760, denoised = false, seed = 97744),
+        Voice("clara", "Clara", 0, 0f, true, "female · English", pause = 900, denoised = false, seed = 41723),
+        Voice("maya", "Maya", 0, 0f, true, "female · English", pause = 720, denoised = false, seed = 56628),
+        Voice("nora", "Hazel", 0, 0f, true, "female · English", pause = 540, denoised = false, seed = 98730),
+        Voice("rose", "Rose", 0, 0f, true, "female · English", pause = 560, denoised = false, seed = 6471),
+        Voice("leo", "Noah", 0, 0f, true, "male · English", pause = 500, denoised = false, seed = 31250),
+        Voice("sam", "Lucas", 0, 0f, true, "male · English", pause = 560, denoised = false, seed = 84032),
+        Voice("theo", "Theo", 0, 0f, true, "male · English", pause = 740, denoised = false, seed = 31800),
+        Voice("ethan", "Ethan", 0, 0f, true, "male · English", pause = 640, denoised = false, seed = 92573),
+        Voice("ryan", "Ryan", 0, 0f, true, "male · English", pause = 700, denoised = false, seed = 41746),
     )
 
     class Ref(val samples: FloatArray, val sampleRate: Int)
@@ -412,8 +414,17 @@ object MyVoices {
     /** The reference recording as float samples, for the engine. */
     fun reference(id: String): Ref? = synchronized(cache) {
         cache[id] ?: run {
-            val f = File(dir, "$id.wav")
-            if (!f.exists() && BUILT_IN.any { it.id == id }) unpackBuiltIn(id, f)
+            // A ready-made voice's unpacked copy carries its seed in its name: a new recording shipped under
+            // an old name (Narrato's Ava…) is unpacked again instead of the old one being read.
+            val builtIn = BUILT_IN.firstOrNull { it.id == id }
+            val f = if (builtIn != null) File(dir, "${id}_s${builtIn.seed}.wav") else File(dir, "$id.wav")
+            if (builtIn != null && !f.exists()) {
+                File(dir, "$id.wav").delete()
+                dir.listFiles { x -> x.name.startsWith("${id}_s") && x.name.endsWith(".wav") }?.forEach { it.delete() }
+                // The pace learned from the previous recording isn't this one's: learned afresh, as for a new voice.
+                pacePrefs.edit().remove("pace:$id").apply()
+                unpackBuiltIn(id, f)
+            }
             if (!f.exists()) return null
             upgrade(id, f)
             val pcm = LocalTts.readWav(f)
