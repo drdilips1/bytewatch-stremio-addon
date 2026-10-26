@@ -15,7 +15,7 @@ import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import * as player from '../lib/player.js';
 import { toast } from '../components/common.jsx';
 import { HighlightCards, AudioNotes, hasAudioNotes } from '../components/book-notes.jsx';
-import { highlights, forWork, addHighlight, updateHighlight, removeHighlight, markText, unmark, selectionParts } from '../lib/highlights.js';
+import { highlights, forWork, addHighlight, updateHighlight, removeHighlight, markText, unmark, selectionParts, growSelection } from '../lib/highlights.js';
 import { SelectionBar, AiSheet, HighlightSheet } from '../components/reader-select.jsx';
 
 // Reading fonts (bundled, so they work offline). Literata is the default serif.
@@ -306,12 +306,13 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         const s = window.getSelection();
         const root = scroller.current?.querySelector('.reader-text');
         if (!s || s.isCollapsed || !s.rangeCount || !root || !root.contains(s.anchorNode)) return setSel(null);
+        selAt.current = Date.now();
         const range = s.getRangeAt(0);
         const text = s.toString().trim();
         if (!text) return setSel(null);
         const parts = selectionParts(range, blocks());
         const context = parts.length ? blocks()[parts[0].a]?.textContent || text : text;
-        setSel({ text, parts, context, rect: range.getBoundingClientRect() });
+        setSel({ text, parts, context, rect: range.getBoundingClientRect(), range: range.cloneRange() });
       }, 250);
     };
     document.addEventListener('selectionchange', onSel);
@@ -360,6 +361,8 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     return () => el.removeEventListener('scroll', onScroll);
   }, [doc, chrome]);
 
+  const selAt = useRef(0); // when words were last selected: a tap then isn't a page turn
+  const selecting = () => Date.now() - selAt.current < 900 || !(window.getSelection()?.isCollapsed ?? true);
   const lastTap = useRef(null);
   const tapTimer = useRef(null);
   const downAt = useRef(null);
@@ -419,6 +422,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         onPointerUp={(e) => {
           const d = downAt.current;
           if (!d || Date.now() - d.t > 350 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 20) return; // a scroll or a long press
+          if (selecting()) return (lastTap.current = null); // moving the selection handles
           const now = Date.now();
           const prev = lastTap.current;
           lastTap.current = { at: now, x: e.clientX, y: e.clientY };
@@ -439,7 +443,8 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         onClick={(e) => {
           if (e.target.closest('a')) return;
           if (Date.now() - doubleAt.current < 500) return; // the second tap of a double tap
-          if (sel) return; // finishing a selection, not a page tap
+          // Finishing or adjusting a selection (or tapping it away): not a page turn.
+          if (sel || selecting()) return;
           const mark = e.target.closest('mark.hl');
           if (mark) {
             const h = forWork(book, sameWork).find((x) => x.id === mark.dataset.id);
@@ -485,7 +490,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         <span>{Math.round(pct * 100)}%</span>
       </footer>
 
-      {sel && !sheet && <SelectionBar sel={sel} onAction={onSelAction} />}
+      {sel && !sheet && <SelectionBar sel={sel} onAction={onSelAction} onGrow={(kind) => growSelection(kind, blocks(), sel.range) || toast('Nothing more to add')} />}
       {sheet?.type === 'ai' && (
         <AiSheet
           kind={sheet.kind}

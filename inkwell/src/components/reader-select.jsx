@@ -20,20 +20,32 @@ const PROMPTS = {
 };
 const TITLES = { explain: 'Explain', define: 'Define', translate: 'Translate', ask: 'Ask about this' };
 
-/** The bar under (or above) selected words: AI actions and Highlight. */
-export function SelectionBar({ sel, onAction }) {
-  const below = sel.rect.bottom + 64 < window.innerHeight - 80;
-  const top = below ? sel.rect.bottom + 12 : Math.max(70, sel.rect.top - 58);
+/**
+ * The bar for selected words, fixed at the bottom (it doesn't move about or cover the
+ * words): snap the selection to the sentence / paragraph or add the next sentence, then
+ * Highlight or ask the AI.
+ */
+export function SelectionBar({ sel, onAction, onGrow }) {
   const single = !/\s/.test(sel.text.trim());
+  const words = sel.text.trim().split(/\s+/).length;
+  const keep = (e) => e.preventDefault(); // tapping the bar mustn't clear the selection
   return (
-    <div class="sel-bar" style={{ top: top + 'px' }} onMouseDown={(e) => e.preventDefault()} onTouchStart={(e) => e.stopPropagation()}>
-      <button onClick={() => onAction('explain')}>Explain</button>
-      <button onClick={() => onAction('define')}>{single ? 'Define' : 'Meaning'}</button>
-      <button onClick={() => onAction('ask')}>Ask</button>
-      <button onClick={() => onAction('translate')}>Translate</button>
-      <button class="hl-btn" onClick={() => onAction('highlight')}>
-        Highlight
-      </button>
+    <div class="sel-dock" onMouseDown={keep} onTouchStart={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+      <div class="sel-grow">
+        <small>{words} word{words > 1 ? 's' : ''}</small>
+        <button onMouseDown={keep} onClick={() => onGrow('sentence')}>Sentence</button>
+        <button onMouseDown={keep} onClick={() => onGrow('paragraph')}>Paragraph</button>
+        <button onMouseDown={keep} onClick={() => onGrow('more')}>+ Next</button>
+      </div>
+      <div class="sel-bar">
+        <button class="hl-btn" onClick={() => onAction('highlight')}>
+          Highlight
+        </button>
+        <button onClick={() => onAction('explain')}>Explain</button>
+        <button onClick={() => onAction('define')}>{single ? 'Define' : 'Meaning'}</button>
+        <button onClick={() => onAction('ask')}>Ask</button>
+        <button onClick={() => onAction('translate')}>Translate</button>
+      </div>
     </div>
   );
 }

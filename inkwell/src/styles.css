@@ -7788,12 +7788,46 @@ button.stats {
   border-radius: 2px;
   padding: 0 1px;
 }
-.sel-bar {
+.sel-dock {
   position: fixed;
   left: 50%;
+  bottom: calc(var(--safe-bottom) + 14px);
   transform: translateX(-50%);
   z-index: 60;
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+}
+.sel-grow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.sel-grow small {
+  padding: 0 6px;
+  color: #f2eff8;
+  opacity: 0.75;
+  font-size: 12px;
+  border-radius: 10px;
+  background: #1f1d26;
+  line-height: 30px;
+}
+.sel-grow button {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #1f1d26;
+  color: #f2eff8;
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.sel-bar {
+  display: flex;
+  justify-content: center;
   gap: 2px;
   padding: 4px;
   border-radius: 14px;
