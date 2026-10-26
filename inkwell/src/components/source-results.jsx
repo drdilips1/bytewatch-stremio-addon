@@ -102,6 +102,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const [pending, setPending] = useState(false);
   const [account, setAccount] = useState(new Map());
   const [showDead, setShowDead] = useState(false);
+  const [showMobi, setShowMobi] = useState(false);
   const [showLoose, setShowLoose] = useState(false);
   const [moreAudio, setMoreAudio] = useState(false);
   const [moreEbooks, setMoreEbooks] = useState(false);
@@ -160,7 +161,11 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const looseCount = everything.filter((r) => r.loose).length;
   const all = everything.filter((r) => showLoose || !r.loose).sort((a, b) => Number(!(a.magnet || a.hash)) - Number(!(b.magnet || b.hash)));
   const alive = (r) => r.seeders > 0 || !(r.magnet || r.hash) || r.cache?.any || account.has(r.hash);
-  const visible = showDead ? all : all.filter(alive);
+  // MOBI / AZW3: the app's reader can't open them and Amazon no longer takes them by
+  // e-mail — kept out of the way unless you ask (other reader apps do open them).
+  const kindleOnly = (r) => /^(MOBI|AZW3?)$/.test(formatOf(r) || directEbookFile(r)?.format || '');
+  const hiddenMobi = all.filter((r) => kindleOnly(r) && (showDead || alive(r))).length;
+  const visible = (showDead ? all : all.filter(alive)).filter((r) => showMobi || !kindleOnly(r));
   const hiddenDead = all.length - all.filter(alive).length;
   // Torrents (audiobooks) first; plain download links (mostly ebooks) fold away under a button.
   // Only real ebooks fold away; an audiobook page link (no magnet) stays in the main list with an Open button.
@@ -298,6 +303,11 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
       {looseCount > 0 && (
         <button class="btn ghost-wide" onClick={() => setShowLoose(!showLoose)}>
           {showLoose ? 'Hide' : 'Show'} {looseCount} loose match{looseCount === 1 ? '' : 'es'} (may be other books)
+        </button>
+      )}
+      {hiddenMobi > 0 && (
+        <button class="btn ghost-wide" onClick={() => setShowMobi(!showMobi)}>
+          {showMobi ? 'Hide' : 'Show'} {hiddenMobi} MOBI / AZW3 ebook{hiddenMobi === 1 ? '' : 's'} (only other reader apps open these)
         </button>
       )}
       {hiddenDead > 0 && (

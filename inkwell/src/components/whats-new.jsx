@@ -8,7 +8,7 @@ export const CHANGES = [
     id: '2026-10-29',
     title: 'Names heard right',
     items: [
-      ['💾', 'Save any ebook', 'Every ebook result now has Save. MOBI and others go to your phone’s Downloads; a file of unknown type is checked first — if it’s really an EPUB or PDF, Read opens it in the app.'],
+      ['💾', 'Save any ebook', 'Every ebook result now has Save. MOBI and others go to your phone’s Downloads; a file of unknown type is checked first — if it’s really an EPUB or PDF, Read opens it in the app. MOBI / AZW3 results are tucked behind a button (the app can’t read them).'],
       ['🔎', 'Search for the right ebook', 'Text view → Change (or Get the ebook) now has a search box: type “harry potter chamber of secrets” when the audiobook is just called “Harry Potter”.'],
       ['🗣️', 'Snape, not snake', 'The Text view puts misheard character names right (“snake” → Snape, “hogwards” → Hogwarts), using X-Ray’s cast and the ebook when it’s attached — a real snake in the book stays a snake.'],
     ],
