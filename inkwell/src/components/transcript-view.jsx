@@ -60,6 +60,19 @@ function EbookStatus({ b }) {
     setMine(null);
     await takeOnPhone(eb);
   };
+  // An EPUB / PDF anywhere on the phone (e.g. downloaded in the browser): pick it, it's added and used.
+  const pickFile = async () => {
+    try {
+      const { pickBooks } = await import('../sources/local.js');
+      const [eb] = await pickBooks({ books: true });
+      if (!eb) return;
+      close();
+      await takeOnPhone(eb);
+      toast(`Using “${eb.title}”`);
+    } catch (e) {
+      if (e?.message !== 'cancelled') toast(e?.message || String(e));
+    }
+  };
   const take = async (h) => {
     setBusy(h.r.link);
     try {
@@ -140,6 +153,9 @@ function EbookStatus({ b }) {
       </form>
       {phoneList}
       {mine && !mine.length && query.trim() && <p class="tl-source">Nothing on this phone matches “{query.trim()}”.</p>}
+      <button class="btn secondary wide tl-pick-file" disabled={!!busy && busy !== 'search'} onClick={pickFile}>
+        <Icon name="book" size={15} /> Choose a file from this phone (Downloads…)
+      </button>
       {busy === 'search' ? (
         <p class="tl-source">
           <span class="spinner small" /> Searching your sources…

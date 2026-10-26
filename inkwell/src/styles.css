@@ -10026,3 +10026,6 @@ button.notes-book-head {
   color: inherit;
   font: inherit;
 }
+.tl-pick-file {
+  margin: 10px 0 4px;
+}
