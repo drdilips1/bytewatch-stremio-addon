@@ -19,31 +19,65 @@ const unb64u = (s) => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replac
  * A quote to share: { kind: 'audio' | 'text', title, author, cover, quote, note, global }
  * (global: seconds into the whole audiobook).
  */
-export function quoteLink(q) {
-  const data = {
+function packQuote(q) {
+  return {
     v: 1,
     k: q.kind === 'text' ? 'e' : 'a',
     t: String(q.title || '').slice(0, 140),
     a: String(q.author || '').slice(0, 80),
     q: String(q.quote || '').slice(0, 600),
-    ...(q.note ? { n: String(q.note).slice(0, 400) } : {}),
+    ...(q.note ? { n: String(q.note).slice(0, 1200) } : {}),
     ...(q.cover && /^https:\/\//.test(q.cover) && q.cover.length < 300 ? { c: q.cover } : {}),
     ...(q.kind !== 'text' && q.global >= 0 ? { g: Math.round(q.global) } : {}),
   };
-  return SHARE_BASE + b64u(JSON.stringify(data));
+}
+const unpack = (d) =>
+  d?.t && d?.q ? { kind: d.k === 'e' ? 'text' : 'audio', title: d.t, author: d.a || '', quote: d.q, note: d.n || '', cover: d.c || '', global: d.g ?? null } : null;
+
+/** The long link: the quote itself, inside the link (works without the server keeping it). */
+export function quoteLink(q) {
+  const d = packQuote(q);
+  return SHARE_BASE + b64u(JSON.stringify({ ...d, ...(d.n ? { n: d.n.slice(0, 400) } : {}) }));
 }
 
-/** The quote in a shared link (either form), or null. */
-export function parseQuoteLink(url) {
-  const m = /(?:api\.audiohubapp\.com\/q\/|^(?:audiohub|app\.inkwell\.books):\/\/q\/)([A-Za-z0-9_-]{8,})/.exec(String(url || '').trim());
-  if (!m) return null;
+/** A short link (the server keeps the quote), or null when that isn't available. */
+export async function shortLink(q) {
   try {
-    const d = JSON.parse(unb64u(m[1]));
-    if (!d?.t || !d?.q) return null;
-    return { kind: d.k === 'e' ? 'text' : 'audio', title: d.t, author: d.a || '', quote: d.q, note: d.n || '', cover: d.c || '', global: d.g ?? null };
+    const body = JSON.stringify(packQuote(q));
+    const timeout = new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 5000));
+    const r = native
+      ? await Promise.race([CapacitorHttp.post({ url: SHARE_BASE.replace(/\/q\/$/, '/q'), headers: { 'Content-Type': 'application/json' }, data: body, connectTimeout: 5000, readTimeout: 5000 }), timeout])
+      : await Promise.race([fetch(SHARE_BASE.replace(/\/q\/$/, '/q'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }).then(async (x) => ({ status: x.status, data: await x.json() })), timeout]);
+    const d = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+    return r.status < 300 && d?.url ? d.url : null;
   } catch {
     return null;
   }
+}
+
+/** The quote in a shared link (either form; a short one is { short: id } until resolved), or null. */
+export function parseQuoteLink(url) {
+  const u = String(url || '').trim();
+  const s = /(?:api\.audiohubapp\.com\/q\/s\/|^(?:audiohub|app\.inkwell\.books):\/\/q\/s\/)([A-Za-z0-9]{5,12})/.exec(u);
+  if (s) return { short: s[1] };
+  const m = /(?:api\.audiohubapp\.com\/q\/|^(?:audiohub|app\.inkwell\.books):\/\/q\/)([A-Za-z0-9_-]{8,})/.exec(u);
+  if (!m) return null;
+  try {
+    return unpack(JSON.parse(unb64u(m[1])));
+  } catch {
+    return null;
+  }
+}
+
+/** A parsed link made whole: a short link's quote fetched from the server. */
+export async function resolveQuote(p) {
+  if (!p?.short) return p;
+  const url = `${SHARE_BASE}s/${p.short}.json`;
+  const r = native ? await CapacitorHttp.get({ url, connectTimeout: 8000, readTimeout: 8000 }) : await fetch(url).then(async (x) => ({ status: x.status, data: await x.json() }));
+  const d = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+  const q = r.status < 300 ? unpack(d) : null;
+  if (!q) throw new Error('This shared quote has expired or the link is broken');
+  return q;
 }
 
 export const atLabel = (q) => (q.kind === 'audio' && q.global != null ? fmtTime(q.global) : '');
@@ -52,7 +86,16 @@ export const atLabel = (q) => (q.kind === 'audio' && q.global != null ? fmtTime(
 // The open quote (shown by SharedQuoteSheet) and the one waiting until you have the book.
 export const sharedQuote = persisted('sharedQuote', { open: null, pending: null });
 
-export function openSharedQuote(q) {
+export async function openSharedQuote(q) {
+  // A short link: fetch the quote first.
+  if (q?.short) {
+    try {
+      q = await resolveQuote(q);
+    } catch (e) {
+      const { toast } = await import('../components/common.jsx');
+      return toast(e.message);
+    }
+  }
   sharedQuote.set((s) => ({ ...s, open: q }));
 }
 
@@ -114,140 +157,243 @@ const loadImg = (src) =>
     i.src = src;
   });
 
+/**
+ * Words into lines of at most `width`, balanced like a printed page: the breaks are
+ * chosen together so no line is left with a big gap (the last line may be short).
+ */
 function wrap(ctx, text, width) {
-  const lines = [];
-  let line = '';
-  for (const w of String(text).split(/\s+/)) {
-    const next = line ? `${line} ${w}` : w;
-    if (ctx.measureText(next).width > width && line) {
-      lines.push(line);
-      line = w;
-    } else line = next;
+  const words = String(text).split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const w = words.map((x) => ctx.measureText(x).width);
+  const space = ctx.measureText(' ').width;
+  const n = words.length;
+  const best = new Array(n + 1).fill(Infinity);
+  const from = new Array(n + 1).fill(0);
+  best[0] = 0;
+  for (let i = 1; i <= n; i++) {
+    let len = -space;
+    for (let j = i - 1; j >= 0; j--) {
+      len += w[j] + space;
+      if (len > width && j < i - 1) break;
+      const slack = Math.max(0, width - len);
+      const cost = i === n ? 0 : (slack / width) ** 2 * 100 + (i - j === 1 ? 4 : 0);
+      if (best[j] + cost < best[i]) {
+        best[i] = best[j] + cost;
+        from[i] = j;
+      }
+    }
   }
-  if (line) lines.push(line);
+  const lines = [];
+  for (let i = n; i > 0; i = from[i]) lines.unshift(words.slice(from[i], i));
   return lines;
 }
 
+/** Lines of words, justified like a printed page (the last line, and lone words, ragged). */
+function drawJustified(ctx, lines, x, y, width, lead, last = true) {
+  lines.forEach((words, n) => {
+    const final = n === lines.length - 1 && last;
+    if (final || words.length < 2) {
+      ctx.fillText(words.join(' '), x, y + n * lead);
+      return;
+    }
+    const used = words.reduce((sum, w) => sum + ctx.measureText(w).width, 0);
+    const gap = (width - used) / (words.length - 1);
+    // Only a line of two or three words would gape badly: leave that one ragged.
+    if (words.length < 4 && gap > ctx.measureText(' ').width * 4) return ctx.fillText(words.join(' '), x, y + n * lead);
+    let at = x;
+    for (const w of words) {
+      ctx.fillText(w, at, y + n * lead);
+      at += ctx.measureText(w).width + gap;
+    }
+  });
+}
+
+// The card's looks: the paper of a book, the cover's own colours, or ink on night.
+export const CARD_STYLES = ['paper', 'cover', 'night'];
+const LOOK = {
+  paper: { bg: '#f5eee2', ink: '#2a2119', soft: '#7a6a58', accent: '#c2410c', mark: 'rgba(194,65,12,0.16)' },
+  cover: { bg: '#15110d', ink: '#fffaf2', soft: 'rgba(255,245,230,0.72)', accent: '#ffb35c', mark: 'rgba(255,255,255,0.14)' },
+  night: { bg: '#0f0d0b', ink: '#f2ebe1', soft: '#9b8f80', accent: '#f7931e', mark: 'rgba(247,147,30,0.18)' },
+};
+
 /** The quote card (1080×1350 JPEG, base64 without the data: prefix). */
-export async function quoteCard(q) {
-  const W = 1080, H = 1350, P = 92;
+export async function quoteCard(q, style = 'paper') {
+  const W = 1080, H = 1350, P = 104;
+  const L = LOOK[style] || LOOK.paper;
   const c = document.createElement('canvas');
   c.width = W;
   c.height = H;
   const x = c.getContext('2d');
-  const serif = "'Fraunces Variable', Georgia, serif";
+  const serif = "'Literata Variable', Georgia, serif";
   const sans = "'Figtree Variable', system-ui, sans-serif";
   try {
-    await document.fonts?.load(`500 60px ${serif}`);
+    await document.fonts?.load(`400 60px ${serif}`);
     await document.fonts?.load(`700 30px ${sans}`);
   } catch {}
   const coverSrc = await coverData(q.cover);
   const cover = coverSrc ? await loadImg(coverSrc).catch(() => null) : null;
-  // Background: the cover's own colour, deepened.
-  let hue = [122, 40, 30];
-  if (cover) {
-    const s = document.createElement('canvas');
-    s.width = s.height = 8;
-    const sx = s.getContext('2d');
-    sx.drawImage(cover, 0, 0, 8, 8);
-    const d = sx.getImageData(0, 0, 8, 8).data;
-    let r = 0, g = 0, b = 0;
-    for (let i = 0; i < d.length; i += 4) (r += d[i]), (g += d[i + 1]), (b += d[i + 2]);
-    const n = d.length / 4;
-    hue = [r / n, g / n, b / n].map((v) => Math.round(v * 0.55));
-  }
-  const [r, g, b] = hue;
-  const bg = x.createRadialGradient(W * 0.85, 0, 40, W * 0.6, H * 0.4, H);
-  bg.addColorStop(0, `rgb(${Math.min(255, r * 1.6)},${Math.min(255, g * 1.6)},${Math.min(255, b * 1.6)})`);
-  bg.addColorStop(0.55, `rgb(${r * 0.6},${g * 0.6},${b * 0.6})`);
-  bg.addColorStop(1, '#0e0b09');
-  x.fillStyle = bg;
+
+  // Background.
+  x.fillStyle = L.bg;
   x.fillRect(0, 0, W, H);
-  // Big opening quote mark.
-  x.fillStyle = 'rgba(255,220,180,0.22)';
-  x.font = `600 300px ${serif}`;
-  x.fillText('“', P - 14, 300);
-  // The quote: as large as fits.
-  const quote = String(q.quote).trim();
-  let size = 70, lines = [];
-  const maxH = q.note ? 690 : 820;
-  for (; size >= 34; size -= 4) {
-    x.font = `500 ${size}px ${serif}`;
-    lines = wrap(x, quote, W - P * 2);
-    if (lines.length * size * 1.36 <= maxH) break;
+  if (style === 'cover' && cover) {
+    // The cover itself, blurred and deepened: every book gets its own colours.
+    const k = Math.max(W / cover.width, H / cover.height) * 1.2;
+    x.filter = 'blur(60px) saturate(1.5)';
+    x.drawImage(cover, (W - cover.width * k) / 2, (H - cover.height * k) / 2, cover.width * k, cover.height * k);
+    x.filter = 'none';
+    const g = x.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, 'rgba(10,8,6,0.45)');
+    g.addColorStop(0.6, 'rgba(10,8,6,0.62)');
+    g.addColorStop(1, 'rgba(10,8,6,0.85)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, W, H);
+  } else if (style === 'paper') {
+    // A faint page grain and a soft edge.
+    const g = x.createRadialGradient(W / 2, H * 0.4, 200, W / 2, H / 2, H * 0.8);
+    g.addColorStop(0, 'rgba(255,255,255,0.5)');
+    g.addColorStop(1, 'rgba(120,90,50,0.12)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, W, H);
+  } else {
+    const g = x.createRadialGradient(W, 0, 50, W * 0.7, H * 0.3, H);
+    g.addColorStop(0, 'rgba(247,147,30,0.16)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, W, H);
   }
-  if (lines.length * size * 1.36 > maxH) {
-    const keep = Math.floor(maxH / (size * 1.36));
-    lines = lines.slice(0, keep);
-    lines[keep - 1] = lines[keep - 1].replace(/\s+\S*$/, '') + '…';
+
+  // Opening mark.
+  x.fillStyle = L.accent;
+  x.font = `700 170px ${serif}`;
+  x.fillText('“', P - 10, 228);
+
+  // The quote as large as fits, justified, with your note under it (a long note — an AI
+  // explanation, say — is shortened here; the full text goes with the message).
+  const quote = String(q.quote).trim().replace(/\s+/g, ' ');
+  const top = 270;
+  const end = H - 330; // where the book row begins
+  const width = W - P * 2;
+  const NOTE = 34, NLEAD = 48;
+  x.font = `500 ${NOTE}px ${sans}`;
+  const noteAll = q.note ? wrap(x, String(q.note).replace(/\s+/g, ' '), width - 40) : [];
+  let cut = false;
+  let size = 64, lead = 0, lines = [], nl = [];
+  const noteH = (n) => (n ? 70 + n * NLEAD : 0);
+  for (; size >= 32; size -= 2) {
+    x.font = `400 ${size}px ${serif}`;
+    lead = size * 1.42;
+    lines = wrap(x, quote, width);
+    // The note gets up to 6 lines, fewer when the quote needs the room (at least 2).
+    const room = end - top - lines.length * lead;
+    const fitN = Math.floor((room - 70) / NLEAD);
+    nl = noteAll.slice(0, Math.max(0, Math.min(6, fitN)));
+    if (lines.length * lead + noteH(nl.length) <= end - top && (nl.length >= Math.min(2, noteAll.length) || size === 32)) break;
   }
-  x.fillStyle = '#fff3e6';
-  let y = 330;
-  for (const l of lines) {
-    x.fillText(l, P, y);
-    y += size * 1.36;
+  if (nl.length < noteAll.length) {
+    cut = true;
+    if (nl.length) nl[nl.length - 1] = [...nl[nl.length - 1], '…'];
   }
-  // Your note, under an orange bar.
-  if (q.note) {
-    y += 30;
-    x.font = `500 36px ${sans}`;
-    const nl = wrap(x, q.note, W - P * 2 - 34).slice(0, 3);
-    x.fillStyle = '#f7931e';
-    x.fillRect(P, y - 34, 7, nl.length * 50);
-    x.fillStyle = '#ecd2b8';
-    for (const l of nl) {
-      x.fillText(l, P + 30, y);
-      y += 50;
-    }
+  const maxQ = Math.floor((end - top - noteH(nl.length)) / lead);
+  if (lines.length > maxQ) {
+    cut = true;
+    lines = lines.slice(0, Math.max(1, maxQ));
+    lines[lines.length - 1] = [...lines[lines.length - 1].slice(0, -1), lines[lines.length - 1].slice(-1)[0] + '…'];
   }
-  // Book: cover, title, author, where.
-  const by = H - P - 150;
+  // A short quote sits in the middle of the space, not at the top.
+  const blockH = lines.length * lead + noteH(nl.length);
+  const y0 = top + Math.max(0, (end - top - blockH) / 2.4);
+  x.fillStyle = L.ink;
+  x.font = `400 ${size}px ${serif}`;
+  // A few lines read best ragged; a longer passage justified, like a page.
+  if (lines.length >= 4) drawJustified(x, lines, P, y0 + size, width, lead);
+  else lines.forEach((words, n) => x.fillText(words.join(' '), P, y0 + size + n * lead));
+  let y = y0 + size + (lines.length - 1) * lead;
+  if (nl.length) {
+    y += 84;
+    x.font = `500 ${NOTE}px ${sans}`;
+    x.fillStyle = L.accent;
+    x.fillRect(P, y - 32, 6, nl.length * NLEAD - 8);
+    x.fillStyle = L.soft;
+    nl.forEach((words, n) => x.fillText(words.join(' '), P + 34, y + n * NLEAD));
+  }
+
+  // The book: a rule, the cover, title, author, where.
+  const by = H - P - 132;
+  x.fillStyle = L.mark;
+  x.fillRect(P, by - 44, width, 2);
+  let tx = P;
   if (cover) {
+    const ch = 132, cw = Math.round(Math.min(ch, (cover.width / cover.height) * ch));
     x.save();
-    x.shadowColor = 'rgba(0,0,0,0.5)';
-    x.shadowBlur = 30;
-    x.shadowOffsetY = 10;
+    x.shadowColor = 'rgba(0,0,0,0.35)';
+    x.shadowBlur = 24;
+    x.shadowOffsetY = 8;
     const rr = new Path2D();
-    rr.roundRect(P, by, 150, 150, 22);
-    x.clip(rr);
-    x.drawImage(cover, P, by, 150, 150);
+    rr.roundRect(P, by, cw, ch, 10);
+    x.fill(rr);
     x.restore();
+    x.save();
+    x.clip(rr);
+    x.drawImage(cover, P, by, cw, ch);
+    x.restore();
+    tx = P + cw + 30;
   }
-  const tx = cover ? P + 180 : P;
-  x.fillStyle = '#fff';
-  x.font = `700 44px ${sans}`;
-  x.fillText(wrap(x, q.title, W - tx - P - 200)[0] || '', tx, by + 52);
-  x.fillStyle = '#d8c2ad';
-  x.font = `500 34px ${sans}`;
-  x.fillText(wrap(x, q.author, W - tx - P - 200)[0] || '', tx, by + 98);
+  const room = W - tx - P;
+  const fit = (text, font) => {
+    x.font = font;
+    let t = String(text || '');
+    while (t && x.measureText(t).width > room) t = t.slice(0, -2).trimEnd() + '…';
+    return t;
+  };
+  x.fillStyle = L.ink;
+  x.fillText(fit(q.title, `700 40px ${sans}`), tx, by + 46);
+  x.fillStyle = L.soft;
+  x.fillText(fit(q.author, `500 32px ${sans}`), tx, by + 90);
   const at = atLabel(q);
-  if (at || q.kind === 'text') {
-    const label = q.kind === 'text' ? 'ebook' : `🎧 at ${at}`;
-    x.font = `700 28px ${sans}`;
-    const w = x.measureText(label).width + 36;
-    x.fillStyle = 'rgba(247,147,30,0.18)';
-    const pill = new Path2D();
-    pill.roundRect(tx, by + 118, w, 44, 22);
-    x.fill(pill);
-    x.fillStyle = '#f7b267';
-    x.fillText(label, tx + 18, by + 150);
-  }
-  x.fillStyle = 'rgba(255,255,255,0.55)';
-  x.font = `700 28px ${sans}`;
-  x.textAlign = 'right';
-  x.fillText('A U D I O H U B', W - P, H - P + 6);
-  return c.toDataURL('image/jpeg', 0.9).split(',')[1];
+  x.fillStyle = L.accent;
+  x.font = `700 24px ${sans}`;
+  x.fillText((q.kind === 'text' ? 'EBOOK' : at ? `AUDIOBOOK · ${at}` : 'AUDIOBOOK') + '   ·   AUDIOHUB', tx, by + 128);
+  return { data: c.toDataURL('image/jpeg', 0.92).split(',')[1], cut };
 }
 
-/** Share a quote: the card image with the text and link (share sheet), else the text alone. */
+// ---- sharing: a sheet with the card's look, then the picture (or text) -----------
+const subs = new Set();
+let pendingShare = null;
+/** The quote waiting in the share sheet (a tiny store for useStore). */
+export const shareRequest = {
+  get: () => pendingShare,
+  set(v) {
+    pendingShare = v;
+    subs.forEach((f) => f(v));
+  },
+  subscribe(f) {
+    subs.add(f);
+    return () => subs.delete(f);
+  },
+};
+export const cardStyle = persisted('quoteCardStyle', 'paper');
+
+/** Share a quote: opens the share sheet (look, picture or text). */
 export async function shareQuote(q) {
-  const link = quoteLink(q);
-  const at = atLabel(q);
-  const text = `“${q.quote}”${q.note ? `\n\n${q.note}` : ''}\n— ${q.title}${q.author ? `, ${q.author}` : ''}${at ? ` (at ${at})` : ''}\n\nOpen in Audiohub: ${link}`;
-  if (native) {
-    const card = await quoteCard(q).catch(() => null);
-    if (card) return Web.shareImage({ data: card, name: 'audiohub-quote.jpg', mime: 'image/jpeg', text, title: 'Share quote' });
-  }
+  shareRequest.set(q);
+}
+
+const byline = (q) => `${q.title}${q.author ? `, ${q.author}` : ''}${atLabel(q) ? ` (at ${atLabel(q)})` : ''}`;
+
+/** The words for the message: short with a picture; everything as text (or when the picture had to shorten it). */
+export function quoteMessage(q, link, full) {
+  const open = `▶ Open in Audiohub: ${link}`;
+  if (!full) return `From “${q.title}”${q.author ? ` by ${q.author}` : ''}${atLabel(q) ? ` · at ${atLabel(q)}` : ''}\n${open}`;
+  return `“${q.quote}”\n— ${byline(q)}${q.note ? `\n\n${q.note}` : ''}\n\n${open}`;
+}
+
+/** Send it: `card` = { data, cut } for a picture, or null for text only. */
+export async function sendQuote(q, card) {
+  const link = (await shortLink(q)) || quoteLink(q);
+  const text = quoteMessage(q, link, !card || card.cut);
+  if (card && native) return Web.shareImage({ data: card.data, name: 'audiohub-quote.jpg', mime: 'image/jpeg', text, title: 'Share quote' });
+  if (native) return Web.shareText({ text, title: 'Share quote' });
   if (navigator.share) return navigator.share({ text }).catch(() => {});
   await navigator.clipboard?.writeText(text);
   return 'copied';

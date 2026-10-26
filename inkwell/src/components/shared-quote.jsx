@@ -5,6 +5,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { Cover, toast } from './common.jsx';
 import { useStore } from '../lib/store.js';
+import { shareRequest, cardStyle, quoteCard, sendQuote, CARD_STYLES } from '../lib/quoteshare.js';
 import { nav } from '../lib/nav.js';
 import * as player from '../lib/player.js';
 import { getDetails } from '../sources/index.js';
@@ -116,5 +117,63 @@ export function SharedQuoteSheet() {
         </div>
       )}
     </>
+  );
+}
+
+const STYLE_NAMES = { paper: 'Paper', cover: 'Cover colours', night: 'Night' };
+
+/** Sharing a quote: pick the card's look (a live preview), then share the picture — or just the text. */
+export function ShareQuoteSheet() {
+  const q = useStore(shareRequest);
+  const style = useStore(cardStyle);
+  const [card, setCard] = useState(null); // { data, cut } for the look shown
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!q) return;
+    let live = true;
+    setCard(null);
+    quoteCard(q, style)
+      .then((c) => live && setCard(c))
+      .catch(() => live && setCard({ data: '', cut: true }));
+    return () => (live = false);
+  }, [q, style]);
+  if (!q) return null;
+  const close = () => shareRequest.set(null);
+  const send = async (withPicture) => {
+    setBusy(true);
+    try {
+      const r = await sendQuote(q, withPicture && card?.data ? card : null);
+      if (r === 'copied') toast('Copied — paste it anywhere');
+      close();
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div class="sheet-backdrop" onClick={close}>
+      <div class="sheet share-quote" onClick={(e) => e.stopPropagation()}>
+        <div class="sheet-handle" />
+        <h3>Share quote</h3>
+        <div class="sq-preview">{card?.data ? <img src={`data:image/jpeg;base64,${card.data}`} alt="Quote card" /> : <span class="spinner" />}</div>
+        <div class="chips sq-styles">
+          {CARD_STYLES.map((k) => (
+            <button class={'pill small' + (style === k ? ' active' : '')} onClick={() => cardStyle.set(k)}>
+              {STYLE_NAMES[k]}
+            </button>
+          ))}
+        </div>
+        {card?.cut && <p class="sq-hint">Too long for the picture, so it's shortened there — the full text goes with it in the message.</p>}
+        <div class="sq-actions">
+          <button class="btn primary" disabled={busy || !card?.data} onClick={() => send(true)}>
+            {busy ? <span class="spinner" /> : <Icon name="upload" size={16} />} Share picture
+          </button>
+          <button class="btn secondary" disabled={busy} onClick={() => send(false)}>
+            Share as text
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

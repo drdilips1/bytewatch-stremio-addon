@@ -39,7 +39,7 @@ import { cloud, hc, gr } from './sources/index.js';
 import { toast } from './components/common.jsx';
 import { KindleChooser } from './components/kindle-chooser.jsx';
 import { WhatsNew } from './components/whats-new.jsx';
-import { SharedQuoteSheet } from './components/shared-quote.jsx';
+import { SharedQuoteSheet, ShareQuoteSheet } from './components/shared-quote.jsx';
 import { parseQuoteLink, openSharedQuote } from './lib/quoteshare.js';
 
 const TABS = [
@@ -179,6 +179,7 @@ export function App() {
       <KindleChooser />
       <WhatsNew />
       <SharedQuoteSheet />
+      <ShareQuoteSheet />
       <Toaster />
     </div>
   );

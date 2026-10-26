@@ -9,6 +9,7 @@ export const CHANGES = [
     title: 'Select by sliding, and fixes',
     items: [
       ['👆', 'Press, hold and slide', 'In ebooks, press on a word, hold a moment, then slide your finger — the selection follows it, word by word (the page scrolls at the edges). Lift, then Highlight.'],
+      ['💬', 'Nicer quote sharing', 'Pick the look (Paper, Cover colours, Night) with a preview; text set like a book page. The message is just the book and a short “Open in Audiohub” link — and a long note goes in full as text, or share it all as text.'],
       ['📖', 'The ebook follows the audiobook', 'An ebook attached to an audiobook now works for every copy of it — another source, a download — so the Text view shows the book’s real words, not misheard ones.'],
     ],
   },

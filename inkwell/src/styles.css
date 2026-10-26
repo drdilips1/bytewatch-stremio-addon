@@ -9925,13 +9925,15 @@ button.notes-book-head {
 .shared-quote .sq-book small {
   opacity: 0.7;
 }
-.shared-quote .sq-actions {
+.shared-quote .sq-actions,
+.share-quote .sq-actions {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
   gap: 10px;
   margin-top: 16px;
 }
-.shared-quote .sq-hint {
+.shared-quote .sq-hint,
+.share-quote .sq-hint {
   font-size: 13px;
   opacity: 0.65;
   margin: 12px 0 0;
@@ -9988,4 +9990,19 @@ button.notes-book-head {
 }
 .reader-text {
   -webkit-touch-callout: none;
+}
+.share-quote .sq-preview {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  margin: 8px 0 12px;
+}
+.share-quote .sq-preview img {
+  width: min(62vw, 280px);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.share-quote .sq-styles {
+  justify-content: center;
+  margin-bottom: 8px;
 }

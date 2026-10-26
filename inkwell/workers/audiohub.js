@@ -383,9 +383,8 @@ function readQuote(data) {
     return null;
   }
 }
-function quotePage(data, origin) {
-  const d = readQuote(data);
-  if (!d) return new Response("This shared quote link is broken.", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+function quotePage(data, origin, d = readQuote(data)) {
+  if (!d) return new Response("This shared quote link is broken or has expired.", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   const audio = d.k !== "e";
   const at = audio && d.g != null ? fmtAt(d.g) : "";
   const where = audio ? (at ? `audiobook at ${at}` : "audiobook") : "ebook";
@@ -425,7 +424,7 @@ main{width:100%;max-width:520px;padding:28px 18px 40px}
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env = {}) {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -474,6 +473,32 @@ export default {
       // AudiobookBay debrid cache notifications
       if (path === "/abb/api/debrid-notify" && request.method === "POST") {
         return await proxy(`${ABB_PROXY}/abb/api/debrid-notify`, request, "POST");
+      }
+
+      // Short quote links (the quote kept in the QUOTES KV store, when it's bound):
+      // POST /q {quote} -> { id }; GET /q/s/<id> (the page), /q/s/<id>.json (for the app)
+      if (path === "/q" && request.method === "POST") {
+        if (!env.QUOTES) return reply(JSON.stringify({ error: "Short links aren't set up" }), 501);
+        const text = await request.text();
+        let d = null;
+        try {
+          d = JSON.parse(text);
+        } catch {}
+        if (!d || !d.t || !d.q || text.length > 4000) return reply(JSON.stringify({ error: "Not a quote" }), 400);
+        const abc = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+        const id = Array.from(crypto.getRandomValues(new Uint8Array(7)), (b) => abc[b % abc.length]).join("");
+        await env.QUOTES.put(id, text);
+        return reply(JSON.stringify({ id, url: `${url.origin}/q/s/${id}` }));
+      }
+      const kept = /^\/q\/s\/([A-Za-z0-9]{5,12})(\.json)?$/.exec(path);
+      if (kept && request.method === "GET") {
+        const text = env.QUOTES ? await env.QUOTES.get(kept[1]) : null;
+        if (kept[2]) return text ? reply(text) : reply(JSON.stringify({ error: "No such quote" }), 404);
+        let d = null;
+        try {
+          d = text && JSON.parse(text);
+        } catch {}
+        return quotePage(`s/${kept[1]}`, url.origin, d);
       }
 
       // Shared quotes: /q/<data>
