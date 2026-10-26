@@ -27,7 +27,18 @@ const trackerWords = (name, book) => {
   return mainTitle(parts.slice(0, 2).join(' ')).split(/\s+/).slice(0, 8).join(' ');
 };
 import { openExternal } from '../sources/summaries.js';
-import { directEbookFile, directReaderBook, loadCloudEbook, savedEbooks, cloudReaderBook } from '../lib/epub.js';
+import { directEbookFile, directReaderBook, loadCloudEbook, savedEbooks, cloudReaderBook, probeEbook } from '../lib/epub.js';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+const WebPlugin = registerPlugin('InkwellWeb');
+const canSaveFiles = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
+const MIMES = { EPUB: 'application/epub+zip', PDF: 'application/pdf', MOBI: 'application/x-mobipocket-ebook', AZW3: 'application/vnd.amazon.ebook', DJVU: 'image/vnd.djvu' };
+/** Any ebook file into the phone's Downloads folder (open it with any reader app). */
+async function saveToDownloads(link, name, format) {
+  if (!canSaveFiles) return window.open(link, '_blank');
+  await WebPlugin.saveToDownloads({ url: link, name, mime: MIMES[format] || 'application/octet-stream' });
+  toast(`Saving “${name}” to Downloads — see the notification`);
+}
 import { shareEbook } from '../lib/kindle.js';
 
 const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
@@ -521,6 +532,31 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   const rb = readable ? directReaderBook(r, ebook, book) : null;
   const kept = useStore(savedEbooks);
   const saved = !!(rb && kept[rb.uid]);
+  // A file whose type the source didn't give: fetch it and see what it is. EPUB / PDF
+  // open in the reader (or are kept in the app); anything else goes to Downloads.
+  const unknownEbook = !hasMagnet && !ebook && /^https?:/i.test(r.link || '') && isEbookResult(r);
+  const probe = async (then) => {
+    setBusy(then);
+    setStatus({ text: 'Looking at the file…', pct: null });
+    try {
+      const file = await probeEbook(r);
+      const fmt = file?.format || '';
+      const name = file?.name || `${String(r.title || 'Book').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 90)}`;
+      if (fmt === 'EPUB' || fmt === 'PDF') {
+        const rb2 = directReaderBook(r, file, book);
+        if (then === 'probe-read') return nav.push('reader', { book: rb2 });
+        await loadCloudEbook(rb2);
+        return toast(`It's ${fmt === 'EPUB' ? 'an EPUB' : 'a PDF'} — saved on this phone (Library → Ebooks → Downloaded)`);
+      }
+      if (then === 'probe-read') toast(fmt ? `It's a ${fmt} file — the app can't read those, so it's going to Downloads` : "Couldn't tell what file this is — it's going to Downloads");
+      await saveToDownloads(r.link, name, fmt);
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setStatus(null);
+      setBusy(null);
+    }
+  };
   const saveEbook = async () => {
     setBusy('save-ebook');
     setStatus({ text: 'Downloading the ebook…', pct: null });
@@ -634,6 +670,28 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
             >
               {busy === 'share' ? <span class="spinner" /> : <Icon name="upload" size={readable ? 14 : 16} />}{' '}
               {readable ? 'Kindle' : 'Kindle / open in app'}
+            </button>
+            {!readable && (
+              <button
+                class="btn secondary play-alt"
+                disabled={!!busy}
+                onClick={() => saveToDownloads(r.link, ebook.name, ebook.format).catch((e) => toast(e.message))}
+                aria-label="Save to this phone's Downloads"
+              >
+                <Icon name="download" size={14} /> Save
+              </button>
+            )}
+            <a class="btn secondary play-alt src-web" href={r.link} target="_blank" rel="noopener" aria-label="Open in browser">
+              <Icon name="external" size={14} />
+            </a>
+          </>
+        ) : unknownEbook ? (
+          <>
+            <button class="btn primary" disabled={!!busy} onClick={() => probe('probe-read')}>
+              {busy === 'probe-read' ? <span class="spinner" /> : <Icon name="book" size={16} />} Read
+            </button>
+            <button class="btn secondary play-alt" disabled={!!busy} onClick={() => probe('probe-save')} aria-label="Save to this phone">
+              {busy === 'probe-save' ? <span class="spinner" /> : <Icon name="download" size={14} />} Save
             </button>
             <a class="btn secondary play-alt src-web" href={r.link} target="_blank" rel="noopener" aria-label="Open in browser">
               <Icon name="external" size={14} />

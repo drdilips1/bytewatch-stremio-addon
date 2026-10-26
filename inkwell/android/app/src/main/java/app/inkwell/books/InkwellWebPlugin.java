@@ -349,6 +349,29 @@ public class InkwellWebPlugin extends Plugin {
         }
     }
 
+    /** Save a file from the web into the phone's Downloads folder (with a notification). */
+    @PluginMethod
+    public void saveToDownloads(PluginCall call) {
+        String url = call.getString("url");
+        String name = call.getString("name", "book").replaceAll("[\\\\/:*?\"<>|]", " ").trim();
+        if (url == null) {
+            call.reject("Missing url");
+            return;
+        }
+        try {
+            android.app.DownloadManager dm = (android.app.DownloadManager) getContext().getSystemService(android.content.Context.DOWNLOAD_SERVICE);
+            android.app.DownloadManager.Request req = new android.app.DownloadManager.Request(Uri.parse(url));
+            req.setTitle(name);
+            req.setMimeType(call.getString("mime", "application/octet-stream"));
+            req.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            req.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, name);
+            dm.enqueue(req);
+            call.resolve();
+        } catch (Throwable e) {
+            call.reject("Couldn't save it: " + e.getMessage());
+        }
+    }
+
     /** A download that is really an HTML page (login, captcha, error) rather than the file. */
     private static boolean looksLikeWebPage(File f) {
         try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {

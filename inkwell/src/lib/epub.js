@@ -265,6 +265,25 @@ export function directEbookFile(r) {
   return { name, format: fmt, size: r.size || 0, resolve: async () => link };
 }
 
+/** What an ebook file really is, from its first bytes ('' when it isn't one we know). */
+export function sniffFormat(b) {
+  const at = (i, text) => [...text].every((c, k) => b[i + k] === c.charCodeAt(0));
+  if (at(0, '%PDF')) return 'PDF';
+  if (at(0, 'PK')) return new TextDecoder().decode(b.slice(0, 120)).includes('application/epub+zip') ? 'EPUB' : 'ZIP';
+  if (at(60, 'BOOKMOBI')) return 'MOBI';
+  if (at(0, 'AT&TFORM')) return 'DJVU';
+  return '';
+}
+
+/** A source result whose file type wasn't given: fetch it and look. The file (with its format), or null. */
+export async function probeEbook(r) {
+  const bytes = await getBytes(r.link);
+  const fmt = sniffFormat(bytes);
+  if (!fmt || fmt === 'ZIP') return null;
+  const name = `${String(r.title || 'Book').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\[[^\]]*\]\s*/g, '').trim().slice(0, 90)}.${fmt.toLowerCase()}`;
+  return { name, format: fmt, size: bytes.length, resolve: async () => r.link };
+}
+
 /** The book to open in the reader for a source result's direct EPUB link. */
 export const directReaderBook = (r, file, book) => ({
   uid: `src:${hashStr(r.link)}#ebook`,
