@@ -288,7 +288,9 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     else startAloud(all.indexOf(target), true);
   };
   // A different voice picked while reading: carry on in it from the same paragraph.
-  const voice = JSON.stringify(voiceSpec(useStore(ttsCfg)));
+  const voiceCfg = useStore(ttsCfg);
+  const voiceRate = voiceCfg.rate || 1;
+  const voice = JSON.stringify(voiceSpec(voiceCfg));
   const lastVoice = useRef(voice);
   useEffect(() => {
     if (voice === lastVoice.current) return;
@@ -684,6 +686,19 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
           </button>
           <button class="icon-btn" onClick={() => startAloud(aloud.index + 1, aloudAll.current)} aria-label="Next paragraph">
             <Icon name="next" size={20} />
+          </button>
+          <button
+            class="pill small aloud-rate"
+            aria-label="Reading speed"
+            onClick={() => {
+              const SPEEDS = [0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+              const cur = ttsCfg.get().rate || 1;
+              const next = SPEEDS[(SPEEDS.findIndex((r) => r >= cur - 0.001) + 1) % SPEEDS.length];
+              ttsCfg.patch({ rate: next });
+              if (ctl.current?.native) ctl.current.setRate(next); // reading now: faster at once
+            }}
+          >
+            {+voiceRate.toFixed(2)}×
           </button>
           <span class="aloud-label">{nativeReader ? 'Keeps reading with the screen off · double-tap a paragraph to read from there' : 'Double-tap a paragraph to read from there'}</span>
           <button class="icon-btn" onClick={() => setPanel(panel === 'listen' ? null : 'listen')} aria-label="Choose a voice">

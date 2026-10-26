@@ -10006,3 +10006,8 @@ button.notes-book-head {
   justify-content: center;
   margin-bottom: 8px;
 }
+.aloud-rate {
+  flex: none;
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
