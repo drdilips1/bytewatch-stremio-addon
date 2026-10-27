@@ -47,7 +47,9 @@ function follow(elements, { onIndex, onDone, onError, onState } = {}) {
 
 function nativeReadAloud(elements, from, handlers, meta) {
   // meta.paras / meta.voice: what to say and in which voice, when not the page as shown (a translation).
-  const paras = meta?.paras || elements.map((el) => blockText(el));
+  // The app reads its own paragraphs (idx below): their text needn't be sent (a long book's is too much to send).
+  const own = !meta?.paras && elements.every((el) => el.closest('[data-i]'));
+  const paras = meta?.paras || (own ? [] : elements.map((el) => blockText(el)));
   const chapters = [];
   elements.forEach((el, i) => /^H[1-3]$/.test(el.tagName) && chapters.push({ para: i, title: speakable(el.textContent).slice(0, 80) }));
   const ctl = follow(elements, handlers);

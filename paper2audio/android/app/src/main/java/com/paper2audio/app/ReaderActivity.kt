@@ -201,6 +201,9 @@ class ReaderActivity : Activity() {
                     val url = request.url
                     if (url.host != HOST) return null
                     val path = url.path.orEmpty().trimStart('/')
+                    if (path == "book.html") return runCatching {
+                        WebResourceResponse("text/html", "utf-8", bookFile().inputStream())
+                    }.getOrNull()
                     return runCatching {
                         WebResourceResponse(mime(path), if (mime(path).startsWith("text") || path.endsWith(".js")) "utf-8" else null, assets.open(path))
                     }.getOrNull()
@@ -391,7 +394,10 @@ class ReaderActivity : Activity() {
      * highlight follow the app's own paragraphs.
      */
     private fun book(d: Doc): JSONObject {
-        val html = StringBuilder(d.paragraphs.sumOf { it.length } + d.paragraphs.size * 24)
+        // The page's text goes into a file the page then loads (bookFile): a long book as one message
+        // was more than the app's memory (a 61,000-paragraph book needed over 250 MB to send).
+        val file = bookFile()
+        val html = file.bufferedWriter()
         val starts = d.chapters.groupBy { it.start }
         var blocks = 0
         var at = 0
@@ -405,7 +411,7 @@ class ReaderActivity : Activity() {
             val heading = starts[i]?.lastOrNull()?.title
             val text = TextUtils.htmlEncode(p)
             if (heading != null && heading.trim().equals(p.trim(), ignoreCase = true)) {
-                html.append("<h2 id=\"c").append(i).append("\" data-i=\"").append(i).append("\">").append(text).append("</h2>\n")
+                html.append("<h2 id=\"c").append(i.toString()).append("\" data-i=\"").append(i.toString()).append("\">").append(text).append("</h2>\n")
                 headings.put(JSONObject().put("id", "c$i").put("text", heading.trim()).put("level", 2))
                 blockOf[i] = blocks
                 blocks++
@@ -413,17 +419,18 @@ class ReaderActivity : Activity() {
                 continue
             }
             if (heading != null) {
-                html.append("<h2 id=\"c").append(i).append("\" data-i=\"").append(i).append("\">").append(TextUtils.htmlEncode(heading)).append("</h2>\n")
+                html.append("<h2 id=\"c").append(i.toString()).append("\" data-i=\"").append(i.toString()).append("\">").append(TextUtils.htmlEncode(heading)).append("</h2>\n")
                 headings.put(JSONObject().put("id", "c$i").put("text", heading.trim()).put("level", 2))
                 if (i == Speaker.index) at = blocks + 1
                 blocks++
                 map += i
             }
-            html.append("<p data-i=\"").append(i).append("\">").append(text).append("</p>\n")
+            html.append("<p data-i=\"").append(i.toString()).append("\">").append(text).append("</p>\n")
             blockOf[i] = blocks
             blocks++
             map += i
         }
+        html.close()
         idx = map.toIntArray()
         val item = item()
         return JSONObject()
@@ -431,7 +438,7 @@ class ReaderActivity : Activity() {
             .put("id", d.key)
             .put("title", item?.title ?: d.title)
             .put("author", item?.author ?: d.author ?: "")
-            .put("html", html.toString())
+            .put("htmlUrl", "https://$HOST/book.html?v=${System.currentTimeMillis()}")
             .put("headings", headings)
             .put("accent", String.format("#%06X", Themes.color(this, R.attr.p2aAccent) and 0xFFFFFF))
             .put("marks", JSONArray().apply {
@@ -447,6 +454,9 @@ class ReaderActivity : Activity() {
             .put("rate", Speaker.speed.toDouble())
             .apply { if (item?.kind == Loader.Kind.PDF) put("pdf", JSONObject()) }
     }
+
+    /** The book as the page shows it (see [book]). */
+    private fun bookFile() = File(File(cacheDir, "reader").apply { mkdirs() }, "book.html")
 
     private fun keepFile(a: JSONObject): File {
         val name = a.optString("name").replace(Regex("[^A-Za-z0-9._-]"), "_").take(80).ifBlank { error("No name") }
