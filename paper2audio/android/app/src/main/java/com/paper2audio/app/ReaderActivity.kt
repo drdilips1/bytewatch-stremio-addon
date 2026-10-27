@@ -2,6 +2,7 @@ package com.paper2audio.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Typeface
 import android.media.MediaPlayer
@@ -17,6 +18,8 @@ import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageButton
+import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -58,8 +61,39 @@ class ReaderActivity : Activity() {
     private lateinit var btnSpeed: Button
     private lateinit var btnVoice: Button
     private lateinit var btnSleep: Button
+    private lateinit var taskBox: LinearLayout
+    private lateinit var taskText: TextView
+    private lateinit var taskProgress: ProgressBar
+    private lateinit var taskOpen: Button
+    private lateinit var taskCancel: Button
+    private val prefs by lazy { getSharedPreferences("p2a", MODE_PRIVATE) }
     private var draggingPosition = false
+    private var exportWasRunning = Exporter.running
+    private var exportDone = true
     private val refresh: () -> Unit = { runOnUiThread { render(); sendState() } }
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * The words being read, as on the player screen: the sentence marked and the word being spoken in the
+     * accent color (sent to the page several times a second while the voice reads).
+     */
+    private var spokenSent: String? = null
+    private val follower = object : Runnable {
+        override fun run() {
+            sendSpoken()
+            handler.postDelayed(this, 120)
+        }
+    }
+
+    private fun sendSpoken() {
+        if (!::web.isInitialized || Speaker.doc !== doc) return
+        val piece = Speaker.currentPiece
+        val data = JSONObject().put("i", Speaker.index).put("piece", piece ?: "").put("playing", Speaker.playing)
+            .put("p", if (Speaker.playing) Speaker.pieceProgress().toDouble() else 0.0).toString()
+        if (data == spokenSent) return
+        spokenSent = data
+        web.evaluateJavascript("window.__p2aSpoken && window.__p2aSpoken($data)", null)
+    }
 
     /** Whether the page follows the voice (its Read aloud is attached to the player). */
     private var wasPlaying = false
@@ -78,6 +112,22 @@ class ReaderActivity : Activity() {
         btnSpeed = findViewById(R.id.btnSpeed)
         btnVoice = findViewById(R.id.btnVoice)
         btnSleep = findViewById(R.id.btnSleep)
+        taskBox = findViewById(R.id.taskBox)
+        taskText = findViewById(R.id.taskText)
+        taskProgress = findViewById(R.id.taskProgress)
+        taskOpen = findViewById(R.id.taskOpen)
+        taskCancel = findViewById(R.id.taskCancel)
+        taskCancel.setOnClickListener {
+            when {
+                Exporter.running -> Exporter.cancel()
+                ModelPack.active != null -> ModelPack.active?.cancelInstall()
+                else -> {
+                    exportDone = true
+                    render()
+                }
+            }
+        }
+        taskOpen.setOnClickListener { openAudio() }
         btnPlay.setOnClickListener {
             if (BuildConfig.LITE) LiteUi.askNotifications(this)
             // Playing: pause. Otherwise the reader's Read aloud starts (from the paragraph on screen,
@@ -91,9 +141,15 @@ class ReaderActivity : Activity() {
         btnSpeed.setOnClickListener { LiteUi.showSpeed(this) { render() } }
         btnVoice.setOnClickListener { pickVoice() }
         btnSleep.setOnClickListener { LiteUi.showSleep(this) { render() } }
-        // The player screen (the text as the player shows it, and all its options).
-        findViewById<View>(R.id.btnListen).setOnClickListener {
-            startActivity(Intent(this, if (BuildConfig.LITE) LitePlayerActivity::class.java else PlayerActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        // Narrato: More (the player screen's options, here). Paper to Audio: back to its player screen.
+        val more = findViewById<Button>(R.id.btnListen)
+        if (BuildConfig.LITE) {
+            more.text = "More"
+            more.setCompoundDrawablesRelativeWithIntrinsicBounds(0, R.drawable.ic_more, 0, 0)
+            more.contentDescription = "More: pronunciations, save the text, report a problem"
+            more.setOnClickListener { showMore() }
+        } else more.setOnClickListener {
+            startActivity(Intent(this, PlayerActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
         }
         position.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar, p: Int, fromUser: Boolean) {
@@ -159,6 +215,20 @@ class ReaderActivity : Activity() {
         render()
     }
 
+    override fun onStart() {
+        super.onStart()
+        Exporter.addListener(refresh)
+        ModelPack.addListener(refresh)
+        handler.post(follower)
+    }
+
+    override fun onStop() {
+        Exporter.removeListener(refresh)
+        ModelPack.removeListener(refresh)
+        handler.removeCallbacks(follower)
+        super.onStop()
+    }
+
     override fun onResume() {
         super.onResume()
         // Another book opened meanwhile (from the player or Home): show that one.
@@ -176,12 +246,19 @@ class ReaderActivity : Activity() {
 
     @Deprecated("Back closes what the reader has open first")
     override fun onBackPressed() {
-        if (!::web.isInitialized) return finish()
-        web.evaluateJavascript("window.__p2aBack ? (window.__p2aBack(), 1) : 0") { if (it != "1") finish() }
+        if (!::web.isInitialized) return leave()
+        web.evaluateJavascript("window.__p2aBack ? (window.__p2aBack(), 1) : 0") { if (it != "1") leave() }
+    }
+
+    /** Back to the library; a natural break for an ad when not listening (as from the player). */
+    private fun leave() {
+        if (BuildConfig.LITE) Ads.interstitial(this, "leave") { finish() } else finish()
     }
 
     /** The controls as on the player screen: play, speed, voice, sleep timer, where in the book. */
     private fun render() {
+        if (BuildConfig.LITE) suggestLighterVoice()
+        renderTask()
         val d = Speaker.doc
         btnPlay.setImageResource(if (Speaker.playing) R.drawable.ic_pause else R.drawable.ic_play)
         btnPlay.contentDescription = if (Speaker.playing) "Pause" else "Play"
@@ -264,7 +341,8 @@ class ReaderActivity : Activity() {
         val ok = JSONObject()
         return when ("$plugin.$method") {
             "P2AReader.book" -> withContext(Dispatchers.Default) { book(d) }
-            "P2AReader.close" -> ok.also { finish() }
+            "P2AReader.close" -> ok.also { leave() }
+            "P2AReader.pronounce" -> ok.also { Pronounce.show(this, a.optString("word").trim().trim('“', '”', '"', '\'', ',', '.', '!', '?', ';', ':')) }
             "P2AReader.voice" -> JSONObject().put("name", voiceName())
             "P2AReader.pickVoice" -> ok.also { pickVoice() }
             "P2AReader.pages" -> ok.also {
@@ -318,6 +396,8 @@ class ReaderActivity : Activity() {
         var blocks = 0
         var at = 0
         val map = ArrayList<Int>()
+        // Each paragraph's block on the page (for the highlights and notes made on the player screen).
+        val blockOf = IntArray(d.paragraphs.size)
         // The chapters, for the reader's Contents (each heading's id on the page).
         val headings = JSONArray()
         for ((i, p) in d.paragraphs.withIndex()) {
@@ -327,6 +407,7 @@ class ReaderActivity : Activity() {
             if (heading != null && heading.trim().equals(p.trim(), ignoreCase = true)) {
                 html.append("<h2 id=\"c").append(i).append("\" data-i=\"").append(i).append("\">").append(text).append("</h2>\n")
                 headings.put(JSONObject().put("id", "c$i").put("text", heading.trim()).put("level", 2))
+                blockOf[i] = blocks
                 blocks++
                 map += i
                 continue
@@ -339,6 +420,7 @@ class ReaderActivity : Activity() {
                 map += i
             }
             html.append("<p data-i=\"").append(i).append("\">").append(text).append("</p>\n")
+            blockOf[i] = blocks
             blocks++
             map += i
         }
@@ -351,6 +433,16 @@ class ReaderActivity : Activity() {
             .put("author", item?.author ?: d.author ?: "")
             .put("html", html.toString())
             .put("headings", headings)
+            .put("accent", String.format("#%06X", Themes.color(this, R.attr.p2aAccent) and 0xFFFFFF))
+            .put("marks", JSONArray().apply {
+                for (n in item?.let { Library.notes(it) }.orEmpty()) {
+                    if (!n.isSpan) continue
+                    val para = d.paragraphs.getOrNull(n.index) ?: continue
+                    val words = para.substring(n.start.coerceAtMost(para.length), n.end.coerceAtMost(para.length))
+                    if (words.isBlank()) continue
+                    put(JSONObject().put("key", "${n.index}:${n.start}:${n.end}:${n.at}").put("a", blockOf[n.index]).put("t", words).put("note", n.text))
+                }
+            })
             .put("at", at)
             .put("rate", Speaker.speed.toDouble())
             .apply { if (item?.kind == Loader.Kind.PDF) put("pdf", JSONObject()) }
@@ -515,6 +607,144 @@ class ReaderActivity : Activity() {
         fun state(): JSONObject = JSONObject()
             .put("active", true).put("uid", doc?.key ?: "").put("para", at.coerceAtMost(paras.size - 1).coerceAtLeast(0))
             .put("playing", playing).put("finished", finished)
+    }
+
+    // ---- Narrato: the player screen's options, here ------------------------------------------
+
+    private fun showMore() {
+        val item = Library.get(this, Library.currentId)
+        val d = Speaker.doc
+        LiteSheet(this, d?.title, null)
+            .row(R.drawable.ic_voice, "Pronunciations", "Fix how words are said (or select a word, then Pronounce)") { Pronounce.show(this) }
+            .apply {
+                // A PDF: its pages as printed (the reader shows the text reflowed).
+                if (item?.kind == Loader.Kind.PDF && d != null) row(R.drawable.ic_doc, "Original pages", "The PDF as printed, near where you are") {
+                    PdfPages.show(this@ReaderActivity, Library.source(this@ReaderActivity, item).file, Speaker.index.toFloat() / d.paragraphs.size.coerceAtLeast(1))
+                }
+            }
+            .row(R.drawable.ic_text, "Save the text", "As plain text, Markdown or PDF") { exportTranscript() }
+            .row(R.drawable.ic_bug, "Report a problem", "Share the app's error log to get it fixed") { AppLog.showReport(this) }
+            .show()
+    }
+
+    private fun exportTranscript() {
+        val d = Speaker.doc ?: return
+        val sheet = LiteSheet(this, "Save the text", "Saved in Downloads/${Brand.folder(this)}")
+        for (format in Transcript.Format.values()) sheet.row(R.drawable.ic_doc, format.label, null) {
+            scope.launch {
+                try {
+                    val uri = withContext(Dispatchers.IO) { Transcript.save(this@ReaderActivity, d, format, emptySet()) }
+                    AlertDialog.Builder(this@ReaderActivity)
+                        .setTitle("Saved")
+                        .setMessage("In Downloads/${Brand.folder(this@ReaderActivity)}.")
+                        .setPositiveButton("Share") { _, _ ->
+                            runCatching {
+                                startActivity(Intent.createChooser(
+                                    Intent(Intent.ACTION_SEND).setType(format.mime).putExtra(Intent.EXTRA_STREAM, uri)
+                                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "Share"))
+                            }
+                        }
+                        .setNegativeButton("Close", null)
+                        .show()
+                } catch (e: Exception) {
+                    AppLog.e("Transcript", "Export failed", e)
+                    Toast.makeText(this@ReaderActivity, "Couldn't save: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        sheet.show()
+    }
+
+    /** Audiobook conversion or voice download in progress (or just finished), as on the player screen. */
+    private fun renderTask() {
+        val pack = ModelPack.active
+        when {
+            Exporter.running -> {
+                exportWasRunning = true
+                exportDone = false
+                taskBox.visibility = View.VISIBLE
+                taskText.text = "Making the audiobook: " + (Exporter.message ?: "starting…")
+                taskProgress.visibility = View.VISIBLE
+                taskProgress.isIndeterminate = Exporter.progress == 0
+                taskProgress.progress = Exporter.progress
+                val ready = Exporter.lastFinished != null && Exporter.filesTotal > 1
+                taskOpen.visibility = if (ready) View.VISIBLE else View.GONE
+                if (ready) taskOpen.text = "Play ${Exporter.filesDone} of ${Exporter.filesTotal}"
+                taskCancel.text = "Stop"
+            }
+            pack != null -> {
+                taskBox.visibility = View.VISIBLE
+                taskText.text = pack.message ?: "Downloading ${pack.title}…"
+                taskProgress.visibility = View.VISIBLE
+                taskProgress.isIndeterminate = pack.progress == 0
+                taskProgress.progress = pack.progress
+                taskOpen.visibility = View.GONE
+                taskCancel.text = "Pause"
+            }
+            exportWasRunning -> {
+                exportWasRunning = false
+                if (BuildConfig.LITE && Exporter.resultUri != null) Ads.interstitial(this, "audiobook")
+                showTaskResult()
+            }
+            !exportDone -> showTaskResult()
+            else -> taskBox.visibility = View.GONE
+        }
+    }
+
+    private fun showTaskResult() {
+        taskBox.visibility = View.VISIBLE
+        taskText.text = Exporter.message ?: ""
+        taskProgress.visibility = View.GONE
+        taskOpen.visibility = if (Exporter.resultUri != null) View.VISIBLE else View.GONE
+        taskOpen.text = "Open"
+        taskCancel.text = "Close"
+    }
+
+    private fun openAudio() {
+        val uri = (if (Exporter.running) Exporter.lastFinished else Exporter.resultUri) ?: return
+        try {
+            startActivity(
+                Intent(Intent.ACTION_VIEW).setDataAndType(uri, contentResolver.getType(uri) ?: "audio/*")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            )
+        } catch (e: Exception) {
+            Toast.makeText(this, "Saved in Downloads/${Brand.folder(this)}. No audio player was found to open it.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private var lighterAsked = false
+    private var lighterCheckedAt = 0L
+
+    /**
+     * A real reader's voice on a phone too slow for it (reading keeps pausing), or on a low battery: offer a
+     * Supertonic voice, as the player screen does. Once per screen, and the low-battery one once a day.
+     */
+    private fun suggestLighterVoice() {
+        if (lighterAsked || !Speaker.playing || !Speaker.voiceId.startsWith(Speaker.CLONE)) return
+        val now = System.currentTimeMillis()
+        if (now - lighterCheckedAt < 30_000) return
+        lighterCheckedAt = now
+        val slow = RenderSpeed.tooSlow(this, Speaker.voiceId, Speaker.renderSpeed) && !prefs.getBoolean("keepSlowVoice", false)
+        val battery = getSystemService(android.os.BatteryManager::class.java)
+        val level = battery?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
+        val today = java.time.LocalDate.now().toString()
+        val low = level in 1..20 && battery?.isCharging != true && prefs.getString("lowBatteryAsked", "") != today
+        if (!slow && !low) return
+        lighterAsked = true
+        if (low && !slow) prefs.edit().putString("lowBatteryAsked", today).apply()
+        val ready = LocalTts.SUPERTONIC_PACK.isInstalled()
+        val message = (if (slow) "This phone makes the real readers' voices more slowly than they are read, so listening keeps pausing. " +
+            "Supertonic voices run smoothly here and use about a third of the power."
+        else "Battery is at $level%. The real readers' voices take a lot of power; a Supertonic voice uses about a third.") +
+            if (ready) "" else "\n\nSupertonic is a one-time ${LocalTts.SUPERTONIC_PACK.sizeMb} MB download."
+        AlertDialog.Builder(this)
+            .setTitle(if (slow) "A smoother voice for this phone" else "Save battery?")
+            .setMessage(message)
+            .setPositiveButton(if (ready) "Use Lena" else "Choose a voice") { _, _ ->
+                if (ready) Speaker.setVoice(Speaker.SUPER + "F2") else LiteUi.showVoices(this) { render() }
+            }
+            .setNegativeButton("Keep this voice") { _, _ -> if (slow) prefs.edit().putBoolean("keepSlowVoice", true).apply() }
+            .show()
     }
 
     companion object {

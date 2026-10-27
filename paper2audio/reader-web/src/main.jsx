@@ -3,6 +3,8 @@ import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import './styles.css';
 import './app.css';
+import './spoken.js';
+import { addHighlight } from './lib/highlights.js';
 import { Reader } from './screens/Reader.jsx';
 import { Toaster } from './components/common.jsx';
 import { applyTheme } from './lib/theme.js';
@@ -27,6 +29,19 @@ function Main() {
       .then((b) => {
         // The book's place in the reader: where it was left, or else where it's being listened to.
         setBook({ ...b, at: progress.get()[b.uid] ? null : b.at });
+        // The app's accent color, for the words being read.
+        if (b.accent) document.documentElement.style.setProperty('--p2a-accent', b.accent);
+        // Highlights and notes made on the app's player screen: shown here too (once each).
+        try {
+          const done = new Set(JSON.parse(localStorage.getItem('p2a:marks') || '[]'));
+          for (const m of b.marks || []) {
+            const key = b.uid + '|' + m.key;
+            if (done.has(key)) continue;
+            addHighlight(b, [{ a: m.a, t: m.t }], m.note || '');
+            done.add(key);
+          }
+          localStorage.setItem('p2a:marks', JSON.stringify([...done]));
+        } catch {}
         // The reading speed shown is the app's (the player's speed).
         if (b.rate) ttsCfg.patch({ rate: b.rate });
         nav.push('reader');

@@ -71,7 +71,7 @@ class ReaderService : Service() {
             setSessionActivity(
                 PendingIntent.getActivity(
                     this@ReaderService, 1,
-                    Intent(this@ReaderService, PlayerActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                    Intent(this@ReaderService, if (BuildConfig.LITE) ReaderActivity::class.java else PlayerActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
                     PendingIntent.FLAG_IMMUTABLE,
                 )
             )
@@ -144,7 +144,7 @@ class ReaderService : Service() {
     private fun downloadNotification(pack: ModelPack): Notification {
         val open = PendingIntent.getActivity(
             this, 1,
-            Intent(this, if (BuildConfig.LITE) LitePlayerActivity::class.java else PlayerActivity::class.java)
+            Intent(this, if (BuildConfig.LITE) ReaderActivity::class.java else PlayerActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
@@ -201,7 +201,7 @@ class ReaderService : Service() {
         val doc = Speaker.doc
         val open = PendingIntent.getActivity(
             this, 0,
-            Intent(this, if (BuildConfig.LITE) LitePlayerActivity::class.java else PlayerActivity::class.java)
+            Intent(this, if (BuildConfig.LITE) ReaderActivity::class.java else PlayerActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE,
         )

@@ -40,6 +40,8 @@ export function SelectionBar({ sel, onAction, onGrow }) {
         <button class="hl-btn" onClick={() => onAction('highlight')}>
           Highlight
         </button>
+        {/* The app: fix how a word is said (every voice uses it). */}
+        {words <= 3 && <button onClick={() => onAction('pronounce')}>Pronounce</button>}
         {/* The AI's buttons: in Paper to Audio (Narrato has no AI). */}
         {aiReady() && (
           <>

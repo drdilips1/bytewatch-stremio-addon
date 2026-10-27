@@ -484,6 +484,11 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     const s = sel;
     if (!s) return;
     if (kind === 'highlight') return keepHighlight(s.parts);
+    if (kind === 'pronounce') {
+      window.getSelection()?.removeAllRanges();
+      setSel(null);
+      return void App.pronounce({ word: s.text }).catch(() => {});
+    }
     window.getSelection()?.removeAllRanges();
     setSel(null);
     setPanel(null);

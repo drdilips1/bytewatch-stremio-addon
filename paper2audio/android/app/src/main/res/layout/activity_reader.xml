@@ -19,6 +19,51 @@
         android:orientation="vertical"
         android:paddingBottom="6dp">
 
+        <LinearLayout
+            android:id="@+id/taskBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/taskText"
+                style="@style/P2A.Muted"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <ProgressBar
+                android:id="@+id/taskProgress"
+                style="@style/P2A.Progress"
+                android:layout_width="match_parent"
+                android:layout_height="8dp"
+                android:layout_marginTop="6dp"
+                android:max="100" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/taskOpen"
+                    style="@style/P2A.Button.Text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Open"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/taskCancel"
+                    style="@style/P2A.Button.Text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Stop" />
+            </LinearLayout>
+        </LinearLayout>
+
         <TextView
             android:id="@+id/status"
             style="@style/P2A.Muted"

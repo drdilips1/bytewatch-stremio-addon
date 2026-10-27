@@ -3,3 +3,11 @@
 .aloud-bar {
   display: none !important;
 }
+
+/* The words being read (see spoken.js): the sentence marked, the word being spoken in the accent color. */
+::highlight(p2a-sentence) {
+  background-color: color-mix(in srgb, var(--p2a-accent, var(--accent)) 22%, transparent);
+}
+::highlight(p2a-word) {
+  color: var(--p2a-accent, var(--accent));
+}

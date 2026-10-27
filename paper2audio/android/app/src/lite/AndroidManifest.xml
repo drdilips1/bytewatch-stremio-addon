@@ -50,6 +50,7 @@
             android:name=".ReaderActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="false"
+            android:launchMode="singleTop"
             android:parentActivityName=".LitePlayerActivity" />
 
         <activity
