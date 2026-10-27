@@ -318,18 +318,22 @@ class ReaderActivity : Activity() {
         var blocks = 0
         var at = 0
         val map = ArrayList<Int>()
+        // The chapters, for the reader's Contents (each heading's id on the page).
+        val headings = JSONArray()
         for ((i, p) in d.paragraphs.withIndex()) {
             if (i == Speaker.index) at = blocks
             val heading = starts[i]?.lastOrNull()?.title
             val text = TextUtils.htmlEncode(p)
             if (heading != null && heading.trim().equals(p.trim(), ignoreCase = true)) {
-                html.append("<h2 data-i=\"").append(i).append("\">").append(text).append("</h2>\n")
+                html.append("<h2 id=\"c").append(i).append("\" data-i=\"").append(i).append("\">").append(text).append("</h2>\n")
+                headings.put(JSONObject().put("id", "c$i").put("text", heading.trim()).put("level", 2))
                 blocks++
                 map += i
                 continue
             }
             if (heading != null) {
-                html.append("<h2 data-i=\"").append(i).append("\">").append(TextUtils.htmlEncode(heading)).append("</h2>\n")
+                html.append("<h2 id=\"c").append(i).append("\" data-i=\"").append(i).append("\">").append(TextUtils.htmlEncode(heading)).append("</h2>\n")
+                headings.put(JSONObject().put("id", "c$i").put("text", heading.trim()).put("level", 2))
                 if (i == Speaker.index) at = blocks + 1
                 blocks++
                 map += i
@@ -346,6 +350,7 @@ class ReaderActivity : Activity() {
             .put("title", item?.title ?: d.title)
             .put("author", item?.author ?: d.author ?: "")
             .put("html", html.toString())
+            .put("headings", headings)
             .put("at", at)
             .put("rate", Speaker.speed.toDouble())
             .apply { if (item?.kind == Loader.Kind.PDF) put("pdf", JSONObject()) }
