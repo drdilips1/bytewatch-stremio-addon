@@ -2,6 +2,18 @@
 
 Noted while building; to pick up after Saturday.
 
+## Planned for Saturday — "Audiohub Lite" (a third, stripped-down app)
+- Audiobooks only, played through debrid (TorBox / Real-Debrid) — that's all.
+- Left out completely: AI (Ask, X-Ray, Story, recaps, explain…), ebooks and the reader
+  (and everything ebook-related: ebook sources/results, Send to Kindle, highlights, translate,
+  transcript ebook matching), tracker / qBittorrent, Audiobookshelf, sync account / sign-in.
+- To decide then: built from the public app or the main app; its own name, icon and package id
+  (so it installs next to the others); which source add-ons it ships with (none, like public?).
+
+## Public app — don't push anything until asked (27 Oct)
+- The ebook reader port (slide-select, Notes panel, translate, speed, safe highlights) is parked
+  on the public `work` branch (commit cdc3595) — not built, not released. Quote sharing left out.
+
 ## Reported 24 Oct (v1.0.125) — fixed, not built yet
 - Transcript: the text does move with the audio, but the current line's highlight is too faint
   (low contrast, hard to see). And the current line sits too high, partly hidden under the
