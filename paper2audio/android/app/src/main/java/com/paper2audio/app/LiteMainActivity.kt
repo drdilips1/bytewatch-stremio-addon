@@ -187,10 +187,11 @@ class LiteMainActivity : Activity() {
 
     // ---- Opening ----
 
-    private fun open(item: Library.Item) {
+    /** Opens [item] in the reader (with the player's controls), or in the player when [listen]. */
+    private fun open(item: Library.Item, listen: Boolean = false) {
         if (working) return
         if (Speaker.doc?.key == item.id) {
-            Ads.interstitial(this, "open") { openPlayer() }
+            Ads.interstitial(this, "open") { openPlayer(listen) }
             return
         }
         setBusy("Opening ${item.title}…")
@@ -199,7 +200,7 @@ class LiteMainActivity : Activity() {
                 val doc = withContext(Dispatchers.Default) { Opener.parse(this@LiteMainActivity, item) }
                 withContext(Dispatchers.IO) { Library.opened(this@LiteMainActivity, item, doc) }
                 Speaker.load(doc)
-                Ads.interstitial(this@LiteMainActivity, "open") { openPlayer() }
+                Ads.interstitial(this@LiteMainActivity, "open") { openPlayer(listen) }
             } catch (e: Exception) {
                 AppLog.e("Open", "Couldn't open ${item.kind}", e)
                 toast(e.message ?: "Could not read that file")
@@ -210,13 +211,15 @@ class LiteMainActivity : Activity() {
         }
     }
 
-    private fun openPlayer() {
-        startActivity(Intent(this, LitePlayerActivity::class.java))
+    /** A book opens in the reader (Audiohub's, with the player's controls); [listen]: the player screen. */
+    private fun openPlayer(listen: Boolean = false) {
+        startActivity(Intent(this, if (listen) LitePlayerActivity::class.java else ReaderActivity::class.java))
     }
 
     private fun itemMenu(item: Library.Item) {
         LiteSheet(this, item.title, item.author)
-            .row(R.drawable.ic_headphones, "Listen", "Continue where you left off") { open(item) }
+            .row(R.drawable.ic_read, "Read", "The book, with the voice reading along") { open(item) }
+            .row(R.drawable.ic_headphones, "Listen", "The player, where you left off") { open(item, listen = true) }
             .row(R.drawable.ic_delete, "Delete", "Remove it from your library") {
                 AlertDialog.Builder(this)
                     .setMessage("Delete “${item.title}” from the library?")

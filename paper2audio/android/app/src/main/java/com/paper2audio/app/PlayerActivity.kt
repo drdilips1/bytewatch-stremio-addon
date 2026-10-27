@@ -325,7 +325,7 @@ class PlayerActivity : Activity() {
         val doc = Speaker.doc
         LiteSheet(this, item?.title ?: doc?.title ?: "This book", listOfNotNull(item?.author ?: doc?.author).firstOrNull())
             .section("Reading")
-            .row(R.drawable.ic_read, "Read", "As an ebook: themes, fonts, highlights, translate, read aloud") { startActivity(Intent(this, ReaderActivity::class.java)) }
+            .row(R.drawable.ic_read, "Read", "As an ebook: themes, fonts, highlights, translate, read aloud") { startActivity(Intent(this, ReaderActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
             .row(R.drawable.ic_text, "Reading look", "Font, size, spacing, margins, alignment, day or night") {
                 ReadingLook.show(this) { applyReadingLook() }
             }
@@ -439,8 +439,8 @@ class PlayerActivity : Activity() {
         btnStyle = findViewById(R.id.btnStyle)
         btnStyle.setOnClickListener { chooseStyle() }
         btnChapters.setOnClickListener { showChapters() }
-        // Read: the book in Audiohub's reader (Listen is this screen).
-        findViewById<View>(R.id.btnRead).setOnClickListener { startActivity(Intent(this, ReaderActivity::class.java)) }
+        // Read: the book in Audiohub's reader (back to it, when it's open under this screen).
+        findViewById<View>(R.id.btnRead).setOnClickListener { startActivity(Intent(this, ReaderActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
         btnSleep.setOnClickListener { showSleepTimer() }
         btnSpeed.setOnClickListener { showSpeeds() }
 

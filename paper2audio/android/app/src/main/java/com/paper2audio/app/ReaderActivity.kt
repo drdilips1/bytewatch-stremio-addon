@@ -2,16 +2,23 @@ package com.paper2audio.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Intent
+import android.graphics.Typeface
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.text.TextUtils
+import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.ImageButton
+import android.widget.SeekBar
+import android.widget.TextView
 import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +36,7 @@ import kotlin.coroutines.resume
 /**
  * Read: Audiohub's ebook reader as it is (its page, built from its own code into
  * assets/reader, see paper2audio/reader-web), on the book open in the player. Its calls to
- * Audiohub's Android plugins are answered here: Read aloud is this app's player and voice,
+ * Audiohub's Android plugins are answered here (and the player's controls are under the page): Read aloud is this app's player and voice,
  * its files are kept in the app's files, Pages is the app's PDF viewer, and in Paper to Audio
  * the AI is the app's own.
  */
@@ -41,14 +48,90 @@ class ReaderActivity : Activity() {
     /** Each reader paragraph's paragraph in [doc] (the page's blocks, or those Read aloud was given). */
     private var idx: IntArray? = null
     private var aloud = false
-    private val follow: () -> Unit = { runOnUiThread { sendState() } }
+
+    // The player's controls, under the page (as on the player screen).
+    private lateinit var status: TextView
+    private lateinit var position: SeekBar
+    private lateinit var where: TextView
+    private lateinit var left: TextView
+    private lateinit var btnPlay: ImageButton
+    private lateinit var btnSpeed: Button
+    private lateinit var btnVoice: Button
+    private lateinit var btnSleep: Button
+    private var draggingPosition = false
+    private val refresh: () -> Unit = { runOnUiThread { render(); sendState() } }
+
+    /** Whether the page follows the voice (its Read aloud is attached to the player). */
+    private var wasPlaying = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         Themes.apply(this)
         super.onCreate(savedInstanceState)
-        doc = Speaker.doc
-        if (doc == null) return finish()
+        setContentView(R.layout.activity_reader)
+        LiteUi.fitSystemBars(this, findViewById(R.id.readerRoot))
+        status = findViewById(R.id.status)
+        position = findViewById(R.id.position)
+        where = findViewById(R.id.where)
+        left = findViewById(R.id.left)
+        btnPlay = findViewById(R.id.btnPlay)
+        btnSpeed = findViewById(R.id.btnSpeed)
+        btnVoice = findViewById(R.id.btnVoice)
+        btnSleep = findViewById(R.id.btnSleep)
+        btnPlay.setOnClickListener {
+            if (BuildConfig.LITE) LiteUi.askNotifications(this)
+            // Playing: pause. Otherwise the reader's Read aloud starts (from the paragraph on screen,
+            // or carries on where it paused), so the page follows the voice.
+            if (Speaker.playing) Speaker.pause()
+            else if (!::web.isInitialized) Speaker.play()
+            else web.evaluateJavascript("window.__p2aAloud ? (window.__p2aAloud.play(), 1) : 0") { if (it != "1") Speaker.play() }
+        }
+        findViewById<View>(R.id.btnPrev).setOnClickListener { Speaker.previousSentence() }
+        findViewById<View>(R.id.btnNext).setOnClickListener { Speaker.nextSentence() }
+        btnSpeed.setOnClickListener { LiteUi.showSpeed(this) { render() } }
+        btnVoice.setOnClickListener { pickVoice() }
+        btnSleep.setOnClickListener { LiteUi.showSleep(this) { render() } }
+        // The player screen (the text as the player shows it, and all its options).
+        findViewById<View>(R.id.btnListen).setOnClickListener {
+            startActivity(Intent(this, if (BuildConfig.LITE) LitePlayerActivity::class.java else PlayerActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        }
+        position.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar, p: Int, fromUser: Boolean) {
+                if (fromUser) where.text = placeOf(p)
+            }
+
+            override fun onStartTrackingTouch(s: SeekBar) {
+                draggingPosition = true
+            }
+
+            override fun onStopTrackingTouch(s: SeekBar) {
+                draggingPosition = false
+                Speaker.seek(s.progress)
+            }
+        })
+        Speaker.init(this) { render() }
+        val d = Speaker.doc
+        if (d != null) return showBook(d)
+        // Opened after the app was closed: reopen the last book.
+        Library.loadCurrentId(this)
+        val item = Library.get(this, Library.currentId) ?: return finish()
+        status.text = "Opening ${item.title}…"
+        status.visibility = View.VISIBLE
+        scope.launch {
+            try {
+                val opened = withContext(Dispatchers.Default) { Opener.parse(this@ReaderActivity, item) }
+                Speaker.load(opened)
+                showBook(opened)
+            } catch (e: Exception) {
+                AppLog.e("Open", "Couldn't reopen", e)
+                finish()
+            }
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun showBook(d: Doc) {
+        doc = d
         web = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -70,23 +153,21 @@ class ReaderActivity : Activity() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = request.url.host != HOST
             }
         }
-        val root = FrameLayout(this).apply {
-            setBackgroundColor(0xFF131218.toInt())
-            addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            // Clear of the status bar and the navigation bar.
-            setOnApplyWindowInsetsListener { v, insets ->
-                @Suppress("DEPRECATION")
-                v.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
-                insets
-            }
-        }
-        setContentView(root)
-        Speaker.addListener(follow)
+        findViewById<FrameLayout>(R.id.readerPage).addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        Speaker.addListener(refresh)
         web.loadUrl("https://$HOST/reader/index.html")
+        render()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Another book opened meanwhile (from the player or Home): show that one.
+        if (doc != null && Speaker.doc != null && Speaker.doc !== doc) return recreate()
+        if (::web.isInitialized) render()
     }
 
     override fun onDestroy() {
-        Speaker.removeListener(follow)
+        Speaker.removeListener(refresh)
         translation?.stop()
         scope.cancel()
         if (::web.isInitialized) web.destroy()
@@ -95,7 +176,56 @@ class ReaderActivity : Activity() {
 
     @Deprecated("Back closes what the reader has open first")
     override fun onBackPressed() {
+        if (!::web.isInitialized) return finish()
         web.evaluateJavascript("window.__p2aBack ? (window.__p2aBack(), 1) : 0") { if (it != "1") finish() }
+    }
+
+    /** The controls as on the player screen: play, speed, voice, sleep timer, where in the book. */
+    private fun render() {
+        val d = Speaker.doc
+        btnPlay.setImageResource(if (Speaker.playing) R.drawable.ic_pause else R.drawable.ic_play)
+        btnPlay.contentDescription = if (Speaker.playing) "Pause" else "Play"
+        btnSpeed.text = LiteUi.speedLabel()
+        btnVoice.text = voiceName()
+        btnSleep.text = LiteUi.sleepLabel()
+        val message = when {
+            Speaker.lastError != null -> Speaker.lastError
+            Speaker.starting && Speaker.playing ->
+                if (Speaker.isLocal) "Starting the voice… (a few seconds the first time)" else "Starting…"
+            else -> null
+        }
+        status.text = message
+        status.visibility = if (message == null) View.GONE else View.VISIBLE
+        if (message != null) {
+            val tint = Themes.color(this, if (Speaker.lastError != null) R.attr.p2aText else R.attr.p2aAccent)
+            status.setTextColor(tint)
+            status.textSize = 15f
+            status.setTypeface(status.typeface, Typeface.BOLD)
+            val pad = (10 * resources.displayMetrics.density).toInt()
+            status.setPadding(pad * 2, pad, pad * 2, pad)
+            status.background = android.graphics.drawable.GradientDrawable().apply {
+                setColor((Themes.color(this@ReaderActivity, R.attr.p2aAccent) and 0x00FFFFFF) or 0x24000000)
+                cornerRadius = pad * 2f
+            }
+        }
+        if (d != null && !draggingPosition) {
+            position.max = maxOf(0, d.paragraphs.size - 1)
+            position.progress = Speaker.index
+            where.text = placeOf(Speaker.index)
+            val wordsLeft = d.paragraphs.drop(Speaker.index).sumOf { p -> p.count { it == ' ' } + 1 }
+            val minutes = (wordsLeft / (160f * Speaker.renderSpeed)).toInt()
+            left.text = if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min left" else "$minutes min left"
+        }
+        // The voice started from the controls (or the notification): the page follows it.
+        if (Speaker.playing && !wasPlaying && ::web.isInitialized) web.evaluateJavascript("window.__p2aAloud && window.__p2aAloud.follow()", null)
+        wasPlaying = Speaker.playing
+    }
+
+    private fun placeOf(i: Int): String {
+        val d = Speaker.doc ?: return ""
+        val chapter = d.chapterAt(i)?.title
+        val pct = if (d.paragraphs.size > 1) i * 100 / (d.paragraphs.size - 1) else 0
+        return if (chapter != null) "$chapter · $pct%" else "$pct%"
     }
 
     // ---- the bridge ---------------------------------------------------------------------
@@ -124,7 +254,7 @@ class ReaderActivity : Activity() {
     }
 
     private fun emit(plugin: String, event: String, data: JSONObject) {
-        if (!isDestroyed) web.evaluateJavascript("window.__p2aEvent('$plugin', '$event', ${JSONObject.quote(data.toString())})", null)
+        if (!isDestroyed && ::web.isInitialized) web.evaluateJavascript("window.__p2aEvent('$plugin', '$event', ${JSONObject.quote(data.toString())})", null)
     }
 
     private fun item() = Library.get(this, Library.currentId)
@@ -230,10 +360,14 @@ class ReaderActivity : Activity() {
         if (BuildConfig.LITE) LiteUi.voiceName() else VoicePicker.label(Speaker.voiceId).substringBefore(" · ")
 
     private fun pickVoice() {
-        if (BuildConfig.LITE) return LiteUi.showVoices(this) { emit("P2AReader", "voice", JSONObject().put("name", voiceName())) }
+        if (BuildConfig.LITE) return LiteUi.showVoices(this) {
+            render()
+            emit("P2AReader", "voice", JSONObject().put("name", voiceName()))
+        }
         VoicePicker.pickOne(this, "Reading voice", Speaker.voiceId) { id ->
             if (id == Speaker.voiceId) return@pickOne
             Speaker.setVoice(id)
+            render()
             emit("P2AReader", "voice", JSONObject().put("name", voiceName()))
             LocalTts.missing(id)?.let { Toast.makeText(this, "Download the ${it.title} first (in the player: Voice)", Toast.LENGTH_LONG).show() }
         }

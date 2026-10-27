@@ -316,6 +316,15 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     scroller.current?.querySelectorAll('.aloud').forEach((x) => x.classList.remove('aloud'));
     setAloud(null);
   };
+  // Paper to Audio / Narrato: the player's controls under the page work this Read aloud.
+  window.__p2aAloud = {
+    play: () => (ctl.current?.native ? playAloud(aloud?.index ?? 0) : startAloud()),
+    follow: async () => {
+      if (ctl.current?.native || !doc) return;
+      const attached = await attachAloud(book.uid, speakBlocks(), aloudHandlers());
+      if (attached) ctl.current = attached;
+    },
+  };
   // Leaving the reader: the native engine keeps reading (notification controls);
   // the in-page reader stops.
   useEffect(() => () => (ctl.current?.native ? ctl.current.detach() : ctl.current?.stop()), []);

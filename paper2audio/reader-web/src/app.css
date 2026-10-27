@@ -1,0 +1,5 @@
+/* Paper to Audio / Narrato: the player's controls are under the page, so the reader's own
+   read-aloud bar isn't needed (its highlight and following stay). */
+.aloud-bar {
+  display: none !important;
+}

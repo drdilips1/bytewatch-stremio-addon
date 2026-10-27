@@ -2,6 +2,7 @@
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import './styles.css';
+import './app.css';
 import { Reader } from './screens/Reader.jsx';
 import { Toaster } from './components/common.jsx';
 import { applyTheme } from './lib/theme.js';

@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Read: Audiohub's reader (a web page) with the player's controls under it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/readerRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/p2aBackground"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:id="@+id/readerPage"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="6dp">
+
+        <TextView
+            android:id="@+id/status"
+            style="@style/P2A.Muted"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:visibility="gone" />
+
+        <SeekBar
+            android:id="@+id/position"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:progressBackgroundTint="?attr/p2aSurface2"
+            android:progressTint="?attr/p2aAccent"
+            android:thumbTint="?attr/p2aAccent" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+
+            <TextView
+                android:id="@+id/where"
+                style="@style/P2A.Muted"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1" />
+
+            <TextView
+                android:id="@+id/left"
+                style="@style/P2A.Muted"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/btnPrev"
+                style="@style/P2A.Icon"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:contentDescription="Previous sentence"
+                android:src="@drawable/ic_prev" />
+
+            <ImageButton
+                android:id="@+id/btnPlay"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:layout_marginStart="24dp"
+                android:layout_marginEnd="24dp"
+                android:background="@drawable/bg_play"
+                android:contentDescription="Play"
+                android:padding="20dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_play"
+                android:tint="?attr/p2aOnAccent" />
+
+            <ImageButton
+                android:id="@+id/btnNext"
+                style="@style/P2A.Icon"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:contentDescription="Next sentence"
+                android:src="@drawable/ic_next" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnSpeed"
+                style="@style/P2A.Button.Text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:drawableTop="@drawable/ic_tune"
+                android:drawableTint="?attr/p2aText"
+                android:text="1.0x"
+                android:textColor="?attr/p2aText" />
+
+            <Button
+                android:id="@+id/btnVoice"
+                style="@style/P2A.Button.Text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:drawableTop="@drawable/ic_voice"
+                android:drawableTint="?attr/p2aText"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Voice"
+                android:textColor="?attr/p2aText" />
+
+            <Button
+                android:id="@+id/btnSleep"
+                style="@style/P2A.Button.Text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:drawableTop="@drawable/ic_timer"
+                android:drawableTint="?attr/p2aText"
+                android:text="Sleep"
+                android:textColor="?attr/p2aText" />
+
+            <Button
+                android:id="@+id/btnListen"
+                style="@style/P2A.Button.Text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:drawableTop="@drawable/ic_headphones"
+                android:drawableTint="?attr/p2aText"
+                android:text="Player"
+                android:textColor="?attr/p2aText" />
+
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>
