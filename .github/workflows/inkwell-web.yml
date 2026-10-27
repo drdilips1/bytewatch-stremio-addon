@@ -65,7 +65,7 @@ jobs:
             printf '{"version":"%s","apk":"app/Audiohub.apk","github":"%s"}\n' "$ver" "$gh_url" > dist/app/latest.json
             ls -la dist/app; cat dist/app/latest.json
           fi
-      - name: Publish to gh-pages (keeps DermScholar's dermscholar/ folder)
+      - name: Publish to gh-pages (keeps DermScholar's dermscholar/ folder and Narrato's privacy.html)
         working-directory: ${{ github.workspace }}
         env:
           REPO_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
@@ -74,7 +74,8 @@ jobs:
           git clone -q --depth 1 --branch gh-pages "$REPO_URL" "$RUNNER_TEMP/pages"
           cd "$RUNNER_TEMP/pages"
           old=$(git rev-parse HEAD)
-          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name dermscholar -exec rm -rf {} +
+          # privacy.html is Narrato's privacy policy (its Google Play listing links to it): kept.
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name dermscholar ! -name privacy.html -exec rm -rf {} +
           cp -R "$GITHUB_WORKSPACE/inkwell/dist/." .
           touch .nojekyll
           # One commit, no history: the mirrored APK would pile up.
