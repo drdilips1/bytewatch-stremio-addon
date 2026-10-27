@@ -703,6 +703,12 @@ class LiteMainActivity : Activity() {
                 setTextColor(tint)
                 if (selected) setTypeface(typeface, android.graphics.Typeface.BOLD)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                // Centered under the icon (on its own the label sits at the cell's left edge).
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+                maxLines = 1
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+                topMargin = dp(2)
             })
             bar.addView(cell, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
