@@ -37,5 +37,11 @@
             android:name=".ReaderService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback|dataSync" />
+
+        <!-- Makes the audio ahead while the phone charges (PowerWise). -->
+        <service
+            android:name=".PrepareJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>
 </manifest>

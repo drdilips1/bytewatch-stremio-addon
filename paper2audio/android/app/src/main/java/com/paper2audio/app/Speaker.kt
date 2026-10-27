@@ -452,6 +452,7 @@ object Speaker {
             prewarm()
         }
         scope.launch(Dispatchers.IO) { Renderer.trim(app) }
+        PowerWise.schedule(app)
         notifyChanged()
     }
 
@@ -606,6 +607,8 @@ object Speaker {
         playing = false
         val s = stream
         if (isStreamed && s != null && session?.isActive == true) s.pause() else stopAll()
+        // The next time the phone charges, the audio ahead is made then (see PowerWise).
+        if (::app.isInitialized) PowerWise.schedule(app)
         notifyChanged()
     }
 
@@ -1086,6 +1089,17 @@ object Speaker {
         return pieceSequence(d, 0, 0, voiceId).map { it.text to base.copy(voiceId = it.voice) }.toList()
     }
 
+    /** About [words] words from where [d] is being read, voiced as playback voices them (made ahead while charging). */
+    fun planAhead(d: Doc, words: Int): List<Pair<String, Voicing>> {
+        val base = voicing(d).copy(dialogue = null)
+        val from = if (d === doc) index else prefs.getInt("pos:${d.key}", d.start)
+        val piece = if (d === doc) pieceIndex else prefs.getInt("pc:${d.key}", 0)
+        var count = 0
+        return pieceSequence(d, from, piece, voiceId)
+            .takeWhile { (count < words).also { _ -> count += it.text.count { c -> c == ' ' } + 1 } }
+            .map { it.text to base.copy(voiceId = it.voice) }.toList()
+    }
+
     /** The pause after a piece: longer after paragraphs, longest after headings. */
     /** Whether piece [p], the last of its paragraph, stops mid-sentence and the next paragraph carries it on. */
     private fun continuesIn(d: Doc, p: Piece): Boolean {
@@ -1179,6 +1193,8 @@ object Speaker {
                     val power = app.getSystemService(android.os.PowerManager::class.java)
                     // With the screen off, online voices prepare much further ahead, so a short network gap isn't heard.
                     fun lookahead(): Int = when {
+                        // A warm phone: only just enough ahead, made as it's needed, so the phone can cool down.
+                        LocalTts.isLocal(vid) && PowerWise.warm(app) -> 2
                         LocalTts.isLocal(vid) -> PIECE_LOOKAHEAD
                         power?.isInteractive == false -> EDGE_LOOKAHEAD_SCREEN_OFF
                         else -> EDGE_LOOKAHEAD
