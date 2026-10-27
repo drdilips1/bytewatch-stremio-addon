@@ -19,8 +19,9 @@ import kotlinx.coroutines.withContext
 /**
  * Battery and heat. The on-device voices make their speech while they read, which is what uses the
  * battery and warms the phone. So:
- *  - while the phone charges (and isn't reading), the next hour or so of the book is made ahead and
- *    kept ([PrepareJob]); listening later on battery then only plays it back;
+ *  - while the phone charges (and isn't reading), the next hour of the book is made ahead and kept,
+ *    then the start of the other recent books, then more overnight ([PrepareJob]); listening later on
+ *    battery then only plays it back;
  *  - when the phone is warm, reading makes only just enough ahead ([warm]).
  */
 object PowerWise {
@@ -76,7 +77,13 @@ class PrepareJob : JobService() {
         return true
     }
 
-    /** Returns whether there's more to do later. */
+    /**
+     * In rounds, so what's most likely to be listened to next is ready first: the book being read
+     * (an hour ahead), then the start of the other recent books (20 minutes each, so whichever is picked
+     * tomorrow starts from saved audio), then more of each while the phone stays on the charger
+     * (overnight: three hours of this book, half an hour of the others). Returns whether there's more
+     * to do later.
+     */
     private suspend fun prepare(): Boolean {
         val app = applicationContext
         withContext(Dispatchers.Main) { Speaker.init(app) {} }
@@ -90,21 +97,53 @@ class PrepareJob : JobService() {
             doc = Speaker.doc ?: return false
         }
         if (!LocalTts.isLocal(Speaker.voiceId) || LocalTts.missing(Speaker.voiceId) != null) return false
-        if (doc.lang == null) Langs.of(doc)
         val speed = Speaker.renderSpeed
         val voice = Speaker.voiceId
-        val plan = Speaker.planAhead(doc, PowerWise.AHEAD_WORDS)
+        val current = doc
+        // The other books most recently opened or added (not finished), newest first.
+        val prefs = app.getSharedPreferences("p2a", Context.MODE_PRIVATE)
+        val others = Library.items(app)
+            .filter { it.id != Library.currentId && it.id != current.key }
+            .filter { it.paragraphs == 0 || prefs.getInt("pos:${it.id}", 0) < it.paragraphs - 1 }
+            .sortedByDescending { maxOf(it.opened, it.added) }
+            .take(RECENT_BOOKS)
+        val rounds = listOf(PowerWise.AHEAD_WORDS to 0, 0 to START_WORDS, OVERNIGHT_WORDS to OVERNIGHT_START_WORDS)
+        for ((currentWords, otherWords) in rounds) {
+            if (currentWords > 0 && !make(app, current, currentWords, speed, voice)) return true
+            if (otherWords > 0) for (item in others) {
+                val d = runCatching { Opener.parse(app, item) }.getOrNull() ?: continue
+                if (!make(app, d, otherWords, speed, voice)) return true
+            }
+        }
+        AppLog.i("Power", "Charging: everything ahead is ready")
+        return false
+    }
+
+    /** Makes about [words] words of [d] ahead; false when it had to stop (reading, warm, unplugged, voice changed). */
+    private suspend fun make(app: Context, d: Doc, words: Int, speed: Float, voice: String): Boolean {
+        if (d.lang == null) Langs.of(d)
+        val plan = Speaker.planAhead(d, words)
         val todo = plan.filter { (text, v) -> text.any { it.isLetterOrDigit() } && !Renderer.isCached(app, v, speed, text) }
-        if (todo.isEmpty()) return false
-        AppLog.i("Power", "Charging: making ${todo.size} of ${plan.size} pieces ahead")
+        if (todo.isEmpty()) return true
+        AppLog.i("Power", "Charging: making ${todo.size} of ${plan.size} pieces ahead of “${d.title.take(40)}”")
         for ((text, v) in todo) {
-            // Reading now, the phone warm, or the voice or book changed: stop (and try again later).
-            if (Speaker.playing || PowerWise.warm(app)) return true
-            if (Speaker.doc !== doc || Speaker.voiceId != voice || Speaker.renderSpeed != speed) return true
+            if (Speaker.playing || PowerWise.warm(app)) return false
+            if (Speaker.voiceId != voice || Speaker.renderSpeed != speed) return false
             runCatching { Renderer.render(app, v, speed, text) }
                 .onFailure { if (it is CancellationException) throw it }
         }
-        AppLog.i("Power", "Charging: the next hour is ready")
-        return false
+        return true
+    }
+
+    companion object {
+        /** How many other recent books get their start made ahead. */
+        private const val RECENT_BOOKS = 4
+
+        /** About 20 minutes of listening: the start of each recent book. */
+        private const val START_WORDS = 3_200
+
+        /** Left on the charger (overnight): about three hours of this book, half an hour of the others. */
+        private const val OVERNIGHT_WORDS = 28_800
+        private const val OVERNIGHT_START_WORDS = 4_800
     }
 }
