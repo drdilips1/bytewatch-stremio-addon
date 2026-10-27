@@ -47,6 +47,12 @@
         </activity>
 
         <activity
+            android:name=".ReaderActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="false"
+            android:parentActivityName=".LitePlayerActivity" />
+
+        <activity
             android:name=".LitePlayerActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="false"

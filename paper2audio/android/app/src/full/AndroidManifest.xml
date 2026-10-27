@@ -20,6 +20,12 @@
             android:parentActivityName=".LibraryActivity" />
 
         <activity
+            android:name=".ReaderActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="false"
+            android:parentActivityName=".PlayerActivity" />
+
+        <activity
             android:name=".LiteCopyVoiceActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="false" />

@@ -56,6 +56,14 @@
         </LinearLayout>
 
         <ImageButton
+            android:id="@+id/btnRead"
+            style="@style/P2A.Icon"
+            android:layout_width="44dp"
+            android:contentDescription="Read: the book as an ebook"
+            android:padding="11dp"
+            android:src="@drawable/ic_read" />
+
+        <ImageButton
             android:id="@+id/btnChapters"
             style="@style/P2A.Icon"
             android:layout_width="44dp"

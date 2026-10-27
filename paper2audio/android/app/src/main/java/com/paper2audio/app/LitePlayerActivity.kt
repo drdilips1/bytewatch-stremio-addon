@@ -207,6 +207,8 @@ class LitePlayerActivity : Activity() {
         findViewById<View>(R.id.btnBack).setOnClickListener { leave() }
         findViewById<View>(R.id.btnChapters).setOnClickListener { showChapters() }
         findViewById<View>(R.id.btnMore).setOnClickListener { showMore() }
+        // Read: the book in Audiohub's reader (Listen is this screen).
+        findViewById<View>(R.id.btnRead).setOnClickListener { startActivity(Intent(this, ReaderActivity::class.java)) }
         btnPlay.setOnClickListener {
             LiteUi.askNotifications(this)
             Speaker.toggle()
@@ -565,6 +567,7 @@ class LitePlayerActivity : Activity() {
 
     private fun showMore() {
         LiteSheet(this, Speaker.doc?.title, null)
+            .row(R.drawable.ic_read, "Read", "As an ebook: themes, fonts, highlights, read aloud") { startActivity(Intent(this, ReaderActivity::class.java)) }
             .row(R.drawable.ic_voice, "Pronunciations", "Fix how words are said (or press and hold a word)") { Pronounce.show(this) }
             .apply {
                 // A PDF: its pages as printed (the reader shows the text reflowed).
