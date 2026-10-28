@@ -423,6 +423,11 @@
     followups: { type: 'array', items: S.str },
   });
   const answerable = (x) => !!x && x.trim().split(/\s+/).length >= 2 && !/["():]|\b(AND|OR|NOT)\b/.test(x) && !/^(10\.\d|pmid|pmc\d|\d{5,9}$)/i.test(x.trim());
+  // Strength words in tables ("Strong", "Moderate"…) as the meter; used by answers and follow-ups.
+  const METER = { strong: 'strong', moderate: 'moderate', limited: 'limited', 'very limited': 'very limited', conflicting: 'conflicting', low: 'limited', 'very low': 'very limited', high: 'strong' };
+  const meterize = (html) => html
+    .replace(/(<td>|<div class="md-(?:first|cell)">(?:<span>[^<]*<\/span>)?)\s*(?:<b>)?\s*(strong|moderate|limited|very limited|conflicting|high|low|very low)\s*(?:<\/b>)?\s*(<\/td>|<\/div>)/gi,
+      (m, a, w, b) => `${a}${I.strength(METER[w.toLowerCase()])}${b}`);
   async function searchAnswer(question, el) {
     if (!answerable(question)) { el.remove(); return; }
     if (!D.aiHasKey()) { el.innerHTML = ''; return; }
@@ -441,12 +446,8 @@
     };
     // The direct answer (first line) large, as Consensus shows it.
     // The first paragraph large; strength words in tables ("Strong", "Moderate"…) as the meter.
-    const METER = { strong: 'strong', moderate: 'moderate', limited: 'limited', 'very limited': 'very limited', conflicting: 'conflicting', low: 'limited', 'very low': 'very limited', high: 'strong' };
     // Like Consensus: a short title in bold, then plain text (bold only in headings).
     const lead = (html) => meterize(html.replace(/^\s*<h4>([\s\S]*?)<\/h4>/, '<h3 class="qa-title">$1</h3>').replace(/<p>/, '<p class="qa-lead">'));
-    const meterize = (html) => html
-      .replace(/(<td>|<div class="md-(?:first|cell)">(?:<span>[^<]*<\/span>)?)\s*(?:<b>)?\s*(strong|moderate|limited|very limited|conflicting|high|low|very low)\s*(?:<\/b>)?\s*(<\/td>|<\/div>)/gi,
-        (m, a, w, b) => `${a}${I.strength(METER[w.toLowerCase()])}${b}`);
     // Retrieved · Eligible · Included, counting up (as Consensus shows them), then each step.
     const big = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : Number(n).toLocaleString());
     const stepsHtml = (steps) => {
