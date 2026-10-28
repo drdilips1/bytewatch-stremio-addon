@@ -133,7 +133,25 @@ object LocalTts {
     }
 
     /** Loads the model for [voiceId] without generating anything, so Play starts quickly. */
-    fun prepare(voiceId: String) = synchronized(lock) { engineFor(voiceId) }
+    fun prepare(voiceId: String) = synchronized(lock) { engineFor(voiceId, Speaker.renderSpeed) }
+
+    /** Kinds of voice ([engineKind]) this phone makes too slowly on one core: they get two (see [RenderSpeed]). */
+    @Volatile
+    var slowOnOneCore: Set<String> = emptySet()
+
+    /** The cores the last sentence was made with, for listening (the spare engine for saving keeps two). */
+    @Volatile
+    var lastCores = 2
+        private set
+
+    /**
+     * One core at normal speeds, for battery and heat: per second of speech one core does the least work
+     * (the copied voices 0.7 CPU-seconds, against about twice that on two). Faster speeds, or a phone
+     * too slow on one, get two, so reading never waits.
+     */
+    private fun coresFor(key: String, speed: Float) = if (speed <= 1.3f && key !in slowOnOneCore) 1 else 2
+
+    fun engineKind(voiceId: String) = engineKey(voiceId)
 
     /** Generates [text] as 16-bit PCM. [lang] is the document's language (Supertonic). */
     fun synthesize(voiceId: String, text: String, speed: Float, lang: String?, useSpare: Boolean = false, seed: Int? = null): Pcm =
@@ -144,7 +162,7 @@ object LocalTts {
                 newEngine(key).also { spare = key to it }
             }
             generate(tts, voiceId, text, speed, lang, seed)
-        } else synchronized(lock) { generate(engineFor(voiceId), voiceId, text, speed, lang, seed) }
+        } else synchronized(lock) { generate(engineFor(voiceId, speed), voiceId, text, speed, lang, seed) }
 
     /** The seed copied voice [voiceId] reads with: the one picked for it, else one from its id. */
     fun currentSeed(voiceId: String) = seedFor(voiceId)
@@ -255,21 +273,23 @@ object LocalTts {
         else -> "pocket"
     }
 
-    private fun engineFor(voiceId: String): OfflineTts {
-        val key = engineKey(voiceId)
+    private fun engineFor(voiceId: String, speed: Float): OfflineTts {
+        val kind = engineKey(voiceId)
+        val cores = coresFor(kind, speed)
+        lastCores = cores
+        val key = "$kind/$cores"
         engines.remove(key)?.let { engines[key] = it; return it }
         while (engines.size >= keepEngines) {
             val oldest = engines.keys.first()
             engines.remove(oldest)?.release()
         }
-        return newEngine(key).also { engines[key] = it }
+        return newEngine(kind, cores).also { engines[key] = it }
     }
 
-    private fun newEngine(key: String): OfflineTts {
-        // Two threads, for battery. More only busy-wait: on four, the voice-copying engine did nearly five
-        // times the work of one (3.5 vs 0.7 CPU-seconds per second of speech) and Supertonic twice that of
-        // two (1.0 vs 0.5), neither any faster. Two stay well ahead of listening.
-        val threads = 2
+    private fun newEngine(key: String, threads: Int = 2): OfflineTts {
+        // At most two threads, for battery. More only busy-wait: on four, the voice-copying engine did nearly
+        // five times the work of one (3.5 vs 0.7 CPU-seconds per second of speech) and Supertonic twice that
+        // of two (1.0 vs 0.5), neither any faster. One does the least work of all (see coresFor).
         val model = when (key) {
             "supertonic" -> SUPERTONIC_PACK.let { p ->
                 OfflineTtsModelConfig(

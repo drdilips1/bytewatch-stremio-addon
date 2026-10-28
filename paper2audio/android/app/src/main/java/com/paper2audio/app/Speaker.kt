@@ -259,6 +259,8 @@ object Speaker {
         initialized = true
         app = context.applicationContext
         ModelPack.init(app)
+        // Kinds of voice this phone was too slow to make on one core (see LocalTts.coresFor).
+        LocalTts.slowOnOneCore = prefs.getStringSet("slowOneCore", emptySet()).orEmpty().toSet()
         MyVoices.init(app)
         Pronounce.init(app)
         speed = prefs.getFloat("speed", 1.0f)

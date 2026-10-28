@@ -394,7 +394,10 @@ object Renderer {
                 withContext(if (spare && LocalTts.hasSpare) spareThread else localThread) {
                     val t0 = System.nanoTime()
                     val pcm = LocalTts.synthesize(voice, spoken, es, v.lang, useSpare = spare)
-                    RenderSpeed.record(context, voice, (System.nanoTime() - t0) / 1e9, pcm.bytes.size / 2.0 / pcm.sampleRate)
+                    val work = (System.nanoTime() - t0) / 1e9
+                    val heard = pcm.bytes.size / 2.0 / pcm.sampleRate
+                    RenderSpeed.record(context, voice, work, heard)
+                    if (!spare && LocalTts.lastCores == 1) RenderSpeed.recordOneCore(context, voice, work, heard)
                     LocalTts.writeWav(tmp, pcm)
                 }
             } else {
@@ -745,6 +748,28 @@ object RenderSpeed {
         val old = prefs.getFloat(key, -1f)
         val avg = if (old < 0f) now else old * 0.8 + now * 0.2
         prefs.edit().putFloat(key, avg.toFloat()).apply()
+    }
+
+    /**
+     * One core ([LocalTts.coresFor]): if this phone makes a kind of voice too slowly on one (reading would
+     * wait), that kind gets two from then on.
+     */
+    fun recordOneCore(context: Context, voiceId: String, workSeconds: Double, audioSeconds: Double) {
+        if (audioSeconds < 0.5) return
+        val prefs = context.getSharedPreferences("p2a", Context.MODE_PRIVATE)
+        val kind = LocalTts.engineKind(voiceId)
+        val n = prefs.getInt("rtf1n:$kind", 0)
+        val old = prefs.getFloat("rtf1:$kind", -1f)
+        val now = workSeconds / audioSeconds
+        val avg = if (old < 0f) now else old * 0.8 + now * 0.2
+        prefs.edit().putFloat("rtf1:$kind", avg.toFloat()).putInt("rtf1n:$kind", n + 1).apply()
+        // After a few sentences (one may be made twice, to check it), slower than about 0.9 of real time: two cores.
+        if (n + 1 >= 5 && avg > 0.9) {
+            val slow = LocalTts.slowOnOneCore + kind
+            LocalTts.slowOnOneCore = slow
+            prefs.edit().putStringSet("slowOneCore", slow).apply()
+            AppLog.i("Voice", "One core is too slow here for $kind (%.2f s of work per second of speech): two from now on".format(avg))
+        }
     }
 
     /** The measured work per second of audio on this phone, or null until something has been made with this kind of voice. */
