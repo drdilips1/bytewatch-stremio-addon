@@ -257,15 +257,20 @@ object TextCleaner {
     }
 
     /** Splits paragraphs longer than the TTS engine accepts, at sentence boundaries. */
+    private const val MIN_PIECE = 20
+
     fun splitLong(p: String, limit: Int = 3000): List<String> {
         if (p.length <= limit) return listOf(p)
         val out = ArrayList<String>()
         val buf = StringBuilder()
-        for (sentence in p.split(SENTENCE_BREAK)) {
+        // Sentences as [sentences] finds them: no break after "Mr." or "Dr." (cutting there left "Mr." alone, and the
+        // copied voices said it four times).
+        for (sentence in sentences(p)) {
             var s = sentence
             while (s.length > limit) {
                 if (buf.isNotEmpty()) {
-                    out += buf.toString()
+                    // A scrap of a few words isn't sent on its own (very short pieces get repeated): it leads the next part.
+                    if (buf.length < MIN_PIECE) s = "$buf $s" else out += buf.toString()
                     buf.setLength(0)
                 }
                 // Cut at a clause break (comma, semicolon, dash) if there's one past the middle, else between words.
