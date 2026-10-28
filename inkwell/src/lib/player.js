@@ -373,7 +373,7 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
     if (state.tracks.length === 1 && !b.chaptersMeta?.length) {
       const uid = b.uid;
       import('./m4bchapters.js')
-        .then((m) => m.m4bChapters(uid, url, t.headers, t.duration || state.duration))
+        .then((m) => m.m4bChapters(uid, url, t.headers, () => (state.book?.uid === uid ? state.tracks[0]?.duration || state.duration : 0) || 0, b))
         .then((list) => list.length && state.book?.uid === uid && patchBook(uid, { chaptersMeta: list }))
         .catch(() => {});
     }
