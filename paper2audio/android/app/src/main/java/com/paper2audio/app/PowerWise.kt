@@ -19,7 +19,8 @@ import kotlinx.coroutines.withContext
 /**
  * Battery and heat. The on-device voices make their speech while they read, which is what uses the
  * battery and warms the phone. So:
- *  - while the phone charges (and isn't reading), the next hour of the book is made ahead and kept,
+ *  - once the phone has nearly finished charging (90%+, idle, battery cool, so charging isn't slowed),
+ *    the next hour of the book is made ahead and kept,
  *    then the start of the other recent books, then more overnight ([PrepareJob]); listening later on
  *    battery then only plays it back;
  *  - when the phone is warm, reading makes only just enough ahead ([warm]).
@@ -37,6 +38,20 @@ object PowerWise {
         return power.currentThermalStatus >= PowerManager.THERMAL_STATUS_MODERATE
     }
 
+    /**
+     * Whether making audio now wouldn't slow the charging: the battery nearly full (fast charging is
+     * over by then) and cool. Working while it charged warmed the phone, and the phone then charged
+     * slowly to protect the battery.
+     */
+    fun goodTimeToPrepare(context: Context): Boolean {
+        val battery = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+            ?: return false
+        val level = battery.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+        val scale = battery.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
+        val tenthsC = battery.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, 0)
+        return level * 100 / scale >= 90 && tenthsC < 370 && !warm(context)
+    }
+
     /** Asks Android to run [PrepareJob] the next time the phone is charging (on-device voices only). */
     fun schedule(context: Context) {
         if (!LocalTts.isLocal(Speaker.voiceId)) return // online and phone voices make their speech cheaply
@@ -45,6 +60,10 @@ object PowerWise {
             jobs.schedule(
                 JobInfo.Builder(JOB_ID, ComponentName(context, PrepareJob::class.java))
                     .setRequiresCharging(true)
+                    // Not while the phone is in use: in practice, overnight on the charger.
+                    .setRequiresDeviceIdle(true)
+                    // Waiting for the battery to be nearly full: look again every 20 minutes.
+                    .setBackoffCriteria(20 * 60_000L, JobInfo.BACKOFF_POLICY_LINEAR)
                     .build()
             )
         }.onFailure { AppLog.e("Power", "Couldn't schedule preparing while charging", it) }
@@ -86,6 +105,8 @@ class PrepareJob : JobService() {
      */
     private suspend fun prepare(): Boolean {
         val app = applicationContext
+        // Not while the battery is still charging fast, or warm: nothing at all runs, try again later.
+        if (!PowerWise.goodTimeToPrepare(app)) return true
         withContext(Dispatchers.Main) { Speaker.init(app) {} }
         var doc = Speaker.doc
         if (doc == null) {
@@ -127,7 +148,7 @@ class PrepareJob : JobService() {
         if (todo.isEmpty()) return true
         AppLog.i("Power", "Charging: making ${todo.size} of ${plan.size} pieces ahead of “${d.title.take(40)}”")
         for ((text, v) in todo) {
-            if (Speaker.playing || PowerWise.warm(app)) return false
+            if (Speaker.playing || !PowerWise.goodTimeToPrepare(app)) return false
             if (Speaker.voiceId != voice || Speaker.renderSpeed != speed) return false
             runCatching { Renderer.render(app, v, speed, text) }
                 .onFailure { if (it is CancellationException) throw it }
