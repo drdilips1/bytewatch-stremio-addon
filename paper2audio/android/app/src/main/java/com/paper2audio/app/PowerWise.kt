@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
 /**
  * Battery and heat. The on-device voices make their speech while they read, which is what uses the
  * battery and warms the phone. So:
- *  - once the phone has nearly finished charging (90%+, idle, battery cool, so charging isn't slowed),
+ *  - once the battery is at 60%+, the phone idle and the battery cool (so charging isn't slowed),
  *    the next hour of the book is made ahead and kept,
  *    then the start of the other recent books, then more overnight ([PrepareJob]); listening later on
  *    battery then only plays it back;
@@ -39,8 +39,8 @@ object PowerWise {
     }
 
     /**
-     * Whether making audio now wouldn't slow the charging: the battery nearly full (fast charging is
-     * over by then) and cool. Working while it charged warmed the phone, and the phone then charged
+     * Whether making audio now wouldn't slow the charging much: the battery at 60% or more (most people
+     * don't charge to 90) and cool (the battery temperature is what makes charging slow down). Working while it charged warmed the phone, and the phone then charged
      * slowly to protect the battery.
      */
     fun goodTimeToPrepare(context: Context): Boolean {
@@ -49,7 +49,7 @@ object PowerWise {
         val level = battery.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
         val scale = battery.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
         val tenthsC = battery.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, 0)
-        return level * 100 / scale >= 90 && tenthsC < 370 && !warm(context)
+        return level * 100 / scale >= 60 && tenthsC < 370 && !warm(context)
     }
 
     /** Asks Android to run [PrepareJob] the next time the phone is charging (on-device voices only). */
@@ -62,7 +62,7 @@ object PowerWise {
                     .setRequiresCharging(true)
                     // Not while the phone is in use: in practice, overnight on the charger.
                     .setRequiresDeviceIdle(true)
-                    // Waiting for the battery to be nearly full: look again every 20 minutes.
+                    // Waiting for the battery to reach 60% (or cool down): look again every 20 minutes.
                     .setBackoffCriteria(20 * 60_000L, JobInfo.BACKOFF_POLICY_LINEAR)
                     .build()
             )
