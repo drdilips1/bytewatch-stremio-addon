@@ -75,6 +75,9 @@ Settings & misc
 
 ## Public app — don't push anything until asked (27 Oct)
 - Rule (31 Oct): every fix / feature is checked in the private app first; only then ported to public.
+- Ported 31 Oct to public `work` (cdc7e67, not built): everything up to v1.0.151 — look (Ivory & Gold, player,
+  Text, Ask AI, covers, long-press), M4B/MP3 chapters, ABS sync + Absorb fix, history, addon torrents, 31 Oct fixes.
+  Left out: quote sharing / short links, one-tap suggested addons, Audiohub+ branding.
 - To port when asked: GitHub #1 (ABS sync), #2 (playback history), #3 (addon torrents), and the 31 Oct fixes.
 - Also to port: M4B / MP3 chapters (QuickTime chapter track, ID3 CHAP, Audible fallback) — a public user reported
   "no M4B chapters" (31 Oct); public 1.0.18 only reads the 'chpl' list. Fixed in private since 28 Oct.
