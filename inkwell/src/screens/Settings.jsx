@@ -984,17 +984,24 @@ function GoodreadsCard() {
 
 function AddonsCard() {
   const list = useStore(addons);
+  const [badLogo, setBadLogo] = useState({}); // addon id -> its picture doesn't load
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [raw, setRaw] = useState(null);
   return (
     <>
       <p class="muted pad-s">
-        Paste an addon link: InkShelf-style source addons (JSON on jsonkeeper etc.), Stremio-style manifests, or addon collections. Only install addons you trust.
+        Paste an addon link: a source addon (a JSON link), a Stremio-style manifest, or an addon collection. Only install addons you trust.
       </p>
       {list.map((a) => (
         <div class="set-row addon-row">
-          {a.manifest.logo || a.manifest.icon ? <img src={a.manifest.logo || a.manifest.icon} alt="" class="addon-logo" /> : <span class="addon-logo"><Icon name="puzzle" size={18} /></span>}
+          {(a.manifest.logo || a.manifest.icon) && !badLogo[a.manifest.id] ? (
+            <img src={a.manifest.logo || a.manifest.icon} alt="" class="addon-logo" onError={() => setBadLogo((m) => ({ ...m, [a.manifest.id]: true }))} onLoad={(e) => e.currentTarget.naturalWidth < 8 && setBadLogo((m) => ({ ...m, [a.manifest.id]: true }))} />
+          ) : (
+            <span class="addon-logo">
+              <Icon name="puzzle" size={18} />
+            </span>
+          )}
           <div>
             <b>{a.manifest.name}</b>
             <small>
