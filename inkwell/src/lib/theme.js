@@ -31,6 +31,10 @@ const LEGACY = { aurora: 'dusk', sunset: 'terracotta', ocean: 'slate', forest: '
 
 // Paper & Ink's own accent: forest green on paper, a lighter sage at night.
 const FOREST = { a: '#a3b89f', b: '#a3b89f', l: '#557663', lb: '#557663' };
+// Ivory & Gold: Paper & Ink's layout on warm ivory, with an antique-gold accent.
+const GOLD = { a: '#d4b26a', b: '#d4b26a', l: '#9c7a3c', lb: '#9c7a3c' };
+/** Themes built on Paper & Ink (its clean layout), with their own colours. */
+export const isInk = (pid) => pid === 'paperink' || pid === 'ivory';
 
 /** Light / dark / black, with "system" following the phone's setting. */
 const darkQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)') : null;
@@ -49,13 +53,16 @@ export function applyTheme(st) {
   lastSt = st;
   const mode = resolvedMode(st);
   const pid = activePalette(st, mode);
-  const a = pid === 'paperink' ? FOREST : ACCENTS[st.accent] || ACCENTS[LEGACY[st.accent]] || ACCENTS.brass;
+  const a = pid === 'paperink' ? FOREST : pid === 'ivory' ? GOLD : ACCENTS[st.accent] || ACCENTS[LEGACY[st.accent]] || ACCENTS.brass;
   const root = document.documentElement;
   const light = mode === 'light';
   root.dataset.mode = mode;
   // Palette: the colour of the whole app (backgrounds and text), per mode.
   const pal = PALETTES.find((p) => p.id === pid && p.light === light);
-  root.dataset.palette = pal ? pal.id : 'default';
+  // Ivory & Gold uses Paper & Ink's styles, with its own colours on top (data-variant).
+  root.dataset.palette = pal ? (pal.id === 'ivory' ? 'paperink' : pal.id) : 'default';
+  if (pal?.id === 'ivory') root.dataset.variant = 'ivory';
+  else delete root.dataset.variant;
   root.style.setProperty('--accent', light && a.l ? a.l : a.a);
   root.style.setProperty('--accent-2', light && a.lb ? a.lb : a.b);
   // Soft pastel pair for gradients and tints, whatever the mode.
@@ -68,6 +75,8 @@ export function applyTheme(st) {
 
 /** Whole-app colour themes. Dark ones apply in Dark mode, light ones in Light mode. */
 export const PALETTES = [
+  { id: 'ivory', name: 'Ivory & Gold', light: true, bg: '#fbf8f2', swatch: ['#fbf8f2', '#9c7a3c'] },
+  { id: 'ivory', name: 'Ivory & Gold', light: false, bg: '#1a1814', swatch: ['#1a1814', '#d4b26a'] },
   { id: 'paperink', name: 'Paper & Ink', light: false, bg: '#191b18', swatch: ['#191b18', '#a3b89f'] },
   { id: 'paperink', name: 'Paper & Ink', light: true, bg: '#f6f2e9', swatch: ['#f6f2e9', '#557663'] },
   { id: 'atelier', name: 'Atelier', light: false, bg: '#0f0e0d', swatch: ['#0f0e0d', '#dcb675'] },

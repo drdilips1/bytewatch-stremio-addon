@@ -183,7 +183,7 @@ export function FullPlayer() {
 
   return (
     <div
-      class="full-player"
+      class={'full-player' + (showText ? ' text-mode' : '')}
       style={{ ...(color ? { '--dyn': color } : {}), transform: drag ? `translateY(${drag}px)` : undefined, transition: drag ? 'none' : undefined }}
       onTouchStart={(e) => {
         if (e.target.closest('input,.sheet,.transcript')) return;
@@ -229,6 +229,8 @@ export function FullPlayer() {
         </div>
       )}
 
+      {!showText && (
+        <>
       <div class="fp-meta">
         <h2>{s.tracks[s.index]?.title || s.book.title}</h2>
         <p>{s.book.author}</p>
@@ -366,6 +368,44 @@ export function FullPlayer() {
           <Icon name="dots" size={18} stroke={3.5} />
         </button>
       </div>
+        </>
+      )}
+      {showText && (
+        // Text, full screen: the words take the screen; a slim strip keeps play / skip / speed.
+        <div class="text-strip">
+          <button class="icon-btn" onClick={() => player.skip(-st.skipBack)} aria-label={`Back ${st.skipBack}s`}>
+            <SkipIcon seconds={st.skipBack} size={26} />
+          </button>
+          <button class="play-btn" onClick={() => player.toggle()} aria-label={s.playing ? 'Pause' : 'Play'}>
+            {s.loading ? <span class="spinner small" /> : <Icon name={s.playing ? 'pause' : 'play'} size={22} />}
+          </button>
+          <button class="icon-btn" onClick={() => player.skip(st.skipForward)} aria-label={`Forward ${st.skipForward}s`}>
+            <SkipIcon seconds={st.skipForward} forward size={26} />
+          </button>
+          <div class="ts-bar">
+            <i>
+              <b style={{ width: (total ? (g / total) * 100 : dur ? (t / dur) * 100 : 0) + '%' }} />
+            </i>
+            <small>
+              {chapters.length > 1 ? chapterLabel(chapters, g) : fmtTime(t)}
+              {total > 0 ? ` · ${fmtTime(Math.max(0, total - g) / (s.rate || 1))} left` : ''}
+            </small>
+          </div>
+          <button class="chip-btn" onClick={() => setSheet('speed')} aria-label="Speed">
+            <b>{s.rate}×</b>
+          </button>
+          <button
+            class="icon-btn"
+            aria-label="Close the text"
+            onClick={() => {
+              stopTranscript();
+              transcriptCfg.set({ open: false });
+            }}
+          >
+            <Icon name="close" size={18} />
+          </button>
+        </div>
+      )}
 
       {sheet && (
         <div class="sheet-backdrop" onClick={() => setSheet(null)}>

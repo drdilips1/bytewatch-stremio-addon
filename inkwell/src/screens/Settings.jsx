@@ -9,7 +9,7 @@ import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayU
 import { searchSources, sourceAddons, suggestedSources, addSuggested } from '../sources/sourceaddons.js';
 import { ai, PROVIDERS as AI_PROVIDERS, testProvider } from '../lib/ai.js';
 import relayCode from '../../relay/index.ts?raw';
-import { ACCENTS, PALETTES, resolvedMode, activePalette } from '../lib/theme.js';
+import { ACCENTS, PALETTES, resolvedMode, activePalette, isInk } from '../lib/theme.js';
 import { WALLPAPERS, wallpaperUrl, saveCustom, useCustomWallpaper } from '../lib/wallpaper.js';
 import { APP_VERSION } from '../components/update.jsx';
 import { ReportCard, SupportLinks } from '../components/report.jsx';
@@ -1252,7 +1252,7 @@ export function Settings() {
             </div>
           </div>
         ))}
-        {activePalette(st) !== 'paperink' && <div class="set-row column">
+        {!isInk(activePalette(st)) && <div class="set-row column">
           <b>Accent</b>
           <div class="accent-grid">
             {Object.entries(ACCENTS).map(([k, a]) => (

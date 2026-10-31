@@ -5170,11 +5170,14 @@ textarea {
 .home-hello b {
   font-family: var(--font);
   font-weight: 700;
-  font-size: 17px;
+  font-size: 15px;
+  line-height: 1.2;
   color: #f4f1fb;
-  white-space: nowrap;
+  /* "Good morning, name" wraps onto a second line rather than being cut off. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .home-hello small {
   font-size: 11.5px;
@@ -10091,4 +10094,238 @@ button.notes-book-head {
   font-size: 12px;
   opacity: 0.55;
   font-variant-numeric: tabular-nums;
+}
+
+/* ---- Ivory & Gold: Paper & Ink's layout on warm ivory, antique-gold accent ---- */
+:root[data-variant='ivory'][data-mode='light'] {
+  --bg: #f7f2e9;
+  --bg-2: #fffdf8;
+  --surface: #fffdf8;
+  --surface-2: #f1e9da;
+  --border: #e7dccb;
+  --text: #1f1b16;
+  --muted: #857a6a;
+  --faint: #a89d8b;
+  --sage: #f1e5cc;
+  --shadow: 0 8px 22px -12px rgba(80, 60, 30, 0.22);
+  --on-grad: #fff;
+}
+:root[data-variant='ivory'][data-mode='dark'] {
+  --bg: #1a1814;
+  --bg-2: #24211b;
+  --surface: #24211b;
+  --surface-2: #2d2921;
+  --border: #3a352b;
+  --text: #f4efe4;
+  --muted: #b5ab98;
+  --faint: #877e6d;
+  --sage: #3a3122;
+  --on-grad: #1a1814;
+}
+
+/* ---- Home, tighter (Paper & Ink / Ivory & Gold) ---- */
+.row-count {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: var(--sage);
+  color: var(--accent);
+  letter-spacing: 0;
+}
+:root[data-palette='paperink'] {
+  & .row {
+    margin-top: 14px;
+  }
+  & .row-head {
+    padding-bottom: 6px;
+  }
+  & .row-head h2 {
+    font-size: 16px;
+    font-weight: 700;
+  }
+  & .row-head p {
+    font-size: 12px;
+    margin-top: 1px;
+  }
+  & .row-scroll {
+    gap: 10px;
+    padding-bottom: 8px;
+  }
+}
+
+/* ---- Whole covers: a tall cover sits inside the square on a soft blur of itself ---- */
+.cover.whole::before {
+  content: '';
+  position: absolute;
+  inset: -12%;
+  background: var(--cover-img) center / cover no-repeat;
+  filter: blur(14px) saturate(1.1);
+  opacity: 0.75;
+  z-index: 0;
+}
+.cover.whole img {
+  object-fit: contain;
+  z-index: 1;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.28));
+}
+.cover.whole .cover-fallback {
+  display: none;
+}
+
+/* ---- Long-press book actions ---- */
+.book-actions .ba-book {
+  display: flex;
+  align-self: stretch;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 12px;
+  align-items: center;
+  margin: 2px 0 8px;
+}
+.book-actions .ba-book .cover {
+  width: 54px;
+  flex: none;
+}
+.book-actions .ba-book span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.book-actions .ba-book b {
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.book-actions .ba-book small {
+  color: var(--muted);
+  font-size: 13px;
+}
+.book-actions .menu-item .icon {
+  color: var(--accent);
+}
+.book-actions .menu-item.danger,
+.book-actions .menu-item.danger .icon {
+  color: #b0432f;
+}
+.book-card {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* ---- Text, full screen: the words fill the player; a slim strip below ---- */
+.full-player.text-mode .transcript {
+  margin-top: 4px;
+  padding-top: 18%;
+}
+.full-player.text-mode .transcript .tl {
+  font-family: 'Literata Variable', 'Literata', Georgia, serif;
+  font-size: 19px;
+  line-height: 1.65;
+}
+.full-player.text-mode .transcript .tl.on {
+  font-weight: 500;
+}
+.text-strip .chip-btn {
+  padding: 6px 9px;
+  min-width: 0;
+  border: none;
+  background: transparent;
+}
+.text-strip .icon-btn {
+  width: 36px;
+  height: 36px;
+}
+.text-strip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.text-strip .play-btn {
+  width: 42px;
+  height: 42px;
+  flex: none;
+}
+.text-strip .icon-btn {
+  flex: none;
+}
+.text-strip .ts-bar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.text-strip .ts-bar i {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+.text-strip .ts-bar b {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.text-strip .ts-bar small {
+  font-size: 11px;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* In the light Paper & Ink / Ivory & Gold themes: ink on paper, like a page. */
+:root[data-mode='light'][data-palette='paperink'] .full-player.text-mode {
+  background: var(--bg);
+  color: var(--text);
+  & .player-bg,
+  & .fp-bg {
+    display: none;
+  }
+  & .fp-top,
+  & .fp-top .icon-btn {
+    color: var(--text);
+  }
+  & .transcript .tl {
+    color: color-mix(in srgb, var(--text) 55%, transparent);
+  }
+  & .transcript .tl.past {
+    color: color-mix(in srgb, var(--text) 38%, transparent);
+  }
+  & .transcript .tl.on {
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  & .tl-bar {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  & .tm-row {
+    border-top-color: var(--border);
+  }
+  & .text-strip {
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--text);
+  }
+  & .text-strip .icon-btn,
+  & .text-strip .chip-btn {
+    color: var(--text);
+  }
+  & .text-strip .play-btn {
+    background: var(--accent);
+    color: #fff;
+  }
+  & .text-strip .ts-bar i {
+    background: var(--border);
+  }
 }

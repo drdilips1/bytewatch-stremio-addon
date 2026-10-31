@@ -6,7 +6,7 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 export const CHANGES = [
   {
     id: '2026-10-31',
-    title: 'Fixes from your notes',
+    title: 'Ivory & Gold, and fixes from your notes',
     items: [
       ['🕘', 'Playback history', 'Player → More → History: every play, pause, skip, jump, chapter change and sleep-timer stop, with the time and where you were, grouped by listening session. Fell asleep or bumped skip? Tap the entry to go back.'],
       ['🔄', 'Audiobookshelf in step', 'A book starts from the newer place — your server’s (another app went further) or this phone’s — and progress goes through the server’s own session, so the percentage and listening time update there too.'],
@@ -20,6 +20,11 @@ export const CHANGES = [
       ['📚', 'Kindle for torrent ebooks', 'Torrent ebook results have a Kindle button next to Read and Save: it fetches the EPUB (or PDF) and sends it to Kindle or another app.'],
       ['🔎', 'One tracker button', 'The FL / VIP and All buttons are now one letter button: tap searches with your filter, press and hold searches everything.'],
       ['🏠', 'No double sends', 'On a book from your Audiobookshelf, playing it through TorBox no longer sends it home to qBittorrent again; ♥ says “Added to your library” and Offline is now “Download · plays without internet”.'],
+      ['🤍', 'Ivory & Gold', 'A new light look: warm ivory, ink text and an antique-gold accent (Settings → Appearance has the others).'],
+      ['📜', 'Text, full screen', 'Tap Text in the player: the words fill the screen like a page, the line being read is lit, and a slim strip keeps play, skip, speed and where you are.'],
+      ['🖼️', 'Whole covers', 'Tall covers are no longer cropped to squares: the whole cover shows on a soft blur of itself, and covers load sharper.'],
+      ['✋', 'Press and hold a book', 'Hold any cover for Play, Download, library, tag, Mark as finished, Reset progress, Details and Remove from Continue listening.'],
+      ['🏠', 'Tighter Home', 'Rows sit closer together, with how many books each source or shelf has next to its name.'],
       ['🎨', 'New icons and greeting', 'AI buttons use a chat bubble instead of the little stars, “Recommended” rows a compass, Podcasts a broadcast icon; the greeting is one line in one font (“Good evening, name”) with the date under it.'],
       ['📖', 'Ask AI reads your ebook', 'With the ebook attached (or the book open in the reader), Ask AI answers from the book’s own text — the passages that fit your question, never past where you are with No spoilers on. No ebook: it uses what you’ve heard so far (live transcript).'],
       ['🎙️', 'Voice: play means play', '“Play <book>” plays it even with another book loaded, titles with “where / when” in them work, and questions always go to Ask AI. A book you don’t have yet plays from your sources — instant in TorBox first, then the most seeds.'],

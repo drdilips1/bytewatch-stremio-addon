@@ -40,6 +40,7 @@ import { toast } from './components/common.jsx';
 import { KindleChooser } from './components/kindle-chooser.jsx';
 import { WhatsNew } from './components/whats-new.jsx';
 import { SharedQuoteSheet, ShareQuoteSheet } from './components/shared-quote.jsx';
+import { BookActionsSheet } from './components/book-actions.jsx';
 import { parseQuoteLink, openSharedQuote } from './lib/quoteshare.js';
 
 const TABS = [
@@ -180,6 +181,7 @@ export function App() {
       <WhatsNew />
       <SharedQuoteSheet />
       <ShareQuoteSheet />
+      <BookActionsSheet />
       <Toaster />
     </div>
   );
