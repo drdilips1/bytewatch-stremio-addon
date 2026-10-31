@@ -363,7 +363,7 @@ export function AskButton({ book = null, cls = 'icon-btn ask-btn glass' }) {
       aria-label={book ? 'Ask AI about this book' : 'Ask AI about your books'}
       onClick={() => nav.push('ask', book ? { book, description: book.description || '' } : {})}
     >
-      <Icon name="sparkle" size={cls.includes('hdr-btn') ? 18 : 20} />
+      <Icon name="ai" size={cls.includes('hdr-btn') ? 18 : 20} />
     </button>
   );
 }

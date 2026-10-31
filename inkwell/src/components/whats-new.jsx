@@ -20,6 +20,7 @@ export const CHANGES = [
       ['📚', 'Kindle for torrent ebooks', 'Torrent ebook results have a Kindle button next to Read and Save: it fetches the EPUB (or PDF) and sends it to Kindle or another app.'],
       ['🔎', 'One tracker button', 'The FL / VIP and All buttons are now one letter button: tap searches with your filter, press and hold searches everything.'],
       ['🏠', 'No double sends', 'On a book from your Audiobookshelf, playing it through TorBox no longer sends it home to qBittorrent again; ♥ says “Added to your library” and Offline is now “Download · plays without internet”.'],
+      ['🎨', 'New icons and greeting', 'AI buttons use a chat bubble instead of the little stars, “Recommended” rows a compass, Podcasts a broadcast icon; the greeting is one line in one font (“Good evening, name”) with the date under it.'],
       ['✨', 'Smaller fixes', 'Chapter pill shows the chapter’s own title (Chapter 6 · 8/10); listening options come before ebooks on the book page; ebook files that don’t open aren’t offered again; Kindle addresses can’t be wiped by sync; button labels stay inside.'],
     ],
   },

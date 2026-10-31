@@ -1277,7 +1277,7 @@ export function Settings() {
         <Stepper label="Skip forward" value={st.skipForward} options={[10, 15, 30, 45, 60]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipForward: v })} />
       </Section>
 
-      <Section icon="sparkle" title="AI (bookseller & story helper)">
+      <Section icon="ai" title="AI (bookseller & story helper)">
         <AiCard />
       </Section>
 

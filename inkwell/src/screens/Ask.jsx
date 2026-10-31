@@ -146,7 +146,7 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
           <div class="ask-book">
             <Cover book={book} class="ask-cover" />
             <div>
-              <small>✨ ASK AI</small>
+              <small>ASK AI</small>
               <b>{title}</b>
               {book.author && <span>{book.author}</span>}
             </div>
@@ -155,7 +155,7 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
           <div class="ask-book">
             <div class="ask-cover lib">📚</div>
             <div>
-              <small>✨ ASK MY BOOKS</small>
+              <small>ASK MY BOOKS</small>
               <b>Your whole library</b>
               <span>Themes, contradictions, what to read next</span>
             </div>

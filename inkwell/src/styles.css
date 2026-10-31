@@ -5168,9 +5168,9 @@ textarea {
   min-width: 0;
 }
 .home-hello b {
-  font-family: var(--display);
-  font-weight: 600;
-  font-size: 16px;
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 17px;
   color: #f4f1fb;
   white-space: nowrap;
   overflow: hidden;

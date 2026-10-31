@@ -591,17 +591,8 @@ export function Home() {
             <path d="M170 300 h26 l14 -34 l20 70 l22 -96 l22 112 l18 -52 h30 l14 22 h24" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
           <div class="home-hello">
-            {me ? (
-              <>
-                <small>{greeting()},</small>
-                <b>{me}</b>
-              </>
-            ) : (
-              <>
-                <b>{greeting()}</b>
-                <small>{today()}</small>
-              </>
-            )}
+            <b>{me ? `${greeting()}, ${me}` : greeting()}</b>
+            <small>{today()}</small>
           </div>
         </div>
         <div class="home-top-actions">

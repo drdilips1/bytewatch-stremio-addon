@@ -712,7 +712,7 @@ function Summaries({ book, description }) {
               {busy ? (
                 <span class="spinner" />
               ) : (
-                <Icon name="sparkle" size={16} />
+                <Icon name="ai" size={16} />
               )}{" "}
               {busy ? "Writing the blinks…" : "Get blinks"}
             </button>
@@ -1195,7 +1195,7 @@ function AskCard({ book, description, genres }) {
     <div class="ask-chips pad">
       {QUICK.map(([label, q]) => (
         <button class="pill small" onClick={() => open({ question: q, askId: `${Date.now()}` })}>
-          {label === QUICK[0][0] && <Icon name="sparkle" size={14} />} {label}
+          {label === QUICK[0][0] && <Icon name="ai" size={14} />} {label}
         </button>
       ))}
       <button class="pill small" onClick={() => open()}>

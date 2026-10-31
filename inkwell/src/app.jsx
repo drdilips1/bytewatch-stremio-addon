@@ -45,7 +45,7 @@ import { parseQuoteLink, openSharedQuote } from './lib/quoteshare.js';
 const TABS = [
   ['home', 'Home', 'home'],
   ['discover', 'Discover', 'search'],
-  ['podcasts', 'Podcasts', 'mic'],
+  ['podcasts', 'Podcasts', 'podcast'],
   ['library', 'Library', 'library'],
   ['settings', 'Settings', 'settings'],
 ];

@@ -385,7 +385,7 @@ export function FullPlayer() {
                   X-Ray
                 </button>
                 <button onClick={() => setSheet('story')}>
-                  <Icon name="sparkle" size={22} />
+                  <Icon name="ai" size={22} />
                   Story
                 </button>
                 <button onClick={() => setSheet('chapters')}>
@@ -631,7 +631,7 @@ function Companion({ book }) {
   return (
     <div class="fp-companion">
       <button class="comp-btn" onClick={() => go('')}>
-        <Icon name="sparkle" size={19} />
+        <Icon name="ai" size={19} />
         Ask
       </button>
       {COMPANION.map(([id, icon, label, q]) => (
