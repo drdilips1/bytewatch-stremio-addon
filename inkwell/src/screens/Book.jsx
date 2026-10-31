@@ -26,7 +26,7 @@ import * as qb from "../sources/qbit.js";
 import { canSendToKindle, sendToKindle, shareEbook } from "../lib/kindle.js";
 import { cloudReaderBook } from "../lib/epub.js";
 import { openSearch } from "./Discover.jsx";
-import { mainTitle } from "../lib/match.js";
+import { mainTitle, searchTitle } from "../lib/match.js";
 import { STARTERS } from "../lib/askbook.js";
 import { setFix } from "../lib/meta.js";
 import { audible as audibleCat, googleBooks } from "../sources/catalogs.js";
@@ -516,7 +516,7 @@ export function Book({ book: initial }) {
       <YourCopies editions={editions} />
       {book.kind === "discover" && sourceAddons().length > 0 && !loading && (
         <SourceResults
-          title={mainTitle(book.title)}
+          title={searchTitle(book.title)}
           author={(book.author || "").split(",")[0].trim()}
           book={book}
         />
@@ -527,7 +527,7 @@ export function Book({ book: initial }) {
         !loading && (
           <section class="pad">
             <SourceResults
-              title={mainTitle(book.title)}
+              title={searchTitle(book.title)}
               author={(book.author || "").split(",")[0].trim()}
               book={book}
             />
