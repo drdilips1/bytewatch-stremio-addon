@@ -791,7 +791,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
                 : qb.openTracker(trackerWords(r.title, book), !!trackerFilter, qb.isEbookName(`${r.title} ${r.format || ''}`))
               ).catch((e) => toast(e.message))
             }
-            onContextMenu={(e) => (e.preventDefault(), (qb.canGrab() || trackerFilter) && qb.openTracker(trackerWords(r.title, book), qb.canGrab() && !!trackerFilter).catch((er) => toast(er.message)))}
+            onContextMenu={(e) => (e.preventDefault(), (qb.canGrab() || trackerFilter) && qb.openTracker(trackerWords(r.title, book), false).catch((er) => toast(er.message)))}
             aria-label={`Search ${trackerSite} for this`}
           >
             <Icon name="search" size={12} /> {trackerSite.replace(/^www\./, '')[0].toUpperCase()}
@@ -1047,7 +1047,7 @@ function TrackerMini({ site, filter, words, title = '', author = '', ebook }) {
               .catch((e) => toast(e.message))
               .finally(() => setBusy(false));
           }}
-          onContextMenu={(e) => (e.preventDefault(), open(!!filter))}
+          onContextMenu={(e) => (e.preventDefault(), open(false))}
           aria-label={`Get from ${name} in the background`}
         >
           {busy ? <span class="spinner small" /> : name[0].toUpperCase()}

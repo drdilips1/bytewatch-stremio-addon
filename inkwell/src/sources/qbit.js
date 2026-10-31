@@ -4,6 +4,7 @@
 // Audiobookshelf picks the finished folder up.
 import { Capacitor, CapacitorCookies, registerPlugin } from '@capacitor/core';
 import { persisted } from '../lib/store.js';
+import { logError } from '../lib/report.js';
 import { requestText, requestFull, cleanUrl } from '../lib/http.js';
 import { readTorrent } from '../lib/torrentfile.js';
 import * as absSrc from './audiobookshelf.js';
@@ -649,24 +650,61 @@ export function pickTorrent(list, { words, title = '', author = '', ebook = fals
 export async function grabFromTracker({ words, title = '', author = '', ebook = false, filtered = false }) {
   if (!canGrab()) return openTracker(words, filtered, ebook);
   const base = 'https://' + trackerName();
-  const fallback = (msg) => (nativeToast(msg), openTracker(words, filtered, ebook));
+  // Anything unclear opens the site's search — always across all torrents, not only FL / VIP.
+  const fallback = (msg) => (nativeToast(msg), openTracker(words, false, ebook));
   nativeToast(`Looking on ${trackerName().replace(/^www\./, '')} for “${title || words}”…`);
-  const body = JSON.stringify({
-    tor: { text: words, srchIn: ['title', 'author', 'narrator'], searchType: 'all', searchIn: 'torrents', main_cat: [ebook ? 14 : 13], browseFlagsHideVsShow: '0', sortType: 'default', startNumber: '0' },
-    thumbnail: 'false',
-    dlLink: '',
-    perpage: 40,
-  });
-  let data;
-  try {
-    const r = await Web.trackerSearch({ base, path: '/tor/js/loadSearchJSONbasic.php', body });
-    if (r.status >= 300) return fallback('Sign in to the tracker once — opening it');
-    data = JSON.parse(r.text || '{}');
-  } catch (e) {
-    return fallback(/signin/.test(e?.message) ? 'Sign in to the tracker once — opening it' : 'The tracker search didn’t answer — opening it');
+  const cat = ebook ? 14 : 13;
+  const asJson = (text) =>
+    JSON.stringify({
+      tor: { text, srchIn: ['title', 'author', 'narrator'], searchType: 'all', searchIn: 'torrents', main_cat: [cat], browseFlagsHideVsShow: '0', sortType: 'default', startNumber: '0' },
+      thumbnail: 'false',
+      dlLink: '',
+      perpage: 40,
+    });
+  const asQuery = (text) =>
+    '/tor/js/loadSearchJSONbasic.php?' +
+    [['tor[text]', text], ['tor[searchType]', 'all'], ['tor[searchIn]', 'torrents'], ['tor[srchIn][title]', 'true'], ['tor[srchIn][author]', 'true'], ['tor[srchIn][narrator]', 'true'], ['tor[main_cat][]', cat], ['dlLink', ''], ['perpage', 40]]
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
+  // The title alone first (the author is matched here), then the title with the author's name;
+  // each the JSON way, then the address way. Why each try failed goes to Report a problem.
+  const texts = [...new Set([title && mainTitle(title), words].filter(Boolean))];
+  const tries = texts.flatMap((t) => [{ path: '/tor/js/loadSearchJSONbasic.php', body: asJson(t) }, { path: asQuery(t) }]);
+  const why = [];
+  let data = null;
+  for (const t of tries) {
+    try {
+      const r = await Web.trackerSearch({ base, ...t });
+      if (r.status >= 300 && r.status < 400) {
+        why.push(`HTTP ${r.status} (signed out?)`);
+        continue;
+      }
+      let d;
+      try {
+        d = JSON.parse(String(r.text || '').replace(/^\uFEFF/, ''));
+      } catch {
+        why.push(`HTTP ${r.status}, not JSON: ${String(r.text || '').replace(/\s+/g, ' ').slice(0, 120)}`);
+        continue;
+      }
+      if (Array.isArray(d.data) && d.data.length) {
+        data = d;
+        break;
+      }
+      why.push(`HTTP ${r.status}: ${String(d.error || 'no results').slice(0, 80)}`);
+    } catch (e) {
+      if (/signin/.test(e?.message)) return fallback('Sign in to the tracker once — opening it');
+      why.push(String(e?.message || e).slice(0, 100));
+    }
+  }
+  if (!data) {
+    logError('tracker grab', `“${words}”: ${why.join(' | ')}`);
+    return fallback(`${trackerName().replace(/^www\./, '')}: no answer for “${title || words}” (${why[why.length - 1] || 'unknown'}) — opening the search`);
   }
   const pick = pickTorrent(data.data, { words, title, author, ebook });
-  if (!pick) return fallback(`Nothing clear for “${title || words}” — opening the search`);
+  if (!pick) {
+    logError('tracker grab', `“${words}”: ${data.data.length} results, none clearly this book`);
+    return fallback(`Nothing clear for “${title || words}” among ${data.data.length} results — opening the search`);
+  }
   const useWedge = !pick.free && !pick.vip && tracker.get().wedge === true;
   const ts = Date.now();
   const name = `${String(pick.title || title || words).replace(/[\\/:*?"<>|]+/g, ' ').trim()}.torrent`;
