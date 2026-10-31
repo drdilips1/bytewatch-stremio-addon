@@ -5,6 +5,18 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-10-31',
+    title: 'Fixes from your notes',
+    items: [
+      ['🔄', 'Audiobookshelf in step', 'A book starts from the newer place — your server’s (another app went further) or this phone’s — and progress goes through the server’s own session, so the percentage and listening time update there too.'],
+      ['🛟', 'Server down? Still plays', 'When your Audiobookshelf isn’t answering, Play uses your copy on the phone, downloaded or in TorBox / Real-Debrid, from the same place.'],
+      ['🎯', 'The right book', '“The Greatest Secret” is no longer offered for “The Secret”, nor other books of a series (Red Rising) — they wait under loose matches.'],
+      ['📖', 'Text view ebook', 'While it looks for the ebook: Choose or Stop. It gives up after a minute, and the ebook sheet always closes.'],
+      ['🧩', 'Add-on torrents play', 'Add-ons that offer a torrent instead of a link now play through TorBox / Real-Debrid.'],
+      ['✨', 'Smaller fixes', 'Chapter pill shows the chapter’s own title (Chapter 6 · 8/10); listening options come before ebooks on the book page; ebook files that don’t open aren’t offered again; Kindle addresses can’t be wiped by sync; button labels stay inside.'],
+    ],
+  },
+  {
     id: '2026-10-29',
     title: 'Names heard right',
     items: [

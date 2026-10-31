@@ -2,7 +2,9 @@
 
 Noted while building; to pick up after Saturday.
 
-## Notes of 31 Oct (from the PDF) — not started
+## Notes of 31 Oct (from the PDF)
+Done 31 Oct, not built yet: #1, #3, and points 1, 2, 4, 9, 10, 11, 17, 18, 19, 29 (see git log).
+Still to do: the rest (design work gets samples first).
 GitHub (public app page): keep watching issues; tell first, fix, then wait for "build now".
 - #1 Audiobookshelf sync: resume from the newer position (server vs app), sync/close the ABS session,
   show failed syncs, clientName "Audiohub".
