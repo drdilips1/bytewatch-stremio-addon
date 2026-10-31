@@ -4,7 +4,7 @@
 import * as stats from './stats.js';
 import { createEngine } from './engine.js';
 import { progress, bookmarks, settings, summarize, persisted } from './store.js';
-import { syncProgress, switchTracks } from '../sources/audiobookshelf.js';
+import { syncProgress, switchTracks, closeSession } from '../sources/audiobookshelf.js';
 import { fetchStatus } from '../sources/debrid.js';
 import { applyLocal, isDownloaded, downloads } from './downloads.js';
 import { otherCopyProgress } from './works.js';
@@ -531,6 +531,11 @@ export async function openAndPlay(book, getDetails, opts) {
 
 export async function playBook(details, { index, time, globalStart, autoplay = true } = {}) {
   stopWaiting();
+  // Another book (or the same one again): the previous server session is done.
+  if (state.book) {
+    saveProgress(true);
+    endAbsSession();
+  }
   // A book you chose (not a switch by the safety net): start its list of tried copies afresh.
   if (!rescuing) rescueTried.clear();
   rescuing = false;
@@ -539,11 +544,13 @@ export async function playBook(details, { index, time, globalStart, autoplay = t
   try {
     let tracks = details.tracks;
     let serverStart = 0;
+    let server = null;
     if (!tracks?.length && details.resolveTracks) {
       set({ phase: 'Starting a session on your server…' });
       const r = await details.resolveTracks();
       tracks = r.tracks;
       serverStart = r.startTime || 0;
+      server = r.server || null;
     }
     if (!tracks?.length) throw new Error('No audio tracks found for this title');
     set({ book: details, tracks, playing: false });
@@ -553,10 +560,16 @@ export async function playBook(details, { index, time, globalStart, autoplay = t
     const other = index == null && time == null && globalStart == null ? otherCopyProgress(details) : null;
     const useOther = other && (!saved || saved.finished || other.updatedAt > (saved.updatedAt || 0) + 60e3);
     if (useOther) saved = null;
+    // Your server's place is newer (another app listened further, or went back): use it,
+    // instead of sending this phone's older place back over it.
+    const serverNewer =
+      index == null && time == null && globalStart == null && server && !server.finished && server.time > 0 &&
+      (!saved || server.updatedAt > (saved.updatedAt || 0) + 30e3) && (!useOther || server.updatedAt > other.updatedAt);
+    if (serverNewer) saved = null;
     const resume = saved && !saved.finished;
     let i = index ?? (resume ? saved.track : 0) ?? 0;
     let t = time ?? (resume ? saved.time : 0);
-    const g = globalStart ?? (useOther ? other.global : null) ?? (index == null && time == null && !resume && serverStart ? serverStart : null);
+    const g = globalStart ?? (serverNewer ? server.time : null) ?? (useOther ? other.global : null) ?? (index == null && time == null && !resume && serverStart ? serverStart : null);
     if (g != null) ({ i, t } = locate(g));
     // Gentle rewind when resuming after a break.
     if (resume && index == null && time == null && Date.now() - saved.updatedAt > 5 * 60e3) t = Math.max(0, t - 10);
@@ -671,6 +684,7 @@ export function patchBook(uid, patch) {
 /** Stop playback and dismiss the player completely. */
 export function stop() {
   saveProgress(true);
+  endAbsSession();
   loadToken++;
   Promise.resolve(engine.stop()).catch(() => {});
   stopWaiting();
@@ -754,7 +768,21 @@ function saveProgress(force = false) {
       book: summarize(state.book),
     },
   }));
-  if (uid.startsWith('abs:')) syncProgress(uid, g, total, !!finished);
+  if (uid.startsWith('abs:')) {
+    // Real listening time since the last sync (for the server's history and stats).
+    const listened = state.playing && lastAbsSync ? Math.min(60, (now - lastAbsSync) / 1000) * (state.rate || 1) : 0;
+    if (force || finished || now - lastAbsSync >= 15000) {
+      lastAbsSync = now;
+      syncProgress(uid, g, total, !!finished, listened);
+    }
+  }
+}
+let lastAbsSync = 0;
+/** The book is put away: close its server session (with the last place). */
+function endAbsSession() {
+  if (!state.book?.uid?.startsWith('abs:')) return;
+  lastAbsSync = 0;
+  closeSession(globalTime(), totalDuration());
 }
 
 function fadeOutAndPause() {
