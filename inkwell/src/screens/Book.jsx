@@ -479,6 +479,12 @@ export function Book({ book: initial }) {
         </div>
       )}
 
+      {/* Your verdict and your tags: one line, just above the source results. */}
+      {!loading && book.source !== "sum" && book.source !== "pod" && (
+        <MyRating book={book}>
+          <BookTags book={book} inline />
+        </MyRating>
+      )}
       {book.kind === "discover" && (
         <section class="pad" id="where-to-get">
           <h3 class="section-label">Where to listen or read</h3>
@@ -619,10 +625,6 @@ export function Book({ book: initial }) {
           deps={[book.uid, authorKey]}
         />
       )}
-      {!loading && book.source !== "sum" && book.source !== "pod" && (
-        <MyRating book={book} />
-      )}
-      {!loading && book.source !== "sum" && book.source !== "pod" && <BookTags book={book} />}
       {!loading && <RelatedRows book={book} />}
       <div class="footer-space" />
       </div>
@@ -859,7 +861,7 @@ function StatsStrip({ book, tracks }) {
 }
 
 /** Your own verdict: how you found it, the story and the narration, and why if it didn't work. Feeds your picks. */
-function MyRating({ book }) {
+function MyRating({ book, children }) {
   const all = useStore(myRatings);
   const mine = all[rateKey(book)];
   const r = mine?.verdict ? mine : null;
@@ -883,18 +885,7 @@ function MyRating({ book }) {
     </div>
   );
   return (
-    <section class="myrate pad">
-      <div class="myrate-head">
-        <h3>Your verdict</h3>
-        {r && (
-          <button
-            class="link-btn"
-            onClick={() => (clearRating(book), setOpen(false))}
-          >
-            Clear
-          </button>
-        )}
-      </div>
+    <section class="myrate pad myrate-line">
       <div class="myrate-verdicts">
         {VERDICTS.map(([k, emoji, label]) => (
           <button
@@ -909,6 +900,8 @@ function MyRating({ book }) {
             <small>{label}</small>
           </button>
         ))}
+        {children && <span class="myrate-sep" />}
+        {children}
       </div>
       {r && (open || r.story || r.narration || r.reasons?.length) && (
         <div class="myrate-more">
@@ -941,7 +934,10 @@ function MyRating({ book }) {
             </div>
           )}
           <p class="muted small">
-            Your ratings shape the picks in For you and on Home. Narrators you
+            <button class="link-btn" onClick={() => (clearRating(book), setOpen(false))}>
+              Clear verdict
+            </button>{" "}
+            · Your ratings shape the picks in For you and on Home. Narrators you
             mark weak are kept out.
           </p>
         </div>
