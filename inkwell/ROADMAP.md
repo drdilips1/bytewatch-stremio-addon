@@ -2,6 +2,66 @@
 
 Noted while building; to pick up after Saturday.
 
+## Notes of 31 Oct (from the PDF) — not started
+GitHub (public app page): keep watching issues; tell first, fix, then wait for "build now".
+- #1 Audiobookshelf sync: resume from the newer position (server vs app), sync/close the ABS session,
+  show failed syncs, clientName "Audiohub".
+- #2 Playback history: log play / pause / skip / seek / sleep stop with time and position; tap to jump.
+- #3 "No playable stream for this part" ×11 — The Hobbit via TorBox (public 1.0.18).
+
+Player & Text view
+1. "Looking for your ebook…" never ends when nothing is found — no stop, no search, no attach. Look in
+   source results first; let you attach from the phone or search sources yourself.
+2. "Use another ebook" sheet can't be closed (Back / tapping outside) while "Searching your sources…".
+3. Controls take too much room; Text should open full-screen text with a slim play/pause strip.
+4. Chapter label wrong: real "Chapter 6" shown as "Chapter 8" (intro / credits counted).
+5. Player backgrounds: light ones, or from the cover's colours. Player revamp (ChatGPT layout: cover as
+   centrepiece on blurred cover background, source pill, chapter / X-Ray / Story pills, signature row
+   Ask · Explain · Find in book · X-Ray, utility row Speed · Sleep · Text · Voice · Bookmark · More;
+   sleep timer with fade-out; long-press timeline / chapter; a useful More menu like Absorb's:
+   details, read, find in ebook, equalizer, cast, playback history, car mode, notes, download).
+6. Text sometimes not in sync even with the ebook attached (The Secret).
+7. Listening to the audiobook with the ebook open in the reader: highlight the current passage there.
+8. Tapping a highlight (ebook or audio) should start ~30 s before it.
+
+Sources & matching
+9. "The Secret" offered / played "The Greatest Secret" as TorBox instant — another book must never be
+   shown as instant / Available.
+10. Series (Red Rising): other books of the series in results; sometimes the first one is another book.
+11. "Read · TorBox" text spills out of its button (also in the expanded row).
+12. FL/VIP + All buttons → one "M" (MyAnonamouse) button.
+13. Book page: Offline vs Save — explain or merge.
+14. A book already on Audiobookshelf: the TorBox button shouldn't send it there again.
+15. Send to Kindle missing on torrent ebook results (only Read · TorBox / Save).
+16. Integrate the new source you added (private app) — need its details.
+17. Ebooks that aren't readable EPUBs: skip / hide them.
+
+Book page
+18. Audiobook app first: Available row — Listen copies (phone, ABS, TorBox) before Read EPUB.
+19. ABS server offline: "Couldn't load details", no covers — fall back to the phone or TorBox copy.
+
+AI & voice
+20. Ask AI says "I don't have the full text" although the ebook / transcript is there — use them.
+21. Ask AI page revamp (font, alignment, polish); share answers to other apps.
+22. Voice commands vs AI mixed up: "play <book>" must play it (even with another book loaded / paused);
+    commands act, questions answer. Book not in the library: play the best source (most seeds) when
+    it's not on the phone / ABS, instead of "showing results".
+
+Home, Library, look
+23. Home too spread out; show how many books each source has.
+24. Covers low-res / cut off (text and pictures) — show the whole cover like Absorb; borders that blend.
+25. No "two little stars" (✦) icon anywhere — pick another.
+26. Greeting: name and greeting in different fonts — still looks bad.
+27. Podcasts icon: something more fitting.
+28. Long-press a book: an action sheet (play, download, collection, reset progress, remove from
+    Continue, details…) like Absorb.
+
+Settings & misc
+29. Kindle addresses disappeared (maybe after sign-out).
+30. Settings: "Issues & support" (open a GitHub issue, contact, logging) like Absorb.
+31. Who are the contributors on GitHub? (Answered: see chat — commits co-signed by Claude, and the
+    original 93bx project the private repo started from.)
+
 ## Planned for Saturday — "Audiohub Lite" (a third, stripped-down app)
 - Audiobooks only, played through debrid (TorBox / Real-Debrid) — that's all.
 - Left out completely: AI (Ask, X-Ray, Story, recaps, explain…), ebooks and the reader
