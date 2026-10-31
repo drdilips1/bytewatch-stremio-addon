@@ -20,6 +20,8 @@ export const CHANGES = [
       ['📚', 'Kindle for torrent ebooks', 'Torrent ebook results have a Kindle button next to Read and Save: it fetches the EPUB (or PDF) and sends it to Kindle or another app.'],
       ['🔎', 'One tracker button', 'The FL / VIP and All buttons are now one letter button: tap searches with your filter, press and hold searches everything.'],
       ['🏠', 'No double sends', 'On a book from your Audiobookshelf, playing it through TorBox no longer sends it home to qBittorrent again; ♥ says “Added to your library” and Offline is now “Download · plays without internet”.'],
+      ['▶️', 'New player', 'The cover in the middle, where it plays from on top, chapter and X-Ray as pills, an Ask · Explain · Find · X-Ray row, and Speed · Sleep · Text · Voice · Mark · More with labels. Challenge, Rabbit hole, Related, Recall and Remember are under More.'],
+      ['💬', 'Ask AI, redone', 'Answers on a clean card in a book font, with where they came from (your ebook, what you’ve heard, or what the AI knows), Share / Copy / Listen / Save, and follow-up questions. Voice and spoiler settings sit under ⚙.'],
       ['🎧', 'Read along with the audio', 'Open the ebook while its audiobook plays and tap “Follow the audio”: the paragraph being read lights up and stays on screen (scroll yourself and it waits a few seconds). Works with any edition — it listens for the words.'],
       ['🧭', 'Text stays in step', 'The Text view no longer jumps to another page when the book repeats a phrase (“the law of attraction…”): lines keep to the book’s order and a far jump needs much stronger proof.'],
       ['🤍', 'Ivory & Gold', 'A new light look: warm ivory, ink text and an antique-gold accent (Settings → Appearance has the others).'],

@@ -4,7 +4,7 @@ import { loadImage } from '../lib/image.js';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import * as player from '../lib/player.js';
 import { isNative as isNativeEngine } from '../lib/engine.js';
-import { Cover, toast } from './common.jsx';
+import { Cover, toast, SourceBadge } from './common.jsx';
 import { Icon, SkipIcon } from './icons.jsx';
 import { fmtTime } from '../lib/format.js';
 import { coverColor } from '../lib/color.js';
@@ -205,9 +205,9 @@ export function FullPlayer() {
         <button class="icon-btn" onClick={() => nav.closeOverlay()} aria-label="Close player">
           <Icon name="down" />
         </button>
-        <div class="fp-top-title">
-          <small>Now playing</small>
-          <span>{s.book.title}</span>
+        {/* Where it plays from (your server, cloud, this phone…). */}
+        <div class="fp-top-title fp-source">
+          <SourceBadge uid={s.book.uid} book={s.book} />
         </div>
         <button
           class="icon-btn"
@@ -232,16 +232,33 @@ export function FullPlayer() {
       {!showText && (
         <>
       <div class="fp-meta">
-        <h2>{s.tracks[s.index]?.title || s.book.title}</h2>
-        <p>{s.book.author}</p>
-        {/* Chapters: where you are, one tap to the list (used all the time, so not under More). */}
-        {chapters.length > 1 && (
-          <button class="fp-chapters" onClick={() => setSheet('chapters')}>
-            <Icon name="list" size={16} />
-            <span>{chapterLabel(chapters, g)}</span>
-            <Icon name="chevron" size={14} />
-          </button>
-        )}
+        <h2>{s.book.title}</h2>
+        <p>
+          {s.book.author}
+          {s.book.narrator ? ` · read by ${String(s.book.narrator).split(',')[0]}` : ''}
+        </p>
+        {/* Chapter (one tap to the list) and X-Ray, as pills. */}
+        <div class="fp-pills">
+          {chapters.length > 1 ? (
+            <button class="fp-chapters" onClick={() => setSheet('chapters')}>
+              <Icon name="list" size={15} />
+              <span>{chapterLabel(chapters, g)}</span>
+            </button>
+          ) : (
+            s.tracks.length > 1 && (
+              <button class="fp-chapters" onClick={() => setSheet('chapters')}>
+                <Icon name="list" size={15} />
+                <span>{s.tracks[s.index]?.title || `Part ${s.index + 1}`}</span>
+              </button>
+            )
+          )}
+          {s.book.source !== 'pod' && (
+            <button class="fp-chapters" onClick={() => setSheet('xray')}>
+              <Icon name="xray" size={15} />
+              <span>X-Ray</span>
+            </button>
+          )}
+        </div>
         {s.preparing && <PrepBar st={s.preparing} />}
         {s.interrupted && !s.loading && (
           <div class="loading-line">
@@ -263,7 +280,6 @@ export function FullPlayer() {
         {s.error && !s.preparing && <p class="err">{s.error}</p>}
       </div>
 
-      <XrayStrip s={s} open={() => setSheet('xray')} />
 
       <div class="fp-scrub">
         <input
@@ -322,16 +338,17 @@ export function FullPlayer() {
         </div>
       )}
 
-      <Companion book={s.book} />
+      <Signature book={s.book} openXray={() => setSheet('xray')} />
 
       {/* One row of the everyday buttons; the rest under More. */}
       <div class="fp-actions one-row">
         <button class="chip-btn" onClick={() => setSheet('speed')} aria-label="Speed">
           <b>{s.rate}×</b>
+          <small>Speed</small>
         </button>
         <button class={'chip-btn' + (s.sleepUntil || s.sleepEndOfTrack ? ' active' : '')} onClick={() => setSheet('sleep')} aria-label="Sleep timer">
           <Icon name="moon" size={16} />
-          {s.sleepUntil ? ` ${fmtTime(sleepLeft)}` : s.sleepEndOfTrack ? ' Ch.' : ''}
+          <small>{s.sleepUntil ? fmtTime(sleepLeft) : s.sleepEndOfTrack ? 'Ch. end' : 'Sleep'}</small>
         </button>
         <button
           class={'chip-btn' + (showText ? ' active' : '')}
@@ -341,7 +358,8 @@ export function FullPlayer() {
           }}
           aria-label="Transcript"
         >
-          <Icon name="text" size={16} /> Text
+          <Icon name="text" size={16} />
+          <small>Text</small>
         </button>
         {s.book.source !== 'pod' && <SceneButton chip />}
         <button
@@ -362,10 +380,11 @@ export function FullPlayer() {
           }}
         >
           <Icon name="bookmark" size={16} />
-          {bms.length ? ` ${bms.length}` : ''}
+          <small>{bms.length ? `Mark · ${bms.length}` : 'Mark'}</small>
         </button>
         <button class="chip-btn" onClick={() => setSheet('more')} aria-label="More">
           <Icon name="dots" size={18} stroke={3.5} />
+          <small>More</small>
         </button>
       </div>
         </>
@@ -414,6 +433,7 @@ export function FullPlayer() {
             {sheet === 'story' && <StorySheet close={() => setSheet(null)} />}
             {sheet === 'recap' && <StorySheet close={() => setSheet(null)} start="story" />}
             {sheet === 'xray' && <XraySheet s={s} />}
+            {sheet === 'more' && <Companion book={s.book} />}
             {sheet === 'more' && (
               <div class="fp-more">
                 <button onClick={() => (setSheet(null), openDrive())}>
@@ -646,6 +666,38 @@ function PlayerBackground({ book, st }) {
  * about the part you're hearing (the book pauses; the mini player brings you back),
  * and Remember to keep the idea as a card.
  */
+/** The player's AI row: Ask, Explain (what's being said), Find (in what you've heard), X-Ray. */
+function Signature({ book, openXray }) {
+  if (!book || book.source === 'pod') return null;
+  const ask = (question) => {
+    if (!aiReady()) return toast('Add an AI key in Settings → AI first');
+    player.pause();
+    nav.closeOverlay();
+    nav.push('ask', { book, description: book.description || '', question, here: !!question, askId: question ? `${Date.now()}` : '' });
+  };
+  const explain = COMPANION.find((c) => c[0] === 'explain');
+  return (
+    <div class="fp-signature">
+      <button onClick={() => ask('')}>
+        <Icon name="ai" size={19} />
+        Ask
+      </button>
+      <button onClick={() => ask(explain[3])}>
+        <Icon name="bulb" size={19} />
+        Explain
+      </button>
+      <button onClick={() => transcriptCfg.set({ open: true, find: true })}>
+        <Icon name="search" size={19} />
+        Find
+      </button>
+      <button onClick={openXray}>
+        <Icon name="xray" size={19} />
+        X-Ray
+      </button>
+    </div>
+  );
+}
+
 function Companion({ book }) {
   const [saving, setSaving] = useState(false);
   if (!book || book.source === 'pod') return null;

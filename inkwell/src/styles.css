@@ -10366,3 +10366,231 @@ button.notes-book-head {
   padding: 2px 8px;
   border-radius: 99px;
 }
+
+/* ---- Player (design A): source pill, centred title, pills, AI row, labelled buttons ---- */
+.fp-source .badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 11px;
+  border-radius: 99px;
+  letter-spacing: 0.02em;
+}
+:root[data-palette='paperink'] .fp-source .badge {
+  background: var(--sage);
+  color: var(--accent);
+  border: none;
+}
+.full-player .fp-meta {
+  text-align: center;
+}
+.full-player .fp-meta p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fp-pills {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.fp-pills .fp-chapters {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 70%;
+  padding: 6px 12px;
+  border-radius: 99px;
+  font-size: 12.5px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.fp-pills .fp-chapters span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:root[data-palette='paperink'] .fp-pills .fp-chapters {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.fp-signature {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+.fp-signature button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 9px 2px;
+  border-radius: 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+}
+.fp-signature .icon {
+  color: var(--accent);
+}
+:root[data-palette='paperink'] .fp-signature button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.fp-actions.one-row {
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+:root[data-palette='paperink'] .fp-actions.one-row {
+  border-top-color: var(--border);
+}
+.fp-actions.one-row .chip-btn {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  background: transparent !important;
+  border: none !important;
+  font-size: 14px;
+  line-height: 1.1;
+}
+.fp-actions.one-row .chip-btn small {
+  font-size: 10.5px;
+  opacity: 0.75;
+  font-weight: 500;
+}
+.fp-actions.one-row .chip-btn.active small,
+.fp-actions.one-row .chip-btn.active .icon {
+  color: var(--accent);
+  opacity: 1;
+}
+.fp-actions.one-row .chip-btn b {
+  font-size: 15px;
+}
+/* The Ask / Challenge / Rabbit hole … row now sits in More. */
+.sheet .fp-companion {
+  margin: 0 0 12px;
+}
+
+/* ---- Ask AI page (design 21) ---- */
+.ask-book .ask-set {
+  margin-left: auto;
+  flex: none;
+  color: var(--muted);
+}
+.ask-book .ask-set.on {
+  color: var(--accent);
+}
+.ask-book .ask-cover {
+  width: 48px;
+  height: 48px;
+}
+.ask-book b {
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ask-book span {
+  font-size: 12px;
+}
+.ask-settings {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+}
+.ask-msg.user {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 18px 18px 4px 18px;
+  font-weight: 500;
+}
+:root[data-mode='dark'] .ask-msg.user {
+  color: var(--bg);
+}
+.ask-msg.ai {
+  padding: 14px 15px;
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+.ask-msg.ai .ask-answer {
+  font-family: 'Literata Variable', Georgia, serif;
+  font-size: 15px;
+  line-height: 1.62;
+}
+.ask-msg.ai .ask-answer b,
+.ask-msg.ai .ask-answer h4 {
+  font-family: var(--font);
+}
+.ask-from {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ask-from span {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--sage);
+  color: var(--accent);
+}
+.ask-acts {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: -2px 0 4px;
+}
+.ask-acts button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  padding: 6px 11px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+.ask-acts button.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ask-acts .icon {
+  color: var(--accent);
+}
+.ask-next {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ask-next .ask-q {
+  width: auto;
+  font-size: 12.5px;
+  padding: 7px 12px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  border: none;
+}
+.ask-input {
+  border-radius: 24px;
+}
+.ask-send {
+  background: var(--accent);
+  color: #fff;
+}

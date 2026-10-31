@@ -7,7 +7,7 @@ import { toast } from './common.jsx';
 import * as player from '../lib/player.js';
 import { knownCharacters, CharacterCard } from './story-sheet.jsx';
 import { useStore, bookmarks } from '../lib/store.js';
-import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard, stopLooking } from '../lib/transcript.js';
+import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard, stopLooking, transcriptCfg } from '../lib/transcript.js';
 import { cachedXray } from '../lib/xray.js';
 import { fmtTime } from '../lib/format.js';
 
@@ -244,7 +244,11 @@ export function TranscriptView({ s }) {
   const [t, setT] = useState(null);
   const chars = useStore(knownCharacters);
   const [card, setCard] = useState(null);
-  const [finding, setFinding] = useState(false);
+  // The player's Find button opens the text with the search ready.
+  const [finding, setFinding] = useState(() => !!transcriptCfg.get().find);
+  useEffect(() => {
+    if (transcriptCfg.get().find) transcriptCfg.set({ ...transcriptCfg.get(), find: false });
+  }, []);
   const list = chars.uid === s.book?.uid ? chars.list : [];
   // Full names, aliases and distinctive first names all link to the same character.
   const lookup = new Map();

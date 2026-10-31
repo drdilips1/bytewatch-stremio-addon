@@ -252,6 +252,8 @@ export async function ask(book, question, { msgs = [], description = '', genres 
     const heard = heardText(book.uid, st.index, st.time + 2, 9000).trim();
     if (heard.length > 400) extra.push(`What the listener has heard of this book so far (speech-recognised, a few words may be wrong):\n"""${heard}"""\nUse it to answer.`);
   }
+  // Where this answer came from (shown under it): the ebook, what was heard, or neither.
+  const from = passageText ? 'ebook' : extra.some((x) => x.startsWith('What the listener')) ? 'heard' : '';
   const prompt = `${context(book, { description, genres, text: passageText })}
 ${extra.join('\n\n')}
 ${history ? `Conversation so far:\n${history}\n` : ''}
@@ -259,8 +261,24 @@ Reader's question: ${question}
 
 ${STYLE}`;
   const text = (await askAi(prompt)).trim();
-  saveThread(book, [...msgs, { role: 'user', text: question }, { role: 'ai', text }]);
+  saveThread(book, [...msgs, { role: 'user', text: question }, { role: 'ai', text, from }]);
+  lastFrom = from;
   return text;
+}
+let lastFrom = '';
+/** Where the last answer came from: 'ebook', 'heard' or ''. */
+export const answerSource = () => lastFrom;
+/** Is this book's ebook on hand (Ask answers from its text)? */
+export async function hasBookText(book) {
+  if (!book) return false;
+  if (book.kind === 'text') return true;
+  const bt = await import('./booktext.js');
+  return !!bt.ebookFor(book);
+}
+/** Keep an answer as a saved idea (Ask my books reads them too). */
+export function keepAnswer(book, text) {
+  const t = Date.now();
+  ideas.set((list) => [{ t, text: String(text).slice(0, 1200), uid: book?.uid || '', title: book ? mainTitle(book.title) : 'My books', author: book?.author || '', where: 'Ask AI' }, ...(list || [])].slice(0, 300));
 }
 
 /** A multiple-choice quiz: [{ q, options: [4], answer: 0-3, why }]. */
