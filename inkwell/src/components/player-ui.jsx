@@ -401,7 +401,15 @@ export function FullPlayer() {
           <button class="icon-btn" onClick={() => player.skip(st.skipForward)} aria-label={`Forward ${st.skipForward}s`}>
             <SkipIcon seconds={st.skipForward} forward size={26} />
           </button>
-          <div class="ts-bar">
+          <div
+            class="ts-bar"
+            role="button"
+            aria-label="Back to the player"
+            onClick={() => {
+              stopTranscript();
+              transcriptCfg.set({ open: false });
+            }}
+          >
             <i>
               <b style={{ width: (total ? (g / total) * 100 : dur ? (t / dur) * 100 : 0) + '%' }} />
             </i>
@@ -413,15 +421,17 @@ export function FullPlayer() {
           <button class="chip-btn" onClick={() => setSheet('speed')} aria-label="Speed">
             <b>{s.rate}×</b>
           </button>
+          {/* Back to the full player (cover, chapters, all the buttons). */}
           <button
-            class="icon-btn"
-            aria-label="Close the text"
+            class="ts-cover"
+            aria-label="Back to the player"
             onClick={() => {
               stopTranscript();
               transcriptCfg.set({ open: false });
             }}
           >
-            <Icon name="close" size={18} />
+            <Cover book={s.book} />
+            <Icon name="up" size={14} />
           </button>
         </div>
       )}
