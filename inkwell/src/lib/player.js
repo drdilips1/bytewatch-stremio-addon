@@ -764,7 +764,7 @@ export function playAt(g) {
 }
 
 /** Bookmarks play from a little before the marked moment, to catch the start of it. */
-export const BOOKMARK_LEAD = 15;
+export const BOOKMARK_LEAD = 30;
 export function playBookmark(bm) {
   const t = bm.time - BOOKMARK_LEAD;
   // Near the start of a part: the end of the part before it.

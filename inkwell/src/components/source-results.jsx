@@ -362,6 +362,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
 
   // Auto-send (Settings > Home server): what you add here goes to qBittorrent too.
   const autoSend = () =>
+    book?.source !== 'abs' && // this book page is your Audiobookshelf's own copy: it's there already
     qb
       .autoSendAdded({ hash: cloud.infoHash(r.magnet, r.hash), magnet: r.magnet, title: book?.title || r.title, author: book?.author || r.author || '', rawName: r.title, format: r.format })
       .then((m) => m && toast(m));
@@ -387,13 +388,22 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   // (or keep it on the phone with Save).
   const readTorrent = async (via, keep = false) => {
     if (!need()) return;
-    setBusy(keep ? 'save' : via === playVia ? 'play' : 'play:' + via);
+    setBusy(keep === 'kindle' ? 'kindle' : keep ? 'save' : via === playVia ? 'play' : 'play:' + via);
     setStatus({ text: readyOn(via) ? `Getting it from your ${LABEL[via]}…` : 'Contacting ' + LABEL[via] + '…', pct: null });
     try {
       const stub = await cloud.prepareMagnet(via, r, (text, pct) => setStatus({ text, pct }), { ebook: true });
       autoSend();
       const details = await getDetails({ ...stub, title: book?.title || stub.title, author: book?.author || r.author || stub.author, cover: book?.cover || stub.cover });
       const files = details.ebooks || [];
+      if (keep === 'kindle') {
+        // Send to Kindle / another app: EPUB first (Amazon takes it by e-mail), then PDF, then anything.
+        const any = files.find((f) => f.format === 'EPUB') || files.find((f) => f.format === 'PDF') || files[0];
+        if (!any) throw new Error('No ebook files in this one');
+        setStatus({ text: 'Downloading the ebook…', pct: null });
+        await shareEbook(any, { title: book?.title || details.title || r.title });
+        setStatus(null);
+        return;
+      }
       const file = files.find((f) => f.format === 'EPUB') || files.find((f) => f.format === 'PDF');
       if (!file) throw new Error(files.length ? `Only ${[...new Set(files.map((f) => f.format))].join(' / ')} in this one — the reader opens EPUB and PDF` : 'No ebook files in this one');
       const rb = cloudReaderBook(details, file);
@@ -599,7 +609,9 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   const homeHash = home ? cloud.infoHash(r.magnet, r.hash) : '';
   const sentHome = !!homeHash && qb.wasSent(homeHash);
   const sendHome = async () => {
-    const have = await qb.onServer({ title: book?.title || r.title, author: book?.author || r.author || '', rawName: r.title }).catch(() => 'down');
+    // This book page is your Audiobookshelf's own copy: it's there already.
+    if (book?.source === 'abs' && !confirm(`“${book.title}” is already on your Audiobookshelf. Send it home again anyway?`)) return;
+    const have = book?.source === 'abs' ? null : await qb.onServer({ title: book?.title || r.title, author: book?.author || r.author || '', rawName: r.title }).catch(() => 'down');
     if (have === 'down' && !confirm("Couldn't reach your Audiobookshelf to check whether you already have this. Send it home anyway?")) return;
     if (have && have !== 'down' && !confirm(`Your Audiobookshelf already has “${have.title}”. Send it home again anyway?`)) return;
     setBusy('home');
@@ -651,9 +663,9 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
             );
           })}
           {home && (
-            <div class={'svc' + (sentHome ? ' ok' : '')}>
+            <div class={'svc' + (sentHome || book?.source === 'abs' ? ' ok' : '')}>
               <b>Home</b>
-              <span>{sentHome ? 'sent' : 'qBittorrent'}</span>
+              <span>{sentHome ? 'sent' : book?.source === 'abs' ? 'on your server' : 'qBittorrent'}</span>
               <button class="pill small" disabled={!!busy} onClick={sendHome} aria-label="Send to your home server">
                 {busy === 'home' ? <span class="spinner small" /> : <Icon name={sentHome ? 'check' : 'plus'} size={14} />}
               </button>
@@ -742,6 +754,11 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
                 {busy === 'save' ? <span class="spinner" /> : <Icon name="download" size={14} />} Save
               </button>
             )}
+            {ebookTorrent && (
+              <button class="btn secondary play-alt" disabled={!!busy} onClick={() => readTorrent(playVia, 'kindle')} aria-label="Send to Kindle or open in another app">
+                {busy === 'kindle' ? <span class="spinner" /> : <Icon name="upload" size={14} />} Kindle
+              </button>
+            )}
             {extra && provider && (
               <button class="btn secondary play-alt" disabled={!!busy} onClick={() => (links ? setLinks(null) : getLinks(playVia))} aria-label="Download links">
                 {busy === 'links' ? <span class="spinner" /> : <Icon name="link" size={14} />}
@@ -757,13 +774,13 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
       </div>
       {extra && trackerSite && (
         <div class="src-chips">
-          {trackerFilter && (
-            <button class="chip tracker-chip" onClick={() => qb.openTracker(trackerWords(r.title, book), true, qb.isEbookName(`${r.title} ${r.format || ''}`)).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} (${trackerFilter}) for this`}>
-              <Icon name="search" size={12} /> {trackerFilter}
-            </button>
-          )}
-          <button class="chip tracker-chip" onClick={() => qb.openTracker(trackerWords(r.title, book)).catch((e) => toast(e.message))} aria-label={`Search ${trackerSite} for this`}>
-            <Icon name="search" size={12} /> {trackerFilter ? 'All' : trackerSite}
+          <button
+            class="chip tracker-chip"
+            onClick={() => qb.openTracker(trackerWords(r.title, book), !!trackerFilter, qb.isEbookName(`${r.title} ${r.format || ''}`)).catch((e) => toast(e.message))}
+            onContextMenu={(e) => (e.preventDefault(), trackerFilter && qb.openTracker(trackerWords(r.title, book)).catch((er) => toast(er.message)))}
+            aria-label={`Search ${trackerSite} for this`}
+          >
+            <Icon name="search" size={12} /> {trackerSite.replace(/^www\./, '')[0].toUpperCase()}
           </button>
         </div>
       )}
@@ -973,18 +990,16 @@ function friendlyError(e) {
 function TrackerMini({ site, filter, words, ebook }) {
   const name = site.replace(/^www\./, '');
   const open = (filtered) => qb.openTracker(words, filtered, ebook).catch((e) => toast(e.message));
+  // One button: tap searches with your filter (FL / VIP); press and hold searches everything.
   return (
-    <div class="tracker-mini" title={`Search ${name} for "${words}"`}>
-      <button class="tracker-dot" onClick={() => open(!!filter)} aria-label={`Search ${name}`}>
+    <div class="tracker-mini" title={`Search ${name} for "${words}"${filter ? ` (${filter}; hold for all)` : ''}`}>
+      <button
+        class="tracker-dot"
+        onClick={() => open(!!filter)}
+        onContextMenu={(e) => (e.preventDefault(), filter && open(false))}
+        aria-label={`Search ${name}${filter ? ` (${filter})` : ''}`}
+      >
         {name[0].toUpperCase()}
-      </button>
-      {filter && (
-        <button class="tracker-pill" onClick={() => open(true)}>
-          {filter}
-        </button>
-      )}
-      <button class="tracker-pill" onClick={() => open(false)}>
-        All
       </button>
     </div>
   );

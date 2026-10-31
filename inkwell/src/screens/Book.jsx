@@ -149,10 +149,10 @@ export function Book({ book: initial }) {
             {book.source !== "pod" && <AskButton book={book} glass />}
             <button
               class={"icon-btn glass" + (saved ? " liked" : "")}
-              aria-label={saved ? "Remove from library" : "Save to library"}
+              aria-label={saved ? "Remove from library" : "Add to library"}
               onClick={() => {
                 toggleLibrary(book);
-                toast(saved ? "Removed from library" : "Saved to library");
+                toast(saved ? "Removed from your library" : "Added to your library (not downloaded — use Download for that)");
               }}
             >
               <Icon name="heart" fill={saved} />
@@ -320,13 +320,13 @@ export function Book({ book: initial }) {
                   <Icon name="download" size={18} />
                 </span>
                 <span class="tool-text">
-                  <b>{dl?.status === "error" ? "Retry download" : dl?.status === "paused" ? "Resume download" : "Offline"}</b>
+                  <b>{dl?.status === "error" ? "Retry download" : dl?.status === "paused" ? "Resume download" : "Download"}</b>
                   <small>
                     {dl?.status === "error"
                       ? dl.error || "Download failed"
                       : dl?.status === "paused"
                         ? `${dl.done || 0} of ${dl.total || "?"} parts saved`
-                        : "Save to this phone"}
+                        : "Plays without internet"}
                   </small>
                 </span>
               </button>
