@@ -329,3 +329,55 @@ export async function closeSession(currentTime, duration, timeListened = 0) {
     if (e?.status !== 404) failed(e);
   }
 }
+
+// ---- Your server's place for any copy of a book --------------------------------
+// Listening in another app (Absorb, the web player) moves the place on your server. A
+// book played here from another copy (TorBox, a download) follows it, and its place is
+// written back, so the two apps stay together.
+const absIds = new Map(); // book uid -> server item id ('' = none on the server)
+async function serverIdFor(book) {
+  if (!book?.uid) return '';
+  if (book.uid.startsWith('abs:')) return book.uid.slice(4);
+  if (absIds.has(book.uid)) return absIds.get(book.uid);
+  const [{ progress, library }, { sameWork }] = await Promise.all([import('../lib/store.js'), import('../lib/works.js')]);
+  const known = [...Object.values(progress.get()).map((p) => p?.book), ...Object.values(library.get())].find((b) => b?.uid?.startsWith('abs:') && sameWork(b, book));
+  let id = known ? known.uid.slice(4) : '';
+  if (!id) {
+    try {
+      const qb = await import('./qbit.js');
+      const hit = await qb.onServer({ title: book.title, author: book.author || '' });
+      if (hit?.uid?.startsWith('abs:')) id = hit.uid.slice(4);
+    } catch {}
+  }
+  absIds.set(book.uid, id);
+  return id;
+}
+
+/** Your server's place for this book (any copy): { id, time, updatedAt, finished, duration } or null. */
+export async function serverPlace(book) {
+  if (!connected()) return null;
+  const id = await serverIdFor(book).catch(() => '');
+  if (!id) return null;
+  const mp = await call(`/api/me/progress/${id}`, { fresh: true }).catch(() => null);
+  if (!mp || !(mp.currentTime >= 0)) return null;
+  if (mp.duration) absLen.set(id, mp.duration);
+  return { id, time: mp.currentTime || 0, updatedAt: mp.lastUpdate || 0, finished: !!mp.isFinished, duration: mp.duration || 0 };
+}
+const absLen = new Map(); // server item id -> its length (seconds)
+
+/** Write this phone's place for a book played from another copy to its server copy. */
+export async function mirrorPlace(book, currentTime, duration, isFinished = false) {
+  if (!connected() || book?.uid?.startsWith('abs:')) return;
+  const id = absIds.get(book?.uid);
+  if (!id) return;
+  // In the server copy's own time (lengths differ by a few seconds of intro); another
+  // edition (much longer or shorter) is left alone.
+  const len = absLen.get(id) || duration;
+  if (!len || !duration || Math.abs(1 - duration / len) > 0.06) return;
+  const t = currentTime * (len / duration);
+  try {
+    await call(`/api/me/progress/${id}`, { method: 'PATCH', body: { currentTime: t, duration: len, progress: Math.min(1, t / len), isFinished } });
+  } catch (e) {
+    failed(e);
+  }
+}
