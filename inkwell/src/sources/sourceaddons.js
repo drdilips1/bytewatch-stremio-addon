@@ -244,6 +244,9 @@ async function searchOnce(addon, vars, key, { title = '', author = '', query = '
   // From a book page (title and author known), keep only results for that book.
   if (title && author) results = sameBook(results, title, author);
 
+  // A source that says 0 seeders for every result doesn't know them (AudiobookBay's pages
+  // don't show seeders): unknown, not dead — else they all sit behind "no seeders".
+  if (results.length && results.every((r) => r.seeders === 0 || r.seeders == null)) for (const r of results) r.seeders = null;
   results.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || Number(b.seeders !== 0) - Number(a.seeders !== 0) || b.score - a.score || (b.seeders || 0) - (a.seeders || 0));
   // For "Report a problem": what was asked and how many came back / were kept.
   noteSearch(addon, url, {

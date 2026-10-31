@@ -752,7 +752,8 @@ export async function torrentSeeds(hashes) {
       try {
         const r = await getJson(`${TB}/torrents/torrentinfo?` + qs({ hash: h, timeout: 8 }), { headers: tbHeaders(), timeout: 12000, fresh: true });
         const n = Number(r?.data?.seeds ?? r?.data?.seeders);
-        if (Number.isFinite(n)) seedCache.set(h, n), (out[h] = n);
+        // 0 can just mean TorBox couldn't reach the swarm in time: only a real count is used.
+        if (Number.isFinite(n) && n > 0) seedCache.set(h, n), (out[h] = n);
       } catch {}
     })
   );
