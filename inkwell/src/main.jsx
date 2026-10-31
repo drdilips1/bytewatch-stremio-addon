@@ -16,7 +16,10 @@ try {
   // Paper & Ink (v6): the signature look, following the phone's light / dark setting.
   if ((settings.get().themeV || 0) < 6) settings.set((x) => ({ ...x, palette: 'paperink', mode: 'system', themeV: 6 }));
   // Ivory & Gold (v7): light, warm ivory with an antique-gold accent — the look from now on.
-  if ((settings.get().themeV || 0) < 7) settings.set((x) => ({ ...x, palette: 'ivory', paletteLight: 'ivory', paletteDark: 'ivory', mode: 'light', themeV: 7 }));
+  const ivory = () => (settings.get().themeV || 0) < 7 && settings.set((x) => ({ ...x, palette: 'ivory', paletteLight: 'ivory', paletteDark: 'ivory', mode: 'light', themeV: 7 }));
+  ivory();
+  // Settings synced in from another device (saved before this look) don't bring the old one back.
+  settings.subscribe(() => setTimeout(ivory, 0));
 } catch {}
 
 // Libby was removed: forget its saved sign-in and library links.

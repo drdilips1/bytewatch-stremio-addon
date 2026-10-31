@@ -8,6 +8,7 @@ import { nav } from '../lib/nav.js';
 import { progress as progressStore, useStoreKey, persisted, useStore, settings } from '../lib/store.js';
 import { useImage, coverFrame, frameStyle, frameTall } from '../lib/image.js';
 import { longPress } from './book-actions.jsx';
+import { useSquareCover, squareNow } from '../lib/meta.js';
 import { activePalette, isInk } from '../lib/theme.js';
 import { useMeta } from '../lib/meta.js';
 import { useTileRating } from '../lib/ratings.js';
@@ -18,7 +19,10 @@ import { audioFormat } from '../sources/debrid.js';
 import { markNotInterested, notInterested, isNotInterested } from '../lib/taste.js';
 
 export function Cover({ book, class: cls = '', eager }) {
-  const { src, failed: proxyFailed } = useImage(cardCover(book?.cover || ''));
+  // A tall print cover: the square audiobook cover (Apple Books / Audible) instead, once found.
+  const [tall, setTall] = useState(false);
+  const square = useSquareCover(book?.kind === 'text' ? null : book, tall);
+  const { src, failed: proxyFailed } = useImage(square || cardCover(book?.cover || ''));
   // A tall (or wide) cover is shown whole — not cropped to the square — on a blur of itself.
   const [ratio, setRatio] = useState(0);
   const [failed, setFailed] = useState(!book?.cover);
@@ -33,6 +37,9 @@ export function Cover({ book, class: cls = '', eager }) {
     return () => (alive = false);
   }, [src]);
   const whole = frame ? frameTall(frame) : ratio > 0 && (ratio < 0.88 || ratio > 1.14);
+  useEffect(() => {
+    if (whole && !square) setTall(true);
+  }, [whole, square]);
   return (
     <div class={'cover ' + cls + (whole ? ' whole' : '')} style={{ '--h': hue, ...(whole && src ? { '--cover-img': `url("${src}")` } : {}) }}>
       <div class="cover-fallback">
