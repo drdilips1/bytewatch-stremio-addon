@@ -10329,3 +10329,40 @@ button.notes-book-head {
     background: var(--border);
   }
 }
+
+/* ---- Reader: following the audiobook ---- */
+.reader-text .listen-now {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  box-shadow: -10px 0 0 color-mix(in srgb, var(--accent) 13%, transparent), 10px 0 0 color-mix(in srgb, var(--accent) 13%, transparent);
+  border-radius: 6px;
+  transition: background 0.4s;
+}
+.follow-audio {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--safe-bottom) + 58px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+.follow-audio .pill {
+  pointer-events: auto;
+  box-shadow: var(--shadow);
+  background: var(--surface);
+  color: var(--text);
+}
+.follow-audio.on .pill {
+  background: var(--accent);
+  color: #fff;
+}
+.follow-audio small {
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--surface);
+  padding: 2px 8px;
+  border-radius: 99px;
+}

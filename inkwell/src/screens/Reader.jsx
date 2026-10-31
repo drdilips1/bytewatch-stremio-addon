@@ -19,6 +19,7 @@ import { toast } from '../components/common.jsx';
 import { HighlightCards, AudioNotes, hasAudioNotes } from '../components/book-notes.jsx';
 import { highlights, forWork, addHighlight, updateHighlight, removeHighlight, markText, unmark, selectionParts, growSelection } from '../lib/highlights.js';
 import { SelectionBar, AiSheet, HighlightSheet } from '../components/reader-select.jsx';
+import { FollowAudio } from '../components/follow-audio.jsx';
 
 // Reading fonts (bundled, so they work offline). Literata is the default serif.
 const FONTS = [
@@ -627,6 +628,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         <span>{Math.round(pct * 100)}%</span>
       </footer>
 
+      {doc && !error && <FollowAudio book={book} blocks={blocks} scroller={scroller} ready={!!doc} />}
       {sel && !sheet && <SelectionBar sel={sel} onAction={onSelAction} onGrow={(kind) => growSelection(kind, blocks(), sel.range) || toast('Nothing more to add')} />}
       {sheet?.type === 'ai' && (
         <AiSheet

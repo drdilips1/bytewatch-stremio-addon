@@ -20,6 +20,8 @@ export const CHANGES = [
       ['📚', 'Kindle for torrent ebooks', 'Torrent ebook results have a Kindle button next to Read and Save: it fetches the EPUB (or PDF) and sends it to Kindle or another app.'],
       ['🔎', 'One tracker button', 'The FL / VIP and All buttons are now one letter button: tap searches with your filter, press and hold searches everything.'],
       ['🏠', 'No double sends', 'On a book from your Audiobookshelf, playing it through TorBox no longer sends it home to qBittorrent again; ♥ says “Added to your library” and Offline is now “Download · plays without internet”.'],
+      ['🎧', 'Read along with the audio', 'Open the ebook while its audiobook plays and tap “Follow the audio”: the paragraph being read lights up and stays on screen (scroll yourself and it waits a few seconds). Works with any edition — it listens for the words.'],
+      ['🧭', 'Text stays in step', 'The Text view no longer jumps to another page when the book repeats a phrase (“the law of attraction…”): lines keep to the book’s order and a far jump needs much stronger proof.'],
       ['🤍', 'Ivory & Gold', 'A new light look: warm ivory, ink text and an antique-gold accent (Settings → Appearance has the others).'],
       ['📜', 'Text, full screen', 'Tap Text in the player: the words fill the screen like a page, the line being read is lit, and a slim strip keeps play, skip, speed and where you are.'],
       ['🖼️', 'Whole covers', 'Tall covers are no longer cropped to squares: the whole cover shows on a soft blur of itself, and covers load sharper.'],

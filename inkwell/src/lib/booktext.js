@@ -62,11 +62,22 @@ export function ebookByTitle(title, author = '') {
 export async function textOfEbook(eb) {
   const doc = await loadCloudEbook(eb);
   // Everything, title page and contents included: the narrator reads those too.
-  const tokens = paragraphs(doc.html)
-    .map((p) => p.text)
-    .join(' ')
-    .split(/\s+/)
-    .filter(Boolean);
+  const w = wordIndex(paragraphs(doc.html).map((p) => p.text));
+  if (w.tokens.length < 50) throw new Error('No readable text in that ebook');
+  return { ...w, title: eb.title };
+}
+
+/**
+ * The words of a list of paragraphs, with the triple index `locate` searches, and where each
+ * paragraph starts (word number) — used to find a heard line in the reader's own text too.
+ */
+export function wordIndex(texts) {
+  const tokens = [];
+  const starts = [];
+  for (const t of texts) {
+    starts.push(tokens.length);
+    for (const w of String(t || '').split(/\s+/)) if (w) tokens.push(w);
+  }
   const keys = tokens.map(norm);
   const index = new Map();
   for (let i = 0; i + 2 < keys.length; i++) {
@@ -76,8 +87,19 @@ export async function textOfEbook(eb) {
     if (!at) index.set(k, [i]);
     else if (at.length < 40) at.push(i); // very common phrases tell us little
   }
-  if (tokens.length < 50) throw new Error('No readable text in that ebook');
-  return { tokens, keys, index, title: eb.title };
+  return { tokens, keys, index, starts };
+}
+
+/** Which paragraph word number `pos` is in (for `wordIndex` results). */
+export function paraOf(w, pos) {
+  let lo = 0;
+  let hi = w.starts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (w.starts[mid] <= pos) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
 }
 
 /**
@@ -100,6 +122,13 @@ export function locate(bt, text, near = null) {
     let best = null;
     let n = 0;
     for (const [off, c] of votes) if (c > n) (best = off), (n = c);
+    // A phrase the book repeats matches in several places about equally: take the one that
+    // carries on from the line before (just after it), not an earlier repeat.
+    if (near != null && best != null) {
+      const cost = (off) => (off < near - 40 ? (near - off) * 4 : Math.abs(off - near));
+      for (const [off, c] of votes) if (c >= n - 1 && c >= 2 && cost(off) < cost(best)) best = off;
+      n = votes.get(best);
+    }
     // The line's ends, measured from the matches nearest each end (the book and the
     // recognised words rarely have the same number of words in between).
     const ok = hits.filter(([p, j]) => Math.abs(p - j - best) <= 8).sort((x, y) => x[1] - y[1]);
@@ -108,9 +137,12 @@ export function locate(bt, text, near = null) {
     return { best, n, from: first ? first[0] - first[1] : best, to: last ? last[0] + seg.length - last[1] : best + seg.length };
   };
   let r = near != null ? vote(near - 400, near + 4000) : { n: 0 };
-  if (r.n < 2) r = vote(0, Infinity);
-  // Need a few matching triples (more for a whole-book search), else it's a guess.
-  const need = near != null ? 2 : Math.min(3, seg.length - 2);
+  let wide = false;
+  if (r.n < 2) (r = vote(0, Infinity)), (wide = true);
+  // Need a few matching triples, else it's a guess. A jump far from where the last line was
+  // needs more: two common phrases anywhere in the book (a self-help book repeats its key
+  // phrases all through) used to send the text to the wrong page.
+  const need = !wide ? 2 : near != null ? Math.min(5, Math.max(3, Math.ceil((seg.length - 2) * 0.4))) : Math.min(3, seg.length - 2);
   if (r.n < need || r.best == null) return null;
   const from = Math.max(0, r.from);
   return { from, to: Math.max(from + 1, Math.min(bt.tokens.length, r.to)) };
