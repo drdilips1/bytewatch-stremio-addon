@@ -76,6 +76,8 @@ Settings & misc
 ## Public app — don't push anything until asked (27 Oct)
 - Rule (31 Oct): every fix / feature is checked in the private app first; only then ported to public.
 - To port when asked: GitHub #1 (ABS sync), #2 (playback history), #3 (addon torrents), and the 31 Oct fixes.
+- Also to port: M4B / MP3 chapters (QuickTime chapter track, ID3 CHAP, Audible fallback) — a public user reported
+  "no M4B chapters" (31 Oct); public 1.0.18 only reads the 'chpl' list. Fixed in private since 28 Oct.
 - The ebook reader port (slide-select, Notes panel, translate, speed, safe highlights) is parked
   on the public `work` branch (commit cdc3595) — not built, not released. Quote sharing left out.
 
