@@ -339,6 +339,11 @@ async function cachedBytes(uid) {
 }
 /** Ebooks kept on the phone (opened once in the app): readable offline, listed in Library → Ebooks → Downloaded. */
 export const savedEbooks = persisted('savedEbooks', {}); // uid -> { book, format, size, at }
+// Ebook files that turned out not to open (a broken or mislabelled file): left out of the
+// book page's Available row and the ebook look-ups from then on. uid -> when
+export const badEbooks = persisted('badEbooks', {});
+export const markBadEbook = (uid) => uid && badEbooks.set((all) => ({ ...Object.fromEntries(Object.entries(all).slice(-300)), [uid]: Date.now() }));
+export const isBadEbook = (b) => !!(b?.uid && badEbooks.get()[b.uid]);
 export const savedEbook = (uid) => savedEbooks.get()[uid] || null;
 // Ebooks kept before this list existed: add them (with what the reading history knows).
 setTimeout(async () => {

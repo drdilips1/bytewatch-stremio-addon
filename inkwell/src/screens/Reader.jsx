@@ -332,7 +332,11 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     let alive = true;
     (book.source === 'sum' ? loadSummary(book) : book.source === 'ss' ? loadStoryShots(book) : isCloudEbook(book) ? loadCloudEbook(book) : gb.loadText(book))
       .then((d) => alive && setDoc(d))
-      .catch((e) => alive && setError(e.message));
+      .catch((e) => {
+        // Not a book file after all: don't offer it again.
+        if (/isn't a readable|not a readable|unsupported|corrupt/i.test(e.message || '')) import('../lib/epub.js').then((m) => m.markBadEbook(book.uid));
+        if (alive) setError(e.message);
+      });
     return () => (alive = false);
   }, [book.uid]);
 

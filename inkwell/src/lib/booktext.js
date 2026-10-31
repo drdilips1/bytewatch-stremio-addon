@@ -2,7 +2,7 @@
 // unusual words wrong; when the same book's ebook is on the phone (kept, in a phone
 // folder, or in the audiobook's own folder), each recognised line is found in the
 // ebook and its real words are shown instead — recognition only supplies the timing.
-import { savedEbooks, loadCloudEbook, cloudReaderBook, directEbookFile, directReaderBook, probeEbook } from './epub.js';
+import { savedEbooks, loadCloudEbook, cloudReaderBook, directEbookFile, directReaderBook, probeEbook, isBadEbook } from './epub.js';
 import { localCfg } from '../sources/local.js';
 import { mainTitle, matches, words } from './match.js';
 import { persisted, progress, library } from './store.js';
@@ -36,7 +36,7 @@ export function ebookFor(book) {
   if (!t) return null;
   const sn = surname(book.author);
   const same = (b) => b && matches(t, `${b.title || ''} ${b.ebookName || ''}`) && (!sn || !b.author || String(b.author).toLowerCase().includes(sn));
-  const list = [...Object.values(links), ...Object.values(savedEbooks.get()).map((x) => x?.book), ...(localCfg.get().books || []).filter((b) => b.kind === 'text')].filter(same);
+  const list = [...Object.values(links), ...Object.values(savedEbooks.get()).map((x) => x?.book), ...(localCfg.get().books || []).filter((b) => b.kind === 'text')].filter((b) => same(b) && !isBadEbook(b));
   // EPUB first: a PDF's text is often broken up by page headers.
   return list.find((b) => (b.ebookFormat || b.format) !== 'PDF') || list[0] || null;
 }
