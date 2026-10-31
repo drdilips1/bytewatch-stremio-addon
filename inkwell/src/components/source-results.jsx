@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
-import { searchSources, sourceAddons, fmtSize, sourceLabel, isBuiltinSource } from '../sources/sourceaddons.js';
+import { searchSources, sourceAddons, fmtSize, sourceLabel } from '../sources/sourceaddons.js';
 import { cloud, getDetails } from '../sources/index.js';
 import { settings, useStore, debrid, library, toggleLibrary } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
@@ -278,7 +278,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
       )}
       {pending && !total && !looseCount && (
         <p class="muted pad-s">
-          <span class="spinner small" /> Searching for audiobooks and ebooks{sourceAddons().some((a) => !isBuiltinSource(a.manifest.name)) ? `, plus ${sourceAddons().map((a) => a.manifest.name).filter((n) => !isBuiltinSource(n)).join(', ')}` : ''}…
+          <span class="spinner small" /> Searching {sourceAddons().map((a) => a.manifest.name).join(', ') || 'your addons'}…
         </p>
       )}
       {entries.some(([, g]) => g.slow) && (

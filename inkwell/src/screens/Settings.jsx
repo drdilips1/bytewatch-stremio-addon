@@ -6,7 +6,7 @@ import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBa
 import { notInterested } from '../lib/taste.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl } from '../lib/http.js';
-import { searchSources, sourceAddons } from '../sources/sourceaddons.js';
+import { searchSources, sourceAddons, suggestedSources, addSuggested } from '../sources/sourceaddons.js';
 import { ai, PROVIDERS as AI_PROVIDERS, testProvider } from '../lib/ai.js';
 import relayCode from '../../relay/index.ts?raw';
 import { ACCENTS, PALETTES, resolvedMode, activePalette } from '../lib/theme.js';
@@ -1006,6 +1006,18 @@ function AddonsCard() {
           </button>
         </div>
       ))}
+      {suggestedSources().length > 0 && (
+        <div class="pad-s">
+          <p class="muted">Add with one tap:</p>
+          <div class="chips">
+            {suggestedSources().map((s) => (
+              <button class="pill small" onClick={() => addSuggested(s).then((m) => toast(`Added ${m.name}`), () => toast('Could not add it'))}>
+                <Icon name="plus" size={14} /> {s.name} <small class="muted">· {s.kind}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <form
         class="set-form inline"
         onSubmit={async (e) => {

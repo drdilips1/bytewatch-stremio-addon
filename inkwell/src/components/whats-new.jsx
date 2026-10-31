@@ -14,6 +14,8 @@ export const CHANGES = [
       ['🎯', 'The right book', '“The Greatest Secret” is no longer offered for “The Secret”, nor other books of a series (Red Rising) — they wait under loose matches.'],
       ['📖', 'Text view ebook', 'While it looks for the ebook: Choose or Stop. It gives up after a minute, and the ebook sheet always closes.'],
       ['🧩', 'Add-on torrents play', 'Add-ons that offer a torrent instead of a link now play through TorBox / Real-Debrid.'],
+      ['🧩', 'Sources are add-ons now', 'No more sources built into the app: AudiobookBay, Knaben and Ink & Echo are ordinary add-ons in Settings → Addons, under their own names — remove any that stop working. Bookracy (shut down) is gone; the others can be added back with one tap there.'],
+      ['🌱', 'AudiobookBay seeds', 'Results no longer all show 0 seeds: when the site doesn’t say, it reads “seeds ?” and the real count is fetched from TorBox where it can be.'],
       ['✨', 'Smaller fixes', 'Chapter pill shows the chapter’s own title (Chapter 6 · 8/10); listening options come before ebooks on the book page; ebook files that don’t open aren’t offered again; Kindle addresses can’t be wiped by sync; button labels stay inside.'],
     ],
   },

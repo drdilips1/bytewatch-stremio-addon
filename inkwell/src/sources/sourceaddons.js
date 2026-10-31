@@ -3,37 +3,42 @@
 // JSON response into results carrying a magnet link / info-hash. Inkwell hands
 // the magnet to the user's TorBox or Real-Debrid account to stream it.
 import { getJson, sendJson } from '../lib/http.js';
-import { addons, persisted } from '../lib/store.js';
+import { addons, persisted, library } from '../lib/store.js';
 import { logError, redact } from '../lib/report.js';
 import { words, matches, mainTitle, otherBook } from '../lib/match.js';
 import { infoHash, torboxCached } from './debrid.js';
 
 export const isSourceManifest = (m) => !!(m && typeof m === 'object' && m.id && m.name && m.adapters?.source?.request?.url);
 
-// Built in and always on (not listed in Settings → Addons): torrent search for
-// audiobooks and ebooks through Audiohub's own worker. Addons you install are added to these.
-import abb from './builtin/audiobookbay.json';
-import knabenAudio from './builtin/knaben-audiobooks.json';
-import knabenEbooks from './builtin/knaben-ebooks.json';
-import bookracy from './builtin/bookracy.json';
-import inkEcho from './builtin/inkandecho-audiobooks.json';
-import inkEchoEbooks from './builtin/inkandecho-ebooks.json';
-const BUILTIN = [knabenAudio, abb, inkEcho, knabenEbooks, inkEchoEbooks, bookracy].map((manifest) => ({ kind: 'source', url: '', builtin: true, manifest }));
-// Installed copies of the built-in ones (older or newer links) — they'd only repeat the same results.
-export const BUILTIN_IDS = new Set([
-  ...BUILTIN.map((a) => a.manifest.id),
-  ...BUILTIN.map((a) => a.manifest.id.replace(/^my-/, '')),
-]);
-
-// Built-in sources are shown by what they find ("Audiobook" / "Ebook"), not by name;
-// addons you install keep their own name.
-const BUILTIN_LABEL = new Map(BUILTIN.map((a) => [a.manifest.name, a.manifest.contentType === 'ebook' ? 'Ebook' : 'Audiobook']));
-export const sourceLabel = (name) => BUILTIN_LABEL.get(name) || name;
-export const isBuiltinSource = (name) => BUILTIN_LABEL.has(name);
+// No built-in sources: every source is an ordinary addon in Settings → Addons, shown by its
+// own name and removable (a source that stops working — Bookracy — can just be removed).
+// The ones Audiohub used to have built in are offered there as one-tap suggestions; on
+// update they're added once as normal addons so nothing disappears (except Bookracy).
+const SUGGESTED = [
+  ['Knaben AudioBooks', 'audiobook', 'https://api.audiohubapp.com/addons/knaben-audiobooks.json', () => import('./builtin/knaben-audiobooks.json')],
+  ['AudiobookBay', 'audiobook', 'https://api.audiohubapp.com/addons/audiobookbay.json', () => import('./builtin/audiobookbay.json')],
+  ['Ink & Echo Audiobooks', 'audiobook', '', () => import('./builtin/inkandecho-audiobooks.json')],
+  ['Knaben Ebooks', 'ebook', 'https://api.audiohubapp.com/addons/knaben-ebooks.json', () => import('./builtin/knaben-ebooks.json')],
+  ['Ink & Echo Ebooks', 'ebook', '', () => import('./builtin/inkandecho-ebooks.json')],
+].map(([name, kind, url, load]) => ({ name, kind, url, load }));
+export const suggestedSources = () => SUGGESTED.filter((s) => !addons.get().some((a) => a.manifest.name === s.name));
+export async function addSuggested(s) {
+  const manifest = (await s.load()).default;
+  addons.set((list) => [...list.filter((a) => a.manifest.id !== manifest.id), { kind: 'source', url: s.url, manifest }]);
+  return manifest;
+}
+const moved = persisted('builtinsMoved', false);
+if (!moved.get()) {
+  moved.set(true);
+  const hadBuiltins = Object.keys(library.get()).length > 0; // an existing install (they were always on)
+  if (hadBuiltins) Promise.all(suggestedSources().map(addSuggested)).catch(() => {});
+}
+const OWN = new Set(SUGGESTED.map((s) => s.name));
+export const sourceLabel = (name) => name;
 // Leading tags some sources put on titles: "[EPUB] …", "M4B • Standard • ABB • …".
 const cleanTitle = (t) => String(t).replace(/^\s*\[[^\]]{1,24}\]\s*/, '').replace(/^(?:[A-Za-z0-9+]{2,10}\s*•\s*){2,4}/, '').trim() || String(t);
 
-export const sourceAddons = () => [...BUILTIN, ...addons.get().filter((a) => a.kind === 'source' && !BUILTIN_IDS.has(a.manifest.id))];
+export const sourceAddons = () => addons.get().filter((a) => a.kind === 'source');
 
 // ---- helpers ----------------------------------------------------------------
 function fill(v, vars, encode) {
@@ -213,7 +218,7 @@ async function searchOnce(addon, vars, key, { title = '', author = '', query = '
         addon: addon.manifest.name,
         // An ebook source's results are ebooks, whatever their names say (Read, not Play).
         contentType: addon.manifest.contentType || '',
-        title: BUILTIN_LABEL.has(addon.manifest.name) ? cleanTitle(get(row, 'title') || 'Untitled') : String(get(row, 'title') || 'Untitled'),
+        title: OWN.has(addon.manifest.name) ? cleanTitle(get(row, 'title') || 'Untitled') : String(get(row, 'title') || 'Untitled'),
         author: get(row, 'author') || '',
         narrator: get(row, 'narrator') || '',
         magnet: get(row, 'magnetUrl') || get(row, 'magnet') || '',
