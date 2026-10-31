@@ -16,7 +16,7 @@ import { sameWork } from '../lib/works.js';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary, hideFromContinue } from '../lib/store.js';
 import { greeting, firstName, fmtDuration, hiResCover } from '../lib/format.js';
 import { useSquareCover } from '../lib/meta.js';
-import { UpNextRow } from '../components/up-next.jsx';
+import { UpNextRow, PlanRow } from '../components/up-next.jsx';
 import { account } from '../lib/sync.js';
 import { nav, useBackClose } from '../lib/nav.js';
 import { GENRES } from './genres.js';
@@ -626,6 +626,8 @@ export function Home() {
             );
           case 'upnext':
             return <UpNextRow key={id} />;
+          case 'plan':
+            return <PlanRow key={id} />;
           case 'rec':
             return <Row key={id} title="Recommended for you" subtitle="Non-fiction from your listening and ratings" icon="sparkle" cacheKey="homeRec" shuffle rec load={recommendedForYou} deps={[]} />;
           case 'new':
@@ -660,6 +662,7 @@ const HOME_SECTIONS = [
   ['hero', 'Banner', 'Picked for you, top rated, your server & cloud'],
   ['continue', 'Continue', 'What you’re listening to and reading'],
   ['upnext', 'Up next', 'Books lined up to play next'],
+  ['plan', 'Listen for…', '10 / 30 / 60-minute plans from your books'],
   ['rec', 'Recommended for you', 'From your listening and ratings'],
   ['new', 'New releases', 'In your topics'],
   ['top', 'Top titles this month', 'Best sellers in your topics'],
