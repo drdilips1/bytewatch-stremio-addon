@@ -199,7 +199,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
     g.items.length > 1 && !g.key.startsWith('h:') ? (
       <SourceFolder key={g.key} g={g} provider={provider} providers={providers} book={book} account={account} onChanged={refreshAccount} />
     ) : (
-      <SourceRow key={g.items[0].key} r={g.items[0]} provider={provider} providers={providers} book={book} inAccount={account.get(g.items[0].hash)} onChanged={refreshAccount} />
+      <SourceRow key={g.items[0].key} r={withAlso(g)} provider={provider} providers={providers} book={book} inAccount={account.get(g.items[0].hash)} onChanged={refreshAccount} />
     );
   const section = (name, groups, more, setMore) =>
     groups.length > 0 && (
@@ -208,10 +208,10 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           <span>{name}</span>
           <small>{groups.length}</small>
         </div>
-        <div class="src-list">{(more ? groups : groups.slice(0, TOP)).map(item)}</div>
-        {groups.length > TOP && (
+        <div class="src-list">{(more ? groups : topOf(groups)).map(item)}</div>
+        {groups.length > topOf(groups).length && (
           <button class="src-more" onClick={() => setMore(!more)}>
-            {more ? 'Show fewer' : `Show ${groups.length - TOP} more ${name.toLowerCase()}`}
+            {more ? 'Show fewer' : `Show ${groups.length - topOf(groups).length} more ${name.toLowerCase()}`}
             <Icon name={more ? 'up' : 'down'} size={14} />
           </button>
         )}
@@ -926,6 +926,27 @@ const baseName = (t) =>
 // Torrents are grouped only by info-hash (the same torrent listed twice shows as one card;
 // different torrents with the same name stay separate). Direct files of one book — part 1,
 // part 2… — fold into one card.
+/** The same torrent found by several sources: one row, naming them all ("EXTto + AudiobookBay"). */
+const withAlso = (g) => {
+  const names = [...new Set(g.items.map((r) => r.addon).filter(Boolean))];
+  return names.length > 1 ? { ...g.items[0], addon: names.join(' + ') } : g.items[0];
+};
+
+/** The first few results, plus the best of each source not among them (so every source that
+ *  found something shows at least once, not only under "Show more"). */
+function topOf(groups) {
+  const top = groups.slice(0, TOP);
+  const seen = new Set(top.flatMap((g) => g.items.map((r) => r.addon)));
+  for (const g of groups.slice(TOP)) {
+    if (top.length >= TOP + 3) break;
+    if (g.items.some((r) => !seen.has(r.addon))) {
+      top.push(g);
+      g.items.forEach((r) => seen.add(r.addon));
+    }
+  }
+  return top;
+}
+
 function groupResults(list) {
   const groups = [];
   const byKey = new Map();
