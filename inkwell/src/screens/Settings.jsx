@@ -12,7 +12,7 @@ import relayCode from '../../relay/index.ts?raw';
 import { ACCENTS, PALETTES, resolvedMode, activePalette } from '../lib/theme.js';
 import { WALLPAPERS, wallpaperUrl, saveCustom, useCustomWallpaper } from '../lib/wallpaper.js';
 import { APP_VERSION } from '../components/update.jsx';
-import { ReportCard } from '../components/report.jsx';
+import { ReportCard, SupportLinks } from '../components/report.jsx';
 import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
 import { AccountCard, NameRow, VoicesCard, DownloadsCard, FindOrderCard } from './settings-extra.jsx';
 import { UpdateCard } from '../components/update.jsx';
@@ -1349,7 +1349,9 @@ export function Settings() {
       <button class="set-link" onClick={() => import('../components/whats-new.jsx').then((m) => m.showWhatsNew())}>
         <Icon name="sparkle" size={18} /> What’s new in this version
       </button>
-      <Section icon="alert" title="Report a problem">
+      <Section icon="alert" title="Issues & support">
+        <SupportLinks />
+        <b class="set-sub">Report a problem</b>
         <ReportCard />
       </Section>
 

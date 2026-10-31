@@ -9,7 +9,7 @@ const Web = registerPlugin('InkwellWeb');
 const native = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
 const REPO = 'https://github.com/drdilips1/bytewatch-stremio-addon';
 const KEY = 'inkwell:errorLog';
-const MAX = 40;
+const MAX = 80;
 
 // Addresses and messages with anything secret-looking blanked out.
 export const redact = (s) =>
@@ -47,6 +47,37 @@ export function clearErrors() {
   log = [];
   save();
 }
+
+// Detailed logging (Settings → Issues & support): also keeps the app's warnings and
+// console errors, for a hard-to-catch problem. Off by default.
+const DETAIL = 'inkwell:detailLog';
+export const detailedLog = () => {
+  try {
+    return localStorage.getItem(DETAIL) === '1';
+  } catch {
+    return false;
+  }
+};
+export function setDetailedLog(on) {
+  try {
+    localStorage.setItem(DETAIL, on ? '1' : '0');
+  } catch {}
+}
+if (typeof console !== 'undefined') {
+  for (const level of ['warn', 'error']) {
+    const orig = console[level].bind(console);
+    console[level] = (...args) => {
+      orig(...args);
+      if (!detailedLog()) return;
+      try {
+        logError(`console.${level}`, args.map((x) => (x?.message ? x.message : typeof x === 'string' ? x : String(JSON.stringify(x)).slice(0, 200))).join(' '));
+      } catch {}
+    };
+  }
+}
+
+export const ISSUES_URL = `${REPO}/issues`;
+export const featureUrl = () => `${REPO}/issues/new?title=${encodeURIComponent('Idea: ')}&labels=enhancement`;
 
 // Catch what the app doesn't handle itself.
 if (typeof window !== 'undefined') {
