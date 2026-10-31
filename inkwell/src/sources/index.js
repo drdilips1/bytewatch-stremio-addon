@@ -13,7 +13,7 @@ import * as pods from './podcasts.js';
 import * as ttsb from './ttsbooks.js';
 import { audible, googleBooks } from './catalogs.js';
 import { settings } from '../lib/store.js';
-import { matches, mainTitle, words } from '../lib/match.js';
+import { matches, mainTitle, words, otherBook } from '../lib/match.js';
 import { lookup, wantsMeta, fixFor, metaNow } from '../lib/meta.js';
 import { applyLocal, isDownloaded } from '../lib/downloads.js';
 import { translit, hasDevanagari } from '../lib/translit.js';
@@ -161,6 +161,7 @@ export async function findEditions(book) {
   const byTitle = (list) =>
     list.filter((b) => {
       if (!matches(t, `${b.title} ${b.rawName || ''}`)) return false;
+      if (otherBook(b.rawName || b.title, t, book.author || '')) return false; // "The Greatest Secret" for "The Secret"
       if (tw.length >= 3 || !sn) return true;
       const text = words(`${b.author || ''} ${b.narrator || ''} ${b.title} ${b.rawName || ''}`);
       return text.includes(sn) || (!b.author && sameTitle(b));
@@ -211,6 +212,7 @@ export async function findOwned(book) {
   const byTitle = (list) =>
     list.filter((b) => {
       if (!matches(t, `${b.title} ${b.rawName || ''}`)) return false;
+      if (otherBook(b.rawName || b.title, t, book.author || '')) return false; // "The Greatest Secret" for "The Secret"
       if (tw.length >= 3 || !sn) return true;
       const text = words(`${b.author || ''} ${b.narrator || ''} ${b.title} ${b.rawName || ''}`);
       return text.includes(sn) || (!b.author && sameTitle(b));

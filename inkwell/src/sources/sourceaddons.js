@@ -5,7 +5,7 @@
 import { getJson, sendJson } from '../lib/http.js';
 import { addons, persisted } from '../lib/store.js';
 import { logError, redact } from '../lib/report.js';
-import { words, matches, mainTitle } from '../lib/match.js';
+import { words, matches, mainTitle, otherBook } from '../lib/match.js';
 import { infoHash, torboxCached } from './debrid.js';
 
 export const isSourceManifest = (m) => !!(m && typeof m === 'object' && m.id && m.name && m.adapters?.source?.request?.url);
@@ -292,6 +292,8 @@ function sameBook(list, title, author) {
   const long = tw.size >= 3;
   return list.map((r) => {
     const text = `${r.title} ${r.author || ''} ${r.narrator || ''}`;
+    // Clearly another book (of the same author or series): never this one, however it matches.
+    if (otherBook(r.title, t, author)) return { ...r, loose: true };
     let ok = false;
     if (matches(t, text)) {
       const hay = new Set(words(text));
