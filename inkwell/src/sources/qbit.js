@@ -585,9 +585,105 @@ export async function openTracker(query = '', filtered = false, ebook = false) {
   if (!url) throw new Error('Add your tracker site address first');
   if (!canBrowse) return window.open(url, '_blank');
   // The browser screen sends captured downloads itself (the app is paused behind it).
+  return Web.open({ url: /^https?:\/\//i.test(url) ? url : 'https://' + url, title: '', capture: true, qbit: await qbitJson() });
+}
+
+/** The qBittorrent settings the native side sends with (JSON). */
+async function qbitJson() {
   const c = qbit.get();
-  const qb = JSON.stringify({ url: await pickAddress(true), apiKey: c.apiKey || '', username: c.username || '', password: c.password || '', savePath: c.savePath || '', ebookPath: ebookFolder(), category: c.category || '', trackers: TRACKERS });
-  return Web.open({ url: /^https?:\/\//i.test(url) ? url : 'https://' + url, title: '', capture: true, qbit: qb });
+  return JSON.stringify({ url: await pickAddress(true), apiKey: c.apiKey || '', username: c.username || '', password: c.password || '', savePath: c.savePath || '', ebookPath: ebookFolder(), category: c.category || '', trackers: TRACKERS });
+}
+
+// ---- Background grab (MyAnonamouse): search, pick, download, send — nothing on screen ----
+const MAM = /(^|\.)myanonamouse\.net$/i;
+/** Your tracker is one the app can search and grab from in the background. */
+export const canGrab = () => canBrowse && MAM.test(trackerName()) && tracker.get().background !== false;
+const AUDIO_FMT = { m4b: 30, m4a: 22, mp3: 20, flac: 12, aac: 12, ogg: 8, opus: 8 };
+const EBOOK_FMT = { epub: 30, azw3: 22, mobi: 16, pdf: 10 };
+const gwords = (s) =>
+  String(s || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 1 && !['the', 'and', 'of', 'a', 'an'].includes(w));
+const names = (info) => {
+  try {
+    return Object.values(JSON.parse(info || '{}')).join(' ');
+  } catch {
+    return String(info || '');
+  }
+};
+const yes = (v) => v === 1 || v === '1' || v === true;
+/** The best torrent in the site's results: this book, then free / VIP, the format you want, seeders. */
+export function pickTorrent(list, { words, title = '', author = '', ebook = false }) {
+  const want = gwords(title || words);
+  const sur = gwords(String(author || '').split(/,|&| and /)[0]).pop() || '';
+  const fmts = ebook ? EBOOK_FMT : AUDIO_FMT;
+  let best = null;
+  for (const t of list || []) {
+    const have = new Set([...gwords(t.title), ...gwords(names(t.author_info))]);
+    const match = want.length ? want.filter((w) => have.has(w)).length / want.length : 0;
+    if (match < 0.6) continue;
+    const by = gwords(names(t.author_info));
+    if (sur && by.length && !by.includes(sur)) continue;
+    const types = String(t.filetype || '').toLowerCase().split(/[\s,/]+/);
+    const fmt = Math.max(0, ...types.map((x) => fmts[x] || 0));
+    const free = yes(t.free) || yes(t.personal_freeleech);
+    const vip = yes(t.vip) || yes(t.fl_vip);
+    const seeds = Number(t.seeders) || 0;
+    if (!seeds) continue;
+    const score = match * 40 + fmt + (free ? 40 : vip ? 35 : 0) + Math.min(20, Math.log2(seeds + 1) * 4) + (/^en/i.test(t.lang_code || 'en') ? 5 : 0);
+    if (!best || score > best.score) best = { ...t, score, free, vip };
+  }
+  return best;
+}
+
+/**
+ * Tap "M": search your tracker, pick the right torrent (this book, free / VIP first, then the
+ * format — M4B / MP3 or EPUB — and seeders), use a freeleech wedge if you allowed that and it
+ * isn't free, download it (trying again when the site doesn't hand it over) and send it to
+ * qBittorrent. All in the background. Anything unclear opens the search page instead.
+ */
+export async function grabFromTracker({ words, title = '', author = '', ebook = false, filtered = false }) {
+  if (!canGrab()) return openTracker(words, filtered, ebook);
+  const base = 'https://' + trackerName();
+  const fallback = (msg) => (nativeToast(msg), openTracker(words, filtered, ebook));
+  nativeToast(`Looking on ${trackerName().replace(/^www\./, '')} for “${title || words}”…`);
+  const body = JSON.stringify({
+    tor: { text: words, srchIn: ['title', 'author', 'narrator'], searchType: 'all', searchIn: 'torrents', main_cat: [ebook ? 14 : 13], browseFlagsHideVsShow: '0', sortType: 'default', startNumber: '0' },
+    thumbnail: 'false',
+    dlLink: '',
+    perpage: 40,
+  });
+  let data;
+  try {
+    const r = await Web.trackerSearch({ base, path: '/tor/js/loadSearchJSONbasic.php', body });
+    if (r.status >= 300) return fallback('Sign in to the tracker once — opening it');
+    data = JSON.parse(r.text || '{}');
+  } catch (e) {
+    return fallback(/signin/.test(e?.message) ? 'Sign in to the tracker once — opening it' : 'The tracker search didn’t answer — opening it');
+  }
+  const pick = pickTorrent(data.data, { words, title, author, ebook });
+  if (!pick) return fallback(`Nothing clear for “${title || words}” — opening the search`);
+  const useWedge = !pick.free && !pick.vip && tracker.get().wedge === true;
+  const ts = Date.now();
+  const name = `${String(pick.title || title || words).replace(/[\\/:*?"<>|]+/g, ' ').trim()}.torrent`;
+  const r = await Web.trackerGrab({
+    base,
+    download: pick.dl ? `/tor/download.php/${pick.dl}` : `/tor/download.php?tid=${pick.id}`,
+    wedge: useWedge ? `/json/bonusBuy.php/${ts}?spendtype=personalFL&torrentid=${pick.id}&timestamp=${ts}` : '',
+    name,
+    ebook,
+    qbit: await qbitJson(),
+  }).catch((e) => ({ sent: false, message: /signin/.test(e?.message) ? 'Sign in to the tracker once (hold M)' : e?.message || 'Couldn’t get it' }));
+  const how = pick.free ? 'freeleech' : pick.vip ? 'VIP' : useWedge ? (r.wedge === 'used' ? 'wedge used' : 'wedge not used') : 'normal';
+  const fmt = String(pick.filetype || '').toUpperCase();
+  const text = r.sent ? `${r.message} · ${[fmt, how].filter(Boolean).join(' · ')}` : r.message;
+  noteCapture({ type: 'torrent', name, data: r.data, sent: r.sent, message: text });
+  nativeToast(r.sent ? '✓ ' + text : text);
+  return r;
 }
 
 /** What happened to the last download tapped in the tracker browser. */
@@ -598,7 +694,10 @@ const nativeToast = (text) => (canBrowse ? Web.toast({ text }).catch(() => {}) :
 // Downloads caught in the in-app browser: the browser screen already sent them to
 // qBittorrent; here we only note them so they show under "Downloads at home".
 if (canBrowse) {
-  Web.addListener('captured', async (e) => {
+  Web.addListener('captured', (e) => noteCapture(e));
+}
+async function noteCapture(e) {
+  {
     lastCapture.set({ at: Date.now(), ok: !!e.sent, text: e.message || (e.sent ? 'Sent to qBittorrent' : "Didn't reach qBittorrent") });
     if (!e.sent) return;
     try {
@@ -616,5 +715,5 @@ if (canBrowse) {
       }
       if (hash) qbitSent.set((s) => ({ ...s, items: { ...s.items, [hash]: { title: title.replace(/\.torrent$/i, ''), author: '', at: Date.now() } } }));
     } catch {}
-  });
+  }
 }

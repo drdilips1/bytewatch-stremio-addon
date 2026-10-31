@@ -8,6 +8,7 @@ export const CHANGES = [
     id: '2026-10-31',
     title: 'Ivory & Gold, and fixes from your notes',
     items: [
+      ['🅼', 'M in the background', 'MyAnonamouse: tap M and the app finds the book itself — freeleech or VIP first, then M4B / MP3 (or EPUB for ebooks) and the most seeders — downloads it (trying again if the first download fails) and sends it to qBittorrent. Nothing opens. Press and hold M to see the search instead. Settings → Tracker: turn it off, or let it spend a freeleech wedge when the copy isn’t free.'],
       ['🕘', 'Playback history', 'Player → More → History: every play, pause, skip, jump, chapter change and sleep-timer stop, with the time and where you were, grouped by listening session. Fell asleep or bumped skip? Tap the entry to go back.'],
       ['🔄', 'Audiobookshelf in step', 'A book starts from the newer place — your server’s (another app went further) or this phone’s — and progress goes through the server’s own session, so the percentage and listening time update there too.'],
       ['🛟', 'Server down? Still plays', 'When your Audiobookshelf isn’t answering, Play uses your copy on the phone, downloaded or in TorBox / Real-Debrid, from the same place.'],

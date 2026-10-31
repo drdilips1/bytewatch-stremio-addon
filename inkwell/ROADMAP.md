@@ -6,6 +6,7 @@ Noted while building; to pick up after Saturday.
 Done 31 Oct, not built yet: #1, #2, #3, and points 1, 2, 4, 9, 10, 11, 17, 18, 19, 29 (see git log),
 points 8, 12, 13, 14, 15, 25 (chat / compass), 26 (A), 27 (broadcast), 20, 22, 30, 3, 23, 24, 28, Ivory & Gold theme (default), 6, 7, 5 (A), 21 — every 31 Oct point done except 16 (needs the add-on JSON); plus: sources are ordinary add-ons (no built-ins, Bookracy dropped), AudiobookBay seeds ("seeds ?" + TorBox count).
 Still to do: the rest (design work gets samples first).
+Also done 31 Oct (private only, not built): background M grab for MyAnonamouse (search → pick free/VIP + format + seeders → optional wedge (off by default) → download with 4 tries → qBittorrent; hold M opens the search); Continue cards take each book's current cover. Public: port the M grab only if asked.
 GitHub (public app page): keep watching issues; tell first, fix, then wait for "build now".
 - #1 Audiobookshelf sync: resume from the newer position (server vs app), sync/close the ABS session,
   show failed syncs, clientName "Audiohub".

@@ -405,8 +405,12 @@ public class InkwellWebActivity extends AppCompatActivity {
      * the settings the app passed in. Returns "OK <message>" or an error message.
      */
     private String sendToQbit(byte[] torrent, String magnet, String name, boolean ebook) {
+        return sendToQbit(getIntent().getStringExtra("qbit"), torrent, magnet, name, ebook);
+    }
+
+    /** The same, with the app's qBittorrent settings (JSON) passed in — also used by background grabs. */
+    static String sendToQbit(String raw, byte[] torrent, String magnet, String name, boolean ebook) {
         try {
-            String raw = getIntent().getStringExtra("qbit");
             if (raw == null || raw.isEmpty()) return "Set up your home server in Audiohub first";
             JSONObject q = new JSONObject(raw);
             String base = q.optString("url").replaceAll("/+$", "");

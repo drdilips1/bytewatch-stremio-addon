@@ -24,7 +24,12 @@ public class InkwellWebPlugin extends Plugin {
     @Override
     public void load() {
         instance = this;
+        try {
+            userAgent = android.webkit.WebSettings.getDefaultUserAgent(getContext());
+        } catch (Exception ignored) {}
     }
+
+    private static String userAgent = "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Mobile Safari/537.36";
 
     /** A .torrent or magnet caught in the in-app browser, handed to the app's JavaScript. */
     static void captured(JSObject data) {
@@ -383,5 +388,156 @@ public class InkwellWebPlugin extends Plugin {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    // ---- Background tracker grab (no browser on screen) -------------------------------
+    // Uses the sign-in from the in-app browser (its cookies), so the site sees you as usual.
+
+    private static String siteCookie(String base) {
+        try {
+            String c = android.webkit.CookieManager.getInstance().getCookie(base);
+            return c == null ? "" : c;
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** Keep cookies the site renews (it may rotate its session cookie on every answer). */
+    private static void keepCookies(String base, HttpURLConnection c) {
+        try {
+            java.util.List<String> set = c.getHeaderFields().get("Set-Cookie");
+            if (set == null) set = c.getHeaderFields().get("set-cookie");
+            if (set == null) return;
+            android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
+            for (String v : set) cm.setCookie(base, v);
+            cm.flush();
+        } catch (Exception ignored) {}
+    }
+
+    private static byte[] readAll(InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        if (in == null) return out.toByteArray();
+        byte[] b = new byte[8192];
+        int n;
+        while ((n = in.read(b)) > 0) out.write(b, 0, n);
+        in.close();
+        return out.toByteArray();
+    }
+
+    /** One request to the site with your cookies: { status, body bytes }. */
+    private static Object[] siteRequest(String base, String url, String method, String json) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setRequestMethod(method);
+        c.setInstanceFollowRedirects(false);
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(30000);
+        c.setRequestProperty("Cookie", siteCookie(base));
+        c.setRequestProperty("User-Agent", userAgent);
+        c.setRequestProperty("Referer", base + "/");
+        if (json != null) {
+            c.setDoOutput(true);
+            c.setRequestProperty("Content-Type", "application/json");
+            java.io.OutputStream o = c.getOutputStream();
+            o.write(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            o.close();
+        }
+        int code = c.getResponseCode();
+        keepCookies(base, c);
+        byte[] body = readAll(code >= 400 ? c.getErrorStream() : c.getInputStream());
+        return new Object[] { code, body };
+    }
+
+    /** Search the tracker's JSON search with your sign-in: resolves { status, text }. */
+    @PluginMethod
+    public void trackerSearch(PluginCall call) {
+        String base = call.getString("base", "").replaceAll("/+$", "");
+        String path = call.getString("path", "");
+        String body = call.getString("body", null);
+        new Thread(() -> {
+            try {
+                if (siteCookie(base).isEmpty()) {
+                    call.reject("signin");
+                    return;
+                }
+                Object[] r = siteRequest(base, base + path, body == null ? "GET" : "POST", body);
+                JSObject out = new JSObject();
+                out.put("status", (int) r[0]);
+                out.put("text", new String((byte[]) r[1], java.nio.charset.StandardCharsets.UTF_8));
+                call.resolve(out);
+            } catch (Exception e) {
+                call.reject(String.valueOf(e.getMessage()));
+            }
+        }).start();
+    }
+
+    /**
+     * Get one .torrent with your sign-in (trying again when the site doesn't hand it over the
+     * first time), optionally spending a freeleech wedge on it first, and send it to qBittorrent.
+     * Resolves { sent, message, wedge, name, data }.
+     */
+    @PluginMethod
+    public void trackerGrab(PluginCall call) {
+        String base = call.getString("base", "").replaceAll("/+$", "");
+        String download = call.getString("download", "");
+        String wedge = call.getString("wedge", "");
+        String name = call.getString("name", "download.torrent");
+        String qbit = call.getString("qbit", "");
+        boolean ebook = call.getBoolean("ebook", false);
+        new Thread(() -> {
+            JSObject out = new JSObject();
+            try {
+                if (siteCookie(base).isEmpty()) {
+                    call.reject("signin");
+                    return;
+                }
+                String wedgeNote = "";
+                if (!wedge.isEmpty()) {
+                    try {
+                        Object[] w = siteRequest(base, base + wedge, "GET", null);
+                        String t = new String((byte[]) w[1], java.nio.charset.StandardCharsets.UTF_8);
+                        boolean ok = (int) w[0] < 400 && t.contains("\"success\":true");
+                        wedgeNote = ok ? "used" : t.length() > 160 ? t.substring(0, 160) : t;
+                    } catch (Exception e) {
+                        wedgeNote = String.valueOf(e.getMessage());
+                    }
+                }
+                out.put("wedge", wedgeNote);
+                byte[] torrent = null;
+                String why = "";
+                for (int attempt = 0; attempt < 4 && torrent == null; attempt++) {
+                    if (attempt > 0) Thread.sleep(1500L * attempt);
+                    try {
+                        Object[] r = siteRequest(base, base + download, "GET", null);
+                        byte[] b = (byte[]) r[1];
+                        int code = (int) r[0];
+                        if (code >= 300 && code < 400) {
+                            why = "the site asked to sign in again";
+                            continue;
+                        }
+                        // A real .torrent is a bencoded dictionary: it starts with "d".
+                        if (code < 400 && b.length > 40 && b[0] == 'd') torrent = b;
+                        else why = "HTTP " + code + (b.length > 0 && b[0] == '<' ? " (a web page, not a .torrent)" : "");
+                    } catch (Exception e) {
+                        why = String.valueOf(e.getMessage());
+                    }
+                }
+                if (torrent == null) {
+                    out.put("sent", false);
+                    out.put("message", "Couldn't get the .torrent after 4 tries — " + why);
+                    call.resolve(out);
+                    return;
+                }
+                boolean isEbook = ebook || InkwellWebActivity.torrentIsEbook(torrent);
+                String result = InkwellWebActivity.sendToQbit(qbit, torrent, null, name, isEbook);
+                boolean ok = result.startsWith("OK");
+                out.put("sent", ok);
+                out.put("message", ok ? result.substring(3) : result);
+                out.put("name", name);
+                out.put("data", android.util.Base64.encodeToString(torrent, android.util.Base64.NO_WRAP));
+                call.resolve(out);
+            } catch (Exception e) {
+                call.reject(String.valueOf(e.getMessage()));
+            }
+        }).start();
     }
 }

@@ -59,6 +59,7 @@ export function TrackerCard() {
           <small> · {new Date(last.at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>
         </div>
       )}
+      {/myanonamouse\.net$/i.test(name) && <GrabOptions />}
       <SearchAddress />
       <button
         class="link-btn tracker-change"
@@ -161,5 +162,36 @@ function EbookAddress() {
         </button>
       </form>
     </>
+  );
+}
+
+/** MyAnonamouse: tap M to grab in the background; optionally spend a freeleech wedge. */
+function GrabOptions() {
+  const tr = useStore(qb.tracker);
+  const row = (on, set, label, hint) => (
+    <label class="set-row">
+      <div>
+        <b>{label}</b>
+        <small>{hint}</small>
+      </div>
+      <input type="checkbox" class="switch" checked={on} onChange={(e) => set(e.currentTarget.checked)} />
+    </label>
+  );
+  return (
+    <div class="tracker-grab">
+      {row(
+        tr.background !== false,
+        (v) => qb.tracker.set((t) => ({ ...t, background: v })),
+        'Tap M to get it in the background',
+        'Finds the book (freeleech or VIP first, M4B / MP3 or EPUB, most seeders), downloads it and sends it to qBittorrent — nothing opens. Press and hold M to open the search instead.'
+      )}
+      {tr.background !== false &&
+        row(
+          tr.wedge === true,
+          (v) => qb.tracker.set((t) => ({ ...t, wedge: v })),
+          'Use a freeleech wedge',
+          'When the best copy isn’t freeleech or VIP, spend one of your wedges on it first. Off: it downloads normally (counts toward your ratio).'
+        )}
+    </div>
   );
 }

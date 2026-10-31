@@ -268,7 +268,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           ) : (
             <span />
           )}
-          {trackerSite && (title || query) && <TrackerMini site={trackerSite} filter={trackerFilter} words={title ? trackerWords('', { title, author }) : query} ebook={qb.isEbookName(query)} />}
+          {trackerSite && (title || query) && <TrackerMini site={trackerSite} filter={trackerFilter} words={title ? trackerWords('', { title, author }) : query} title={title} author={author} ebook={qb.isEbookName(query)} />}
         </div>
       )}
       {onServer && (
@@ -785,8 +785,13 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
         <div class="src-chips">
           <button
             class="chip tracker-chip"
-            onClick={() => qb.openTracker(trackerWords(r.title, book), !!trackerFilter, qb.isEbookName(`${r.title} ${r.format || ''}`)).catch((e) => toast(e.message))}
-            onContextMenu={(e) => (e.preventDefault(), trackerFilter && qb.openTracker(trackerWords(r.title, book)).catch((er) => toast(er.message)))}
+            onClick={() =>
+              (qb.canGrab()
+                ? qb.grabFromTracker({ words: trackerWords(r.title, book), title: book?.title || '', author: book?.author || '', ebook: qb.isEbookName(`${r.title} ${r.format || ''}`), filtered: !!trackerFilter })
+                : qb.openTracker(trackerWords(r.title, book), !!trackerFilter, qb.isEbookName(`${r.title} ${r.format || ''}`))
+              ).catch((e) => toast(e.message))
+            }
+            onContextMenu={(e) => (e.preventDefault(), (qb.canGrab() || trackerFilter) && qb.openTracker(trackerWords(r.title, book), qb.canGrab() && !!trackerFilter).catch((er) => toast(er.message)))}
             aria-label={`Search ${trackerSite} for this`}
           >
             <Icon name="search" size={12} /> {trackerSite.replace(/^www\./, '')[0].toUpperCase()}
@@ -1024,9 +1029,31 @@ function friendlyError(e) {
 }
 
 /** Your tracker, always at hand next to "Sources": a round badge with its initial, plus filtered / plain search. */
-function TrackerMini({ site, filter, words, ebook }) {
+function TrackerMini({ site, filter, words, title = '', author = '', ebook }) {
   const name = site.replace(/^www\./, '');
   const open = (filtered) => qb.openTracker(words, filtered, ebook).catch((e) => toast(e.message));
+  const [busy, setBusy] = useState(false);
+  // Grabbing in the background (your tracker supports it): tap finds the right torrent and sends
+  // it to qBittorrent with nothing on screen; press and hold opens the search page instead.
+  if (qb.canGrab())
+    return (
+      <div class="tracker-mini" title={`Get “${title || words}” from ${name} in the background (hold to open the search)`}>
+        <button
+          class={'tracker-dot' + (busy ? ' busy' : '')}
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            qb.grabFromTracker({ words, title, author, ebook, filtered: !!filter })
+              .catch((e) => toast(e.message))
+              .finally(() => setBusy(false));
+          }}
+          onContextMenu={(e) => (e.preventDefault(), open(!!filter))}
+          aria-label={`Get from ${name} in the background`}
+        >
+          {busy ? <span class="spinner small" /> : name[0].toUpperCase()}
+        </button>
+      </div>
+    );
   // One button: tap searches with your filter (FL / VIP); press and hold searches everything.
   return (
     <div class="tracker-mini" title={`Search ${name} for "${words}"${filter ? ` (${filter}; hold for all)` : ''}`}>
