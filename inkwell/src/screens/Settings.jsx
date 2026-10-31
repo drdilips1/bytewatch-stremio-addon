@@ -1008,6 +1008,18 @@ function AddonsCard() {
               v{a.manifest.version} · {a.kind === 'source' ? 'source addon · results in Search & book pages' : `${(a.manifest.catalogs || []).length} catalogs`}
             </small>
           </div>
+          <button
+            class="icon-btn"
+            aria-label="Copy the addon's JSON"
+            title="Copy the addon's JSON (to share it, or host it on your own worker)"
+            onClick={async () => {
+              const text = JSON.stringify(a.manifest, null, 2);
+              const { copyText } = await import('../lib/report.js');
+              toast((await copyText(text)) ? `Copied ${a.manifest.name}'s JSON` : 'Could not copy');
+            }}
+          >
+            <Icon name="link" size={18} />
+          </button>
           <button class="icon-btn" aria-label="Remove addon" onClick={() => addonSrc.uninstall(a.manifest.id)}>
             <Icon name="trash" size={18} />
           </button>

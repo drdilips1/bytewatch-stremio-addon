@@ -211,7 +211,16 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
         <div class="src-list">{(more ? groups : topOf(groups)).map(item)}</div>
         {groups.length > topOf(groups).length && (
           <button class="src-more" onClick={() => setMore(!more)}>
-            {more ? 'Show fewer' : `Show ${groups.length - topOf(groups).length} more ${name.toLowerCase()}`}
+            {more ? (
+              'Show fewer'
+            ) : (
+              <span class="src-more-text">
+                <b>
+                  Show {groups.length - topOf(groups).length} more {name.toLowerCase()}
+                </b>
+                <small>{moreFrom(groups)}</small>
+              </span>
+            )}
             <Icon name={more ? 'up' : 'down'} size={14} />
           </button>
         )}
@@ -945,6 +954,13 @@ function topOf(groups) {
     }
   }
   return top;
+}
+
+/** Which sources the hidden results come from ("from AudiobookBay, Knaben AudioBooks"). */
+function moreFrom(groups) {
+  const shown = new Set(topOf(groups));
+  const names = [...new Set(groups.filter((g) => !shown.has(g)).flatMap((g) => g.items.map((r) => r.addon)))].filter(Boolean);
+  return names.length ? `from ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}` : '';
 }
 
 function groupResults(list) {
