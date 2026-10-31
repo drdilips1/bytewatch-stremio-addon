@@ -3,12 +3,12 @@
 Noted while building; to pick up after Saturday.
 
 ## Notes of 31 Oct (from the PDF)
-Done 31 Oct, not built yet: #1, #3, and points 1, 2, 4, 9, 10, 11, 17, 18, 19, 29 (see git log).
+Done 31 Oct, not built yet: #1, #2, #3, and points 1, 2, 4, 9, 10, 11, 17, 18, 19, 29 (see git log).
 Still to do: the rest (design work gets samples first).
 GitHub (public app page): keep watching issues; tell first, fix, then wait for "build now".
 - #1 Audiobookshelf sync: resume from the newer position (server vs app), sync/close the ABS session,
   show failed syncs, clientName "Audiohub".
-- #2 Playback history: log play / pause / skip / seek / sleep stop with time and position; tap to jump.
+- #2 Playback history: log play / pause / skip / seek / sleep stop with time and position; tap to jump. (Done 31 Oct, private app.)
 - #3 "No playable stream for this part" ×11 — The Hobbit via TorBox (public 1.0.18).
 
 Player & Text view
@@ -73,6 +73,8 @@ Settings & misc
   (so it installs next to the others); which source add-ons it ships with (none, like public?).
 
 ## Public app — don't push anything until asked (27 Oct)
+- Rule (31 Oct): every fix / feature is checked in the private app first; only then ported to public.
+- To port when asked: GitHub #1 (ABS sync), #2 (playback history), #3 (addon torrents), and the 31 Oct fixes.
 - The ebook reader port (slide-select, Notes panel, translate, speed, safe highlights) is parked
   on the public `work` branch (commit cdc3595) — not built, not released. Quote sharing left out.
 

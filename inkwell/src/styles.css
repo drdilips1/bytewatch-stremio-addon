@@ -10033,3 +10033,62 @@ button.notes-book-head {
 .tl-pick-file {
   margin: 10px 0 4px;
 }
+
+/* Playback history (player → More → History) */
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.history-session {
+  margin: 10px -8px 0;
+  padding: 6px 8px 8px;
+  border-radius: 14px;
+}
+.history-session.alt {
+  background: color-mix(in srgb, var(--text, #fff) 4%, transparent);
+}
+.history-day {
+  margin: 4px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 2px;
+  text-align: left;
+  color: inherit;
+}
+.history-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+.history-what {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.history-what small {
+  opacity: 0.65;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-time {
+  flex: none;
+  font-size: 12px;
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}

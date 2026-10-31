@@ -19,6 +19,7 @@ import { XrayStrip, XraySheet } from './xray.jsx';
 import { SceneButton } from './scene-cmd.jsx';
 import { Rows as BookmarkRows } from './bookmarks.jsx';
 import { HighlightCards, AudioNotes, useBookNoteCount } from './book-notes.jsx';
+import { HistorySheet } from './history-sheet.jsx';
 import { transcriptCfg, stopTranscript } from '../lib/transcript.js';
 import { sleepDetectAvailable, setSleepDetect } from '../lib/sleepdetect.js';
 
@@ -395,6 +396,10 @@ export function FullPlayer() {
                   <Icon name="bookmark" size={22} />
                   Notes · {noteCount}
                 </button>
+                <button onClick={() => setSheet('history')}>
+                  <Icon name="list" size={22} />
+                  History
+                </button>
                 <button
                   onClick={() => {
                     setSheet(null);
@@ -532,6 +537,7 @@ export function FullPlayer() {
                 </ol>
               </>
             )}
+            {sheet === 'history' && <HistorySheet book={s.book} close={() => setSheet(null)} />}
             {sheet === 'bookmarks' && (
               <div class="book-notes">
                 <h3>This book's notes</h3>

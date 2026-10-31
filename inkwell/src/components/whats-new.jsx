@@ -8,6 +8,7 @@ export const CHANGES = [
     id: '2026-10-31',
     title: 'Fixes from your notes',
     items: [
+      ['🕘', 'Playback history', 'Player → More → History: every play, pause, skip, jump, chapter change and sleep-timer stop, with the time and where you were, grouped by listening session. Fell asleep or bumped skip? Tap the entry to go back.'],
       ['🔄', 'Audiobookshelf in step', 'A book starts from the newer place — your server’s (another app went further) or this phone’s — and progress goes through the server’s own session, so the percentage and listening time update there too.'],
       ['🛟', 'Server down? Still plays', 'When your Audiobookshelf isn’t answering, Play uses your copy on the phone, downloaded or in TorBox / Real-Debrid, from the same place.'],
       ['🎯', 'The right book', '“The Greatest Secret” is no longer offered for “The Secret”, nor other books of a series (Red Rising) — they wait under loose matches.'],

@@ -4,6 +4,7 @@ import './styles.css';
 import { settings, library, progress, cleanLibrary, cleanProgress } from './lib/store.js';
 import { ttsCfg, nativeReader } from './lib/tts.js';
 import './lib/keep.js';
+import './lib/history.js';
 
 // Studio look (v4): everyone moves onto the orange-on-black/white Studio theme once;
 // later choices (Settings → Appearance) stick.

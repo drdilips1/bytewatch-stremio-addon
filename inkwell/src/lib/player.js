@@ -637,6 +637,15 @@ function locate(g) {
   return { i: 0, t: 0 };
 }
 
+// --- playback history (lib/history.js listens) -----------------------------------
+let historyHook = null;
+export const setHistoryHook = (f) => (historyHook = f);
+const hist = (type, g = globalTime(), to) => {
+  try {
+    historyHook?.(type, g, to);
+  } catch {}
+};
+
 // --- controls ---------------------------------------------------------------
 let resumeTimer = null;
 
@@ -659,7 +668,13 @@ export function toggle() {
 }
 
 export const pause = () => engine.pause();
+/** Move within this part — a jump you made (noted in the playback history). */
 export function seek(t) {
+  if (!isFinite(t)) return;
+  hist('seek', globalTime(), trackOffset(state.index) + t);
+  seekTo(t);
+}
+function seekTo(t) {
   if (!isFinite(t)) return;
   const d = state.duration || engine.duration;
   const clamped = Math.max(0, d ? Math.min(t, d - 0.25) : t);
@@ -668,11 +683,13 @@ export function seek(t) {
   set({ time: clamped });
 }
 export function seekGlobal(g) {
+  hist('seek', globalTime(), g);
   const { i, t } = locate(g);
-  if (i === state.index) seek(t);
+  if (i === state.index) seekTo(t);
   else loadTrack(i, t, state.playing);
 }
 export function skip(delta) {
+  hist(delta < 0 ? 'back' : 'forward', globalTime(), globalTime() + delta);
   const t = state.time + delta;
   if (t < 0 && state.index > 0) {
     const prevTrack = state.tracks[state.index - 1];
@@ -680,16 +697,18 @@ export function skip(delta) {
   }
   const d = state.duration || engine.duration;
   if (d && t > d && state.index < state.tracks.length - 1) return loadTrack(state.index + 1, 0, state.playing);
-  seek(t);
+  seekTo(t);
 }
 export function next() {
-  if (state.index < state.tracks.length - 1) loadTrack(state.index + 1, 0);
+  if (state.index < state.tracks.length - 1) hist('chapter', globalTime(), trackOffset(state.index + 1)), loadTrack(state.index + 1, 0);
 }
 export function prev() {
-  if (state.time > 5 || state.index === 0) seek(0);
+  hist('chapter', globalTime(), state.time > 5 || state.index === 0 ? trackOffset(state.index) : trackOffset(state.index - 1));
+  if (state.time > 5 || state.index === 0) seekTo(0);
   else loadTrack(state.index - 1, 0);
 }
 export function jumpTo(i, t = 0) {
+  hist('chapter', globalTime(), trackOffset(i) + t);
   loadTrack(i, t);
 }
 export function setRate(r) {
@@ -738,8 +757,9 @@ export function renameBookmark(uid, createdAt, label) {
 
 /** Play from a moment in the book (seconds from its start), whether playing or paused. */
 export function playAt(g) {
+  hist('seek', globalTime(), Math.max(0, g));
   const at = locate(Math.max(0, g));
-  if (at.i === state.index && state.playing) seek(at.t);
+  if (at.i === state.index && state.playing) seekTo(at.t);
   else loadTrack(at.i, at.t, true);
 }
 
@@ -749,7 +769,8 @@ export function playBookmark(bm) {
   const t = bm.time - BOOKMARK_LEAD;
   // Near the start of a part: the end of the part before it.
   const at = t >= 0 || !bm.track ? { i: bm.track, t: Math.max(0, t) } : locate(trackOffset(bm.track) + t);
-  if (at.i === state.index && state.playing) seek(at.t);
+  hist('bookmark', globalTime(), trackOffset(at.i) + at.t);
+  if (at.i === state.index && state.playing) seekTo(at.t);
   else loadTrack(at.i, at.t, true);
 }
 
@@ -825,6 +846,7 @@ function endAbsSession() {
 }
 
 function fadeOutAndPause() {
+  hist('sleep');
   set({ sleepUntil: null });
   let step = 0;
   const iv = setInterval(() => {
