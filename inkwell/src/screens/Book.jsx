@@ -446,7 +446,12 @@ export function Book({ book: initial }) {
         </div>
       )}
 
-      {error && <p class="err pad">Couldn't load details: {error}</p>}
+      {error &&
+        (book.source === 'abs' ? (
+          <p class="err pad">Your Audiobookshelf server isn't answering ({error}). Play still works: it uses your copy on the phone or in TorBox / Real-Debrid when there is one.</p>
+        ) : (
+          <p class="err pad">Couldn't load details: {error}</p>
+        ))}
 
       <Description
         text={bestDescription(book.description, gr?.description)}

@@ -7,7 +7,7 @@ import { progress, bookmarks, settings, summarize, persisted } from './store.js'
 import { syncProgress, switchTracks, closeSession } from '../sources/audiobookshelf.js';
 import { fetchStatus } from '../sources/debrid.js';
 import { applyLocal, isDownloaded, downloads } from './downloads.js';
-import { otherCopyProgress } from './works.js';
+import { otherCopyProgress, sameWork } from './works.js';
 
 // ---- safety net: a part that won't play --------------------------------------
 // First a fresh link and one more try; then another copy of the same book you
@@ -525,7 +525,45 @@ export async function openAndPlay(book, getDetails, opts) {
     const details = early?.details && Date.now() - early.t < 15 * 60e3 ? early.details : await getDetails(book, { fast: true });
     return playBook(details, opts);
   } catch (e) {
+    if (await playOtherCopy(book, e, opts)) return;
     set({ loading: false, phase: '', error: e.message || String(e) });
+  }
+}
+
+/**
+ * Your Audiobookshelf server (or the place the book is from) can't be reached: play
+ * another copy of the same book — on the phone, downloaded, or in TorBox / Real-Debrid —
+ * from the same place, instead of stopping at an error.
+ */
+async function playOtherCopy(book, err, opts = {}) {
+  const msg = String(err?.message || err || '');
+  if (!book?.uid || !(book.source === 'abs' || /timed out|time out|reach|network|failed to fetch|offline|ECONN|50[234]/i.test(msg))) return false;
+  try {
+    const { localCfg } = await import('../sources/local.js');
+    const { findOwned, getDetails } = await import('../sources/index.js');
+    const near = [
+      ...(localCfg.get().books || []).filter((b) => b.kind !== 'text'),
+      ...Object.values(downloads.get())
+        .filter((d) => d?.status === 'done')
+        .map((d) => d.book),
+    ];
+    let copy = near.find((c) => c && c.uid !== book.uid && sameWork(c, book) && !rescueTried.has(c.uid));
+    if (!copy) {
+      const o = await findOwned({ title: book.title, author: book.author || '' }).catch(() => null);
+      copy = (o?.cloud || []).find((c) => c.kind !== 'text' && c.uid !== book.uid && sameWork(c, book) && !rescueTried.has(c.uid));
+    }
+    if (!copy) return false;
+    rescueTried.add(copy.uid);
+    const where = { loc: 'on this phone', tb: 'in TorBox', rd: 'in Real-Debrid' }[copy.source] || (downloads.get()[copy.uid] ? 'downloaded' : 'another copy');
+    set({ loading: true, error: null, phase: `${book.source === 'abs' ? 'Your server isn’t answering' : 'That copy isn’t available'} — playing your copy ${where}…` });
+    const d = await getDetails(copy);
+    const g = opts.globalStart ?? (opts.index == null && opts.time == null ? progress.get()[book.uid]?.global : undefined);
+    rescuing = true;
+    await playBook(d, g != null && !progress.get()[book.uid]?.finished ? { globalStart: g } : opts);
+    return true;
+  } catch {
+    rescuing = false;
+    return false;
   }
 }
 
@@ -586,6 +624,7 @@ export async function playBook(details, { index, time, globalStart, autoplay = t
     // autoplay false: ready but quiet (e.g. a scene is looked up first, then it plays from there).
     await loadTrack(Math.min(i, tracks.length - 1), t, autoplay);
   } catch (e) {
+    if (await playOtherCopy(details, e, { index, time, globalStart, autoplay })) return;
     set({ loading: false, phase: '', error: e.message || String(e) });
   }
 }
