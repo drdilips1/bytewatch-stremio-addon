@@ -324,7 +324,8 @@ export async function closeSession(currentTime, duration, timeListened = 0) {
   session = null;
   if (!s || !connected()) return;
   try {
-    await call(`/api/session/${s.id}/close`, { method: 'POST', body: { currentTime, timeListened: Math.max(0, Math.round(timeListened)), duration } });
+    // No place given: close without touching the server's saved place.
+    await call(`/api/session/${s.id}/close`, { method: 'POST', body: currentTime == null ? {} : { currentTime, timeListened: Math.max(0, Math.round(timeListened)), duration } });
   } catch (e) {
     if (e?.status !== 404) failed(e);
   }

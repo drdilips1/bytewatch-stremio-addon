@@ -845,13 +845,19 @@ export function toggleQuote(time, text) {
 
 // --- progress ---------------------------------------------------------------
 let lastSave = 0;
+let lastSaved = { uid: '', g: -1 }; // the place last saved (to skip saving an unmoved, paused one)
 function saveProgress(force = false) {
   if (!state.book || !state.tracks.length) return;
   const now = Date.now();
   if (!force && now - lastSave < 4000) return;
-  lastSave = now;
   const total = totalDuration();
   const g = globalTime();
+  // Paused and not moved: nothing new to save. (Saving it again would stamp an old place as
+  // "just now" — switching to Absorb and back then sent chapter 28 over Absorb's chapter 29.)
+  const same = lastSaved.uid === state.book.uid && Math.abs(g - lastSaved.g) < 1.5;
+  if (same && !state.playing) return;
+  lastSaved = { uid: state.book.uid, g };
+  lastSave = now;
   const d = state.duration;
   const finished = state.index === state.tracks.length - 1 && ((d > 0 && state.time >= d - 2) || outroAt > 0);
   const uid = state.book.uid;
@@ -889,7 +895,9 @@ let resumeChecked = false;
 function endAbsSession() {
   if (!state.book?.uid?.startsWith('abs:')) return;
   lastAbsSync = 0;
-  closeSession(globalTime(), totalDuration());
+  // Only send the place if this phone moved it; else the server's (maybe newer) place stays.
+  const moved = !(lastSaved.uid === state.book.uid && Math.abs(globalTime() - lastSaved.g) < 1.5) || state.playing;
+  closeSession(moved ? globalTime() : null, totalDuration());
 }
 
 function fadeOutAndPause() {
