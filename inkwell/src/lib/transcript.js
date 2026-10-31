@@ -83,10 +83,13 @@ function bookTextFor(book, again = false) {
   const run = ++btRun;
   for (const s of state.segments) delete s.at, delete s.book, delete s.fill;
   set({ segments: state.segments.slice(), bookText: { state: 'loading' } });
+  // Looking everywhere (phone, sources, TorBox…) can take long: give up after a minute.
+  const limit = new Promise((ok) => setTimeout(() => ok('timeout'), 60000));
   import('./booktext.js')
-    .then((m) => m.loadBookText(book))
+    .then((m) => Promise.race([m.loadBookText(book), limit]))
     .then((x) => {
       if (run !== btRun) return;
+      if (x === 'timeout') return set({ bookText: { state: 'none', why: 'timeout' } });
       if (!x) return set({ bookText: { state: 'none' } });
       bt = x;
       set({ bookText: { state: 'on', title: x.title || '' } });
@@ -566,4 +569,10 @@ export function fixHeard(text, names) {
     fixCache.set(lw, out);
     return out || w;
   });
+}
+
+/** Stop looking for this book's ebook (the lines stay as heard; Get the ebook to choose one). */
+export function stopLooking() {
+  btRun++;
+  set({ bookText: { state: 'none' } });
 }

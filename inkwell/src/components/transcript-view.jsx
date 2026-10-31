@@ -7,7 +7,7 @@ import { toast } from './common.jsx';
 import * as player from '../lib/player.js';
 import { knownCharacters, CharacterCard } from './story-sheet.jsx';
 import { useStore, bookmarks } from '../lib/store.js';
-import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard } from '../lib/transcript.js';
+import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard, stopLooking } from '../lib/transcript.js';
 import { cachedXray } from '../lib/xray.js';
 import { fmtTime } from '../lib/format.js';
 
@@ -44,20 +44,25 @@ function EbookStatus({ b }) {
   const [mine, setMine] = useState(null); // ebooks already on the phone
   const [busy, setBusy] = useState(''); // 'search' | link being downloaded
   const [query, setQuery] = useState(''); // your own words for the search ('' = the audiobook's title)
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const run = useRef(0); // the latest search: one from a closed sheet mustn't reopen it
   const search = async (q = '') => {
+    const my = ++run.current;
+    setSheetOpen(true);
     setBusy('search');
-    setMine(await ebooksOnPhone(q));
+    const onPhone = await ebooksOnPhone(q);
+    if (my !== run.current) return;
+    setMine(onPhone);
     try {
-      setHits(await findEbook(q));
+      const found = await findEbook(q);
+      if (my === run.current) setHits(found);
     } catch (e) {
-      toast(e?.message || String(e));
-      setHits([]);
+      if (my === run.current) (toast(e?.message || String(e)), setHits([]));
     }
-    setBusy('');
+    if (my === run.current) setBusy('');
   };
   const pickMine = async (eb) => {
-    setHits(null);
-    setMine(null);
+    close();
     await takeOnPhone(eb);
   };
   // An EPUB / PDF anywhere on the phone (e.g. downloaded in the browser): pick it, it's added and used.
@@ -77,21 +82,12 @@ function EbookStatus({ b }) {
     setBusy(h.r.link);
     try {
       await takeEbook(h);
-      setHits(null);
-      setMine(null);
+      close();
     } catch (e) {
       toast(e?.message || String(e));
     }
     setBusy('');
   };
-  if (!b || b.state === 'loading')
-    return b ? (
-      <div class="tl-bar">
-        <span>
-          <span class="spinner small" /> Looking for your ebook of this book…
-        </span>
-      </div>
-    ) : null;
   const phoneList = mine?.length > 0 && (
     <div class="tl-ebook-hits">
       <p class="tl-source">On this phone</p>
@@ -129,15 +125,19 @@ function EbookStatus({ b }) {
     ) : (
       <p class="tl-source">No EPUB {query.trim() ? `for “${query.trim()}”` : 'of this book'} in your sources — try other words.</p>
     ));
-  const open = !!(mine || hits || busy === 'search');
+  const open = sheetOpen;
+  // Closing always works, even mid-search (that search is just forgotten).
   const close = () => {
+    run.current++;
+    setSheetOpen(false);
+    setBusy('');
     setHits(null);
     setMine(null);
     setQuery('');
   };
   const sheet = open && (
     <PickSheet close={close}>
-      <h3>{b.state === 'on' ? 'Use another ebook' : 'Get the ebook'}</h3>
+      <h3>{b?.state === 'on' ? 'Use another ebook' : 'Get the ebook'}</h3>
       <p class="muted small">With the ebook of this book, the transcript shows its exact words.</p>
       <form
         class="tl-ebook-search"
@@ -166,6 +166,22 @@ function EbookStatus({ b }) {
       {srcList}
     </PickSheet>
   );
+  if (!b) return null;
+  if (b.state === 'loading')
+    return (
+      <div class="tl-bar">
+        <span>
+          <span class="spinner small" /> Looking for the ebook…
+        </span>
+        <button class="link-btn" onClick={() => search()}>
+          Choose
+        </button>
+        <button class="link-btn" onClick={stopLooking}>
+          Stop
+        </button>
+        {open && sheet}
+      </div>
+    );
   // A small bar above the text (it doesn't scroll away): which words you're reading, and a way to change it.
   if (b.state === 'on')
     return (
