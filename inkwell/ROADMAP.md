@@ -109,11 +109,11 @@ Done and pushed, not built:
 - Search in a book: a box on the book page that searches the ebook text and the heard transcript, tap to jump.
 - Personal tags (Psychology, Science, Spirituality…) with Library filters.
 - Listen-later / Up next queue across sources (books and saved passages), each keeping its place;
-  handles unavailable sources, interrupted downloads and network changes.
+  handles unavailable sources, interrupted downloads and network changes. (Done 31 Oct, not built.)
 - Audio playlists ("Best ideas about wealth") built from saved passages across books (book + timestamp each).
-- Chapter summaries to browse (AI, kept once per book) and indexed passages.
+- Chapter summaries to browse (AI, kept once per book) and indexed passages. (Summaries done 31 Oct, not built.)
 - Listening plans: 10 / 30 / 60 minutes from unfinished books and saved passages, with topics/books excluded.
-  Helpful, no streaks or nagging notifications.
+  Helpful, no streaks or nagging notifications. (Done 31 Oct without the exclusions, not built; private only so far.)
 - Android Auto.
 - Cross-library passage map: related passages in other books, tap to jump (needs those books' ebooks).
 - Highlights from transcript lines linked to audio timestamps.
