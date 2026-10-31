@@ -86,7 +86,7 @@ export function Available({ book, editions }) {
     // Source results that play at once / open in the reader.
     for (const { r, via } of quick?.instant || []) add({ key: 'q:' + r.key, icon: 'play', label: 'Play now', sub: `instant · ${SVC[via]}`, act: { kind: 'quick', r, via } });
     // Not ready yet: fetched through TorBox / Real-Debrid, plays when it's there.
-    for (const { r, via } of quick?.fetch || []) add({ key: 'f:' + r.key, icon: 'download', label: 'Get & play', sub: `${SVC[via]} · ${r.seeders} seed${r.seeders === 1 ? '' : 's'}${r.size ? ` · ${fmtMb(r.size)}` : ''}`, act: { kind: 'fetch', r, via } });
+    for (const { r, via } of quick?.fetch || []) add({ key: 'f:' + r.key, icon: 'download', label: 'Get & play', sub: `${SVC[via]}${r.seeders == null ? '' : ` · ${r.seeders} seed${r.seeders === 1 ? '' : 's'}`}${r.size ? ` · ${fmtMb(r.size)}` : ''}`, act: { kind: 'fetch', r, via } });
     for (const r of quick?.readable || []) {
       const rb = readerBookFor(r, book);
       if (rb) add({ key: 'qr:' + r.key, icon: 'book', label: `Read ${rb.ebookFormat || ''}`.trim(), sub: 'from sources', act: read(rb) });

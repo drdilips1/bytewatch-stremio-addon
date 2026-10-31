@@ -219,7 +219,8 @@ async function searchOnce(addon, vars, key, { title = '', author = '', query = '
         magnet: get(row, 'magnetUrl') || get(row, 'magnet') || '',
         hash: '',
         size: Number(get(row, 'sizeBytes')) || 0,
-        seeders: Number(get(row, 'seeders')) || 0,
+        // Not given by the source (AudiobookBay's own pages don't show it): unknown, not 0.
+        seeders: get(row, 'seeders') == null || get(row, 'seeders') === '' ? null : Number(get(row, 'seeders')) || 0,
         format: get(row, 'format') || '',
         language: get(row, 'language') || '',
         date: get(row, 'date') || '',
@@ -238,7 +239,7 @@ async function searchOnce(addon, vars, key, { title = '', author = '', query = '
   // From a book page (title and author known), keep only results for that book.
   if (title && author) results = sameBook(results, title, author);
 
-  results.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || Number(b.seeders > 0) - Number(a.seeders > 0) || b.score - a.score || b.seeders - a.seeders);
+  results.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || Number(b.seeders !== 0) - Number(a.seeders !== 0) || b.score - a.score || (b.seeders || 0) - (a.seeders || 0));
   // For "Report a problem": what was asked and how many came back / were kept.
   noteSearch(addon, url, {
     reply: data == null ? 'empty reply' : Array.isArray(list) ? `${list.length} results` : 'no result list',
@@ -338,5 +339,5 @@ async function markInstant(results) {
   const instant = await Promise.race([torboxCached(results.map((r) => r.hash)), new Promise((r) => setTimeout(() => r(new Set()), 8000))]);
   if (!instant.size) return null;
   const out = results.map((r) => (instant.has(r.hash) ? { ...r, cache: { ...r.cache, torbox: true, any: true } } : r));
-  return out.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || Number(b.seeders > 0) - Number(a.seeders > 0) || b.score - a.score || b.seeders - a.seeders);
+  return out.sort((a, b) => Number(b.cache.any) - Number(a.cache.any) || Number(b.seeders !== 0) - Number(a.seeders !== 0) || b.score - a.score || (b.seeders || 0) - (a.seeders || 0));
 }

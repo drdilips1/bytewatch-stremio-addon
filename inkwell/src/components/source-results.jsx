@@ -129,6 +129,18 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
       { title, author, query },
       (name, results, error, slow) => {
         if (mounted.current && lastQuery.current === q) setGroups((g) => ({ ...g, [name]: { results, error, slow } }));
+        // Seeders the source didn't give: asked from TorBox, filled in when they come.
+        const unknown = (results || []).filter((r) => r.seeders == null && r.hash);
+        if (unknown.length)
+          cloud.torrentSeeds(unknown.map((r) => r.hash)).then((seeds) => {
+            if (!Object.keys(seeds).length || !mounted.current || lastQuery.current !== q) return;
+            setGroups((g) => {
+              const cur = g[name];
+              if (!cur) return g;
+              const fill = (r) => (r.seeders == null && seeds[r.hash] != null ? { ...r, seeders: seeds[r.hash] } : r);
+              return { ...g, [name]: { ...cur, results: cur.results.map(fill) } };
+            });
+          });
       },
       only
     ).then(() => mounted.current && lastQuery.current === q && setPending(false));
@@ -160,7 +172,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const everything = entries.flatMap(([, g]) => g.results);
   const looseCount = everything.filter((r) => r.loose).length;
   const all = everything.filter((r) => showLoose || !r.loose).sort((a, b) => Number(!(a.magnet || a.hash)) - Number(!(b.magnet || b.hash)));
-  const alive = (r) => r.seeders > 0 || !(r.magnet || r.hash) || r.cache?.any || account.has(r.hash);
+  const alive = (r) => r.seeders > 0 || r.seeders == null || !(r.magnet || r.hash) || r.cache?.any || account.has(r.hash);
   // MOBI / AZW3: the app's reader can't open them and Amazon no longer takes them by
   // e-mail — kept out of the way unless you ask (other reader apps do open them).
   const kindleOnly = (r) => /^(MOBI|AZW3?)$/.test(formatOf(r) || directEbookFile(r)?.format || '');
@@ -220,7 +232,8 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const fetchable = provider
     ? shownGroups
         .map((g) => g.items[0])
-        .filter((r) => (r.magnet || r.hash) && !readyVia(r) && r.seeders > 0 && r.contentType !== 'ebook' && !qb.isEbookName(`${r.title} ${r.format || ''}`))
+        
+        .filter((r) => (r.magnet || r.hash) && !readyVia(r) && (r.seeders == null || r.seeders > 0) && r.contentType !== 'ebook' && !qb.isEbookName(`${r.title} ${r.format || ''}`))
         .map((r) => ({ r, via: provider }))
     : [];
   const quickKey = `${instant.map((x) => x.r.key + x.via).join()}|${readable.map((r) => r.key).join()}|${fetchable.map((x) => x.r.key).join()}`;
@@ -616,7 +629,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
       </div>
       <div class="src-meta">
         {r.size > 0 && <span>{fmtSize(r.size)}</span>}
-        {hasMagnet && <span class={'seeds ' + seedClass(r.seeders)}>{r.seeders} seed{r.seeders === 1 ? '' : 's'}</span>}
+        {hasMagnet && (r.seeders == null ? <span class="seeds">seeds ?</span> : <span class={'seeds ' + seedClass(r.seeders)}>{r.seeders} seed{r.seeders === 1 ? '' : 's'}</span>)}
         {r.language && <span>{r.language}</span>}
         <span>{sourceLabel(r.addon)}</span>
       </div>
