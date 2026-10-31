@@ -138,13 +138,17 @@ export function MiniPlayer() {
 const SPEEDS = [0.75, 0.9, 1, 1.1, 1.2, 1.25, 1.3, 1.4, 1.5, 1.6, 1.7, 1.75, 1.8, 1.9, 2, 2.25, 2.5, 3];
 const SLEEP = [5, 10, 15, 30, 45, 60, 90];
 
-/** "Chapter 3 of 33 · The Mirror of Erised" (its own title when it says more than the number). */
+/**
+ * "The Mirror of Erised · 3/33": the chapter's own title first, then where it is in the list.
+ * (Not "Chapter 8 of 10 · Chapter 6" — with an intro and credits counted, the list number
+ * isn't the book's chapter number.) A title that's only a number: "Chapter 3 of 33".
+ */
 function chapterLabel(chapters, g) {
   let i = chapters.findIndex((c) => g >= c.start && g < (c.end || Infinity));
   if (i < 0) i = 0;
   const t = String(chapters[i]?.title || '').trim();
-  const plain = !t || /^(chapter|part|track)?\s*\d+$/i.test(t);
-  return `Chapter ${i + 1} of ${chapters.length}${plain ? '' : ` · ${t}`}`;
+  const plain = !t || /^(track)?\s*\d+$/i.test(t);
+  return plain ? `Chapter ${i + 1} of ${chapters.length}` : `${t} · ${i + 1}/${chapters.length}`;
 }
 
 export function FullPlayer() {
