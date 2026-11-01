@@ -642,18 +642,12 @@ export function pickTorrent(list, { words, title = '', author = '', ebook = fals
 }
 
 /**
- * One request to your tracker: through a hidden copy of the in-app browser first (some
- * connections reach the site only that way), then directly. { status, text }.
+ * One request to your tracker, through a hidden copy of the in-app browser. { status, text }.
  */
 async function siteFetch(base, { path, body, binary = false }) {
-  try {
-    return await Web.trackerFetch({ base, path, ...(body ? { body, method: 'POST' } : {}), binary });
-  } catch (e) {
-    if (/not implemented|unimplemented/i.test(e?.message || '') || binary) throw e;
-    const r = await Web.trackerSearch({ base, path, ...(body ? { body } : {}) }).catch(() => null);
-    if (r) return r;
-    throw e;
-  }
+  // Always through the browser, as your own visits are: a request from another route can reach
+  // the site from another address, and trackers that tie your sign-in to it then sign you out.
+  return Web.trackerFetch({ base, path, ...(body ? { body, method: 'POST' } : {}), binary });
 }
 
 /** The wedge (if asked), the .torrent (up to 4 tries — the site sometimes doesn't hand it over), qBittorrent. */

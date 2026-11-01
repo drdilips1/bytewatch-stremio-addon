@@ -21,6 +21,15 @@ public class InkwellWebPlugin extends Plugin {
 
     private static InkwellWebPlugin instance;
 
+    // Leaving the app: save cookies (a tracker's renewed sign-in) before Android may close it.
+    @Override
+    protected void handleOnPause() {
+        super.handleOnPause();
+        try {
+            android.webkit.CookieManager.getInstance().flush();
+        } catch (Exception ignored) {}
+    }
+
     @Override
     public void load() {
         instance = this;
@@ -554,6 +563,8 @@ public class InkwellWebPlugin extends Plugin {
     private class GhostBridge {
         @android.webkit.JavascriptInterface
         public void done(String id, int status, String text) {
+            // The tracker may have renewed your sign-in cookie: save it now, so it isn't lost.
+            android.webkit.CookieManager.getInstance().flush();
             PluginCall c = ghostCalls.remove(id);
             if (c == null) return;
             JSObject out = new JSObject();

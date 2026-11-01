@@ -529,6 +529,12 @@ public class InkwellWebActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        CookieManager.getInstance().flush(); // your sign-in, kept even if Android closes the app
+    }
+
+    @Override
     protected void onDestroy() {
         CookieManager.getInstance().flush();
         web.destroy();
