@@ -6,26 +6,70 @@ import { toast } from './common.jsx';
 import { useStore } from '../lib/store.js';
 import * as libbySrc from '../sources/libby.js';
 
-/**
- * Sign in with Libby's own setup code: the phone that has your cards shows the code
- * (Libby → Menu → Copy To Another Device) and you type it here. Never the other way
- * round — entering a code shown by this app into Libby copies this (empty) app to Libby.
- */
-function LibbyCodeSignIn({ busy, run, code, setCode }) {
-  const [open, setOpen] = useState(false);
+/** Sign in to Libby: this app shows a code, you enter it in Libby on your phone. */
+function LibbySignIn({ busy, run, code, setCode }) {
+  const [shown, setShown] = useState(null); // { code, expires }
+  const [pairing, setPairing] = useState(null); // { cancel }
+  const [left, setLeft] = useState(0);
+  const [manual, setManual] = useState(false);
+  const [status, setStatus] = useState('');
+  useEffect(() => () => pairing?.cancel(), [pairing]);
+  useEffect(() => {
+    if (!shown) return;
+    const tick = () => setLeft(Math.max(0, Math.round((shown.expires - Date.now()) / 1000)));
+    tick();
+    const t = setInterval(tick, 500);
+    return () => clearInterval(t);
+  }, [shown]);
+  const stop = () => {
+    pairing?.cancel();
+    setPairing(null);
+    setShown(null);
+  };
+  const start = () => {
+    pairing?.cancel();
+    setShown(null);
+    setStatus('');
+    const p = libbySrc.pairWithCode(setShown, setStatus);
+    setPairing(p);
+    p.done
+      .then((names) => names && toast(`Signed in: ${names}`))
+      .catch((e) => toast(e.message))
+      .finally(() => {
+        setPairing(null);
+        setShown(null);
+      });
+  };
   return (
     <>
-      <button class="link-btn" onClick={() => setOpen(!open)}>
-        {open ? 'Hide' : 'Or use a setup code from your Libby app'}
+      <p class="muted">
+        <b>Sign in with your library cards</b> (loans, holds and borrowing here): tap <b>Get code</b>, then in Libby on your phone open <b>Menu (☰) → Copy To Another Device</b> and enter the code shown here — Libby transfers your cards to Audiohub+. Keep this screen open; it finishes by itself.
+      </p>
+      {pairing ? (
+        <div class="libby-code">
+          {shown ? <b>{shown.code}</b> : <span class="spinner" />}
+          <small>
+            {shown ? `Enter this in Libby · ${left > 0 ? `${left}s left` : 'getting a new code…'} · ` : 'Getting a code… '}
+            waiting for Libby <span class="spinner small" />
+          </small>
+          {status && <small class="libby-status">{status}</small>}
+          <button class="link-btn" onClick={stop}>
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button class="btn primary" onClick={start}>
+          Get code
+        </button>
+      )}
+      <button class="link-btn" onClick={() => setManual(!manual)}>
+        {manual ? 'Hide' : 'My Libby shows a code instead'}
       </button>
-      {open && (
-        <div class="libby-cardform">
-          <p class="muted">
-            On the phone with Libby: <b>Menu (☰) → Copy To Another Device</b>. Libby shows an <b>8-digit code</b> — type it here within a minute. Don't type a code from this app into Libby.
-          </p>
+      {manual && (
+        <div class="set-row">
           <input value={code} inputmode="numeric" maxlength="9" placeholder="8-digit code from Libby" onInput={(e) => setCode(e.currentTarget.value)} />
-          <button class="btn primary" disabled={busy || code.replace(/\D/g, '').length !== 8} onClick={() => run(async () => `Signed in: ${await libbySrc.signInWithCode(code)}`)}>
-            {busy ? <span class="spinner small" /> : 'Sign in with code'}
+          <button class="btn" disabled={busy || code.replace(/\D/g, '').length !== 8} onClick={() => run(async () => `Signed in: ${await libbySrc.signInWithCode(code)}`)}>
+            {busy ? <span class="spinner small" /> : 'Sign in'}
           </button>
         </div>
       )}
@@ -45,7 +89,7 @@ function LibbyCardSignIn({ busy, run, adding = false }) {
   return (
     <div class="libby-cardform">
       <p class="muted">
-        <b>{adding ? 'Add another library card' : 'Sign in with your library card'}</b> — card number and PIN (yours, then your family's).
+        <b>{adding ? 'Add another library card' : 'Or sign in with your library card'}</b> — card number and PIN, no phone needed.
       </p>
       {libs.length > 0 && (
         <select value={lib} onChange={(e) => setLib(e.currentTarget.value)}>
@@ -148,8 +192,8 @@ export function LibbySettings() {
         </div>
       ) : (
         <>
+          <LibbySignIn busy={busy} run={run} code={code} setCode={setCode} />
           <LibbyCardSignIn busy={busy} run={run} />
-          <LibbyCodeSignIn busy={busy} run={run} code={code} setCode={setCode} />
         </>
       )}
       {acct.identity && <LibbyCardSignIn busy={busy} run={run} adding />}

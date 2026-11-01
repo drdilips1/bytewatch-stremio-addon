@@ -432,7 +432,11 @@ export function pairWithCode(onCode, onStatus = () => {}) {
   const done = (async () => {
     let chip = await mint();
     const getCode = async () => {
-      const r = await call('GET', READ, 'chip/clone/code', { identity: chip.identity });
+      // This device is the one being set up (it receives your cards): ask for a code as the
+      // "secondary" device, the way Libby's own new-device screen does; the plain form as backup.
+      const r =
+        (await call('GET', READ, 'chip/clone/code?role=secondary', { identity: chip.identity }).catch(() => null)) ||
+        (await call('GET', READ, 'chip/clone/code', { identity: chip.identity }));
       if (!r?.code) throw new Error("Libby didn't give this device a code — try again");
       const expires = expiryOf(r.expiry);
       onCode({ code: pretty(r.code), expires });
