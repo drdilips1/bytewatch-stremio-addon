@@ -11,7 +11,7 @@ import { useLocalCover } from '../sources/local.js';
 import { picksForYou } from '../lib/bookseller.js';
 import { mainTitle } from '../lib/match.js';
 import { Icon } from '../components/icons.jsx';
-import { ia, gb, ol, absSrc, addonSrc, cloud, localSrc, hc, gr, enabled, sourceOrder, sourceRank } from '../sources/index.js';
+import { ia, gb, ol, absSrc, addonSrc, cloud, localSrc, hc, gr, lb, enabled, sourceOrder, sourceRank } from '../sources/index.js';
 import { Fragment } from 'preact';
 import { sameWork } from '../lib/works.js';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary, hideFromContinue } from '../lib/store.js';
@@ -546,7 +546,26 @@ export function Home() {
     addonSrc.catalogRows().then(setAddonRows).catch(() => setAddonRows([]));
   }, [addonList, st.sources]);
 
+  const libbyAcct = useStore(lb.libbyAccount);
+  useEffect(() => {
+    // Loans and holds, refreshed quietly when Home opens (at most every 10 minutes).
+    if (lb.signedIn() && Date.now() - lb.libbyAccount.get().syncedAt > 10 * 60e3) lb.syncAccount().catch(() => {});
+  }, []);
   const blocks = {
+    lb:
+      enabled('lb') && lb.connected() ? (
+        <>
+          {libbyAcct.loans?.length > 0 && <Row title="Your library loans" subtitle="Libby · tap one to listen in Libby, renew or return" icon="library" items={lb.loanBooks()} />}
+          {libbyAcct.holds?.length > 0 && <Row title="Library holds" subtitle="Libby · waiting at your libraries" icon="bookmark" items={lb.holdBooks()} />}
+          <Row
+            title={`At ${lb.libraries().length > 1 ? 'your libraries' : lb.libraries()[0]?.name || 'your library'}`}
+            subtitle="New in Libby · available now first"
+            icon="library"
+            load={() => lb.browse('audiobook')}
+            deps={[libbyAcct.cards?.length, lb.libraries().map((l) => l.key).join()]}
+          />
+        </>
+      ) : null,
     // Hindi section: only when switched on in Settings → Sources, in the user's chosen place.
     hi: enabled('hi') && (
       <Row

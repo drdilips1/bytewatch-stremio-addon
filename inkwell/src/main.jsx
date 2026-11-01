@@ -23,9 +23,9 @@ try {
   settings.subscribe(() => setTimeout(ivory, 0));
 } catch {}
 
-// Libby was removed: forget its saved sign-in and library links.
+// Old chapter cache (replaced): forget it.
 try {
-  ['inkwell:libby', 'inkwell:libbyAccount', 'inkwell:m4bChapters'].forEach((k) => localStorage.removeItem(k));
+  ['inkwell:m4bChapters'].forEach((k) => localStorage.removeItem(k));
 } catch {}
 
 // Gemini and Mistral were replaced by Groq / OpenRouter: drop their old keys.

@@ -9,6 +9,7 @@ import * as cloud from './debrid.js';
 import * as localSrc from './local.js';
 import * as hc from './hardcover.js';
 import * as gr from './goodreads.js';
+import * as lb from './libby.js';
 import * as pods from './podcasts.js';
 import * as ttsb from './ttsbooks.js';
 import { audible, googleBooks } from './catalogs.js';
@@ -31,6 +32,8 @@ export const SOURCES = {
   tb: { name: 'TorBox', short: 'TorBox', hue: 130, kind: 'Cloud', blurb: 'Stream audiobooks from your TorBox cloud', impl: cloud },
   rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud },
   addon: { name: 'Addons', short: 'Addon', hue: 185, kind: 'Listen', blurb: 'Community catalog addons', impl: addonSrc },
+  lb: { name: 'Libby (your libraries)', short: 'Libby', hue: 200, kind: 'Library', blurb: 'Borrow ebooks & audiobooks free with your library cards', impl: lb },
+  lbl: { name: 'Libby loans', short: 'Libby', hue: 200, kind: 'Library', blurb: 'Books you borrowed in Libby', impl: { details: async (b) => b }, hidden: true },
   hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc },
   pod: { name: 'Podcasts', short: 'Podcast', hue: 280, kind: 'Listen', blurb: 'Podcast episodes', impl: pods, hidden: true },
   tts: { name: 'Voice narration', short: 'Free voice', hue: 300, kind: 'Listen', blurb: 'Ebooks read aloud by a free voice', impl: ttsb, hidden: true },
@@ -43,7 +46,7 @@ export const SOURCES = {
 const enabled = (k) => !SOURCES[k]?.free && settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
 
 // Your own services first, then listings, then free catalogues — until the user rearranges them.
-const DEFAULT_ORDER = ['loc', 'abs', 'tb', 'rd', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'se', 'ol', 'hi'];
+const DEFAULT_ORDER = ['loc', 'abs', 'tb', 'rd', 'lb', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'se', 'ol', 'hi'];
 /** Source keys in the user's chosen order (Settings → Sources). */
 export function sourceOrder() {
   const saved = (settings.get().sourceOrder || []).filter((k) => SOURCES[k] && !SOURCES[k].hidden);
@@ -147,6 +150,7 @@ export function searchAll(term, onResult) {
     ['ia', () => ia.search(term), true],
     ['lv', () => lv.search(term), true],
     ['gb', () => gb.search(term), true],
+    ['lb', () => lb.search(term), lb.connected()],
     ['se', () => se.search(term), true],
     // Hindi (Devanagari) searches go to Audible India, which carries the Hindi catalogue.
     ['au', () => (/[\u0900-\u097F]/.test(term) ? audible.hindi(term) : audible.search(term)), true],
@@ -241,4 +245,4 @@ export async function findOwned(book) {
   return { server: byTitle(server), cloud: byTitle(cloudHits) };
 }
 
-export { ia, lv, gb, ol, absSrc, addonSrc, cloud, localSrc, hc, gr, enabled };
+export { ia, lv, gb, ol, absSrc, addonSrc, cloud, localSrc, hc, gr, lb, enabled };

@@ -33,6 +33,8 @@ import { audible as audibleCat, googleBooks } from "../sources/catalogs.js";
 import { SourceResults } from "../components/source-results.jsx";
 import { FixDetails } from "../components/fix-details.jsx";
 import { Available } from "../components/available.jsx";
+import { LibbyCard, LibbyLoanActions } from "../components/libby-card.jsx";
+import * as lbSrc from "../sources/libby.js";
 import { SeriesCard } from "../components/series-card.jsx";
 import { useRatings, useGoodreads } from "../lib/ratings.js";
 import {
@@ -199,8 +201,9 @@ export function Book({ book: initial }) {
       )}
       {book.source !== "pod" && book.source !== "sum" && <SeriesCard book={book} />}
       <StoryShotsLink book={book} />
+      {(book.libbyLoan || book.libbyHold) && <LibbyLoanActions book={book} />}
       <div class="book-actions">
-        {book.kind === "discover" && (
+        {book.kind === "discover" && !book.libbyLoan && (
           <button
             class="btn primary big"
             onClick={() =>
@@ -479,13 +482,15 @@ export function Book({ book: initial }) {
         </div>
       )}
 
+      {/* Your public libraries (Libby): copies to borrow or hold. */}
+      {lbSrc.connected() && !book.libbyLoan && !["ss", "tts", "pod", "sum"].includes(book.source) && <LibbyCard book={book} />}
       {/* Your verdict and your tags: one line, just above the source results. */}
       {!loading && book.source !== "sum" && book.source !== "pod" && (
         <MyRating book={book}>
           <BookTags book={book} inline />
         </MyRating>
       )}
-      {book.kind === "discover" && (
+      {book.kind === "discover" && !book.libbyLoan && (
         <section class="pad" id="where-to-get">
           <h3 class="section-label">Where to listen or read</h3>
           {!editions ? (

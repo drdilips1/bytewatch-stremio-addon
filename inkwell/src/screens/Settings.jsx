@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { LibbySettings } from '../components/libby-settings.jsx';
 import { ssBadges } from '../sources/storyshots.js';
 import { Icon } from '../components/icons.jsx';
 import { toast, AskButton } from '../components/common.jsx';
@@ -1192,6 +1193,9 @@ export function Settings() {
       </Section>
       <Section icon="external" title="Tracker">
         <TrackerCard />
+      </Section>
+      <Section icon="library" title="Libby (public libraries)">
+        <LibbySettings />
       </Section>
       <Section icon="cloud" title="TorBox">
         <DebridCard provider="torbox" label="TorBox" keyHint="torbox.app/settings" keyUrl="https://torbox.app/settings" />

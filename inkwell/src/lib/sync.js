@@ -10,6 +10,7 @@ import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { App as CapApp } from '@capacitor/app';
 import { podcasts } from '../sources/podcasts.js';
+import { libby, libbyAccount } from '../sources/libby.js';
 import { ai } from './ai.js';
 import { persisted, settings, library, progress, bookmarks, addons, abs, debrid, hardcover, goodreads, removedBooks, mergeRemoved, cleanLibrary, cleanProgress, kindle, bookTags, highlights, mergeHighlights } from './store.js';
 import { cleanUrl } from './http.js';
@@ -47,6 +48,8 @@ const SECTIONS = {
   addons: { store: addons },
   goodreads: { store: goodreads },
   myRatings: { store: myRatings, merge: mergeNewest },
+  libby: { store: libby },
+  libbyAccount: { store: libbyAccount, secret: true },
   podcasts: { store: podcasts },
   qbit: { store: qbit, secret: true },
   qbitSent: { store: qbitSent, merge: mergeSent },
