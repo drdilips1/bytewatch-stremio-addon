@@ -15,6 +15,7 @@ import { nav } from '../lib/nav.js';
 import { podcasts } from '../sources/podcasts.js';
 import { ShowGrid } from './Podcasts.jsx';
 import { EbookSearchBox, EbookSearchResults } from '../components/ebook-search.jsx';
+import * as lb from '../sources/libby.js';
 
 const TABS = [
   ['progress', 'Continue'],
@@ -141,7 +142,7 @@ export function Library() {
   const dls = useStore(downloads);
   const pods = useStore(podcasts);
   const kept = useStore(savedEbooks);
-  const tab = TABS.some(([k]) => k === view.tab) ? view.tab : 'progress';
+  const tab = TABS.some(([k]) => k === view.tab) || (view.tab === 'libby' && lb.connected()) ? view.tab : 'progress';
   const where = view.where || 'all';
   const mode = view.mode || (view.list ? 'list' : 'grid');
   const setTab = (t) => libView.set((v) => ({ ...v, tab: t, where: 'all' }));
@@ -205,7 +206,7 @@ export function Library() {
   const tagMap = useStore(bookTags);
   const tagsHere = subs ? allTags(Object.fromEntries(subs.all.filter((b) => tagMap[b.uid]).map((b) => [b.uid, tagMap[b.uid]]))) : [];
   const tagged = (t) => subs.all.filter((b) => (tagMap[b.uid] || []).includes(t));
-  const fresh = subs ? (where.startsWith('tag:') ? tagged(where.slice(4)) : subs[where] || subs.all) : groups[tab];
+  const fresh = subs ? (where.startsWith('tag:') ? tagged(where.slice(4)) : subs[where] || subs.all) : groups[tab] || [];
   // Phone books are listed once a folder has been scanned.
   useEffect(() => {
     if ((tab === 'audio' || tab === 'text') && localSrc.connected() && !local.scannedAt) localSrc.rescan().catch(() => {});
@@ -301,7 +302,7 @@ export function Library() {
         </div>
       </button>
       <div class="segmented scroll">
-        {TABS.map(([k, label]) => (
+        {[...TABS, ...(lb.connected() ? [['libby', 'Libby']] : [])].map(([k, label]) => (
           <button class={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
             {label}
           </button>
@@ -350,9 +351,11 @@ export function Library() {
           </div>
         </div>
       )}
-      {tab !== 'podcasts' && <MissingCovers items={items} local={local} />}
+      {tab !== 'podcasts' && tab !== 'libby' && <MissingCovers items={items} local={local} />}
       {subs && where === 'phone' && !items.length ? (
         <PhoneEmpty />
+      ) : tab === 'libby' ? (
+        <LibbyShelf />
       ) : tab === 'podcasts' ? (
         <div class="lib-pods">
           {items.length > 0 && (
@@ -654,5 +657,57 @@ function MissingCovers({ items, local }) {
         </>
       )}
     </button>
+  );
+}
+
+/** Library → Libby: your library loans and holds (borrowed with your cards). */
+function LibbyShelf() {
+  const acct = useStore(lb.libbyAccount);
+  const [busy, setBusy] = useState(false);
+  const sync = async () => {
+    setBusy(true);
+    try {
+      await lb.syncAccount();
+    } catch (e) {
+      toast(e.message);
+    }
+    setBusy(false);
+  };
+  useEffect(() => {
+    if (lb.signedIn() && Date.now() - (acct.syncedAt || 0) > 60e3) sync();
+  }, []);
+  if (!lb.signedIn())
+    return (
+      <Empty icon="library" title="Sign in to Libby">
+        Settings → Libby: add your library card (card number + PIN) to see your loans and holds here.
+      </Empty>
+    );
+  const loans = lb.loanBooks();
+  const holds = lb.holdBooks();
+  const ready = holds.filter((h) => h.libbyHold?.ready);
+  return (
+    <div class="lib-libby">
+      <div class="lib-pod-head">
+        <h3 class="section-label pad">
+          Loans <span class="lib-count">{loans.length}</span>
+        </h3>
+        <button class="link-btn" disabled={busy} onClick={sync}>
+          {busy ? <span class="spinner small" /> : 'Refresh'}
+        </button>
+      </div>
+      {loans.length ? <Grid items={loans} /> : <p class="muted pad">Nothing borrowed right now.</p>}
+      {ready.length > 0 && (
+        <>
+          <h3 class="section-label pad">
+            Ready to borrow <span class="lib-count">{ready.length}</span>
+          </h3>
+          <Grid items={ready} />
+        </>
+      )}
+      <h3 class="section-label pad">
+        Holds <span class="lib-count">{holds.length - ready.length}</span>
+      </h3>
+      {holds.length - ready.length ? <Grid items={holds.filter((h) => !h.libbyHold?.ready)} /> : <p class="muted pad">No holds waiting.</p>}
+    </div>
   );
 }
