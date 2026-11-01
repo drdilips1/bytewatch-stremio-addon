@@ -2,10 +2,19 @@
 
 Noted while building; to pick up after Saturday.
 
-## Reddit feedback (1 Nov)
-- Fixed in private (to port to public): reader read-aloud bar hint squeezed into a word-per-line column; reader Voice list names unreadable (dark reader + light app theme); light-theme pop-up sheets unreadable.
-- Requested: an offline "my books only" Home — Continue + On this phone, no banners / Discover / recommendations (user listens offline from an SD card).
-- Requested (French user): Discover lists in more languages/countries (Audible FR/DE/ES…).
+## Public app — next release (noted 1 Nov; not Libby, which stays private)
+Fixes done in private, to port to public `work`:
+- Light themes: pop-up sheets (book menu, What's New, tags…) were dark with unreadable dark text → now light; player sheets stay dark.
+- Reader: read-aloud bar hint was squeezed into a word-per-line column → on its own line under the buttons.
+- Reader: Voice list names unreadable (dark reader page + light app theme) → reader panels use the reader's colours.
+- Book cards: a stray "0" showed under cards with a 0% match.
+- (Already on public `work`: faster ebook search for transcripts.)
+
+Requested on Reddit, to build for both apps:
+- Offline "my books only" Home — Continue + On this phone, no banners / Discover / recommendations (user listens offline from an SD card).
+- Catalogue in more languages — Discover / Bestsellers / genres from Audible FR, DE, ES, IT… via a "Catalogue language" setting (French user).
+- App translated into other languages (same French user) — big job: move every string to language files; do once features settle.
+- Then post in r/RealDebrid (test with a real RD account first; check the sub's rules; reword, lead with RD).
 
 ## Libby (private, 1 Nov)
 Working: card + PIN sign-in (several cards), availability on book pages and in search, borrow, hold, loans & holds on Home, renew, return, cancel hold, Listen in Libby.
