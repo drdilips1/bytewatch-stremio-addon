@@ -54,8 +54,9 @@ object LiteWelcome {
         Page(
             "🎧", "Real voices, free",
             "Narrato starts with your phone's own voice, which can sound robotic.\n\n" +
-                "For the real thing, download the natural voices once (${LocalTts.POCKET_PACK.sizeMb} MB): ${MyVoices.NARRATO.size} voices of real " +
-                "readers, offline and unlimited. Supertonic (31 languages) and Kokoro are there too.",
+                "For natural voices, download the light voices once (Supertonic, ${LocalTts.SUPERTONIC_PACK.sizeMb} MB, 31 languages, " +
+                "or Kokoro): offline, unlimited and easy on battery. For the best quality there are ${MyVoices.NARRATO.size} voices of " +
+                "real readers too (they use more battery).",
             "Choose a voice now",
         ) { LiteUi.showVoices(it) },
         Page(

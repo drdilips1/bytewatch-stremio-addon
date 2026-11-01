@@ -149,15 +149,16 @@ object LiteUi {
         // voices (Kokoro, the phone's own) come below.
         if (LocalTts.supported) {
             // The side tapped in this sheet; at first, the side of the voice in use.
-            val tab = voiceTab ?: if (Speaker.voiceId.startsWith(Speaker.SUPER)) "light" else "readers"
+            // Light voices first (battery); the real readers' side when one of them is in use.
+            val tab = voiceTab ?: if (Speaker.voiceId.startsWith(Speaker.CLONE)) "readers" else "light"
             // Tapping a card only shows its voices: the voice changes when one of them is tapped.
             fun pick(t: String) {
                 voiceTab = t
                 fillVoices(activity, sheet, onChosen)
             }
             sheet.cards(listOf(
-                LiteSheet.Card("Real readers", listOf("Recorded by real people", "Offline after one download", "Uses more battery"), tab == "readers") { pick("readers") },
                 LiteSheet.Card("Light voices", listOf("Natural, quick to start", "Offline after one download", "Easy on battery"), tab == "light") { pick("light") },
+                LiteSheet.Card("Real readers", listOf("Recorded by real people", "Best quality", "Uses more battery"), tab == "readers") { pick("readers") },
             ))
             if (tab == "light") {
                 sheet.section("Light voices · Supertonic · 31 languages")
@@ -167,6 +168,13 @@ object LiteUi {
                         Triple(Speaker.SUPER + it.name, supertonicName(it.name), if (it.name.startsWith("F")) "Female · quick to start" else "Male · quick to start")
                     },
                 )
+                sheet.section("Light voices · Kokoro · English")
+                // US and European listeners first: the Indian English voices come last.
+                val kokoro = Kokoro.VOICES.sortedBy { if (it.indian) 1 else 0 }.map { v ->
+                    val (name, rest) = v.label.split(" · ", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+                    Triple(Speaker.KOKORO + v.name, name, rest.replaceFirstChar { it.uppercase() })
+                }
+                pack(LocalTts.KOKORO_PACK, kokoro)
             } else {
                 sheet.section("Real readers · Narrato voices")
                 val own = MyVoices.own()
@@ -193,13 +201,6 @@ object LiteUi {
                         .show()
                 }
             }
-            sheet.collapsible("kokoro", "More voices · Kokoro · English · medium battery", keepOpen = Speaker.voiceId.startsWith(Speaker.KOKORO), closed = true)
-            // US and European listeners first: the Indian English voices come last.
-            val kokoro = Kokoro.VOICES.sortedBy { if (it.indian) 1 else 0 }.map { v ->
-                val (name, rest) = v.label.split(" · ", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
-                Triple(Speaker.KOKORO + v.name, name, rest.replaceFirstChar { it.uppercase() })
-            }
-            pack(LocalTts.KOKORO_PACK, kokoro)
         }
 
         sheet.collapsible("phone", "On your phone · instant · lightest on battery", keepOpen = Speaker.voiceId.startsWith(Speaker.SYSTEM))
