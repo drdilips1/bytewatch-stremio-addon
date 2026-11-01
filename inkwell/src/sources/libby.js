@@ -434,8 +434,16 @@ export function pairWithCode(onCode, onStatus = () => {}) {
   const done = (async () => {
     let chip = await mint();
     const getCode = async () => {
-      // The plain code: Libby's "Copy To Another Device" accepts it (a "secondary" code it rejects).
-      const r = await call('GET', READ, 'chip/clone/code', { identity: chip.identity });
+      // This device receives the cards: ask for the code as the "secondary" device (the plain
+      // form as backup). A code with little time left is replaced first, so it can be typed.
+      let r = await call('GET', READ, 'chip/clone/code?role=secondary', { identity: chip.identity }).catch(() => null);
+      let role = 'secondary';
+      if (!r?.code) (r = await call('GET', READ, 'chip/clone/code', { identity: chip.identity })), (role = 'plain');
+      if (r?.code && expiryOf(r.expiry) - Date.now() < 40e3) {
+        await sleep(Math.max(0, expiryOf(r.expiry) - Date.now()) + 1500);
+        r = (await call('GET', READ, `chip/clone/code${role === 'secondary' ? '?role=secondary' : ''}`, { identity: chip.identity }).catch(() => null)) || r;
+      }
+      logError('libby code', `new ${role} code · ${Math.round((expiryOf(r?.expiry) - Date.now()) / 1000)}s to type it`);
       // Anything besides the code itself is Libby saying something about the transfer: keep it.
       const extra = Object.keys(r || {}).filter((k) => !['code', 'expiry', 'result'].includes(k));
       if (extra.length || (r?.result && r.result !== 'ok')) logError('libby code', `code reply: ${JSON.stringify({ ...r, code: r?.code ? '…' : undefined, identity: r?.identity ? '…' : undefined }).slice(0, 200)}`);
@@ -467,7 +475,9 @@ export function pairWithCode(onCode, onStatus = () => {}) {
         // Ask for this device's sign-in again, a different way each time (Libby accepts several);
         // after the transfer one of them carries your cards.
         const v = chip.chipId ? `&v=${String(chip.chipId).slice(0, 8)}` : '';
-        const forms = [`chip?${MINT}${v}`, `chip?client=dewey${v}`, `chip?${MINT}`, `chip?client=dewey`];
+        // One way only: switching forms changes this sign-in's type, and Libby may then not
+        // deliver the transfer to it.
+        const forms = [`chip?${MINT}${v}`];
         const r = await call('POST', READ, forms[n % forms.length], { identity: chip.identity }).catch(() => null);
         const rid = r?.chip?.id || tokenClaims(r?.identity)?.chip?.id;
         const short = (x) => String(x || '?').slice(0, 8);
