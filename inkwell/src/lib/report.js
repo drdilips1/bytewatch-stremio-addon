@@ -113,7 +113,7 @@ function storageLine() {
 export function buildReport({ note = '', version = '', setup = [] } = {}) {
   const st = nav.state();
   const screen = st.overlay || (st.top ? `${st.tab} › ${st.top.name}${st.top.params?.book?.title ? ` (“${st.top.params.book.title}”)` : ''}` : st.tab);
-  const errs = recentErrors().slice(-15);
+  const errs = recentErrors().slice(-25);
   return [
     '🐞 Audiohub problem report',
     '',
