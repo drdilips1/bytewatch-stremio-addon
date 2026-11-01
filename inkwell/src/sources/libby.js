@@ -208,7 +208,7 @@ export function describe(l) {
 // cards are added to a chip (code copy or card sign-in) the token must be
 // re-minted with `v=<chip id>` — only then does Libby see them.
 import { sendJson, getText as fetchText } from '../lib/http.js';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, CapacitorCookies } from '@capacitor/core';
 
 // Everything goes through Libby's gateway: the older sentry-read.svc.overdrive.com
 // host presents a certificate for another name, which phones rightly refuse.
@@ -679,3 +679,134 @@ export function libbyLink({ key, titleId, title = '' } = {}) {
   if (k && titleId) return libbyUrl(k, title || String(titleId), titleId);
   return libbyShelfUrl();
 }
+
+// ---- Opening a borrowed audiobook ------------------------------------------
+// The listen page embeds the book's parts ("openbook") scrambled in window.eData;
+// this reproduces the web player's decode (after libby-archiver's notes).
+
+function parseStringArray(literal) {
+  try {
+    const j = JSON.parse(literal);
+    if (Array.isArray(j) && j.every((x) => typeof x === 'string')) return j;
+  } catch {}
+  const out = [];
+  let cur = '';
+  let q = '';
+  for (let i = 0; i < literal.length; i++) {
+    const c = literal[i];
+    if (!q) {
+      if (c === '"' || c === "'") q = c;
+      else if (!/[\s,\[\]]/.test(c)) throw new Error('Unexpected audiobook page format');
+      continue;
+    }
+    if (c === q) {
+      out.push(cur);
+      cur = '';
+      q = '';
+    } else if (c === '\\') {
+      const e = literal[++i];
+      if (e === 'x') (cur += String.fromCharCode(parseInt(literal.slice(i + 1, i + 3), 16))), (i += 2);
+      else if (e === 'u') (cur += String.fromCharCode(parseInt(literal.slice(i + 1, i + 5), 16))), (i += 4);
+      else cur += { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', v: '\v', 0: '\0' }[e] ?? e;
+    } else cur += c;
+  }
+  return out;
+}
+
+export function decodeOpenbook(html, buid) {
+  const m = html.match(/window\.eData\s*=\s*(\[[\s\S]*?\])\s*;\s*SPARK\.bifocalPath/);
+  if (!m) throw new Error("Couldn't read this audiobook's parts (Libby changed its player)");
+  const key = buid.split('').reverse().join('');
+  const shifts = [...key].map((k) => parseFloat(k) || 0);
+  const data = parseStringArray(m[1]).join('"');
+  let out = '';
+  for (let a = 0; a < data.length; a++) {
+    let ch = data.charCodeAt(a);
+    const d = shifts[a % shifts.length];
+    if (d) {
+      ch += (a + d) % 94;
+      if (ch > 126) ch = (ch % 126) + 32;
+    }
+    out += String.fromCharCode(ch);
+  }
+  const bin = atob(out);
+  const json = new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+  const doc = JSON.parse(json);
+  if (!doc?.b) throw new Error("Couldn't read this audiobook's parts");
+  return doc.b;
+}
+
+/** A borrowed audiobook as a playable book: its parts and chapters. */
+export async function openLoan(book) {
+  const { cardId, titleId, format } = book.libbyLoan || {};
+  if (format !== 'audiobook') throw new Error('Open this one in the Libby app');
+  if (!NATIVE) throw new Error('Libby audiobooks play in the Android app — or open it in Libby');
+  const acct = libbyAccount.get();
+  const card = (acct.cards || []).find((c) => String(c.cardId) === String(cardId));
+  const libKey = card?.advantageKey || libraries()[0]?.key || '';
+  const websiteId = (await websiteFor(cardId)).id;
+  const codex = { codex: { title: { titleId: String(titleId), slug: String(titleId) }, loan: { psnKey: `${cardId}-${titleId}`, slug: `${cardId}-${titleId}` }, library: { key: libKey, name: card?.library?.name || libKey } }, 'dewey-url': 'https://libbyapp.com', spec: 'V31' };
+  const t = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(codex)))));
+  const openPath = `open/audiobook/card/${cardId}/title/${titleId}?t=${t}&website_id=${websiteId}`;
+  const passport = await withChip((identity) => call('GET', GATE, openPath, { identity, timeout: 45000, headers: OPEN_HEADERS }))
+    .catch(async (e) => {
+      // "whoa" is Libby asking us to slow down: pause, refresh the sign-in, try once more.
+      if (!/whoa/i.test(e.message)) throw e;
+      await new Promise((res) => setTimeout(res, 4000));
+      const identity = await ensureChip({ force: true }).catch(() => libbyAccount.get().identity);
+      return call('GET', GATE, openPath, { identity, timeout: 45000, headers: OPEN_HEADERS });
+    })
+    .catch((e) => {
+      throw new Error(/whoa/i.test(e.message) ? 'Libby won\u2019t open this book outside its own app right now ("whoa") — use Listen in Libby.' : `Libby didn't open this audiobook here (${e.message}) — use Listen in Libby.`);
+    });
+  const web = passport?.urls?.web;
+  if (!web) throw new Error("Libby didn't open this audiobook — try again, or open it in Libby");
+  const host = new URL(web).host;
+  const buid = host.split('.')[0].replace(/^[^-]+-/, '');
+  // The signed message sets the listen site's session cookie (kept by the app), then the player page.
+  if (passport.message) await fetchText(web + '?' + passport.message, { timeout: 45000, headers: LIKE_LIBBY }).catch(() => {});
+  const html = await fetchText(web + '?audiohub=' + Date.now(), { timeout: 45000, headers: { ...LIKE_LIBBY, Accept: 'text/html' } }).catch((e) => {
+    throw new Error(`Couldn't load Libby's player page: ${e.message}`);
+  });
+  const ob = decodeOpenbook(html, buid);
+  const spine = ob.spine || [];
+  const cmpts = ob['-odread-cmpt-params'] || [];
+  const base = web.replace(/\/$/, '');
+  const jar = await CapacitorCookies.getCookies({ url: web }).catch(() => ({}));
+  const cookie = Object.entries(jar || {}).map(([k, v]) => `${k}=${v}`).join('; ');
+  const headers = { ...LIKE_LIBBY, Referer: web, ...(cookie ? { Cookie: cookie } : {}) };
+  let offset = 0;
+  const tracks = spine.map((part, i) => {
+    const cmpt = cmpts[part['-odread-spine-position'] ?? i] || '';
+    const tr = { title: `Part ${i + 1}`, url: `${base}/${part.path}${cmpt ? '?' + cmpt : ''}`, duration: part['audio-duration'] || 0, offset, index: i, headers };
+    offset += tr.duration;
+    return tr;
+  });
+  if (!tracks.length) throw new Error('This audiobook has no playable parts');
+  // Table of contents: "part.mp3#123" → part index + seconds.
+  const flat = [];
+  const walk = (items) => (items || []).forEach((n) => (flat.push(n), walk(n.contents)));
+  walk(ob.nav?.toc);
+  const clean = (p) => decodeURIComponent(String(p || '').split('?')[0]);
+  const chaptersMeta = flat
+    .map((n) => {
+      const [p, sec] = String(n.path || '').split('#');
+      const i = spine.findIndex((s) => clean(s.path) === clean(p) || clean(s['-odread-original-path']) === clean(p));
+      return i < 0 ? null : { title: n.title, start: tracks[i].offset + (+sec || 0) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.start - b.start)
+    .map((c, i, all) => ({ ...c, end: all[i + 1]?.start ?? offset }));
+  return {
+    ...book,
+    title: ob.title?.main || book.title,
+    author: (ob.creator || []).filter((c) => /author/i.test(c.role || 'author')).map((c) => c.name).join(', ') || book.author,
+    narrator: (ob.creator || []).filter((c) => /narrator/i.test(c.role || '')).map((c) => c.name).join(', '),
+    description: (ob.description?.full || ob.description?.short || '').replace(/<[^>]+>/g, ' ').trim(),
+    duration: offset,
+    tracks,
+    chaptersMeta: chaptersMeta.length ? chaptersMeta : undefined,
+  };
+}
+
+export const loanSource = { details: openLoan };

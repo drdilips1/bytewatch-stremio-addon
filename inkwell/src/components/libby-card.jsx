@@ -7,6 +7,18 @@ import { useStore } from '../lib/store.js';
 import * as lb from '../sources/libby.js';
 import { openExternal } from '../sources/summaries.js';
 
+/**
+ * Try playing a borrowed audiobook in Audiohub+'s own player. Libby may refuse to open
+ * loans outside its app ("whoa"); then the message says so and Listen in Libby still works.
+ */
+async function playHere(book) {
+  const d = await lb.openLoan({ ...book, kind: 'audio' });
+  const [{ nav }, player] = await Promise.all([import('../lib/nav.js'), import('../lib/player.js')]);
+  nav.openOverlay('player');
+  player.playBook(d);
+  return 'Playing here';
+}
+
 const kindName = (f) => (f === 'audiobook' ? 'Audiobook' : f === 'ebook' ? 'Ebook' : f || 'Title');
 
 function useAct() {
@@ -117,7 +129,12 @@ export function LibbyLoanActions({ book }) {
           {d != null && <b class={d <= 2 ? 'soon' : ''}> · {d < 0 ? 'overdue' : d === 0 ? 'due today' : `${d} day${d === 1 ? '' : 's'} left`}</b>}
         </p>
         <div class="libby-loan-actions">
-          <button class="btn primary big" onClick={() => openExternal(lb.libbyLink({ key: loan.key, titleId: loan.titleId, title: book.title }))}>
+          {audio && (
+            <button class="btn primary big" disabled={!!busy} onClick={() => act('p', () => playHere(book))}>
+              {busy === 'p' ? <span class="spinner small" /> : <Icon name="play" size={18} />} Play here
+            </button>
+          )}
+          <button class={'btn big ' + (audio ? 'secondary' : 'primary')} onClick={() => openExternal(lb.libbyLink({ key: loan.key, titleId: loan.titleId, title: book.title }))}>
             <Icon name={audio ? 'headphones' : 'book'} size={18} /> {audio ? 'Listen' : 'Read'} in Libby
           </button>
           <button class="btn secondary" disabled={!!busy} onClick={() => act('r', () => lb.renewLoan(loan.cardId, loan.titleId))}>
