@@ -202,7 +202,7 @@ object Speaker {
         if (chapter.title !in done) prefs.edit().putStringSet("done:${d.key}", done + chapter.title).apply()
     }
 
-    private fun isSkipped(d: Doc, paragraph: Int, skip: Set<String>): Boolean {
+    fun isSkipped(d: Doc, paragraph: Int, skip: Set<String>): Boolean {
         val chapter = d.chapterAt(paragraph)
         if (chapter == null) return skipFront && FrontMatter.leadingIsFrontMatter(d)
         return skip.isNotEmpty() && chapter.title in skip

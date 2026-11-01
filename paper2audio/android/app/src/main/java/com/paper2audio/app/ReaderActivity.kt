@@ -406,12 +406,16 @@ class ReaderActivity : Activity() {
         val blockOf = IntArray(d.paragraphs.size)
         // The chapters, for the reader's Contents (each heading's id on the page).
         val headings = JSONArray()
+        // What the player skips (cover, contents, copyright, the index, chapters the listener chose to skip) is
+        // marked on the page, so the reader's "Skip contents & index" skips it too when reading aloud.
+        val skipped = Speaker.skipped(d)
+        fun mark(i: Int) = if (i < d.start || Speaker.isSkipped(d, i, skipped)) " data-skip" else ""
         for ((i, p) in d.paragraphs.withIndex()) {
             if (i == Speaker.index) at = blocks
             val heading = starts[i]?.lastOrNull()?.title
             val text = TextUtils.htmlEncode(p)
             if (heading != null && heading.trim().equals(p.trim(), ignoreCase = true)) {
-                html.append("<h2 id=\"c").append(i.toString()).append("\" data-i=\"").append(i.toString()).append("\">").append(text).append("</h2>\n")
+                html.append("<h2 id=\"c").append(i.toString()).append("\" data-i=\"").append(i.toString()).append("\"").append(mark(i)).append(">").append(text).append("</h2>\n")
                 headings.put(JSONObject().put("id", "c$i").put("text", heading.trim()).put("level", 2))
                 blockOf[i] = blocks
                 blocks++
@@ -419,13 +423,13 @@ class ReaderActivity : Activity() {
                 continue
             }
             if (heading != null) {
-                html.append("<h2 id=\"c").append(i.toString()).append("\" data-i=\"").append(i.toString()).append("\">").append(TextUtils.htmlEncode(heading)).append("</h2>\n")
+                html.append("<h2 id=\"c").append(i.toString()).append("\" data-i=\"").append(i.toString()).append("\"").append(mark(i)).append(">").append(TextUtils.htmlEncode(heading)).append("</h2>\n")
                 headings.put(JSONObject().put("id", "c$i").put("text", heading.trim()).put("level", 2))
                 if (i == Speaker.index) at = blocks + 1
                 blocks++
                 map += i
             }
-            html.append("<p data-i=\"").append(i.toString()).append("\">").append(text).append("</p>\n")
+            html.append("<p data-i=\"").append(i.toString()).append("\"").append(mark(i)).append(">").append(text).append("</p>\n")
             blockOf[i] = blocks
             blocks++
             map += i
