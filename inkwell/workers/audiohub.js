@@ -204,6 +204,90 @@ const ADDONS = {
         }
       }
     }
+  },
+  "extto": {
+    "schemaVersion": "1.0.0",
+    "id": "extto-audiohub",
+    "name": "EXTto",
+    "version": "1.4.0",
+    "description": "Audiobook torrent search via EXTto",
+    "icon": "https://extto.org/favicon.ico",
+    "provides": ["source"],
+    "contentType": "audiobook",
+    "rateLimit": { "requestsPerMinute": 10, "retryAfterMs": 6000 },
+    "matching": { "algorithm": "fuzzy", "threshold": 0.4 },
+    "adapters": {
+      "source": {
+        "request": {
+          "method": "GET",
+          "url": "https://extoaudiohub.dilip-aiims.workers.dev/extto/search?q={QUERY}",
+          "timeout": 30000,
+          "headers": { "Accept": "application/json" }
+        },
+        "response": {
+          "type": "json",
+          "resultsPath": "results",
+          "mapping": {
+            "title": "title",
+            "author": "author",
+            "url": "magnetUrl",
+            "magnetUrl": "magnetUrl",
+            "hash": "hash",
+            "infoHash": "hash",
+            "format": "format",
+            "language": "language",
+            "date": "date",
+            "sizeBytes": "sizeBytes",
+            "cover": "cover",
+            "description": "description",
+            "debridCache": "debridCache",
+            "seeders": "seeders",
+            "seeds": "seeds",
+            "leechers": "leechers"
+          }
+        }
+      }
+    }
+  },
+  "rutracker-audiobooks": {
+    "schemaVersion": "1.0.0",
+    "id": "rutracker-english-audiobooks",
+    "name": "RuTracker English Audiobooks",
+    "version": "1.0.0",
+    "description": "English audiobooks on RuTracker: magnets, authors, narrators, sizes and release details",
+    "icon": "https://rutracker.org/favicon.ico",
+    "provides": ["source"],
+    "contentType": "audiobook",
+    "adapters": {
+      "source": {
+        "request": {
+          "method": "GET",
+          "url": "https://rutracker.dilip-aiims.workers.dev/?q={TITLE}",
+          "headers": { "Accept": "application/json" },
+          "timeout": 30000
+        },
+        "response": {
+          "type": "json",
+          "resultsPath": "results",
+          "mapping": {
+            "id": "id",
+            "title": "title",
+            "author": "author",
+            "narrator": "narrator",
+            "magnetUrl": "magnetUrl",
+            "infoHash": "infoHash",
+            "sizeBytes": "sizeBytes",
+            "seeders": "seeders",
+            "format": "format",
+            "bitrate": "bitrate",
+            "language": "language",
+            "source": "source",
+            "sourceUrl": "sourceUrl",
+            "coverUrl": "coverUrl"
+          }
+        }
+      }
+    }
   }
 };
 
