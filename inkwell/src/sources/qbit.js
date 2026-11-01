@@ -641,6 +641,30 @@ export function pickTorrent(list, { words, title = '', author = '', ebook = fals
   return best;
 }
 
+// Your own MyAnonamouse session (Preferences → Security → create a session with "Allow
+// session to set dynamic seedbox"): kept on this phone only, never synced.
+export const mamSession = persisted('mamSession', { id: '', updatedAt: 0, note: '' });
+async function useMamSession(base) {
+  const id = String(mamSession.get().id || '').trim();
+  if (!id) return false;
+  await Web.setSiteCookie({ url: base, cookie: `mam_id=${id}; Path=/; Secure` }).catch(() => {});
+  return true;
+}
+/** Tell MAM your current network (it signs a session out when your provider changes). */
+async function mamNewNetwork(base) {
+  for (const host of [base, 'https://t.myanonamouse.net']) {
+    try {
+      if (host !== base) await Web.setSiteCookie({ url: host, cookie: `mam_id=${String(mamSession.get().id).trim()}; Path=/; Secure` }).catch(() => {});
+      const r = await Web.trackerFetch({ base: host, path: '/json/dynamicSeedbox.php' });
+      const t = String(r.text || '');
+      mamSession.set((m) => ({ ...m, updatedAt: Date.now(), note: t.slice(0, 120) }));
+      if (/"Success"\s*:\s*true|No change|Completed/i.test(t)) return true;
+      if (/too recent/i.test(t)) return false; // MAM allows one change an hour
+    } catch {}
+  }
+  return false;
+}
+
 /**
  * One request to your tracker, through a hidden copy of the in-app browser. { status, text }.
  */
@@ -707,12 +731,24 @@ export async function grabFromTracker({ words, title = '', author = '', ebook = 
   const tries = texts.flatMap((t) => [{ path: '/tor/js/loadSearchJSONbasic.php', body: asJson(t) }, { path: asQuery(t) }]);
   const why = [];
   let data = null;
-  for (const t of tries) {
+  const hasSession = MAM.test(trackerName()) && (await useMamSession(base));
+  let renewed = false;
+  for (let k = 0; k < tries.length; k++) {
+    const t = tries[k];
     try {
       const r = await siteFetch(base, t);
       if (r.status >= 300 && r.status < 400) {
         why.push(`HTTP ${r.status} (signed out?)`);
         continue;
+      }
+      // Signed out because your network changed: tell MAM the new one, then try again.
+      if (hasSession && !renewed && /ASN mismatch|IP mismatch|not signed in/i.test(String(r.text || ''))) {
+        renewed = true;
+        nativeToast('Your network changed — updating it with MyAnonamouse…');
+        if (await mamNewNetwork(base)) {
+          k--;
+          continue;
+        }
       }
       let d;
       try {

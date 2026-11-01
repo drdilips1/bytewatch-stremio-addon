@@ -675,4 +675,21 @@ public class InkwellWebPlugin extends Plugin {
             }
         }).start();
     }
+
+    /** Put a cookie (e.g. a tracker session you created) where the in-app and hidden browsers use it. */
+    @PluginMethod
+    public void setSiteCookie(PluginCall call) {
+        String url = call.getString("url", "");
+        String cookie = call.getString("cookie", "");
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            try {
+                android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
+                cm.setCookie(url, cookie);
+                cm.flush();
+                call.resolve();
+            } catch (Exception e) {
+                call.reject(String.valueOf(e.getMessage()));
+            }
+        });
+    }
 }

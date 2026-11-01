@@ -185,6 +185,7 @@ function GrabOptions() {
         'Tap M to get it in the background',
         'Finds the book (freeleech or VIP first, M4B / MP3 or EPUB, most seeders), downloads it and sends it to qBittorrent — nothing opens. Press and hold M to open the search instead.'
       )}
+      {tr.background !== false && <MamSession />}
       {tr.background !== false &&
         row(
           tr.wedge === true,
@@ -192,6 +193,43 @@ function GrabOptions() {
           'Use a freeleech wedge',
           'When the best copy isn’t freeleech or VIP, spend one of your wedges on it first. Off: it downloads normally (counts toward your ratio).'
         )}
+    </div>
+  );
+}
+
+/** Your MAM session id (Security page), so a change of network doesn't sign the app out. */
+function MamSession() {
+  const m = useStore(qb.mamSession);
+  const [v, setV] = useState('');
+  const has = !!m.id;
+  return (
+    <div class="tracker-search">
+      <b>MAM session</b>
+      <small class="muted">
+        {has
+          ? `Saved${m.updatedAt ? ` · network last updated ${new Date(m.updatedAt).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}. When MAM says your network changed, the app tells it the new one and carries on.`
+          : 'On MyAnonamouse: Preferences → Security → create a session (your current IP, ASN lock, tick "Allow session to set dynamic seedbox"). Paste its mam_id here. It stays on this phone only.'}
+      </small>
+      <form
+        class="set-form inline"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const id = v.trim().replace(/^mam_id=/, '');
+          qb.mamSession.set({ id, updatedAt: 0, note: '' });
+          setV('');
+          toast(id ? 'MAM session saved' : 'MAM session removed');
+        }}
+      >
+        <input type="password" value={v} placeholder={has ? 'Paste a new mam_id to replace it' : 'Paste mam_id'} autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setV(e.currentTarget.value)} />
+        <button class="btn primary" disabled={!v.trim()}>
+          Save
+        </button>
+        {has && (
+          <button type="button" class="btn secondary" onClick={() => (qb.mamSession.set({ id: '', updatedAt: 0, note: '' }), toast('MAM session removed'))}>
+            Remove
+          </button>
+        )}
+      </form>
     </div>
   );
 }
