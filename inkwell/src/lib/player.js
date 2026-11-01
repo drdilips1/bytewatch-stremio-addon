@@ -687,14 +687,29 @@ async function playOtherCopy(book, err, opts = {}) {
 const NO_PHONE_SWAP = new Set(['loc', 'pod', 'tts', 'sum', 'ss', 'url', 'lb', 'lbl']);
 /** This book in your "On this phone" folders (same title and author), with its details. */
 async function phoneCopy(book) {
-  const { localCfg } = await import('../sources/local.js');
+  const { localCfg, localUrl } = await import('../sources/local.js');
   const books = (localCfg.get().books || []).filter((b) => b && b.kind !== 'text' && b.uid !== book.uid);
   if (!books.length) return null;
   const hit = books.find((c) => sameWork(c, book));
   if (!hit) return null;
   const { getDetails } = await import('../sources/index.js');
   const d = await getDetails(hit);
-  return d?.tracks?.length || d?.resolveTracks ? d : null;
+  if (!d?.tracks?.length) return null;
+  // Deleted since the last folder scan? Open the first file (2 bytes); if it's gone, stream as before.
+  const u = d.tracks[0].url;
+  if (u) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 2000);
+    try {
+      const r = await fetch(/^(content|file):/.test(u) ? localUrl(u) : u, { headers: { Range: 'bytes=0-1' }, signal: ctl.signal });
+      if (!r.ok) return null;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(t);
+    }
+  }
+  return d;
 }
 
 let pctSeek = null; // { i, frac }: go to this point of part i once its length is known
