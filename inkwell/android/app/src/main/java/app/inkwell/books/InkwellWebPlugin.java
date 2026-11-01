@@ -540,4 +540,128 @@ public class InkwellWebPlugin extends Plugin {
             }
         }).start();
     }
+
+    // ---- The tracker through a hidden browser ------------------------------------------
+    // Some connections reach the tracker only through the browser's own network stack (the
+    // in-app browser loads it while a plain request can't connect). So searches, downloads
+    // and wedges go through an invisible WebView on the tracker's site, with your sign-in.
+    private static android.webkit.WebView ghost;
+    private static String ghostBase = "";
+    private static boolean ghostLoading = false;
+    private static final java.util.List<Runnable> ghostWaiting = new java.util.ArrayList<>();
+    private static final java.util.Map<String, PluginCall> ghostCalls = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private class GhostBridge {
+        @android.webkit.JavascriptInterface
+        public void done(String id, int status, String text) {
+            PluginCall c = ghostCalls.remove(id);
+            if (c == null) return;
+            JSObject out = new JSObject();
+            out.put("status", status);
+            out.put("text", text == null ? "" : text);
+            c.resolve(out);
+        }
+
+        @android.webkit.JavascriptInterface
+        public void fail(String id, String message) {
+            PluginCall c = ghostCalls.remove(id);
+            if (c != null) c.reject(message == null ? "failed" : message);
+        }
+    }
+
+    /** On the main thread: a hidden WebView sitting on [base], then [then]. */
+    private void withGhost(String base, Runnable then) {
+        if (ghost == null) {
+            ghost = new android.webkit.WebView(getContext());
+            android.webkit.WebSettings ws = ghost.getSettings();
+            ws.setJavaScriptEnabled(true);
+            ws.setDomStorageEnabled(true);
+            ws.setBlockNetworkImage(true);
+            android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(ghost, true);
+            ghost.addJavascriptInterface(new GhostBridge(), "AhGhost");
+            ghost.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override
+                public void onPageFinished(android.webkit.WebView v, String url) {
+                    if (!ghostLoading) return;
+                    ghostLoading = false;
+                    java.util.List<Runnable> run = new java.util.ArrayList<>(ghostWaiting);
+                    ghostWaiting.clear();
+                    for (Runnable r : run) r.run();
+                }
+            });
+        }
+        if (base.equals(ghostBase) && !ghostLoading) {
+            then.run();
+            return;
+        }
+        ghostWaiting.add(then);
+        if (ghostLoading && base.equals(ghostBase)) return;
+        ghostBase = base;
+        ghostLoading = true;
+        // A small page on the site, so requests from it carry the site's cookies.
+        ghost.loadUrl(base + "/robots.txt");
+    }
+
+    /**
+     * One request to the tracker from the hidden browser: { status, text } — text is the body,
+     * or base64 when binary (a .torrent). A redirect (e.g. to the sign-in page) is status 302.
+     */
+    @PluginMethod
+    public void trackerFetch(PluginCall call) {
+        String base = call.getString("base", "").replaceAll("/+$", "");
+        String path = call.getString("path", "/");
+        String method = call.getString("method", call.getString("body") == null ? "GET" : "POST");
+        String body = call.getString("body", null);
+        boolean binary = Boolean.TRUE.equals(call.getBoolean("binary", false));
+        String id = java.util.UUID.randomUUID().toString();
+        ghostCalls.put(id, call);
+        String js = "(async()=>{try{const r=await fetch(" + org.json.JSONObject.quote(path) + ",{method:" + org.json.JSONObject.quote(method)
+            + ",credentials:'include',redirect:'manual'"
+            + (body != null ? ",headers:{'Content-Type':'application/json'},body:" + org.json.JSONObject.quote(body) : "")
+            + "});const st=r.type==='opaqueredirect'?302:r.status;let out;"
+            + (binary
+                ? "const b=new Uint8Array(await r.arrayBuffer());let s='';for(let i=0;i<b.length;i+=32768)s+=String.fromCharCode.apply(null,b.subarray(i,i+32768));out=btoa(s);"
+                : "out=await r.text();")
+            + "AhGhost.done(" + org.json.JSONObject.quote(id) + ",st,out);}catch(e){AhGhost.fail(" + org.json.JSONObject.quote(id) + ",String(e&&e.message||e));}})();";
+        android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+        ui.post(() -> {
+            try {
+                withGhost(base, () -> ghost.evaluateJavascript(js, null));
+            } catch (Exception e) {
+                PluginCall c = ghostCalls.remove(id);
+                if (c != null) c.reject(String.valueOf(e.getMessage()));
+            }
+        });
+        ui.postDelayed(() -> {
+            PluginCall c = ghostCalls.remove(id);
+            if (c != null) {
+                ghostLoading = false; // a page that never finished: load it afresh next time
+                ghostBase = "";
+                c.reject("Timed out reaching the tracker");
+            }
+        }, 45000);
+    }
+
+    /** Send a .torrent (base64) to qBittorrent with the app's settings: { sent, message }. */
+    @PluginMethod
+    public void qbitSend(PluginCall call) {
+        String data = call.getString("data", "");
+        String name = call.getString("name", "download.torrent");
+        String qbit = call.getString("qbit", "");
+        boolean ebook = Boolean.TRUE.equals(call.getBoolean("ebook", false));
+        new Thread(() -> {
+            try {
+                byte[] torrent = android.util.Base64.decode(data, android.util.Base64.DEFAULT);
+                boolean isEbook = ebook || InkwellWebActivity.torrentIsEbook(torrent);
+                String result = InkwellWebActivity.sendToQbit(qbit, torrent, null, name, isEbook);
+                JSObject out = new JSObject();
+                boolean ok = result.startsWith("OK");
+                out.put("sent", ok);
+                out.put("message", ok ? result.substring(3) : result);
+                call.resolve(out);
+            } catch (Exception e) {
+                call.reject(String.valueOf(e.getMessage()));
+            }
+        }).start();
+    }
 }

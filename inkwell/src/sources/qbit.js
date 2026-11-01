@@ -642,6 +642,47 @@ export function pickTorrent(list, { words, title = '', author = '', ebook = fals
 }
 
 /**
+ * One request to your tracker: through a hidden copy of the in-app browser first (some
+ * connections reach the site only that way), then directly. { status, text }.
+ */
+async function siteFetch(base, { path, body, binary = false }) {
+  try {
+    return await Web.trackerFetch({ base, path, ...(body ? { body, method: 'POST' } : {}), binary });
+  } catch (e) {
+    if (/not implemented|unimplemented/i.test(e?.message || '') || binary) throw e;
+    const r = await Web.trackerSearch({ base, path, ...(body ? { body } : {}) }).catch(() => null);
+    if (r) return r;
+    throw e;
+  }
+}
+
+/** The wedge (if asked), the .torrent (up to 4 tries — the site sometimes doesn't hand it over), qBittorrent. */
+async function grabVia(base, { download, wedge, name, ebook }) {
+  let wedgeNote = '';
+  if (wedge) {
+    const w = await siteFetch(base, { path: wedge }).catch((e) => ({ status: 0, text: String(e?.message || e) }));
+    wedgeNote = w.status < 400 && /"success"\s*:\s*true/.test(w.text || '') ? 'used' : String(w.text || '').slice(0, 120);
+  }
+  let data = '';
+  let why = '';
+  for (let i = 0; i < 4 && !data; i++) {
+    if (i) await new Promise((res) => setTimeout(res, 1500 * i));
+    try {
+      const r = await siteFetch(base, { path: download, binary: true });
+      const head = atob(String(r.text || '').slice(0, 8));
+      if (r.status >= 300 && r.status < 400) why = 'the site asked to sign in again';
+      else if (r.status < 400 && head[0] === 'd' && r.text.length > 60) data = r.text;
+      else why = `HTTP ${r.status}${head[0] === '<' ? ' (a web page, not a .torrent)' : ''}`;
+    } catch (e) {
+      why = String(e?.message || e);
+    }
+  }
+  if (!data) return { sent: false, wedge: wedgeNote, message: `Couldn't get the .torrent after 4 tries — ${why}` };
+  const q = await Web.qbitSend({ data, name, ebook, qbit: await qbitJson() });
+  return { ...q, wedge: wedgeNote, data, name };
+}
+
+/**
  * Tap "M": search your tracker, pick the right torrent (this book, free / VIP first, then the
  * format — M4B / MP3 or EPUB — and seeders), use a freeleech wedge if you allowed that and it
  * isn't free, download it (trying again when the site doesn't hand it over) and send it to
@@ -674,7 +715,7 @@ export async function grabFromTracker({ words, title = '', author = '', ebook = 
   let data = null;
   for (const t of tries) {
     try {
-      const r = await Web.trackerSearch({ base, ...t });
+      const r = await siteFetch(base, t);
       if (r.status >= 300 && r.status < 400) {
         why.push(`HTTP ${r.status} (signed out?)`);
         continue;
@@ -708,14 +749,13 @@ export async function grabFromTracker({ words, title = '', author = '', ebook = 
   const useWedge = !pick.free && !pick.vip && tracker.get().wedge === true;
   const ts = Date.now();
   const name = `${String(pick.title || title || words).replace(/[\\/:*?"<>|]+/g, ' ').trim()}.torrent`;
-  const r = await Web.trackerGrab({
-    base,
+  const r = await grabVia(base, {
     download: pick.dl ? `/tor/download.php/${pick.dl}` : `/tor/download.php?tid=${pick.id}`,
     wedge: useWedge ? `/json/bonusBuy.php/${ts}?spendtype=personalFL&torrentid=${pick.id}&timestamp=${ts}` : '',
     name,
     ebook,
-    qbit: await qbitJson(),
   }).catch((e) => ({ sent: false, message: /signin/.test(e?.message) ? 'Sign in to the tracker once (hold M)' : e?.message || 'Couldn’t get it' }));
+  if (!r.sent) logError('tracker grab', `“${words}” → ${pick.title}: ${r.message}`);
   const how = pick.free ? 'freeleech' : pick.vip ? 'VIP' : useWedge ? (r.wedge === 'used' ? 'wedge used' : 'wedge not used') : 'normal';
   const fmt = String(pick.filetype || '').toUpperCase();
   const text = r.sent ? `${r.message} · ${[fmt, how].filter(Boolean).join(' · ')}` : r.message;
