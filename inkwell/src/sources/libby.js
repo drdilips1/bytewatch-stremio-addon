@@ -757,6 +757,7 @@ export async function openLoan(book) {
       return call('GET', GATE, openPath, { identity, timeout: 45000, headers: OPEN_HEADERS });
     })
     .catch((e) => {
+      if (/missing_chip/i.test(e.message)) throw new Error('Your card sign-in can borrow but not open audiobooks here. In Settings → Libby use “Bring them all with a code” (Libby → Copy To Another Device), then try Play here again.');
       throw new Error(/whoa/i.test(e.message) ? 'Libby won\u2019t open this book outside its own app right now ("whoa") — use Listen in Libby.' : `Libby didn't open this audiobook here (${e.message}) — use Listen in Libby.`);
     });
   const web = passport?.urls?.web;

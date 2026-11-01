@@ -33,7 +33,7 @@ export const SOURCES = {
   rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud },
   addon: { name: 'Addons', short: 'Addon', hue: 185, kind: 'Listen', blurb: 'Community catalog addons', impl: addonSrc },
   lb: { name: 'Libby (your libraries)', short: 'Libby', hue: 200, kind: 'Library', blurb: 'Borrow ebooks & audiobooks free with your library cards', impl: lb },
-  lbl: { name: 'Libby loans', short: 'Libby', hue: 200, kind: 'Library', blurb: 'Books you borrowed in Libby', impl: lb.loanSource, hidden: true },
+  lbl: { name: 'Libby loans', short: 'Libby', hue: 200, kind: 'Library', blurb: 'Books you borrowed in Libby', impl: { details: async (b) => b }, hidden: true },
   hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc },
   pod: { name: 'Podcasts', short: 'Podcast', hue: 280, kind: 'Listen', blurb: 'Podcast episodes', impl: pods, hidden: true },
   tts: { name: 'Voice narration', short: 'Free voice', hue: 300, kind: 'Listen', blurb: 'Ebooks read aloud by a free voice', impl: ttsb, hidden: true },
