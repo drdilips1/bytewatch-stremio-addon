@@ -3,7 +3,7 @@
 Noted while building; to pick up after Saturday.
 
 ## Public app — next release (noted 1 Nov; not Libby, which stays private)
-Fixes done in private, to port to public `work`:
+Ported to public `work` (commit 9990f28, not test-built or released yet) — plus: phone copy plays first, Audible copycats below the real book:
 - Light themes: pop-up sheets (book menu, What's New, tags…) were dark with unreadable dark text → now light; player sheets stay dark.
 - Reader: read-aloud bar hint was squeezed into a word-per-line column → on its own line under the buttons.
 - Reader: Voice list names unreadable (dark reader page + light app theme) → reader panels use the reader's colours.
