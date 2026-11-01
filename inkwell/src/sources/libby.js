@@ -5,6 +5,7 @@
 // Libby won't open loans in other apps.
 import { getJson, qs } from '../lib/http.js';
 import { persisted } from '../lib/store.js';
+import { logError } from '../lib/report.js';
 import { mainTitle, matches } from '../lib/match.js';
 
 const THUNDER = 'https://thunder.api.overdrive.com/v2';
@@ -265,6 +266,7 @@ async function finish({ identity, chipId }) {
   const d = await call('GET', READ, 'chip/sync', { identity });
   if (!(d?.cards || []).length && !chipCards(identity).length) throw new Error("Libby linked this device, but no library cards came across");
   libbyAccount.set({ identity, chipId, cards: d.cards || [], loans: d.loans || [], holds: d.holds || [], syncedAt: Date.now(), mintedAt: Date.now() });
+  logError('libby sign-in', `${(d.cards || []).length} cards · ${chipCards(identity).length} in sign-in · chip type ${tokenClaims(identity)?.chip?.prbn ?? '?'}`);
   if (!chipCards(identity).length) await ensureChip().catch(() => {});
   const card = (d.cards || [])[0];
   if (card && !libby.get().key) libby.set((l) => ({ ...l, key: card.advantageKey, name: card.library?.name || card.cardName || card.advantageKey }));
@@ -457,9 +459,11 @@ export function pairWithCode(onCode, onStatus = () => {}) {
         const d = await call('GET', READ, 'chip/sync', { identity: chip.identity });
         if ((d?.cards || []).length) return await finish(chip);
         onStatus(`Check ${n} · no cards yet (${d?.result || '…'})`);
+        if (n === 20 || n === 60) logError('libby code', `still no cards after ${n} checks · sync ${d?.result || '?'} · ${(d?.cards || []).length} cards · sign-in ${chipCards(chip.identity).length} cards`);
         fails = 0;
       } catch (e) {
         onStatus(`Check ${n} · ${e.message}`);
+        logError('libby code', `check ${n}: ${e.message}`);
         if (++fails >= 5) throw new Error(`Couldn't check with Libby: ${e.message}`);
       }
       if (Date.now() > expires) expires = await getCode().catch(() => Date.now() + 30e3);
@@ -757,6 +761,7 @@ export async function openLoan(book) {
       return call('GET', GATE, openPath, { identity, timeout: 45000, headers: OPEN_HEADERS });
     })
     .catch((e) => {
+      logError('libby play', `${e.message} · signed in via ${libbyAccount.get().via || '?'} · ${chipCards(libbyAccount.get().identity).length} cards in sign-in`);
       if (/missing_chip/i.test(e.message)) throw new Error('Your card sign-in can borrow but not open audiobooks here. In Settings → Libby use “Bring them all with a code” (Libby → Copy To Another Device), then try Play here again.');
       throw new Error(/whoa/i.test(e.message) ? 'Libby won\u2019t open this book outside its own app right now ("whoa") — use Listen in Libby.' : `Libby didn't open this audiobook here (${e.message}) — use Listen in Libby.`);
     });
