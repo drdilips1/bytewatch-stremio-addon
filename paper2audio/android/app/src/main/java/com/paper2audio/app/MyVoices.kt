@@ -72,7 +72,9 @@ object MyVoices {
      * (MIT/Apache-2.0); the male voices are cloned from seed clips made with the
      * openly licensed Supertonic (MIT) and Kokoro (Apache-2.0) voices.
      */
-    val BUILT_IN = (if (BuildConfig.LITE) NARRATO else emptyList()) + listOf(
+    // Narrato's twenty readers (copied in Paper to Audio and shared from there) are in both apps, with the same
+    // recordings, seeds and settings, so each voice sounds the same in either.
+    val BUILT_IN = NARRATO + listOf(
         Voice("luna", "Luna", 0, 0f, true, "female · US"),
         Voice("bria", "Bria", 0, 0f, true, "female · US"),
         Voice("carter", "Carter", 0, 0f, true, "male · US"),
