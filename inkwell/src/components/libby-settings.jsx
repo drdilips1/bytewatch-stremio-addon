@@ -77,6 +77,24 @@ function LibbySignIn({ busy, run, code, setCode }) {
   );
 }
 
+/** Signed in already: bring every card from your Libby app at once (Libby's setup code). */
+function AllCardsByCode(props) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div class="libby-allcards">
+      <button class="link-btn" onClick={() => setOpen(!open)}>
+        {open ? 'Hide' : 'Have many cards in Libby? Bring them all with a code'}
+      </button>
+      {open && (
+        <>
+          <p class="muted">This replaces the cards signed in here with all the cards in your Libby app.</p>
+          <LibbySignIn {...props} />
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Sign in (or add another card) with a library card number and PIN. */
 function LibbyCardSignIn({ busy, run, adding = false }) {
   useStore(libbySrc.libby);
@@ -197,6 +215,7 @@ export function LibbySettings() {
         </>
       )}
       {acct.identity && <LibbyCardSignIn busy={busy} run={run} adding />}
+      {acct.identity && <AllCardsByCode busy={busy} run={run} code={code} setCode={setCode} />}
       <LibbyCheck />
       {libbySrc.libraries({ all: true }).length > 0 && (
         <div class="libby-cards">
