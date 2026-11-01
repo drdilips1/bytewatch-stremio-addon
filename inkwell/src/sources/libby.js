@@ -434,17 +434,27 @@ export function pairWithCode(onCode, onStatus = () => {}) {
   const done = (async () => {
     let chip = await mint();
     const getCode = async () => {
-      // This device is the one being set up (it receives your cards): ask for a code as the
-      // "secondary" device, the way Libby's own new-device screen does; the plain form as backup.
-      const r =
-        (await call('GET', READ, 'chip/clone/code?role=secondary', { identity: chip.identity }).catch(() => null)) ||
-        (await call('GET', READ, 'chip/clone/code', { identity: chip.identity }));
+      // The plain code: Libby's "Copy To Another Device" accepts it (a "secondary" code it rejects).
+      const r = await call('GET', READ, 'chip/clone/code', { identity: chip.identity });
+      // Anything besides the code itself is Libby saying something about the transfer: keep it.
+      const extra = Object.keys(r || {}).filter((k) => !['code', 'expiry', 'result'].includes(k));
+      if (extra.length || (r?.result && r.result !== 'ok')) logError('libby code', `code reply: ${JSON.stringify({ ...r, code: r?.code ? '…' : undefined, identity: r?.identity ? '…' : undefined }).slice(0, 200)}`);
+      if (r?.identity && chipCards(r.identity).length) return { done: r.identity };
       if (!r?.code) throw new Error("Libby didn't give this device a code — try again");
       const expires = expiryOf(r.expiry);
       onCode({ code: pretty(r.code), expires });
       return expires;
     };
-    let expires = await getCode();
+    const fromCode = async () => {
+      const e = await getCode();
+      if (e && typeof e === 'object' && e.done) {
+        chip = { identity: e.done, chipId: tokenClaims(e.done)?.chip?.id || chip.chipId };
+        return { finished: await finish(chip) };
+      }
+      return e;
+    };
+    let expires = await fromCode();
+    if (expires?.finished) return expires.finished;
     let fails = 0;
     let n = 0;
     const until = Date.now() + 10 * 60e3;
@@ -453,7 +463,14 @@ export function pairWithCode(onCode, onStatus = () => {}) {
       if (cancelled) break;
       n++;
       try {
-        chip = await mint(chip.identity, chip.chipId);
+        // Ask for this device's sign-in again, a different way each time (Libby accepts several);
+        // after the transfer one of them carries your cards.
+        const v = chip.chipId ? `&v=${String(chip.chipId).slice(0, 8)}` : '';
+        const forms = [`chip?${MINT}${v}`, `chip?client=dewey${v}`, `chip?${MINT}`, `chip?client=dewey`];
+        const r = await call('POST', READ, forms[n % forms.length], { identity: chip.identity }).catch(() => null);
+        const rid = r?.chip?.id || tokenClaims(r?.identity)?.chip?.id;
+        // Only this device's own sign-in (or one that already carries your cards), never a fresh one.
+        if (r?.identity && (rid === chip.chipId || chipCards(r.identity).length)) chip = { identity: r.identity, chipId: rid || chip.chipId };
         const cards = chipCards(chip.identity);
         if (cards.length) return await finish(chip).then((n) => (libbyAccount.set((a) => ({ ...a, via: 'code from this app' })), n));
         const d = await call('GET', READ, 'chip/sync', { identity: chip.identity });
@@ -466,7 +483,11 @@ export function pairWithCode(onCode, onStatus = () => {}) {
         logError('libby code', `check ${n}: ${e.message}`);
         if (++fails >= 5) throw new Error(`Couldn't check with Libby: ${e.message}`);
       }
-      if (Date.now() > expires) expires = await getCode().catch(() => Date.now() + 30e3);
+      if (Date.now() > expires) {
+        const e = await fromCode().catch(() => Date.now() + 30e3);
+        if (e?.finished) return e.finished;
+        expires = e;
+      }
     }
     if (!cancelled) throw new Error('Nothing came through from Libby — get a new code and try again');
     return '';
