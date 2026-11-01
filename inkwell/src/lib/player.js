@@ -683,6 +683,20 @@ async function playOtherCopy(book, err, opts = {}) {
   }
 }
 
+// Sources whose files are already on the phone, or that have no phone copy to look for.
+const NO_PHONE_SWAP = new Set(['loc', 'pod', 'tts', 'sum', 'ss', 'url', 'lb', 'lbl']);
+/** This book in your "On this phone" folders (same title and author), with its details. */
+async function phoneCopy(book) {
+  const { localCfg } = await import('../sources/local.js');
+  const books = (localCfg.get().books || []).filter((b) => b && b.kind !== 'text' && b.uid !== book.uid);
+  if (!books.length) return null;
+  const hit = books.find((c) => sameWork(c, book));
+  if (!hit) return null;
+  const { getDetails } = await import('../sources/index.js');
+  const d = await getDetails(hit);
+  return d?.tracks?.length || d?.resolveTracks ? d : null;
+}
+
 let pctSeek = null; // { i, frac }: go to this point of part i once its length is known
 let bookStartedAt = 0; // when a copy the app switched to started (one that 'ends' at once isn't finished)
 export async function playBook(details, { index, time, globalStart, percent, autoplay = true } = {}) {
@@ -696,8 +710,19 @@ export async function playBook(details, { index, time, globalStart, percent, aut
   }
   // A book you chose (not a switch by the safety net): start its list of tried copies afresh.
   if (!rescuing) rescueTried.clear();
+  const wasRescue = rescuing;
   rescuing = false;
   if (details && !details.offline && isDownloaded(details.uid)) details = applyLocal(details);
+  // The same book is also on this phone ("On this phone" folders): play that, not the cloud.
+  if (!wasRescue && details && !details.offline && !NO_PHONE_SWAP.has(details.source) && details.kind !== 'text') {
+    const phone = await phoneCopy(details).catch(() => null);
+    if (phone) {
+      const p = progress.get()[details.uid];
+      const g = globalStart ?? (index == null && time == null && p && !p.finished ? p.global : undefined);
+      rescuing = true;
+      return playBook(phone, g != null ? { globalStart: g, percent: p?.percent, autoplay } : { index, time, globalStart, percent, autoplay });
+    }
+  }
   set({ ...freshBook(details), loading: true, error: null, book: details, phase: 'Opening the book…' });
   try {
     let tracks = details.tracks;
