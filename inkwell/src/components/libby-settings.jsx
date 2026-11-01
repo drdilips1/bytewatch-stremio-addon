@@ -6,95 +6,6 @@ import { toast } from './common.jsx';
 import { useStore } from '../lib/store.js';
 import * as libbySrc from '../sources/libby.js';
 
-/** Sign in to Libby: this app shows a code, you enter it in Libby on your phone. */
-function LibbySignIn({ busy, run, code, setCode }) {
-  const [shown, setShown] = useState(null); // { code, expires }
-  const [pairing, setPairing] = useState(null); // { cancel }
-  const [left, setLeft] = useState(0);
-  const [manual, setManual] = useState(false);
-  const [status, setStatus] = useState('');
-  useEffect(() => () => pairing?.cancel(), [pairing]);
-  useEffect(() => {
-    if (!shown) return;
-    const tick = () => setLeft(Math.max(0, Math.round((shown.expires - Date.now()) / 1000)));
-    tick();
-    const t = setInterval(tick, 500);
-    return () => clearInterval(t);
-  }, [shown]);
-  const stop = () => {
-    pairing?.cancel();
-    setPairing(null);
-    setShown(null);
-  };
-  const start = () => {
-    pairing?.cancel();
-    setShown(null);
-    setStatus('');
-    const p = libbySrc.pairWithCode(setShown, setStatus);
-    setPairing(p);
-    p.done
-      .then((names) => names && toast(`Signed in: ${names}`))
-      .catch((e) => toast(e.message))
-      .finally(() => {
-        setPairing(null);
-        setShown(null);
-      });
-  };
-  return (
-    <>
-      <p class="muted">
-        <b>Sign in with your library cards</b> (loans, holds and borrowing here): tap <b>Get code</b>, then in Libby on your phone open <b>Menu (☰) → Copy To Another Device</b> and enter the code shown here — Libby transfers your cards to Audiohub+. Keep this screen open; it finishes by itself.
-      </p>
-      {pairing ? (
-        <div class="libby-code">
-          {shown ? <b>{shown.code}</b> : <span class="spinner" />}
-          <small>
-            {shown ? `Enter this in Libby · ${left > 0 ? `${left}s left` : 'getting a new code…'} · ` : 'Getting a code… '}
-            waiting for Libby <span class="spinner small" />
-          </small>
-          {status && <small class="libby-status">{status}</small>}
-          <button class="link-btn" onClick={stop}>
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <button class="btn primary" onClick={start}>
-          Get code
-        </button>
-      )}
-      <button class="link-btn" onClick={() => setManual(!manual)}>
-        {manual ? 'Hide' : 'My Libby shows a code instead'}
-      </button>
-      {manual && (
-        <div class="set-row">
-          <input value={code} inputmode="numeric" maxlength="9" placeholder="8-digit code from Libby" onInput={(e) => setCode(e.currentTarget.value)} />
-          <button class="btn" disabled={busy || code.replace(/\D/g, '').length !== 8} onClick={() => run(async () => `Signed in: ${await libbySrc.signInWithCode(code)}`)}>
-            {busy ? <span class="spinner small" /> : 'Sign in'}
-          </button>
-        </div>
-      )}
-    </>
-  );
-}
-
-/** Signed in already: bring every card from your Libby app at once (Libby's setup code). */
-function AllCardsByCode(props) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div class="libby-allcards">
-      <button class="link-btn" onClick={() => setOpen(!open)}>
-        {open ? 'Hide' : 'Have many cards in Libby? Bring them all with a code'}
-      </button>
-      {open && (
-        <>
-          <p class="muted">This replaces the cards signed in here with all the cards in your Libby app.</p>
-          <LibbySignIn {...props} />
-        </>
-      )}
-    </div>
-  );
-}
-
 /** Sign in (or add another card) with a library card number and PIN. */
 function LibbyCardSignIn({ busy, run, adding = false }) {
   useStore(libbySrc.libby);
@@ -107,7 +18,7 @@ function LibbyCardSignIn({ busy, run, adding = false }) {
   return (
     <div class="libby-cardform">
       <p class="muted">
-        <b>{adding ? 'Add another library card' : 'Or sign in with your library card'}</b> — card number and PIN, no phone needed.
+        <b>{adding ? 'Add another library card' : 'Sign in with your library card'}</b> — card number and PIN (add each card: yours, then your family's).
       </p>
       {libs.length > 0 && (
         <select value={lib} onChange={(e) => setLib(e.currentTarget.value)}>
@@ -176,7 +87,6 @@ export function LibbySettings() {
   const lib = useStore(libbySrc.libby);
   const acct = useStore(libbySrc.libbyAccount);
   const [input, setInput] = useState('');
-  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const run = async (fn) => {
     setBusy(true);
@@ -210,12 +120,10 @@ export function LibbySettings() {
         </div>
       ) : (
         <>
-          <LibbySignIn busy={busy} run={run} code={code} setCode={setCode} />
           <LibbyCardSignIn busy={busy} run={run} />
         </>
       )}
       {acct.identity && <LibbyCardSignIn busy={busy} run={run} adding />}
-      {acct.identity && <AllCardsByCode busy={busy} run={run} code={code} setCode={setCode} />}
       <LibbyCheck />
       {libbySrc.libraries({ all: true }).length > 0 && (
         <div class="libby-cards">

@@ -2,6 +2,10 @@
 
 Noted while building; to pick up after Saturday.
 
+## Libby (private, 1 Nov)
+Working: card + PIN sign-in (several cards), availability on book pages and in search, borrow, hold, loans & holds on Home, renew, return, cancel hold, Listen in Libby.
+Dropped after testing: Libby's code transfer (Libby says "synchronized" but the cards never reach this app's sign-in) and Play here (a card sign-in gets "missing_chip"). Revisit only if Libby's protocol becomes clear.
+
 ## Public released 1 Nov: v1.0.25
 Everything up to the TorBox fallback (minus the M grab) is out in Audiohub v1.0.25. Next public work goes on `work` again.
 
