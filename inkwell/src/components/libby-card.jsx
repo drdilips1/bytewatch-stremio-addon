@@ -120,6 +120,27 @@ export function LibbyLoanActions({ book }) {
           <button class="btn big primary" onClick={() => openExternal(lb.libbyLink({ key: loan.key, titleId: loan.titleId, title: book.title }))}>
             <Icon name={audio ? 'headphones' : 'book'} size={18} /> {audio ? 'Listen' : 'Read'} in Libby
           </button>
+          {!audio && (
+            <button
+              class="btn secondary big"
+              disabled={!!busy}
+              onClick={() =>
+                act('k', async () => {
+                  if (!confirm('Send to your Kindle through Amazon? Libby makes this loan Kindle-only once you pick Kindle.')) return 'Not sent';
+                  try {
+                    await openExternal(await lb.kindleLink(loan.cardId, loan.titleId));
+                    return 'On Amazon: tap “Get library book” and pick your Kindle';
+                  } catch (e) {
+                    // Libby keeps it to itself: open the book in Libby, where "Read With Kindle" is one tap away.
+                    await openExternal(lb.libbyLink({ key: loan.key, titleId: loan.titleId, title: book.title }));
+                    return `${e.message} — in Libby tap Read With… → Kindle`;
+                  }
+                })
+              }
+            >
+              {busy === 'k' ? <span class="spinner small" /> : <Icon name="upload" size={18} />} Send to Kindle
+            </button>
+          )}
           <button class="btn secondary" disabled={!!busy} onClick={() => act('r', () => lb.renewLoan(loan.cardId, loan.titleId))}>
             {busy === 'r' ? <span class="spinner small" /> : 'Renew'}
           </button>
