@@ -170,6 +170,40 @@ const ADDONS = {
         }
       }
     }
+  },
+  "libgen-epub": {
+    "schemaVersion": "1.0.0",
+    "id": "libgen-english-epub",
+    "name": "LibGen English EPUB",
+    "version": "10.7.0",
+    "description": "English EPUB books from LibGen, with direct EPUB downloads",
+    "icon": "https://libgen.gl/favicon.ico",
+    "provides": ["source"],
+    "contentType": "ebook",
+    "adapters": {
+      "source": {
+        "request": {
+          "method": "GET",
+          "url": "https://libgenbooks.dilip-aiims.workers.dev/search?q={QUERY}&page=1&pages=5",
+          "timeout": 30000,
+          "headers": { "Accept": "application/json" }
+        },
+        "response": {
+          "type": "json",
+          "resultsPath": "results",
+          "mapping": {
+            "title": "title",
+            "author": "author",
+            "url": "downloadUrl",
+            "format": "format",
+            "language": "language",
+            "date": "year",
+            "sizeBytes": "sizeBytes",
+            "description": "publisher"
+          }
+        }
+      }
+    }
   }
 };
 
