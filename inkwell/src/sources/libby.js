@@ -715,17 +715,6 @@ export async function cancelHold(cardId, titleId) {
   return 'Hold cancelled';
 }
 
-/**
- * Libby's "Read With Kindle" for a borrowed ebook (US libraries): Libby's link to Amazon,
- * where you tap "Get library book" and pick your Kindle. The loan is then Kindle-only.
- */
-export async function kindleLink(cardId, titleId) {
-  const r = await withChip((identity) => call('GET', GATE, `card/${cardId}/loan/${titleId}/fulfill/ebook-kindle`, { identity }));
-  const href = r?.fulfill?.href || r?.href || r?.url || r?.fulfill?.url;
-  if (!href) throw new Error("Libby didn't give a Kindle link for this book");
-  return href;
-}
-
 /** Days until a loan is due (negative: overdue), or null. */
 export function daysLeft(due) {
   const t = Date.parse(due || '');
