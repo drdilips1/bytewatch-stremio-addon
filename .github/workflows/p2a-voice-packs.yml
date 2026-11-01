@@ -23,7 +23,7 @@ jobs:
       matrix:
         folder:
           - sherpa-onnx-supertonic-3-tts-int8-2026-05-11
-          - kokoro-multi-lang-v1_0
+          - kokoro-int8-multi-lang-v1_0
           - sherpa-onnx-pocket-tts-int8-2026-01-26
     steps:
       - name: Download and repack

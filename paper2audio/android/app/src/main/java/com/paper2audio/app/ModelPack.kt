@@ -335,6 +335,9 @@ class ModelPack(
 
         fun init(context: Context) {
             app = context.applicationContext
+            // The full-size Kokoro pack (350 MB) was replaced by the compressed one: its space is freed.
+            val old = java.io.File(app.filesDir, "kokoro-multi-lang-v1_0")
+            if (old.exists()) Thread { old.deleteRecursively() }.start()
         }
 
         fun addListener(l: () -> Unit) {

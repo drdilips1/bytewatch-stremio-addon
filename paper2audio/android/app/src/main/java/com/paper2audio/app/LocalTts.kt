@@ -16,9 +16,10 @@ import java.io.File
  * memory at a time; calls are serialized.
  */
 object LocalTts {
+    // The compressed (int8) model: the same voices (voices.bin) in a 132 MB download instead of 350 MB.
     val KOKORO_PACK = ModelPack(
-        "kokoro", "Kokoro voices", "kokoro-multi-lang-v1_0", 350,
-        required = listOf("model.onnx", "voices.bin", "tokens.txt", "lexicon-us-en.txt", "espeak-ng-data"),
+        "kokoro", "Kokoro voices", "kokoro-int8-multi-lang-v1_0", 132,
+        required = listOf("model.int8.onnx", "voices.bin", "tokens.txt", "lexicon-us-en.txt", "espeak-ng-data"),
         // Only what English playback needs (skips the Chinese dictionaries).
         skip = { it.startsWith("dict/") || it.endsWith(".fst") || it == "lexicon-zh.txt" },
     )
@@ -304,7 +305,7 @@ object LocalTts {
                     .takeIf { it.exists() } ?: p.file("lexicon-us-en.txt")
                 OfflineTtsModelConfig(
                     kokoro = OfflineTtsKokoroModelConfig(
-                        model = p.file("model.onnx").path,
+                        model = p.file("model.int8.onnx").path,
                         voices = p.file("voices.bin").path,
                         tokens = p.file("tokens.txt").path,
                         dataDir = p.file("espeak-ng-data").path,
