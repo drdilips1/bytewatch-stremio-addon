@@ -34,6 +34,8 @@ function save() {
 export function logError(where, message) {
   const text = redact(message?.message || message);
   if (!text) return;
+  // Harmless start-up noise that would push real problems out of the report.
+  if (/already registered\. Cannot register plugins twice/.test(text)) return;
   const last = log[log.length - 1];
   if (last && last.where === where && last.text === text) {
     last.n = (last.n || 1) + 1;

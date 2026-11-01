@@ -453,6 +453,7 @@ export function pairWithCode(onCode, onStatus = () => {}) {
       }
       return e;
     };
+    logError('libby code', `start · chip ${String(chip.chipId || '?').slice(0, 8)} · type ${tokenClaims(chip.identity)?.chip?.prbn ?? '?'}`);
     let expires = await fromCode();
     if (expires?.finished) return expires.finished;
     let fails = 0;
@@ -469,14 +470,29 @@ export function pairWithCode(onCode, onStatus = () => {}) {
         const forms = [`chip?${MINT}${v}`, `chip?client=dewey${v}`, `chip?${MINT}`, `chip?client=dewey`];
         const r = await call('POST', READ, forms[n % forms.length], { identity: chip.identity }).catch(() => null);
         const rid = r?.chip?.id || tokenClaims(r?.identity)?.chip?.id;
-        // Only this device's own sign-in (or one that already carries your cards), never a fresh one.
-        if (r?.identity && (rid === chip.chipId || chipCards(r.identity).length)) chip = { identity: r.identity, chipId: rid || chip.chipId };
+        const short = (x) => String(x || '?').slice(0, 8);
+        let other = null;
+        if (r?.identity && rid && rid !== chip.chipId) {
+          // Another sign-in record: the transfer may have moved this device onto it. Take it only with cards.
+          other = await call('GET', READ, 'chip/sync', { identity: r.identity }).catch((e) => ({ result: `✗ ${e.message}` }));
+          if ((other?.cards || []).length || chipCards(r.identity).length) {
+            logError('libby code', `cards found on chip ${short(rid)} (not ${short(chip.chipId)}) via ${forms[n % forms.length].replace(/c=d%3A[\d.]+&s=0/, 'web')} · ${(other?.cards || []).length} cards`);
+            chip = { identity: r.identity, chipId: rid };
+          }
+        } else if (r?.identity && (rid === chip.chipId || chipCards(r.identity).length)) chip = { identity: r.identity, chipId: rid || chip.chipId };
+        if (n % 5 === 1) {
+          const c = tokenClaims(chip.identity)?.chip || {};
+          logError(
+            'libby code',
+            `check ${n} · form ${forms[n % forms.length].replace(/c=d%3A[\d.]+&s=0/, 'web')} · reply ${r ? `chip ${short(rid)}${r.chip ? ` keys ${Object.keys(r.chip).join(',')}` : ''}` : 'none'} · mine ${short(chip.chipId)} type ${c.prbn ?? '?'} cards ${(c.cards || []).length}${other ? ` · other chip sync ${other.result || '?'} ${(other.cards || []).length} cards` : ''}`
+          );
+        }
         const cards = chipCards(chip.identity);
         if (cards.length) return await finish(chip).then((n) => (libbyAccount.set((a) => ({ ...a, via: 'code from this app' })), n));
         const d = await call('GET', READ, 'chip/sync', { identity: chip.identity });
         if ((d?.cards || []).length) return await finish(chip);
         onStatus(`Check ${n} · no cards yet (${d?.result || '…'})`);
-        if (n === 20 || n === 60) logError('libby code', `still no cards after ${n} checks · sync ${d?.result || '?'} · ${(d?.cards || []).length} cards · sign-in ${chipCards(chip.identity).length} cards`);
+        if (n % 10 === 0) logError('libby code', `check ${n} · sync ${d?.result || '?'} · keys ${Object.keys(d || {}).join(',')} · ${(d?.cards || []).length} cards · sign-in ${chipCards(chip.identity).length} cards`);
         fails = 0;
       } catch (e) {
         onStatus(`Check ${n} · ${e.message}`);
