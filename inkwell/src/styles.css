@@ -11268,8 +11268,7 @@ button.notes-book-head {
   margin: 8px 0 12px;
 }
 .libby-cardform input,
-.set-row > input,
-.libby-code + .set-row input {
+.set-row > input:not([type='checkbox']):not([type='radio']):not([type='range']) {
   height: 46px;
   padding: 0 14px;
   border-radius: 12px;
@@ -11282,10 +11281,10 @@ button.notes-book-head {
   color: var(--text);
 }
 .libby-cardform input:focus,
-.set-row > input:focus {
+.set-row > input:not([type='checkbox']):not([type='radio']):not([type='range']):focus {
   border-color: var(--accent);
 }
-.set-row > input {
+.set-row > input:not([type='checkbox']):not([type='radio']):not([type='range']) {
   flex: 1;
 }
 
