@@ -2,6 +2,11 @@
 
 Noted while building; to pick up after Saturday.
 
+## Reddit feedback (1 Nov)
+- Fixed in private (to port to public): reader read-aloud bar hint squeezed into a word-per-line column; reader Voice list names unreadable (dark reader + light app theme); light-theme pop-up sheets unreadable.
+- Requested: an offline "my books only" Home — Continue + On this phone, no banners / Discover / recommendations (user listens offline from an SD card).
+- Requested (French user): Discover lists in more languages/countries (Audible FR/DE/ES…).
+
 ## Libby (private, 1 Nov)
 Working: card + PIN sign-in (several cards), availability on book pages and in search, borrow, hold, loans & holds on Home, renew, return, cancel hold, Listen in Libby.
 Dropped after testing: Libby's code transfer (Libby says "synchronized" but the cards never reach this app's sign-in) and Play here (a card sign-in gets "missing_chip"). Revisit only if Libby's protocol becomes clear.
