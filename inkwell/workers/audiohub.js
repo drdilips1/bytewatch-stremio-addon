@@ -1,7 +1,7 @@
 // Audiohub Sources — the Cloudflare Worker behind api.audiohubapp.com.
 //
-// One address for the app's source addons: Bookracy (ebooks), Knaben (audiobooks and
-// ebooks) and AudiobookBay. Requests are passed on to the services; links in the answers
+// One address for the app's source addons: Knaben (audiobooks and ebooks), AudiobookBay,
+// and hosted addon files for LibGen, EXTto and RuTracker (their own workers do the searching). Requests are passed on to the services; links in the answers
 // are rewritten to this worker's own address, because some networks block *.workers.dev.
 // AudiobookBay goes through the InkShelf proxy first and, if that refuses or finds
 // nothing, is searched directly here.
