@@ -11266,3 +11266,49 @@ button.notes-book-head {
 .set-row > input {
   flex: 1;
 }
+
+/* Light themes: pop-up sheets (book menu, What's New, tags…) are light with dark text,
+   like the page under them. Sheets inside the full player stay dark, as the player is. */
+:root[data-mode='light'] .sheet {
+  background: var(--bg-2);
+  color: var(--text);
+  border-top: 1px solid var(--border);
+}
+:root[data-mode='light'] .sheet-handle {
+  background: var(--border);
+}
+:root[data-mode='light'] .sheet .pill {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+:root[data-mode='light'] .sheet .pill.active {
+  background: var(--text);
+  color: var(--bg-2);
+}
+:root[data-mode='light'] .sheet .ch-num {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+:root[data-mode='light'] .sheet-backdrop {
+  background: rgba(20, 16, 30, 0.35);
+}
+:root[data-mode='light'] .full-player .sheet {
+  background: color-mix(in srgb, var(--dyn) 14%, #15131f);
+  color: #fff;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+:root[data-mode='light'] .full-player .sheet-handle {
+  background: rgba(255, 255, 255, 0.25);
+}
+:root[data-mode='light'] .full-player .sheet .pill {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+:root[data-mode='light'] .full-player .sheet .pill.active {
+  background: #fff;
+  color: #111;
+}
+:root[data-mode='light'] .full-player .sheet .ch-num {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
