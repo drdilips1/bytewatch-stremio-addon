@@ -5,6 +5,21 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-11-02',
+    title: 'Libby, the phone copy first, and your own covers',
+    items: [
+      ['📚', 'Libby', 'Settings → Libby: add your library cards (card number + PIN). Book pages and search show copies at your libraries — Borrow, Place hold, Listen in Libby — and Library has a Libby tab with your loans, holds ready to borrow and holds (Renew, Return, Cancel hold).'],
+      ['📱', 'Plays the copy on your phone first', 'Resume a book (Continue, the mini player, Library) and it plays the copy in your phone folders when there is one — offline, no buffering, same place. Tapping a TorBox or Audiobookshelf copy on the book page still plays that copy.'],
+      ['🖼️', 'Your own cover pictures', 'Press and hold a book → Find a better cover & details → Or choose your own picture from the phone. A cover you choose (yours or one you picked) now stays — it was swapped back for Audible’s — and shows in the player and on Home too.'],
+      ['⚡', 'Server slow? TorBox at once', 'When Audiobookshelf is slow, a copy that’s ready in TorBox / Real-Debrid starts within seconds, at your place (by the parts’ file sizes when their lengths aren’t known yet).'],
+      ['🅼', 'MyAnonamouse stays signed in', 'Settings → Tracker: paste your mam_id session once; the app keeps it fresh when your network changes, so no more “ASN mismatch” logouts.'],
+      ['⭐', 'Ratings on more books', 'Audible’s stars show when Goodreads doesn’t have the book.'],
+      ['🌓', 'Easier to read', 'Menus are readable in light themes, the reader’s voice list on dark pages, the read-aloud bar is slim again, switches in Settings are normal size and no stray “0” under cards.'],
+      ['🎯', 'Real book first', 'In Audible search, unrated copycats of a book (“12 Rules for Life In English”) go below the real one.'],
+      ['📖', 'Ebook for the transcript, faster', 'Only ebook sources are searched, and the first clear EPUB is attached straight away.'],
+    ],
+  },
+  {
     id: '2026-10-31',
     title: 'Ivory & Gold, and fixes from your notes',
     items: [
