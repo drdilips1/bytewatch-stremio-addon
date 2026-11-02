@@ -2,6 +2,22 @@
 
 Noted while building; to pick up after Saturday.
 
+## Store launch plan — AudioYam on Google Play (then App Store) (noted 2 Nov)
+Model: like Stremio / Ink & Echo — the app ships empty, users add their own add-ons. Keep the GitHub (full) edition alongside.
+
+1. **Store-edition switch** (one build flag, same code):
+   - Remove: the built-in APK updater + "install unknown apps" permission (Play rule); unofficial APIs — Edge voices → on-device voices (or bring-your-own key), Audible/Goodreads/Apple scraping → official sources (Open Library, Google Books); any "recommended add-ons" links.
+   - Keep: add-on system (empty), TorBox / Real-Debrid as "your cloud storage", paste a magnet/link, qBittorrent remote, Audiobookshelf, phone folders, all smart features.
+2. **Compliance:** privacy policy page; Play Data safety form; account deletion in the app + on a web page; media-playback foreground service declared; content rating; neutral store listing (no "torrents" / "free audiobooks").
+3. **Move add-on hosting off the app's name:** torrent / LibGen / RuTracker / EXTto add-ons from api.audiohubapp.com to a separate unbranded worker; not linked from the app, README, website or listing. audiohubapp.com stays for the web app, quote pages, sync.
+4. **Add-on builder** on a neutral address (e.g. audioyam-addons.pages.dev): form → add-on JSON (search URL, results path, field mapping) + "test search"; generic for any source (Audiobookshelf, OPDS, podcasts…).
+5. **Legal sources for day one:** free sources back (LibriVox, Archive, Gutenberg, Standard Ebooks) as switches; OPDS catalogues; later Google Drive / Dropbox / WebDAV, Jellyfin / Plex.
+6. **Android Auto** (expected of audiobook apps); Chromecast / widgets polish.
+7. **Closed test:** Play requires 12+ testers for 14 days on new personal accounts — invite Reddit users.
+8. **Play launch** ($25 one-time). App Store later ($99/yr, stricter; needs iPhone downloads first).
+
+Pitch: "AudioYam — the smart audiobook player for your own library: ask it questions, read along, and never lose your place." Lead with: Ask the book (no spoilers), live transcript + ebook sync, chapter summaries / X-Ray / recap, translate & read-aloud, one library from everywhere (phone copy first), listening plans / history / per-book speed / car mode.
+
 ## Public app — next release (noted 1 Nov; not Libby, which stays private)
 Ported to public `work` (commit 9990f28, not test-built or released yet) — plus: phone copy plays first, Audible copycats below the real book:
 - Light themes: pop-up sheets (book menu, What's New, tags…) were dark with unreadable dark text → now light; player sheets stay dark.
