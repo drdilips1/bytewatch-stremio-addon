@@ -95,8 +95,16 @@ object LocalTts {
 
     fun supertonicVoice(name: String) = SUPERTONIC_VOICES.firstOrNull { it.name == name }
 
-    /** Fastest speed each engine renders itself; the player speeds up beyond it. */
-    fun maxSpeed(voiceId: String) = if (voiceId.startsWith(Speaker.CLONE)) 1.0f else 2.0f
+    /**
+     * Fastest speed each engine renders itself; the player speeds up beyond it (pitch kept). Supertonic
+     * asked to speak faster than about 1.1x dropped the ends of sentences on the phone (reported above
+     * 1.2x), so it never goes faster than that itself.
+     */
+    fun maxSpeed(voiceId: String) = when {
+        voiceId.startsWith(Speaker.CLONE) -> 1.0f
+        voiceId.startsWith(Speaker.SUPER) -> 1.1f
+        else -> 2.0f
+    }
 
     class Pcm(val bytes: ByteArray, val sampleRate: Int)
 
