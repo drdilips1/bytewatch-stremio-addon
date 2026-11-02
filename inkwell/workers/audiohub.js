@@ -18,6 +18,15 @@ const HEADERS = {
 
 const BOOKRACY = "https://bookracy-proxy.drdilipgreat.workers.dev";
 const ABB_PROXY = "https://inkshelf-debrid-proxy.tbm-a.workers.dev";
+// Your own search workers, reached through this address (some networks block *.workers.dev).
+// prefix -> { url, binding }: if a Service binding with that name is set on this Worker
+// (Settings → Bindings), it is used — faster, and it avoids Cloudflare refusing
+// worker-to-worker calls inside one account (error 1042).
+const PASS = {
+  libgen: { url: "https://libgenbooks.dilip-aiims.workers.dev", binding: "LIBGEN" },
+  extto: { url: "https://extoaudiohub.dilip-aiims.workers.dev", binding: "EXTTO" },
+  rutracker: { url: "https://rutracker.dilip-aiims.workers.dev", binding: "RUTRACKER" }
+};
 
 // Addon files, installed by pasting https://api.audiohubapp.com/addons/<name>.json in Audiohub.
 const ADDONS = {
@@ -184,7 +193,7 @@ const ADDONS = {
       "source": {
         "request": {
           "method": "GET",
-          "url": "https://libgenbooks.dilip-aiims.workers.dev/search?q={QUERY}&page=1&pages=5",
+          "url": "https://api.audiohubapp.com/libgen/search?q={QUERY}&page=1&pages=5",
           "timeout": 30000,
           "headers": { "Accept": "application/json" }
         },
@@ -220,7 +229,7 @@ const ADDONS = {
       "source": {
         "request": {
           "method": "GET",
-          "url": "https://extoaudiohub.dilip-aiims.workers.dev/extto/search?q={QUERY}",
+          "url": "https://api.audiohubapp.com/extto/extto/search?q={QUERY}",
           "timeout": 30000,
           "headers": { "Accept": "application/json" }
         },
@@ -262,7 +271,7 @@ const ADDONS = {
       "source": {
         "request": {
           "method": "GET",
-          "url": "https://rutracker.dilip-aiims.workers.dev/?q={TITLE}",
+          "url": "https://api.audiohubapp.com/rutracker/?q={TITLE}",
           "headers": { "Accept": "application/json" },
           "timeout": 30000
         },
@@ -502,6 +511,30 @@ export default {
     }
 
     try {
+      // LibGen / EXTto / RuTracker: /libgen/…, /extto/…, /rutracker/… passed to their workers,
+      // with their links in the answer pointing back here.
+      const pass = /^\/(libgen|extto|rutracker)(\/.*)?$/.exec(path);
+      if (pass) {
+        const { url: base, binding } = PASS[pass[1]];
+        const target = base + (pass[2] || "/") + url.search;
+        const init = { method: request.method, headers: { Accept: request.headers.get("Accept") || "*/*", "Content-Type": request.headers.get("Content-Type") || "" }, redirect: "follow" };
+        if (!init.headers["Content-Type"]) delete init.headers["Content-Type"];
+        if (request.method !== "GET" && request.method !== "HEAD") init.body = await request.text();
+        const svc = env && env[binding];
+        const upstream = svc ? await svc.fetch(new Request(target, init)) : await fetch(target, init);
+        const type = upstream.headers.get("Content-Type") || "";
+        if (/json|text|html|xml/i.test(type)) {
+          const text = (await upstream.text()).split(base).join(`${url.origin}/${pass[1]}`);
+          const headers = new Headers(HEADERS);
+          headers.set("Content-Type", type);
+          return new Response(text, { status: upstream.status, headers });
+        }
+        // Files (EPUBs, torrents): passed through as they are.
+        const headers = new Headers(upstream.headers);
+        headers.set("Access-Control-Allow-Origin", "*");
+        return new Response(upstream.body, { status: upstream.status, headers });
+      }
+
       // Bookracy ebook search: download links point back here, not at workers.dev
       if (path === "/bookracy/search" && request.method === "GET") {
         const target = new URL(`${BOOKRACY}/bookracy/search`);
@@ -591,6 +624,9 @@ export default {
             "/bookracy/notify",
             "/knaben/audiobooks",
             "/knaben/ebooks",
+            "/libgen/…",
+            "/extto/…",
+            "/rutracker/…",
             "/abb/api/search",
             "/abb/api/debrid-notify"
           ],
