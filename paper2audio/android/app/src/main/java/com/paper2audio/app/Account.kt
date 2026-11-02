@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit
  *
  * What syncs: the library list (titles, authors, collections, bookmarks and notes, the link
  * each document came from), listening positions, deletions, and voice and reading settings.
- * Documents added from a link, a search or Bookracy are downloaded again on other devices;
+ * Documents added from a link, a search or an addon are downloaded again on other devices;
  * Google Drive backup (optional) also copies the files themselves.
  *
  * Data lives in the account's row of `public.user_data` (row-level security: only the

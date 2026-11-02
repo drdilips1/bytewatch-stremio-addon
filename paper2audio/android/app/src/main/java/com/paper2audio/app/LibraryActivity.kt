@@ -247,7 +247,7 @@ class LibraryActivity : Activity(), PagesHost {
         val options = arrayOf(
             "Account and sync\n$who",
             "Check for updates\nYou have version ${Updater.currentName(this)}",
-            "Find books\nBookracy, free classics and research papers",
+            "Find books\nYour addons, free classics and research papers",
             "Voice studio\nVoices, cloning, full cast",
             "Theme",
             "AI settings\nGroq or Gemini (free)",
@@ -444,7 +444,7 @@ class LibraryActivity : Activity(), PagesHost {
             box.addView(TextView(this).apply {
                 text = "Signed in as ${Account.email(this@LibraryActivity) ?: "you"}\n${accountLabel()}\n\n" +
                     "Your library, listening positions, bookmarks, collections and voice settings sync with your other " +
-                    "devices (and the same account works in Inkwell). Documents added from a link, Find or Bookracy " +
+                    "devices (and the same account works in Inkwell). Documents added from a link, Find or an addon " +
                     "download again on your other devices by themselves."
                 textSize = 14f
             })
@@ -743,7 +743,7 @@ class LibraryActivity : Activity(), PagesHost {
 
     override fun showAddMenu() {
         LiteSheet(this, "Add to library", "Books, papers, articles, scans and more")
-            .row(R.drawable.ic_search, "Find a book", "Bookracy, free classics and research papers") {
+            .row(R.drawable.ic_search, "Find a book", "Your addons, free classics and research papers") {
                 startActivity(Intent(this, SearchActivity::class.java))
             }
             .section("From this phone")

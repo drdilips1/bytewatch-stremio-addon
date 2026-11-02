@@ -603,7 +603,7 @@ class DiscoverPage(activity: Activity, host: PagesHost) : Page(activity, host) {
                 body.addView(box, ui.full(10))
             }
         }
-        ui.row(body, R.drawable.ic_search, "Search books yourself", "Bookracy and free classics") {
+        ui.row(body, R.drawable.ic_search, "Search books yourself", "Your addons and free classics") {
             activity.startActivity(Intent(activity, SearchActivity::class.java))
         }
     }

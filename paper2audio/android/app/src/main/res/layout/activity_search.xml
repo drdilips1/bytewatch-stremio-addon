@@ -79,7 +79,7 @@
         android:paddingEnd="16dp">
 
         <Button
-            android:id="@+id/tabBookracy"
+            android:id="@+id/tabAddons"
             style="@style/P2A.Button"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -87,7 +87,7 @@
             android:layout_weight="1"
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
-            android:text="Books" />
+            android:text="Addons" />
 
         <Button
             android:id="@+id/tabBooks"

@@ -31,20 +31,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Finds books (Bookracy) and free classics (Project Gutenberg) and adds them to the library.
- * Both are searched at once, so switching tabs shows results immediately.
+ * Finds books in the listener's own addons (see [Addons]) and free classics (Project Gutenberg), and adds
+ * them to the library. Both are searched at once, so switching tabs shows results immediately.
  */
 class SearchActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val covers = LruCache<String, Bitmap>(60)
     private var results: List<Metadata.Result> = emptyList()
     private companion object {
-        const val BOOKRACY = 0
+        const val ADDONS = 0
         const val CLASSICS = 1
         const val PAPERS = 2
     }
 
-    /** A category to browse: [term] searches Bookracy, [topic] is Project Gutenberg's subject. */
+    /** A category to browse: [term] searches the addons, [topic] is Project Gutenberg's subject. */
     private class Category(val label: String, val term: String, val topic: String)
 
     private val NONFICTION = listOf(
@@ -80,12 +80,12 @@ class SearchActivity : Activity() {
     private var category: Category? = null
     private lateinit var categories: LinearLayout
 
-    private var mode = BOOKRACY
+    private var mode = ADDONS
     private val papers get() = mode == PAPERS
     private var searchJob: Job? = null
 
     private lateinit var query: EditText
-    private lateinit var tabBookracy: Button
+    private lateinit var tabAddons: Button
     private lateinit var tabBooks: Button
     private lateinit var tabPapers: Button
     private lateinit var busy: ProgressBar
@@ -98,7 +98,7 @@ class SearchActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_search)
         query = findViewById(R.id.query)
-        tabBookracy = findViewById(R.id.tabBookracy)
+        tabAddons = findViewById(R.id.tabAddons)
         tabBooks = findViewById(R.id.tabBooks)
         tabPapers = findViewById(R.id.tabPapers)
         busy = findViewById(R.id.busy)
@@ -114,13 +114,16 @@ class SearchActivity : Activity() {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) search()
             actionId == EditorInfo.IME_ACTION_SEARCH
         }
-        tabBookracy.setOnClickListener { setMode(BOOKRACY) }
+        tabAddons.text = "Addons"
+        tabAddons.setOnClickListener { setMode(ADDONS) }
+        // The addons tab's note opens Manage addons (add one by link, or remove one).
+        sourceNote.setOnClickListener { if (mode == ADDONS) manageAddons() }
         tabBooks.setOnClickListener { setMode(CLASSICS) }
         tabPapers.setOnClickListener { setMode(PAPERS) }
         list.adapter = adapter
         list.setOnItemClickListener { _, _, position, _ -> results.getOrNull(position)?.let(::confirmAdd) }
         intent.getStringExtra("q")?.takeIf { it.isNotBlank() }?.let { query.setText(it) }
-        setMode(getSharedPreferences("p2a", MODE_PRIVATE).getInt("findMode", BOOKRACY).coerceAtMost(CLASSICS))
+        setMode(getSharedPreferences("p2a", MODE_PRIVATE).getInt("findMode", ADDONS).coerceAtMost(CLASSICS))
     }
 
     /** Results per tab: (query, results or error). */
@@ -149,21 +152,23 @@ class SearchActivity : Activity() {
     }
 
     private fun setMode(m: Int) {
-        mode = m.coerceIn(BOOKRACY, PAPERS)
+        mode = m.coerceIn(ADDONS, PAPERS)
         getSharedPreferences("p2a", MODE_PRIVATE).edit().putInt("findMode", mode).apply()
-        for ((i, tab) in listOf(tabBookracy, tabBooks).withIndex()) {
+        for ((i, tab) in listOf(tabAddons, tabBooks).withIndex()) {
             val on = i == mode
             tab.setBackgroundResource(if (on) R.drawable.bg_button else R.drawable.bg_button_soft)
             tab.setTextColor(color(if (on) R.attr.p2aOnAccent else R.attr.p2aText))
         }
         if (::categories.isInitialized) renderCategories()
         query.hint = when (mode) {
-            BOOKRACY -> "Title or author of any book"
+            ADDONS -> "Title or author of any book"
             CLASSICS -> "Title or author of a classic book"
             else -> "Topic, title or author of a paper"
         }
         sourceNote.text = when (mode) {
-            BOOKRACY -> "Books from Bookracy, including recent ones, as EPUB or PDF."
+            ADDONS -> Addons.list(this).let { a ->
+                if (a.isEmpty()) "No addons yet · Manage addons ›" else "From ${a.joinToString(", ") { it.name }} · Manage addons ›"
+            }
             CLASSICS -> "70,000+ free public-domain e-books from Project Gutenberg (this source can take a few seconds)."
             else -> "Research papers from arXiv (free, open access)."
         }
@@ -176,7 +181,11 @@ class SearchActivity : Activity() {
         adapter.notifyDataSetChanged()
         when {
             mode != CLASSICS && query.text.isBlank() ->
-                showEmpty(if (mode == BOOKRACY) "Search Bookracy for a title or author." else "Search arXiv for a topic, title or author.")
+                showEmpty(
+                    if (mode != ADDONS) "Search arXiv for a topic, title or author."
+                    else if (Addons.list(this).isEmpty()) "Add a book source: tap Manage addons above, then paste the link of an addon or an OPDS catalog."
+                    else "Search your addons for a title or author.",
+                )
             else -> search()
         }
     }
@@ -244,8 +253,8 @@ class SearchActivity : Activity() {
         busy.visibility = View.VISIBLE
         showEmpty(null)
         // Search both sources together; whichever tab is shown fills as soon as its results arrive.
-        for (m in listOf(BOOKRACY, CLASSICS)) {
-            if (m == BOOKRACY && q.isBlank()) continue
+        for (m in listOf(ADDONS, CLASSICS)) {
+            if (m == ADDONS && (q.isBlank() || Addons.list(this).isEmpty())) continue
             if (found[m]?.first == q) continue
             running[m]?.cancel()
             running[m] = scope.launch {
@@ -254,7 +263,7 @@ class SearchActivity : Activity() {
                 val r = withContext(Dispatchers.IO) {
                     runCatching {
                         when {
-                            m == BOOKRACY -> Metadata.searchBookracy(cat?.term ?: q)
+                            m == ADDONS -> Addons.search(this@SearchActivity, cat?.term ?: q)
                             cat != null -> Metadata.searchGutenbergTopic(cat.topic)
                             else -> Metadata.searchGutenberg(q)
                         }
@@ -264,6 +273,53 @@ class SearchActivity : Activity() {
                 if (mode == m && query.text.toString().trim() == q) showFound(m)
             }
         }
+    }
+
+    /** The listener's addons: add one by link, or remove one. */
+    private fun manageAddons() {
+        val all = Addons.list(this)
+        val sheet = LiteSheet(this, "Addons", "Book sources you add by link: an addon, or an OPDS catalog")
+        sheet.row(R.drawable.ic_add, "Add an addon or catalog", "Paste its link") { askAddonLink() }
+        for (a in all) sheet.row(R.drawable.ic_delete, a.name, "${if (a.kind == "opds") "Catalog" else "Addon"} · tap to remove") {
+            AlertDialog.Builder(this)
+                .setMessage("Remove ${a.name}?")
+                .setPositiveButton("Remove") { _, _ ->
+                    Addons.remove(this, a.url)
+                    found.remove(ADDONS)
+                    setMode(ADDONS)
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+        sheet.show()
+    }
+
+    private fun askAddonLink() {
+        val input = EditText(this).apply {
+            hint = "https://…"
+            inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
+            isSingleLine = true
+        }
+        val pad = (20 * resources.displayMetrics.density).toInt()
+        AlertDialog.Builder(this)
+            .setTitle("Add an addon or catalog")
+            .setView(LinearLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)) })
+            .setPositiveButton("Add") { _, _ ->
+                val link = input.text.toString().trim()
+                if (link.isEmpty()) return@setPositiveButton
+                busy.visibility = View.VISIBLE
+                scope.launch {
+                    val r = withContext(Dispatchers.IO) { runCatching { Addons.install(this@SearchActivity, link) } }
+                    busy.visibility = View.GONE
+                    r.onSuccess { name ->
+                        Toast.makeText(this@SearchActivity, "Added $name", Toast.LENGTH_SHORT).show()
+                        found.remove(ADDONS)
+                        setMode(ADDONS)
+                    }.onFailure { e -> Toast.makeText(this@SearchActivity, e.message ?: "Couldn't add that", Toast.LENGTH_LONG).show() }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun confirmAdd(r: Metadata.Result) {
