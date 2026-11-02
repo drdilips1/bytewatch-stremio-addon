@@ -3,9 +3,10 @@
 Noted while building; to pick up after Saturday.
 
 ## Store launch plan — AudioYam on Google Play (then App Store) (noted 2 Nov)
-Model: like Stremio / Ink & Echo — the app ships empty, users add their own add-ons. Keep the GitHub (full) edition alongside.
+**A separate, third app (own repo/folder, own package ID) — the private Audiohub+ and the public AudioYam are NOT changed for it.** It starts as a copy of the public app and is trimmed there.
+Model: like Stremio / Ink & Echo — the app ships empty, users add their own add-ons.
 
-1. **Store-edition switch** (one build flag, same code):
+1. **Store app = trimmed copy** (not a flag in the existing apps):
    - Remove: the built-in APK updater + "install unknown apps" permission (Play rule); unofficial APIs — Edge voices → on-device voices (or bring-your-own key), Audible/Goodreads/Apple scraping → official sources (Open Library, Google Books); any "recommended add-ons" links.
    - Keep: add-on system (empty), TorBox / Real-Debrid as "your cloud storage", paste a magnet/link, qBittorrent remote, Audiobookshelf, phone folders, all smart features.
 2. **Compliance:** privacy policy page; Play Data safety form; account deletion in the app + on a web page; media-playback foreground service declared; content rating; neutral store listing (no "torrents" / "free audiobooks").
