@@ -193,7 +193,7 @@ const ADDONS = {
       "source": {
         "request": {
           "method": "GET",
-          "url": "https://api.audiohubapp.com/libgen/search?q={QUERY}&page=1&pages=5",
+          "url": "https://api.audiohubapp.com/libgen/search?q={QUERY}&page=1&pages=2",
           "timeout": 30000,
           "headers": { "Accept": "application/json" }
         },
