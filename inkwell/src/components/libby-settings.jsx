@@ -1,7 +1,6 @@
 // Settings → Libby (Audiohub+): your library cards (yours and your family's) and extra
 // library catalogues. Signed in, the book pages can borrow, hold, renew and return.
-import { useEffect, useState } from 'preact/hooks';
-import { Icon } from './icons.jsx';
+import { useState } from 'preact/hooks';
 import { toast } from './common.jsx';
 import { useStore } from '../lib/store.js';
 import * as libbySrc from '../sources/libby.js';

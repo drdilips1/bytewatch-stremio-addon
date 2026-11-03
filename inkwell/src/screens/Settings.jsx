@@ -10,14 +10,13 @@ import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayU
 import { searchSources, sourceAddons, suggestedSources, addSuggested } from '../sources/sourceaddons.js';
 import { ai, PROVIDERS as AI_PROVIDERS, testProvider } from '../lib/ai.js';
 import relayCode from '../../relay/index.ts?raw';
-import { ACCENTS, PALETTES, resolvedMode, activePalette, isInk } from '../lib/theme.js';
+import { ACCENTS, PALETTES, activePalette, isInk } from '../lib/theme.js';
 import { WALLPAPERS, wallpaperUrl, saveCustom, useCustomWallpaper } from '../lib/wallpaper.js';
 import { APP_VERSION } from '../components/update.jsx';
 import { ReportCard, SupportLinks } from '../components/report.jsx';
 import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
 import { AccountCard, NameRow, VoicesCard, DownloadsCard, FindOrderCard } from './settings-extra.jsx';
 import { UpdateCard } from '../components/update.jsx';
-import { nav } from '../lib/nav.js';
 import * as qb from '../sources/qbit.js';
 import { QbitListActions } from '../components/qbit-actions.jsx';
 import { TrackerCard } from './Tracker.jsx';

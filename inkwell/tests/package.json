@@ -1,8 +1,12 @@
 {
   "name": "inkwell-tests",
   "private": true,
-  "description": "Test tools only (kept apart from the app's own dependencies, so the app's builds never change)",
+  "description": "Test and lint tools only (kept apart from the app's own dependencies, so the app's builds never change)",
   "devDependencies": {
+    "eslint": "^9.39.1",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^16.5.0",
+    "prettier": "^3.6.2",
     "vite": "8.3.0",
     "vitest": "4.1.12"
   }

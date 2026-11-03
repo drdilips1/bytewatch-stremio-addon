@@ -5,7 +5,7 @@
 import { getJson, sendJson } from '../lib/http.js';
 import { addons, persisted, library } from '../lib/store.js';
 import { logError, redact } from '../lib/report.js';
-import { words, matches, mainTitle, otherBook, searchTitle } from '../lib/match.js';
+import { words, matches, otherBook, searchTitle } from '../lib/match.js';
 import { infoHash, torboxCached } from './debrid.js';
 
 export const isSourceManifest = (m) => !!(m && typeof m === 'object' && m.id && m.name && m.adapters?.source?.request?.url);
