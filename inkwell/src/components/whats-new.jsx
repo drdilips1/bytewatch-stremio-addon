@@ -8,7 +8,9 @@ export const CHANGES = [
     id: '2026-11-03',
     title: 'The right ebook, and a readable banner',
     items: [
-      ['📖', 'The real book for the transcript', 'The ebook found for the transcript is the book itself — its title first — not a summary, study guide or “30 minute expert” companion. Among real matches, an EPUB, the smaller file first.'],
+      ['🎧', 'Mobilism Audiobooks (test)', 'Settings → Addons → Mobilism Audiobooks: Add, then Sign in once in the in-app browser. Book searches then include its Audiobooks forum — each topic checked to be in eBooks » Audiobooks — with Open topic and its download links. Your sign-in stays in the app.'],
+      ['🔎', 'Play finds the book', 'Authors written with degrees (“Brené Brown PhD LMSW”) no longer make the real book look like another one.'],
+      ['📖', 'The real book for the transcript', 'The ebook found for the transcript is the book itself — its title first — not a summary, study guide or “30 minute expert” companion. Among real matches, an EPUB, the smaller file first. Choose shows the list and attaches nothing until you tap one; the automatic search is lighter (no PDFs, one at a time).'],
       ['🌓', 'Banner without a cover', 'A cloud book with no cover gets a title tile on Home, and its text stays readable in light themes (it was white on a pale background).'],
       ['🧹', 'Bookracy gone', 'The Bookracy site is gone, so its search is removed — ebook searches no longer wait on it.'],
     ],
