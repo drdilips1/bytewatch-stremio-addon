@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 1/4] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 1/5] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 2/4] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 2/5] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -705,7 +705,7 @@ index d74ee98..8eddcd9 100644
 From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:29:11 +0000
-Subject: [PATCH 3/4] AudioYam Lite, stage 2: themes kept; Discover = free-book
+Subject: [PATCH 3/5] AudioYam Lite, stage 2: themes kept; Discover = free-book
  rows + search (no AI, no store catalogues); Library without stats / AI / tags
  / smart shelves; player without AI, transcript, drive, up next, history; book
  page without AI, ratings, Goodreads, StoryShots, Kindle, related rows; covers
@@ -1400,7 +1400,7 @@ index 881347a..d0df4bb 100644
 From abed8f9aae6089430b24450266a86ba253004e8e Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:07:34 +0000
-Subject: [PATCH 4/4] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-Debr?=
+Subject: [PATCH 4/5] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-Debr?=
  =?UTF-8?q?id=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20resul?=
  =?UTF-8?q?ts=20(magnets)=20play=20through=20it,=20your=20cloud=20library?=
  =?UTF-8?q?=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20sta?=
@@ -1507,6 +1507,96 @@ index 2d4ba47..4ef9d56 100644
  /** Source keys in the user's chosen order (Settings → Sources). */
  export function sourceOrder() {
    const saved = (settings.get().sourceOrder || []).filter((k) => SOURCES[k] && !SOURCES[k].hidden);
+-- 
+2.43.0
+
+
+From 4b2b71a0473c8501804a597e41edd89222b45fcb Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 07:10:51 +0000
+Subject: [PATCH 5/5] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts=20?=
+ =?UTF-8?q?=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20when?=
+ =?UTF-8?q?=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-Debr?=
+ =?UTF-8?q?id'=20button=20or=20messages?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/components/source-results.jsx | 18 +++++++++++-------
+ src/components/whats-new.jsx      |  2 +-
+ src/sources/addons.js             |  2 +-
+ 3 files changed, 13 insertions(+), 9 deletions(-)
+
+diff --git a/src/components/source-results.jsx b/src/components/source-results.jsx
+index 52f46a9..68a80d3 100644
+--- a/src/components/source-results.jsx
++++ b/src/components/source-results.jsx
+@@ -249,7 +249,16 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
+     if (book?.uid) publishQuick(book.uid, { instant: instant.slice(0, 3), readable: readable.slice(0, 2), fetch: instant.length ? [] : fetchable.slice(0, 2), pending });
+   }, [quickKey, pending, book?.uid]);
+ 
+-  if (!count) return null;
++  // No sources of your own yet: one quiet pointer to Settings → Addons (book page only).
++  if (!count)
++    return heading ? (
++      <section class="source-results">
++        <h3 class="section-label">Sources</h3>
++        <button class="btn ghost-wide" onClick={() => nav.tab('settings')}>
++          <Icon name="plus" size={16} /> Add your sources
++        </button>
++      </section>
++    ) : null;
+ 
+   return (
+     <section class="source-results">
+@@ -279,11 +288,6 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
+           </span>
+         </button>
+       )}
+-      {!provider && (
+-        <button class="btn ghost-wide" onClick={() => nav.tab('settings')}>
+-          <Icon name="link" size={16} /> Connect TorBox or Real-Debrid to play these
+-        </button>
+-      )}
+       {pending && !total && !looseCount && (
+         <p class="muted pad-s">
+           <span class="spinner small" /> Searching {sourceAddons().map((a) => a.manifest.name).join(', ') || 'your addons'}…
+@@ -363,7 +367,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged })
+ 
+   const need = () => {
+     if (provider) return true;
+-    toast('Connect TorBox or Real-Debrid in Settings first');
++    toast('This one can’t play yet — see Settings');
+     nav.tab('settings');
+     return false;
+   };
+diff --git a/src/components/whats-new.jsx b/src/components/whats-new.jsx
+index 023f17a..eec1808 100644
+--- a/src/components/whats-new.jsx
++++ b/src/components/whats-new.jsx
+@@ -30,7 +30,7 @@ const STEPS = [
+   {
+     icon: 'covers',
+     title: 'Make it yours',
+-    text: 'Bookmarks and highlights, offline downloads, the reader with your phone’s voices, your own cover pictures. Have sources of your own? Add them in Settings → Addons, and connect your TorBox or Real-Debrid to play their results.',
++    text: 'Bookmarks and highlights, offline downloads, the reader with your phone’s voices, your own cover pictures. Have sources of your own? Add them in Settings → Addons.',
+   },
+ ];
+ 
+diff --git a/src/sources/addons.js b/src/sources/addons.js
+index a8750dd..926b0e0 100644
+--- a/src/sources/addons.js
++++ b/src/sources/addons.js
+@@ -161,7 +161,7 @@ async function streams(addon, type, id) {
+ async function viaDebrid(s, title) {
+   const cloud = await import('./debrid.js');
+   const provider = cloud.preferredProvider(settings.get().debridPreferred);
+-  if (!provider) throw new Error('This addon only offers this as a torrent — connect TorBox or Real-Debrid in Settings to play it');
++  if (!provider) throw new Error('This one can’t play yet — see Settings');
+   const got = await cloud.downloadLinks(provider, { hash: s.infoHash, title });
+   return (got.files || []).filter((f) => AUDIO.test(f.name));
+ }
 -- 
 2.43.0
 
