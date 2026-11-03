@@ -1,7 +1,7 @@
 name: AudioYam Lite APK (test)
 
 # Builds the store app, AudioYam Lite, to try on a phone: the public AudioYam code at the
-# version it started from + the Lite changes saved in inkwell/store-edition/. Published as a PRE-release ("lite-v…") so Audiohub+'s update check, which
+# version it started from + the Lite changes saved in store-edition/. Published as a PRE-release ("lite-v…") so Audiohub+'s update check, which
 # only looks at full releases, never offers it as an update.
 
 on:
@@ -12,6 +12,7 @@ on:
     branches: [claude/books-tbm-apk-enhancement-h1p51j]
     paths:
       - 'lite-build.txt'
+      - 'store-edition/**'
       - '.github/workflows/lite-apk.yml'
 
 permissions:
@@ -36,7 +37,7 @@ jobs:
           git clone --quiet https://github.com/drdilips1/Audiohub.git lite
           cd lite
           git checkout --quiet "$BASE"
-          git -c user.name=AudioYam -c user.email=build@audioyam.invalid am --quiet ../inkwell/store-edition/store-edition.patch
+          git -c user.name=AudioYam -c user.email=build@audioyam.invalid am --quiet ../store-edition/store-edition.patch
           git log --oneline -4
           grep -n '"appId"' capacitor.config.json
 

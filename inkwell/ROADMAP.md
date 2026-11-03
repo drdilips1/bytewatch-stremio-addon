@@ -13,7 +13,7 @@ Order agreed: lint → tests → dead code → one shared codebase → split big
 - [ ] Split styles.css (11k lines) — last, screen by screen with before/after screenshots.
 
 ## Store launch plan — AudioYam on Google Play (then App Store) (noted 2 Nov)
-Started 3 Nov: local copy at /home/user/audioyam-store (app ID app.audioyam.store) — no self-updater, qBittorrent, tracker or built-in TorBox / Real-Debrid. Full checklist (light / medium / heavy) and the AudioYam Plus money plan are in its STORE_PLAN.md. Saved as inkwell/store-edition/ (patch + plan) so it survives this container. **Waits for: the shared codebase step, and the user creating the empty private repo `audioyam-store`.**
+Started 3 Nov: local copy at /home/user/audioyam-store (app ID app.audioyam.store) — no self-updater, qBittorrent, tracker or built-in TorBox / Real-Debrid. Full checklist (light / medium / heavy) and the AudioYam Plus money plan are in its STORE_PLAN.md. Saved as store-edition/ (patch + plan) so it survives this container. **Waits for: the shared codebase step, and the user creating the empty private repo `audioyam-store`.**
 **A separate, third app (own repo/folder, own package ID) — the private Audiohub+ and the public AudioYam are NOT changed for it.** It starts as a copy of the public app and is trimmed there.
 Model: like Stremio / Ink & Echo — the app ships empty, users add their own add-ons.
 
