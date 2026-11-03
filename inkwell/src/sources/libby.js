@@ -58,7 +58,6 @@ export function removeLibrary(key) {
 export const disconnect = () => libby.set((l) => ({ ...l, key: '', name: '', links: [] }));
 
 const libbyUrl = (key, title, id) => `https://libbyapp.com/search/${key}/search/query-${encodeURIComponent(title)}/page-1${id ? `/${id}` : ''}`;
-export const libraryHome = () => `https://libbyapp.com/library/${libraries()[0]?.key || libby.get().key}`;
 
 /**
  * Libraries to search: your Libby cards plus libraries added by link,
@@ -409,131 +408,6 @@ export function tokenInfo() {
   return `${(c.cards || []).length} card${(c.cards || []).length === 1 ? '' : 's'} in sign-in${c.prbn ? ` · type ${c.prbn}` : ''}`;
 }
 
-/** Libby's code expiry: a Unix time (s or ms), a date, or seconds from now. */
-const expiryOf = (x) => {
-  if (x == null || x === '') return Date.now() + 60e3;
-  const n = +x;
-  if (Number.isFinite(n)) {
-    if (n > 1e12) return n;
-    if (n > 1e9) return n * 1000;
-    return Date.now() + Math.max(20, n) * 1000;
-  }
-  return Date.parse(x) || Date.now() + 60e3;
-};
-const pretty = (code) => String(code).padStart(8, '0').replace(/(\d{4})(\d{4})/, '$1 $2');
-
-/**
- * Libby's "Display Setup Code" flow: this app shows a code, you enter it on the
- * phone that has your cards (Libby → Menu → Copy To Another Device). Then this
- * chip holds your cards; re-minting its token makes them visible.
- * Returns { done, cancel }; onCode({code, expires}) for each code shown.
- */
-export function pairWithCode(onCode, onStatus = () => {}) {
-  let cancelled = false;
-  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
-  const done = (async () => {
-    let chip = await mint();
-    const getCode = async () => {
-      // This device receives the cards: ask for the code as the "secondary" device (the plain
-      // form as backup). A code with little time left is replaced first, so it can be typed.
-      let r = await call('GET', READ, 'chip/clone/code?role=secondary', { identity: chip.identity }).catch(() => null);
-      let role = 'secondary';
-      if (!r?.code) (r = await call('GET', READ, 'chip/clone/code', { identity: chip.identity })), (role = 'plain');
-      if (r?.code && expiryOf(r.expiry) - Date.now() < 40e3) {
-        await sleep(Math.max(0, expiryOf(r.expiry) - Date.now()) + 1500);
-        r = (await call('GET', READ, `chip/clone/code${role === 'secondary' ? '?role=secondary' : ''}`, { identity: chip.identity }).catch(() => null)) || r;
-      }
-      logError('libby code', `new ${role} code · ${Math.round((expiryOf(r?.expiry) - Date.now()) / 1000)}s to type it`);
-      // Anything besides the code itself is Libby saying something about the transfer: keep it.
-      const extra = Object.keys(r || {}).filter((k) => !['code', 'expiry', 'result'].includes(k));
-      if (extra.length || (r?.result && r.result !== 'ok')) logError('libby code', `code reply: ${JSON.stringify({ ...r, code: r?.code ? '…' : undefined, identity: r?.identity ? '…' : undefined }).slice(0, 200)}`);
-      if (r?.identity && chipCards(r.identity).length) return { done: r.identity };
-      if (!r?.code) throw new Error("Libby didn't give this device a code — try again");
-      const expires = expiryOf(r.expiry);
-      onCode({ code: pretty(r.code), expires });
-      return expires;
-    };
-    const fromCode = async () => {
-      const e = await getCode();
-      if (e && typeof e === 'object' && e.done) {
-        chip = { identity: e.done, chipId: tokenClaims(e.done)?.chip?.id || chip.chipId };
-        return { finished: await finish(chip) };
-      }
-      return e;
-    };
-    logError('libby code', `start · chip ${String(chip.chipId || '?').slice(0, 8)} · type ${tokenClaims(chip.identity)?.chip?.prbn ?? '?'}`);
-    let expires = await fromCode();
-    if (expires?.finished) return expires.finished;
-    let fails = 0;
-    let n = 0;
-    const until = Date.now() + 10 * 60e3;
-    while (!cancelled && Date.now() < until) {
-      await sleep(3000);
-      if (cancelled) break;
-      n++;
-      try {
-        // Ask for this device's sign-in again, a different way each time (Libby accepts several);
-        // after the transfer one of them carries your cards.
-        const v = chip.chipId ? `&v=${String(chip.chipId).slice(0, 8)}` : '';
-        // One way only: switching forms changes this sign-in's type, and Libby may then not
-        // deliver the transfer to it.
-        const forms = [`chip?${MINT}${v}`];
-        const r = await call('POST', READ, forms[n % forms.length], { identity: chip.identity }).catch(() => null);
-        const rid = r?.chip?.id || tokenClaims(r?.identity)?.chip?.id;
-        const short = (x) => String(x || '?').slice(0, 8);
-        let other = null;
-        if (r?.identity && rid && rid !== chip.chipId) {
-          // Another sign-in record: the transfer may have moved this device onto it. Take it only with cards.
-          other = await call('GET', READ, 'chip/sync', { identity: r.identity }).catch((e) => ({ result: `✗ ${e.message}` }));
-          if ((other?.cards || []).length || chipCards(r.identity).length) {
-            logError('libby code', `cards found on chip ${short(rid)} (not ${short(chip.chipId)}) via ${forms[n % forms.length].replace(/c=d%3A[\d.]+&s=0/, 'web')} · ${(other?.cards || []).length} cards`);
-            chip = { identity: r.identity, chipId: rid };
-          }
-        } else if (r?.identity && (rid === chip.chipId || chipCards(r.identity).length)) chip = { identity: r.identity, chipId: rid || chip.chipId };
-        if (n % 5 === 1) {
-          const c = tokenClaims(chip.identity)?.chip || {};
-          logError(
-            'libby code',
-            `check ${n} · form ${forms[n % forms.length].replace(/c=d%3A[\d.]+&s=0/, 'web')} · reply ${r ? `chip ${short(rid)}${r.chip ? ` keys ${Object.keys(r.chip).join(',')}` : ''}` : 'none'} · mine ${short(chip.chipId)} type ${c.prbn ?? '?'} cards ${(c.cards || []).length}${other ? ` · other chip sync ${other.result || '?'} ${(other.cards || []).length} cards` : ''}`
-          );
-        }
-        const cards = chipCards(chip.identity);
-        if (cards.length) return await finish(chip).then((n) => (libbyAccount.set((a) => ({ ...a, via: 'code from this app' })), n));
-        const d = await call('GET', READ, 'chip/sync', { identity: chip.identity });
-        if ((d?.cards || []).length) return await finish(chip);
-        onStatus(`Check ${n} · no cards yet (${d?.result || '…'})`);
-        if (n % 10 === 0) logError('libby code', `check ${n} · sync ${d?.result || '?'} · keys ${Object.keys(d || {}).join(',')} · ${(d?.cards || []).length} cards · sign-in ${chipCards(chip.identity).length} cards`);
-        fails = 0;
-      } catch (e) {
-        onStatus(`Check ${n} · ${e.message}`);
-        logError('libby code', `check ${n}: ${e.message}`);
-        if (++fails >= 5) throw new Error(`Couldn't check with Libby: ${e.message}`);
-      }
-      if (Date.now() > expires) {
-        const e = await fromCode().catch(() => Date.now() + 30e3);
-        if (e?.finished) return e.finished;
-        expires = e;
-      }
-    }
-    if (!cancelled) throw new Error('Nothing came through from Libby — get a new code and try again');
-    return '';
-  })();
-  return { done, cancel: () => (cancelled = true) };
-}
-
-/** The other direction: type the 8-digit code your Libby app shows. */
-export async function signInWithCode(code) {
-  const c = String(code || '').replace(/\D/g, '');
-  if (c.length !== 8) throw new Error('Enter the 8-digit code Libby shows');
-  const chip = await mint();
-  await call('POST', READ, 'chip/clone/code', { identity: chip.identity, body: { code: c, role: 'secondary' } }).catch((e) => {
-    throw new Error(e.status === 400 || e.status === 404 ? "Libby didn't accept that code — it may have expired" : `Libby: ${e.message}`);
-  });
-  const names = await finish(await mint(chip.identity, chip.chipId));
-  libbyAccount.set((a) => ({ ...a, via: 'code from Libby' }));
-  return names;
-}
-
 /** Library facts from OverDrive: its website id is what card sign-in needs. */
 async function libraryInfo(key) {
   const d = await getJson(`${THUNDER}/libraries/${encodeURIComponent(key)}`, { timeout: 15000 });
@@ -861,5 +735,3 @@ export async function openLoan(book) {
     chaptersMeta: chaptersMeta.length ? chaptersMeta : undefined,
   };
 }
-
-export const loanSource = { details: openLoan };

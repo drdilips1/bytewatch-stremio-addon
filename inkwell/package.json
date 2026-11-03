@@ -11,6 +11,7 @@
     "test": "cd tests && npm ci --no-audit --no-fund --silent && cd .. && tests/node_modules/.bin/vitest run",
     "test:watch": "tests/node_modules/.bin/vitest",
     "lint": "cd tests && npm ci --no-audit --no-fund --silent && cd .. && tests/node_modules/.bin/eslint src",
+    "format": "cd tests && npm ci --no-audit --no-fund --silent && cd .. && tests/node_modules/.bin/prettier --write \"src/**/*.{js,jsx}\"",
     "icons": "node scripts/make-icons.mjs",
     "android:sync": "npm run build && npx cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease"
