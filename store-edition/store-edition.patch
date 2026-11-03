@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 01/12] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 01/13] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 02/12] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 02/13] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -705,7 +705,7 @@ index d74ee98..8eddcd9 100644
 From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:29:11 +0000
-Subject: [PATCH 03/12] AudioYam Lite, stage 2: themes kept; Discover =
+Subject: [PATCH 03/13] AudioYam Lite, stage 2: themes kept; Discover =
  free-book rows + search (no AI, no store catalogues); Library without stats /
  AI / tags / smart shelves; player without AI, transcript, drive, up next,
  history; book page without AI, ratings, Goodreads, StoryShots, Kindle,
@@ -1401,7 +1401,7 @@ index 881347a..d0df4bb 100644
 From abed8f9aae6089430b24450266a86ba253004e8e Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:07:34 +0000
-Subject: [PATCH 04/12] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-De?=
+Subject: [PATCH 04/13] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-De?=
  =?UTF-8?q?brid=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20res?=
  =?UTF-8?q?ults=20(magnets)=20play=20through=20it,=20your=20cloud=20librar?=
  =?UTF-8?q?y=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20st?=
@@ -1515,7 +1515,7 @@ index 2d4ba47..4ef9d56 100644
 From 4b2b71a0473c8501804a597e41edd89222b45fcb Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:10:51 +0000
-Subject: [PATCH 05/12] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts?=
+Subject: [PATCH 05/13] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts?=
  =?UTF-8?q?=20=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20w?=
  =?UTF-8?q?hen=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-D?=
  =?UTF-8?q?ebrid'=20button=20or=20messages?=
@@ -1605,7 +1605,7 @@ index a8750dd..926b0e0 100644
 From 44802ed95602073e01329082f420e12c06e34f02 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:19:23 +0000
-Subject: [PATCH 06/12] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
+Subject: [PATCH 06/13] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
  =?UTF-8?q?=20sources=20=E2=80=94=20paste=20an=20add-on=20link=20or=20any?=
  =?UTF-8?q?=20account=20key=20(TorBox,=20Real-Debrid,=20AllDebrid,=20Premi?=
  =?UTF-8?q?umize),=20the=20app=20works=20out=20which;=20AllDebrid=20and=20?=
@@ -2095,7 +2095,7 @@ index 4ef9d56..5530c2e 100644
 From 09819b0b7fcf045a728043667418c5b59e5b92e6 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:20:46 +0000
-Subject: [PATCH 07/12] AudioYam Lite: lower Settings section renamed 'Home &
+Subject: [PATCH 07/13] AudioYam Lite: lower Settings section renamed 'Home &
  Discover order'; cloud rows only once an account is connected, named 'Your
  cloud'; 'Your add-ons'
 
@@ -2153,7 +2153,7 @@ index 5530c2e..7c7fd25 100644
 From c778a1bef37be3d0a50f464bf37de0aca59681ed Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:56:59 +0000
-Subject: [PATCH 08/12] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20Audio?=
+Subject: [PATCH 08/13] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20Audio?=
  =?UTF-8?q?Yam=20Lite=20with=20the=20tag=20line=20"Your=20books,=20Your=20?=
  =?UTF-8?q?way",=20the=20Ys=20in=20the=20logo's=20colours?=
 MIME-Version: 1.0
@@ -2251,7 +2251,7 @@ index 8eddcd9..6aa8c63 100644
 From 7ad5be24096c587f7fc66b463b27fc32f09a34a7 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:29:14 +0000
-Subject: [PATCH 09/12] Home banner: title tile for a book with no cover;
+Subject: [PATCH 09/13] Home banner: title tile for a book with no cover;
  light-theme text in the theme's ink
 
 ---
@@ -2338,7 +2338,7 @@ index 6aa8c63..27c1ec5 100644
 From 5b488feef030a52c1b29d0b7a70e94cfe2cdd0d8 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:42:20 +0000
-Subject: [PATCH 10/12] AudioYam Lite: one Play and one Read on catalogue books
+Subject: [PATCH 10/13] AudioYam Lite: one Play and one Read on catalogue books
  (M4B > M4A/AAC > Opus/OGG on Android > MP3 > FLAC; EPUB then PDF, smallest
  first; no seeds = Not available), every version behind 'Other versions', no
  'Where to get it'; Apple's iTunes catalogue (Popular audiobooks, search,
@@ -3107,7 +3107,7 @@ index 27c1ec5..720edfe 100644
 From d4e05e8d166af9c4f44cf14e6f11e7554ccab068 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:54:47 +0000
-Subject: [PATCH 11/12] =?UTF-8?q?AudioYam=20Lite:=20no=20TorBox=20/=20Real?=
+Subject: [PATCH 11/13] =?UTF-8?q?AudioYam=20Lite:=20no=20TorBox=20/=20Real?=
  =?UTF-8?q?-Debrid=20in=20progress=20and=20error=20messages=20('Adding=20t?=
  =?UTF-8?q?o=20your=20cloud=E2=80=A6');=20transcript's=20own=20ebook=20sea?=
  =?UTF-8?q?rch:=20EPUB=20then=20PDF,=20smaller=20first,=20stops=20waiting?=
@@ -3780,7 +3780,7 @@ index 0f6f8d6..be9a214 100644
 From 1c825ab989ad37c792ac1affacfa2c8ee3f650f3 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:56:12 +0000
-Subject: [PATCH 12/12] AudioYam Lite: Popular audiobooks tries Apple's newer
+Subject: [PATCH 12/13] AudioYam Lite: Popular audiobooks tries Apple's newer
  chart addresses, then the old one, then an iTunes search; shows an error
  instead of vanishing
 
@@ -3834,6 +3834,139 @@ index 670cfe5..61d4a89 100644
    // The chart has small pictures and no descriptions: look the books up for the full listing.
    const l = await getJson('https://itunes.apple.com/lookup?' + qs({ id: ids.join(','), country: cc }), { timeout: 15000 });
    const byId = new Map((l.results || []).map((r) => [String(r.collectionId || r.trackId), r]));
+-- 
+2.43.0
+
+
+From 2892402e04c7c6623a40ddd568582f0ffc8dbde3 Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 09:23:30 +0000
+Subject: [PATCH 13/13] =?UTF-8?q?AudioYam=20Lite=20Discover:=20the=20catal?=
+ =?UTF-8?q?ogue=20in=20rows=20=E2=80=94=20Popular,=20New=20this=20year,=20?=
+ =?UTF-8?q?For=20you=20(authors=20you=20listen=20to),=20eight=20genres=20?=
+ =?UTF-8?q?=E2=80=94=20each=20with=20See=20all;=20free=20LibriVox=20/=20Gu?=
+ =?UTF-8?q?tenberg=20shelves=20after?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/screens/Discover.jsx | 21 +++++++++-----
+ src/sources/itunes.js    | 60 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 74 insertions(+), 7 deletions(-)
+
+diff --git a/src/screens/Discover.jsx b/src/screens/Discover.jsx
+index f4c2db8..d359222 100644
+--- a/src/screens/Discover.jsx
++++ b/src/screens/Discover.jsx
+@@ -5,7 +5,7 @@ import { Grid, Empty, Skeleton, AskButton, Row, Cover, cachedRow } from '../comp
+ import { Icon } from '../components/icons.jsx';
+ import { searchAll, SOURCES, sourceRank } from '../sources/index.js';
+ import { audible } from '../sources/catalogs.js';
+-import { persisted, useStore } from '../lib/store.js';
++import { persisted, useStore, library } from '../lib/store.js';
+ import { GenreChips, recommendedForYou, topicPool, tasteTopics, notOwned } from './Home.jsx';
+ import { GENRES } from './genres.js';
+ import { rankForYou, fitsHours } from '../lib/taste.js';
+@@ -19,17 +19,24 @@ import { PasteLink, isLink } from '../components/paste-link.jsx';
+ import { has } from '../lib/edition.js';
+ import * as freeIa from '../sources/archive.js';
+ import * as freeGb from '../sources/gutenberg.js';
+-import * as freeOl from '../sources/openlibrary.js';
+ 
+ /** AudioYam Lite: Discover without AI or store catalogues — rows of free books. */
+ function FreeRows() {
++  // AudioYam Lite: the audiobook catalogue in rows — popular, new, for you, then genres —
++  // each opening its full list; the free LibriVox / Gutenberg shelves after them.
++  const lib = useStore(library);
++  const mine = Object.values(lib || {});
++  const row = (title, subtitle, icon, cacheKey, load) => (
++    <Row title={title} subtitle={subtitle} icon={icon} cacheKey={cacheKey} load={load} deps={[]} onMore={() => nav.push('shelf', { title, subtitle, load })} />
++  );
+   return (
+     <>
+-      <Row title="Popular audiobooks" subtitle="Tap one, then Play — found in your sources" icon="flame" cacheKey="itTop" load={() => itunes.top()} deps={[]} showErrors emptyText="No audiobooks from the catalogue right now." />
+-      <Row title="Most listened" subtitle="Free audiobooks · LibriVox" icon="headphones" cacheKey="freePopular" load={freeIa.popular} deps={[]} />
+-      <Row title="Fresh recordings" subtitle="Newest LibriVox audiobooks" icon="sparkle" cacheKey="freeNewest" load={freeIa.newest} deps={[]} />
+-      <Row title="Classics to read" subtitle="Free ebooks · Project Gutenberg" icon="book" cacheKey="freeGb" load={() => freeGb.popular('en')} deps={[]} />
+-      <Row title="Trending this week" subtitle="What Open Library readers open" icon="flame" cacheKey="freeOl" load={() => freeOl.trending('weekly')} deps={[]} />
++      {row('Popular audiobooks', 'Top of the charts', 'flame', 'itTop', () => itunes.top())}
++      {row('New audiobooks', 'Released this year', 'sparkle', 'itNew', () => itunes.newest())}
++      {mine.length > 0 && row('For you', 'More from authors you listen to', 'heart', 'itForYou', () => itunes.forYou(mine))}
++      {itunes.GENRES.map((g) => row(g.name, 'Audiobooks', g.icon, 'itG' + g.key, () => itunes.genre(g.key)))}
++      {row('Most listened free', 'Free audiobooks · LibriVox', 'headphones', 'freePopular', freeIa.popular)}
++      {row('Classics to read', 'Free ebooks · Project Gutenberg', 'book', 'freeGb', () => freeGb.popular('en'))}
+     </>
+   );
+ }
+diff --git a/src/sources/itunes.js b/src/sources/itunes.js
+index 61d4a89..a7f1759 100644
+--- a/src/sources/itunes.js
++++ b/src/sources/itunes.js
+@@ -54,3 +54,63 @@ export async function details(book) {
+   const r = l?.results?.[0];
+   return r ? { ...book, ...toBook(r) } : book;
+ }
++
++// ---- Rows for Discover: new, for you, and genres ----------------------------------
++const searchRaw = (term, limit = 100) =>
++  getJson('https://itunes.apple.com/search?' + qs({ term, media: 'audiobook', entity: 'audiobook', limit }), { timeout: 12000 })
++    .then((d) => (d.results || []).filter((r) => r.collectionName || r.trackName))
++    .catch(() => []);
++const uniq = (list) => {
++  const seen = new Set();
++  return list.filter((r) => {
++    const k = String(r.collectionId || r.trackId);
++    return !seen.has(k) && seen.add(k);
++  });
++};
++
++/** Genres, by the catalogue's own genre names (a few search words fill each one). */
++export const GENRES = [
++  { key: 'mystery', name: 'Mystery & thrillers', icon: 'flame', words: ['thriller', 'mystery', 'detective', 'crime'], match: /myster|thriller|crime/i },
++  { key: 'scifi', name: 'Sci-fi & fantasy', icon: 'sparkle', words: ['fantasy', 'science fiction', 'dragon', 'space'], match: /sci-fi|fantasy|science fiction/i },
++  { key: 'self', name: 'Self-development', icon: 'bulb', words: ['habits', 'mindset', 'self help', 'success'], match: /self|personal|psycholog|health|business/i },
++  { key: 'history', name: 'History', icon: 'book', words: ['history', 'war', 'empire', 'ancient'], match: /histor/i },
++  { key: 'bio', name: 'Biographies & memoirs', icon: 'headphones', words: ['memoir', 'biography', 'life story', 'autobiography'], match: /biograph|memoir/i },
++  { key: 'romance', name: 'Romance', icon: 'heart', words: ['romance', 'love story', 'love'], match: /romance/i },
++  { key: 'fiction', name: 'Fiction', icon: 'book', words: ['novel', 'family', 'secrets', 'summer'], match: /^fiction|literary|general fiction/i },
++  { key: 'kids', name: 'Kids & young adults', icon: 'sparkle', words: ['kids', 'young adult', 'adventure', 'magic'], match: /kids|young adult|children/i },
++];
++
++export async function genre(key) {
++  const g = GENRES.find((x) => x.key === key);
++  if (!g) return [];
++  const lists = await Promise.all(g.words.map((w) => searchRaw(w)));
++  // Round-robin across the search words, keeping only books the catalogue files in this genre.
++  const out = [];
++  for (let i = 0; i < 100; i++) for (const l of lists) if (l[i] && g.match.test(l[i].primaryGenreName || '')) out.push(l[i]);
++  return uniq(out).slice(0, 60).map(toBook);
++}
++
++/** Newest releases across the big genres, newest first. */
++export async function newest() {
++  const lists = await Promise.all(['novel', 'thriller', 'fantasy', 'memoir', 'history', 'habits', 'romance'].map((w) => searchRaw(w)));
++  const year = Date.now() - 365 * 864e5;
++  return uniq(lists.flat())
++    .filter((r) => Date.parse(r.releaseDate || '') > year)
++    .sort((a, b) => Date.parse(b.releaseDate) - Date.parse(a.releaseDate))
++    .slice(0, 60)
++    .map(toBook);
++}
++
++/** More by the authors you listen to, without the books you already have. */
++export async function forYou(books) {
++  const have = new Set(books.map((b) => String(b.title || '').toLowerCase().slice(0, 24)));
++  const authors = [...new Set(books.map((b) => String(b.author || '').split(',')[0].trim()).filter((a) => a && !/unknown|various/i.test(a)))].slice(0, 6);
++  if (!authors.length) return [];
++  const lists = await Promise.all(authors.map((a) => searchRaw(a, 25).then((l) => l.filter((r) => String(r.artistName || '').toLowerCase().includes(a.split(' ').pop().toLowerCase())))));
++  const out = [];
++  for (let i = 0; i < 25; i++) for (const l of lists) if (l[i]) out.push(l[i]);
++  return uniq(out)
++    .map(toBook)
++    .filter((b) => !have.has(b.title.toLowerCase().slice(0, 24)))
++    .slice(0, 40);
++}
 -- 
 2.43.0
 
