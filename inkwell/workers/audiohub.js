@@ -538,16 +538,21 @@ export default {
 
       // Bookracy ebook search: download links point back here, not at workers.dev
       if (path === "/bookracy/search" && request.method === "GET") {
-        const target = new URL(`${BOOKRACY}/bookracy/search`);
+        // The helper answers at /search and /download (it used to be /bookracy/…).
+        const target = new URL(`${BOOKRACY}/search`);
         target.search = url.search;
         const upstream = await fetch(target.toString(), { headers: { Accept: "application/json" } });
-        const text = (await upstream.text()).split(BOOKRACY).join(url.origin);
+        // Its download links come back through this address, at /bookracy/download.
+        const text = (await upstream.text())
+          .split(`${BOOKRACY}/bookracy/download`).join(`${url.origin}/bookracy/download`)
+          .split(`${BOOKRACY}/download`).join(`${url.origin}/bookracy/download`)
+          .split(BOOKRACY).join(url.origin);
         return reply(text, upstream.status);
       }
 
       // Bookracy downloads (the file itself, passed through)
       if (path === "/bookracy/download" && request.method === "GET") {
-        const target = new URL(`${BOOKRACY}/bookracy/download`);
+        const target = new URL(`${BOOKRACY}/download`);
         target.search = url.search;
         const upstream = await fetch(target.toString(), { redirect: "follow" });
         const headers = new Headers(upstream.headers);
@@ -557,7 +562,8 @@ export default {
 
       // Bookracy debrid cache notifications
       if (path === "/bookracy/notify" && request.method === "POST") {
-        return await proxy(`${BOOKRACY}/bookracy/notify`, request, "POST");
+        // The helper no longer takes cache notes: just say OK.
+        return reply(JSON.stringify({ ok: true }));
       }
 
       // Knaben audiobook and ebook search
