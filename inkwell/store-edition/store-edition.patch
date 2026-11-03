@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 1/2] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 1/3] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 2/2] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 2/3] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -698,6 +698,701 @@ index d74ee98..8eddcd9 100644
 +  vertical-align: middle;
 +  margin-left: 2px;
 +}
+-- 
+2.43.0
+
+
+From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 06:29:11 +0000
+Subject: [PATCH 3/3] AudioYam Lite, stage 2: themes kept; Discover = free-book
+ rows + search (no AI, no store catalogues); Library without stats / AI / tags
+ / smart shelves; player without AI, transcript, drive, up next, history; book
+ page without AI, ratings, Goodreads, StoryShots, Kindle, related rows; covers
+ and details from Open Library only; reader with phone voices only, no
+ translate, selection menu = Highlight; no widget or AI/drive shortcuts
+
+---
+ android/app/src/main/AndroidManifest.xml | 13 ----
+ src/components/common.jsx                |  2 +
+ src/components/player-ui.jsx             | 87 ++++++++++++++----------
+ src/components/reader-select.jsx         | 13 ++--
+ src/lib/edition.js                       |  2 +-
+ src/lib/meta.js                          | 15 ++--
+ src/lib/ratings.js                       |  2 +
+ src/lib/tts.js                           |  5 +-
+ src/screens/Book.jsx                     | 22 +++---
+ src/screens/Discover.jsx                 | 46 ++++++++++---
+ src/screens/Library.jsx                  | 17 +++--
+ src/screens/Reader.jsx                   |  7 +-
+ src/screens/settings-extra.jsx           |  5 +-
+ 13 files changed, 142 insertions(+), 94 deletions(-)
+
+diff --git a/android/app/src/main/AndroidManifest.xml b/android/app/src/main/AndroidManifest.xml
+index c0fd42d..eee9996 100644
+--- a/android/app/src/main/AndroidManifest.xml
++++ b/android/app/src/main/AndroidManifest.xml
+@@ -37,7 +37,6 @@
+                 <data android:scheme="app.inkwell.books" android:host="auth" />
+             </intent-filter>
+ 
+-            <!-- App shortcuts: Driving mode, and Ask AI by voice straight away -->
+             <intent-filter>
+                 <action android:name="android.intent.action.VIEW" />
+                 <category android:name="android.intent.category.DEFAULT" />
+@@ -68,21 +67,9 @@
+                 <data android:mimeType="application/epub+zip" />
+                 <data android:mimeType="application/pdf" />
+             </intent-filter>
+-            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+ 
+         </activity>
+ 
+-        <!-- Home-screen widget: Play a scene, Driving mode -->
+-        <receiver
+-            android:name=".SceneWidget"
+-            android:label="@string/widget_scene"
+-            android:exported="false">
+-            <intent-filter>
+-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+-            </intent-filter>
+-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_scene_info" />
+-        </receiver>
+-
+         <!-- Background audiobook playback (Media3) -->
+         <service
+             android:name=".PlaybackService"
+diff --git a/src/components/common.jsx b/src/components/common.jsx
+index e589eb3..ee0330e 100644
+--- a/src/components/common.jsx
++++ b/src/components/common.jsx
+@@ -12,6 +12,7 @@ import { useSquareCover, squareNow, fixFor } from '../lib/meta.js';
+ import { activePalette, isInk } from '../lib/theme.js';
+ import { useMeta } from '../lib/meta.js';
+ import { useTileRating } from '../lib/ratings.js';
++import { has } from '../lib/edition.js';
+ import { openExternal } from '../sources/summaries.js';
+ import { useStoryShots, chooseStoryShots } from '../sources/storyshots.js';
+ import { useLocalCover } from '../sources/local.js';
+@@ -391,6 +392,7 @@ export function Skeleton() {
+ 
+ /** ✨ Ask AI, in the top corner of every screen: about this book, or about all your books. */
+ export function AskButton({ book = null, cls = 'icon-btn ask-btn glass' }) {
++  if (!has('ai')) return null; // AI: not in this edition
+   return (
+     <button
+       class={cls}
+diff --git a/src/components/player-ui.jsx b/src/components/player-ui.jsx
+index 08dc5ab..141c5b4 100644
+--- a/src/components/player-ui.jsx
++++ b/src/components/player-ui.jsx
+@@ -12,6 +12,7 @@ import { nav, useBackClose } from '../lib/nav.js';
+ import { bookmarks, settings, useStore } from '../lib/store.js';
+ import { metaFixes, fixFor } from '../lib/meta.js';
+ import { openDrive } from './drive-mode.jsx';
++import { has } from '../lib/edition.js';
+ import { COMPANION, rememberHere, chapterSummary, chapterSummaries } from '../lib/askbook.js';
+ import { Answer } from '../screens/Ask.jsx';
+ import { aiReady } from '../lib/ai.js';
+@@ -191,7 +192,7 @@ export function FullPlayer() {
+   const chapters = player.chapters();
+   const g = player.globalTime();
+   const total = player.totalDuration();
+-  const showText = useStore(transcriptCfg).open;
++  const showText = useStore(transcriptCfg).open && has('ai');
+   const sleepLeft = s.sleepUntil ? Math.max(0, (s.sleepUntil - Date.now()) / 1000) : 0;
+ 
+   return (
+@@ -265,7 +266,7 @@ export function FullPlayer() {
+               </button>
+             )
+           )}
+-          {s.book.source !== 'pod' && (
++          {has('ai') && s.book.source !== 'pod' && (
+             <button class="fp-chapters" onClick={() => setSheet('xray')}>
+               <Icon name="xray" size={15} />
+               <span>X-Ray</span>
+@@ -364,7 +365,7 @@ export function FullPlayer() {
+         </div>
+       )}
+ 
+-      <Signature book={s.book} openXray={() => setSheet('xray')} />
++      {has('ai') && <Signature book={s.book} openXray={() => setSheet('xray')} />}
+ 
+       {/* One row of the everyday buttons; the rest under More. */}
+       <div class="fp-actions one-row">
+@@ -376,18 +377,20 @@ export function FullPlayer() {
+           <Icon name="moon" size={16} />
+           <small>{s.sleepUntil ? fmtTime(sleepLeft) : s.sleepEndOfTrack ? 'Ch. end' : 'Sleep'}</small>
+         </button>
+-        <button
+-          class={'chip-btn' + (showText ? ' active' : '')}
+-          onClick={() => {
+-            if (showText) stopTranscript();
+-            transcriptCfg.set({ open: !showText });
+-          }}
+-          aria-label="Transcript"
+-        >
+-          <Icon name="text" size={16} />
+-          <small>Text</small>
+-        </button>
+-        {s.book.source !== 'pod' && <SceneButton chip />}
++        {has('ai') && (
++          <button
++            class={'chip-btn' + (showText ? ' active' : '')}
++            onClick={() => {
++              if (showText) stopTranscript();
++              transcriptCfg.set({ open: !showText });
++            }}
++            aria-label="Transcript"
++          >
++            <Icon name="text" size={16} />
++            <small>Text</small>
++          </button>
++        )}
++        {has('carMode') && s.book.source !== 'pod' && <SceneButton chip />}
+         <button
+           class="chip-btn"
+           aria-label="Add a bookmark (hold for the list)"
+@@ -475,21 +478,27 @@ export function FullPlayer() {
+                 <UpNextList onPlay={() => setSheet(null)} />
+               </>
+             )}
+-            {sheet === 'more' && <Companion book={s.book} />}
++            {has('ai') && sheet === 'more' && <Companion book={s.book} />}
+             {sheet === 'more' && (
+               <div class="fp-more">
+-                <button onClick={() => (setSheet(null), openDrive())}>
+-                  <Icon name="car" size={22} />
+-                  Drive
+-                </button>
+-                <button onClick={() => setSheet('xray')}>
+-                  <Icon name="xray" size={22} />
+-                  X-Ray
+-                </button>
+-                <button onClick={() => setSheet('story')}>
+-                  <Icon name="ai" size={22} />
+-                  Story
+-                </button>
++                {has('carMode') && (
++                  <button onClick={() => (setSheet(null), openDrive())}>
++                    <Icon name="car" size={22} />
++                    Drive
++                  </button>
++                )}
++                {has('ai') && (
++                  <button onClick={() => setSheet('xray')}>
++                    <Icon name="xray" size={22} />
++                    X-Ray
++                  </button>
++                )}
++                {has('ai') && (
++                  <button onClick={() => setSheet('story')}>
++                    <Icon name="ai" size={22} />
++                    Story
++                  </button>
++                )}
+                 <button onClick={() => setSheet('chapters')}>
+                   <Icon name="list" size={22} />
+                   Chapters · {chapters.length}
+@@ -498,14 +507,18 @@ export function FullPlayer() {
+                   <Icon name="bookmark" size={22} />
+                   Notes · {noteCount}
+                 </button>
+-                <button onClick={() => setSheet('upnext')}>
+-                  <Icon name="list" size={22} />
+-                  Up next
+-                </button>
+-                <button onClick={() => setSheet('history')}>
+-                  <Icon name="list" size={22} />
+-                  History
+-                </button>
++                {has('upNext') && (
++                  <button onClick={() => setSheet('upnext')}>
++                    <Icon name="list" size={22} />
++                    Up next
++                  </button>
++                )}
++                {has('history') && (
++                  <button onClick={() => setSheet('history')}>
++                    <Icon name="list" size={22} />
++                    History
++                  </button>
++                )}
+                 <button
+                   onClick={() => {
+                     setSheet(null);
+@@ -638,7 +651,7 @@ export function FullPlayer() {
+                           <span class="ch-time">{c.end > c.start ? (c.estimated ? '≈ ' : '') + fmtTime(c.end - c.start) : ''}</span>
+                         </button>
+                         {/* Chapters you've reached: a short AI summary (kept for next time). */}
+-                        {s.book.source !== 'pod' && c.start <= g && <ChapterSummary book={s.book} chapters={chapters} i={i} total={total} />}
++                        {has('ai') && s.book.source !== 'pod' && c.start <= g && <ChapterSummary book={s.book} chapters={chapters} i={i} total={total} />}
+                       </li>
+                     );
+                   })}
+diff --git a/src/components/reader-select.jsx b/src/components/reader-select.jsx
+index bbd7f59..14cd64d 100644
+--- a/src/components/reader-select.jsx
++++ b/src/components/reader-select.jsx
+@@ -3,6 +3,7 @@ import { askAi, aiReady } from '../lib/ai.js';
+ import { toast } from './common.jsx';
+ import { spoilerRule } from '../lib/askbook.js';
+ import { Answer } from '../screens/Ask.jsx';
++import { has } from '../lib/edition.js';
+ import { LANGS, lang, trCfg, targetFor, translateText, speakText, stopSpeakingText } from '../lib/translate.js';
+ import { useStore } from '../lib/store.js';
+ 
+@@ -40,10 +41,14 @@ export function SelectionBar({ sel, onAction, onGrow }) {
+         <button class="hl-btn" onClick={() => onAction('highlight')}>
+           Highlight
+         </button>
+-        <button onClick={() => onAction('explain')}>Explain</button>
+-        <button onClick={() => onAction('define')}>{single ? 'Define' : 'Meaning'}</button>
+-        <button onClick={() => onAction('ask')}>Ask</button>
+-        <button onClick={() => onAction('translate')}>Translate</button>
++        {has('ai') && (
++          <>
++            <button onClick={() => onAction('explain')}>Explain</button>
++            <button onClick={() => onAction('define')}>{single ? 'Define' : 'Meaning'}</button>
++            <button onClick={() => onAction('ask')}>Ask</button>
++            <button onClick={() => onAction('translate')}>Translate</button>
++          </>
++        )}
+       </div>
+     </div>
+   );
+diff --git a/src/lib/edition.js b/src/lib/edition.js
+index 6c8e6d4..f709c16 100644
+--- a/src/lib/edition.js
++++ b/src/lib/edition.js
+@@ -22,7 +22,7 @@ export const FEATURES = {
+   quotes: false, // shared quote cards
+   kindle: false,
+   naturalVoices: false, // Microsoft Edge voices (phone voices only)
+-  themes: false, // colour themes / accents (default look only)
++  themes: true, // colour themes, accents, light / dark
+ };
+ 
+ export const has = (name) => FEATURES[name] !== false;
+diff --git a/src/lib/meta.js b/src/lib/meta.js
+index 4c66dc2..f327adc 100644
+--- a/src/lib/meta.js
++++ b/src/lib/meta.js
+@@ -9,6 +9,7 @@ import { persisted, settings } from './store.js';
+ import { words, mainTitle } from './match.js';
+ import { stripHtml } from './format.js';
+ import { audibleRating, audible as audibleCat, googleBooks } from '../sources/catalogs.js';
++import { has } from './edition.js';
+ 
+ export const PROVIDERS = {
+   audible: { name: 'Audible', blurb: 'Audiobook covers, narrators, series & runtime' },
+@@ -160,6 +161,8 @@ export function enabledProviders() {
+   // Providers added since the order was saved come at the end.
+   const saved = settings.get().metaOrder || [];
+   const order = [...saved, ...Object.keys(PROVIDERS).filter((k) => !saved.includes(k))];
++  // Editions without the store catalogues look books up on Open Library only.
++  if (!has('catalogs')) return ['openlibrary'].filter((k) => lookups[k]);
+   return order.filter((k) => lookups[k] && st[k] !== false);
+ }
+ 
+@@ -316,6 +319,7 @@ const squareKey = (book) => keyFor(`${mainTitle(book?.title || '')} ${String(boo
+ /** The square audiobook cover already found for this book ('' none / not looked up). */
+ export const squareNow = (book) => squares.get()[squareKey(book)]?.u || '';
+ export function squareCover(book) {
++  if (!has('catalogs')) return Promise.resolve(''); // Apple / Audible look-ups: not in this edition
+   const key = squareKey(book);
+   if (!key || !book?.title) return Promise.resolve('');
+   const hit = squares.get()[key];
+@@ -381,17 +385,18 @@ export async function searchCovers(term) {
+         }))
+       )
+     );
++  const only = !has('catalogs'); // Open Library only
+   const [au, ap, ab, gb, ol, gr] = await Promise.all([
+-    safe(audibleCat.search(t)).then((l) => l.slice(0, 6).map((b) => ({ ...b, from: 'Audible' }))),
+-    apple('audiobook', 'Apple audiobook'),
+-    apple('ebook', 'Apple Books'),
+-    safe(googleBooks.search(t)).then((l) => l.slice(0, 5).map((b) => ({ ...b, from: 'Google Books' }))),
++    only ? [] : safe(audibleCat.search(t)).then((l) => l.slice(0, 6).map((b) => ({ ...b, from: 'Audible' }))),
++    only ? [] : apple('audiobook', 'Apple audiobook'),
++    only ? [] : apple('ebook', 'Apple Books'),
++    only ? [] : safe(googleBooks.search(t)).then((l) => l.slice(0, 5).map((b) => ({ ...b, from: 'Google Books' }))),
+     safe(
+       getJson('https://openlibrary.org/search.json?' + qs({ q: t, limit: 5, fields: 'title,author_name,cover_i,first_publish_year' }), { timeout: 12000 }).then((d) =>
+         (d.docs || []).filter((w) => w.cover_i).map((w) => ({ title: w.title, author: (w.author_name || []).slice(0, 2).join(', '), cover: `https://covers.openlibrary.org/b/id/${w.cover_i}-L.jpg`, year: w.first_publish_year || '', from: 'Open Library' }))
+       )
+     ),
+-    lookups.goodreads(t).then((r) => (r ? [{ ...r, from: 'Goodreads' }] : []), () => []),
++    only ? [] : lookups.goodreads(t).then((r) => (r ? [{ ...r, from: 'Goodreads' }] : []), () => []),
+   ]);
+   // Interleaved, so the first screen shows a few from each place.
+   const lists = [au, ap, gr, ab, gb, ol];
+diff --git a/src/lib/ratings.js b/src/lib/ratings.js
+index 235b6d8..078e7d0 100644
+--- a/src/lib/ratings.js
++++ b/src/lib/ratings.js
+@@ -4,6 +4,7 @@ import { useEffect, useState } from 'preact/hooks';
+ import { getJson, getText, qs } from './http.js';
+ import { stripHtml } from './format.js';
+ import { persisted } from './store.js';
++import { has } from './edition.js';
+ import { words, mainTitle, searchTitle } from './match.js';
+ import * as hcSrc from '../sources/hardcover.js';
+ 
+@@ -307,6 +308,7 @@ export const tileRating = (book) =>
+ 
+ /** Hook for tiles: { rating, count, url, from } once known. */
+ export function useTileRating(book) {
++  if (!has('catalogs')) book = null; // ratings come from Goodreads / Audible: not in this edition
+   const [r, setR] = useState(() => {
+     const hit = book?.title ? cache.get()[`${TILE}:${keyFor(book)}`] : null;
+     return hit?.v || null;
+diff --git a/src/lib/tts.js b/src/lib/tts.js
+index 4fecb45..62311d8 100644
+--- a/src/lib/tts.js
++++ b/src/lib/tts.js
+@@ -8,12 +8,13 @@
+ //  * Read along: the reader speaks paragraph by paragraph with highlighting.
+ import { Capacitor, registerPlugin } from '@capacitor/core';
+ import { persisted, settings } from './store.js';
++import { has } from './edition.js';
+ 
+ const Native = registerPlugin('InkwellTts');
+ export const nativeTts = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellTts');
+ 
+ export const ttsCfg = persisted('voice', {
+-  mode: 'edge', // 'edge' = Microsoft natural voices (online), 'builtin' = voices downloaded in the app, 'system' = phone TTS engine
++  mode: has('naturalVoices') ? 'edge' : 'system', // 'edge' = Microsoft natural voices (online), 'builtin' = voices downloaded in the app, 'system' = phone TTS engine
+   edgeVoice: 'en-US-AndrewMultilingualNeural',
+   builtinId: '', // e.g. 'kokoro-en-v0_19'
+   speaker: 0,
+@@ -49,6 +50,8 @@ export const EDGE_VOICES = [
+ 
+ /** The voice for the native engine, with its fallbacks (offline voice, then the phone's). */
+ export function voiceSpec(c = ttsCfg.get()) {
++  // Editions without natural voices read with the phone's own voices only.
++  if (!has('naturalVoices')) c = { ...c, mode: 'system', builtinId: '' };
+   const v = c.builtinId ? byId(c.builtinId) : null;
+   return {
+     engine: c.mode === 'builtin' && !c.builtinId ? 'system' : c.mode || 'edge',
+diff --git a/src/screens/Book.jsx b/src/screens/Book.jsx
+index f22c6d5..c58648d 100644
+--- a/src/screens/Book.jsx
++++ b/src/screens/Book.jsx
+@@ -34,6 +34,7 @@ import { SourceResults } from "../components/source-results.jsx";
+ import { FixDetails } from "../components/fix-details.jsx";
+ import { Available } from "../components/available.jsx";
+ import { SeriesCard } from "../components/series-card.jsx";
++import { has } from "../lib/edition.js";
+ import { useRatings, useGoodreads } from "../lib/ratings.js";
+ import {
+   myRatings,
+@@ -76,7 +77,7 @@ export function Book({ book: initial }) {
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState(null);
+   const [expanded, setExpanded] = useState(false);
+-  const gr = useGoodreads(book);
++  const gr = has("goodreads") ? useGoodreads(book) : null;
+   const [editions, setEditions] = useState(null);
+   const saved = !!useStore(library)[initial.uid];
+   const allProgress = useStore(progress);
+@@ -147,7 +148,7 @@ export function Book({ book: initial }) {
+           </button>
+           <span />
+           <div class="topbar-right">
+-            {book.source !== "pod" && <AskButton book={book} glass />}
++            {has("ai") && book.source !== "pod" && <AskButton book={book} glass />}
+             <button
+               class={"icon-btn glass" + (saved ? " liked" : "")}
+               aria-label={saved ? "Remove from library" : "Add to library"}
+@@ -197,8 +198,8 @@ export function Book({ book: initial }) {
+       {book.source !== "pod" && book.source !== "sum" && (
+         <Available book={book} editions={editions} />
+       )}
+-      {book.source !== "pod" && book.source !== "sum" && <SeriesCard book={book} />}
+-      <StoryShotsLink book={book} />
++      {has("tags") && book.source !== "pod" && book.source !== "sum" && <SeriesCard book={book} />}
++      {has("storyshots") && <StoryShotsLink book={book} />}
+       <div class="book-actions">
+         {book.kind === "discover" && (
+           <button
+@@ -233,7 +234,7 @@ export function Book({ book: initial }) {
+                 : "Listen now"}
+           </button>
+         )}
+-        {canSendToKindle(book) && (
++        {has("kindle") && canSendToKindle(book) && (
+           <button
+             class="btn secondary big kindle-btn"
+             disabled={kindleBusy}
+@@ -459,14 +460,14 @@ export function Book({ book: initial }) {
+         expanded={expanded}
+         setExpanded={setExpanded}
+       />
+-      {book.source !== "sum" && book.source !== "pod" && (
++      {has("ai") && book.source !== "sum" && book.source !== "pod" && (
+         <AskCard
+           book={book}
+           description={bestDescription(book.description, gr?.description)}
+           genres={(gr?.genres || []).map((g) => g.name)}
+         />
+       )}
+-      {gr && <GoodreadsCard gr={gr} />}
++      {has("goodreads") && gr && <GoodreadsCard gr={gr} />}
+ 
+       {book.metaSource && (
+         <p class="muted pad meta-credit">Details from {book.metaSource}</p>
+@@ -482,7 +483,7 @@ export function Book({ book: initial }) {
+       {/* Your verdict and your tags: one line, just above the source results. */}
+       {!loading && book.source !== "sum" && book.source !== "pod" && (
+         <MyRating book={book}>
+-          <BookTags book={book} inline />
++          {has("tags") && <BookTags book={book} inline />}
+         </MyRating>
+       )}
+       {book.kind === "discover" && (
+@@ -625,7 +626,7 @@ export function Book({ book: initial }) {
+           deps={[book.uid, authorKey]}
+         />
+       )}
+-      {!loading && <RelatedRows book={book} />}
++      {has("catalogs") && !loading && <RelatedRows book={book} />}
+       <div class="footer-space" />
+       </div>
+       {menu && (
+@@ -816,7 +817,8 @@ const fmtK = (n) =>
+ /** Ratings across services and awards, as a row of badges: "4.6 (1.2k)"; tap one for its reviews. */
+ /** Rating · length · year in one strip, Apple Books style. Tap the rating for reviews. */
+ function StatsStrip({ book, tracks }) {
+-  const { goodreads, audible } = useRatings(book);
++  // Ratings come from Goodreads / Audible — not in editions without those catalogues.
++  const { goodreads, audible } = has("catalogs") ? useRatings(book) : {};
+   const r = goodreads || audible;
+   const cells = [];
+   if (r)
+diff --git a/src/screens/Discover.jsx b/src/screens/Discover.jsx
+index 09a64f1..1d9e255 100644
+--- a/src/screens/Discover.jsx
++++ b/src/screens/Discover.jsx
+@@ -15,6 +15,22 @@ import { SourceResults } from '../components/source-results.jsx';
+ import { sourceAddons } from '../sources/sourceaddons.js';
+ import { RelatedRows } from '../components/related.jsx';
+ import { PasteLink, isLink } from '../components/paste-link.jsx';
++import { has } from '../lib/edition.js';
++import * as freeIa from '../sources/archive.js';
++import * as freeGb from '../sources/gutenberg.js';
++import * as freeOl from '../sources/openlibrary.js';
++
++/** AudioYam Lite: Discover without AI or store catalogues — rows of free books. */
++function FreeRows() {
++  return (
++    <>
++      <Row title="Most listened" subtitle="Free audiobooks · LibriVox" icon="headphones" cacheKey="freePopular" load={freeIa.popular} deps={[]} />
++      <Row title="Fresh recordings" subtitle="Newest LibriVox audiobooks" icon="sparkle" cacheKey="freeNewest" load={freeIa.newest} deps={[]} />
++      <Row title="Classics to read" subtitle="Free ebooks · Project Gutenberg" icon="book" cacheKey="freeGb" load={() => freeGb.popular('en')} deps={[]} />
++      <Row title="Trending this week" subtitle="What Open Library readers open" icon="flame" cacheKey="freeOl" load={() => freeOl.trending('weekly')} deps={[]} />
++    </>
++  );
++}
+ 
+ const recent = persisted('recentSearches', []);
+ let pendingQuery = '';
+@@ -243,7 +259,7 @@ export function Discover() {
+   }, [term]);
+ 
+   const commit = (enter) => {
+-    if (enter && looksLikeRequest(q)) askNow(q);
++    if (enter && has('ai') && looksLikeRequest(q)) askNow(q);
+     if (term.length < 2) return;
+     recent.set((h) => [term, ...h.filter((x) => x.toLowerCase() !== term.toLowerCase())].slice(0, 8));
+   };
+@@ -252,14 +268,14 @@ export function Discover() {
+     <div class="screen discover">
+       <div class="screen-head">
+         <h1 class="screen-title">Discover</h1>
+-        <AskButton />
++        {has('ai') && <AskButton />}
+       </div>
+       <div class="search-box">
+         <Icon name="search" size={20} />
+         <input
+           ref={inputRef}
+           value={q}
+-          placeholder="Search, describe what you want, or paste a link…"
++          placeholder={has('ai') ? 'Search, describe what you want, or paste a link…' : 'Search free audiobooks and ebooks, or paste a link…'}
+           onInput={(e) => setQ(e.currentTarget.value)}
+           onKeyDown={(e) => e.key === 'Enter' && (commit(true), e.currentTarget.blur())}
+           onBlur={() => commit()}
+@@ -276,9 +292,11 @@ export function Discover() {
+         <PasteLink q={q} />
+       ) : term.length < 2 ? (
+         <>
+-          <button class="search-hint" onClick={() => (setQ(hint), askNow(hint))}>
+-            <Icon name="sparkle" size={14} /> Try “{hint}”
+-          </button>
++          {has('ai') && (
++            <button class="search-hint" onClick={() => (setQ(hint), askNow(hint))}>
++              <Icon name="sparkle" size={14} /> Try “{hint}”
++            </button>
++          )}
+           {history.length > 0 && (
+             <section class="recent">
+               <h3>Recent</h3>
+@@ -294,10 +312,16 @@ export function Discover() {
+               </div>
+             </section>
+           )}
+-          <PickOfWeek />
+-          <MoodTiles />
+-          <GenreTiles />
+-          <Row title="Trending this week" subtitle="Best sellers in your topics" cacheKey="discTrend" load={trending} deps={[]} onMore={() => nav.push('shelf', { title: 'Trending this week', subtitle: 'Best sellers in your topics', load: trending })} />
++          {has('catalogs') ? (
++            <>
++              <PickOfWeek />
++              <MoodTiles />
++              <GenreTiles />
++              <Row title="Trending this week" subtitle="Best sellers in your topics" cacheKey="discTrend" load={trending} deps={[]} onMore={() => nav.push('shelf', { title: 'Trending this week', subtitle: 'Best sellers in your topics', load: trending })} />
++            </>
++          ) : (
++            <FreeRows />
++          )}
+         </>
+       ) : (
+         <Results results={results} filter={filter} setFilter={setFilter} term={term} pending={pending} />
+@@ -318,7 +342,7 @@ const Results = memo(function Results({ results, filter, setFilter, term, pendin
+   const seed = results.au?.items?.[0] || groups.flatMap(([, i]) => i).find((b) => b.kind !== 'text') || null;
+   return (
+     <>
+-      {term.split(/\s+/).length >= 3 && <BooksellerAnswer q={term} />}
++      {has('ai') && term.split(/\s+/).length >= 3 && <BooksellerAnswer q={term} />}
+       <div class="segmented">
+         {FILTERS.map(([k, label]) => (
+           <button class={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>
+diff --git a/src/screens/Library.jsx b/src/screens/Library.jsx
+index a71b910..2c91670 100644
+--- a/src/screens/Library.jsx
++++ b/src/screens/Library.jsx
+@@ -3,6 +3,7 @@ import { Grid, Empty, Cover, BookCover, toast, AskButton, BookCard } from '../co
+ import { Icon } from '../components/icons.jsx';
+ import { library, progress, useStore, forgetBook, persisted, clearPodcastHistory, bookTags } from '../lib/store.js';
+ import { allTags } from '../components/book-tags.jsx';
++import { has } from '../lib/edition.js';
+ import { localSrc } from '../sources/index.js';
+ import { fmtDuration } from '../lib/format.js';
+ import { metaNow, metaFixes, coverNow, findMissingCovers } from '../lib/meta.js';
+@@ -33,7 +34,7 @@ const WHERE = [
+   ['notstarted', 'Not started'],
+   ['short', 'Short listens'],
+   ['recent', 'Recently added'],
+-];
++].filter(([k]) => has('tags') || !['notstarted', 'short', 'recent'].includes(k));
+ 
+ // How the books are laid out.
+ const VIEWS = [
+@@ -203,7 +204,7 @@ export function Library() {
+   const subs = tab === 'audio' || tab === 'text' ? groups[tab] : null;
+   // Your tags: one more filter row under Audiobooks / Ebooks ("tag:Psychology").
+   const tagMap = useStore(bookTags);
+-  const tagsHere = subs ? allTags(Object.fromEntries(subs.all.filter((b) => tagMap[b.uid]).map((b) => [b.uid, tagMap[b.uid]]))) : [];
++  const tagsHere = subs && has('tags') ? allTags(Object.fromEntries(subs.all.filter((b) => tagMap[b.uid]).map((b) => [b.uid, tagMap[b.uid]]))) : [];
+   const tagged = (t) => subs.all.filter((b) => (tagMap[b.uid] || []).includes(t));
+   const fresh = subs ? (where.startsWith('tag:') ? tagged(where.slice(4)) : subs[where] || subs.all) : groups[tab];
+   // Phone books are listed once a folder has been scanned.
+@@ -250,13 +251,15 @@ export function Library() {
+           <button class="icon-btn glass" onClick={() => nav.push('notes')} aria-label="Notes and bookmarks">
+             <Icon name="bookmark" size={19} />
+           </button>
+-          <button class="icon-btn glass" onClick={() => nav.push('stats')} aria-label="Listening stats">
+-            <Icon name="chart" size={20} />
+-          </button>
++          {has('stats') && (
++            <button class="icon-btn glass" onClick={() => nav.push('stats')} aria-label="Listening stats">
++              <Icon name="chart" size={20} />
++            </button>
++          )}
+           <button class={'pill small' + (editing ? ' active' : '')} onClick={() => setEditing(!editing)}>
+             {editing ? 'Done' : 'Edit'}
+           </button>
+-          <AskButton />
++          {has('ai') && <AskButton />}
+         </div>
+       </div>
+       {finding && (
+@@ -286,7 +289,7 @@ export function Library() {
+         </>
+       ) : (
+         <>
+-      <button class="stats" onClick={() => nav.push('stats')} aria-label="Listening stats">
++      <button class="stats" onClick={() => has('stats') && nav.push('stats')} aria-label="Listening stats">
+         <div>
+           <b>{stats.books}</b>
+           <span>started</span>
+diff --git a/src/screens/Reader.jsx b/src/screens/Reader.jsx
+index 8922a43..66d9ac9 100644
+--- a/src/screens/Reader.jsx
++++ b/src/screens/Reader.jsx
+@@ -11,6 +11,7 @@ import { nav, useBackClose } from '../lib/nav.js';
+ import { readAloud, attachAloud } from '../lib/readaloud.js';
+ import { dragSelect } from '../lib/dragselect.js';
+ import { trCfg, LANGS, lang, voiceFor, bookTranslation, translateParas } from '../lib/translate.js';
++import { has } from '../lib/edition.js';
+ import { paragraphs, estimate, textBlocks, isSkippable, skipFrontMatter, nativeReader, ttsCfg, voiceSpec, speakable, blockText, Reader as ReadAloudNative } from '../lib/tts.js';
+ import { VoicesCard } from './settings-extra.jsx';
+ import { narrate, canNarrate } from '../sources/ttsbooks.js';
+@@ -157,7 +158,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
+ 
+   // ---- the book in another language: translated as you read (and kept) --------------
+   const tr = useStore(trCfg);
+-  const trTo = tr.books?.[book.uid] || null;
++  const trTo = has('ai') ? tr.books?.[book.uid] || null : null; // translation: not in this edition
+   const trRef = useRef(null); // { to, store } while the book is shown translated
+   const originals = useRef(new Map()); // paragraph -> its original HTML
+   const trBusy = useRef(new Set());
+@@ -830,7 +831,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
+               <small>When reading aloud or making an audiobook</small>
+             </span>
+           </label>
+-          <div class="reader-tr">
++          {has('ai') && (<div class="reader-tr">
+             <label class="reader-toggle">
+               <input
+                 type="checkbox"
+@@ -861,7 +862,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
+                 Male
+               </button>
+             </div>
+-          </div>
++          </div>)}
+           <div class="reader-row themes">
+             {THEMES.map(([k, label]) => (
+               <button class={`theme-swatch t-${k}` + (st.readerTheme === k ? ' active' : '')} onClick={() => settings.patch({ readerTheme: k })}>
+diff --git a/src/screens/settings-extra.jsx b/src/screens/settings-extra.jsx
+index 881347a..d0df4bb 100644
+--- a/src/screens/settings-extra.jsx
++++ b/src/screens/settings-extra.jsx
+@@ -1,4 +1,5 @@
+ import { useEffect, useMemo, useState } from 'preact/hooks';
++import { has } from '../lib/edition.js';
+ import { Icon } from '../components/icons.jsx';
+ import { nav } from '../lib/nav.js';
+ import { toast } from '../components/common.jsx';
+@@ -459,13 +460,13 @@ function EdgeVoices() {
+ 
+ export function VoicesCard() {
+   const c = useStore(ttsCfg);
+-  const tab = nativeReader && (c.mode === 'edge' || !c.mode) ? 'edge' : builtinAvailable && c.mode !== 'system' ? 'builtin' : 'system';
++  const tab = !has('naturalVoices') ? 'system' : nativeReader && (c.mode === 'edge' || !c.mode) ? 'edge' : builtinAvailable && c.mode !== 'system' ? 'builtin' : 'system';
+   return (
+     <>
+       <p class="muted pad-s">
+         Voices that read your ebooks aloud. Tap <b>Listen</b> on an ebook to use them; on Android reading keeps going with the screen off.
+       </p>
+-      {builtinAvailable && (
++      {has('naturalVoices') && builtinAvailable && (
+         <div class="segmented tight">
+           {nativeReader && (
+             <button type="button" class={tab === 'edge' ? 'on' : ''} onClick={() => ttsCfg.patch({ mode: 'edge' })}>
 -- 
 2.43.0
 
