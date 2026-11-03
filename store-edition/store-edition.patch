@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 1/8] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 1/9] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 2/8] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 2/9] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -705,7 +705,7 @@ index d74ee98..8eddcd9 100644
 From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:29:11 +0000
-Subject: [PATCH 3/8] AudioYam Lite, stage 2: themes kept; Discover = free-book
+Subject: [PATCH 3/9] AudioYam Lite, stage 2: themes kept; Discover = free-book
  rows + search (no AI, no store catalogues); Library without stats / AI / tags
  / smart shelves; player without AI, transcript, drive, up next, history; book
  page without AI, ratings, Goodreads, StoryShots, Kindle, related rows; covers
@@ -1400,7 +1400,7 @@ index 881347a..d0df4bb 100644
 From abed8f9aae6089430b24450266a86ba253004e8e Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:07:34 +0000
-Subject: [PATCH 4/8] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-Debr?=
+Subject: [PATCH 4/9] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-Debr?=
  =?UTF-8?q?id=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20resul?=
  =?UTF-8?q?ts=20(magnets)=20play=20through=20it,=20your=20cloud=20library?=
  =?UTF-8?q?=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20sta?=
@@ -1514,7 +1514,7 @@ index 2d4ba47..4ef9d56 100644
 From 4b2b71a0473c8501804a597e41edd89222b45fcb Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:10:51 +0000
-Subject: [PATCH 5/8] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts=20?=
+Subject: [PATCH 5/9] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts=20?=
  =?UTF-8?q?=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20when?=
  =?UTF-8?q?=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-Debr?=
  =?UTF-8?q?id'=20button=20or=20messages?=
@@ -1604,7 +1604,7 @@ index a8750dd..926b0e0 100644
 From 44802ed95602073e01329082f420e12c06e34f02 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:19:23 +0000
-Subject: [PATCH 6/8] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
+Subject: [PATCH 6/9] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
  =?UTF-8?q?=20sources=20=E2=80=94=20paste=20an=20add-on=20link=20or=20any?=
  =?UTF-8?q?=20account=20key=20(TorBox,=20Real-Debrid,=20AllDebrid,=20Premi?=
  =?UTF-8?q?umize),=20the=20app=20works=20out=20which;=20AllDebrid=20and=20?=
@@ -2094,7 +2094,7 @@ index 4ef9d56..5530c2e 100644
 From 09819b0b7fcf045a728043667418c5b59e5b92e6 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:20:46 +0000
-Subject: [PATCH 7/8] AudioYam Lite: lower Settings section renamed 'Home &
+Subject: [PATCH 7/9] AudioYam Lite: lower Settings section renamed 'Home &
  Discover order'; cloud rows only once an account is connected, named 'Your
  cloud'; 'Your add-ons'
 
@@ -2152,7 +2152,7 @@ index 5530c2e..7c7fd25 100644
 From c778a1bef37be3d0a50f464bf37de0aca59681ed Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:56:59 +0000
-Subject: [PATCH 8/8] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20AudioYa?=
+Subject: [PATCH 8/9] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20AudioYa?=
  =?UTF-8?q?m=20Lite=20with=20the=20tag=20line=20"Your=20books,=20Your=20wa?=
  =?UTF-8?q?y",=20the=20Ys=20in=20the=20logo's=20colours?=
 MIME-Version: 1.0
@@ -2243,6 +2243,93 @@ index 8eddcd9..6aa8c63 100644
  .links-toggle {
    display: flex;
    align-items: center;
+-- 
+2.43.0
+
+
+From 7ad5be24096c587f7fc66b463b27fc32f09a34a7 Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 08:29:14 +0000
+Subject: [PATCH 9/9] Home banner: title tile for a book with no cover;
+ light-theme text in the theme's ink
+
+---
+ src/screens/Home.jsx | 12 ++++++++++--
+ src/styles.css       | 39 +++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 49 insertions(+), 2 deletions(-)
+
+diff --git a/src/screens/Home.jsx b/src/screens/Home.jsx
+index 77929d8..0b0c755 100644
+--- a/src/screens/Home.jsx
++++ b/src/screens/Home.jsx
+@@ -191,10 +191,18 @@ function FeatureSlide({ book: raw, active }) {
+     b.duration ? fmtDuration(b.duration) : '',
+   ].filter(Boolean);
+   return (
+-    <div class={'feature-slide' + (active ? ' on' : '')} aria-hidden={!active}>
++    <div class={'feature-slide' + (active ? ' on' : '') + (b.cover ? '' : ' no-art')} aria-hidden={!active}>
+       <div class="feature-art">{b.cover ? <BgImage url={heroCover} /> : <div class="feature-art-empty" />}</div>
+       <div class="feature-content">
+-        <div class="feature-poster">{b.cover && <BgImage url={heroCover} />}</div>
++        <div class="feature-poster">
++          {b.cover ? (
++            <BgImage url={heroCover} />
++          ) : (
++            <div class="feature-poster-empty">
++              <span>{b.title}</span>
++            </div>
++          )}
++        </div>
+       {active && (
+         <div class="feature-body">
+           <div class="feature-badges">
+diff --git a/src/styles.css b/src/styles.css
+index 6aa8c63..27c1ec5 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -11335,3 +11335,42 @@ button.notes-book-head {
+   vertical-align: middle;
+   margin-left: 2px;
+ }
++
++/* Banner for a book with no cover: a title tile instead of an empty space, and on light
++   themes the text in the theme's ink (white text was meant for a darkened cover behind it,
++   and vanished on the pale background). */
++.feature-poster-empty {
++  height: min(260px, 62vw);
++  aspect-ratio: 1;
++  border-radius: 18px;
++  display: grid;
++  place-items: center;
++  padding: 22px;
++  text-align: center;
++  color: #fff;
++  font-family: var(--display);
++  font-weight: 700;
++  font-size: 24px;
++  line-height: 1.15;
++  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 35%, #1c1830));
++  box-shadow: 0 30px 60px -24px rgba(0, 0, 0, 0.55);
++}
++.feature-poster-empty span {
++  display: -webkit-box;
++  -webkit-line-clamp: 5;
++  -webkit-box-orient: vertical;
++  overflow: hidden;
++}
++:root[data-mode='light'] .feature-slide.no-art {
++  & .feature-title {
++    color: var(--text);
++    text-shadow: none;
++    background: none;
++  }
++  & .feature-author,
++  & .feature-meta,
++  & .feature-why,
++  & .feature-from {
++    color: var(--muted);
++  }
++}
 -- 
 2.43.0
 

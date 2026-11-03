@@ -28,6 +28,7 @@ Order agreed: lint → tests → dead code → one shared codebase → split big
   - My suggestion: a small "Other versions" link under the button for when the auto-pick is wrong (abridged, wrong narrator, other language).
 - **Theme dice (Lite): one button on Home** that picks a random theme — light or dark, a palette and an accent. Keep all theme choices in Settings → Appearance.
   - My suggestion: only pick from combinations that pass a contrast check, so the dice can never produce unreadable text. Tap again for another; long-press goes back to the previous one.
+- Most cloud books in Lite have no cover: Lite looks covers up on Open Library only, which rarely matches torrent names. The iTunes cover lookup (above) is the fix. (The banner itself now copes: title tile + readable text — fixed 3 Nov in all three apps, not built.)
 - Covers from the free sources are poor: ask for the large sizes (Open Library `-L`, iTunes `600x600bb` or larger, Archive's own item image), and prefer an iTunes square cover whenever the title and author match.
 
 ## Store launch plan — AudioYam on Google Play (then App Store) (noted 2 Nov)
