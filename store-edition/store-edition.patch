@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 1/5] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 1/6] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 2/5] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 2/6] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -705,7 +705,7 @@ index d74ee98..8eddcd9 100644
 From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:29:11 +0000
-Subject: [PATCH 3/5] AudioYam Lite, stage 2: themes kept; Discover = free-book
+Subject: [PATCH 3/6] AudioYam Lite, stage 2: themes kept; Discover = free-book
  rows + search (no AI, no store catalogues); Library without stats / AI / tags
  / smart shelves; player without AI, transcript, drive, up next, history; book
  page without AI, ratings, Goodreads, StoryShots, Kindle, related rows; covers
@@ -1400,7 +1400,7 @@ index 881347a..d0df4bb 100644
 From abed8f9aae6089430b24450266a86ba253004e8e Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:07:34 +0000
-Subject: [PATCH 4/5] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-Debr?=
+Subject: [PATCH 4/6] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-Debr?=
  =?UTF-8?q?id=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20resul?=
  =?UTF-8?q?ts=20(magnets)=20play=20through=20it,=20your=20cloud=20library?=
  =?UTF-8?q?=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20sta?=
@@ -1514,7 +1514,7 @@ index 2d4ba47..4ef9d56 100644
 From 4b2b71a0473c8501804a597e41edd89222b45fcb Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:10:51 +0000
-Subject: [PATCH 5/5] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts=20?=
+Subject: [PATCH 5/6] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts=20?=
  =?UTF-8?q?=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20when?=
  =?UTF-8?q?=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-Debr?=
  =?UTF-8?q?id'=20button=20or=20messages?=
@@ -1597,6 +1597,496 @@ index a8750dd..926b0e0 100644
    const got = await cloud.downloadLinks(provider, { hash: s.infoHash, title });
    return (got.files || []).filter((f) => AUDIO.test(f.name));
  }
+-- 
+2.43.0
+
+
+From 44802ed95602073e01329082f420e12c06e34f02 Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 07:19:23 +0000
+Subject: [PATCH 6/6] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
+ =?UTF-8?q?=20sources=20=E2=80=94=20paste=20an=20add-on=20link=20or=20any?=
+ =?UTF-8?q?=20account=20key=20(TorBox,=20Real-Debrid,=20AllDebrid,=20Premi?=
+ =?UTF-8?q?umize),=20the=20app=20works=20out=20which;=20AllDebrid=20and=20?=
+ =?UTF-8?q?Premiumize=20play=20add-on=20results;=20no=20service=20names=20?=
+ =?UTF-8?q?on=20screen?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/components/source-results.jsx |   4 +-
+ src/lib/store.js                  |   2 +-
+ src/screens/Home.jsx              |  10 +-
+ src/screens/Settings.jsx          |  61 +++++++----
+ src/sources/debrid.js             | 173 +++++++++++++++++++++++++++++-
+ src/sources/index.js              |   4 +-
+ 6 files changed, 218 insertions(+), 36 deletions(-)
+
+diff --git a/src/components/source-results.jsx b/src/components/source-results.jsx
+index 68a80d3..efd0339 100644
+--- a/src/components/source-results.jsx
++++ b/src/components/source-results.jsx
+@@ -40,7 +40,7 @@ async function saveToDownloads(link, name, format) {
+ }
+ import { shareEbook } from '../lib/kindle.js';
+ 
+-const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
++const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize' };
+ 
+ // ---- what's ready right now, for the book page's "Available" row --------------
+ // Results that play at once (cached in your debrid, or ready in your account) and
+@@ -116,7 +116,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
+   const count = sourceAddons().length;
+   const provider = cloud.preferredProvider(st.debridPreferred);
+   // Every connected service, preferred one first.
+-  const providers = [provider, cloud.tbConnected() && 'torbox', cloud.rdConnected() && 'realdebrid'].filter((p, i, a) => p && a.indexOf(p) === i);
++  const providers = [provider, ...cloud.connectedProviders()].filter((p, i, a) => p && a.indexOf(p) === i);
+ 
+   const lastQuery = useRef(query);
+   const mounted = useRef(true);
+diff --git a/src/lib/store.js b/src/lib/store.js
+index 193ecb8..3b2e9b5 100644
+--- a/src/lib/store.js
++++ b/src/lib/store.js
+@@ -288,7 +288,7 @@ export function importBackup(text) {
+   }, 600);
+ }
+ 
+-export const debrid = persisted('debrid', { torbox: '', realdebrid: '' });
++export const debrid = persisted('debrid', { torbox: '', realdebrid: '', alldebrid: '', premiumize: '' });
+ // Send to Kindle: Kindle addresses ([{ name, email }]) and Gmail senders ([{ email, password }] — an app password).
+ export const kindle = persisted('kindle', { targets: [], senders: [] });
+ // Your own tags per book: uid -> ['Psychology', …]
+diff --git a/src/screens/Home.jsx b/src/screens/Home.jsx
+index d032c71..d0a729a 100644
+--- a/src/screens/Home.jsx
++++ b/src/screens/Home.jsx
+@@ -136,8 +136,8 @@ function heroSources() {
+   list.push([() => picksForYou().then((r) => rankForYou(notOwned(r))), 'Picked for you', 'ai']);
+   list.push([topRated, 'Top rated now', 'top']);
+   if (absSrc.connected() && enabled('abs')) list.push([() => absSrc.inProgress(), 'Continue on your server', 'abs'], [() => absSrc.recent(), 'New on your server', 'abs']);
+-  if (cloud.tbConnected() && enabled('tb')) list.push([() => cloud.torboxLibrary(), 'In your TorBox', 'tb']);
+-  if (cloud.rdConnected() && enabled('rd')) list.push([() => cloud.realdebridLibrary(), 'In your Real-Debrid', 'rd']);
++  if (cloud.tbConnected() && enabled('tb')) list.push([() => cloud.torboxLibrary(), 'In your cloud', 'tb']);
++  if (cloud.rdConnected() && enabled('rd')) list.push([() => cloud.realdebridLibrary(), 'In your cloud', 'rd']);
+   if (hc.connected() && enabled('hc')) list.push([() => hc.shelf(hc.STATUS.reading), 'Reading on Hardcover', 'hc'], [() => hc.shelf(hc.STATUS.want), 'On your Want to Read', 'hc']);
+   const rank = (k) => (k === 'ai' ? -2 : k === 'top' ? -1 : sourceRank(k));
+   return list.sort((a, b) => rank(a[2]) - rank(b[2]));
+@@ -492,7 +492,7 @@ function WaitingRow() {
+             <div class="wait-meta">
+               <b>{w.bookTitle || w.title}</b>
+               <span>
+-                {w.ready ? 'Ready to play' : `${Math.round((w.progress || 0) * 100)}%${w.state ? ` · ${w.state}` : ''}`} · {w.provider === 'torbox' ? 'TorBox' : 'Real-Debrid'}
++                {w.ready ? 'Ready to play' : `${Math.round((w.progress || 0) * 100)}%${w.state ? ` · ${w.state}` : ''}`} · your cloud
+               </span>
+               <div class="progress-bar">
+                 <div style={{ width: (w.ready ? 100 : Math.round((w.progress || 0) * 100)) + '%' }} />
+@@ -566,8 +566,8 @@ export function Home() {
+         </>
+       ),
+     loc: localSrc.connected() && enabled('loc') && <Row title="On this phone" subtitle="Audiobooks in your folders" icon="headphones" cacheKey="loc" load={audioOnly(localSrc.library)} deps={[localCfg.scannedAt]} onMore={() => nav.push('shelf', { title: 'On this phone', subtitle: 'Audiobooks in your folders', load: audioOnly(localSrc.library) })} emptyText="No audiobooks found in your folder." />,
+-    tb: cloud.tbConnected() && enabled('tb') && <Row title="Your TorBox" subtitle="Audiobooks in your cloud" icon="download" cacheKey="tb" load={audioOnly(cloud.torboxLibrary)} deps={[deb.torbox]} onMore={() => nav.push('shelf', { title: 'Your TorBox', subtitle: 'Audiobooks in your TorBox cloud', load: audioOnly(cloud.torboxLibrary) })} showErrors emptyText="No audiobooks in your TorBox yet." />,
+-    rd: cloud.rdConnected() && enabled('rd') && <Row title="Your Real-Debrid" subtitle="Audiobooks in your cloud" icon="download" cacheKey="rd" load={audioOnly(cloud.realdebridLibrary)} deps={[deb.realdebrid]} onMore={() => nav.push('shelf', { title: 'Your Real-Debrid', subtitle: 'Audiobooks in your Real-Debrid cloud', load: audioOnly(cloud.realdebridLibrary) })} showErrors emptyText="No audiobooks in your Real-Debrid yet." />,
++    tb: cloud.tbConnected() && enabled('tb') && <Row title="Your cloud" subtitle="Audiobooks in your cloud" icon="download" cacheKey="tb" load={audioOnly(cloud.torboxLibrary)} deps={[deb.torbox]} onMore={() => nav.push('shelf', { title: 'Your cloud', subtitle: 'Audiobooks in your cloud', load: audioOnly(cloud.torboxLibrary) })} showErrors emptyText="No audiobooks in your cloud yet." />,
++    rd: cloud.rdConnected() && enabled('rd') && <Row title="Your cloud" subtitle="Audiobooks in your cloud" icon="download" cacheKey="rd" load={audioOnly(cloud.realdebridLibrary)} deps={[deb.realdebrid]} onMore={() => nav.push('shelf', { title: 'Your cloud', subtitle: 'Audiobooks in your cloud', load: audioOnly(cloud.realdebridLibrary) })} showErrors emptyText="No audiobooks in your cloud yet." />,
+     hc: hc.connected() && enabled('hc') && (
+         <>
+           <Row title="Currently reading" subtitle="Hardcover" icon="book" load={() => hc.shelf(hc.STATUS.reading)} deps={[hcCfg.token]} onMore={() => nav.push('shelf', { title: 'Currently reading', subtitle: 'Hardcover', load: () => hc.shelf(hc.STATUS.reading) })} showErrors emptyText="Nothing on your Hardcover Currently Reading shelf." />
+diff --git a/src/screens/Settings.jsx b/src/screens/Settings.jsx
+index 059c3ca..24f42cb 100644
+--- a/src/screens/Settings.jsx
++++ b/src/screens/Settings.jsx
+@@ -219,8 +219,7 @@ function WebRelayCard() {
+     };
+     const r = await probeRelay();
+     push('Relay', r.ok, r.ok ? `Working (v${r.version})${r.note ? ` — ${r.note}` : ''}` : r.error);
+-    if (deb.torbox) await check('TorBox', () => cloud.verify('torbox', deb.torbox));
+-    if (deb.realdebrid) await check('Real-Debrid', () => cloud.verify('realdebrid', deb.realdebrid));
++    for (const p of cloud.connectedProviders()) await check('Your account', () => cloud.verify(p, deb[p]));
+     if (hc.connected()) await check('Hardcover', async () => `${(await hc.counts()).reading} reading`);
+     if (absSrc.connected()) await check('Audiobookshelf', async () => `${(await absSrc.recent()).length} recent books`);
+     if (sourceAddons().length)
+@@ -237,7 +236,7 @@ function WebRelayCard() {
+     <>
+       <p class="muted">
+         On iPhone and iPad, Safari blocks a few services — Hardcover, Audible listings and Goodreads — unless they go through a small relay in your
+-        Supabase project. Everything else (TorBox, Real-Debrid, Audiobookshelf over https, free sources) works directly.
++        Supabase project. Everything else (your sources, free sources) works directly.
+       </p>
+       <div class="set-row">
+         <div>
+@@ -1001,6 +1000,8 @@ function AddonLogo({ m }) {
+ 
+ function AddonsCard() {
+   const list = useStore(addons);
++  const deb = useStore(debrid);
++  const accounts = cloud.connectedProviders();
+   const [badLogo, setBadLogo] = useState({}); // addon id -> its picture doesn't load
+   const [url, setUrl] = useState('');
+   const [busy, setBusy] = useState(false);
+@@ -1008,8 +1009,27 @@ function AddonsCard() {
+   return (
+     <>
+       <p class="muted pad-s">
+-        Paste an addon link: a source addon (a JSON link), a Stremio-style manifest, or an addon collection. Only install addons you trust.
++        Paste an add-on link or an account key — the app works out which it is. Only add sources you trust.
+       </p>
++      {accounts.map((p) => (
++        <div class="set-row addon-row">
++          <Icon name="cloud" size={20} />
++          <div>
++            <b>Account connected</b>
++            <small>{deb[p + 'Name'] || 'Results play through it'}</small>
++          </div>
++          <button
++            class="icon-btn"
++            aria-label="Remove account"
++            onClick={() => {
++              debrid.patch({ [p]: '', [p + 'Name']: '' });
++              cloud.forget();
++            }}
++          >
++            <Icon name="trash" size={18} />
++          </button>
++        </div>
++      ))}
+       {list.map((a) => (
+         <div class="set-row addon-row">
+           <AddonLogo m={a.manifest} />
+@@ -1043,7 +1063,17 @@ function AddonsCard() {
+           setBusy(true);
+           setRaw(null);
+           try {
+-            const m = await addonSrc.install(url);
++            const v = url.trim();
++            // No address in it: an account key.
++            if (!/[/.:]/.test(v)) {
++              const { provider, who } = await cloud.detectKey(v);
++              debrid.patch({ [provider]: v, [provider + 'Name']: who });
++              cloud.forget();
++              toast('Account connected');
++              setUrl('');
++              return;
++            }
++            const m = await addonSrc.install(v);
+             toast(`Installed ${m.name}`);
+             setUrl('');
+           } catch (err) {
+@@ -1054,7 +1084,7 @@ function AddonsCard() {
+           }
+         }}
+       >
+-        <input placeholder="https://…/manifest.json or a JSON link" value={url} onInput={(e) => setUrl(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} inputmode="url" />
++        <input placeholder="Add-on link or key" value={url} onInput={(e) => setUrl(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} inputmode="url" />
+         <button class="btn primary" disabled={busy || !url}>
+           {busy ? <span class="spinner" /> : <Icon name="plus" size={16} />}
+         </button>
+@@ -1100,7 +1130,7 @@ function MetadataCard() {
+   };
+   return (
+     <>
+-      <p class="muted pad-s">Used for covers, clean titles, narrators and descriptions of TorBox / Real-Debrid files, addon results and Goodreads imports. Tried top to bottom.</p>
++      <p class="muted pad-s">Used for covers, clean titles, narrators and descriptions of your cloud files, add-on results and Goodreads imports. Tried top to bottom.</p>
+       {order.map((k, i) => (
+         <div class="set-row meta-row">
+           <div class="meta-order">
+@@ -1192,23 +1222,10 @@ export function Settings() {
+           <AbsCard />
+         </Section>
+       )}
+-      {has('debrid') && (
+-        <Section icon="cloud" title="TorBox">
+-          <DebridCard provider="torbox" label="TorBox" keyHint="torbox.app/settings" keyUrl="https://torbox.app/settings" />
+-          <MusicToggle />
+-        </Section>
+-      )}
+-      {has('debrid') && (
+-        <Section icon="cloud" title="Real-Debrid">
+-          <DebridCard provider="realdebrid" label="Real-Debrid" keyHint="real-debrid.com/apitoken" keyUrl="https://real-debrid.com/apitoken" />
+-          <MusicToggle />
+-        </Section>
+-      )}
+-      {has('debrid') && <PreferredDebrid />}
+       <Section icon="search" title="Finding your books">
+         <FindOrderCard />
+       </Section>
+-      <Section icon="puzzle" title="Addons">
++      <Section icon="puzzle" title="Your sources">
+         <AddonsCard />
+       </Section>
+       <Section icon="download" title="Downloads">
+@@ -1602,7 +1619,7 @@ function BackupRow() {
+       <div class="set-row">
+         <div>
+           <b>Backup</b>
+-          <small>Library, progress, podcasts, ratings, stats, settings{keys ? ', logins & API keys (TorBox, Real-Debrid, AI…)' : ''}</small>
++          <small>Library, progress, podcasts, ratings, stats, settings{keys ? ', logins & keys' : ''}</small>
+         </div>
+         <div class="chips">
+           <button class="pill small" onClick={save}>
+diff --git a/src/sources/debrid.js b/src/sources/debrid.js
+index a813a8e..0f6f8d6 100644
+--- a/src/sources/debrid.js
++++ b/src/sources/debrid.js
+@@ -390,6 +390,7 @@ export async function fetchStatus(book) {
+     if (!it) return { provider: 'torbox', ready: true, progress: 1 };
+     return { provider: 'torbox', ready: !!(it.download_finished || it.download_present), progress: Number(it.progress) || 0, state: it.download_state || '', hash: String(it.hash || '').toLowerCase() };
+   }
++  if (src === 'ad' || src === 'pm') return { provider: src === 'ad' ? 'alldebrid' : 'premiumize', ready: true, progress: 1 };
+   if (src === 'rd') {
+     const info = await getJson(`${RD}/torrents/info/${code}`, { headers: rdHeaders(), fresh: true });
+     return { provider: 'realdebrid', ready: info.status === 'downloaded', progress: (Number(info.progress) || 0) / 100, state: info.status || '', hash: String(info.hash || '').toLowerCase() };
+@@ -399,6 +400,11 @@ export async function fetchStatus(book) {
+ 
+ export async function verify(provider, key) {
+   key = key.trim();
++  if (provider === 'alldebrid') return (await adGet('/user', {}, key))?.user?.username || 'Account';
++  if (provider === 'premiumize') {
++    const r = await pmCall('/account/info', null, key);
++    return r.customer_id ? `Account ${r.customer_id}` : 'Account';
++  }
+   if (provider === 'torbox') {
+     const r = await getJson(`${TB}/user/me`, { headers: { Authorization: `Bearer ${key}` }, fresh: true });
+     return r?.data?.email || 'TorBox account';
+@@ -416,12 +422,13 @@ export const addLink = (provider, link) => (provider === 'torbox' ? tbAdd(link.t
+  */
+ export async function hasAudio(book) {
+   if (book.kind === 'text' || EBOOK.test(book.rawName || '')) return false;
+-  if (book.uid?.startsWith('tb:')) return book.kind === 'audio';
++  if (/^(tb|ad|pm):/.test(book.uid || '')) return book.kind === 'audio';
+   const info = await getJson(`${RD}/torrents/info/${book.uid.slice(3)}`, { headers: rdHeaders(), fresh: true });
+   return (info.files || []).some((f) => AUDIO.test(f.path || ''));
+ }
+ 
+ export function details(book) {
++  if (/^(ad|pm):/.test(book.uid)) return otherDetails(book);
+   return book.uid.startsWith('tb:') ? tbDetails(book) : rdDetails(book);
+ }
+ 
+@@ -458,8 +465,9 @@ export function magnetFor(magnet, hash, name) {
+   return h ? `magnet:?xt=urn:btih:${h}${name ? `&dn=${encodeURIComponent(name)}` : ''}` : '';
+ }
+ 
+-export const preferredProvider = (pref) =>
+-  pref === 'realdebrid' && rdConnected() ? 'realdebrid' : pref === 'torbox' && tbConnected() ? 'torbox' : tbConnected() ? 'torbox' : rdConnected() ? 'realdebrid' : null;
++const CONNECTED = { torbox: () => tbConnected(), realdebrid: () => rdConnected(), alldebrid: () => adConnected(), premiumize: () => pmConnected() };
++export const connectedProviders = () => Object.keys(CONNECTED).filter((p) => CONNECTED[p]());
++export const preferredProvider = (pref) => (pref && CONNECTED[pref]?.() ? pref : connectedProviders()[0] || null);
+ 
+ /** Which of these hashes TorBox can stream instantly (one batched call). */
+ export async function torboxCached(hashes) {
+@@ -552,6 +560,8 @@ export async function prepareMagnet(provider, { magnet, hash, title }, onStatus,
+   const h = infoHash(magnet, hash);
+   const m = magnetFor(magnet, h, title);
+   if (!m) throw new Error('This result has no magnet link');
++  if (provider === 'alldebrid') return adPrepare(m, h, title, onStatus);
++  if (provider === 'premiumize') return pmPrepare(m, h, title, onStatus);
+ 
+   if (provider === 'torbox') {
+     let it = await tbEnsure(m, h, onStatus);
+@@ -618,6 +628,11 @@ export async function downloadLinks(provider, { magnet, hash, title }, onStatus)
+   const h = infoHash(magnet, hash);
+   const m = magnetFor(magnet, h, title);
+   if (!m) throw new Error('This result has no magnet link');
++  if (OTHER[provider]) {
++    const stub = await (provider === 'alldebrid' ? adPrepare : pmPrepare)(m, h, title, onStatus);
++    const d = await otherDetails(stub);
++    return { provider, name: stub.rawName || title, files: [...d.tracks.map((t) => ({ name: t.title, size: t.size, resolve: t.resolve })), ...d.ebooks], zip: null };
++  }
+   if (provider === 'torbox') {
+     let it = await tbEnsure(m, h, onStatus);
+     const ready = (x) => x?.download_finished || x?.download_present;
+@@ -676,13 +691,15 @@ export async function addMagnetOnly(provider, { magnet, hash, title }) {
+   const h = infoHash(magnet, hash);
+   const m = magnetFor(magnet, h, title);
+   if (!m) throw new Error('This result has no magnet link');
+-  if (provider === 'torbox') await tbEnsure(m, h);
++  if (provider === 'alldebrid') await adGet('/magnet/upload', { 'magnets[]': m });
++  else if (provider === 'premiumize') await pmCall('/transfer/create', { src: m });
++  else if (provider === 'torbox') await tbEnsure(m, h);
+   else {
+     const t = await rdEnsure(m, h);
+     await sendForm(`${RD}/torrents/selectFiles/${t.id}`, 'POST', { files: 'all' }, rdHeaders()).catch(() => {});
+   }
+   forget();
+-  return provider === 'torbox' ? 'Added to TorBox' : 'Added to Real-Debrid';
++  return 'Added to your cloud';
+ }
+ 
+ /**
+@@ -759,3 +776,149 @@ export async function torrentSeeds(hashes) {
+   );
+   return out;
+ }
++
++// ---------------- AllDebrid and Premiumize ----------------
++// Result links play through these too: the magnet goes into your account, its files
++// are listed, and each part gets a direct link when it plays. (Your existing cloud
++// files aren't shown as a library for these two yet.)
++const AD = 'https://api.alldebrid.com/v4';
++const AD_AGENT = 'audioyam';
++const PM = 'https://www.premiumize.me/api';
++const adKey = () => String(debrid.get().alldebrid || '').trim();
++const pmKey = () => String(debrid.get().premiumize || '').trim();
++export const adConnected = () => !!adKey();
++export const pmConnected = () => !!pmKey();
++export const SERVICE_NAMES = { torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize' };
++const OTHER = { alldebrid: 'ad', premiumize: 'pm' };
++
++async function adGet(path, params = {}, key = adKey()) {
++  // POST works for every AllDebrid endpoint (some newer ones accept nothing else).
++  const r = await sendForm(`${path.startsWith('http') ? path : AD + path}?` + qs({ agent: AD_AGENT }), 'POST', params, { Authorization: `Bearer ${key}` });
++  if (r?.status !== 'success') {
++    const e = new Error(r?.error?.message || 'The service refused that');
++    e.status = /AUTH/.test(r?.error?.code || '') ? 401 : 400;
++    throw e;
++  }
++  return r.data;
++}
++async function pmCall(path, form = null, key = pmKey()) {
++  const url = `${PM}${path}?` + qs({ apikey: key });
++  const r = form ? await sendForm(url, 'POST', form) : await getJson(url, { fresh: true });
++  if (r?.status !== 'success') {
++    const e = new Error(r?.message || 'The service refused that');
++    e.status = /auth|key|login/i.test(r?.message || '') ? 401 : 400;
++    throw e;
++  }
++  return r;
++}
++
++// Files we've listed this session, by uid (a restart re-lists them).
++const otherSeen = new Map();
++const flatAd = (nodes, dir = '') =>
++  (nodes || []).flatMap((n) => (n.e ? flatAd(n.e, `${dir}${n.n}/`) : [{ name: baseName(n.n), path: dir + n.n, size: Number(n.s) || 0, link: n.l }]));
++
++function otherBook(prefix, id, name, files, hash) {
++  otherSeen.set(`${prefix}:${id}`, { name, files });
++  const audio = files.filter((f) => AUDIO.test(f.name));
++  const ebooks = files.filter((f) => EBOOK.test(f.name));
++  return { ...toBook(prefix, prefix, id, name, audio.length ? audio : ebooks, hash ? { hash } : {}), ...(audio.length ? {} : { kind: 'text' }) };
++}
++
++async function adPrepare(m, h, title, onStatus) {
++  onStatus?.('Adding it…', null);
++  const up = await adGet('/magnet/upload', { 'magnets[]': m });
++  const mg = up?.magnets?.[0];
++  if (!mg?.id) throw new Error(mg?.error?.message || 'The service rejected the magnet');
++  for (let i = 0; i < 14; i++) {
++    const st = await adGet('https://api.alldebrid.com/v4.1/magnet/status', { id: mg.id });
++    const s = Array.isArray(st?.magnets) ? st.magnets[0] : st?.magnets;
++    const code = Number(s?.statusCode);
++    if (code === 4) {
++      const fl = await adGet('/magnet/files', { 'id[]': mg.id });
++      const files = flatAd(fl?.magnets?.[0]?.files).sort(naturalSort);
++      return otherBook('ad', mg.id, s.filename || mg.name || title, files, h);
++    }
++    if (code >= 5) throw new Error(`Couldn't fetch this one (${s?.status || 'error'})`);
++    const prog = s?.size ? (Number(s.downloaded) || 0) / Number(s.size) : 0;
++    onStatus?.('Fetching it…', prog);
++    if (i >= 8 && prog < 0.5) {
++      const e = new Error(`Downloading (${Math.round(prog * 100)}%)`);
++      e.pending = { provider: 'alldebrid', hash: h, progress: prog };
++      throw e;
++    }
++    await sleep(i < 4 ? 1000 : 2500);
++  }
++  const e = new Error('Still downloading');
++  e.pending = { provider: 'alldebrid', hash: h, progress: 0 };
++  throw e;
++}
++
++async function pmDirect(m) {
++  const r = await pmCall('/transfer/directdl', { src: m }).catch(() => null);
++  return (r?.content || []).map((f) => ({ name: baseName(f.path), path: f.path, size: Number(f.size) || 0, link: f.link })).sort(naturalSort);
++}
++async function pmPrepare(m, h, title, onStatus) {
++  let files = await pmDirect(m);
++  if (!files.length) {
++    onStatus?.('Adding it…', null);
++    const t = await pmCall('/transfer/create', { src: m });
++    for (let i = 0; i < 14; i++) {
++      await sleep(i < 4 ? 1000 : 2500);
++      const list = await pmCall('/transfer/list');
++      const it = (list.transfers || []).find((x) => x.id === t.id);
++      if (it?.status === 'finished' || it?.status === 'seeding') {
++        files = await pmDirect(m);
++        break;
++      }
++      if (/error|deleted|banned/.test(it?.status || '')) throw new Error(`Couldn't fetch this one (${it.message || it.status})`);
++      const prog = Number(it?.progress) || 0;
++      onStatus?.('Fetching it…', prog);
++      if (i >= 8 && prog < 0.5) {
++        const e = new Error(`Downloading (${Math.round(prog * 100)}%)`);
++        e.pending = { provider: 'premiumize', hash: h, progress: prog };
++        throw e;
++      }
++    }
++    if (!files.length) {
++      const e = new Error('Still downloading');
++      e.pending = { provider: 'premiumize', hash: h, progress: 0 };
++      throw e;
++    }
++  }
++  return otherBook('pm', h, title || files[0]?.name || 'Audiobook', files, h);
++}
++
++async function otherDetails(book) {
++  const [prefix, ...rest] = book.uid.split(':');
++  const id = rest.join(':');
++  let seen = otherSeen.get(book.uid);
++  if (!seen && prefix === 'ad') {
++    const fl = await adGet('/magnet/files', { 'id[]': id });
++    seen = { name: book.rawName || book.title, files: flatAd(fl?.magnets?.[0]?.files).sort(naturalSort) };
++  }
++  if (!seen && prefix === 'pm') seen = { name: book.rawName || book.title, files: await pmDirect(magnetFor('', book.hash || id, book.title)) };
++  const files = seen?.files || [];
++  const resolve = (f) => (prefix === 'ad' ? async () => (await adGet('/link/unlock', { link: f.link }))?.link || f.link : async () => f.link);
++  const audio = files.filter((f) => AUDIO.test(f.name));
++  const ebooks = files.filter((f) => EBOOK.test(f.name)).map((f) => ({ name: f.name, format: fmtOf(f.name), size: f.size, resolve: resolve(f) }));
++  if (!audio.length && !ebooks.length) throw new Error(files.length ? 'That one has no playable audio files' : 'Its files aren’t listed yet — try again in a minute');
++  return {
++    ...book,
++    ...(audio.length ? {} : { kind: 'text' }),
++    description: audio.length ? `${audio.length} audio file${audio.length === 1 ? '' : 's'} in your cloud.` : `${ebooks.length} ebook file${ebooks.length === 1 ? '' : 's'} in your cloud.`,
++    ebooks,
++    tracks: audio.map((f, i) => ({ title: f.name.replace(AUDIO, ''), index: i, size: f.size, resolve: resolve(f) })),
++  };
++}
++
++/** Which service does this key belong to? Tries each; resolves { provider, who }. */
++export async function detectKey(key) {
++  key = String(key || '').trim();
++  if (!key) throw new Error('Paste a link or a key');
++  for (const provider of ['torbox', 'realdebrid', 'alldebrid', 'premiumize']) {
++    try {
++      return { provider, who: await verify(provider, key) };
++    } catch {}
++  }
++  throw new Error('That key didn’t work with any service — check it and try again');
++}
+diff --git a/src/sources/index.js b/src/sources/index.js
+index 4ef9d56..5530c2e 100644
+--- a/src/sources/index.js
++++ b/src/sources/index.js
+@@ -31,6 +31,8 @@ export const SOURCES = {
+   abs: { name: 'Audiobookshelf', short: 'My Server', hue: 265, kind: 'Listen', blurb: 'Your self-hosted audiobook server', impl: absSrc, hidden: true },
+   tb: { name: 'TorBox', short: 'TorBox', hue: 130, kind: 'Cloud', blurb: 'Stream audiobooks from your TorBox cloud', impl: cloud, hidden: !has('debrid') },
+   rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud, hidden: !has('debrid') },
++  ad: { name: 'Your cloud', short: 'Cloud', hue: 95, kind: 'Cloud', blurb: 'Played through your account', impl: cloud, hidden: true },
++  pm: { name: 'Your cloud', short: 'Cloud', hue: 95, kind: 'Cloud', blurb: 'Played through your account', impl: cloud, hidden: true },
+   addon: { name: 'Addons', short: 'Addon', hue: 185, kind: 'Listen', blurb: 'Community catalog addons', impl: addonSrc },
+   hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc, hidden: true },
+   pod: { name: 'Podcasts', short: 'Podcast', hue: 280, kind: 'Listen', blurb: 'Podcast episodes', impl: pods, hidden: true },
+@@ -123,7 +125,7 @@ async function getDetailsRaw(book, { fast = false } = {}) {
+       fixed: true,
+     };
+   if (!meta) return d;
+-  const cloudItem = d.source === 'tb' || d.source === 'rd';
++  const cloudItem = ['tb', 'rd', 'ad', 'pm'].includes(d.source);
+   return {
+     ...d,
+     title: cloudItem && meta.title ? meta.title : d.title,
 -- 
 2.43.0
 
