@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 1/2] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -241,6 +241,463 @@ index 131348e..6c96d61 100644
  
  /** Open the tracker site in the in-app browser; its .torrent downloads and magnets come here. */
  export async function openTracker(query = '', filtered = false, ebook = false) {
+-- 
+2.43.0
+
+
+From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 06:23:33 +0000
+Subject: [PATCH 2/2] AudioYam Lite, stage 1: edition switches
+ (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
+ Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
+ chosen features; Lite welcome; name AudioYam Lite
+
+---
+ android/app/src/main/res/values/strings.xml |  4 +-
+ capacitor.config.json                       |  2 +-
+ index.html                                  |  4 +-
+ public/manifest.webmanifest                 | 18 ++++--
+ src/components/whats-new.jsx                | 41 ++++--------
+ src/lib/edition.js                          | 28 ++++++++
+ src/screens/Home.jsx                        | 21 +++---
+ src/screens/Settings.jsx                    | 71 +++++++++++++--------
+ src/sources/index.js                        | 30 ++++-----
+ src/styles.css                              | 11 ++++
+ 10 files changed, 142 insertions(+), 88 deletions(-)
+ create mode 100644 src/lib/edition.js
+
+diff --git a/android/app/src/main/res/values/strings.xml b/android/app/src/main/res/values/strings.xml
+index 3e3a71c..196e6be 100644
+--- a/android/app/src/main/res/values/strings.xml
++++ b/android/app/src/main/res/values/strings.xml
+@@ -1,7 +1,7 @@
+ <?xml version='1.0' encoding='utf-8'?>
+ <resources>
+-    <string name="app_name">AudioYam</string>
+-    <string name="title_activity_main">AudioYam</string>
++    <string name="app_name">AudioYam Lite</string>
++    <string name="title_activity_main">AudioYam Lite</string>
+     <string name="package_name">app.inkwell.books</string>
+     <string name="custom_url_scheme">app.inkwell.books</string>
+     <string name="shortcut_ask">Ask AI</string>
+diff --git a/capacitor.config.json b/capacitor.config.json
+index e5d7469..cade945 100644
+--- a/capacitor.config.json
++++ b/capacitor.config.json
+@@ -1,6 +1,6 @@
+ {
+   "appId": "app.audioyam.store",
+-  "appName": "AudioYam",
++  "appName": "AudioYam Lite",
+   "webDir": "dist",
+   "backgroundColor": "#101012",
+   "android": {
+diff --git a/index.html b/index.html
+index 7f7e354..972ddfb 100644
+--- a/index.html
++++ b/index.html
+@@ -10,9 +10,9 @@
+     <meta name="apple-mobile-web-app-capable" content="yes" />
+     <meta name="mobile-web-app-capable" content="yes" />
+     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+-    <meta name="apple-mobile-web-app-title" content="AudioYam" />
++    <meta name="apple-mobile-web-app-title" content="AudioYam Lite" />
+     <link rel="apple-touch-icon" href="./icon-512.png" />
+-    <title>AudioYam</title>
++    <title>AudioYam Lite</title>
+   </head>
+   <body>
+     <div id="app"></div>
+diff --git a/public/manifest.webmanifest b/public/manifest.webmanifest
+index e1adcd3..05310eb 100644
+--- a/public/manifest.webmanifest
++++ b/public/manifest.webmanifest
+@@ -1,12 +1,22 @@
+ {
+-  "name": "AudioYam",
++  "name": "AudioYam Lite",
+   "short_name": "AudioYam",
+   "start_url": "./",
+   "display": "standalone",
+   "background_color": "#101012",
+   "theme_color": "#101012",
+   "icons": [
+-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
++    {
++      "src": "icon.svg",
++      "sizes": "any",
++      "type": "image/svg+xml",
++      "purpose": "any maskable"
++    },
++    {
++      "src": "icon-512.png",
++      "sizes": "512x512",
++      "type": "image/png",
++      "purpose": "any"
++    }
+   ]
+-}
++}
+\ No newline at end of file
+diff --git a/src/components/whats-new.jsx b/src/components/whats-new.jsx
+index 0d66cde..7d163e4 100644
+--- a/src/components/whats-new.jsx
++++ b/src/components/whats-new.jsx
+@@ -7,45 +7,30 @@ import { persisted, useStore } from '../lib/store.js';
+ import { useBackClose } from '../lib/nav.js';
+ 
+ // Change the id for the next update's notes: everyone sees them once.
+-const EDITION = 'nov-2026d';
++const EDITION = 'lite-1';
+ const seen = persisted('whatsNewSeen', '');
+ 
+ const STEPS = [
+   {
+     icon: 'sparkle',
+-    title: 'Audiohub is now AudioYam',
+-    bold: 'Same app, new name — your library, progress, settings and connections are all here.',
+-    text: 'Another audiobook app already used the name Audiohub, so this one now has a name of its own — with a new icon: a Y with headphones. Updates keep coming as before.',
+-  },
+-  {
+-    icon: 'link',
+-    title: 'AudioYam on your computer',
+-    text: 'The web version is at listen.audiohubapp.com — open it in any browser on your PC or Mac (on iPhone: Safari → Share → Add to Home Screen). Sign into the same account and your library and progress follow you between phone and computer.',
++    title: 'Welcome to AudioYam Lite',
++    bold: 'A calm audiobook and ebook player for your own books and thousands of free classics.',
++    text: 'No account, no ads. Everything stays on your phone.',
+   },
+   {
+     icon: 'headphones',
+-    title: 'Plays the copy on your phone first',
+-    text: 'Resume a book (Continue, the mini player, Library) and AudioYam plays the copy in your phone folders when it has one — offline, no buffering, from the same place. Tapping a TorBox or Audiobookshelf copy on the book page still plays that copy.',
+-  },
+-  {
+-    icon: 'covers',
+-    title: 'Your own cover pictures',
+-    text: 'Don’t like a cover? Press and hold a book → Find a better cover & details → Or choose your own picture from the phone. A cover you choose stays, and shows everywhere — cards, the book page, the player and Home.',
+-  },
+-  {
+-    icon: 'text',
+-    title: 'The ebook for the transcript, faster',
+-    text: 'Finding a book’s ebook (for the transcript and Ask AI) now searches only sources that have ebooks and attaches the first clear match straight away, instead of waiting for every source.',
++    title: 'Free audiobooks and ebooks',
++    text: 'LibriVox and Internet Archive audiobooks, Project Gutenberg and Standard Ebooks to read — search them in Discover, or find them on Home.',
+   },
+   {
+-    icon: 'target',
+-    title: 'The real book first',
+-    text: 'In search, unrated copycats of a book (“12 Rules for Life In English” by someone else) now sit below the real one, and the stray “0” under some cards is gone.',
++    icon: 'book',
++    title: 'Your own books',
++    text: 'Library → On this phone → choose a folder: your MP3 and M4B audiobooks and EPUB books play right here, from where you left off. Podcasts are in the Podcasts tab.',
+   },
+   {
+-    icon: 'palette',
+-    title: 'Easier to read',
+-    text: 'Pop-up menus are readable in light themes, the reader’s voice list is readable on dark pages, and the read-aloud bar is slim again.',
++    icon: 'covers',
++    title: 'Make it yours',
++    text: 'Bookmarks and highlights, offline downloads, the reader with your phone’s voices, your own cover pictures — and add-ons (Settings → Addons) if you have sources of your own.',
+   },
+ ];
+ 
+@@ -87,7 +72,7 @@ export function WhatsNew() {
+         }}
+       >
+         <div class="sheet-handle" />
+-        <small class="wn-kicker">What’s new in AudioYam · {i + 1} of {STEPS.length}</small>
++        <small class="wn-kicker">AudioYam Lite · {i + 1} of {STEPS.length}</small>
+         <div class="wn-icon">
+           <Icon name={st.icon} size={30} />
+         </div>
+diff --git a/src/lib/edition.js b/src/lib/edition.js
+new file mode 100644
+index 0000000..6c8e6d4
+--- /dev/null
++++ b/src/lib/edition.js
+@@ -0,0 +1,28 @@
++// What this edition of the app includes. AudioYam Lite (the store app) keeps:
++// free audiobooks & ebooks, phone folders, podcasts, add-ons, paste a link, Open Library,
++// the player (resume, per-book speed, bookmarks, offline downloads), the reader with the
++// phone's own voices and highlights, library & home, covers, backup, What's new / Report.
++// Everything else is switched off here — the code stays, the feature doesn't show.
++export const EDITION = 'lite';
++
++export const FEATURES = {
++  audiobookshelf: false,
++  account: false, // sign-in and sync between devices
++  ai: false, // Ask, summaries, X-Ray, recap, transcript, translate, bookseller
++  catalogs: false, // Audible / Google Books listings, Hindi section, ratings, recommendations
++  goodreads: false, // Goodreads / Hardcover shelves
++  storyshots: false,
++  upNext: false,
++  history: false,
++  carMode: false, // car mode and voice commands
++  widget: false,
++  plans: false, // listening plans (10 / 30 / 60 minutes)
++  tags: false, // tags, smart shelves, series progress
++  stats: false,
++  quotes: false, // shared quote cards
++  kindle: false,
++  naturalVoices: false, // Microsoft Edge voices (phone voices only)
++  themes: false, // colour themes / accents (default look only)
++};
++
++export const has = (name) => FEATURES[name] !== false;
+diff --git a/src/screens/Home.jsx b/src/screens/Home.jsx
+index 3cad5c2..d032c71 100644
+--- a/src/screens/Home.jsx
++++ b/src/screens/Home.jsx
+@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+ import { Row, BookCard, withMeta, AskButton } from '../components/common.jsx';
+ import { openDrive } from '../components/drive-mode.jsx';
+ import { SceneButton } from '../components/scene-cmd.jsx';
++import { has } from '../lib/edition.js';
+ import { useTileRating } from '../lib/ratings.js';
+ import { openExternal } from '../sources/summaries.js';
+ import { useMeta } from '../lib/meta.js';
+@@ -608,15 +609,17 @@ export function Home() {
+ <rect x="96" y="172" width="62" height="94" rx="28" fill="url(#ay-cup)"/><rect x="354" y="172" width="62" height="94" rx="28" fill="url(#ay-cup)"/></g></svg>
+           <div class="home-hello">
+             <small>{me ? `${greeting()}, ${me}` : greeting()}</small>
+-            <b>AudioYam</b>
++            <b>AudioYam <span class="lite-tag">Lite</span></b>
+           </div>
+         </div>
+         <div class="home-top-actions">
+-          <button class="icon-btn glass drive-btn" onClick={() => openDrive()} aria-label="Driving mode">
+-            <Icon name="car" />
+-          </button>
+-          <SceneButton />
+-          <AskButton glass />
++          {has('carMode') && (
++            <button class="icon-btn glass drive-btn" onClick={() => openDrive()} aria-label="Driving mode">
++              <Icon name="car" />
++            </button>
++          )}
++          {has('carMode') && <SceneButton />}
++          {has('ai') && <AskButton glass />}
+           <button class="icon-btn glass home-search" onClick={() => nav.tab('discover')} aria-label="Search">
+             <Icon name="search" />
+           </button>
+@@ -669,6 +672,8 @@ export function Home() {
+ }
+ 
+ // ---- Customise Home: order and hide its sections (saved with your settings) ----
++// Home sections that belong to a feature this edition may leave out.
++const LEFT_OUT = { upnext: 'upNext', plan: 'plans', rec: 'catalogs', new: 'catalogs', top: 'catalogs', cats: 'catalogs' };
+ const HOME_SECTIONS = [
+   ['hero', 'Banner', 'Picked for you, top rated, your server & cloud'],
+   ['continue', 'Continue', 'What you’re listening to and reading'],
+@@ -678,8 +683,8 @@ const HOME_SECTIONS = [
+   ['new', 'New releases', 'In your topics'],
+   ['top', 'Top titles this month', 'Best sellers in your topics'],
+   ['cats', 'Explore categories', 'Genre tiles'],
+-  ['sources', 'Your services', 'Audiobookshelf, phone, TorBox, Real-Debrid, Hardcover… (their order: Settings → Sources)'],
+-];
++  ['sources', 'Your books & free classics', 'Phone, add-ons, LibriVox, Internet Archive, Gutenberg, Open Library (their order: Settings → Sources)'],
++].filter(([k]) => !(LEFT_OUT[k] && !has(LEFT_OUT[k])));
+ const homeOrder = (st) => {
+   const saved = (st.homeOrder || []).filter((id) => HOME_SECTIONS.some(([k]) => k === id));
+   return [...saved, ...HOME_SECTIONS.map(([k]) => k).filter((k) => !saved.includes(k))];
+diff --git a/src/screens/Settings.jsx b/src/screens/Settings.jsx
+index 2f68803..4735038 100644
+--- a/src/screens/Settings.jsx
++++ b/src/screens/Settings.jsx
+@@ -17,6 +17,7 @@ import { ReportCard, SupportLinks } from '../components/report.jsx';
+ import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
+ import { AccountCard, NameRow, VoicesCard, DownloadsCard, FindOrderCard } from './settings-extra.jsx';
+ import { UpdateCard } from '../components/update.jsx';
++import { has } from '../lib/edition.js';
+ import { showWhatsNew } from '../components/whats-new.jsx';
+ import { nav } from '../lib/nav.js';
+ import * as qb from '../sources/qbit.js';
+@@ -1166,27 +1167,31 @@ export function Settings() {
+     <div class="screen settings">
+       <div class="screen-head">
+         <h1 class="screen-title">Settings</h1>
+-        <AskButton />
++        {has('ai') && <AskButton />}
+       </div>
+ 
+       <button class="btn ghost-wide whats-new-btn" onClick={() => showWhatsNew()}>
+         <Icon name="sparkle" size={16} /> What’s new in this version
+       </button>
+-      {isWeb && (
++      {isWeb && has('account') && (
+         <Section icon="link" title="Web app">
+           <WebRelayCard />
+         </Section>
+       )}
+-      <p class="set-group">Account</p>
+-      <Section icon="user" title="Account & sync">
+-        <NameRow />
+-        <AccountCard />
+-      </Section>
++      {has('account') && <p class="set-group">Account</p>}
++      {has('account') && (
++        <Section icon="user" title="Account & sync">
++          <NameRow />
++          <AccountCard />
++        </Section>
++      )}
+ 
+       <p class="set-group">Where your books are</p>
+-      <Section icon="server" title="Audiobookshelf">
+-        <AbsCard />
+-      </Section>
++      {has('audiobookshelf') && (
++        <Section icon="server" title="Audiobookshelf">
++          <AbsCard />
++        </Section>
++      )}
+       {/* Store edition: no built-in cloud-download services — add-ons bring their own sources. */}
+       <Section icon="search" title="Finding your books">
+         <FindOrderCard />
+@@ -1197,25 +1202,33 @@ export function Settings() {
+       <Section icon="download" title="Downloads">
+         <DownloadsCard />
+       </Section>
+-      <Section icon="upload" title="Send to Kindle">
+-        <KindleCard />
+-      </Section>
++      {has('kindle') && (
++        <Section icon="upload" title="Send to Kindle">
++          <KindleCard />
++        </Section>
++      )}
+       <p class="set-group">Voices & book info</p>
+       <Section icon="headphones" title="Voices">
+         <VoicesCard />
+       </Section>
+-      <Section icon="info" title="Metadata providers">
+-        <MetadataCard />
+-      </Section>
+-      <Section icon="book" title="Hardcover">
+-        <HardcoverCard />
+-      </Section>
+-      <Section icon="library" title="Goodreads">
+-        <GoodreadsCard />
+-      </Section>
++      {has('catalogs') && (
++        <Section icon="info" title="Metadata providers">
++          <MetadataCard />
++        </Section>
++      )}
++      {has('goodreads') && (
++        <Section icon="book" title="Hardcover">
++          <HardcoverCard />
++        </Section>
++      )}
++      {has('goodreads') && (
++        <Section icon="library" title="Goodreads">
++          <GoodreadsCard />
++        </Section>
++      )}
+ 
+       <p class="set-group">App</p>
+-      <Section icon="palette" title="Appearance">
++      {has('themes') && <Section icon="palette" title="Appearance">
+         <div class="set-row column">
+           <div>
+             <b>Mode</b>
+@@ -1275,17 +1288,19 @@ export function Settings() {
+         <SsToggle />
+         <Toggle label="Dynamic colour" hint="Tint the player and book pages from the cover art" on={st.dynamicColor} onChange={(v) => settings.patch({ dynamicColor: v })} />
+         <PlayerBackgroundPicker st={st} />
+-      </Section>
++      </Section>}
+ 
+       <Section icon="headphones" title="Playback">
+         <Stepper label="Skip back" value={st.skipBack} options={[5, 10, 15, 30]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipBack: v })} />
+         <Stepper label="Skip forward" value={st.skipForward} options={[10, 15, 30, 45, 60]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipForward: v })} />
+-        <Toggle label="Play Up next by itself" hint="When a book ends, the next one in Up next starts (press and hold a book → Add to Up next)" on={st.upNextAuto !== false} onChange={(v) => settings.patch({ upNextAuto: v })} />
++        {has('upNext') && <Toggle label="Play Up next by itself" hint="When a book ends, the next one in Up next starts (press and hold a book → Add to Up next)" on={st.upNextAuto !== false} onChange={(v) => settings.patch({ upNextAuto: v })} />}
+       </Section>
+ 
+-      <Section icon="ai" title="AI (bookseller & story helper)">
+-        <AiCard />
+-      </Section>
++      {has('ai') && (
++        <Section icon="ai" title="AI (bookseller & story helper)">
++          <AiCard />
++        </Section>
++      )}
+ 
+ 
+       <Section icon="list" title="Sources">
+diff --git a/src/sources/index.js b/src/sources/index.js
+index ec14d4b..2d4ba47 100644
+--- a/src/sources/index.js
++++ b/src/sources/index.js
+@@ -19,31 +19,31 @@ import { applyLocal, isDownloaded } from '../lib/downloads.js';
+ import { translit, hasDevanagari } from '../lib/translit.js';
+ 
+ export const SOURCES = {
+-  ia: { name: 'Internet Archive', short: 'Archive', hue: 28, kind: 'Listen', blurb: 'LibriVox mirror, old-time radio & spoken word', impl: ia, hidden: true, free: true },
+-  lv: { name: 'LibriVox', short: 'LibriVox', hue: 350, kind: 'Listen', blurb: '20,000+ volunteer-read public-domain audiobooks', impl: lv, hidden: true, free: true },
+-  se: { name: 'Standard Ebooks', short: 'Standard Ebooks', hue: 205, kind: 'Read', blurb: 'Beautifully made free classics — read in-app or send to Kindle', impl: se, hidden: true, free: true },
+-  gb: { name: 'Project Gutenberg', short: 'Gutenberg', hue: 150, kind: 'Read', blurb: '75,000+ free classic ebooks, read in-app', impl: gb, hidden: true, free: true },
+-  ol: { name: 'Open Library', short: 'Open Library', hue: 210, kind: 'Discover', blurb: 'Trending books, rich descriptions & covers', impl: ol, hidden: true, free: true },
+-  au: { name: 'Audible catalog', short: 'Audible', hue: 32, kind: 'Discover', blurb: 'Audiobook listings with narrators, series & covers', impl: audible },
+-  gbk: { name: 'Google Books', short: 'Google Books', hue: 220, kind: 'Discover', blurb: 'Listings for almost every book in print', impl: googleBooks },
++  ia: { name: 'Internet Archive', short: 'Archive', hue: 28, kind: 'Listen', blurb: 'LibriVox mirror, old-time radio & spoken word', impl: ia, free: true },
++  lv: { name: 'LibriVox', short: 'LibriVox', hue: 350, kind: 'Listen', blurb: '20,000+ volunteer-read public-domain audiobooks', impl: lv, free: true },
++  se: { name: 'Standard Ebooks', short: 'Standard Ebooks', hue: 205, kind: 'Read', blurb: 'Beautifully made free classics — read in-app or send to Kindle', impl: se, free: true },
++  gb: { name: 'Project Gutenberg', short: 'Gutenberg', hue: 150, kind: 'Read', blurb: '75,000+ free classic ebooks, read in-app', impl: gb, free: true },
++  ol: { name: 'Open Library', short: 'Open Library', hue: 210, kind: 'Discover', blurb: 'Trending books, rich descriptions & covers', impl: ol, free: true },
++  au: { name: 'Audible catalog', short: 'Audible', hue: 32, kind: 'Discover', blurb: 'Audiobook listings with narrators, series & covers', impl: audible, hidden: true },
++  gbk: { name: 'Google Books', short: 'Google Books', hue: 220, kind: 'Discover', blurb: 'Listings for almost every book in print', impl: googleBooks, hidden: true },
+   loc: { name: 'On this phone', short: 'Phone', hue: 160, kind: 'Listen', blurb: 'Audiobook files already on your phone', impl: localSrc },
+-  abs: { name: 'Audiobookshelf', short: 'My Server', hue: 265, kind: 'Listen', blurb: 'Your self-hosted audiobook server', impl: absSrc },
++  abs: { name: 'Audiobookshelf', short: 'My Server', hue: 265, kind: 'Listen', blurb: 'Your self-hosted audiobook server', impl: absSrc, hidden: true },
+   tb: { name: 'TorBox', short: 'TorBox', hue: 130, kind: 'Cloud', blurb: 'Stream audiobooks from your TorBox cloud', impl: cloud, hidden: true },
+   rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud, hidden: true },
+   addon: { name: 'Addons', short: 'Addon', hue: 185, kind: 'Listen', blurb: 'Community catalog addons', impl: addonSrc },
+-  hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc },
++  hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc, hidden: true },
+   pod: { name: 'Podcasts', short: 'Podcast', hue: 280, kind: 'Listen', blurb: 'Podcast episodes', impl: pods, hidden: true },
+   tts: { name: 'Voice narration', short: 'Free voice', hue: 300, kind: 'Listen', blurb: 'Ebooks read aloud by a free voice', impl: ttsb, hidden: true },
+-  hi: { name: 'हिंदी (Hindi)', short: 'Hindi', hue: 25, kind: 'Listings', blurb: 'Hindi section: Audible India listings and free Hindi audio — few playable sources, so off by default', impl: audible },
+-  gr: { name: 'Goodreads', short: 'Goodreads', hue: 35, kind: 'Shelves', blurb: 'Shelves imported from your Goodreads export', impl: gr },
++  hi: { name: 'हिंदी (Hindi)', short: 'Hindi', hue: 25, kind: 'Listings', blurb: 'Hindi section: Audible India listings and free Hindi audio — few playable sources, so off by default', impl: audible, hidden: true },
++  gr: { name: 'Goodreads', short: 'Goodreads', hue: 35, kind: 'Shelves', blurb: 'Shelves imported from your Goodreads export', impl: gr, hidden: true },
+ };
+ 
+-// Free public-domain catalogues (LibriVox, Internet Archive, Gutenberg, Standard Ebooks,
+-// Open Library) are switched off for good.
+-const enabled = (k) => !SOURCES[k]?.free && settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
++// AudioYam Lite: the free public-domain catalogues are the heart of the app; hidden sources
++// (Audible, Google Books, Audiobookshelf, debrid, Goodreads, Hardcover, Hindi) are off.
++const enabled = (k) => !SOURCES[k]?.hidden && settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
+ 
+ // Your own services first, then listings, then free catalogues — until the user rearranges them.
+-const DEFAULT_ORDER = ['loc', 'abs', 'tb', 'rd', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'se', 'ol', 'hi'];
++const DEFAULT_ORDER = ['loc', 'addon', 'lv', 'ia', 'gb', 'se', 'ol'];
+ /** Source keys in the user's chosen order (Settings → Sources). */
+ export function sourceOrder() {
+   const saved = (settings.get().sourceOrder || []).filter((k) => SOURCES[k] && !SOURCES[k].hidden);
+diff --git a/src/styles.css b/src/styles.css
+index d74ee98..8eddcd9 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -11303,3 +11303,14 @@ button.notes-book-head {
+ .fix-row .own-cover {
+   cursor: pointer;
+ }
++
++/* AudioYam Lite: the small 'Lite' after the name in the Home header. */
++.lite-tag {
++  font-size: 0.6em;
++  font-weight: 700;
++  letter-spacing: 0.06em;
++  text-transform: uppercase;
++  color: var(--accent);
++  vertical-align: middle;
++  margin-left: 2px;
++}
 -- 
 2.43.0
 
