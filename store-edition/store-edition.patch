@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 1/6] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 1/7] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 2/6] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 2/7] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -705,7 +705,7 @@ index d74ee98..8eddcd9 100644
 From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:29:11 +0000
-Subject: [PATCH 3/6] AudioYam Lite, stage 2: themes kept; Discover = free-book
+Subject: [PATCH 3/7] AudioYam Lite, stage 2: themes kept; Discover = free-book
  rows + search (no AI, no store catalogues); Library without stats / AI / tags
  / smart shelves; player without AI, transcript, drive, up next, history; book
  page without AI, ratings, Goodreads, StoryShots, Kindle, related rows; covers
@@ -1400,7 +1400,7 @@ index 881347a..d0df4bb 100644
 From abed8f9aae6089430b24450266a86ba253004e8e Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:07:34 +0000
-Subject: [PATCH 4/6] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-Debr?=
+Subject: [PATCH 4/7] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-Debr?=
  =?UTF-8?q?id=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20resul?=
  =?UTF-8?q?ts=20(magnets)=20play=20through=20it,=20your=20cloud=20library?=
  =?UTF-8?q?=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20sta?=
@@ -1514,7 +1514,7 @@ index 2d4ba47..4ef9d56 100644
 From 4b2b71a0473c8501804a597e41edd89222b45fcb Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:10:51 +0000
-Subject: [PATCH 5/6] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts=20?=
+Subject: [PATCH 5/7] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts=20?=
  =?UTF-8?q?=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20when?=
  =?UTF-8?q?=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-Debr?=
  =?UTF-8?q?id'=20button=20or=20messages?=
@@ -1604,7 +1604,7 @@ index a8750dd..926b0e0 100644
 From 44802ed95602073e01329082f420e12c06e34f02 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:19:23 +0000
-Subject: [PATCH 6/6] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
+Subject: [PATCH 6/7] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
  =?UTF-8?q?=20sources=20=E2=80=94=20paste=20an=20add-on=20link=20or=20any?=
  =?UTF-8?q?=20account=20key=20(TorBox,=20Real-Debrid,=20AllDebrid,=20Premi?=
  =?UTF-8?q?umize),=20the=20app=20works=20out=20which;=20AllDebrid=20and=20?=
@@ -2087,6 +2087,64 @@ index 4ef9d56..5530c2e 100644
    return {
      ...d,
      title: cloudItem && meta.title ? meta.title : d.title,
+-- 
+2.43.0
+
+
+From 09819b0b7fcf045a728043667418c5b59e5b92e6 Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 07:20:46 +0000
+Subject: [PATCH 7/7] AudioYam Lite: lower Settings section renamed 'Home &
+ Discover order'; cloud rows only once an account is connected, named 'Your
+ cloud'; 'Your add-ons'
+
+---
+ src/screens/Settings.jsx | 5 +++--
+ src/sources/index.js     | 6 +++---
+ 2 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/src/screens/Settings.jsx b/src/screens/Settings.jsx
+index 24f42cb..ab9d646 100644
+--- a/src/screens/Settings.jsx
++++ b/src/screens/Settings.jsx
+@@ -96,7 +96,8 @@ function Toggle({ on, onChange, label, hint }) {
+  * The order is used for Home rows, the banner and Discover search results.
+  */
+ function SourceOrder({ st, setSource }) {
+-  const order = sourceOrder();
++  // Cloud rows only once an account is connected.
++  const order = sourceOrder().filter((k) => (k === 'tb' ? cloud.tbConnected() : k === 'rd' ? cloud.rdConnected() : true));
+   const listRef = useRef();
+   const [drag, setDrag] = useState(null); // { key, y, offset }
+   const save = (next) => settings.patch({ sourceOrder: next });
+@@ -1332,7 +1333,7 @@ export function Settings() {
+       )}
+ 
+ 
+-      <Section icon="list" title="Sources">
++      <Section icon="list" title="Home & Discover order">
+         <SourceOrder st={st} setSource={setSource} />
+         <Stepper label="Ebook language" value={st.language} options={['en', 'fr', 'de', 'es', 'it', 'pt', 'nl']} fmt={(v) => v.toUpperCase()} onChange={(v) => settings.patch({ language: v })} />
+       </Section>
+diff --git a/src/sources/index.js b/src/sources/index.js
+index 5530c2e..7c7fd25 100644
+--- a/src/sources/index.js
++++ b/src/sources/index.js
+@@ -29,11 +29,11 @@ export const SOURCES = {
+   gbk: { name: 'Google Books', short: 'Google Books', hue: 220, kind: 'Discover', blurb: 'Listings for almost every book in print', impl: googleBooks, hidden: true },
+   loc: { name: 'On this phone', short: 'Phone', hue: 160, kind: 'Listen', blurb: 'Audiobook files already on your phone', impl: localSrc },
+   abs: { name: 'Audiobookshelf', short: 'My Server', hue: 265, kind: 'Listen', blurb: 'Your self-hosted audiobook server', impl: absSrc, hidden: true },
+-  tb: { name: 'TorBox', short: 'TorBox', hue: 130, kind: 'Cloud', blurb: 'Stream audiobooks from your TorBox cloud', impl: cloud, hidden: !has('debrid') },
+-  rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud, hidden: !has('debrid') },
++  tb: { name: 'Your cloud', short: 'Cloud', hue: 130, kind: 'Cloud', blurb: 'Audiobooks in your connected account', impl: cloud, hidden: !has('debrid') },
++  rd: { name: 'Your cloud', short: 'Cloud', hue: 45, kind: 'Cloud', blurb: 'Audiobooks in your connected account', impl: cloud, hidden: !has('debrid') },
+   ad: { name: 'Your cloud', short: 'Cloud', hue: 95, kind: 'Cloud', blurb: 'Played through your account', impl: cloud, hidden: true },
+   pm: { name: 'Your cloud', short: 'Cloud', hue: 95, kind: 'Cloud', blurb: 'Played through your account', impl: cloud, hidden: true },
+-  addon: { name: 'Addons', short: 'Addon', hue: 185, kind: 'Listen', blurb: 'Community catalog addons', impl: addonSrc },
++  addon: { name: 'Your add-ons', short: 'Add-on', hue: 185, kind: 'Listen', blurb: 'Results from the add-ons you added', impl: addonSrc },
+   hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc, hidden: true },
+   pod: { name: 'Podcasts', short: 'Podcast', hue: 280, kind: 'Listen', blurb: 'Podcast episodes', impl: pods, hidden: true },
+   tts: { name: 'Voice narration', short: 'Free voice', hue: 300, kind: 'Listen', blurb: 'Ebooks read aloud by a free voice', impl: ttsb, hidden: true },
 -- 
 2.43.0
 
