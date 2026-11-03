@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 1/9] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 01/10] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 2/9] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 02/10] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -705,12 +705,13 @@ index d74ee98..8eddcd9 100644
 From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:29:11 +0000
-Subject: [PATCH 3/9] AudioYam Lite, stage 2: themes kept; Discover = free-book
- rows + search (no AI, no store catalogues); Library without stats / AI / tags
- / smart shelves; player without AI, transcript, drive, up next, history; book
- page without AI, ratings, Goodreads, StoryShots, Kindle, related rows; covers
- and details from Open Library only; reader with phone voices only, no
- translate, selection menu = Highlight; no widget or AI/drive shortcuts
+Subject: [PATCH 03/10] AudioYam Lite, stage 2: themes kept; Discover =
+ free-book rows + search (no AI, no store catalogues); Library without stats /
+ AI / tags / smart shelves; player without AI, transcript, drive, up next,
+ history; book page without AI, ratings, Goodreads, StoryShots, Kindle,
+ related rows; covers and details from Open Library only; reader with phone
+ voices only, no translate, selection menu = Highlight; no widget or AI/drive
+ shortcuts
 
 ---
  android/app/src/main/AndroidManifest.xml | 13 ----
@@ -1400,11 +1401,11 @@ index 881347a..d0df4bb 100644
 From abed8f9aae6089430b24450266a86ba253004e8e Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:07:34 +0000
-Subject: [PATCH 4/9] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-Debr?=
- =?UTF-8?q?id=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20resul?=
- =?UTF-8?q?ts=20(magnets)=20play=20through=20it,=20your=20cloud=20library?=
- =?UTF-8?q?=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20sta?=
- =?UTF-8?q?y=20out?=
+Subject: [PATCH 04/10] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-De?=
+ =?UTF-8?q?brid=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20res?=
+ =?UTF-8?q?ults=20(magnets)=20play=20through=20it,=20your=20cloud=20librar?=
+ =?UTF-8?q?y=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20st?=
+ =?UTF-8?q?ay=20out?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -1514,10 +1515,10 @@ index 2d4ba47..4ef9d56 100644
 From 4b2b71a0473c8501804a597e41edd89222b45fcb Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:10:51 +0000
-Subject: [PATCH 5/9] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts=20?=
- =?UTF-8?q?=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20when?=
- =?UTF-8?q?=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-Debr?=
- =?UTF-8?q?id'=20button=20or=20messages?=
+Subject: [PATCH 05/10] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts?=
+ =?UTF-8?q?=20=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20w?=
+ =?UTF-8?q?hen=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-D?=
+ =?UTF-8?q?ebrid'=20button=20or=20messages?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -1604,7 +1605,7 @@ index a8750dd..926b0e0 100644
 From 44802ed95602073e01329082f420e12c06e34f02 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:19:23 +0000
-Subject: [PATCH 6/9] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
+Subject: [PATCH 06/10] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
  =?UTF-8?q?=20sources=20=E2=80=94=20paste=20an=20add-on=20link=20or=20any?=
  =?UTF-8?q?=20account=20key=20(TorBox,=20Real-Debrid,=20AllDebrid,=20Premi?=
  =?UTF-8?q?umize),=20the=20app=20works=20out=20which;=20AllDebrid=20and=20?=
@@ -2094,7 +2095,7 @@ index 4ef9d56..5530c2e 100644
 From 09819b0b7fcf045a728043667418c5b59e5b92e6 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:20:46 +0000
-Subject: [PATCH 7/9] AudioYam Lite: lower Settings section renamed 'Home &
+Subject: [PATCH 07/10] AudioYam Lite: lower Settings section renamed 'Home &
  Discover order'; cloud rows only once an account is connected, named 'Your
  cloud'; 'Your add-ons'
 
@@ -2152,9 +2153,9 @@ index 5530c2e..7c7fd25 100644
 From c778a1bef37be3d0a50f464bf37de0aca59681ed Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:56:59 +0000
-Subject: [PATCH 8/9] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20AudioYa?=
- =?UTF-8?q?m=20Lite=20with=20the=20tag=20line=20"Your=20books,=20Your=20wa?=
- =?UTF-8?q?y",=20the=20Ys=20in=20the=20logo's=20colours?=
+Subject: [PATCH 08/10] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20Audio?=
+ =?UTF-8?q?Yam=20Lite=20with=20the=20tag=20line=20"Your=20books,=20Your=20?=
+ =?UTF-8?q?way",=20the=20Ys=20in=20the=20logo's=20colours?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -2250,7 +2251,7 @@ index 8eddcd9..6aa8c63 100644
 From 7ad5be24096c587f7fc66b463b27fc32f09a34a7 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:29:14 +0000
-Subject: [PATCH 9/9] Home banner: title tile for a book with no cover;
+Subject: [PATCH 09/10] Home banner: title tile for a book with no cover;
  light-theme text in the theme's ink
 
 ---
@@ -2329,6 +2330,775 @@ index 6aa8c63..27c1ec5 100644
 +  & .feature-from {
 +    color: var(--muted);
 +  }
++}
+-- 
+2.43.0
+
+
+From 5b488feef030a52c1b29d0b7a70e94cfe2cdd0d8 Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 08:42:20 +0000
+Subject: [PATCH 10/10] AudioYam Lite: one Play and one Read on catalogue books
+ (M4B > M4A/AAC > Opus/OGG on Android > MP3 > FLAC; EPUB then PDF, smallest
+ first; no seeds = Not available), every version behind 'Other versions', no
+ 'Where to get it'; Apple's iTunes catalogue (Popular audiobooks, search,
+ square covers for cloud books); no service names (TorBox, Real-Debrid,
+ LibGen, Audible) on screen; transcript back; theme dice on Home; add-on
+ torrent crash fixed
+
+---
+ src/components/available.jsx      | 45 ++++++++++++++++++++++++++++---
+ src/components/common.jsx         |  6 +++--
+ src/components/ebook-search.jsx   |  4 +--
+ src/components/fix-details.jsx    |  2 +-
+ src/components/player-ui.jsx      |  8 +++---
+ src/components/source-results.jsx | 38 +++++++++++++++++++-------
+ src/lib/edition.js                |  3 ++-
+ src/lib/findorder.js              | 11 ++++----
+ src/lib/meta.js                   | 12 ++++-----
+ src/lib/theme.js                  | 19 +++++++++++++
+ src/screens/Book.jsx              | 29 +++++++-------------
+ src/screens/Browse.jsx            |  2 +-
+ src/screens/Discover.jsx          |  2 ++
+ src/screens/Home.jsx              | 35 ++++++++++++++++++++++++
+ src/screens/settings-extra.jsx    |  6 ++---
+ src/sources/addons.js             |  3 +++
+ src/sources/index.js              |  5 +++-
+ src/sources/itunes.js             | 44 ++++++++++++++++++++++++++++++
+ src/styles.css                    | 27 +++++++++++++++++++
+ 19 files changed, 242 insertions(+), 59 deletions(-)
+ create mode 100644 src/sources/itunes.js
+
+diff --git a/src/components/available.jsx b/src/components/available.jsx
+index 78c0e1f..7a9c9e8 100644
+--- a/src/components/available.jsx
++++ b/src/components/available.jsx
+@@ -15,7 +15,8 @@ import { surname } from '../lib/match.js';
+ 
+ const fmtMb = (b) => (b >= 1073741824 ? `${(b / 1073741824).toFixed(1)} GB` : `${Math.round(b / 1048576)} MB`);
+ 
+-const SVC = { tb: 'TorBox', rd: 'Real-Debrid', abs: 'Audiobookshelf', torbox: 'TorBox', realdebrid: 'Real-Debrid' };
++// AudioYam Lite: no service names on screen.
++const SVC = { abs: 'Audiobookshelf' };
+ 
+ /**
+  * "Available": every way to listen to or read this book right now, as one row of
+@@ -23,7 +24,7 @@ const SVC = { tb: 'TorBox', rd: 'Real-Debrid', abs: 'Audiobookshelf', torbox: 'T
+  * ebooks, your Audiobookshelf and TorBox / Real-Debrid files, and source results that
+  * play at once. Audiobook pages show ebooks too, and the other way round.
+  */
+-export function Available({ book, editions }) {
++export function Available({ book, editions, otherOpen, onOther }) {
+   const local = useStore(localSrc.localCfg);
+   const dls = useStore(downloads);
+   const kept = useStore(savedEbooks);
+@@ -84,9 +85,9 @@ export function Available({ book, editions }) {
+             : { key: b.uid, icon: 'headphones', label: 'Listen', sub: SVC[b.source] || 'your cloud', act: listen(b) }
+         );
+     // Source results that play at once / open in the reader.
+-    for (const { r, via } of quick?.instant || []) add({ key: 'q:' + r.key, icon: 'play', label: 'Play now', sub: `instant · ${SVC[via]}`, act: { kind: 'quick', r, via } });
++    for (const { r, via } of quick?.instant || []) add({ key: 'q:' + r.key, icon: 'play', label: 'Play now', sub: 'instant', act: { kind: 'quick', r, via } });
+     // Not ready yet: fetched through TorBox / Real-Debrid, plays when it's there.
+-    for (const { r, via } of quick?.fetch || []) add({ key: 'f:' + r.key, icon: 'download', label: 'Get & play', sub: `${SVC[via]}${r.seeders == null ? '' : ` · ${r.seeders} seed${r.seeders === 1 ? '' : 's'}`}${r.size ? ` · ${fmtMb(r.size)}` : ''}`, act: { kind: 'fetch', r, via } });
++    for (const { r, via } of quick?.fetch || []) add({ key: 'f:' + r.key, icon: 'download', label: 'Get & play', sub: `your cloud${r.size ? ` · ${fmtMb(r.size)}` : ''}`, act: { kind: 'fetch', r, via } });
+     for (const r of quick?.readable || []) {
+       const rb = readerBookFor(r, book);
+       if (rb) add({ key: 'qr:' + r.key, icon: 'book', label: `Read ${rb.ebookFormat || ''}`.trim(), sub: 'from sources', act: read(rb) });
+@@ -126,6 +127,42 @@ export function Available({ book, editions }) {
+   };
+ 
+   const searching = book.kind === 'discover' && (!editions || quick?.pending);
++
++  // AudioYam Lite, catalogue books: one Play and one Read button, each picking the best
++  // way by itself (your own copies first, then results that play at once, then ones your
++  // cloud fetches; free LibriVox / Gutenberg copies last). The list of every version
++  // stays behind "Other versions".
++  if (book.kind === 'discover') {
++    const free = (b) => b && { key: 'free:' + b.uid, act: { kind: 'open', book: b }, sub: b.kind === 'text' ? 'free ebook' : 'free audiobook' };
++    const play =
++      chips.find((c) => c.act.kind === 'listen') ||
++      chips.find((c) => c.act.kind === 'quick') ||
++      chips.find((c) => c.act.kind === 'fetch') ||
++      free(editions?.audio?.[0]);
++    const reads = chips.filter((c) => c.act.kind === 'read');
++    const readChip = reads.find((c) => /EPUB/.test(c.label)) || reads[0] || free(editions?.text?.[0]);
++    return (
++      <div class="lite-get">
++        <div class="lite-get-row">
++          <button class="btn primary big" disabled={!play || !!busy} onClick={() => play && run(play)}>
++            {(play && busy === play.key) || (!play && searching) ? <span class="spinner" /> : <Icon name="play" size={18} />}{' '}
++            {play ? 'Play' : searching ? 'Looking…' : 'Not available'}
++          </button>
++          {readChip && (
++            <button class="btn big" disabled={!!busy} onClick={() => run(readChip)}>
++              {busy === readChip.key ? <span class="spinner" /> : <Icon name="book" size={18} />} Read
++            </button>
++          )}
++        </div>
++        {play?.sub && <small class="lite-get-sub">{play.sub}</small>}
++        {onOther && (
++          <button class="link-btn lite-get-other" onClick={onOther}>
++            {otherOpen ? 'Hide other versions' : 'Other versions'}
++          </button>
++        )}
++      </div>
++    );
++  }
+   if (!chips.length && !searching) return null;
+   return (
+     <div class="available">
+diff --git a/src/components/common.jsx b/src/components/common.jsx
+index ee0330e..04a94d6 100644
+--- a/src/components/common.jsx
++++ b/src/components/common.jsx
+@@ -86,9 +86,11 @@ export function SourceBadge({ uid, book }) {
+   const key = sourceOf(uid || '');
+   const plain = isInk(activePalette(useStore(settings))) && PLAIN[key];
+   if (plain) return <span class="badge">{plain}</span>;
++  // AudioYam Lite: no store / catalogue names (Audible, Google Books…) under the title.
++  if (['au', 'gbk', 'hi', 'gr', 'hc'].includes(key)) return null;
+   // Books from places without a source entry (e.g. direct ebook links) get a plain badge.
+   const s = SOURCES[key] || { short: book?.addon || (book?.kind === 'text' ? 'Ebook' : 'Book'), hue: 210 };
+-  const label = key === 'addon' ? book?.addonName || s.short : book?.via === 'lv' ? 'LibriVox' : s.short;
++  const label = key === 'addon' ? 'Add-on' : book?.via === 'lv' ? 'LibriVox' : s.short;
+   return (
+     <span class="badge" style={{ '--h': key === 'ia' && book?.via === 'lv' ? SOURCES.lv.hue : s.hue }}>
+       {label}
+@@ -100,7 +102,7 @@ export function SourceBadge({ uid, book }) {
+ export function withMeta(book, meta) {
+   if (!meta) return book;
+   if (meta.fixed) return { ...book, cover: meta.cover || book.cover || '', title: meta.title || book.title, author: meta.author || book.author || '' };
+-  const cloudItem = book.source === 'tb' || book.source === 'rd' || book.source === 'loc';
++  const cloudItem = ['tb', 'rd', 'ad', 'pm', 'loc'].includes(book.source);
+   return {
+     ...book,
+     cover: book.cover || meta.cover || '',
+diff --git a/src/components/ebook-search.jsx b/src/components/ebook-search.jsx
+index e472459..03d6257 100644
+--- a/src/components/ebook-search.jsx
++++ b/src/components/ebook-search.jsx
+@@ -108,7 +108,7 @@ export function EbookSearchResults({ q }) {
+           <h3 class="section-label pad">Your cloud</h3>
+           {cloudHits == null ? (
+             <p class="muted pad-s">
+-              <span class="spinner small" /> Looking in TorBox / Real-Debrid…
++              <span class="spinner small" /> Looking in your cloud…
+             </p>
+           ) : cloudHits.length ? (
+             cloudHits.slice(0, 20).map((b) => (
+@@ -117,7 +117,7 @@ export function EbookSearchResults({ q }) {
+                 <div>
+                   <b>{b.title}</b>
+                   <small>
+-                    {b.author || ''} · {b.source === 'rd' ? 'Real-Debrid' : 'TorBox'}
++                    {b.author || ''} · your cloud
+                   </small>
+                 </div>
+                 <em class="er-act">Open</em>
+diff --git a/src/components/fix-details.jsx b/src/components/fix-details.jsx
+index 188b8f2..fd1e841 100644
+--- a/src/components/fix-details.jsx
++++ b/src/components/fix-details.jsx
+@@ -124,7 +124,7 @@ export function FixDetails({ book, onFixed = () => {}, autoOpen = false, onDone
+         </button>
+       </form>
+       <OwnCoverButton book={book} onFixed={onFixed} onDone={() => (setOpen(false), onDone())} label="Or choose your own picture from the phone" />
+-      {busy && <p class="muted small">Looking in Audible, Apple, Goodreads, Google Books and Open Library…</p>}
++      {busy && <p class="muted small">Looking for covers and details…</p>}
+       {list && !list.length && <p class="muted small">Nothing found — try fewer words.</p>}
+       <div class="fix-list">
+         {(list || []).map((m) => (
+diff --git a/src/components/player-ui.jsx b/src/components/player-ui.jsx
+index 141c5b4..743bcfb 100644
+--- a/src/components/player-ui.jsx
++++ b/src/components/player-ui.jsx
+@@ -66,14 +66,14 @@ export function useCoverColor(book) {
+ }
+ 
+ const prepPct = (st) => Math.max(0, Math.min(100, Math.round((st.progress || 0) * 100)));
+-const prepLabel = (st) => `${st.provider === 'realdebrid' ? 'Real-Debrid' : 'TorBox'} is downloading · ${prepPct(st)}%`;
++const prepLabel = (st) => `Your cloud is downloading · ${prepPct(st)}%`;
+ 
+ function PrepBar({ st }) {
+   const pct = prepPct(st);
+   return (
+     <div class="prep">
+       <div class="prep-head">
+-        <span>{st.provider === 'realdebrid' ? 'Real-Debrid' : 'TorBox'} is still downloading this</span>
++        <span>Your cloud is still downloading this</span>
+         <b>{pct}%</b>
+       </div>
+       <div class="prep-track">
+@@ -192,7 +192,7 @@ export function FullPlayer() {
+   const chapters = player.chapters();
+   const g = player.globalTime();
+   const total = player.totalDuration();
+-  const showText = useStore(transcriptCfg).open && has('ai');
++  const showText = useStore(transcriptCfg).open && has('transcript');
+   const sleepLeft = s.sleepUntil ? Math.max(0, (s.sleepUntil - Date.now()) / 1000) : 0;
+ 
+   return (
+@@ -377,7 +377,7 @@ export function FullPlayer() {
+           <Icon name="moon" size={16} />
+           <small>{s.sleepUntil ? fmtTime(sleepLeft) : s.sleepEndOfTrack ? 'Ch. end' : 'Sleep'}</small>
+         </button>
+-        {has('ai') && (
++        {has('transcript') && (
+           <button
+             class={'chip-btn' + (showText ? ' active' : '')}
+             onClick={() => {
+diff --git a/src/components/source-results.jsx b/src/components/source-results.jsx
+index efd0339..91e5a6f 100644
+--- a/src/components/source-results.jsx
++++ b/src/components/source-results.jsx
+@@ -40,7 +40,7 @@ async function saveToDownloads(link, name, format) {
+ }
+ import { shareEbook } from '../lib/kindle.js';
+ 
+-const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize' };
++const LABEL = { torbox: 'your cloud', realdebrid: 'your cloud', alldebrid: 'your cloud', premiumize: 'your cloud' };
+ 
+ // ---- what's ready right now, for the book page's "Available" row --------------
+ // Results that play at once (cached in your debrid, or ready in your account) and
+@@ -73,7 +73,8 @@ export const readerBookFor = (r, book) => {
+   const f = directEbookFile(r);
+   return f ? directReaderBook(r, f, book) : null;
+ };
+-const SHORT = { torbox: 'TorBox', realdebrid: 'RD' };
++// AudioYam Lite: no service names on screen.
++const SHORT = { torbox: 'Cloud', realdebrid: 'Cloud', alldebrid: 'Cloud', premiumize: 'Cloud' };
+ 
+ // A readable name for a release: "A.Tale.of.Two.Cities.Charles.Dickens.Audiobook.MP3-JD07"
+ // becomes "A Tale of Two Cities Charles Dickens" (the full name stays in small type below).
+@@ -83,7 +84,22 @@ const prettyName = (t) => {
+   if (!/\s/.test(raw)) s = s.replace(/\s-\s?[A-Za-z0-9]{2,10}$/, '');
+   return s.replace(/\b\d{2,3} ?kb(ps)?\b/gi, ' ').replace(/\s+/g, ' ').trim() || raw;
+ };
+-const FORMAT = /\b(m4b|m4a|mp3|flac|aac|opus|ogg|epub|pdf|mobi|azw3?|cbz)\b/i;
++const FORMAT = /\b(m4b|m4a|mp3|flac|aac|opus|ogg|wma|wav|mka|epub|pdf|mobi|azw3?|cbz)\b/i;
++// AudioYam Lite's one Play button: which audio format to prefer. M4B, then M4A / AAC,
++// then Opus / OGG (Android only — patchy on iPhone and the web), then MP3, then FLAC.
++// WMA / WAV / MKA never (won't play on phones, or huge). Unknown counts like MP3.
++const OPUS_OK = Capacitor.getPlatform() === 'android';
++export function audioRank(r) {
++  const f = formatOf(r);
++  if (f === 'M4B') return 0;
++  if (f === 'M4A' || f === 'AAC') return 1;
++  if (f === 'OPUS' || f === 'OGG') return OPUS_OK ? 2 : 99;
++  if (f === 'FLAC') return 4;
++  if (/^(WMA|WAV|MKA)$/.test(f)) return 99;
++  return 3;
++}
++// Ebooks for the one Read button: EPUB before PDF, the smaller file first.
++const readRank = (r) => (directEbookFile(r)?.format === 'EPUB' ? 0 : 1) * 1e13 + (Number(r.size) || 1e12);
+ const formatOf = (r) => (String(r.format || '').match(FORMAT) || String(r.title || '').replace(/[._]+/g, ' ').match(FORMAT) || [])[1]?.toUpperCase() || '';
+ const isEbookResult = (r) => r.contentType === 'ebook' || sourceLabel(r.addon) === 'Ebook' || /^(EPUB|PDF|MOBI|AZW3?|CBZ)$/.test(formatOf(r)) || qb.isEbookName(`${r.title} ${r.format || ''}`);
+ // Rows shown per section before "Show more".
+@@ -229,20 +245,24 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
+   // Tell the Available row what plays at once and which ebook links open in the reader.
+   const readyVia = (r) =>
+     providers.find((p) => r.cache?.[p] || (p === 'realdebrid' && r.cache?.any && !r.cache?.torbox) || account.get(r.hash)?.ready);
++  const byFormat = (a, b) => audioRank(a.r) - audioRank(b.r) || (b.r.seeders || 0) - (a.r.seeders || 0);
+   const instant = shownGroups
+-    .map((g) => g.items[0])
+-    .filter((r) => (r.magnet || r.hash) && readyVia(r) && r.contentType !== 'ebook')
+-    .map((r) => ({ r, via: readyVia(r) }));
++    .flatMap((g) => g.items)
++    .filter((r) => (r.magnet || r.hash) && readyVia(r) && r.contentType !== 'ebook' && !isEbookResult(r) && audioRank(r) < 99)
++    .map((r) => ({ r, via: readyVia(r) }))
++    .sort(byFormat);
+   const readable = linkGroups
+     .flatMap((g) => g.items)
+-    .filter((r) => /^(EPUB|PDF)$/.test(directEbookFile(r)?.format || ''));
++    .filter((r) => /^(EPUB|PDF)$/.test(directEbookFile(r)?.format || ''))
++    .sort((a, b) => readRank(a) - readRank(b));
+   // Audiobooks with seeders that aren't ready yet: your debrid service fetches them first.
+   const fetchable = provider
+     ? shownGroups
+         .map((g) => g.items[0])
+         
+-        .filter((r) => (r.magnet || r.hash) && !readyVia(r) && (r.seeders == null || r.seeders > 0) && r.contentType !== 'ebook' && !qb.isEbookName(`${r.title} ${r.format || ''}`))
++        .filter((r) => (r.magnet || r.hash) && !readyVia(r) && r.seeders > 0 && r.contentType !== 'ebook' && !isEbookResult(r) && audioRank(r) < 99)
+         .map((r) => ({ r, via: provider }))
++        .sort(byFormat)
+     : [];
+   const quickKey = `${instant.map((x) => x.r.key + x.via).join()}|${readable.map((r) => r.key).join()}|${fetchable.map((x) => x.r.key).join()}`;
+   useEffect(() => {
+@@ -694,7 +714,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged })
+           </button>
+         </div>
+       )}
+-      {dead && <div class="src-warn">No seeders — your debrid service may never finish downloading this one.</div>}
++      {dead && <div class="src-warn">No seeders — your cloud may never finish downloading this one.</div>}
+       {status && <Progress text={status.text} pct={status.pct} />}
+       <div class="src-actions ready">
+         {!hasMagnet && ebook ? (
+diff --git a/src/lib/edition.js b/src/lib/edition.js
+index bad9193..8efffaf 100644
+--- a/src/lib/edition.js
++++ b/src/lib/edition.js
+@@ -9,7 +9,7 @@ export const FEATURES = {
+   debrid: true, // TorBox / Real-Debrid: your own account, to play add-on results and your cloud
+   audiobookshelf: false,
+   account: false, // sign-in and sync between devices
+-  ai: false, // Ask, summaries, X-Ray, recap, transcript, translate, bookseller
++  ai: false, // Ask, summaries, X-Ray, recap, translate, bookseller
+   catalogs: false, // Audible / Google Books listings, Hindi section, ratings, recommendations
+   goodreads: false, // Goodreads / Hardcover shelves
+   storyshots: false,
+@@ -24,6 +24,7 @@ export const FEATURES = {
+   kindle: false,
+   naturalVoices: false, // Microsoft Edge voices (phone voices only)
+   themes: true, // colour themes, accents, light / dark
++  transcript: true, // the book's text under the player, from its ebook
+ };
+ 
+ export const has = (name) => FEATURES[name] !== false;
+diff --git a/src/lib/findorder.js b/src/lib/findorder.js
+index 289bd38..c11e5b0 100644
+--- a/src/lib/findorder.js
++++ b/src/lib/findorder.js
+@@ -3,15 +3,16 @@
+ import { settings } from './store.js';
+ 
+ export const PLACES = {
+-  debrid: 'TorBox / Real-Debrid',
++  debrid: 'Your cloud',
+   local: 'This phone',
+-  sources: 'Sources',
++  sources: 'Your sources',
+   abs: 'Audiobookshelf',
+   played: 'Books you’ve played',
+ };
+ export const DEFAULT_ORDER = {
+-  audio: ['debrid', 'local', 'abs', 'played'],
+-  ebook: ['local', 'sources', 'debrid', 'abs'],
++  // AudioYam Lite: no Audiobookshelf.
++  audio: ['local', 'debrid', 'played'],
++  ebook: ['local', 'sources', 'debrid'],
+ };
+ 
+ /** The order for 'audio' or 'ebook': your own, with any new places added at the end. */
+@@ -28,7 +29,7 @@ export const setFindOrder = (kind, list) => settings.patch({ findOrder: { ...(se
+ export function placeOf(b, local = false) {
+   if (local) return 'local';
+   const k = String(b?.source || b?.uid || '').split(':')[0];
+-  return k === 'tb' || k === 'rd' ? 'debrid' : k === 'loc' ? 'local' : k === 'abs' ? 'abs' : 'played';
++  return k === 'tb' || k === 'rd' || k === 'ad' || k === 'pm' ? 'debrid' : k === 'loc' ? 'local' : k === 'abs' ? 'abs' : 'played';
+ }
+ 
+ /** Ebook auto-attach for the transcript (on unless switched off). */
+diff --git a/src/lib/meta.js b/src/lib/meta.js
+index f327adc..5a413af 100644
+--- a/src/lib/meta.js
++++ b/src/lib/meta.js
+@@ -161,8 +161,9 @@ export function enabledProviders() {
+   // Providers added since the order was saved come at the end.
+   const saved = settings.get().metaOrder || [];
+   const order = [...saved, ...Object.keys(PROVIDERS).filter((k) => !saved.includes(k))];
+-  // Editions without the store catalogues look books up on Open Library only.
+-  if (!has('catalogs')) return ['openlibrary'].filter((k) => lookups[k]);
++  // AudioYam Lite: Apple's free iTunes catalogue (square audiobook covers, descriptions),
++  // then Open Library.
++  if (!has('catalogs')) return ['apple', 'openlibrary'].filter((k) => lookups[k]);
+   return order.filter((k) => lookups[k] && st[k] !== false);
+ }
+ 
+@@ -319,7 +320,6 @@ const squareKey = (book) => keyFor(`${mainTitle(book?.title || '')} ${String(boo
+ /** The square audiobook cover already found for this book ('' none / not looked up). */
+ export const squareNow = (book) => squares.get()[squareKey(book)]?.u || '';
+ export function squareCover(book) {
+-  if (!has('catalogs')) return Promise.resolve(''); // Apple / Audible look-ups: not in this edition
+   const key = squareKey(book);
+   if (!key || !book?.title) return Promise.resolve('');
+   const hit = squares.get()[key];
+@@ -334,7 +334,7 @@ export function squareCover(book) {
+       const r = (d.results || []).find((x) => plausible(title, x.collectionName || x.trackName) && plausible(x.collectionName || x.trackName, title));
+       if (r?.artworkUrl100) u = r.artworkUrl100.replace(/^http:/, 'https:').replace(/\/\d+x\d+bb\./, '/600x600bb.');
+     } catch {}
+-    if (!u) {
++    if (!u && has('catalogs')) {
+       try {
+         const d = await getJson('https://api.audible.com/1.0/catalog/products?' + qs({ keywords: q, num_results: 5, products_sort_by: 'Relevance', response_groups: 'media', image_sizes: '500' }), { timeout: 12000 });
+         const r = (d.products || []).find((x) => plausible(title, x.title) && plausible(x.title, title));
+@@ -388,8 +388,8 @@ export async function searchCovers(term) {
+   const only = !has('catalogs'); // Open Library only
+   const [au, ap, ab, gb, ol, gr] = await Promise.all([
+     only ? [] : safe(audibleCat.search(t)).then((l) => l.slice(0, 6).map((b) => ({ ...b, from: 'Audible' }))),
+-    only ? [] : apple('audiobook', 'Apple audiobook'),
+-    only ? [] : apple('ebook', 'Apple Books'),
++    apple('audiobook', 'Apple audiobook'),
++    apple('ebook', 'Apple Books'),
+     only ? [] : safe(googleBooks.search(t)).then((l) => l.slice(0, 5).map((b) => ({ ...b, from: 'Google Books' }))),
+     safe(
+       getJson('https://openlibrary.org/search.json?' + qs({ q: t, limit: 5, fields: 'title,author_name,cover_i,first_publish_year' }), { timeout: 12000 }).then((d) =>
+diff --git a/src/lib/theme.js b/src/lib/theme.js
+index ba1b621..37e5008 100644
+--- a/src/lib/theme.js
++++ b/src/lib/theme.js
+@@ -103,3 +103,22 @@ export const PALETTES = [
+   { id: 'lilac', name: 'Lilac', light: true, bg: '#f6f3fc', swatch: ['#f6f3fc', '#6750a4'], accent: 'lavender' },
+   { id: 'stone', name: 'Stone & Brass', light: true, bg: '#f2f0ed', swatch: ['#f2f0ed', '#8a6322'], accent: 'brass' },
+ ];
++
++// ---- Theme dice (AudioYam Lite's Home button) ------------------------------------
++// A random look: light or dark, one of the curated palettes, and an accent made for it.
++// Only combinations the app already ships are picked (on light themes, accents that have
++// their deeper light-background tones), so the text always stays readable.
++let lastLook = null;
++export function rollTheme(st) {
++  const look = (s) => ({ mode: s.mode, palette: s.palette, paletteLight: s.paletteLight, paletteDark: s.paletteDark, accent: s.accent });
++  lastLook = look(st);
++  const light = Math.random() < 0.5;
++  const current = activePalette(st);
++  const pals = PALETTES.filter((p) => p.light === light && p.id !== current);
++  const p = pals[Math.floor(Math.random() * pals.length)];
++  const okAccents = Object.keys(ACCENTS).filter((k) => !light || ACCENTS[k].l);
++  const accent = p.accent || okAccents[Math.floor(Math.random() * okAccents.length)];
++  return { palette: p.id, [light ? 'paletteLight' : 'paletteDark']: p.id, mode: light ? 'light' : 'dark', accent, name: p.name };
++}
++/** The look before the last roll (long-press the dice), or null. */
++export const previousLook = () => lastLook;
+diff --git a/src/screens/Book.jsx b/src/screens/Book.jsx
+index c58648d..87f26a9 100644
+--- a/src/screens/Book.jsx
++++ b/src/screens/Book.jsx
+@@ -75,6 +75,7 @@ const OTHER_SOURCES = new Set(["tb", "rd", "abs", "addon"]);
+ export function Book({ book: initial }) {
+   const [book, setBook] = useState(initial);
+   const [loading, setLoading] = useState(true);
++  const [showOther, setShowOther] = useState(false); // AudioYam Lite: every version, behind one link
+   const [error, setError] = useState(null);
+   const [expanded, setExpanded] = useState(false);
+   const gr = has("goodreads") ? useGoodreads(book) : null;
+@@ -196,23 +197,11 @@ export function Book({ book: initial }) {
+       <div class="book-body">
+       <StatsStrip book={book} tracks={tracks} />
+       {book.source !== "pod" && book.source !== "sum" && (
+-        <Available book={book} editions={editions} />
++        <Available book={book} editions={editions} otherOpen={showOther} onOther={() => setShowOther((v) => !v)} />
+       )}
+       {has("tags") && book.source !== "pod" && book.source !== "sum" && <SeriesCard book={book} />}
+       {has("storyshots") && <StoryShotsLink book={book} />}
+       <div class="book-actions">
+-        {book.kind === "discover" && (
+-          <button
+-            class="btn primary big"
+-            onClick={() =>
+-              document
+-                .getElementById("where-to-get")
+-                ?.scrollIntoView({ behavior: "smooth", block: "start" })
+-            }
+-          >
+-            <Icon name="headphones" size={18} /> Where to get it
+-          </button>
+-        )}
+         {canListen && (
+           <button
+             class="btn primary big"
+@@ -450,7 +439,7 @@ export function Book({ book: initial }) {
+ 
+       {error &&
+         (book.source === 'abs' ? (
+-          <p class="err pad">Your Audiobookshelf server isn't answering ({error}). Play still works: it uses your copy on the phone or in TorBox / Real-Debrid when there is one.</p>
++          <p class="err pad">Your Audiobookshelf server isn't answering ({error}). Play still works: it uses your copy on the phone or in your cloud when there is one.</p>
+         ) : (
+           <p class="err pad">Couldn't load details: {error}</p>
+         ))}
+@@ -486,6 +475,7 @@ export function Book({ book: initial }) {
+           {has("tags") && <BookTags book={book} inline />}
+         </MyRating>
+       )}
++      <div class={"other-versions" + (book.kind !== "discover" || showOther ? " open" : "")}>
+       {book.kind === "discover" && (
+         <section class="pad" id="where-to-get">
+           <h3 class="section-label">Where to listen or read</h3>
+@@ -498,10 +488,8 @@ export function Book({ book: initial }) {
+             ) && !sourceAddons().length ? (
+             <>
+               <p class="muted">
+-                Not found{editions.searched.length ? ` in ${editions.searched.join(", ")}` : ""}. Your TorBox and
+-                Real-Debrid search only covers files already in your account, so
+-                add the book there first (Settings → TorBox → add a magnet or
+-                link) or install an addon that searches for it.
++                Not found{editions.searched.length ? ` in ${editions.searched.join(", ")}` : ""}. Add a source in
++                Settings → Your sources that has it.
+               </p>
+               <button
+                 class="btn ghost-wide"
+@@ -550,6 +538,7 @@ export function Book({ book: initial }) {
+           items={editions.text}
+         />
+       )}
++      </div>
+ 
+       <BookBookmarks book={book} />
+ 
+@@ -1110,8 +1099,8 @@ function AskCard({ book, description, genres }) {
+ function YourCopies({ editions }) {
+   const items = [
+     ...(editions?.server || []).map((b) => ["server", "Audiobookshelf", b]),
+-    ...(editions?.cloud || []).map((b) => ["download", b.source === "rd" ? "Real-Debrid" : "TorBox", b]),
+-    ...(editions?.addons || []).map((b) => ["puzzle", b.addonName || "Addon", b]),
++    ...(editions?.cloud || []).map((b) => ["download", "Your cloud", b]),
++    ...(editions?.addons || []).map((b) => ["puzzle", "Add-on", b]),
+   ];
+   if (!items.length) return null;
+   return (
+diff --git a/src/screens/Browse.jsx b/src/screens/Browse.jsx
+index 566b758..45d2107 100644
+--- a/src/screens/Browse.jsx
++++ b/src/screens/Browse.jsx
+@@ -122,7 +122,7 @@ export function Browse({ genre }) {
+             ? tab === 'yours'
+               ? 'Hindi books from your server, debrid libraries and Hardcover shelves.'
+               : tab === 'sources'
+-                ? 'Hindi audiobooks found by your source addons — Play or add to TorBox / Real-Debrid.'
++                ? 'Hindi audiobooks found by your source addons — Play or add to your cloud.'
+                 : tab === 'best'
+                 ? 'Top Hindi audiobooks on Audible India — open one to find it in your sources.'
+                 : 'Free Hindi recordings on Internet Archive.'
+diff --git a/src/screens/Discover.jsx b/src/screens/Discover.jsx
+index 1d9e255..31e2d8a 100644
+--- a/src/screens/Discover.jsx
++++ b/src/screens/Discover.jsx
+@@ -1,4 +1,5 @@
+ import { useEffect, useRef, useState } from 'preact/hooks';
++import * as itunes from '../sources/itunes.js';
+ import { memo } from 'preact/compat';
+ import { Grid, Empty, Skeleton, AskButton, Row, Cover, cachedRow } from '../components/common.jsx';
+ import { Icon } from '../components/icons.jsx';
+@@ -24,6 +25,7 @@ import * as freeOl from '../sources/openlibrary.js';
+ function FreeRows() {
+   return (
+     <>
++      <Row title="Popular audiobooks" subtitle="Tap one, then Play — found in your sources" icon="flame" cacheKey="itTop" load={() => itunes.top()} deps={[]} />
+       <Row title="Most listened" subtitle="Free audiobooks · LibriVox" icon="headphones" cacheKey="freePopular" load={freeIa.popular} deps={[]} />
+       <Row title="Fresh recordings" subtitle="Newest LibriVox audiobooks" icon="sparkle" cacheKey="freeNewest" load={freeIa.newest} deps={[]} />
+       <Row title="Classics to read" subtitle="Free ebooks · Project Gutenberg" icon="book" cacheKey="freeGb" load={() => freeGb.popular('en')} deps={[]} />
+diff --git a/src/screens/Home.jsx b/src/screens/Home.jsx
+index 0b0c755..01fa93a 100644
+--- a/src/screens/Home.jsx
++++ b/src/screens/Home.jsx
+@@ -25,6 +25,7 @@ import { HINDI_ALL } from './hindi.js';
+ import { audible } from '../sources/catalogs.js';
+ import { waitlist, cancel, playNow } from '../lib/waitlist.js';
+ import { toast, Cover } from '../components/common.jsx';
++import { rollTheme, previousLook } from '../lib/theme.js';
+ import { getDetails } from '../sources/index.js';
+ import * as player from '../lib/player.js';
+ 
+@@ -538,6 +539,39 @@ export function GenreChips() {
+   );
+ }
+ 
++/** One tap: a random theme (light or dark, palette and accent). Long-press: back to the previous one. */
++function ThemeDice() {
++  const timer = useRef(0);
++  const held = useRef(false);
++  const roll = () => {
++    const { name, ...look } = rollTheme(settings.get());
++    settings.patch(look);
++    toast(`${name} — long-press to go back`);
++  };
++  return (
++    <button
++      class="icon-btn glass"
++      aria-label="Surprise me with a theme"
++      onPointerDown={() => {
++        held.current = false;
++        timer.current = setTimeout(() => {
++          held.current = true;
++          const prev = previousLook();
++          if (prev) {
++            settings.patch(prev);
++            toast('Back to your previous theme');
++          }
++        }, 600);
++      }}
++      onPointerUp={() => clearTimeout(timer.current)}
++      onPointerLeave={() => clearTimeout(timer.current)}
++      onClick={() => !held.current && roll()}
++    >
++      <Icon name="palette" />
++    </button>
++  );
++}
++
+ export function Home() {
+   const st = useStore(settings);
+   const addonList = useStore(addons);
+@@ -629,6 +663,7 @@ export function Home() {
+           )}
+           {has('carMode') && <SceneButton />}
+           {has('ai') && <AskButton glass />}
++          {has('themes') && <ThemeDice />}
+           <button class="icon-btn glass home-search" onClick={() => nav.tab('discover')} aria-label="Search">
+             <Icon name="search" />
+           </button>
+diff --git a/src/screens/settings-extra.jsx b/src/screens/settings-extra.jsx
+index d0df4bb..a30eeaa 100644
+--- a/src/screens/settings-extra.jsx
++++ b/src/screens/settings-extra.jsx
+@@ -92,7 +92,7 @@ export function AccountCard() {
+         <label class="set-row">
+           <div>
+             <b>Sync service keys</b>
+-            <small>TorBox, Real-Debrid, Audiobookshelf, Hardcover & voice keys — so a new device is ready instantly</small>
++            <small>Your sources, accounts & keys — so a new device is ready instantly</small>
+           </div>
+           <input type="checkbox" class="switch" checked={a.syncKeys} onChange={(e) => sync.account.patch({ syncKeys: e.currentTarget.checked })} />
+         </label>
+@@ -631,12 +631,12 @@ export function FindOrderCard() {
+   };
+   return (
+     <>
+-      <List kind="audio" title="Audiobooks (voice: play a book)" note="Where your copy is looked for. Within TorBox / Real-Debrid, your default one first." />
++      <List kind="audio" title="Audiobooks" note="Where your copy is looked for first." />
+       <List kind="ebook" title="Ebooks (for the transcript)" note="Where the audiobook's ebook is looked for." />
+       <label class="set-row">
+         <div>
+           <b>Attach the ebook by itself</b>
+-          <small>When an audiobook plays, its ebook is found in this order, kept on the phone and used for the transcript's words. Only books already there — nothing new is added to TorBox / Real-Debrid.</small>
++          <small>When an audiobook plays, its ebook is found in this order, kept on the phone and used for the transcript's words. Only books already there — nothing new is added to your cloud.</small>
+         </div>
+         <input type="checkbox" class="switch" checked={st.autoEbook !== false} onChange={(e) => settings.patch({ autoEbook: e.currentTarget.checked })} />
+       </label>
+diff --git a/src/sources/addons.js b/src/sources/addons.js
+index 926b0e0..5a35a45 100644
+--- a/src/sources/addons.js
++++ b/src/sources/addons.js
+@@ -4,6 +4,9 @@ import { getJson, cleanUrl } from '../lib/http.js';
+ import { addons, settings } from '../lib/store.js';
+ import { isSourceManifest } from './sourceaddons.js';
+ 
++// Audio files in a torrent's file list (for the debrid play path).
++const AUDIO = /\.(mp3|m4a|m4b|aac|flac|ogg|oga|opus|wav|wma|mka|mp4a)$/i;
++
+ // Addons that no longer work (their server blocks every search) are removed on update.
+ const RETIRED = /anna'?s?[\s_-]*archive|^annas?$/i;
+ const isRetired = (a) => RETIRED.test(a?.manifest?.id || '') || RETIRED.test(a?.manifest?.name || '');
+diff --git a/src/sources/index.js b/src/sources/index.js
+index 7c7fd25..06c3a06 100644
+--- a/src/sources/index.js
++++ b/src/sources/index.js
+@@ -6,6 +6,7 @@ import * as ol from './openlibrary.js';
+ import * as absSrc from './audiobookshelf.js';
+ import * as addonSrc from './addons.js';
+ import * as cloud from './debrid.js';
++import * as itunes from './itunes.js';
+ import * as localSrc from './local.js';
+ import * as hc from './hardcover.js';
+ import * as gr from './goodreads.js';
+@@ -24,6 +25,7 @@ export const SOURCES = {
+   lv: { name: 'LibriVox', short: 'LibriVox', hue: 350, kind: 'Listen', blurb: '20,000+ volunteer-read public-domain audiobooks', impl: lv, free: true },
+   se: { name: 'Standard Ebooks', short: 'Standard Ebooks', hue: 205, kind: 'Read', blurb: 'Beautifully made free classics — read in-app or send to Kindle', impl: se, free: true },
+   gb: { name: 'Project Gutenberg', short: 'Gutenberg', hue: 150, kind: 'Read', blurb: '75,000+ free classic ebooks, read in-app', impl: gb, free: true },
++  it: { name: 'Audiobook catalogue', short: 'Catalogue', hue: 330, kind: 'Discover', blurb: 'Audiobook listings with covers — Play finds a copy in your sources', impl: itunes },
+   ol: { name: 'Open Library', short: 'Open Library', hue: 210, kind: 'Discover', blurb: 'Trending books, rich descriptions & covers', impl: ol, free: true },
+   au: { name: 'Audible catalog', short: 'Audible', hue: 32, kind: 'Discover', blurb: 'Audiobook listings with narrators, series & covers', impl: audible, hidden: true },
+   gbk: { name: 'Google Books', short: 'Google Books', hue: 220, kind: 'Discover', blurb: 'Listings for almost every book in print', impl: googleBooks, hidden: true },
+@@ -46,7 +48,7 @@ export const SOURCES = {
+ const enabled = (k) => !SOURCES[k]?.hidden && settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
+ 
+ // Your own services first, then listings, then free catalogues — until the user rearranges them.
+-const DEFAULT_ORDER = ['loc', 'tb', 'rd', 'addon', 'lv', 'ia', 'gb', 'se', 'ol'];
++const DEFAULT_ORDER = ['loc', 'tb', 'rd', 'addon', 'it', 'lv', 'ia', 'gb', 'se', 'ol'];
+ /** Source keys in the user's chosen order (Settings → Sources). */
+ export function sourceOrder() {
+   const saved = (settings.get().sourceOrder || []).filter((k) => SOURCES[k] && !SOURCES[k].hidden);
+@@ -154,6 +156,7 @@ export function searchAll(term, onResult) {
+     // Hindi (Devanagari) searches go to Audible India, which carries the Hindi catalogue.
+     ['au', () => (/[\u0900-\u097F]/.test(term) ? audible.hindi(term) : audible.search(term)), true],
+     ['gbk', () => googleBooks.search(term), true],
++    ['it', () => itunes.search(term), true],
+     ['ol', () => ol.search(term), true],
+   ].filter(([k, , ok]) => ok && enabled(k));
+   return Promise.all(
+diff --git a/src/sources/itunes.js b/src/sources/itunes.js
+new file mode 100644
+index 0000000..670cfe5
+--- /dev/null
++++ b/src/sources/itunes.js
+@@ -0,0 +1,44 @@
++// Apple's free iTunes catalogue (no key): audiobook listings with narrators' publishers,
++// descriptions and proper square covers. AudioYam Lite's store-safe catalogue — the books
++// are listings ("discover"); the Play / Read buttons find a copy from your own sources.
++import { getJson, qs } from '../lib/http.js';
++
++const big = (u) => String(u || '').replace(/^http:/, 'https:').replace(/\/\d+x\d+(bb)?\./, '/1000x1000bb.');
++const clean = (t) => String(t || '').replace(/\s*\((unabridged|abridged)\)\s*$/i, '').trim();
++const strip = (h) => String(h || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
++
++const toBook = (r) => ({
++  uid: `it:${r.collectionId || r.trackId}`,
++  source: 'it',
++  kind: 'discover',
++  title: clean(r.collectionName || r.trackName),
++  author: r.artistName || '',
++  cover: big(r.artworkUrl100 || r.artworkUrl60),
++  description: strip(r.description),
++  year: (r.releaseDate || '').slice(0, 4),
++  genres: r.primaryGenreName ? [r.primaryGenreName] : [],
++});
++
++export async function search(term) {
++  if (!term.trim()) return [];
++  const d = await getJson('https://itunes.apple.com/search?' + qs({ term, media: 'audiobook', entity: 'audiobook', limit: 24 }), { timeout: 12000 });
++  return (d.results || []).filter((r) => r.collectionName || r.trackName).map(toBook);
++}
++
++/** Apple's top audiobooks chart. */
++export async function top(cc = 'us') {
++  const d = await getJson(`https://itunes.apple.com/${cc}/rss/topaudiobooks/limit=30/json`, { timeout: 15000 });
++  const ids = (d?.feed?.entry || []).map((e) => e?.id?.attributes?.['im:id']).filter(Boolean);
++  if (!ids.length) return [];
++  // The chart has small pictures and no descriptions: look the books up for the full listing.
++  const l = await getJson('https://itunes.apple.com/lookup?' + qs({ id: ids.join(','), country: cc }), { timeout: 15000 });
++  const byId = new Map((l.results || []).map((r) => [String(r.collectionId || r.trackId), r]));
++  return ids.map((id) => byId.get(String(id))).filter(Boolean).map(toBook);
++}
++
++export async function details(book) {
++  if (book.description) return book;
++  const l = await getJson('https://itunes.apple.com/lookup?' + qs({ id: book.uid.slice(3) }), { timeout: 12000 }).catch(() => null);
++  const r = l?.results?.[0];
++  return r ? { ...book, ...toBook(r) } : book;
++}
+diff --git a/src/styles.css b/src/styles.css
+index 27c1ec5..720edfe 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -11374,3 +11374,30 @@ button.notes-book-head {
+     color: var(--muted);
+   }
+ }
++
++/* AudioYam Lite: one Play / one Read on catalogue book pages; every version behind a link. */
++.lite-get {
++  padding: 4px 20px 6px;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: 6px;
++}
++.lite-get-row {
++  display: flex;
++  gap: 10px;
++  width: 100%;
++}
++.lite-get-row .btn {
++  flex: 1;
++}
++.lite-get-sub {
++  color: var(--muted);
++  font-size: 12.5px;
++}
++.lite-get-other {
++  font-size: 13.5px;
++}
++.other-versions:not(.open) {
++  display: none;
 +}
 -- 
 2.43.0
