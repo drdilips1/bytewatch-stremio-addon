@@ -18,7 +18,6 @@ const HEADERS = {
 };
 
 const BOOKRACY = "https://bookracy-proxy.drdilipgreat.workers.dev";
-const ABB_PROXY = "https://inkshelf-debrid-proxy.tbm-a.workers.dev";
 // Your own search workers, reached through this address (some networks block *.workers.dev).
 // prefix -> { url, binding }: if a Service binding with that name is set on this Worker
 // (Settings → Bindings), it is used — faster, and it avoids Cloudflare refusing
@@ -426,20 +425,7 @@ async function abbSearch(request) {
   try {
     params = JSON.parse(body || "{}");
   } catch {}
-  // The InkShelf proxy first (it also knows seeders)…
-  try {
-    const r = await fetch(`${ABB_PROXY}/abb/api/search`, {
-      method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body
-    });
-    if (r.ok) {
-      const text = await r.text();
-      const j = JSON.parse(text);
-      if (Array.isArray(j.results) && j.results.length) return reply(text);
-    }
-  } catch {}
-  // …and AudiobookBay itself when that refuses or finds nothing.
+  // AudiobookBay itself (the third-party helper it used to try first refused every call).
   const results = await abbDirect(params.title || params.query || "", params.author || "", Math.min(Number(params.limit) || 12, 15));
   return reply(JSON.stringify({ success: true, source: "audiobookbay-direct", results }));
 }
@@ -581,7 +567,7 @@ export default {
 
       // AudiobookBay debrid cache notifications
       if (path === "/abb/api/debrid-notify" && request.method === "POST") {
-        return await proxy(`${ABB_PROXY}/abb/api/debrid-notify`, request, "POST");
+        return reply(JSON.stringify({ ok: true })); // nothing to tell: just say OK
       }
 
       // Short quote links (the quote kept in the QUOTES KV store, when it's bound):
