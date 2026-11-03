@@ -22,7 +22,7 @@ Order agreed: lint → tests → dead code → one shared codebase → split big
 - The source pill under the narrator still says "Audible" (from the book's details source) — Lite shouldn't show Audible anywhere; show nothing, or a neutral word.
 - When the Available row works (Play now / Read), the big "Where to get it" button isn't needed in Lite — hide it then (keep it only when nothing is available, if at all).
 - **Minimal book page (Lite): one Play button, one Read button, no source results list.**
-  - Play picks the best audio result by itself: M4B → M4A (and other single-file / AAC formats) → MP3. Within a format: ready/instant in your cloud first, then most seeds.
+  - Play picks the best audio result by itself. Format order on Android: M4B → M4A / AAC → Opus / OGG → MP3 → FLAC. On iPhone and the web, Opus / OGG are skipped (patchy support there): M4B → M4A / AAC → MP3 → FLAC. Never pick WMA, WAV or MKA (won't play on phones, or huge). Within a format: ready/instant in your cloud first, then most seeds.
   - Read picks EPUB first (smallest file), then PDF (smallest file).
   - Results with no seeds and not already in your cloud don't count. Nothing left → the button says "Not available".
   - My suggestion: a small "Other versions" link under the button for when the auto-pick is wrong (abridged, wrong narrator, other language).
