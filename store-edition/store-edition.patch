@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 1/7] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 1/8] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 2/7] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 2/8] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -705,7 +705,7 @@ index d74ee98..8eddcd9 100644
 From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:29:11 +0000
-Subject: [PATCH 3/7] AudioYam Lite, stage 2: themes kept; Discover = free-book
+Subject: [PATCH 3/8] AudioYam Lite, stage 2: themes kept; Discover = free-book
  rows + search (no AI, no store catalogues); Library without stats / AI / tags
  / smart shelves; player without AI, transcript, drive, up next, history; book
  page without AI, ratings, Goodreads, StoryShots, Kindle, related rows; covers
@@ -1400,7 +1400,7 @@ index 881347a..d0df4bb 100644
 From abed8f9aae6089430b24450266a86ba253004e8e Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:07:34 +0000
-Subject: [PATCH 4/7] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-Debr?=
+Subject: [PATCH 4/8] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-Debr?=
  =?UTF-8?q?id=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20resul?=
  =?UTF-8?q?ts=20(magnets)=20play=20through=20it,=20your=20cloud=20library?=
  =?UTF-8?q?=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20sta?=
@@ -1514,7 +1514,7 @@ index 2d4ba47..4ef9d56 100644
 From 4b2b71a0473c8501804a597e41edd89222b45fcb Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:10:51 +0000
-Subject: [PATCH 5/7] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts=20?=
+Subject: [PATCH 5/8] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts=20?=
  =?UTF-8?q?=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20when?=
  =?UTF-8?q?=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-Debr?=
  =?UTF-8?q?id'=20button=20or=20messages?=
@@ -1604,7 +1604,7 @@ index a8750dd..926b0e0 100644
 From 44802ed95602073e01329082f420e12c06e34f02 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:19:23 +0000
-Subject: [PATCH 6/7] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
+Subject: [PATCH 6/8] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
  =?UTF-8?q?=20sources=20=E2=80=94=20paste=20an=20add-on=20link=20or=20any?=
  =?UTF-8?q?=20account=20key=20(TorBox,=20Real-Debrid,=20AllDebrid,=20Premi?=
  =?UTF-8?q?umize),=20the=20app=20works=20out=20which;=20AllDebrid=20and=20?=
@@ -2094,7 +2094,7 @@ index 4ef9d56..5530c2e 100644
 From 09819b0b7fcf045a728043667418c5b59e5b92e6 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:20:46 +0000
-Subject: [PATCH 7/7] AudioYam Lite: lower Settings section renamed 'Home &
+Subject: [PATCH 7/8] AudioYam Lite: lower Settings section renamed 'Home &
  Discover order'; cloud rows only once an account is connected, named 'Your
  cloud'; 'Your add-ons'
 
@@ -2145,6 +2145,104 @@ index 5530c2e..7c7fd25 100644
    hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc, hidden: true },
    pod: { name: 'Podcasts', short: 'Podcast', hue: 280, kind: 'Listen', blurb: 'Podcast episodes', impl: pods, hidden: true },
    tts: { name: 'Voice narration', short: 'Free voice', hue: 300, kind: 'Listen', blurb: 'Ebooks read aloud by a free voice', impl: ttsb, hidden: true },
+-- 
+2.43.0
+
+
+From c778a1bef37be3d0a50f464bf37de0aca59681ed Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 07:56:59 +0000
+Subject: [PATCH 8/8] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20AudioYa?=
+ =?UTF-8?q?m=20Lite=20with=20the=20tag=20line=20"Your=20books,=20Your=20wa?=
+ =?UTF-8?q?y",=20the=20Ys=20in=20the=20logo's=20colours?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/screens/Home.jsx | 13 +++++++------
+ src/styles.css       | 21 +++++++++++++++++++++
+ 2 files changed, 28 insertions(+), 6 deletions(-)
+
+diff --git a/src/screens/Home.jsx b/src/screens/Home.jsx
+index d0a729a..77929d8 100644
+--- a/src/screens/Home.jsx
++++ b/src/screens/Home.jsx
+@@ -16,10 +16,9 @@ import { ia, gb, ol, absSrc, addonSrc, cloud, localSrc, hc, gr, enabled, sourceO
+ import { Fragment } from 'preact';
+ import { sameWork } from '../lib/works.js';
+ import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary, hideFromContinue } from '../lib/store.js';
+-import { greeting, firstName, fmtDuration, hiResCover } from '../lib/format.js';
++import { fmtDuration, hiResCover } from '../lib/format.js';
+ import { useSquareCover } from '../lib/meta.js';
+ import { UpNextRow, PlanRow } from '../components/up-next.jsx';
+-import { account } from '../lib/sync.js';
+ import { nav, useBackClose } from '../lib/nav.js';
+ import { GENRES } from './genres.js';
+ import { HINDI_ALL } from './hindi.js';
+@@ -533,7 +532,6 @@ export function GenreChips() {
+ 
+ export function Home() {
+   const st = useStore(settings);
+-  const acct = useStore(account);
+   const addonList = useStore(addons);
+   const absCfg = useStore(abs);
+   const deb = useStore(debrid);
+@@ -595,7 +593,6 @@ export function Home() {
+         </>
+       ),
+   };
+-  const me = firstName(st.myName, acct);
+   return (
+     <div class="screen home">
+       <header class="home-top">
+@@ -608,8 +605,12 @@ export function Home() {
+ <g fill="none" stroke="url(#ay-g1)" strokeWidth="42" strokeLinecap="round" strokeLinejoin="round"><path d="M150 208 L256 318 L362 208"/><path d="M256 318 V420"/></g>
+ <rect x="96" y="172" width="62" height="94" rx="28" fill="url(#ay-cup)"/><rect x="354" y="172" width="62" height="94" rx="28" fill="url(#ay-cup)"/></g></svg>
+           <div class="home-hello">
+-            <small>{me ? `${greeting()}, ${me}` : greeting()}</small>
+-            <b>AudioYam <span class="lite-tag">Lite</span></b>
++            <b>
++              Audio<span class="ay-y">Y</span>am <span class="lite-tag">Lite</span>
++            </b>
++            <small class="home-tagline">
++              <span class="ay-y">Y</span>our books, <span class="ay-y">Y</span>our way
++            </small>
+           </div>
+         </div>
+         <div class="home-top-actions">
+diff --git a/src/styles.css b/src/styles.css
+index 8eddcd9..6aa8c63 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -5206,6 +5206,27 @@ textarea {
+   color: rgba(244, 241, 251, 0.7);
+   white-space: nowrap;
+ }
++/* The Y of AudioYam and of the tag line, in the logo's colours. (The old ".home-logo span"
++   rules for the text logo would otherwise restyle it — hence !important.) */
++.home-logo .ay-y {
++  background: linear-gradient(135deg, #22c3e6, #8b5cf6 50%, #ec4899);
++  -webkit-background-clip: text;
++  background-clip: text;
++  color: transparent !important;
++  -webkit-text-fill-color: transparent;
++  font: inherit !important;
++  font-weight: 800 !important;
++  letter-spacing: inherit !important;
++}
++.home-hello b {
++  font-size: 19px;
++  font-weight: 800;
++  letter-spacing: -0.01em;
++}
++.home-tagline {
++  font-weight: 500;
++  margin-top: 1px;
++}
+ .links-toggle {
+   display: flex;
+   align-items: center;
 -- 
 2.43.0
 
