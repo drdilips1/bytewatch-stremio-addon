@@ -12,6 +12,13 @@ Order agreed: lint → tests → dead code → one shared codebase → split big
 - [ ] Split big files (Settings, player, Book, source results) — gradually.
 - [ ] Split styles.css (11k lines) — last, screen by screen with before/after screenshots.
 
+## AudioYam Lite — fixes noted 3 Nov (after testing lite-v0.1.5; not built)
+- "Find cover & details" still says "Looking in Audible, Apple, Goodreads, Google Books and Open Library…" — the text must list only what Lite really searches.
+- Settings → Finding your books still lists "TorBox / Real-Debrid" and the transcript's ebook option — make it neutral ("Your cloud") and match what Lite has.
+- Bring the transcript back to Lite (the synced book text under the player).
+- Better catalogue than Open Library alone: Apple's iTunes Search (free, no key, audiobooks with square covers up to 600px+) as the main catalogue and cover source; Google Books (free key) for descriptions; Open Library only as a fallback. Check each one's terms for store use first.
+- Covers from the free sources are poor: ask for the large sizes (Open Library `-L`, iTunes `600x600bb` or larger, Archive's own item image), and prefer an iTunes square cover whenever the title and author match.
+
 ## Store launch plan — AudioYam on Google Play (then App Store) (noted 2 Nov)
 Started 3 Nov: local copy at /home/user/audioyam-store (app ID app.audioyam.store) — no self-updater, qBittorrent, tracker or built-in TorBox / Real-Debrid. Full checklist (light / medium / heavy) and the AudioYam Plus money plan are in its STORE_PLAN.md. Saved as store-edition/ (patch + plan) so it survives this container. **Waits for: the shared codebase step, and the user creating the empty private repo `audioyam-store`.**
 **A separate, third app (own repo/folder, own package ID) — the private Audiohub+ and the public AudioYam are NOT changed for it.** It starts as a copy of the public app and is trimmed there.
