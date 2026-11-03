@@ -17,7 +17,6 @@ const HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Accept"
 };
 
-const BOOKRACY = "https://bookracy-proxy.drdilipgreat.workers.dev";
 // Your own search workers, reached through this address (some networks block *.workers.dev).
 // prefix -> { url, binding }: if a Service binding with that name is set on this Worker
 // (Settings → Bindings), it is used — faster, and it avoids Cloudflare refusing
@@ -30,55 +29,6 @@ const PASS = {
 
 // Addon files, installed by pasting https://api.audiohubapp.com/addons/<name>.json in Audiohub.
 const ADDONS = {
-  "bookracy": {
-    "schemaVersion": "1.0.0",
-    "id": "my-bookracy",
-    "name": "Bookracy",
-    "version": "1.0.0",
-    "description": "Ebook search via my Audiohub Worker",
-    "icon": "https://bookracy.com/favicon.ico",
-    "provides": [
-      "source"
-    ],
-    "contentType": "ebook",
-    "rateLimit": {
-      "requestsPerMinute": 10,
-      "retryAfterMs": 6000
-    },
-    "matching": {
-      "algorithm": "fuzzy",
-      "threshold": 0.4
-    },
-    "adapters": {
-      "source": {
-        "cacheNotifyUrl": "https://api.audiohubapp.com/bookracy/notify",
-        "request": {
-          "method": "GET",
-          "url": "https://api.audiohubapp.com/bookracy/search?q={QUERY}",
-          "timeout": 30000,
-          "headers": {
-            "Accept": "application/json"
-          }
-        },
-        "response": {
-          "type": "json",
-          "resultsPath": "results",
-          "mapping": {
-            "title": "title",
-            "author": "author",
-            "url": "url",
-            "format": "format",
-            "language": "language",
-            "date": "posted",
-            "sizeBytes": "sizeBytes",
-            "cover": "cover",
-            "description": "description",
-            "debridCache": "debridCache"
-          }
-        }
-      }
-    }
-  },
   "audiobookbay": {
     "schemaVersion": "1.0.0",
     "id": "my-audiobookbay",
@@ -571,34 +521,10 @@ export default {
         return new Response(upstream.body, { status: upstream.status, headers });
       }
 
-      // Bookracy ebook search: download links point back here, not at workers.dev
-      if (path === "/bookracy/search" && request.method === "GET") {
-        // The helper answers at /search and /download (it used to be /bookracy/…).
-        const target = new URL(`${BOOKRACY}/search`);
-        target.search = url.search;
-        const upstream = await fetch(target.toString(), { headers: { Accept: "application/json" } });
-        // Its download links come back through this address, at /bookracy/download.
-        const text = (await upstream.text())
-          .split(`${BOOKRACY}/bookracy/download`).join(`${url.origin}/bookracy/download`)
-          .split(`${BOOKRACY}/download`).join(`${url.origin}/bookracy/download`)
-          .split(BOOKRACY).join(url.origin);
-        return reply(text, upstream.status);
-      }
-
-      // Bookracy downloads (the file itself, passed through)
-      if (path === "/bookracy/download" && request.method === "GET") {
-        const target = new URL(`${BOOKRACY}/download`);
-        target.search = url.search;
-        const upstream = await fetch(target.toString(), { redirect: "follow" });
-        const headers = new Headers(upstream.headers);
-        headers.set("Access-Control-Allow-Origin", "*");
-        return new Response(upstream.body, { status: upstream.status, headers });
-      }
-
-      // Bookracy debrid cache notifications
-      if (path === "/bookracy/notify" && request.method === "POST") {
-        // The helper no longer takes cache notes: just say OK.
-        return reply(JSON.stringify({ ok: true }));
+      // Bookracy: the site is gone. Old installs get an empty answer at once (no errors,
+      // no waiting) — remove the add-on from the app to stop these calls.
+      if (path.startsWith("/bookracy/")) {
+        return reply(JSON.stringify({ ok: true, results: [], note: "Bookracy is gone" }));
       }
 
       // Knaben audiobook and ebook search
@@ -666,9 +592,6 @@ export default {
           name: "Audiohub Sources",
           status: "ok",
           routes: [
-            "/bookracy/search",
-            "/bookracy/download",
-            "/bookracy/notify",
             "/knaben/audiobooks",
             "/knaben/ebooks",
             "/libgen/…",
