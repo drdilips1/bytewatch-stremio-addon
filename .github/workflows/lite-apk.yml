@@ -1,0 +1,123 @@
+name: AudioYam Lite APK (test)
+
+# Builds the store app, AudioYam Lite, to try on a phone: the public AudioYam code at the
+# version it started from + the Lite changes saved in inkwell/store-edition/. Runs only when
+# started by hand. Published as a PRE-release ("lite-v…") so Audiohub+'s update check, which
+# only looks at full releases, never offers it as an update.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: lite-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 0.1.${{ github.run_number }}
+      BASE: ac0a33c1c223a252d81d46d8ca2d465dd8f4cc2c # public AudioYam v1.0.27
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Public AudioYam + the Lite changes
+        run: |
+          git clone --quiet https://github.com/drdilips1/Audiohub.git lite
+          cd lite
+          git checkout --quiet "$BASE"
+          git -c user.name=AudioYam -c user.email=build@audioyam.invalid am --quiet ../inkwell/store-edition/store-edition.patch
+          git log --oneline -4
+          grep -n '"appId"' capacitor.config.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;35.0.0'
+
+      - name: Fetch built-in voice engine (sherpa-onnx)
+        working-directory: lite/android/app
+        run: |
+          mkdir -p libs
+          for v in 1.13.8 1.13.7 1.13.6 1.13.5 1.13.4 1.13.3 1.13.2 1.13.1 1.13.0 1.12.15 1.12.14 1.12.13; do
+            for url in \
+              "https://github.com/k2-fsa/sherpa-onnx/releases/download/v$v/sherpa-onnx-$v.aar" \
+              "https://huggingface.co/csukuangfj2/sherpa-onnx-libs/resolve/main/android/aar/sherpa-onnx-$v.aar"; do
+              if curl -fsSL --retry 3 -o libs/sherpa-onnx.aar "$url"; then
+                echo "Using sherpa-onnx $v"; exit 0
+              fi
+            done
+          done
+          echo "::error::Could not download the sherpa-onnx AAR"; exit 1
+
+      - name: Install & build web app
+        working-directory: lite
+        env:
+          VITE_APP_VERSION: ${{ env.VERSION_NAME }}
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: Prepare signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.INKWELL_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.INKWELL_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.INKWELL_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.INKWELL_KEY_PASSWORD }}
+        run: |
+          KS="$RUNNER_TEMP/lite.jks"
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | tr -d ' \n\r' | base64 -d > "$KS"
+            KS_PASS="${KS_PASS:-inkwell-ci}"
+            KEY_ALIAS="${KEY_ALIAS:-inkwell}"
+            KEY_PASS="${KEY_PASS:-$KS_PASS}"
+          else
+            KS_PASS=inkwell-ci KEY_PASS=inkwell-ci KEY_ALIAS=inkwell
+            keytool -genkeypair -keystore "$KS" -storepass "$KS_PASS" -alias "$KEY_ALIAS" -keypass "$KEY_PASS" \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=AudioYam,O=AudioYam,C=US"
+          fi
+          {
+            echo "INKWELL_KEYSTORE=$KS"
+            echo "INKWELL_KEYSTORE_PASSWORD=$KS_PASS"
+            echo "INKWELL_KEY_ALIAS=$KEY_ALIAS"
+            echo "INKWELL_KEY_PASSWORD=$KEY_PASS"
+          } >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        working-directory: lite/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/app-release.apk "../out/AudioYam-Lite-v${VERSION_NAME}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AudioYam-Lite-v${{ env.VERSION_NAME }}
+          path: lite/out/*.apk
+
+      - name: Publish as a pre-release (never an Audiohub+ update)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: lite-v${{ env.VERSION_NAME }}
+          name: AudioYam Lite v${{ env.VERSION_NAME }} (test)
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          files: lite/out/*.apk
+          body: |
+            AudioYam Lite — the store app, for testing. Installs next to Audiohub+ and AudioYam
+            (its own app ID, app.audioyam.store). Not an update for either.
