@@ -481,7 +481,7 @@
         <span>${vaultState === 'wrong' ? 'The logins in your account didn\'t unlock (password changed?). Tap Unlock.'
           : vk ? 'Synced encrypted: Research4Life, UpToDate, Springer, college proxy and AI keys follow you to every device.'
           : 'Not syncing yet: enter your DermScholar password once on this device to sync them, encrypted.'}</span></div>
-        ${!vk || vaultState === 'wrong' ? '<button class="btn xs primary" data-act="vault-unlock">Unlock</button>' : ''}</div>`;
+        ${!vk || vaultState === 'wrong' ? '<button class="btn xs primary" data-act="vault-unlock">Unlock</button>' : '<button class="btn xs" data-act="vault-unlock">Get keys again</button>'}</div>`;
     const ver = Native.version?.() || '';
     const upd = `<div class="acc-card"><div class="acc-ico">${icon('download')}</div><div class="body"><b>DermScholar ${esc(ver)}</b>
         <span>${update ? 'Version ' + esc(update.name) + ' is available' : 'Updates install from inside the app'}</span></div>
@@ -517,6 +517,8 @@
         await call('/auth/v1/token?grant_type=password', { method: 'POST', body: { email: S.get()?.email, password: pw } }).then((o) => saveSession(o));
       } catch { toast('That isn\'t your DermScholar password'); return; }
       await unlockVault(pw);
+      // Read the account's logins and keys again, even if this device took them before.
+      origSet('sync.vaultT', 0);
       closeSheet(true);
       toast('Syncing your logins…');
       await sync({ quiet: false });
