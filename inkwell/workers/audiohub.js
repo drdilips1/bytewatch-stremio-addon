@@ -30,6 +30,55 @@ const PASS = {
 
 // Addon files, installed by pasting https://api.audiohubapp.com/addons/<name>.json in Audiohub.
 const ADDONS = {
+  "bookracy": {
+    "schemaVersion": "1.0.0",
+    "id": "my-bookracy",
+    "name": "Bookracy",
+    "version": "1.0.0",
+    "description": "Ebook search via my Audiohub Worker",
+    "icon": "https://bookracy.com/favicon.ico",
+    "provides": [
+      "source"
+    ],
+    "contentType": "ebook",
+    "rateLimit": {
+      "requestsPerMinute": 10,
+      "retryAfterMs": 6000
+    },
+    "matching": {
+      "algorithm": "fuzzy",
+      "threshold": 0.4
+    },
+    "adapters": {
+      "source": {
+        "cacheNotifyUrl": "https://api.audiohubapp.com/bookracy/notify",
+        "request": {
+          "method": "GET",
+          "url": "https://api.audiohubapp.com/bookracy/search?q={QUERY}",
+          "timeout": 30000,
+          "headers": {
+            "Accept": "application/json"
+          }
+        },
+        "response": {
+          "type": "json",
+          "resultsPath": "results",
+          "mapping": {
+            "title": "title",
+            "author": "author",
+            "url": "url",
+            "format": "format",
+            "language": "language",
+            "date": "posted",
+            "sizeBytes": "sizeBytes",
+            "cover": "cover",
+            "description": "description",
+            "debridCache": "debridCache"
+          }
+        }
+      }
+    }
+  },
   "audiobookbay": {
     "schemaVersion": "1.0.0",
     "id": "my-audiobookbay",
