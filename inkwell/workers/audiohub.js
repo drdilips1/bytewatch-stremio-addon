@@ -7,7 +7,8 @@
 // nothing, is searched directly here.
 //
 // Deploy: Workers & Pages → audiohub → Edit code → replace everything with this file → Deploy.
-// Addon links to share: https://api.audiohubapp.com/addons/<name>.json (listed at /health).
+// Addon links to share: https://api.audiohubapp.com/addons/<name>.json (listed at /health),
+// or all of them at once: https://api.audiohubapp.com/addons/all.json
 
 const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
@@ -610,6 +611,11 @@ export default {
       // Addon files: /addons/audiobookbay.json, /addons/knaben-audiobooks.json, …
       const addon = /^\/addons\/([a-z-]+)(\.json)?$/.exec(path);
       if (addon && request.method === "GET") {
+        // All of them with one link: /addons/all.json — a list of the addon links (apps that
+        // take addon collections install every one).
+        if (addon[1] === "all") {
+          return reply(JSON.stringify({ name: "Audiohub addons", addons: Object.keys(ADDONS).map((n) => `${url.origin}/addons/${n}.json`) }, null, 2));
+        }
         const a = ADDONS[addon[1]];
         return a ? reply(JSON.stringify(a, null, 2)) : reply(JSON.stringify({ error: "No such addon", addons: Object.keys(ADDONS) }), 404);
       }
