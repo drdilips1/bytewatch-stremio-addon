@@ -17,6 +17,7 @@ Order agreed: lint → tests → dead code → one shared codebase → split big
 - Settings → Finding your books still lists "TorBox / Real-Debrid" and the transcript's ebook option — make it neutral ("Your cloud") and match what Lite has.
 - Bring the transcript back to Lite (the synced book text under the player).
 - Better catalogue than Open Library alone: Apple's iTunes Search (free, no key, audiobooks with square covers up to 600px+) as the main catalogue and cover source; Google Books (free key) for descriptions; Open Library only as a fallback. Check each one's terms for store use first.
+- Book page → Available still names the services: "Play now · instant · TorBox", "Get & play · TorBox · 12 seeds", "Listen · Real-Debrid". Use neutral words ("Play now · instant", "Get & play · your cloud"); drop seed counts too (torrent talk). Add-on names the user added themselves (e.g. LibGen) can stay, like Stremio shows its add-ons — or show just "Read" if we want it fully neutral.
 - Covers from the free sources are poor: ask for the large sizes (Open Library `-L`, iTunes `600x600bb` or larger, Archive's own item image), and prefer an iTunes square cover whenever the title and author match.
 
 ## Store launch plan — AudioYam on Google Play (then App Store) (noted 2 Nov)
