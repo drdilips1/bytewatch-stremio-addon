@@ -1,0 +1,9 @@
+{
+  "name": "inkwell-tests",
+  "private": true,
+  "description": "Test tools only (kept apart from the app's own dependencies, so the app's builds never change)",
+  "devDependencies": {
+    "vite": "8.3.0",
+    "vitest": "4.1.12"
+  }
+}
