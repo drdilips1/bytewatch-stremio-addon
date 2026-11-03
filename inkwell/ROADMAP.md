@@ -13,7 +13,7 @@ Order agreed: lint → tests → dead code → one shared codebase → split big
 - [ ] Split styles.css (11k lines) — last, screen by screen with before/after screenshots.
 
 ## Store launch plan — AudioYam on Google Play (then App Store) (noted 2 Nov)
-Started 3 Nov: local copy at /home/user/audioyam-store (app ID app.audioyam.store) — no self-updater, qBittorrent, tracker or built-in TorBox / Real-Debrid. Full checklist (light / medium / heavy) and the AudioYam Plus money plan are in its STORE_PLAN.md. **Waiting for the user to create the empty private GitHub repo `audioyam-store`** to push it.
+Started 3 Nov: local copy at /home/user/audioyam-store (app ID app.audioyam.store) — no self-updater, qBittorrent, tracker or built-in TorBox / Real-Debrid. Full checklist (light / medium / heavy) and the AudioYam Plus money plan are in its STORE_PLAN.md. Saved as inkwell/store-edition/ (patch + plan) so it survives this container. **Waits for: the shared codebase step, and the user creating the empty private repo `audioyam-store`.**
 **A separate, third app (own repo/folder, own package ID) — the private Audiohub+ and the public AudioYam are NOT changed for it.** It starts as a copy of the public app and is trimmed there.
 Model: like Stremio / Ink & Echo — the app ships empty, users add their own add-ons.
 
@@ -117,6 +117,7 @@ Settings & misc
     original 93bx project the private repo started from.)
 
 ## Planned for Saturday — "Audiohub Lite" (a third, stripped-down app)
+**3 Nov: suggested dropping Lite as a separate app** — it conflicts with the store edition (built-in debrid vs none). A simple mode / an edition of the shared codebase can cover it later.
 - Audiobooks only, played through debrid (TorBox / Real-Debrid) — that's all.
 - Left out completely: AI (Ask, X-Ray, Story, recaps, explain…), ebooks and the reader
   (and everything ebook-related: ebook sources/results, Send to Kindle, highlights, translate,

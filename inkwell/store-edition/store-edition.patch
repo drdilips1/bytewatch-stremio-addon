@@ -1,0 +1,246 @@
+From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Mon, 2 Nov 2026 23:16:15 +0000
+Subject: [PATCH] AudioYam store edition: own app ID; no self-updater,
+ qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
+ checklist and AudioYam Plus
+
+---
+ .gitignore                               |  1 +
+ STORE_PLAN.md                            | 76 ++++++++++++++++++++++++
+ android/app/build.gradle                 |  2 +-
+ android/app/src/main/AndroidManifest.xml |  1 -
+ capacitor.config.json                    |  2 +-
+ src/app.jsx                              |  3 +-
+ src/screens/Settings.jsx                 | 17 +-----
+ src/sources/index.js                     |  4 +-
+ src/sources/qbit.js                      |  7 ++-
+ 9 files changed, 87 insertions(+), 26 deletions(-)
+ create mode 100644 STORE_PLAN.md
+
+diff --git a/.gitignore b/.gitignore
+index 22dc052..63de53c 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -9,3 +9,4 @@ android/capacitor-cordova-android-plugins/
+ *.keystore
+ *.jks
+ out/
++node_modules
+diff --git a/STORE_PLAN.md b/STORE_PLAN.md
+new file mode 100644
+index 0000000..84fda5d
+--- /dev/null
++++ b/STORE_PLAN.md
+@@ -0,0 +1,76 @@
++# AudioYam — store edition (Google Play, then App Store)
++
++A separate app (package `app.audioyam.store`), started from public AudioYam. The private Audiohub+ and the public GitHub AudioYam are not changed for it.
++Model: like Stremio / Ink & Echo — **ships empty; people add their own add-ons and sources** (their own debrid-backed add-ons or JSON add-ons included). The app itself has no tracker, qBittorrent or built-in debrid features, and never mentions them.
++
++## Removed or changed
++
++### Light
++- [x] New app ID `app.audioyam.store`, so it installs next to the other apps
++- [x] Self-updater removed (update prompt, Settings → Updates, "install unknown apps" permission). The store does updates
++- [x] qBittorrent / home server: switched off and gone from Settings (no auto-forwarding)
++- [x] Tracker browser and tracker search buttons: switched off and gone from Settings
++- [x] TorBox and Real-Debrid: gone from Settings and from the Sources list
++- [ ] README, FAQ and What's New rewritten for the store: no torrents, trackers, debrid or qBittorrent
++- [ ] Leftover code cleaned up (unused Tracker, qBittorrent, updater files and imports)
++- [ ] Store build: signed **AAB** for Play (not APK), no GitHub releases, versionCode by build number
++- [ ] Neutral wording everywhere: "add-ons", "your sources", "your library"
++
++### Medium
++- [ ] Source results: no TorBox / Real-Debrid chips, no "cached" badges, no magnet buttons; add-on results play only from links they give (an add-on can resolve its own debrid account and return links)
++- [ ] Unofficial services replaced: Microsoft Edge voices → on-device voices (plus your own key for natural voices); Audible / Apple / Goodreads lookups → Open Library and Google Books (official)
++- [ ] Privacy policy page and Play **Data safety** answers (account, sync; AI keys stay on the phone)
++- [ ] **Delete my account**, in the app and on a web page (Play rule for apps with sign-in)
++- [ ] Media-playback foreground service declared; DATA_SYNC only if downloads need it
++- [ ] Store listing: screenshots, short and long text, content rating, neutral wording
++
++### Heavy
++- [ ] Add-on hosting moved off `api.audiohubapp.com` to a separate, unbranded address; never linked from the app or the listing
++- [ ] Add-on builder website (neutral address): a form that makes the add-on JSON, with a test search
++- [ ] Billing (Google Play Billing) for AudioYam Plus, see below
++- [ ] Closed test: 12+ testers for 14 days (Play rule for new personal accounts)
++- [ ] App Store version later: iPhone downloads first, $99/year account, stricter review
++
++## Added
++
++### Light
++- [ ] Free sources back on, as switches: LibriVox, Internet Archive, Project Gutenberg, Standard Ebooks
++- [ ] First-run screen: "Add your books": phone folder, Audiobookshelf, an add-on link, or free classics
++
++### Medium
++- [ ] **OPDS catalogues** (Calibre, Standard Ebooks, Gutenberg, Kavita, Komga): the open standard for book libraries
++- [ ] **Android Auto**: browse and play in the car
++- [ ] Cloud folders: **Google Drive, Dropbox, OneDrive, WebDAV / Nextcloud**
++- [ ] Chromecast; widget polish
++
++### Heavy
++- [ ] **Jellyfin / Plex / Emby** audiobook libraries
++- [ ] iPhone: downloads and "Add audiobook files"
++- [ ] Wear OS controls
++
++## Making money: AudioYam Plus
++
++Free stays fully useful: the player, your library from every source, sync, bookmarks, sleep timer, speed and add-ons. Plus pays for what costs money to run, or saves real time.
++
++| Plus feature | Exists now? | Why people pay |
++|---|---|---|
++| **Ask the book** with AI, no key needed (we pay the AI) | yes, needs own key today | biggest "wow"; a running cost, so it fits a subscription |
++| **Chapter summaries, X-Ray characters, "previously on" recap** | yes | saves time, unique |
++| **Live transcript + ebook sync, highlights, quote cards** | yes | readers and students love it |
++| **Natural voices** for read-aloud and translation | yes (Edge today) → paid voice service | quality you hear |
++| **Whole-book translation** | yes | language learners |
++| **Cloud folders** (Drive, Dropbox, WebDAV) and Jellyfin / Plex | to add | power users pay for convenience |
++| **Unlimited sync devices, listening stats history, backups** | partly | low cost, steady value |
++| **Themes, icons, player styles** | yes | small but popular |
++
++**Prices (suggested):** about **$2.99 a month or $19.99 a year**, with a lower price in India (around ₹149 a month or ₹999 a year, Play sets regional prices). Also a **lifetime option** (around $49) for people who hate subscriptions. A **7-day free trial** of Plus.
++
++**Bring your own AI key stays free:** people with their own OpenAI / Gemini / OpenRouter key keep the AI features without paying. That's goodwill on Reddit, and we only pay for AI for subscribers.
++
++**Other income:**
++- **Tips / supporter badge** (one-time, in the app), for people who just want to support.
++- **AI credit packs** (one-time) for heavy AI users without a subscription.
++- **No ads.** They spoil a listening app, and your users will hate them.
++- **Later:** a family plan (up to 5 people) and a student discount.
++
++**Costs to cover:** AI calls (a few cents per summary or answer, cap the monthly use per subscriber), sync storage (small), voice service (if paid), Play's fee (15% of subscriptions).
+diff --git a/android/app/build.gradle b/android/app/build.gradle
+index 8c39d34..8c8880c 100644
+--- a/android/app/build.gradle
++++ b/android/app/build.gradle
+@@ -4,7 +4,7 @@ android {
+     namespace = "app.inkwell.books"
+     compileSdk = rootProject.ext.compileSdkVersion
+     defaultConfig {
+-        applicationId "app.audiohub.player"
++        applicationId "app.audioyam.store"
+         minSdkVersion rootProject.ext.minSdkVersion
+         targetSdkVersion rootProject.ext.targetSdkVersion
+         versionCode = Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")
+diff --git a/android/app/src/main/AndroidManifest.xml b/android/app/src/main/AndroidManifest.xml
+index 355d07a..c0fd42d 100644
+--- a/android/app/src/main/AndroidManifest.xml
++++ b/android/app/src/main/AndroidManifest.xml
+@@ -135,7 +135,6 @@
+ 
+     <!-- Permissions -->
+     <!-- In-app updates: open the installer for a downloaded new version -->
+-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+ 
+     <uses-permission android:name="android.permission.INTERNET" />
+     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+diff --git a/capacitor.config.json b/capacitor.config.json
+index d5e3eaf..e5d7469 100644
+--- a/capacitor.config.json
++++ b/capacitor.config.json
+@@ -1,5 +1,5 @@
+ {
+-  "appId": "app.audiohub.player",
++  "appId": "app.audioyam.store",
+   "appName": "AudioYam",
+   "webDir": "dist",
+   "backgroundColor": "#101012",
+diff --git a/src/app.jsx b/src/app.jsx
+index 8b55f0e..3cab242 100644
+--- a/src/app.jsx
++++ b/src/app.jsx
+@@ -111,7 +111,7 @@ export function App() {
+   useEffect(() => nav.subscribe(setRoute), []);
+   useEffect(() => {
+     // Hand new cloud audiobooks to the home server, if that's switched on.
+-    const go = () => qbit.autoForward().then((msg) => msg && toast(msg));
++    const go = () => Promise.resolve(); // store edition: no home-server forwarding
+     const t = setTimeout(go, 4000);
+     const onResume = () => document.visibilityState === 'visible' && go();
+     document.addEventListener('visibilitychange', onResume);
+@@ -175,7 +175,6 @@ export function App() {
+       {route.overlay === 'player' && <FullPlayer />}
+       {route.overlay === 'drive' && <DriveMode />}
+       <SceneHost />
+-      <UpdatePrompt />
+       <StoryShotsSheet />
+       <KindleChooser />
+       <WhatsNew />
+diff --git a/src/screens/Settings.jsx b/src/screens/Settings.jsx
+index eb024af..2f68803 100644
+--- a/src/screens/Settings.jsx
++++ b/src/screens/Settings.jsx
+@@ -1169,7 +1169,6 @@ export function Settings() {
+         <AskButton />
+       </div>
+ 
+-      <UpdateCard />
+       <button class="btn ghost-wide whats-new-btn" onClick={() => showWhatsNew()}>
+         <Icon name="sparkle" size={16} /> What’s new in this version
+       </button>
+@@ -1188,21 +1187,7 @@ export function Settings() {
+       <Section icon="server" title="Audiobookshelf">
+         <AbsCard />
+       </Section>
+-      <Section icon="server" title="Home server (qBittorrent)">
+-        <QbitCard />
+-      </Section>
+-      <Section icon="external" title="Tracker">
+-        <TrackerCard />
+-      </Section>
+-      <Section icon="cloud" title="TorBox">
+-        <DebridCard provider="torbox" label="TorBox" keyHint="torbox.app/settings" keyUrl="https://torbox.app/settings" />
+-        <MusicToggle />
+-      </Section>
+-      <Section icon="cloud" title="Real-Debrid">
+-        <DebridCard provider="realdebrid" label="Real-Debrid" keyHint="real-debrid.com/apitoken" keyUrl="https://real-debrid.com/apitoken" />
+-        <MusicToggle />
+-      </Section>
+-      <PreferredDebrid />
++      {/* Store edition: no built-in cloud-download services — add-ons bring their own sources. */}
+       <Section icon="search" title="Finding your books">
+         <FindOrderCard />
+       </Section>
+diff --git a/src/sources/index.js b/src/sources/index.js
+index 83c593b..ec14d4b 100644
+--- a/src/sources/index.js
++++ b/src/sources/index.js
+@@ -28,8 +28,8 @@ export const SOURCES = {
+   gbk: { name: 'Google Books', short: 'Google Books', hue: 220, kind: 'Discover', blurb: 'Listings for almost every book in print', impl: googleBooks },
+   loc: { name: 'On this phone', short: 'Phone', hue: 160, kind: 'Listen', blurb: 'Audiobook files already on your phone', impl: localSrc },
+   abs: { name: 'Audiobookshelf', short: 'My Server', hue: 265, kind: 'Listen', blurb: 'Your self-hosted audiobook server', impl: absSrc },
+-  tb: { name: 'TorBox', short: 'TorBox', hue: 130, kind: 'Cloud', blurb: 'Stream audiobooks from your TorBox cloud', impl: cloud },
+-  rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud },
++  tb: { name: 'TorBox', short: 'TorBox', hue: 130, kind: 'Cloud', blurb: 'Stream audiobooks from your TorBox cloud', impl: cloud, hidden: true },
++  rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud, hidden: true },
+   addon: { name: 'Addons', short: 'Addon', hue: 185, kind: 'Listen', blurb: 'Community catalog addons', impl: addonSrc },
+   hc: { name: 'Hardcover', short: 'Hardcover', hue: 255, kind: 'Shelves', blurb: 'Your reading shelves, synced both ways', impl: hc },
+   pod: { name: 'Podcasts', short: 'Podcast', hue: 280, kind: 'Listen', blurb: 'Podcast episodes', impl: pods, hidden: true },
+diff --git a/src/sources/qbit.js b/src/sources/qbit.js
+index 131348e..6c96d61 100644
+--- a/src/sources/qbit.js
++++ b/src/sources/qbit.js
+@@ -17,8 +17,9 @@ const apiKey = () => String(qbit.get().apiKey || '').trim();
+ // Hashes already sent (so auto-send never repeats one), newest last.
+ export const qbitSent = persisted('qbitSent', { items: {} });
+ 
+-export const configured = () => !!(qbit.get().url || qbit.get().lanUrl);
+-export const available = Capacitor.isNativePlatform();
++// Store edition: no home-server (qBittorrent) or tracker features.
++export const configured = () => false;
++export const available = false;
+ 
+ const clean = (u) => (u ? cleanUrl(u, 'http').replace(/\/+$/, '') : '');
+ // The address in use: the home Wi-Fi one when it answers, else the Tailscale one.
+@@ -577,7 +578,7 @@ export const trackerFilterLabel = () => {
+ };
+ export const trackerName = () => String(tracker.get().url || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+ const Web = registerPlugin('InkwellWeb');
+-const canBrowse = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
++const canBrowse = false;
+ 
+ /** Open the tracker site in the in-app browser; its .torrent downloads and magnets come here. */
+ export async function openTracker(query = '', filtered = false, ebook = false) {
+-- 
+2.43.0
+
