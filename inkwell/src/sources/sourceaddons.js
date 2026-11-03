@@ -180,8 +180,18 @@ function runOnce(addon, p, retry = 0) {
   const key = addon.manifest.id + '|' + JSON.stringify(vars);
   const hit = remembered(key);
   if (hit) return Promise.resolve(hit);
-  if (!inflight.has(key)) inflight.set(key, searchOnce(addon, vars, key, p, retry).finally(() => inflight.delete(key)));
+  // Browser-backed sources (Mobilism): searched in the in-app browser, not fetched as JSON.
+  const once = addon.special === 'mobilism' ? () => searchMobilism(vars, p) : () => searchOnce(addon, vars, key, p, retry);
+  if (!inflight.has(key)) inflight.set(key, once().finally(() => inflight.delete(key)));
   return inflight.get(key);
+}
+
+// Mobilism Audiobooks: topics from forum 124, checked one by one in your signed-in session.
+async function searchMobilism(vars, { title = '', author = '', query = '' }) {
+  const { search } = await import('./mobilism.js');
+  let results = await search(query || title, title || query);
+  if (title && author) results = sameBook(results, title, author);
+  return results;
 }
 
 async function searchOnce(addon, vars, key, { title = '', author = '', query = '' }, retry) {

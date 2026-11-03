@@ -742,6 +742,20 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
               <Icon name="external" size={14} />
             </a>
           </>
+        ) : !hasMagnet && r.inApp ? (
+          // A forum topic (Mobilism): opens in the in-app browser, where you're signed in.
+          // Its links are file hosts (Rapidgator, Rosefile…), not audio you can stream.
+          <div class="src-topic">
+            <button class="btn primary" onClick={() => WebPlugin.open({ url: r.link, title: r.title }).catch((e) => toast(e.message))}>
+              <Icon name="external" size={16} /> Open topic
+            </button>
+            {r.downloads?.length > 0 && (
+              <small class="muted">
+                {r.downloads.length} download link{r.downloads.length === 1 ? '' : 's'} ·{' '}
+                {[...new Set(r.downloads.map((d) => d.host))].slice(0, 3).join(', ')}
+              </small>
+            )}
+          </div>
         ) : !hasMagnet ? (
           <a class="btn primary" href={r.link} target="_blank" rel="noopener">
             <Icon name="external" size={16} /> Open

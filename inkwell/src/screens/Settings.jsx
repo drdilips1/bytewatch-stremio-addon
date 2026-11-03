@@ -982,6 +982,46 @@ function GoodreadsCard() {
   );
 }
 
+/**
+ * Mobilism Audiobooks: a source searched in the in-app browser with your own sign-in (the
+ * cookies stay in the app's browser — nothing goes through the Worker). Android only.
+ */
+function MobilismRow({ list }) {
+  const [mob, setMob] = useState(null);
+  useEffect(() => {
+    import('../sources/mobilism.js').then(setMob).catch(() => {});
+  }, []);
+  if (!mob || !mob.available()) return null;
+  const on = list.some((a) => a.special === 'mobilism');
+  return (
+    <div class="set-row addon-row">
+      <Icon name="headphones" size={20} />
+      <div>
+        <b>{mob.NAME}</b>
+        <small>{on ? 'Searched in your signed-in in-app browser · results open there too' : 'Audiobook topics (forum 124), with your own Mobilism account'}</small>
+      </div>
+      <button class="pill small" onClick={() => mob.signIn().catch((e) => toast(e.message))}>
+        Sign in
+      </button>
+      {on ? (
+        <button class="icon-btn" aria-label="Remove Mobilism" onClick={() => addons.set(list.filter((a) => a.special !== 'mobilism'))}>
+          <Icon name="trash" size={18} />
+        </button>
+      ) : (
+        <button
+          class="pill small"
+          onClick={() => {
+            addons.set([...list, mob.addonRecord()]);
+            toast('Mobilism added — sign in once, then search');
+          }}
+        >
+          Add
+        </button>
+      )}
+    </div>
+  );
+}
+
 function AddonsCard() {
   const list = useStore(addons);
   const [badLogo, setBadLogo] = useState({}); // addon id -> its picture doesn't load
@@ -993,7 +1033,8 @@ function AddonsCard() {
       <p class="muted pad-s">
         Paste an addon link: a source addon (a JSON link), a Stremio-style manifest, or an addon collection. Only install addons you trust.
       </p>
-      {list.map((a) => (
+      <MobilismRow list={list} />
+      {list.filter((a) => a.special !== 'mobilism').map((a) => (
         <div class="set-row addon-row">
           {(a.manifest.logo || a.manifest.icon) && !badLogo[a.manifest.id] ? (
             <img src={a.manifest.logo || a.manifest.icon} alt="" class="addon-logo" onError={() => setBadLogo((m) => ({ ...m, [a.manifest.id]: true }))} onLoad={(e) => e.currentTarget.naturalWidth < 8 && setBadLogo((m) => ({ ...m, [a.manifest.id]: true }))} />
