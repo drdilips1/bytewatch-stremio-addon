@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 01/14] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 01/15] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 02/14] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 02/15] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -705,7 +705,7 @@ index d74ee98..8eddcd9 100644
 From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:29:11 +0000
-Subject: [PATCH 03/14] AudioYam Lite, stage 2: themes kept; Discover =
+Subject: [PATCH 03/15] AudioYam Lite, stage 2: themes kept; Discover =
  free-book rows + search (no AI, no store catalogues); Library without stats /
  AI / tags / smart shelves; player without AI, transcript, drive, up next,
  history; book page without AI, ratings, Goodreads, StoryShots, Kindle,
@@ -1401,7 +1401,7 @@ index 881347a..d0df4bb 100644
 From abed8f9aae6089430b24450266a86ba253004e8e Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:07:34 +0000
-Subject: [PATCH 04/14] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-De?=
+Subject: [PATCH 04/15] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-De?=
  =?UTF-8?q?brid=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20res?=
  =?UTF-8?q?ults=20(magnets)=20play=20through=20it,=20your=20cloud=20librar?=
  =?UTF-8?q?y=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20st?=
@@ -1515,7 +1515,7 @@ index 2d4ba47..4ef9d56 100644
 From 4b2b71a0473c8501804a597e41edd89222b45fcb Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:10:51 +0000
-Subject: [PATCH 05/14] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts?=
+Subject: [PATCH 05/15] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts?=
  =?UTF-8?q?=20=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20w?=
  =?UTF-8?q?hen=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-D?=
  =?UTF-8?q?ebrid'=20button=20or=20messages?=
@@ -1605,7 +1605,7 @@ index a8750dd..926b0e0 100644
 From 44802ed95602073e01329082f420e12c06e34f02 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:19:23 +0000
-Subject: [PATCH 06/14] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
+Subject: [PATCH 06/15] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
  =?UTF-8?q?=20sources=20=E2=80=94=20paste=20an=20add-on=20link=20or=20any?=
  =?UTF-8?q?=20account=20key=20(TorBox,=20Real-Debrid,=20AllDebrid,=20Premi?=
  =?UTF-8?q?umize),=20the=20app=20works=20out=20which;=20AllDebrid=20and=20?=
@@ -2095,7 +2095,7 @@ index 4ef9d56..5530c2e 100644
 From 09819b0b7fcf045a728043667418c5b59e5b92e6 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:20:46 +0000
-Subject: [PATCH 07/14] AudioYam Lite: lower Settings section renamed 'Home &
+Subject: [PATCH 07/15] AudioYam Lite: lower Settings section renamed 'Home &
  Discover order'; cloud rows only once an account is connected, named 'Your
  cloud'; 'Your add-ons'
 
@@ -2153,7 +2153,7 @@ index 5530c2e..7c7fd25 100644
 From c778a1bef37be3d0a50f464bf37de0aca59681ed Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:56:59 +0000
-Subject: [PATCH 08/14] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20Audio?=
+Subject: [PATCH 08/15] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20Audio?=
  =?UTF-8?q?Yam=20Lite=20with=20the=20tag=20line=20"Your=20books,=20Your=20?=
  =?UTF-8?q?way",=20the=20Ys=20in=20the=20logo's=20colours?=
 MIME-Version: 1.0
@@ -2251,7 +2251,7 @@ index 8eddcd9..6aa8c63 100644
 From 7ad5be24096c587f7fc66b463b27fc32f09a34a7 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:29:14 +0000
-Subject: [PATCH 09/14] Home banner: title tile for a book with no cover;
+Subject: [PATCH 09/15] Home banner: title tile for a book with no cover;
  light-theme text in the theme's ink
 
 ---
@@ -2338,7 +2338,7 @@ index 6aa8c63..27c1ec5 100644
 From 5b488feef030a52c1b29d0b7a70e94cfe2cdd0d8 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:42:20 +0000
-Subject: [PATCH 10/14] AudioYam Lite: one Play and one Read on catalogue books
+Subject: [PATCH 10/15] AudioYam Lite: one Play and one Read on catalogue books
  (M4B > M4A/AAC > Opus/OGG on Android > MP3 > FLAC; EPUB then PDF, smallest
  first; no seeds = Not available), every version behind 'Other versions', no
  'Where to get it'; Apple's iTunes catalogue (Popular audiobooks, search,
@@ -3107,7 +3107,7 @@ index 27c1ec5..720edfe 100644
 From d4e05e8d166af9c4f44cf14e6f11e7554ccab068 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:54:47 +0000
-Subject: [PATCH 11/14] =?UTF-8?q?AudioYam=20Lite:=20no=20TorBox=20/=20Real?=
+Subject: [PATCH 11/15] =?UTF-8?q?AudioYam=20Lite:=20no=20TorBox=20/=20Real?=
  =?UTF-8?q?-Debrid=20in=20progress=20and=20error=20messages=20('Adding=20t?=
  =?UTF-8?q?o=20your=20cloud=E2=80=A6');=20transcript's=20own=20ebook=20sea?=
  =?UTF-8?q?rch:=20EPUB=20then=20PDF,=20smaller=20first,=20stops=20waiting?=
@@ -3780,7 +3780,7 @@ index 0f6f8d6..be9a214 100644
 From 1c825ab989ad37c792ac1affacfa2c8ee3f650f3 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:56:12 +0000
-Subject: [PATCH 12/14] AudioYam Lite: Popular audiobooks tries Apple's newer
+Subject: [PATCH 12/15] AudioYam Lite: Popular audiobooks tries Apple's newer
  chart addresses, then the old one, then an iTunes search; shows an error
  instead of vanishing
 
@@ -3841,7 +3841,7 @@ index 670cfe5..61d4a89 100644
 From 2892402e04c7c6623a40ddd568582f0ffc8dbde3 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 09:23:30 +0000
-Subject: [PATCH 13/14] =?UTF-8?q?AudioYam=20Lite=20Discover:=20the=20catal?=
+Subject: [PATCH 13/15] =?UTF-8?q?AudioYam=20Lite=20Discover:=20the=20catal?=
  =?UTF-8?q?ogue=20in=20rows=20=E2=80=94=20Popular,=20New=20this=20year,=20?=
  =?UTF-8?q?For=20you=20(authors=20you=20listen=20to),=20eight=20genres=20?=
  =?UTF-8?q?=E2=80=94=20each=20with=20See=20all;=20free=20LibriVox=20/=20Gu?=
@@ -3974,7 +3974,7 @@ index 61d4a89..a7f1759 100644
 From d521991ff643d94e0c2c117a258964a50082e804 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 09:26:59 +0000
-Subject: [PATCH 14/14] Transcript's ebook: the book itself first (title match,
+Subject: [PATCH 14/15] Transcript's ebook: the book itself first (title match,
  no summaries / study guides / '30 minute expert'); among those EPUB then PDF,
  smaller first
 
@@ -4018,6 +4018,93 @@ index 04ee3ef..97e483b 100644
          const hits = (await findEbookInSources(book)).sort((a, b) => rank(a) - rank(b)).slice(0, 4);
          for (const hit of hits) {
            try {
+-- 
+2.43.0
+
+
+From 72ed43c3c296141cd2e71044efe4368733f42bab Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 09:52:59 +0000
+Subject: [PATCH 15/15] Author names with degrees: not the surname (results
+ were all 'loose', so Play said Not available); catalogue authors shown
+ without them
+
+---
+ src/lib/match.js            | 14 ++++++++++++--
+ src/sources/itunes.js       |  3 ++-
+ src/sources/sourceaddons.js |  4 ++--
+ 3 files changed, 16 insertions(+), 5 deletions(-)
+
+diff --git a/src/lib/match.js b/src/lib/match.js
+index 87ce069..da11382 100644
+--- a/src/lib/match.js
++++ b/src/lib/match.js
+@@ -37,10 +37,20 @@ export function searchTitle(t) {
+ }
+ 
+ // Degrees, titles and suffixes that end an author's name but aren't it ("Bruce H. Lipton PhD").
+-const NOT_SURNAME = /^(phd|ph|d|md|m\.?d|dr|prof|professor|jr|sr|ii|iii|iv|mba|msc|ma|bsc|dphil|psyd|edd|rn|esq|obe|cbe|frs|mrs|mr|ms)$/i;
++const NOT_SURNAME = /^(phd|ph|d|md|m\.?d|dr|prof|professor|jr|sr|ii|iii|iv|mba|msc|bsc|dphil|psyd|edd|rn|esq|obe|cbe|frs|mrs|mr|ms)$/i;
+ /** An author's surname: the first author's last real name word (lower case), '' if none. */
++// Degrees and titles around an author's name ("Brené Brown PhD LMSW", "Dr. Joe Dispenza"):
++// not part of the name, so they never count as the surname.
++const CREDENTIALS = /\b(dr|prof|ph\.?\s?d|m\.?d|lmsw|lcsw|lpc|lmft|mba|msc|bsc|dphil|psyd|edd|rn|esq|obe|cbe|frs|dsc|mph|jd|dds|cpa|cfa|faan)\b\.?/gi;
++export const cleanAuthor = (a) =>
++  String(a || '')
++    .replace(CREDENTIALS, ' ')
++    .replace(/\s+,/g, ',')
++    .replace(/,\s*(?=,|$)/g, '')
++    .replace(/\s+/g, ' ')
++    .trim();
+ export function surname(author) {
+-  const first = String(author || '').split(/,|&|;|\/|\band\b/)[0] || '';
++  const first = cleanAuthor(author).split(/,|&|;|\/|\band\b/)[0] || '';
+   const w = first.replace(/[().]/g, ' ').split(/\s+/).filter(Boolean).filter((x) => !NOT_SURNAME.test(x.replace(/\.$/, '')));
+   return (w[w.length - 1] || '').toLowerCase();
+ }
+diff --git a/src/sources/itunes.js b/src/sources/itunes.js
+index a7f1759..885af7c 100644
+--- a/src/sources/itunes.js
++++ b/src/sources/itunes.js
+@@ -2,6 +2,7 @@
+ // descriptions and proper square covers. AudioYam Lite's store-safe catalogue — the books
+ // are listings ("discover"); the Play / Read buttons find a copy from your own sources.
+ import { getJson, qs } from '../lib/http.js';
++import { cleanAuthor } from '../lib/match.js';
+ 
+ const big = (u) => String(u || '').replace(/^http:/, 'https:').replace(/\/\d+x\d+(bb)?\./, '/1000x1000bb.');
+ const clean = (t) => String(t || '').replace(/\s*\((unabridged|abridged)\)\s*$/i, '').trim();
+@@ -12,7 +13,7 @@ const toBook = (r) => ({
+   source: 'it',
+   kind: 'discover',
+   title: clean(r.collectionName || r.trackName),
+-  author: r.artistName || '',
++  author: cleanAuthor(r.artistName),
+   cover: big(r.artworkUrl100 || r.artworkUrl60),
+   description: strip(r.description),
+   year: (r.releaseDate || '').slice(0, 4),
+diff --git a/src/sources/sourceaddons.js b/src/sources/sourceaddons.js
+index 3635060..f7ffb8f 100644
+--- a/src/sources/sourceaddons.js
++++ b/src/sources/sourceaddons.js
+@@ -5,7 +5,7 @@
+ import { getJson, sendJson } from '../lib/http.js';
+ import { addons, persisted } from '../lib/store.js';
+ import { logError, redact } from '../lib/report.js';
+-import { words, matches, mainTitle, otherBook, searchTitle } from '../lib/match.js';
++import { words, matches, cleanAuthor, mainTitle, otherBook, searchTitle } from '../lib/match.js';
+ import { infoHash, torboxCached } from './debrid.js';
+ 
+ export const isSourceManifest = (m) => !!(m && typeof m === 'object' && m.id && m.name && m.adapters?.source?.request?.url);
+@@ -253,7 +253,7 @@ function names(author) {
+   const last = [];
+   const first = [];
+   for (const a of String(author).split(/,|&|\band\b|;/)) {
+-    const w = words(a).filter((x) => x.length >= 3 && !NOT_NAMES.has(x));
++    const w = words(cleanAuthor(a)).filter((x) => x.length >= 3 && !NOT_NAMES.has(x));
+     if (!w.length) continue;
+     last.push(w[w.length - 1]);
+     if (w.length > 1) first.push(w[0]);
 -- 
 2.43.0
 
