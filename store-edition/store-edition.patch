@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 01/13] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 01/14] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 02/13] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 02/14] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -705,7 +705,7 @@ index d74ee98..8eddcd9 100644
 From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:29:11 +0000
-Subject: [PATCH 03/13] AudioYam Lite, stage 2: themes kept; Discover =
+Subject: [PATCH 03/14] AudioYam Lite, stage 2: themes kept; Discover =
  free-book rows + search (no AI, no store catalogues); Library without stats /
  AI / tags / smart shelves; player without AI, transcript, drive, up next,
  history; book page without AI, ratings, Goodreads, StoryShots, Kindle,
@@ -1401,7 +1401,7 @@ index 881347a..d0df4bb 100644
 From abed8f9aae6089430b24450266a86ba253004e8e Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:07:34 +0000
-Subject: [PATCH 04/13] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-De?=
+Subject: [PATCH 04/14] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-De?=
  =?UTF-8?q?brid=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20res?=
  =?UTF-8?q?ults=20(magnets)=20play=20through=20it,=20your=20cloud=20librar?=
  =?UTF-8?q?y=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20st?=
@@ -1515,7 +1515,7 @@ index 2d4ba47..4ef9d56 100644
 From 4b2b71a0473c8501804a597e41edd89222b45fcb Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:10:51 +0000
-Subject: [PATCH 05/13] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts?=
+Subject: [PATCH 05/14] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts?=
  =?UTF-8?q?=20=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20w?=
  =?UTF-8?q?hen=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-D?=
  =?UTF-8?q?ebrid'=20button=20or=20messages?=
@@ -1605,7 +1605,7 @@ index a8750dd..926b0e0 100644
 From 44802ed95602073e01329082f420e12c06e34f02 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:19:23 +0000
-Subject: [PATCH 06/13] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
+Subject: [PATCH 06/14] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
  =?UTF-8?q?=20sources=20=E2=80=94=20paste=20an=20add-on=20link=20or=20any?=
  =?UTF-8?q?=20account=20key=20(TorBox,=20Real-Debrid,=20AllDebrid,=20Premi?=
  =?UTF-8?q?umize),=20the=20app=20works=20out=20which;=20AllDebrid=20and=20?=
@@ -2095,7 +2095,7 @@ index 4ef9d56..5530c2e 100644
 From 09819b0b7fcf045a728043667418c5b59e5b92e6 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:20:46 +0000
-Subject: [PATCH 07/13] AudioYam Lite: lower Settings section renamed 'Home &
+Subject: [PATCH 07/14] AudioYam Lite: lower Settings section renamed 'Home &
  Discover order'; cloud rows only once an account is connected, named 'Your
  cloud'; 'Your add-ons'
 
@@ -2153,7 +2153,7 @@ index 5530c2e..7c7fd25 100644
 From c778a1bef37be3d0a50f464bf37de0aca59681ed Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:56:59 +0000
-Subject: [PATCH 08/13] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20Audio?=
+Subject: [PATCH 08/14] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20Audio?=
  =?UTF-8?q?Yam=20Lite=20with=20the=20tag=20line=20"Your=20books,=20Your=20?=
  =?UTF-8?q?way",=20the=20Ys=20in=20the=20logo's=20colours?=
 MIME-Version: 1.0
@@ -2251,7 +2251,7 @@ index 8eddcd9..6aa8c63 100644
 From 7ad5be24096c587f7fc66b463b27fc32f09a34a7 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:29:14 +0000
-Subject: [PATCH 09/13] Home banner: title tile for a book with no cover;
+Subject: [PATCH 09/14] Home banner: title tile for a book with no cover;
  light-theme text in the theme's ink
 
 ---
@@ -2338,7 +2338,7 @@ index 6aa8c63..27c1ec5 100644
 From 5b488feef030a52c1b29d0b7a70e94cfe2cdd0d8 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:42:20 +0000
-Subject: [PATCH 10/13] AudioYam Lite: one Play and one Read on catalogue books
+Subject: [PATCH 10/14] AudioYam Lite: one Play and one Read on catalogue books
  (M4B > M4A/AAC > Opus/OGG on Android > MP3 > FLAC; EPUB then PDF, smallest
  first; no seeds = Not available), every version behind 'Other versions', no
  'Where to get it'; Apple's iTunes catalogue (Popular audiobooks, search,
@@ -3107,7 +3107,7 @@ index 27c1ec5..720edfe 100644
 From d4e05e8d166af9c4f44cf14e6f11e7554ccab068 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:54:47 +0000
-Subject: [PATCH 11/13] =?UTF-8?q?AudioYam=20Lite:=20no=20TorBox=20/=20Real?=
+Subject: [PATCH 11/14] =?UTF-8?q?AudioYam=20Lite:=20no=20TorBox=20/=20Real?=
  =?UTF-8?q?-Debrid=20in=20progress=20and=20error=20messages=20('Adding=20t?=
  =?UTF-8?q?o=20your=20cloud=E2=80=A6');=20transcript's=20own=20ebook=20sea?=
  =?UTF-8?q?rch:=20EPUB=20then=20PDF,=20smaller=20first,=20stops=20waiting?=
@@ -3780,7 +3780,7 @@ index 0f6f8d6..be9a214 100644
 From 1c825ab989ad37c792ac1affacfa2c8ee3f650f3 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:56:12 +0000
-Subject: [PATCH 12/13] AudioYam Lite: Popular audiobooks tries Apple's newer
+Subject: [PATCH 12/14] AudioYam Lite: Popular audiobooks tries Apple's newer
  chart addresses, then the old one, then an iTunes search; shows an error
  instead of vanishing
 
@@ -3841,7 +3841,7 @@ index 670cfe5..61d4a89 100644
 From 2892402e04c7c6623a40ddd568582f0ffc8dbde3 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 09:23:30 +0000
-Subject: [PATCH 13/13] =?UTF-8?q?AudioYam=20Lite=20Discover:=20the=20catal?=
+Subject: [PATCH 13/14] =?UTF-8?q?AudioYam=20Lite=20Discover:=20the=20catal?=
  =?UTF-8?q?ogue=20in=20rows=20=E2=80=94=20Popular,=20New=20this=20year,=20?=
  =?UTF-8?q?For=20you=20(authors=20you=20listen=20to),=20eight=20genres=20?=
  =?UTF-8?q?=E2=80=94=20each=20with=20See=20all;=20free=20LibriVox=20/=20Gu?=
@@ -3967,6 +3967,57 @@ index 61d4a89..a7f1759 100644
 +    .filter((b) => !have.has(b.title.toLowerCase().slice(0, 24)))
 +    .slice(0, 40);
 +}
+-- 
+2.43.0
+
+
+From d521991ff643d94e0c2c117a258964a50082e804 Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 09:26:59 +0000
+Subject: [PATCH 14/14] Transcript's ebook: the book itself first (title match,
+ no summaries / study guides / '30 minute expert'); among those EPUB then PDF,
+ smaller first
+
+---
+ src/lib/booktext.js | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/src/lib/booktext.js b/src/lib/booktext.js
+index 04ee3ef..97e483b 100644
+--- a/src/lib/booktext.js
++++ b/src/lib/booktext.js
+@@ -203,7 +203,19 @@ export async function findEbookInSources(book, query = '') {
+     new Promise((res) => setTimeout(res, 15000)),
+   ]);
+   const rank = { EPUB: 0, PDF: 1, '?': 2 };
+-  return found.sort((a, b) => rank[a.file.format] - rank[b.file.format]);
++  return found.sort((a, b) => titleFit(a, t) - titleFit(b, t) || rank[a.file.format] - rank[b.file.format]);
++}
++
++// How well a found ebook is the book itself (lower is better): its name starts with the
++// title (0), has it a little way in — publisher or series words first (1), or not at all
++// (2). Summaries, study guides, "30 minute expert" and the like come after the real book.
++const COMPANION = /\b(summary|summaries|study guide|workbook|analysis|key takeaways|takeaways|cliff'?s ?notes|sparknotes|quicklet|book review|insights from|conversation starters|lessons from|unofficial|30 minute|in \d+ minutes|expert series|companion|abridged)\b/i;
++const plain = (x) => ` ${String(x || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
++export function titleFit(hit, title) {
++  const name = plain(`${hit.r?.title || ''} ${hit.file?.name || ''}`);
++  const t = plain(title).trim();
++  const at = t ? name.indexOf(` ${t}`) : -1;
++  return (COMPANION.test(name) ? 3 : 0) + (at === 0 ? 0 : at > 0 && at < 60 ? 1 : 2);
+ }
+ 
+ /** A found ebook ready to open: one of unknown type is fetched and checked first (EPUB / PDF only). */
+@@ -290,7 +302,9 @@ async function lookEverywhere(book) {
+       } else if (place === 'sources') {
+         // EPUB first, then PDF, the smaller file first (quicker to fetch); files of unknown type
+         // last. Each try gets 20 s, four tries at most — a slow mirror doesn't stall it.
+-        const rank = (h) => ({ EPUB: 0, PDF: 1 }[h.file.format] ?? 2) * 1e13 + (Number(h.file.size || h.r.size) || 1e12);
++        // The book itself first (title match, not a summary); among those, EPUB before PDF, smaller first.
++        const t0 = mainTitle(book.title || '');
++        const rank = (h) => titleFit(h, t0) * 1e14 + ({ EPUB: 0, PDF: 1 }[h.file.format] ?? 2) * 1e13 + (Number(h.file.size || h.r.size) || 1e12);
+         const hits = (await findEbookInSources(book)).sort((a, b) => rank(a) - rank(b)).slice(0, 4);
+         for (const hit of hits) {
+           try {
 -- 
 2.43.0
 
