@@ -2,6 +2,16 @@
 
 Noted while building; to pick up after Saturday.
 
+## Code clean-up (3 Nov)
+Order agreed: lint → tests → dead code → one shared codebase → split big files → split the stylesheet.
+- [x] Tests (Vitest, 45) in both apps — private: tools in inkwell/tests/ with their own package.json (the app's lockfile trips an npm bug; `npm ci` must keep working). `npm test`.
+- [x] Lint (ESLint, mistakes only) in both — `npm run lint`. Found and fixed a real crash: add-on torrent streams via debrid (AUDIO undefined). Unused imports removed.
+- [x] Dead code removed (private 227 lines, public ~100): Libby code sign-in leftovers, old Waveform / X-Ray strip, unused helpers.
+- [ ] Formatting: settings + `npm run format` added, **not run** — it rewrites ~92 of 133 files; do it in both apps on the same day when no other session has work in progress.
+- [ ] One shared codebase (private / public / store as editions) — next big step, carefully staged.
+- [ ] Split big files (Settings, player, Book, source results) — gradually.
+- [ ] Split styles.css (11k lines) — last, screen by screen with before/after screenshots.
+
 ## Store launch plan — AudioYam on Google Play (then App Store) (noted 2 Nov)
 Started 3 Nov: local copy at /home/user/audioyam-store (app ID app.audioyam.store) — no self-updater, qBittorrent, tracker or built-in TorBox / Real-Debrid. Full checklist (light / medium / heavy) and the AudioYam Plus money plan are in its STORE_PLAN.md. **Waiting for the user to create the empty private GitHub repo `audioyam-store`** to push it.
 **A separate, third app (own repo/folder, own package ID) — the private Audiohub+ and the public AudioYam are NOT changed for it.** It starts as a copy of the public app and is trimmed there.
