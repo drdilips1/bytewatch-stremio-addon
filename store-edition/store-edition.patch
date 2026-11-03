@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 01/15] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 01/16] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 02/15] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 02/16] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -705,7 +705,7 @@ index d74ee98..8eddcd9 100644
 From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:29:11 +0000
-Subject: [PATCH 03/15] AudioYam Lite, stage 2: themes kept; Discover =
+Subject: [PATCH 03/16] AudioYam Lite, stage 2: themes kept; Discover =
  free-book rows + search (no AI, no store catalogues); Library without stats /
  AI / tags / smart shelves; player without AI, transcript, drive, up next,
  history; book page without AI, ratings, Goodreads, StoryShots, Kindle,
@@ -1401,7 +1401,7 @@ index 881347a..d0df4bb 100644
 From abed8f9aae6089430b24450266a86ba253004e8e Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:07:34 +0000
-Subject: [PATCH 04/15] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-De?=
+Subject: [PATCH 04/16] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-De?=
  =?UTF-8?q?brid=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20res?=
  =?UTF-8?q?ults=20(magnets)=20play=20through=20it,=20your=20cloud=20librar?=
  =?UTF-8?q?y=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20st?=
@@ -1515,7 +1515,7 @@ index 2d4ba47..4ef9d56 100644
 From 4b2b71a0473c8501804a597e41edd89222b45fcb Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:10:51 +0000
-Subject: [PATCH 05/15] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts?=
+Subject: [PATCH 05/16] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts?=
  =?UTF-8?q?=20=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20w?=
  =?UTF-8?q?hen=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-D?=
  =?UTF-8?q?ebrid'=20button=20or=20messages?=
@@ -1605,7 +1605,7 @@ index a8750dd..926b0e0 100644
 From 44802ed95602073e01329082f420e12c06e34f02 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:19:23 +0000
-Subject: [PATCH 06/15] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
+Subject: [PATCH 06/16] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
  =?UTF-8?q?=20sources=20=E2=80=94=20paste=20an=20add-on=20link=20or=20any?=
  =?UTF-8?q?=20account=20key=20(TorBox,=20Real-Debrid,=20AllDebrid,=20Premi?=
  =?UTF-8?q?umize),=20the=20app=20works=20out=20which;=20AllDebrid=20and=20?=
@@ -2095,7 +2095,7 @@ index 4ef9d56..5530c2e 100644
 From 09819b0b7fcf045a728043667418c5b59e5b92e6 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:20:46 +0000
-Subject: [PATCH 07/15] AudioYam Lite: lower Settings section renamed 'Home &
+Subject: [PATCH 07/16] AudioYam Lite: lower Settings section renamed 'Home &
  Discover order'; cloud rows only once an account is connected, named 'Your
  cloud'; 'Your add-ons'
 
@@ -2153,7 +2153,7 @@ index 5530c2e..7c7fd25 100644
 From c778a1bef37be3d0a50f464bf37de0aca59681ed Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:56:59 +0000
-Subject: [PATCH 08/15] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20Audio?=
+Subject: [PATCH 08/16] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20Audio?=
  =?UTF-8?q?Yam=20Lite=20with=20the=20tag=20line=20"Your=20books,=20Your=20?=
  =?UTF-8?q?way",=20the=20Ys=20in=20the=20logo's=20colours?=
 MIME-Version: 1.0
@@ -2251,7 +2251,7 @@ index 8eddcd9..6aa8c63 100644
 From 7ad5be24096c587f7fc66b463b27fc32f09a34a7 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:29:14 +0000
-Subject: [PATCH 09/15] Home banner: title tile for a book with no cover;
+Subject: [PATCH 09/16] Home banner: title tile for a book with no cover;
  light-theme text in the theme's ink
 
 ---
@@ -2338,7 +2338,7 @@ index 6aa8c63..27c1ec5 100644
 From 5b488feef030a52c1b29d0b7a70e94cfe2cdd0d8 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:42:20 +0000
-Subject: [PATCH 10/15] AudioYam Lite: one Play and one Read on catalogue books
+Subject: [PATCH 10/16] AudioYam Lite: one Play and one Read on catalogue books
  (M4B > M4A/AAC > Opus/OGG on Android > MP3 > FLAC; EPUB then PDF, smallest
  first; no seeds = Not available), every version behind 'Other versions', no
  'Where to get it'; Apple's iTunes catalogue (Popular audiobooks, search,
@@ -3107,7 +3107,7 @@ index 27c1ec5..720edfe 100644
 From d4e05e8d166af9c4f44cf14e6f11e7554ccab068 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:54:47 +0000
-Subject: [PATCH 11/15] =?UTF-8?q?AudioYam=20Lite:=20no=20TorBox=20/=20Real?=
+Subject: [PATCH 11/16] =?UTF-8?q?AudioYam=20Lite:=20no=20TorBox=20/=20Real?=
  =?UTF-8?q?-Debrid=20in=20progress=20and=20error=20messages=20('Adding=20t?=
  =?UTF-8?q?o=20your=20cloud=E2=80=A6');=20transcript's=20own=20ebook=20sea?=
  =?UTF-8?q?rch:=20EPUB=20then=20PDF,=20smaller=20first,=20stops=20waiting?=
@@ -3780,7 +3780,7 @@ index 0f6f8d6..be9a214 100644
 From 1c825ab989ad37c792ac1affacfa2c8ee3f650f3 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:56:12 +0000
-Subject: [PATCH 12/15] AudioYam Lite: Popular audiobooks tries Apple's newer
+Subject: [PATCH 12/16] AudioYam Lite: Popular audiobooks tries Apple's newer
  chart addresses, then the old one, then an iTunes search; shows an error
  instead of vanishing
 
@@ -3841,7 +3841,7 @@ index 670cfe5..61d4a89 100644
 From 2892402e04c7c6623a40ddd568582f0ffc8dbde3 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 09:23:30 +0000
-Subject: [PATCH 13/15] =?UTF-8?q?AudioYam=20Lite=20Discover:=20the=20catal?=
+Subject: [PATCH 13/16] =?UTF-8?q?AudioYam=20Lite=20Discover:=20the=20catal?=
  =?UTF-8?q?ogue=20in=20rows=20=E2=80=94=20Popular,=20New=20this=20year,=20?=
  =?UTF-8?q?For=20you=20(authors=20you=20listen=20to),=20eight=20genres=20?=
  =?UTF-8?q?=E2=80=94=20each=20with=20See=20all;=20free=20LibriVox=20/=20Gu?=
@@ -3974,7 +3974,7 @@ index 61d4a89..a7f1759 100644
 From d521991ff643d94e0c2c117a258964a50082e804 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 09:26:59 +0000
-Subject: [PATCH 14/15] Transcript's ebook: the book itself first (title match,
+Subject: [PATCH 14/16] Transcript's ebook: the book itself first (title match,
  no summaries / study guides / '30 minute expert'); among those EPUB then PDF,
  smaller first
 
@@ -4025,7 +4025,7 @@ index 04ee3ef..97e483b 100644
 From 72ed43c3c296141cd2e71044efe4368733f42bab Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 09:52:59 +0000
-Subject: [PATCH 15/15] Author names with degrees: not the surname (results
+Subject: [PATCH 15/16] Author names with degrees: not the surname (results
  were all 'loose', so Play said Not available); catalogue authors shown
  without them
 
@@ -4105,6 +4105,162 @@ index 3635060..f7ffb8f 100644
      if (!w.length) continue;
      last.push(w[w.length - 1]);
      if (w.length > 1) first.push(w[0]);
+-- 
+2.43.0
+
+
+From f905a4f7306eed58db50b1a71fd88263e393cca7 Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 11:09:08 +0000
+Subject: [PATCH 16/16] =?UTF-8?q?Play:=20results=20whose=20name=20starts?=
+ =?UTF-8?q?=20with=20the=20book's=20title=20count=20even=20when=20marked?=
+ =?UTF-8?q?=20loose,=20unknown=20seeds=20count=20(only=200=20seeds=20is=20?=
+ =?UTF-8?q?out)=20=E2=80=94=20Play=20is=20ready=20as=20soon=20as=20results?=
+ =?UTF-8?q?=20arrive.=20Transcript=20ebook:=20Choose=20shows=20the=20list,?=
+ =?UTF-8?q?=20no=20auto-attach;=20automatic=20search:=20clear=20EPUBs=20on?=
+ =?UTF-8?q?ly,=20one=20at=20a=20time,=20two=20at=20most=20(phone=20got=20h?=
+ =?UTF-8?q?ot)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/components/source-results.jsx  | 15 +++++++++------
+ src/components/transcript-view.jsx | 16 +++-------------
+ src/lib/booktext.js                | 29 +++++++++++++----------------
+ 3 files changed, 25 insertions(+), 35 deletions(-)
+
+diff --git a/src/components/source-results.jsx b/src/components/source-results.jsx
+index 91e5a6f..8677525 100644
+--- a/src/components/source-results.jsx
++++ b/src/components/source-results.jsx
+@@ -99,6 +99,7 @@ export function audioRank(r) {
+   return 3;
+ }
+ // Ebooks for the one Read button: EPUB before PDF, the smaller file first.
++const plainTitle = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+ const readRank = (r) => (directEbookFile(r)?.format === 'EPUB' ? 0 : 1) * 1e13 + (Number(r.size) || 1e12);
+ const formatOf = (r) => (String(r.format || '').match(FORMAT) || String(r.title || '').replace(/[._]+/g, ' ').match(FORMAT) || [])[1]?.toUpperCase() || '';
+ const isEbookResult = (r) => r.contentType === 'ebook' || sourceLabel(r.addon) === 'Ebook' || /^(EPUB|PDF|MOBI|AZW3?|CBZ)$/.test(formatOf(r)) || qb.isEbookName(`${r.title} ${r.format || ''}`);
+@@ -246,8 +247,12 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
+   const readyVia = (r) =>
+     providers.find((p) => r.cache?.[p] || (p === 'realdebrid' && r.cache?.any && !r.cache?.torbox) || account.get(r.hash)?.ready);
+   const byFormat = (a, b) => audioRank(a.r) - audioRank(b.r) || (b.r.seeders || 0) - (a.r.seeders || 0);
+-  const instant = shownGroups
+-    .flatMap((g) => g.items)
++  // For the one Play button: every result, the 'loose' ones too when their name starts with
++  // the book's title (author spelt differently, a subtitle added — still this book).
++  const own = plainTitle(mainTitle(book?.title || title || query || ''));
++  const sure = (r) => !r.loose || (own.length > 3 && plainTitle(r.title).startsWith(own));
++  const candidates = everything.filter((r) => sure(r) && !ebookLink(r));
++  const instant = candidates
+     .filter((r) => (r.magnet || r.hash) && readyVia(r) && r.contentType !== 'ebook' && !isEbookResult(r) && audioRank(r) < 99)
+     .map((r) => ({ r, via: readyVia(r) }))
+     .sort(byFormat);
+@@ -257,10 +262,8 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
+     .sort((a, b) => readRank(a) - readRank(b));
+   // Audiobooks with seeders that aren't ready yet: your debrid service fetches them first.
+   const fetchable = provider
+-    ? shownGroups
+-        .map((g) => g.items[0])
+-        
+-        .filter((r) => (r.magnet || r.hash) && !readyVia(r) && r.seeders > 0 && r.contentType !== 'ebook' && !isEbookResult(r) && audioRank(r) < 99)
++    ? candidates
++        .filter((r) => (r.magnet || r.hash) && !readyVia(r) && r.seeders !== 0 && r.contentType !== 'ebook' && !isEbookResult(r) && audioRank(r) < 99)
+         .map((r) => ({ r, via: provider }))
+         .sort(byFormat)
+     : [];
+diff --git a/src/components/transcript-view.jsx b/src/components/transcript-view.jsx
+index 53c2adc..71e55a9 100644
+--- a/src/components/transcript-view.jsx
++++ b/src/components/transcript-view.jsx
+@@ -10,7 +10,6 @@ import { useStore, bookmarks } from '../lib/store.js';
+ import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard, stopLooking, transcriptCfg } from '../lib/transcript.js';
+ import { cachedXray } from '../lib/xray.js';
+ import { fmtTime } from '../lib/format.js';
+-import { surname } from '../lib/match.js';
+ 
+ // Wrap known character names in tappable spans.
+ function withNames(text, names, onTap) {
+@@ -49,6 +48,8 @@ function EbookStatus({ b }) {
+   const run = useRef(0); // the latest search: one from a closed sheet mustn't reopen it
+   const search = async (q = '') => {
+     const my = ++run.current;
++    // You're choosing: the automatic search stops, so the two don't fight.
++    if (b?.state === 'loading') stopLooking();
+     setSheetOpen(true);
+     setBusy('search');
+     const onPhone = await ebooksOnPhone(q);
+@@ -56,12 +57,8 @@ function EbookStatus({ b }) {
+     setMine(onPhone);
+     try {
+       const found = await findEbook(q);
++      // The list to choose from (the book itself first) — nothing is attached until you tap one.
+       if (my === run.current) setHits(found);
+-      // Nothing attached yet and a clear match in your sources: attach it straight away.
+-      if (my === run.current && !q && b?.state !== 'on' && found[0] && clearMatch(found[0])) {
+-        toast(`Attaching “${found[0].r.title || found[0].file.name}”…`);
+-        return take(found[0]);
+-      }
+     } catch (e) {
+       if (my === run.current) (toast(e?.message || String(e)), setHits([]));
+     }
+@@ -94,13 +91,6 @@ function EbookStatus({ b }) {
+     }
+     setBusy('');
+   };
+-  // The audiobook's title words and its author's surname both in the result.
+-  const clearMatch = (h) => {
+-    const ps = player.getState().book;
+-    const sn = surname(ps?.author);
+-    const hay = `${h.r.title || ''} ${h.r.author || ''} ${h.file.name || ''}`.toLowerCase();
+-    return h.file.format !== '?' && (!sn || hay.includes(sn));
+-  };
+   const [allPhone, setAllPhone] = useState(false);
+   const showAllPhone = async () => {
+     setAllPhone(true);
+diff --git a/src/lib/booktext.js b/src/lib/booktext.js
+index 97e483b..187b25e 100644
+--- a/src/lib/booktext.js
++++ b/src/lib/booktext.js
+@@ -300,24 +300,21 @@ async function lookEverywhere(book) {
+         const eb = ebookFor(book);
+         if (eb) return eb;
+       } else if (place === 'sources') {
+-        // EPUB first, then PDF, the smaller file first (quicker to fetch); files of unknown type
+-        // last. Each try gets 20 s, four tries at most — a slow mirror doesn't stall it.
+-        // The book itself first (title match, not a summary); among those, EPUB before PDF, smaller first.
++        // By itself, only clear EPUBs of the book itself (title match, no summaries), smaller
++        // first — PDFs are heavy to read on a phone, so they're only used when you pick one.
++        // One at a time, two at most; one that's too slow ends the search (no second download
++        // running alongside it — that kept the phone busy and hot).
+         const t0 = mainTitle(book.title || '');
+-        const rank = (h) => titleFit(h, t0) * 1e14 + ({ EPUB: 0, PDF: 1 }[h.file.format] ?? 2) * 1e13 + (Number(h.file.size || h.r.size) || 1e12);
+-        const hits = (await findEbookInSources(book)).sort((a, b) => rank(a) - rank(b)).slice(0, 4);
++        const hits = (await findEbookInSources(book))
++          .filter((h) => h.file.format === 'EPUB' && titleFit(h, t0) <= 1)
++          .sort((a, b) => titleFit(a, t0) - titleFit(b, t0) || (Number(a.file.size || a.r.size) || 1e12) - (Number(b.file.size || b.r.size) || 1e12))
++          .slice(0, 2);
+         for (const hit of hits) {
+-          try {
+-            const eb = await Promise.race([
+-              (async () => {
+-                const e = await readyHit(hit, book);
+-                await loadCloudEbook(e);
+-                return e;
+-              })(),
+-              new Promise((_, no) => setTimeout(() => no(new Error('slow')), 20000)),
+-            ]);
+-            return eb;
+-          } catch {}
++          let slow = false;
++          const timer = new Promise((res) => setTimeout(() => res((slow = true)), 25000));
++          const got = await Promise.race([loadCloudEbook(hit.book).then(() => hit.book, () => null), timer]);
++          if (got && got !== true) return got;
++          if (slow) break;
+         }
+       } else if (place === 'debrid' || place === 'abs') {
+         const o = await mine();
 -- 
 2.43.0
 
