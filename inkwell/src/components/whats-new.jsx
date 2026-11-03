@@ -5,6 +5,15 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-11-03',
+    title: 'The right ebook, and a readable banner',
+    items: [
+      ['📖', 'The real book for the transcript', 'The ebook found for the transcript is the book itself — its title first — not a summary, study guide or “30 minute expert” companion. Among real matches, an EPUB, the smaller file first.'],
+      ['🌓', 'Banner without a cover', 'A cloud book with no cover gets a title tile on Home, and its text stays readable in light themes (it was white on a pale background).'],
+      ['🧹', 'Bookracy gone', 'The Bookracy site is gone, so its search is removed — ebook searches no longer wait on it.'],
+    ],
+  },
+  {
     id: '2026-11-02',
     title: 'Libby, the phone copy first, and your own covers',
     items: [
