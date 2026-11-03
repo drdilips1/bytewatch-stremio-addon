@@ -21,6 +21,13 @@ Order agreed: lint → tests → dead code → one shared codebase → split big
 - Under the cover (Available area / source pill / "Your copies" row) it still shows the add-on's name, e.g. "LibGen", and "TorBox" / "Real-Debrid". In Lite show neutral words only: "Add-on" (or "From your sources") and "Your cloud"; the add-on's own name only inside its result details.
 - The source pill under the narrator still says "Audible" (from the book's details source) — Lite shouldn't show Audible anywhere; show nothing, or a neutral word.
 - When the Available row works (Play now / Read), the big "Where to get it" button isn't needed in Lite — hide it then (keep it only when nothing is available, if at all).
+- **Minimal book page (Lite): one Play button, one Read button, no source results list.**
+  - Play picks the best audio result by itself: M4B → M4A (and other single-file / AAC formats) → MP3. Within a format: ready/instant in your cloud first, then most seeds.
+  - Read picks EPUB first (smallest file), then PDF (smallest file).
+  - Results with no seeds and not already in your cloud don't count. Nothing left → the button says "Not available".
+  - My suggestion: a small "Other versions" link under the button for when the auto-pick is wrong (abridged, wrong narrator, other language).
+- **Theme dice (Lite): one button on Home** that picks a random theme — light or dark, a palette and an accent. Keep all theme choices in Settings → Appearance.
+  - My suggestion: only pick from combinations that pass a contrast check, so the dice can never produce unreadable text. Tap again for another; long-press goes back to the previous one.
 - Covers from the free sources are poor: ask for the large sizes (Open Library `-L`, iTunes `600x600bb` or larger, Archive's own item image), and prefer an iTunes square cover whenever the title and author match.
 
 ## Store launch plan — AudioYam on Google Play (then App Store) (noted 2 Nov)
