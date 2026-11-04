@@ -1,5 +1,6 @@
 // Mobilism: a topic counts only when its own breadcrumb ends eBooks » Audiobooks, forum 124.
 import { describe, it, expect, vi } from 'vitest';
+vi.mock('../src/lib/report.js', () => ({ logError: () => {} }));
 vi.mock('@capacitor/core', () => ({ registerPlugin: () => ({}), Capacitor: { getPlatform: () => 'web', isPluginAvailable: () => false } }));
 const { inAudiobooks } = await import('../src/sources/mobilism.js');
 

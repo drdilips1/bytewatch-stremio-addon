@@ -988,21 +988,45 @@ function GoodreadsCard() {
  */
 function MobilismRow({ list }) {
   const [mob, setMob] = useState(null);
+  const [st, setSt] = useState(null); // { signedIn, name, why } | 'checking'
+  const on = list.some((a) => a.special === 'mobilism');
+  const check = (m = mob) => {
+    if (!m) return;
+    setSt('checking');
+    m.status().then(setSt, (e) => setSt({ signedIn: false, why: e?.message || 'Couldn’t reach Mobilism' }));
+  };
   useEffect(() => {
-    import('../sources/mobilism.js').then(setMob).catch(() => {});
+    import('../sources/mobilism.js')
+      .then((m) => {
+        setMob(m);
+        if (on && m.available()) check(m);
+      })
+      .catch(() => {});
   }, []);
   if (!mob || !mob.available()) return null;
-  const on = list.some((a) => a.special === 'mobilism');
+  const line =
+    !on ? 'Audiobook topics (forum 124), with your own Mobilism account'
+    : st === 'checking' ? 'Checking your sign-in…'
+    : st?.signedIn ? `Signed in${st.name ? ` as ${st.name}` : ''} · searched in the in-app browser`
+    : st ? `${st.why} — tap Sign in, log in, close the page, then Check`
+    : 'Searched in your signed-in in-app browser';
   return (
     <div class="set-row addon-row">
       <Icon name="headphones" size={20} />
       <div>
         <b>{mob.NAME}</b>
-        <small>{on ? 'Searched in your signed-in in-app browser · results open there too' : 'Audiobook topics (forum 124), with your own Mobilism account'}</small>
+        <small>{line}</small>
       </div>
-      <button class="pill small" onClick={() => mob.signIn().catch((e) => toast(e.message))}>
-        Sign in
-      </button>
+      {on && st && st !== 'checking' && (
+        <button class="pill small" onClick={() => check()}>
+          Check
+        </button>
+      )}
+      {!st?.signedIn && (
+        <button class="pill small" onClick={() => mob.signIn().catch((e) => toast(e.message))}>
+          Sign in
+        </button>
+      )}
       {on ? (
         <button class="icon-btn" aria-label="Remove Mobilism" onClick={() => addons.set(list.filter((a) => a.special !== 'mobilism'))}>
           <Icon name="trash" size={18} />

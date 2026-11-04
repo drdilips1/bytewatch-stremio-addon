@@ -11,6 +11,7 @@
 // (Rapidgator, Rosefile…) as `downloads` — file hosts, never presented as audio streams.
 import { registerPlugin, Capacitor } from '@capacitor/core';
 import { words } from '../lib/match.js';
+import { logError } from '../lib/report.js';
 
 const Web = registerPlugin('InkwellWeb');
 export const BASE = 'https://forum.mobilism.org';
@@ -166,6 +167,20 @@ async function pool(items, n, fn) {
   return out;
 }
 
+/**
+ * Are you signed in? Resolves { signedIn, name, why } — read from the forum's own page in the
+ * hidden browser (the one searches use), so it says what the search will see.
+ */
+export async function status() {
+  if (!available()) return { signedIn: false, why: 'Android app only' };
+  const { status: st, doc, html } = await page('/index.php');
+  if (challenged(doc, html) || st === 403) return { signedIn: false, why: 'Mobilism is checking the browser — open Sign in once more' };
+  const out = doc.querySelector('a[href*="mode=logout"]');
+  if (!out) return { signedIn: false, why: 'Not signed in' };
+  const name = clean(/\[\s*([^\]]+)\]/.exec(out.textContent || '')?.[1] || out.getAttribute('title') || '');
+  return { signedIn: true, name };
+}
+
 /** Search forum 124 for `query`; resolves results in Audiohub's source-result format. */
 export async function search(query, wanted = '') {
   if (!available()) throw fail('Mobilism works in the Android app only (it uses the in-app browser)');
@@ -173,9 +188,16 @@ export async function search(query, wanted = '') {
   if (!q) return [];
   const path = `/search.php?keywords=${encodeURIComponent(q)}&fid%5B%5D=${FORUM}&sc=1&sr=topics&sf=titleonly`;
   const { status, doc, html } = await page(path);
-  if (status === 302 || status === 401 || status === 403) throw needSignIn();
-  if (challenged(doc, html)) throw fail('Mobilism is checking the browser — open it once (Settings → Addons → Mobilism Audiobooks → Sign in), then search again', { signin: true });
-  if (!signedIn(doc)) throw needSignIn();
+  // What the forum answered, for Report a problem (no cookies, no page text).
+  const seen = `HTTP ${status} · ${clean(doc.title).slice(0, 60)} · logout link: ${signedIn(doc) ? 'yes' : 'no'} · topics: ${doc.querySelectorAll('a.topictitle').length}`;
+  if (challenged(doc, html) || status === 403) {
+    logError('Mobilism', `browser check — ${seen}`);
+    throw fail('Mobilism is checking the browser — Settings → Addons → Mobilism Audiobooks → Sign in, wait for the forum to open, then search again', { signin: true });
+  }
+  if (status === 302 || status === 401 || !signedIn(doc)) {
+    logError('Mobilism', `not signed in — ${seen}`);
+    throw needSignIn();
+  }
   const topics = topicsOn(doc);
   if (!topics.length) return [];
   // Closest titles first, then open them two at a time.

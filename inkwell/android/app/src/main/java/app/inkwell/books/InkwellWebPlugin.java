@@ -609,6 +609,12 @@ public class InkwellWebPlugin extends Plugin {
         if (ghostLoading && base.equals(ghostBase)) return;
         ghostBase = base;
         ghostLoading = true;
+        // Sites that tie your sign-in to the browser (Mobilism: its session and Cloudflare's
+        // check) must see the same browser as the in-app one you signed in with — the same
+        // user agent InkwellWebActivity uses. Other sites keep the WebView's own.
+        android.webkit.WebSettings gs = ghost.getSettings();
+        String plain = android.webkit.WebSettings.getDefaultUserAgent(getContext());
+        gs.setUserAgentString(base.contains("mobilism.org") ? plain.replace("; wv)", ")").replaceAll("Version/[\\d.]+ ", "") : plain);
         // A small page on the site, so requests from it carry the site's cookies.
         ghost.loadUrl(base + "/robots.txt");
     }
