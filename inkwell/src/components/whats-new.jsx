@@ -5,6 +5,18 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-11-07',
+    title: 'Android Auto, and a better transcript',
+    items: [
+      ['🚗', 'Android Auto', 'In the car: Continue listening, Recently played, Downloaded and Now playing. Tap a book, say “Hey Google, play … on Audiohub”, or search — it plays from your place. With the app closed, downloaded books still play. (A phone-installed app: turn on Unknown sources in Android Auto’s developer settings.)'],
+      ['📖', 'Transcript: the book’s own words', 'With the ebook attached, its words fill the gaps between matched lines and carry on past the last one — far fewer missing or misheard words. Heard lines start with a capital and end with a full stop. Tapping an ebook shows how far its download has got.'],
+      ['📈', 'Top audiobooks and New audiobooks', 'Two new lists in Discover from Apple Books’ charts, each with See all.'],
+      ['🎙️', 'Hide the Podcasts tab', 'Settings → Appearance → Podcasts tab.'],
+      ['🎧', 'Mobilism: more pages understood', 'Topics and their forum trail are found on more page layouts. Signed in but no results? Search once, then Report a problem — it now says what it saw.'],
+      ['🌱', 'No more “seeds ?”', 'A result whose seed count isn’t known simply shows none.'],
+    ],
+  },
+  {
     id: '2026-11-03',
     title: 'The right ebook, and a readable banner',
     items: [
