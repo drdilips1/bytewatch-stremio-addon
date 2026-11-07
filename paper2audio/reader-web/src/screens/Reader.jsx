@@ -484,6 +484,11 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     const s = sel;
     if (!s) return;
     if (kind === 'highlight') return keepHighlight(s.parts);
+    if (kind === 'lookup') {
+      window.getSelection()?.removeAllRanges();
+      setSel(null);
+      return void App.lookup({ word: s.text }).catch(() => {});
+    }
     if (kind === 'pronounce') {
       window.getSelection()?.removeAllRanges();
       setSel(null);

@@ -345,6 +345,7 @@ class ReaderActivity : Activity() {
         return when ("$plugin.$method") {
             "P2AReader.book" -> withContext(Dispatchers.Default) { book(d) }
             "P2AReader.close" -> ok.also { leave() }
+            "P2AReader.lookup" -> ok.also { lookUp(a.optString("word")) }
             "P2AReader.pronounce" -> ok.also { Pronounce.show(this, a.optString("word").trim().trim('“', '”', '"', '\'', ',', '.', '!', '?', ';', ':')) }
             "P2AReader.voice" -> JSONObject().put("name", voiceName())
             "P2AReader.pickVoice" -> ok.also { pickVoice() }
@@ -623,6 +624,56 @@ class ReaderActivity : Activity() {
         fun state(): JSONObject = JSONObject()
             .put("active", true).put("uid", doc?.key ?: "").put("para", at.coerceAtMost(paras.size - 1).coerceAtLeast(0))
             .put("playing", playing).put("finished", finished)
+    }
+
+    // ---- Look up: a word's meaning from the Free Dictionary (dictionaryapi.dev: free, no account) ----
+
+    private fun lookUp(raw: String) {
+        val word = raw.trim().trim('“', '”', '"', '\'', '‘', '’', ',', '.', '!', '?', ';', ':', '(', ')').lowercase()
+        if (word.isBlank()) return
+        scope.launch {
+            val found = withContext(Dispatchers.IO) {
+                runCatching {
+                    val url = "https://api.dictionaryapi.dev/api/v2/entries/en/" + java.net.URLEncoder.encode(word, "UTF-8").replace("+", "%20")
+                    okhttp3.OkHttpClient().newCall(okhttp3.Request.Builder().url(url).build()).execute().use { r ->
+                        if (r.code == 404) null else if (!r.isSuccessful) error("The dictionary answered ${r.code}") else JSONArray(r.body?.string().orEmpty())
+                    }
+                }
+            }
+            if (isDestroyed) return@launch
+            found.onFailure {
+                Toast.makeText(this@ReaderActivity, "Couldn't look up “$word” (no internet?)", Toast.LENGTH_LONG).show()
+            }.onSuccess { entries ->
+                val entry = entries?.optJSONObject(0)
+                if (entry == null) {
+                    Toast.makeText(this@ReaderActivity, "No meaning found for “$word”", Toast.LENGTH_LONG).show()
+                    return@onSuccess
+                }
+                val phonetic = entry.optString("phonetic").ifBlank {
+                    entry.optJSONArray("phonetics")?.let { ph -> (0 until ph.length()).map { ph.optJSONObject(it)?.optString("text").orEmpty() }.firstOrNull { it.isNotBlank() } }.orEmpty()
+                }
+                val sheet = LiteSheet(this@ReaderActivity, entry.optString("word", word), phonetic.ifBlank { null })
+                // Every entry's meanings (some words have several entries), up to six definitions in all.
+                var shown = 0
+                for (e in 0 until entries.length()) {
+                    val meanings = entries.optJSONObject(e)?.optJSONArray("meanings") ?: continue
+                    for (m in 0 until meanings.length()) {
+                        val meaning = meanings.optJSONObject(m) ?: continue
+                        val defs = meaning.optJSONArray("definitions") ?: continue
+                        if (shown >= 6 || defs.length() == 0) continue
+                        sheet.section(meaning.optString("partOfSpeech").replaceFirstChar { it.uppercase() })
+                        for (d in 0 until minOf(2, defs.length())) {
+                            val def = defs.optJSONObject(d) ?: continue
+                            val text = def.optString("definition").ifBlank { continue }
+                            sheet.row(null, text, def.optString("example").ifBlank { null }?.let { "“$it”" }, dismiss = false) {}
+                            shown++
+                        }
+                    }
+                }
+                sheet.row(R.drawable.ic_voice, "Fix how “$word” is said", "Every voice will say it your way") { Pronounce.show(this@ReaderActivity, word) }
+                sheet.show()
+            }
+        }
     }
 
     // ---- Narrato: the player screen's options, here ------------------------------------------
