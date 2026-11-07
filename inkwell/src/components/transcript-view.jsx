@@ -8,6 +8,7 @@ import * as player from '../lib/player.js';
 import { knownCharacters, CharacterCard } from './story-sheet.jsx';
 import { useStore, bookmarks } from '../lib/store.js';
 import { onDownloadProgress } from '../lib/http.js';
+import { bookAt, bookAround, timeAtWord } from '../lib/transcript.js';
 import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard, stopLooking, transcriptCfg } from '../lib/transcript.js';
 import { cachedXray } from '../lib/xray.js';
 import { fmtTime } from '../lib/format.js';
@@ -318,8 +319,21 @@ export function TranscriptView({ s }) {
       break;
     }
   }
+  // With the ebook attached and a few lines found in it: the book's own text, following the
+  // audio by its time (see bookAt) — the sentence being read is lit and kept in the middle.
+  const at = !t?.published && t?.bookText?.state === 'on' ? bookAt(s.time) : null;
+  const paras = at ? bookAround(at.word) : null;
+  let litFrom = -1;
+  if (paras) for (const pg of paras) for (const se of pg.sentences) if (se.from <= at.word && at.word < se.to) litFrom = se.from;
   useEffect(() => {
-    if (active < 0 || Date.now() - userScroll.current < 4000) return;
+    if (litFrom < 0 || Date.now() - userScroll.current < 4000) return;
+    const el = box.current?.querySelector(`[data-w="${litFrom}"]`);
+    if (!el) return;
+    const b = box.current;
+    b.scrollTo({ top: el.offsetTop - b.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' });
+  }, [litFrom]);
+  useEffect(() => {
+    if (paras || active < 0 || Date.now() - userScroll.current < 4000) return;
     const el = box.current?.querySelector(`[data-i="${active}"]`);
     if (!el) return;
     const b = box.current;
@@ -374,7 +388,24 @@ export function TranscriptView({ s }) {
           </div>
         )}
         {t?.published && segs.length > 0 && <p class="tl-source">Transcript from the podcast</p>}
-        {segs.map((g, i) => (
+        {paras &&
+          paras.map((pg) => (
+            <p class="tl tb-para" key={pg.key}>
+              {pg.sentences.map((se) => (
+                <span
+                  data-w={se.from}
+                  class={'tb-s' + (se.from === litFrom ? ' on' : se.to <= at.word ? ' past' : '')}
+                  onClick={() => {
+                    const tt = timeAtWord(se.from);
+                    if (tt != null) player.seek(Math.max(0, tt));
+                  }}
+                >
+                  {withNames(se.text, names, (n) => setCard(lookup.get(n)))}{' '}
+                </span>
+              ))}
+            </p>
+          ))}
+        {!paras && segs.map((g, i) => (
           <p
             data-i={i}
             class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '') + (g.start != null && quoted(i) ? ' hl' : '')}

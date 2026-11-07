@@ -11385,3 +11385,22 @@ button.notes-book-head {
     color: var(--muted);
   }
 }
+
+/* Transcript following the book by the audio's time: paragraphs of the book, the sentence
+   being read lit (the rest dimmed; read sentences dimmer). */
+.transcript .tl.tb-para {
+  cursor: default;
+}
+.transcript .tb-s {
+  cursor: pointer;
+  transition: color 0.3s, background 0.3s;
+  border-radius: 6px;
+}
+.transcript .tb-s.past {
+  color: rgba(255, 255, 255, 0.28);
+}
+.transcript .tb-s.on {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
