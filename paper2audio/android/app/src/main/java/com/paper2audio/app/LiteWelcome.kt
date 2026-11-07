@@ -52,22 +52,35 @@ object LiteWelcome {
                 "pasted text, even photos of printed pages.\n\nTap + on the home screen to add your first one.",
         ),
         Page(
-            "🎧", "Real voices, free",
-            "Narrato starts with your phone's own voice, which can sound robotic.\n\n" +
-                "For the real thing, download the natural voices once (${LocalTts.POCKET_PACK.sizeMb} MB): ${MyVoices.NARRATO.size} voices of real " +
-                "readers, offline and unlimited. Supertonic (31 languages) and Kokoro are there too.",
+            "🎧", "Natural voices",
+            "Download voices once and they're yours: unlimited, no account.\n\n" +
+                "Light voices (Supertonic, Kokoro) sound natural and are easy on the battery. " +
+                "${MyVoices.NARRATO.size} real readers sound like real people reading, and use more battery.",
             "Choose a voice now",
         ) { LiteUi.showVoices(it) },
         Page(
-            "▶", "While you listen",
-            "The sentence being read is highlighted. Tap any sentence to read from there.\n\n" +
-                "Speed, voice and sleep timer are at the bottom, and chapters at the top. " +
-                "Reading carries on with the screen off, with controls on the lock screen.",
+            "🔒", "Private and offline",
+            "Your books stay on your phone: nothing is uploaded.\n\n" +
+                "The voices run on your phone too, so once they're downloaded, listening works without internet, " +
+                "on a plane or underground.",
         ),
         Page(
-            "✨", "Listen from anywhere",
-            "Select text in any app (a web page, an email, a PDF) and choose Listen with Narrato, " +
-                "or share a link or file to Narrato.",
+            "📖", "Read along",
+            "Books open as an ebook, and each word is highlighted as it's read. " +
+                "Double-tap a paragraph to read from there.\n\n" +
+                "The T button changes the font, size and colours; the pencil keeps your highlights and notes; the list shows the chapters.",
+        ),
+        Page(
+            "🔍", "Words",
+            "Press and hold a word, then:\n\n" +
+                "• Look up: what it means (needs internet)\n" +
+                "• Pronounce: fix how it's said, once, for every voice",
+        ),
+        Page(
+            "🔋", "Battery tips",
+            "Reading carries on with the screen off, with controls on the lock screen: the screen uses more battery than anything else.\n\n" +
+                "Light voices use about a third of the battery of the real readers. The sleep timer stops reading when you doze off.\n\n" +
+                "You can also share a link or file to Narrato, or choose Listen with Narrato on text in any app.",
         ),
     )
 
