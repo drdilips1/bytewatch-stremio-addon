@@ -68,9 +68,14 @@ export async function attachAloud(uid, elements, handlers) {
   if (!nativeReader) return null;
   const st = await Reader.status().catch(() => null);
   if (!st?.active || st.uid !== uid) return null;
+  // Paper to Audio / Narrato: tell the app which of its paragraphs these elements are, so the voice and the
+  // page count paragraphs the same way (the skipped contents and index are left out of both).
+  const idx = elements.map((el) => +(el.closest('[data-i]')?.dataset.i ?? -1));
+  await Reader.map({ idx }).catch(() => {});
+  const now = (await Reader.status().catch(() => null)) || st;
   const ctl = follow(elements, handlers);
-  handlers.onState?.(st);
-  if (elements[st.para]) handlers.onIndex?.(st.para, elements[st.para]);
+  handlers.onState?.(now);
+  if (elements[now.para]) handlers.onIndex?.(now.para, elements[now.para]);
   return ctl;
 }
 
