@@ -753,7 +753,9 @@ object RenderSpeed {
 
     /** Whether this phone makes [voiceId] slower than it's heard at [speed] (so reading keeps pausing). */
     fun tooSlow(context: Context, voiceId: String, speed: Float = 1f): Boolean =
-        (measured(context, voiceId) ?: 0.0) > 0.95 / speed.coerceAtLeast(0.5f)
+        // The measured work includes the throwaway "Well." that's cut off and the second takes of risky lines,
+        // so it reads high: "may pause on this phone" showed on phones that kept up fine. Only clearly slow.
+        (measured(context, voiceId) ?: 0.0) > 1.3 / speed.coerceAtLeast(0.5f)
 
     fun of(context: Context, voiceId: String): Double =
         context.getSharedPreferences("p2a", Context.MODE_PRIVATE).getFloat("rtf:" + kind(voiceId), -1f)
