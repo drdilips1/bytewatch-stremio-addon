@@ -7,6 +7,7 @@ import { toast } from './common.jsx';
 import * as player from '../lib/player.js';
 import { knownCharacters, CharacterCard } from './story-sheet.jsx';
 import { useStore, bookmarks } from '../lib/store.js';
+import { onDownloadProgress } from '../lib/http.js';
 import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard, stopLooking, transcriptCfg } from '../lib/transcript.js';
 import { cachedXray } from '../lib/xray.js';
 import { fmtTime } from '../lib/format.js';
@@ -81,14 +82,20 @@ function EbookStatus({ b }) {
       if (e?.message !== 'cancelled') toast(e?.message || String(e));
     }
   };
+  const [prog, setProg] = useState(''); // "2.1 MB · 45%" while the tapped ebook downloads
   const take = async (h) => {
     setBusy(h.r.link);
+    setProg('');
+    const mb = (n) => `${(n / 1048576).toFixed(1)} MB`;
+    const stop = onDownloadProgress((p) => setProg(p.done ? 'Reading the book…' : p.total ? `${mb(p.got)} of ${mb(p.total)} · ${Math.round((p.got / p.total) * 100)}%` : mb(p.got)));
     try {
       await takeEbook(h);
       close();
     } catch (e) {
       toast(e?.message || String(e));
     }
+    stop();
+    setProg('');
     setBusy('');
   };
   const [allPhone, setAllPhone] = useState(false);
@@ -123,7 +130,7 @@ function EbookStatus({ b }) {
               <b>{h.r.title || h.file.name}</b>
               <small>
                 {h.file.format === '?' ? 'Type unknown (checked when picked)' : h.file.format}
-                {h.r.size ? ` · ${(h.r.size / 1048576).toFixed(1)} MB` : ''} · {h.source}
+                {busy === h.r.link && prog ? ` · ${prog}` : <>{h.r.size ? ` · ${(h.r.size / 1048576).toFixed(1)} MB` : ''} · {h.source}</>}
               </small>
             </span>
             {busy === h.r.link ? <span class="spinner small" /> : <em>Download</em>}
@@ -273,7 +280,14 @@ export function TranscriptView({ s }) {
   // Everyone the book has (X-Ray's cast and places too): misheard names are put right.
   const xr = s.book?.uid ? cachedXray(s.book.uid) : null;
   const allNames = [...names, ...(xr ? [...xr.people, ...xr.places].flatMap((x) => [x.name, ...(x.aliases || [])]) : [])];
-  const heard = (text) => (typeof text === 'string' ? fixHeard(text, allNames) : text);
+  // Words heard from the audio read as sentences: a capital to start, a full stop to end.
+  const tidy = (x) => {
+    const t = String(x || '').replace(/\s+([,.!?;:])/g, '$1').replace(/\s+/g, ' ').trim();
+    if (!t) return t;
+    const c = t[0].toUpperCase() + t.slice(1);
+    return /[.!?…"'”’)]$/.test(c) ? c : c + '.';
+  };
+  const heard = (text) => (typeof text === 'string' ? tidy(fixHeard(text, allNames)) : text);
   const box = useRef();
   const userScroll = useRef(0);
   useEffect(() => subscribeTranscript(setT), []);

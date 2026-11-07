@@ -77,7 +77,14 @@ const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 export function topicsOn(doc) {
   const out = [];
   const seen = new Set();
-  for (const a of doc.querySelectorAll('a.topictitle')) {
+  // phpBB marks topic links with .topictitle; some themes don't — then any topic link in
+  // the page body (not the header / footer menus).
+  let links = [...doc.querySelectorAll('a.topictitle')];
+  if (!links.length) {
+    const body = doc.querySelector('#page-body, #content, .forumbg, main') || doc.body;
+    links = [...body.querySelectorAll('a[href*="viewtopic.php"]')].filter((a) => /[?&]t=\d+/.test(a.getAttribute('href') || '') && !/[?&]p=\d+/.test(a.getAttribute('href') || '') && clean(a.textContent).length > 4);
+  }
+  for (const a of links) {
     const href = a.getAttribute('href') || '';
     const id = topicId(href);
     if (!id || seen.has(id)) continue;
@@ -92,11 +99,11 @@ export function topicsOn(doc) {
  * forum links, in order, as [{ text, f }]. Only containers that are breadcrumbs are read.
  */
 function breadcrumb(doc) {
-  const box =
-    doc.querySelector('#nav-breadcrumbs') ||
-    doc.querySelector('.breadcrumbs .crumb')?.closest('.breadcrumbs') ||
-    doc.querySelector('p.breadcrumbs, li.breadcrumbs, div.breadcrumbs, .navlinks, td.navlinks') ||
-    null;
+  // Breadcrumb-like containers only, and only one shaped like a trail: it starts at the
+  // board index and goes through forum links (a header menu listing forums isn't that).
+  const boxes = [...doc.querySelectorAll('#nav-breadcrumbs, [class*="breadcrumb"], [id*="breadcrumb"], .navlinks, td.navlinks, p.breadcrumbs')];
+  const trail = (b) => b.querySelector('a[href*="index.php"]') && b.querySelector('a[href*="viewforum.php"]');
+  const box = boxes.find(trail) || null;
   if (!box) return [];
   return [...box.querySelectorAll('a')]
     .map((a) => ({ text: clean(a.textContent), f: forumId(a.getAttribute('href') || '') }))
@@ -199,14 +206,23 @@ export async function search(query, wanted = '') {
     throw needSignIn();
   }
   const topics = topicsOn(doc);
-  if (!topics.length) return [];
+  if (!topics.length) {
+    logError('Mobilism', `no topics on the results page — ${seen}`);
+    return [];
+  }
   // Closest titles first, then open them two at a time.
   const w = new Set(words(wanted || q));
   const hits = (t) => words(t.title).filter((x) => w.has(x)).length;
   const picked = topics.sort((a, b) => hits(b) - hits(a)).slice(0, MAX_TOPICS);
+  const notes = [];
   const results = await pool(picked, CONCURRENCY, async (t) => {
     const p = await page(`/viewtopic.php?t=${t.id}`);
-    return p.status === 200 ? topicResult(p.doc, t) : null;
+    const r = p.status === 200 ? topicResult(p.doc, t) : null;
+    // Why a topic was left out (for Report a problem): its status and the trail it showed.
+    if (!r && notes.length < 3) notes.push(`t=${t.id} HTTP ${p.status} trail: ${breadcrumb(p.doc).map((c) => `${c.text}${c.f ? `(f=${c.f})` : ''}`).join(' › ') || 'none found'}`);
+    return r;
   });
-  return results.filter(Boolean);
+  const kept = results.filter(Boolean);
+  if (kept.length < picked.length) logError('Mobilism', `${topics.length} topics, ${picked.length} opened, ${kept.length} kept — ${notes.join(' | ')}`);
+  return kept;
 }

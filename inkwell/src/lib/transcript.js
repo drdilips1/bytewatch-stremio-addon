@@ -191,7 +191,7 @@ function align() {
     if (prev) {
       const mid = segs.slice(prevI + 1, i);
       const gap = segs[i].at[0] - prev.at[1];
-      if (mid.length && gap > 0 && gap <= 25 * mid.length + 20) {
+      if (mid.length && gap > 0 && gap <= 40 * mid.length + 40) {
         const weights = mid.map((m) => Math.max(1, m.text.split(/\s+/).length));
         const total = weights.reduce((x, y) => x + y, 0);
         let at = prev.at[1];
@@ -201,7 +201,7 @@ function align() {
           m.fill = true;
           at = m.at[1];
         });
-      } else if (!mid.length && ((gap > 0 && gap <= 12) || (gap < 0 && segs[i].at[0] > prev.at[0]))) prev.at = [prev.at[0], segs[i].at[0]];
+      } else if (!mid.length && ((gap > 0 && gap <= 60) || (gap < 0 && segs[i].at[0] > prev.at[0]))) prev.at = [prev.at[0], segs[i].at[0]]; // words the recognizer skipped: the book's, not dropped
     }
     prevI = i;
   }
@@ -218,6 +218,31 @@ function align() {
       else if (prev?.at && near1(s, prev.at[1], prev.at[1] + k)) s.at = [prev.at[1], prev.at[1] + k];
     }
     if (s.at) s.fill = true;
+  }
+  // 4. Lines after the last one found (the newest, not matched yet) and before the first:
+  //    the book carries on from there — about as many words as each line had — once at
+  //    least two lines agree on where we are. The next line that's found corrects it.
+  const foundIdx = segs.map((x, i) => (x.at && !x.fill ? i : -1)).filter((i) => i >= 0);
+  if (foundIdx.length >= 2) {
+    const wordsIn = (x) => Math.max(1, x.text.split(/\s+/).filter(Boolean).length);
+    const lastI = foundIdx[foundIdx.length - 1];
+    let at = segs[lastI].at[1];
+    for (let i = lastI + 1, k = 0; i < segs.length && k < 8 && at < bt.tokens.length; i++, k++) {
+      if (segs[i].at) break;
+      const n = Math.round(wordsIn(segs[i]) * 1.05);
+      segs[i].at = [at, Math.min(bt.tokens.length, at + n)];
+      segs[i].fill = true;
+      at = segs[i].at[1];
+    }
+    const firstI = foundIdx[0];
+    let end = segs[firstI].at[0];
+    for (let i = firstI - 1, k = 0; i >= 0 && k < 4 && end > 0; i--, k++) {
+      if (segs[i].at) break;
+      const n = Math.round(wordsIn(segs[i]) * 1.05);
+      segs[i].at = [Math.max(0, end - n), end];
+      segs[i].fill = true;
+      end = segs[i].at[0];
+    }
   }
   for (const s of segs) s.book = s.at && s.at[1] > s.at[0] ? bt.tokens.slice(s.at[0], s.at[1]).join(' ') : undefined;
   set({ segments: segs.slice() });

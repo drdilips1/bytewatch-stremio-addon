@@ -201,13 +201,36 @@ export async function getText(url, opts = {}) {
  * (the CapacitorHttp plugin would hand it over as one huge base64 string,
  * which froze the app on big ebooks).
  */
+// Downloads in progress, for screens that show it ("Downloading 2.1 MB · 45%").
+const byteSubs = new Set();
+export const onDownloadProgress = (f) => (byteSubs.add(f), () => byteSubs.delete(f));
+const tell = (p) => byteSubs.forEach((f) => f(p));
+
 export async function getBytes(url, { timeout = 180000 } = {}) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeout);
   try {
     const res = await fetch(url, { signal: ctrl.signal });
     if (!res.ok) throw new Error(`Download failed (HTTP ${res.status})`);
-    return new Uint8Array(await res.arrayBuffer());
+    const total = Number(res.headers.get('Content-Length')) || 0;
+    if (!res.body?.getReader || !byteSubs.size) return new Uint8Array(await res.arrayBuffer());
+    // Read it in pieces, telling anyone watching how far it's got.
+    const reader = res.body.getReader();
+    const parts = [];
+    let got = 0;
+    tell({ url, got, total });
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value);
+      got += value.length;
+      tell({ url, got, total });
+    }
+    const out = new Uint8Array(got);
+    let at = 0;
+    for (const v of parts) out.set(v, at), (at += v.length);
+    tell({ url, got, total, done: true });
+    return out;
   } catch (e) {
     if (e.name === 'AbortError') throw new Error('The download took too long — try again');
     throw e;
