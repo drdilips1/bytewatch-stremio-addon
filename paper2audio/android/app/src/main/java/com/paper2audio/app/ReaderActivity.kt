@@ -629,45 +629,31 @@ class ReaderActivity : Activity() {
     // ---- Look up: a word's meaning from the Free Dictionary (dictionaryapi.dev: free, no account) ----
 
     private fun lookUp(raw: String) {
-        val word = raw.trim().trim('“', '”', '"', '\'', '‘', '’', ',', '.', '!', '?', ';', ':', '(', ')').lowercase()
+        val word = Dictionary.clean(raw)
         if (word.isBlank()) return
+        Toast.makeText(this, "Looking up “$word”…", Toast.LENGTH_SHORT).show()
         scope.launch {
-            val found = withContext(Dispatchers.IO) {
-                runCatching {
-                    val url = "https://api.dictionaryapi.dev/api/v2/entries/en/" + java.net.URLEncoder.encode(word, "UTF-8").replace("+", "%20")
-                    okhttp3.OkHttpClient().newCall(okhttp3.Request.Builder().url(url).build()).execute().use { r ->
-                        if (r.code == 404) null else if (!r.isSuccessful) error("The dictionary answered ${r.code}") else JSONArray(r.body?.string().orEmpty())
-                    }
-                }
-            }
+            val found = withContext(Dispatchers.IO) { runCatching { Dictionary.lookUp(word) } }
             if (isDestroyed) return@launch
             found.onFailure {
-                Toast.makeText(this@ReaderActivity, "Couldn't look up “$word” (no internet?)", Toast.LENGTH_LONG).show()
-            }.onSuccess { entries ->
-                val entry = entries?.optJSONObject(0)
+                AppLog.i("Lookup", "“$word”: $it")
+                val msg = if (it is Dictionary.Offline) "Look up needs the internet: you seem to be offline."
+                else "The dictionary isn't answering right now. Please try again in a moment."
+                Toast.makeText(this@ReaderActivity, msg, Toast.LENGTH_LONG).show()
+            }.onSuccess { entry ->
                 if (entry == null) {
                     Toast.makeText(this@ReaderActivity, "No meaning found for “$word”", Toast.LENGTH_LONG).show()
                     return@onSuccess
                 }
-                val phonetic = entry.optString("phonetic").ifBlank {
-                    entry.optJSONArray("phonetics")?.let { ph -> (0 until ph.length()).map { ph.optJSONObject(it)?.optString("text").orEmpty() }.firstOrNull { it.isNotBlank() } }.orEmpty()
-                }
-                val sheet = LiteSheet(this@ReaderActivity, entry.optString("word", word), phonetic.ifBlank { null })
-                // Every entry's meanings (some words have several entries), up to six definitions in all.
+                val sheet = LiteSheet(this@ReaderActivity, entry.word, entry.phonetic)
+                // Up to six definitions in all, two for each part of speech.
                 var shown = 0
-                for (e in 0 until entries.length()) {
-                    val meanings = entries.optJSONObject(e)?.optJSONArray("meanings") ?: continue
-                    for (m in 0 until meanings.length()) {
-                        val meaning = meanings.optJSONObject(m) ?: continue
-                        val defs = meaning.optJSONArray("definitions") ?: continue
-                        if (shown >= 6 || defs.length() == 0) continue
-                        sheet.section(meaning.optString("partOfSpeech").replaceFirstChar { it.uppercase() })
-                        for (d in 0 until minOf(2, defs.length())) {
-                            val def = defs.optJSONObject(d) ?: continue
-                            val text = def.optString("definition").ifBlank { continue }
-                            sheet.row(null, text, def.optString("example").ifBlank { null }?.let { "“$it”" }, dismiss = false) {}
-                            shown++
-                        }
+                for (m in entry.meanings) {
+                    if (shown >= 6) break
+                    sheet.section(m.partOfSpeech.replaceFirstChar { it.uppercase() })
+                    for ((text, example) in m.definitions.take(2)) {
+                        sheet.row(null, text, example?.let { "“$it”" }, dismiss = false) {}
+                        shown++
                     }
                 }
                 sheet.row(R.drawable.ic_voice, "Fix how “$word” is said", "Every voice will say it your way") { Pronounce.show(this@ReaderActivity, word) }
