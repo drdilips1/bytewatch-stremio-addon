@@ -5,6 +5,7 @@ import { library, progress, useStore, forgetBook, persisted, clearPodcastHistory
 import { allTags } from '../components/book-tags.jsx';
 import { localSrc } from '../sources/index.js';
 import { fmtDuration } from '../lib/format.js';
+import { hoursListened } from '../lib/stats.js';
 import { metaNow, metaFixes, coverNow, findMissingCovers } from '../lib/meta.js';
 import { longPress } from '../components/book-actions.jsx';
 import { seriesOf } from '../lib/series.js';
@@ -229,7 +230,7 @@ export function Library() {
 
   const stats = useMemo(() => {
     const vals = Object.values(prog || {}).filter((p) => p && typeof p === 'object');
-    const seconds = vals.reduce((a, p) => a + (p.global || 0), 0);
+    const seconds = hoursListened(); // the same as Stats' All time
     return { books: vals.length, hours: Math.round(seconds / 360) / 10, done: vals.filter((p) => p.finished).length };
   }, [prog]);
 

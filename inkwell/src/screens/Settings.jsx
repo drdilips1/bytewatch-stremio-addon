@@ -4,7 +4,8 @@ import { ssBadges } from '../sources/storyshots.js';
 import { Icon } from '../components/icons.jsx';
 import { toast, AskButton } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup, kindle } from '../lib/store.js';
-import { notInterested } from '../lib/taste.js';
+import { aiVoiceOn, stopAnswer } from '../lib/voiceask.js';
+import { notInterested, alreadyRead } from '../lib/taste.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl } from '../lib/http.js';
 import { searchSources, sourceAddons, suggestedSources, addSuggested } from '../sources/sourceaddons.js';
@@ -71,6 +72,21 @@ function SsToggle() {
       onChange={(v) => {
         ssBadges.set(v);
         setOn(v);
+      }}
+    />
+  );
+}
+
+function VoiceToggle() {
+  const on = useStore(aiVoiceOn) !== false;
+  return (
+    <Toggle
+      label="Voice with AI"
+      hint="Off: no mic buttons to ask by voice and answers are never read aloud — text only"
+      on={on}
+      onChange={(v) => {
+        aiVoiceOn.set(v);
+        if (!v) stopAnswer();
       }}
     />
   );
@@ -1368,6 +1384,7 @@ export function Settings() {
 
       <Section icon="ai" title="AI (bookseller & story helper)">
         <AiCard />
+        <VoiceToggle />
       </Section>
 
 
@@ -1639,9 +1656,26 @@ function PlayerBackgroundPicker({ st }) {
 /** Books you marked "Not interested" on recommendations: count, and show them again. */
 function HiddenRecs() {
   const all = useStore(notInterested);
+  const read = useStore(alreadyRead);
   const n = Object.keys(all || {}).length;
-  if (!n) return null;
+  const r = Object.keys(read || {}).length;
+  if (!n && !r) return null;
   return (
+    <>
+    {r > 0 && (
+      <div class="set-row">
+        <div>
+          <b>Already read</b>
+          <small>
+            {r} book{r > 1 ? 's' : ''} you've read elsewhere, never recommended
+          </small>
+        </div>
+        <button class="pill small" onClick={() => (alreadyRead.set({}), toast('Cleared'))}>
+          Clear
+        </button>
+      </div>
+    )}
+    {n > 0 && (
     <div class="set-row">
       <div>
         <b>Not interested</b>
@@ -1653,5 +1687,7 @@ function HiddenRecs() {
         Show again
       </button>
     </div>
+    )}
+    </>
   );
 }

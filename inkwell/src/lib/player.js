@@ -1048,6 +1048,7 @@ function saveProgress(force = false) {
   progress.set((p) => ({
     ...p,
     [uid]: {
+      startedAt: p[uid]?.startedAt || (p[uid]?.global > 60 ? undefined : now),
       kind: 'audio',
       track: state.index,
       time: state.time || 0,

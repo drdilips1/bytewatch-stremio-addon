@@ -9,7 +9,7 @@ import { aiReady } from '../lib/ai.js';
 import { ask, threadFor, hearing } from '../lib/askbook.js';
 import { mainTitle } from '../lib/match.js';
 import { fmtTime } from '../lib/format.js';
-import { canListen, listen, speakAnswer, stopAnswer, voiceLang } from '../lib/voiceask.js';
+import { canListen, listen, speakAnswer, stopAnswer, voiceLang, aiVoiceOn } from '../lib/voiceask.js';
 
 let pendingListen = false;
 /** Open driving mode; `listenNow` starts listening for a question straight away ('scene': for a scene to play). */
@@ -61,7 +61,7 @@ export function DriveMode() {
 
   // Voice command button in driving mode: a command, a book to play, or a question.
   const sceneNow = async (preset = '', playingBefore = null) => {
-    if (!canListen() && !preset) return toast('Voice input is not available on this device');
+    if (!canListen() && !preset) return toast(aiVoiceOn.get() === false ? 'Voice is off (Settings → AI)' : 'Voice input is not available on this device');
     if (!aiReady()) return toast('Add an AI key in Settings → AI first');
     stopAnswer();
     const wasPlaying = playingBefore ?? player.getState().playing;
@@ -127,7 +127,7 @@ export function DriveMode() {
   };
 
   const askNow = async (followUp = false) => {
-    if (!canListen()) return toast('Voice input is not available on this device');
+    if (!canListen()) return toast(aiVoiceOn.get() === false ? 'Voice is off (Settings → AI)' : 'Voice input is not available on this device');
     if (!aiReady()) return toast('Add an AI key in Settings → AI first');
     stopAnswer();
     if (!followUp) resumeAfter.current = resumeAfter.current || player.getState().playing;

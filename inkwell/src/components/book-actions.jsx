@@ -8,7 +8,7 @@ import { nav, useBackClose } from '../lib/nav.js';
 import { allTags } from './book-tags.jsx';
 import { FixDetails } from './fix-details.jsx';
 import { upNext, addUpNext, removeUpNext } from '../lib/upnext.js';
-import { markNotInterested } from '../lib/taste.js';
+import { markNotInterested, markAlreadyRead } from '../lib/taste.js';
 
 // The book whose sheet is open (not saved).
 let current = null;
@@ -170,11 +170,14 @@ export function BookActionsSheet() {
         <button class="menu-item" onClick={act(() => nav.push('book', { book }))}>
           <Icon name="info" size={18} /> Details
         </button>
-        {book.rec && (
-          <button class="menu-item danger" onClick={act(() => (markNotInterested(book), toast('Hidden — you’ll see less like this (undo in Settings → AI)')))}>
-            <Icon name="close" size={18} /> Not interested — show less like this
+        {!p && (
+          <button class="menu-item" onClick={act(() => (markAlreadyRead(book), toast('Got it — it won’t be recommended (undo in Settings → AI)')))}>
+            <Icon name="check" size={18} /> Already read it — don’t recommend
           </button>
         )}
+        <button class="menu-item danger" onClick={act(() => (markNotInterested(book), toast('Hidden — you’ll see less like this (undo in Settings → AI)')))}>
+          <Icon name="close" size={18} /> {book.rec ? 'Not interested — show less like this' : 'Don’t recommend this book'}
+        </button>
         {p && !p.hidden && (
           <button class="menu-item danger" onClick={act(() => (hideFromContinue([book.uid]), toast('Taken off Continue listening')))}>
             <Icon name="close" size={18} /> Remove from Continue listening

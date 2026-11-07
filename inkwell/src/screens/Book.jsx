@@ -20,6 +20,7 @@ import {
 import { library, progress, toggleLibrary, useStore } from "../lib/store.js";
 import { BookTags } from "../components/book-tags.jsx";
 import { fmtDuration, fmtTime } from "../lib/format.js";
+import { finishLine } from "../lib/stats.js";
 import { nav, useBackClose } from "../lib/nav.js";
 import * as qb from "../sources/qbit.js";
 import { canSendToKindle, sendToKindle, shareEbook } from "../lib/kindle.js";
@@ -439,6 +440,7 @@ export function Book({ book: initial }) {
           <div style={{ width: pct + "%" }} />
         </div>
       )}
+      {pct > 0 && !prog.finished && !canRead && finishLine(initial.uid) && <p class="book-finish">{finishLine(initial.uid)}</p>}
 
       {error &&
         (book.source === 'abs' ? (

@@ -5,6 +5,16 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-11-08',
+    title: 'Stats that add up, and your say on recommendations',
+    items: [
+      ['📊', 'Listening stats fixed', 'All time, Most listened and Top authors now include listening from before the stats began (as far as you’ve got into each book) — the same as the Library’s hours listened.'],
+      ['⏳', 'When you’ll finish', 'A book’s page says when you started it and, from how you’ve been listening lately, about when you’ll finish.'],
+      ['🙅', 'Already read it · Don’t recommend', 'Press and hold any book: “Already read it” or “Don’t recommend this book”. Undo in Settings → AI.'],
+      ['🔇', 'Voice with AI: off', 'Settings → AI → Voice with AI off: no mic buttons and answers are never read aloud — text only.'],
+    ],
+  },
+  {
     id: '2026-11-07',
     title: 'Android Auto, and a better transcript',
     items: [
