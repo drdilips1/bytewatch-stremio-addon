@@ -172,11 +172,11 @@ export function BookActionsSheet() {
         </button>
         {!p && (
           <button class="menu-item" onClick={act(() => (markAlreadyRead(book), toast('Got it — it won’t be recommended (undo in Settings → AI)')))}>
-            <Icon name="check" size={18} /> Already read it — don’t recommend
+            <Icon name="check" size={18} /> Already read it
           </button>
         )}
         <button class="menu-item danger" onClick={act(() => (markNotInterested(book), toast('Hidden — you’ll see less like this (undo in Settings → AI)')))}>
-          <Icon name="close" size={18} /> {book.rec ? 'Not interested — show less like this' : 'Don’t recommend this book'}
+          <Icon name="close" size={18} /> Not for me — fewer like this
         </button>
         {p && !p.hidden && (
           <button class="menu-item danger" onClick={act(() => (hideFromContinue([book.uid]), toast('Taken off Continue listening')))}>

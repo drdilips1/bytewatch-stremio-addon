@@ -10,7 +10,7 @@ export const CHANGES = [
     items: [
       ['📊', 'Listening stats fixed', 'All time, Most listened and Top authors now include listening from before the stats began (as far as you’ve got into each book) — the same as the Library’s hours listened.'],
       ['⏳', 'When you’ll finish', 'A book’s page says when you started it and, from how you’ve been listening lately, about when you’ll finish.'],
-      ['🙅', 'Already read it · Don’t recommend', 'Press and hold any book: “Already read it” or “Don’t recommend this book”. Undo in Settings → AI.'],
+      ['🙅', 'Already read it · Not for me', 'Press and hold any book: “Already read it” (just hides it) or “Not for me — fewer like this” (hides it and books like it). Undo in Settings → AI.'],
       ['🔇', 'Voice with AI: off', 'Settings → AI → Voice with AI off: no mic buttons and answers are never read aloud — text only.'],
       ['🚫', 'Or AI off altogether', 'Settings → AI → AI features off: every AI button is hidden and nothing is sent to an AI. Recommendations, transcripts and reading aloud still work.'],
     ],

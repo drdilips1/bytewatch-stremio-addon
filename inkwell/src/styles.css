@@ -6387,6 +6387,12 @@ button.rt {
   font-size: 14px;
   color: var(--accent);
 }
+.book-actions {
+  /* A press-and-hold opens this sheet: don't let it go on to select its text. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 .menu-item {
   display: flex;
   align-items: center;
