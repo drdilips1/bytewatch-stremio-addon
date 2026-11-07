@@ -233,8 +233,9 @@ export function ebooksOnHand(book, query = '', { all: everything = false } = {})
 
 /** Download a found ebook, keep it on the phone and use it for this audiobook's transcript. */
 export async function keepFoundEbook(audioUid, hit, book = null) {
+  stopAutoEbook();
   const eb = await readyHit(hit, book || hit.book);
-  await loadCloudEbook(eb);
+  await loadCloudEbook(eb, { fresh: true });
   linkEbook(audioUid, eb);
 }
 
@@ -268,7 +269,17 @@ export function autoFindEbook(book) {
   return finding.get(book.uid);
 }
 
+// The automatic search's downloads: stopped when you pick a file yourself (two downloads at
+// once from the same mirror made both stall, and yours waited on the automatic one).
+let autoCtrl = null;
+export function stopAutoEbook() {
+  autoCtrl?.abort();
+  autoCtrl = null;
+}
+
 async function lookEverywhere(book) {
+  autoCtrl?.abort();
+  const ctrl = (autoCtrl = new AbortController());
   const t = mainTitle(book.title || '');
   if (!t) return null;
   const sn = surname(book.author);
@@ -304,7 +315,8 @@ async function lookEverywhere(book) {
         for (const hit of hits) {
           let slow = false;
           const timer = new Promise((res) => setTimeout(() => res((slow = true)), 25000));
-          const got = await Promise.race([loadCloudEbook(hit.book).then(() => hit.book, () => null), timer]);
+          if (ctrl.signal.aborted) return null;
+          const got = await Promise.race([loadCloudEbook(hit.book, { signal: ctrl.signal }).then(() => hit.book, () => null), timer]);
           if (got && got !== true) return got;
           if (slow) break;
         }

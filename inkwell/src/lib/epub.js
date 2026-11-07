@@ -382,9 +382,13 @@ export async function forgetEbook(uid) {
 
 const loading = new Map(); // uid -> promise, so Read + Listen share one download
 
-export function loadCloudEbook(book) {
+export function loadCloudEbook(book, { signal, fresh = false } = {}) {
   if (docs.has(book.uid)) return Promise.resolve(docs.get(book.uid));
-  if (!loading.has(book.uid)) loading.set(book.uid, loadEbook(book).finally(() => loading.delete(book.uid)));
+  // fresh: a download you asked for — not tied to one already running (that may be stuck).
+  if (fresh || !loading.has(book.uid)) {
+    const p = loadEbook(book, signal).finally(() => loading.get(book.uid) === p && loading.delete(book.uid));
+    loading.set(book.uid, p);
+  }
   return loading.get(book.uid);
 }
 
@@ -397,7 +401,7 @@ async function toDoc(bytes) {
   return { ...doc, bytes };
 }
 
-async function loadEbook(book) {
+async function loadEbook(book, signal) {
   const saved = await cachedBytes(book.uid);
   if (saved) return remember(book.uid, await toDoc(saved));
   let file = book.ebookFile;
@@ -410,7 +414,7 @@ async function loadEbook(book) {
   }
   if (!file) throw new Error('This ebook is no longer in your cloud');
   if (file.format !== 'EPUB' && file.format !== 'PDF') throw new Error(`${file.format} files can't be opened in the reader — use Send to Kindle / Open in another app on the book page`);
-  const bytes = await getBytes(await file.resolve());
+  const bytes = await getBytes(await file.resolve(), { signal });
   const doc = await toDoc(bytes); // throws before caching if it isn't a readable EPUB / PDF
   if (!book.uid.startsWith('loc:')) keepBytes(book, bytes, isPdf(bytes) ? 'PDF' : 'EPUB'); // phone files are already on the phone
   return remember(book.uid, doc);

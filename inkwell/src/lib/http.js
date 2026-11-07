@@ -206,9 +206,11 @@ const byteSubs = new Set();
 export const onDownloadProgress = (f) => (byteSubs.add(f), () => byteSubs.delete(f));
 const tell = (p) => byteSubs.forEach((f) => f(p));
 
-export async function getBytes(url, { timeout = 180000 } = {}) {
+export async function getBytes(url, { timeout = 180000, signal } = {}) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeout);
+  // Someone else can stop it too (the transcript's own search, when you pick a file yourself).
+  if (signal) signal.aborted ? ctrl.abort() : signal.addEventListener('abort', () => ctrl.abort(), { once: true });
   try {
     const res = await fetch(url, { signal: ctrl.signal });
     if (!res.ok) throw new Error(`Download failed (HTTP ${res.status})`);
@@ -232,7 +234,7 @@ export async function getBytes(url, { timeout = 180000 } = {}) {
     tell({ url, got, total, done: true });
     return out;
   } catch (e) {
-    if (e.name === 'AbortError') throw new Error('The download took too long — try again');
+    if (e.name === 'AbortError') throw new Error(signal?.aborted ? 'stopped' : 'The download took too long — try again');
     throw e;
   } finally {
     clearTimeout(t);

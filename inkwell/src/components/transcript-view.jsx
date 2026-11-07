@@ -87,12 +87,27 @@ function EbookStatus({ b }) {
     setBusy(h.r.link);
     setProg('');
     const mb = (n) => `${(n / 1048576).toFixed(1)} MB`;
-    const stop = onDownloadProgress((p) => setProg(p.done ? 'Reading the book…' : p.total ? `${mb(p.got)} of ${mb(p.total)} · ${Math.round((p.got / p.total) * 100)}%` : mb(p.got)));
+    // Only this file's download (the first one that starts after the tap), out of its size —
+    // from the server, else the size the source listed.
+    let mine = '';
+    const listed = Number(h.file.size || h.r.size) || 0;
+    const stop = onDownloadProgress((p) => {
+      if (!mine) mine = p.url;
+      if (p.url !== mine) return;
+      const total = p.total || listed;
+      setProg(p.done ? 'Reading the book…' : total ? `${mb(Math.min(p.got, total))} of ${mb(total)} · ${Math.min(99, Math.round((p.got / total) * 100))}%` : `${mb(p.got)} so far`);
+    });
     try {
       await takeEbook(h);
       close();
     } catch (e) {
       toast(e?.message || String(e));
+      // Why it didn't attach, for Report a problem (the file's site, not its address).
+      let host = '';
+      try {
+        host = new URL(h.r.link).host;
+      } catch {}
+      import('../lib/report.js').then(({ logError }) => logError('Ebook attach', `${e?.message || e} — ${h.file.format} ${listed ? `${(listed / 1048576).toFixed(1)} MB ` : ''}from ${h.source}${host ? ` (${host})` : ''}`));
     }
     stop();
     setProg('');
