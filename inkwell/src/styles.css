@@ -11449,3 +11449,27 @@ button.notes-book-head {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* Settings → Books you've read: paste a list. */
+.read-import {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0;
+}
+.read-import textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.3));
+  background: var(--card, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.read-import .row-btns {
+  display: flex;
+  gap: 8px;
+}

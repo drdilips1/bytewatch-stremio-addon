@@ -6,6 +6,7 @@ import { toast, AskButton } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup, kindle } from '../lib/store.js';
 import { aiVoiceOn, stopAnswer } from '../lib/voiceask.js';
 import { notInterested, alreadyRead } from '../lib/taste.js';
+import { importReadList, takeGoodreadsReads } from '../lib/readlists.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl } from '../lib/http.js';
 import { searchSources, sourceAddons, suggestedSources, addSuggested } from '../sources/sourceaddons.js';
@@ -74,6 +75,47 @@ function SsToggle() {
         setOn(v);
       }}
     />
+  );
+}
+
+/** Paste the list of books you've read (from your notes): ratings for recommendations, never suggested back. */
+function ReadImport() {
+  const [text, setText] = useState('');
+  const [open, setOpen] = useState(false);
+  if (!open)
+    return (
+      <div class="set-row">
+        <div>
+          <b>Import books you've read</b>
+          <small>Paste a list from your notes, one book a line, with your rating if you have one — they shape recommendations, are never suggested back, and show in Library → Finished</small>
+        </div>
+        <button class="pill small" onClick={() => setOpen(true)}>
+          Paste list
+        </button>
+      </div>
+    );
+  return (
+    <div class="read-import">
+      <textarea
+        rows={8}
+        placeholder={'Dune by Frank Herbert ★★★★★\nSapiens - Yuval Noah Harari - 4/5\nProject Hail Mary, Andy Weir\nAtomic Habits | James Clear | 3 stars'}
+        value={text}
+        onInput={(e) => setText(e.currentTarget.value)}
+      />
+      <small class="muted">Title and author, any way you wrote them. Ratings: stars (★★★★), 4/5, 8/10 or “4 stars”. Books without one count as read, not rated.</small>
+      <div class="row-btns">
+        <button class="btn" disabled={!text.trim()} onClick={() => {
+          const r = importReadList(text);
+          toast(r.total ? `Added ${r.total} book${r.total > 1 ? 's' : ''} · ${r.rated} rated` : 'No books found in that');
+          if (r.total) (setText(''), setOpen(false));
+        }}>
+          Import
+        </button>
+        <button class="btn ghost" onClick={() => (setText(''), setOpen(false))}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -381,7 +423,6 @@ function AiCard() {
         </div>
         <input type="checkbox" class="switch" checked={useStore(settings).aiNoSpoilers !== false} onChange={(e) => settings.patch({ aiNoSpoilers: e.currentTarget.checked })} />
       </label>
-      <HiddenRecs />
       <p class="muted small">
         <b>What leaves your phone:</b> only when you use an AI feature, the question and what it needs — the book's title and author, where you are in it, and (for questions about
         what you're hearing) the last few minutes of the transcript — go to the service you set up here, under your own key. Playback, downloads, your library, bookmarks and
@@ -1001,7 +1042,9 @@ function GoodreadsCard() {
               const f = e.currentTarget.files?.[0];
               if (!f) return;
               try {
-                toast(`Imported ${gr.importCsv(await f.text())} books`);
+                const n = gr.importCsv(await f.text());
+                const r = takeGoodreadsReads(goodreads.get().books);
+                toast(`Imported ${n} books · ${r.total} read (${r.rated} rated) count for recommendations`);
               } catch (err) {
                 toast(err.message);
               }
@@ -1396,6 +1439,11 @@ export function Settings() {
         <Stepper label="Skip back" value={st.skipBack} options={[5, 10, 15, 30]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipBack: v })} />
         <Stepper label="Skip forward" value={st.skipForward} options={[10, 15, 30, 45, 60]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipForward: v })} />
         <Toggle label="Play Up next by itself" hint="When a book ends, the next one in Up next starts (press and hold a book → Add to Up next)" on={st.upNextAuto !== false} onChange={(v) => settings.patch({ upNextAuto: v })} />
+      </Section>
+
+      <Section icon="book" title="Books you've read">
+        <ReadImport />
+        <HiddenRecs />
       </Section>
 
       <Section icon="ai" title="AI (bookseller & story helper)">

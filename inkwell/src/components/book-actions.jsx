@@ -9,6 +9,7 @@ import { allTags } from './book-tags.jsx';
 import { FixDetails } from './fix-details.jsx';
 import { upNext, addUpNext, removeUpNext } from '../lib/upnext.js';
 import { markNotInterested, markAlreadyRead } from '../lib/taste.js';
+import { readLater, toggleReadLater } from '../lib/readlists.js';
 
 // The book whose sheet is open (not saved).
 let current = null;
@@ -54,6 +55,7 @@ export function BookActionsSheet() {
   const lib = useStore(library);
   const queue = useStore(upNext);
   const prog = useStore(progress);
+  const later = useStore(readLater);
   const [busy, setBusy] = useState('');
   const [fixing, setFixing] = useState(false);
   const close = () => (setFixing(false), sheet.set(null));
@@ -140,6 +142,11 @@ export function BookActionsSheet() {
               <Icon name="list" size={18} /> Add to Up next
             </button>
           ))}
+        {!p && (
+          <button class="menu-item" onClick={act(() => toast(toggleReadLater(book) ? 'Added to Read later (Library)' : 'Taken off Read later'))}>
+            <Icon name="bookmark" size={18} fill={!!later[book.uid]} /> {later[book.uid] ? 'Remove from Read later' : 'Read later'}
+          </button>
+        )}
         <button class="menu-item" onClick={act(() => (toggleLibrary(book), toast(saved ? 'Removed from your library' : 'Added to your library')))}>
           <Icon name="heart" size={18} fill={saved} /> {saved ? 'Remove from library' : 'Add to library'}
         </button>
