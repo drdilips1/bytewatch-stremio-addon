@@ -384,6 +384,8 @@ class ReaderActivity : Activity() {
                 for (k in 0 until list.length()) list.optJSONObject(k)?.let { translation?.set(it.optInt("i"), it.optString("t")) }
             }
             "InkwellReadAloud.status" -> state()
+            // The page's paragraphs as the reader counts them (without the skipped contents and index).
+            "InkwellReadAloud.map" -> ok.also { a.optJSONArray("idx")?.let { arr -> idx = IntArray(arr.length()) { arr.optInt(it, -1) } } }
             else -> error("Not available")
         }
     }
