@@ -110,10 +110,13 @@ function breadcrumb(doc) {
     .filter((c) => c.text);
 }
 
-/** True when the trail ends … eBooks » Audiobooks, and the Audiobooks link is forum 124. */
+/**
+ * True when the topic's trail reaches Audiobooks (forum 124) under eBooks — on Mobilism:
+ * Home › Device-independent › eBooks › eBook Releases by Category › Audiobooks.
+ */
 export function inAudiobooks(crumbs) {
-  const i = crumbs.findIndex((c) => /^audio\s?books?$/i.test(c.text));
-  return i > 0 && crumbs[i].f === FORUM && /^e-?books?$/i.test(crumbs[i - 1].text);
+  const i = crumbs.findIndex((c) => /^audio\s?books?$/i.test(c.text) && c.f === FORUM);
+  return i > 0 && crumbs.slice(0, i).some((c) => /^e-?books?$/i.test(c.text));
 }
 
 const AUDIO = /\b(mp3|m4b|m4a|aac|audiobook|unabridged|narrated|read by)\b/i;

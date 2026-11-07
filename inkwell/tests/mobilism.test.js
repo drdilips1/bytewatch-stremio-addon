@@ -8,6 +8,20 @@ describe('inAudiobooks', () => {
   it('accepts eBooks » Audiobooks (f=124)', () => {
     expect(inAudiobooks([{ text: 'Board index', f: '' }, { text: 'eBooks', f: '106' }, { text: 'Audiobooks', f: '124' }])).toBe(true);
   });
+  it("accepts Mobilism's real trail (a category in between)", () => {
+    expect(
+      inAudiobooks([
+        { text: 'Home', f: '' },
+        { text: 'Device-independent', f: '376' },
+        { text: 'eBooks', f: '106' },
+        { text: 'eBook Releases by Category', f: '120' },
+        { text: 'Audiobooks', f: '124' },
+      ])
+    ).toBe(true);
+  });
+  it('rejects the site announcements', () => {
+    expect(inAudiobooks([{ text: 'Home', f: '' }, { text: 'Site Announcements', f: '102' }, { text: 'Announcements', f: '1' }])).toBe(false);
+  });
   it('rejects Audiobooks with another forum id', () => {
     expect(inAudiobooks([{ text: 'eBooks', f: '106' }, { text: 'Audiobooks', f: '125' }])).toBe(false);
   });
