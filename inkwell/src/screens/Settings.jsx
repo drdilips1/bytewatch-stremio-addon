@@ -9,7 +9,7 @@ import { notInterested, alreadyRead } from '../lib/taste.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl } from '../lib/http.js';
 import { searchSources, sourceAddons, suggestedSources, addSuggested } from '../sources/sourceaddons.js';
-import { ai, PROVIDERS as AI_PROVIDERS, testProvider } from '../lib/ai.js';
+import { ai, PROVIDERS as AI_PROVIDERS, testProvider, aiOff, aiOn } from '../lib/ai.js';
 import relayCode from '../../relay/index.ts?raw';
 import { ACCENTS, PALETTES, activePalette, isInk } from '../lib/theme.js';
 import { WALLPAPERS, wallpaperUrl, saveCustom, useCustomWallpaper } from '../lib/wallpaper.js';
@@ -72,6 +72,21 @@ function SsToggle() {
       onChange={(v) => {
         ssBadges.set(v);
         setOn(v);
+      }}
+    />
+  );
+}
+
+function AiSwitch() {
+  const off = useStore(aiOff);
+  return (
+    <Toggle
+      label="AI features"
+      hint="Off: Ask, X-Ray, Story, recaps, chapter summaries, Explain / Translate in the reader and the bookseller are all hidden, and nothing is ever sent to an AI. Recommendations still work without it."
+      on={!off}
+      onChange={(v) => {
+        aiOff.set(!v);
+        if (!v) stopAnswer();
       }}
     />
   );
@@ -1244,6 +1259,7 @@ function PreferredDebrid() {
 
 export function Settings() {
   const st = useStore(settings);
+  useStore(aiOff); // AI switched on / off: show or hide its settings
   const setSource = (k, v) => settings.patch({ sources: { ...st.sources, [k]: v } });
   return (
     <div class="screen settings">
@@ -1383,8 +1399,9 @@ export function Settings() {
       </Section>
 
       <Section icon="ai" title="AI (bookseller & story helper)">
-        <AiCard />
-        <VoiceToggle />
+        <AiSwitch />
+        {aiOn() && <AiCard />}
+        {aiOn() && <VoiceToggle />}
       </Section>
 
 

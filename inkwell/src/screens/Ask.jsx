@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { TopBar, Cover, toast } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { nav } from '../lib/nav.js';
-import { aiReady } from '../lib/ai.js';
+import { aiReady, aiHint } from '../lib/ai.js';
 import { MODES, STARTERS, LIBRARY_ASKS, ask, quiz, threadFor, clearThread, hearing, ideas, forgetIdea, spoilerLimit, answerSource, hasBookText, keepAnswer } from '../lib/askbook.js';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { copyText } from '../lib/report.js';
@@ -66,7 +66,7 @@ export function Ask({ book = null, description = '', genres = [], mode: startMod
   const run = async (q, extra = {}) => {
     if (!q.trim() || busy) return;
     if (!aiReady()) {
-      toast('Add an AI key in Settings → AI first');
+      toast(aiHint());
       return nav.tab('settings');
     }
     const shown = extra.where ? `🎧 ${q} (at ${extra.where.label})` : extra.voice ? `🎙 ${q}` : q;

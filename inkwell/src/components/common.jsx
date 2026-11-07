@@ -17,6 +17,7 @@ import { useStoryShots, chooseStoryShots } from '../sources/storyshots.js';
 import { useLocalCover } from '../sources/local.js';
 import { audioFormat } from '../sources/debrid.js';
 import { markNotInterested, notInterested, isNotInterested, alreadyRead, isHiddenRec } from '../lib/taste.js';
+import { aiOff } from '../lib/ai.js';
 
 export function Cover({ book, class: cls = '', eager }) {
   // A tall print cover: the square audiobook cover (Apple Books / Audible) instead, once found.
@@ -392,6 +393,7 @@ export function Skeleton() {
 
 /** ✨ Ask AI, in the top corner of every screen: about this book, or about all your books. */
 export function AskButton({ book = null, cls = 'icon-btn ask-btn glass' }) {
+  if (useStore(aiOff)) return null; // AI switched off
   return (
     <button
       class={cls}

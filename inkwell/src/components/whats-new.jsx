@@ -12,6 +12,7 @@ export const CHANGES = [
       ['⏳', 'When you’ll finish', 'A book’s page says when you started it and, from how you’ve been listening lately, about when you’ll finish.'],
       ['🙅', 'Already read it · Don’t recommend', 'Press and hold any book: “Already read it” or “Don’t recommend this book”. Undo in Settings → AI.'],
       ['🔇', 'Voice with AI: off', 'Settings → AI → Voice with AI off: no mic buttons and answers are never read aloud — text only.'],
+      ['🚫', 'Or AI off altogether', 'Settings → AI → AI features off: every AI button is hidden and nothing is sent to an AI. Recommendations, transcripts and reading aloud still work.'],
     ],
   },
   {
