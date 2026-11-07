@@ -14,8 +14,50 @@ const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Accept"
+  "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization, apikey, x-relay-headers",
+  "Access-Control-Expose-Headers": "x-relay-version"
 };
+
+// ---- Web relay: /relay?url=… — for the web app (listen.audiohubapp.com), which a browser
+// can't let call some services directly (they don't allow other sites' pages). Only these
+// services; the request (with its own headers, e.g. a TorBox key) is passed on and the
+// answer returned. Nothing is stored or logged.
+const RELAY_OK = /^(api\.torbox\.app|api\.real-debrid\.com|api\.alldebrid\.com|www\.premiumize\.me|itunes\.apple\.com|openlibrary\.org|archive\.org|gutendex\.com|librivox\.org|standardebooks\.org|api\.hardcover\.app|www\.goodreads\.com|api\.audible\.[a-z.]+|(www\.)?getstoryshots\.com|([a-z0-9-]+\.)*knaben\.(org|eu|net|cc))$/i;
+async function relay(request, url) {
+  let target;
+  try {
+    target = new URL(url.searchParams.get("url") || "");
+  } catch {
+    return reply(JSON.stringify({ error: "No address" }), 400);
+  }
+  if (target.protocol !== "https:" || !RELAY_OK.test(target.hostname)) return reply(JSON.stringify({ error: "Not a service this relay passes on" }), 403);
+  let method = request.method === "POST" ? "POST" : "GET";
+  let headers = {};
+  let body = null;
+  if (url.searchParams.get("env") === "1") {
+    // One POST carrying the real request: { method, headers, body }.
+    try {
+      const e = JSON.parse(await request.text());
+      method = String(e.method || "GET").toUpperCase();
+      headers = e.headers || {};
+      body = e.body ?? null;
+    } catch {
+      return reply(JSON.stringify({ error: "Bad request" }), 400);
+    }
+  } else {
+    try {
+      headers = JSON.parse(request.headers.get("x-relay-headers") || "{}");
+    } catch {}
+    const type = request.headers.get("Content-Type");
+    if (type) headers["Content-Type"] = type;
+    if (method !== "GET") body = await request.text();
+  }
+  const up = await fetch(target.toString(), { method, headers, body: method === "GET" || method === "HEAD" ? undefined : body, redirect: "follow" });
+  const out = new Headers(HEADERS);
+  out.set("Content-Type", up.headers.get("Content-Type") || "application/octet-stream");
+  out.set("x-relay-version", "8");
+  return new Response(up.body, { status: up.status, headers: out });
+}
 
 // Your own search workers, reached through this address (some networks block *.workers.dev).
 // prefix -> { url, binding }: if a Service binding with that name is set on this Worker
@@ -497,6 +539,8 @@ export default {
     }
 
     try {
+      if (path === "/relay") return await relay(request, url);
+
       // LibGen / EXTto / RuTracker: /libgen/…, /extto/…, /rutracker/… passed to their workers,
       // with their links in the answer pointing back here.
       const pass = /^\/(libgen|extto|rutracker)(\/.*)?$/.exec(path);
