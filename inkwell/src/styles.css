@@ -11404,3 +11404,37 @@ button.notes-book-head {
   background: rgba(255, 255, 255, 0.12);
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
 }
+
+/* Mobilism topic: send its file-host links to TorBox, or Real-Debrid's direct links. */
+.topic-cloud {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.topic-cloud-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.topic-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topic-file > span {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.topic-file b {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topic-file small {
+  color: var(--muted);
+  font-size: 12px;
+}

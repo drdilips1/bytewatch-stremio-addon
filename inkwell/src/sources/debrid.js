@@ -358,6 +358,13 @@ export async function addTorrentFile(provider, file) {
   return provider === 'torbox' ? tbAddFile(file) : rdAddFile(file);
 }
 
+/** A file-host link (Rapidgator…) through Real-Debrid: { url, name, size } of a fast direct link. */
+export async function unrestrict(link) {
+  const r = await sendForm(`${RD}/unrestrict/link`, 'POST', { link }, rdHeaders());
+  if (!r?.download) throw new Error(r?.error ? `Real-Debrid: ${r.error}` : 'Real-Debrid could not open that link');
+  return { url: r.download, name: r.filename || 'file', size: Number(r.filesize) || 0 };
+}
+
 async function rdAdd(link) {
   if (/^magnet:/i.test(link)) {
     const r = await sendForm(`${RD}/torrents/addMagnet`, 'POST', { magnet: link }, rdHeaders());

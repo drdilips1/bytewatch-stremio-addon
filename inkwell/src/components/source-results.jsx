@@ -342,6 +342,101 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   );
 }
 
+// A forum topic's file-host links (Mobilism): one host's set — Rapidgator first (TorBox and
+// Real-Debrid both take it), else the host with the most links (a book split in parts).
+const HOSTS = ['rapidgator.net', 'rg.to', 'nitroflare.com', 'ddownload.com', '1fichier.com', 'turbobit.net', 'katfile.com', 'rosefile.net'];
+function hostLinks(downloads) {
+  const by = {};
+  for (const d of downloads || []) (by[d.host] ||= []).push(d.url);
+  const known = HOSTS.find((h) => by[h]?.length);
+  const host = known || Object.keys(by).sort((a, b) => by[b].length - by[a].length)[0];
+  return host ? { host, links: [...new Set(by[host])] } : { host: '', links: [] };
+}
+const AUDIO_FILE = /\.(mp3|m4b|m4a|aac|ogg|opus|flac)$/i;
+
+/** Send a topic's links to your cloud: TorBox as web downloads, or Real-Debrid's fast links. */
+function TopicToCloud({ r }) {
+  const [busy, setBusy] = useState('');
+  const [files, setFiles] = useState(null); // Real-Debrid's direct links
+  const { host, links } = hostLinks(r.downloads);
+  if (!links.length || (!cloud.tbConnected() && !cloud.rdConnected())) return null;
+  const toTorbox = async () => {
+    setBusy('tb');
+    let ok = 0;
+    let err = '';
+    for (const l of links) {
+      try {
+        await cloud.addLink('torbox', l);
+        ok++;
+      } catch (e) {
+        err = e.message;
+      }
+    }
+    setBusy('');
+    cloud.forget();
+    toast(ok ? `Sent ${ok} ${host} link${ok === 1 ? '' : 's'} to TorBox — it shows in Your TorBox when it's ready` : `TorBox didn't take it: ${err}`);
+  };
+  const viaRd = async () => {
+    setBusy('rd');
+    const out = [];
+    let err = '';
+    for (const l of links) {
+      try {
+        out.push(await cloud.unrestrict(l));
+      } catch (e) {
+        err = e.message;
+      }
+    }
+    setBusy('');
+    if (!out.length) return toast(err || 'Real-Debrid could not open these links');
+    setFiles(out);
+  };
+  const play = async (f) => {
+    const book = { uid: 'url:' + encodeURIComponent(f.url), source: 'url', kind: 'audio', title: r.title, author: r.author || '', cover: '' };
+    try {
+      nav.openOverlay('player');
+      player.playBook(await getDetails(book));
+    } catch (e) {
+      toast(e.message);
+    }
+  };
+  return (
+    <div class="topic-cloud">
+      <div class="topic-cloud-row">
+        {cloud.tbConnected() && (
+          <button class="btn secondary small" disabled={!!busy} onClick={toTorbox}>
+            {busy === 'tb' ? <span class="spinner small" /> : <Icon name="cloud" size={14} />} Send to TorBox
+          </button>
+        )}
+        {cloud.rdConnected() && (
+          <button class="btn secondary small" disabled={!!busy} onClick={viaRd}>
+            {busy === 'rd' ? <span class="spinner small" /> : <Icon name="link" size={14} />} Real-Debrid links
+          </button>
+        )}
+      </div>
+      {files?.map((f) => (
+        <div class="topic-file">
+          <span>
+            <b>{f.name}</b>
+            <small>
+              {f.size ? fmtSize(f.size) : ''}
+              {/\.(zip|rar|7z)$/i.test(f.name) ? ' · archive — save it, unzip it, then add the folder in Library → On this phone' : ''}
+            </small>
+          </span>
+          {AUDIO_FILE.test(f.name) && (
+            <button class="pill small" onClick={() => play(f)}>
+              Play
+            </button>
+          )}
+          <button class="pill small" onClick={() => saveToDownloads(f.url, f.name, (/\.([a-z0-9]+)$/i.exec(f.name)?.[1] || '').toUpperCase()).catch((e) => toast(e.message))}>
+            Save
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function seedClass(n) {
   return n >= 10 ? 'good' : n > 0 ? 'low' : 'none';
 }
@@ -756,6 +851,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
                 {[...new Set(r.downloads.map((d) => d.host))].slice(0, 3).join(', ')}
               </small>
             )}
+            {r.downloads?.length > 0 && <TopicToCloud r={r} />}
           </div>
         ) : !hasMagnet ? (
           <a class="btn primary" href={r.link} target="_blank" rel="noopener">
