@@ -38,8 +38,8 @@ android {
             // Permanent once uploaded to Google Play.
             applicationId = "com.narrato.reader"
             targetSdk = 36
-            versionCode = 34
-            versionName = "1.9.24"
+            versionCode = 35
+            versionName = "1.9.25"
             buildConfigField("boolean", "LITE", "true")
             // AdMob IDs from the environment (GitHub secrets); Google's test IDs otherwise.
             fun env(name: String, test: String) = System.getenv(name)?.takeIf { it.isNotBlank() } ?: test
@@ -118,4 +118,6 @@ dependencies {
     // Ads and the EU/UK consent form, in the Play Store edition only.
     "liteImplementation"("com.google.android.gms:play-services-ads:24.4.0")
     "liteImplementation"("com.google.android.ump:user-messaging-platform:3.2.0")
+    // The one-time "Remove ads" purchase (Google Play Billing).
+    "liteImplementation"("com.android.billingclient:billing-ktx:8.0.0")
 }

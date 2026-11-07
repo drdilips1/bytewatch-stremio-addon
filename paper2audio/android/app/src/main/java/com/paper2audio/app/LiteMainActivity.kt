@@ -101,6 +101,8 @@ class LiteMainActivity : Activity() {
             }
             Ads.init(this) { Ads.banner(this, findViewById<FrameLayout>(R.id.adBanner)) }
         }
+        // Whether "Remove ads" was bought (also on another phone, or refunded): checked with Play at each start.
+        if (BuildConfig.LITE) RemoveAds.refresh(this) { owned -> if (owned && !isFinishing) adsRemoved() }
         AppLog.offerCrashReport(this)
         handleIntent(intent)
     }
@@ -432,8 +434,26 @@ class LiteMainActivity : Activity() {
 
     // ---- Menu ----
 
+    /** After buying "Remove ads": the banner goes at once. */
+    private fun adsRemoved() {
+        val banner = findViewById<FrameLayout>(R.id.adBanner) ?: return
+        Ads.destroy(banner)
+        banner.removeAllViews()
+    }
+
     private fun showMenu() {
+        val adFree = !BuildConfig.LITE || RemoveAds.owned(this)
         LiteSheet(this, getString(R.string.app_name), "Version ${Updater.currentName(this)} · free and unlimited")
+            .apply {
+                if (!adFree) {
+                    row(R.drawable.ic_shield, "Remove ads" + (RemoveAds.price?.let { " – $it" } ?: ""), "One-time purchase, no ads ever again") {
+                        RemoveAds.buy(this@LiteMainActivity) { adsRemoved() }
+                    }
+                    row(R.drawable.ic_account, "Restore purchase", "Bought already? On a new phone or after reinstalling") {
+                        RemoveAds.restore(this@LiteMainActivity) { adsRemoved() }
+                    }
+                }
+            }
             .row(R.drawable.ic_info, "How Narrato works", "The short tour, and getting better voices") { LiteWelcome.show(this) }
             .row(R.drawable.ic_palette, "Theme", "Colors of the app") { Themes.showPicker(this) }
             .row(R.drawable.ic_account, "Your name", userName()?.let { "Greeted as $it" } ?: "For the greeting on the first screen") { askName() }

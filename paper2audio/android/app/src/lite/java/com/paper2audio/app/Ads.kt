@@ -33,6 +33,8 @@ object Ads {
     private val counts = HashMap<String, Int>()
 
     fun init(activity: Activity, onDone: () -> Unit = {}) {
+        // Bought "Remove ads": no ads and no consent form.
+        if (RemoveAds.owned(activity)) return onDone()
         val consent = UserMessagingPlatform.getConsentInformation(activity)
         consent.requestConsentInfoUpdate(
             activity,
@@ -65,6 +67,11 @@ object Ads {
 
     /** A banner across the bottom of [container], as wide as the screen. */
     fun banner(activity: Activity, container: ViewGroup) {
+        if (RemoveAds.owned(activity)) {
+            destroy(container)
+            container.removeAllViews()
+            return
+        }
         if (!started) {
             pendingBanner = activity to container
             return
@@ -119,7 +126,7 @@ object Ads {
         counts[moment] = n
         val ad = interstitial
         val due = moment == "audiobook" || n % 2 == 0
-        if (ad == null || !due || Speaker.playing || System.currentTimeMillis() - lastShown < GAP || activity.isFinishing) {
+        if (RemoveAds.owned(activity) || ad == null || !due || Speaker.playing || System.currentTimeMillis() - lastShown < GAP || activity.isFinishing) {
             preload(activity)
             then()
             return
