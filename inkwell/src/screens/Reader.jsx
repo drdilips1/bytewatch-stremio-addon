@@ -72,24 +72,28 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
   const [pct, setPct] = useState(0);
   const scroller = useRef();
   const [aloud, setAloud] = useState(null); // { playing, index }
-  // Reading stats: time with the book open and in use (a touch or scroll in the last two
-  // minutes), or being read aloud — not a book left open on the table.
+  // Reading stats: time with the book open and in use (any tap, swipe, page turn, scroll or
+  // key in the last three minutes), being read aloud, or following its audiobook as it plays —
+  // not a book left open on the table.
   const aloudOn = useRef(false);
   aloudOn.current = !!aloud?.playing;
   useEffect(() => {
     let lastUse = Date.now();
     const used = () => (lastUse = Date.now());
-    const el = scroller.current;
-    el?.addEventListener('scroll', used, { passive: true });
-    el?.addEventListener('touchstart', used, { passive: true });
+    const evs = ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'];
+    // On the whole page (captured): page turns by tap zones, buttons and volume keys count too.
+    evs.forEach((e) => document.addEventListener(e, used, { passive: true, capture: true }));
+    const following = () => {
+      const ps = player.getState();
+      return ps.playing && ps.book && ps.book.kind !== 'text' && sameWork(ps.book, book);
+    };
     const iv = setInterval(() => {
       if (document.hidden) return;
-      if (aloudOn.current || Date.now() - lastUse < 120e3) import('../lib/stats.js').then((m) => m.readTick(book, 10));
+      if (aloudOn.current || Date.now() - lastUse < 180e3 || following()) import('../lib/stats.js').then((m) => m.readTick(book, 10));
     }, 10e3);
     return () => {
       clearInterval(iv);
-      el?.removeEventListener('scroll', used);
-      el?.removeEventListener('touchstart', used);
+      evs.forEach((e) => document.removeEventListener(e, used, { capture: true }));
     };
   }, [book.uid, !!doc]);
   const ctl = useRef(null);
