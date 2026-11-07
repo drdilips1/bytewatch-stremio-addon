@@ -11,6 +11,23 @@ import org.json.JSONObject
 object Pronounce {
     @Volatile private var entries: Map<String, String> = emptyMap()
     @Volatile private var rules: List<Pair<Regex, String>> = emptyList()
+    @Volatile private var builtInRules: List<Pair<Regex, String>> = emptyList()
+
+    /**
+     * Words the on-device voices say wrongly, fixed for everyone ("once" was said with the O of "Om").
+     * The reader's own entry for the same word wins.
+     */
+    private val BUILT_IN = mapOf("once" to "wunce")
+
+    private fun wordRegex(word: String) =
+        Regex("""(?<![\p{L}\p{N}])""" + Regex.escape(word) + """(?![\p{L}\p{N}])""", RegexOption.IGNORE_CASE)
+
+    /** [say] written the way [found] was: "Once" → "Wunce", "ONCE" → "WUNCE". */
+    private fun sameCase(found: String, say: String) = when {
+        found.length > 1 && found.all { !it.isLetter() || it.isUpperCase() } -> say.uppercase()
+        found.firstOrNull()?.isUpperCase() == true -> say.replaceFirstChar { it.uppercase() }
+        else -> say
+    }
 
     /** Changes when the list does, so audio made with the old pronunciations isn't reused. */
     @Volatile var stamp: String = ""
@@ -26,9 +43,8 @@ object Pronounce {
     private fun set(map: Map<String, String>) {
         entries = map.toSortedMap(String.CASE_INSENSITIVE_ORDER)
         // Longer words first, so "New York" wins over "York".
-        rules = entries.entries.sortedByDescending { it.key.length }.map { (word, say) ->
-            Regex("""(?<![\p{L}\p{N}])""" + Regex.escape(word) + """(?![\p{L}\p{N}])""", RegexOption.IGNORE_CASE) to say
-        }
+        rules = entries.entries.sortedByDescending { it.key.length }.map { (word, say) -> wordRegex(word) to say }
+        builtInRules = BUILT_IN.filterKeys { it !in entries }.map { (word, say) -> wordRegex(word) to say }
         stamp = if (entries.isEmpty()) "" else entries.entries.joinToString("|") { "${it.key}=${it.value}" }.hashCode().toString(16)
     }
 
@@ -41,6 +57,7 @@ object Pronounce {
     fun apply(text: String): String {
         var t = text
         for ((re, say) in rules) t = re.replace(t) { say }
+        for ((re, say) in builtInRules) t = re.replace(t) { sameCase(it.value, say) }
         return t
     }
 
