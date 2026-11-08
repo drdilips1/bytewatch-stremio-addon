@@ -663,11 +663,13 @@ public class InkwellPlayerPlugin extends Plugin {
      * Android Auto picked a book: the app prepares it (as when you tap Play). False when the
      * app isn't running — then the car plays downloaded books by itself.
      */
-    static boolean carPlay(String id) {
+    static boolean carPlay(String id, @androidx.annotation.Nullable org.json.JSONObject book) {
         InkwellPlayerPlugin p = instance;
         if (p == null || p.getBridge() == null) return false;
         JSObject o = new JSObject();
         o.put("id", id);
+        // A book found by a search in the car (not in the app's lists): what it is.
+        if (book != null) o.put("book", book.toString());
         // Did the app answer? (Asleep in the background, it doesn't — the log says so.)
         final long asked = System.currentTimeMillis();
         carAsked = asked;
@@ -688,6 +690,63 @@ public class InkwellPlayerPlugin extends Plugin {
     }
 
     private static volatile long carAsked = 0;
+
+    // ---- search in the car: the app searches your sources (a few seconds), the car shows them ----
+    private static final java.util.Map<String, com.google.common.util.concurrent.SettableFuture<String>> searches = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Ask the app to search (not on the main thread): its results, or none after `timeoutMs`. */
+    static java.util.List<org.json.JSONObject> carSearch(String query, long timeoutMs) {
+        java.util.List<org.json.JSONObject> out = new java.util.ArrayList<>();
+        InkwellPlayerPlugin p = instance;
+        if (p == null || p.getBridge() == null) return out;
+        String token = Long.toString(System.nanoTime());
+        com.google.common.util.concurrent.SettableFuture<String> f = com.google.common.util.concurrent.SettableFuture.create();
+        searches.put(token, f);
+        JSObject o = new JSObject();
+        o.put("query", query);
+        o.put("token", token);
+        p.main.post(() -> p.notifyListeners("carSearch", o, true));
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(f.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS));
+            for (int i = 0; i < a.length(); i++) if (a.optJSONObject(i) != null) out.add(a.optJSONObject(i));
+        } catch (Exception e) {
+            CarCatalog.log(p.getContext(), "the app's search didn't answer in time (" + query + ")");
+        } finally {
+            searches.remove(token);
+        }
+        return out;
+    }
+
+    /** The app's search results for the car: { token, json }. */
+    @PluginMethod
+    public void carSearchResults(PluginCall call) {
+        com.google.common.util.concurrent.SettableFuture<String> f = searches.get(call.getString("token", ""));
+        if (f != null) f.set(call.getString("json", "[]"));
+        call.resolve();
+    }
+
+    /** The server's addresses and your sign-in, for the car (search and play with the app closed). */
+    @PluginMethod
+    public void setCarAbs(PluginCall call) {
+        CarAbs.save(getContext(), call.getString("json", ""));
+        call.resolve();
+    }
+
+    /** A sign-in the car renewed while the app was closed: { json } (the app takes the newer one). */
+    @PluginMethod
+    public void takeCarAbs(PluginCall call) {
+        org.json.JSONObject c = CarAbs.cfg(getContext());
+        JSObject o = new JSObject();
+        o.put("json", c == null ? "" : c.toString());
+        call.resolve(o);
+    }
+
+    /** The car's request to your server was refused (sign-in ran out): the app renews it. */
+    static void askAbsRenew() {
+        InkwellPlayerPlugin p = instance;
+        if (p == null || p.getBridge() == null) return;
+        p.main.post(() -> p.notifyListeners("carAbsRenew", new JSObject(), true));
+    }
 
     /** The app got the car's pick (first thing it does): for the log. */
     @PluginMethod
