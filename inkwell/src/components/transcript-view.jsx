@@ -327,7 +327,13 @@ export function TranscriptView({ s }) {
   }
   // With the ebook attached and a few lines found in it: the book's own text, following the
   // audio by its time (see bookAt) — the sentence being read is lit and kept in the middle.
-  const at = !t?.published && t?.bookText?.state === 'on' ? bookAt(s.time) : null;
+  const durs = (s.tracks || []).map((x) => Number(x.duration) || 0);
+  const allKnown = durs.length > 0 && durs.every((d) => d > 0);
+  const globalT = allKnown ? durs.slice(0, s.index).reduce((a, d) => a + d, 0) + (s.time || 0) : null;
+  const totalT = allKnown ? durs.reduce((a, d) => a + d, 0) : Number(s.book?.duration) || null;
+  // Part lengths not all known yet (cloud files report theirs when played): the part's share.
+  const guessT = globalT ?? (s.tracks?.length === 1 ? s.time || 0 : totalT && s.tracks?.length ? (s.index / s.tracks.length) * totalT + (s.time || 0) : null);
+  const at = !t?.published && t?.bookText?.state === 'on' ? bookAt(s.time, { global: guessT, total: totalT }) : null;
   const paras = at ? bookAround(at.word) : null;
   let litFrom = -1;
   if (paras) for (const pg of paras) for (const se of pg.sentences) if (se.from <= at.word && at.word < se.to) litFrom = se.from;
@@ -394,6 +400,7 @@ export function TranscriptView({ s }) {
           </div>
         )}
         {t?.published && segs.length > 0 && <p class="tl-source">Transcript from the podcast</p>}
+        {paras && at.rough && <p class="tl-source">Roughly here — finding the exact place as the narrator reads on…</p>}
         {paras &&
           paras.map((pg) => (
             <p class="tl tb-para" key={pg.key}>

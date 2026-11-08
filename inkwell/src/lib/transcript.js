@@ -677,10 +677,15 @@ function anchors() {
  * Where the audio is in the book: { word, total } — or null while there isn't enough to go
  * on (no ebook, or fewer than two lines found).
  */
-export function bookAt(time) {
+export function bookAt(time, { global = null, total = null } = {}) {
   const pts = anchors();
-  if (pts.length < 3) return null;
-  return { word: wordAtTime(pts, time, bt.tokens.length), total: bt.tokens.length };
+  if (pts.length >= 3) return { word: wordAtTime(pts, time, bt.tokens.length), total: bt.tokens.length };
+  // Not enough found yet (the opening credits, a new part): from how far through the audiobook
+  // you are, as a share of the book's words — the book shows at once, and moves to the exact
+  // spot as soon as lines are found in it.
+  if (!bt || state.published || state.bookText?.state !== 'on' || !(total > 0) || global == null) return null;
+  const share = Math.max(0, Math.min(1, global / total));
+  return { word: Math.min(bt.tokens.length - 1, Math.floor(share * bt.tokens.length)), total: bt.tokens.length, rough: true };
 }
 
 /** The audio time for a word of the book (tapping a sentence plays from there). */
