@@ -346,6 +346,32 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
 // A forum topic's file-host links (Mobilism): one host's set — Rapidgator first (TorBox and
 // Real-Debrid both take it), else the host with the most links (a book split in parts).
 const HOSTS = ['rapidgator.net', 'rg.to', 'nitroflare.com', 'ddownload.com', '1fichier.com', 'turbobit.net', 'katfile.com', 'rosefile.net'];
+/**
+ * A topic's links by site, best first: the sites usually hold the same book (mirrors), so when
+ * one has lost the file (Real-Debrid: "unavailable_file"), the next one is tried.
+ */
+function hostGroups(downloads) {
+  const by = {};
+  for (const d of downloads || []) (by[d.host] ||= []).push(d.url);
+  const rank = (h) => (HOSTS.includes(h) ? HOSTS.indexOf(h) : 99);
+  return Object.keys(by)
+    .sort((a, b) => rank(a) - rank(b) || by[b].length - by[a].length)
+    .map((host) => ({ host, links: [...new Set(by[host])] }));
+}
+
+/** Through Real-Debrid, from the first site whose links it can open. */
+async function sendFirstWorking(groups, meta) {
+  let last = null;
+  for (const g of groups) {
+    try {
+      return { ...(await cloud.sendToRd(g.links, meta)), host: g.host };
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw new Error(last ? `${last.message.replace(/^Real-Debrid:\s*/, '')} on every site (${groups.map((g) => g.host).join(', ')}) — the files may have been taken down` : 'No links');
+}
+
 function hostLinks(downloads) {
   const by = {};
   for (const d of downloads || []) (by[d.host] ||= []).push(d.url);
@@ -367,7 +393,7 @@ function TopicToCloud({ r }) {
   const playNow = async () => {
     setBusy('play');
     try {
-      const { files: got, uid, audio } = await cloud.sendToRd(links, { title: r.title, author: r.author || '' });
+      const { files: got, uid, audio } = await sendFirstWorking(hostGroups(r.downloads), { title: r.title, author: r.author || '' });
       cloud.forget();
       if (audio) {
         nav.openOverlay('player');
@@ -409,7 +435,7 @@ function TopicToCloud({ r }) {
   const toRd = async () => {
     setBusy('rds');
     try {
-      const { files, playable } = await cloud.sendToRd(links, { title: r.title, author: r.author || '' });
+      const { files, playable } = await sendFirstWorking(hostGroups(r.downloads), { title: r.title, author: r.author || "" });
       cloud.forget();
       if (playable) toast(`Sent to Real-Debrid — in Library → Your Real-Debrid (${files.length} file${files.length === 1 ? '' : 's'})`);
       else (setFiles(files.map((f) => ({ ...f, url: '' }))), toast('Real-Debrid has it, but they’re archives (.rar/.zip) — use Real-Debrid links → Save to unzip on the phone'));
@@ -421,14 +447,19 @@ function TopicToCloud({ r }) {
   };
   const viaRd = async () => {
     setBusy('rd');
-    const out = [];
+    let out = [];
     let err = '';
-    for (const l of links) {
-      try {
-        out.push(await cloud.unrestrict(l));
-      } catch (e) {
-        err = e.message;
+    // Site by site (they're copies): the first that Real-Debrid can open.
+    for (const g of hostGroups(r.downloads)) {
+      out = [];
+      for (const l of g.links) {
+        try {
+          out.push(await cloud.unrestrict(l));
+        } catch (e) {
+          err = e.message;
+        }
       }
+      if (out.length) break;
     }
     setBusy('');
     if (!out.length) return toast(err || 'Real-Debrid could not open these links');

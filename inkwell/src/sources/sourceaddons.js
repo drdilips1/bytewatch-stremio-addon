@@ -189,7 +189,18 @@ function runOnce(addon, p, retry = 0) {
 // Mobilism Audiobooks: topics from forum 124, checked one by one in your signed-in session.
 async function searchMobilism(vars, { title = '', author = '', query = '' }) {
   const { search } = await import('./mobilism.js');
-  let results = await search(query || title, title || query);
+  // The forum needs every word in the post's title, and posts rarely carry the subtitle:
+  // the main title (before ":" / " - "), without small words the forum ignores.
+  const SKIP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'into', 'your', 'you', 'are', 'was', 'its', 'our']);
+  const keyWords = (t) => words(String(t || '').split(/\s*[:(\[]|\s[-–—|]\s/)[0]).filter((w) => w.length >= 3 && !SKIP.has(w));
+  const main = keyWords(title || query).join(' ') || title || query;
+  let results = await search(main, title || query);
+  // Nothing: the first words of the title and the author's surname.
+  if (!results.length && title) {
+    const sur = words(String(author || '').split(/,|&|\band\b/)[0]).slice(-1)[0] || '';
+    const short = [...keyWords(title).slice(0, 2), sur].filter(Boolean).join(' ');
+    if (short && short !== main) results = await search(short, title);
+  }
   if (title && author) results = sameBook(results, title, author);
   return results;
 }
