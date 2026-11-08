@@ -11408,12 +11408,12 @@ button.notes-book-head {
   border-radius: 6px;
 }
 .transcript .tb-s.past {
-  color: rgba(255, 255, 255, 0.28);
+  color: color-mix(in srgb, var(--text) 38%, transparent);
 }
 .transcript .tb-s.on {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 /* Mobilism topic: send its file-host links to TorBox, or Real-Debrid's direct links. */
