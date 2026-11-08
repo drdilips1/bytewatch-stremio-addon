@@ -234,6 +234,11 @@ async function searchNow(query, wanted = '') {
     logError('Mobilism', `browser check — ${seen}`);
     throw fail('Mobilism is checking the browser — Settings → Addons → Mobilism Audiobooks → Sign in, wait for the forum to open, then search again', { signin: true });
   }
+  // The site itself down (Cloudflare 52x, 503…): not a sign-in problem.
+  if (status >= 500) {
+    logError('Mobilism', `site down — ${seen}`);
+    throw fail(`Mobilism is down right now (HTTP ${status}) — try again later`);
+  }
   if (status === 302 || status === 401 || !signedIn(doc)) {
     logError('Mobilism', `not signed in — ${seen}`);
     throw needSignIn();

@@ -9,7 +9,9 @@ const AUDIO = /\.(mp3|m4a|m4b|aac|flac|ogg|oga|opus|wav|wma|mka|mp4a)$/i;
 
 // Addons that no longer work (their server blocks every search) are removed on update.
 const RETIRED = /anna'?s?[\s_-]*archive|^annas?$/i;
-const isRetired = (a) => RETIRED.test(a?.manifest?.id || '') || RETIRED.test(a?.manifest?.name || '');
+// (The old server-searched Anna's Archive add-ons — not the built-in one searched in the in-app
+// browser, special: 'annas', which works.)
+const isRetired = (a) => a?.special !== 'annas' && (RETIRED.test(a?.manifest?.id || '') || RETIRED.test(a?.manifest?.name || ''));
 const prune = (list) => list.some(isRetired) && addons.set(list.filter((a) => !isRetired(a)));
 prune(addons.get());
 addons.subscribe(prune); // also catches copies restored from sync
