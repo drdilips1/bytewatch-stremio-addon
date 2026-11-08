@@ -46,13 +46,31 @@ async function page(path) {
 // DDoS-Guard / Cloudflare's "checking your browser" instead of the site.
 const challenged = (html) => /ddos-guard|just a moment|checking your browser|challenge-platform|cf-chl/i.test(html) && !/\/md5\/[a-f0-9]{32}/i.test(html);
 
-/** { ok, signedIn, why }: can the hidden browser use the site, and are you signed in? */
+/**
+ * { ok, signedIn, key, why }: can the hidden browser use the site, are you signed in there,
+ * and does your secret key work (asked of the members' download service with a dummy book)?
+ */
 export async function status() {
   if (!available()) return { ok: false, why: 'Android app only' };
-  const { status: st, html } = await page('/account/');
+  const { status: st, html, doc } = await page('/account/');
   if (st === 403 || challenged(html)) return { ok: false, why: 'The site is checking the browser — tap Open, wait for it to load' };
   if (st >= 400) return { ok: false, why: `The site answered HTTP ${st} — check the address` };
-  return { ok: true, signedIn: /log ?out|logout|sign ?out/i.test(html) && !/log ?in to|sign ?in to/i.test(html) };
+  // Signed in: the account page shows a log-out button / form and your account id; signed out,
+  // it shows the box to enter your secret key.
+  const out = !!doc.querySelector('form[action*="logout"], a[href*="logout"], button[name*="logout"]') || /\/account\/logout|account id|your account/i.test(html);
+  const loginBox = !!doc.querySelector('input[name="key"]');
+  const signedIn = out || (!loginBox && /secret key/i.test(html));
+  let key = null; // true / false / null (no key, or couldn't tell)
+  if (hasKey()) {
+    try {
+      const k = encodeURIComponent(String(annas.get().key).trim());
+      const r = await page(`/dyn/api/fast_download.json?md5=00000000000000000000000000000000&key=${k}`);
+      const t = String(r.html || '');
+      if (/invalid secret key|not a member|no membership|key.*invalid/i.test(t)) key = false;
+      else if (/md5|record|not found|download_url|downloads_left/i.test(t)) key = true;
+    } catch {}
+  }
+  return { ok: true, signedIn, key };
 }
 
 const FORMATS = /\b(epub|pdf|mobi|azw3|fb2|djvu|cbz|cbr|txt|docx?|rtf|lit)\b/i;

@@ -1162,18 +1162,29 @@ function AnnasRow({ list }) {
   const on = list.some((a) => a.special === 'annas');
   const cfg = useStore(annasStore);
   const [key, setKey] = useState('');
+  const check = (m = aa) => {
+    if (!m) return;
+    setSt('checking');
+    m.status().then(setSt, (e) => setSt({ ok: false, why: e?.message || 'Couldn’t reach the site' }));
+  };
   useEffect(() => {
-    import('../sources/annas.js').then(setAa).catch(() => {});
+    import('../sources/annas.js')
+      .then((m) => {
+        setAa(m);
+        // Checked by itself when Settings opens (and again after you save a key).
+        if (on && m.available()) check(m);
+      })
+      .catch(() => {});
   }, []);
   if (!aa || !aa.available()) return null;
-  const check = () => {
-    setSt('checking');
-    aa.status().then(setSt, (e) => setSt({ ok: false, why: e?.message || 'Couldn’t reach the site' }));
-  };
   const line =
     !on ? 'Ebooks, searched in your in-app browser — with your secret key, Read and Save in the app'
     : st === 'checking' ? 'Checking…'
-    : st?.ok ? `Works${st.signedIn ? ' · signed in' : ''} · ${aa.hasKey() ? 'Read & Save with your key' : 'results open the site (add your key to read in the app)'}`
+    : st?.ok
+      ? [
+          st.signedIn ? 'Signed in' : 'Works (not signed in — optional)',
+          !aa.hasKey() ? 'add your key to Read & Save in the app' : st.key === false ? 'secret key not accepted — check it' : st.key ? 'key works: Read & Save in the app' : 'key saved',
+        ].join(' · ')
     : st ? st.why
     : aa.hasKey() ? 'Read & Save with your key' : 'Results open the site — add your secret key to read in the app';
   return (
@@ -1185,7 +1196,7 @@ function AnnasRow({ list }) {
           <small>{line}</small>
         </div>
         {on && (
-          <button class="pill small" onClick={check}>
+          <button class="pill small" onClick={() => check()}>
             Check
           </button>
         )}
@@ -1224,7 +1235,7 @@ function AnnasRow({ list }) {
           ) : (
             <span class="aa-key">
               <input type="password" value={key} placeholder="Secret key" onInput={(e) => setKey(e.currentTarget.value)} />
-              <button class="pill small" disabled={!key.trim()} onClick={() => (aa.annas.patch({ key: key.trim() }), setKey(''), toast('Key saved on this phone'))}>
+              <button class="pill small" disabled={!key.trim()} onClick={() => (aa.annas.patch({ key: key.trim() }), setKey(''), toast('Key saved on this phone — checking it'), check())}>
                 Save
               </button>
             </span>
