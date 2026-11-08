@@ -11473,3 +11473,16 @@ button.notes-book-head {
   display: flex;
   gap: 8px;
 }
+
+/* Home's top bar has five buttons now (drive, scene, ask, theme dice, search): on narrower
+   phones make them a little smaller so the app's name isn't cut off. */
+@media (max-width: 430px) {
+  .home-top-actions {
+    gap: 2px;
+  }
+  .home-top-actions .icon-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+  }
+}

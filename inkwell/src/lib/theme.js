@@ -103,3 +103,22 @@ export const PALETTES = [
   { id: 'lilac', name: 'Lilac', light: true, bg: '#f6f3fc', swatch: ['#f6f3fc', '#6750a4'], accent: 'lavender' },
   { id: 'stone', name: 'Stone & Brass', light: true, bg: '#f2f0ed', swatch: ['#f2f0ed', '#8a6322'], accent: 'brass' },
 ];
+
+// ---- Theme dice (Home's palette button) ------------------------------------
+// A random look: light or dark, one of the curated palettes, and an accent made for it.
+// Only combinations the app already ships are picked (on light themes, accents that have
+// their deeper light-background tones), so the text always stays readable.
+let lastLook = null;
+export function rollTheme(st) {
+  const look = (s) => ({ mode: s.mode, palette: s.palette, paletteLight: s.paletteLight, paletteDark: s.paletteDark, accent: s.accent });
+  lastLook = look(st);
+  const light = Math.random() < 0.5;
+  const current = activePalette(st);
+  const pals = PALETTES.filter((p) => p.light === light && p.id !== current);
+  const p = pals[Math.floor(Math.random() * pals.length)];
+  const okAccents = Object.keys(ACCENTS).filter((k) => !light || ACCENTS[k].l);
+  const accent = p.accent || okAccents[Math.floor(Math.random() * okAccents.length)];
+  return { palette: p.id, [light ? 'paletteLight' : 'paletteDark']: p.id, mode: light ? 'light' : 'dark', accent, name: p.name };
+}
+/** The look before the last roll (long-press the dice), or null. */
+export const previousLook = () => lastLook;
