@@ -1,7 +1,7 @@
 From 432a02f71621afbcecda2546fdb5c800b4fb3ead Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Mon, 2 Nov 2026 23:16:15 +0000
-Subject: [PATCH 01/18] AudioYam store edition: own app ID; no self-updater,
+Subject: [PATCH 01/19] AudioYam store edition: own app ID; no self-updater,
  qBittorrent, tracker or built-in TorBox/Real-Debrid; STORE_PLAN.md with the
  checklist and AudioYam Plus
 
@@ -248,7 +248,7 @@ index 131348e..6c96d61 100644
 From f119770e0638bd20c52a90822d222b4343920a54 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:23:33 +0000
-Subject: [PATCH 02/18] AudioYam Lite, stage 1: edition switches
+Subject: [PATCH 02/19] AudioYam Lite, stage 1: edition switches
  (src/lib/edition.js); free sources back on, Audiobookshelf / Audible / Google
  Books / Goodreads / Hardcover / Hindi off; Settings, Home trimmed to the
  chosen features; Lite welcome; name AudioYam Lite
@@ -705,7 +705,7 @@ index d74ee98..8eddcd9 100644
 From 6e1c1c9701846387a7b48f0effe77b416bd2dc60 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 06:29:11 +0000
-Subject: [PATCH 03/18] AudioYam Lite, stage 2: themes kept; Discover =
+Subject: [PATCH 03/19] AudioYam Lite, stage 2: themes kept; Discover =
  free-book rows + search (no AI, no store catalogues); Library without stats /
  AI / tags / smart shelves; player without AI, transcript, drive, up next,
  history; book page without AI, ratings, Goodreads, StoryShots, Kindle,
@@ -1401,7 +1401,7 @@ index 881347a..d0df4bb 100644
 From abed8f9aae6089430b24450266a86ba253004e8e Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:07:34 +0000
-Subject: [PATCH 04/18] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-De?=
+Subject: [PATCH 04/19] =?UTF-8?q?AudioYam=20Lite:=20TorBox=20and=20Real-De?=
  =?UTF-8?q?brid=20back=20(your=20own=20account)=20=E2=80=94=20add-on=20res?=
  =?UTF-8?q?ults=20(magnets)=20play=20through=20it,=20your=20cloud=20librar?=
  =?UTF-8?q?y=20shows=20as=20a=20source;=20tracker=20and=20qBittorrent=20st?=
@@ -1515,7 +1515,7 @@ index 2d4ba47..4ef9d56 100644
 From 4b2b71a0473c8501804a597e41edd89222b45fcb Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:10:51 +0000
-Subject: [PATCH 05/18] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts?=
+Subject: [PATCH 05/19] =?UTF-8?q?AudioYam=20Lite:=20no=20debrid=20prompts?=
  =?UTF-8?q?=20=E2=80=94=20book=20page=20shows=20'Add=20your=20sources'=20w?=
  =?UTF-8?q?hen=20you=20have=20none;=20no=20'Connect=20TorBox=20or=20Real-D?=
  =?UTF-8?q?ebrid'=20button=20or=20messages?=
@@ -1605,7 +1605,7 @@ index a8750dd..926b0e0 100644
 From 44802ed95602073e01329082f420e12c06e34f02 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:19:23 +0000
-Subject: [PATCH 06/18] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
+Subject: [PATCH 06/19] =?UTF-8?q?AudioYam=20Lite:=20one=20box=20for=20your?=
  =?UTF-8?q?=20sources=20=E2=80=94=20paste=20an=20add-on=20link=20or=20any?=
  =?UTF-8?q?=20account=20key=20(TorBox,=20Real-Debrid,=20AllDebrid,=20Premi?=
  =?UTF-8?q?umize),=20the=20app=20works=20out=20which;=20AllDebrid=20and=20?=
@@ -2095,7 +2095,7 @@ index 4ef9d56..5530c2e 100644
 From 09819b0b7fcf045a728043667418c5b59e5b92e6 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:20:46 +0000
-Subject: [PATCH 07/18] AudioYam Lite: lower Settings section renamed 'Home &
+Subject: [PATCH 07/19] AudioYam Lite: lower Settings section renamed 'Home &
  Discover order'; cloud rows only once an account is connected, named 'Your
  cloud'; 'Your add-ons'
 
@@ -2153,7 +2153,7 @@ index 5530c2e..7c7fd25 100644
 From c778a1bef37be3d0a50f464bf37de0aca59681ed Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 07:56:59 +0000
-Subject: [PATCH 08/18] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20Audio?=
+Subject: [PATCH 08/19] =?UTF-8?q?Home:=20no=20greeting=20=E2=80=94=20Audio?=
  =?UTF-8?q?Yam=20Lite=20with=20the=20tag=20line=20"Your=20books,=20Your=20?=
  =?UTF-8?q?way",=20the=20Ys=20in=20the=20logo's=20colours?=
 MIME-Version: 1.0
@@ -2251,7 +2251,7 @@ index 8eddcd9..6aa8c63 100644
 From 7ad5be24096c587f7fc66b463b27fc32f09a34a7 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:29:14 +0000
-Subject: [PATCH 09/18] Home banner: title tile for a book with no cover;
+Subject: [PATCH 09/19] Home banner: title tile for a book with no cover;
  light-theme text in the theme's ink
 
 ---
@@ -2338,7 +2338,7 @@ index 6aa8c63..27c1ec5 100644
 From 5b488feef030a52c1b29d0b7a70e94cfe2cdd0d8 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:42:20 +0000
-Subject: [PATCH 10/18] AudioYam Lite: one Play and one Read on catalogue books
+Subject: [PATCH 10/19] AudioYam Lite: one Play and one Read on catalogue books
  (M4B > M4A/AAC > Opus/OGG on Android > MP3 > FLAC; EPUB then PDF, smallest
  first; no seeds = Not available), every version behind 'Other versions', no
  'Where to get it'; Apple's iTunes catalogue (Popular audiobooks, search,
@@ -3107,7 +3107,7 @@ index 27c1ec5..720edfe 100644
 From d4e05e8d166af9c4f44cf14e6f11e7554ccab068 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:54:47 +0000
-Subject: [PATCH 11/18] =?UTF-8?q?AudioYam=20Lite:=20no=20TorBox=20/=20Real?=
+Subject: [PATCH 11/19] =?UTF-8?q?AudioYam=20Lite:=20no=20TorBox=20/=20Real?=
  =?UTF-8?q?-Debrid=20in=20progress=20and=20error=20messages=20('Adding=20t?=
  =?UTF-8?q?o=20your=20cloud=E2=80=A6');=20transcript's=20own=20ebook=20sea?=
  =?UTF-8?q?rch:=20EPUB=20then=20PDF,=20smaller=20first,=20stops=20waiting?=
@@ -3780,7 +3780,7 @@ index 0f6f8d6..be9a214 100644
 From 1c825ab989ad37c792ac1affacfa2c8ee3f650f3 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 08:56:12 +0000
-Subject: [PATCH 12/18] AudioYam Lite: Popular audiobooks tries Apple's newer
+Subject: [PATCH 12/19] AudioYam Lite: Popular audiobooks tries Apple's newer
  chart addresses, then the old one, then an iTunes search; shows an error
  instead of vanishing
 
@@ -3841,7 +3841,7 @@ index 670cfe5..61d4a89 100644
 From 2892402e04c7c6623a40ddd568582f0ffc8dbde3 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 09:23:30 +0000
-Subject: [PATCH 13/18] =?UTF-8?q?AudioYam=20Lite=20Discover:=20the=20catal?=
+Subject: [PATCH 13/19] =?UTF-8?q?AudioYam=20Lite=20Discover:=20the=20catal?=
  =?UTF-8?q?ogue=20in=20rows=20=E2=80=94=20Popular,=20New=20this=20year,=20?=
  =?UTF-8?q?For=20you=20(authors=20you=20listen=20to),=20eight=20genres=20?=
  =?UTF-8?q?=E2=80=94=20each=20with=20See=20all;=20free=20LibriVox=20/=20Gu?=
@@ -3974,7 +3974,7 @@ index 61d4a89..a7f1759 100644
 From d521991ff643d94e0c2c117a258964a50082e804 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 09:26:59 +0000
-Subject: [PATCH 14/18] Transcript's ebook: the book itself first (title match,
+Subject: [PATCH 14/19] Transcript's ebook: the book itself first (title match,
  no summaries / study guides / '30 minute expert'); among those EPUB then PDF,
  smaller first
 
@@ -4025,7 +4025,7 @@ index 04ee3ef..97e483b 100644
 From 72ed43c3c296141cd2e71044efe4368733f42bab Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 09:52:59 +0000
-Subject: [PATCH 15/18] Author names with degrees: not the surname (results
+Subject: [PATCH 15/19] Author names with degrees: not the surname (results
  were all 'loose', so Play said Not available); catalogue authors shown
  without them
 
@@ -4112,7 +4112,7 @@ index 3635060..f7ffb8f 100644
 From f905a4f7306eed58db50b1a71fd88263e393cca7 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Tue, 3 Nov 2026 11:09:08 +0000
-Subject: [PATCH 16/18] =?UTF-8?q?Play:=20results=20whose=20name=20starts?=
+Subject: [PATCH 16/19] =?UTF-8?q?Play:=20results=20whose=20name=20starts?=
  =?UTF-8?q?=20with=20the=20book's=20title=20count=20even=20when=20marked?=
  =?UTF-8?q?=20loose,=20unknown=20seeds=20count=20(only=200=20seeds=20is=20?=
  =?UTF-8?q?out)=20=E2=80=94=20Play=20is=20ready=20as=20soon=20as=20results?=
@@ -4268,7 +4268,7 @@ index 97e483b..187b25e 100644
 From 2a0e86f5dce4ddecee6b449786fecfad3e1cad73 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Sat, 7 Nov 2026 13:53:52 +0000
-Subject: [PATCH 17/18] Unknown seed counts: nothing shown instead of 'seeds ?'
+Subject: [PATCH 17/19] Unknown seed counts: nothing shown instead of 'seeds ?'
 
 ---
  src/components/source-results.jsx | 3 ++-
@@ -4295,7 +4295,7 @@ index 8677525..cc89ba9 100644
 From c8739730502e8a0240a54f139e5c44e47279cb97 Mon Sep 17 00:00:00 2001
 From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
 Date: Sat, 7 Nov 2026 16:56:03 +0000
-Subject: [PATCH 18/18] =?UTF-8?q?Sources:=20redirects=20(HTTP=20301?=
+Subject: [PATCH 18/19] =?UTF-8?q?Sources:=20redirects=20(HTTP=20301?=
  =?UTF-8?q?=E2=80=93308)=20followed?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -4341,6 +4341,417 @@ index c946f0d..9db8d1e 100644
      if (!res.ok) {
        let detail = '';
        try {
+-- 
+2.43.0
+
+
+From 01c0952f063bcce45a9b214d75aa200c1b9fb24c Mon Sep 17 00:00:00 2001
+From: drdilips1 <42408609+drdilips1@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 04:34:42 +0000
+Subject: [PATCH 19/19] Transcript with the ebook attached: the book's own text
+ at once (placed by how far through the audiobook you are), then exactly once
+ lines are found; misheard title in the credits and 'Chapter One' put right
+
+---
+ src/components/transcript-view.jsx |  62 ++++++++++++++--
+ src/lib/booksync.js                | 101 ++++++++++++++++++++++++++
+ src/lib/transcript.js              | 111 ++++++++++++++++++++++++++++-
+ src/styles.css                     |  19 +++++
+ 4 files changed, 285 insertions(+), 8 deletions(-)
+ create mode 100644 src/lib/booksync.js
+
+diff --git a/src/components/transcript-view.jsx b/src/components/transcript-view.jsx
+index 71e55a9..68fb20f 100644
+--- a/src/components/transcript-view.jsx
++++ b/src/components/transcript-view.jsx
+@@ -8,6 +8,8 @@ import * as player from '../lib/player.js';
+ import { knownCharacters, CharacterCard } from './story-sheet.jsx';
+ import { useStore, bookmarks } from '../lib/store.js';
+ import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard, stopLooking, transcriptCfg } from '../lib/transcript.js';
++import { bookAt, bookAround, timeAtWord } from '../lib/transcript.js';
++import { fixCredit } from '../lib/booksync.js';
+ import { cachedXray } from '../lib/xray.js';
+ import { fmtTime } from '../lib/format.js';
+ 
+@@ -273,7 +275,19 @@ export function TranscriptView({ s }) {
+   // Everyone the book has (X-Ray's cast and places too): misheard names are put right.
+   const xr = s.book?.uid ? cachedXray(s.book.uid) : null;
+   const allNames = [...names, ...(xr ? [...xr.people, ...xr.places].flatMap((x) => [x.name, ...(x.aliases || [])]) : [])];
+-  const heard = (text) => (typeof text === 'string' ? fixHeard(text, allNames) : text);
++  // Words heard from the audio read as sentences: a capital to start, a full stop to end.
++  const tidy = (x) => {
++    const t = String(x || '').replace(/\s+([,.!?;:])/g, '$1').replace(/\s+/g, ' ').trim();
++    if (!t) return t;
++    const c = t[0].toUpperCase() + t.slice(1);
++    return /[.!?…"'”’)]$/.test(c) ? c : c + '.';
++  };
++  // Opening credits (first part, before the ebook's text starts): a misheard title is put right;
++  // "Chapter One" heard as "Shop to one" anywhere.
++  const credTitles = [s.book?.title, t?.bookText?.title, t?.bookText?.name].filter(Boolean);
++  const firstBook = (t?.segments || []).findIndex((g) => g.book && !g.fill);
++  const inCredits = (i) => s.index === 0 && i != null && i < 15 && (firstBook < 0 || i < firstBook);
++  const heard = (text, i) => (typeof text === 'string' ? tidy(fixCredit(fixHeard(text, allNames), credTitles, { credits: inCredits(i) })) : text);
+   const box = useRef();
+   const userScroll = useRef(0);
+   useEffect(() => subscribeTranscript(setT), []);
+@@ -289,8 +303,28 @@ export function TranscriptView({ s }) {
+       break;
+     }
+   }
++  // With the ebook attached: the book's own text, following the audio by its time (see bookAt) —
++  // placed by how far through the audiobook you are until lines are found in it, then exactly;
++  // the sentence being read is lit and kept in the middle.
++  const durs = (s.tracks || []).map((x) => Number(x.duration) || 0);
++  const allKnown = durs.length > 0 && durs.every((d) => d > 0);
++  const globalT = allKnown ? durs.slice(0, s.index).reduce((a, d) => a + d, 0) + (s.time || 0) : null;
++  const totalT = allKnown ? durs.reduce((a, d) => a + d, 0) : Number(s.book?.duration) || null;
++  // Part lengths not all known yet (cloud files report theirs when played): the part's share.
++  const guessT = globalT ?? (s.tracks?.length === 1 ? s.time || 0 : totalT && s.tracks?.length ? (s.index / s.tracks.length) * totalT + (s.time || 0) : null);
++  const at = !t?.published && t?.bookText?.state === 'on' ? bookAt(s.time, { global: guessT, total: totalT }) : null;
++  const paras = at ? bookAround(at.word) : null;
++  let litFrom = -1;
++  if (paras) for (const pg of paras) for (const se of pg.sentences) if (se.from <= at.word && at.word < se.to) litFrom = se.from;
++  useEffect(() => {
++    if (litFrom < 0 || Date.now() - userScroll.current < 4000) return;
++    const el = box.current?.querySelector(`[data-w="${litFrom}"]`);
++    if (!el) return;
++    const b = box.current;
++    b.scrollTo({ top: el.offsetTop - b.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' });
++  }, [litFrom]);
+   useEffect(() => {
+-    if (active < 0 || Date.now() - userScroll.current < 4000) return;
++    if (paras || active < 0 || Date.now() - userScroll.current < 4000) return;
+     const el = box.current?.querySelector(`[data-i="${active}"]`);
+     if (!el) return;
+     const b = box.current;
+@@ -345,18 +379,36 @@ export function TranscriptView({ s }) {
+           </div>
+         )}
+         {t?.published && segs.length > 0 && <p class="tl-source">Transcript from the podcast</p>}
+-        {segs.map((g, i) => (
++        {paras && at.rough && <p class="tl-source">Roughly here — finding the exact place as the narrator reads on…</p>}
++        {paras &&
++          paras.map((pg) => (
++            <p class="tl tb-para" key={pg.key}>
++              {pg.sentences.map((se) => (
++                <span
++                  data-w={se.from}
++                  class={'tb-s' + (se.from === litFrom ? ' on' : se.to <= at.word ? ' past' : '')}
++                  onClick={() => {
++                    const tt = timeAtWord(se.from);
++                    if (tt != null) player.seek(Math.max(0, tt));
++                  }}
++                >
++                  {withNames(se.text, names, (n) => setCard(lookup.get(n)))}{' '}
++                </span>
++              ))}
++            </p>
++          ))}
++        {!paras && segs.map((g, i) => (
+           <p
+             data-i={i}
+             class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '') + (g.start != null && quoted(i) ? ' hl' : '')}
+             onClick={() => (press.current.fired ? (press.current.fired = false) : g.start != null && player.seek(g.start))}
+             onContextMenu={(e) => e.preventDefault()}
+-            onPointerDown={() => g.start != null && hold(g.start, !t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text))}
++            onPointerDown={() => g.start != null && hold(g.start, !t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text, i))}
+             onPointerUp={release}
+             onPointerLeave={release}
+             onPointerCancel={release}
+           >
+-            {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text), names, (n) => setCard(lookup.get(n)))}
++            {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text, i), names, (n) => setCard(lookup.get(n)))}
+           </p>
+         ))}
+         {segs.length > 0 && t?.status === 'error' && <p class="err small">{t.error}</p>}
+diff --git a/src/lib/booksync.js b/src/lib/booksync.js
+new file mode 100644
+index 0000000..0e77983
+--- /dev/null
++++ b/src/lib/booksync.js
+@@ -0,0 +1,101 @@
++// Following the book by the audio's time: the maths (no app state), so it can be tested.
++
++/** Words a second, from the last few [time, word] points (kept to a speaking range). */
++export const paceOf = (pts) => {
++  const tail = pts.slice(-8);
++  const dt = tail[tail.length - 1][0] - tail[0][0];
++  const dw = tail[tail.length - 1][1] - tail[0][1];
++  return Math.min(4.5, Math.max(1.2, dt > 0 ? dw / dt : 2.5));
++};
++
++/** The book word at an audio time, from [time, word] points (exported for tests). */
++export function wordAtTime(pts, time, total) {
++  const pace = paceOf(pts);
++  let w;
++  if (time <= pts[0][0]) w = pts[0][1] - (pts[0][0] - time) * pace;
++  else if (time >= pts[pts.length - 1][0]) w = pts[pts.length - 1][1] + (time - pts[pts.length - 1][0]) * pace;
++  else {
++    let i = 1;
++    while (pts[i][0] < time) i++;
++    const [t0, w0] = pts[i - 1];
++    const [t1, w1] = pts[i];
++    w = t1 > t0 ? w0 + ((time - t0) / (t1 - t0)) * (w1 - w0) : w0;
++  }
++  return Math.max(0, Math.min(total - 1, Math.round(w)));
++}
++
++
++// ---- opening credits and chapter headings the recogniser mishears ---------------------
++// Before the ebook's own text starts (credits, title, "Chapter One") only what was heard is
++// shown, and narrators' title readings come out oddly: "Body and the saucer is stone" for
++// "Harry Potter and the Sorcerer's Stone", "Shop to one" for "Chapter One".
++
++const pairs = (s) => {
++  const t = String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
++  const m = new Map();
++  for (let i = 0; i < t.length - 1; i++) m.set(t.slice(i, i + 2), (m.get(t.slice(i, i + 2)) || 0) + 1);
++  return m;
++};
++/** How alike two bits of text are, by letter pairs (0–1). */
++export function alike(a, b) {
++  const A = pairs(a);
++  const B = pairs(b);
++  let both = 0;
++  let na = 0;
++  let nb = 0;
++  for (const v of A.values()) na += v;
++  for (const v of B.values()) nb += v;
++  for (const [k, v] of A) both += Math.min(v, B.get(k) || 0);
++  return na + nb ? (2 * both) / (na + nb) : 0;
++}
++
++const NUMS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
++// Sound-alikes the recogniser writes for small numbers.
++const HEARD_NUM = { won: 1, wan: 1, to: 2, too: 2, tu: 2, tree: 3, free: 3, for: 4, fore: 4, fife: 5, sex: 6, sicks: 6, ate: 8, nein: 9, tin: 10, ten: 10 };
++const numberOf = (w) => {
++  const x = String(w || '').toLowerCase().replace(/[^a-z0-9]/g, '');
++  if (/^\d{1,2}$/.test(x)) return +x;
++  const i = NUMS.indexOf(x);
++  return i >= 0 ? i + 1 : HEARD_NUM[x] || 0;
++};
++// Consonant sound: "sh"/"ch" alike, c/k/q alike, vowels dropped — "shop to" ≈ "chapter".
++const sound = (s) =>
++  String(s || '')
++    .toLowerCase()
++    .replace(/[^a-z]/g, '')
++    .replace(/sh|ch/g, 'X')
++    .replace(/ph/g, 'f')
++    .replace(/[ckq]/g, 'K')
++    .replace(/[aeiouyhw]/g, '')
++    .replace(/(.)\1+/g, '$1');
++const CHAPTER = sound('chapter'); // "Xptr"
++const titleCase = (w) => w[0].toUpperCase() + w.slice(1);
++
++/**
++ * A heard line that's really the book's title or a chapter heading → the book's own words;
++ * anything else unchanged. `titles`: the book's title(s) (audiobook and ebook names).
++ * `credits`: the line is in the opening credits (first part, before the ebook's text starts) —
++ * only there is a title-like line taken as the title ("Harry looked at the stone" isn't).
++ */
++export function fixCredit(text, titles = [], { credits = false } = {}) {
++  const t = String(text || '').trim();
++  const words = t.split(/\s+/).filter(Boolean);
++  if (!words.length) return text;
++  // "Chapter One": a short line ending in a number, the rest sounding like "chapter".
++  if (words.length >= 2 && words.length <= 4) {
++    const n = numberOf(words[words.length - 1]);
++    const rest = sound(words.slice(0, -1).join(''));
++    if (n && rest.length >= 3 && CHAPTER.startsWith(rest.slice(0, 4)) && rest.length <= CHAPTER.length + 1) return `Chapter ${n <= 20 ? titleCase(NUMS[n - 1]) : n}`;
++  }
++  // The title: alike by letters, about as long, and ending the same way.
++  if (!credits) return text;
++  for (const full of titles) {
++    const name = String(full || '').replace(/\s*[([].*?[)\]]\s*/g, ' ').replace(/[:,]\s.*$/, '').trim(); // "(Full-Cast Edition)", subtitles off
++    const nw = name.split(/\s+/).filter(Boolean);
++    if (nw.length < 2 || Math.abs(nw.length - words.length) > 2) continue;
++    const last = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
++    const endsSame = last(nw[nw.length - 1]) === last(words[words.length - 1]);
++    if (alike(t, name) >= (endsSame ? 0.42 : 0.6)) return name;
++  }
++  return text;
++}
+diff --git a/src/lib/transcript.js b/src/lib/transcript.js
+index ab3c170..6147630 100644
+--- a/src/lib/transcript.js
++++ b/src/lib/transcript.js
+@@ -70,6 +70,7 @@ function remember() {
+     });
+   }, 3000);
+ }
++export const removeModel = (m) => removePackage(m.id).then(() => (installed = null));
+ 
+ // The book's own words (when its ebook is on hand): recognised lines are matched to it.
+ let bt = null;
+@@ -191,7 +192,7 @@ function align() {
+     if (prev) {
+       const mid = segs.slice(prevI + 1, i);
+       const gap = segs[i].at[0] - prev.at[1];
+-      if (mid.length && gap > 0 && gap <= 25 * mid.length + 20) {
++      if (mid.length && gap > 0 && gap <= 40 * mid.length + 40) {
+         const weights = mid.map((m) => Math.max(1, m.text.split(/\s+/).length));
+         const total = weights.reduce((x, y) => x + y, 0);
+         let at = prev.at[1];
+@@ -201,7 +202,7 @@ function align() {
+           m.fill = true;
+           at = m.at[1];
+         });
+-      } else if (!mid.length && ((gap > 0 && gap <= 12) || (gap < 0 && segs[i].at[0] > prev.at[0]))) prev.at = [prev.at[0], segs[i].at[0]];
++      } else if (!mid.length && ((gap > 0 && gap <= 60) || (gap < 0 && segs[i].at[0] > prev.at[0]))) prev.at = [prev.at[0], segs[i].at[0]]; // words the recognizer skipped: the book's, not dropped
+     }
+     prevI = i;
+   }
+@@ -219,6 +220,31 @@ function align() {
+     }
+     if (s.at) s.fill = true;
+   }
++  // 4. Lines after the last one found (the newest, not matched yet) and before the first:
++  //    the book carries on from there — about as many words as each line had — once at
++  //    least two lines agree on where we are. The next line that's found corrects it.
++  const foundIdx = segs.map((x, i) => (x.at && !x.fill ? i : -1)).filter((i) => i >= 0);
++  if (foundIdx.length >= 2) {
++    const wordsIn = (x) => Math.max(1, x.text.split(/\s+/).filter(Boolean).length);
++    const lastI = foundIdx[foundIdx.length - 1];
++    let at = segs[lastI].at[1];
++    for (let i = lastI + 1, k = 0; i < segs.length && k < 8 && at < bt.tokens.length; i++, k++) {
++      if (segs[i].at) break;
++      const n = Math.round(wordsIn(segs[i]) * 1.05);
++      segs[i].at = [at, Math.min(bt.tokens.length, at + n)];
++      segs[i].fill = true;
++      at = segs[i].at[1];
++    }
++    const firstI = foundIdx[0];
++    let end = segs[firstI].at[0];
++    for (let i = firstI - 1, k = 0; i >= 0 && k < 4 && end > 0; i--, k++) {
++      if (segs[i].at) break;
++      const n = Math.round(wordsIn(segs[i]) * 1.05);
++      segs[i].at = [Math.max(0, end - n), end];
++      segs[i].fill = true;
++      end = segs[i].at[0];
++    }
++  }
+   for (const s of segs) s.book = s.at && s.at[1] > s.at[0] ? bt.tokens.slice(s.at[0], s.at[1]).join(' ') : undefined;
+   set({ segments: segs.slice() });
+ }
+@@ -264,7 +290,6 @@ export async function installedModels() {
+ export function downloadModel(m, onProgress) {
+   return downloadPackage(m, onProgress).then(() => (installed = null));
+ }
+-export const removeModel = (m) => removePackage(m.id).then(() => (installed = null));
+ 
+ function languageOf(book) {
+   return book && isHindi(book) ? 'hi' : 'en';
+@@ -624,3 +649,83 @@ export function stopLooking() {
+   btRun++;
+   set({ bookText: { state: 'none' } });
+ }
++
++import { wordAtTime, paceOf } from './booksync.js';
++
++// ---- Following the book by the audio's time -------------------------------------------
++// With the ebook attached, where you are in the book is worked out from the audio time:
++// between two lines that were found in the book, by how far along you are; after the last
++// one, at the reader's own pace (words a second, from the lines found). So the book's text
++// follows the audio even when the speech recognition is behind or misheard a line.
++
++/** The audio-time ↔ book-word points from the lines found in the book (this part), in order. */
++function anchors() {
++  if (!bt || state.published || state.bookText?.state !== 'on' || !state.key.startsWith(btUid + '#')) return [];
++  const pts = [];
++  for (const s of state.segments) {
++    if (!s.at || s.fill || s.start == null) continue;
++    pts.push([s.start, s.at[0]]);
++    if (s.end != null && s.end > s.start) pts.push([s.end, s.at[1]]);
++  }
++  pts.sort((a, b) => a[0] - b[0]);
++  // Keep them moving forward through the book.
++  const out = [];
++  for (const p of pts) if (!out.length || p[1] >= out[out.length - 1][1]) out.push(p);
++  return out;
++}
++
++/**
++ * Where the audio is in the book: { word, total } — or null while there isn't enough to go
++ * on (no ebook, or fewer than two lines found).
++ */
++export function bookAt(time, { global = null, total = null } = {}) {
++  const pts = anchors();
++  if (pts.length >= 3) return { word: wordAtTime(pts, time, bt.tokens.length), total: bt.tokens.length };
++  // Not enough found yet (the opening credits, a new part): from how far through the audiobook
++  // you are, as a share of the book's words — the book shows at once, and moves to the exact
++  // spot as soon as lines are found in it.
++  if (!bt || state.published || state.bookText?.state !== 'on' || !(total > 0) || global == null) return null;
++  const share = Math.max(0, Math.min(1, global / total));
++  return { word: Math.min(bt.tokens.length - 1, Math.floor(share * bt.tokens.length)), total: bt.tokens.length, rough: true };
++}
++
++/** The audio time for a word of the book (tapping a sentence plays from there). */
++export function timeAtWord(word) {
++  const pts = anchors();
++  if (pts.length < 3) return null;
++  const pace = paceOf(pts);
++  if (word <= pts[0][1]) return Math.max(0, pts[0][0] - (pts[0][1] - word) / pace);
++  if (word >= pts[pts.length - 1][1]) return pts[pts.length - 1][0] + (word - pts[pts.length - 1][1]) / pace;
++  let i = 1;
++  while (pts[i][1] < word) i++;
++  const [t0, w0] = pts[i - 1];
++  const [t1, w1] = pts[i];
++  return w1 > w0 ? t0 + ((word - w0) / (w1 - w0)) * (t1 - t0) : t0;
++}
++
++/**
++ * The book's paragraphs around a word, split into sentences: [{ sentences: [{ from, to, text }] }].
++ * `before` / `after`: how many words either side.
++ */
++export function bookAround(word, before = 250, after = 600) {
++  if (!bt) return [];
++  const lo = Math.max(0, word - before);
++  const hi = Math.min(bt.tokens.length, word + after);
++  const starts = bt.starts || [0];
++  const out = [];
++  for (let p = 0; p < starts.length; p++) {
++    const from = starts[p];
++    const to = p + 1 < starts.length ? starts[p + 1] : bt.tokens.length;
++    if (to <= lo || from >= hi || to <= from) continue;
++    const sentences = [];
++    let s = from;
++    for (let k = from; k < to; k++) {
++      if (/[.!?…]["'”’)]*$/.test(bt.tokens[k]) || k === to - 1) {
++        sentences.push({ from: s, to: k + 1, text: bt.tokens.slice(s, k + 1).join(' ') });
++        s = k + 1;
++      }
++    }
++    out.push({ key: from, sentences });
++  }
++  return out;
++}
+diff --git a/src/styles.css b/src/styles.css
+index 720edfe..aebfaa2 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -11401,3 +11401,22 @@ button.notes-book-head {
+ .other-versions:not(.open) {
+   display: none;
+ }
++
++/* Transcript following the book by the audio's time: paragraphs of the book, the sentence
++   being read lit (the rest dimmed; read sentences dimmer). Theme colours: light and dark. */
++.transcript .tl.tb-para {
++  cursor: default;
++}
++.transcript .tb-s {
++  cursor: pointer;
++  transition: color 0.3s, background 0.3s;
++  border-radius: 6px;
++}
++.transcript .tb-s.past {
++  color: color-mix(in srgb, var(--text) 38%, transparent);
++}
++.transcript .tb-s.on {
++  color: var(--text);
++  background: color-mix(in srgb, var(--accent) 16%, transparent);
++  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
++}
 -- 
 2.43.0
 
