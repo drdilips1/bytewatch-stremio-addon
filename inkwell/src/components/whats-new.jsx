@@ -17,6 +17,7 @@ export const CHANGES = [
       ['📖', 'Reading time counted properly', 'Page turns, taps, volume keys and reading along with the audiobook all count now.'],
       ['☁️', 'Send to Real-Debrid', 'Mobilism results now have Send to Real-Debrid too — for Rapidgator and other hosts TorBox doesn’t take. The book shows in Library → Your Real-Debrid and plays from there.'],
       ['🎨', 'Theme dice', 'The palette button on Home: one tap for a surprise theme (light or dark, colours that go together). Press and hold to go back to the one before.'],
+      ['🗄️', 'Send to Audiobookshelf', 'Press and hold a TorBox / Real-Debrid book → Send to Audiobookshelf: only the books you choose go into your server (downloaded, uploaded into the folder set in Settings → Audiobookshelf → Send books to, then removed from the phone).'],
       ['🚫', 'Or AI off altogether', 'Settings → AI → AI features off: every AI button is hidden and nothing is sent to an AI. Recommendations, transcripts and reading aloud still work.'],
     ],
   },

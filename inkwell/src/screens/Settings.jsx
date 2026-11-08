@@ -662,6 +662,36 @@ function QbitCard() {
   );
 }
 
+/** Where "Send to Audiobookshelf" puts books: one of your library folders. */
+function AbsUploadTo() {
+  const cfg = useStore(abs);
+  const [targets, setTargets] = useState(null);
+  const key = (t) => `${t.library}|${t.folder}`;
+  const cur = cfg.uploadTo ? key(cfg.uploadTo) : '';
+  return (
+    <div class="set-row">
+      <div>
+        <b>Send books to</b>
+        <small>Press and hold a TorBox / Real-Debrid book → Send to Audiobookshelf: it's downloaded, uploaded into this folder on your server, then removed from the phone. Your user needs “Can upload”.</small>
+      </div>
+      {targets ? (
+        <select value={cur || (targets[0] ? key(targets[0]) : '')} onChange={(e) => {
+          const t = targets.find((x) => key(x) === e.currentTarget.value);
+          if (t) abs.patch({ uploadTo: { library: t.library, folder: t.folder } });
+        }}>
+          {targets.map((t) => (
+            <option value={key(t)}>{t.label}</option>
+          ))}
+        </select>
+      ) : (
+        <button class="pill small" onClick={() => absSrc.uploadTargets().then((t) => (t.length ? setTargets(t) : toast('No library folders found'))).catch((e) => toast(e.message))}>
+          Choose…
+        </button>
+      )}
+    </div>
+  );
+}
+
 function AbsCard() {
   const cfg = useStore(abs);
   const [alt, setAlt] = useState(cfg.altServer || '');
@@ -710,6 +740,7 @@ function AbsCard() {
             </button>
           )}
         </div>
+        <AbsUploadTo />
         <div class="set-row">
           <div>
             <b>Ebooks library</b>

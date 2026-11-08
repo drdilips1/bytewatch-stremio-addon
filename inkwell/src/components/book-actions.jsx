@@ -10,6 +10,7 @@ import { FixDetails } from './fix-details.jsx';
 import { upNext, addUpNext, removeUpNext } from '../lib/upnext.js';
 import { markNotInterested, markAlreadyRead } from '../lib/taste.js';
 import { readLater, toggleReadLater } from '../lib/readlists.js';
+import { canSendToAbs, sendToAbs, absUploads } from '../lib/absupload.js';
 
 // The book whose sheet is open (not saved).
 let current = null;
@@ -56,6 +57,7 @@ export function BookActionsSheet() {
   const queue = useStore(upNext);
   const prog = useStore(progress);
   const later = useStore(readLater);
+  const ups = useStore(absUploads);
   const [busy, setBusy] = useState('');
   const [fixing, setFixing] = useState(false);
   const close = () => (setFixing(false), sheet.set(null));
@@ -130,6 +132,27 @@ export function BookActionsSheet() {
         {canDownload && (
           <button class="menu-item" disabled={!!busy} onClick={download}>
             {busy === 'dl' ? <span class="spinner small" /> : <Icon name="download" size={18} />} Download
+          </button>
+        )}
+        {canSendToAbs() && book.source !== 'abs' && !ebookOnly(book) && (
+          <button
+            class="menu-item"
+            disabled={['downloading', 'uploading'].includes(ups[book.uid]?.status)}
+            onClick={act(() => {
+              toast('Sending to Audiobookshelf — downloading first; you can keep using the app');
+              sendToAbs(book)
+                .then((t) => t && toast(`“${book.title}” is on your Audiobookshelf (${t.label}) — it shows there after the scan`))
+                .catch((e) => toast(`Audiobookshelf: ${e.message}`));
+            })}
+          >
+            <Icon name="server" size={18} />{' '}
+            {ups[book.uid]?.status === 'downloading'
+              ? 'Sending to Audiobookshelf · downloading…'
+              : ups[book.uid]?.status === 'uploading'
+                ? `Sending to Audiobookshelf · ${Math.round((ups[book.uid].pct || 0) * 100)}%`
+                : ups[book.uid]?.status === 'done'
+                  ? 'Send to Audiobookshelf again'
+                  : 'Send to Audiobookshelf'}
           </button>
         )}
         {!ebookOnly(book) &&
