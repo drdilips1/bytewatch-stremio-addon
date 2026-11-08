@@ -188,26 +188,8 @@ object MyVoices {
         return pacePrefs.getFloat("pace:$id", -1f).takeIf { it > 0f }?.toDouble()?.coerceIn(8.0, 22.0)
     }
 
-    /**
-     * How fast each ready-made reader speaks by nature (characters a second, measured over the same test
-     * sentences): from Sophie (14.7) to Ethan (22.4), half as fast again. Played as they are, some sounded
-     * slow at 1x and others hurried.
-     */
-    private val READY_MADE_PACE = mapOf(
-        "sophie" to 14.7, "daniel" to 14.9, "clara" to 15.3, "leo" to 16.0, "henry" to 16.3, "nora" to 16.5,
-        "oscar" to 16.6, "grace" to 17.2, "rose" to 17.3, "ryan" to 17.5, "maya" to 17.5, "jack" to 17.7,
-        "theo" to 18.2, "isla" to 19.0, "ava" to 19.5, "lily" to 20.1, "sam" to 20.4, "arthur" to 20.5,
-        "emma" to 21.3, "ethan" to 22.4,
-    )
-
-    /** The pace every ready-made reader is brought to at 1x (Grace's and Rose's, the middle of the twenty). */
-    private const val READY_MADE_TARGET = 17.2
-
     /** The playback speed that brings copied voice [id] to a normal pace (1 until it has been heard). */
     fun paceFactor(id: String): Float {
-        // Ready-made readers: all at the same pace at 1x, the quick ones slowed and the slow ones sped up
-        // (by at most a fifth, pitch kept). Only how fast the audio plays changes, not the voice.
-        READY_MADE_PACE[id]?.let { return (READY_MADE_TARGET / it).toFloat().coerceIn(0.8f, 1.2f) }
         if (!::app.isInitialized) return 1f
         val cps = pacePrefs.getFloat("pace:$id", -1f)
         if (cps <= 0f) return 1f
