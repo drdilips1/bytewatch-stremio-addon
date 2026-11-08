@@ -63,9 +63,11 @@ export function BookActionsSheet() {
   const pickAbsRoute = async () => {
     const q = await import('../sources/qbit.js');
     const torrent = !!book.hash && q.available && q.configured();
-    setAbsPick({ checking: true, torrent });
+    // Auto-send (or you) already gave this torrent to your home server.
+    const sent = torrent && q.wasSent(String(book.hash).toLowerCase());
+    setAbsPick({ checking: true, torrent, sent });
     const hit = await q.onServer(book).catch(() => null);
-    setAbsPick({ checking: false, hit, torrent });
+    setAbsPick({ checking: false, hit, torrent, sent });
   };
   const viaHomeServer = async () => {
     try {
@@ -182,11 +184,12 @@ export function BookActionsSheet() {
             ) : (
               <>
                 {absPick.hit && <p class="small">Already on your Audiobookshelf: “{absPick.hit.title}”{absPick.hit.author ? ` · ${absPick.hit.author}` : ''}</p>}
+                {!absPick.hit && absPick.sent && <p class="small">Already sent to your home server (qBittorrent) — it shows in Audiobookshelf once downloaded there.</p>}
                 {absPick.torrent && (
                   <button class="menu-item" onClick={act(() => viaHomeServer())}>
                     <Icon name="server" size={18} />
                     <span>
-                      Home server downloads it{absPick.hit ? ' anyway' : ' (recommended)'}
+                      Home server downloads it{absPick.hit || absPick.sent ? ' again' : ' (recommended)'}
                       <small class="muted"> — qBittorrent saves it straight into your library; nothing goes through the phone. Needs people sharing it.</small>
                     </span>
                   </button>
