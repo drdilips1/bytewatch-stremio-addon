@@ -2,7 +2,7 @@
 // TorBox or Real-Debrid account, and add new magnets / links to it.
 import { getJson, sendForm, qs } from '../lib/http.js';
 import { logError } from '../lib/report.js';
-import { debrid, persisted } from '../lib/store.js';
+import { debrid, persisted, progress } from '../lib/store.js';
 import { matches } from '../lib/match.js';
 
 const AUDIO = /\.(mp3|m4a|m4b|aac|flac|ogg|oga|opus|wav|wma|mka|mp4a)$/i;
@@ -149,8 +149,14 @@ export const forget = () => {
   tbStale = true;
 };
 
-export const torboxLibrary = () => (tbConnected() ? remember('tb', torboxLibraryRaw) : Promise.resolve([]));
-export const realdebridLibrary = () => (rdConnected() ? remember('rd', realdebridLibraryRaw) : Promise.resolve([]));
+// Most recent first: whichever is later — added to the cloud, or last played.
+const recentFirst = (list) => {
+  const prog = progress.get() || {};
+  const when = (b) => Math.max(b.addedAt || 0, prog[b.uid]?.updatedAt || 0);
+  return list.slice().sort((a, b) => when(b) - when(a));
+};
+export const torboxLibrary = () => (tbConnected() ? remember('tb', torboxLibraryRaw).then(recentFirst) : Promise.resolve([]));
+export const realdebridLibrary = () => (rdConnected() ? remember('rd', realdebridLibraryRaw).then(recentFirst) : Promise.resolve([]));
 
 async function torboxLibraryRaw() {
   const bypass = tbStale;
