@@ -34,13 +34,15 @@ export function signIn() {
   return Web.open({ url: `${base()}/account/`, title: NAME });
 }
 
+// One page, visited in the hidden browser as a person would (the site's bot check refuses
+// background requests): it waits for the page — and for a check page to solve itself — then
+// reads it. { status, html, text (the page's words: JSON answers come as text), doc, check }.
 async function page(path) {
-  const r = await Promise.race([
-    Web.trackerFetch({ base: base(), path, follow: true }), // the site moves between addresses: follow it
-    new Promise((_, no) => setTimeout(() => no(fail(`${NAME} didn’t answer in time — try again in a moment`)), PAGE_TIMEOUT)),
-  ]);
-  const html = r.text || '';
-  return { status: r.status, html, doc: new DOMParser().parseFromString(html, 'text/html') };
+  const r = await Web.pageVisit({ url: base() + path, timeout: 25000 }).catch((e) => {
+    throw fail(`${NAME}: ${e?.message || 'didn’t answer'} — try again in a moment`);
+  });
+  const html = r.html || '';
+  return { status: r.status || 200, html, text: r.text || '', check: !!r.check, title: r.title || '', doc: new DOMParser().parseFromString(html, 'text/html') };
 }
 
 // DDoS-Guard / Cloudflare's "checking your browser" instead of the site.
@@ -52,8 +54,8 @@ const challenged = (html) => /ddos-guard|just a moment|checking your browser|cha
  */
 export async function status() {
   if (!available()) return { ok: false, why: 'Android app only' };
-  const { status: st, html, doc } = await page('/account/');
-  if (st === 403 || challenged(html)) return { ok: false, why: 'The site is checking the browser — tap Open, wait for it to load' };
+  const { status: st, html, doc, check } = await page('/account/');
+  if (check || challenged(html)) return { ok: false, why: 'The site is checking the browser — tap Open, wait for it to load' };
   if (st >= 400) return { ok: false, why: `The site answered HTTP ${st} — check the address` };
   // Signed in: the account page shows a log-out button / form and your account id; signed out,
   // it shows the box to enter your secret key.
@@ -65,7 +67,7 @@ export async function status() {
     try {
       const k = encodeURIComponent(String(annas.get().key).trim());
       const r = await page(`/dyn/api/fast_download.json?md5=00000000000000000000000000000000&key=${k}`);
-      const t = String(r.html || '');
+      const t = String(r.text || r.html || '');
       if (/invalid secret key|not a member|no membership|key.*invalid/i.test(t)) key = false;
       else if (/md5|record|not found|download_url|downloads_left/i.test(t)) key = true;
     } catch {}
@@ -147,13 +149,13 @@ export async function search(query) {
   const q = clean(query);
   if (!q) return [];
   if (Date.now() < busyUntil) throw fail(`${NAME} is busy (too many requests) — try again in a minute`);
-  const { status: st, html } = await page(`/search?q=${encodeURIComponent(q)}`);
+  const { status: st, html, check, title } = await page(`/search?q=${encodeURIComponent(q)}`);
   if (st === 429) {
     busyUntil = Date.now() + 60e3;
     throw fail(`${NAME} is busy (too many requests) — try again in a minute`);
   }
-  if (st === 403 || challenged(html)) {
-    logError(NAME, `browser check — HTTP ${st}`);
+  if (check || challenged(html)) {
+    logError(NAME, `browser check didn't clear in 25 s — HTTP ${st} · page “${clean(title).slice(0, 60)}”`);
     throw fail(`${NAME} is checking the browser — Settings → Addons → ${NAME} → Open, wait for the site to load, then search again`, { signin: true });
   }
   if (st >= 400) {
@@ -177,10 +179,10 @@ export async function search(query) {
 export async function fastLink(md5) {
   const key = String(annas.get().key || '').trim();
   if (!key) throw new Error(`Add your ${NAME} secret key (Settings → Addons) to read in the app — or open its page`);
-  const { status: st, html } = await page(`/dyn/api/fast_download.json?md5=${encodeURIComponent(md5)}&key=${encodeURIComponent(key)}`);
+  const { status: st, html, text } = await page(`/dyn/api/fast_download.json?md5=${encodeURIComponent(md5)}&key=${encodeURIComponent(key)}`);
   let j = null;
   try {
-    j = JSON.parse(html);
+    j = JSON.parse(text || html);
   } catch {}
   if (j?.download_url) return j.download_url;
   const why = j?.error || (challenged(html) ? 'the site is checking the browser — open it once in Settings' : `HTTP ${st}`);

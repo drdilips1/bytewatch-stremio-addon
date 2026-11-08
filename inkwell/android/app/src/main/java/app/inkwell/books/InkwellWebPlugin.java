@@ -637,6 +637,134 @@ public class InkwellWebPlugin extends Plugin {
         g.ready = false;
     }
 
+    // ---- A page visited like a person would (not a background request) ----------------------
+    // Some sites' bot checks (DDoS-Guard on Anna's Archive) refuse background requests even with
+    // your pass, and only let real page visits through. So: a hidden browser navigates to the page,
+    // waits for it (and for a check page to solve itself and move on), then hands over the HTML.
+    private static final java.util.Map<String, android.webkit.WebView> visitors = new java.util.HashMap<>();
+    // One visit at a time per site (they share its hidden page): the rest wait their turn.
+    private static final java.util.Map<String, java.util.ArrayDeque<Runnable>> visitQueue = new java.util.HashMap<>();
+    private static final java.util.Set<String> visiting = new java.util.HashSet<>();
+
+    private static void visitNext(String site) {
+        visiting.remove(site);
+        java.util.ArrayDeque<Runnable> q = visitQueue.get(site);
+        Runnable next = q == null ? null : q.poll();
+        if (next != null) {
+            visiting.add(site);
+            next.run();
+        }
+    }
+    private static final java.util.regex.Pattern CHECK_PAGE = java.util.regex.Pattern.compile("(?i)ddos-guard|just a moment|checking your browser|challenge-platform|cf-chl|enable javascript and cookies");
+
+    /** { url, timeout } → { status, html, text, title, url, check } (check: still a bot-check page). */
+    @PluginMethod
+    public void pageVisit(PluginCall call) {
+        String url = call.getString("url", "");
+        long timeout = call.getInt("timeout", 30000);
+        String key;
+        try {
+            java.net.URL u = new java.net.URL(url);
+            key = u.getProtocol() + "://" + u.getHost();
+        } catch (Exception e) {
+            call.reject("Bad address");
+            return;
+        }
+        final String site = key;
+        android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+        Runnable go = () -> {
+            android.webkit.WebView v = visitors.get(site);
+            if (v == null) {
+                v = new android.webkit.WebView(getContext());
+                android.webkit.WebSettings ws = v.getSettings();
+                ws.setJavaScriptEnabled(true);
+                ws.setDomStorageEnabled(true);
+                ws.setBlockNetworkImage(true);
+                String plain = android.webkit.WebSettings.getDefaultUserAgent(getContext());
+                // The same browser as the in-app one (where you passed the check).
+                ws.setUserAgentString(plain.replace("; wv)", ")").replaceAll("Version/[\\d.]+ ", ""));
+                android.webkit.CookieManager.getInstance().setAcceptCookie(true);
+                android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(v, true);
+                visitors.put(site, v);
+            }
+            final android.webkit.WebView view = v;
+            final long t0 = System.currentTimeMillis();
+            final int[] status = { 200 };
+            final boolean[] done = { false };
+            final Runnable[] check = new Runnable[1];
+            check[0] = () -> {
+                if (done[0]) return;
+                view.evaluateJavascript("(function(){try{return JSON.stringify({h:document.documentElement.outerHTML,t:document.body?document.body.innerText:'',ti:document.title,u:location.href});}catch(e){return '{}';}})()", value -> {
+                    if (done[0]) return;
+                    try {
+                        org.json.JSONObject o = new org.json.JSONObject(new org.json.JSONTokener(value).nextValue().toString());
+                        String html = o.optString("h");
+                        boolean isCheck = CHECK_PAGE.matcher(html.length() > 20000 ? html.substring(0, 20000) : html).find() && html.length() < 60000;
+                        // A check page solves itself and reloads: wait for the real page (up to the time limit).
+                        if (isCheck && System.currentTimeMillis() - t0 < timeout) {
+                            ui.postDelayed(check[0], 1500);
+                            return;
+                        }
+                        done[0] = true;
+                        visitNext(site);
+                        android.webkit.CookieManager.getInstance().flush();
+                        JSObject r = new JSObject();
+                        r.put("status", status[0]);
+                        r.put("html", html);
+                        r.put("text", o.optString("t"));
+                        r.put("title", o.optString("ti"));
+                        r.put("url", o.optString("u"));
+                        r.put("check", isCheck);
+                        call.resolve(r);
+                    } catch (Exception e) {
+                        if (System.currentTimeMillis() - t0 < timeout) ui.postDelayed(check[0], 1500);
+                        else {
+                            done[0] = true;
+                            visitNext(site);
+                            call.reject("Couldn't read the page");
+                        }
+                    }
+                });
+            };
+            view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override
+                public void onPageStarted(android.webkit.WebView w, String u, android.graphics.Bitmap icon) {
+                    status[0] = 200; // a check page reloading into the real one: its own status
+                }
+
+                @Override
+                public void onPageFinished(android.webkit.WebView w, String u) {
+                    ui.postDelayed(check[0], 400);
+                }
+
+                @Override
+                public void onReceivedHttpError(android.webkit.WebView w, android.webkit.WebResourceRequest req, android.webkit.WebResourceResponse res) {
+                    if (req.isForMainFrame()) status[0] = res.getStatusCode();
+                }
+            });
+            view.loadUrl(url);
+            ui.postDelayed(() -> {
+                if (done[0]) return;
+                check[0].run(); // time's up: whatever is there
+                ui.postDelayed(() -> {
+                    if (!done[0]) {
+                        done[0] = true;
+                        visitNext(site);
+                        call.reject("The page didn't load in time");
+                    }
+                }, 4000);
+            }, timeout + 1000);
+        };
+        ui.post(() -> {
+            if (visiting.contains(site)) {
+                visitQueue.computeIfAbsent(site, k -> new java.util.ArrayDeque<>()).add(go);
+            } else {
+                visiting.add(site);
+                go.run();
+            }
+        });
+    }
+
     /**
      * One request to the tracker from the hidden browser: { status, text } — text is the body,
      * or base64 when binary (a .torrent). A redirect (e.g. to the sign-in page) is status 302,
