@@ -554,10 +554,16 @@ public class InkwellWebPlugin extends Plugin {
     // Some connections reach the tracker only through the browser's own network stack (the
     // in-app browser loads it while a plain request can't connect). So searches, downloads
     // and wedges go through an invisible WebView on the tracker's site, with your sign-in.
-    private static android.webkit.WebView ghost;
-    private static String ghostBase = "";
-    private static boolean ghostLoading = false;
-    private static final java.util.List<Runnable> ghostWaiting = new java.util.ArrayList<>();
+    // One hidden browser per site (MAM, Mobilism, Anna's Archive…): a book page searches them
+    // at the same time, and one shared browser hopping between sites cut the others' requests
+    // off half-way (they failed or timed out).
+    private static final class Ghost {
+        android.webkit.WebView view;
+        boolean loading = false;
+        boolean ready = false;
+        final java.util.List<Runnable> waiting = new java.util.ArrayList<>();
+    }
+    private static final java.util.Map<String, Ghost> ghosts = new java.util.HashMap<>();
     private static final java.util.Map<String, PluginCall> ghostCalls = new java.util.concurrent.ConcurrentHashMap<>();
 
     private class GhostBridge {
@@ -580,48 +586,61 @@ public class InkwellWebPlugin extends Plugin {
         }
     }
 
-    /** On the main thread: a hidden WebView sitting on [base], then [then]. */
-    private void withGhost(String base, Runnable then) {
-        if (ghost == null) {
-            ghost = new android.webkit.WebView(getContext());
-            android.webkit.WebSettings ws = ghost.getSettings();
+    /** On the main thread: [base]'s hidden WebView, sitting on its site, then [then](view). */
+    private void withGhost(String base, java.util.function.Consumer<android.webkit.WebView> then) {
+        Ghost g = ghosts.get(base);
+        if (g == null) {
+            g = new Ghost();
+            final Ghost me = g;
+            g.view = new android.webkit.WebView(getContext());
+            android.webkit.WebSettings ws = g.view.getSettings();
             ws.setJavaScriptEnabled(true);
             ws.setDomStorageEnabled(true);
             ws.setBlockNetworkImage(true);
-            android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(ghost, true);
-            ghost.addJavascriptInterface(new GhostBridge(), "AhGhost");
-            ghost.setWebViewClient(new android.webkit.WebViewClient() {
+            android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(g.view, true);
+            g.view.addJavascriptInterface(new GhostBridge(), "AhGhost");
+            // Sites that tie your sign-in to the browser (Mobilism, Anna's Archive: their session and
+            // bot check) must see the same browser as the in-app one you signed in with — the same
+            // user agent InkwellWebActivity uses. Other sites keep the WebView's own.
+            String plain = android.webkit.WebSettings.getDefaultUserAgent(getContext());
+            ws.setUserAgentString(base.contains("mobilism.org") || base.contains("annas-archive") ? plain.replace("; wv)", ")").replaceAll("Version/[\\d.]+ ", "") : plain);
+            g.view.setWebViewClient(new android.webkit.WebViewClient() {
                 @Override
                 public void onPageFinished(android.webkit.WebView v, String url) {
-                    if (!ghostLoading) return;
-                    ghostLoading = false;
-                    java.util.List<Runnable> run = new java.util.ArrayList<>(ghostWaiting);
-                    ghostWaiting.clear();
+                    if (!me.loading) return;
+                    me.loading = false;
+                    me.ready = true;
+                    java.util.List<Runnable> run = new java.util.ArrayList<>(me.waiting);
+                    me.waiting.clear();
                     for (Runnable r : run) r.run();
                 }
             });
+            ghosts.put(base, g);
         }
-        if (base.equals(ghostBase) && !ghostLoading) {
-            then.run();
+        final Ghost gh = g;
+        if (gh.ready && !gh.loading) {
+            then.accept(gh.view);
             return;
         }
-        ghostWaiting.add(then);
-        if (ghostLoading && base.equals(ghostBase)) return;
-        ghostBase = base;
-        ghostLoading = true;
-        // Sites that tie your sign-in to the browser (Mobilism: its session and Cloudflare's
-        // check) must see the same browser as the in-app one you signed in with — the same
-        // user agent InkwellWebActivity uses. Other sites keep the WebView's own.
-        android.webkit.WebSettings gs = ghost.getSettings();
-        String plain = android.webkit.WebSettings.getDefaultUserAgent(getContext());
-        gs.setUserAgentString(base.contains("mobilism.org") || base.contains("annas-archive") ? plain.replace("; wv)", ")").replaceAll("Version/[\\d.]+ ", "") : plain);
+        gh.waiting.add(() -> then.accept(gh.view));
+        if (gh.loading) return;
+        gh.loading = true;
         // A small page on the site, so requests from it carry the site's cookies.
-        ghost.loadUrl(base + "/robots.txt");
+        gh.view.loadUrl(base + "/robots.txt");
+    }
+
+    /** A site's hidden browser that never finished loading: start it afresh next time. */
+    private static void resetGhost(String base) {
+        Ghost g = ghosts.get(base);
+        if (g == null) return;
+        g.loading = false;
+        g.ready = false;
     }
 
     /**
      * One request to the tracker from the hidden browser: { status, text } — text is the body,
-     * or base64 when binary (a .torrent). A redirect (e.g. to the sign-in page) is status 302.
+     * or base64 when binary (a .torrent). A redirect (e.g. to the sign-in page) is status 302,
+     * unless `follow` (then it's followed, as for a site that moved to another address).
      */
     @PluginMethod
     public void trackerFetch(PluginCall call) {
@@ -630,10 +649,11 @@ public class InkwellWebPlugin extends Plugin {
         String method = call.getString("method", call.getString("body") == null ? "GET" : "POST");
         String body = call.getString("body", null);
         boolean binary = Boolean.TRUE.equals(call.getBoolean("binary", false));
+        boolean follow = Boolean.TRUE.equals(call.getBoolean("follow", false));
         String id = java.util.UUID.randomUUID().toString();
         ghostCalls.put(id, call);
         String js = "(async()=>{try{const r=await fetch(" + org.json.JSONObject.quote(path) + ",{method:" + org.json.JSONObject.quote(method)
-            + ",credentials:'include',redirect:'manual'"
+            + ",credentials:'include',redirect:'" + (follow ? "follow" : "manual") + "'"
             + (body != null ? ",headers:{'Content-Type':'application/json'},body:" + org.json.JSONObject.quote(body) : "")
             + "});const st=r.type==='opaqueredirect'?302:r.status;let out;"
             + (binary
@@ -643,7 +663,7 @@ public class InkwellWebPlugin extends Plugin {
         android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
         ui.post(() -> {
             try {
-                withGhost(base, () -> ghost.evaluateJavascript(js, null));
+                withGhost(base, v -> v.evaluateJavascript(js, null));
             } catch (Exception e) {
                 PluginCall c = ghostCalls.remove(id);
                 if (c != null) c.reject(String.valueOf(e.getMessage()));
@@ -652,8 +672,7 @@ public class InkwellWebPlugin extends Plugin {
         ui.postDelayed(() -> {
             PluginCall c = ghostCalls.remove(id);
             if (c != null) {
-                ghostLoading = false; // a page that never finished: load it afresh next time
-                ghostBase = "";
+                resetGhost(base); // a page that never finished: load it afresh next time
                 c.reject("Timed out reaching the tracker");
             }
         }, 45000);

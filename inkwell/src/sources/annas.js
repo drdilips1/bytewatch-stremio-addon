@@ -36,7 +36,7 @@ export function signIn() {
 
 async function page(path) {
   const r = await Promise.race([
-    Web.trackerFetch({ base: base(), path }),
+    Web.trackerFetch({ base: base(), path, follow: true }), // the site moves between addresses: follow it
     new Promise((_, no) => setTimeout(() => no(fail(`${NAME} didn’t answer in time — try again in a moment`)), PAGE_TIMEOUT)),
   ]);
   const html = r.text || '';
@@ -162,7 +162,11 @@ export async function search(query) {
   }
   const results = parseResults(html);
   const links = (html.match(/\/md5\/[a-f0-9]{32}/gi) || []).length;
-  if (!results.length) logError(NAME, `“${q}”: HTTP ${st}, ${links} book links on the page, 0 read${links ? ' (the page layout may have changed)' : ''}`);
+  if (!results.length) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const title = clean(doc.title).slice(0, 60);
+    logError(NAME, `“${q}”: HTTP ${st} · page “${title || 'no title'}” · ${html.length} chars · ${links} book links, 0 read${links ? ' (the page layout may have changed)' : ''}`);
+  }
   return results;
 }
 
