@@ -1,0 +1,167 @@
+// Anna's Archive (Audiohub+, Android): ebooks searched in the app's hidden browser — the same
+// cookies and browser as the in-app browser, where you pass the site's bot check (and sign in
+// if you like) yourself. Nothing goes through a server. With your membership's secret key
+// (Settings, kept on this phone), its fast downloads give Read / Save in the app; without it,
+// a result opens its page in the in-app browser.
+import { registerPlugin, Capacitor } from '@capacitor/core';
+import { persisted } from '../lib/store.js';
+import { logError } from '../lib/report.js';
+
+const Web = registerPlugin('InkwellWeb');
+export const NAME = "Anna's Archive";
+export const ID = 'annas-archive';
+// Its address changes now and then (mirrors): set in Settings.
+export const annas = persisted('annas', { base: 'https://annas-archive.pk', key: '' });
+const base = () => String(annas.get().base || 'https://annas-archive.pk').replace(/\/+$/, '');
+export const hasKey = () => !!String(annas.get().key || '').trim();
+
+export const available = () => Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('InkwellWeb');
+
+export const addonRecord = () => ({
+  kind: 'source',
+  special: 'annas',
+  url: '',
+  manifest: { id: ID, name: NAME, version: '1.0.0', description: 'Ebooks from Anna’s Archive, searched in your in-app browser', provides: ['source'], contentType: 'ebook', adapters: { source: {} } },
+});
+
+const fail = (message, extra = {}) => Object.assign(new Error(message), { final: true, ...extra });
+const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+const PAGE_TIMEOUT = 30000;
+let busyUntil = 0; // "too many requests": left alone for a minute
+
+/** Open the site in the in-app browser: pass the bot check (and sign in with your key, if you like). */
+export function signIn() {
+  return Web.open({ url: `${base()}/account/`, title: NAME });
+}
+
+async function page(path) {
+  const r = await Promise.race([
+    Web.trackerFetch({ base: base(), path }),
+    new Promise((_, no) => setTimeout(() => no(fail(`${NAME} didn’t answer in time — try again in a moment`)), PAGE_TIMEOUT)),
+  ]);
+  const html = r.text || '';
+  return { status: r.status, html, doc: new DOMParser().parseFromString(html, 'text/html') };
+}
+
+// DDoS-Guard / Cloudflare's "checking your browser" instead of the site.
+const challenged = (html) => /ddos-guard|just a moment|checking your browser|challenge-platform|cf-chl/i.test(html) && !/\/md5\/[a-f0-9]{32}/i.test(html);
+
+/** { ok, signedIn, why }: can the hidden browser use the site, and are you signed in? */
+export async function status() {
+  if (!available()) return { ok: false, why: 'Android app only' };
+  const { status: st, html } = await page('/account/');
+  if (st === 403 || challenged(html)) return { ok: false, why: 'The site is checking the browser — tap Open, wait for it to load' };
+  if (st >= 400) return { ok: false, why: `The site answered HTTP ${st} — check the address` };
+  return { ok: true, signedIn: /log ?out|logout|sign ?out/i.test(html) && !/log ?in to|sign ?in to/i.test(html) };
+}
+
+const FORMATS = /\b(epub|pdf|mobi|azw3|fb2|djvu|cbz|cbr|txt|docx?|rtf|lit)\b/i;
+const SIZE = /(\d+(?:[.,]\d+)?)\s?(KB|MB|GB)\b/i;
+const LANG = /\b([A-Z][a-zA-Z]+(?:\s[A-Z][a-z]+)?)\s\[([a-z]{2,3})\]/;
+const toBytes = (m) => (m ? Math.round(parseFloat(m[1].replace(',', '.')) * { KB: 1024, MB: 1048576, GB: 1073741824 }[m[2].toUpperCase()]) : 0);
+
+/**
+ * The search results page → results. Some results come inside HTML comments (shown as you
+ * scroll); those are read too. One result per book file (/md5/<hash>).
+ */
+export function parseResults(html, siteBase = base()) {
+  const doc = new DOMParser().parseFromString(String(html || '').replace(/<!--|-->/g, ''), 'text/html');
+  const byHash = new Map();
+  for (const a of doc.querySelectorAll('a[href*="/md5/"]')) {
+    const hash = /\/md5\/([a-f0-9]{32})/i.exec(a.getAttribute('href') || '')?.[1]?.toLowerCase();
+    if (!hash) continue;
+    if (!byHash.has(hash)) byHash.set(hash, []);
+    byHash.get(hash).push(a);
+  }
+  const out = [];
+  for (const [hash, links] of byHash) {
+    // The result's own box: the widest ancestor holding links to this file only.
+    let box = links[0];
+    for (let el = links[0].parentElement; el && el !== doc.body; el = el.parentElement) {
+      const others = [...el.querySelectorAll('a[href*="/md5/"]')].some((x) => !(x.getAttribute('href') || '').toLowerCase().includes(hash));
+      if (others) break;
+      box = el;
+    }
+    const text = clean(box.textContent);
+    const title = clean(
+      [...links, ...box.querySelectorAll('h3')]
+        .map((x) => clean(x.textContent))
+        .filter((t) => t.length > 1 && !FORMATS.test(t.split(' ')[0] || ''))
+        .sort((a, b) => b.length - a.length)[0] || ''
+    ).slice(0, 300);
+    if (!title) continue;
+    const authorEl = box.querySelector('a[href*="/search?q="] .icon-\\[mdi--user-edit\\]')?.parentElement || box.querySelector('[class*="user-edit"]')?.parentElement || box.querySelector('.italic');
+    const author = clean(authorEl?.textContent || '').slice(0, 150);
+    // The facts line: "English [en] · EPUB · 1.2MB · 2019 · 📘 Book (non-fiction) · …"
+    const facts = [...box.querySelectorAll('div, span')].map((x) => clean(x.textContent)).find((t) => FORMATS.test(t) && SIZE.test(t) && t.length < 400) || text;
+    const format = (FORMATS.exec(facts)?.[1] || '').toUpperCase();
+    if (!format) continue;
+    const img = box.querySelector('img[src]');
+    out.push({
+      key: `${ID}:${hash}`,
+      addon: NAME,
+      contentType: 'ebook',
+      title,
+      author,
+      narrator: '',
+      magnet: '',
+      hash: '',
+      aaMd5: hash,
+      size: toBytes(SIZE.exec(facts)),
+      seeders: null,
+      format,
+      language: LANG.exec(facts)?.[2] || '',
+      date: /\b(19|20)\d\d\b/.exec(facts)?.[0] || '',
+      cover: img ? new URL(img.getAttribute('src'), siteBase + '/').href : '',
+      cache: { any: false },
+      link: `${siteBase}/md5/${hash}`,
+      inApp: true, // its page opens in the in-app browser (your session there)
+      score: 1,
+    });
+    if (out.length >= 30) break;
+  }
+  return out;
+}
+
+/** Search for ebooks. */
+export async function search(query) {
+  if (!available()) throw fail(`${NAME} works in the Android app only (it uses the in-app browser)`);
+  const q = clean(query);
+  if (!q) return [];
+  if (Date.now() < busyUntil) throw fail(`${NAME} is busy (too many requests) — try again in a minute`);
+  const { status: st, html } = await page(`/search?q=${encodeURIComponent(q)}`);
+  if (st === 429) {
+    busyUntil = Date.now() + 60e3;
+    throw fail(`${NAME} is busy (too many requests) — try again in a minute`);
+  }
+  if (st === 403 || challenged(html)) {
+    logError(NAME, `browser check — HTTP ${st}`);
+    throw fail(`${NAME} is checking the browser — Settings → Addons → ${NAME} → Open, wait for the site to load, then search again`, { signin: true });
+  }
+  if (st >= 400) {
+    logError(NAME, `HTTP ${st} on the search`);
+    throw fail(`${NAME} answered HTTP ${st} — check its address in Settings → Addons`);
+  }
+  const results = parseResults(html);
+  const links = (html.match(/\/md5\/[a-f0-9]{32}/gi) || []).length;
+  if (!results.length) logError(NAME, `“${q}”: HTTP ${st}, ${links} book links on the page, 0 read${links ? ' (the page layout may have changed)' : ''}`);
+  return results;
+}
+
+/**
+ * A direct file link for a book (members: your secret key's fast downloads). Asked through
+ * the hidden browser, as the site expects.
+ */
+export async function fastLink(md5) {
+  const key = String(annas.get().key || '').trim();
+  if (!key) throw new Error(`Add your ${NAME} secret key (Settings → Addons) to read in the app — or open its page`);
+  const { status: st, html } = await page(`/dyn/api/fast_download.json?md5=${encodeURIComponent(md5)}&key=${encodeURIComponent(key)}`);
+  let j = null;
+  try {
+    j = JSON.parse(html);
+  } catch {}
+  if (j?.download_url) return j.download_url;
+  const why = j?.error || (challenged(html) ? 'the site is checking the browser — open it once in Settings' : `HTTP ${st}`);
+  logError(NAME, `fast download: ${why}`);
+  throw new Error(`${NAME}: ${why}`);
+}

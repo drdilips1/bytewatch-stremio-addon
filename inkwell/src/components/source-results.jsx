@@ -898,7 +898,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
           // Its links are file hosts (Rapidgator, Rosefile…), not audio you can stream.
           <div class="src-topic">
             <button class={'btn ' + (cloud.rdConnected() && r.downloads?.length ? 'secondary' : 'primary')} onClick={() => WebPlugin.open({ url: r.link, title: r.title }).catch((e) => toast(e.message))}>
-              <Icon name="external" size={16} /> Open topic
+              <Icon name="external" size={16} /> {r.aaMd5 ? 'Open' : 'Open topic'}
             </button>
             {r.downloads?.length > 0 && (
               <small class="muted">

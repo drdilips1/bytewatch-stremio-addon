@@ -181,7 +181,7 @@ function runOnce(addon, p, retry = 0) {
   const hit = remembered(key);
   if (hit) return Promise.resolve(hit);
   // Browser-backed sources (Mobilism): searched in the in-app browser, not fetched as JSON.
-  const once = addon.special === 'mobilism' ? () => searchMobilism(vars, p) : () => searchOnce(addon, vars, key, p, retry);
+  const once = addon.special === 'mobilism' ? () => searchMobilism(vars, p) : addon.special === 'annas' ? () => searchAnnas(vars, p) : () => searchOnce(addon, vars, key, p, retry);
   if (!inflight.has(key)) inflight.set(key, once().finally(() => inflight.delete(key)));
   return inflight.get(key);
 }
@@ -190,6 +190,16 @@ function runOnce(addon, p, retry = 0) {
 async function searchMobilism(vars, { title = '', author = '', query = '' }) {
   const { search } = await import('./mobilism.js');
   let results = await search(query || title, title || query);
+  if (title && author) results = sameBook(results, title, author);
+  return results;
+}
+
+// Anna's Archive: ebooks, searched in the in-app browser (title + author, then the title alone).
+async function searchAnnas(vars, { title = '', author = '', query = '' }) {
+  const { search } = await import('./annas.js');
+  const q = query || [title, author].filter(Boolean).join(' ');
+  let results = await search(q);
+  if (!results.length && title && author) results = await search(title);
   if (title && author) results = sameBook(results, title, author);
   return results;
 }

@@ -5,6 +5,7 @@ import { Icon } from '../components/icons.jsx';
 import { toast, AskButton } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup, kindle } from '../lib/store.js';
 import { aiVoiceOn, stopAnswer } from '../lib/voiceask.js';
+import { annas as annasStore } from '../sources/annas.js';
 import { notInterested, alreadyRead } from '../lib/taste.js';
 import { importReadList, takeGoodreadsReads } from '../lib/readlists.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
@@ -1151,6 +1152,89 @@ function MobilismRow({ list }) {
   );
 }
 
+/**
+ * Anna's Archive: ebooks searched in the in-app browser (you pass its bot check there; nothing
+ * goes through a server). Your membership's secret key, kept on this phone, gives Read / Save.
+ */
+function AnnasRow({ list }) {
+  const [aa, setAa] = useState(null);
+  const [st, setSt] = useState(null);
+  const on = list.some((a) => a.special === 'annas');
+  const cfg = useStore(annasStore);
+  const [key, setKey] = useState('');
+  useEffect(() => {
+    import('../sources/annas.js').then(setAa).catch(() => {});
+  }, []);
+  if (!aa || !aa.available()) return null;
+  const check = () => {
+    setSt('checking');
+    aa.status().then(setSt, (e) => setSt({ ok: false, why: e?.message || 'Couldn’t reach the site' }));
+  };
+  const line =
+    !on ? 'Ebooks, searched in your in-app browser — with your secret key, Read and Save in the app'
+    : st === 'checking' ? 'Checking…'
+    : st?.ok ? `Works${st.signedIn ? ' · signed in' : ''} · ${aa.hasKey() ? 'Read & Save with your key' : 'results open the site (add your key to read in the app)'}`
+    : st ? st.why
+    : aa.hasKey() ? 'Read & Save with your key' : 'Results open the site — add your secret key to read in the app';
+  return (
+    <>
+      <div class="set-row addon-row">
+        <Icon name="book" size={20} />
+        <div>
+          <b>{aa.NAME}</b>
+          <small>{line}</small>
+        </div>
+        {on && (
+          <button class="pill small" onClick={check}>
+            Check
+          </button>
+        )}
+        <button class="pill small" onClick={() => aa.signIn().catch((e) => toast(e.message))}>
+          Open
+        </button>
+        {on ? (
+          <button class="icon-btn" aria-label="Remove Anna's Archive" onClick={() => addons.set(list.filter((a) => a.special !== 'annas'))}>
+            <Icon name="trash" size={18} />
+          </button>
+        ) : (
+          <button class="pill small" onClick={() => (addons.set([...list, aa.addonRecord()]), toast("Anna's Archive added — tap Open once to pass the site's check"))}>
+            Add
+          </button>
+        )}
+      </div>
+      {on && (
+        <div class="set-row">
+          <div>
+            <b>Site address</b>
+            <small>Anna's Archive moves now and then — the one that opens for you</small>
+          </div>
+          <input class="small-input" value={cfg.base || ''} placeholder="https://annas-archive.pk" onChange={(e) => aa.annas.patch({ base: e.currentTarget.value.trim().replace(/\/+$/, '') })} />
+        </div>
+      )}
+      {on && (
+        <div class="set-row">
+          <div>
+            <b>Secret key</b>
+            <small>{aa.hasKey() ? 'Saved on this phone — Read and Save use your membership’s fast downloads' : 'Optional (members): from your account page — kept on this phone only'}</small>
+          </div>
+          {aa.hasKey() ? (
+            <button class="pill small danger" onClick={() => (aa.annas.patch({ key: '' }), toast('Key removed'))}>
+              Remove
+            </button>
+          ) : (
+            <span class="aa-key">
+              <input type="password" value={key} placeholder="Secret key" onInput={(e) => setKey(e.currentTarget.value)} />
+              <button class="pill small" disabled={!key.trim()} onClick={() => (aa.annas.patch({ key: key.trim() }), setKey(''), toast('Key saved on this phone'))}>
+                Save
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 function AddonsCard() {
   const list = useStore(addons);
   const [badLogo, setBadLogo] = useState({}); // addon id -> its picture doesn't load
@@ -1163,7 +1247,8 @@ function AddonsCard() {
         Paste an addon link: a source addon (a JSON link), a Stremio-style manifest, or an addon collection. Only install addons you trust.
       </p>
       <MobilismRow list={list} />
-      {list.filter((a) => a.special !== 'mobilism').map((a) => (
+      <AnnasRow list={list} />
+      {list.filter((a) => a.special !== 'mobilism' && a.special !== 'annas').map((a) => (
         <div class="set-row addon-row">
           {(a.manifest.logo || a.manifest.icon) && !badLogo[a.manifest.id] ? (
             <img src={a.manifest.logo || a.manifest.icon} alt="" class="addon-logo" onError={() => setBadLogo((m) => ({ ...m, [a.manifest.id]: true }))} onLoad={(e) => e.currentTarget.naturalWidth < 8 && setBadLogo((m) => ({ ...m, [a.manifest.id]: true }))} />

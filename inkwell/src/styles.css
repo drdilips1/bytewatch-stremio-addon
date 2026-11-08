@@ -11511,3 +11511,13 @@ button.notes-book-head {
     font-weight: 400;
   }
 }
+
+/* Settings → Anna's Archive: the secret key box. */
+.aa-key {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  & input {
+    width: 140px;
+  }
+}

@@ -614,7 +614,7 @@ public class InkwellWebPlugin extends Plugin {
         // user agent InkwellWebActivity uses. Other sites keep the WebView's own.
         android.webkit.WebSettings gs = ghost.getSettings();
         String plain = android.webkit.WebSettings.getDefaultUserAgent(getContext());
-        gs.setUserAgentString(base.contains("mobilism.org") ? plain.replace("; wv)", ")").replaceAll("Version/[\\d.]+ ", "") : plain);
+        gs.setUserAgentString(base.contains("mobilism.org") || base.contains("annas-archive") ? plain.replace("; wv)", ")").replaceAll("Version/[\\d.]+ ", "") : plain);
         // A small page on the site, so requests from it carry the site's cookies.
         ghost.loadUrl(base + "/robots.txt");
     }
