@@ -585,6 +585,8 @@ export async function openTracker(query = '', filtered = false, ebook = false) {
   const url = query ? trackerSearchUrl(query, filtered, ebook) : String(tracker.get().url || '').trim();
   if (!url) throw new Error('Add your tracker site address first');
   if (!canBrowse) return window.open(url, '_blank');
+  // Your own sign-in in the browser, not the app's session cookie (see clearMamSession).
+  if (MAM.test(trackerName())) await clearMamSession('https://' + trackerName());
   // The browser screen sends captured downloads itself (the app is paused behind it).
   return Web.open({ url: /^https?:\/\//i.test(url) ? url : 'https://' + url, title: '', capture: true, qbit: await qbitJson() });
 }
@@ -649,6 +651,15 @@ async function useMamSession(base) {
   if (!id) return false;
   await Web.setSiteCookie({ url: base, cookie: `mam_id=${id}; Path=/; Secure` }).catch(() => {});
   return true;
+}
+/**
+ * Take the session cookie the app put in back out. Left there, the browser sends it before the
+ * one MyAnonamouse gives you when you sign in yourself — so signing in in the app's browser
+ * seemed not to work (you stayed signed out).
+ */
+async function clearMamSession(base) {
+  const gone = 'mam_id=; Path=/; Secure; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  for (const url of [...new Set([base, 'https://www.myanonamouse.net', 'https://myanonamouse.net', 'https://t.myanonamouse.net'])]) await Web.setSiteCookie({ url, cookie: gone }).catch(() => {});
 }
 /** Tell MAM your current network (it signs a session out when your provider changes). */
 async function mamNewNetwork(base) {
@@ -731,12 +742,21 @@ export async function grabFromTracker({ words, title = '', author = '', ebook = 
   const tries = texts.flatMap((t) => [{ path: '/tor/js/loadSearchJSONbasic.php', body: asJson(t) }, { path: asQuery(t) }]);
   const why = [];
   let data = null;
-  const hasSession = MAM.test(trackerName()) && (await useMamSession(base));
+  // Your own sign-in (from the app's browser) first; the session ID from Settings only if that's
+  // signed out — and taken back out afterwards, so it never gets in the way of your sign-in.
+  const canSession = MAM.test(trackerName()) && !!String(mamSession.get().id || '').trim();
+  let hasSession = false;
   let renewed = false;
+  const signedOut = (r) => (r.status >= 300 && r.status < 400) || /not signed in|ASN mismatch|IP mismatch|login\.php|takelogin/i.test(String(r.text || '').slice(0, 2000));
   for (let k = 0; k < tries.length; k++) {
     const t = tries[k];
     try {
       const r = await siteFetch(base, t);
+      if (!hasSession && canSession && signedOut(r)) {
+        hasSession = await useMamSession(base);
+        k--;
+        continue;
+      }
       if (r.status >= 300 && r.status < 400) {
         why.push(`HTTP ${r.status} (signed out?)`);
         continue;
@@ -763,6 +783,11 @@ export async function grabFromTracker({ words, title = '', author = '', ebook = 
       }
       why.push(`HTTP ${r.status}: ${String(d.error || 'no results').slice(0, 80)}`);
     } catch (e) {
+      if (/signin/.test(e?.message) && !hasSession && canSession) {
+        hasSession = await useMamSession(base);
+        k--;
+        continue;
+      }
       if (/signin/.test(e?.message)) return fallback('Sign in to the tracker once — opening it');
       why.push(String(e?.message || e).slice(0, 100));
     }
@@ -791,6 +816,7 @@ export async function grabFromTracker({ words, title = '', author = '', ebook = 
   const text = r.sent ? `${r.message} · ${[fmt, how].filter(Boolean).join(' · ')}` : r.message;
   noteCapture({ type: 'torrent', name, data: r.data, sent: r.sent, message: text });
   nativeToast(r.sent ? '✓ ' + text : text);
+  if (hasSession) await clearMamSession(base);
   return r;
 }
 
