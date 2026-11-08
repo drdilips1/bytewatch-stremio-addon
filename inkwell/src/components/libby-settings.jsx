@@ -1,6 +1,6 @@
 // Settings → Libby (Audiohub+): your library cards (yours and your family's) and extra
 // library catalogues. Signed in, the book pages can borrow, hold, renew and return.
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { toast } from './common.jsx';
 import { useStore } from '../lib/store.js';
 import * as libbySrc from '../sources/libby.js';
@@ -14,6 +14,23 @@ function LibbyCardSignIn({ busy, run, adding = false }) {
   const [card, setCard] = useState('');
   const [pin, setPin] = useState('');
   const target = lib === '__other' || !libs.length ? other : lib;
+  // The library's sign-in types (card, student ID, a partner library…): pick yours.
+  const [forms, setForms] = useState([]);
+  const [ils, setIls] = useState('');
+  useEffect(() => {
+    setForms([]);
+    setIls('');
+    if (!target.trim()) return;
+    let alive = true;
+    const t = setTimeout(() => {
+      libbySrc
+        .cardForms(target)
+        .then((f) => alive && (setForms(f), setIls(f[0]?.ils || '')))
+        .catch(() => {});
+    }, 500);
+    return () => ((alive = false), clearTimeout(t));
+  }, [target]);
+  const chosen = forms.find((f) => f.ils === ils);
   return (
     <div class="libby-cardform">
       <p class="muted">
@@ -28,6 +45,14 @@ function LibbyCardSignIn({ busy, run, adding = false }) {
         </select>
       )}
       {(lib === '__other' || !libs.length) && <input value={other} placeholder="Library link (libbyapp.com/library/…) or short name" onInput={(e) => setOther(e.currentTarget.value)} />}
+      {forms.length > 1 && (
+        <select value={ils} onChange={(e) => setIls(e.currentTarget.value)} aria-label="Sign-in type">
+          {forms.map((f) => (
+            <option value={f.ils}>{f.label}</option>
+          ))}
+        </select>
+      )}
+      {chosen?.external && <p class="muted small">This one signs in on the library's own website — use the code option below instead.</p>}
       <input value={card} inputmode="text" autocomplete="username" placeholder="Library card number" onInput={(e) => setCard(e.currentTarget.value)} />
       <input value={pin} type="password" autocomplete="current-password" placeholder="PIN / password (if your library uses one)" onInput={(e) => setPin(e.currentTarget.value)} />
       <button
@@ -35,7 +60,7 @@ function LibbyCardSignIn({ busy, run, adding = false }) {
         disabled={busy || !target.trim() || !card.trim()}
         onClick={() =>
           run(async () => {
-            const names = await libbySrc.signInWithCard(target, card, pin);
+            const names = await libbySrc.signInWithCard(target, card, pin, ils);
             setCard('');
             setPin('');
             return `Signed in: ${names}`;

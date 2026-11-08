@@ -242,7 +242,7 @@ async function call(method, base, path, { identity, body, timeout = 25000, heade
   try {
     return method === 'GET' ? await getJson(url, { headers: { ...auth(identity), ...headers }, fresh: true, timeout }) : await sendJson(url, method, body, { ...auth(identity), ...headers });
   } catch (e) {
-    if (identity && e.status === 401) throw Object.assign(new Error('Libby signed this device out — sign in again in Settings → Libby'), { status: 401 });
+    if (identity && e.status === 401) throw Object.assign(new Error('Libby signed this device out — sign in again in Settings → Libby'), { status: 401, detail: e.message });
     throw e;
   }
 }
@@ -420,25 +420,67 @@ async function libraryInfo(key) {
  * Sign in with a library card number and PIN (no phone needed). Adds the card to
  * this device's Libby account; call again for more cards.
  */
-export async function signInWithCard(input, cardNumber, pin = '') {
+/** The ways a library lets you sign in (card, student ID, a partner library…): [{ ils, label, external }]. */
+export async function cardForms(input) {
   const key = parseLibrary(input) || String(input || '').trim().toLowerCase();
-  if (!key) throw new Error('Choose or paste the library first');
-  if (!String(cardNumber || '').trim()) throw new Error('Enter your library card number');
+  if (!key) return [];
   const { websiteId } = await libraryInfo(key);
   const forms = (await call('GET', READ, `auth/forms/${websiteId}`))?.forms || [];
-  const form = forms.find((f) => f.ilsName === key) || forms.find((f) => f.ilsName) || null;
+  return forms
+    .filter((f) => f.ilsName)
+    .map((f) => ({
+      ils: f.ilsName,
+      label: String(f.displayName || f.label || f.name || f.ilsName),
+      // Signs in on the library's own website (single sign-on): no card number + PIN here.
+      external: /external|sso|saml|oauth/i.test(String(f.type || f.formType || '')),
+    }));
+}
+
+export async function signInWithCard(input, cardNumber, pin = '', ilsName = '') {
+  const key = parseLibrary(input) || String(input || '').trim().toLowerCase();
+  if (!key) throw new Error('Choose or paste the library first');
+  // Printed cards often have spaces ("2 1234 00567 8901"): the library wants the digits.
+  const cardNo = String(cardNumber || '').replace(/\s+/g, '');
+  if (!cardNo) throw new Error('Enter your library card number');
+  const { websiteId } = await libraryInfo(key);
+  const forms = (await call('GET', READ, `auth/forms/${websiteId}`))?.forms || [];
+  const form = (ilsName && forms.find((f) => f.ilsName === ilsName)) || forms.find((f) => f.ilsName === key) || forms.find((f) => f.ilsName) || null;
   if (!form) throw new Error("This library doesn't allow signing in here — use the code option instead");
-  const body = { ils: form.ilsName, username: String(cardNumber).trim(), password: String(pin || '') };
-  const link = async (identity) =>
-    call('POST', READ, `auth/link/${websiteId}`, { identity, body }).catch((e) => {
-      throw new Error(e.status === 401 || /credentials/i.test(e.message) ? 'The library rejected that card number or PIN' : `Libby: ${e.message}`);
-    });
+  if (/external|sso|saml|oauth/i.test(String(form.type || form.formType || '')))
+    throw new Error('This library signs you in on its own website — use the code option (sign in on libbyapp.com, then enter the code here)');
+  const body = { ils: form.ilsName, username: cardNo, password: String(pin || '') };
+  const noteWhy = (e) => {
+    const said = String(e?.detail || e?.message || e || '').replace(/^HTTP \d+ — /, '').slice(0, 160);
+    logError('Libby card', `${key} (${form.ilsName}${forms.length > 1 ? ` of ${forms.length} sign-in types` : ''}): HTTP ${e?.status || '?'} ${said}`);
+    return said;
+  };
+  const link = async (identity, chipId = '') => {
+    try {
+      return await call('POST', READ, `auth/link/${websiteId}`, { identity, body });
+    } catch (e) {
+      // The app's own Libby sign-in had run out (not your PIN): a fresh one, then once more.
+      if (e.status === 401 && chipId) {
+        try {
+          const fresh = await mint(identity, chipId);
+          return await call('POST', READ, `auth/link/${websiteId}`, { identity: fresh.identity, body });
+        } catch (e2) {
+          e = e2;
+        }
+      }
+      const said = noteWhy(e);
+      throw new Error(
+        e.status === 401 || e.status === 403 || /credential|invalid|incorrect|password|pin/i.test(said)
+          ? `The library didn't accept that card number or PIN${forms.length > 1 ? ' — try another sign-in type above' : ''}${said && !/^libby signed/i.test(said) ? ` (it said: ${said})` : ''}`
+          : `Libby: ${said || 'no answer'}`
+      );
+    }
+  };
 
   const acct = libbyAccount.get();
   if (acct.identity) {
     // Already signed in: add this card to the same account.
     const chipId = acct.chipId || tokenClaims(acct.identity)?.chip?.id || '';
-    await link(acct.identity);
+    await link(acct.identity, chipId);
     return finish(await mint(acct.identity, chipId));
   }
   // Like the Libby web app: link the card on one chip, then copy it to a second
