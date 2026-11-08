@@ -2,10 +2,11 @@
 // Searches LibGen for English EPUBs and resolves downloads. The main worker (audiohub.js)
 // forwards /libgen/… here.
 //
+// 10.8.1: ISBNs that some mirrors put after the title ("Title 9781473537804; 1473537800") left off.
 // 10.8.0: several LibGen mirrors, tried in turn (one that's down — HTTP 522, a timeout — no
 // longer means no results). The one that answered is tried first next time.
 
-const VERSION = "10.8.0";
+const VERSION = "10.8.1";
 const SOURCE = "LibGen English EPUB";
 // Mirrors of the same LibGen (same database, same pages): the first that answers is used.
 const MIRRORS = [
@@ -286,8 +287,14 @@ function findLink(html, filename) {
 }
 
 function cleanFallbackTitle(value) {
-  return cleanText(value)
-    .replace(/\s+\b[a-z]\s+[a-z]\s+\d{5,}\s*$/i, "")
+  return stripIsbns(cleanText(value)
+    .replace(/\s+\b[a-z]\s+[a-z]\s+\d{5,}\s*$/i, ""));
+}
+
+/** "Title 9781473537804; 1473537800; 184794183X" → "Title" (ISBN lists after the title). */
+function stripIsbns(title) {
+  return String(title || "")
+    .replace(/(?:[\s;,]+(?:97[89][\d-]{10,14}|\d{9}[\dXx]|[\d-]{12,17}))+[\s;,]*$/g, "")
     .trim();
 }
 
@@ -325,7 +332,7 @@ function extractBook(row, columns, base) {
   );
 
   return {
-    title: edition.text || cleanFallbackTitle(titleCell.text),
+    title: stripIsbns(edition.text) || cleanFallbackTitle(titleCell.text),
     author: getCell(row.cells, columns.author).text,
     publisher: getCell(row.cells, columns.publisher).text,
     year: getCell(row.cells, columns.year).text,
