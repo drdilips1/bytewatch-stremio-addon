@@ -114,11 +114,16 @@ export function rollTheme(st) {
   lastLook = look(st);
   const light = Math.random() < 0.5;
   const current = activePalette(st);
-  const pals = PALETTES.filter((p) => p.light === light && p.id !== current);
+  // Not Paper & Ink / Ivory & Gold: they keep their own colour whatever the accent, so a roll
+  // there would leave the accented text (under covers, buttons, links) unchanged.
+  const pals = PALETTES.filter((p) => p.light === light && p.id !== current && p.id !== 'paperink' && p.id !== 'ivory');
   const p = pals[Math.floor(Math.random() * pals.length)];
-  const okAccents = Object.keys(ACCENTS).filter((k) => !light || ACCENTS[k].l);
-  const accent = p.accent || okAccents[Math.floor(Math.random() * okAccents.length)];
-  return { palette: p.id, [light ? 'paletteLight' : 'paletteDark']: p.id, mode: light ? 'light' : 'dark', accent, name: p.name };
+  // A different accent from the one you have, so every roll visibly changes it too.
+  const okAccents = Object.keys(ACCENTS).filter((k) => (!light || ACCENTS[k].l) && k !== st.accent);
+  const accent = p.accent && p.accent !== st.accent ? p.accent : okAccents[Math.floor(Math.random() * okAccents.length)];
+  // Name the accent too when it isn't the palette's own ("Plum · Emerald").
+  const name = accent === p.accent ? p.name : `${p.name} · ${ACCENTS[accent]?.name || accent}`;
+  return { palette: p.id, [light ? 'paletteLight' : 'paletteDark']: p.id, mode: light ? 'light' : 'dark', accent, name };
 }
 /** The look before the last roll (long-press the dice), or null. */
 export const previousLook = () => lastLook;
