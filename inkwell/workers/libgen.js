@@ -2,22 +2,26 @@
 // Searches LibGen for English EPUBs and resolves downloads. The main worker (audiohub.js)
 // forwards /libgen/… here.
 //
+// 10.8.2: faster when mirrors are down — the last working one gets 5 s, then all the others
+//         are asked at once (first good answer wins); libgen.la first. Fresh worker copies start
+//         from the top of the list, and waiting 9 s per dead mirror made the app give up (30 s).
 // 10.8.1: ISBNs that some mirrors put after the title ("Title 9781473537804; 1473537800") left off.
 // 10.8.0: several LibGen mirrors, tried in turn (one that's down — HTTP 522, a timeout — no
 // longer means no results). The one that answered is tried first next time.
 
-const VERSION = "10.8.1";
+const VERSION = "10.8.2";
 const SOURCE = "LibGen English EPUB";
 // Mirrors of the same LibGen (same database, same pages): the first that answers is used.
 const MIRRORS = [
+  "https://libgen.la/",
   "https://libgen.gl/",
   "https://libgen.li/",
   "https://libgen.vg/",
-  "https://libgen.la/",
   "https://libgen.bz/",
   "https://libgen.gs/",
 ];
-const MIRROR_TIMEOUT_MS = 9000;
+const FIRST_TIMEOUT_MS = 5000; // the last working mirror
+const RACE_TIMEOUT_MS = 8000; // the others, all at once
 let activeBase = MIRRORS[0];
 const DEFAULT_PAGES = 5;
 const MAX_PAGES = 10;
@@ -47,38 +51,52 @@ function json(data, status = 200) {
  * Cloudflare couldn't reach it). Returns { response, base, tried }.
  */
 async function fetchMirror(path, params, init = {}) {
-  const order = [activeBase, ...MIRRORS.filter(m => m !== activeBase)];
   const tried = [];
-  let last = null;
-
-  for (const base of order) {
+  const build = (base) => {
     const url = new URL(path, base);
     for (const [k, v] of Object.entries(params || {})) url.searchParams.set(k, v);
-
+    return url.href;
+  };
+  // One mirror: resolves { response, base, url } for an answer below 500, else rejects.
+  const attempt = (base, ms, signals) => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), MIRROR_TIMEOUT_MS);
-
-    try {
-      const response = await fetch(url.href, { ...init, signal: controller.signal, redirect: "follow" });
-
-      if (response.status >= 500) {
+    signals.push(controller);
+    const timer = setTimeout(() => controller.abort(), ms);
+    const href = build(base);
+    return fetch(href, { ...init, signal: controller.signal, redirect: "follow" })
+      .then(response => {
         tried.push({ mirror: base, status: response.status });
-        last = { response, base, url: url.href };
-        continue;
-      }
+        if (response.status >= 500) throw Object.assign(new Error("HTTP " + response.status), { response, base, url: href });
+        return { response, base, url: href };
+      })
+      .catch(error => {
+        if (!error.response) tried.push({ mirror: base, error: error?.name === "AbortError" ? "timed out" : String(error) });
+        throw error;
+      })
+      .finally(() => clearTimeout(timer));
+  };
 
-      activeBase = base;
-      tried.push({ mirror: base, status: response.status });
-      return { response, base, url: url.href, tried };
-    } catch (error) {
-      tried.push({ mirror: base, error: error?.name === "AbortError" ? "timed out" : String(error) });
-    } finally {
-      clearTimeout(timer);
-    }
+  // 1. The mirror that worked last.
+  const first = [];
+  try {
+    const got = await attempt(activeBase, FIRST_TIMEOUT_MS, first);
+    return { ...got, tried };
+  } catch {}
+
+  // 2. All the others at once: the first good answer wins, the rest are stopped.
+  const rest = MIRRORS.filter(m => m !== activeBase);
+  const controllers = [];
+  try {
+    const got = await Promise.any(rest.map(base => attempt(base, RACE_TIMEOUT_MS, controllers)));
+    for (const c of controllers) c.abort();
+    activeBase = got.base;
+    return { ...got, tried };
+  } catch (all) {
+    // Every mirror failed: hand back an HTTP error if one answered, else say none did.
+    const answered = (all.errors || []).find(e => e && e.response);
+    if (answered) return { response: answered.response, base: answered.base, url: answered.url, tried };
+    throw Object.assign(new Error("No LibGen mirror answered"), { tried });
   }
-
-  if (last) return { ...last, tried };
-  throw Object.assign(new Error("No LibGen mirror answered"), { tried });
 }
 
 /* ---------------- PARSING ---------------- */
