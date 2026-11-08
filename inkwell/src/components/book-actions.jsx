@@ -58,11 +58,34 @@ export function BookActionsSheet() {
   const prog = useStore(progress);
   const later = useStore(readLater);
   const ups = useStore(absUploads);
+  // Send to Audiobookshelf: which way (home server for torrents, or upload from the phone).
+  const [absPick, setAbsPick] = useState(null); // { checking, hit, torrent }
+  const pickAbsRoute = async () => {
+    const q = await import('../sources/qbit.js');
+    const torrent = !!book.hash && q.available && q.configured();
+    setAbsPick({ checking: true, torrent });
+    const hit = await q.onServer(book).catch(() => null);
+    setAbsPick({ checking: false, hit, torrent });
+  };
+  const viaHomeServer = async () => {
+    try {
+      const q = await import('../sources/qbit.js');
+      toast(`${await q.send(book)} — it shows in Audiobookshelf once downloaded`);
+    } catch (e) {
+      toast(`Home server: ${e.message}`);
+    }
+  };
+  const viaPhone = () => {
+    toast('Sending to Audiobookshelf — downloading first; you can keep using the app');
+    sendToAbs(book)
+      .then((t) => t && toast(`“${book.title}” is on your Audiobookshelf (${t.label}) — it shows there after the scan`))
+      .catch((e) => toast(`Audiobookshelf: ${e.message}`));
+  };
   const [busy, setBusy] = useState('');
   const [fixing, setFixing] = useState(false);
   const close = () => (setFixing(false), sheet.set(null));
   useBackClose(!!book, close);
-  useEffect(() => (setBusy(''), setFixing(false)), [book?.uid]);
+  useEffect(() => (setBusy(''), setFixing(false), setAbsPick(null)), [book?.uid]);
   if (!book) return null;
   const p = prog[book.uid];
   const pct = p ? Math.round((p.percent || 0) * 100) : 0;
@@ -134,16 +157,11 @@ export function BookActionsSheet() {
             {busy === 'dl' ? <span class="spinner small" /> : <Icon name="download" size={18} />} Download
           </button>
         )}
-        {canSendToAbs() && book.source !== 'abs' && !ebookOnly(book) && (
+        {canSendToAbs() && book.source !== 'abs' && !ebookOnly(book) && !absPick && (
           <button
             class="menu-item"
             disabled={['downloading', 'uploading'].includes(ups[book.uid]?.status)}
-            onClick={act(() => {
-              toast('Sending to Audiobookshelf — downloading first; you can keep using the app');
-              sendToAbs(book)
-                .then((t) => t && toast(`“${book.title}” is on your Audiobookshelf (${t.label}) — it shows there after the scan`))
-                .catch((e) => toast(`Audiobookshelf: ${e.message}`));
-            })}
+            onClick={() => pickAbsRoute()}
           >
             <Icon name="server" size={18} />{' '}
             {ups[book.uid]?.status === 'downloading'
@@ -154,6 +172,38 @@ export function BookActionsSheet() {
                   ? 'Send to Audiobookshelf again'
                   : 'Send to Audiobookshelf'}
           </button>
+        )}
+        {absPick && (
+          <div class="abs-pick">
+            {absPick.checking ? (
+              <p class="muted small">
+                <span class="spinner small" /> Checking your Audiobookshelf…
+              </p>
+            ) : (
+              <>
+                {absPick.hit && <p class="small">Already on your Audiobookshelf: “{absPick.hit.title}”{absPick.hit.author ? ` · ${absPick.hit.author}` : ''}</p>}
+                {absPick.torrent && (
+                  <button class="menu-item" onClick={act(() => viaHomeServer())}>
+                    <Icon name="server" size={18} />
+                    <span>
+                      Home server downloads it{absPick.hit ? ' anyway' : ' (recommended)'}
+                      <small class="muted"> — qBittorrent saves it straight into your library; nothing goes through the phone. Needs people sharing it.</small>
+                    </span>
+                  </button>
+                )}
+                <button class="menu-item" onClick={act(() => viaPhone())}>
+                  <Icon name="upload" size={18} />
+                  <span>
+                    Upload from the phone{absPick.hit ? ' anyway' : ''}
+                    <small class="muted"> — downloads from your cloud, then uploads (uses data twice). Works for anything that plays.</small>
+                  </span>
+                </button>
+                <button class="menu-item quiet" onClick={() => setAbsPick(null)}>
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
         )}
         {!ebookOnly(book) &&
           (queue.some((x) => x.book.uid === book.uid && x.at == null) ? (
