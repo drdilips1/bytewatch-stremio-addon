@@ -9,6 +9,7 @@ import { knownCharacters, CharacterCard } from './story-sheet.jsx';
 import { useStore, bookmarks } from '../lib/store.js';
 import { onDownloadProgress } from '../lib/http.js';
 import { bookAt, bookAround, timeAtWord } from '../lib/transcript.js';
+import { fixCredit } from '../lib/booksync.js';
 import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard, stopLooking, transcriptCfg } from '../lib/transcript.js';
 import { cachedXray } from '../lib/xray.js';
 import { fmtTime } from '../lib/format.js';
@@ -303,7 +304,12 @@ export function TranscriptView({ s }) {
     const c = t[0].toUpperCase() + t.slice(1);
     return /[.!?…"'”’)]$/.test(c) ? c : c + '.';
   };
-  const heard = (text) => (typeof text === 'string' ? tidy(fixHeard(text, allNames)) : text);
+  // Opening credits (first part, before the ebook's text starts): a misheard title is put right;
+  // "Chapter One" heard as "Shop to one" anywhere.
+  const credTitles = [s.book?.title, t?.bookText?.title, t?.bookText?.name].filter(Boolean);
+  const firstBook = (t?.segments || []).findIndex((g) => g.book && !g.fill);
+  const inCredits = (i) => s.index === 0 && i != null && i < 15 && (firstBook < 0 || i < firstBook);
+  const heard = (text, i) => (typeof text === 'string' ? tidy(fixCredit(fixHeard(text, allNames), credTitles, { credits: inCredits(i) })) : text);
   const box = useRef();
   const userScroll = useRef(0);
   useEffect(() => subscribeTranscript(setT), []);
@@ -411,12 +417,12 @@ export function TranscriptView({ s }) {
             class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '') + (g.start != null && quoted(i) ? ' hl' : '')}
             onClick={() => (press.current.fired ? (press.current.fired = false) : g.start != null && player.seek(g.start))}
             onContextMenu={(e) => e.preventDefault()}
-            onPointerDown={() => g.start != null && hold(g.start, !t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text))}
+            onPointerDown={() => g.start != null && hold(g.start, !t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text, i))}
             onPointerUp={release}
             onPointerLeave={release}
             onPointerCancel={release}
           >
-            {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text), names, (n) => setCard(lookup.get(n)))}
+            {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text, i), names, (n) => setCard(lookup.get(n)))}
           </p>
         ))}
         {segs.length > 0 && t?.status === 'error' && <p class="err small">{t.error}</p>}

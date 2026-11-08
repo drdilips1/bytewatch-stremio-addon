@@ -18,3 +18,22 @@ describe('wordAtTime', () => {
     expect(wordAtTime(pts, 10000, 1000)).toBe(999);
   });
 });
+
+import { fixCredit } from '../src/lib/booksync.js';
+
+describe('misheard credits and chapter headings', () => {
+  const titles = ['Harry Potter and the Sorcerer’s Stone (Full-Cast Edition)', 'Harry Potter and the Sorcerer Stone'];
+  it('fixes the title and "Chapter One"', () => {
+    expect(fixCredit('Body and the saucer is stone', titles, { credits: true })).toBe('Harry Potter and the Sorcerer’s Stone');
+    expect(fixCredit('Shop to one.', titles)).toBe('Chapter One');
+    expect(fixCredit('Chapter 7', titles)).toBe('Chapter Seven');
+    expect(fixCredit('chop to two', titles)).toBe('Chapter Two');
+  });
+  it('leaves ordinary lines alone', () => {
+    for (const line of ['Written by J. K. Rowling.', 'More publishing and audible studios present.', 'This is Audible.', 'Mr. and Mrs. Dursley, of number four, Privet Drive', 'Stop to one side', 'He went to one'])
+      expect(fixCredit(line, titles, { credits: true })).toBe(line);
+    // Outside the credits, never the title.
+    expect(fixCredit('Harry looked at the stone', titles)).toBe('Harry looked at the stone');
+    expect(fixCredit('Body and the saucer is stone', titles)).toBe('Body and the saucer is stone');
+  });
+});
