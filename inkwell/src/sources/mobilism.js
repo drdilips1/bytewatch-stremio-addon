@@ -18,8 +18,18 @@ export const BASE = 'https://forum.mobilism.org';
 export const FORUM = '124';
 export const NAME = 'Mobilism Audiobooks';
 export const ID = 'mobilism-audiobooks';
-const MAX_TOPICS = 8; // candidates opened per search
-const CONCURRENCY = 2;
+const MAX_TOPICS = 6; // candidates opened per search
+const CONCURRENCY = 1; // one at a time, a moment apart: Mobilism answers 429 to bursts
+const GAP = 700; // ms between topic pages
+// Topics already opened (12 hours): the same search again — or the book page's second search
+// (title, then title + author) — doesn't open them again.
+const TOPIC_TTL = 12 * 3600e3;
+const topicCache = new Map(); // id -> { at, r }
+// "Too many requests": Mobilism is left alone for a minute.
+let busyUntil = 0;
+// The same search running twice at once (two screens asking): one request.
+const inFlight = new Map();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const PAGE_TIMEOUT = 30000;
 
 /** Only on the Android app: the hidden browser and its cookies live there. */
@@ -192,12 +202,32 @@ export async function status() {
 }
 
 /** Search forum 124 for `query`; resolves results in Audiohub's source-result format. */
-export async function search(query, wanted = '') {
+export function search(query, wanted = '') {
+  const key = `${clean(query)}|${clean(wanted)}`;
+  if (inFlight.has(key)) return inFlight.get(key);
+  const p = searchNow(query, wanted).finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
+}
+
+const busyError = () => fail('Mobilism is busy (too many requests) — try again in a minute');
+
+async function searchNow(query, wanted = '') {
   if (!available()) throw fail('Mobilism works in the Android app only (it uses the in-app browser)');
   const q = clean(query);
   if (!q) return [];
+  if (Date.now() < busyUntil) throw busyError();
   const path = `/search.php?keywords=${encodeURIComponent(q)}&fid%5B%5D=${FORUM}&sc=1&sr=topics&sf=titleonly`;
-  const { status, doc, html } = await page(path);
+  let { status, doc, html } = await page(path);
+  if (status === 429) {
+    await sleep(4000);
+    ({ status, doc, html } = await page(path));
+    if (status === 429) {
+      busyUntil = Date.now() + 60e3;
+      logError('Mobilism', 'too many requests (429) on the search — paused for a minute');
+      throw busyError();
+    }
+  }
   // What the forum answered, for Report a problem (no cookies, no page text).
   const seen = `HTTP ${status} · ${clean(doc.title).slice(0, 60)} · logout link: ${signedIn(doc) ? 'yes' : 'no'} · topics: ${doc.querySelectorAll('a.topictitle').length}`;
   if (challenged(doc, html) || status === 403) {
@@ -213,14 +243,35 @@ export async function search(query, wanted = '') {
     logError('Mobilism', `no topics on the results page — ${seen}`);
     return [];
   }
-  // Closest titles first, then open them two at a time.
+  // Closest titles first (ones sharing no word with the book are skipped), then opened one at a
+  // time, a moment apart — or taken from the ones opened in the last hours.
   const w = new Set(words(wanted || q));
   const hits = (t) => words(t.title).filter((x) => w.has(x)).length;
-  const picked = topics.sort((a, b) => hits(b) - hits(a)).slice(0, MAX_TOPICS);
+  const picked = topics
+    .filter((t) => hits(t) > 0)
+    .sort((a, b) => hits(b) - hits(a))
+    .slice(0, MAX_TOPICS);
   const notes = [];
+  let opened = 0;
+  let limited = false;
   const results = await pool(picked, CONCURRENCY, async (t) => {
-    const p = await page(`/viewtopic.php?t=${t.id}`);
+    const c = topicCache.get(t.id);
+    if (c && Date.now() - c.at < TOPIC_TTL) return c.r;
+    if (limited || Date.now() < busyUntil) return null;
+    if (opened++) await sleep(GAP);
+    let p = await page(`/viewtopic.php?t=${t.id}`);
+    if (p.status === 429) {
+      await sleep(4000);
+      p = await page(`/viewtopic.php?t=${t.id}`);
+      if (p.status === 429) {
+        limited = true;
+        busyUntil = Date.now() + 60e3;
+        if (notes.length < 3) notes.push(`t=${t.id} HTTP 429 — Mobilism asked to slow down, paused for a minute`);
+        return null;
+      }
+    }
     const r = p.status === 200 ? topicResult(p.doc, t) : null;
+    if (p.status === 200) topicCache.set(t.id, { at: Date.now(), r });
     // Why a topic was left out (for Report a problem): its status and the trail it showed.
     if (!r && notes.length < 3) notes.push(`t=${t.id} HTTP ${p.status} trail: ${breadcrumb(p.doc).map((c) => `${c.text}${c.f ? `(f=${c.f})` : ''}`).join(' › ') || 'none found'}`);
     return r;
