@@ -149,7 +149,7 @@ async function playBook(book) {
     const details = await getDetails(book);
     await player.playBook(details);
     // Started (whichever way it got there): the car plays it too.
-    await Native.carReady().catch(() => {});
+    await Native.carReady({ id: player.getState().book?.uid || book.uid }).catch(() => {});
   } catch (e) {
     const { logError } = await import('./report.js');
     logError('Android Auto', `${e?.message || e} — “${book.title || book.uid}”`);

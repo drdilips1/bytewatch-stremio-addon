@@ -49,8 +49,20 @@ public class CarLibrary implements MediaLibraryService.MediaLibrarySession.Callb
     // A book the app is preparing for the car: completed when it has loaded (see loaded()).
     @Nullable
     private static SettableFuture<MediaSession.MediaItemsWithStartPosition> pending;
+    // Which book that is (null: a spoken search — whatever the app starts).
+    @Nullable
+    private static String pendingId = null;
     // The session will set the items it gets back from that: the app already did — skip it.
-    static boolean skipNextSet = false;
+    // Only for a few seconds: a stale flag would swallow the next pick (a part tapped in the car).
+    private static long skipUntil = 0;
+    static boolean takeSkip() {
+        boolean skip = System.currentTimeMillis() < skipUntil;
+        skipUntil = 0;
+        return skip;
+    }
+    private static void skipNext() {
+        skipUntil = System.currentTimeMillis() + 5000;
+    }
     // A book playing from the car without the app (its id, for saving the place it reaches).
     @Nullable
     static String carBook = null;
@@ -207,8 +219,9 @@ public class CarLibrary implements MediaLibraryService.MediaLibrarySession.Callb
         // Said in the car and not in the lists: the app (when running) looks wider — your Library.
         if (book == null && want != null && want.requestMetadata.searchQuery != null && InkwellPlayerPlugin.isRunning()) {
             CarCatalog.log(context, "voice in the car: “" + want.requestMetadata.searchQuery + "” — the app is looking in your library");
+            ListenableFuture<MediaSession.MediaItemsWithStartPosition> f = waitForApp(want.requestMetadata.searchQuery, null, p);
             InkwellPlayerPlugin.voicePlay(context, want.requestMetadata.searchQuery);
-            return waitForApp(want.requestMetadata.searchQuery);
+            return f;
         }
         if (book == null) {
             CarCatalog.log(context, "picked something that isn't one of your books (" + (id.isEmpty() && want != null ? "search: " + want.requestMetadata.searchQuery : id) + ")");
@@ -244,9 +257,20 @@ public class CarLibrary implements MediaLibraryService.MediaLibrarySession.Callb
         String id = book.optString("id");
         // The app is running: it prepares the book (links, your place), then we play what it loaded.
         String title = book.optString("title", id);
-        if (InkwellPlayerPlugin.carPlay(id)) {
-            CarCatalog.log(context, "picked “" + title + "” — the app is preparing it");
-            return waitForApp(title);
+        // Already the book in the player (most often: the top of Continue listening): just play
+        // it from where it is — nothing to prepare.
+        if (InkwellPlayerPlugin.isRunning() && id.equals(InkwellPlayerPlugin.currentBookId) && p.getMediaItemCount() > 0) {
+            CarCatalog.log(context, "picked “" + title + "” — already loaded, playing");
+            skipNext();
+            return Futures.immediateFuture(samePart(p, PART + p.getCurrentMediaItemIndex()));
+        }
+        if (InkwellPlayerPlugin.isRunning()) {
+            ListenableFuture<MediaSession.MediaItemsWithStartPosition> f = waitForApp(title, id, p);
+            if (InkwellPlayerPlugin.carPlay(id)) {
+                CarCatalog.log(context, "picked “" + title + "” — the app is preparing it");
+                return f;
+            }
+            cancelPending();
         }
         // The app is closed: a downloaded book plays from its files on the phone; else from the
         // stream links saved when it last played in the app (they may have expired).
@@ -304,28 +328,53 @@ public class CarLibrary implements MediaLibraryService.MediaLibrarySession.Callb
         return Futures.immediateFuture(new MediaSession.MediaItemsWithStartPosition(items, track, at));
     }
 
-    /** Until the app has started the book (it calls loaded()), at most 30 s. */
-    private ListenableFuture<MediaSession.MediaItemsWithStartPosition> waitForApp(String title) {
+    /**
+     * Until the app has started the book (it calls loaded()). A slow start (a torrent being
+     * fetched, the phone's screen off for a while) doesn't fail the car: after 40 s it shows
+     * what the player has, and the book takes over there as soon as the app has it.
+     */
+    private ListenableFuture<MediaSession.MediaItemsWithStartPosition> waitForApp(String title, @Nullable String id, Player p) {
         if (pending != null) pending.setException(new IllegalStateException("Another book was picked"));
         SettableFuture<MediaSession.MediaItemsWithStartPosition> f = SettableFuture.create();
         pending = f;
+        pendingId = id;
+        final long t0 = System.currentTimeMillis();
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (pending == f) {
-                pending = null;
-                CarCatalog.log(context, "“" + title + "” didn't start within 30 s");
+            if (pending != f) return;
+            pending = null;
+            pendingId = null;
+            if (p.getMediaItemCount() > 0) {
+                CarCatalog.log(context, "“" + title + "” is taking long (" + (System.currentTimeMillis() - t0) / 1000 + " s) — the car shows the player meanwhile");
+                skipNext();
+                f.set(samePart(p, PART + p.getCurrentMediaItemIndex()));
+            } else {
+                CarCatalog.log(context, "“" + title + "” didn't start within 40 s");
                 f.setException(new IllegalStateException("The book didn't load in time"));
             }
-        }, 30000);
+        }, 40000);
         return f;
     }
 
-    /** The app finished loading the book the car asked for: play exactly that. */
-    static void loaded(Player p) {
+    private static void cancelPending() {
+        SettableFuture<MediaSession.MediaItemsWithStartPosition> f = pending;
+        pending = null;
+        pendingId = null;
+        if (f != null) f.setException(new IllegalStateException("Cancelled"));
+    }
+
+    /**
+     * The app loaded a book (bookId: which one; null when unknown): if it's the one the car asked
+     * for, play exactly that there. Another book loading meanwhile (the app restoring the last
+     * one, say) doesn't count.
+     */
+    static void loaded(Player p, @Nullable String bookId) {
         SettableFuture<MediaSession.MediaItemsWithStartPosition> f = pending;
         if (f == null) return;
+        if (pendingId != null && bookId != null && !pendingId.equals(bookId)) return;
         pending = null;
+        pendingId = null;
         carBook = null;
-        skipNextSet = true;
+        skipNext();
         f.set(samePart(p, PART + p.getCurrentMediaItemIndex()));
     }
 }

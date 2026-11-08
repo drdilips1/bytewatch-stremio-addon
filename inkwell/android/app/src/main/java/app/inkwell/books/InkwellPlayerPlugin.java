@@ -196,10 +196,7 @@ public class InkwellPlayerPlugin extends Plugin {
             // items again (and start over) — keep what's playing.
             @Override
             public void setMediaItems(@NonNull java.util.List<MediaItem> items, int startIndex, long startPositionMs) {
-                if (CarLibrary.skipNextSet) {
-                    CarLibrary.skipNextSet = false;
-                    return;
-                }
+                if (CarLibrary.takeSkip()) return;
                 super.setMediaItems(items, startIndex, startPositionMs);
             }
 
@@ -359,7 +356,8 @@ public class InkwellPlayerPlugin extends Plugin {
             player.setVolume(1f);
             player.prepare();
             player.setPlayWhenReady(c.getBoolean("autoplay", true));
-            CarLibrary.loaded(player); // a book the car asked for: now it plays there too
+            currentBookId = c.getString("bookId", null);
+            CarLibrary.loaded(player, currentBookId); // a book the car asked for: now it plays there too
             c.resolve();
         });
     }
@@ -634,6 +632,8 @@ public class InkwellPlayerPlugin extends Plugin {
     }
 
     private static String pendingVoice;
+    // The app's book in the player (its id, from load): a car pick of the same book just plays.
+    static volatile String currentBookId = null;
 
     /** The app is running (its screen was opened and not closed). */
     static boolean isRunning() {
@@ -684,7 +684,8 @@ public class InkwellPlayerPlugin extends Plugin {
     @PluginMethod
     public void carReady(PluginCall call) {
         onMain(call, c -> {
-            if (player != null) CarLibrary.loaded(player);
+            // Said by the app itself after starting the car's pick (maybe another copy of it): always that.
+            if (player != null) CarLibrary.loaded(player, null);
             c.resolve();
         });
     }

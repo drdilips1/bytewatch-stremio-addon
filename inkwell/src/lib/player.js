@@ -441,7 +441,7 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
       autoplay,
       rate: state.rate,
       headers: t.headers,
-      meta: { title: t.title || b.title, artist: b.author || '', album: b.title, artwork: b.cover || '' },
+      meta: { title: t.title || b.title, artist: b.author || '', album: b.title, artwork: b.cover || '', bookId: b.uid },
     });
     if (!autoplay) set({ loading: false, phase: '' });
     // One long file with chapter marks inside (M4B): read them, for the chapter list,
