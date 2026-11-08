@@ -15,6 +15,7 @@ export const CHANGES = [
       ['🔖', 'Read later', 'Press and hold a book → Read later. Your list is in Library → Read later; a book leaves it once you start it.'],
       ['📝', 'Import the books you’ve read', 'Settings → Books you’ve read → Paste list: one book a line from your notes, with stars or 4/5 if you rated it. They shape recommendations, are never suggested back, and show in Library → Finished. A Goodreads CSV import counts too.'],
       ['📖', 'Reading time counted properly', 'Page turns, taps, volume keys and reading along with the audiobook all count now.'],
+      ['☁️', 'Send to Real-Debrid', 'Mobilism results now have Send to Real-Debrid too — for Rapidgator and other hosts TorBox doesn’t take. The book shows in Library → Your Real-Debrid and plays from there.'],
       ['🚫', 'Or AI off altogether', 'Settings → AI → AI features off: every AI button is hidden and nothing is sent to an AI. Recommendations, transcripts and reading aloud still work.'],
     ],
   },

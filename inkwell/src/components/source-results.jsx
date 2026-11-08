@@ -376,6 +376,20 @@ function TopicToCloud({ r }) {
     cloud.forget();
     toast(ok ? `Sent ${ok} ${host} link${ok === 1 ? '' : 's'} to TorBox — it shows in Your TorBox when it's ready` : `TorBox didn't take it: ${err}`);
   };
+  // Kept in Your Real-Debrid as one book (Rapidgator, Nitroflare… — hosts TorBox doesn't take).
+  const toRd = async () => {
+    setBusy('rds');
+    try {
+      const { files, playable } = await cloud.sendToRd(links, { title: r.title, author: r.author || '' });
+      cloud.forget();
+      if (playable) toast(`Sent to Real-Debrid — in Library → Your Real-Debrid (${files.length} file${files.length === 1 ? '' : 's'})`);
+      else (setFiles(files.map((f) => ({ ...f, url: '' }))), toast('Real-Debrid has it, but they’re archives (.rar/.zip) — use Real-Debrid links → Save to unzip on the phone'));
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
   const viaRd = async () => {
     setBusy('rd');
     const out = [];
@@ -409,6 +423,11 @@ function TopicToCloud({ r }) {
           </button>
         )}
         {cloud.rdConnected() && (
+          <button class="btn secondary small" disabled={!!busy} onClick={toRd}>
+            {busy === 'rds' ? <span class="spinner small" /> : <Icon name="cloud" size={14} />} Send to Real-Debrid
+          </button>
+        )}
+        {cloud.rdConnected() && (
           <button class="btn secondary small" disabled={!!busy} onClick={viaRd}>
             {busy === 'rd' ? <span class="spinner small" /> : <Icon name="link" size={14} />} Real-Debrid links
           </button>
@@ -423,14 +442,14 @@ function TopicToCloud({ r }) {
               {/\.(zip|rar|7z)$/i.test(f.name) ? ' · archive — save it, unzip it, then add the folder in Library → On this phone' : ''}
             </small>
           </span>
-          {AUDIO_FILE.test(f.name) && (
+          {f.url && AUDIO_FILE.test(f.name) && (
             <button class="pill small" onClick={() => play(f)}>
               Play
             </button>
           )}
-          <button class="pill small" onClick={() => saveToDownloads(f.url, f.name, (/\.([a-z0-9]+)$/i.exec(f.name)?.[1] || '').toUpperCase()).catch((e) => toast(e.message))}>
+          {f.url && <button class="pill small" onClick={() => saveToDownloads(f.url, f.name, (/\.([a-z0-9]+)$/i.exec(f.name)?.[1] || '').toUpperCase()).catch((e) => toast(e.message))}>
             Save
-          </button>
+          </button>}
         </div>
       ))}
     </div>
