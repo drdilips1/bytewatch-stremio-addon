@@ -3,6 +3,7 @@ import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
 import { searchSources, sourceAddons, fmtSize, sourceLabel } from '../sources/sourceaddons.js';
 import { cloud, getDetails } from '../sources/index.js';
+import { unpacking, unpackAndPlay, canUnpack, isArchive } from '../lib/unpack.js';
 import { settings, useStore, debrid, library, toggleLibrary } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import * as player from '../lib/player.js';
@@ -358,8 +359,36 @@ const AUDIO_FILE = /\.(mp3|m4b|m4a|aac|ogg|opus|flac)$/i;
 function TopicToCloud({ r }) {
   const [busy, setBusy] = useState('');
   const [files, setFiles] = useState(null); // Real-Debrid's direct links
+  const unp = useStore(unpacking)[r.key];
   const { host, links } = hostLinks(r.downloads);
   if (!links.length || (!cloud.tbConnected() && !cloud.rdConnected())) return null;
+  // One tap: through Real-Debrid — audio files play at once (and stay in Your Real-Debrid);
+  // archives are downloaded and unpacked on the phone, then play.
+  const playNow = async () => {
+    setBusy('play');
+    try {
+      const { files: got, uid, audio } = await cloud.sendToRd(links, { title: r.title, author: r.author || '' });
+      cloud.forget();
+      if (audio) {
+        nav.openOverlay('player');
+        player.playBook(await getDetails({ uid, source: 'rd', kind: 'audio', title: r.title, author: r.author || '' }));
+        return;
+      }
+      const archives = got.filter((f) => isArchive(f.name));
+      if (!archives.length) return toast('No audio files in these links');
+      if (!canUnpack()) return toast('These are archives (.zip / .rar) — unpacking works in the Android app');
+      // Fresh direct links for the archive parts (the ones Send got may be used up).
+      const direct = [];
+      for (const f of archives) direct.push({ ...(await cloud.unrestrict(f.link)), name: f.name });
+      toast(`Archive${direct.length > 1 ? ` in ${direct.length} parts` : ''} — downloading and unpacking on the phone, then it plays`);
+      const n = await unpackAndPlay(r, direct.map((d) => ({ url: d.url, name: d.name })));
+      toast(`Unpacked ${n} file${n === 1 ? '' : 's'} — playing (it's in Library → Downloaded)`);
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
   const toTorbox = async () => {
     setBusy('tb');
     let ok = 0;
@@ -416,6 +445,13 @@ function TopicToCloud({ r }) {
   };
   return (
     <div class="topic-cloud">
+      {cloud.rdConnected() && (
+        <button class="btn primary" disabled={!!busy || ['download', 'unpack'].includes(unp?.phase)} onClick={playNow}>
+          {busy === 'play' || ['download', 'unpack'].includes(unp?.phase) ? <span class="spinner small" /> : <Icon name="play" size={16} />} Play
+        </button>
+      )}
+      {unp && ['download', 'unpack'].includes(unp.phase) && <small class="muted">{unp.text}</small>}
+      {unp?.phase === 'error' && <small class="err">{/^couldn/i.test(unp.error || '') ? unp.error : `Couldn't unpack: ${unp.error}`}</small>}
       <div class="topic-cloud-row">
         {cloud.tbConnected() && (
           <button class="btn secondary small" disabled={!!busy} onClick={toTorbox}>
@@ -861,7 +897,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
           // A forum topic (Mobilism): opens in the in-app browser, where you're signed in.
           // Its links are file hosts (Rapidgator, Rosefile…), not audio you can stream.
           <div class="src-topic">
-            <button class="btn primary" onClick={() => WebPlugin.open({ url: r.link, title: r.title }).catch((e) => toast(e.message))}>
+            <button class={'btn ' + (cloud.rdConnected() && r.downloads?.length ? 'secondary' : 'primary')} onClick={() => WebPlugin.open({ url: r.link, title: r.title }).catch((e) => toast(e.message))}>
               <Icon name="external" size={16} /> Open topic
             </button>
             {r.downloads?.length > 0 && (

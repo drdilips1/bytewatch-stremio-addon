@@ -21,6 +21,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -335,5 +336,213 @@ public class InkwellDownloadsPlugin extends Plugin {
         int n;
         while ((n = in.read(buf)) > 0 && b.size() < 4096) b.write(buf, 0, n);
         return b.toByteArray();
+    }
+
+    // ---------------------------------------------------------------- unpack archives
+
+    private final ExecutorService unpacks = Executors.newSingleThreadExecutor();
+    private static final java.util.regex.Pattern KEEP = java.util.regex.Pattern.compile("(?i).*\\.(mp3|m4b|m4a|aac|ogg|oga|opus|flac|wav|wma|epub|pdf|jpg|jpeg|png)$");
+
+    /**
+     * Download an archive (all its parts) and unpack the audio inside into the app's storage:
+     * { urls: [], names: [], folder, job } → { files: [{ uri, name, size }], folder }.
+     * .zip (and .7z) by commons-compress, .rar (incl. split .partN.rar) by junrar.
+     * Progress: "unpackProgress" { job, phase: 'download' | 'unpack', got, total, part, parts }.
+     */
+    @PluginMethod
+    public void unpack(PluginCall call) {
+        com.getcapacitor.JSArray urls = call.getArray("urls", new com.getcapacitor.JSArray());
+        com.getcapacitor.JSArray names = call.getArray("names", new com.getcapacitor.JSArray());
+        String folder = call.getString("folder", "Audiobook").replaceAll("[\\\\/:*?\"<>|]+", " ").trim();
+        String job = call.getString("job", "");
+        if (urls.length() == 0) {
+            call.reject("Nothing to unpack");
+            return;
+        }
+        unpacks.execute(() -> {
+            File work = new File(getContext().getCacheDir(), "unpack-" + System.currentTimeMillis());
+            try {
+                work.mkdirs();
+                List<File> got = new java.util.ArrayList<>();
+                for (int i = 0; i < urls.length(); i++) {
+                    String url = urls.getString(i);
+                    String name = names.length() > i ? names.getString(i) : "part" + (i + 1);
+                    name = name.replaceAll("[\\\\/:*?\"<>|]+", "_");
+                    File f = new File(work, name);
+                    fetch(url, f, job, i, urls.length());
+                    got.add(f);
+                }
+                File out = new File(getContext().getExternalFilesDir(null), "Unpacked/" + (folder.isEmpty() ? "Audiobook" : folder));
+                out.mkdirs();
+                List<File> files = new java.util.ArrayList<>();
+                // Audio files that came as they are (not every part is an archive).
+                for (File f : got) if (KEEP.matcher(f.getName()).matches()) files.add(move(f, out));
+                // The archives: a split .rar from its first part (the rest are read from it).
+                for (File f : got) {
+                    String n = f.getName().toLowerCase();
+                    if (n.endsWith(".zip")) unzip(f, out, files, job);
+                    else if (n.endsWith(".7z")) un7z(f, out, files, job);
+                    else if (n.endsWith(".rar") && (!n.matches(".*\\.part\\d+\\.rar") || n.matches(".*\\.part0*1\\.rar"))) unrar(f, out, files, job);
+                    else if (!KEEP.matcher(n).matches() && !n.matches(".*\\.(part\\d+\\.rar|r\\d\\d)$")) sniff(f, out, files, job);
+                }
+                if (files.isEmpty()) throw new Exception("no audio files inside");
+                JSArray arr = new JSArray();
+                for (File f : files) {
+                    JSObject o = new JSObject();
+                    o.put("uri", Uri.fromFile(f).toString());
+                    o.put("name", f.getName());
+                    o.put("size", f.length());
+                    arr.put(o);
+                }
+                JSObject r = new JSObject();
+                r.put("files", arr);
+                r.put("folder", out.getAbsolutePath());
+                call.resolve(r);
+            } catch (Throwable e) {
+                String m = String.valueOf(e.getMessage());
+                if (m.toLowerCase().contains("rar5") || e.getClass().getSimpleName().contains("Unsupported")) m = "this archive is the newer RAR 5 kind, which can't be unpacked on the phone — use Save and unpack it with a file manager (e.g. ZArchiver)";
+                call.reject("cancelled".equals(m) ? "cancelled" : "Couldn't unpack: " + m);
+            } finally {
+                deleteAll(work);
+                cancelled.remove(job);
+            }
+        });
+    }
+
+    private void note(String job, String phase, long got, long total, int part, int parts) {
+        JSObject e = new JSObject();
+        e.put("job", job);
+        e.put("phase", phase);
+        e.put("got", got);
+        e.put("total", total);
+        e.put("part", part);
+        e.put("parts", parts);
+        notifyListeners("unpackProgress", e);
+    }
+
+    private void fetch(String url, File to, String job, int part, int parts) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setInstanceFollowRedirects(true);
+        conn.setConnectTimeout(20000);
+        conn.setReadTimeout(60000);
+        conn.setRequestProperty("User-Agent", "Audiohub/1.0 (Android)");
+        int code = conn.getResponseCode();
+        if (code >= 400) throw new Exception("the file host said HTTP " + code + " (the link may have expired)");
+        long total = conn.getContentLengthLong();
+        long got = 0;
+        long last = 0;
+        byte[] buf = new byte[128 * 1024];
+        try (InputStream in = new BufferedInputStream(conn.getInputStream()); OutputStream out = new FileOutputStream(to)) {
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                if (cancelled.contains(job)) throw new Exception("cancelled");
+                out.write(buf, 0, n);
+                got += n;
+                long now = System.currentTimeMillis();
+                if (now - last > 700) {
+                    last = now;
+                    note(job, "download", got, total, part, parts);
+                }
+            }
+        } finally {
+            conn.disconnect();
+        }
+    }
+
+    private static String flat(String path) {
+        // "Book/CD1/01 Intro.mp3" → "CD1 - 01 Intro.mp3" (one folder, order kept)
+        String[] bits = path.replace('\\', '/').split("/");
+        StringBuilder b = new StringBuilder();
+        for (int i = Math.max(0, bits.length - 2); i < bits.length; i++) {
+            if (bits[i].isEmpty()) continue;
+            if (b.length() > 0) b.append(" - ");
+            b.append(bits[i]);
+        }
+        return b.toString().replaceAll("[\\\\/:*?\"<>|]+", "_");
+    }
+
+    private void write(InputStream in, File to, String job) throws Exception {
+        byte[] buf = new byte[128 * 1024];
+        try (OutputStream out = new FileOutputStream(to)) {
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                if (cancelled.contains(job)) throw new Exception("cancelled");
+                out.write(buf, 0, n);
+            }
+        }
+    }
+
+    private void unzip(File zip, File out, List<File> files, String job) throws Exception {
+        note(job, "unpack", 0, 0, 0, 0);
+        try (org.apache.commons.compress.archivers.zip.ZipFile z = org.apache.commons.compress.archivers.zip.ZipFile.builder().setFile(zip).get()) {
+            java.util.Enumeration<org.apache.commons.compress.archivers.zip.ZipArchiveEntry> en = z.getEntries();
+            while (en.hasMoreElements()) {
+                org.apache.commons.compress.archivers.zip.ZipArchiveEntry e = en.nextElement();
+                if (e.isDirectory() || !KEEP.matcher(e.getName()).matches()) continue;
+                File to = new File(out, flat(e.getName()));
+                try (InputStream in = z.getInputStream(e)) {
+                    write(in, to, job);
+                }
+                files.add(to);
+            }
+        }
+    }
+
+    private void un7z(File f, File out, List<File> files, String job) throws Exception {
+        note(job, "unpack", 0, 0, 0, 0);
+        try (org.apache.commons.compress.archivers.sevenz.SevenZFile z = org.apache.commons.compress.archivers.sevenz.SevenZFile.builder().setFile(f).get()) {
+            org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry e;
+            while ((e = z.getNextEntry()) != null) {
+                if (e.isDirectory() || !KEEP.matcher(e.getName()).matches()) continue;
+                File to = new File(out, flat(e.getName()));
+                try (InputStream in = z.getInputStream(e)) {
+                    write(in, to, job);
+                }
+                files.add(to);
+            }
+        }
+    }
+
+    private void unrar(File rar, File out, List<File> files, String job) throws Exception {
+        note(job, "unpack", 0, 0, 0, 0);
+        try (com.github.junrar.Archive a = new com.github.junrar.Archive(rar)) {
+            com.github.junrar.rarfile.FileHeader h;
+            while ((h = a.nextFileHeader()) != null) {
+                if (cancelled.contains(job)) throw new Exception("cancelled");
+                String name = h.getFileName();
+                if (h.isDirectory() || !KEEP.matcher(name).matches()) continue;
+                File to = new File(out, flat(name));
+                try (OutputStream os = new FileOutputStream(to)) {
+                    a.extractFile(h, os);
+                }
+                files.add(to);
+            }
+        }
+    }
+
+    /** A part with no telling name: its first bytes say what it is. */
+    private void sniff(File f, File out, List<File> files, String job) throws Exception {
+        byte[] head = new byte[8];
+        try (InputStream in = new FileInputStream(f)) {
+            if (in.read(head) < 4) return;
+        }
+        if (head[0] == 'P' && head[1] == 'K') unzip(f, out, files, job);
+        else if (head[0] == 'R' && head[1] == 'a' && head[2] == 'r' && head[3] == '!') {
+            File r = new File(f.getParentFile(), f.getName() + ".rar");
+            if (f.renameTo(r)) unrar(r, out, files, job);
+        } else if (head[0] == '7' && head[1] == 'z') un7z(f, out, files, job);
+    }
+
+    private static File move(File f, File dir) {
+        File to = new File(dir, f.getName());
+        if (!f.renameTo(to)) return f;
+        return to;
+    }
+
+    private static void deleteAll(File f) {
+        if (f == null || !f.exists()) return;
+        File[] kids = f.listFiles();
+        if (kids != null) for (File k : kids) deleteAll(k);
+        f.delete();
     }
 }

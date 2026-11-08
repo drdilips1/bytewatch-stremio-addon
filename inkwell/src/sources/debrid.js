@@ -284,7 +284,7 @@ export async function sendToRd(links, { title = '', author = '' } = {}) {
   if (!files.length) throw new Error(err || 'Real-Debrid could not open these links');
   const id = Date.now().toString(36);
   rdSent.set((all) => [{ id, title: title || files[0].name, author, links: ok, files, at: Date.now() }, ...all.filter((x) => x.title !== title)].slice(0, 100));
-  return { files, playable: files.filter((f) => SENT_AUDIO.test(f.name) || EBOOK.test(f.name)).length };
+  return { files, uid: `rd:l:${id}`, playable: files.filter((f) => SENT_AUDIO.test(f.name) || EBOOK.test(f.name)).length, audio: files.filter((f) => SENT_AUDIO.test(f.name)).length };
 }
 export const forgetSent = (id) => rdSent.set((all) => all.filter((x) => x.id !== id));
 

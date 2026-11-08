@@ -66,6 +66,10 @@ dependencies {
     implementation fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
     // sherpa-onnx (libs/sherpa-onnx.aar, fetched by CI) + .tar.bz2 unpacking for voice downloads
     implementation "org.apache.commons:commons-compress:1.27.1"
+    // .rar archives (Mobilism uploads): unpacked on the phone so the audiobook plays
+    implementation "com.github.junrar:junrar:7.5.5"
+    // .7z archives packed with LZMA (commons-compress needs it to read them)
+    implementation "org.tukaani:xz:1.10"
     // Microsoft neural voices (WebSocket), as in the Paper to Audio app
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"

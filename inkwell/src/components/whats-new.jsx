@@ -19,6 +19,7 @@ export const CHANGES = [
       ['🎨', 'Theme dice', 'The palette button on Home: one tap for a surprise theme (light or dark, colours that go together). Press and hold to go back to the one before.'],
       ['🗄️', 'Send to Audiobookshelf', 'Press and hold a TorBox / Real-Debrid book → Send to Audiobookshelf: only the books you choose go into your server (downloaded, uploaded into the folder set in Settings → Audiobookshelf → Send books to, then removed from the phone).'],
       ['🔎', 'Search in the car', 'Android Auto’s search and “Hey Google, play … on Audiohub” now look in your Audiobookshelf (works even with the app closed) and — with the app running in the background — your phone, cloud and sources too; the best match plays.'],
+      ['▶️', 'Mobilism: Play', 'One Play button on Mobilism results: audio files play at once through Real-Debrid; archives (.zip / .rar, even split) are downloaded and unpacked on the phone, then play — and stay in Library → Downloaded.'],
       ['🚫', 'Or AI off altogether', 'Settings → AI → AI features off: every AI button is hidden and nothing is sent to an AI. Recommendations, transcripts and reading aloud still work.'],
     ],
   },
