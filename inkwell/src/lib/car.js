@@ -115,7 +115,7 @@ if (ON) {
     .catch(() => {});
 
   // A book picked in the car: open it and play from your place.
-  Native.addListener('carPlay', ({ id }) => playId(id));
+  Native.addListener('carPlay', ({ id }) => (Native.carAck().catch(() => {}), playId(id)));
 
   // "Hey Google, play … on Audiohub": a match from the car's lists (id), else any book of yours
   // whose title / author has the words, else the search opens with them.

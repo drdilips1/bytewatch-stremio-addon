@@ -668,8 +668,34 @@ public class InkwellPlayerPlugin extends Plugin {
         if (p == null || p.getBridge() == null) return false;
         JSObject o = new JSObject();
         o.put("id", id);
-        p.main.post(() -> p.notifyListeners("carPlay", o, true));
+        // Did the app answer? (Asleep in the background, it doesn't — the log says so.)
+        final long asked = System.currentTimeMillis();
+        carAsked = asked;
+        p.main.post(() -> {
+            p.notifyListeners("carPlay", o, true);
+            // Its screen woken in case Android paused it.
+            try {
+                if (p.getBridge() != null && p.getBridge().getWebView() != null) {
+                    p.getBridge().getWebView().resumeTimers();
+                    p.getBridge().getWebView().onResume();
+                }
+            } catch (Exception ignored) {}
+        });
+        p.main.postDelayed(() -> {
+            if (carAsked == asked) CarCatalog.log(p.getContext(), "the app didn't answer within 5 s (asleep in the background?)");
+        }, 5000);
         return true;
+    }
+
+    private static volatile long carAsked = 0;
+
+    /** The app got the car's pick (first thing it does): for the log. */
+    @PluginMethod
+    public void carAck(PluginCall call) {
+        long asked = carAsked;
+        carAsked = 0;
+        if (asked > 0) CarCatalog.log(getContext(), "the app answered in " + (System.currentTimeMillis() - asked) + " ms");
+        call.resolve();
     }
 
     /** The car connected and the app is running: give it the app's player (made now if needed). */

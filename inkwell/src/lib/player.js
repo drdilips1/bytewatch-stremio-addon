@@ -209,11 +209,19 @@ let emitQueued = false;
 function emit() {
   if (emitQueued) return;
   emitQueued = true;
-  requestAnimationFrame(() => {
+  const run = () => {
+    if (!emitQueued) return; // already done (frame or the fallback below)
     emitQueued = false;
     const snap = { ...state };
     subs.forEach((f) => f(snap));
-  });
+  };
+  // Screen hidden (app in the background, the car playing): animation frames never come, so
+  // everything listening (the car, Up next, saving) would wait until the app is opened.
+  if (typeof document !== 'undefined' && document.hidden) Promise.resolve().then(run);
+  else {
+    requestAnimationFrame(run);
+    setTimeout(run, 300); // hidden before the frame came: still delivered
+  }
 }
 // Called when a book (or podcast episode) plays to the very end.
 const finishedSubs = new Set();
