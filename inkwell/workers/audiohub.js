@@ -9,6 +9,7 @@
 // Deploy: Workers & Pages → audiohub → Edit code → replace everything with this file → Deploy.
 // Addon links to share: https://api.audiohubapp.com/addons/<name>.json (listed at /health),
 // or all of them at once: https://api.audiohubapp.com/addons/all.json
+// or just the three to share (AudiobookBay, Knaben audiobooks and ebooks): https://api.audiohubapp.com/addons/starter.json
 
 const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
@@ -70,6 +71,9 @@ const PASS = {
 };
 
 // Addon files, installed by pasting https://api.audiohubapp.com/addons/<name>.json in Audiohub.
+// The ones in the shared starter list (/addons/starter.json).
+const STARTER = ["audiobookbay", "knaben-audiobooks", "knaben-ebooks"];
+
 const ADDONS = {
   "audiobookbay": {
     "schemaVersion": "1.0.0",
@@ -627,6 +631,10 @@ export default {
         if (addon[1] === "all") {
           return reply(JSON.stringify({ name: "Audiohub addons", addons: Object.keys(ADDONS).map((n) => `${url.origin}/addons/${n}.json`) }, null, 2));
         }
+        // The three to share with others: /addons/starter.json (the rest stay at their own links).
+        if (addon[1] === "starter") {
+          return reply(JSON.stringify({ name: "Audiobook addons", addons: STARTER.map((n) => `${url.origin}/addons/${n}.json`) }, null, 2));
+        }
         const a = ADDONS[addon[1]];
         return a ? reply(JSON.stringify(a, null, 2)) : reply(JSON.stringify({ error: "No such addon", addons: Object.keys(ADDONS) }), 404);
       }
@@ -644,7 +652,8 @@ export default {
             "/abb/api/search",
             "/abb/api/debrid-notify"
           ],
-          addons: Object.keys(ADDONS).map((n) => `${url.origin}/addons/${n}.json`)
+          addons: Object.keys(ADDONS).map((n) => `${url.origin}/addons/${n}.json`),
+          lists: [`${url.origin}/addons/all.json`, `${url.origin}/addons/starter.json`]
         }));
       }
 
