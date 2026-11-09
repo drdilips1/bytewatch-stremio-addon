@@ -6,7 +6,7 @@ import { details as cloudDetails } from '../sources/debrid.js';
 import { getBytes } from './http.js';
 import { persisted, summarize, progress } from './store.js';
 import { textBlocks, speakable } from './tts.js';
-import { hasKey as annasHasKey, fastLink as annasLink } from '../sources/annas.js';
+import { downloadLink as annasLink } from '../sources/annas.js';
 
 const IMG_TYPES = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
 
@@ -257,9 +257,9 @@ const safeDecode = (s) => {
 
 /** The ebook file behind a source result's direct link, or null when it isn't an ebook. */
 export function directEbookFile(r) {
-  // Anna's Archive: a direct file only with your membership key (its fast download link).
+  // Anna's Archive: your membership's fast link, or the free copy (LibGen / slow server).
   if (r?.aaMd5) {
-    if (!annasHasKey() || !EBOOK_FORMATS.test(String(r.format || ''))) return null;
+    if (!EBOOK_FORMATS.test(String(r.format || ''))) return null;
     const fmt = String(r.format).toUpperCase();
     return { name: `${String(r.title || 'Book').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 90)}.${fmt.toLowerCase()}`, format: fmt, size: r.size || 0, resolve: () => annasLink(r.aaMd5) };
   }

@@ -1178,15 +1178,15 @@ function AnnasRow({ list }) {
   }, []);
   if (!aa || !aa.available()) return null;
   const line =
-    !on ? 'Ebooks, searched in your in-app browser — with your secret key, Read and Save in the app'
+    !on ? 'Ebooks, searched in your in-app browser — Read and Save in the app (free copies, or fast with a member key)'
     : st === 'checking' ? 'Checking…'
     : st?.ok
       ? [
           st.signedIn ? 'Signed in' : 'Works (not signed in — optional)',
-          !aa.hasKey() ? 'add your key to Read & Save in the app' : st.key === false ? 'secret key not accepted — check it' : st.key ? 'key works: Read & Save in the app' : 'key saved',
+          !aa.hasKey() ? 'Read & Save use free copies (slower)' : st.key === false ? 'not a member — Read & Save use free copies' : st.key ? 'key works: fast Read & Save' : 'key saved',
         ].join(' · ')
     : st ? st.why
-    : aa.hasKey() ? 'Read & Save with your key' : 'Results open the site — add your secret key to read in the app';
+    : aa.hasKey() ? 'Read & Save with your key' : 'Read & Save use free copies (slower)';
   return (
     <>
       <div class="set-row addon-row">
@@ -1226,7 +1226,7 @@ function AnnasRow({ list }) {
         <div class="set-row">
           <div>
             <b>Secret key</b>
-            <small>{aa.hasKey() ? 'Saved on this phone — Read and Save use your membership’s fast downloads' : 'Optional (members): from your account page — kept on this phone only'}</small>
+            <small>{aa.hasKey() ? 'Saved on this phone — Read and Save use your membership’s fast downloads' : 'Optional (members, faster downloads): from your account page — kept on this phone only'}</small>
           </div>
           {aa.hasKey() ? (
             <button class="pill small danger" onClick={() => (aa.annas.patch({ key: '' }), toast('Key removed'))}>

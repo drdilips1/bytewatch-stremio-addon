@@ -662,6 +662,18 @@ public class InkwellWebPlugin extends Plugin {
     public void pageVisit(PluginCall call) {
         String url = call.getString("url", "");
         long timeout = call.getInt("timeout", 30000);
+        // Optional: keep watching the page until this appears (a download link after a countdown).
+        String waitForSrc = call.getString("waitFor", null);
+        java.util.regex.Pattern waitFor = null;
+        if (waitForSrc != null && !waitForSrc.isEmpty()) {
+            try {
+                waitFor = java.util.regex.Pattern.compile(waitForSrc);
+            } catch (Exception e) {
+                call.reject("Bad waitFor pattern");
+                return;
+            }
+        }
+        final java.util.regex.Pattern wantSeen = waitFor;
         String key;
         try {
             java.net.URL u = new java.net.URL(url);
@@ -701,7 +713,9 @@ public class InkwellWebPlugin extends Plugin {
                         String html = o.optString("h");
                         boolean isCheck = CHECK_PAGE.matcher(html.length() > 20000 ? html.substring(0, 20000) : html).find() && html.length() < 60000;
                         // A check page solves itself and reloads: wait for the real page (up to the time limit).
-                        if (isCheck && System.currentTimeMillis() - t0 < timeout) {
+                        // Asked to wait for something on the page (waitFor): keep looking until it's there.
+                        boolean notYet = wantSeen != null && !wantSeen.matcher(html).find();
+                        if ((isCheck || notYet) && System.currentTimeMillis() - t0 < timeout) {
                             ui.postDelayed(check[0], 1500);
                             return;
                         }

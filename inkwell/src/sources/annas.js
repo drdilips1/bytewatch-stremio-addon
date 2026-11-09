@@ -219,3 +219,95 @@ export async function fastLink(md5) {
   logError(NAME, `fast download: ${why}`);
   throw new Error(`${NAME}: ${why}`);
 }
+
+// ---- Free copies (no membership) ----------------------------------------------------------
+// The website's own free routes, followed in the hidden browser: the same book's LibGen copy
+// (fast — many of Anna's books are LibGen's files, under the same MD5), else a slow partner
+// server, waiting out its countdown for the download link.
+const LIBGEN_MIRRORS = ['https://libgen.li', 'https://libgen.gl', 'https://libgen.vg', 'https://libgen.la', 'https://libgen.bz', 'https://libgen.gs'];
+const FILE_EXT = /\.(epub|pdf|mobi|azw3?|fb2|djvu|cbz|cbr|txt)(\?|#|$)/i;
+// The slow server's link, once the countdown is over: "Download now", or the file's address itself.
+const SLOW_READY = '(?i)download now|href="https?://[^"]+\\.(epub|pdf|mobi|azw3|fb2|djvu)';
+let freeNote = () => {};
+/** Who shows "Getting the free copy…" while it works (the app's toast). */
+export const onFreeNote = (f) => (freeNote = f || (() => {}));
+
+const visit = (url, timeout, waitFor) => Web.pageVisit({ url, timeout, ...(waitFor ? { waitFor } : {}) });
+// Every link on a page: { href (full address), text }.
+const unent = (t) => String(t || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+const hrefsIn = (html, at) =>
+  [...String(html || '').matchAll(/<a\b[^>]*?\bhref\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi)].map((m) => {
+    try {
+      return { href: new URL(unent(m[2]), at).href, text: clean(unent(m[3].replace(/<[^>]+>/g, ' '))) };
+    } catch {
+      return { href: '', text: '' };
+    }
+  });
+
+/** The download link on a slow-server page, once it shows ('' while the countdown runs). */
+export function slowLinkIn(html, at) {
+  const own = (() => {
+    try {
+      return new URL(at).host;
+    } catch {
+      return '';
+    }
+  })();
+  const links = hrefsIn(html, at).filter((l) => /^https?:/i.test(l.href));
+  const now = links.find((l) => /download now/i.test(l.text) && !l.href.includes('/slow_download/'));
+  if (now) return now.href;
+  const file = links.find((l) => FILE_EXT.test(new URL(l.href).pathname) && new URL(l.href).host !== own);
+  return file ? file.href : '';
+}
+
+async function libgenCopy(md5, found) {
+  const tries = [...new Set([...found, ...LIBGEN_MIRRORS.map((m) => `${m}/ads.php?md5=${md5}`)])].slice(0, 4);
+  for (const u of tries) {
+    const r = await visit(u, 15000).catch(() => null);
+    if (!r || (r.status || 200) >= 400) continue;
+    const get = hrefsIn(r.html, r.url || u).find((l) => /get\.php\?/i.test(l.href) && /[?&]md5=/i.test(l.href) && /[?&]key=/i.test(l.href));
+    if (get) return get.href;
+  }
+  return '';
+}
+
+/** A free download link for a book (no membership): its LibGen copy, else a slow partner server. */
+export async function freeLink(md5) {
+  const h = String(md5 || '').toLowerCase();
+  if (!/^[a-f0-9]{32}$/.test(h)) throw new Error(`${NAME}: not a book id`);
+  freeNote('Getting the free copy…');
+  // The book's own page lists its LibGen copies and the slow servers.
+  let lg = [];
+  let slow = [];
+  try {
+    const p = await page(`/md5/${h}`);
+    const links = hrefsIn(p.html, base() + '/');
+    lg = links.filter((l) => /ads\.php/i.test(l.href) && l.href.toLowerCase().includes(h)).map((l) => l.href);
+    slow = links.filter((l) => /\/slow_download\//i.test(l.href)).map((l) => l.href);
+  } catch {}
+  const viaLibgen = await libgenCopy(h, lg);
+  if (viaLibgen) return viaLibgen;
+  const servers = (slow.length ? slow : [0, 1, 2].map((i) => `${base()}/slow_download/${h}/0/${i}`)).slice(0, 3);
+  for (const u of servers) {
+    freeNote('Waiting for Anna’s free server — up to a minute…');
+    const r = await visit(u, 75000, SLOW_READY).catch(() => null);
+    if (!r) continue;
+    const link = slowLinkIn(r.html, r.url || u);
+    if (link) return link;
+    logError(NAME, `slow download: no link on “${clean(r.title).slice(0, 50)}” (HTTP ${r.status || '?'})`);
+  }
+  throw new Error(`${NAME}: no free copy answered right now — try again later, or open its page`);
+}
+
+/** Members' fast link when your key works, else the free routes. */
+export async function downloadLink(md5) {
+  if (hasKey()) {
+    try {
+      return await fastLink(md5);
+    } catch (e) {
+      logError(NAME, `fast download didn't work, trying the free copy — ${e.message}`);
+    }
+  }
+  return freeLink(md5);
+}
+

@@ -42,6 +42,10 @@ async function saveToDownloads(link, name, format) {
   toast(`Saving “${name}” to Downloads — see the notification`);
 }
 import { shareEbook } from '../lib/kindle.js';
+import { onFreeNote } from '../sources/annas.js';
+
+// Anna's Archive free copies take a while: say what's happening.
+onFreeNote((text) => toast(text));
 
 const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
 
@@ -932,7 +936,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
               <button
                 class="btn secondary play-alt"
                 disabled={!!busy}
-                onClick={() => saveToDownloads(r.link, ebook.name, ebook.format).catch((e) => toast(e.message))}
+                onClick={async () => saveToDownloads(r.aaMd5 ? await ebook.resolve() : r.link, ebook.name, ebook.format).catch((e) => toast(e.message))}
                 aria-label="Save to this phone's Downloads"
               >
                 <Icon name="download" size={14} /> Save

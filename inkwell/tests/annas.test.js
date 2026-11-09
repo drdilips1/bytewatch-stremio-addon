@@ -21,3 +21,11 @@ it('reads the file type from the facts line, not from words elsewhere', () => {
   expect(formatIn('lgli/txt/Taleb - Fooled by Randomness · English [en] · epub · 1.7MB')).toBe('EPUB');
   expect(formatIn('English [en] · MOBI · 1.1MB')).toBe('MOBI');
 });
+
+const { slowLinkIn } = await import('../src/sources/annas.js');
+it('finds the slow server’s download link once the countdown is over', () => {
+  const at = 'https://annas-archive.li/slow_download/abc/0/0';
+  expect(slowLinkIn('<p>Please wait 30 seconds</p>', at)).toBe('');
+  expect(slowLinkIn('<a href="https://x.partner.net/d/abc/Fooled.epub">📚 Download now</a>', at)).toBe('https://x.partner.net/d/abc/Fooled.epub');
+  expect(slowLinkIn('<p>Use: <a href="https://y.example.org/b/123/Fooled.pdf">https://y.example.org/b/123/Fooled.pdf</a></p><a href="/md5/abc">back</a>', at)).toBe('https://y.example.org/b/123/Fooled.pdf');
+});
