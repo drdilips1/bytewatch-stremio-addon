@@ -445,8 +445,10 @@ class LiteMainActivity : Activity() {
         val adFree = !BuildConfig.LITE || RemoveAds.owned(this)
         LiteSheet(this, getString(R.string.app_name), "Version ${Updater.currentName(this)} · free and unlimited")
             .apply {
-                if (!adFree) {
-                    row(R.drawable.ic_shield, "Remove ads" + (RemoveAds.price?.let { " – $it" } ?: ""), "One-time purchase, no ads ever again") {
+                // Shown only once Google Play offers the purchase (its price is known): until then there's nothing to buy.
+                val price = RemoveAds.price
+                if (!adFree && price != null) {
+                    row(R.drawable.ic_shield, "Remove ads – $price", "One-time purchase, no ads ever again") {
                         RemoveAds.buy(this@LiteMainActivity) { adsRemoved() }
                     }
                     row(R.drawable.ic_account, "Restore purchase", "Bought already? On a new phone or after reinstalling") {
