@@ -51,8 +51,8 @@ export function signIn() {
 // One page, visited in the hidden browser as a person would (the site's bot check refuses
 // background requests): it waits for the page — and for a check page to solve itself — then
 // reads it. { status, html, text (the page's words: JSON answers come as text), doc, check }.
-async function page(path) {
-  const r = await Web.pageVisit({ url: base() + path, timeout: 25000 }).catch((e) => {
+async function page(path, waitFor) {
+  const r = await Web.pageVisit({ url: base() + path, timeout: 25000, ...(waitFor ? { waitFor } : {}) }).catch((e) => {
     throw fail(`${NAME}: ${e?.message || 'didn’t answer'} — try again in a moment`);
   });
   const html = r.html || '';
@@ -175,7 +175,8 @@ export async function search(query) {
   const q = clean(query);
   if (!q) return [];
   if (Date.now() < busyUntil) throw fail(`${NAME} is busy (too many requests) — try again in a minute`);
-  const { status: st, html, check, title } = await page(`/search?q=${encodeURIComponent(q)}`);
+  // The results fill in after the page itself loads: wait for the first book link (or "no files").
+  const { status: st, html, check, title } = await page(`/search?q=${encodeURIComponent(q)}`, '(?i)/md5/[a-f0-9]{32}|no files found|nothing found|0 results');
   if (st === 429) {
     busyUntil = Date.now() + 60e3;
     throw fail(`${NAME} is busy (too many requests) — try again in a minute`);
