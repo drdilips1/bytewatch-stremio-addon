@@ -11513,6 +11513,13 @@ button.notes-book-head {
 }
 
 /* Settings → Anna's Archive: the secret key box. */
+.aa-addr {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 11px 14px;
+  font-size: 15px;
+}
 .aa-key {
   display: flex;
   gap: 6px;
