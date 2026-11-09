@@ -13,3 +13,11 @@ it('falls back to the default for nothing or nonsense', () => {
   expect(normBase('')).toBe('https://annas-archive.pk');
   expect(normBase('hello')).toBe('https://annas-archive.pk');
 });
+
+const { formatIn } = await import('../src/sources/annas.js');
+it('reads the file type from the facts line, not from words elsewhere', () => {
+  expect(formatIn('English [en] · EPUB · 1.7MB · 2005 · 📘 Book (non-fiction)')).toBe('EPUB');
+  expect(formatIn('English [en] · .pdf · 3.4MB · 2005')).toBe('PDF');
+  expect(formatIn('lgli/txt/Taleb - Fooled by Randomness · English [en] · epub · 1.7MB')).toBe('EPUB');
+  expect(formatIn('English [en] · MOBI · 1.1MB')).toBe('MOBI');
+});

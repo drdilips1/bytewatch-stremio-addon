@@ -90,6 +90,18 @@ export async function status() {
 
 const FORMATS = /\b(epub|pdf|mobi|azw3|fb2|djvu|cbz|cbr|txt|docx?|rtf|lit)\b/i;
 const SIZE = /(\d+(?:[.,]\d+)?)\s?(KB|MB|GB)\b/i;
+const FORMAT_ONLY = new RegExp(`^\\.?${FORMATS.source.replace(/\\b/g, '')}$`, 'i');
+/**
+ * The file type from the facts line ("English [en] · EPUB · 1.7MB · 2005 · …"): the part that is
+ * only a type wins — a word like "txt" or "lit" elsewhere in the text (a file path, a title) doesn't.
+ */
+export function formatIn(facts) {
+  const parts = String(facts || '').split(/\s*[·•|,]\s*/).map((x) => x.trim());
+  const only = parts.find((x) => FORMAT_ONLY.test(x));
+  if (only) return only.replace(/^\./, '').toUpperCase();
+  const all = [...String(facts || '').matchAll(new RegExp(FORMATS.source, 'gi'))].map((m) => m[1].toUpperCase());
+  return all.find((f) => f === 'EPUB' || f === 'PDF') || all[0] || '';
+}
 const LANG = /\b([A-Z][a-zA-Z]+(?:\s[A-Z][a-z]+)?)\s\[([a-z]{2,3})\]/;
 const toBytes = (m) => (m ? Math.round(parseFloat(m[1].replace(',', '.')) * { KB: 1024, MB: 1048576, GB: 1073741824 }[m[2].toUpperCase()]) : 0);
 
@@ -127,7 +139,7 @@ export function parseResults(html, siteBase = base()) {
     const author = clean(authorEl?.textContent || '').slice(0, 150);
     // The facts line: "English [en] · EPUB · 1.2MB · 2019 · 📘 Book (non-fiction) · …"
     const facts = [...box.querySelectorAll('div, span')].map((x) => clean(x.textContent)).find((t) => FORMATS.test(t) && SIZE.test(t) && t.length < 400) || text;
-    const format = (FORMATS.exec(facts)?.[1] || '').toUpperCase();
+    const format = formatIn(facts);
     if (!format) continue;
     const img = box.querySelector('img[src]');
     out.push({
@@ -176,6 +188,11 @@ export async function search(query) {
     throw fail(`${NAME} answered HTTP ${st} — check its address in Settings → Addons`);
   }
   const results = parseResults(html);
+  if (results.length) {
+    const n = {};
+    for (const x of results) n[x.format] = (n[x.format] || 0) + 1;
+    logError(NAME, `“${q}”: ${results.length} found — ${Object.entries(n).map(([f, c]) => `${f} ${c}`).join(', ')}`);
+  }
   const links = (html.match(/\/md5\/[a-f0-9]{32}/gi) || []).length;
   if (!results.length) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
