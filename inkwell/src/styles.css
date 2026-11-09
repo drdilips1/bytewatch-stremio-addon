@@ -10365,11 +10365,18 @@ button.notes-book-head {
 }
 
 /* ---- Reader: following the audiobook ---- */
+/* The part being heard: bold, in the accent colour's tint with a bar on its left; the rest of
+   the page dims a little so the eye finds it at once. */
 .reader-text .listen-now {
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
-  box-shadow: -10px 0 0 color-mix(in srgb, var(--accent) 13%, transparent), 10px 0 0 color-mix(in srgb, var(--accent) 13%, transparent);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: -10px 0 0 color-mix(in srgb, var(--accent) 30%, transparent), 10px 0 0 color-mix(in srgb, var(--accent) 30%, transparent), -14px 0 0 var(--accent);
   border-radius: 6px;
-  transition: background 0.4s;
+  font-weight: 600;
+  transition: background 0.4s, opacity 0.4s;
+}
+.reader-text .following-audio > :not(.listen-now) {
+  opacity: 0.78;
+  transition: opacity 0.4s;
 }
 .follow-audio {
   position: fixed;

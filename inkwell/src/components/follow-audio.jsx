@@ -61,7 +61,9 @@ export function FollowAudio({ book, blocks, scroller, ready }) {
       setStatus('');
       if (lit.current !== el) {
         lit.current?.classList.remove('listen-now');
+        lit.current?.parentElement?.classList.remove('following-audio');
         el.classList.add('listen-now');
+        el.parentElement?.classList.add('following-audio'); // the rest of the page dims a little
         lit.current = el;
       }
       // Keep it in view (unless you've been scrolling yourself just now).
@@ -73,6 +75,7 @@ export function FollowAudio({ book, blocks, scroller, ready }) {
       alive = false;
       clearInterval(tick);
       tr?.followInReader(false);
+      lit.current?.parentElement?.classList.remove('following-audio');
       lit.current?.classList.remove('listen-now');
       lit.current = null;
     };
