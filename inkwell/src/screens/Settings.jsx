@@ -1219,7 +1219,7 @@ function AnnasRow({ list }) {
             <b>Site address</b>
             <small>Anna's Archive moves now and then — the one that opens for you</small>
           </div>
-          <input class="small-input" value={cfg.base || ''} placeholder="https://annas-archive.pk" onChange={(e) => aa.annas.patch({ base: e.currentTarget.value.trim().replace(/\/+$/, '') })} />
+          <input class="small-input" value={cfg.base || ''} placeholder="https://annas-archive.pk" onChange={(e) => aa.annas.patch({ base: e.currentTarget.value.trim() ? aa.normBase(e.currentTarget.value) : '' })} />
         </div>
       )}
       {on && (

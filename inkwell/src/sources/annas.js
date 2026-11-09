@@ -12,7 +12,20 @@ export const NAME = "Anna's Archive";
 export const ID = 'annas-archive';
 // Its address changes now and then (mirrors): set in Settings.
 export const annas = persisted('annas', { base: 'https://annas-archive.pk', key: '' });
-const base = () => String(annas.get().base || 'https://annas-archive.pk').replace(/\/+$/, '');
+const DEFAULT_BASE = 'https://annas-archive.pk';
+/** "annas-archive.li", " https://annas-archive.li/search?q=x " → "https://annas-archive.li" (the site's address only). */
+export function normBase(v) {
+  let t = String(v || '').trim().replace(/\s+/g, '');
+  if (!t) return DEFAULT_BASE;
+  if (!/^https?:\/\//i.test(t)) t = 'https://' + t.replace(/^\/+/, '');
+  try {
+    const u = new URL(t);
+    return /\./.test(u.hostname) ? `${u.protocol}//${u.host}` : DEFAULT_BASE;
+  } catch {
+    return DEFAULT_BASE;
+  }
+}
+const base = () => normBase(annas.get().base);
 export const hasKey = () => !!String(annas.get().key || '').trim();
 
 export const available = () => Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('InkwellWeb');
