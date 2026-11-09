@@ -688,6 +688,14 @@ export function bookAt(time, { global = null, total = null } = {}) {
   return { word: Math.min(bt.tokens.length - 1, Math.floor(share * bt.tokens.length)), total: bt.tokens.length, rough: true };
 }
 
+/** The book's words just before a moment (for naming a bookmark), '' when the ebook isn't placed yet. */
+export function bookTextBefore(time, n = 250) {
+  if (!bt) return '';
+  const at = bookAt(time);
+  if (!at) return '';
+  return bt.tokens.slice(Math.max(0, at.word - n), at.word + 12).join(' ');
+}
+
 /** The audio time for a word of the book (tapping a sentence plays from there). */
 export function timeAtWord(word) {
   const pts = anchors();

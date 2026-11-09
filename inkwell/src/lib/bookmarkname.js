@@ -1,7 +1,7 @@
 // Bookmarks that say what was happening ("Harry and Ron argue on the train"), not just
 // "Chapter 3 · 12:43": named from the transcript around that moment — by your AI service
 // when one is set up, else from the words themselves.
-import { heardText } from './transcript.js';
+import { heardText, bookTextBefore } from './transcript.js';
 import { aiReady, askAi } from './ai.js';
 import * as player from './player.js';
 
@@ -10,7 +10,10 @@ const words = (s, n) => s.split(/\s+/).filter(Boolean).slice(0, n).join(' ');
 /** Name the bookmark just made (bm from addBookmark), in the background. */
 export async function nameBookmark(book, bm) {
   if (!book || !bm) return;
-  const text = heardText(book.uid, bm.track, bm.time + 5, 1500).replace(/^…/, '').trim();
+  let text = heardText(book.uid, bm.track, bm.time + 5, 1500).replace(/^…/, '').trim();
+  // With the ebook attached the transcript shows the book's own words (little or nothing is
+  // "heard"): name it from the book's text at that moment instead.
+  if (text.split(/\s+/).length < 8 && bm.track === player.getState().index) text = bookTextBefore(bm.time + 5, 250) || text;
   if (text.split(/\s+/).length < 8) return; // nothing heard yet: keep the chapter name
   const tail = text.slice(-700);
   let label = '';

@@ -269,6 +269,12 @@ export function TranscriptView({ s }) {
       (b) => b.quote && b.track === s.index && ((b.time >= g.start - 1 && b.time < next) || (text.length > 20 && (text.includes(squash(b.label).slice(0, 60)) || squash(b.label).includes(text.slice(0, 60)))))
     );
   };
+  // A sentence of the ebook's text already highlighted (matched by its words).
+  const quotedText = (text) => {
+    const tx = squash(text);
+    if (tx.length < 12) return false;
+    return (marks[s.book?.uid] || []).some((b) => b.quote && b.track === s.index && (squash(b.label).includes(tx.slice(0, 60)) || tx.includes(squash(b.label).slice(0, 60))));
+  };
   const hold = (start, text) => {
     clearTimeout(press.current.timer);
     press.current.timer = setTimeout(() => {
@@ -407,11 +413,18 @@ export function TranscriptView({ s }) {
               {pg.sentences.map((se) => (
                 <span
                   data-w={se.from}
-                  class={'tb-s' + (se.from === litFrom ? ' on' : se.to <= at.word ? ' past' : '')}
+                  class={'tb-s' + (se.from === litFrom ? ' on' : se.to <= at.word ? ' past' : '') + (quotedText(se.text) ? ' hl' : '')}
                   onClick={() => {
+                    if (press.current.fired) return (press.current.fired = false);
                     const tt = timeAtWord(se.from);
                     if (tt != null) player.seek(Math.max(0, tt));
                   }}
+                  // Long-press a sentence to highlight it, as with heard lines.
+                  onContextMenu={(e) => e.preventDefault()}
+                  onPointerDown={() => hold(timeAtWord(se.from) ?? s.time ?? 0, se.text)}
+                  onPointerUp={release}
+                  onPointerLeave={release}
+                  onPointerCancel={release}
                 >
                   {withNames(se.text, names, (n) => setCard(lookup.get(n)))}{' '}
                 </span>
