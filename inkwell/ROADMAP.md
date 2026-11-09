@@ -362,3 +362,12 @@ Hard or not realistic right now:
 - Add Google Gemini as a third free AI option (often better Hindi/Hinglish than Groq).
 - Driving mode: a "🎙 Ask" button in the playback notification / lock screen (native work).
 - Web app live transcript via Groq Whisper — decided not to do.
+
+## Your taste (recommendations) — later, both apps
+Today the "Recommended / New releases / Top this month" rows use your top 3 non-fiction topics, learned
+from genres of rated / finished / saved books; cloud and phone books carry no genres, so it often falls
+back to Psychology, Science and History. Recommended rows are non-fiction only. No way to reset it.
+- "Your taste" card in Settings: shows the 3 topics in use; pick your own (they replace the guess).
+- Start fresh: forget learned listening history, keep ratings and "Not for me".
+- Fiction too: a switch to let fiction into the recommended rows.
+- Show samples/screenshots before building.
