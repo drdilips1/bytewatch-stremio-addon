@@ -7,6 +7,7 @@ import { getBytes } from './http.js';
 import { persisted, summarize, progress } from './store.js';
 import { textBlocks, speakable } from './tts.js';
 import { downloadLink as annasLink } from '../sources/annas.js';
+import { libgenById, workerFileId } from './libgendirect.js';
 
 const IMG_TYPES = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
 
@@ -272,6 +273,22 @@ export function directEbookFile(r) {
   return { name, format: fmt, size: r.size || 0, resolve: async () => link };
 }
 
+/**
+ * An ebook's bytes. A LibGen worker link that fails on the worker's side (HTTP 5xx: it couldn't
+ * reach LibGen's mirrors) is fetched straight from LibGen in the phone's hidden browser instead.
+ */
+export async function ebookBytes(url, opts = {}) {
+  try {
+    return await getBytes(url, opts);
+  } catch (e) {
+    const id = workerFileId(url);
+    if (!id || !/HTTP 5\d\d/.test(e?.message || '')) throw e;
+    const direct = await libgenById(id).catch(() => '');
+    if (!direct) throw new Error(`LibGen isn't answering right now (${/HTTP \d+/.exec(e.message)?.[0]}) — try again later`);
+    return getBytes(direct, opts);
+  }
+}
+
 /** What an ebook file really is, from its first bytes ('' when it isn't one we know). */
 export function sniffFormat(b) {
   const at = (i, text) => [...text].every((c, k) => b[i + k] === c.charCodeAt(0));
@@ -284,7 +301,7 @@ export function sniffFormat(b) {
 
 /** A source result whose file type wasn't given: fetch it and look. The file (with its format), or null. */
 export async function probeEbook(r) {
-  const bytes = await getBytes(r.link);
+  const bytes = await ebookBytes(r.link);
   const fmt = sniffFormat(bytes);
   if (!fmt || fmt === 'ZIP') return null;
   const name = `${String(r.title || 'Book').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\[[^\]]*\]\s*/g, '').trim().slice(0, 90)}.${fmt.toLowerCase()}`;
@@ -421,7 +438,7 @@ async function loadEbook(book, signal) {
   }
   if (!file) throw new Error('This ebook is no longer in your cloud');
   if (file.format !== 'EPUB' && file.format !== 'PDF') throw new Error(`${file.format} files can't be opened in the reader — use Send to Kindle / Open in another app on the book page`);
-  const bytes = await getBytes(await file.resolve(), { signal });
+  const bytes = await ebookBytes(await file.resolve(), { signal });
   const doc = await toDoc(bytes); // throws before caching if it isn't a readable EPUB / PDF
   if (!book.uid.startsWith('loc:')) keepBytes(book, bytes, isPdf(bytes) ? 'PDF' : 'EPUB'); // phone files are already on the phone
   return remember(book.uid, doc);

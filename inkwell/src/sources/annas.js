@@ -6,6 +6,7 @@
 import { registerPlugin, Capacitor } from '@capacitor/core';
 import { persisted } from '../lib/store.js';
 import { logError } from '../lib/report.js';
+import { hrefsIn, libgenByMd5 } from '../lib/libgendirect.js';
 
 const Web = registerPlugin('InkwellWeb');
 export const NAME = "Anna's Archive";
@@ -224,7 +225,6 @@ export async function fastLink(md5) {
 // The website's own free routes, followed in the hidden browser: the same book's LibGen copy
 // (fast — many of Anna's books are LibGen's files, under the same MD5), else a slow partner
 // server, waiting out its countdown for the download link.
-const LIBGEN_MIRRORS = ['https://libgen.li', 'https://libgen.gl', 'https://libgen.vg', 'https://libgen.la', 'https://libgen.bz', 'https://libgen.gs'];
 const FILE_EXT = /\.(epub|pdf|mobi|azw3?|fb2|djvu|cbz|cbr|txt)(\?|#|$)/i;
 // The slow server's link, once the countdown is over: "Download now", or the file's address itself.
 const SLOW_READY = '(?i)download now|href="https?://[^"]+\\.(epub|pdf|mobi|azw3|fb2|djvu)';
@@ -233,17 +233,6 @@ let freeNote = () => {};
 export const onFreeNote = (f) => (freeNote = f || (() => {}));
 
 const visit = (url, timeout, waitFor) => Web.pageVisit({ url, timeout, ...(waitFor ? { waitFor } : {}) });
-// Every link on a page: { href (full address), text }.
-const unent = (t) => String(t || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-const hrefsIn = (html, at) =>
-  [...String(html || '').matchAll(/<a\b[^>]*?\bhref\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi)].map((m) => {
-    try {
-      return { href: new URL(unent(m[2]), at).href, text: clean(unent(m[3].replace(/<[^>]+>/g, ' '))) };
-    } catch {
-      return { href: '', text: '' };
-    }
-  });
-
 /** The download link on a slow-server page, once it shows ('' while the countdown runs). */
 export function slowLinkIn(html, at) {
   const own = (() => {
@@ -260,17 +249,6 @@ export function slowLinkIn(html, at) {
   return file ? file.href : '';
 }
 
-async function libgenCopy(md5, found) {
-  const tries = [...new Set([...found, ...LIBGEN_MIRRORS.map((m) => `${m}/ads.php?md5=${md5}`)])].slice(0, 4);
-  for (const u of tries) {
-    const r = await visit(u, 15000).catch(() => null);
-    if (!r || (r.status || 200) >= 400) continue;
-    const get = hrefsIn(r.html, r.url || u).find((l) => /get\.php\?/i.test(l.href) && /[?&]md5=/i.test(l.href) && /[?&]key=/i.test(l.href));
-    if (get) return get.href;
-  }
-  return '';
-}
-
 /** A free download link for a book (no membership): its LibGen copy, else a slow partner server. */
 export async function freeLink(md5) {
   const h = String(md5 || '').toLowerCase();
@@ -285,7 +263,7 @@ export async function freeLink(md5) {
     lg = links.filter((l) => /ads\.php/i.test(l.href) && l.href.toLowerCase().includes(h)).map((l) => l.href);
     slow = links.filter((l) => /\/slow_download\//i.test(l.href)).map((l) => l.href);
   } catch {}
-  const viaLibgen = await libgenCopy(h, lg);
+  const viaLibgen = await libgenByMd5(h, lg);
   if (viaLibgen) return viaLibgen;
   const servers = (slow.length ? slow : [0, 1, 2].map((i) => `${base()}/slow_download/${h}/0/${i}`)).slice(0, 3);
   for (const u of servers) {
