@@ -219,6 +219,12 @@ async function searchNow(query, wanted = '') {
   if (Date.now() < busyUntil) throw busyError();
   const path = `/search.php?keywords=${encodeURIComponent(q)}&fid%5B%5D=${FORUM}&sc=1&sr=topics&sf=titleonly`;
   let { status, doc, html } = await page(path);
+  // The forum's search is heavy: Cloudflare gives up waiting (52x) while the rest of the site
+  // opens fine. Ask once more after a moment before saying anything.
+  if (status >= 520 && status <= 530) {
+    await sleep(3000);
+    ({ status, doc, html } = await page(path));
+  }
   if (status === 429) {
     await sleep(4000);
     ({ status, doc, html } = await page(path));
@@ -234,10 +240,15 @@ async function searchNow(query, wanted = '') {
     logError('Mobilism', `browser check — ${seen}`);
     throw fail('Mobilism is checking the browser — Settings → Addons → Mobilism Audiobooks → Sign in, wait for the forum to open, then search again', { signin: true });
   }
-  // The site itself down (Cloudflare 52x, 503…): not a sign-in problem.
+  // The forum's search didn't answer in time (Cloudflare 52x), or the site is down (503…): not a sign-in problem.
   if (status >= 500) {
-    logError('Mobilism', `site down — ${seen}`);
-    throw fail(`Mobilism is down right now (HTTP ${status}) — try again later`);
+    const searchSlow = status >= 520 && status <= 530;
+    logError('Mobilism', `${searchSlow ? 'search timed out' : 'site down'} — ${seen}`);
+    throw fail(
+      searchSlow
+        ? `Mobilism's search didn't answer in time (HTTP ${status}) — the forum itself may open fine; try the search again in a minute`
+        : `Mobilism is down right now (HTTP ${status}) — try again later`
+    );
   }
   if (status === 302 || status === 401 || !signedIn(doc)) {
     logError('Mobilism', `not signed in — ${seen}`);
