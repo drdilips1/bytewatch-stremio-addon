@@ -8,7 +8,7 @@ import { fmtDuration, fmtTime } from '../src/lib/format.js';
 import * as player from '../src/lib/player.js';
 import { getDetails, localSrc } from '../src/sources/index.js';
 import { AbsCard, DebridCard } from '../src/screens/Settings.jsx';
-import { shelf, refresh, placeOf, isEbook, otherForm, copiesOf, oneEach } from './books.js';
+import { shelf, refresh, placeOf, isEbook, otherForm, copiesOf, oneEach, hidden, prefs, hide, unhide, isHidden } from './books.js';
 import { checkUpdate, VERSION } from './update.js';
 import { isCloudEbook, cloudReaderBook } from '../src/lib/epub.js';
 import { findMissingCovers, coverNow } from '../src/lib/meta.js';
@@ -38,11 +38,12 @@ const pct = (p) => Math.round(Math.min(1, Math.max(0, Number(p?.percent) || 0)) 
 const progOf = (prog, b) => prog[b.uid] || prog[`${b.uid.replace(/#ebook$/, '')}#ebook`];
 
 function Tile({ book, sub }) {
+  const titles = useStore(prefs).titles;
   return (
     <button class="h-tile" onClick={() => open(book)}>
       <BookCover book={book} class="h-cover" />
-      <b>{book.title}</b>
-      <span>{sub ?? book.author}</span>
+      {titles && <b>{book.title}</b>}
+      {titles && <span>{sub ?? book.author}</span>}
       <i class="h-chip">
         <Icon name={isEbook(book) ? 'book' : 'headphones'} size={11} /> {placeOf(book)}
       </i>
@@ -144,7 +145,9 @@ export function Home() {
   const prog = useStore(progress);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
-  const all = useMemo(() => oneEach(sh.books), [sh.books]);
+  const hid = useStore(hidden);
+  const titles = useStore(prefs).titles;
+  const all = useMemo(() => oneEach(sh.books), [sh.books, hid]);
   const byUid = useMemo(() => new Map(sh.books.map((b) => [b.uid, b])), [sh.books]);
   // What you're in the middle of, newest first (only books still in your library).
   const going = useMemo(
@@ -153,8 +156,8 @@ export function Home() {
         .filter(([uid, p]) => p && !p.finished && pct(p) > 0 && (byUid.has(uid) || byUid.has(uid.replace(/#ebook$/, ''))))
         .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0))
         .map(([uid]) => byUid.get(uid) || byUid.get(uid.replace(/#ebook$/, '')))
-        .filter((b, i, l) => l.indexOf(b) === i),
-    [prog, byUid],
+        .filter((b, i, l) => l.indexOf(b) === i && !isHidden(b, hid)),
+    [prog, byUid, hid],
   );
   const now = going.find((b) => !isEbook(b)) || going[0];
   const list = useMemo(() => {
@@ -232,8 +235,8 @@ export function Home() {
                       <i style={{ width: p + '%' }} />
                     </div>
                   )}
-                  <b>{b.title}</b>
-                  <span>{b.author}</span>
+                  {titles && <b>{b.title}</b>}
+                  {titles && <span>{b.author}</span>}
                 </button>
               );
             })}
@@ -258,6 +261,7 @@ const SORTS = [
 
 export function Library() {
   const sh = useStore(shelf);
+  const hid = useStore(hidden);
   const [q, setQ] = useState('');
   const [kind, setKind] = useState('all');
   const [place, setPlace] = useState('');
@@ -265,12 +269,12 @@ export function Library() {
   const [busy, setBusy] = useState(false);
   const places = [...new Set(sh.books.map(placeOf))];
   const list = useMemo(() => {
-    let l = place ? sh.books.filter((b) => placeOf(b) === place) : oneEach(sh.books);
+    let l = place ? sh.books.filter((b) => placeOf(b) === place && !isHidden(b, hid)) : oneEach(sh.books);
     if (kind !== 'all') l = l.filter((b) => b.kind === kind);
     if (q.trim()) l = l.filter(matchQ(q));
     const by = { recent: (a, b) => (b.addedAt || 0) - (a.addedAt || 0), title: (a, b) => a.title.localeCompare(b.title), author: (a, b) => (a.author || '').localeCompare(b.author || '') || a.title.localeCompare(b.title) };
     return [...l].sort(by[sort]);
-  }, [sh.books, q, kind, place, sort]);
+  }, [sh.books, q, kind, place, sort, hid]);
   const again = async () => {
     setBusy(true);
     await refresh().catch(() => {});
@@ -461,6 +465,17 @@ export function BookPage({ book }) {
           )}
         </>
       )}
+      <button
+        class="h-remove"
+        onClick={() => {
+          if (!confirm(`Remove “${book.title}” from Hearth?\n\nIt's only hidden here — the files stay where they are. Settings → Removed books brings it back.`)) return;
+          hide(book);
+          toast('Removed from Hearth');
+          nav.back();
+        }}
+      >
+        <Icon name="trash" size={15} /> Remove from Hearth
+      </button>
     </div>
   );
 }
@@ -512,6 +527,40 @@ const MODES = [
   ['light', 'Light'],
   ['dark', 'Dark'],
 ];
+function ShowTitles() {
+  const p = useStore(prefs);
+  return (
+    <section class="h-card h-switch-row">
+      <div>
+        <h3>Titles under covers</h3>
+        <p class="h-note">Off: just the covers (they carry the title).</p>
+      </div>
+      <input type="checkbox" class="switch" checked={!!p.titles} onChange={(e) => prefs.set((x) => ({ ...x, titles: e.currentTarget.checked }))} />
+    </section>
+  );
+}
+
+function Removed() {
+  const h = useStore(hidden);
+  const list = Object.entries(h).sort((a, b) => b[1].at - a[1].at);
+  if (!list.length) return null;
+  return (
+    <Card title={`Removed books · ${list.length}`} sub="Hidden from Hearth — the files are where they were.">
+      {list.map(([k, b]) => (
+        <div class="h-set-row">
+          <span>
+            {b.title}
+            {b.author ? <small class="h-muted"> · {b.author}</small> : null}
+          </span>
+          <button class="h-link" onClick={() => unhide(k)}>
+            Bring back
+          </button>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 function Appearance() {
   const l = useStore(look);
   return (
@@ -578,6 +627,8 @@ export function SettingsPage() {
       </Card>
       <p class="h-group">Look</p>
       <Appearance />
+      <ShowTitles />
+      <Removed />
       <Card title="Covers" sub="Missing covers are looked up by themselves after each refresh; a book with none anywhere gets one made from its title.">
         <div class="h-actions">
           <FindCovers books={oneEach(sh.books)} />

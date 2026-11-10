@@ -1036,3 +1036,32 @@ body.hearth button {
 .h-mini-btn + .h-mini-btn {
   margin-left: -6px;
 }
+
+.h-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 28px auto 6px;
+  background: none;
+  border: 0;
+  color: #b04a3a !important;
+  font-size: 14px !important;
+}
+:root[data-hearth='dark'] .h-remove {
+  color: #e48a7a !important;
+}
+.h-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.h-switch-row .h-note {
+  margin-bottom: 0;
+}
+.h-muted {
+  color: var(--h-muted);
+}
+.h-grid3 {
+  row-gap: 14px;
+}

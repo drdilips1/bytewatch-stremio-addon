@@ -30,6 +30,10 @@ export function autoCovers() {
 }
 
 export const shelf = persisted('hearthShelf', { books: [], at: 0, errors: {} });
+// Books you removed from Hearth (by title and author, so every copy goes): only hidden here —
+// the files stay where they are. Settings lists them to bring back.
+export const hidden = persisted('hearthHidden', {}); // key -> { title, author, at }
+export const prefs = persisted('hearthPrefs', { titles: false }); // titles: show titles under covers
 export const PLACE = { loc: 'Phone', abs: 'Server', tb: 'TorBox', rd: 'Real-Debrid' };
 export const placeOf = (b) => PLACE[String(b?.uid || '').split(':')[0]] || PLACE[b?.source] || 'Phone';
 export const isEbook = (b) => b?.kind === 'text';
@@ -94,7 +98,7 @@ export function refresh() {
   return running;
 }
 
-const key = (b) => `${mainTitle(b?.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}|${String(b?.author || '').toLowerCase().split(/[ ,&]+/).filter(Boolean).pop() || ''}`;
+export const key = (b) => `${mainTitle(b?.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}|${String(b?.author || '').toLowerCase().split(/[ ,&]+/).filter(Boolean).pop() || ''}`;
 /** The same book in its other form (the ebook of an audiobook, or the other way round). */
 export function otherForm(book, books = shelf.get().books) {
   const k = key(book);
@@ -106,7 +110,20 @@ export function copiesOf(book, books = shelf.get().books) {
   return books.filter((b) => b.kind === book.kind && key(b) === k);
 }
 /** One entry per book in each form (the same book on the server and in TorBox shows once). */
+export const isHidden = (b, h = hidden.get()) => !!h[key(b)];
+export function hide(b) {
+  hidden.set((h) => ({ ...h, [key(b)]: { title: b.title, author: b.author || '', at: Date.now() } }));
+}
+export function unhide(k) {
+  hidden.set((h) => {
+    const next = { ...h };
+    delete next[k];
+    return next;
+  });
+}
 export function oneEach(books) {
+  const hid = hidden.get();
+  books = books.filter((b) => !hid[key(b)]);
   const out = new Map();
   const rank = { abs: 0, loc: 1, tb: 2, rd: 3 };
   for (const b of books) {
