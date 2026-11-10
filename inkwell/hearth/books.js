@@ -9,7 +9,9 @@ export const PLACE = { loc: 'Phone', abs: 'Server', tb: 'TorBox', rd: 'Real-Debr
 export const placeOf = (b) => PLACE[String(b?.uid || '').split(':')[0]] || PLACE[b?.source] || 'Phone';
 export const isEbook = (b) => b?.kind === 'text';
 
+// Everything the place gave (phone and server ebooks need their file's address), tidied.
 const slim = (b, src) => ({
+  ...b,
   uid: b.uid,
   source: b.source || src,
   kind: b.kind === 'text' ? 'text' : 'audio',

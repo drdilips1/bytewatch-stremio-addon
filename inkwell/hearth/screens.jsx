@@ -10,14 +10,30 @@ import { getDetails, localSrc, absSrc, cloud } from '../src/sources/index.js';
 import { AbsCard, DebridCard } from '../src/screens/Settings.jsx';
 import { shelf, refresh, placeOf, isEbook, otherForm, copiesOf, oneEach } from './books.js';
 import { checkUpdate, VERSION } from './update.js';
+import { isCloudEbook, cloudReaderBook } from '../src/lib/epub.js';
 
 const open = (book) => nav.push('book', { book });
 export function play(book) {
   nav.openOverlay('player');
   player.openAndPlay(book, getDetails).catch((e) => toast(e.message));
 }
-const read = (book) => nav.push('reader', { book });
+// An ebook: straight into the reader when its file is known (phone, or opened before);
+// else ask its place for the file (Audiobookshelf, TorBox, Real-Debrid) — EPUB, else PDF.
+async function read(book) {
+  if (book.ebookUrl || book.ebookFile || isCloudEbook(book)) return nav.push('reader', { book });
+  try {
+    const d = await getDetails(book);
+    const list = d?.ebooks || [];
+    const file = list.find((e) => e.format === 'EPUB') || list.find((e) => e.format === 'PDF');
+    if (!file) return toast(list.length ? `Only ${list[0].format} here — it can't open in the reader` : 'No ebook file found for this book');
+    nav.push('reader', { book: cloudReaderBook({ ...book, ...d, uid: book.uid }, file) });
+  } catch (e) {
+    toast(e.message);
+  }
+}
 const pct = (p) => Math.round(Math.min(1, Math.max(0, Number(p?.percent) || 0)) * 100);
+// An ebook opened from TorBox / Real-Debrid / the server keeps its place under "<id>#ebook".
+const progOf = (prog, b) => progOf(prog, b) || prog[`${b.uid.replace(/#ebook$/, '')}#ebook`];
 
 function Tile({ book, sub }) {
   return (
@@ -106,9 +122,10 @@ export function Home() {
   const going = useMemo(
     () =>
       Object.entries(prog)
-        .filter(([uid, p]) => p && !p.finished && pct(p) > 0 && byUid.has(uid))
+        .filter(([uid, p]) => p && !p.finished && pct(p) > 0 && (byUid.has(uid) || byUid.has(uid.replace(/#ebook$/, ''))))
         .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0))
-        .map(([uid]) => byUid.get(uid)),
+        .map(([uid]) => byUid.get(uid) || byUid.get(uid.replace(/#ebook$/, '')))
+        .filter((b, i, l) => l.indexOf(b) === i),
     [prog, byUid],
   );
   const listening = going.filter((b) => !isEbook(b));
@@ -140,10 +157,10 @@ export function Home() {
                   <b>{now.title}</b>
                   <span>{now.author}</span>
                   <div class="h-bar">
-                    <i style={{ width: pct(prog[now.uid]) + '%' }} />
+                    <i style={{ width: pct(progOf(prog, now)) + '%' }} />
                   </div>
                   <small>
-                    {now.duration > 0 ? `${fmtDuration(now.duration * (1 - pct(prog[now.uid]) / 100))} left · ` : `${pct(prog[now.uid])}% · `}
+                    {now.duration > 0 ? `${fmtDuration(now.duration * (1 - pct(progOf(prog, now)) / 100))} left · ` : `${pct(progOf(prog, now))}% · `}
                     {placeOf(now)}
                   </small>
                 </div>
@@ -161,9 +178,9 @@ export function Home() {
               </button>
             </section>
           )}
-          <Row title="Also listening" books={listening.slice(1, 10)} sub={(b) => `${pct(prog[b.uid])}% · ${b.author}`} />
+          <Row title="Also listening" books={listening.slice(1, 10)} sub={(b) => `${pct(progOf(prog, b))}% · ${b.author}`} />
           <Row title="Recently added" books={recent} more={() => nav.tab('library')} />
-          <Row title="Reading" books={reading} more={() => nav.tab('library')} sub={(b) => (prog[b.uid] ? `${pct(prog[b.uid])}% · ${b.format || 'Ebook'}` : b.author)} />
+          <Row title="Reading" books={reading} more={() => nav.tab('library')} sub={(b) => (progOf(prog, b) ? `${pct(progOf(prog, b))}% · ${b.format || 'Ebook'}` : b.author)} />
         </>
       )}
     </div>
@@ -246,7 +263,7 @@ export function Library() {
 
 export function BookPage({ book }) {
   const sh = useStore(shelf);
-  const p = useStore(progress)[book.uid];
+  const p = progOf(useStore(progress), book);
   const marks = useStore(bookmarks)[book.uid] || [];
   const [ps, setPs] = useState(player.getState());
   useEffect(() => player.subscribe(setPs), []);

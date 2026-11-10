@@ -234,7 +234,7 @@ export async function epubToHtml(bytes) {
 // ---- ebooks in your TorBox / Real-Debrid -------------------------------------
 
 /** Reader UIDs for cloud ebooks look like "tb:t:123#ebook" (kept apart from the item's audio progress). */
-export const isCloudEbook = (book) => /^(tb|rd|src|loc):/.test(book?.uid || '') && book.uid.endsWith('#ebook');
+export const isCloudEbook = (book) => /^(tb|rd|src|loc|abs):/.test(book?.uid || '') && book.uid.endsWith('#ebook');
 
 // ---- direct ebook links from source addons (e.g. Bookracy) -------------------
 
