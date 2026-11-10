@@ -15,7 +15,7 @@ const slim = (b, src) => ({
   uid: b.uid,
   source: b.source || src,
   kind: b.kind === 'text' ? 'text' : 'audio',
-  title: b.title || 'Untitled',
+  title: String(b.title || 'Untitled').replace(/^[\s\-–—_.,:;]+/, '') || 'Untitled', // file names: "- A Court of…"
   author: b.author || '',
   narrator: b.narrator || '',
   cover: b.cover || '',

@@ -799,6 +799,8 @@ body.hearth button {
 /* Covers made for books without one: a calm printed-book look — paper, a serif title,
    a band of colour and the author in small capitals (colours from the title). */
 .h-cover .cover-fallback {
+  /* Its own layer, below the real cover (the title text must never show over a picture). */
+  z-index: 0;
   background: hsl(var(--h) 38% 90%);
   padding: 10% 11% 9%;
   justify-content: space-between;
