@@ -11,3 +11,4 @@ TorBox and Real-Debrid — with a plain player and reader. No sources, no AI.
 - Try it in a browser: `npx vite build --config vite.hearth.config.js && npx vite preview --config vite.hearth.config.js`.
 
 - v1.0.2: themes + dice, made covers, chapters and bookmarks on the book page, ebooks open.
+- v1.0.3: long-press remove, sort & view, auto covers, Save to phone, Authors / Series, Share setup.
