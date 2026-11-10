@@ -4,6 +4,8 @@ import { persisted } from '../src/lib/store.js';
 import { localSrc, absSrc, cloud } from '../src/sources/index.js';
 import { mainTitle } from '../src/lib/match.js';
 import { findMissingCovers, coverNow } from '../src/lib/meta.js';
+import { downloads } from '../src/lib/downloads.js';
+import { seriesOf } from '../src/lib/series.js';
 
 // Books still without a cover: looked up by themselves after each refresh (Audible, Apple,
 // Goodreads, Google Books, Open Library). One that isn't found isn't asked again for a week.
@@ -80,12 +82,15 @@ export function refresh() {
     ),
   )
     .then((res) => {
+      const old = shelf.get();
       const books = [];
       const errors = {};
       for (const r of res) {
         // A place that didn't answer (your server off, no internet): its books aren't shown —
         // they wouldn't play. They come back with the next refresh that reaches it.
-        const list = r.list ?? [];
+        // Books saved on the phone stay: they play without it.
+        const saved = downloads.get();
+        const list = r.list ?? old.books.filter((b) => (b.source === r.k || b.uid.startsWith(r.k + ':')) && saved[b.uid]?.status === 'done');
         if (r.error) errors[r.k] = r.error;
         books.push(...list);
       }
@@ -132,4 +137,30 @@ export function oneEach(books) {
     if (!cur || (rank[b.source] ?? 9) < (rank[cur.source] ?? 9)) out.set(k, b);
   }
   return [...out.values()];
+}
+
+/** Authors, most books first: [{ name, books }]. */
+export function authorsOf(books) {
+  const m = new Map();
+  for (const b of books) {
+    const name = String(b.author || 'Unknown author').split(/,|&| and /)[0].trim() || 'Unknown author';
+    const k = name.toLowerCase();
+    if (!m.has(k)) m.set(k, { name, books: [] });
+    m.get(k).books.push(b);
+  }
+  return [...m.values()].sort((a, b) => b.books.length - a.books.length || a.name.localeCompare(b.name));
+}
+
+/** Series, in reading order inside each: [{ name, books }] (books with a known series only). */
+export function seriesGroups(books) {
+  const m = new Map();
+  for (const b of books) {
+    const s = seriesOf(b);
+    if (!s?.name) continue;
+    const k = s.name.toLowerCase();
+    if (!m.has(k)) m.set(k, { name: s.name, books: [] });
+    m.get(k).books.push({ ...b, seriesN: s.n });
+  }
+  for (const g of m.values()) g.books.sort((a, b) => (a.seriesN ?? 999) - (b.seriesN ?? 999) || a.title.localeCompare(b.title));
+  return [...m.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

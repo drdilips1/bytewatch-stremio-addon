@@ -196,6 +196,7 @@ function toBook(item) {
     year: md.publishedYear || '',
     duration: li.media?.duration || 0,
     genres: [...(md.genres || []), ...(li.media?.tags || [])],
+    ...(md.seriesName ? { series: md.seriesName } : {}),
   };
 }
 

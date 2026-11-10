@@ -7,7 +7,7 @@ import { Toaster, Guard } from '../src/components/common.jsx';
 import { Icon } from '../src/components/icons.jsx';
 import { Reader } from '../src/screens/Reader.jsx';
 import * as player from '../src/lib/player.js';
-import { Home, Library, BookPage, SettingsPage } from './screens.jsx';
+import { Home, Library, BookPage, SettingsPage, GroupPage } from './screens.jsx';
 import { MiniPlayer, FullPlayer } from './player.jsx';
 import { refresh } from './books.js';
 import { applyLook } from './theme.js';
@@ -18,7 +18,7 @@ const TABS = [
   ['settings', 'Settings', 'settings'],
 ];
 const ROOTS = { home: Home, library: Library, settings: SettingsPage };
-const ROUTES = { book: BookPage, reader: Reader };
+const ROUTES = { book: BookPage, reader: Reader, group: GroupPage };
 
 export function App() {
   const [route, setRoute] = useState(nav.state());

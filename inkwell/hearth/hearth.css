@@ -1199,3 +1199,111 @@ body.hearth button {
   width: 100%;
   grid-template-columns: 64px minmax(0, 1fr);
 }
+
+/* Saved on the phone */
+.h-saved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  color: var(--h-muted);
+  font-size: 14px;
+  margin: 2px 0 12px;
+}
+.h-saved svg {
+  color: var(--h-accent);
+}
+.h-dl-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--h-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+/* Library: Books / Authors / Series */
+.h-lib-tabs {
+  margin: 0 0 12px;
+}
+.h-groups .h-count {
+  margin: 12px 2px 4px;
+}
+.h-group-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--h-line);
+  padding: 12px 0;
+  text-align: left;
+}
+.h-group-row > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.h-group-row b {
+  display: block;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.h-group-row span {
+  font-size: 13px;
+  color: var(--h-muted);
+}
+.h-group-row > svg {
+  color: var(--h-muted);
+  flex: none;
+}
+.h-stack {
+  position: relative;
+  width: 84px;
+  height: 58px;
+  flex: none;
+}
+.h-stack .h-cover {
+  position: absolute;
+  top: 0;
+  width: 58px;
+}
+.h-stack .h-cover:nth-child(1) {
+  left: 0;
+  z-index: 3;
+}
+.h-stack .h-cover:nth-child(2) {
+  left: 13px;
+  z-index: 2;
+  transform: scale(0.92);
+}
+.h-stack .h-cover:nth-child(3) {
+  left: 26px;
+  z-index: 1;
+  transform: scale(0.84);
+}
+/* Share setup */
+.h-paste {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.h-paste textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--h-line);
+  background: var(--h-fill);
+  color: var(--h-text);
+  border-radius: 10px;
+  padding: 10px;
+  font: 13px/1.4 ui-monospace, monospace;
+}

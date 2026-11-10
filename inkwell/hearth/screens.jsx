@@ -8,7 +8,9 @@ import { fmtDuration, fmtTime } from '../src/lib/format.js';
 import * as player from '../src/lib/player.js';
 import { getDetails, localSrc } from '../src/sources/index.js';
 import { AbsCard, DebridCard } from '../src/screens/Settings.jsx';
-import { shelf, refresh, placeOf, isEbook, otherForm, copiesOf, oneEach, hidden, prefs, hide, unhide, isHidden } from './books.js';
+import { shelf, refresh, placeOf, isEbook, otherForm, copiesOf, oneEach, hidden, prefs, hide, unhide, isHidden, authorsOf, seriesGroups } from './books.js';
+import { downloads, canDownload, downloadBook, removeDownload, cancelDownload, fmtBytes } from '../src/lib/downloads.js';
+import { abs, debrid } from '../src/lib/store.js';
 import { checkUpdate, VERSION } from './update.js';
 import { isCloudEbook, cloudReaderBook } from '../src/lib/epub.js';
 import { findMissingCovers, coverNow } from '../src/lib/meta.js';
@@ -219,6 +221,11 @@ function SortMenu() {
               </button>
             ))}
             <hr />
+            <button onClick={() => set({ onlySaved: !p.onlySaved })}>
+              Saved on phone only
+              {p.onlySaved && <Icon name="check" size={16} />}
+            </button>
+            <hr />
             {[
               ['grid', 'Grid'],
               ['list', 'List'],
@@ -251,6 +258,7 @@ export function Home() {
   const [filter, setFilter] = useState('all');
   const hid = useStore(hidden);
   const pr = useStore(prefs);
+  const dls = useStore(downloads);
   const titles = pr.titles;
   const pick = useSelect();
   const all = useMemo(() => oneEach(sh.books), [sh.books, hid]);
@@ -284,9 +292,10 @@ export function Home() {
     if (filter === 'going') l = [...going];
     else if (filter === 'text') l = l.filter(isEbook);
     else if (filter !== 'all') l = l.filter((b) => state(b) === filter);
+    if (pr.onlySaved) l = l.filter((b) => dls[b.uid]?.status === 'done' || b.source === 'loc');
     if (q.trim()) l = l.filter(matchQ(q));
     return l;
-  }, [all, going, prog, filter, q, pr.sort]);
+  }, [all, going, prog, filter, q, pr.sort, pr.onlySaved, dls]);
 
   return (
     <div class="h-home">
@@ -347,6 +356,7 @@ export function Home() {
               return (
                 <button key={b.uid} {...pick.bind(b)}>
                   <BookCover book={b} class="h-cover" />
+                  {dls[b.uid]?.status === 'done' && <i class="h-dl-badge" title="Saved on this phone"><Icon name="download" size={11} /></i>}
                   {p > 0 && (
                     <div class="h-bar h-tile-bar">
                       <i style={{ width: p + '%' }} />
@@ -383,10 +393,44 @@ const SORTS = [
   ['author', 'Author'],
 ];
 
+function Groups({ kind, books, q }) {
+  const groups = (kind === 'authors' ? authorsOf(books) : seriesGroups(books)).filter((g) => !q.trim() || g.name.toLowerCase().includes(q.trim().toLowerCase()));
+  if (!groups.length)
+    return <p class="h-empty">{kind === 'series' ? 'No series found yet — series come from your server and the books’ details.' : 'Nothing here.'}</p>;
+  return (
+    <div class="h-groups">
+      <p class="h-count">
+        {groups.length} {kind === 'authors' ? 'author' : 'series'}
+        {groups.length === 1 || kind === 'series' ? '' : 's'}
+      </p>
+      {groups.map((g) => (
+        <button
+          class="h-group-row"
+          onClick={() => nav.push('group', { title: g.name, sub: `${g.books.length} book${g.books.length === 1 ? '' : 's'}${kind === 'series' ? ' · in order' : ''}`, books: g.books })}
+        >
+          <div class="h-stack">
+            {g.books.slice(0, 3).map((b) => (
+              <BookCover book={b} class="h-cover" />
+            ))}
+          </div>
+          <div>
+            <b>{g.name}</b>
+            <span>
+              {g.books.length} book{g.books.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <Icon name="next" size={16} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Library() {
   const sh = useStore(shelf);
   const hid = useStore(hidden);
   const pick = useSelect();
+  const [view, setView] = useState('books');
   const [q, setQ] = useState('');
   const [kind, setKind] = useState('all');
   const [place, setPlace] = useState('');
@@ -413,7 +457,22 @@ export function Library() {
           {busy ? <span class="spinner small" /> : <Icon name="replay" size={19} />}
         </button>
       </h1>
+      <div class="h-tabs2 h-lib-tabs">
+        {[
+          ['books', 'Books'],
+          ['authors', 'Authors'],
+          ['series', 'Series'],
+        ].map(([k, label]) => (
+          <button class={view === k ? 'on' : ''} onClick={() => setView(k)}>
+            {label}
+          </button>
+        ))}
+      </div>
       <Search value={q} onInput={setQ} />
+      {view !== 'books' ? (
+        <Groups kind={view} books={oneEach(sh.books)} q={q} />
+      ) : (
+      <>
       <div class="h-seg">
         {KINDS.map(([k, label]) => (
           <button class={kind === k ? 'on' : ''} onClick={() => setKind(k)}>
@@ -447,6 +506,66 @@ export function Library() {
         <FindCovers books={oneEach(sh.books)} />
       </div>
       {sh.books.length ? <Grid books={list} bind={pick.bind} /> : <Welcome />}
+      <SelectBar s={pick} />
+      </>
+      )}
+    </div>
+  );
+}
+
+/** Save an audiobook on the phone (plays offline — in the car, on a flight, with the server off). */
+function SaveToPhone({ book, info }) {
+  const d = useStore(downloads)[book.uid];
+  const [busy, setBusy] = useState(false);
+  if (!canDownload || isEbook(book) || book.source === 'loc') return null;
+  if (d?.status === 'done')
+    return (
+      <div class="h-saved">
+        <Icon name="check" size={15} /> Saved on this phone{d.bytes ? ` · ${fmtBytes(d.bytes)}` : ''}
+        <button class="h-link" onClick={() => confirm('Remove the saved copy from this phone? The book stays in your library.') && removeDownload(book.uid)}>
+          Remove
+        </button>
+      </div>
+    );
+  if (d?.status === 'downloading')
+    return (
+      <div class="h-saved">
+        <span class="spinner small" /> Saving… {d.done || 0} of {d.total || '?'} part{d.total === 1 ? '' : 's'}
+        <button class="h-link" onClick={() => cancelDownload(book.uid)}>
+          Stop
+        </button>
+      </div>
+    );
+  const go = async () => {
+    setBusy(true);
+    try {
+      const details = info?.tracks?.length ? info : await getDetails(book);
+      downloadBook(details).catch((e) => toast(e.message));
+      toast('Saving to this phone — you can leave this page');
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button class="h-btn h-btn2" disabled={busy} onClick={go}>
+      {busy ? <span class="spinner small" /> : <Icon name="download" size={18} />} {d?.status === 'error' ? 'Try saving again' : 'Save to phone'}
+    </button>
+  );
+}
+
+/** A group of books (an author, a series): one grid. */
+export function GroupPage({ title, sub, books }) {
+  const pick = useSelect();
+  return (
+    <div class="h-group-page">
+      <button class="h-back" onClick={() => nav.back()}>
+        <Icon name="back" size={18} /> Back
+      </button>
+      <h1 class="h-title">{title}</h1>
+      {sub && <p class="h-count">{sub}</p>}
+      <Grid books={books} bind={pick.bind} />
       <SelectBar s={pick} />
     </div>
   );
@@ -519,6 +638,7 @@ export function BookPage({ book }) {
           <Icon name={isEbook(other) ? 'book' : 'headphones'} size={18} /> {isEbook(other) ? 'Read the ebook' : 'Listen to the audiobook'}
         </button>
       )}
+      <SaveToPhone book={book} info={info} />
       {percent > 0 && (
         <div class="h-book-prog">
           <div class="h-bar">
@@ -642,6 +762,63 @@ const MODES = [
   ['light', 'Light'],
   ['dark', 'Dark'],
 ];
+// Your connections in one code, to set up another phone (your wife's) without typing keys.
+// It holds your sign-ins: send it only to someone you'd give them to.
+const CODE = 'HEARTH1:';
+function ShareSetup() {
+  const [paste, setPaste] = useState(null);
+  const make = () => {
+    const a = abs.get();
+    const data = { abs: { server: a.server, altServer: a.altServer, token: a.token, refreshToken: a.refreshToken, username: a.username, libraryId: a.libraryId, ebookLibraryId: a.ebookLibraryId }, debrid: debrid.get() };
+    return CODE + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  };
+  const share = async () => {
+    const code = make();
+    const text = `Hearth setup (Settings → Share setup → Paste a setup code):\n${code}`;
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else await navigator.clipboard.writeText(code), toast('Setup code copied');
+    } catch {}
+  };
+  const apply = async () => {
+    try {
+      const raw = String(paste || '').trim().split(/\s+/).find((w) => w.startsWith(CODE));
+      if (!raw) throw new Error('No Hearth setup code found in what you pasted');
+      const data = JSON.parse(decodeURIComponent(escape(atob(raw.slice(CODE.length)))));
+      if (data.abs?.server) abs.set((x) => ({ ...x, ...data.abs }));
+      if (data.debrid) debrid.set((x) => ({ ...x, ...Object.fromEntries(Object.entries(data.debrid).filter(([, v]) => v)) }));
+      setPaste(null);
+      toast('Set up — loading your books');
+      await refresh();
+    } catch (e) {
+      toast(e.message || 'That code didn’t work');
+    }
+  };
+  const has = !!(abs.get().token || debrid.get().torbox || debrid.get().realdebrid);
+  return (
+    <Card title="Share setup" sub="Set up another phone (yours or your wife's) without typing server details or keys. The code holds your sign-ins — send it only to someone you'd give them to.">
+      <div class="h-actions">
+        {has && (
+          <button class="h-btn h-btn-sm" onClick={share}>
+            <Icon name="upload" size={15} /> Share my setup
+          </button>
+        )}
+        <button class="h-btn h-btn-sm h-btn2" onClick={() => setPaste(paste == null ? '' : null)}>
+          <Icon name="download" size={15} /> Paste a setup code
+        </button>
+      </div>
+      {paste != null && (
+        <div class="h-paste">
+          <textarea rows={3} value={paste} placeholder="Paste the message or code here" onInput={(e) => setPaste(e.currentTarget.value)} />
+          <button class="h-btn h-btn-sm" disabled={!paste.trim()} onClick={apply}>
+            Use this setup
+          </button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function ShowTitles() {
   const p = useStore(prefs);
   return (
@@ -740,6 +917,7 @@ export function SettingsPage() {
         {err('rd')}
         <DebridCard provider="realdebrid" label="Real-Debrid" keyHint="real-debrid.com/apitoken" keyUrl="https://real-debrid.com/apitoken" />
       </Card>
+      <ShareSetup />
       <p class="h-group">Look</p>
       <Appearance />
       <ShowTitles />
