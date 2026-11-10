@@ -35,7 +35,7 @@ object Themes {
         Theme("midnight", "🌙  Midnight (dark)", R.style.Theme_P2A_Midnight),
         Theme("black", "⚫  Black (dark, saves battery on OLED)", R.style.Theme_P2A_Black),
         Theme("ivory", "🤍  Ivory (warm ivory and teal)", R.style.Theme_P2A_Ivory),
-        Theme("paper", "📄  Paper (paper white and ink, as in Audiohub)", R.style.Theme_P2A_Paper),
+        Theme("paper", "📄  Paper (paper white and ink)", R.style.Theme_P2A_Paper),
         Theme("ink", "🖋  Ink (midnight ink, dark)", R.style.Theme_P2A_Ink),
     )
 
