@@ -578,7 +578,7 @@ export function SettingsPage() {
       </Card>
       <p class="h-group">Look</p>
       <Appearance />
-      <Card title="Covers" sub="Books without a cover get one made from their title; or look for the real ones.">
+      <Card title="Covers" sub="Missing covers are looked up by themselves after each refresh; a book with none anywhere gets one made from its title.">
         <div class="h-actions">
           <FindCovers books={oneEach(sh.books)} />
         </div>

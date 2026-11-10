@@ -3,6 +3,31 @@
 import { persisted } from '../src/lib/store.js';
 import { localSrc, absSrc, cloud } from '../src/sources/index.js';
 import { mainTitle } from '../src/lib/match.js';
+import { findMissingCovers, coverNow } from '../src/lib/meta.js';
+
+// Books still without a cover: looked up by themselves after each refresh (Audible, Apple,
+// Goodreads, Google Books, Open Library). One that isn't found isn't asked again for a week.
+const coverTried = persisted('hearthCoverTried', {}); // uid -> when
+let coverRun = null;
+export function autoCovers() {
+  if (coverRun) return coverRun;
+  const tried = coverTried.get();
+  const week = 7 * 864e5;
+  const todo = oneEach(shelf.get().books).filter((b) => !coverNow(b) && !(Date.now() - (tried[b.uid] || 0) < week)).slice(0, 60);
+  if (!todo.length) return Promise.resolve();
+  coverRun = findMissingCovers(todo)
+    .catch(() => {})
+    .then(() => {
+      const now = Date.now();
+      coverTried.set((t) => {
+        const next = { ...t };
+        for (const b of todo) if (!coverNow(b)) next[b.uid] = now;
+        return next;
+      });
+    })
+    .finally(() => (coverRun = null));
+  return coverRun;
+}
 
 export const shelf = persisted('hearthShelf', { books: [], at: 0, errors: {} });
 export const PLACE = { loc: 'Phone', abs: 'Server', tb: 'TorBox', rd: 'Real-Debrid' };
@@ -62,6 +87,8 @@ export function refresh() {
       }
       const seen = new Set();
       shelf.set({ books: books.filter((b) => !seen.has(b.uid) && seen.add(b.uid)), at: Date.now(), errors });
+      // Real covers for the ones without, a little later (the library shows first).
+      setTimeout(autoCovers, 4000);
     })
     .finally(() => (running = null));
   return running;
