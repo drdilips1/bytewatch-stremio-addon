@@ -6,7 +6,7 @@ import { nav } from '../src/lib/nav.js';
 import { progress, bookmarks, useStore } from '../src/lib/store.js';
 import { fmtDuration, fmtTime } from '../src/lib/format.js';
 import * as player from '../src/lib/player.js';
-import { getDetails, localSrc, absSrc, cloud } from '../src/sources/index.js';
+import { getDetails, localSrc } from '../src/sources/index.js';
 import { AbsCard, DebridCard } from '../src/screens/Settings.jsx';
 import { shelf, refresh, placeOf, isEbook, otherForm, copiesOf, oneEach } from './books.js';
 import { checkUpdate, VERSION } from './update.js';
@@ -33,7 +33,7 @@ async function read(book) {
 }
 const pct = (p) => Math.round(Math.min(1, Math.max(0, Number(p?.percent) || 0)) * 100);
 // An ebook opened from TorBox / Real-Debrid / the server keeps its place under "<id>#ebook".
-const progOf = (prog, b) => progOf(prog, b) || prog[`${b.uid.replace(/#ebook$/, '')}#ebook`];
+const progOf = (prog, b) => prog[b.uid] || prog[`${b.uid.replace(/#ebook$/, '')}#ebook`];
 
 function Tile({ book, sub }) {
   return (
@@ -45,27 +45,6 @@ function Tile({ book, sub }) {
         <Icon name={isEbook(book) ? 'book' : 'headphones'} size={11} /> {placeOf(book)}
       </i>
     </button>
-  );
-}
-
-function Row({ title, books, more, sub }) {
-  if (!books.length) return null;
-  return (
-    <section class="h-sec">
-      <h2>
-        {title}
-        {more && (
-          <button class="h-link" onClick={more}>
-            See all
-          </button>
-        )}
-      </h2>
-      <div class="h-row">
-        {books.map((b) => (
-          <Tile key={b.uid} book={b} sub={sub?.(b)} />
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -112,10 +91,20 @@ function Welcome() {
   );
 }
 
+// Home: what you're listening to on top, then every book in one grid you scroll down —
+// filtered by All / In progress / New / Finished / Ebooks. No sideways rows.
+const HOME_FILTERS = [
+  ['all', 'All'],
+  ['going', 'In progress'],
+  ['new', 'New'],
+  ['done', 'Finished'],
+  ['text', 'Ebooks'],
+];
 export function Home() {
   const sh = useStore(shelf);
   const prog = useStore(progress);
   const [q, setQ] = useState('');
+  const [filter, setFilter] = useState('all');
   const all = useMemo(() => oneEach(sh.books), [sh.books]);
   const byUid = useMemo(() => new Map(sh.books.map((b) => [b.uid, b])), [sh.books]);
   // What you're in the middle of, newest first (only books still in your library).
@@ -128,59 +117,81 @@ export function Home() {
         .filter((b, i, l) => l.indexOf(b) === i),
     [prog, byUid],
   );
-  const listening = going.filter((b) => !isEbook(b));
-  const now = listening[0];
-  const recent = useMemo(() => [...all].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).slice(0, 15), [all]);
-  const reading = useMemo(() => {
-    const eb = all.filter(isEbook);
-    const started = going.filter(isEbook);
-    return [...started, ...eb.filter((b) => !started.includes(b))].slice(0, 15);
-  }, [all, going]);
-  const found = q.trim() ? all.filter(matchQ(q)) : null;
+  const now = going.find((b) => !isEbook(b)) || going[0];
+  const list = useMemo(() => {
+    const state = (b) => {
+      const p = progOf(prog, b);
+      return p?.finished ? 'done' : pct(p) > 0 ? 'going' : 'new';
+    };
+    let l = [...all].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+    // In progress: the ones you touched most recently first.
+    if (filter === 'going') l = [...going];
+    else if (filter === 'text') l = l.filter(isEbook);
+    else if (filter !== 'all') l = l.filter((b) => state(b) === filter);
+    if (q.trim()) l = l.filter(matchQ(q));
+    return l;
+  }, [all, going, prog, filter, q]);
 
   return (
     <div class="h-home">
       <h1 class="h-title">Hearth</h1>
       <Search value={q} onInput={setQ} />
-      {found ? (
-        <Grid books={found} />
-      ) : !sh.books.length ? (
+      {!sh.books.length ? (
         <Welcome />
       ) : (
         <>
-          {now && (
-            <section class="h-sec">
-              <h2>Continue</h2>
-              <button class="h-continue" onClick={() => open(now)}>
-                <BookCover book={now} class="h-cover" />
-                <div>
-                  <b>{now.title}</b>
-                  <span>{now.author}</span>
-                  <div class="h-bar">
-                    <i style={{ width: pct(progOf(prog, now)) + '%' }} />
-                  </div>
-                  <small>
-                    {now.duration > 0 ? `${fmtDuration(now.duration * (1 - pct(progOf(prog, now)) / 100))} left · ` : `${pct(progOf(prog, now))}% · `}
-                    {placeOf(now)}
-                  </small>
+          {now && !q.trim() && (
+            <button class="h-continue" onClick={() => open(now)}>
+              <BookCover book={now} class="h-cover" />
+              <div>
+                <small class="h-kicker">{isEbook(now) ? 'Continue reading' : 'Continue listening'}</small>
+                <b>{now.title}</b>
+                <span>{now.author}</span>
+                <div class="h-bar">
+                  <i style={{ width: pct(progOf(prog, now)) + '%' }} />
                 </div>
-                <span
-                  class="h-play-sm"
-                  role="button"
-                  aria-label="Play"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    play(now);
-                  }}
-                >
-                  <Icon name="play" size={20} />
-                </span>
-              </button>
-            </section>
+                <small>
+                  {pct(progOf(prog, now))}%{now.duration > 0 ? ` · ${fmtDuration(now.duration * (1 - pct(progOf(prog, now)) / 100))} left` : ''}
+                </small>
+              </div>
+              <span
+                class="h-play-sm"
+                role="button"
+                aria-label={isEbook(now) ? 'Read' : 'Play'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  isEbook(now) ? read(now) : play(now);
+                }}
+              >
+                <Icon name={isEbook(now) ? 'book' : 'play'} size={20} />
+              </span>
+            </button>
           )}
-          <Row title="Also listening" books={listening.slice(1, 10)} sub={(b) => `${pct(progOf(prog, b))}% · ${b.author}`} />
-          <Row title="Recently added" books={recent} more={() => nav.tab('library')} />
-          <Row title="Reading" books={reading} more={() => nav.tab('library')} sub={(b) => (progOf(prog, b) ? `${pct(progOf(prog, b))}% · ${b.format || 'Ebook'}` : b.author)} />
+          <div class="h-chips">
+            {HOME_FILTERS.map(([k, label]) => (
+              <button class={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div class="h-grid h-grid3">
+            {list.map((b) => {
+              const p = pct(progOf(prog, b));
+              return (
+                <button key={b.uid} class="h-tile" onClick={() => open(b)}>
+                  <BookCover book={b} class="h-cover" />
+                  {p > 0 && (
+                    <div class="h-bar h-tile-bar">
+                      <i style={{ width: p + '%' }} />
+                    </div>
+                  )}
+                  <b>{b.title}</b>
+                  <span>{b.author}</span>
+                </button>
+              );
+            })}
+          </div>
+          {!list.length && <p class="h-empty">Nothing here.</p>}
         </>
       )}
     </div>

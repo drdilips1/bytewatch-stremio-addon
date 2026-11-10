@@ -729,3 +729,70 @@ body.hearth button {
   color: var(--h-muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* Home: filter chips and the three-across grid */
+.h-continue {
+  margin-top: 18px;
+}
+.h-kicker {
+  display: block;
+  color: var(--h-accent) !important;
+  font-size: 11px !important;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.h-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0 16px;
+}
+.h-chips button {
+  border: 0;
+  background: var(--h-fill);
+  border-radius: 999px;
+  padding: 8px 15px;
+  font-size: 14px !important;
+  font-weight: 500;
+}
+.h-chips button.on {
+  background: var(--h-text);
+  color: var(--h-bg) !important;
+  font-weight: 600;
+}
+.h-grid3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px 14px;
+}
+@media (min-width: 600px) {
+  .h-grid3 {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
+}
+.h-tile-bar {
+  height: 3px;
+  margin: 6px 0 0;
+}
+/* Tiles: cover at the top, text under it (buttons centre their content by default). */
+.h-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.h-chips {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.h-chips button {
+  padding: 7px 11px;
+  font-size: 13px !important;
+  white-space: nowrap;
+}
+.h-play-sm,
+.h-play-sm svg {
+  color: #fff !important;
+  fill: #fff;
+}
