@@ -51,12 +51,12 @@ export function refresh() {
     ),
   )
     .then((res) => {
-      const old = shelf.get();
       const books = [];
       const errors = {};
       for (const r of res) {
-        // A place that didn't answer keeps what it had last time.
-        const list = r.list ?? old.books.filter((b) => (b.uid.split(':')[0] || b.source) === r.k || b.source === r.k);
+        // A place that didn't answer (your server off, no internet): its books aren't shown —
+        // they wouldn't play. They come back with the next refresh that reaches it.
+        const list = r.list ?? [];
         if (r.error) errors[r.k] = r.error;
         books.push(...list);
       }

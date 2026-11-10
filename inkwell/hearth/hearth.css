@@ -133,15 +133,15 @@ body.hearth button {
   flex: 1;
   min-width: 0;
 }
-.h-continue b {
+.h-continue > div > b {
   display: block;
   font-size: 16px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.h-continue span,
-.h-continue small {
+.h-continue > div > span,
+.h-continue > div > small {
   font-size: 13px;
   color: var(--h-muted);
 }
@@ -196,7 +196,7 @@ body.hearth button {
 .h-tile .h-cover {
   width: 100%;
 }
-.h-tile b {
+.h-tile > b {
   display: block;
   margin-top: 8px;
   font-size: 13px;
@@ -207,7 +207,7 @@ body.hearth button {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.h-tile span {
+.h-tile > span {
   display: block;
   font-size: 12px;
   color: var(--h-muted);
@@ -795,4 +795,242 @@ body.hearth button {
 .h-play-sm svg {
   color: #fff !important;
   fill: #fff;
+}
+/* Covers made for books without one: a calm printed-book look — paper, a serif title,
+   a band of colour and the author in small capitals (colours from the title). */
+.h-cover .cover-fallback {
+  background: hsl(var(--h) 38% 90%);
+  padding: 10% 11% 9%;
+  justify-content: space-between;
+  color: hsl(var(--h) 55% 30%);
+}
+.h-cover .cover-fallback::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 58%;
+  height: 13%;
+  background: hsl(var(--h) 48% 52%);
+}
+.h-cover .cover-title {
+  font-family: var(--h-serif);
+  font-size: 15cqw;
+  line-height: 1.04;
+  -webkit-line-clamp: 3;
+  color: hsl(var(--h) 55% 30%);
+  position: relative;
+  z-index: 1;
+}
+.h-cover .cover-author {
+  font-size: 6.5cqw;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 1;
+  color: hsl(var(--h) 50% 34%);
+  position: relative;
+  z-index: 1;
+}
+:root[data-hearth='dark'] .h-cover .cover-fallback {
+  background: hsl(var(--h) 26% 22%);
+  color: hsl(var(--h) 40% 82%);
+}
+:root[data-hearth='dark'] .h-cover .cover-title,
+:root[data-hearth='dark'] .h-cover .cover-author {
+  color: hsl(var(--h) 40% 84%);
+}
+:root[data-hearth='dark'] .h-cover .cover-fallback::after {
+  background: hsl(var(--h) 40% 40%);
+}
+/* Dice */
+.h-dice {
+  font-size: 20px !important;
+  line-height: 1;
+}
+.h-dice.roll {
+  animation: h-roll 0.5s ease;
+}
+@keyframes h-roll {
+  50% {
+    transform: rotate(200deg) scale(1.15);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.h-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px 8px;
+  margin-top: 4px;
+}
+.h-swatches button {
+  background: none;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px !important;
+  color: var(--h-muted) !important;
+}
+.h-swatches i {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--h-line);
+  box-shadow: inset 0 0 0 12px transparent;
+  position: relative;
+}
+.h-swatches i::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--a);
+  border: 2px solid var(--h-card);
+}
+.h-swatches button.on {
+  color: var(--h-text) !important;
+  font-weight: 600;
+}
+.h-swatches button.on i {
+  outline: 2px solid var(--h-accent);
+  outline-offset: 2px;
+}
+.h-dice-sw {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-style: normal;
+  background: var(--h-fill);
+}
+.h-dice-sw::after {
+  display: none;
+}
+/* Home / Library count */
+.h-count-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0 6px;
+}
+.h-count-row .h-count {
+  margin: 0;
+}
+.h-home .h-count {
+  margin: -4px 2px 12px;
+}
+/* Book page */
+.h-sub {
+  color: var(--h-muted);
+  font-size: 13px;
+  margin: -12px 0 18px;
+}
+.h-book-prog {
+  text-align: left;
+  margin: 6px 0 4px;
+}
+.h-book-prog small {
+  color: var(--h-muted);
+  font-size: 13px;
+}
+.h-tabs2 {
+  display: flex;
+  gap: 22px;
+  border-bottom: 1px solid var(--h-line);
+  margin: 22px 0 4px;
+}
+.h-tabs2 button {
+  background: none;
+  border: 0;
+  padding: 10px 0;
+  font-size: 15px !important;
+  font-weight: 600;
+  color: var(--h-muted) !important;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.h-tabs2 button.on {
+  color: var(--h-text) !important;
+  border-color: var(--h-accent);
+}
+.h-chlist {
+  text-align: left;
+}
+.h-chlist button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--h-line);
+  padding: 13px 4px;
+  text-align: left;
+  font-size: 15px !important;
+}
+.h-chlist i {
+  width: 22px;
+  flex: none;
+  font-style: normal;
+  font-size: 13px;
+  color: var(--h-muted);
+  text-align: center;
+}
+.h-chlist span {
+  flex: 1;
+  min-width: 0;
+}
+.h-chlist small {
+  color: var(--h-muted);
+  font-variant-numeric: tabular-nums;
+}
+.h-chlist button.on {
+  color: var(--h-accent) !important;
+  font-weight: 600;
+}
+.h-chlist button.on i {
+  color: var(--h-accent);
+}
+.h-chlist .h-bar {
+  display: block;
+  margin: 6px 0 0;
+  height: 3px;
+}
+.h-chlist .h-bar b {
+  display: block;
+  height: 100%;
+  background: var(--h-accent);
+  border-radius: 3px;
+}
+/* Player top line */
+.h-p-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.h-p-top small {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.h-grab-pad {
+  width: 62px;
+}
+.h-sheet-sub {
+  color: var(--h-muted);
+  font-size: 13px;
+  margin: -8px 0 10px;
+}
+.h-mini-btn + .h-mini-btn {
+  margin-left: -6px;
 }

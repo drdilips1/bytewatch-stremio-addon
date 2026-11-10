@@ -11,11 +11,13 @@ import { AbsCard, DebridCard } from '../src/screens/Settings.jsx';
 import { shelf, refresh, placeOf, isEbook, otherForm, copiesOf, oneEach } from './books.js';
 import { checkUpdate, VERSION } from './update.js';
 import { isCloudEbook, cloudReaderBook } from '../src/lib/epub.js';
+import { findMissingCovers, coverNow } from '../src/lib/meta.js';
+import { look, PALETTES, rollDice } from './theme.js';
 
 const open = (book) => nav.push('book', { book });
-export function play(book) {
+export function play(book, opts) {
   nav.openOverlay('player');
-  player.openAndPlay(book, getDetails).catch((e) => toast(e.message));
+  player.openAndPlay(book, getDetails, opts).catch((e) => toast(e.message));
 }
 // An ebook: straight into the reader when its file is known (phone, or opened before);
 // else ask its place for the file (Audiobookshelf, TorBox, Real-Debrid) — EPUB, else PDF.
@@ -91,6 +93,43 @@ function Welcome() {
   );
 }
 
+function DiceButton() {
+  return (
+    <button
+      class="h-icon-btn h-dice"
+      aria-label="Roll a new colour theme"
+      onClick={(e) => {
+        const p = rollDice();
+        e.currentTarget.classList.remove('roll');
+        void e.currentTarget.offsetWidth;
+        e.currentTarget.classList.add('roll');
+        toast(`${p.name}`);
+      }}
+    >
+      🎲
+    </button>
+  );
+}
+
+/** "Find missing covers": looks each one up (Audible, Apple, Goodreads, Google Books, Open Library). */
+function FindCovers({ books }) {
+  const [st, setSt] = useState(null);
+  const missing = books.filter((b) => !coverNow(b));
+  if (!missing.length && !st) return null;
+  const go = async () => {
+    setSt({ done: 0, total: missing.length, found: 0 });
+    const r = await findMissingCovers(missing, (done, total, found) => setSt({ done, total, found })).catch(() => null);
+    setSt(null);
+    toast(r ? `Found ${r.found} of ${r.total} covers` : 'Couldn’t look for covers right now');
+  };
+  return (
+    <button class="h-btn h-btn-sm h-btn2" disabled={!!st} onClick={go}>
+      {st ? <span class="spinner small" /> : <Icon name="covers" size={15} />}{' '}
+      {st ? `Looking… ${st.done} of ${st.total} (${st.found} found)` : `Find ${missing.length} missing cover${missing.length === 1 ? '' : 's'}`}
+    </button>
+  );
+}
+
 // Home: what you're listening to on top, then every book in one grid you scroll down —
 // filtered by All / In progress / New / Finished / Ebooks. No sideways rows.
 const HOME_FILTERS = [
@@ -134,7 +173,10 @@ export function Home() {
 
   return (
     <div class="h-home">
-      <h1 class="h-title">Hearth</h1>
+      <h1 class="h-title">
+        Hearth
+        <DiceButton />
+      </h1>
       <Search value={q} onInput={setQ} />
       {!sh.books.length ? (
         <Welcome />
@@ -174,6 +216,11 @@ export function Home() {
               </button>
             ))}
           </div>
+          <p class="h-count">
+            {list.length} {filter === 'text' ? 'ebook' : 'book'}
+            {list.length === 1 ? '' : 's'}
+            {filter === 'all' && !q.trim() ? '' : ` · ${all.length} in all`}
+          </p>
           <div class="h-grid h-grid3">
             {list.map((b) => {
               const p = pct(progOf(prog, b));
@@ -264,12 +311,26 @@ export function Library() {
           ))}
         </select>
       </div>
-      <p class="h-count">
-        {list.length} book{list.length === 1 ? '' : 's'}
-      </p>
+      <div class="h-count-row">
+        <p class="h-count">
+          {list.length} book{list.length === 1 ? '' : 's'}
+        </p>
+        <FindCovers books={oneEach(sh.books)} />
+      </div>
       {sh.books.length ? <Grid books={list} /> : <Welcome />}
     </div>
   );
+}
+
+// A book's chapters (its own chapter marks, else its files in order), with where each starts.
+export function chapterList(d) {
+  if (d?.chaptersMeta?.length) return d.chaptersMeta.map((c, i) => ({ title: c.title || `Chapter ${i + 1}`, start: c.start, end: c.end }));
+  let t = 0;
+  return (d?.tracks || []).map((x, i) => {
+    const c = { title: x.title || `Part ${i + 1}`, start: t, end: x.duration > 0 ? t + x.duration : null, track: i };
+    if (x.duration > 0) t += x.duration;
+    return c;
+  });
 }
 
 export function BookPage({ book }) {
@@ -277,14 +338,35 @@ export function BookPage({ book }) {
   const p = progOf(useStore(progress), book);
   const marks = useStore(bookmarks)[book.uid] || [];
   const [ps, setPs] = useState(player.getState());
+  const [info, setInfo] = useState(null);
+  const [tab, setTab] = useState('chapters');
   useEffect(() => player.subscribe(setPs), []);
+  const ebook = isEbook(book);
+  // The audiobook's chapters and length, asked of its place when the page opens.
+  useEffect(() => {
+    if (ebook) return;
+    let alive = true;
+    getDetails(book)
+      .then((d) => alive && setInfo(d))
+      .catch(() => alive && setInfo({ failed: true }));
+    return () => (alive = false);
+  }, [book.uid]);
   const other = otherForm(book, sh.books);
   const copies = copiesOf(book, sh.books);
   const current = ps.book?.uid === book.uid;
-  const ebook = isEbook(book);
   const percent = pct(p);
+  const chapters = chapterList(current ? { chaptersMeta: ps.book.chaptersMeta, tracks: ps.tracks } : info);
+  const length = book.duration || info?.duration || chapters.reduce((m, c) => Math.max(m, c.end || 0), 0);
+  const nowAt = current ? player.globalTime() : null;
   const main = () => (ebook ? read(book) : current ? (player.toggle(), nav.openOverlay('player')) : play(book));
   const mainLabel = ebook ? (percent ? `Continue reading · ${percent}%` : 'Read') : current && ps.playing ? 'Pause' : percent ? 'Resume' : 'Play';
+  const fromChapter = (c) => {
+    if (current) {
+      if (typeof c.track === 'number' && !ps.book.chaptersMeta?.length) player.jumpTo(c.track);
+      else player.seekGlobal(c.start);
+      nav.openOverlay('player');
+    } else play(book, typeof c.track === 'number' ? { index: c.track, time: 0 } : { globalStart: c.start });
+  };
   return (
     <div class="h-book">
       <button class="h-back" onClick={() => nav.back()}>
@@ -294,7 +376,10 @@ export function BookPage({ book }) {
       <h1>{book.title}</h1>
       <p class="h-by">
         {book.author}
-        {book.narrator && book.narrator !== book.author ? ` · ${book.narrator}` : ''}
+        {book.narrator && book.narrator !== book.author ? ` · read by ${book.narrator}` : ''}
+      </p>
+      <p class="h-sub">
+        {[length > 0 && fmtDuration(length), !ebook && chapters.length > 1 && `${chapters.length} chapters`, ebook && (book.format || 'Ebook'), placeOf(book)].filter(Boolean).join(' · ')}
       </p>
       <button class="h-btn" onClick={main}>
         <Icon name={ebook ? 'book' : current && ps.playing ? 'pause' : 'play'} size={18} /> {mainLabel}
@@ -304,56 +389,77 @@ export function BookPage({ book }) {
           <Icon name={isEbook(other) ? 'book' : 'headphones'} size={18} /> {isEbook(other) ? 'Read the ebook' : 'Listen to the audiobook'}
         </button>
       )}
-      <div class="h-facts">
-        {book.duration > 0 && (
-          <div>
-            <b>{fmtDuration(book.duration)}</b>Length
+      {percent > 0 && (
+        <div class="h-book-prog">
+          <div class="h-bar">
+            <i style={{ width: percent + '%' }} />
           </div>
-        )}
-        <div>
-          <b>{percent}%</b>
-          {ebook ? 'Read' : 'Listened'}
+          <small>
+            {percent}% {ebook ? 'read' : 'listened'}
+            {!ebook && length > 0 ? ` · ${fmtDuration(length * (1 - percent / 100))} left` : ''}
+          </small>
         </div>
-        <div>
-          <b>{ebook ? book.format || 'Ebook' : copies.length}</b>
-          {ebook ? 'Format' : copies.length === 1 ? 'Copy' : 'Copies'}
-        </div>
-      </div>
-      <div class="h-where">
-        {copies.map((c) => (
-          <button onClick={() => (ebook ? read(c) : play(c))}>
-            <b>{ebook ? 'Ebook' : 'Audiobook'}</b>
-            <span>
-              {placeOf(c)}
-              {c.format ? ` · ${c.format}` : ''} ›
-            </span>
-          </button>
-        ))}
-        {other && (
-          <button onClick={() => open(other)}>
-            <b>{isEbook(other) ? 'Ebook' : 'Audiobook'}</b>
-            <span>{placeOf(other)} ›</span>
-          </button>
-        )}
-      </div>
-      {marks.length > 0 && (
-        <section class="h-marks">
-          <h2>Bookmarks</h2>
-          {marks.map((m) => (
-            <button
-              onClick={() => {
-                if (current) {
-                  player.playBookmark(m);
-                  nav.openOverlay('player');
-                } else toast('Start the book first, then tap a bookmark');
-              }}
-            >
-              <Icon name="bookmark" size={15} />
-              <span>{m.label}</span>
-              <small>{fmtTime(m.global ?? m.time)}</small>
+      )}
+      {copies.length > 1 && (
+        <div class="h-where">
+          {copies.map((c) => (
+            <button onClick={() => (ebook ? read(c) : play(c))}>
+              <b>{ebook ? 'Ebook' : 'Audiobook'}</b>
+              <span>
+                {placeOf(c)}
+                {c.format ? ` · ${c.format}` : ''} ›
+              </span>
             </button>
           ))}
-        </section>
+        </div>
+      )}
+      {!ebook && (
+        <>
+          <div class="h-tabs2">
+            <button class={tab === 'chapters' ? 'on' : ''} onClick={() => setTab('chapters')}>
+              Chapters{chapters.length ? ` · ${chapters.length}` : ''}
+            </button>
+            <button class={tab === 'marks' ? 'on' : ''} onClick={() => setTab('marks')}>
+              Bookmarks · {marks.length}
+            </button>
+          </div>
+          {tab === 'chapters' ? (
+            <div class="h-chlist">
+              {!info && !current && <p class="h-empty">Loading chapters…</p>}
+              {info?.failed && !current && <p class="h-empty">Couldn’t reach where this book lives right now.</p>}
+              {chapters.map((c, i) => {
+                const on = nowAt != null && nowAt >= c.start && nowAt < (c.end ?? Infinity);
+                return (
+                  <button class={on ? 'on' : ''} onClick={() => fromChapter(c)}>
+                    <i>{on ? <Icon name="chart" size={14} /> : i + 1}</i>
+                    <span>{c.title}</span>
+                    <small>{c.end ? fmtTime(c.end - c.start) : ''}</small>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div class="h-chlist">
+              {!marks.length && <p class="h-empty">No bookmarks yet — tap Bookmark in the player.</p>}
+              {marks.map((m) => (
+                <button
+                  onClick={() => {
+                    if (current) {
+                      player.playBookmark(m);
+                      nav.openOverlay('player');
+                    } else play(book, { globalStart: Math.max(0, (m.global ?? 0) - 30) });
+                  }}
+                >
+                  <i>
+                    <Icon name="bookmark" size={14} />
+                  </i>
+                  <span>{m.label}</span>
+                  <small>{fmtTime(m.global ?? m.time)}</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -401,6 +507,39 @@ function PhoneCard() {
   );
 }
 
+const MODES = [
+  ['system', 'Like phone'],
+  ['light', 'Light'],
+  ['dark', 'Dark'],
+];
+function Appearance() {
+  const l = useStore(look);
+  return (
+    <section class="h-card">
+      <h3>Colours</h3>
+      <div class="h-chips">
+        {MODES.map(([k, label]) => (
+          <button class={l.mode === k ? 'on' : ''} onClick={() => look.set((x) => ({ ...x, mode: k }))}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div class="h-swatches">
+        {PALETTES.map((p) => (
+          <button class={l.palette === p.id ? 'on' : ''} onClick={() => look.set((x) => ({ ...x, palette: p.id }))} aria-label={p.name}>
+            <i style={{ background: `linear-gradient(135deg, ${p.light[6]} 0 50%, ${p.dark[0]} 50%)`, '--a': p.dark[6] }} />
+            <span>{p.name}</span>
+          </button>
+        ))}
+        <button onClick={() => toast(rollDice().name)} aria-label="Surprise me">
+          <i class="h-dice-sw">🎲</i>
+          <span>Surprise</span>
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function Card({ title, sub, children }) {
   return (
     <section class="h-card">
@@ -436,6 +575,13 @@ export function SettingsPage() {
       <Card title="Real-Debrid" sub={count('Real-Debrid') || 'What’s in your Real-Debrid account'}>
         {err('rd')}
         <DebridCard provider="realdebrid" label="Real-Debrid" keyHint="real-debrid.com/apitoken" keyUrl="https://real-debrid.com/apitoken" />
+      </Card>
+      <p class="h-group">Look</p>
+      <Appearance />
+      <Card title="Covers" sub="Books without a cover get one made from their title; or look for the real ones.">
+        <div class="h-actions">
+          <FindCovers books={oneEach(sh.books)} />
+        </div>
       </Card>
       <p class="h-group">About</p>
       <Card title={`Hearth ${VERSION}`} sub="Your books from this phone, your server and your cloud — nothing else.">

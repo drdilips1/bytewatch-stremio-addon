@@ -4,7 +4,8 @@ import { useEffect, useState } from 'preact/hooks';
 import { BookCover, toast } from '../src/components/common.jsx';
 import { Icon } from '../src/components/icons.jsx';
 import { nav, useBackClose } from '../src/lib/nav.js';
-import { fmtTime } from '../src/lib/format.js';
+import { fmtTime, fmtDuration } from '../src/lib/format.js';
+import { bookmarks } from '../src/lib/store.js';
 import * as player from '../src/lib/player.js';
 import { useCoverColor } from '../src/components/player-ui.jsx';
 
@@ -32,6 +33,16 @@ export function MiniPlayer() {
         <b>{s.book.title}</b>
         <span>{s.loading ? s.phase || 'Opening…' : chapterNow(s)?.title || s.book.author}</span>
       </div>
+      <button
+        class="h-mini-btn"
+        aria-label="Back 15 seconds"
+        onClick={(e) => {
+          e.stopPropagation();
+          player.skip(-15);
+        }}
+      >
+        <Icon name="replay" size={20} />
+      </button>
       <button
         class="h-mini-btn"
         aria-label={s.playing ? 'Pause' : 'Play'}
@@ -74,20 +85,28 @@ export function FullPlayer() {
   const color = useCoverColor(s.book);
   const [sheet, setSheet] = useState(null); // 'speed' | 'sleep' | 'chapters'
   const [drag, setDrag] = useState(null);
+  const [tab, setTab] = useState('chapters');
   if (!s.book) return null;
   const ch = chapterNow(s);
+  const all = player.chapters();
+  const chIndex = ch ? all.findIndex((c) => c.start === ch.start) : -1;
+  const left = Math.max(0, player.totalDuration() - player.globalTime());
+  const marks = bookmarks.get()[s.book?.uid] || [];
   // The bar follows the chapter you're in (or the part, for books without chapters).
   const start = ch?.start ?? player.trackOffset(s.index);
   const end = ch?.end ?? start + (s.duration || 0);
   const len = Math.max(1, end - start);
   const at = Math.max(0, Math.min(len, (drag ?? player.globalTime()) - start));
   const sleeping = s.sleepUntil ? `${Math.max(1, Math.round((s.sleepUntil - Date.now()) / 60e3))}m` : s.sleepEndOfTrack ? 'Chapter' : '';
-  const chapters = sheet === 'chapters' ? player.chapters() : [];
   return (
     <div class="h-player" style={color ? { '--h-tint': color } : null}>
-      <button class="h-grab" aria-label="Close player" onClick={() => nav.closeOverlay()}>
-        <Icon name="down" size={22} />
-      </button>
+      <div class="h-p-top">
+        <button class="h-grab" aria-label="Close player" onClick={() => nav.closeOverlay()}>
+          <Icon name="down" size={22} />
+        </button>
+        <small>{all.length > 1 && chIndex >= 0 ? `Chapter ${chIndex + 1} of ${all.length}` : ''}</small>
+        <span class="h-grab-pad" />
+      </div>
       <BookCover book={s.book} class="h-cover h-player-cover" />
       <h2>{s.book.title}</h2>
       <p class="h-p-author">{s.book.author}</p>
@@ -171,22 +190,63 @@ export function FullPlayer() {
         </Sheet>
       )}
       {sheet === 'chapters' && (
-        <Sheet title="Chapters" close={() => setSheet(null)}>
-          <div class="h-list h-chapters">
-            {chapters.map((c, i) => (
-              <button
-                class={c === ch || (ch && c.start === ch.start) ? 'on' : ''}
-                onClick={() => {
-                  if (typeof c.track === 'number' && !s.book.chaptersMeta?.length) player.jumpTo(c.track);
-                  else player.seekGlobal(c.start);
-                  setSheet(null);
-                }}
-              >
-                <span>{c.title || `Chapter ${i + 1}`}</span>
-                <small>{fmtTime(c.start)}</small>
-              </button>
-            ))}
+        <Sheet title={s.book.title} close={() => setSheet(null)}>
+          <p class="h-sheet-sub">
+            {chIndex >= 0 && all.length > 1 ? `Chapter ${chIndex + 1} of ${all.length} · ` : ''}
+            {fmtDuration(left)} left
+          </p>
+          <div class="h-seg">
+            <button class={tab === 'chapters' ? 'on' : ''} onClick={() => setTab('chapters')}>
+              Chapters · {all.length}
+            </button>
+            <button class={tab === 'marks' ? 'on' : ''} onClick={() => setTab('marks')}>
+              Bookmarks · {marks.length}
+            </button>
           </div>
+          {tab === 'chapters' ? (
+            <div class="h-chlist">
+              {all.length <= 1 && <p class="h-empty">This book has no chapter marks — it's one long file.</p>}
+              {all.length > 1 &&
+                all.map((c, i) => {
+                  const on = i === chIndex;
+                  const done = on && c.end ? Math.min(100, ((player.globalTime() - c.start) / (c.end - c.start)) * 100) : 0;
+                  return (
+                    <button
+                      class={on ? 'on' : ''}
+                      onClick={() => {
+                        if (typeof c.track === 'number' && !s.book.chaptersMeta?.length) player.jumpTo(c.track);
+                        else player.seekGlobal(c.start);
+                        setSheet(null);
+                      }}
+                    >
+                      <i>{on ? <Icon name="chart" size={14} /> : i + 1}</i>
+                      <span>
+                        {c.title || `Chapter ${i + 1}`}
+                        {on && (
+                          <em class="h-bar">
+                            <b style={{ width: done + '%' }} />
+                          </em>
+                        )}
+                      </span>
+                      <small>{c.end ? fmtTime(c.end - c.start) : fmtTime(c.start)}</small>
+                    </button>
+                  );
+                })}
+            </div>
+          ) : (
+            <div class="h-chlist">
+              {!marks.length && <p class="h-empty">No bookmarks yet.</p>}
+              {marks.map((m) => (
+                <button onClick={() => (player.playBookmark(m), setSheet(null))}>
+                  <i>
+                    <Icon name="bookmark" size={14} />
+                  </i>
+                  <span>{m.label}</span>
+                  <small>{fmtTime(m.global ?? m.time)}</small>
+                </button>
+              ))}
+            </div>
+          )}
         </Sheet>
       )}
     </div>
