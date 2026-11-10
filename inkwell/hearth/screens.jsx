@@ -1,8 +1,8 @@
 // Hearth's screens: Home, Library, a book's page, and Settings.
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { BookCover, toast } from '../src/components/common.jsx';
 import { Icon } from '../src/components/icons.jsx';
-import { nav } from '../src/lib/nav.js';
+import { nav, useBackClose } from '../src/lib/nav.js';
 import { progress, bookmarks, useStore } from '../src/lib/store.js';
 import { fmtDuration, fmtTime } from '../src/lib/format.js';
 import * as player from '../src/lib/player.js';
@@ -37,10 +37,70 @@ const pct = (p) => Math.round(Math.min(1, Math.max(0, Number(p?.percent) || 0)) 
 // An ebook opened from TorBox / Real-Debrid / the server keeps its place under "<id>#ebook".
 const progOf = (prog, b) => prog[b.uid] || prog[`${b.uid.replace(/#ebook$/, '')}#ebook`];
 
-function Tile({ book, sub }) {
+// Long-press a cover to start choosing; tap more to add or drop them; Remove hides them all.
+function useSelect() {
+  const [sel, setSel] = useState(() => new Map()); // uid -> book
+  const press = useRef({ t: 0, x: 0, y: 0, fired: false });
+  const active = sel.size > 0;
+  const toggle = (b) =>
+    setSel((m) => {
+      const n = new Map(m);
+      n.has(b.uid) ? n.delete(b.uid) : n.set(b.uid, b);
+      return n;
+    });
+  const clear = () => setSel(new Map());
+  useBackClose(active, clear);
+  const cancel = () => clearTimeout(press.current.t);
+  const bind = (b) => ({
+    class: 'h-tile' + (sel.has(b.uid) ? ' picked' : '') + (active ? ' picking' : ''),
+    onContextMenu: (e) => e.preventDefault(),
+    onPointerDown: (e) => {
+      press.current = { ...press.current, x: e.clientX, y: e.clientY, fired: false };
+      cancel();
+      press.current.t = setTimeout(() => {
+        press.current.fired = true;
+        navigator.vibrate?.(12);
+        toggle(b);
+      }, 480);
+    },
+    onPointerMove: (e) => Math.hypot(e.clientX - press.current.x, e.clientY - press.current.y) > 10 && cancel(),
+    onPointerUp: cancel,
+    onPointerLeave: cancel,
+    onPointerCancel: cancel,
+    onClick: () => {
+      if (press.current.fired) return (press.current.fired = false);
+      active ? toggle(b) : open(b);
+    },
+  });
+  return { sel, active, clear, bind };
+}
+
+function SelectBar({ s }) {
+  if (!s.active) return null;
+  const remove = () => {
+    const n = s.sel.size;
+    if (!confirm(`Remove ${n} book${n === 1 ? '' : 's'} from Hearth?\n\nOnly hidden here — the files stay where they are. Settings → Removed books brings them back.`)) return;
+    for (const b of s.sel.values()) hide(b);
+    s.clear();
+    toast(`Removed ${n} book${n === 1 ? '' : 's'}`);
+  };
+  return (
+    <div class="h-selbar">
+      <button class="h-icon-btn" aria-label="Cancel" onClick={s.clear}>
+        <Icon name="close" size={18} />
+      </button>
+      <b>{s.sel.size} selected</b>
+      <button class="h-btn h-btn-sm h-danger" onClick={remove}>
+        <Icon name="trash" size={15} /> Remove
+      </button>
+    </div>
+  );
+}
+
+function Tile({ book, sub, bind }) {
   const titles = useStore(prefs).titles;
   return (
-    <button class="h-tile" onClick={() => open(book)}>
+    <button {...(bind ? bind(book) : { class: 'h-tile', onClick: () => open(book) })}>
       <BookCover book={book} class="h-cover" />
       {titles && <b>{book.title}</b>}
       {titles && <span>{sub ?? book.author}</span>}
@@ -70,12 +130,12 @@ const matchQ = (q) => {
   return (b) => w.every((x) => `${b.title} ${b.author} ${b.narrator || ''}`.toLowerCase().includes(x));
 };
 
-function Grid({ books }) {
+function Grid({ books, bind }) {
   if (!books.length) return <p class="h-empty">Nothing here.</p>;
   return (
     <div class="h-grid">
       {books.map((b) => (
-        <Tile key={b.uid} book={b} />
+        <Tile key={b.uid} book={b} bind={bind} />
       ))}
     </div>
   );
@@ -131,6 +191,50 @@ function FindCovers({ books }) {
   );
 }
 
+const HOME_SORTS = [
+  ['played', 'Recently played'],
+  ['title', 'Title'],
+  ['author', 'Author'],
+  ['added', 'Recently added'],
+  ['length', 'Length'],
+];
+function SortMenu() {
+  const p = useStore(prefs);
+  const [open, setOpen] = useState(false);
+  useBackClose(open, () => setOpen(false));
+  const set = (patch) => (prefs.set((x) => ({ ...x, ...patch })), setOpen(false));
+  return (
+    <div class="h-sort">
+      <button class="h-icon-btn" aria-label="Sort and view" onClick={() => setOpen(!open)}>
+        <Icon name="list" size={18} />
+      </button>
+      {open && (
+        <>
+          <div class="h-menu-bg" onClick={() => setOpen(false)} />
+          <div class="h-menu">
+            {HOME_SORTS.map(([k, label]) => (
+              <button onClick={() => set({ sort: k })}>
+                {label}
+                {p.sort === k && <Icon name="check" size={16} />}
+              </button>
+            ))}
+            <hr />
+            {[
+              ['grid', 'Grid'],
+              ['list', 'List'],
+            ].map(([k, label]) => (
+              <button onClick={() => set({ view: k })}>
+                {label}
+                {(p.view || 'grid') === k && <Icon name="check" size={16} />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Home: what you're listening to on top, then every book in one grid you scroll down —
 // filtered by All / In progress / New / Finished / Ebooks. No sideways rows.
 const HOME_FILTERS = [
@@ -146,7 +250,9 @@ export function Home() {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
   const hid = useStore(hidden);
-  const titles = useStore(prefs).titles;
+  const pr = useStore(prefs);
+  const titles = pr.titles;
+  const pick = useSelect();
   const all = useMemo(() => oneEach(sh.books), [sh.books, hid]);
   const byUid = useMemo(() => new Map(sh.books.map((b) => [b.uid, b])), [sh.books]);
   // What you're in the middle of, newest first (only books still in your library).
@@ -165,14 +271,22 @@ export function Home() {
       const p = progOf(prog, b);
       return p?.finished ? 'done' : pct(p) > 0 ? 'going' : 'new';
     };
-    let l = [...all].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+    const played = (b) => progOf(prog, b)?.updatedAt || 0;
+    const by = {
+      played: (a, b) => played(b) - played(a) || (b.addedAt || 0) - (a.addedAt || 0),
+      title: (a, b) => a.title.localeCompare(b.title),
+      author: (a, b) => (a.author || '').localeCompare(b.author || '') || a.title.localeCompare(b.title),
+      added: (a, b) => (b.addedAt || 0) - (a.addedAt || 0),
+      length: (a, b) => (b.duration || 0) - (a.duration || 0),
+    };
+    let l = [...all].sort(by[pr.sort] || by.played);
     // In progress: the ones you touched most recently first.
     if (filter === 'going') l = [...going];
     else if (filter === 'text') l = l.filter(isEbook);
     else if (filter !== 'all') l = l.filter((b) => state(b) === filter);
     if (q.trim()) l = l.filter(matchQ(q));
     return l;
-  }, [all, going, prog, filter, q]);
+  }, [all, going, prog, filter, q, pr.sort]);
 
   return (
     <div class="h-home">
@@ -219,29 +333,39 @@ export function Home() {
               </button>
             ))}
           </div>
-          <p class="h-count">
-            {list.length} {filter === 'text' ? 'ebook' : 'book'}
-            {list.length === 1 ? '' : 's'}
-            {filter === 'all' && !q.trim() ? '' : ` · ${all.length} in all`}
-          </p>
-          <div class="h-grid h-grid3">
+          <div class="h-count-row h-home-count">
+            <p class="h-count">
+              {list.length} {filter === 'text' ? 'ebook' : 'book'}
+              {list.length === 1 ? '' : 's'}
+              {filter === 'all' && !q.trim() ? '' : ` · ${all.length} in all`}
+            </p>
+            <SortMenu />
+          </div>
+          <div class={pr.view === 'list' ? 'h-listview' : 'h-grid h-grid3'}>
             {list.map((b) => {
               const p = pct(progOf(prog, b));
               return (
-                <button key={b.uid} class="h-tile" onClick={() => open(b)}>
+                <button key={b.uid} {...pick.bind(b)}>
                   <BookCover book={b} class="h-cover" />
                   {p > 0 && (
                     <div class="h-bar h-tile-bar">
                       <i style={{ width: p + '%' }} />
                     </div>
                   )}
-                  {titles && <b>{b.title}</b>}
-                  {titles && <span>{b.author}</span>}
+                  {(titles || pr.view === 'list') && <b>{b.title}</b>}
+                  {(titles || pr.view === 'list') && (
+                    <span>
+                      {b.author}
+                      {pr.view === 'list' && b.duration > 0 ? ` · ${fmtDuration(b.duration)}` : ''}
+                      {pr.view === 'list' && p > 0 ? ` · ${p}%` : ''}
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
           {!list.length && <p class="h-empty">Nothing here.</p>}
+          <SelectBar s={pick} />
         </>
       )}
     </div>
@@ -262,6 +386,7 @@ const SORTS = [
 export function Library() {
   const sh = useStore(shelf);
   const hid = useStore(hidden);
+  const pick = useSelect();
   const [q, setQ] = useState('');
   const [kind, setKind] = useState('all');
   const [place, setPlace] = useState('');
@@ -321,7 +446,8 @@ export function Library() {
         </p>
         <FindCovers books={oneEach(sh.books)} />
       </div>
-      {sh.books.length ? <Grid books={list} /> : <Welcome />}
+      {sh.books.length ? <Grid books={list} bind={pick.bind} /> : <Welcome />}
+      <SelectBar s={pick} />
     </div>
   );
 }
@@ -465,17 +591,6 @@ export function BookPage({ book }) {
           )}
         </>
       )}
-      <button
-        class="h-remove"
-        onClick={() => {
-          if (!confirm(`Remove “${book.title}” from Hearth?\n\nIt's only hidden here — the files stay where they are. Settings → Removed books brings it back.`)) return;
-          hide(book);
-          toast('Removed from Hearth');
-          nav.back();
-        }}
-      >
-        <Icon name="trash" size={15} /> Remove from Hearth
-      </button>
     </div>
   );
 }

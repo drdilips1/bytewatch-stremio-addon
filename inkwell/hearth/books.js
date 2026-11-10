@@ -33,7 +33,7 @@ export const shelf = persisted('hearthShelf', { books: [], at: 0, errors: {} });
 // Books you removed from Hearth (by title and author, so every copy goes): only hidden here —
 // the files stay where they are. Settings lists them to bring back.
 export const hidden = persisted('hearthHidden', {}); // key -> { title, author, at }
-export const prefs = persisted('hearthPrefs', { titles: false }); // titles: show titles under covers
+export const prefs = persisted('hearthPrefs', { titles: false, sort: 'played', view: 'grid' }); // titles under covers; Home's sort and view
 export const PLACE = { loc: 'Phone', abs: 'Server', tb: 'TorBox', rd: 'Real-Debrid' };
 export const placeOf = (b) => PLACE[String(b?.uid || '').split(':')[0]] || PLACE[b?.source] || 'Phone';
 export const isEbook = (b) => b?.kind === 'text';

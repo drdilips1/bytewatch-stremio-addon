@@ -1065,3 +1065,137 @@ body.hearth button {
 .h-grid3 {
   row-gap: 14px;
 }
+
+/* Choosing books (long-press a cover) */
+.h-tile.picking .h-cover {
+  transition: transform 0.15s, opacity 0.15s;
+  transform: scale(0.94);
+  opacity: 0.7;
+}
+.h-tile.picked .h-cover {
+  opacity: 1;
+  outline: 3px solid var(--h-accent);
+  outline-offset: 2px;
+}
+.h-tile.picked::after {
+  content: '✓';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--h-accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.h-tile {
+  position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.h-selbar {
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  bottom: calc(var(--safe-bottom) + 70px);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--h-card);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+.h-selbar b {
+  flex: 1;
+}
+.h-danger {
+  background: #b04a3a !important;
+  color: #fff !important;
+}
+
+/* Home: sort & view menu */
+.h-home-count {
+  margin: -6px 0 10px;
+}
+.h-home-count .h-count {
+  margin: 0 2px;
+}
+.h-sort {
+  position: relative;
+}
+.h-menu-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+}
+.h-menu {
+  position: absolute;
+  right: 0;
+  top: 44px;
+  z-index: 36;
+  min-width: 210px;
+  background: var(--h-card);
+  border-radius: 14px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+  padding: 6px 0;
+}
+.h-menu button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 12px 18px;
+  font-size: 15px !important;
+  text-align: left;
+}
+.h-menu button svg {
+  color: var(--h-accent);
+}
+.h-menu hr {
+  border: 0;
+  border-top: 1px solid var(--h-line);
+  margin: 4px 0;
+}
+/* Home: list view */
+.h-listview .h-tile {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  grid-template-rows: auto auto 1fr;
+  column-gap: 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--h-line);
+  align-items: start;
+}
+.h-listview .h-cover {
+  grid-row: 1 / 4;
+  width: 64px;
+}
+.h-listview .h-tile > b {
+  margin-top: 4px;
+  font-size: 15px;
+}
+.h-listview .h-tile-bar {
+  grid-column: 2;
+  grid-row: 3;
+  align-self: end;
+  margin-bottom: 4px;
+}
+.h-listview .h-tile.picked::after {
+  left: 46px;
+  right: auto;
+}
+.h-listview .h-tile {
+  width: 100%;
+  grid-template-columns: 64px minmax(0, 1fr);
+}
