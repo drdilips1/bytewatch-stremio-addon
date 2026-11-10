@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'inkwell/**'
+      - '!inkwell/hearth/**'
       - '.github/workflows/inkwell-apk.yml'
   workflow_dispatch:
 

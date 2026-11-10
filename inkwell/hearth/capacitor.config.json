@@ -1,0 +1,21 @@
+{
+  "appId": "app.hearth.books",
+  "appName": "Hearth",
+  "webDir": "dist-hearth",
+  "backgroundColor": "#f7f4ef",
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#f7f4ef"
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true },
+    "CapacitorCookies": { "enabled": true },
+    "SplashScreen": {
+      "launchShowDuration": 700,
+      "launchAutoHide": true,
+      "backgroundColor": "#f7f4ef",
+      "showSpinner": false
+    },
+    "StatusBar": { "overlaysWebView": true, "style": "LIGHT" }
+  }
+}

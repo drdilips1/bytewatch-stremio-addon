@@ -9,6 +9,7 @@ on:
   push:
     paths:
       - 'inkwell/**'
+      - '!inkwell/hearth/**'
       - '.github/workflows/inkwell-web.yml'
   workflow_dispatch:
   # Weekly: refresh the StoryShots list (new summaries) even without app changes.

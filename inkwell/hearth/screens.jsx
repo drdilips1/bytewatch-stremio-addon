@@ -1,0 +1,423 @@
+// Hearth's screens: Home, Library, a book's page, and Settings.
+import { useEffect, useMemo, useState } from 'preact/hooks';
+import { BookCover, toast } from '../src/components/common.jsx';
+import { Icon } from '../src/components/icons.jsx';
+import { nav } from '../src/lib/nav.js';
+import { progress, bookmarks, useStore } from '../src/lib/store.js';
+import { fmtDuration, fmtTime } from '../src/lib/format.js';
+import * as player from '../src/lib/player.js';
+import { getDetails, localSrc, absSrc, cloud } from '../src/sources/index.js';
+import { AbsCard, DebridCard } from '../src/screens/Settings.jsx';
+import { shelf, refresh, placeOf, isEbook, otherForm, copiesOf, oneEach } from './books.js';
+import { checkUpdate, VERSION } from './update.js';
+
+const open = (book) => nav.push('book', { book });
+export function play(book) {
+  nav.openOverlay('player');
+  player.openAndPlay(book, getDetails).catch((e) => toast(e.message));
+}
+const read = (book) => nav.push('reader', { book });
+const pct = (p) => Math.round(Math.min(1, Math.max(0, Number(p?.percent) || 0)) * 100);
+
+function Tile({ book, sub }) {
+  return (
+    <button class="h-tile" onClick={() => open(book)}>
+      <BookCover book={book} class="h-cover" />
+      <b>{book.title}</b>
+      <span>{sub ?? book.author}</span>
+      <i class="h-chip">
+        <Icon name={isEbook(book) ? 'book' : 'headphones'} size={11} /> {placeOf(book)}
+      </i>
+    </button>
+  );
+}
+
+function Row({ title, books, more, sub }) {
+  if (!books.length) return null;
+  return (
+    <section class="h-sec">
+      <h2>
+        {title}
+        {more && (
+          <button class="h-link" onClick={more}>
+            See all
+          </button>
+        )}
+      </h2>
+      <div class="h-row">
+        {books.map((b) => (
+          <Tile key={b.uid} book={b} sub={sub?.(b)} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Search({ value, onInput }) {
+  return (
+    <label class="h-search">
+      <Icon name="search" size={17} />
+      <input value={value} placeholder="Search your books" onInput={(e) => onInput(e.currentTarget.value)} />
+      {value && (
+        <button aria-label="Clear" onClick={() => onInput('')}>
+          <Icon name="close" size={15} />
+        </button>
+      )}
+    </label>
+  );
+}
+
+const matchQ = (q) => {
+  const w = q.toLowerCase().split(/\s+/).filter(Boolean);
+  return (b) => w.every((x) => `${b.title} ${b.author} ${b.narrator || ''}`.toLowerCase().includes(x));
+};
+
+function Grid({ books }) {
+  if (!books.length) return <p class="h-empty">Nothing here.</p>;
+  return (
+    <div class="h-grid">
+      {books.map((b) => (
+        <Tile key={b.uid} book={b} />
+      ))}
+    </div>
+  );
+}
+
+function Welcome() {
+  return (
+    <div class="h-welcome">
+      <Icon name="flame" size={34} />
+      <h2>Your books, in one place</h2>
+      <p>Connect where they live — this phone, your Audiobookshelf, TorBox or Real-Debrid — and they all show up here.</p>
+      <button class="h-btn" onClick={() => nav.tab('settings')}>
+        Connect your books
+      </button>
+    </div>
+  );
+}
+
+export function Home() {
+  const sh = useStore(shelf);
+  const prog = useStore(progress);
+  const [q, setQ] = useState('');
+  const all = useMemo(() => oneEach(sh.books), [sh.books]);
+  const byUid = useMemo(() => new Map(sh.books.map((b) => [b.uid, b])), [sh.books]);
+  // What you're in the middle of, newest first (only books still in your library).
+  const going = useMemo(
+    () =>
+      Object.entries(prog)
+        .filter(([uid, p]) => p && !p.finished && pct(p) > 0 && byUid.has(uid))
+        .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0))
+        .map(([uid]) => byUid.get(uid)),
+    [prog, byUid],
+  );
+  const listening = going.filter((b) => !isEbook(b));
+  const now = listening[0];
+  const recent = useMemo(() => [...all].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).slice(0, 15), [all]);
+  const reading = useMemo(() => {
+    const eb = all.filter(isEbook);
+    const started = going.filter(isEbook);
+    return [...started, ...eb.filter((b) => !started.includes(b))].slice(0, 15);
+  }, [all, going]);
+  const found = q.trim() ? all.filter(matchQ(q)) : null;
+
+  return (
+    <div class="h-home">
+      <h1 class="h-title">Hearth</h1>
+      <Search value={q} onInput={setQ} />
+      {found ? (
+        <Grid books={found} />
+      ) : !sh.books.length ? (
+        <Welcome />
+      ) : (
+        <>
+          {now && (
+            <section class="h-sec">
+              <h2>Continue</h2>
+              <button class="h-continue" onClick={() => open(now)}>
+                <BookCover book={now} class="h-cover" />
+                <div>
+                  <b>{now.title}</b>
+                  <span>{now.author}</span>
+                  <div class="h-bar">
+                    <i style={{ width: pct(prog[now.uid]) + '%' }} />
+                  </div>
+                  <small>
+                    {now.duration > 0 ? `${fmtDuration(now.duration * (1 - pct(prog[now.uid]) / 100))} left · ` : `${pct(prog[now.uid])}% · `}
+                    {placeOf(now)}
+                  </small>
+                </div>
+                <span
+                  class="h-play-sm"
+                  role="button"
+                  aria-label="Play"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    play(now);
+                  }}
+                >
+                  <Icon name="play" size={20} />
+                </span>
+              </button>
+            </section>
+          )}
+          <Row title="Also listening" books={listening.slice(1, 10)} sub={(b) => `${pct(prog[b.uid])}% · ${b.author}`} />
+          <Row title="Recently added" books={recent} more={() => nav.tab('library')} />
+          <Row title="Reading" books={reading} more={() => nav.tab('library')} sub={(b) => (prog[b.uid] ? `${pct(prog[b.uid])}% · ${b.format || 'Ebook'}` : b.author)} />
+        </>
+      )}
+    </div>
+  );
+}
+
+const KINDS = [
+  ['all', 'All'],
+  ['audio', 'Audiobooks'],
+  ['text', 'Ebooks'],
+];
+const SORTS = [
+  ['recent', 'Recent'],
+  ['title', 'Title'],
+  ['author', 'Author'],
+];
+
+export function Library() {
+  const sh = useStore(shelf);
+  const [q, setQ] = useState('');
+  const [kind, setKind] = useState('all');
+  const [place, setPlace] = useState('');
+  const [sort, setSort] = useState('recent');
+  const [busy, setBusy] = useState(false);
+  const places = [...new Set(sh.books.map(placeOf))];
+  const list = useMemo(() => {
+    let l = place ? sh.books.filter((b) => placeOf(b) === place) : oneEach(sh.books);
+    if (kind !== 'all') l = l.filter((b) => b.kind === kind);
+    if (q.trim()) l = l.filter(matchQ(q));
+    const by = { recent: (a, b) => (b.addedAt || 0) - (a.addedAt || 0), title: (a, b) => a.title.localeCompare(b.title), author: (a, b) => (a.author || '').localeCompare(b.author || '') || a.title.localeCompare(b.title) };
+    return [...l].sort(by[sort]);
+  }, [sh.books, q, kind, place, sort]);
+  const again = async () => {
+    setBusy(true);
+    await refresh().catch(() => {});
+    setBusy(false);
+  };
+  return (
+    <div class="h-library">
+      <h1 class="h-title">
+        Library
+        <button class="h-icon-btn" aria-label="Refresh" onClick={again}>
+          {busy ? <span class="spinner small" /> : <Icon name="replay" size={19} />}
+        </button>
+      </h1>
+      <Search value={q} onInput={setQ} />
+      <div class="h-seg">
+        {KINDS.map(([k, label]) => (
+          <button class={kind === k ? 'on' : ''} onClick={() => setKind(k)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div class="h-filters">
+        {places.length > 1 && (
+          <>
+            <button class={!place ? 'on' : ''} onClick={() => setPlace('')}>
+              Everywhere
+            </button>
+            {places.map((p) => (
+              <button class={place === p ? 'on' : ''} onClick={() => setPlace(place === p ? '' : p)}>
+                {p}
+              </button>
+            ))}
+          </>
+        )}
+        <select value={sort} onChange={(e) => setSort(e.currentTarget.value)} aria-label="Sort">
+          {SORTS.map(([k, label]) => (
+            <option value={k}>{label}</option>
+          ))}
+        </select>
+      </div>
+      <p class="h-count">
+        {list.length} book{list.length === 1 ? '' : 's'}
+      </p>
+      {sh.books.length ? <Grid books={list} /> : <Welcome />}
+    </div>
+  );
+}
+
+export function BookPage({ book }) {
+  const sh = useStore(shelf);
+  const p = useStore(progress)[book.uid];
+  const marks = useStore(bookmarks)[book.uid] || [];
+  const [ps, setPs] = useState(player.getState());
+  useEffect(() => player.subscribe(setPs), []);
+  const other = otherForm(book, sh.books);
+  const copies = copiesOf(book, sh.books);
+  const current = ps.book?.uid === book.uid;
+  const ebook = isEbook(book);
+  const percent = pct(p);
+  const main = () => (ebook ? read(book) : current ? (player.toggle(), nav.openOverlay('player')) : play(book));
+  const mainLabel = ebook ? (percent ? `Continue reading · ${percent}%` : 'Read') : current && ps.playing ? 'Pause' : percent ? 'Resume' : 'Play';
+  return (
+    <div class="h-book">
+      <button class="h-back" onClick={() => nav.back()}>
+        <Icon name="back" size={18} /> Back
+      </button>
+      <BookCover book={book} class="h-cover h-big" />
+      <h1>{book.title}</h1>
+      <p class="h-by">
+        {book.author}
+        {book.narrator && book.narrator !== book.author ? ` · ${book.narrator}` : ''}
+      </p>
+      <button class="h-btn" onClick={main}>
+        <Icon name={ebook ? 'book' : current && ps.playing ? 'pause' : 'play'} size={18} /> {mainLabel}
+      </button>
+      {other && (
+        <button class="h-btn h-btn2" onClick={() => (isEbook(other) ? read(other) : play(other))}>
+          <Icon name={isEbook(other) ? 'book' : 'headphones'} size={18} /> {isEbook(other) ? 'Read the ebook' : 'Listen to the audiobook'}
+        </button>
+      )}
+      <div class="h-facts">
+        {book.duration > 0 && (
+          <div>
+            <b>{fmtDuration(book.duration)}</b>Length
+          </div>
+        )}
+        <div>
+          <b>{percent}%</b>
+          {ebook ? 'Read' : 'Listened'}
+        </div>
+        <div>
+          <b>{ebook ? book.format || 'Ebook' : copies.length}</b>
+          {ebook ? 'Format' : copies.length === 1 ? 'Copy' : 'Copies'}
+        </div>
+      </div>
+      <div class="h-where">
+        {copies.map((c) => (
+          <button onClick={() => (ebook ? read(c) : play(c))}>
+            <b>{ebook ? 'Ebook' : 'Audiobook'}</b>
+            <span>
+              {placeOf(c)}
+              {c.format ? ` · ${c.format}` : ''} ›
+            </span>
+          </button>
+        ))}
+        {other && (
+          <button onClick={() => open(other)}>
+            <b>{isEbook(other) ? 'Ebook' : 'Audiobook'}</b>
+            <span>{placeOf(other)} ›</span>
+          </button>
+        )}
+      </div>
+      {marks.length > 0 && (
+        <section class="h-marks">
+          <h2>Bookmarks</h2>
+          {marks.map((m) => (
+            <button
+              onClick={() => {
+                if (current) {
+                  player.playBookmark(m);
+                  nav.openOverlay('player');
+                } else toast('Start the book first, then tap a bookmark');
+              }}
+            >
+              <Icon name="bookmark" size={15} />
+              <span>{m.label}</span>
+              <small>{fmtTime(m.global ?? m.time)}</small>
+            </button>
+          ))}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function PhoneCard() {
+  const cfg = useStore(localSrc.localCfg);
+  const [busy, setBusy] = useState('');
+  const run = (k, f) => async () => {
+    setBusy(k);
+    try {
+      await f();
+      await refresh();
+    } catch (e) {
+      if (!/no folder chosen|cancelled/i.test(e?.message || '')) toast(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
+  if (!localSrc.available) return <p class="h-note">Books on this phone: in the Android app.</p>;
+  return (
+    <div>
+      {cfg.folders.map((f) => (
+        <div class="h-set-row">
+          <span>{decodeURIComponent(String(f.name || f.uri || f).split(/[/:]/).pop() || 'Folder')}</span>
+          <button class="h-link" onClick={() => (localSrc.removeFolder(f.uri || f), refresh())}>
+            Remove
+          </button>
+        </div>
+      ))}
+      <div class="h-actions">
+        <button class="h-btn h-btn-sm" disabled={!!busy} onClick={run('add', localSrc.addFolder)}>
+          {busy === 'add' ? <span class="spinner small" /> : <Icon name="plus" size={15} />} {cfg.folders.length ? 'Add folder' : 'Choose folder'}
+        </button>
+        <button class="h-btn h-btn-sm h-btn2" disabled={!!busy} onClick={run('files', localSrc.pickBooks)}>
+          {busy === 'files' ? <span class="spinner small" /> : <Icon name="book" size={15} />} Add EPUB / PDF
+        </button>
+        {cfg.folders.length > 0 && (
+          <button class="h-btn h-btn-sm h-btn2" disabled={!!busy} onClick={run('scan', localSrc.rescan)}>
+            {busy === 'scan' ? <span class="spinner small" /> : <Icon name="replay" size={15} />} Rescan
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Card({ title, sub, children }) {
+  return (
+    <section class="h-card">
+      <h3>{title}</h3>
+      {sub && <p class="h-note">{sub}</p>}
+      {children}
+    </section>
+  );
+}
+
+export function SettingsPage() {
+  const sh = useStore(shelf);
+  const [upd, setUpd] = useState(null);
+  const counts = {};
+  for (const b of sh.books) counts[placeOf(b)] = (counts[placeOf(b)] || 0) + 1;
+  const count = (p) => (counts[p] ? `${counts[p]} book${counts[p] === 1 ? '' : 's'}` : '');
+  const err = (k) => sh.errors?.[k] && <p class="h-err">Couldn’t reach it last time: {sh.errors[k]}</p>;
+  return (
+    <div class="h-settings">
+      <h1 class="h-title">Settings</h1>
+      <p class="h-group">Where your books are</p>
+      <Card title="This phone" sub={count('Phone') || 'Folders with audiobooks or ebooks, and single EPUB / PDF files'}>
+        <PhoneCard />
+      </Card>
+      <Card title="Audiobookshelf" sub={count('Server') || 'Your own server'}>
+        {err('abs')}
+        <AbsCard />
+      </Card>
+      <Card title="TorBox" sub={count('TorBox') || 'What’s in your TorBox account'}>
+        {err('tb')}
+        <DebridCard provider="torbox" label="TorBox" keyHint="torbox.app/settings" keyUrl="https://torbox.app/settings" />
+      </Card>
+      <Card title="Real-Debrid" sub={count('Real-Debrid') || 'What’s in your Real-Debrid account'}>
+        {err('rd')}
+        <DebridCard provider="realdebrid" label="Real-Debrid" keyHint="real-debrid.com/apitoken" keyUrl="https://real-debrid.com/apitoken" />
+      </Card>
+      <p class="h-group">About</p>
+      <Card title={`Hearth ${VERSION}`} sub="Your books from this phone, your server and your cloud — nothing else.">
+        <div class="h-actions">
+          <button class="h-btn h-btn-sm h-btn2" onClick={() => checkUpdate(true).then(setUpd)}>
+            <Icon name="download" size={15} /> Check for an update
+          </button>
+        </div>
+        {upd && <p class="h-note">{upd.newer ? `Hearth ${upd.version} is ready — opening the download…` : 'You have the latest version.'}</p>}
+      </Card>
+    </div>
+  );
+}

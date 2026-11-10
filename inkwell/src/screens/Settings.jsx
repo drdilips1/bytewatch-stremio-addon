@@ -693,7 +693,7 @@ function AbsUploadTo() {
   );
 }
 
-function AbsCard() {
+export function AbsCard() {
   const cfg = useStore(abs);
   const [alt, setAlt] = useState(cfg.altServer || '');
   const [inUse, setInUse] = useState('');
@@ -831,7 +831,7 @@ function AbsCard() {
   );
 }
 
-function DebridCard({ provider, label, keyHint, keyUrl }) {
+export function DebridCard({ provider, label, keyHint, keyUrl }) {
   const cfg = useStore(debrid);
   const saved = cfg[provider];
   const [key, setKey] = useState('');
