@@ -5,6 +5,7 @@ on:
     paths:
       - 'inkwell/**'
       - '!inkwell/hearth/**'
+      - '!inkwell/duet/**'
       - '.github/workflows/inkwell-apk.yml'
   workflow_dispatch:
 

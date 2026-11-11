@@ -1,0 +1,28 @@
+{
+  "appId": "app.duet.player",
+  "appName": "Duet",
+  "webDir": "dist-duet",
+  "backgroundColor": "#0d0e13",
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#0d0e13"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "CapacitorCookies": {
+      "enabled": true
+    },
+    "SplashScreen": {
+      "launchShowDuration": 700,
+      "launchAutoHide": true,
+      "backgroundColor": "#0d0e13",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "DARK"
+    }
+  }
+}

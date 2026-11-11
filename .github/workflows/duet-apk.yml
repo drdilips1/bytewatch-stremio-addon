@@ -1,0 +1,119 @@
+name: Duet Android APK
+
+# Duet: the audiobook player with read-along (inkwell/duet) — the store-safe app. Built only
+# when asked: a commit with [build duet], or Actions → Duet Android APK → Run workflow. Its
+# releases are pre-releases tagged duet-v…, so they never show up as Audiohub's update.
+on:
+  workflow_dispatch:
+  # Or a commit whose message says [build duet] (manual runs need the file on the main branch).
+  push:
+    paths:
+      - 'inkwell/duet/**'
+      - '.github/workflows/duet-apk.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: duet-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build duet]')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: inkwell
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: inkwell/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;35.0.0'
+
+      # The shared Android code uses the speech / voice engine library: it has to be there to build.
+      - name: Fetch sherpa-onnx (needed to compile the shared Android code)
+        working-directory: inkwell/android/app
+        run: |
+          mkdir -p libs
+          for v in 1.13.8 1.13.7 1.13.6 1.13.5 1.13.4 1.13.3 1.13.2 1.13.1 1.13.0 1.12.15 1.12.14 1.12.13; do
+            for url in \
+              "https://github.com/k2-fsa/sherpa-onnx/releases/download/v$v/sherpa-onnx-$v.aar" \
+              "https://huggingface.co/csukuangfj2/sherpa-onnx-libs/resolve/main/android/aar/sherpa-onnx-$v.aar"; do
+              if curl -fsSL --retry 3 -o libs/sherpa-onnx.aar "$url"; then
+                echo "Using sherpa-onnx $v from $url"; exit 0
+              fi
+            done
+          done
+          echo "::error::Could not download the sherpa-onnx AAR"; exit 1
+
+      - name: Build Duet's screens
+        env:
+          VITE_APP_VERSION: ${{ env.VERSION_NAME }}
+        run: |
+          npm ci
+          npx vite build --config vite.duet.config.js
+          cp duet/capacitor.config.json capacitor.config.json
+          npx cap sync android
+          node duet/rebrand.mjs
+
+      - name: Prepare signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.INKWELL_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.INKWELL_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.INKWELL_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.INKWELL_KEY_PASSWORD }}
+        run: |
+          KS="$RUNNER_TEMP/duet.jks"
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | tr -d ' \n\r' | base64 -d > "$KS"
+            KS_PASS="${KS_PASS:-inkwell-ci}"
+            KEY_ALIAS="${KEY_ALIAS:-inkwell}"
+            KEY_PASS="${KEY_PASS:-$KS_PASS}"
+          else
+            echo "::warning::No signing key secret - signing with a throwaway key; each build needs an uninstall first."
+            KS_PASS=inkwell-ci KEY_PASS=inkwell-ci KEY_ALIAS=inkwell
+            keytool -genkeypair -keystore "$KS" -storepass "$KS_PASS" -alias "$KEY_ALIAS" -keypass "$KEY_PASS" \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Duet,O=Duet,C=US"
+          fi
+          {
+            echo "INKWELL_KEYSTORE=$KS"
+            echo "INKWELL_KEYSTORE_PASSWORD=$KS_PASS"
+            echo "INKWELL_KEY_ALIAS=$KEY_ALIAS"
+            echo "INKWELL_KEY_PASSWORD=$KEY_PASS"
+          } >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        working-directory: inkwell/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/app-release.apk "../out/Duet-v${VERSION_NAME}.apk"
+
+      - name: Publish (pre-release, so Audiohub's update check never sees it)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: duet-v${{ env.VERSION_NAME }}
+          name: Duet v${{ env.VERSION_NAME }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: inkwell/out/*.apk
+          body: |
+            Duet for Android — your audiobooks and ebooks, with read-along. Test build.
+            Download the APK below and open it on your phone.

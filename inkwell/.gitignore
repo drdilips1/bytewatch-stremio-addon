@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-hearth/
+dist-duet/
 android/app/build/
 android/build/
 android/.gradle/

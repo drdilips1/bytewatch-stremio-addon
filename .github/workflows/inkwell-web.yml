@@ -10,6 +10,7 @@ on:
     paths:
       - 'inkwell/**'
       - '!inkwell/hearth/**'
+      - '!inkwell/duet/**'
       - '.github/workflows/inkwell-web.yml'
   workflow_dispatch:
   # Weekly: refresh the StoryShots list (new summaries) even without app changes.
