@@ -60,6 +60,13 @@ async function page(path) {
     throw e;
   });
   const doc = new DOMParser().parseFromString(r.text || '', 'text/html');
+  // Cloudflare stops background requests with its browser check even when you're signed in
+  // (the in-app browser opens the forum fine). Open the page the way a person would instead:
+  // the check clears itself there, and its fresh pass serves the requests after it too.
+  if (challenged(doc, r.text || '') || r.status === 403) {
+    const v = await Web.pageVisit({ url: BASE + path, timeout: 25000 }).catch(() => null);
+    if (v?.html && !v.check) return { status: v.status === 403 ? 200 : v.status || 200, doc: new DOMParser().parseFromString(v.html, 'text/html'), html: v.html, visited: true };
+  }
   return { status: r.status, doc, html: r.text || '' };
 }
 

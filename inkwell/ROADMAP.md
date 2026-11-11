@@ -2,6 +2,21 @@
 
 Noted while building; to pick up after Saturday.
 
+## Duet — on hold (noted 11 Nov)
+Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf
+apps like Absorb, and Storyteller for read-along). Fixes from that test are committed, not built
+(say "build duet"). If it's picked up again, the agreed direction is **Audiobookshelf first,
+read-along as the reason to exist**:
+- Library built on the server's own data (covers, authors, series, collections, progress) — no
+  guessing on the phone; phone files a second source.
+- Read-along done properly (step 2): pair each audiobook with its EPUB on the server, sentence
+  highlight, tap a sentence to jump the audio, switch reading ↔ listening at the same spot.
+  Faster first match than listening alone (start from the chapter, then refine).
+- Then what Absorb does that's missed in daily use (ask which features).
+- Later: manual details fixes, duplicate merge, custom player gestures, Plus through Google Play
+  Billing, store listing, its own repo; multiple servers, search inside audio, smart sleep.
+- Untested on the phone: ratings in the book menu, the automatic cover lookup, the cover picker.
+
 ## Code clean-up (3 Nov)
 Order agreed: lint → tests → dead code → one shared codebase → split big files → split the stylesheet.
 - [x] Tests (Vitest, 45) in both apps — private: tools in inkwell/tests/ with their own package.json (the app's lockfile trips an npm bug; `npm ci` must keep working). `npm test`.
