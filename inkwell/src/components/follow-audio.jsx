@@ -6,12 +6,14 @@ import { Icon } from './icons.jsx';
 import * as player from '../lib/player.js';
 import { sameWork } from '../lib/works.js';
 import { blockText } from '../lib/tts.js';
+import { toast } from './common.jsx';
 
 export function FollowAudio({ book, blocks, scroller, ready }) {
   const [ps, setPs] = useState(player.getState());
   useEffect(() => player.subscribe(setPs), []);
   const [on, setOn] = useState(false);
   const [status, setStatus] = useState('');
+  const [need, setNeed] = useState(false); // no speech model on this phone yet
   const index = useRef(null);
   const near = useRef(null);
   const lit = useRef(null);
@@ -34,12 +36,22 @@ export function FollowAudio({ book, blocks, scroller, ready }) {
     let tr = null;
     let bt = null;
     let quiet = 0;
+    let unsub = null;
     (async () => {
       [tr, bt] = await Promise.all([import('../lib/transcript.js'), import('../lib/booktext.js')]);
       if (!alive) return;
       if (!tr.transcriptAvailable) return setStatus('Needs speech recognition (Android app, Settings → Text)');
       tr.followInReader(true);
       setStatus('Listening for where you are…');
+      // Say what the recogniser is doing — above all when there's no speech model on this
+      // phone yet (each app downloads its own): without one it would wait for ever.
+      unsub = tr.subscribeTranscript((t) => {
+        if (!alive) return;
+        setNeed(t.status === 'no-model');
+        if (t.status === 'no-model') setStatus('');
+        else if (t.status === 'loading') setStatus('Getting speech recognition ready…');
+        else if (t.status === 'error') setStatus(t.error || 'Speech recognition stopped');
+      });
     })();
     const tick = setInterval(() => {
       if (!tr || !bt || !alive) return;
@@ -73,6 +85,7 @@ export function FollowAudio({ book, blocks, scroller, ready }) {
     }, 1200);
     return () => {
       alive = false;
+      unsub?.();
       clearInterval(tick);
       tr?.followInReader(false);
       lit.current?.parentElement?.classList.remove('following-audio');
@@ -88,6 +101,66 @@ export function FollowAudio({ book, blocks, scroller, ready }) {
         <Icon name="headphones" size={14} /> {on ? 'Following the audio' : 'Follow the audio'}
       </button>
       {on && status && <small>{status}</small>}
+      {on && need && <SpeechModel compact />}
+    </div>
+  );
+}
+
+/**
+ * The speech model read-along listens with: downloaded once per app (≈100 MB, Wi-Fi
+ * recommended), works offline after. `compact`: one line with a button (in the reader).
+ */
+export function SpeechModel({ compact = false }) {
+  const [tr, setTr] = useState(null);
+  const [have, setHave] = useState(null);
+  const [busy, setBusy] = useState(null); // { id, pct, phase }
+  useEffect(() => {
+    import('../lib/transcript.js').then(async (m) => {
+      setTr(m);
+      setHave(m.transcriptAvailable ? (await m.installedModels()).map((x) => x.id) : []);
+    });
+  }, []);
+  if (!tr) return null;
+  if (!tr.transcriptAvailable) return compact ? null : <p class="h-note">Read-along listens with the phone's speech recognition — in the Android app.</p>;
+  const get = async (m) => {
+    setBusy({ id: m.id, pct: 0 });
+    try {
+      await tr.downloadModel(m, (e) => setBusy({ id: m.id, pct: e.total ? Math.round((e.received / e.total) * 100) : 0, phase: e.phase }));
+      setHave((h) => [...(h || []), m.id]);
+      tr.restartTranscript();
+      tr.followInReader(true);
+      toast(`${m.name} speech model ready`);
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const list = compact ? tr.MODELS.slice(0, 1) : tr.MODELS;
+  return (
+    <div class={'speech-model' + (compact ? ' compact' : '')}>
+      {compact && <small>Read-along needs the speech model once (English, {list[0].size}).</small>}
+      {list.map((m) => (
+        <div class="sm-row">
+          {!compact && (
+            <span>
+              <b>{m.name}</b>
+              <small>
+                {m.what} · {m.size}
+              </small>
+            </span>
+          )}
+          {have?.includes(m.id) ? (
+            <span class="pill small active">Ready</span>
+          ) : busy?.id === m.id ? (
+            <span class="pill small">{busy.phase === 'unpack' ? 'Unpacking…' : `Downloading ${busy.pct}%`}</span>
+          ) : (
+            <button class="pill small" disabled={!!busy} onClick={() => get(m)}>
+              <Icon name="download" size={14} /> {compact ? 'Download now' : 'Get'}
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

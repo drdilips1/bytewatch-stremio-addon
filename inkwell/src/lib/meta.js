@@ -250,18 +250,38 @@ export function clearMetaCache() {
 
 // ---- Finding missing covers for a whole list at once (Library) -------------------
 const bare = (t) => String(t || '').replace(/^[\s\-–—_.,:;]+/, '').replace(/\.(epub|pdf|m4b|mp3|mobi|azw3?)$/i, '');
+/**
+ * A file or folder name as words to search with: "SayNothing-1" → "Say Nothing",
+ * "CATCH22" → "CATCH 22", "the_book_thief (Unabridged) 01" → "the book thief".
+ */
+export function searchTitle(t) {
+  return mainTitle(bare(t))
+    .replace(/[_.]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Za-z]{3,})(\d{1,4})\b/g, '$1 $2')
+    .replace(/\s*[-–—]\s*\d{1,2}$/, '')
+    .replace(/\s+(part|cd|disc|book|vol)\s*\d{1,2}$/i, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+// Letters and digits only: "Catch-22" and "CATCH22" are the same.
+const squash = (t) => String(t || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 /** The cover a book shows now (its own, one found for it, or one you picked), or ''. */
 export const coverNow = (book) => (book && (fixFor(book.uid)?.cover || book.cover || (wantsMeta(book) ? cache.get()[keyFor(queryFor(book))]?.v?.cover : ''))) || '';
 
 /** Does a search result look like this book? Most of the title's words, and the author's surname when both are known. */
-function sameBook(want, hit) {
+export function sameBook(want, hit) {
   // A file name often carries the author ("Atul Gawande - Better"): the title's words without them.
   const aw = new Set(words(want.author || ''));
   const t = new Set(words(mainTitle(bare(want.title))).filter((w) => !aw.has(w)));
   const h = words(String(hit.title || '').replace(/[:(].*$/, ''));
   if (!t.size || !h.length) return false;
   const shared = h.filter((w) => t.has(w)).length;
-  if (shared / Math.max(t.size, h.length) < 0.5) return false;
+  // Spelled differently but the same letters ("SayNothing" / "Say Nothing", "Catch22" / "Catch-22").
+  const a = squash(mainTitle(bare(want.title)));
+  const b = squash(String(hit.title || '').replace(/[:(].*$/, ''));
+  const same = a.length >= 5 && b.length >= 5 && (a === b || (a.length >= 8 && (a.startsWith(b) || b.startsWith(a))));
+  if (!same && shared / Math.max(t.size, h.length) < 0.5) return false;
   const sn = words(String(want.author || '').split(',')[0]).pop();
   return !sn || !hit.author || words(hit.author).includes(sn);
 }
@@ -279,20 +299,24 @@ export async function findMissingCovers(books, onProgress = () => {}, onFound = 
   let done = 0;
   let found = 0;
   const one = async (b) => {
-    const title = mainTitle(bare(b.title));
+    const title = searchTitle(b.title);
     const author = String(b.author || '').split(',')[0].trim();
     for (const term of [`${title} ${author}`.trim(), title]) {
       if (!title) break;
       // Every place "Find cover & details" looks: Audible, Apple, Goodreads, Google Books, Open Library.
       const all = await searchCovers(term).catch(() => []);
-      const hit = all.find((m) => m?.cover && sameBook({ title, author }, m));
+      // The title alone: the same title exactly is enough, whatever the (often guessed, from a
+      // folder's name) author says.
+      const hit =
+        all.find((m) => m?.cover && sameBook({ title, author }, m)) ||
+        (term === title ? all.find((m) => m?.cover && squash(searchTitle(m.title)) === squash(title) && squash(title).length >= 5) : null);
       if (hit) {
         setFix(b.uid, { ...(fixFor(b.uid) || {}), cover: hiRes(hit.cover) });
-        onFound(b, hiRes(hit.cover));
+        onFound(b, hiRes(hit.cover), hit);
         found++;
         break;
       }
-      if (!author) break; // the title alone was already tried
+      if (!author || term === title) break; // the title alone was already tried
     }
     onProgress(++done, todo.length, found);
     await new Promise((r) => setTimeout(r, 400));

@@ -1747,3 +1747,207 @@ body.duet {
   color: #fff;
   background: linear-gradient(135deg, #ff9f5a, #8f7dff);
 }
+
+/* ---- Fixes after the first phone test ---- */
+/* The status bar: a solid strip, so the page doesn't scroll under the clock and icons. */
+.h-app::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--safe-top);
+  background: var(--h-bg);
+  z-index: 60;
+  pointer-events: none;
+}
+/* Bars over the page: nearly solid, so titles under them don't show through. */
+.d-tabs,
+.h-mini {
+  background: color-mix(in srgb, var(--h-card) 94%, transparent);
+}
+.h-mini {
+  padding-right: 6px;
+}
+.h-mini-x {
+  opacity: 0.6;
+}
+/* Choosing books: the bar sits above the player, never under it. */
+.h-selbar {
+  z-index: 45;
+  background: var(--h-card);
+  border: 1px solid var(--d-glass-line);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+.h-has-player .h-selbar {
+  bottom: calc(var(--safe-bottom) + 166px);
+}
+/* PHONE / SERVER tags: small, solid, quiet. */
+.d-badge {
+  background: rgba(0, 0, 0, 0.62);
+  font-size: 8.5px;
+  padding: 2px 5px;
+}
+/* Reader: the read-along pill and its note, on a solid background. */
+.follow-audio .pill,
+.follow-audio small,
+.follow-audio .speech-model {
+  background: var(--h-card);
+  color: var(--h-text);
+}
+.follow-audio.on .pill {
+  background: var(--d-grad);
+  color: #1d1424;
+}
+
+/* Book menu (press and hold a book) */
+.d-menu-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.d-menu-head .h-cover {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  border-radius: 12px;
+}
+.d-menu-head b {
+  display: block;
+  font: 600 17px/1.25 var(--font-serif, var(--font));
+}
+.d-menu-head span {
+  display: block;
+  color: var(--h-muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+.d-stars {
+  color: var(--h-accent);
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.d-menu {
+  display: flex;
+  flex-direction: column;
+}
+.d-menu button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 4px;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--h-line);
+  color: var(--h-text);
+  font: 500 15px var(--font);
+  text-align: left;
+}
+.d-menu button svg {
+  color: var(--h-muted);
+}
+.d-menu button.danger,
+.d-menu button.danger svg {
+  color: #e5484d;
+}
+/* Cover picker */
+.d-covers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-height: 55vh;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+.d-covers button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--h-muted);
+  font-size: 10.5px;
+  text-align: center;
+}
+.d-covers img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+  margin-bottom: 3px;
+  background: var(--h-fill);
+}
+.d-cover-q {
+  display: flex;
+  gap: 8px;
+}
+.d-cover-q input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--h-line);
+  background: var(--h-fill);
+  color: var(--h-text);
+  font: inherit;
+}
+.d-cover-link {
+  margin: 6px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.h-book .d-stars {
+  text-align: center;
+  margin: 2px 0 6px;
+}
+.d-upnext {
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--d-glass);
+  border: 1px solid var(--d-glass-line);
+}
+.d-upnext-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.d-upnext-row .h-cover {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 8px;
+}
+.d-upnext-row span {
+  flex: 1;
+  min-width: 0;
+}
+.d-upnext-row b {
+  display: block;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.d-upnext-row em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--h-muted);
+}
+/* Sheets: over the tabs and the player, tall enough for the whole menu. */
+body > .h-sheet-bg {
+  z-index: 80;
+}
+body > .h-sheet-bg .h-sheet {
+  max-height: 88vh;
+  animation: d-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes d-up {
+  from {
+    transform: translateY(40px);
+    opacity: 0.4;
+  }
+}

@@ -1,5 +1,6 @@
 // Duet's screens: Home, Library, a book's page, and Settings.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { createPortal } from 'preact/compat';
 import { BookCover, toast } from '../src/components/common.jsx';
 import { Icon } from '../src/components/icons.jsx';
 import { nav, useBackClose } from '../src/lib/nav.js';
@@ -8,12 +9,17 @@ import { fmtDuration, fmtTime } from '../src/lib/format.js';
 import * as player from '../src/lib/player.js';
 import { getDetails, localSrc } from '../src/sources/index.js';
 import { AbsCard } from '../src/screens/Settings.jsx';
-import { shelf, refresh, placeOf, isEbook, otherForm, copiesOf, oneEach, hidden, prefs, hide, unhide, isHidden, authorsOf, seriesGroups } from './books.js';
+import { useRatings } from '../src/lib/ratings.js';
+import { addUpNext, upNext } from '../src/lib/upnext.js';
+import { summarize } from '../src/lib/store.js';
+import { OwnCoverButton } from '../src/components/fix-details.jsx';
+import { SpeechModel } from '../src/components/follow-audio.jsx';
+import { fillAuthors, shelf, refresh, placeOf, isEbook, otherForm, copiesOf, oneEach, hidden, prefs, hide, unhide, isHidden, authorsOf, seriesGroups } from './books.js';
 import { downloads, canDownload, downloadBook, removeDownload, cancelDownload, fmtBytes } from '../src/lib/downloads.js';
 import { abs } from '../src/lib/store.js';
 import { checkUpdate, VERSION } from './update.js';
 import { isCloudEbook, cloudReaderBook } from '../src/lib/epub.js';
-import { findMissingCovers, coverNow } from '../src/lib/meta.js';
+import { findMissingCovers, coverNow, searchCovers, searchTitle, setFix, fixFor } from '../src/lib/meta.js';
 import { look, PALETTES, rollDice } from './theme.js';
 
 const open = (book) => nav.push('book', { book });
@@ -39,9 +45,11 @@ const pct = (p) => Math.round(Math.min(1, Math.max(0, Number(p?.percent) || 0)) 
 // An ebook opened from TorBox / Real-Debrid / the server keeps its place under "<id>#ebook".
 const progOf = (prog, b) => prog[b.uid] || prog[`${b.uid.replace(/#ebook$/, '')}#ebook`];
 
-// Long-press a cover to start choosing; tap more to add or drop them; Remove hides them all.
+// Press and hold a cover: its menu (details, play next, Up next, cover, finished, remove…).
+// "Select more" there starts choosing several — tap more to add or drop them.
 function useSelect() {
   const [sel, setSel] = useState(() => new Map()); // uid -> book
+  const [menu, setMenu] = useState(null); // the book whose menu is open
   const press = useRef({ t: 0, x: 0, y: 0, fired: false });
   const active = sel.size > 0;
   const toggle = (b) =>
@@ -62,7 +70,7 @@ function useSelect() {
       press.current.t = setTimeout(() => {
         press.current.fired = true;
         navigator.vibrate?.(12);
-        toggle(b);
+        active ? toggle(b) : setMenu(b);
       }, 480);
     },
     onPointerMove: (e) => Math.hypot(e.clientX - press.current.x, e.clientY - press.current.y) > 10 && cancel(),
@@ -74,11 +82,12 @@ function useSelect() {
       active ? toggle(b) : open(b);
     },
   });
-  return { sel, active, clear, bind };
+  return { sel, active, clear, bind, toggle, menu, setMenu };
 }
 
 function SelectBar({ s }) {
-  if (!s.active) return null;
+  const menu = s.menu && <BookMenu book={s.menu} close={() => s.setMenu(null)} selectMore={() => (s.toggle(s.menu), s.setMenu(null))} />;
+  if (!s.active) return menu || null;
   const remove = () => {
     const n = s.sel.size;
     if (!confirm(`Remove ${n} book${n === 1 ? '' : 's'} from Duet?\n\nOnly hidden here — the files stay where they are. Settings → Removed books brings them back.`)) return;
@@ -86,16 +95,192 @@ function SelectBar({ s }) {
     s.clear();
     toast(`Removed ${n} book${n === 1 ? '' : 's'}`);
   };
+  const queue = () => {
+    let n = 0;
+    for (const b of s.sel.values()) if (!isEbook(b) && addUpNext(b)) n++;
+    s.clear();
+    toast(n ? `${n} added to Up next` : 'Already in Up next');
+  };
   return (
     <div class="h-selbar">
       <button class="h-icon-btn" aria-label="Cancel" onClick={s.clear}>
         <Icon name="close" size={18} />
       </button>
       <b>{s.sel.size} selected</b>
+      <button class="h-btn h-btn-sm h-btn2" onClick={queue}>
+        <Icon name="list" size={15} /> Up next
+      </button>
       <button class="h-btn h-btn-sm h-danger" onClick={remove}>
         <Icon name="trash" size={15} /> Remove
       </button>
     </div>
+  );
+}
+
+const fmtK = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1000 ? Math.round(n / 1000) + 'k' : String(n));
+function Stars({ book }) {
+  const { goodreads, audible } = useRatings(book);
+  const r = goodreads || audible;
+  if (!r) return null;
+  return (
+    <div class="d-stars">
+      ★ {r.rating.toFixed(goodreads ? 2 : 1)}
+      {r.count > 0 ? ` · ${fmtK(r.count)} ratings` : ''} · {goodreads ? 'Goodreads' : 'Audible'}
+    </div>
+  );
+}
+
+function setDone(book, finished) {
+  progress.set((all) => ({
+    ...all,
+    [book.uid]: {
+      ...(all[book.uid] || { book: summarize(book), kind: book.kind }),
+      ...(finished ? { finished: true, percent: 1 } : { finished: false, percent: 0, track: 0, time: 0 }),
+      hidden: false,
+      updatedAt: Date.now(),
+    },
+  }));
+}
+function playNext(book) {
+  addUpNext(book);
+  upNext.set((l) => {
+    const i = l.findIndex((x) => x.id === book.uid);
+    return i <= 0 ? l : [l[i], ...l.slice(0, i), ...l.slice(i + 1)];
+  });
+}
+
+// Sheets open over the whole app (the page is a layer under the tabs and the player).
+const Layer = ({ children }) => createPortal(children, document.body);
+
+/** Press and hold a book: everything you can do with it, in one sheet. */
+function BookMenu({ book, close, selectMore }) {
+  const prog = useStore(progress);
+  const sh = useStore(shelf);
+  const [covers, setCovers] = useState(false);
+  useBackClose(true, close);
+  const p = progOf(prog, book);
+  const done = !!p?.finished;
+  const percent = pct(p);
+  const ebook = isEbook(book);
+  const other = otherForm(book, sh.books);
+  const playing = player.getState().book?.uid === book.uid;
+  const act = (f) => () => (close(), f());
+  if (covers) return <CoverPicker book={book} close={close} />;
+  return (
+    <Layer>
+      <div class="h-sheet-bg" onClick={close}>
+        <div class="h-sheet" onClick={(e) => e.stopPropagation()}>
+          <div class="d-menu-head">
+            <BookCover book={book} class="h-cover" />
+            <div>
+              <b>{book.title}</b>
+              <span>{[book.author, percent ? `${percent}%` : done ? 'Finished' : '', placeOf(book)].filter(Boolean).join(' · ')}</span>
+              <Stars book={book} />
+            </div>
+          </div>
+          <div class="d-menu">
+            <button onClick={act(() => (ebook ? read(book) : play(book)))}>
+              <Icon name={ebook ? 'book' : 'play'} size={19} /> {ebook ? (percent ? 'Continue reading' : 'Read') : percent ? 'Resume' : 'Play'}
+            </button>
+            {other && (
+              <button onClick={act(() => (isEbook(other) ? read(other) : play(other)))}>
+                <Icon name={isEbook(other) ? 'book' : 'headphones'} size={19} /> {isEbook(other) ? 'Read the ebook' : 'Listen to the audiobook'}
+              </button>
+            )}
+            {!ebook && !playing && (
+              <button onClick={act(() => (playNext(book), toast(`Plays next: ${book.title}`)))}>
+                <Icon name="next" size={19} /> Play next
+              </button>
+            )}
+            {!ebook && !playing && (
+              <button onClick={act(() => toast(addUpNext(book) ? `Added to Up next` : 'Already in Up next'))}>
+                <Icon name="list" size={19} /> Add to Up next
+              </button>
+            )}
+            <button onClick={act(() => open(book))}>
+              <Icon name="info" size={19} /> Book details
+            </button>
+            <button onClick={() => setCovers(true)}>
+              <Icon name="covers" size={19} /> Change cover
+            </button>
+            <button onClick={act(() => (setDone(book, !done), toast(done ? 'Marked as not finished' : 'Marked as finished')))}>
+              <Icon name="check" size={19} /> {done ? 'Mark as not finished' : 'Mark as finished'}
+            </button>
+            {percent > 0 && !done && (
+              <button onClick={act(() => confirm(`Start “${book.title}” from the beginning?`) && (setDone(book, false), toast('Progress reset')))}>
+                <Icon name="replay" size={19} /> Start over
+              </button>
+            )}
+            <button onClick={selectMore}>
+              <Icon name="grid" size={19} /> Select more books
+            </button>
+            <button
+              class="danger"
+              onClick={act(() => {
+                if (!confirm(`Remove “${book.title}” from Duet?\n\nOnly hidden here — the files stay where they are. Settings → Removed books brings it back.`)) return;
+                hide(book);
+                toast('Removed');
+              })}
+            >
+              <Icon name="trash" size={19} /> Remove from Duet
+            </button>
+          </div>
+        </div>
+      </div>
+    </Layer>
+  );
+}
+
+/** Change a book's cover: covers found for it in several places — tap one — or your own picture. */
+function CoverPicker({ book, close }) {
+  const [q, setQ] = useState(() => [searchTitle(book.title), String(book.author || '').split(',')[0]].filter(Boolean).join(' '));
+  const [list, setList] = useState(null);
+  useBackClose(true, close);
+  const go = async (term = q) => {
+    setList(null);
+    setList(await searchCovers(term).catch(() => []));
+  };
+  useEffect(() => void go(), []);
+  const pick = (m) => {
+    setFix(book.uid, { ...(fixFor(book.uid) || {}), cover: m.cover, ...(book.author ? {} : { author: m.author }) });
+    if (book.source === 'loc') localSrc.setCover?.(book.uid, m.cover);
+    fillAuthors();
+    toast('Cover changed');
+    close();
+  };
+  return (
+    <Layer>
+      <div class="h-sheet-bg" onClick={close}>
+        <div class="h-sheet" onClick={(e) => e.stopPropagation()}>
+          <h3>Choose a cover</h3>
+          <form class="d-cover-q" onSubmit={(e) => (e.preventDefault(), go())}>
+            <input value={q} onInput={(e) => setQ(e.currentTarget.value)} placeholder="Title and author" />
+            <button class="h-btn h-btn-sm" type="submit">
+              <Icon name="search" size={15} />
+            </button>
+          </form>
+          {!list && (
+            <p class="h-empty">
+              <span class="spinner small" /> Looking in Audible, Apple, Goodreads, Google Books, Open Library…
+            </p>
+          )}
+          {list && !list.length && <p class="h-empty">Nothing found — try fewer words, or just the title.</p>}
+          {list?.length > 0 && (
+            <div class="d-covers">
+              {list.map((m) => (
+                <button onClick={() => pick(m)}>
+                  <img src={m.cover} loading="lazy" alt="" />
+                  {m.from}
+                </button>
+              ))}
+            </div>
+          )}
+          <div class="h-actions">
+            <OwnCoverButton book={book} onDone={close} label="Use a picture from this phone" />
+          </div>
+        </div>
+      </div>
+    </Layer>
   );
 }
 
@@ -247,6 +432,29 @@ function FindCovers({ books }) {
   );
 }
 
+/** Up next on Home, when something is lined up: plays after the book you're on ends. */
+function UpNextRow() {
+  const list = useStore(upNext);
+  if (!list.length) return null;
+  return (
+    <div class="d-upnext">
+      <small class="h-kicker">Up next</small>
+      {list.map((x, i) => (
+        <div class="d-upnext-row">
+          <BookCover book={x.book} class="h-cover" />
+          <span>
+            <b>{x.book.title}</b>
+            <em>{i === 0 ? 'Plays next' : `${i + 1} in line`}</em>
+          </span>
+          <button class="h-icon-btn" aria-label="Take off Up next" onClick={() => upNext.set((l) => l.filter((y) => y.id !== x.id))}>
+            <Icon name="close" size={15} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const HOME_SORTS = [
   ['played', 'Recently played'],
   ['title', 'Title'],
@@ -326,7 +534,7 @@ export function Home() {
         .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0))
         .map(([uid]) => byUid.get(uid) || byUid.get(uid.replace(/#ebook$/, '')))
         .filter((b, i, l) => l.indexOf(b) === i && !isHidden(b, hid)),
-    [prog, byUid, hid],
+    [prog, byUid, hid]
   );
   const now = going.find((b) => !isEbook(b)) || going[0];
   const list = useMemo(() => {
@@ -406,6 +614,7 @@ export function Home() {
               </span>
             </button>
           )}
+          <UpNextRow />
           <div class="h-chips">
             {HOME_FILTERS.map(([k, label]) => (
               <button class={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>
@@ -428,7 +637,11 @@ export function Home() {
                 <button key={b.uid} {...pick.bind(b)}>
                   <BookCover book={b} class="h-cover" />
                   <span class="d-badge">{dls[b.uid]?.status === 'done' ? 'SAVED' : placeOf(b).toUpperCase()}</span>
-                  {!isEbook(b) && otherForm(b, sh.books) && <span class="d-sync" title="Read-along ready">✦</span>}
+                  {!isEbook(b) && otherForm(b, sh.books) && (
+                    <span class="d-sync" title="Read-along ready">
+                      ✦
+                    </span>
+                  )}
                   {p > 0 && (
                     <div class="h-bar h-tile-bar">
                       <i style={{ width: p + '%' }} />
@@ -467,8 +680,7 @@ const SORTS = [
 
 function Groups({ kind, books, q }) {
   const groups = (kind === 'authors' ? authorsOf(books) : seriesGroups(books)).filter((g) => !q.trim() || g.name.toLowerCase().includes(q.trim().toLowerCase()));
-  if (!groups.length)
-    return <p class="h-empty">{kind === 'series' ? 'No series found yet — series come from your server and the books’ details.' : 'Nothing here.'}</p>;
+  if (!groups.length) return <p class="h-empty">{kind === 'series' ? 'No series found yet — series come from your server and the books’ details.' : 'Nothing here.'}</p>;
   return (
     <div class="h-groups">
       <p class="h-count">
@@ -552,7 +764,11 @@ export function Library() {
     let l = place ? sh.books.filter((b) => placeOf(b) === place && !isHidden(b, hid)) : oneEach(sh.books);
     if (kind !== 'all') l = l.filter((b) => b.kind === kind);
     if (q.trim()) l = l.filter(matchQ(q));
-    const by = { recent: (a, b) => (b.addedAt || 0) - (a.addedAt || 0), title: (a, b) => a.title.localeCompare(b.title), author: (a, b) => (a.author || '').localeCompare(b.author || '') || a.title.localeCompare(b.title) };
+    const by = {
+      recent: (a, b) => (b.addedAt || 0) - (a.addedAt || 0),
+      title: (a, b) => a.title.localeCompare(b.title),
+      author: (a, b) => (a.author || '').localeCompare(b.author || '') || a.title.localeCompare(b.title),
+    };
     return [...l].sort(by[sort]);
   }, [sh.books, q, kind, place, sort, hid]);
   const again = async () => {
@@ -583,42 +799,42 @@ export function Library() {
       {view !== 'books' ? (
         <Groups kind={view} books={oneEach(sh.books)} q={q} />
       ) : (
-      <>
-      <div class="h-seg">
-        {KINDS.map(([k, label]) => (
-          <button class={kind === k ? 'on' : ''} onClick={() => setKind(k)}>
-            {label}
-          </button>
-        ))}
-      </div>
-      <div class="h-filters">
-        {places.length > 1 && (
-          <>
-            <button class={!place ? 'on' : ''} onClick={() => setPlace('')}>
-              Everywhere
-            </button>
-            {places.map((p) => (
-              <button class={place === p ? 'on' : ''} onClick={() => setPlace(place === p ? '' : p)}>
-                {p}
+        <>
+          <div class="h-seg">
+            {KINDS.map(([k, label]) => (
+              <button class={kind === k ? 'on' : ''} onClick={() => setKind(k)}>
+                {label}
               </button>
             ))}
-          </>
-        )}
-        <select value={sort} onChange={(e) => setSort(e.currentTarget.value)} aria-label="Sort">
-          {SORTS.map(([k, label]) => (
-            <option value={k}>{label}</option>
-          ))}
-        </select>
-      </div>
-      <div class="h-count-row">
-        <p class="h-count">
-          {list.length} book{list.length === 1 ? '' : 's'}
-        </p>
-        <FindCovers books={oneEach(sh.books)} />
-      </div>
-      {sh.books.length ? <Grid books={list} bind={pick.bind} /> : <Empty />}
-      <SelectBar s={pick} />
-      </>
+          </div>
+          <div class="h-filters">
+            {places.length > 1 && (
+              <>
+                <button class={!place ? 'on' : ''} onClick={() => setPlace('')}>
+                  Everywhere
+                </button>
+                {places.map((p) => (
+                  <button class={place === p ? 'on' : ''} onClick={() => setPlace(place === p ? '' : p)}>
+                    {p}
+                  </button>
+                ))}
+              </>
+            )}
+            <select value={sort} onChange={(e) => setSort(e.currentTarget.value)} aria-label="Sort">
+              {SORTS.map(([k, label]) => (
+                <option value={k}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div class="h-count-row">
+            <p class="h-count">
+              {list.length} book{list.length === 1 ? '' : 's'}
+            </p>
+            <FindCovers books={oneEach(sh.books)} />
+          </div>
+          {sh.books.length ? <Grid books={list} bind={pick.bind} /> : <Empty />}
+          <SelectBar s={pick} />
+        </>
       )}
     </div>
   );
@@ -700,6 +916,7 @@ export function BookPage({ book }) {
   const [ps, setPs] = useState(player.getState());
   const [info, setInfo] = useState(null);
   const [tab, setTab] = useState('chapters');
+  const [covers, setCovers] = useState(false);
   useEffect(() => player.subscribe(setPs), []);
   const ebook = isEbook(book);
   // The audiobook's chapters and length, asked of its place when the page opens.
@@ -738,6 +955,7 @@ export function BookPage({ book }) {
         {book.author}
         {book.narrator && book.narrator !== book.author ? ` · read by ${book.narrator}` : ''}
       </p>
+      <Stars book={book} />
       <p class="h-sub">
         {[length > 0 && fmtDuration(length), !ebook && chapters.length > 1 && `${chapters.length} chapters`, ebook && (book.format || 'Ebook'), placeOf(book)].filter(Boolean).join(' · ')}
       </p>
@@ -750,6 +968,10 @@ export function BookPage({ book }) {
         </button>
       )}
       <SaveToPhone book={book} info={info} />
+      <button class="h-link d-cover-link" onClick={() => setCovers(true)}>
+        <Icon name="covers" size={14} /> Change cover
+      </button>
+      {covers && <CoverPicker book={book} close={() => setCovers(false)} />}
       {percent > 0 && (
         <div class="h-book-prog">
           <div class="h-bar">
@@ -845,7 +1067,13 @@ function PhoneCard() {
     <div>
       {cfg.folders.map((f) => (
         <div class="h-set-row">
-          <span>{decodeURIComponent(String(f.name || f.uri || f).split(/[/:]/).pop() || 'Folder')}</span>
+          <span>
+            {decodeURIComponent(
+              String(f.name || f.uri || f)
+                .split(/[/:]/)
+                .pop() || 'Folder'
+            )}
+          </span>
           <button class="h-link" onClick={() => (localSrc.removeFolder(f.uri || f), refresh())}>
             Remove
           </button>
@@ -888,12 +1116,15 @@ function ShareSetup() {
     const text = `Duet setup (Settings → Share setup → Paste a setup code):\n${code}`;
     try {
       if (navigator.share) await navigator.share({ text });
-      else await navigator.clipboard.writeText(code), toast('Setup code copied');
+      else (await navigator.clipboard.writeText(code), toast('Setup code copied'));
     } catch {}
   };
   const apply = async () => {
     try {
-      const raw = String(paste || '').trim().split(/\s+/).find((w) => w.startsWith(CODE));
+      const raw = String(paste || '')
+        .trim()
+        .split(/\s+/)
+        .find((w) => w.startsWith(CODE));
       if (!raw) throw new Error('No Duet setup code found in what you pasted');
       const data = JSON.parse(decodeURIComponent(escape(atob(raw.slice(CODE.length)))));
       if (data.abs?.server) abs.set((x) => ({ ...x, ...data.abs }));
@@ -1017,9 +1248,13 @@ export function SettingsPage() {
       </Card>
       <Card title="Audiobookshelf" sub={count('Server') || 'Your own server'}>
         {err('abs')}
-        <AbsCard />
+        <AbsCard upload={false} />
       </Card>
       <ShareSetup />
+      <p class="h-group">Read-along</p>
+      <Card title="Speech model" sub="Read-along follows the narrator by listening on this phone — download the model once (Wi-Fi recommended); it works offline after that.">
+        <SpeechModel />
+      </Card>
       <p class="h-group">Look</p>
       <Appearance />
       <ShowTitles />

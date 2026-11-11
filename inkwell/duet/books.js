@@ -3,21 +3,31 @@
 import { persisted } from '../src/lib/store.js';
 import { localSrc, absSrc } from '../src/sources/index.js';
 import { mainTitle } from '../src/lib/match.js';
-import { findMissingCovers, coverNow } from '../src/lib/meta.js';
+import { findMissingCovers, coverNow, fixFor } from '../src/lib/meta.js';
 import { downloads } from '../src/lib/downloads.js';
 import { seriesOf } from '../src/lib/series.js';
 
-// Books still without a cover: looked up by themselves after each refresh (Audible, Apple,
-// Goodreads, Google Books, Open Library). One that isn't found isn't asked again for a week.
-const coverTried = persisted('duetCoverTried', {}); // uid -> when
+// Books still without a cover (or an author): looked up by themselves after each refresh
+// (Audible, Apple, Goodreads, Google Books, Open Library). A phone book whose folder or file
+// already has a picture isn't asked. One that isn't found isn't asked again for a week.
+const coverTried = persisted('duetCoverTried2', {}); // uid -> when
+// Authors found for books that came without one (a phone folder named just "Sapiens"): uid -> name.
+export const foundAuthors = persisted('duetAuthors', {});
+const phoneCover = (b) => b.source === 'loc' && (localSrc.localCfg?.get().books || []).find((x) => x.uid === b.uid)?.cover;
 let coverRun = null;
 export function autoCovers() {
   if (coverRun) return coverRun;
   const tried = coverTried.get();
   const week = 7 * 864e5;
-  const todo = oneEach(shelf.get().books).filter((b) => !coverNow(b) && !(Date.now() - (tried[b.uid] || 0) < week)).slice(0, 60);
+  const todo = oneEach(shelf.get().books)
+    .filter((b) => !coverNow(b) && !phoneCover(b) && !(Date.now() - (tried[b.uid] || 0) < week))
+    .slice(0, 80);
   if (!todo.length) return Promise.resolve();
-  coverRun = findMissingCovers(todo)
+  coverRun = findMissingCovers(todo, () => {}, (b, cover, hit) => {
+    // A phone book keeps it with its file details too (survives rescans).
+    if (b.source === 'loc') localSrc.setCover?.(b.uid, cover);
+    if (!b.author && hit?.author) foundAuthors.set((a) => ({ ...a, [b.uid]: String(hit.author).split(',')[0].trim() }));
+  })
     .catch(() => {})
     .then(() => {
       const now = Date.now();
@@ -26,9 +36,29 @@ export function autoCovers() {
         for (const b of todo) if (!coverNow(b)) next[b.uid] = now;
         return next;
       });
+      fillAuthors();
     })
     .finally(() => (coverRun = null));
   return coverRun;
+}
+
+// A book without an author takes it from another copy of the same title that has one (the
+// server's), else from the cover lookup, else from a name you gave it.
+const titleKey = (b) => mainTitle(b?.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+function withAuthors(books) {
+  const byTitle = new Map();
+  for (const b of books) if (b.author && !b.authorGuess) byTitle.set(titleKey(b), b.author);
+  const found = foundAuthors.get();
+  return books.map((b) => {
+    if (b.author && !b.authorGuess) return b;
+    const a = fixFor(b.uid)?.author || byTitle.get(titleKey(b)) || found[b.uid] || '';
+    return a ? { ...b, author: a, authorGuess: true } : b;
+  });
+}
+export function fillAuthors() {
+  const sh = shelf.get();
+  const books = withAuthors(sh.books);
+  if (books.some((b, i) => b !== sh.books[i])) shelf.set({ ...sh, books });
 }
 
 export const shelf = persisted('duetShelf', { books: [], at: 0, errors: {} });
@@ -93,7 +123,7 @@ export function refresh() {
         books.push(...list);
       }
       const seen = new Set();
-      shelf.set({ books: books.filter((b) => !seen.has(b.uid) && seen.add(b.uid)), at: Date.now(), errors });
+      shelf.set({ books: withAuthors(books.filter((b) => !seen.has(b.uid) && seen.add(b.uid))), at: Date.now(), errors });
       // Real covers for the ones without, a little later (the library shows first).
       setTimeout(autoCovers, 4000);
     })

@@ -693,7 +693,7 @@ function AbsUploadTo() {
   );
 }
 
-export function AbsCard() {
+export function AbsCard({ upload = true } = {}) {
   const cfg = useStore(abs);
   const [alt, setAlt] = useState(cfg.altServer || '');
   const [inUse, setInUse] = useState('');
@@ -741,7 +741,7 @@ export function AbsCard() {
             </button>
           )}
         </div>
-        <AbsUploadTo />
+        {upload && <AbsUploadTo />}
         <div class="set-row">
           <div>
             <b>Ebooks library</b>

@@ -10408,6 +10408,37 @@ button.notes-book-head {
   border-radius: 99px;
 }
 
+.follow-audio .speech-model {
+  pointer-events: auto;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  border-radius: 14px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 88vw;
+}
+.speech-model .sm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+}
+.speech-model .sm-row > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.speech-model .sm-row small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.speech-model.compact .sm-row {
+  padding: 0;
+}
+
 /* ---- Player (design A): source pill, centred title, pills, AI row, labelled buttons ---- */
 .fp-source .badge {
   font-size: 11px;

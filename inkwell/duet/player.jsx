@@ -53,6 +53,16 @@ export function MiniPlayer() {
       >
         {s.loading ? <span class="spinner small" /> : <Icon name={s.playing ? 'pause' : 'play'} size={22} />}
       </button>
+      <button
+        class="h-mini-btn h-mini-x"
+        aria-label="Close the player"
+        onClick={(e) => {
+          e.stopPropagation();
+          player.stop();
+        }}
+      >
+        <Icon name="close" size={17} />
+      </button>
       <i class="h-mini-bar" style={{ width: done + '%' }} />
     </div>
   );
