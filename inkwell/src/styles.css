@@ -11573,3 +11573,99 @@ button.notes-book-head {
     width: 140px;
   }
 }
+
+/* ---- Find missing covers: look over the guesses before saving ---- */
+.cover-review {
+  max-height: 88vh;
+}
+.cr-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+.cr-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+}
+.cr-pic,
+.cr-tile > img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.06);
+  display: block;
+}
+.cr-tile.on .cr-pic,
+button.cr-tile.on > img {
+  border-color: var(--accent);
+}
+.cr-pic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cr-tile.off .cr-pic {
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+}
+.cr-none {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  text-align: center;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.cr-tick {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.cr-tile small {
+  font-size: 11.5px;
+  line-height: 1.25;
+  opacity: 0.8;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.cr-actions {
+  display: flex;
+  gap: 10px;
+  position: sticky;
+  bottom: 0;
+  padding-top: 8px;
+  background: inherit;
+}
+.cr-actions {
+  align-items: center;
+}
+.cr-actions .btn {
+  flex: 1;
+  margin: 0;
+}

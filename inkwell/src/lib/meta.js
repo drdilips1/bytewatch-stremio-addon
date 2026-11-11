@@ -330,6 +330,46 @@ export async function findMissingCovers(books, onProgress = () => {}, onFound = 
   return { found, total: todo.length };
 }
 
+/**
+ * The same search as findMissingCovers, but nothing is saved: for each book, its best guess
+ * (`pick`, or null) and the other covers found (`options`), to look over before saving.
+ * onProgress(done, total, found). Resolves [{ book, pick, options }].
+ */
+export async function guessCovers(books, onProgress = () => {}) {
+  const todo = books.filter((b) => b && b.source !== 'pod' && !coverNow(b));
+  const out = [];
+  let done = 0;
+  let found = 0;
+  const one = async (b) => {
+    const title = searchTitle(b.title);
+    const author = String(b.author || '').split(',')[0].trim();
+    let pick = null;
+    let options = [];
+    for (const term of [`${title} ${author}`.trim(), title]) {
+      if (!title) break;
+      const all = (await searchCovers(term).catch(() => [])).filter((m) => m?.cover);
+      for (const m of all) if (!options.some((o) => o.cover === m.cover)) options.push({ ...m, cover: hiRes(m.cover) });
+      pick =
+        options.find((m) => sameBook({ title, author }, m)) ||
+        (term === title ? options.find((m) => squash(searchTitle(m.title)) === squash(title) && squash(title).length >= 5) : null) ||
+        null;
+      if (pick || !author || term === title) break;
+    }
+    if (pick) found++;
+    out.push({ book: b, pick, options: options.slice(0, 12) });
+    onProgress(++done, todo.length, found);
+    await new Promise((r) => setTimeout(r, 400));
+  };
+  const queue = [...todo];
+  await Promise.all(
+    Array.from({ length: 2 }, async () => {
+      while (queue.length) await one(queue.shift());
+    })
+  );
+  // In the order they were given (the screen's order).
+  return todo.map((b) => out.find((x) => x.book === b)).filter(Boolean);
+}
+
 // ---- Square audiobook covers ---------------------------------------------------
 // A book whose cover is a tall (print) cover gets the square audiobook cover from Apple
 // Books (then Audible) when one exists: it fills a square tile without being cut.
