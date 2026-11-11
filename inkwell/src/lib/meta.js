@@ -266,8 +266,43 @@ export function searchTitle(t) {
 }
 // Letters and digits only: "Catch-22" and "CATCH22" are the same.
 const squash = (t) => String(t || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+// Cover addresses that didn't load (a server's "no picture", a phone file that's gone): the
+// book shows its made-up title cover, so it counts as missing one. Kept a week, then tried again.
+const brokenCovers = persisted('brokenCovers', {}, { delay: 3000 }); // address -> when
+const coverKey = (u) => String(u || '').replace(/([?&])token=[^&]*&?/, '$1');
+// A failure only counts when the same place answered with other covers just now — not when
+// your server is out of reach (away from home) or the phone is offline.
+const hostOf = (u) => {
+  try {
+    return new URL(u, location.href).host;
+  } catch {
+    return '';
+  }
+};
+const hostOk = new Map(); // host -> when a cover from it last loaded
+export function coverLoaded(url) {
+  if (url && !/^data:/.test(url)) hostOk.set(hostOf(url), Date.now());
+}
+export function coverFailed(url) {
+  if (!url || /^data:/.test(url)) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  if (!(Date.now() - (hostOk.get(hostOf(url)) || 0) < 10 * 60e3)) return;
+  const k = coverKey(url);
+  if (brokenCovers.get()[k]) return;
+  brokenCovers.set((m) => ({ ...m, [k]: Date.now() }));
+}
+const isBroken = (u) => {
+  const t = u && brokenCovers.get()[coverKey(u)];
+  return !!t && Date.now() - t < 7 * 864e5;
+};
 /** The cover a book shows now (its own, one found for it, or one you picked), or ''. */
-export const coverNow = (book) => (book && (fixFor(book.uid)?.cover || book.cover || (wantsMeta(book) ? cache.get()[keyFor(queryFor(book))]?.v?.cover : ''))) || '';
+export const coverNow = (book) => {
+  if (!book) return '';
+  const fix = fixFor(book.uid)?.cover;
+  if (fix) return fix;
+  const own = book.cover && !isBroken(book.cover) ? book.cover : '';
+  return own || (wantsMeta(book) ? cache.get()[keyFor(queryFor(book))]?.v?.cover || '' : '');
+};
 
 /** Does a search result look like this book? Most of the title's words, and the author's surname when both are known. */
 export function sameBook(want, hit) {

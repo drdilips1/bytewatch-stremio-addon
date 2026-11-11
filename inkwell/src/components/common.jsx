@@ -8,7 +8,7 @@ import { nav } from '../lib/nav.js';
 import { progress as progressStore, useStoreKey, persisted, useStore, settings } from '../lib/store.js';
 import { useImage, coverFrame, frameStyle, frameTall } from '../lib/image.js';
 import { longPress } from './book-actions.jsx';
-import { useSquareCover, fixFor } from '../lib/meta.js';
+import { useSquareCover, fixFor, coverFailed, coverLoaded } from '../lib/meta.js';
 import { activePalette, isInk } from '../lib/theme.js';
 import { useMeta } from '../lib/meta.js';
 import { useTileRating } from '../lib/ratings.js';
@@ -58,11 +58,12 @@ export function Cover({ book, class: cls = '', eager }) {
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"
           style={frameStyle(frame)}
-          onError={() => setFailed(true)}
+          onError={() => (setFailed(true), !square && coverFailed(book?.cover))}
           onLoad={(e) => {
             // Open Library returns a 1x1 gif for missing covers.
             const im = e.currentTarget;
-            if (im.naturalWidth < 10) return setFailed(true);
+            if (im.naturalWidth < 10) return setFailed(true), !square && coverFailed(book?.cover);
+            if (!square) coverLoaded(book?.cover);
             setRatio(im.naturalWidth / im.naturalHeight);
             im.classList.add('loaded');
           }}
