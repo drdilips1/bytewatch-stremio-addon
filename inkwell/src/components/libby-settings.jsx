@@ -2,7 +2,7 @@
 // library catalogues. Signed in, the book pages can borrow, hold, renew and return.
 import { useEffect, useState } from 'preact/hooks';
 import { toast } from './common.jsx';
-import { useStore, settings } from '../lib/store.js';
+import { useStore } from '../lib/store.js';
 import * as libbySrc from '../sources/libby.js';
 
 /** Sign in (or add another card) with a library card number and PIN. */
@@ -107,22 +107,6 @@ function LibbyCheck() {
 }
 
 /** Libby: your public library — catalogue search, plus your account via Libby's setup code. */
-/** Listen in the Libby app, or in Libby's own web player inside Audiohub (in-app browser). */
-function ListenInside() {
-  const st = useStore(settings);
-  return (
-    <div class="set-row">
-      <div>
-        <b>Listen inside Audiohub</b>
-        <small>
-          Listen / Read opens Libby’s own player in Audiohub’s browser instead of the Libby app — sign in to Libby there once. It uses Libby’s controls; keep that screen open (closing it stops the book), and locking the phone may pause it. Your place stays in Libby.
-        </small>
-      </div>
-      <input type="checkbox" class="switch" checked={!!st.libbyInside} onChange={(e) => settings.set((x) => ({ ...x, libbyInside: e.currentTarget.checked }))} />
-    </div>
-  );
-}
-
 export function LibbySettings() {
   const lib = useStore(libbySrc.libby);
   const acct = useStore(libbySrc.libbyAccount);
@@ -140,7 +124,6 @@ export function LibbySettings() {
   };
   return (
     <>
-      <ListenInside />
       {acct.identity ? (
         <div class="set-row">
           <div>

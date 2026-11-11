@@ -647,21 +647,6 @@ export function libbyLink({ key, titleId, title = '' } = {}) {
   return libbyShelfUrl();
 }
 
-/**
- * Listen / read in Libby: the Libby app, or — Settings → Libby → "Listen inside Audiohub" —
- * Libby's own web player in the in-app browser (sign in there once; it plays there, with
- * Libby's controls, and keeps your place in Libby).
- */
-export async function openInLibby(url) {
-  const { settings } = await import('../lib/store.js');
-  const { openExternal } = await import('./summaries.js');
-  if (settings.get().libbyInside && NATIVE) {
-    const { registerPlugin } = await import('@capacitor/core');
-    return registerPlugin('InkwellWeb').open({ url, title: 'Libby' });
-  }
-  return openExternal(url);
-}
-
 // ---- Opening a borrowed audiobook ------------------------------------------
 // The listen page embeds the book's parts ("openbook") scrambled in window.eData;
 // this reproduces the web player's decode (after libby-archiver's notes).
