@@ -29,7 +29,7 @@ function CopyAction({ h }) {
   useStore(lb.libbyAccount);
   const [busy, act] = useAct();
   const loan = lb.signedIn() && lb.loanFor(h.libby.id);
-  const listen = () => openExternal(lb.libbyLink({ key: h.libby.key, titleId: h.libby.id, title: h.title }));
+  const listen = () => lb.openInLibby(lb.libbyLink({ key: h.libby.key, titleId: h.libby.id, title: h.title }));
   if (busy) return <span class="spinner small" />;
   if (loan)
     return (
@@ -117,7 +117,7 @@ export function LibbyLoanActions({ book }) {
           {d != null && <b class={d <= 2 ? 'soon' : ''}> · {d < 0 ? 'overdue' : d === 0 ? 'due today' : `${d} day${d === 1 ? '' : 's'} left`}</b>}
         </p>
         <div class="libby-loan-actions">
-          <button class="btn big primary" onClick={() => openExternal(lb.libbyLink({ key: loan.key, titleId: loan.titleId, title: book.title }))}>
+          <button class="btn big primary" onClick={() => lb.openInLibby(lb.libbyLink({ key: loan.key, titleId: loan.titleId, title: book.title }))}>
             <Icon name={audio ? 'headphones' : 'book'} size={18} /> {audio ? 'Listen' : 'Read'} in Libby
           </button>
           <button class="btn secondary" disabled={!!busy} onClick={() => act('r', () => lb.renewLoan(loan.cardId, loan.titleId))}>
