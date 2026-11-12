@@ -858,32 +858,77 @@ public class InkwellWebPlugin extends Plugin {
             ws.setUserAgentString(ua);
             android.webkit.CookieManager.getInstance().setAcceptCookie(true);
             android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(v, true);
+            // The file, once it's here (from its address, or handed over by the page itself).
+            final java.util.function.BiConsumer<byte[], String> keep = (bytes, name) -> {
+                try {
+                    JSObject o = InkwellWebActivity.storeBook(getContext(), bytes, name);
+                    InkwellLocalPlugin.arrived(o);
+                    ui.post(() -> {
+                        if (done[0]) return;
+                        done[0] = true;
+                        v.destroy();
+                        call.resolve(o);
+                    });
+                } catch (Exception e) {
+                    fail.accept("Couldn't save it: " + e.getMessage());
+                }
+            };
+            v.addJavascriptInterface(new Object() {
+                @android.webkit.JavascriptInterface
+                public void got(String b64, String name) {
+                    new Thread(() -> {
+                        try {
+                            keep.accept(android.util.Base64.decode(b64, android.util.Base64.DEFAULT), name == null || name.isEmpty() ? "book.epub" : name);
+                        } catch (Exception e) {
+                            fail.accept("Couldn't read the file: " + e.getMessage());
+                        }
+                    }).start();
+                }
+
+                @android.webkit.JavascriptInterface
+                public void failed(String why) {
+                    fail.accept("Couldn't get the file: " + why);
+                }
+            }, "AhBook");
             v.setDownloadListener((dlUrl, agent, disposition, mime, length) -> {
                 String name = android.webkit.URLUtil.guessFileName(dlUrl, disposition, mime);
+                // A file the page made itself (blob: / data:): the page hands it over.
+                if (dlUrl.startsWith("blob:") || dlUrl.startsWith("data:")) {
+                    String js = "(function(){fetch(" + org.json.JSONObject.quote(dlUrl) + ").then(function(r){return r.blob();}).then(function(b){"
+                        + "var f=new FileReader();f.onload=function(){AhBook.got(String(f.result).split(',')[1]," + org.json.JSONObject.quote(name) + ");};"
+                        + "f.onerror=function(){AhBook.failed('read');};f.readAsDataURL(b);}).catch(function(e){AhBook.failed(String(e));});})()";
+                    ui.post(() -> v.evaluateJavascript(js, null));
+                    return;
+                }
                 String referer = v.getUrl();
                 new Thread(() -> {
                     try {
-                        byte[] bytes = fetchFile(dlUrl, agent != null ? agent : ua, referer);
-                        JSObject o = InkwellWebActivity.storeBook(getContext(), bytes, name);
-                        InkwellLocalPlugin.arrived(o);
-                        ui.post(() -> {
-                            if (done[0]) return;
-                            done[0] = true;
-                            v.destroy();
-                            call.resolve(o);
-                        });
+                        keep.accept(fetchFile(dlUrl, agent != null ? agent : ua, referer), name);
                     } catch (Exception e) {
                         fail.accept("Couldn't save it: " + e.getMessage());
                     }
                 }).start();
             });
+            // After Download: a box that asks again (choose / confirm) gets its button pressed.
+            final Runnable[] confirm = new Runnable[1];
+            final int[] confirms = { 0 };
+            confirm[0] = () -> {
+                if (done[0] || confirms[0]++ > 12) return;
+                v.evaluateJavascript("(function(){var d=document.querySelector('[role=dialog],.modal.show,.modal[open],dialog[open]');if(!d)return 'none';"
+                    + "var bs=[].slice.call(d.querySelectorAll('button,a,input[type=submit]'));var t=function(e){return ((e.innerText||e.value||'')+'').trim();};"
+                    + "var b=bs.filter(function(b){return /download|continue|confirm|^ok$|yes/i.test(t(b))&&!/cancel|close/i.test(t(b));})[0];"
+                    + "if(b){b.click();return 'pressed';}return 'none';})()", r2 -> ui.postDelayed(confirm[0], r2 != null && r2.contains("pressed") ? 4000 : 1500));
+            };
             final Runnable[] tryClick = new Runnable[1];
             final int[] tries = { 0 };
             tryClick[0] = () -> {
                 if (done[0] || clicked[0]) return;
                 v.evaluateJavascript(InkwellWebActivity.AUTO_GET_JS, res -> {
                     if (done[0] || clicked[0]) return;
-                    if (res != null && res.contains("clicked")) clicked[0] = true;
+                    if (res != null && res.contains("clicked")) {
+                        clicked[0] = true;
+                        ui.postDelayed(confirm[0], 1500);
+                    }
                     else if (++tries[0] < 10) ui.postDelayed(tryClick[0], 1200); // the page may still be filling in
                     else fail.accept("no-download");
                 });

@@ -170,7 +170,7 @@ export async function findEbookInSources(book, query = '') {
     for (const r of results || []) {
       // A direct link from an ebook source with no file type given (Ink & Echo does that):
       // a candidate too — it's checked when picked.
-      const unknown = !(r.magnet || r.hash) && r.contentType === 'ebook' && /^https?:/i.test(r.link || '') && !directEbookFile(r);
+      const unknown = !r.inApp && !(r.magnet || r.hash) && r.contentType === 'ebook' && /^https?:/i.test(r.link || '') && !directEbookFile(r);
       const file = unknown ? { name: String(r.title || 'Book').slice(0, 90), format: '?', size: r.size || 0, resolve: async () => r.link } : !(r.magnet || r.hash) && directEbookFile(r);
       if (!file || (file.format !== 'EPUB' && file.format !== 'PDF' && file.format !== '?')) continue;
       if (t && !matches(t, `${r.title || ''} ${file.name}`)) continue;

@@ -127,10 +127,20 @@ export async function getBook({ title = '', author = '' }, pick = (list) => list
   if (!list.length && author) list = await search(title);
   const hit = pick(list);
   if (!hit) throw fail(`“${title}” isn't on ${NAME} (or it's under another title — hold BS to search)`);
-  // In the background: a hidden browser presses Download; the book arrives in your Library and
-  // opens in the reader. Only when its page has no Download to press does the page open for you.
+  return fetchBook(hit);
+}
+/** Bookshare's search page for this book, in the app (download from there to your Library). */
+export const openSearch = (q) => open(`${BASE}/search?keyword=${encodeURIComponent(clean(q))}`);
+
+/**
+ * Get one Bookshare book in the background: a hidden browser opens its page (your session),
+ * picks EPUB and presses Download; it's saved to your Library and opens in the reader. Only
+ * when its page has no Download to press does the page open for you.
+ */
+export async function fetchBook(hit) {
   try {
-    await Web.bookshareGet({ url: hit.link });
+    const r = await Web.bookshareGet({ url: hit.link });
+    logError(NAME, `got “${hit.title}” in the background — ${r?.name || ''}${r?.via ? ` (${r.via})` : ''}`);
     return { title: hit.title, background: true };
   } catch (e) {
     const why = e?.message || '';
@@ -140,5 +150,3 @@ export async function getBook({ title = '', author = '' }, pick = (list) => list
     return { title: hit.title, background: false };
   }
 }
-/** Bookshare's search page for this book, in the app (download from there to your Library). */
-export const openSearch = (q) => open(`${BASE}/search?keyword=${encodeURIComponent(clean(q))}`);

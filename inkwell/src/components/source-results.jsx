@@ -1003,9 +1003,36 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
           // A forum topic (Mobilism), or a Bookshare book (its download is saved into your
           // Library): opens in the in-app browser, where you're signed in. A topic's links are
           // file hosts (Rapidgator, Rosefile…): sent to TorBox / Real-Debrid, or played through them.
-          <button class="btn primary" onClick={() => WebPlugin.open({ url: r.link, title: r.title, books: !!r.bookshare }).catch((e) => toast(e.message))}>
-            <Icon name="external" size={16} /> {r.bookshare ? 'Open on Bookshare' : r.aaMd5 ? 'Open' : 'Open topic'}
-          </button>
+          r.bookshare ? (
+            // One tap: the book is fetched in the background, saved and opened in the reader.
+            <>
+              <button
+                class="btn primary"
+                disabled={!!busy}
+                onClick={async () => {
+                  setBusy('bs');
+                  toast('Getting it from Bookshare…');
+                  try {
+                    const got = await (await import('../sources/bookshare.js')).fetchBook(r);
+                    if (got.background) toast(`“${got.title}” is in your Library — opening it`);
+                  } catch (e) {
+                    toast(e.message);
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                {busy === 'bs' ? <span class="spinner" /> : <Icon name="book" size={16} />} Get &amp; read
+              </button>
+              <button class="btn secondary play-alt" onClick={() => WebPlugin.open({ url: r.link, title: r.title, books: true }).catch((e) => toast(e.message))} aria-label="Open on Bookshare">
+                <Icon name="external" size={16} />
+              </button>
+            </>
+          ) : (
+            <button class="btn primary" onClick={() => WebPlugin.open({ url: r.link, title: r.title }).catch((e) => toast(e.message))}>
+              <Icon name="external" size={16} /> {r.aaMd5 ? 'Open' : 'Open topic'}
+            </button>
+          )
         ) : !hasMagnet ? (
           <a class="btn primary" href={r.link} target="_blank" rel="noopener">
             <Icon name="external" size={16} /> Open
