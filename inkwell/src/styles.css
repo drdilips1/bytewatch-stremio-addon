@@ -11669,3 +11669,75 @@ button.cr-tile.on > img {
   flex: 1;
   margin: 0;
 }
+
+/* ---- Source cards, compact (Nov 2026): details under the title, services in one row ---- */
+.src-names .src-meta {
+  margin-top: 6px;
+}
+.src-row .src-services.svc-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+.svc-chip {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px 7px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+.svc-chip > span {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.svc-chip b {
+  font-size: 13px;
+  font-weight: 700;
+}
+.svc-chip small {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.svc-chip > svg {
+  flex: none;
+  color: var(--accent);
+}
+.svc-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint, rgba(255, 255, 255, 0.25));
+}
+.svc-chip.ok .svc-dot {
+  background: var(--ready, #4cc38a);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ready, #4cc38a) 22%, transparent);
+}
+.svc-chip.ok small {
+  color: var(--ready, #4cc38a);
+}
+.svc-chip.in {
+  border-color: color-mix(in srgb, var(--ready, #4cc38a) 40%, transparent);
+}
+.svc-chip:disabled {
+  opacity: 1;
+}
+.topic-cloud .src-actions.ready {
+  margin-top: 12px;
+}
+.src-row .topic-cloud {
+  margin-top: 0;
+}

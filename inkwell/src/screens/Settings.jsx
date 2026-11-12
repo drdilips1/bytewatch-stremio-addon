@@ -1707,9 +1707,14 @@ export function Settings() {
       </Section>
 
       <p class="set-group">Help</p>
-      <button class="set-link" onClick={() => import('../components/whats-new.jsx').then((m) => m.showWhatsNew())}>
-        <Icon name="sparkle" size={18} /> What’s new in this version
-      </button>
+      {/* A row like the sections around it (it opens a sheet instead of folding open). */}
+      <section class="set-section">
+        <button class="set-head" onClick={() => import('../components/whats-new.jsx').then((m) => m.showWhatsNew())}>
+          <Icon name="sparkle" size={20} />
+          <span>What’s new in this version</span>
+          <Icon name="next" size={18} />
+        </button>
+      </section>
       <Section icon="alert" title="Issues & support">
         <SupportLinks />
         <b class="set-sub">Report a problem</b>

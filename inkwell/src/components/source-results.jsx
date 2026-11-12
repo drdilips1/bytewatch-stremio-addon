@@ -508,29 +508,57 @@ function TopicToCloud({ r }) {
       toast(e.message);
     }
   };
+  const openTopic = () => WebPlugin.open({ url: r.link, title: r.title }).catch((e) => toast(e.message));
+  const working = ['download', 'unpack'].includes(unp?.phase);
   return (
     <div class="topic-cloud">
-      {cloud.rdConnected() && (
-        <button class="btn primary" disabled={!!busy || ['download', 'unpack'].includes(unp?.phase)} onClick={playNow}>
-          {busy === 'play' || ['download', 'unpack'].includes(unp?.phase) ? <span class="spinner small" /> : <Icon name="play" size={16} />} Play
-        </button>
-      )}
-      {unp && ['download', 'unpack'].includes(unp.phase) && <small class="muted">{unp.text}</small>}
-      {unp?.phase === 'error' && <small class="err">{/^couldn/i.test(unp.error || '') ? unp.error : `Couldn't unpack: ${unp.error}`}</small>}
-      <div class="topic-cloud-row">
+      <div class="src-services svc-row">
         {cloud.tbConnected() && (
-          <button class="btn secondary small" disabled={!!busy} onClick={toTorbox}>
-            {busy === 'tb' ? <span class="spinner small" /> : <Icon name="cloud" size={14} />} Send to TorBox
+          <button class="svc-chip" disabled={!!busy} onClick={toTorbox} aria-label="Send to TorBox">
+            <i class="svc-dot" />
+            <span>
+              <b>TorBox</b>
+              <small>send</small>
+            </span>
+            {busy === 'tb' ? <span class="spinner small" /> : <Icon name="plus" size={15} />}
           </button>
         )}
         {cloud.rdConnected() && (
-          <button class="btn secondary small" disabled={!!busy} onClick={toRd}>
-            {busy === 'rds' ? <span class="spinner small" /> : <Icon name="cloud" size={14} />} Send to Real-Debrid
+          <button class="svc-chip" disabled={!!busy} onClick={toRd} aria-label="Send to Real-Debrid">
+            <i class="svc-dot" />
+            <span>
+              <b>RD</b>
+              <small>send</small>
+            </span>
+            {busy === 'rds' ? <span class="spinner small" /> : <Icon name="plus" size={15} />}
           </button>
         )}
         {cloud.rdConnected() && (
-          <button class="btn secondary small" disabled={!!busy} onClick={viaRd}>
-            {busy === 'rd' ? <span class="spinner small" /> : <Icon name="link" size={14} />} Real-Debrid links
+          <button class="svc-chip" disabled={!!busy} onClick={viaRd} aria-label="Real-Debrid download links">
+            <i class="svc-dot" />
+            <span>
+              <b>Links</b>
+              <small>via RD</small>
+            </span>
+            {busy === 'rd' ? <span class="spinner small" /> : <Icon name="link" size={15} />}
+          </button>
+        )}
+      </div>
+      {unp && working && <small class="muted">{unp.text}</small>}
+      {unp?.phase === 'error' && <small class="err">{/^couldn/i.test(unp.error || '') ? unp.error : `Couldn't unpack: ${unp.error}`}</small>}
+      <div class="src-actions ready">
+        {cloud.rdConnected() ? (
+          <button class="btn primary" disabled={!!busy || working} onClick={playNow}>
+            {busy === 'play' || working ? <span class="spinner small" /> : <Icon name="play" size={16} />} Play
+          </button>
+        ) : (
+          <button class="btn primary" onClick={openTopic}>
+            <Icon name="external" size={16} /> Open topic
+          </button>
+        )}
+        {cloud.rdConnected() && (
+          <button class="btn secondary play-alt" onClick={openTopic} aria-label="Open the topic">
+            <Icon name="external" size={16} />
           </button>
         )}
       </div>
@@ -548,9 +576,11 @@ function TopicToCloud({ r }) {
               Play
             </button>
           )}
-          {f.url && <button class="pill small" onClick={() => saveToDownloads(f.url, f.name, (/\.([a-z0-9]+)$/i.exec(f.name)?.[1] || '').toUpperCase()).catch((e) => toast(e.message))}>
-            Save
-          </button>}
+          {f.url && (
+            <button class="pill small" onClick={() => saveToDownloads(f.url, f.name, (/\.([a-z0-9]+)$/i.exec(f.name)?.[1] || '').toUpperCase()).catch((e) => toast(e.message))}>
+              Save
+            </button>
+          )}
         </div>
       ))}
     </div>
@@ -828,6 +858,8 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
       setBusy(null);
     }
   };
+  // A forum topic with file-host links, and a cloud to send them to: its own chips and Play.
+  const topicCloud = !hasMagnet && !ebook && !unknownEbook && r.inApp && r.downloads?.length > 0 && (cloud.tbConnected() || cloud.rdConnected());
   const home = hasMagnet && qb.available && qb.configured();
   const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
   const trackerFilter = trackerSite ? qb.trackerFilterLabel() : '';
@@ -861,41 +893,46 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
               {r.narrator ? ` · read by ${r.narrator}` : ''}
             </div>
           )}
-          {prettyName(r.title) !== r.title && <div class="src-raw">{r.title}</div>}
+          <div class="src-meta">
+            {r.size > 0 && <span>{fmtSize(r.size)}</span>}
+            {/* Unknown seeds (AudiobookBay doesn't list them; TorBox fills them in when it can): nothing shown, not a '?'. */}
+            {hasMagnet && r.seeders != null && <span class={'seeds ' + seedClass(r.seeders)}>{r.seeders} seed{r.seeders === 1 ? '' : 's'}</span>}
+            {r.language && <span>{r.language}</span>}
+            <span>{sourceLabel(r.addon)}</span>
+            {r.downloads?.length > 0 && (
+              <span>
+                {r.downloads.length} link{r.downloads.length === 1 ? '' : 's'} · {[...new Set(r.downloads.map((d) => d.host.replace(/\.(net|com|to|my)$/, '')))].slice(0, 3).join(', ')}
+              </span>
+            )}
+          </div>
         </div>
       </div>
-      <div class="src-meta">
-        {r.size > 0 && <span>{fmtSize(r.size)}</span>}
-        {/* Unknown seeds (AudiobookBay doesn't list them; TorBox fills them in when it can): nothing shown, not a '?'. */}
-        {hasMagnet && r.seeders != null && <span class={'seeds ' + seedClass(r.seeders)}>{r.seeders} seed{r.seeders === 1 ? '' : 's'}</span>}
-        {r.language && <span>{r.language}</span>}
-        <span>{sourceLabel(r.addon)}</span>
-      </div>
       {hasMagnet && (providers.length > 0 || home) && (
-        <div class="src-services">
+        // One row: each service with its state (a green dot: instant / ready) — tap to add.
+        <div class="src-services svc-row">
           {providers.map((p) => {
             const a = acc(p);
-            const label = a ? (a.ready ? 'in account · ready' : `in account · ${Math.round((a.progress || 0) * 100)}%`) : cachedOn(p) ? 'instant' : 'not cached';
+            const label = a ? (a.ready ? 'ready' : `${Math.round((a.progress || 0) * 100)}%`) : cachedOn(p) ? 'instant' : 'not cached';
             return (
-              <div class={'svc' + (readyOn(p) ? ' ok' : '')}>
-                <b>{SHORT[p]}</b>
-                <span>{label}</span>
-                {!a && (
-                  <button class="pill small" disabled={!!busy} onClick={() => add(p)} aria-label={`Add to ${LABEL[p]}`}>
-                    {busy === 'add:' + p ? <span class="spinner small" /> : <Icon name="plus" size={14} />}
-                  </button>
-                )}
-              </div>
+              <button class={'svc-chip' + (readyOn(p) ? ' ok' : '') + (a ? ' in' : '')} disabled={!!busy || !!a} onClick={() => add(p)} aria-label={a ? `In your ${LABEL[p]} · ${label}` : `Add to ${LABEL[p]} (${label})`}>
+                <i class="svc-dot" />
+                <span>
+                  <b>{SHORT[p]}</b>
+                  <small>{a ? `in account · ${label}` : label}</small>
+                </span>
+                {!a && (busy === 'add:' + p ? <span class="spinner small" /> : <Icon name="plus" size={15} />)}
+              </button>
             );
           })}
           {home && (
-            <div class={'svc' + (sentHome || book?.source === 'abs' ? ' ok' : '')}>
-              <b>Home</b>
-              <span>{sentHome ? 'sent' : book?.source === 'abs' ? 'on your server' : 'qBittorrent'}</span>
-              <button class="pill small" disabled={!!busy} onClick={sendHome} aria-label="Send to your home server">
-                {busy === 'home' ? <span class="spinner small" /> : <Icon name={sentHome ? 'check' : 'plus'} size={14} />}
-              </button>
-            </div>
+            <button class={'svc-chip' + (sentHome || book?.source === 'abs' ? ' ok' : '')} disabled={!!busy} onClick={sendHome} aria-label="Send to your home server">
+              <i class="svc-dot" />
+              <span>
+                <b>Home</b>
+                <small>{sentHome ? 'sent' : book?.source === 'abs' ? 'on server' : 'qBittorrent'}</small>
+              </span>
+              {busy === 'home' ? <span class="spinner small" /> : <Icon name={sentHome ? 'check' : 'plus'} size={15} />}
+            </button>
           )}
         </div>
       )}
@@ -910,7 +947,8 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
       )}
       {dead && <div class="src-warn">No seeders — your debrid service may never finish downloading this one.</div>}
       {status && <Progress text={status.text} pct={status.pct} />}
-      <div class="src-actions ready">
+      {topicCloud && <TopicToCloud r={r} />}
+      {!topicCloud && <div class="src-actions ready">
         {!hasMagnet && ebook ? (
           <>
             {readable && (
@@ -960,20 +998,11 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
           </>
         ) : !hasMagnet && r.inApp ? (
           // A forum topic (Mobilism), or a Bookshare book (its download is saved into your
-          // Library): opens in the in-app browser, where you're signed in.
-          // Its links are file hosts (Rapidgator, Rosefile…), not audio you can stream.
-          <div class="src-topic">
-            <button class={'btn ' + (cloud.rdConnected() && r.downloads?.length ? 'secondary' : 'primary')} onClick={() => WebPlugin.open({ url: r.link, title: r.title, books: !!r.bookshare }).catch((e) => toast(e.message))}>
-              <Icon name="external" size={16} /> {r.bookshare ? 'Open on Bookshare' : r.aaMd5 ? 'Open' : 'Open topic'}
-            </button>
-            {r.downloads?.length > 0 && (
-              <small class="muted">
-                {r.downloads.length} download link{r.downloads.length === 1 ? '' : 's'} ·{' '}
-                {[...new Set(r.downloads.map((d) => d.host))].slice(0, 3).join(', ')}
-              </small>
-            )}
-            {r.downloads?.length > 0 && <TopicToCloud r={r} />}
-          </div>
+          // Library): opens in the in-app browser, where you're signed in. A topic's links are
+          // file hosts (Rapidgator, Rosefile…): sent to TorBox / Real-Debrid, or played through them.
+          <button class="btn primary" onClick={() => WebPlugin.open({ url: r.link, title: r.title, books: !!r.bookshare }).catch((e) => toast(e.message))}>
+            <Icon name="external" size={16} /> {r.bookshare ? 'Open on Bookshare' : r.aaMd5 ? 'Open' : 'Open topic'}
+          </button>
         ) : !hasMagnet ? (
           <a class="btn primary" href={r.link} target="_blank" rel="noopener">
             <Icon name="external" size={16} /> Open
@@ -1013,7 +1042,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
             )}
           </>
         )}
-      </div>
+      </div>}
       {extra && trackerSite && (
         <div class="src-chips">
           <button
