@@ -1,4 +1,4 @@
-import { metaNow, lookup } from "../lib/meta.js";
+import { metaNow, lookup, metaFixes } from "../lib/meta.js";
 import { preferredCopy, preferredFor, setPreferred, judge, workKey } from "../lib/editions.js";
 import { findOwned, localSrc as phoneSrc } from "../sources/index.js";
 import { BgImage } from "../components/bg-image.jsx";
@@ -121,6 +121,15 @@ export function Book({ book: initial }) {
     return () => (alive = false);
   }, [initial.uid]);
 
+  // Details you edited by hand (⋯ → Edit title, author, narrator): shown at once.
+  useEffect(
+    () =>
+      metaFixes.subscribe((all) => {
+        const f = all?.[initial.uid];
+        if (f?.edited) setBook((b) => ({ ...b, title: f.title || b.title, author: f.author ?? b.author, narrator: f.narrator ?? b.narrator, series: f.series ?? b.series, year: f.year || b.year }));
+      }),
+    [initial.uid],
+  );
   const listen = (opts) => {
     if (isCurrent && !opts) return player.toggle();
     nav.openOverlay("player");

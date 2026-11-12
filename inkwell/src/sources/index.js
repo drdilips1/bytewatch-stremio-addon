@@ -133,8 +133,10 @@ async function getDetailsRaw(book, { fast = false } = {}) {
       author: fix.author || d.author,
       cover: fix.cover || d.cover || '',
       description: fix.description || d.description,
-      narrator: d.narrator || fix.narrator || '',
-      year: d.year || fix.year || '',
+      // Typed in by you (Edit details): your narrator, series and year win too.
+      narrator: (fix.edited && fix.narrator) || d.narrator || fix.narrator || '',
+      year: (fix.edited && fix.year) || d.year || fix.year || '',
+      series: (fix.edited && fix.series) || d.series || fix.series || '',
       genres: d.genres?.length ? d.genres : fix.genres || [],
       metaSource: fix.source,
       fixed: true,

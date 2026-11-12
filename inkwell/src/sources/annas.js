@@ -52,7 +52,7 @@ export function signIn() {
 // background requests): it waits for the page — and for a check page to solve itself — then
 // reads it. { status, html, text (the page's words: JSON answers come as text), doc, check }.
 async function page(path, waitFor) {
-  const r = await Web.pageVisit({ url: base() + path, timeout: 25000, ...(waitFor ? { waitFor } : {}) }).catch((e) => {
+  const r = await Web.pageVisit({ url: base() + path, timeout: 40000, ...(waitFor ? { waitFor } : {}) }).catch((e) => {
     throw fail(`${NAME}: ${e?.message || 'didn’t answer'} — try again in a moment`);
   });
   const html = r.html || '';
@@ -182,7 +182,7 @@ export async function search(query) {
     throw fail(`${NAME} is busy (too many requests) — try again in a minute`);
   }
   if (check || challenged(html)) {
-    logError(NAME, `browser check didn't clear in 25 s — HTTP ${st} · page “${clean(title).slice(0, 60)}”`);
+    logError(NAME, `browser check didn't clear in 40 s — HTTP ${st} · page “${clean(title).slice(0, 60)}”`);
     throw fail(`${NAME} is checking the browser — Settings → Addons → ${NAME} → Open, wait for the site to load, then search again`, { signin: true });
   }
   if (st >= 400) {

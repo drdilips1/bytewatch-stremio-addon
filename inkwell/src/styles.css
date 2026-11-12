@@ -12091,3 +12091,29 @@ button.cr-tile.on > img {
   font-size: 12px;
   color: var(--muted);
 }
+/* Edit details by hand */
+.edit-details {
+  display: grid;
+  gap: 10px;
+  padding: 6px 2px 4px;
+}
+.edit-field {
+  display: grid;
+  gap: 4px;
+}
+.edit-field span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.edit-field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font: inherit;
+}
+.edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}

@@ -356,6 +356,30 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           >
             Try again
           </button>
+          {/* A site's bot check (Anna's Archive, Mobilism) that the hidden browser couldn't pass:
+              open it once on screen, let it load, come back — the search runs again by itself. */}
+          {entries
+            .filter(([, g]) => g.error && /checking the browser/i.test(String(g.error?.message || g.error)))
+            .map(([name]) => (
+              <button
+                class="link-btn src-retry"
+                onClick={async () => {
+                  const mod = /anna/i.test(name) ? await import('../sources/annas.js') : /mobilism/i.test(name) ? await import('../sources/mobilism.js') : null;
+                  if (!mod) return;
+                  const again = () => {
+                    if (document.visibilityState !== 'visible') return;
+                    document.removeEventListener('visibilitychange', again);
+                    setGroups((g) => ({ ...g, [name]: { results: [], error: null } }));
+                    setTimeout(() => search([name]), 600);
+                  };
+                  document.addEventListener('visibilitychange', again);
+                  mod.signIn().catch((e) => toast(e.message));
+                  toast('Let the page load, then come back — the search runs again');
+                }}
+              >
+                Open {sourceLabel(name)}
+              </button>
+            ))}
         </p>
       )}
       {!pending && !total && entries.length > 0 && <p class="muted pad-s">{looseCount ? 'No results that are clearly this book.' : 'No source results.'}</p>}

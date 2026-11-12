@@ -6,7 +6,7 @@ import { Cover, toast } from './common.jsx';
 import { useStore, library, progress, bookTags, toggleLibrary, hideFromContinue, summarize } from '../lib/store.js';
 import { nav, useBackClose } from '../lib/nav.js';
 import { allTags } from './book-tags.jsx';
-import { FixDetails } from './fix-details.jsx';
+import { FixDetails, EditDetails } from './fix-details.jsx';
 import { upNext, addUpNext, removeUpNext } from '../lib/upnext.js';
 import { markNotInterested, markAlreadyRead } from '../lib/taste.js';
 import { readLater, toggleReadLater } from '../lib/readlists.js';
@@ -85,6 +85,7 @@ export function BookActionsSheet() {
   };
   const [busy, setBusy] = useState('');
   const [fixing, setFixing] = useState(false);
+  const [editing, setEditing] = useState(false);
   const close = () => (setFixing(false), sheet.set(null));
   useBackClose(!!book, close);
   useEffect(() => (setBusy(''), setFixing(false), setAbsPick(null)), [book?.uid]);
@@ -248,6 +249,13 @@ export function BookActionsSheet() {
         ) : (
           <button class="menu-item" onClick={() => setFixing(true)}>
             <Icon name="covers" size={18} /> {book.cover ? 'Find a better cover & details' : 'Find cover & details'}
+          </button>
+        )}
+        {editing ? (
+          <EditDetails book={book} onClose={close} />
+        ) : (
+          <button class="menu-item" onClick={() => setEditing(true)}>
+            <Icon name="edit" size={18} /> Edit title, author, narrator
           </button>
         )}
         <button class="menu-item" onClick={act(() => nav.push('book', { book }))}>
