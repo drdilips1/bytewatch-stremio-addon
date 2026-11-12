@@ -424,6 +424,7 @@ export function Book({ book: initial }) {
           </div>
         </div>
       )}
+      {book.partsCheck && <BookCheck check={book.partsCheck} />}
       <AbsSending uid={initial.uid} />
       {pct > 0 && !prog.finished && !canRead && finishLine(initial.uid) && <p class="book-finish">{finishLine(initial.uid)}</p>}
 
@@ -702,6 +703,44 @@ const fmtK = (n) =>
 
 /** Ratings across services and awards, as a row of badges: "4.6 (1.2k)"; tap one for its reviews. */
 /** Rating · length · year in one strip, Apple Books style. Tap the rating for reviews. */
+/**
+ * Book check (multipart books): a part missing from the numbering, duplicate copies skipped,
+ * parts put back in number order. Shown only when there's something to say.
+ */
+function BookCheck({ check }) {
+  const items = [];
+  const list = (ns) => (ns.length > 3 ? `${ns.slice(0, 3).join(", ")}…` : ns.join(ns.length === 2 ? " and " : ", "));
+  if (check.missing?.length)
+    items.push({
+      warn: true,
+      title: check.missing.length === 1 ? `Part ${check.missing[0]} seems to be missing` : `Parts ${list(check.missing)} seem to be missing`,
+      sub: "The numbering skips them — the player says so when it gets there. Another copy (Available, Sources) may have them.",
+    });
+  if (check.dupes?.length)
+    items.push({ title: `${check.dupes.length} duplicate part${check.dupes.length === 1 ? "" : "s"} skipped`, sub: check.dupes.slice(0, 3).map((n) => `“${n}”`).join(", ") });
+  else if (check.dupesFound?.length && check.kept)
+    items.push({ warn: true, title: `${check.dupesFound.length} duplicate part${check.dupesFound.length === 1 ? "" : "s"}`, sub: "Left as they are while you're in the middle of the book — skipped when you start it again" });
+  if (check.reordered) items.push({ title: "Parts put back in order", sub: "By their numbers, not the file names' sort or dates" });
+  else if (check.outOfOrder && check.kept) items.push({ warn: true, title: "Some parts are out of order", sub: "Left as they are while you're in the middle of the book — put in order when you start it again" });
+  if (!items.length) return null;
+  return (
+    <section class="book-check pad">
+      <h4>
+        Book check <small>· when it opened</small>
+      </h4>
+      {items.map((x) => (
+        <div class="bc-item">
+          <span class={"bc-ic" + (x.warn ? " warn" : "")}>{x.warn ? "!" : <Icon name="check" size={13} />}</span>
+          <div>
+            <b>{x.title}</b>
+            <small>{x.sub}</small>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 /** Under the title, two quiet lines: length · parts · year · language, then the ratings. */
 function HeroFacts({ book, tracks }) {
   const { goodreads, audible } = useRatings(book);

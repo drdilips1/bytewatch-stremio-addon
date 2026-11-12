@@ -11921,3 +11921,55 @@ button.cr-tile.on > img {
   margin-top: 6px;
   border-radius: 18px;
 }
+/* Book check (multipart books) */
+.book-check {
+  margin: 14px 16px 0;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+.book-check h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.book-check h4 small {
+  font-weight: 500;
+  color: var(--muted);
+}
+.bc-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.07));
+}
+.bc-item:first-of-type {
+  border-top: 0;
+  padding-top: 2px;
+}
+.bc-item b {
+  display: block;
+  font-size: 13.5px;
+}
+.bc-item small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.bc-ic {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ready, #4cc38a);
+  background: color-mix(in srgb, var(--ready, #4cc38a) 15%, transparent);
+}
+.bc-ic.warn {
+  color: #f5b544;
+  background: rgba(245, 181, 68, 0.15);
+}

@@ -18,6 +18,7 @@ import { settings, progress } from '../lib/store.js';
 import { matches, mainTitle, words, otherBook } from '../lib/match.js';
 import { lookup, wantsMeta, fixFor, metaNow } from '../lib/meta.js';
 import { applyLocal, isDownloaded } from '../lib/downloads.js';
+import { checkParts } from '../lib/parts.js';
 import { translit, hasDevanagari } from '../lib/translit.js';
 
 export const SOURCES = {
@@ -85,10 +86,21 @@ function notePart0(d) {
   progress.set((all) => (all[d.uid] ? { ...all, [d.uid]: { ...all[d.uid], book: { ...all[d.uid].book, part0: p0 } } } : all));
 }
 
+// Books made of files (phone folders, TorBox / Real-Debrid, a pasted link): their parts checked.
+const PART_SOURCES = new Set(['loc', 'tb', 'rd', 'url']);
 export async function getDetails(book, opts = {}) {
-  const d = await getDetailsRaw(book, opts);
+  let d = await getDetailsRaw(book, opts);
   try {
     notePart0(d);
+  } catch {}
+  try {
+    if (d && PART_SOURCES.has(d.source) && d.kind !== 'text' && d.tracks?.length >= 3) {
+      // In the middle of it: the saved place is a part number — only report, change nothing.
+      const p = progress.get()[d.uid];
+      const keep = !!(p && !p.finished && (p.track || 0) > 0);
+      const r = checkParts(d.tracks, { keep });
+      if (r.note) d = { ...d, tracks: r.tracks, partsCheck: r.note };
+    }
   } catch {}
   return d;
 }
