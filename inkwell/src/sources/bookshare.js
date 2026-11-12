@@ -38,8 +38,14 @@ async function page(path, waitFor) {
   return { status: r.status || 200, html, url: r.url || '', doc: new DOMParser().parseFromString(html, 'text/html') };
 }
 
-// Signed in: the page offers to sign out (and no longer to log in).
-const signedIn = (doc, html) => /sign ?out|log ?out/i.test(html) && !!doc.querySelector('a[href*="logout" i], a[href*="signout" i], button[name*="logout" i], form[action*="logout" i]');
+// Signed in: the page offers to sign out, or (menus often hide that link until opened) it
+// shows member pages and no longer offers to log in.
+const logoutOn = (doc, html) =>
+  !!doc.querySelector('a[href*="logout" i], a[href*="signout" i], a[href*="sign-out" i], a[href*="log-out" i], form[action*="logout" i]') || /\b(sign|log) ?out\b/i.test(html);
+const loginOn = (doc) =>
+  [...doc.querySelectorAll('a, button')].some((el) => /^\s*(log ?in|sign ?in)\s*$/i.test(el.textContent || '') || /\/(login|signin|sign-in)\b/i.test(el.getAttribute('href') || ''));
+const memberOn = (html) => /my bookshare|my account|reading lists?|download history|my history|my books/i.test(html);
+const signedIn = (doc, html) => logoutOn(doc, html) || (!loginOn(doc) && memberOn(html));
 
 /** { signedIn, why } — read from Bookshare's own page in the hidden browser. */
 export async function status() {
@@ -47,7 +53,7 @@ export async function status() {
   const { status: st, doc, html, url } = await page('/', null);
   const ok = signedIn(doc, html);
   // For Report a problem: what the check saw (no page text, no cookies).
-  logError(NAME, `sign-in check: ${ok ? 'signed in' : 'not signed in'} — HTTP ${st} · page “${clean(doc.title).slice(0, 60)}” · ${String(url).replace(/[?#].*$/, '')} · log-out link: ${doc.querySelector('a[href*="logout" i], a[href*="signout" i]') ? 'yes' : 'no'}`);
+  logError(NAME, `sign-in check: ${ok ? 'signed in' : 'not signed in'} — HTTP ${st} · page “${clean(doc.title).slice(0, 60)}” · ${String(url).replace(/[?#].*$/, '')} · ${html.length} chars · log out: ${logoutOn(doc, html) ? 'yes' : 'no'} · log in: ${loginOn(doc) ? 'yes' : 'no'} · member words: ${memberOn(html) ? 'yes' : 'no'}`);
   return ok ? { signedIn: true } : { signedIn: false, why: 'Not signed in' };
 }
 
