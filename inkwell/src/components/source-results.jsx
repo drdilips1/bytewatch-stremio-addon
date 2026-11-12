@@ -1346,7 +1346,9 @@ function BookshareMini({ title, author }) {
     try {
       const bs = await import('../sources/bookshare.js');
       const pick = (list) => (title && author ? sureMatches(list, title, author)[0] : list[0]) || null;
-      await bs.getBook({ title, author }, pick);
+      toast('Getting it from Bookshare…');
+      const r = await bs.getBook({ title, author }, pick);
+      if (r.background) toast(`“${r.title}” is in your Library — opening it`);
     } catch (e) {
       toast(e.message);
     } finally {

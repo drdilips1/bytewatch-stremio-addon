@@ -822,6 +822,120 @@ public class InkwellWebPlugin extends Plugin {
         }, 45000);
     }
 
+    // ---- Bookshare: get a book in the background ---------------------------------------------
+    /**
+     * Open a Bookshare book page in a hidden browser (your session), choose EPUB 3 and press
+     * Download, keep the file in the app and add it to the library: { path, name, format, size }.
+     * Rejects "no-download" when the page has no Download to press (the visible page can then
+     * be opened instead).
+     */
+    @PluginMethod
+    public void bookshareGet(PluginCall call) {
+        String url = call.getString("url", "");
+        if (url.isEmpty()) {
+            call.reject("Missing url");
+            return;
+        }
+        android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+        final boolean[] done = { false };
+        final boolean[] clicked = { false };
+        final android.webkit.WebView[] holder = new android.webkit.WebView[1];
+        final java.util.function.Consumer<String> fail = (why) -> ui.post(() -> {
+            if (done[0]) return;
+            done[0] = true;
+            if (holder[0] != null) holder[0].destroy();
+            call.reject(why);
+        });
+        ui.post(() -> {
+            android.webkit.WebView v = new android.webkit.WebView(getContext());
+            holder[0] = v;
+            android.webkit.WebSettings ws = v.getSettings();
+            ws.setJavaScriptEnabled(true);
+            ws.setDomStorageEnabled(true);
+            ws.setBlockNetworkImage(true);
+            String plain = android.webkit.WebSettings.getDefaultUserAgent(getContext());
+            String ua = plain.replace("; wv)", ")").replaceAll("Version/[\\d.]+ ", "");
+            ws.setUserAgentString(ua);
+            android.webkit.CookieManager.getInstance().setAcceptCookie(true);
+            android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(v, true);
+            v.setDownloadListener((dlUrl, agent, disposition, mime, length) -> {
+                String name = android.webkit.URLUtil.guessFileName(dlUrl, disposition, mime);
+                String referer = v.getUrl();
+                new Thread(() -> {
+                    try {
+                        byte[] bytes = fetchFile(dlUrl, agent != null ? agent : ua, referer);
+                        JSObject o = InkwellWebActivity.storeBook(getContext(), bytes, name);
+                        InkwellLocalPlugin.arrived(o);
+                        ui.post(() -> {
+                            if (done[0]) return;
+                            done[0] = true;
+                            v.destroy();
+                            call.resolve(o);
+                        });
+                    } catch (Exception e) {
+                        fail.accept("Couldn't save it: " + e.getMessage());
+                    }
+                }).start();
+            });
+            final Runnable[] tryClick = new Runnable[1];
+            final int[] tries = { 0 };
+            tryClick[0] = () -> {
+                if (done[0] || clicked[0]) return;
+                v.evaluateJavascript(InkwellWebActivity.AUTO_GET_JS, res -> {
+                    if (done[0] || clicked[0]) return;
+                    if (res != null && res.contains("clicked")) clicked[0] = true;
+                    else if (++tries[0] < 10) ui.postDelayed(tryClick[0], 1200); // the page may still be filling in
+                    else fail.accept("no-download");
+                });
+            };
+            v.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override
+                public void onPageFinished(android.webkit.WebView w, String u) {
+                    android.webkit.CookieManager.getInstance().flush();
+                    if (!clicked[0]) ui.postDelayed(tryClick[0], 600);
+                }
+            });
+            v.loadUrl(url);
+        });
+        // A book Bookshare prepares first can take a while; past this, the visible page takes over.
+        ui.postDelayed(() -> fail.accept(clicked[0] ? "Bookshare is still preparing it — try again in a minute" : "no-download"), 90000);
+    }
+
+    /** A file with the browser's cookies for its site (following redirects). */
+    private static byte[] fetchFile(String url, String ua, String referer) throws Exception {
+        String u = url;
+        for (int hop = 0; hop < 8; hop++) {
+            HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
+            c.setInstanceFollowRedirects(false);
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(60000);
+            String cookie = android.webkit.CookieManager.getInstance().getCookie(u);
+            if (cookie != null) c.setRequestProperty("Cookie", cookie);
+            c.setRequestProperty("User-Agent", ua);
+            c.setRequestProperty("Accept", "application/epub+zip,application/zip,application/pdf,application/octet-stream,*/*");
+            if (referer != null) c.setRequestProperty("Referer", referer);
+            int code = c.getResponseCode();
+            if (code >= 300 && code < 400) {
+                String loc = c.getHeaderField("Location");
+                c.disconnect();
+                if (loc == null) throw new Exception("HTTP " + code);
+                u = new URL(new URL(u), loc).toString();
+                continue;
+            }
+            if (code >= 400) throw new Exception("HTTP " + code);
+            try (InputStream in = c.getInputStream()) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[1 << 16];
+                int n;
+                while ((n = in.read(buf)) > 0 && out.size() < 150_000_000) out.write(buf, 0, n);
+                byte[] bytes = out.toByteArray();
+                if (bytes.length > 0 && bytes[0] == '<') throw new Exception("Bookshare sent a web page, not the book — is it ready?");
+                return bytes;
+            }
+        }
+        throw new Exception("too many redirects");
+    }
+
     /** Send a .torrent (base64) to qBittorrent with the app's settings: { sent, message }. */
     @PluginMethod
     public void qbitSend(PluginCall call) {

@@ -60,7 +60,7 @@ public class InkwellWebActivity extends AppCompatActivity {
     /** One tap from a book page (Bookshare): pick EPUB 3 and press Download by itself, then close. */
     private boolean autoGet = false;
     private boolean autoClicked = false;
-    private static final String AUTO_GET_JS = "(function(){try{"
+    static final String AUTO_GET_JS = "(function(){try{"
         + "var t=function(e){return ((e&&(e.innerText||e.textContent||e.value))||'').trim();};"
         + "var sels=[].slice.call(document.querySelectorAll('select'));"
         + "for(var i=0;i<sels.length;i++){var s=sels[i];var os=[].slice.call(s.options);"
@@ -294,6 +294,15 @@ public class InkwellWebActivity extends AppCompatActivity {
 
     /** Keep a downloaded book in the app (files/books) and hand it to the library. */
     private void saveBook(byte[] bytes, String name) throws Exception {
+        JSObject o = storeBook(this, bytes, name);
+        InkwellLocalPlugin.arrived(o);
+        report("OK Saved to your Library — " + o.getString("name"));
+        // From the book page's one tap: close, so the book opens in the reader behind.
+        if (autoGet) ui.postDelayed(this::finish, 900);
+    }
+
+    /** An EPUB / PDF (or the one inside a zipped download) kept in files/books: { path, name, format, size }. */
+    static JSObject storeBook(android.content.Context ctx, byte[] bytes, String name) throws Exception {
         String lower = name.toLowerCase(java.util.Locale.ROOT);
         boolean zip = bytes.length > 4 && bytes[0] == 'P' && bytes[1] == 'K';
         // An EPUB is itself a zip: it has "mimetype" + "application/epub+zip" at the start.
@@ -331,7 +340,7 @@ public class InkwellWebActivity extends AppCompatActivity {
         }
         if (epub && !lower.endsWith(".epub")) name = name.replaceAll("\\.[A-Za-z0-9]{1,5}$", "") + ".epub";
         if (pdf && !lower.endsWith(".pdf")) name = name.replaceAll("\\.[A-Za-z0-9]{1,5}$", "") + ".pdf";
-        java.io.File dir = new java.io.File(getFilesDir(), "books");
+        java.io.File dir = new java.io.File(ctx.getFilesDir(), "books");
         //noinspection ResultOfMethodCallIgnored
         dir.mkdirs();
         java.io.File out = new java.io.File(dir, name.replaceAll("[\\/:*?\"<>|]+", " ").trim());
@@ -343,10 +352,7 @@ public class InkwellWebActivity extends AppCompatActivity {
         o.put("name", name);
         o.put("format", pdf ? "PDF" : "EPUB");
         o.put("size", out.length());
-        InkwellLocalPlugin.arrived(o);
-        report("OK Saved to your Library — " + name);
-        // From the book page's one tap: close, so the book opens in the reader behind.
-        if (autoGet) ui.postDelayed(this::finish, 900);
+        return o;
     }
 
     private void applyViewMode() {
