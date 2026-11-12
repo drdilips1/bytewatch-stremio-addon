@@ -32,6 +32,7 @@ export const signIn = () => open(BASE + '/');
 
 async function page(path, waitFor) {
   const r = await Web.pageVisit({ url: BASE + path, timeout: 25000, ...(waitFor ? { waitFor } : {}) }).catch((e) => {
+    logError(NAME, `${path.split('?')[0]}: ${e?.message || 'didn’t answer'}`);
     throw fail(`${NAME}: ${e?.message || 'didn’t answer'} — try again in a moment`);
   });
   const html = r.html || '';
@@ -90,6 +91,7 @@ export async function search(query) {
     logError(NAME, `HTTP ${st} on the search`);
     throw fail(`${NAME} answered HTTP ${st} — try again later`);
   }
+  if (/\/login|sign.?in/i.test(url) && !doc.querySelector('a[href*="/browse/book/"]')) logError(NAME, `“${q}”: sent to sign in — ${String(url).replace(/[?#].*$/, '')} · page “${clean(doc.title).slice(0, 60)}”`);
   if (/\/login|sign.?in/i.test(url) && !doc.querySelector('a[href*="/browse/book/"]')) throw fail(`Sign in to ${NAME} first: Settings → Addons → ${NAME} → Sign in`, { signin: true });
   const books = booksOn(doc);
   // Every search, found or not, so a report shows what Bookshare answered.
