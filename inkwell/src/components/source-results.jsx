@@ -822,7 +822,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   const saved = !!(rb && kept[rb.uid]);
   // A file whose type the source didn't give: fetch it and see what it is. EPUB / PDF
   // open in the reader (or are kept in the app); anything else goes to Downloads.
-  const unknownEbook = !hasMagnet && !ebook && /^https?:/i.test(r.link || '') && isEbookResult(r);
+  const unknownEbook = !hasMagnet && !ebook && !r.bookshare && /^https?:/i.test(r.link || '') && isEbookResult(r);
   const probe = async (then) => {
     setBusy(then);
     setStatus({ text: 'Looking at the file…', pct: null });

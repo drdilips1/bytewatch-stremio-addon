@@ -258,6 +258,8 @@ const safeDecode = (s) => {
 
 /** The ebook file behind a source result's direct link, or null when it isn't an ebook. */
 export function directEbookFile(r) {
+  // Bookshare: the link is the book's page (you download it there, signed in) — not a file.
+  if (r?.bookshare) return null;
   // Anna's Archive: your membership's fast link, or the free copy (LibGen / slow server).
   if (r?.aaMd5) {
     if (!EBOOK_FORMATS.test(String(r.format || ''))) return null;
