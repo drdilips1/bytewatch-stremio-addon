@@ -11802,3 +11802,122 @@ button.cr-tile.on > img {
   padding: 3px 8px;
   border-radius: 8px;
 }
+
+/* =====================================================================
+   Book page, calm & premium (Nov 2026): a big cover on its own glow, two quiet
+   lines of facts, one main button with small squares, a thin progress line.
+   ===================================================================== */
+.screen.book .book-hero {
+  padding-bottom: 14px;
+}
+.screen.book .book-cover {
+  width: min(58vw, 230px);
+  margin-bottom: 20px;
+}
+.screen.book .book-hero h1 {
+  font-size: 26px;
+  margin: 0 auto;
+}
+.screen.book .book-author {
+  margin-top: 6px;
+  font-size: 15.5px;
+}
+.screen.book .book-narrator {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  opacity: 0.65;
+}
+.book-facts {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.book-rates {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  margin-top: 8px;
+}
+.book-rate {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.book-rate svg {
+  color: #f5b544;
+}
+.book-rate b {
+  color: var(--text);
+  font-weight: 700;
+}
+.screen.book .book-meta {
+  margin-top: 10px;
+  font-size: 12px;
+}
+/* One main button, quiet squares beside it */
+.screen.book .book-actions {
+  flex-wrap: nowrap;
+  padding: 4px 20px 0;
+}
+.screen.book .book-actions .btn.big:not(.sq) {
+  flex: 1;
+  min-width: 0;
+  height: 54px;
+  border-radius: 18px;
+  font-size: 16px;
+}
+.screen.book .book-actions .btn.secondary.big:not(.sq) {
+  flex: 0 1 auto;
+  padding: 0 16px;
+}
+.screen.book .book-actions .btn.sq {
+  flex: none;
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+}
+.screen.book .book-actions .btn.sq.ok {
+  color: var(--ready, #4cc38a);
+}
+.screen.book .book-actions .btn.sq.liked svg {
+  color: var(--accent);
+}
+/* Progress: a line of words over a thin bar */
+.book-prog {
+  margin: 14px 22px 0;
+}
+.book-prog small {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.book-prog .book-progress {
+  margin: 6px 0 0;
+  height: 4px;
+}
+.book-dl {
+  margin: 12px 22px 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  display: grid;
+  gap: 6px;
+}
+.book-dl-note {
+  margin: 10px 22px 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+/* Ask: one compact card */
+.screen.book .ask-card {
+  margin-top: 6px;
+  border-radius: 18px;
+}

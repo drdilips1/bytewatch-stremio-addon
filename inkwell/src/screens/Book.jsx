@@ -8,7 +8,6 @@ import {
   Row,
   BookCard,
   toast,
-  AskButton,
 } from "../components/common.jsx";
 import { Icon } from "../components/icons.jsx";
 import {
@@ -161,17 +160,6 @@ export function Book({ book: initial }) {
           </button>
           <span />
           <div class="topbar-right">
-            {book.source !== "pod" && <AskButton book={book} glass />}
-            <button
-              class={"icon-btn glass" + (saved ? " liked" : "")}
-              aria-label={saved ? "Remove from library" : "Add to library"}
-              onClick={() => {
-                toggleLibrary(book);
-                toast(saved ? "Removed from your library" : "Added to your library (not downloaded — use Download for that)");
-              }}
-            >
-              <Icon name="heart" fill={saved} />
-            </button>
             {book.source !== "pod" && (
               <button
                 class="icon-btn glass"
@@ -188,8 +176,9 @@ export function Book({ book: initial }) {
           <h1>{book.title}</h1>
           {book.author && <p class="book-author">{book.author}</p>}
           {book.narrator && (
-            <p class="book-narrator">Narrated by {book.narrator}</p>
+            <p class="book-narrator">Read by {book.narrator}</p>
           )}
+          <HeroFacts book={book} tracks={tracks} />
           <div class="book-meta">
             <SourceBadge uid={book.uid} book={book} />
             {book.series && <span>{book.series}</span>}
@@ -207,7 +196,6 @@ export function Book({ book: initial }) {
       </div>
 
       <div class="book-body">
-      <StatsStrip book={book} tracks={tracks} />
       {book.source !== "pod" && book.source !== "sum" && (
         <Available book={book} editions={editions} />
       )}
@@ -248,29 +236,6 @@ export function Book({ book: initial }) {
                 : "Listen now"}
           </button>
         )}
-        {canSendToKindle(book) && (
-          <button
-            class="btn secondary big kindle-btn"
-            disabled={kindleBusy}
-            onClick={async () => {
-              setKindleBusy(true);
-              try {
-                await sendToKindle(book);
-              } catch (e) {
-                toast(e.message);
-              } finally {
-                setKindleBusy(false);
-              }
-            }}
-          >
-            {kindleBusy ? (
-              <span class="spinner" />
-            ) : (
-              <Icon name="upload" size={18} />
-            )}{" "}
-            Send to Kindle
-          </button>
-        )}
         {canRead && (
           <button
             class="btn primary big"
@@ -309,87 +274,79 @@ export function Book({ book: initial }) {
             Listen
           </button>
         )}
+        {/* Quiet squares beside the main button: save to phone, your library, Kindle. */}
+        {canListen && canDownload && book.source !== "tts" && book.source !== "loc" && (
+          <button
+            class={"btn secondary big sq" + (dl?.status === "done" ? " ok" : "")}
+            aria-label={dl?.status === "done" ? "On this phone — remove" : dl?.status === "downloading" ? "Stop downloading" : "Download to this phone"}
+            disabled={!dl && loading && !book.tracks && !book.resolveTracks}
+            onClick={() => {
+              if (dl?.status === "done") return confirm("Remove the download from this phone?") && removeDownload(book.uid).then(() => toast("Download removed"));
+              if (dl?.status === "downloading") return confirm("Stop downloading?") && cancelDownload(book.uid);
+              downloadBook(book, { resume: !!dl })
+                .then(() => downloads.get()[book.uid]?.status === "done" && toast("Downloaded — plays offline now"))
+                .catch((e) => e.message !== "cancelled" && toast(e.message));
+            }}
+          >
+            {dl?.status === "downloading" ? <span class="spinner small" /> : <Icon name={dl?.status === "done" ? "check" : "download"} size={20} />}
+          </button>
+        )}
+        {book.source !== "pod" && (
+          <button
+            class={"btn secondary big sq" + (saved ? " liked" : "")}
+            aria-label={saved ? "Remove from library" : "Add to library"}
+            onClick={() => {
+              toggleLibrary(book);
+              toast(saved ? "Removed from your library" : "Added to your library");
+            }}
+          >
+            <Icon name="heart" size={20} fill={saved} />
+          </button>
+        )}
+        {canSendToKindle(book) && (
+          <button
+            class="btn secondary big sq"
+            aria-label="Send to Kindle"
+            disabled={kindleBusy}
+            onClick={async () => {
+              setKindleBusy(true);
+              try {
+                await sendToKindle(book);
+              } catch (e) {
+                toast(e.message);
+              } finally {
+                setKindleBusy(false);
+              }
+            }}
+          >
+            {kindleBusy ? <span class="spinner small" /> : <Icon name="upload" size={20} />}
+          </button>
+        )}
       </div>
       {cloudEbooks.length > 0 && (
         <CloudEbooks book={book} files={cloudEbooks} />
       )}
-      {((canListen && canDownload && book.source !== "tts" && book.source !== "loc") ||
-        (book.hash &&
+      {/* Downloading: how far it is (the square beside Play starts and stops it). */}
+      {dl?.status === "downloading" && (
+        <div class="book-dl">
+          <span>
+            Saving to this phone · part {Math.min((dl.done || 0) + 1, dl.total || 1)} of {dl.total || "…"}
+            {dl.currentTotal > 0 ? ` · ${Math.round((dl.current / dl.currentTotal) * 100)}%` : ""}
+          </span>
+          <span class="progress-bar">
+            <span style={{ width: `${dl.total ? (((dl.done || 0) + (dl.currentTotal ? dl.current / dl.currentTotal : 0)) / dl.total) * 100 : 2}%` }} />
+          </span>
+        </div>
+      )}
+      {(dl?.status === "error" || dl?.status === "paused") && (
+        <p class="book-dl-note">
+          {dl.status === "error" ? dl.error || "The download stopped" : `${dl.done || 0} of ${dl.total || "?"} parts saved`} — tap <Icon name="download" size={13} /> to {dl.status === "error" ? "try again" : "carry on"}
+        </p>
+      )}
+      {(book.hash &&
           (book.source === "tb" || book.source === "rd") &&
-          qb.available)) && (
+          qb.available) && (
         <div class="book-tools">
-          {canListen &&
-            canDownload &&
-            book.source !== "tts" &&
-            book.source !== "loc" &&
-            (!dl || dl.status === "error" || dl.status === "paused" ? (
-              <button
-                class="tool"
-                disabled={loading && !book.tracks && !book.resolveTracks}
-                onClick={() =>
-                  downloadBook(book, { resume: !!dl })
-                    .then(() => downloads.get()[book.uid]?.status === "done" && toast("Downloaded — plays offline now"))
-                    .catch((e) => e.message !== "cancelled" && toast(e.message))
-                }
-              >
-                <span class="tool-icon">
-                  <Icon name="download" size={18} />
-                </span>
-                <span class="tool-text">
-                  <b>{dl?.status === "error" ? "Retry download" : dl?.status === "paused" ? "Resume download" : "Download"}</b>
-                  <small>
-                    {dl?.status === "error"
-                      ? dl.error || "Download failed"
-                      : dl?.status === "paused"
-                        ? `${dl.done || 0} of ${dl.total || "?"} parts saved`
-                        : "Plays without internet"}
-                  </small>
-                </span>
-              </button>
-            ) : dl.status === "done" ? (
-              <button
-                class="tool done"
-                onClick={() =>
-                  confirm("Remove the download from this phone?") &&
-                  removeDownload(book.uid).then(() => toast("Download removed"))
-                }
-              >
-                <span class="tool-icon">
-                  <Icon name="check" size={18} />
-                </span>
-                <span class="tool-text">
-                  <b>On this phone</b>
-                  <small>{fmtBytes(dl.bytes)} · tap to remove</small>
-                </span>
-              </button>
-            ) : (
-              <button
-                class="tool busy"
-                onClick={() =>
-                  confirm("Stop downloading?") && cancelDownload(book.uid)
-                }
-              >
-                <span class="tool-icon">
-                  <span class="spinner small" />
-                </span>
-                <span class="tool-text">
-                  <b>
-                    Part {Math.min((dl.done || 0) + 1, dl.total || 1)} of{" "}
-                    {dl.total || "…"}
-                    {dl.currentTotal > 0
-                      ? ` · ${Math.round((dl.current / dl.currentTotal) * 100)}%`
-                      : ""}
-                  </b>
-                  <span class="progress-bar">
-                    <span
-                      style={{
-                        width: `${dl.total ? (((dl.done || 0) + (dl.currentTotal ? dl.current / dl.currentTotal : 0)) / dl.total) * 100 : 2}%`,
-                      }}
-                    />
-                  </span>
-                </span>
-              </button>
-            ))}
           {book.hash &&
             (book.source === "tb" || book.source === "rd") &&
             qb.available && (
@@ -457,8 +414,14 @@ export function Book({ book: initial }) {
         </div>
       )}
       {pct > 0 && (
-        <div class="progress-bar book-progress">
-          <div style={{ width: pct + "%" }} />
+        <div class="book-prog">
+          <small>
+            {prog.finished ? "Finished" : `${pct}% ${canRead ? "read" : "listened"}`}
+            {!prog.finished && !canRead && book.duration > 0 ? ` · ${fmtDuration(book.duration * (1 - pct / 100))} left` : ""}
+          </small>
+          <div class="progress-bar book-progress">
+            <div style={{ width: pct + "%" }} />
+          </div>
         </div>
       )}
       <AbsSending uid={initial.uid} />
@@ -739,51 +702,38 @@ const fmtK = (n) =>
 
 /** Ratings across services and awards, as a row of badges: "4.6 (1.2k)"; tap one for its reviews. */
 /** Rating · length · year in one strip, Apple Books style. Tap the rating for reviews. */
-function StatsStrip({ book, tracks }) {
+/** Under the title, two quiet lines: length · parts · year · language, then the ratings. */
+function HeroFacts({ book, tracks }) {
   const { goodreads, audible } = useRatings(book);
   // When the lookups don't answer (busy, offline): the book's own catalogue stars (Audible results carry them).
-  const own = book.rating > 0 ? { rating: Number(book.rating), count: Number(book.ratings) || 0, from: "Rating" } : null;
-  const r = goodreads || audible || own;
-  const cells = [];
-  if (r)
-    cells.push(
-      <button class="stat" onClick={() => r.url && openExternal(r.url)}>
-        <b>
-          {r.rating.toFixed(goodreads ? 2 : 1)} <Icon name="star" size={13} fill />
-        </b>
-        <small>{r.count > 0 ? `${fmtK(r.count)} ratings` : r.from}</small>
-      </button>,
-    );
-  if (book.duration > 0)
-    cells.push(
-      <div class="stat">
-        <b>{fmtDuration(book.duration)}</b>
-        <small>Length</small>
-      </div>,
-    );
-  if (tracks.length > 1)
-    cells.push(
-      <div class="stat">
-        <b>{tracks.length}</b>
-        <small>Parts</small>
-      </div>,
-    );
-  if (book.year)
-    cells.push(
-      <div class="stat">
-        <b>{book.year}</b>
-        <small>Released</small>
-      </div>,
-    );
-  if (book.language && cells.length < 4)
-    cells.push(
-      <div class="stat">
-        <b>{String(book.language).slice(0, 10)}</b>
-        <small>Language</small>
-      </div>,
-    );
-  if (!cells.length) return null;
-  return <div class="stats-strip">{cells}</div>;
+  const own = !goodreads && !audible && book.rating > 0 ? { rating: Number(book.rating), count: Number(book.ratings) || 0 } : null;
+  const facts = [
+    book.duration > 0 && fmtDuration(book.duration),
+    tracks.length > 1 && `${tracks.length} parts`,
+    book.year,
+    book.language && String(book.language).slice(0, 12),
+  ].filter(Boolean);
+  const rates = [
+    goodreads && { r: goodreads, label: "Goodreads", d: 2 },
+    audible && { r: audible, label: "Audible", d: 1 },
+    own && { r: own, label: "", d: 1 },
+  ].filter(Boolean);
+  return (
+    <>
+      {facts.length > 0 && <p class="book-facts">{facts.join(" · ")}</p>}
+      {rates.length > 0 && (
+        <div class="book-rates">
+          {rates.map(({ r, label, d }) => (
+            <button class="book-rate" onClick={() => r.url && openExternal(r.url)}>
+              <Icon name="star" size={13} fill /> <b>{r.rating.toFixed(d)}</b>
+              {label ? ` ${label}` : ""}
+              {r.count > 0 ? ` · ${fmtK(r.count)}` : ""}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
 }
 
 /** Your own verdict: how you found it, the story and the narration, and why if it didn't work. Feeds your picks. */
