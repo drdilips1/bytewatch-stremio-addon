@@ -1089,6 +1089,68 @@ function GoodreadsCard() {
 }
 
 /**
+ * Bookshare: your own membership, in the in-app browser (sign in there once). Its books show
+ * among a book's sources; a download on Bookshare's page is saved into your Library.
+ */
+function BookshareRow({ list }) {
+  const [bs, setBs] = useState(null);
+  const [st, setSt] = useState(null); // { signedIn, why } | 'checking'
+  const on = list.some((a) => a.special === 'bookshare');
+  const check = (m = bs) => {
+    if (!m) return;
+    setSt('checking');
+    m.status().then(setSt, (e) => setSt({ signedIn: false, why: e?.message || 'Couldn’t reach Bookshare' }));
+  };
+  useEffect(() => {
+    import('../sources/bookshare.js')
+      .then((m) => {
+        setBs(m);
+        if (on && m.available()) check(m);
+      })
+      .catch(() => {});
+  }, []);
+  if (!bs || !bs.available()) return null;
+  const line =
+    !on ? 'Accessible ebooks from your own Bookshare membership'
+    : st === 'checking' ? 'Checking your sign-in…'
+    : st?.signedIn ? 'Signed in · books you download there go to your Library'
+    : st ? `${st.why} — tap Sign in, log in, close the page, then Check`
+    : 'Searched in your signed-in in-app browser';
+  return (
+    <div class="set-row addon-row">
+      <Icon name="book" size={20} />
+      <div>
+        <b>{bs.NAME}</b>
+        <small>{line}</small>
+      </div>
+      {on && st && st !== 'checking' && (
+        <button class="pill small" onClick={() => check()}>
+          Check
+        </button>
+      )}
+      <button class="pill small" onClick={() => (st?.signedIn ? bs.open() : bs.signIn()).catch((e) => toast(e.message))}>
+        {st?.signedIn ? 'Open' : 'Sign in'}
+      </button>
+      {on ? (
+        <button class="icon-btn" aria-label="Remove Bookshare" onClick={() => addons.set(list.filter((a) => a.special !== 'bookshare'))}>
+          <Icon name="trash" size={18} />
+        </button>
+      ) : (
+        <button
+          class="pill small"
+          onClick={() => {
+            addons.set([...list, bs.addonRecord()]);
+            toast('Bookshare added — sign in once, then search');
+          }}
+        >
+          Add
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
  * Mobilism Audiobooks: a source searched in the in-app browser with your own sign-in (the
  * cookies stay in the app's browser — nothing goes through the Worker). Android only.
  */
@@ -1259,7 +1321,8 @@ function AddonsCard() {
       </p>
       <MobilismRow list={list} />
       <AnnasRow list={list} />
-      {list.filter((a) => a.special !== 'mobilism' && a.special !== 'annas').map((a) => (
+      <BookshareRow list={list} />
+      {list.filter((a) => a.special !== 'mobilism' && a.special !== 'annas' && a.special !== 'bookshare').map((a) => (
         <div class="set-row addon-row">
           {(a.manifest.logo || a.manifest.icon) && !badLogo[a.manifest.id] ? (
             <img src={a.manifest.logo || a.manifest.icon} alt="" class="addon-logo" onError={() => setBadLogo((m) => ({ ...m, [a.manifest.id]: true }))} onLoad={(e) => e.currentTarget.naturalWidth < 8 && setBadLogo((m) => ({ ...m, [a.manifest.id]: true }))} />

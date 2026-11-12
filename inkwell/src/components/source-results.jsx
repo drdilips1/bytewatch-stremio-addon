@@ -959,11 +959,12 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
             </a>
           </>
         ) : !hasMagnet && r.inApp ? (
-          // A forum topic (Mobilism): opens in the in-app browser, where you're signed in.
+          // A forum topic (Mobilism), or a Bookshare book (its download is saved into your
+          // Library): opens in the in-app browser, where you're signed in.
           // Its links are file hosts (Rapidgator, Rosefile…), not audio you can stream.
           <div class="src-topic">
-            <button class={'btn ' + (cloud.rdConnected() && r.downloads?.length ? 'secondary' : 'primary')} onClick={() => WebPlugin.open({ url: r.link, title: r.title }).catch((e) => toast(e.message))}>
-              <Icon name="external" size={16} /> {r.aaMd5 ? 'Open' : 'Open topic'}
+            <button class={'btn ' + (cloud.rdConnected() && r.downloads?.length ? 'secondary' : 'primary')} onClick={() => WebPlugin.open({ url: r.link, title: r.title, books: !!r.bookshare }).catch((e) => toast(e.message))}>
+              <Icon name="external" size={16} /> {r.bookshare ? 'Open on Bookshare' : r.aaMd5 ? 'Open' : 'Open topic'}
             </button>
             {r.downloads?.length > 0 && (
               <small class="muted">

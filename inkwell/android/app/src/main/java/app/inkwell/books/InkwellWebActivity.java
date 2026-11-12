@@ -234,8 +234,81 @@ public class InkwellWebActivity extends AppCompatActivity {
             });
             web.addJavascriptInterface(new CaptureBridge(), "AudiohubCapture");
         }
+        // "books" mode (Bookshare): a book you download here is saved into Audiohub's library and
+        // opens in the reader — an EPUB or PDF, or the one inside a zipped download.
+        if (!capture && getIntent().getBooleanExtra("books", false)) {
+            String ua = s.getUserAgentString();
+            web.setDownloadListener((dlUrl, userAgent, disposition, mime, length) -> {
+                String name = URLUtil.guessFileName(dlUrl, disposition, mime);
+                showNote("Saving the book…", 0);
+                String referer = web.getUrl();
+                String agent = userAgent != null ? userAgent : ua;
+                new Thread(() -> {
+                    try {
+                        saveBook(fetchBytes(dlUrl, agent, referer, false), name);
+                    } catch (Exception e) {
+                        report("Couldn't save the book: " + e.getMessage());
+                    }
+                }).start();
+            });
+        }
         if (state != null) web.restoreState(state);
         else if (url != null) web.loadUrl(url);
+    }
+
+    /** Keep a downloaded book in the app (files/books) and hand it to the library. */
+    private void saveBook(byte[] bytes, String name) throws Exception {
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        boolean zip = bytes.length > 4 && bytes[0] == 'P' && bytes[1] == 'K';
+        // An EPUB is itself a zip: it has "mimetype" + "application/epub+zip" at the start.
+        boolean epub = zip && new String(bytes, 0, Math.min(bytes.length, 120), StandardCharsets.ISO_8859_1).contains("application/epub+zip");
+        boolean pdf = bytes.length > 4 && bytes[0] == '%' && bytes[1] == 'P' && bytes[2] == 'D' && bytes[3] == 'F';
+        if (zip && !epub) {
+            // A package: the EPUB (or PDF) inside it.
+            byte[] inner = null;
+            String innerName = null;
+            try (java.util.zip.ZipInputStream z = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes))) {
+                java.util.zip.ZipEntry e;
+                while ((e = z.getNextEntry()) != null) {
+                    String n = e.getName().toLowerCase(java.util.Locale.ROOT);
+                    if (e.isDirectory() || !(n.endsWith(".epub") || n.endsWith(".pdf"))) continue;
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    byte[] b = new byte[1 << 16];
+                    int k;
+                    while ((k = z.read(b)) > 0) out.write(b, 0, k);
+                    inner = out.toByteArray();
+                    innerName = e.getName().replaceAll(".*/", "");
+                    if (n.endsWith(".epub")) break; // EPUB first
+                }
+            }
+            if (inner == null) throw new Exception("there's no EPUB or PDF in this download — choose EPUB 3 as the format and download again");
+            bytes = inner;
+            name = innerName;
+            lower = name.toLowerCase(java.util.Locale.ROOT);
+            epub = lower.endsWith(".epub");
+            pdf = lower.endsWith(".pdf");
+        }
+        if (!epub && !pdf) {
+            if (lower.endsWith(".epub")) epub = true;
+            else if (lower.endsWith(".pdf")) pdf = true;
+            else throw new Exception("this isn't an EPUB or PDF — choose EPUB 3 as the format");
+        }
+        if (epub && !lower.endsWith(".epub")) name = name.replaceAll("\\.[A-Za-z0-9]{1,5}$", "") + ".epub";
+        if (pdf && !lower.endsWith(".pdf")) name = name.replaceAll("\\.[A-Za-z0-9]{1,5}$", "") + ".pdf";
+        java.io.File dir = new java.io.File(getFilesDir(), "books");
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        java.io.File out = new java.io.File(dir, name.replaceAll("[\\/:*?\"<>|]+", " ").trim());
+        try (OutputStream os = new java.io.FileOutputStream(out)) {
+            os.write(bytes);
+        }
+        JSObject o = new JSObject();
+        o.put("path", out.getAbsolutePath());
+        o.put("name", name);
+        o.put("format", pdf ? "PDF" : "EPUB");
+        o.put("size", out.length());
+        InkwellLocalPlugin.arrived(o);
+        report("OK Saved to your Library — " + name);
     }
 
     private void applyViewMode() {
@@ -251,6 +324,10 @@ public class InkwellWebActivity extends AppCompatActivity {
      * a tracker sometimes answers the first request with a page instead of the file.
      */
     private byte[] fetchTorrent(String dlUrl, String ua, String referer) throws Exception {
+        return fetchBytes(dlUrl, ua, referer, true);
+    }
+
+    private byte[] fetchBytes(String dlUrl, String ua, String referer, boolean torrent) throws Exception {
         Exception last = new Exception("couldn't download it");
         for (int attempt = 0; attempt < 3; attempt++) {
             try {
@@ -263,7 +340,7 @@ public class InkwellWebActivity extends AppCompatActivity {
                     String cookie = CookieManager.getInstance().getCookie(u);
                     if (cookie != null) c.setRequestProperty("Cookie", cookie);
                     c.setRequestProperty("User-Agent", ua);
-                    c.setRequestProperty("Accept", "application/x-bittorrent,application/octet-stream,*/*");
+                    c.setRequestProperty("Accept", torrent ? "application/x-bittorrent,application/octet-stream,*/*" : "application/epub+zip,application/zip,application/pdf,application/octet-stream,*/*");
                     if (referer != null) c.setRequestProperty("Referer", referer);
                     int code = c.getResponseCode();
                     for (Map.Entry<String, List<String>> h : c.getHeaderFields().entrySet()) {
@@ -282,9 +359,14 @@ public class InkwellWebActivity extends AppCompatActivity {
                     ByteArrayOutputStream out = new ByteArrayOutputStream();
                     byte[] buf = new byte[16384];
                     int n;
-                    while ((n = in.read(buf)) > 0 && out.size() < 20_000_000) out.write(buf, 0, n);
+                    long cap = torrent ? 20_000_000L : 150_000_000L;
+                    while ((n = in.read(buf)) > 0 && out.size() < cap) out.write(buf, 0, n);
                     in.close();
                     byte[] bytes = out.toByteArray();
+                    if (!torrent) {
+                        if (bytes.length > 0 && bytes[0] == '<') throw new Exception("the site sent a web page, not the book — is it ready? Try Download again in a moment");
+                        return bytes;
+                    }
                     if (bytes.length == 0 || bytes[0] != 'd') throw new Exception("the site sent a web page, not a .torrent — are you signed in?");
                     return bytes;
                 }
@@ -292,7 +374,7 @@ public class InkwellWebActivity extends AppCompatActivity {
             } catch (Exception e) {
                 last = e;
                 if (attempt < 2) {
-                    showNote("Getting the .torrent… (trying again)", 0);
+                    showNote(torrent ? "Getting the .torrent… (trying again)" : "Saving the book… (trying again)", 0);
                     try {
                         Thread.sleep(1200L * (attempt + 1));
                     } catch (InterruptedException ignored) {

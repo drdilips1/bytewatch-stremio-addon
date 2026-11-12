@@ -22,6 +22,18 @@ import java.util.regex.Pattern;
 @CapacitorPlugin(name = "InkwellLocal")
 public class InkwellLocalPlugin extends Plugin {
 
+    private static InkwellLocalPlugin instance;
+
+    @Override
+    public void load() {
+        instance = this;
+    }
+
+    /** A book saved by the in-app browser (a Bookshare download): added like one opened with Audiohub. */
+    static void arrived(JSObject book) {
+        if (instance != null) instance.notifyListeners("incoming", book, true);
+    }
+
     private static final Pattern AUDIO = Pattern.compile("(?i).*\\.(mp3|m4b|m4a|aac|flac|ogg|oga|opus|wav|wma|mka)$");
     private static final Pattern EBOOK = Pattern.compile("(?i).*\\.(epub|pdf)$");
     private static final Pattern IMAGE = Pattern.compile("(?i)^(cover|folder|front|album|art)[^/]*\\.(jpe?g|png|webp)$");
