@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { LibbySettings } from '../components/libby-settings.jsx';
 import { ssBadges } from '../sources/storyshots.js';
 import { Icon } from '../components/icons.jsx';
-import { toast, AskButton } from '../components/common.jsx';
-import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup, kindle } from '../lib/store.js';
+import { toast, AskButton, clearRowCache } from '../components/common.jsx';
+import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup, kindle, progress, library } from '../lib/store.js';
+import { GENRES } from './genres.js';
+import { learnedTopics } from './Home.jsx';
 import { aiVoiceOn, stopAnswer } from '../lib/voiceask.js';
 import { annas as annasStore } from '../sources/annas.js';
-import { notInterested, alreadyRead } from '../lib/taste.js';
+import { notInterested, alreadyRead, myRatings } from '../lib/taste.js';
 import { importReadList, takeGoodreadsReads } from '../lib/readlists.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl } from '../lib/http.js';
@@ -147,6 +149,70 @@ function VoiceToggle() {
         if (!v) stopAnswer();
       }}
     />
+  );
+}
+
+/**
+ * Your taste: the topics Home's "Recommended" and "New releases" rows are built from — your
+ * own picks (up to 5) instead of the guess, novels too, or a fresh start.
+ */
+function YourTaste() {
+  const st = useStore(settings);
+  useStore(progress);
+  const picks = st.tastePicks || [];
+  const topics = GENRES.filter((g) => g.au);
+  const short = (n) => n.split(/ & |, /)[0];
+  const guess = learnedTopics(3).map((g) => short(g.name));
+  const since = Number(st.tasteSince) || 0;
+  const finished = Object.values(progress.get()).filter((p) => p?.finished && (p.updatedAt || 0) > since).length;
+  const rated = Object.values(myRatings.get()).filter((r) => r?.verdict).length;
+  const saved = Object.values(library.get()).filter((b) => b && (b.addedAt || 0) > since).length;
+  const toggle = (name) => {
+    clearRowCache(['homeRec', 'homeNew', 'homeTop']);
+    if (picks.includes(name)) return settings.patch({ tastePicks: picks.filter((n) => n !== name) });
+    if (picks.length >= 5) return toast('Up to 5 topics — untick one first');
+    settings.patch({ tastePicks: [...picks, name] });
+  };
+  return (
+    <>
+      <p class="muted small">What Home's “Recommended” and “New releases” rows are built from.</p>
+      <div class="taste-chips">
+        {topics.map((g) => (
+          <button class={'chip' + (picks.includes(g.name) ? ' on' : '')} onClick={() => toggle(g.name)}>
+            {short(g.name)}
+            {picks.includes(g.name) && <Icon name="check" size={13} />}
+          </button>
+        ))}
+      </div>
+      <small class="muted taste-note">
+        {picks.length ? `Picked by you · ${picks.length} of 5` : 'Pick up to 5'}
+        {guess.length ? ` · the app's guess: ${guess.join(', ')}` : ' · the app is still learning (Psychology, Science, History for now)'}
+      </small>
+      <div class="taste-from">
+        <span>{finished} finished</span>
+        <span>{rated} rated</span>
+        <span>{saved} saved</span>
+      </div>
+      <Toggle label="Fiction too" hint="Novels in the recommended rows" on={!!st.tasteFiction} onChange={(v) => (clearRowCache(['homeRec', 'homeNew', 'homeTop']), settings.patch({ tasteFiction: v }))} />
+      <Toggle label="Use my picks only" hint="Off: your picks first, then what you listen to" on={!!st.tastePicksOnly} onChange={(v) => (clearRowCache(['homeRec', 'homeNew', 'homeTop']), settings.patch({ tastePicksOnly: v }))} />
+      <div class="set-row">
+        <div>
+          <b>Start fresh</b>
+          <small>Forget what the app learned from your listening and saves. Ratings and “Not for me” stay.</small>
+        </div>
+        <button
+          class="pill small"
+          onClick={() => {
+            if (!confirm('Start fresh? Recommendations forget your listening history and saves (your ratings and “Not for me” stay).')) return;
+            settings.patch({ tasteSince: Date.now() });
+            clearRowCache(['homeRec', 'homeNew', 'homeTop']);
+            toast('Starting fresh — new recommendations as you listen');
+          }}
+        >
+          Reset
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -1629,6 +1695,10 @@ export function Settings() {
         <Stepper label="Skip back" value={st.skipBack} options={[5, 10, 15, 30]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipBack: v })} />
         <Stepper label="Skip forward" value={st.skipForward} options={[10, 15, 30, 45, 60]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipForward: v })} />
         <Toggle label="Play Up next by itself" hint="When a book ends, the next one in Up next starts (press and hold a book → Add to Up next)" on={st.upNextAuto !== false} onChange={(v) => settings.patch({ upNextAuto: v })} />
+      </Section>
+
+      <Section icon="sparkle" title="Your taste">
+        <YourTaste />
       </Section>
 
       <Section icon="book" title="Books you've read">

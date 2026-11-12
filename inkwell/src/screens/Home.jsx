@@ -56,9 +56,32 @@ async function topRated() {
 // save and rate), Psychology / Science / History until the app knows you better.
 const FICTION = /fiction|romance|fantasy|thriller|mystery|suspense|horror|teen|young adult|children|erotica|sci-fi|science fiction|litrpg|graphic novel|comics/i;
 const isFiction = (b) => (b.genres || []).some((g) => FICTION.test(g));
-const nonFiction = (list) => (list || []).filter((b) => !isFiction(b));
+// Settings → Your taste → Fiction too: novels stay in.
+const nonFiction = (list) => (settings.get().tasteFiction ? list || [] : (list || []).filter((b) => !isFiction(b)));
 const DEFAULT_TOPICS = ['Psychology & Human Behavior', 'Science & Biology', 'History & Civilization'];
+/** The topics the app learned from what you listen to, save and rate (up to `n`). */
+export function learnedTopics(n = 3) {
+  const p = profile();
+  return GENRES.filter((g) => g.au)
+    .map((g) => {
+      let w = 0;
+      for (const [name, v] of p.genres) if (g.match.test(name)) w += v.w;
+      return [g, w];
+    })
+    .filter(([, w]) => w > 0)
+    .sort((x, y) => y[1] - x[1])
+    .slice(0, n)
+    .map(([g]) => g);
+}
 export function tasteTopics() {
+  // Picked in Settings → Your taste: those first (or only them).
+  const st = settings.get();
+  const picked = GENRES.filter((g) => g.au && (st.tastePicks || []).includes(g.name));
+  if (picked.length && st.tastePicksOnly) return picked;
+  if (picked.length) {
+    const more = learnedTopics(5).filter((g) => !picked.includes(g));
+    return [...picked, ...more].slice(0, Math.max(3, picked.length));
+  }
   const p = profile();
   const scored = GENRES.filter((g) => g.au) // the non-fiction categories
     .map((g) => {
@@ -705,7 +728,7 @@ export function Home() {
           case 'plan':
             return <PlanRow key={id} />;
           case 'rec':
-            return <Row key={id} title="Recommended for you" subtitle="Non-fiction from your listening and ratings" icon="sparkle" cacheKey="homeRec" shuffle rec load={recommendedForYou} deps={[]} />;
+            return <Row key={id} title="Recommended for you" subtitle={settings.get().tasteFiction ? "From your listening and ratings" : "Non-fiction from your listening and ratings"} icon="sparkle" cacheKey="homeRec" shuffle rec load={recommendedForYou} deps={[]} />;
           case 'new':
             return <Row key={id} title="New releases" subtitle={`New in ${topicNames()}`} icon="flame" cacheKey="homeNew" shuffle rec load={newReleases} deps={[]} />;
           case 'top':

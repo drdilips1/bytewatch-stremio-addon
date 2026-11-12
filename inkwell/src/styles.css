@@ -11767,3 +11767,38 @@ button.cr-tile.on > img {
 .src-head > .tracker-mini + .tracker-mini {
   margin-left: 0;
 }
+
+/* Settings → Your taste */
+.taste-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 6px;
+}
+.taste-chips .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.taste-chips .chip.on {
+  background: var(--accent-grad, var(--accent));
+  color: var(--on-accent, #241523);
+  border-color: transparent;
+}
+.taste-note {
+  display: block;
+  font-size: 12px;
+}
+.taste-from {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.taste-from span {
+  font-size: 11.5px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  padding: 3px 8px;
+  border-radius: 8px;
+}

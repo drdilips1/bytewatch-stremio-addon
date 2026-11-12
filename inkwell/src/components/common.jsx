@@ -274,6 +274,13 @@ export const BookCard = memo(function BookCard({ book: raw, wide, rec = false })
 
 // Last contents of slow rows (your cloud, your server), shown at once on the next open.
 const rowCache = persisted('rowCache', {}, { delay: 1500 });
+/** Forget rows' saved lists (they load afresh next time), e.g. after Your taste changes. */
+export const clearRowCache = (keys) =>
+  rowCache.set((c) => {
+    const next = { ...c };
+    for (const k of keys) delete next[k];
+    return next;
+  });
 /** The last list a cached row showed (e.g. Home's recommendations), or []. */
 export const cachedRow = (key) => rowCache.get()[key] || [];
 const ROW_KEEP = ['uid', 'source', 'kind', 'title', 'author', 'narrator', 'cover', 'year', 'duration', 'addedAt', 'hash', 'format', 'fetching', 'genres', 'why', 'match'];
