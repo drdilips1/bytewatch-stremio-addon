@@ -44,8 +44,11 @@ const signedIn = (doc, html) => /sign ?out|log ?out/i.test(html) && !!doc.queryS
 /** { signedIn, why } — read from Bookshare's own page in the hidden browser. */
 export async function status() {
   if (!available()) return { signedIn: false, why: 'Android app only' };
-  const { doc, html } = await page('/', null);
-  return signedIn(doc, html) ? { signedIn: true } : { signedIn: false, why: 'Not signed in' };
+  const { status: st, doc, html, url } = await page('/', null);
+  const ok = signedIn(doc, html);
+  // For Report a problem: what the check saw (no page text, no cookies).
+  logError(NAME, `sign-in check: ${ok ? 'signed in' : 'not signed in'} — HTTP ${st} · page “${clean(doc.title).slice(0, 60)}” · ${String(url).replace(/[?#].*$/, '')} · log-out link: ${doc.querySelector('a[href*="logout" i], a[href*="signout" i]') ? 'yes' : 'no'}`);
+  return ok ? { signedIn: true } : { signedIn: false, why: 'Not signed in' };
 }
 
 /** A search page → [{ id, title, author, url, cover }] (links to /browse/book/<id>). */
@@ -83,7 +86,8 @@ export async function search(query) {
   }
   if (/\/login|sign.?in/i.test(url) && !doc.querySelector('a[href*="/browse/book/"]')) throw fail(`Sign in to ${NAME} first: Settings → Addons → ${NAME} → Sign in`, { signin: true });
   const books = booksOn(doc);
-  if (!books.length) logError(NAME, `“${q}”: HTTP ${st} · page “${clean(doc.title).slice(0, 60)}” · ${html.length} chars · 0 books read`);
+  // Every search, found or not, so a report shows what Bookshare answered.
+  logError(NAME, `“${q}”: ${books.length} found — HTTP ${st} · page “${clean(doc.title).slice(0, 60)}” · ${String(url).replace(/[?#].*$/, '')} · ${html.length} chars · ${(html.match(/\/browse\/book\/\d+/g) || []).length} book links`);
   return books.map((b) => ({
     key: `${ID}:${b.id}`,
     addon: NAME,
