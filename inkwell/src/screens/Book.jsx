@@ -1,4 +1,6 @@
-import { metaNow } from "../lib/meta.js";
+import { metaNow, lookup } from "../lib/meta.js";
+import { preferredCopy, preferredFor, setPreferred, judge, workKey } from "../lib/editions.js";
+import { findOwned, localSrc as phoneSrc } from "../sources/index.js";
 import { BgImage } from "../components/bg-image.jsx";
 import { BookBookmarks } from '../components/bookmarks.jsx';
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -26,7 +28,7 @@ import * as qb from "../sources/qbit.js";
 import { canSendToKindle, sendToKindle, shareEbook } from "../lib/kindle.js";
 import { cloudReaderBook } from "../lib/epub.js";
 import { openSearch } from "./Discover.jsx";
-import { mainTitle, searchTitle } from "../lib/match.js";
+import { mainTitle, searchTitle, matches, surname } from "../lib/match.js";
 import { STARTERS } from "../lib/askbook.js";
 import { SourceResults } from "../components/source-results.jsx";
 import { FixDetails } from "../components/fix-details.jsx";
@@ -122,7 +124,13 @@ export function Book({ book: initial }) {
   const listen = (opts) => {
     if (isCurrent && !opts) return player.toggle();
     nav.openOverlay("player");
-    player.playBook(book, opts);
+    // The copy you chose to play first (Your copies): that one, exactly.
+    const pref = preferredFor(book);
+    if (pref && pref.uid !== book.uid)
+      return getDetails(pref)
+        .then((d) => player.playBook(d, { ...(opts || {}), exact: true }))
+        .catch(() => player.playBook(book, opts));
+    player.playBook(book, pref?.uid === book.uid ? { ...(opts || {}), exact: true } : opts);
   };
   const canListen = book.kind === "audio";
   // Ebook files in your TorBox / Real-Debrid: EPUB opens in the reader.
@@ -425,6 +433,7 @@ export function Book({ book: initial }) {
         </div>
       )}
       {book.partsCheck && <BookCheck check={book.partsCheck} />}
+      {canListen && <CopiesCheck book={book} />}
       <AbsSending uid={initial.uid} />
       {pct > 0 && !prog.finished && !canRead && finishLine(initial.uid) && <p class="book-finish">{finishLine(initial.uid)}</p>}
 
@@ -704,6 +713,78 @@ const fmtK = (n) =>
 /** Ratings across services and awards, as a row of badges: "4.6 (1.2k)"; tap one for its reviews. */
 /** Rating · length · year in one strip, Apple Books style. Tap the rating for reviews. */
 /**
+ * Your copies of this book, side by side: where, narrator, length, format — each compared with
+ * the full audiobook's length (Audible): FULL, ABRIDGED?, MAYBE INCOMPLETE, OTHER NARRATOR.
+ * Tap the circle to choose the copy Play uses. Shown when there's more than one, or one is short.
+ */
+function CopiesCheck({ book }) {
+  const local = useStore(phoneSrc.localCfg);
+  const prefs = useStore(preferredCopy);
+  const [owned, setOwned] = useState(null);
+  const [full, setFull] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setOwned(null);
+    setFull(null);
+    findOwned(book).then((o) => alive && setOwned(o), () => alive && setOwned({ server: [], cloud: [] }));
+    lookup(book).then((m) => alive && setFull(m && m.runtime > 0 ? m : null), () => {});
+    return () => (alive = false);
+  }, [book.uid]);
+  const t = mainTitle(book.title || "");
+  const sn = surname(book.author || "");
+  const same = (b) => b && b.kind !== "text" && matches(t, `${b.title || ""} ${b.rawName || ""}`) && (!sn || !b.author || surname(b.author) === sn);
+  const seen = new Set();
+  const copies = [book, ...(local.books || []).filter(same), ...(owned?.server || []).filter(same), ...(owned?.cloud || []).filter(same)].filter((c) => c?.uid && !seen.has(c.uid) && seen.add(c.uid));
+  const judged = copies.map((c) => ({ c, j: judge(c, full) }));
+  const short = judged.some(({ j }) => j.tag === "abridged" || j.tag === "incomplete");
+  if (copies.length < 2 && !short) return null;
+  const pref = prefs[workKey(book)]?.uid || "";
+  const WHERE = { loc: "On this phone", abs: "Your Audiobookshelf", tb: "TorBox", rd: "Real-Debrid", url: "Link" };
+  const TAG = { full: ["FULL", "ok"], abridged: ["ABRIDGED?", "warn"], incomplete: ["MAYBE INCOMPLETE", "bad"] };
+  const hm = (s) => fmtDuration(s);
+  return (
+    <section class="copies-check">
+      <h4>
+        Your copies · {copies.length}
+        {full?.runtime > 0 && <small> · full audiobook {hm(full.runtime)}</small>}
+      </h4>
+      {judged.map(({ c, j }, k) => {
+        const chosen = pref ? pref === c.uid : k === 0;
+        const note =
+          j.tag === "abridged" ? `About ${Math.round(j.ratio * 100)}% of the full audiobook's length — probably a shortened edition.`
+          : j.tag === "incomplete" ? `${hm(Math.max(0, full.runtime - j.len))} shorter than the full audiobook — parts may be missing.`
+          : "";
+        return (
+          <div class={"cc-copy" + (chosen ? " on" : "")}>
+            <div class="cc-top">
+              <b>{WHERE[c.source] || c.addonName || "Copy"}</b>
+              <button class={"cc-radio" + (chosen ? " on" : "")} aria-label="Play this copy first" onClick={() => (setPreferred(book, c), toast(`Play uses ${WHERE[c.source] || "this copy"} for this book`))} />
+            </div>
+            <small class="cc-meta">{[c.narrator && `Read by ${c.narrator}`, j.len > 0 && hm(j.len), c.format].filter(Boolean).join(" · ") || "Length not known yet"}</small>
+            {j.ratio > 0 && (
+              <div class="cc-bar">
+                <span>
+                  <i class={TAG[j.tag]?.[1] || ""} style={{ width: Math.min(100, Math.round(j.ratio * 100)) + "%" }} />
+                </span>
+                <small>{j.tag === "full" ? "complete" : `${Math.round(j.ratio * 100)}% length`}</small>
+              </div>
+            )}
+            <div class="cc-tags">
+              {TAG[j.tag] && <span class={"cc-tag " + TAG[j.tag][1]}>{TAG[j.tag][0]}</span>}
+              {j.otherNarrator && <span class="cc-tag">OTHER NARRATOR</span>}
+              {c.partsCheck?.missing?.length > 0 && <span class="cc-tag">PART{c.partsCheck.missing.length > 1 ? "S" : ""} {c.partsCheck.missing.slice(0, 3).join(", ")} MISSING</span>}
+              {chosen && copies.length > 1 && <span class="cc-tag">PLAYS FIRST</span>}
+            </div>
+            {note && <small class="cc-note">{note}</small>}
+          </div>
+        );
+      })}
+      {!full && copies.length > 1 && <small class="cc-foot">The full audiobook's length wasn't found, so copies aren't compared yet.</small>}
+    </section>
+  );
+}
+
+/**
  * Book check (multipart books): a part missing from the numbering, duplicate copies skipped,
  * parts put back in number order. Shown only when there's something to say.
  */
@@ -724,7 +805,7 @@ function BookCheck({ check }) {
   else if (check.outOfOrder && check.kept) items.push({ warn: true, title: "Some parts are out of order", sub: "Left as they are while you're in the middle of the book — put in order when you start it again" });
   if (!items.length) return null;
   return (
-    <section class="book-check pad">
+    <section class="book-check">
       <h4>
         Book check <small>· when it opened</small>
       </h4>
