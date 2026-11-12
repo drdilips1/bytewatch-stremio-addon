@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
-import { searchSources, sourceAddons, fmtSize, sourceLabel } from '../sources/sourceaddons.js';
+import { searchSources, sourceAddons, fmtSize, sourceLabel, sureMatches } from '../sources/sourceaddons.js';
 import { cloud, getDetails } from '../sources/index.js';
 import { unpacking, unpackAndPlay, canUnpack, isArchive } from '../lib/unpack.js';
 import { settings, useStore, debrid, library, toggleLibrary } from '../lib/store.js';
@@ -199,6 +199,8 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   // Your tracker (Settings → Tracker): open a search for this book there.
   const trackerSite = qb.available && qb.tracker.get().url ? qb.trackerName() : '';
   const trackerFilter = trackerSite ? qb.trackerFilterLabel() : '';
+  // Bookshare added (Settings → Addons): its one-tap button sits next to the tracker's.
+  const bookshareOn = sourceAddons().some((a) => a.special === 'bookshare');
   const entries = Object.entries(groups);
   const total = entries.reduce((a, [, g]) => a + g.results.filter((r) => !r.loose).length, 0);
   // Results nobody is seeding can't be downloaded unless the service already has them.
@@ -290,7 +292,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
 
   return (
     <section class="source-results">
-      {(heading || trackerSite) && (
+      {(heading || trackerSite || bookshareOn) && (
         <div class="src-head">
           {heading ? (
             <h3 class="section-label">
@@ -304,6 +306,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           ) : (
             <span />
           )}
+          {bookshareOn && (title || query) && <BookshareMini title={title || query} author={author} />}
           {trackerSite && (title || query) && <TrackerMini site={trackerSite} filter={trackerFilter} words={title ? trackerWords('', { title, author }) : query} title={title} author={author} ebook={qb.isEbookName(query)} />}
         </div>
       )}
@@ -1331,3 +1334,34 @@ function TrackerMini({ site, filter, words, title = '', author = '', ebook }) {
   );
 }
 
+
+/**
+ * BS: get this book from your Bookshare in one tap — found, downloaded as EPUB 3, saved to your
+ * Library and opened in the reader. Press and hold: Bookshare's search page for it.
+ */
+function BookshareMini({ title, author }) {
+  const [busy, setBusy] = useState(false);
+  const get = async () => {
+    setBusy(true);
+    try {
+      const bs = await import('../sources/bookshare.js');
+      const pick = (list) => (title && author ? sureMatches(list, title, author)[0] : list[0]) || null;
+      await bs.getBook({ title, author }, pick);
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const hold = (e) => {
+    e.preventDefault();
+    import('../sources/bookshare.js').then((bs) => bs.openSearch([title, author].filter(Boolean).join(' '))).catch((er) => toast(er.message));
+  };
+  return (
+    <div class="tracker-mini" title={`Get “${title}” from Bookshare (hold to search)`}>
+      <button class={'tracker-dot bs-dot' + (busy ? ' busy' : '')} disabled={busy} onClick={get} onContextMenu={hold} aria-label="Get it from Bookshare">
+        {busy ? <span class="spinner small" /> : 'BS'}
+      </button>
+    </div>
+  );
+}

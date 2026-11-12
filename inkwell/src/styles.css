@@ -11756,3 +11756,14 @@ button.cr-tile.on > img {
   font-weight: 500;
   color: var(--muted);
 }
+/* BS: one-tap Bookshare (next to the tracker's letter) */
+.tracker-dot.bs-dot {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.src-head > .tracker-mini {
+  margin-left: auto;
+}
+.src-head > .tracker-mini + .tracker-mini {
+  margin-left: 0;
+}

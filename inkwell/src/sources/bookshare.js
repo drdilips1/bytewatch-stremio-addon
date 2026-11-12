@@ -116,3 +116,19 @@ export async function search(query) {
     score: 1,
   }));
 }
+
+/**
+ * One tap from a book page: find this book on Bookshare and get it — its page opens, EPUB 3
+ * is chosen and downloaded by itself, it's saved to your Library and opens in the reader.
+ * Resolves the match's title, or throws when Bookshare hasn't got it.
+ */
+export async function getBook({ title = '', author = '' }, pick = (list) => list[0]) {
+  let list = await search([title, author].filter(Boolean).join(' '));
+  if (!list.length && author) list = await search(title);
+  const hit = pick(list);
+  if (!hit) throw fail(`“${title}” isn't on ${NAME} (or it's under another title — hold BS to search)`);
+  await Web.open({ url: hit.link, title: NAME, books: true, autoGet: true });
+  return hit.title;
+}
+/** Bookshare's search page for this book, in the app (download from there to your Library). */
+export const openSearch = (q) => open(`${BASE}/search?keyword=${encodeURIComponent(clean(q))}`);

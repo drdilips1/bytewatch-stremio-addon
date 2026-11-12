@@ -57,6 +57,39 @@ public class InkwellWebActivity extends AppCompatActivity {
     /** The download being fetched through the page itself (fallback), and its one-time key. */
     private volatile String pendingNonce = null;
     private volatile String pendingName = "";
+    /** One tap from a book page (Bookshare): pick EPUB 3 and press Download by itself, then close. */
+    private boolean autoGet = false;
+    private boolean autoClicked = false;
+    private static final String AUTO_GET_JS = "(function(){try{"
+        + "var t=function(e){return ((e&&(e.innerText||e.textContent||e.value))||'').trim();};"
+        + "var sels=[].slice.call(document.querySelectorAll('select'));"
+        + "for(var i=0;i<sels.length;i++){var s=sels[i];var os=[].slice.call(s.options);"
+        + "var o=os.filter(function(x){return /epub\\s*3/i.test(x.text);})[0]||os.filter(function(x){return /epub/i.test(x.text);})[0];"
+        + "if(o){s.value=o.value;s.dispatchEvent(new Event('input',{bubbles:true}));s.dispatchEvent(new Event('change',{bubbles:true}));}}"
+        + "var rs=[].slice.call(document.querySelectorAll('input[type=radio],input[type=checkbox]'));"
+        + "for(var j=0;j<rs.length;j++){var r=rs[j];var l=r.closest('label')||(r.id&&document.querySelector('label[for=\"'+r.id+'\"]'));"
+        + "if(/epub/i.test(t(l)+' '+(r.value||''))){if(!r.checked)r.click();break;}}"
+        + "var bs=[].slice.call(document.querySelectorAll('button,a,input[type=submit],input[type=button]'));"
+        + "var epubLink=bs.filter(function(b){return /download/i.test(t(b))&&/epub/i.test(t(b)+' '+(b.getAttribute('href')||''));})[0];"
+        + "var ok=function(b){return !b.disabled&&!/history|help|how|app/i.test(t(b));};"
+        + "var b=epubLink||bs.filter(function(b){return /^download$/i.test(t(b))&&ok(b);})[0]||bs.filter(function(b){return /^download\\b/i.test(t(b))&&ok(b);})[0];"
+        + "if(b){b.click();return 'clicked';}return 'none';"
+        + "}catch(e){return 'error';}})()";
+
+    private void tryAutoGet(int attempt) {
+        if (autoClicked || web == null) return;
+        web.evaluateJavascript(AUTO_GET_JS, v -> {
+            if (v != null && v.contains("clicked")) {
+                autoClicked = true;
+                showNote("Downloading the EPUB…", 0);
+            } else if (attempt < 8) {
+                ui.postDelayed(() -> tryAutoGet(attempt + 1), 1200); // the page may still be filling in
+            } else {
+                showNote("Choose EPUB 3 and tap Download — it goes to your Library", 0);
+            }
+        });
+    }
+
     private final Runnable hideNote = () -> {
         if (note != null) note.setVisibility(View.GONE);
     };
@@ -72,6 +105,8 @@ public class InkwellWebActivity extends AppCompatActivity {
         String url = getIntent().getStringExtra("url");
         String heading = getIntent().getStringExtra("title");
         boolean capture = getIntent().getBooleanExtra("capture", false);
+        autoGet = getIntent().getBooleanExtra("autoGet", false);
+        if (autoGet) ui.postDelayed(() -> showNote("Getting the EPUB from Bookshare…", 0), 300);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -205,6 +240,7 @@ public class InkwellWebActivity extends AppCompatActivity {
             @Override
             public void onPageFinished(WebView view, String u) {
                 CookieManager.getInstance().flush();
+                if (autoGet && !autoClicked) tryAutoGet(0);
             }
         });
         if (capture) {
@@ -309,6 +345,8 @@ public class InkwellWebActivity extends AppCompatActivity {
         o.put("size", out.length());
         InkwellLocalPlugin.arrived(o);
         report("OK Saved to your Library — " + name);
+        // From the book page's one tap: close, so the book opens in the reader behind.
+        if (autoGet) ui.postDelayed(this::finish, 900);
     }
 
     private void applyViewMode() {

@@ -339,6 +339,9 @@ const NOISE = /^(\d+|\d+kbps|kbps|mp3|m4b|m4a|aac|flac|opus|epub|pdf|mobi|azw3|a
  * - a long title (3+ words) with every word present: yes, even without the author
  * Anything else is marked loose: hidden behind "Show loose matches", never lost.
  */
+/** Only the results that are surely this book (from sameBook below). */
+export const sureMatches = (list, title, author) => sameBook(list, title, author).filter((r) => !r.loose);
+
 function sameBook(list, title, author) {
   const t = searchTitle(title);
   const tw = new Set(words(t));
