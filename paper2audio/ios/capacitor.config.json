@@ -1,0 +1,9 @@
+{
+  "appId": "app.paper2audio.ios",
+  "appName": "Paper to Audio",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#101012"
+  }
+}

@@ -17,6 +17,8 @@ permissions:
 
 jobs:
   build:
+    # "[ios-only]": a push that builds only the iPhone app (paper2audio-ios.yml).
+    if: ${{ !contains(github.event.head_commit.message, '[ios-only]') }}
     runs-on: ubuntu-latest
     env:
       # Narrato builds only when asked: "[narrato]" in the commit message, or the box when run by hand.

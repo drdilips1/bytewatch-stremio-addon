@@ -1,0 +1,21 @@
+{
+  "name": "p2a-ios",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Paper to Audio for iPhone (sideloaded): the library, with the Android app's reader and the iPhone's own voices",
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "jszip": "^3.10.1",
+    "pdfjs-dist": "3.11.174"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "@preact/preset-vite": "^2.10.6",
+    "vite": "^8.3.0"
+  }
+}

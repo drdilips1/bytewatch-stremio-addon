@@ -1,0 +1,119 @@
+name: Paper2Audio iPhone app
+
+# Builds only when asked: "[ios]" or "[ios-only]" in the commit message, or run by hand.
+on:
+  push:
+    paths:
+      - "paper2audio/ios/**"
+      - "paper2audio/reader-web/src/**"
+      - ".github/workflows/paper2audio-ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paper2audio-ios
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ios]') || contains(github.event.head_commit.message, '[ios-only]')
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: paper2audio/ios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        run: |
+          (cd ../reader-web && npm ci --no-audit --no-fund)
+          npm ci --no-audit --no-fund
+
+      - name: Build the screens
+        run: npx vite build
+
+      - name: Generate the iOS project
+        run: |
+          npx cap add ios
+          npx cap sync ios
+          ls ios/App
+
+      - name: Icon, splash and settings
+        run: |
+          A=ios/App/App/Assets.xcassets
+          icon=$(ls $A/AppIcon.appiconset/*.png | head -1)
+          cp public/icon-1024.png "$icon"
+          for f in $A/Splash.imageset/*.png; do
+            sips -z 512 512 public/icon-1024.png --out /tmp/s.png >/dev/null
+            sips -p 2732 2732 --padColor 2F5BEA /tmp/s.png --out "$f" >/dev/null
+          done
+          P=ios/App/App/Info.plist
+          pb() { /usr/libexec/PlistBuddy -c "$1" "$P" 2>/dev/null || true; }
+          pb "Delete :CFBundleDisplayName"
+          pb "Add :CFBundleDisplayName string Paper to Audio"
+          pb "Add :UIBackgroundModes array"
+          pb "Add :UIBackgroundModes:0 string audio"
+          pb "Add :ITSAppUsesNonExemptEncryption bool false"
+          /usr/libexec/PlistBuddy -c Print "$P"
+
+      - name: Build
+        working-directory: paper2audio/ios/ios/App
+        run: |
+          if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
+          xcodebuild -quiet $SRC -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build" \
+            MARKETING_VERSION="1.0.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry PaperToAudio.ipa Payload
+          ls -la PaperToAudio.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PaperToAudio-ipa
+          path: paper2audio/ios/ios/App/PaperToAudio.ipa
+
+      # One fixed link that always has the newest build.
+      - name: Publish release
+        working-directory: paper2audio/ios/ios/App
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view paper2audio-ios >/dev/null 2>&1 || gh release create paper2audio-ios --target "${{ github.sha }}" \
+            --title "Paper to Audio for iPhone – latest build" --prerelease \
+            --notes "Unsigned iPhone app. Install with AltStore or Sideloadly using your free Apple ID (renewed every 7 days). Your library stays when you reinstall."
+          gh release upload paper2audio-ios PaperToAudio.ipa --clobber
+          gh release edit paper2audio-ios --notes "Build 1.0.${{ github.run_number }} (${{ github.sha }}). Unsigned iPhone app. Install with AltStore or Sideloadly using your free Apple ID (renewed every 7 days). Your library stays when you reinstall."
+
+      # AltStore source (AltStore → Sources → +): new builds then show up as updates in AltStore.
+      # Link: https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/paper2audio-ios/altstore.json
+      - name: Update AltStore source
+        working-directory: paper2audio/ios/ios/App
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.run_number }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+        run: |
+          SIZE=$(stat -f%z PaperToAudio.ipa)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          node -e '
+            const [run, repo, ref, size, date] = process.argv.slice(1);
+            const url = `https://github.com/${repo}/releases/download/paper2audio-ios/PaperToAudio.ipa`;
+            const version = { version: `1.0.${run}`, buildVersion: run, date, downloadURL: url, size: +size, localizedDescription: `Build ${run}`, minOSVersion: "15.0" };
+            const app = {
+              name: "Paper to Audio", bundleIdentifier: "app.paper2audio.ios", developerName: "Aashvee Labs",
+              subtitle: "Listen to books, PDFs and text", localizedDescription: "Reads your books, PDFs and text aloud with the iPhone voices.",
+              iconURL: `https://raw.githubusercontent.com/${repo}/${ref}/paper2audio/ios/public/icon-1024.png`, tintColor: "#2F5BEA",
+              versions: [version], version: version.version, versionDate: date, downloadURL: url, size: +size,
+              appPermissions: { entitlements: [], privacy: {} },
+            };
+            require("fs").writeFileSync("altstore.json", JSON.stringify({ name: "Paper to Audio", identifier: "app.paper2audio.ios.source", apps: [app], news: [] }, null, 2));
+          ' "$RUN" "$REPO" "$REF" "$SIZE" "$DATE"
+          gh release upload paper2audio-ios altstore.json --clobber
