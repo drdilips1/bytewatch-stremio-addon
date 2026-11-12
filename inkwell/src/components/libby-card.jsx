@@ -58,10 +58,13 @@ function CopyAction({ h }) {
 /** Copies of this book at each of your libraries (available now first). */
 export function LibbyCard({ book }) {
   const [hits, setHits] = useState(book.libby ? [book] : null);
+  const [others, setOthers] = useState(null); // at libraries you have no card for
   useEffect(() => {
     let alive = true;
     setHits(book.libby ? [book] : null);
+    setOthers(null);
     lb.availability(book).then((r) => alive && setHits(r.length ? r : book.libby ? [book] : []));
+    lb.elsewhere(book).then((r) => alive && setOthers(r), () => alive && setOthers([]));
     return () => (alive = false);
   }, [book.uid]);
   const libs = lb.libraries();
@@ -97,6 +100,7 @@ export function LibbyCard({ book }) {
           ))}
         </div>
       )}
+      <OtherLibraries list={others} />
     </section>
   );
 }
@@ -158,4 +162,40 @@ export function LibbyLoanActions({ book }) {
     );
   }
   return null;
+}
+
+/** Where the book is at other libraries (no card there yet): ready now first. */
+function OtherLibraries({ list }) {
+  const [all, setAll] = useState(false);
+  if (!list?.length) return null;
+  const ready = list.filter((h) => h.libby.available);
+  const shown = all ? list : ready.length ? ready.slice(0, 4) : list.slice(0, 3);
+  return (
+    <div class="libby-others">
+      <h4>
+        {ready.length ? `Ready now at ${ready.length} other librar${ready.length === 1 ? 'y' : 'ies'}` : 'At other libraries'}
+        <small> · no card there yet</small>
+      </h4>
+      <div class="libby-list">
+        {shown.map((h) => (
+          <div class={'libby-item' + (h.libby.available ? ' ok' : '')}>
+            <div>
+              <b>
+                {h.libby.library} <span class="libby-lib">· {kindName(h.libby.format)}</span>
+              </b>
+              <small>{lb.describe(h.libby)}</small>
+            </div>
+            <button class="pill ghost" onClick={() => openExternal(`https://libbyapp.com/library/${h.libby.key}`)}>
+              Get a card
+            </button>
+          </div>
+        ))}
+      </div>
+      {list.length > shown.length && (
+        <button class="link-btn" onClick={() => setAll(true)}>
+          Show all {list.length}
+        </button>
+      )}
+    </div>
+  );
 }

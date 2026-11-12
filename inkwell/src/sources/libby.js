@@ -190,6 +190,40 @@ export async function availability(book) {
     .sort((a, b) => Number(b.libby.available) - Number(a.libby.available) || (a.libby.format === 'audiobook' ? -1 : 0) - (b.libby.format === 'audiobook' ? -1 : 0));
 }
 
+/**
+ * Big Libby libraries you may not have a card for — several sell cards to people who don't
+ * live there. A book page shows where a title is ready now, so you know which card would
+ * get it. Short names Libby doesn't know are skipped (nothing is shown for them).
+ */
+export const OTHER_LIBRARIES = [
+  { key: 'nypl', name: 'New York Public Library' },
+  { key: 'lapl', name: 'Los Angeles Public Library' },
+  { key: 'queenslibrary', name: 'Queens Public Library' },
+  { key: 'hpl', name: 'Houston Public Library' },
+  { key: 'fairfax', name: 'Fairfax County Public Library' },
+  { key: 'cmlibrary', name: 'Charlotte Mecklenburg Library' },
+  { key: 'broward', name: 'Broward County Library' },
+  { key: 'nopl', name: 'New Orleans Public Library' },
+  { key: 'freelibrary', name: 'Free Library of Philadelphia' },
+  { key: 'spl', name: 'Seattle Public Library' },
+  { key: 'torontopubliclibrary', name: 'Toronto Public Library' },
+];
+/** Copies at the libraries above that aren't already yours: ready now first. */
+export async function elsewhere(book) {
+  if (libby.get().noOthers) return [];
+  const mine = new Set(libraries({ all: true }).map((l) => l.key));
+  const t = mainTitle(book.title);
+  const author = (book.author || '').split(',')[0].trim();
+  const q = `${t} ${author.split(' ').pop() || ''}`.trim();
+  const per = await Promise.all(OTHER_LIBRARIES.filter((l) => !mine.has(l.key)).map((l) => searchOne(l, q, 8).catch(() => [])));
+  // One line per library and format.
+  const seen = new Set();
+  return per
+    .flat()
+    .filter((b) => matches(t, b.title) && !seen.has(`${b.libby.key}|${b.libby.format}`) && seen.add(`${b.libby.key}|${b.libby.format}`))
+    .sort((a, b) => Number(b.libby.available) - Number(a.libby.available) || (a.libby.waitDays ?? 999) - (b.libby.waitDays ?? 999));
+}
+
 export const details = async (book) => book;
 
 export function describe(l) {

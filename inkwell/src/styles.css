@@ -11741,3 +11741,18 @@ button.cr-tile.on > img {
 .src-row .topic-cloud {
   margin-top: 0;
 }
+
+/* Libby: the book at libraries you have no card for */
+.libby-others {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+}
+.libby-others h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.libby-others h4 small {
+  font-weight: 500;
+  color: var(--muted);
+}

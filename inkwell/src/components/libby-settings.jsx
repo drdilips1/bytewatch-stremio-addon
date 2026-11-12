@@ -124,6 +124,13 @@ export function LibbySettings() {
   };
   return (
     <>
+      <div class="set-row">
+        <div>
+          <b>Also check other big libraries</b>
+          <small>Book pages show where a book is ready now at libraries you have no card for (New York, Los Angeles, Queens, Houston, Fairfax…) — several sell cards to people who don't live there.</small>
+        </div>
+        <input type="checkbox" class="switch" checked={!lib.noOthers} onChange={(e) => libbySrc.libby.set((l) => ({ ...l, noOthers: !e.currentTarget.checked }))} />
+      </div>
       {acct.identity ? (
         <div class="set-row">
           <div>
