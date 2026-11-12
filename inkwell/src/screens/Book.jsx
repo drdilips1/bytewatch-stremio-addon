@@ -1,3 +1,4 @@
+import { metaNow } from "../lib/meta.js";
 import { BgImage } from "../components/bg-image.jsx";
 import { BookBookmarks } from '../components/bookmarks.jsx';
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -136,6 +137,13 @@ export function Book({ book: initial }) {
   const partsOpen = showParts ?? tracks.length <= 5;
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
   const authorKey = (book.author || "").split(",")[0].trim();
+  // What Sources search with: a cloud / phone file's tidy title and author (found or picked —
+  // "The Selfish Gene Unabridged 2_005" with no author is "The Selfish Gene", Richard Dawkins),
+  // so its results aren't all "loose matches".
+  const found = metaNow(book) || metaNow(initial);
+  const fileNamed = ["tb", "rd", "loc", "addon"].includes(book.source);
+  const srcTitle = searchTitle((found?.fixed || fileNamed) && found?.title ? found.title : book.title);
+  const srcAuthor = ((found?.fixed || !book.author) && found?.author ? found.author : book.author || "").split(",")[0].trim();
 
   return (
     <div class="screen book" style={color ? { "--dyn": color } : null}>
@@ -527,8 +535,8 @@ export function Book({ book: initial }) {
       <YourCopies editions={editions} />
       {book.kind === "discover" && sourceAddons().length > 0 && !loading && (
         <SourceResults
-          title={searchTitle(book.title)}
-          author={(book.author || "").split(",")[0].trim()}
+          title={srcTitle}
+          author={srcAuthor}
           book={book}
         />
       )}
@@ -538,8 +546,8 @@ export function Book({ book: initial }) {
         !loading && (
           <section class="pad">
             <SourceResults
-              title={searchTitle(book.title)}
-              author={(book.author || "").split(",")[0].trim()}
+              title={srcTitle}
+              author={srcAuthor}
               book={book}
             />
           </section>
