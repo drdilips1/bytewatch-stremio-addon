@@ -699,6 +699,7 @@ public class InkwellWebPlugin extends Plugin {
                 ws.setUserAgentString(plain.replace("; wv)", ")").replaceAll("Version/[\\d.]+ ", ""));
                 android.webkit.CookieManager.getInstance().setAcceptCookie(true);
                 android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(v, true);
+                attachHidden(v);
                 visitors.put(site, v);
             }
             final android.webkit.WebView view = v;
@@ -822,6 +823,33 @@ public class InkwellWebPlugin extends Plugin {
         }, 45000);
     }
 
+    /**
+     * A hidden browser placed behind the app's own screen (not on it, never seen): sites' bot
+     * checks (DDoS-Guard on Anna's Archive, Cloudflare) need a page that is really drawn and
+     * running — one that isn't attached anywhere never finishes them.
+     */
+    private void attachHidden(android.webkit.WebView v) {
+        try {
+            if (getActivity() == null || v.getParent() != null) return;
+            android.view.ViewGroup root = (android.view.ViewGroup) getActivity().getWindow().getDecorView();
+            android.util.DisplayMetrics dm = getContext().getResources().getDisplayMetrics();
+            android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(dm.widthPixels, dm.heightPixels);
+            v.setFocusable(false);
+            v.setClickable(false);
+            v.setImportantForAccessibility(android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            root.addView(v, 0, lp); // first child: under the app's page, which covers it
+            v.onResume();
+            v.resumeTimers();
+        } catch (Exception ignored) {}
+    }
+
+    private static void detachAndDestroy(android.webkit.WebView v) {
+        try {
+            if (v.getParent() instanceof android.view.ViewGroup) ((android.view.ViewGroup) v.getParent()).removeView(v);
+        } catch (Exception ignored) {}
+        v.destroy();
+    }
+
     // ---- Bookshare: get a book in the background ---------------------------------------------
     /**
      * Open a Bookshare book page in a hidden browser (your session), choose EPUB 3 and press
@@ -843,7 +871,7 @@ public class InkwellWebPlugin extends Plugin {
         final java.util.function.Consumer<String> fail = (why) -> ui.post(() -> {
             if (done[0]) return;
             done[0] = true;
-            if (holder[0] != null) holder[0].destroy();
+            if (holder[0] != null) detachAndDestroy(holder[0]);
             call.reject(why);
         });
         ui.post(() -> {
@@ -858,6 +886,7 @@ public class InkwellWebPlugin extends Plugin {
             ws.setUserAgentString(ua);
             android.webkit.CookieManager.getInstance().setAcceptCookie(true);
             android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(v, true);
+            attachHidden(v);
             // The file, once it's here (from its address, or handed over by the page itself).
             final java.util.function.BiConsumer<byte[], String> keep = (bytes, name) -> {
                 try {
@@ -866,7 +895,7 @@ public class InkwellWebPlugin extends Plugin {
                     ui.post(() -> {
                         if (done[0]) return;
                         done[0] = true;
-                        v.destroy();
+                        detachAndDestroy(v);
                         call.resolve(o);
                     });
                 } catch (Exception e) {
