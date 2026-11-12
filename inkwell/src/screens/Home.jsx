@@ -33,6 +33,20 @@ import { rollTheme, previousLook } from '../lib/theme.js';
 // Shows the last banner instantly, then merges each service as it answers
 // (a slow service never holds the others back).
 const heroCache = persisted('heroCache', { items: [] });
+// Books the banner has actually shown, and when (a few days kept): it brings new ones first,
+// and a book seen recently goes to the back.
+const heroSeen = persisted('heroSeen', {}, { delay: 2000 }); // uid -> when last on screen
+const HERO_FORGET = 4 * 864e5;
+function markHeroSeen(uid) {
+  if (!uid) return;
+  heroSeen.set((m) => {
+    const now = Date.now();
+    const next = {};
+    for (const [k, t] of Object.entries(m)) if (now - t < HERO_FORGET) next[k] = t;
+    next[uid] = now;
+    return next;
+  });
+}
 
 // Recommendations lead the banner: picks from your taste (AI with a free key,
 // otherwise Audible's "listeners also enjoyed")
@@ -166,14 +180,21 @@ function heroSources() {
   return list.sort((a, b) => rank(a[2]) - rank(b[2]));
 }
 
-/** Shuffle, with books the banner showed last time moved to the back — each refresh brings new ones. */
-function freshFirst(list, shown) {
+/**
+ * Shuffle, books not seen lately first; ones the banner showed in the last few days go to the
+ * back (the longer ago, the sooner they come back). Each group gives at most `max` books, so a
+ * short list (what you're in the middle of) doesn't fill the banner.
+ */
+function freshFirst(list, max = 6) {
+  const seen = heroSeen.get();
   const a = [...list];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
-  return [...a.filter((b) => !shown.has(b.uid)), ...a.filter((b) => shown.has(b.uid))];
+  const fresh = a.filter((b) => !seen[b.uid]);
+  const old = a.filter((b) => seen[b.uid]).sort((x, y) => seen[x.uid] - seen[y.uid]);
+  return [...fresh, ...old].slice(0, max);
 }
 
 function roundRobin(groups) {
@@ -332,10 +353,24 @@ function Hero() {
   const [items, setItems] = useState(() => (heroCache.get().items.length ? heroCache.get().items : null));
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(0);
+  // A new set when you come back to the app after 30 minutes or more.
+  const [round, setRound] = useState(0);
+  useEffect(() => {
+    let away = 0;
+    const vis = () => {
+      if (document.visibilityState === 'hidden') away = Date.now();
+      else if (away && Date.now() - away > 30 * 60e3) setRound((r) => r + 1);
+    };
+    document.addEventListener('visibilitychange', vis);
+    return () => document.removeEventListener('visibilitychange', vis);
+  }, []);
+  // What's actually on screen counts as seen.
+  useEffect(() => {
+    if (items?.length) markHeroSeen(items[i % items.length]?.uid);
+  }, [i, items]);
   useEffect(() => {
     const sources = heroSources();
     const groups = new Array(sources.length).fill(null);
-    const shown = new Set((heroCache.get().items || []).map((b) => b.uid));
     let alive = true;
     let pending = sources.length;
     let lastIds = '';
@@ -355,7 +390,7 @@ function Hero() {
       }
     };
     if (!sources.length) return publish(), () => (alive = false);
-    sources.forEach(([load, tag], k) => {
+    sources.forEach(([load, tag, kind], k) => {
       // A slow service stops blocking the free fallback after 8s, but its books still join the banner when they arrive.
       let settled = false;
       const settle = () => {
@@ -367,12 +402,12 @@ function Hero() {
       setTimeout(settle, 8000);
       Promise.resolve()
         .then(load)
-        .then((r) => (groups[k] = freshFirst(r || [], shown).map((x) => ({ ...x, heroTag: tag }))))
+        .then((r) => (groups[k] = freshFirst(r || [], kind === 'ai' || kind === 'top' ? 6 : 2).map((x) => ({ ...x, heroTag: tag }))))
         .catch(() => {})
         .finally(settle);
     });
     return () => (alive = false);
-  }, []);
+  }, [round]);
   // One steady timer: books arriving from slower services don't restart it.
   const count = useRef(0);
   count.current = items?.length || 0;
