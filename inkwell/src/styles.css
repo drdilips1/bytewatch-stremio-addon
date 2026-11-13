@@ -12313,10 +12313,10 @@ button.cr-tile.on > img {
 .book-card .book-card-head { min-height: calc(2 * 1.25em + 9px); }
 .book-card .book-card-badges { min-height: 18px; flex-wrap: nowrap; overflow: hidden; }
 .book-card .card-ss { flex: none; width: 16px; height: 16px; font-size: 10px; border-radius: 4px; }
-.progress-under.empty { visibility: hidden; }
+.progress-under.unstarted { visibility: hidden; }
 
 /* ---- Home in the Discover style: brand bar, greeting, one section head, Your books tiles ---- */
-.home-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 0 20px; }
+.home-bar { position: relative; top: auto; left: auto; right: auto; display: flex; align-items: center; justify-content: space-between; padding: calc(var(--safe-top) + 12px) 12px 0 20px; pointer-events: auto; }
 .home-brand { display: flex; align-items: center; gap: 8px; color: var(--accent); font-weight: 750; font-size: 18px; }
 .home-bar .home-top-actions { display: flex; align-items: center; gap: 2px; }
 .home-bar .home-top-actions .icon-btn { background: none; border: 0; box-shadow: none; }
@@ -12348,3 +12348,4 @@ button.cr-tile.on > img {
 .yours-tile b { font-size: 22px; font-weight: 800; line-height: 1; }
 .yours-tile small { font-size: 12px; color: var(--muted); }
 .home-yours + .row { margin-top: 8px; }
+.book-card .progress-under { flex: none; height: 3px; min-height: 0; }
