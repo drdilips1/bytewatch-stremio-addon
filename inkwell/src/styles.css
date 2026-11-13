@@ -12395,3 +12395,8 @@ button.cr-tile.on > img {
 .book-card .book-card-badges .card-ss { flex: none; }
 .book-card .book-card-badges .card-match { flex: none; }
 .book-card .book-card-badges .card-rating { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: clip; }
+.lib-finder { display: grid; gap: 6px; }
+.lib-hits { display: grid; gap: 6px; }
+.lib-hit { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; text-align: left; }
+.lib-hit small { color: var(--muted); }
+.lib-hit.on { border-color: var(--accent); }

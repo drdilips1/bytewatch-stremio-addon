@@ -5,6 +5,49 @@ import { toast } from './common.jsx';
 import { useStore } from '../lib/store.js';
 import * as libbySrc from '../sources/libby.js';
 
+/** Type a library's name (or its short name / Libby link) and pick it from the matches. */
+function LibraryFinder({ value, onPick }) {
+  const [q, setQ] = useState(value || '');
+  const [hits, setHits] = useState(null);
+  const picked = value && libbySrc.parseLibrary(value) === value && q === value;
+  useEffect(() => {
+    setHits(null);
+    if (q.trim().length < 2 || picked) return;
+    let alive = true;
+    const t = setTimeout(() => libbySrc.findLibraries(q).then((r) => alive && setHits(r)).catch(() => alive && setHits([])), 450);
+    return () => ((alive = false), clearTimeout(t));
+  }, [q]);
+  return (
+    <div class="lib-finder">
+      <input
+        value={q}
+        placeholder="Library name, e.g. Los Angeles Public Library"
+        onInput={(e) => {
+          setQ(e.currentTarget.value);
+          onPick(libbySrc.parseLibrary(e.currentTarget.value) || '');
+        }}
+      />
+      {!picked && q.trim().length >= 2 && (
+        <div class="lib-hits">
+          {hits === null ? (
+            <p class="muted small">Looking for “{q.trim()}”…</p>
+          ) : hits.length ? (
+            hits.map((h) => (
+              <button type="button" class={'lib-hit' + (h.key === value ? ' on' : '')} onClick={() => (onPick(h.key), setQ(h.key), setHits(null))}>
+                <b>{h.name}</b>
+                <small>{h.key}</small>
+              </button>
+            ))
+          ) : (
+            <p class="muted small">No library found by that name — try its short name from Libby (in the library's link: libbyapp.com/library/<b>shortname</b>).</p>
+          )}
+        </div>
+      )}
+      {picked && <p class="muted small">Library: {value}</p>}
+    </div>
+  );
+}
+
 /** Sign in (or add another card) with a library card number and PIN. */
 function LibbyCardSignIn({ busy, run, adding = false }) {
   useStore(libbySrc.libby);
@@ -44,7 +87,7 @@ function LibbyCardSignIn({ busy, run, adding = false }) {
           <option value="__other">Another library…</option>
         </select>
       )}
-      {(lib === '__other' || !libs.length) && <input value={other} placeholder="Library link (libbyapp.com/library/…) or short name" onInput={(e) => setOther(e.currentTarget.value)} />}
+      {(lib === '__other' || !libs.length) && <LibraryFinder value={other} onPick={setOther} />}
       {forms.length > 1 && (
         <select value={ils} onChange={(e) => setIls(e.currentTarget.value)} aria-label="Sign-in type">
           {forms.map((f) => (

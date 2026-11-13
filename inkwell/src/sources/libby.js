@@ -26,6 +26,64 @@ export function parseLibrary(input) {
   return m ? m[1].toLowerCase() : '';
 }
 
+// Libraries by name: the ones this app knows, plus Libby short names guessed from the words
+// (initials — "Los Angeles Public Library" → lapl — or the words run together), each checked
+// with Libby; and Libby's own library finder when it answers.
+const KNOWN_LIBRARIES = [
+  ...[
+    ['nypl', 'New York Public Library'], ['lapl', 'Los Angeles Public Library'], ['queenslibrary', 'Queens Public Library'], ['bklynlibrary', 'Brooklyn Public Library'],
+    ['hpl', 'Houston Public Library'], ['fairfax', 'Fairfax County Public Library'], ['cmlibrary', 'Charlotte Mecklenburg Library'], ['broward', 'Broward County Library'],
+    ['nopl', 'New Orleans Public Library'], ['freelibrary', 'Free Library of Philadelphia'], ['spl', 'Seattle Public Library'], ['kcls', 'King County Library System'],
+    ['sfpl', 'San Francisco Public Library'], ['sdpl', 'San Diego Public Library'], ['chipublib', 'Chicago Public Library'], ['dcpl', 'DC Public Library'],
+    ['bpl', 'Boston Public Library'], ['multcolib', 'Multnomah County Library'], ['denverlibrary', 'Denver Public Library'], ['hcpl', 'Harris County Public Library'],
+    ['clevnet', 'CLEVNET'], ['sno-isle', 'Sno-Isle Libraries'], ['aclibrary', 'Austin Public Library'], ['sccl', 'Santa Clara County Library'],
+    ['torontopubliclibrary', 'Toronto Public Library'], ['vpl', 'Vancouver Public Library'], ['ocpl', 'Orange County Public Libraries'], ['lacountylibrary', 'LA County Library'],
+  ].map(([key, name]) => ({ key, name })),
+];
+const nameWords = (q) => String(q || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/).filter(Boolean);
+async function libraryName(key) {
+  try {
+    const d = await getJson(`${THUNDER}/libraries/${encodeURIComponent(key)}`, { timeout: 10000 });
+    return d?.name || d?.displayName || '';
+  } catch {
+    return '';
+  }
+}
+/** Libraries matching what you typed (a name, a short name or a Libby link): [{ key, name }]. */
+export async function findLibraries(q) {
+  const text = String(q || '').trim();
+  if (text.length < 2) return [];
+  const direct = parseLibrary(text);
+  const words = nameWords(text);
+  const out = new Map();
+  // Known names: every word you typed appears in the name ("los angeles", "queens").
+  for (const l of KNOWN_LIBRARIES) {
+    const n = l.name.toLowerCase();
+    if (words.length && words.every((w) => n.includes(w))) out.set(l.key, l.name);
+  }
+  // Guesses checked with Libby.
+  const skip = new Set(['the', 'of', 'and']);
+  const sig = words.filter((w) => !skip.has(w));
+  const guesses = new Set([direct, sig.map((w) => w[0]).join(''), words.map((w) => w[0]).join(''), sig.join(''), sig.join('-'), sig[0]].filter((g) => g && /^[a-z0-9-]{2,40}$/.test(g)));
+  const checked = await Promise.all([...guesses].filter((g) => !out.has(g)).map(async (g) => [g, await libraryName(g)]));
+  for (const [g, name] of checked) if (name) out.set(g, name);
+  // Libby's own library finder (used by its website), when it answers.
+  try {
+    const r = await getJson(`https://locate.libbyapp.com/autocomplete/${encodeURIComponent(text)}`, { timeout: 10000 });
+    const walk = (x, depth = 0) => {
+      if (!x || depth > 4) return;
+      if (Array.isArray(x)) return x.forEach((y) => walk(y, depth + 1));
+      if (typeof x !== 'object') return;
+      const key = x.fulfillmentId || x.libraryKey || x.advantageKey || x.preferredKey;
+      const name = x.name || x.systemName || x.displayName;
+      if (key && name && /^[a-z0-9-]{2,40}$/i.test(key)) out.set(String(key).toLowerCase(), name);
+      for (const v of Object.values(x)) if (v && typeof v === 'object') walk(v, depth + 1);
+    };
+    walk(r);
+  } catch {}
+  return [...out.entries()].slice(0, 8).map(([key, name]) => ({ key, name }));
+}
+
 /** Add a library by its Libby link or short name (you can add several). */
 export async function connect(input) {
   const key = parseLibrary(input);
