@@ -478,8 +478,6 @@ export function Book({ book: initial }) {
         </div>
       )}
 
-      {/* Your public libraries (Libby): copies to borrow or hold. */}
-      {lbSrc.connected() && !book.libbyLoan && !["ss", "tts", "pod", "sum"].includes(book.source) && <LibbyCard book={book} />}
       {/* Your verdict and your tags: one line, just above the source results. */}
       {!loading && book.source !== "sum" && book.source !== "pod" && (
         <MyRating book={book}>
@@ -550,6 +548,10 @@ export function Book({ book: initial }) {
           items={editions.text}
         />
       )}
+
+      {/* Your public libraries (Libby), after the other results: borrowable copies shown,
+          waitlists and other libraries folded; audiobook and ebook apart. */}
+      {lbSrc.connected() && !book.libbyLoan && !["ss", "tts", "pod", "sum"].includes(book.source) && <LibbyCard book={book} />}
 
       <BookBookmarks book={book} />
 

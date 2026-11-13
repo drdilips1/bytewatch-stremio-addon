@@ -12199,3 +12199,33 @@ button.cr-tile.on > img {
   display: block;
   margin-top: 12px;
 }
+
+/* Libby on the book page: audiobook and ebook apart, waitlists folded */
+.libby-group {
+  margin-top: 10px;
+}
+.libby-group h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.libby-fold {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}

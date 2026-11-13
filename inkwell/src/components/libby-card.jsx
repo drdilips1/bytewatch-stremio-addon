@@ -7,8 +7,6 @@ import { useStore } from '../lib/store.js';
 import * as lb from '../sources/libby.js';
 import { openExternal } from '../sources/summaries.js';
 
-const kindName = (f) => (f === 'audiobook' ? 'Audiobook' : f === 'ebook' ? 'Ebook' : f || 'Title');
-
 function useAct() {
   const [busy, setBusy] = useState('');
   const act = async (id, fn) => {
@@ -55,7 +53,8 @@ function CopyAction({ h }) {
   );
 }
 
-/** Copies of this book at each of your libraries (available now first). */
+/** Copies of this book at your libraries, audiobook and ebook apart: what you can borrow now
+ *  shows; waitlists and libraries you have no card for stay folded until tapped. */
 export function LibbyCard({ book }) {
   const [hits, setHits] = useState(book.libby ? [book] : null);
   const [others, setOthers] = useState(null); // at libraries you have no card for
@@ -68,6 +67,7 @@ export function LibbyCard({ book }) {
     return () => (alive = false);
   }, [book.uid]);
   const libs = lb.libraries();
+  const isAudio = (h) => h.libby.format === 'audiobook';
   return (
     <section class="pad libby">
       <h3 class="section-label">
@@ -77,7 +77,7 @@ export function LibbyCard({ book }) {
         <p class="muted">
           <span class="spinner small" /> Checking Libby…
         </p>
-      ) : hits.length === 0 ? (
+      ) : hits.length === 0 && !others?.length ? (
         <div class="sum-actions">
           <span class="muted">Not in your libraries' Libby catalogues.</span>
           <button class="pill ghost" onClick={() => openExternal(`https://libbyapp.com/search/${libs[0]?.key || ''}/search/query-${encodeURIComponent(book.title)}/page-1`)}>
@@ -85,23 +85,72 @@ export function LibbyCard({ book }) {
           </button>
         </div>
       ) : (
+        <>
+          <LibbyGroup name="Audiobook" icon="headphones" mine={hits.filter(isAudio)} others={(others || []).filter(isAudio)} many={libs.length > 1} />
+          <LibbyGroup name="Ebook" icon="book" mine={hits.filter((h) => !isAudio(h))} others={(others || []).filter((h) => !isAudio(h))} many={libs.length > 1} />
+        </>
+      )}
+    </section>
+  );
+}
+
+const weeksOf = (h) => (h.libby.waitDays ? Math.max(1, Math.round(h.libby.waitDays / 7)) : null);
+
+/** One format: borrowable copies shown, the rest folded behind a one-line summary. */
+function LibbyGroup({ name, icon, mine, others, many }) {
+  const [open, setOpen] = useState(false);
+  if (!mine.length && !others.length) return null;
+  const now = mine.filter((h) => h.libby.available);
+  const wait = mine.filter((h) => !h.libby.available).sort((a, b) => (a.libby.waitDays ?? 999) - (b.libby.waitDays ?? 999));
+  const readyElse = others.filter((h) => h.libby.available).length;
+  const soonest = wait.length ? weeksOf(wait[0]) : null;
+  const folded = [
+    wait.length && `waitlist at ${wait.length}${soonest ? ` · shortest about ${soonest} week${soonest === 1 ? '' : 's'}` : ''}`,
+    others.length && (readyElse ? `ready now at ${readyElse} other${readyElse === 1 ? '' : 's'} (no card)` : `${others.length} other${others.length === 1 ? '' : 's'} (no card)`),
+  ].filter(Boolean);
+  return (
+    <div class="libby-group">
+      <h4>
+        <Icon name={icon} size={14} /> {name}
+      </h4>
+      {now.length > 0 && <div class="libby-list">{now.map((h) => <LibbyRow h={h} many={many} />)}</div>}
+      {folded.length > 0 && (
+        <button class="libby-fold" onClick={() => setOpen(!open)}>
+          <span>{(now.length ? 'Also: ' : '') + folded.join(' · ')}</span>
+          <Icon name={open ? 'up' : 'down'} size={14} />
+        </button>
+      )}
+      {open && (
         <div class="libby-list">
-          {hits.slice(0, 8).map((h) => (
+          {wait.map((h) => <LibbyRow h={h} many={many} />)}
+          {others.map((h) => (
             <div class={'libby-item' + (h.libby.available ? ' ok' : '')}>
               <div>
                 <b>
-                  {kindName(h.libby.format)}
-                  {libs.length > 1 && h.libby.library ? <span class="libby-lib"> · {h.libby.library}</span> : null}
+                  {h.libby.library} <span class="libby-lib">· no card yet</span>
                 </b>
                 <small>{lb.describe(h.libby)}</small>
               </div>
-              <CopyAction h={h} />
+              <button class="pill ghost" onClick={() => openExternal(`https://libbyapp.com/library/${h.libby.key}`)}>
+                Get a card
+              </button>
             </div>
           ))}
         </div>
       )}
-      <OtherLibraries list={others} />
-    </section>
+    </div>
+  );
+}
+
+function LibbyRow({ h, many }) {
+  return (
+    <div class={'libby-item' + (h.libby.available ? ' ok' : '')}>
+      <div>
+        <b>{many && h.libby.library ? h.libby.library : h.libby.available ? 'Available now' : 'Waitlist'}</b>
+        <small>{lb.describe(h.libby)}</small>
+      </div>
+      <CopyAction h={h} />
+    </div>
   );
 }
 
@@ -162,40 +211,4 @@ export function LibbyLoanActions({ book }) {
     );
   }
   return null;
-}
-
-/** Where the book is at other libraries (no card there yet): ready now first. */
-function OtherLibraries({ list }) {
-  const [all, setAll] = useState(false);
-  if (!list?.length) return null;
-  const ready = list.filter((h) => h.libby.available);
-  const shown = all ? list : ready.length ? ready.slice(0, 4) : list.slice(0, 3);
-  return (
-    <div class="libby-others">
-      <h4>
-        {ready.length ? `Ready now at ${ready.length} other librar${ready.length === 1 ? 'y' : 'ies'}` : 'At other libraries'}
-        <small> · no card there yet</small>
-      </h4>
-      <div class="libby-list">
-        {shown.map((h) => (
-          <div class={'libby-item' + (h.libby.available ? ' ok' : '')}>
-            <div>
-              <b>
-                {h.libby.library} <span class="libby-lib">· {kindName(h.libby.format)}</span>
-              </b>
-              <small>{lb.describe(h.libby)}</small>
-            </div>
-            <button class="pill ghost" onClick={() => openExternal(`https://libbyapp.com/library/${h.libby.key}`)}>
-              Get a card
-            </button>
-          </div>
-        ))}
-      </div>
-      {list.length > shown.length && (
-        <button class="link-btn" onClick={() => setAll(true)}>
-          Show all {list.length}
-        </button>
-      )}
-    </div>
-  );
 }
