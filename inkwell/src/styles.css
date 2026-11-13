@@ -12324,7 +12324,7 @@ button.cr-tile.on > img {
 .home-greet h1 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.15; }
 .home-greet p { margin: 4px 0 0; color: var(--muted); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The banner as a card, inset like everything else. */
-.home .feature { margin: 16px 20px 6px; border-radius: 22px; border: 1px solid var(--border); height: min(62vh, 520px); min-height: 400px; }
+
 .home .continue-section { padding-top: 22px; }
 .home-head { padding: 0 20px; }
 .home .continue-big { padding: 0; gap: 0; background: var(--surface); color: var(--text); align-items: stretch; min-height: 150px; }
@@ -12349,3 +12349,32 @@ button.cr-tile.on > img {
 .yours-tile small { font-size: 12px; color: var(--muted); }
 .home-yours + .row { margin-top: 8px; }
 .book-card .progress-under { flex: none; height: 3px; min-height: 0; }
+
+/* ---- Home carousel as the compact card from the sample: cover left, words and Listen right ---- */
+:root .home .feature { height: 214px; min-height: 0; margin: 16px 20px 0; border-radius: 22px; border: 1px solid var(--border); background: #15121c; }
+:root .home .feature-art img { filter: blur(30px) saturate(1.3) brightness(0.55); transform: scale(1.4); }
+:root .home .feature-art::after { background: linear-gradient(90deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.1) 75%); }
+:root .home .feature-content { flex-direction: row; align-items: center; gap: 16px; padding: 18px 18px 26px; }
+:root .home .feature-poster { flex: none; width: 112px; height: 112px; padding: 0; display: block; }
+:root .home .feature-poster img, :root .home .feature-poster .bg-image { width: 112px; height: 112px; max-height: none; border-radius: 12px; transform: none; box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5); }
+:root .home .feature-poster-empty { width: 112px; height: 112px; border-radius: 12px; }
+:root .home .feature-body { flex: 1; min-width: 0; color: #fff; }
+:root .home .feature-badges { margin-bottom: 4px; gap: 0; }
+:root .home .feature-badge { display: none; }
+:root .home .feature-from { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: rgba(255, 255, 255, 0.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+:root .home .feature-title { font-family: var(--font); font-size: 19px; font-weight: 750; line-height: 1.2; letter-spacing: -0.01em; -webkit-line-clamp: 2; text-shadow: none; }
+:root .home .feature-author { margin: 3px 0 0; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root .home .feature-why { display: none; }
+:root .home .feature-meta { margin: 3px 0 0; font-size: 12px; font-weight: 500; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
+:root .home .feature-meta > span + span::before { margin: 0 6px; }
+:root .home .feature-actions { display: flex; margin-top: 10px; }
+:root .home .feature-btn { height: 36px; padding: 0 16px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+:root .home .feature-btn.primary { background: var(--accent); color: #fff; box-shadow: none; }
+:root .home .feature-btn.ghost { display: none; }
+:root .home .feature-dots { bottom: 8px; }
+:root .home .feature-spacer { display: none; }
+:root .home .feature.shimmer { height: 214px; }
+/* One plain font for Home's and Discover's headings and titles, as in the sample. */
+.home-greet h1, .home .row-head h2, .home .d-head h3, .home .section-label, .home .continue-big-text b,
+.disc2 .row-head h2, .disc2 .d-head h3, .disc2 .d-pick-m b, .discover .screen-title { font-family: var(--font); }
+.home .row-head h2, .disc2 .row-head h2 { font-size: 18px; font-weight: 700; }
