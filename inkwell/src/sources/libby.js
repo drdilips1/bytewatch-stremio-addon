@@ -502,10 +502,10 @@ export async function signInWithCard(input, cardNumber, pin = '', ilsName = '') 
         }
       }
       const said = noteWhy(e);
-      // After a wrong try Libby wants a "prove you're a person" check, which only its own app
-      // or website can show: add the card there, then bring it here with a setup code.
+      // After wrong tries Libby wants a "prove you're a person" check, which only its own app or
+      // website can show, and it keeps asking for a while. Nothing here can answer it.
       if (/captcha/i.test(said))
-        throw new Error('Libby wants a quick "I\'m not a robot" check for this card, which only Libby itself can show. Add the card in the Libby app (or libbyapp.com) — the check appears there — then here use “Bring them all with a code” (Libby → Menu → Copy To Another Device).');
+        throw new Error('Libby is asking for an "I\'m not a robot" check on this card after the earlier wrong try — only the Libby app can show that. Wait an hour or so before trying here again, and check the PIN first (sign in on the library\'s own website, or reset the PIN there), so the next try is the right one.');
       throw new Error(
         e.status === 401 || e.status === 403 || /credential|invalid|incorrect|password|pin/i.test(said)
           ? `The library didn't accept that card number or PIN${forms.length > 1 ? ' — try another sign-in type above' : ''}${said && !/^libby signed/i.test(said) ? ` (it said: ${said})` : ''}`
@@ -763,7 +763,7 @@ export async function openLoan(book) {
     })
     .catch((e) => {
       logError('libby play', `${e.message} · signed in via ${libbyAccount.get().via || '?'} · ${chipCards(libbyAccount.get().identity).length} cards in sign-in`);
-      if (/missing_chip/i.test(e.message)) throw new Error('Your card sign-in can borrow but not open audiobooks here. In Settings → Libby use “Bring them all with a code” (Libby → Copy To Another Device), then try Play here again.');
+      if (/missing_chip/i.test(e.message)) throw new Error('Libby won\'t open this audiobook here — use Listen in Libby.');
       throw new Error(/whoa/i.test(e.message) ? 'Libby won\u2019t open this book outside its own app right now ("whoa") — use Listen in Libby.' : `Libby didn't open this audiobook here (${e.message}) — use Listen in Libby.`);
     });
   const web = passport?.urls?.web;
