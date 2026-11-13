@@ -5,17 +5,24 @@
 // Each synced store is a "section" with its own timestamp; lists that can be
 // edited on several devices (progress, library, bookmarks, addons) merge item
 // by item, everything else takes the newest copy.
-import { qbit, qbitSent } from '../sources/qbit.js';
+import { qbit, qbitSent, tracker, mamSession } from '../sources/qbit.js';
+import { annas } from '../sources/annas.js';
+import { metaFixes } from './meta.js';
+import { preferredCopy } from './editions.js';
+import { readLater } from './readlists.js';
+import { upNext } from './upnext.js';
+import { ideas } from './askbook.js';
+import { moreLike } from './shelves.js';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { App as CapApp } from '@capacitor/app';
-import { podcasts } from '../sources/podcasts.js';
+import { podcasts, showPrefs, episodeVotes } from '../sources/podcasts.js';
 import { libby, libbyAccount } from '../sources/libby.js';
 import { ai } from './ai.js';
 import { persisted, settings, library, progress, bookmarks, addons, abs, debrid, hardcover, goodreads, removedBooks, mergeRemoved, cleanLibrary, cleanProgress, kindle, bookTags, highlights, mergeHighlights } from './store.js';
 import { cleanUrl } from './http.js';
 import { ttsCfg } from './tts.js';
-import { myRatings } from './taste.js';
+import { myRatings, notInterested, alreadyRead } from './taste.js';
 
 const BAKED_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const BAKED_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -61,6 +68,22 @@ const SECTIONS = {
   kindle: { store: kindle, secret: true, merge: mergeKindle },
   bookTags: { store: bookTags },
   highlights: { store: highlights, merge: mergeHighlights },
+  // Your own fixes and choices: edited titles / narrators, the copy Play uses, Read later,
+  // Up next, saved ideas, taste (not interested, already heard, more like this), podcast prefs.
+  metaFixes: { store: metaFixes, merge: mergeById },
+  preferredCopy: { store: preferredCopy, merge: mergeById },
+  readLater: { store: readLater, merge: mergeById },
+  upNext: { store: upNext },
+  savedIdeas: { store: ideas },
+  notInterested: { store: notInterested, merge: mergeById },
+  alreadyRead: { store: alreadyRead, merge: mergeById },
+  moreLike: { store: moreLike },
+  podcastShowPrefs: { store: showPrefs, merge: mergeById },
+  episodeVotes: { store: episodeVotes, merge: mergeById },
+  // Logins and addresses for the book sources (with "Sync logins" on).
+  tracker: { store: tracker, secret: true },
+  mamSession: { store: mamSession, secret: true },
+  annas: { store: annas, secret: true },
 };
 
 // Installs from before the server was built in saved an empty address — use the built-in one.
