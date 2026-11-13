@@ -502,6 +502,10 @@ export async function signInWithCard(input, cardNumber, pin = '', ilsName = '') 
         }
       }
       const said = noteWhy(e);
+      // After a wrong try Libby wants a "prove you're a person" check, which only its own app
+      // or website can show: add the card there, then bring it here with a setup code.
+      if (/captcha/i.test(said))
+        throw new Error('Libby wants a quick "I\'m not a robot" check for this card, which only Libby itself can show. Add the card in the Libby app (or libbyapp.com) — the check appears there — then here use “Bring them all with a code” (Libby → Menu → Copy To Another Device).');
       throw new Error(
         e.status === 401 || e.status === 403 || /credential|invalid|incorrect|password|pin/i.test(said)
           ? `The library didn't accept that card number or PIN${forms.length > 1 ? ' — try another sign-in type above' : ''}${said && !/^libby signed/i.test(said) ? ` (it said: ${said})` : ''}`
