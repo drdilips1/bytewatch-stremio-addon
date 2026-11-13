@@ -5,6 +5,47 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import './library.css';
 import { listBooks, putBook, deleteBook, getBook, percentOf } from './db.js';
 import { importFile, fromText } from './importers.js';
+import { Capacitor as Cap, registerPlugin } from '@capacitor/core/dist/index.js';
+
+// The iPhone keeps reading after the reader is closed: the library shows what's playing.
+const Speech = registerPlugin('PaperSpeech');
+const native = Cap.isNativePlatform() && Cap.isPluginAvailable('PaperSpeech');
+
+function NowReading({ books }) {
+  const [st, setSt] = useState(null);
+  useEffect(() => {
+    if (!native) return;
+    Speech.status().then(setSt).catch(() => {});
+    const h = Speech.addListener('state', setSt);
+    return () => h.then((x) => x.remove());
+  }, []);
+  if (!st?.active) return null;
+  const b = (books || []).find((x) => x.id === st.uid);
+  return (
+    <div class="now" onClick={() => b && open(b.id)}>
+      <div class="info">
+        <b>{b?.title || 'Reading'}</b>
+        <span class="muted">{st.finished ? 'Finished' : st.playing ? 'Reading aloud' : 'Paused'}</span>
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          (st.playing ? Speech.pause() : Speech.resume()).catch(() => {});
+        }}
+      >
+        {st.playing ? 'Pause' : 'Play'}
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          Speech.stop().catch(() => {});
+        }}
+      >
+        Stop
+      </button>
+    </div>
+  );
+}
 
 const minutes = (words) => {
   const m = Math.max(1, Math.round(words / 150)); // about 150 words a minute
@@ -117,6 +158,8 @@ function Library() {
           <p>Tap ＋ Add to choose a book (EPUB), PDF, text or web page file from Files, or paste text.</p>
         </div>
       )}
+
+      <NowReading books={books} />
 
       <ul class="books">
         {(books || []).map((b) => {

@@ -1,0 +1,11 @@
+{
+  "name": "paper-speech-ios",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Paper to Audio for iPhone: reads the book aloud with the iPhone's voices (AVSpeechSynthesizer), with the screen off and lock-screen controls. Added to the app only by the iPhone build (.github/workflows/paper2audio-ios.yml).",
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  }
+}

@@ -2,7 +2,15 @@
 // (on Android, the app answers). On iPhone this file answers instead: the book from the library on
 // the phone, the iPhone's own voices, and Look up from a free dictionary.
 // It must run before the reader's code, which reads window.P2AReader as it loads.
+// Reading aloud is done by the iPhone itself (PaperSpeech, ios-plugins/speech): it keeps reading with the
+// screen off and shows the book on the lock screen; the reader just follows it, as on Android.
 import { getBook } from './db.js';
+import { Capacitor as Cap, registerPlugin } from '@capacitor/core/dist/index.js';
+
+const Speech = registerPlugin('PaperSpeech');
+const native = Cap.isNativePlatform() && Cap.isPluginAvailable('PaperSpeech');
+const VOICE_ID = 'p2a:iosVoiceId';
+let loaded = null; // the book as stored (its blocks: what each paragraph says)
 
 const bookId = new URLSearchParams(location.search).get('id');
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -11,6 +19,7 @@ const VOICE_KEY = 'p2a:iosVoice';
 async function theBook() {
   const b = bookId && (await getBook(bookId));
   if (!b) throw new Error('This book is no longer in the library');
+  loaded = b;
   let html = '';
   const headings = [];
   b.blocks.forEach((bl, i) => {
@@ -54,8 +63,10 @@ function voicesNow() {
 
 const natural = (v) => /enhanced|premium|neural/i.test(v.name + ' ' + v.voiceURI);
 
-async function chooseVoice(name) {
+async function chooseVoice(name, id = '') {
   localStorage.setItem(VOICE_KEY, name);
+  localStorage.setItem(VOICE_ID, id || name);
+  if (native) Speech.setVoice({ voice: id || name }).catch(() => {});
   // The reader's own voice setting (its read-aloud uses the iPhone voice of that name).
   const { ttsCfg } = await import('../../reader-web/src/lib/tts.js');
   ttsCfg.patch({ mode: 'system', voice: name });
@@ -63,6 +74,7 @@ async function chooseVoice(name) {
 }
 
 async function pickVoice() {
+  if (native) return pickNativeVoice();
   const all = await voicesNow();
   const lang = (navigator.language || 'en').slice(0, 2);
   const mine = all.filter((v) => v.lang.startsWith(lang) || v.lang.startsWith('en'));
@@ -100,6 +112,78 @@ async function pickVoice() {
     }
   });
 }
+
+/** The iPhone's voice list (with each voice's quality), from the iPhone itself. */
+async function pickNativeVoice() {
+  const { voices = [] } = await Speech.voices().catch(() => ({}));
+  const lang = (navigator.language || 'en').slice(0, 2);
+  const rank = { premium: 2, enhanced: 1, default: 0 };
+  const mine = voices.filter((v) => v.lang.startsWith(lang) || v.lang.startsWith('en'));
+  const list = (mine.length ? mine : voices).sort((a, b) => rank[b.quality] - rank[a.quality] || a.name.localeCompare(b.name));
+  const current = localStorage.getItem(VOICE_ID) || '';
+  const label = { premium: 'Premium (most natural)', enhanced: 'Enhanced (natural)', default: 'Standard' };
+  sheet('Choose a voice', (box, close) => {
+    const p = document.createElement('p');
+    p.className = 'm';
+    p.textContent = 'Tap a voice to choose it. More natural voices: Settings → Accessibility → Spoken Content → Voices → English → download an Enhanced or Premium voice.';
+    box.appendChild(p);
+    let group = '';
+    for (const v of list) {
+      if (v.quality !== group) {
+        group = v.quality;
+        const k = document.createElement('div');
+        k.className = 'k';
+        k.textContent = label[group] || group;
+        box.appendChild(k);
+      }
+      const b = document.createElement('button');
+      b.className = 'v' + (v.id === current ? ' on' : '');
+      b.textContent = `${v.name} · ${v.lang}`;
+      b.onclick = () => {
+        chooseVoice(v.name, v.id);
+        box.querySelectorAll('.v').forEach((x) => x.classList.remove('on'));
+        b.classList.add('on');
+        setTimeout(close, 300);
+      };
+      box.appendChild(b);
+    }
+  });
+}
+
+// ---- reading aloud by the iPhone (the reader's "InkwellReadAloud" calls, as the Android app answers them) ----
+
+async function readAloud(method, a) {
+  switch (method) {
+    case 'start': {
+      // The reader sends which book paragraph each of its elements is (idx); the words come from the book.
+      const blocks = loaded?.blocks || (await getBook(bookId))?.blocks || [];
+      const paras = a.paras?.length ? a.paras : (a.idx || []).map((i) => (i >= 0 && blocks[i] ? blocks[i].t : ''));
+      return Speech.start({
+        uid: a.uid || loaded?.id || bookId || '',
+        title: a.title || loaded?.title || '',
+        author: loaded?.author || '',
+        paras,
+        from: a.from || 0,
+        rate: a.rate || 1,
+        voice: localStorage.getItem(VOICE_ID) || '',
+      });
+    }
+    case 'status':
+      return Speech.status();
+    case 'pause':
+    case 'resume':
+    case 'stop':
+      return Speech[method]();
+    case 'seek':
+      return Speech.seek({ para: a.para || 0 });
+    case 'setRate':
+      return Speech.setRate({ rate: a.rate || 1 });
+    default:
+      return {}; // map, addParas: nothing to do (the page and the iPhone count paragraphs the same way)
+  }
+}
+
+if (native) Speech.addListener('state', (st) => window.__p2aEvent?.('InkwellReadAloud', 'state', JSON.stringify(st)));
 
 async function lookUp(raw) {
   const word = String(raw || '').trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').replace(/['’]s$/, '');
@@ -142,12 +226,14 @@ async function lookUp(raw) {
 
 // ---- the calls ----
 
-async function handle(method, args) {
+async function handle(plugin, method, args) {
+  if (plugin === 'InkwellReadAloud') return readAloud(method, args);
   switch (method) {
     case 'book':
       return theBook();
     case 'close':
-      speechSynthesis.cancel();
+      // Leaving the reader: the iPhone keeps reading (the reader follows it again when reopened).
+      if (!native) speechSynthesis.cancel();
       location.href = 'index.html';
       return {};
     case 'voice':
@@ -164,13 +250,13 @@ async function handle(method, args) {
 }
 
 window.P2AReader = {
-  plugins: () => JSON.stringify(['P2AReader']),
+  plugins: () => JSON.stringify(native ? ['P2AReader', 'InkwellReadAloud'] : ['P2AReader']),
   call(id, plugin, method, json) {
     let args = {};
     try {
       args = JSON.parse(json || '{}');
     } catch {}
-    handle(method, args).then(
+    handle(plugin, method, args).then(
       (r) => window.__p2aDone?.(id, JSON.stringify(r ?? {})),
       (e) => window.__p2aDone?.(id, JSON.stringify({ __error: e.message || String(e) }))
     );

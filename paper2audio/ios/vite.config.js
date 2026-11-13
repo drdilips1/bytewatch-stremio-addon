@@ -11,10 +11,12 @@ export default defineConfig({
   plugins: [preact()],
   base: './',
   resolve: {
-    alias: {
-      '@capacitor/core': rw('src/shims/capacitor.js'),
-      preact: rw('node_modules/preact'),
-    },
+    // Exactly "@capacitor/core" is the reader's bridge to "the app"; the iPhone's own plugin calls use the real
+    // Capacitor (src/host.js imports it by its file path, which this doesn't match).
+    alias: [
+      { find: /^@capacitor\/core$/, replacement: rw('src/shims/capacitor.js') },
+      { find: 'preact', replacement: rw('node_modules/preact') },
+    ],
   },
   server: { fs: { allow: ['..'] } },
   build: {

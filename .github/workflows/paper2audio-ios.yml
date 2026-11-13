@@ -33,6 +33,9 @@ jobs:
         run: |
           (cd ../reader-web && npm ci --no-audit --no-fund)
           npm ci --no-audit --no-fund
+          # The iPhone's reading engine (screen off, lock screen): a local plugin, copied in (not linked) for Capacitor.
+          npm pkg set "dependencies.paper-speech-ios=file:ios-plugins/speech"
+          npm i --install-links --no-audit --no-fund ./ios-plugins/speech
 
       - name: Build the screens
         run: npx vite build
@@ -42,6 +45,7 @@ jobs:
           npx cap add ios
           npx cap sync ios
           ls ios/App
+          echo "--- plugins in the iPhone app:"; grep -A6 packageClassList ios/App/App/capacitor.config.json || true
 
       - name: Icon, splash and settings
         run: |
