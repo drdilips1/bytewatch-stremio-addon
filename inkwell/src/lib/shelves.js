@@ -7,6 +7,8 @@ import { persisted, progress } from './store.js';
 import { mainTitle, words } from './match.js';
 import { profile, myRatings, rankForYou, knownTitles, rateKey } from './taste.js';
 import { audible } from '../sources/catalogs.js';
+import { absSrc, localSrc } from '../sources/index.js';
+import { fixFor } from './meta.js';
 import { GENRES } from '../screens/genres.js';
 
 // Books you asked for more like (press and hold → More like this): newest first.
@@ -15,6 +17,36 @@ export function addMoreLike(b) {
   const key = rateKey(b);
   moreLike.set((l) => [{ key, title: mainTitle(b.title), author: b.author || '', uid: b.uid || '', at: Date.now() }, ...l.filter((x) => x.key !== key)].slice(0, 6));
 }
+
+// Everything you have or have heard — your ratings and listening, your server's whole library,
+// the books on this phone — so a shelf never offers one of them as "new". (Kept 10 minutes.)
+let ownedRun = null;
+let ownedAt = 0;
+const keyOf = (t) => words(mainTitle(t || '')).join(' ');
+async function ownedTitles() {
+  if (ownedRun && Date.now() - ownedAt < 10 * 60e3) return ownedRun;
+  ownedAt = Date.now();
+  ownedRun = (async () => {
+    const t = new Set(knownTitles());
+    for (const b of localSrc.localCfg?.get().books || []) if (b?.title) t.add(keyOf(fixFor(b.uid)?.title || b.title));
+    if (absSrc.connected()) for (const b of await absSrc.all().catch(() => [])) if (b?.title) t.add(keyOf(fixFor(b.uid)?.title || b.title));
+    t.delete('');
+    return t;
+  })();
+  return ownedRun;
+}
+/** Is this one of yours? The same main title, or one starting with it ("… Secrets" vs "… Secrets (Book 2)"). */
+const isOwned = (owned, b) => {
+  const k = keyOf(b.title);
+  if (!k) return true;
+  if (owned.has(k)) return true;
+  for (const o of owned) if (o.length > 8 && (k.startsWith(o + ' ') || o.startsWith(k + ' '))) return true;
+  return false;
+};
+const notYours = async (list) => {
+  const owned = await ownedTitles();
+  return list.filter((b) => !isOwned(owned, b));
+};
 
 const cap = (s) => String(s || '').replace(/^./, (c) => c.toUpperCase());
 const shortGenre = (n) => String(n).split(/ & |, /)[0];
@@ -31,9 +63,17 @@ export function anchorBooks(n = 2) {
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
     .map((p) => p.book);
   const seen = new Set();
-  return [...rated, ...finished].filter((b) => {
+  // A server's wrong title is often just the author's name ("Richard Dawkin" for The Selfish
+  // Gene): the title you picked if there is one, and never a title that's only a name.
+  const named = (b) => ({ ...b, title: (b.uid && fixFor(b.uid)?.title) || b.title });
+  const justAName = (b) => {
+    const t = words(mainTitle(b.title));
+    const a = new Set(words(b.author || ''));
+    return !t.length || t.every((w) => a.has(w) || [...a].some((x) => x.startsWith(w) || w.startsWith(x)));
+  };
+  return [...rated, ...finished].map(named).filter((b) => {
     const k = words(mainTitle(b.title)).join(' ');
-    return k && !seen.has(k) && seen.add(k);
+    return k && !justAName(b) && !seen.has(k) && seen.add(k);
   }).slice(0, n);
 }
 
@@ -64,7 +104,7 @@ export function tasteShelves() {
       key: 'ml:' + m.key,
       title: `Because you liked ${m.title}`,
       subtitle: 'You asked for more like it',
-      load: async () => tidy((await relatedTo(m)).list).map((b) => ({ ...b, tag: `${b.match}% match` })),
+      load: async () => tidy(await notYours((await relatedTo(m)).list)).map((b) => ({ ...b, tag: `${b.match}% match` })),
     });
   // Because you enjoyed…
   for (const a of anchorBooks(1))
@@ -77,7 +117,7 @@ export function tasteShelves() {
       })(),
       load: async () => {
         const { list } = await relatedTo(a);
-        return tidy(list).map((b) => ({ ...b, tag: `${b.match}% match` }));
+        return tidy(await notYours(list)).map((b) => ({ ...b, tag: `${b.match}% match` }));
       },
     });
   // Authors you love: their books you haven't heard.
@@ -86,7 +126,7 @@ export function tasteShelves() {
     out.push({
       key: 'authors',
       title: 'More from authors you love',
-      subtitle: authors.length === 1 ? `You loved ${authors[0][1].titles.length} of their books` : 'Their books you haven’t heard yet',
+      subtitle: 'More of their books — not in your library',
       load: async () => {
         // The author's full name: from a book of theirs you have.
         const full = (last) => {
@@ -94,11 +134,10 @@ export function tasteShelves() {
             if (r?.author && words(firstAuthor(r.author)).pop() === last) return firstAuthor(r.author);
           return last;
         };
-        const known = knownTitles();
         const lists = await Promise.all(authors.map(([last]) => audible.byAuthor(full(last)).catch(() => [])));
         const now = Date.now();
-        const books = lists.flat().filter((b) => !known.has(words(mainTitle(b.title)).join(' ')));
-        return tidy(books, 16).map((b) => ({ ...b, tag: b.released && now - b.released < 365 * 864e5 ? `New · ${new Date(b.released).getFullYear()}` : b.duration && b.duration < 7 * 3600 ? `Short · ${Math.round(b.duration / 3600)} h` : 'Not heard yet' }));
+        const books = await notYours(lists.flat());
+        return tidy(books, 16).map((b) => ({ ...b, tag: b.released && now - b.released < 365 * 864e5 ? `New · ${new Date(b.released).getFullYear()}` : '' }));
       },
     });
   }
@@ -111,7 +150,7 @@ export function tasteShelves() {
       subtitle: `Read by ${narrators.map(([, v]) => v.name).join(' and ')}, whom you rated highly`,
       load: async () => {
         const lists = await Promise.all(narrators.map(([, v]) => audible.byNarrator(v.name).catch(() => [])));
-        return tidy(lists.flat(), 16).map((b) => ({ ...b, tag: 'Your narrator' }));
+        return tidy(await notYours(lists.flat()), 16).map((b) => ({ ...b, tag: 'Your narrator' }));
       },
     });
   // A little outside your comfort zone: a topic you haven't tried (not one you turned away
@@ -131,7 +170,7 @@ export function tasteShelves() {
       title: 'A little outside your comfort zone',
       subtitle: `${shortGenre(g.name)} — highly rated, close to what you like`,
       load: async () =>
-        tidy((await audible.pool(g.au || g.name).catch(() => [])).filter((b) => (b.rating || 0) >= 4.4 && (b.ratings || 0) >= 500), 12).map((b) => ({ ...b, tag: 'Explore' })),
+        tidy((await notYours(await audible.pool(g.au || g.name).catch(() => []))).filter((b) => (b.rating || 0) >= 4.4 && (b.ratings || 0) >= 500), 12).map((b) => ({ ...b, tag: 'Explore' })),
     });
   }
   return out;
