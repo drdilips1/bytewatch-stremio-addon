@@ -8,7 +8,7 @@ import { GENRES } from './genres.js';
 import { learnedTopics } from './Home.jsx';
 import { aiVoiceOn, stopAnswer } from '../lib/voiceask.js';
 import { annas as annasStore } from '../sources/annas.js';
-import { notInterested, alreadyRead, myRatings } from '../lib/taste.js';
+import { notInterested, alreadyRead, myRatings, profile } from '../lib/taste.js';
 import { importReadList, takeGoodreadsReads } from '../lib/readlists.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
 import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl } from '../lib/http.js';
@@ -175,6 +175,7 @@ function YourTaste() {
   };
   return (
     <>
+      <ListeningTaste />
       <p class="muted small">What Home's “Recommended” and “New releases” rows are built from.</p>
       <div class="taste-chips">
         {topics.map((g) => (
@@ -213,6 +214,85 @@ function YourTaste() {
         </button>
       </div>
     </>
+  );
+}
+
+// A name for your taste, from the topic you lean to most.
+const TASTE_NAMES = [
+  [/mystery|crime|thriller/i, 'The Suspense Seeker'],
+  [/sci|cosmos|physics|ai & future/i, 'The Explorer'],
+  [/fantasy/i, 'The Dreamer'],
+  [/romance/i, 'The Romantic'],
+  [/horror/i, 'The Night Owl'],
+  [/history|civilization|india/i, 'The Time Traveller'],
+  [/psychology/i, 'The Mind Reader'],
+  [/philosophy|religion|spiritual/i, 'The Meaning Seeker'],
+  [/money|economics/i, 'The Strategist'],
+  [/science|biology|big ideas/i, 'The Curious Mind'],
+  [/adventure/i, 'The Adventurer'],
+];
+/**
+ * Your listening taste: a name, the topics you lean to (bars — tap to turn one up or down),
+ * and what you tend to like (lengths, authors, narrators — tap one to leave it out).
+ */
+function ListeningTaste() {
+  const st = useStore(settings);
+  useStore(progress);
+  useStore(myRatings);
+  const p = profile();
+  const boost = st.tasteBoost || {};
+  const ignore = st.tasteIgnore || [];
+  const bars = GENRES.map((g) => {
+    let w = 0;
+    for (const [name, v] of p.genres) if (g.match.test(name)) w += v.w;
+    return [g.name, w];
+  })
+    .filter(([, w]) => w > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+  if (bars.length < 2) return <p class="muted small">Your listening taste shows here once you've finished or rated a few books.</p>;
+  const max = bars[0][1];
+  const name = TASTE_NAMES.find(([re]) => re.test(bars[0][0]))?.[1] || 'The Curious Listener';
+  const short = (n) => n.split(/ & |, /)[0];
+  // Lengths of the books you finish.
+  const lens = Object.values(progress.get()).filter((x) => x?.finished && x.book?.duration > 0).map((x) => x.book.duration / 3600).sort((a, b) => a - b);
+  const mid = lens.length >= 3 ? [lens[Math.floor(lens.length * 0.25)], lens[Math.floor(lens.length * 0.75)]].map((h) => Math.max(1, Math.round(h))) : null;
+  const authors = [...p.authors.entries()].filter(([, v]) => v.w >= 1.5).sort((a, b) => b[1].w - a[1].w).slice(0, 2).map(([last, v]) => ({ k: 'a:' + last, label: v.titles?.[0] ? last.replace(/^./, (c) => c.toUpperCase()) : last }));
+  const narrs = [...p.narrators.entries()].filter(([, v]) => v.w >= 0.8).sort((a, b) => b[1].w - a[1].w).slice(0, 2).map(([, v]) => ({ k: 'n:' + v.name, label: v.name }));
+  const tags = [...(mid ? [{ k: 'len', label: `${mid[0]}–${mid[1]} hour books` }] : []), ...authors, ...narrs].filter((t) => !ignore.includes(t.k));
+  const turn = (g, d) => (clearRowCache(['homeRec', 'homeNew', 'homeTop']), settings.patch({ tasteBoost: { ...boost, [g]: Math.max(-2, Math.min(2, (boost[g] || 0) + d)) } }));
+  return (
+    <div class="lt">
+      <h4>{name}</h4>
+      <small class="muted">Your listening taste · changes as you listen</small>
+      {bars.map(([g, w]) => (
+        <div class="lt-bar">
+          <div>
+            <span>{short(g)}</span>
+            <span class="lt-btns">
+              <button aria-label={`Less ${short(g)}`} onClick={() => turn(g, -1)}>−</button>
+              <b>{Math.round((w / max) * 100)}%</b>
+              <button aria-label={`More ${short(g)}`} onClick={() => turn(g, 1)}>+</button>
+            </span>
+          </div>
+          <i>
+            <em style={{ width: Math.max(4, Math.round((w / max) * 100)) + '%' }} />
+          </i>
+        </div>
+      ))}
+      {tags.length > 0 && (
+        <>
+          <small class="muted lt-like">You tend to like · tap to leave one out</small>
+          <div class="taste-chips">
+            {tags.map((t) => (
+              <button class="chip" onClick={() => settings.patch({ tasteIgnore: [...ignore, t.k] })}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

@@ -21,6 +21,7 @@ import { UpNextRow, PlanRow } from '../components/up-next.jsx';
 import { account } from '../lib/sync.js';
 import { nav, useBackClose } from '../lib/nav.js';
 import { GENRES } from './genres.js';
+import { tasteShelves, moreLike } from '../lib/shelves.js';
 import { HINDI_ALL } from './hindi.js';
 import { audible } from '../sources/catalogs.js';
 import { waitlist, cancel, playNow } from '../lib/waitlist.js';
@@ -147,6 +148,17 @@ async function newReleases() {
 async function topThisMonth() {
   const r = await topicPool();
   return r.slice(0, 20).map((b, i) => ({ ...b, rank: i + 1 }));
+}
+
+/**
+ * Shelves that say why: "Because you enjoyed …", "More from authors you love", "Narrators like
+ * the ones you love", "A little outside your comfort zone", and one per "More like this".
+ * Only the ones there's something to build from (a new listener sees none yet).
+ */
+function TasteShelves() {
+  const ml = useStore(moreLike);
+  const shelves = useMemo(() => tasteShelves(), [ml]);
+  return shelves.map((sh) => <Row key={sh.key} title={sh.title} subtitle={sh.subtitle} icon="sparkle" cacheKey={'shelf:' + sh.key} rec load={sh.load} deps={[sh.key]} />);
 }
 
 /** Explore categories: colourful tiles, two rows that scroll sideways. */
@@ -763,7 +775,12 @@ export function Home() {
           case 'plan':
             return <PlanRow key={id} />;
           case 'rec':
-            return <Row key={id} title="Recommended for you" subtitle={settings.get().tasteFiction ? "From your listening and ratings" : "Non-fiction from your listening and ratings"} icon="sparkle" cacheKey="homeRec" shuffle rec load={recommendedForYou} deps={[]} />;
+            return (
+              <Fragment key={id}>
+                <Row title="Recommended for you" subtitle={settings.get().tasteFiction ? "From your listening and ratings" : "Non-fiction from your listening and ratings"} icon="sparkle" cacheKey="homeRec" shuffle rec load={recommendedForYou} deps={[]} />
+                <TasteShelves />
+              </Fragment>
+            );
           case 'new':
             return <Row key={id} title="New releases" subtitle={`New in ${topicNames()}`} icon="flame" cacheKey="homeNew" shuffle rec load={newReleases} deps={[]} />;
           case 'top':

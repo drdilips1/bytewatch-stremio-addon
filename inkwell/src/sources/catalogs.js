@@ -113,6 +113,13 @@ export const audible = {
     const d = await run('BestSellers').catch(() => run('Relevance'));
     return products(d);
   },
+  /** Titles a narrator reads, best-selling first. */
+  async byNarrator(name) {
+    if (!name) return [];
+    const run = (sort) => getJson(`${AUDIBLE}?` + qs({ narrator: name, num_results: 24, products_sort_by: sort, response_groups: GROUPS, image_sizes: '500,1024' }));
+    const d = await run('BestSellers').catch(() => run('Relevance'));
+    return products(d);
+  },
   /** First Audible match for a title/author, used as the seed for related titles. */
   async find(title, author) {
     const d = await getJson(`${AUDIBLE}?` + qs({ title, author: author || undefined, num_results: 3, products_sort_by: 'Relevance', response_groups: GROUPS, image_sizes: '500,1024' }));

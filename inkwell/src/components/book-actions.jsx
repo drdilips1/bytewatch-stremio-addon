@@ -9,6 +9,7 @@ import { allTags } from './book-tags.jsx';
 import { FixDetails, EditDetails } from './fix-details.jsx';
 import { upNext, addUpNext, removeUpNext } from '../lib/upnext.js';
 import { markNotInterested, markAlreadyRead } from '../lib/taste.js';
+import { addMoreLike } from '../lib/shelves.js';
 import { readLater, toggleReadLater } from '../lib/readlists.js';
 import { canSendToAbs, sendToAbs, absUploads } from '../lib/absupload.js';
 
@@ -150,8 +151,24 @@ export function BookActionsSheet() {
           <span>
             <b>{book.title}</b>
             <small>{[book.author, pct ? `${pct}%` : p?.finished ? 'finished' : ''].filter(Boolean).join(' · ')}</small>
+            {book.match > 0 && <small class="ba-match">{book.match}% match</small>}
           </span>
         </div>
+        {/* A recommendation: why it's here, and what to do with it. */}
+        {book.why && !p && <p class="ba-why">Why: {String(book.why).replace(/^./, (c) => c.toLowerCase())}</p>}
+        {!p && !ebookOnly(book) && (
+          <div class="ba-taste">
+            <button class="pill small active" onClick={act(() => (addMoreLike(book), toast('More like this — a new shelf on Home')))}>
+              More like this
+            </button>
+            <button class="pill small" onClick={act(() => (markNotInterested(book), toast('Not shown again')))}>
+              Not interested
+            </button>
+            <button class="pill small" onClick={act(() => (markAlreadyRead(book), toast('Got it — not recommended again')))}>
+              Already heard it
+            </button>
+          </div>
+        )}
         <button class="menu-item" disabled={!!busy} onClick={play}>
           {busy === 'play' ? <span class="spinner small" /> : <Icon name={ebookOnly(book) ? 'book' : 'play'} size={18} />} {ebookOnly(book) ? 'Read' : pct ? 'Continue' : 'Play'}
         </button>
@@ -261,7 +278,7 @@ export function BookActionsSheet() {
         <button class="menu-item" onClick={act(() => nav.push('book', { book }))}>
           <Icon name="info" size={18} /> Details
         </button>
-        {!p && (
+        {!p && ebookOnly(book) && (
           <button class="menu-item" onClick={act(() => (markAlreadyRead(book), toast('Got it — it won’t be recommended (undo in Settings → AI)')))}>
             <Icon name="check" size={18} /> Already read it
           </button>

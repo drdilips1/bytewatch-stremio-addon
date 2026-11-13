@@ -2,7 +2,7 @@
 // finished, are listening to and saved). Used to rank recommendations, explain each
 // pick ("why this pick"), give it a match %, and hold back poorly rated or poorly
 // narrated titles.
-import { persisted, library, progress, settings } from './store.js';
+import { persisted, library, progress, settings, bookmarks } from './store.js';
 import { words, mainTitle } from './match.js';
 
 // key -> { verdict, story, narration, reasons[], title, author, narrator, genres[], updatedAt }
@@ -70,6 +70,11 @@ const PART_W = { great: 1.5, ok: 0, weak: -2 };
 // Broad shelves that say nothing about taste.
 const BROAD = /^(audible|audiobooks?|fiction|nonfiction|non-fiction|literature & fiction|books?|general|kindle|unabridged)$/i;
 
+// "More like this" (shelves.js keeps the list; read here without importing it — no cycle).
+const moreLikeStore = persisted('moreLike', []);
+const moreLikeList = () => moreLikeStore.get() || [];
+moreLikeStore.subscribe(() => (cached = null));
+
 let cached = null;
 let cachedAt = 0;
 export function profile() {
@@ -107,8 +112,25 @@ export function profile() {
   // Then what you've finished, are listening to, and saved.
   // "Start fresh" (Settings → Your taste): what came before it no longer counts.
   const since = Number(settings.get().tasteSince) || 0;
-  for (const p of Object.values(progress.get())) if (p?.book && (p.updatedAt || 0) > since) feed(p.book, p.finished ? 0.8 : 0.3, { verdict: p.finished ? 'finished' : 'listening' });
+  // By how much of it you heard: finished > most of it > started. Stopped early and not
+  // touched for 3 weeks: a gentle minus (one interrupted session never counts — it's recent).
+  const marks = bookmarks.get();
+  const now = Date.now();
+  for (const [uid, p] of Object.entries(progress.get())) {
+    if (!p?.book || (p.updatedAt || 0) <= since || p.book.source === 'pod') continue;
+    const pc = Number(p.percent) || 0;
+    const left = !p.finished && pc > 0.01 && pc < 0.15 && now - (p.updatedAt || 0) > 21 * 864e5;
+    const w = p.finished ? 0.8 : left ? -0.4 : pc >= 0.5 ? 0.55 : 0.3;
+    const verdict = p.finished ? 'finished' : left ? 'left' : 'listening';
+    // Bookmarks you made in it: a small plus.
+    feed(p.book, w + ((marks[uid] || []).length ? 0.3 : 0), { verdict });
+  }
   for (const b of Object.values(library.get())) if (b && (b.addedAt || 0) > since) feed(b, 0.2, { verdict: 'saved' });
+  // "More like this" on a book: as strong as liking it.
+  for (const m of moreLikeList()) feed(m, 1, { verdict: 'like' });
+  // Settings → Your listening taste: a topic turned up or down by you.
+  const boost = settings.get().tasteBoost || {};
+  for (const [name, b] of Object.entries(boost)) if (b) bump(genres, String(name).toLowerCase(), b * 2);
   cached = { authors, narrators, genres, size: seen.size };
   cachedAt = Date.now();
   return cached;
@@ -132,7 +154,7 @@ export function knownTitles() {
 // ---- scoring ------------------------------------------------------------------
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const fmtK = (n) => (n >= 1000 ? (n / 1000).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(n));
-const VERB = { love: 'loved', like: 'liked', finished: 'finished', listening: 'are listening to', saved: 'saved' };
+const VERB = { love: 'loved', like: 'liked', finished: 'finished', listening: 'are listening to', saved: 'saved', left: 'stopped early on' };
 
 /**
  * How well a book fits your taste: { match (0–99), why, pass, reasons[] }.
