@@ -506,11 +506,17 @@ function ContinueRow() {
   const [[, top], ...rest] = items;
   return (
     <section class="continue-section">
+      <div class="d-head home-head">
+        <span class="d-ico">
+          <Icon name="headphones" size={20} />
+        </span>
+        <h3>{top.kind === 'text' ? 'Continue reading' : 'Continue listening'}</h3>
+      </div>
       {/* The book you were last on, big; the others in a row below. */}
       <button class="continue-big" onClick={() => open(top)}>
         <ContinueCover key={topUidKey(top)} book={top.book} big />
         <div class="continue-big-text">
-          <em>{top.kind === 'text' ? 'Continue reading' : 'Continue listening'}</em>
+          <em>{top.book.narrator ? `Read by ${String(top.book.narrator).split(',')[0]}` : top.kind === 'text' ? 'Reading' : 'Listening'}</em>
           <b>{top.book.title}</b>
           {top.book.author && <small>{top.book.author}</small>}
           <div class="progress-bar">
@@ -727,36 +733,23 @@ export function Home() {
   const me = firstName(st.myName, acct);
   return (
     <div class="screen home">
-      <header class="home-top">
-        <div class="home-logo">
-          <svg viewBox="0 0 512 512" aria-hidden="true">
-            <defs>
-              <linearGradient id="ah-brand" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#7cf0ff" />
-                <stop offset=".5" stop-color="#a78bfa" />
-                <stop offset="1" stop-color="#ff7ab6" />
-              </linearGradient>
-            </defs>
-            <path d="M136 400 L256 112 L376 400" fill="none" stroke="url(#ah-brand)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M170 300 h26 l14 -34 l20 70 l22 -96 l22 112 l18 -52 h30 l14 22 h24" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          <div class="home-hello">
-            <small>{me ? `${greeting()}, ${me}` : greeting()}</small>
-            <b>Audiohub+</b>
-          </div>
+      <header class="home-top home-bar">
+        <div class="home-brand">
+          <Icon name="headphones" size={24} /> Audiohub+
         </div>
         <div class="home-top-actions">
-          <button class="icon-btn glass drive-btn" onClick={() => openDrive()} aria-label="Driving mode">
+          <button class="icon-btn drive-btn" onClick={() => openDrive()} aria-label="Driving mode">
             <Icon name="car" />
           </button>
           <SceneButton />
-          <AskButton glass />
+          <AskButton />
           <ThemeDice />
-          <button class="icon-btn glass home-search" onClick={() => nav.tab('discover')} aria-label="Search">
+          <button class="icon-btn home-search" onClick={() => nav.tab('discover')} aria-label="Search">
             <Icon name="search" />
           </button>
         </div>
       </header>
+      <Greeting me={me} />
 
       {homeOrder(st).map((id) => {
         if (homeHidden(st).includes(id)) return null;
@@ -790,9 +783,12 @@ export function Home() {
           case 'sources':
             return (
               <Fragment key={id}>
-                {sourceOrder().map((k) => (
-                  <Fragment key={k}>{blocks[k]}</Fragment>
-                ))}
+                <YourBooks />
+                {sourceOrder()
+                  .filter((k) => !YOURS.includes(k))
+                  .map((k) => (
+                    <Fragment key={k}>{blocks[k]}</Fragment>
+                  ))}
               </Fragment>
             );
           default:
@@ -805,6 +801,94 @@ export function Home() {
       {editing && <HomeEditor onClose={() => setEditing(false)} />}
       <div class="footer-space" />
     </div>
+  );
+}
+
+// ---- Greeting and Your books --------------------------------------------------------
+
+/** "Good evening, Dilip" and how long is left in the book you're on. */
+function Greeting({ me }) {
+  const prog = useStore(progress);
+  const cur = useMemo(
+    () =>
+      Object.values(prog)
+        .filter((p) => p?.book && !p.finished && !p.hidden && p.kind !== 'text' && p.total > 0)
+        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0],
+    [prog]
+  );
+  return (
+    <div class="home-greet">
+      <h1>{me ? `${greeting()}, ${me}` : greeting()}</h1>
+      {cur && (
+        <p>
+          {fmtDuration(Math.max(0, cur.total - (cur.global || 0)))} left in {cur.book.title}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Your services' books: one tile each (how many, tap for all), and one "Recently added" row
+// across them all, instead of a long row per service.
+const YOURS = ['loc', 'tb', 'rd', 'abs'];
+function yourSources() {
+  const out = [];
+  if (localSrc.connected() && enabled('loc')) out.push({ k: 'loc', icon: 'headphones', name: 'On this phone', sub: 'Audiobooks in your folders', load: audioOnly(localSrc.library) });
+  if (cloud.tbConnected() && enabled('tb')) out.push({ k: 'tb', icon: 'cloud', name: 'TorBox', sub: 'Audiobooks in your TorBox cloud', load: audioOnly(cloud.torboxLibrary) });
+  if (cloud.rdConnected() && enabled('rd')) out.push({ k: 'rd', icon: 'cloud', name: 'Real-Debrid', sub: 'Audiobooks in your Real-Debrid cloud', load: audioOnly(cloud.realdebridLibrary) });
+  if (absSrc.connected() && enabled('abs')) out.push({ k: 'abs', icon: 'server', name: 'Your server', sub: 'Audiobookshelf · your whole library', load: absSrc.all });
+  return out;
+}
+const yourCounts = persisted('yourBookCounts', {});
+const tagFrom = { loc: 'Phone', tb: 'TorBox', rd: 'Real-Debrid', abs: 'Server' };
+async function recentAcross() {
+  const lists = await Promise.all(
+    yourSources().map(async (s) => {
+      const r = await (s.k === 'abs' ? absSrc.recent() : s.load()).catch(() => []);
+      return (r || []).map((b, i) => ({ ...b, _from: s.k, _i: i }));
+    })
+  );
+  const all = lists.flat();
+  const dated = all.some((b) => b.addedAt);
+  return (dated ? all.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0) || a._i - b._i) : all.sort((a, b) => a._i - b._i))
+    .slice(0, 24)
+    .map(({ _i, _from, ...b }) => b);
+}
+function YourBooks() {
+  const counts = useStore(yourCounts);
+  const list = yourSources();
+  useEffect(() => {
+    let alive = true;
+    for (const s of list)
+      s.load()
+        .then((r) => alive && Array.isArray(r) && yourCounts.set((c) => ({ ...c, [s.k]: r.length })))
+        .catch(() => {});
+    return () => (alive = false);
+  }, [list.map((s) => s.k).join()]);
+  if (!list.length) return null;
+  return (
+    <>
+      <section class="d-sec home-yours">
+        <div class="d-head">
+          <span class="d-ico">
+            <Icon name="grid" size={20} />
+          </span>
+          <h3>Your books</h3>
+        </div>
+        <div class={'yours-tiles n' + Math.min(list.length, 4)}>
+          {list.map((s) => (
+            <button class="yours-tile" onClick={() => nav.push('shelf', { title: s.name, subtitle: s.sub, load: s.load })}>
+              <span class="yours-i">
+                <Icon name={s.icon} size={18} />
+              </span>
+              <b>{counts[s.k] ?? '…'}</b>
+              <small>{s.name}</small>
+            </button>
+          ))}
+        </div>
+      </section>
+      <Row title="Recently added" subtitle={list.map((s) => tagFrom[s.k]).join(' · ')} icon="clock" cacheKey="homeRecentAll" load={recentAcross} deps={[list.map((s) => s.k).join()]} />
+    </>
   );
 }
 
