@@ -119,7 +119,7 @@ const SORTS = [
   ['series', 'Series'],
 ];
 const surname = (name) => String(name).split(',')[0].trim().split(/\s+/).pop() || '';
-const libView = persisted('libraryView', { list: false, sort: 'recent', tab: 'progress', where: 'all' });
+export const libView = persisted('libraryView', { list: false, sort: 'recent', tab: 'progress', where: 'all' });
 const lengthOf = (b) => b.duration || metaNow(b)?.runtime || b.size || 0;
 // Phone and cloud books often get their author from the online lookup.
 const authorOf = (b) => metaNow(b)?.author || b.author || '';

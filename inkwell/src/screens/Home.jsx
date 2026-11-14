@@ -511,6 +511,20 @@ function ContinueRow() {
           <Icon name="headphones" size={20} />
         </span>
         <h3>{top.kind === 'text' ? 'Continue reading' : 'Continue listening'}</h3>
+        {/* Your other unfinished books: Library → Continue (no row of them here). */}
+        {rest.length > 0 && (
+          <button
+            class="d-more"
+            onClick={() =>
+              import('./Library.jsx').then((m) => {
+                m.libView.set((v) => ({ ...v, tab: 'progress' }));
+                nav.tab('library');
+              })
+            }
+          >
+            All {items.length} <Icon name="arrow" size={15} />
+          </button>
+        )}
       </div>
       {/* The book you were last on, big; the others in a row below. */}
       <button class="continue-big" onClick={() => open(top)}>
@@ -531,26 +545,7 @@ function ContinueRow() {
         </span>
         <Hide p={top} />
       </button>
-      {rest.length > 0 && (
-        <div class="row-scroll continue">
-          {rest.map(([uid, p]) => (
-            <button key={uid} class="continue-card" onClick={() => open(p)}>
-              <ContinueCover key={uid} book={p.book} />
-              <div class="continue-meta">
-                <b>{p.book.title}</b>
-                <span>{left(p)}</span>
-                <div class="progress-bar">
-                  <div style={{ width: Math.round((p.percent || 0) * 100) + '%' }} />
-                </div>
-              </div>
-              <span class="continue-play">
-                <Icon name={p.kind === 'text' ? 'book' : 'play'} size={16} />
-              </span>
-              <Hide p={p} />
-            </button>
-          ))}
-        </div>
-      )}
+
     </section>
   );
 }
