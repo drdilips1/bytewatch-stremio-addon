@@ -204,7 +204,7 @@ const loaded = (quiet = false) =>
   });
 
 /** The scene's time, found in the book's ebook (when there is one): { g, where } or null. */
-async function inEbook(book, want, part, diag = {}) {
+async function inEbook(book, want, part, diag = {}, said = '', step = () => {}) {
   const { ebookFor, ebookByTitle, autoFindEbook, textOfEbook } = await import('./booktext.js');
   const names = [want.title, want.book].filter(Boolean);
   const fits = (eb) => eb && names.some((n) => matches(mainTitle(n), `${eb.title || ''} ${eb.ebookName || ''}`));
@@ -242,13 +242,74 @@ async function inEbook(book, want, part, diag = {}) {
   else if (exact == null && all != null && anywhere.hit && inside.hit && (anywhere.hit.distinct > inside.hit.distinct + 1 || anywhere.hit.s > inside.hit.s * 1.4)) tok = all;
   diag.how = exact != null ? 'exact line' : tok == null ? 'not in the text' : inside.hit?.phrase || anywhere.hit?.phrase ? 'name as a phrase' : 'telling words';
   diag.anchors = anchors.length;
+  // The AI reads the chapter itself and says which passage the scene starts in — the same
+  // knowledge that answers a typed question well, now pointed at the book's own words (the
+  // telling words alone land a few minutes off, or in another chapter that shares the names).
+  if (exact == null && aiReady()) {
+    const { chapterStartBefore: headBefore } = await import('./scenefind.js');
+    // The stretch holding a place in the text: its chapter (from the heading before it).
+    const around = (t) => {
+      const h = headBefore(bt, t);
+      return h != null && t - h < 9000 ? [h, t + 4000] : [Math.max(0, t - 2500), t + 2500];
+    };
+    // The chapter the AI named first; where the telling words gather first when that's elsewhere.
+    const tries = [];
+    if (tok != null && (!ch || tok < ch[0] || tok >= ch[1])) tries.push([around(tok), tok]);
+    if (ch) tries.push([ch, tok != null && tok >= ch[0] && tok < ch[1] ? tok : null]);
+    else if (all != null && all !== tok) tries.push([around(all), all]);
+    step('Reading the chapter…');
+    let pick = null;
+    for (const [range, near] of tries.slice(0, 2)) {
+      pick = await aiReads(bt, range, want, said, near).catch((e) => ((diag.readError = e.message), null));
+      if (pick != null) break;
+    }
+    if (pick != null) (tok = pick), (diag.how = 'AI read the chapter');
+    else if (tries.length) diag.read = 'not found by reading';
+  }
   if (tok == null) return null;
-  const g = timeOf(anchors, tok);
+  let g = timeOf(anchors, tok);
+  // Inside the audiobook's own chapter (its start and end are exact): the same share of the way
+  // through as in the ebook's chapter — closer than spreading the time across the whole book.
+  const head0 = ch && tok >= ch[0] && tok < ch[1] ? ch : null;
+  if (head0) {
+    const cs = timeOf(anchors, head0[0]);
+    const ac = part.find((c) => Math.abs(c.start - cs) < 90 && (c.end || 0) > c.start);
+    if (ac) {
+      const ce = timeOf(anchors, head0[1]);
+      // The audio chapter is this ebook chapter (they end about together too).
+      if (Math.abs(ac.end - ce) < 150) {
+        g = ac.start + ((tok - head0[0]) / Math.max(1, head0[1] - head0[0])) * (ac.end - ac.start);
+        diag.local = true;
+      }
+    }
+  }
   const at = part.findIndex((c) => g >= c.start && g < (c.end || Infinity));
   // The start of the chapter it's in (for "play the chapter where …").
   const { chapterStartBefore } = await import('./scenefind.js');
   const head = ch && tok >= ch[0] && tok < ch[1] ? ch[0] : chapterStartBefore(bt, tok);
   return { g, chapterG: head != null ? timeOf(anchors, head) : null, where: `${part[at]?.title || 'found'} · from the ebook` };
+}
+
+/**
+ * The AI reads a stretch of the ebook (a chapter) cut into numbered passages and says which
+ * one the scene starts in: its word position, or null when it says the scene isn't there.
+ */
+async function aiReads(bt, range, want, said, near = null) {
+  const { passagesOf } = await import('./scenefind.js');
+  const ps = passagesOf(bt, range, { near });
+  if (ps.length < 2) return null;
+  const text = ps.map((p, i) => `[${i + 1}] ${p.text}`).join('\n');
+  const raw = await askAi(
+    `A listener asked their audiobook app for a moment in "${want.title}": "${String(said || want.scene).slice(0, 200)}"${want.scene ? ` (the moment: ${want.scene})` : ''}.
+Below is part of the book's own text, in numbered passages. Read it and find the passage where that moment STARTS — where it begins happening, not where it is mentioned or remembered later. If the moment isn't in this text, say 0.
+${text}
+Reply with JSON only: {"passage": <number>, "sure": true|false}`,
+    { json: true }
+  );
+  const r = parseJson(raw) || {};
+  const n = Math.round(Number(r.passage) || 0);
+  if (n < 1 || n > ps.length) return null;
+  return ps[n - 1].tok;
 }
 
 /**
@@ -322,7 +383,7 @@ export async function playScene(said, step = () => {}, preset = null) {
   step('Finding the scene in the book…');
   // What happened at each step goes into Report a problem, so a scene that isn't found can be fixed.
   const diag = { scene: want.scene || '', chapter: want.chapter || 0, chapterTitle: want.chapterTitle || '', keywords: (want.keywords || []).filter(Boolean).length, quote: !!want.quote, chapters: chapters.length };
-  const hit = await inEbook(details, want, chapters, diag).catch((e) => ((diag.ebookError = e.message), null));
+  const hit = await inEbook(details, want, chapters, diag, said, step).catch((e) => ((diag.ebookError = e.message), null));
   let chapterG = null;
   if (hit) ({ g, where, chapterG } = hit);
   if (g == null) {

@@ -16,6 +16,16 @@ function numberWords(n) {
   return [String(n)];
 }
 
+/** How a heading may give chapter n: "chapter 27", "chapter twenty seven", "chapter twenty-seven" (one word in the index). */
+function numberHeads(n) {
+  if (!(n > 0)) return [];
+  const w = numberWords(n);
+  const out = [['chapter', String(n)], ['chapter', ...w]];
+  if (w.length > 1) out.push(['chapter', w.join('')]);
+  return out;
+}
+const NUMBER_WORD = /^(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(one|two|three|four|five|six|seven|eight|nine)?)$/;
+
 /** Every position where these words come one after another in the book. */
 function phraseAt(keys, words) {
   const out = [];
@@ -38,7 +48,7 @@ function headingVariants(title, bookTitle) {
   const out = [];
   if (own) out.push(own);
   const n = (String(title).match(/(\d+)(?!.*\d)/) || [])[1];
-  if (n && +n < 200) out.push(['chapter', String(+n)], ['chapter', ...numberWords(+n)]);
+  if (n && +n < 200) out.push(...numberHeads(+n));
   return out;
 }
 
@@ -98,7 +108,7 @@ export function anchorsFor(bt, chapters, total, bookTitle, from = 0) {
   return anchors;
 }
 
-const NUMWORD = /^(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|[ivxlc]+)$/;
+const NUMWORD = { test: (w) => NUMBER_WORD.test(w || '') || /^[ivxlc]+$/.test(w || '') };
 /**
  * The ebook's real chapter headings in order ("Chapter 1", "Chapter Seven", "Prologue",
  * "Epilogue"), skipping the contents pages (where headings come one after another).
@@ -241,7 +251,6 @@ export function chapterRange(bt, chapter, chapterTitle) {
   const keys = bt.keys;
   const n = Number(chapter) || 0;
   const title = norm(chapterTitle).filter((w) => !GENERIC.has(w));
-  const numberHeads = (k) => (k > 0 ? [['chapter', String(k)], ['chapter', ...numberWords(k)]] : []);
   const heads = (k, words) => {
     const at = [...new Set(numberHeads(k).flatMap((v) => phraseAt(keys, v)))];
     // A number heading with the title just after it is the surest; the title alone next.
@@ -264,7 +273,7 @@ export function chapterRange(bt, chapter, chapterTitle) {
   if (next != null) end = next;
   else
     for (let i = start + 500; i < keys.length - 1; i++)
-      if (keys[i] === 'chapter' && /^(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty)$/.test(keys[i + 1])) {
+      if (keys[i] === 'chapter' && NUMBER_WORD.test(keys[i + 1])) {
         end = i;
         break;
       }
@@ -283,11 +292,42 @@ export function rangeOf(anchors, chapters, ci) {
 /** Where the chapter holding a place in the text begins (its heading), or null. */
 export function chapterStartBefore(bt, tok) {
   const keys = bt.keys;
-  const isNum = (w) => /^(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty)$/.test(w || '');
+  const isNum = (w) => NUMBER_WORD.test(w || '');
   for (let i = Math.min(tok, keys.length - 2); i >= 0; i--) {
     if (keys[i] !== 'chapter' || !isNum(keys[i + 1])) continue;
     // Not the contents pages: a real heading has text after it, not another heading.
     if (!keys.slice(i + 3, i + 300).some((w, k, a) => w === 'chapter' && isNum(a[k + 1]))) return i;
   }
   return null;
+}
+
+/**
+ * A stretch of the text cut into numbered passages of about `size` words, each starting at a
+ * paragraph where it can (for the AI to read and say where a scene starts). A stretch longer
+ * than `max` words is cut down around `near`.
+ */
+export function passagesOf(bt, range, { size = 90, max = 6500, near = null } = {}) {
+  let [lo, hi] = range;
+  hi = Math.min(bt.tokens.length, hi);
+  lo = Math.max(0, lo);
+  if (hi - lo > max) {
+    const mid = near != null && near >= lo && near < hi ? near : (lo + hi) >> 1;
+    lo = Math.max(lo, Math.min(hi - max, mid - (max >> 1)));
+    hi = lo + max;
+  }
+  const paraStarts = new Set(bt.starts || []);
+  const out = [];
+  let i = lo;
+  while (i < hi) {
+    let end = Math.min(hi, i + size);
+    // End at a paragraph start nearby (up to 40 words on), so passages read whole.
+    for (let k = end; k < Math.min(hi, end + 40); k++)
+      if (paraStarts.has(k)) {
+        end = k;
+        break;
+      }
+    out.push({ tok: i, text: bt.tokens.slice(i, end).join(' ') });
+    i = end;
+  }
+  return out;
 }

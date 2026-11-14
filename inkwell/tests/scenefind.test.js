@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { quoteAt, sceneInText, anchorsFor, timeOf, headingsInText } from '../src/lib/scenefind.js';
+import { quoteAt, sceneInText, anchorsFor, timeOf, headingsInText, chapterRange, passagesOf } from '../src/lib/scenefind.js';
 
 const tok = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N}'\s]/gu, ' ').split(/\s+/).filter(Boolean);
 const filler = (n, seed = 'river') => Array.from({ length: n }, (_, i) => ['the', 'road', 'went', 'on', seed, 'stone', 'quiet', 'morning', 'light'][i % 9]).join(' ');
@@ -63,5 +63,40 @@ describe('anchorsFor', () => {
     const bt = book([filler(400), 'lantern', filler(150), 'the lantern swung as the ferryman reached the harbour and the ferryman raised the lantern over the harbour', filler(400)]);
     const at = sceneInText(bt, ['lantern', 'ferryman', 'harbour']);
     expect(bt.keys.slice(at, at + 3)).toEqual(['lantern', 'swung', 'as']);
+  });
+});
+
+// The ebook's own index joins "Twenty-Seven" into one word.
+const ebookKeys = (s) => String(s).split(/\s+/).filter(Boolean).map((w) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '')).filter(Boolean);
+
+describe('chapterRange', () => {
+  it('finds a chapter written as "Chapter Twenty-Seven"', () => {
+    const text = [filler(400), 'Chapter Twenty-Six', filler(600), 'Chapter Twenty-Seven The Tower', filler(600), 'Chapter Twenty-Eight', filler(600)].join(' ');
+    const bt = { keys: ebookKeys(text) };
+    const r = chapterRange(bt, 27, 'The Tower');
+    expect(r).not.toBe(null);
+    expect(bt.keys[r[0] + 1]).toBe('twentyseven');
+    expect(bt.keys[r[1] + 1]).toBe('twentyeight');
+  });
+});
+
+describe('passagesOf', () => {
+  it('cuts a chapter into numbered passages at paragraph starts', () => {
+    const paras = Array.from({ length: 20 }, (_, i) => `Paragraph ${i} ${filler(37)}`);
+    const tokens = [];
+    const starts = [];
+    for (const p of paras) (starts.push(tokens.length), tokens.push(...p.split(' ')));
+    const bt = { tokens, keys: tokens.map((w) => w.toLowerCase()), starts };
+    const ps = passagesOf(bt, [0, tokens.length], { size: 90 });
+    expect(ps.length).toBeGreaterThan(5);
+    for (const p of ps) expect(starts).toContain(p.tok);
+    expect(ps.map((p) => p.text).join(' ')).toBe(tokens.join(' '));
+  });
+  it('keeps a long stretch to the part around where the scene likely is', () => {
+    const tokens = filler(20000).split(' ');
+    const bt = { tokens, keys: tokens, starts: [0] };
+    const ps = passagesOf(bt, [0, 20000], { max: 6000, near: 15000 });
+    expect(ps[0].tok).toBe(12000);
+    expect(ps[ps.length - 1].tok).toBeLessThan(18000);
   });
 });
