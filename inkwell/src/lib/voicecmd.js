@@ -2,7 +2,7 @@
 // works out the book and where the scene is (which chapter, how far in, a line from it);
 // the book is found on your phone, in your downloads, books you've played, then your
 // Audiobookshelf and TorBox / Real-Debrid; it starts 30 seconds before the scene.
-import { askAi, parseJson } from './ai.js';
+import { askAi, parseJson, aiReady } from './ai.js';
 import { mainTitle, matches, words } from './match.js';
 import { progress, settings } from './store.js';
 import { downloads } from './downloads.js';
@@ -349,6 +349,8 @@ function quick(said) {
   };
   if (/^(pause|stop|hold on|wait|ruko|roko|rok do|band karo)\b/.test(t)) return { action: 'pause' };
   if (/^(resume|continue|carry on|unpause|keep (going|playing)|play|start|chalao|chalu karo|shuru karo)( (it|again|playing|the book|please|now))*$/.test(t)) return { action: 'resume' };
+  if (/\b(start|play|begin)\b.*\b(this|the) (chapter|part) (again|over)\b|\brestart (this |the )?(chapter|part)\b|\b(chapter|part) (from the )?(start|beginning)\b/.test(t)) return { action: 'restart_chapter' };
+  if (/^(repeat|say) (that|it)( again)?$|^what did (he|she|they) (just )?say$|^(sorry|pardon|come again)$/.test(t)) return { action: 'rewind', seconds: 20 };
   if (/\b(next|agla|agle) (chapter|part|track)\b/.test(t) || /^skip (this |the )?(chapter|part)$/.test(t)) return { action: 'next_chapter' };
   if (/\b(previous|last|pichla|pichhle|pichle) (chapter|part|track)\b/.test(t)) return { action: 'previous_chapter' };
   const ch = t.match(/^(?:go to |play |start |jump to |skip to |open )?(?:chapter|part) (\d+|[a-z]+)$/);
@@ -371,7 +373,7 @@ function quick(said) {
 /** Sounds like a command for the player or a book/scene to play (not a question)? */
 export const isCommand = (said) => !!quick(said) || /^(play|go to|jump to|take me to|skip to|start (from|at)|open|resume|continue|chalao|sunao)\b/i.test(String(said || '').trim());
 
-const CONTROLS = new Set(['pause', 'resume', 'rewind', 'forward', 'next_chapter', 'previous_chapter', 'go_chapter', 'speed', 'sleep', 'bookmark']);
+const CONTROLS = new Set(['pause', 'resume', 'rewind', 'forward', 'next_chapter', 'previous_chapter', 'go_chapter', 'restart_chapter', 'speed', 'sleep', 'bookmark']);
 const mmss = (s) => (s >= 60 ? `${Math.round((s / 60) * 10) / 10} min` : `${Math.round(s)} s`);
 
 /** Do a control on what's playing; resolves the message to show. */
@@ -403,6 +405,7 @@ async function control(c) {
       const g = player.globalTime();
       let ci = chapters.findIndex((x) => g >= x.start && g < (x.end || Infinity));
       if (c.action === 'next_chapter') ci += 1;
+      else if (c.action === 'restart_chapter') ci = Math.max(0, ci);
       else if (c.action === 'previous_chapter') ci -= 1;
       else ci = pickChapter(chapters, { chapter: c.chapter });
       if (ci < 0 || ci >= chapters.length) throw new Error(c.action === 'go_chapter' ? `There's no chapter ${c.chapter}` : 'No more chapters that way');
@@ -480,4 +483,51 @@ async function quickBook(said) {
   const want = { action: 'play_book', moment: false, title: m[1].trim(), author: (m[2] || '').trim() };
   const copies = await findCopies(want, true);
   return copies.length ? want : null;
+}
+
+// ---- Driving mode: three buttons, each its own kind of request ---------------------------
+const SCENEISH = /\b(where|when|scene|moment|part|chapter where|jab|jahan|jisme)\b/i;
+
+/** "In this book": a scene to play, a command, or a question about the book playing. */
+export async function runInBook(said, step = () => {}) {
+  const q = quick(said);
+  if (q) return { message: await control(q), action: q.action };
+  const book = player.getState().book;
+  if (!book) throw new Error('Nothing is playing — use “Play something else” first');
+  // A moment to play: in this book, whatever the words.
+  if (SCENEISH.test(said) && /\b(play|go|jump|take me|skip|start|open|find)\b/i.test(said)) {
+    const title = mainTitle(book.title);
+    const withBook = matches(title, said) ? said : `${said} in ${title}`;
+    return playScene(withBook, step, null);
+  }
+  // Anything else: a question about this book (answered aloud).
+  return { question: true, book, here: true };
+}
+
+/** "Play something else": a book, the next in the series, or something to find. */
+export async function runPlay(said, step = () => {}) {
+  const t = String(said || '').toLowerCase();
+  if (/\bnext (book|one|part|volume)\b.*\bseries\b|\bseries\b.*\bnext\b|^(play )?(the )?next book$/.test(t)) {
+    const cur = player.getState().book;
+    const { seriesOf, seriesBooks, statusIn, nextIn } = await import('./series.js');
+    const sr = cur && seriesOf(cur);
+    if (!sr?.name) throw new Error("This book isn't part of a series I know");
+    step(`Finding the next ${sr.name} book…`);
+    const list = statusIn(await seriesBooks(sr.name, cur.author));
+    const here = list.findIndex((x) => matches(mainTitle(cur.title), x.book.title));
+    const next = (here >= 0 ? list.slice(here + 1).find((x) => x.state !== 'finished') : null) || nextIn(list);
+    if (!next) throw new Error(`No next book found in ${sr.name}`);
+    return playScene(`play ${next.book.title}`, step, { action: 'play_book', moment: false, title: next.book.title, author: next.book.author || cur.author || '' });
+  }
+  const r = await runCommand(/^(play|listen to|start|put on)\b/i.test(said) ? said : `play ${said}`, step, aiReady());
+  // Not a book to play: books to find (answered aloud), never a question about the current book.
+  if (r.question) return { find: true, query: said.trim() };
+  return r;
+}
+
+/** "Quick command": controls only, no AI. */
+export async function runQuickCommand(said) {
+  const q = quick(said);
+  if (!q) throw new Error('That isn’t a quick command — try “back one minute”, “next chapter”, “sleep in 20 minutes” or “faster”');
+  return { message: await control(q), action: q.action };
 }

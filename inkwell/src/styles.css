@@ -12456,3 +12456,17 @@ button.cr-tile.on > img {
 .pod-rec-m em { font-style: normal; color: var(--accent); font-size: 12px; font-weight: 600; margin-top: 4px; }
 .pod-eq3 { grid-template-columns: repeat(3, 1fr); margin-bottom: 6px; }
 :root .pod2 .pod-opml { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Driving mode: three voice buttons, each its own kind of request */
+.drive-voices { display: grid; gap: 12px; padding: 0 18px; }
+.drive-v { display: flex; align-items: center; gap: 16px; width: 100%; padding: 18px; border-radius: 22px; border: 2px solid; text-align: left; font: inherit; color: #f3f0fa; }
+.drive-v:disabled { opacity: 0.45; }
+.drive-v-i { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; flex: none; color: #fff; }
+.drive-v b { display: block; font-size: 21px; font-family: var(--font); }
+.drive-v small { display: block; font-size: 14px; color: #c9c3d9; margin-top: 4px; line-height: 1.35; }
+.drive-v.v-book { background: #21183a; border-color: #8b5cf6; }
+.drive-v.v-book .drive-v-i { background: #8b5cf6; }
+.drive-v.v-play { background: #10272a; border-color: #2bb3a3; }
+.drive-v.v-play .drive-v-i { background: #2bb3a3; }
+.drive-v.v-cmd { background: #2a1f12; border-color: #e0a24a; }
+.drive-v.v-cmd .drive-v-i { background: #e0a24a; }
