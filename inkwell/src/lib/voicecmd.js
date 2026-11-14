@@ -143,6 +143,15 @@ function pickChapter(chapters, want) {
     const re = new RegExp(`(^|\\D)0*${n}(\\D|$)`);
     const byNum = chapters.findIndex((c) => re.test(c.title || '') && !/part|disc|cd/i.test((c.title || '').replace(/chapter/i, '')));
     if (byNum >= 0) return byNum;
+    // "Chapter Six - …": the number in words.
+    const W = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ');
+    const TEN = ['', '', 'twenty', 'thirty', 'forty', 'fifty'];
+    const spelled = n <= 20 ? W[n] : n < 60 ? `${TEN[Math.floor(n / 10)]}${n % 10 ? '[\\s-]+' + W[n % 10] : ''}` : '';
+    if (spelled) {
+      const rw = new RegExp(`\\bchapter\\s+${spelled}\\b`, 'i');
+      const byWord = chapters.findIndex((c) => rw.test(c.title || ''));
+      if (byWord >= 0) return byWord;
+    }
     // Opening credits / prologue before chapter 1 shift the count.
     const first = chapters.findIndex((c) => !/credit|intro|prolog|dedicat|title|opening|copyright/i.test(c.title || ''));
     return Math.min(chapters.length - 1, Math.max(0, first) + n - 1);
@@ -205,8 +214,10 @@ async function inEbook(book, want, part, diag = {}) {
   if (!fits(eb)) return (diag.ebook = ''), null;
   diag.ebook = eb.title || eb.ebookName || 'yes';
   const bt = await textOfEbook(eb);
-  const total = player.totalDuration();
-  if (!total || !part.length) return null;
+  // The book's length: the player's, else where its last chapter ends (a book just opened
+  // didn't report one yet and the scene fell back to a guess).
+  const total = player.totalDuration() || part[part.length - 1]?.end || Number(book.duration) || 0;
+  if (!total || !part.length) return (diag.noLength = true), null;
   const { anchorsFor, timeOf, sceneInText, rangeOf } = await import('./scenefind.js');
   const end = part[part.length - 1].end || total;
   const anchors = anchorsFor(bt, part, end, want.title, part[0].start);
@@ -221,7 +232,8 @@ async function inEbook(book, want, part, diag = {}) {
   const anywhere = {};
   // A line the AI remembers from the scene, found word for word: the surest of all.
   const { quoteAt } = await import('./scenefind.js');
-  const exact = want.quote ? (ch ? quoteAt(bt, want.quote, ch[0], ch[1]) : null) ?? quoteAt(bt, want.quote) : null;
+  // In the chapter the AI named when it's known; anywhere in the book only when there's no chapter to go on.
+  const exact = want.quote ? (ch ? quoteAt(bt, want.quote, ch[0], ch[1]) : quoteAt(bt, want.quote)) : null;
   let tok = exact ?? (ch ? sceneInText(bt, words, ch, { strict: true, target: ch[0] + inCh * (ch[1] - ch[0]), details: inside }) : null);
   // The whole book too: the AI can name the wrong chapter (the egg is talked about in two). If
   // somewhere else has clearly more of the scene's telling words, that's the scene.

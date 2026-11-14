@@ -699,9 +699,10 @@ public class InkwellWebPlugin extends Plugin {
                 ws.setUserAgentString(plain.replace("; wv)", ")").replaceAll("Version/[\\d.]+ ", ""));
                 android.webkit.CookieManager.getInstance().setAcceptCookie(true);
                 android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(v, true);
-                attachHidden(v);
                 visitors.put(site, v);
             }
+            // Behind the app's page only while it visits (it showed through briefly when switching apps).
+            attachHidden(v);
             final android.webkit.WebView view = v;
             final long t0 = System.currentTimeMillis();
             final int[] status = { 200 };
@@ -723,6 +724,7 @@ public class InkwellWebPlugin extends Plugin {
                             return;
                         }
                         done[0] = true;
+                        detachOnly(view);
                         visitNext(site);
                         android.webkit.CookieManager.getInstance().flush();
                         JSObject r = new JSObject();
@@ -737,6 +739,7 @@ public class InkwellWebPlugin extends Plugin {
                         if (System.currentTimeMillis() - t0 < timeout) ui.postDelayed(check[0], 1500);
                         else {
                             done[0] = true;
+                            detachOnly(view);
                             visitNext(site);
                             call.reject("Couldn't read the page");
                         }
@@ -766,6 +769,7 @@ public class InkwellWebPlugin extends Plugin {
                 ui.postDelayed(() -> {
                     if (!done[0]) {
                         done[0] = true;
+                        detachOnly(view);
                         visitNext(site);
                         call.reject("The page didn't load in time");
                     }
@@ -840,6 +844,13 @@ public class InkwellWebPlugin extends Plugin {
             root.addView(v, 0, lp); // first child: under the app's page, which covers it
             v.onResume();
             v.resumeTimers();
+        } catch (Exception ignored) {}
+    }
+
+    /** Off the screen between visits (kept, with its cookies, for the next one). */
+    private static void detachOnly(android.webkit.WebView v) {
+        try {
+            if (v.getParent() instanceof android.view.ViewGroup) ((android.view.ViewGroup) v.getParent()).removeView(v);
         } catch (Exception ignored) {}
     }
 

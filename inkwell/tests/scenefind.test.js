@@ -6,6 +6,13 @@ const filler = (n, seed = 'river') => Array.from({ length: n }, (_, i) => ['the'
 const book = (parts) => ({ keys: tok(parts.join(' ')) });
 
 describe('quoteAt', () => {
+  it('never matches the title pages', () => {
+    // The book's title on its first page, then chapter one, where the same words come up in the story.
+    const bt = book(['The Lantern of Glass Harbour a novel', filler(60), 'Chapter One', filler(300), 'Mara walked to the lantern of glass harbour and waited', filler(300), 'Chapter Two', filler(300)]);
+    const at = quoteAt(bt, 'walked to the lantern of glass harbour');
+    expect(at).toBeGreaterThan(300);
+    expect(bt.keys[at]).toBe('walked');
+  });
   it('finds a remembered line word for word', () => {
     const bt = book([filler(400), 'Mara lifted the brass lantern above the flooded stair and waited', filler(400)]);
     const at = quoteAt(bt, 'lifted the brass lantern above the flooded stair');

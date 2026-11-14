@@ -120,14 +120,19 @@ export function headingsInText(bt) {
  */
 export function quoteAt(bt, quote, from = 0, to = Infinity) {
   const q = norm(quote);
-  if (q.length < 4) return null;
+  if (q.length < 6) return null;
   const keys = bt.keys;
   const hi = Math.min(keys.length, to);
-  for (let n = Math.min(8, q.length); n >= 4; n--)
+  // Not the title pages and contents (a run like "Harry Potter and the …" is there too): from
+  // the first real chapter heading, or past the first 2% of the book.
+  const heads = headingsInText(bt);
+  const start = Math.max(from, heads.length ? heads[0] : Math.floor(keys.length * 0.02));
+  // At least six words in a row, three of them telling (a few common words match anywhere).
+  for (let n = Math.min(10, q.length); n >= 6; n--)
     for (let s = 0; s + n <= q.length; s++) {
       const run = q.slice(s, s + n);
-      if (run.filter((w) => !STOP.has(w)).length < 2) continue;
-      for (let i = Math.max(0, from); i + n <= hi; i++) {
+      if (run.filter((w) => !STOP.has(w)).length < 3) continue;
+      for (let i = Math.max(0, start); i + n <= hi; i++) {
         let ok = true;
         for (let k = 0; k < n && ok; k++) ok = keys[i + k] === run[k];
         if (ok) return i;
