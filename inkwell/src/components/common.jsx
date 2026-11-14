@@ -450,9 +450,10 @@ export function Toaster() {
   toastSet = setMsg;
   useEffect(() => {
     if (!msg) return;
-    const t = setTimeout(() => setMsg(null), 2600);
+    const t = setTimeout(() => setMsg(null), msg.ms || 2600);
     return () => clearTimeout(t);
   }, [msg]);
   return msg ? <div class="toast">{msg.text || msg}</div> : null;
 }
-export const toast = (text) => toastSet?.({ text, t: Date.now() });
+/** A short message at the bottom; `ms` keeps an important one up longer. */
+export const toast = (text, ms = 0) => toastSet?.({ text, t: Date.now(), ms });

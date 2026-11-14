@@ -147,7 +147,8 @@ function pickChapter(chapters, want) {
     const first = chapters.findIndex((c) => !/credit|intro|prolog|dedicat|title|opening|copyright/i.test(c.title || ''));
     return Math.min(chapters.length - 1, Math.max(0, first) + n - 1);
   }
-  return /prolog/i.test(want.chapterTitle || '') ? Math.max(0, chapters.findIndex((c) => /prolog/i.test(c.title || ''))) : 0;
+  // Nothing to go on: no guess (the start of chapter 1 is not the scene).
+  return /prolog/i.test(want.chapterTitle || '') ? Math.max(0, chapters.findIndex((c) => /prolog/i.test(c.title || ''))) : -1;
 }
 
 /** The moment in what you've heard with the transcript on (book seconds), if the quote is there. */
@@ -194,14 +195,15 @@ const loaded = (quiet = false) =>
   });
 
 /** The scene's time, found in the book's ebook (when there is one): { g, where } or null. */
-async function inEbook(book, want, part) {
+async function inEbook(book, want, part, diag = {}) {
   const { ebookFor, ebookByTitle, autoFindEbook, textOfEbook } = await import('./booktext.js');
   const names = [want.title, want.book].filter(Boolean);
   const fits = (eb) => eb && names.some((n) => matches(mainTitle(n), `${eb.title || ''} ${eb.ebookName || ''}`));
   // The ebook of the book asked for — never another book of the same series.
   let eb = [ebookFor(book)].find(fits) || names.map((n) => ebookByTitle(n, want.author)).find(Boolean) || null;
   if (!eb && names.some((n) => matches(mainTitle(n), book.title || ''))) eb = await Promise.race([autoFindEbook(book), new Promise((r) => setTimeout(() => r(null), 40e3))]);
-  if (!fits(eb)) return null;
+  if (!fits(eb)) return (diag.ebook = ''), null;
+  diag.ebook = eb.title || eb.ebookName || 'yes';
   const bt = await textOfEbook(eb);
   const total = player.totalDuration();
   if (!total || !part.length) return null;
@@ -226,6 +228,8 @@ async function inEbook(book, want, part) {
   const all = sceneInText(bt, words, null, { details: anywhere });
   if (tok == null) tok = all ?? sceneInText(bt, words, rangeOf(anchors, part, ci));
   else if (exact == null && all != null && anywhere.hit && inside.hit && (anywhere.hit.distinct > inside.hit.distinct + 1 || anywhere.hit.s > inside.hit.s * 1.4)) tok = all;
+  diag.how = exact != null ? 'exact line' : tok == null ? 'not in the text' : inside.hit?.phrase || anywhere.hit?.phrase ? 'name as a phrase' : 'telling words';
+  diag.anchors = anchors.length;
   if (tok == null) return null;
   const g = timeOf(anchors, tok);
   const at = part.findIndex((c) => g >= c.start && g < (c.end || Infinity));
@@ -286,7 +290,9 @@ export async function playScene(said, step = () => {}, preset = null) {
   let where = '';
   const chapters = volumeOf(player.chapters(), details, want);
   step('Finding the scene in the book…');
-  const hit = await inEbook(details, want, chapters).catch(() => null);
+  // What happened at each step goes into Report a problem, so a scene that isn't found can be fixed.
+  const diag = { scene: want.scene || '', chapter: want.chapter || 0, chapterTitle: want.chapterTitle || '', keywords: (want.keywords || []).filter(Boolean).length, quote: !!want.quote, chapters: chapters.length };
+  const hit = await inEbook(details, want, chapters, diag).catch((e) => ((diag.ebookError = e.message), null));
   let chapterG = null;
   if (hit) ({ g, where, chapterG } = hit);
   if (g == null) {
@@ -312,11 +318,14 @@ export async function playScene(said, step = () => {}, preset = null) {
     player.playAt(start);
     return { book: details, scene: want.scene ? `The chapter: ${want.scene}` : '', where: `start of ${own?.title || 'the chapter'}${where.includes('ebook') ? ' · from the ebook' : ''}` };
   }
+  diag.found = g != null ? where : 'no';
+  import('./report.js').then((r) => r.logError('Play a scene', `“${String(said).slice(0, 80)}” in ${details.title}: ${JSON.stringify(diag)}`)).catch(() => {});
   if (g != null) player.playAt(g - LEAD);
   else {
-    // Not found: say so, rather than quietly carrying on from where you were.
+    // Not found: say so plainly (and why), rather than quietly carrying on from where you were.
     if (!player.getState().playing) player.toggle();
-    return { book: details, scene: `Couldn't find that scene${(want.keywords || []).length ? '' : ' (no ebook or chapter to go on)'} — playing from where you left off`, where: '' };
+    const why = !diag.ebook ? 'there is no ebook of this book to search — attach one in the player (Live text → Get the ebook), then ask again' : !diag.keywords && !diag.quote ? 'the AI gave no details of that moment to look for' : "those details aren't in the ebook";
+    return { book: details, scene: `Couldn't find that scene: ${why}. Playing from where you left off.`, where: '', notFound: true };
   }
   return { book: details, scene: want.scene || '', where };
 }
