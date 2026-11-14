@@ -830,7 +830,8 @@ function Greeting({ me }) {
 
 // Your services' books: one tile each (how many, tap for all), and one "Recently added" row
 // across them all, instead of a long row per service.
-const YOURS = ['loc', 'tb', 'rd', 'abs'];
+// Your server keeps its own rows (in progress, recently added); the tile just opens it.
+const YOURS = ['loc', 'tb', 'rd'];
 function yourSources() {
   const out = [];
   if (localSrc.connected() && enabled('loc')) out.push({ k: 'loc', icon: 'headphones', name: 'On this phone', sub: 'Audiobooks in your folders', load: audioOnly(localSrc.library) });
@@ -843,8 +844,8 @@ const yourCounts = persisted('yourBookCounts', {});
 const tagFrom = { loc: 'Phone', tb: 'TorBox', rd: 'Real-Debrid', abs: 'Server' };
 async function recentAcross() {
   const lists = await Promise.all(
-    yourSources().map(async (s) => {
-      const r = await (s.k === 'abs' ? absSrc.recent() : s.load()).catch(() => []);
+    yourSources().filter((s) => s.k !== 'abs').map(async (s) => {
+      const r = await s.load().catch(() => []);
       return (r || []).map((b, i) => ({ ...b, _from: s.k, _i: i }));
     })
   );
@@ -887,7 +888,7 @@ function YourBooks() {
           ))}
         </div>
       </section>
-      <Row title="Recently added" subtitle={list.map((s) => tagFrom[s.k]).join(' · ')} icon="clock" cacheKey="homeRecentAll" load={recentAcross} deps={[list.map((s) => s.k).join()]} />
+      {list.some((s) => s.k !== 'abs') && <Row title="Recently added" subtitle={list.filter((s) => s.k !== 'abs').map((s) => tagFrom[s.k]).join(' · ')} icon="clock" cacheKey="homeRecentAll" load={recentAcross} deps={[list.map((s) => s.k).join()]} />}
     </>
   );
 }
