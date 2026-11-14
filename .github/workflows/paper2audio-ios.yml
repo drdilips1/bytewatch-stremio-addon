@@ -29,6 +29,37 @@ jobs:
         with:
           node-version: 22
 
+      # Paper to Audio's voice engine (sherpa-onnx, the same version as the Android app) built for iPhone.
+      # It takes a while the first time; afterwards it comes from the cache.
+      - name: Voice engine from the cache
+        id: sherpa
+        uses: actions/cache@v4
+        with:
+          path: paper2audio/ios/ios-plugins/speech/Frameworks
+          key: sherpa-onnx-ios-v1.13.8-ort1.28.2
+
+      - name: Build the voice engine for iPhone
+        if: steps.sherpa.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          git clone --depth 1 -b v1.13.8 https://github.com/k2-fsa/sherpa-onnx.git
+          cd sherpa-onnx
+          ./build-ios.sh
+          F="$GITHUB_WORKSPACE/paper2audio/ios/ios-plugins/speech/Frameworks"
+          mkdir -p "$F"
+          cp -R build-ios/sherpa-onnx.xcframework "$F/"
+          cp -RL build-ios/ios-onnxruntime/onnxruntime.xcframework "$F/"
+          ls -la "$F"
+
+      - name: Voice engine's Swift interface and the readers' recordings
+        run: |
+          curl -fsSL -o ios-plugins/speech/ios/Sources/PaperSpeechPlugin/SherpaOnnx.swift \
+            https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/swift-api-examples/SherpaOnnx.swift
+          # The ready-made real readers (the same recordings as the Android app).
+          mkdir -p public/voices
+          cp ../android/app/src/main/assets/voices/* public/voices/
+          ls public/voices | wc -l
+
       - name: Install
         run: |
           (cd ../reader-web && npm ci --no-audit --no-fund)

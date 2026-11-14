@@ -1,3 +1,7 @@
 node_modules/
 dist/
 /ios/
+# Put in place by the iPhone build (see .github/workflows/paper2audio-ios.yml)
+ios-plugins/speech/Frameworks/
+ios-plugins/speech/ios/Sources/PaperSpeechPlugin/SherpaOnnx.swift
+public/voices/

@@ -21,8 +21,16 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
         CAPPluginMethod(name: "setRate", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setVoice", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "voices", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "voices", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "packs", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "downloadPack", returnType: CAPPluginReturnPromise)
     ]
+
+    /// Paper to Audio's own voices (Supertonic, Kokoro, real readers), made on the phone.
+    private let neural = NeuralReader()
+    private var usingNeural = false
+    private var lastError: String?
+    private var lang: String?
 
     private let synth = AVSpeechSynthesizer()
     private var paras: [String] = []
@@ -41,6 +49,15 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
 
     public override func load() {
         synth.delegate = self
+        neural.onState = { [weak self] para, isPlaying, isFinished, error in
+            guard let self = self, self.usingNeural else { return }
+            self.index = para
+            self.playing = isPlaying
+            self.finished = isFinished
+            self.lastError = error
+            self.sendState()
+            self.updateNowPlaying()
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(interrupted(_:)),
                                                name: AVAudioSession.interruptionNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(routeChanged(_:)),
@@ -58,6 +75,7 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
             self.author = call.getString("author") ?? ""
             self.rate = Float(call.getDouble("rate") ?? 1)
             if let v = call.getString("voice"), !v.isEmpty { self.voiceId = v }
+            self.lang = call.getString("lang")
             self.active = true
             self.finished = false
             self.setUpAudio()
@@ -86,6 +104,10 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
             self.playing = false
             self.current = nil
             self.synth.stopSpeaking(at: .immediate)
+            self.neural.stop()
+            self.usingNeural = false
+            // The voice model takes a lot of memory: freed when reading stops.
+            DispatchQueue.global().async { NeuralEngine.shared.release() }
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             self.sendState()
@@ -133,7 +155,35 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
             if #available(iOS 16.0, *), v.quality == .premium { q = "premium" }
             return ["id": v.identifier, "name": v.name, "lang": v.language, "quality": q]
         }
-        call.resolve(["voices": list])
+        call.resolve(["voices": list, "neural": VoiceCatalog.listForChooser(), "packs": packStatus()])
+    }
+
+    // MARK: - Voice packs
+
+    private func packStatus() -> [[String: Any]] {
+        VoiceCatalog.packs.map { p in
+            ["key": p.key, "title": p.title, "mb": p.mb, "installed": Packs.shared.isInstalled(p), "downloading": Packs.shared.isDownloading(p)]
+        }
+    }
+
+    @objc func packs(_ call: CAPPluginCall) {
+        call.resolve(["packs": packStatus()])
+    }
+
+    /// Downloads a voice pack; progress comes as "download" events ({key, progress, message, done, error}).
+    @objc func downloadPack(_ call: CAPPluginCall) {
+        guard let key = call.getString("key"), let p = VoiceCatalog.packs.first(where: { $0.key == key }) else {
+            return call.reject("Unknown voice pack")
+        }
+        if Packs.shared.isInstalled(p) { return call.resolve(["installed": true]) }
+        Packs.shared.install(p, progress: { [weak self] pct, message in
+            self?.notifyListeners("download", data: ["key": key, "progress": pct, "message": message, "done": false])
+        }, done: { [weak self] error in
+            var data: [String: Any] = ["key": key, "progress": error == nil ? 100 : 0, "done": true]
+            if let e = error { data["error"] = e }
+            self?.notifyListeners("download", data: data)
+        })
+        call.resolve(["started": true])
     }
 
     // MARK: - Reading
@@ -147,6 +197,21 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
     }
 
     private func speak(from i: Int) {
+        lastError = nil
+        if VoiceCatalog.isNeural(voiceId) {
+            // Paper to Audio's own voices: the neural reader makes and plays the audio.
+            current = nil
+            if synth.isSpeaking || synth.isPaused { synth.stopSpeaking(at: .immediate) }
+            usingNeural = true
+            finished = false
+            index = i
+            neural.start(paras: paras, from: i, voice: voiceId, rate: rate, lang: lang)
+            return
+        }
+        if usingNeural {
+            neural.stop()
+            usingNeural = false
+        }
         current = nil
         if synth.isSpeaking || synth.isPaused { synth.stopSpeaking(at: .immediate) }
         // Paragraphs with nothing to say (skipped contents, pictures) are passed over.
@@ -177,6 +242,10 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
 
     private func doPause() {
         guard active else { return }
+        if usingNeural {
+            neural.pause()
+            return
+        }
         if synth.isSpeaking { synth.pauseSpeaking(at: .word) }
         playing = false
         sendState()
@@ -186,6 +255,10 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
     private func doResume() {
         guard active else { return }
         setUpAudio()
+        if usingNeural {
+            if finished { speak(from: 0) } else if lastError != nil { speak(from: index) } else { neural.resume() }
+            return
+        }
         if synth.isPaused {
             synth.continueSpeaking()
             playing = true
@@ -267,7 +340,9 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
     // MARK: - State for the page
 
     private func state() -> [String: Any] {
-        return ["active": active, "uid": uid, "para": index, "playing": playing, "finished": finished]
+        var st: [String: Any] = ["active": active, "uid": uid, "para": index, "playing": playing, "finished": finished, "voice": voiceId]
+        if let e = lastError { st["error"] = e }
+        return st
     }
 
     private func sendState() {
