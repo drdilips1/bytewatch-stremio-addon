@@ -555,7 +555,8 @@ export function restartTranscript() {
     clearTimeout(timer);
     timer = setTimeout(async () => {
       const [{ autoFindEbook }, { autoEbook }] = await Promise.all([import('./booktext.js'), import('./findorder.js')]);
-      if (!autoEbook() || player.getState().book?.uid !== b.uid) return;
+      // Not while the phone's screen is off (in the car): no one reads it, and the searches slow the book down.
+      if (!autoEbook() || player.getState().book?.uid !== b.uid || document.visibilityState !== 'visible') return;
       const eb = await autoFindEbook(player.getState().book);
       // The transcript looked before this was found: show the book's words now.
       if (eb && btUid === b.uid && ['none', 'error'].includes(state.bookText?.state)) bookTextFor(player.getState().book, true);

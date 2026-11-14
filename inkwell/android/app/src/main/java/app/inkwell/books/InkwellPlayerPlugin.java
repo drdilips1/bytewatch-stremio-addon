@@ -812,6 +812,13 @@ public class InkwellPlayerPlugin extends Plugin {
     }
 
     /** The server's addresses and your sign-in, for the car (search and play with the app closed). */
+    /** Your TorBox key for the car (it fetches a TorBox book's links itself with the app closed). */
+    @PluginMethod
+    public void setCarTorbox(PluginCall call) {
+        CarTorbox.saveKey(getContext(), call.getString("key", ""));
+        call.resolve();
+    }
+
     @PluginMethod
     public void setCarAbs(PluginCall call) {
         CarAbs.save(getContext(), call.getString("json", ""));

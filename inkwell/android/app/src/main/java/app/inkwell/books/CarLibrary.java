@@ -432,8 +432,24 @@ public class CarLibrary implements MediaLibraryService.MediaLibrarySession.Callb
         // A downloaded book plays from its files on the phone; else from the stream links saved
         // when it last played in the app (they may have expired).
         boolean saved = false;
+        boolean viaTorbox = false;
         int offset = 0; // the book's part number of the first saved link
         int track0 = book.optInt("track", 0);
+        // A TorBox book: its parts' links fetched fresh from TorBox (they never go stale).
+        JSONArray recipe = book.optJSONArray("recipe");
+        if ((parts == null || parts.length() == 0) && recipe != null && recipe.length() > 0 && CarTorbox.connected(context)) {
+            parts = new JSONArray();
+            for (int i = 0; i < recipe.length(); i++) {
+                JSONObject r = recipe.optJSONObject(i);
+                JSONObject tb = r != null ? r.optJSONObject("tb") : null;
+                if (tb == null) continue;
+                try {
+                    parts.put(new JSONObject().put("url", CarTorbox.uriOf(tb)).put("title", r.optString("title", "Part " + (i + 1))));
+                } catch (Exception ignored) {}
+            }
+            viaTorbox = parts.length() > 0;
+            PlaybackService.carHeaders = null;
+        }
         if (parts == null || parts.length() == 0) {
             JSONObject st = book.optJSONObject("stream");
             JSONArray sp = st != null ? st.optJSONArray("parts") : null;
@@ -481,7 +497,7 @@ public class CarLibrary implements MediaLibraryService.MediaLibrarySession.Callb
         carTrackOffset = saved ? offset : 0;
         if (!saved) PlaybackService.carHeaders = null;
         CarCatalog.touch(context, id, book.optInt("track", 0), book.optDouble("time", 0));
-        CarCatalog.log(context, "picked “" + title + "” with the app closed — " + (saved ? "playing from its saved stream links (" + items.size() + " parts)" : "playing its downloaded files (" + items.size() + " parts)"));
+        CarCatalog.log(context, "picked “" + title + "” with the app closed — " + (viaTorbox ? "playing from your TorBox (" + items.size() + " parts)" : saved ? "playing from its saved stream links (" + items.size() + " parts)" : "playing its downloaded files (" + items.size() + " parts)"));
         return Futures.immediateFuture(new MediaSession.MediaItemsWithStartPosition(items, track, at));
     }
 

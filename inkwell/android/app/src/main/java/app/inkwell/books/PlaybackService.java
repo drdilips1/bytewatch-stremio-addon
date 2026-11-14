@@ -82,6 +82,8 @@ public class PlaybackService extends MediaLibraryService {
     private void makeOwn() {
         DataSource.Factory upstream = new DefaultDataSource.Factory(this, new DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setUserAgent("Inkwell/1.2 (Android) ExoPlayer"));
         DataSource.Factory withHeaders = new ResolvingDataSource.Factory(upstream, spec -> {
+            // A TorBox part: a fresh link now (the address itself never expires).
+            if ("torbox".equals(spec.uri.getScheme())) return spec.withUri(CarTorbox.resolve(this, spec.uri));
             JSONObject h = carHeaders;
             if (h == null || h.length() == 0) return spec;
             Map<String, String> m = new HashMap<>();
