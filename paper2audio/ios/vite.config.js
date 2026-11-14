@@ -10,6 +10,8 @@ const rw = (p) => fileURLToPath(new URL('../reader-web/' + p, import.meta.url));
 export default defineConfig({
   plugins: [preact()],
   base: './',
+  // The build's version, shown in Settings (set by the iPhone build on GitHub).
+  define: { __APP_VERSION__: JSON.stringify(process.env.APP_VERSION || '') },
   resolve: {
     // Exactly "@capacitor/core" is the reader's bridge to "the app"; the iPhone's own plugin calls use the real
     // Capacitor (src/host.js imports it by its file path, which this doesn't match).
