@@ -207,13 +207,22 @@ export function sceneInText(bt, keywords, range = null, { strict = false, target
       return pBest.at;
     }
   }
-  // The scene starts at the first of its words in that stretch.
+  // Where in that 300-word stretch (about two minutes of audio) the scene is: the densest
+  // 80 words of its telling words — not the first one that happens to appear, which put the
+  // start up to a couple of minutes early.
   let tok = best.start;
-  for (let i = best.start; i < Math.min(keys.length, best.start + W); i++)
-    if (weight.has(keys[i])) {
-      tok = i;
-      break;
+  {
+    const S = 80;
+    const end = Math.min(keys.length, best.start + W);
+    let bestS = -1;
+    for (let i = best.start; i < end; i++) {
+      if (!weight.has(keys[i])) continue;
+      const seen = new Set();
+      let sc = 0;
+      for (let k = i; k < Math.min(end, i + S); k++) if (weight.has(keys[k]) && !seen.has(keys[k])) (seen.add(keys[k]), (sc += weight.get(keys[k])));
+      if (sc > bestS + 1e-9) (bestS = sc), (tok = i);
     }
+  }
   if (details) details.hit = { s: best.s, distinct: best.distinct };
   return tok;
 }

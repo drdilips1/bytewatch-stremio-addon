@@ -288,6 +288,24 @@ export async function playScene(said, step = () => {}, preset = null) {
   }
   let g = null;
   let where = '';
+  // A book just opened: a single file's own chapters (M4B) arrive a moment after it loads —
+  // without them the whole book was one chapter and the scene landed far off.
+  if (player.chapters().length <= 1) {
+    step('Reading the book’s chapters…');
+    await new Promise((resolve) => {
+      if (player.chapters().length > 1) return resolve();
+      let un = null;
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        un?.();
+        resolve();
+      };
+      un = player.subscribe(() => player.chapters().length > 1 && finish());
+      setTimeout(finish, 12000);
+    });
+  }
   const chapters = volumeOf(player.chapters(), details, want);
   step('Finding the scene in the book…');
   // What happened at each step goes into Report a problem, so a scene that isn't found can be fixed.

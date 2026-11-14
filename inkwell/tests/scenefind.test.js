@@ -51,4 +51,10 @@ describe('anchorsFor', () => {
     const anchors = anchorsFor(bt, chapters, 1500, 'Some Book', 0);
     expect(Math.round(timeOf(anchors, headingsInText(bt)[2]))).toBe(1000);
   });
+  it('starts at the thick of the scene, not its first stray word', () => {
+    // "lantern" appears once early in the stretch; the scene itself (lantern, harbour, ferryman) comes later.
+    const bt = book([filler(400), 'lantern', filler(150), 'the lantern swung as the ferryman reached the harbour and the ferryman raised the lantern over the harbour', filler(400)]);
+    const at = sceneInText(bt, ['lantern', 'ferryman', 'harbour']);
+    expect(bt.keys.slice(at, at + 3)).toEqual(['lantern', 'swung', 'as']);
+  });
 });
