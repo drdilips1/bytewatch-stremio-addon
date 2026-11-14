@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-vi.mock('../src/lib/transcript.js', () => ({ heardText: () => '', bookTextBefore: () => '' }));
+vi.mock('../src/lib/transcript.js', () => ({ heardLines: () => [], bookTextBefore: () => '' }));
 vi.mock('../src/lib/player.js', () => ({ getState: () => ({ tracks: [] }), renameBookmark: () => {} }));
 vi.mock('../src/lib/ai.js', () => ({ aiReady: () => false, askAi: async () => '' }));
 vi.mock('../src/lib/store.js', () => ({ bookmarks: { get: () => ({}) } }));

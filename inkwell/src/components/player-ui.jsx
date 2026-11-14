@@ -408,7 +408,7 @@ export function FullPlayer() {
           }}
         >
           <Icon name="bookmark" size={16} />
-          <small>{bms.length ? `Mark · ${bms.length}` : 'Mark'}</small>
+          <small>{bms.length ? `Bookmark · ${bms.length}` : 'Bookmark'}</small>
         </button>
         <button class="chip-btn" onClick={() => setSheet('more')} aria-label="More">
           <Icon name="dots" size={18} stroke={3.5} />

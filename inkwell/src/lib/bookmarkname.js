@@ -2,7 +2,7 @@
 // beat goals"), not just "Chapter 3 · 12:43" or the first words of the line: named from the
 // transcript (or the book's own text) around that moment — by your AI service when one is
 // set up, else from the moment's most telling words.
-import { heardText, bookTextBefore } from './transcript.js';
+import { heardLines, bookTextBefore } from './transcript.js';
 import { aiReady, askAi } from './ai.js';
 import * as player from './player.js';
 import { bookmarks } from './store.js';
@@ -35,7 +35,15 @@ export function tellingWords(text, n = 3) {
 
 /** The words around a bookmark: what was heard, else the book's own text (ebook attached). */
 function textAt(book, bm) {
-  let text = heardText(book.uid, bm.track, bm.time + 20, 2400).replace(/^…/, '').trim();
+  // Only what was heard right around the moment (the 2½ minutes before it, a little after):
+  // not everything heard earlier in the book (a book heard only at its start was naming
+  // later bookmarks from the opening credits).
+  let text = heardLines(book.uid)
+    .filter((l) => l.track === bm.track && l.start >= bm.time - 150 && l.start <= bm.time + 25)
+    .sort((a, b) => a.start - b.start)
+    .map((l) => l.text)
+    .join(' ')
+    .trim();
   if (text.split(/\s+/).length < 8 && bm.track === player.getState().index && player.getState().book?.uid === book.uid) text = bookTextBefore(bm.time + 20, 400) || text;
   return text.split(/\s+/).length < 8 ? '' : text;
 }
