@@ -296,6 +296,43 @@ function ListeningTaste() {
   );
 }
 
+/** Your car: driving mode opens when its audio connects (Android). */
+function CarPicker({ st }) {
+  const [now, setNow] = useState(null);
+  const mine = st.carDevices || [];
+  useEffect(() => {
+    import('../lib/autocar.js').then((m) => m.audioOutputs()).then(setNow);
+  }, []);
+  if (now == null || (!now.length && !mine.length)) {
+    return (
+      <div class="set-row">
+        <div>
+          <b>Driving mode in the car</b>
+          <small>Connect the phone to your car's Bluetooth, then come back here to pick it — driving mode will open by itself in the car.</small>
+        </div>
+      </div>
+    );
+  }
+  const set = (list) => settings.patch({ carDevices: list });
+  return (
+    <div class="set-row car-pick">
+      <div>
+        <b>Driving mode in the car</b>
+        <small>Opens by itself when your car's audio connects, closes when it goes.</small>
+        <div class="car-devs">
+          {[...new Set([...mine, ...now])].map((n) => (
+            <button class={'pill small' + (mine.includes(n) ? ' on' : '')} onClick={() => set(mine.includes(n) ? mine.filter((x) => x !== n) : [...mine, n])}>
+              {mine.includes(n) ? '🚗 ' : '+ '}
+              {n}
+              {mine.includes(n) ? '' : ' is my car'}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Toggle({ on, onChange, label, hint }) {
   return (
     <label class="set-row">
@@ -1781,6 +1818,7 @@ export function Settings() {
       <Section icon="headphones" title="Playback">
         <Stepper label="Skip back" value={st.skipBack} options={[5, 10, 15, 30]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipBack: v })} />
         <Stepper label="Skip forward" value={st.skipForward} options={[10, 15, 30, 45, 60]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipForward: v })} />
+        <CarPicker st={st} />
         <Toggle label="Skip credits" hint="Opening and end credits and the publisher's intro are skipped when their chapter starts (going back to one on purpose plays it)" on={st.skipCredits !== false} onChange={(v) => settings.patch({ skipCredits: v })} />
         <Toggle label="Play Up next by itself" hint="When a book ends, the next one in Up next starts (press and hold a book → Add to Up next)" on={st.upNextAuto !== false} onChange={(v) => settings.patch({ upNextAuto: v })} />
       </Section>

@@ -148,6 +148,8 @@ export function DriveMode() {
         if (!alive.current) return;
         return speak(a, wasPlaying, r.question ? 'book' : '');
       }
+      // "Where am I?": said out loud, then the book carries on.
+      if (r.action === 'where') return speak(r.message, wasPlaying);
       setPhase('idle');
       if (r.message) {
         // A control: the book carries on (unless you asked to pause).
@@ -178,13 +180,18 @@ export function DriveMode() {
         <button class="drive-exit" onClick={() => nav.closeOverlay()} aria-label="Exit driving mode">
           <Icon name="close" size={26} /> Exit
         </button>
-        <div class="drive-now">
+        <div
+          class="drive-now"
+          role={book ? 'button' : undefined}
+          aria-label={book ? 'Where am I? (said aloud)' : undefined}
+          onClick={() => book && voice('cmd', false, null, 'where am i')}
+        >
           {book ? (
             <>
               <Cover book={book} class="drive-cover" />
               <div>
                 <b>{mainTitle(book.title)}</b>
-                <small>{ch?.title ? `${ch.title} · ` : ''}{fmtTime(player.globalTime())}</small>
+                <small>{ch?.title ? `${ch.title} · ` : ''}{fmtTime(player.globalTime())} · tap: where am I?</small>
               </div>
             </>
           ) : (

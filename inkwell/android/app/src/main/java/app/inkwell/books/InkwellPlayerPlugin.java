@@ -648,10 +648,67 @@ public class InkwellPlayerPlugin extends Plugin {
         });
     }
 
+    // Headphones / car audio coming and going (no Bluetooth permission needed): the app opens
+    // driving mode when the car you picked connects.
+    private android.media.AudioDeviceCallback routeWatch;
+
+    private static boolean outward(android.media.AudioDeviceInfo d) {
+        int t = d.getType();
+        return t == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || t == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+            || t == android.media.AudioDeviceInfo.TYPE_USB_DEVICE || t == android.media.AudioDeviceInfo.TYPE_USB_HEADSET
+            || (android.os.Build.VERSION.SDK_INT >= 31 && t == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET);
+    }
+
+    private com.getcapacitor.JSArray names(android.media.AudioDeviceInfo[] list) {
+        com.getcapacitor.JSArray a = new com.getcapacitor.JSArray();
+        java.util.HashSet<String> seen = new java.util.HashSet<>();
+        for (android.media.AudioDeviceInfo d : list) {
+            if (!d.isSink() || !outward(d)) continue;
+            String n = String.valueOf(d.getProductName());
+            if (!n.isEmpty() && seen.add(n)) a.put(n);
+        }
+        return a;
+    }
+
+    /** The headphones / car audio connected now: { outputs: [name] }. */
+    @PluginMethod
+    public void audioOutputs(PluginCall call) {
+        android.media.AudioManager am = (android.media.AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+        JSObject o = new JSObject();
+        o.put("outputs", am == null ? new com.getcapacitor.JSArray() : names(am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)));
+        call.resolve(o);
+    }
+
+    private void watchRoutes() {
+        android.media.AudioManager am = (android.media.AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+        if (am == null || routeWatch != null) return;
+        routeWatch = new android.media.AudioDeviceCallback() {
+            @Override
+            public void onAudioDevicesAdded(android.media.AudioDeviceInfo[] added) {
+                com.getcapacitor.JSArray a = names(added);
+                if (a.length() == 0) return;
+                JSObject o = new JSObject();
+                o.put("added", a);
+                notifyListeners("route", o);
+            }
+
+            @Override
+            public void onAudioDevicesRemoved(android.media.AudioDeviceInfo[] removed) {
+                com.getcapacitor.JSArray a = names(removed);
+                if (a.length() == 0) return;
+                JSObject o = new JSObject();
+                o.put("removed", a);
+                notifyListeners("route", o);
+            }
+        };
+        am.registerAudioDeviceCallback(routeWatch, main);
+    }
+
     @Override
     public void load() {
         super.load();
         instance = this;
+        watchRoutes();
         // A voice request that came while the app was starting.
         if (pendingVoice != null) {
             String q = pendingVoice;

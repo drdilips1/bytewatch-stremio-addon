@@ -12525,3 +12525,4 @@ button.cr-tile.on > img {
 .catchup p { margin: 6px 0 10px; font-size: 14px; line-height: 1.45; color: rgba(255, 255, 255, 0.85); }
 .catchup-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .char-first { display: block; font-size: 12px; opacity: 0.6; margin-top: 2px; }
+.car-devs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }

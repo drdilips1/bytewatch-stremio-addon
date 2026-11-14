@@ -4,7 +4,7 @@
 // Audiobookshelf and TorBox / Real-Debrid; it starts 30 seconds before the scene.
 import { askAi, parseJson, aiReady } from './ai.js';
 import { mainTitle, matches, words } from './match.js';
-import { progress, settings } from './store.js';
+import { progress, settings, bookmarks } from './store.js';
 import { downloads } from './downloads.js';
 import { localCfg } from '../sources/local.js';
 import { getDetails, findOwned } from '../sources/index.js';
@@ -454,6 +454,7 @@ const AMOUNT = /(\d+(?:\.\d+)?|a|an|one|two|three|four|five|six|seven|eight|nine
 /** A command worked out without the AI: { action, seconds, chapter, speed, minutes } or null. */
 function quick(said) {
   const t = String(said || '').toLowerCase().replace(/[^\p{L}\p{N}.\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  if (/^(where am i|where are we|where was i|what('s| is) happening( now)?|what chapter( is this| am i in)?|kahan (hoon|hai|pahuncha))$/.test(t)) return { action: 'where' };
   if (!t || /\b(when|where|scene|part where)\b/.test(t)) return null;
   const amount = (def) => {
     const m = t.match(AMOUNT);
@@ -481,6 +482,7 @@ function quick(said) {
     return { action: 'sleep', minutes: amount(0) ? Math.round(amount(0) / 60) || amount(0) : 30 };
   }
   if (/^(add (a )?)?bookmark( (this|it|here))?$|^mark (this|it|here)$|^save (this|the) (spot|place|moment)$/.test(t)) return { action: 'bookmark' };
+  if (/^(remember|note|keep|save) (this|that)( (bit|part|moment|idea|one))?( for later)?$|^yaad (rakho|rakhna)$/.test(t)) return { action: 'remember' };
   return null;
 }
 
@@ -489,8 +491,40 @@ const PLAYVERB = /^\s*(please\s+)?(play|replay|go to|jump to|take me to|skip to|
 /** Sounds like a command for the player or a book/scene to play (not a question)? */
 export const isCommand = (said) => !!quick(said) || /^(play|go to|jump to|take me to|skip to|start (from|at)|open|resume|continue|chalao|sunao)\b/i.test(String(said || '').trim());
 
-const CONTROLS = new Set(['pause', 'resume', 'rewind', 'forward', 'next_chapter', 'previous_chapter', 'go_chapter', 'restart_chapter', 'speed', 'sleep', 'bookmark']);
+const CONTROLS = new Set(['pause', 'resume', 'rewind', 'forward', 'next_chapter', 'previous_chapter', 'go_chapter', 'restart_chapter', 'speed', 'sleep', 'bookmark', 'remember', 'where']);
 const mmss = (s) => (s >= 60 ? `${Math.round((s / 60) * 10) / 10} min` : `${Math.round(s)} s`);
+
+/** What was just read: the live transcript's last minutes, else the ebook's words up to here. */
+async function justHeard(book) {
+  const { hearing } = await import('./askbook.js');
+  const h = hearing(book)?.heard || '';
+  if (h.split(/\s+/).length > 40) return h;
+  const { bookTextBefore } = await import('./transcript.js');
+  return bookTextBefore(player.globalTime(), 400) || h;
+}
+
+/** "Chapter 12, about halfway — Harry has just found the mirror." (said aloud in the car) */
+async function whereAmI(book) {
+  const chapters = player.chapters();
+  const g = player.globalTime();
+  const ci = chapters.findIndex((c) => g >= c.start && g < (c.end || Infinity));
+  const c = chapters[ci];
+  const part = c && c.end > c.start ? (g - c.start) / (c.end - c.start) : null;
+  const how = part == null ? '' : part < 0.15 ? 'just started' : part < 0.4 ? 'about a third in' : part < 0.62 ? 'about halfway' : part < 0.85 ? 'past halfway' : 'nearly at the end';
+  const total = player.totalDuration();
+  let line = c ? `${c.title || `Part ${ci + 1}`}${how ? `, ${how}` : ''}` : '';
+  if (total) line += `${line ? ' — ' : ''}${Math.round((g / total) * 100)}% of the book`;
+  if (aiReady()) {
+    try {
+      const text = await justHeard(book);
+      if (text) {
+        const what = (await askAi(`In one short spoken sentence, what is happening right now at the end of this passage from "${book.title}"? Nothing after it. Reply with the sentence only.\n"""${text.slice(-2500)}"""`)).trim().split('\n')[0];
+        if (what) line += `. ${what}`;
+      }
+    } catch {}
+  }
+  return line || 'Somewhere in the book';
+}
 
 /** Do a control on what's playing; resolves the message to show. */
 async function control(c) {
@@ -545,6 +579,22 @@ async function control(c) {
       import('./bookmarkname.js').then((x) => x.nameBookmark(s.book, bm)).catch(() => {});
       return '🔖 Bookmarked';
     }
+    case 'remember': {
+      // A bookmark named after the moment, with a line of what was happening as its note (in Notes).
+      const bm = player.addBookmark();
+      (async () => {
+        const { nameBookmark } = await import('./bookmarkname.js');
+        await nameBookmark(s.book, bm);
+        if (!aiReady()) return;
+        const text = await justHeard(s.book);
+        if (!text) return;
+        const note = (await askAi(`In one short sentence, what is happening or being said at the end of this passage from "${s.book.title}"? Reply with the sentence only.\n"""${text.slice(-2500)}"""`)).trim().split('\n')[0].slice(0, 220);
+        if (note) bookmarks.set((all) => ({ ...all, [s.book.uid]: (all[s.book.uid] || []).map((b) => (b.createdAt === bm.createdAt ? { ...b, note } : b)) }));
+      })().catch(() => {});
+      return '🧠 Remembered — it’s in Notes';
+    }
+    case 'where':
+      return whereAmI(s.book);
   }
   throw new Error("Didn't catch that");
 }
