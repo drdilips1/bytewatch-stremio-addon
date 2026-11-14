@@ -173,7 +173,18 @@ if (ON) {
     const pool = [...Object.values(progress.get()).map((p) => p?.book), ...Object.values(library.get()), ...Object.values(downloads.get()).map((d) => d?.book)].filter((b) => b?.uid && !/^pod:/.test(b.uid));
     const score = (b) => words.filter((w) => `${b.title || ''} ${b.author || ''}`.toLowerCase().includes(w)).length;
     const best = pool.map((b) => [b, score(b)]).sort((a, b) => b[1] - a[1])[0];
-    if (best && best[1] * 2 >= words.length) return playBook(best[0]);
+    if (best && best[1] * 2 >= words.length && !/\b(where|when|scene|moment|chapter|part|back|forward|skip|sleep|speed|pause|stop|resume)\b/i.test(query)) return playBook(best[0]);
+    // Anything else said to the car goes to the app's voice button: a command ("back 30
+    // seconds", "sleep in 20 minutes"), a scene ("play the part where…"), a chapter, a book or a
+    // question (answered aloud).
+    if (words.length >= 2) {
+      try {
+        const { runSaid } = await import('../components/scene-cmd.jsx');
+        await runSaid(String(query).replace(/\b(on|in|using|with) audio ?hub\+?.*$/i, '').trim());
+        await Native.carReady().catch(() => {});
+        return;
+      } catch {}
+    }
     // Not yours yet: your cloud and server copies, then the best torrent from your sources —
     // as the app's own "play …" voice command does.
     const want = wantOf(query);

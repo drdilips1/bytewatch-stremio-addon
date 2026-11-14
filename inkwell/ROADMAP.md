@@ -204,6 +204,11 @@ Done and pushed, not built:
 - Cross-library passage map: related passages in other books, tap to jump (needs those books' ebooks).
 - Highlights from transcript lines linked to audio timestamps.
 
+## 14 Nov — voice brought back (Audiohub+)
+- Scenes on again: "play the part / scene / chapter where …" finds the moment (src/lib/scenefind.js) and plays from there.
+- Android Auto: "Hey Google, play … on Audiohub" — a book of yours plays at once; anything else (commands,
+  scenes, chapters, other books, questions answered aloud) goes through the same voice handling as the mic button.
+
 ## 26 Oct — fixed, not built yet
 - Battery / wayward transcript: the transcript's ebook matching is back to word triples near the line
   before (the looser pair / "where in the book" matching of 24 Oct re-ran on every line and misplaced some).

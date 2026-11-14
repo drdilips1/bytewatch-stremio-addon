@@ -440,13 +440,12 @@ export async function runCommand(said, step = () => {}, withAi = true) {
   if (action === 'find') return { find: true, query: said.trim() };
   // Anything else: a question for Ask AI (never "didn't catch that").
   if (action === 'unknown' || !want?.title) return { question: true, ...questionBook(want || {}) };
-  // Jumping to a scene ("play when…", "the chapter where…") is switched off for now — it wasn't
-  // reliable enough. Such a request goes to Ask AI as a question instead.
-  // (Words of the title itself don't count: "play Where the Crawdads Sing" is a book.)
+  // A scene ("play when…", "the chapter where…", "the part where…"): find that moment and play
+  // from there. (Words of the title itself don't count: "play Where the Crawdads Sing" is a book.)
   const titleWords = new Set(words(want.title || ''));
   const rest = String(said).toLowerCase().split(/\s+/).filter((w) => !titleWords.has(w.replace(/[^\p{L}\p{N}']/gu, ''))).join(' ');
-  const sceneish = /\b(where|when|scene|moment|jab|jahan|jisme)\b/i.test(rest);
-  if (action === 'scene' || (action === 'play_book' && sceneish)) return { question: true, ...questionBook(want) };
+  const sceneish = /\b(where|when|scene|moment|part|jab|jahan|jisme)\b/i.test(rest);
+  if (action === 'scene' || (action === 'play_book' && sceneish)) return playScene(said, step, { ...want, action: 'scene', moment: true });
   want.moment = false;
   return playScene(said, step, want);
 }
