@@ -268,6 +268,21 @@ function similar(a, b) {
   return (2 * hit) / (x.length + y.length) >= 0.5;
 }
 
+const lineKey = (t) => String(t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+/** The same heard line twice: about the same moment and the same words. */
+export function sameLine(a, b) {
+  if (Math.abs((a.start ?? 0) - (b.start ?? 0)) > 3 && !(a.start < b.end && b.start < a.end)) return false;
+  const x = lineKey(a.text);
+  const y = lineKey(b.text);
+  return !!x && (x === y || (Math.min(x.length, y.length) > 20 && (x.includes(y) || y.includes(x))));
+}
+/** Heard lines with repeats taken out (transcripts saved before repeats were caught). */
+export function withoutRepeats(segs) {
+  const out = [];
+  for (const s of segs) if (!out.slice(-6).some((x) => sameLine(x, s))) out.push(s);
+  return out;
+}
+
 /** End of the run of transcribed lines (gaps under 20s) that covers time t, or null. */
 function coveredUntil(t) {
   const segs = state.segments;
@@ -302,6 +317,8 @@ if (transcriptAvailable) {
   T.addListener('segment', (e) => {
     if (e.job !== job) return;
     const segs = state.segments;
+    // The same line again (a part transcribed twice, a restart over heard ground): kept once.
+    if (segs.some((x) => sameLine(x, e))) return;
     // Keep segments sorted by start time.
     let i = segs.length;
     while (i > 0 && segs[i - 1].start > e.start) i--;
@@ -445,7 +462,7 @@ export function follow(ps) {
   };
   if (key !== state.key) {
     stopTranscript();
-    set({ key, segments: (saved.get().parts[key] || []).map(({ start, end, text }) => ({ start, end, text })), status: 'idle', error: '' });
+    set({ key, segments: withoutRepeats((saved.get().parts[key] || []).map(({ start, end, text }) => ({ start, end, text }))), status: 'idle', error: '' });
     align();
     return startJob(ps, from());
   }
