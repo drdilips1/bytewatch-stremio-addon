@@ -6,7 +6,7 @@ import { allTags } from '../components/book-tags.jsx';
 import { localSrc } from '../sources/index.js';
 import { fmtDuration } from '../lib/format.js';
 import { hoursListened } from '../lib/stats.js';
-import { metaNow, metaFixes, needsCover, autoCovers } from '../lib/meta.js';
+import { metaNow, metaFixes, needsCover, autoCovers, typedCovers } from '../lib/meta.js';
 import { longPress } from '../components/book-actions.jsx';
 import { seriesOf } from '../lib/series.js';
 import { oneEach } from '../lib/works.js';
@@ -654,28 +654,31 @@ function SeriesGroups({ items, mode = 'grid', prog }) {
 // Missing covers: found and saved automatically (Apple audiobooks → Apple Books → Audible →
 // Google Books, the first that is clearly the book) — on its own when the Library opens, or
 // with the button. No choosing.
-let coversRanThisSession = false;
+let coversRunning = false;
 function MissingCovers({ items, local }) {
   useStore(metaFixes);
+  useStore(typedCovers);
   const [run, setRun] = useState(null); // { done, total, found }
   const phoneCover = (b) => (b.source === 'loc' && (local.books || []).find((x) => x.uid === b.uid)?.cover) || '';
   const missing = items.filter((b) => needsCover(b, phoneCover(b)));
   const go = async (quiet = false) => {
-    if (run || !missing.length) return;
-    coversRanThisSession = true;
+    if (run || coversRunning || !missing.length) return;
+    coversRunning = true;
     setRun({ done: 0, total: missing.length, found: 0 });
     const r = await autoCovers(
       missing,
       (b, cover) => b.source === 'loc' && localSrc.setCover?.(b.uid, cover),
       (done, total, found) => setRun({ done, total, found })
     ).catch(() => ({ found: 0, total: missing.length }));
+    coversRunning = false;
     setRun(null);
     if (!quiet || r.found) toast(r.found ? `Added ${r.found} cover${r.found === 1 ? '' : 's'}${r.total > r.found ? ` · ${r.total - r.found} not found` : ''}` : 'No covers found for these — try “Find cover & details” on a book');
   };
-  // On its own, once per app start, when there are books without covers.
+  // On its own whenever there are books without covers (more appear as you scroll and their
+  // covers turn out not to load); books with nothing found wait a day, so it doesn't repeat.
   useEffect(() => {
-    if (!coversRanThisSession && missing.length) {
-      const t = setTimeout(() => go(true), 1500);
+    if (missing.length && !coversRunning) {
+      const t = setTimeout(() => go(true), 2500);
       return () => clearTimeout(t);
     }
   }, [missing.length]);

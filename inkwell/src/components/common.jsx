@@ -8,7 +8,7 @@ import { nav } from '../lib/nav.js';
 import { progress as progressStore, useStoreKey, persisted, useStore, settings } from '../lib/store.js';
 import { useImage, coverFrame, frameStyle, frameTall } from '../lib/image.js';
 import { longPress } from './book-actions.jsx';
-import { useSquareCover, fixFor, coverFailed, coverLoaded } from '../lib/meta.js';
+import { useSquareCover, fixFor, coverFailed, coverLoaded, markTyped } from '../lib/meta.js';
 import { activePalette, isInk } from '../lib/theme.js';
 import { useMeta } from '../lib/meta.js';
 import { useTileRating } from '../lib/ratings.js';
@@ -30,6 +30,10 @@ export function Cover({ book, class: cls = '', eager }) {
   const [ratio, setRatio] = useState(0);
   const [failed, setFailed] = useState(!book?.cover);
   useEffect(() => setFailed(!book?.cover || proxyFailed), [book?.cover, proxyFailed]);
+  // Showing the typed title instead of a picture: noted, so "missing covers" finds a real one.
+  useEffect(() => {
+    if (book?.uid && book.source !== 'pod') markTyped(book.uid, !!failed);
+  }, [failed, book?.uid]);
   const hue = hashHue(book?.title || '');
   const [frame, setFrame] = useState(null);
   // A different book (or picture) here: start over (tall/whole, the trimmed frame).
