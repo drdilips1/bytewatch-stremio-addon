@@ -461,6 +461,8 @@ function quick(said) {
   return null;
 }
 
+const PLAYVERB = /^\s*(please\s+)?(play|replay|go to|jump to|take me to|skip to|start (from|at)|listen to|put on|chalao|sunao|lagao)\b/i;
+
 /** Sounds like a command for the player or a book/scene to play (not a question)? */
 export const isCommand = (said) => !!quick(said) || /^(play|go to|jump to|take me to|skip to|start (from|at)|open|resume|continue|chalao|sunao)\b/i.test(String(said || '').trim());
 
@@ -542,6 +544,13 @@ export async function runCommand(said, step = () => {}, withAi = true) {
   const want = await understand(said);
   const action = want?.action && want.action !== 'unknown' ? want.action : want?.title ? (want.moment === false ? 'play_book' : 'scene') : 'unknown';
   if (CONTROLS.has(action)) return { message: await control({ ...want, action }), action };
+  // "Play …" always plays audio — never a written answer read out (the AI sometimes took
+  // "play the house cup ceremony" for a question).
+  if (PLAYVERB.test(said) && action !== 'find') {
+    if (!want?.title) throw new Error(`Couldn't tell which book or scene to play — try "play <title>" or "play the part where … in <title>"`);
+    const isMoment = want.moment !== false && (want.scene || (want.keywords || []).filter(Boolean).length || want.chapter || want.chapterTitle);
+    return playScene(said, step, isMoment ? { ...want, action: 'scene', moment: true } : { ...want, action: 'play_book', moment: false });
+  }
   if (action === 'question') return { question: true, ...questionBook(want) };
   if (action === 'find') return { find: true, query: said.trim() };
   // Anything else: a question for Ask AI (never "didn't catch that").
@@ -585,8 +594,11 @@ export async function runInBook(said, step = () => {}) {
   if (q) return { message: await control(q), action: q.action };
   const book = player.getState().book;
   if (!book) throw new Error('Nothing is playing — use “Play something else” first');
-  // A moment to play: in this book, whatever the words.
-  if (SCENEISH.test(said) && /\b(play|go|jump|take me|skip|start|open|find)\b/i.test(said)) {
+  // A moment to play: in this book, whatever the words. Anything starting "play …" is always
+  // audio, never a question answered aloud.
+  // "Play Atomic Habits" (another book, by its title) is played as asked, not looked for in this one.
+  if (PLAYVERB.test(said) && !SCENEISH.test(said) && (await quickBook(said))) return runCommand(said, step, true);
+  if (PLAYVERB.test(said) || (SCENEISH.test(said) && /\b(play|go|jump|take me|skip|start|open|find)\b/i.test(said))) {
     const title = mainTitle(book.title);
     const withBook = matches(title, said) ? said : `${said} in ${title}`;
     return playScene(withBook, step, null);
@@ -611,6 +623,8 @@ export async function runPlay(said, step = () => {}) {
     return playScene(`play ${next.book.title}`, step, { action: 'play_book', moment: false, title: next.book.title, author: next.book.author || cur.author || '' });
   }
   const r = await runCommand(/^(play|listen to|start|put on)\b/i.test(said) ? said : `play ${said}`, step, aiReady());
+  // Said "play …" but named no book ("play something funny"): nothing read out — say what's needed.
+  if ((r.question || r.find) && PLAYVERB.test(said)) return { message: 'Say the book’s title to play it — or ask “recommend something …” for ideas' };
   // Not a book to play: books to find (answered aloud), never a question about the current book.
   if (r.question) return { find: true, query: said.trim() };
   return r;
