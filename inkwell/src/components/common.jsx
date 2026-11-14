@@ -461,3 +461,5 @@ export function Toaster() {
 }
 /** A short message at the bottom; `ms` keeps an important one up longer. */
 export const toast = (text, ms = 0) => toastSet?.({ text, t: Date.now(), ms });
+// Messages from code that can't import this file (the player).
+if (typeof window !== 'undefined') window.addEventListener('inkwell-toast', (e) => toast(e.detail));

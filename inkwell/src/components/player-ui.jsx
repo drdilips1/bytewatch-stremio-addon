@@ -1,6 +1,7 @@
 import { BgImage } from './bg-image.jsx';
 import { wallpaperUrl, useCustomWallpaper } from '../lib/wallpaper.js';
 import { loadImage } from '../lib/image.js';
+import { CatchUp } from './catchup.jsx';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import * as player from '../lib/player.js';
 import { isNative as isNativeEngine } from '../lib/engine.js';
@@ -150,6 +151,38 @@ const SLEEP = [5, 10, 15, 30, 45, 60, 90];
  * (Not "Chapter 8 of 10 · Chapter 6" — with an intro and credits counted, the list number
  * isn't the book's chapter number.) A title that's only a number: "Chapter 3 of 33".
  */
+/** Night mode on now? (Settings → Appearance: from `nightFrom` to `nightTo`, hours.) */
+export function isNight(st) {
+  if (!st.nightMode) return false;
+  const h = new Date().getHours();
+  const from = st.nightFrom ?? 22;
+  const to = st.nightTo ?? 6;
+  return from > to ? h >= from || h < to : h >= from && h < to;
+}
+
+const chapterAt = (chapters, g) => (chapters.length > 1 ? chapters.find((c) => g >= c.start && g < (c.end || Infinity)) : null);
+
+/** A thin line around the cover filling up through the chapter. */
+function ChapterRing({ chapters, g }) {
+  const c = chapterAt(chapters, g);
+  if (!c || !(c.end > c.start)) return null;
+  const pct = Math.max(0, Math.min(100, ((g - c.start) / (c.end - c.start)) * 100));
+  return (
+    <svg class="fp-ring-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <rect x="1" y="1" width="98" height="98" rx="7.5" pathLength="100" class="fp-ring-bg" />
+      <rect x="1" y="1" width="98" height="98" rx="7.5" pathLength="100" class="fp-ring-on" style={{ strokeDasharray: `${pct} 100` }} />
+    </svg>
+  );
+}
+
+/** "12 min left in chapter" (at the speed you listen). */
+function ChapterLeft({ chapters, g, rate }) {
+  const c = chapterAt(chapters, g);
+  if (!c || !(c.end > c.start)) return null;
+  const left = Math.max(0, (c.end - g) / (rate || 1));
+  return <span class="fp-chleft">{left < 60 ? 'Under a minute' : left < 3600 ? `${Math.round(left / 60)} min` : fmtTime(left)} left in chapter</span>;
+}
+
 function chapterLabel(chapters, g) {
   let i = chapters.findIndex((c) => g >= c.start && g < (c.end || Infinity));
   if (i < 0) i = 0;
@@ -185,6 +218,16 @@ export function FullPlayer() {
     const id = setTimeout(() => !held.current && setScrub(null), 4000);
     return () => clearTimeout(id);
   }, [scrub]);
+  // Night mode (after the hour set in Settings): warm and dark, the screen dims when left alone.
+  const night = isNight(st);
+  const [dimmed, setDimmed] = useState(false);
+  const dimTimer = useRef(null);
+  const wake = () => {
+    setDimmed(false);
+    clearTimeout(dimTimer.current);
+    if (isNight(settings.get())) dimTimer.current = setTimeout(() => setDimmed(true), 20000);
+  };
+  useEffect(() => (wake(), () => clearTimeout(dimTimer.current)), [night]);
   if (!s.book) return null;
   const dur = s.duration || s.tracks[s.index]?.duration || 0;
   const t = scrub ?? s.time;
@@ -196,7 +239,8 @@ export function FullPlayer() {
 
   return (
     <div
-      class={'full-player' + (showText ? ' text-mode' : '')}
+      class={'full-player' + (showText ? ' text-mode' : '') + (night ? ' night' : '') + (night && dimmed ? ' dimmed' : '')}
+      onPointerDown={wake}
       style={{ ...(color ? { '--dyn': color } : {}), transform: drag ? `translateY(${drag}px)` : undefined, transition: drag ? 'none' : undefined }}
       onTouchStart={(e) => {
         if (e.target.closest('input,.sheet,.transcript')) return;
@@ -238,13 +282,17 @@ export function FullPlayer() {
         <TranscriptView s={s} />
       ) : (
         <div class={'fp-art' + (s.playing ? ' playing' : '')}>
-          <Cover book={s.book} eager />
+          <div class="fp-ring">
+            <Cover book={s.book} eager />
+            <ChapterRing chapters={chapters} g={g} />
+          </div>
         </div>
       )}
 
       {!showText && (
         <>
       <div class="fp-meta">
+        <ChapterLeft chapters={chapters} g={g} rate={s.rate} />
         <h2>{s.book.title}</h2>
         <p>
           {s.book.author}
@@ -365,6 +413,8 @@ export function FullPlayer() {
           </button>
         </div>
       )}
+
+      <CatchUp book={s.book} />
 
       {aiOn() && <Signature book={s.book} openXray={() => setSheet('xray')} />}
 

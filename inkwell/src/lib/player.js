@@ -262,6 +262,7 @@ const handlers = {
       handlers.ended();
     }
     if (state.sleepUntil && Date.now() >= state.sleepUntil) fadeOutAndPause();
+    if (state.playing && settings.get().skipCredits !== false) skipCredits();
     // "End of chapter" inside one long file (an M4B with chapter marks): stop at the mark.
     if (state.sleepChapterEnd && globalTime() >= state.sleepChapterEnd - 0.3) {
       set({ sleepChapterEnd: null, sleepEndOfTrack: false });
@@ -1112,8 +1113,33 @@ function endAbsSession() {
   closeSession(moved ? globalTime() : null, totalDuration());
 }
 
+// Opening credits, the publisher's intro and end credits: skipped (Settings → Playback).
+const CREDITS = /^(\d+\s*[-–.:]?\s*)?((opening|closing|end|ending)\s+credits|credits|intro(duction)?\s+(music|credits)|publisher'?s?\s+(intro|introduction|note)|audible\s+(intro|outro)|outro)$/i;
+let creditsDone = '';
+function skipCredits() {
+  const list = chapters();
+  if (list.length < 3) return;
+  const g = globalTime();
+  const i = list.findIndex((c) => g >= c.start && g < (c.end || Infinity));
+  const c = list[i];
+  if (!c || !CREDITS.test(String(c.title || '').trim())) return;
+  const key = `${state.book?.uid}|${i}`;
+  if (creditsDone === key) return; // skipped once; going back to it on purpose plays it
+  creditsDone = key;
+  if (i < list.length - 1) {
+    playAt(list[i + 1].start);
+    window.dispatchEvent(new CustomEvent('inkwell-toast', { detail: `⏭ Skipped “${c.title}”` }));
+  } else if (i > 0) {
+    // The end credits at the very end: the book is done.
+    engine.pause();
+  }
+}
+
+/** Where the sleep timer stopped each book, for "You drifted off — catch up". */
+export const driftedOff = persisted('driftedOff', {});
 function fadeOutAndPause() {
   hist('sleep');
+  if (state.book?.uid) driftedOff.set({ [state.book.uid]: { g: globalTime(), at: Date.now() } });
   set({ sleepUntil: null });
   let step = 0;
   const iv = setInterval(() => {

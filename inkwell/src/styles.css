@@ -12497,3 +12497,31 @@ button.cr-tile.on > img {
 :root .home .continue-meta span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 :root .home .continue-play { position: absolute; top: 74px; right: 6px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); margin: 0; }
 :root .home .continue-card .continue-hide { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: rgba(0, 0, 0, 0.55); color: #fff; }
+
+/* ---- Player: the cover's colour on the controls, a chapter ring, night mode ---- */
+.full-player .play-btn.big { background: var(--dyn); color: #120d06; }
+.full-player .fp-controls .icon-btn { color: color-mix(in srgb, var(--dyn) 30%, #fff); }
+.fp-ring { position: relative; display: grid; place-items: center; padding: 9px; }
+.fp-ring-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.fp-ring-svg rect { fill: none; stroke-width: 3.5; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.fp-ring-bg { stroke: rgba(255, 255, 255, 0.13); }
+.fp-ring-on { stroke: var(--dyn); transition: stroke-dasharray 0.8s linear; }
+.fp-art .fp-ring .cover { transform: none; }
+.fp-art .fp-ring { transform: scale(0.94); transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.fp-art.playing .fp-ring { transform: scale(1); }
+.fp-chleft { display: inline-block; margin-bottom: 6px; padding: 4px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: color-mix(in srgb, var(--dyn) 22%, transparent); color: color-mix(in srgb, var(--dyn) 35%, #fff); }
+.full-player.night { background: #050403; color: #d9b98f; --dyn: #c9a77c; }
+.full-player.night .fp-bg { display: none; }
+.full-player.night .fp-art .cover { opacity: 0.55; width: min(52vw, 32vh, 240px); box-shadow: none; }
+.full-player.night .fp-meta p, .full-player.night .fp-times, .full-player.night .fp-top { color: #8a7258; }
+.full-player.night .fp-controls .icon-btn { color: #c9a77c; }
+.full-player.night .play-btn.big { width: 96px; height: 96px; background: #2a1f14; color: #e3c08f; box-shadow: none; }
+.full-player.night .chip-btn, .full-player.night .fp-chapters { background: #15100b; color: #c9a77c; }
+.full-player.night .fp-ring-bg { stroke: rgba(201, 167, 124, 0.12); }
+.full-player.night::after { content: ''; position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 1.2s; z-index: 5; }
+.full-player.night.dimmed::after { opacity: 0.78; }
+.catchup { margin: 6px 0 4px; padding: 14px; border-radius: 18px; background: linear-gradient(160deg, color-mix(in srgb, var(--dyn) 30%, #1a1428), #14111f); border: 1px solid color-mix(in srgb, var(--dyn) 40%, transparent); }
+.catchup-head { display: flex; justify-content: space-between; align-items: center; }
+.catchup p { margin: 6px 0 10px; font-size: 14px; line-height: 1.45; color: rgba(255, 255, 255, 0.85); }
+.catchup-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.char-first { display: block; font-size: 12px; opacity: 0.6; margin-top: 2px; }
