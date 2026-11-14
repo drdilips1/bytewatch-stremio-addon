@@ -405,6 +405,77 @@ export async function guessCovers(books, onProgress = () => {}) {
   return todo.map((b) => out.find((x) => x.book === b)).filter(Boolean);
 }
 
+// ---- Missing covers, fully automatic ----------------------------------------------------
+// For each book without a cover (or showing its typed title instead): Apple audiobooks, then
+// Apple Books, then Audible, then Google Books — the first that is clearly this book is saved
+// at once. Several books at a time; a book with nothing found isn't asked about again for a day.
+const coverMiss = persisted('coverMiss', {}, { delay: 3000 }); // uid -> when nothing was found
+const MISS_WAIT = 24 * 3600e3;
+const appleCovers = async (term, media) => {
+  const d = await getJson('https://itunes.apple.com/search?' + qs({ term, media, limit: 8 }), { timeout: 9000 });
+  return (d.results || []).map((r) => ({
+    title: String(r.collectionName || r.trackName || '').replace(/\s*\((unabridged|abridged)\)\s*$/i, ''),
+    author: r.artistName || '',
+    cover: hiRes((r.artworkUrl100 || '').replace(/\/\d+x\d+bb\./, '/600x600bb.')),
+  }));
+};
+const COVER_PLACES = [
+  (t) => appleCovers(t, 'audiobook'),
+  (t) => appleCovers(t, 'ebook'),
+  (t) => audibleCat.search(t).then((l) => l.slice(0, 8)),
+  (t) => googleBooks.search(t).then((l) => l.slice(0, 8)),
+];
+/** Clearly this book: the same book by the usual test, or the same title letters by the same surname. */
+function coverFits(want, hit) {
+  if (!hit?.cover) return false;
+  if (sameBook(want, hit)) return true;
+  const a = squash(mainTitle(searchTitle(want.title)));
+  const b = squash(String(hit.title || '').replace(/[:(].*$/, ''));
+  const sn = words(String(want.author || '').split(',')[0]).pop();
+  const byThem = !sn || words(hit.author || '').includes(sn);
+  return byThem && a.length >= 4 && b.length >= 4 && (a === b || a.startsWith(b) || b.startsWith(a));
+}
+/** The first good cover for a book, from the places in order ('' when none). */
+export async function firstCover(b) {
+  const title = searchTitle(b.title);
+  if (!title) return '';
+  const author = String(b.author || '').split(',')[0].trim();
+  const want = { title, author };
+  for (const place of COVER_PLACES)
+    for (const term of author ? [`${title} ${author}`, title] : [title]) {
+      const hits = await place(term).catch(() => []);
+      const hit = hits.find((h) => coverFits(want, h));
+      if (hit) return hiRes(hit.cover);
+    }
+  return '';
+}
+/** Books still without a cover (and not just looked up with nothing found). */
+export const needsCover = (b, phoneCover = '') => b && b.source !== 'pod' && b.kind !== 'pod' && !coverNow(b) && !phoneCover && Date.now() - (coverMiss.get()[b.uid] || 0) > MISS_WAIT;
+/**
+ * Find and save covers for these books, four at a time. onFound(book, cover) saves each one
+ * as it's found; onProgress(done, total, found).
+ */
+export async function autoCovers(books, onFound, onProgress = () => {}) {
+  const queue = [...books];
+  let done = 0;
+  let found = 0;
+  await Promise.all(
+    Array.from({ length: 4 }, async () => {
+      while (queue.length) {
+        const b = queue.shift();
+        const cover = await firstCover(b).catch(() => '');
+        if (cover) {
+          found++;
+          setFix(b.uid, { ...(fixFor(b.uid) || {}), cover });
+          onFound?.(b, cover);
+        } else coverMiss.set((m) => ({ ...m, [b.uid]: Date.now() }));
+        onProgress(++done, books.length, found);
+      }
+    })
+  );
+  return { found, total: books.length };
+}
+
 // ---- Square audiobook covers ---------------------------------------------------
 // A book whose cover is a tall (print) cover gets the square audiobook cover from Apple
 // Books (then Audible) when one exists: it fills a square tile without being cut.

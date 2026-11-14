@@ -386,13 +386,19 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
       {section('Audiobooks', audioGroups, moreAudio, setMoreAudio)}
       {section('Ebooks', ebookGroups, moreEbooks, setMoreEbooks)}
       {looseCount > 0 && (
-        <button class="btn ghost-wide" onClick={() => setShowLoose(!showLoose)}>
-          {showLoose ? 'Hide' : 'Show'} {looseCount} loose match{looseCount === 1 ? '' : 'es'} (may be other books)
+        <button class="btn ghost-wide src-fold" onClick={() => setShowLoose(!showLoose)}>
+          <b>
+            {showLoose ? 'Hide' : 'Show'} {looseCount} loose match{looseCount === 1 ? '' : 'es'}
+          </b>
+          <small>may be other books</small>
         </button>
       )}
       {hiddenMobi > 0 && (
-        <button class="btn ghost-wide" onClick={() => setShowMobi(!showMobi)}>
-          {showMobi ? 'Hide' : 'Show'} {hiddenMobi} MOBI / AZW3 ebook{hiddenMobi === 1 ? '' : 's'} (only other reader apps open these)
+        <button class="btn ghost-wide src-fold" onClick={() => setShowMobi(!showMobi)}>
+          <b>
+            {showMobi ? 'Hide' : 'Show'} {hiddenMobi} MOBI / AZW3 ebook{hiddenMobi === 1 ? '' : 's'}
+          </b>
+          <small>open in another reader app</small>
         </button>
       )}
       {hiddenDead > 0 && (
