@@ -1806,6 +1806,8 @@ export function Settings() {
         <Toggle label="Podcasts tab" hint="Show Podcasts in the bar at the bottom (off: hidden; podcasts you follow stay)" on={st.podcastsTab !== false} onChange={(v) => settings.patch({ podcastsTab: v })} />
         <Toggle label="Dynamic colour" hint="Tint the player and book pages from the cover art" on={st.dynamicColor} onChange={(v) => settings.patch({ dynamicColor: v })} />
         <PlayerBackgroundPicker st={st} />
+        <Toggle label="This week on Home" hint="A ring of how much you've listened this week, with your streak" on={st.weekRing !== false} onChange={(v) => settings.patch({ weekRing: v })} />
+        {st.weekRing !== false && <Stepper label="Weekly goal" value={st.weekGoalH || 5} options={[2, 3, 5, 7, 10, 14]} fmt={(v) => `${v} h`} onChange={(v) => settings.patch({ weekGoalH: v })} />}
         <Toggle label="Night mode" hint="At night the player turns dark and warm, with bigger buttons, and dims itself after 20 seconds (tap to wake)" on={st.nightMode !== false} onChange={(v) => settings.patch({ nightMode: v })} />
         {st.nightMode !== false && (
           <Stepper label="Night starts" value={st.nightFrom ?? 22} options={[19, 20, 21, 22, 23, 0]} fmt={(v) => `${v === 0 ? 12 : v > 12 ? v - 12 : v} ${v >= 12 ? 'pm' : 'am'}`} onChange={(v) => settings.patch({ nightFrom: v })} />

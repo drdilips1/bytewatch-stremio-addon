@@ -4,6 +4,7 @@ import { Icon } from '../components/icons.jsx';
 import { useStore, progress } from '../lib/store.js';
 import { listenLog, readLog, summary, flush } from '../lib/stats.js';
 import { nav } from '../lib/nav.js';
+import { YearButton } from '../components/year-card.jsx';
 
 const hm = (s) => {
   const m = Math.round((s || 0) / 60);
@@ -44,6 +45,8 @@ export function Stats() {
           <Icon name="book" size={15} /> Reading
         </button>
       </div>
+
+      {!reading && <YearButton />}
 
       <div class="st-tiles">
         <Tile label="Today" value={hm(s.today)} />

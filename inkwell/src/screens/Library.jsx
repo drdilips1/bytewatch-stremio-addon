@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Grid, Empty, BookCover, toast, AskButton, BookCard } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
+import { SpineShelf } from '../components/spine-shelf.jsx';
 import { library, progress, useStore, forgetBook, persisted, clearPodcastHistory, bookTags } from '../lib/store.js';
 import { allTags } from '../components/book-tags.jsx';
 import { localSrc } from '../sources/index.js';
@@ -46,12 +47,14 @@ const VIEWS = [
   ['grid', 'grid', 'grid'],
   ['covers', 'covers', 'covers only'],
   ['shelves', 'shelves', 'shelves'],
+  ['spines', 'layers', 'a bookcase'],
 ];
 
 /** The books in the chosen layout: a list, a grid with titles, or small covers only. */
 function Books({ items, mode, prog }) {
   if (mode === 'list') return <ListView items={items} prog={prog} />;
   if (mode === 'covers') return <CoverGrid items={items} />;
+  if (mode === 'spines') return <SpineShelf items={items} prog={prog} />;
   return <Grid items={items} />;
 }
 
@@ -259,6 +262,9 @@ export function Library() {
           </button>
           <button class="icon-btn glass" onClick={() => nav.push('notes')} aria-label="Notes and bookmarks">
             <Icon name="bookmark" size={19} />
+          </button>
+          <button class="icon-btn glass" onClick={() => nav.push('tidy')} aria-label="Tidy up">
+            <Icon name="wand" size={19} />
           </button>
           <button class="icon-btn glass" onClick={() => nav.push('stats')} aria-label="Listening stats">
             <Icon name="chart" size={20} />
