@@ -204,6 +204,20 @@ Done and pushed, not built:
 - Cross-library passage map: related passages in other books, tap to jump (needs those books' ebooks).
 - Highlights from transcript lines linked to audio timestamps.
 
+## Later — iPhone App Store app (separate from AudioYam / Audiohub+)
+- Present it like Spine (on the App Store): a player for your own library — Audiobookshelf, your cloud
+  storage, files on the phone, LibriVox, podcasts. No built-in sources; no debrid / TorBox / MAM wording.
+- A plain "connect a server or source (link / JSON / API key)" box, no examples, never in the store listing
+  or review notes. (Nuvio-style source apps were removed from the App Store and TestFlight.)
+- Free: player, library, Audiobookshelf, phone files, LibriVox, podcasts, lock screen, one source.
+  Pro (Apple in-app subscription, monthly + yearly, free trial): AI (Ask, scenes by voice, recaps, X-Ray,
+  bookmark names) via our own server, read-along + translation, CarPlay voice, sync, unlimited sources, extras.
+- Needs: native iOS audio player (lock screen, background, CarPlay templates); CarPlay audio entitlement
+  request; StoreKit subscriptions + restore; signed builds to TestFlight from GitHub (certificates and
+  App Store Connect key as GitHub secrets, added by the owner); privacy policy, screenshots, review notes
+  with a demo using free content.
+- Open: app name; individual vs organisation developer account; prices (e.g. $3.99/mo, $29.99/yr).
+
 ## 14 Nov — voice brought back (Audiohub+)
 - Scenes on again: "play the part / scene / chapter where …" finds the moment (src/lib/scenefind.js) and plays from there.
 - Android Auto: "Hey Google, play … on Audiohub" — a book of yours plays at once; anything else (commands,
