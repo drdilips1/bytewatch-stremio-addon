@@ -12559,3 +12559,34 @@ button.cr-tile.on > img {
 .face-book.now { outline: 2px solid #fff; outline-offset: 2px; }
 .spine-slot.face.lean .face-book { transform: rotate(-4deg); transform-origin: bottom left; }
 .tl-note { flex: 1; font-size: 13px; opacity: 0.7; padding: 0 4px; }
+
+/* ---- Book page: a centred hero on the cover's colour fading into the page ---- */
+:root .screen.book .book-hero { color: var(--text); padding-bottom: 44px; }
+:root .screen.book .book-hero-bg { background: linear-gradient(180deg, color-mix(in srgb, var(--dyn) 85%, #000) 0%, color-mix(in srgb, var(--dyn) 38%, var(--bg)) 40%, var(--bg) 78%); }
+:root .screen.book .book-hero-bg img { opacity: 0; }
+:root .screen.book .book-hero-bg::after { display: none; }
+:root .screen.book .book-cover { width: min(54vw, 220px); border-radius: 12px; margin-bottom: 18px; box-shadow: 0 24px 50px -14px rgba(0, 0, 0, 0.7); }
+.book-pills { display: flex; gap: 10px; justify-content: center; margin: 0 0 18px; }
+.book-pill { border: 1.5px solid color-mix(in srgb, var(--text) 35%, transparent); border-radius: 999px; padding: 7px 15px; font: 600 14px var(--font); color: var(--text); background: none; }
+.book-pill.on { background: color-mix(in srgb, var(--text) 12%, transparent); }
+:root .screen.book .book-hero h1 { font-family: var(--font); font-size: 26px; font-weight: 800; line-height: 1.15; }
+.book-sub { margin: 6px 0 0; font-size: 17px; opacity: 0.88; }
+:root .screen.book .book-facts { margin-top: 6px; font-size: 14px; color: color-mix(in srgb, var(--text) 75%, transparent); }
+.book-genres { margin: 6px 0 0; font-size: 14px; color: color-mix(in srgb, var(--text) 75%, transparent); }
+.book-bigrate { margin-top: 10px; background: none; border: 0; padding: 0; font: 700 17px var(--font); color: var(--text); display: inline-flex; gap: 6px; align-items: baseline; }
+.book-bigrate .stars { color: #f5c34b; letter-spacing: 1px; }
+.book-bigrate em { font-style: normal; font-weight: 600; font-size: 15px; color: var(--accent-2, #8fb6ff); }
+.book-bigrate small { font-weight: 500; font-size: 14px; opacity: 0.75; }
+.book-grrate { display: block; margin: 4px auto 0; background: none; border: 0; padding: 0; font: 500 13px var(--font); color: color-mix(in srgb, var(--text) 75%, transparent); }
+.book-people { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 10px; margin: 20px 0 4px; align-items: start; }
+.book-people.one { grid-template-columns: 1fr; }
+.book-people small { display: block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; opacity: 0.75; }
+.book-people b { display: block; margin-top: 6px; font-size: 16px; font-weight: 600; color: color-mix(in srgb, var(--dyn) 45%, var(--text)); }
+.book-people i { display: block; height: 44px; background: color-mix(in srgb, var(--text) 18%, transparent); }
+:root .screen.book .book-meta { margin-top: 10px; }
+/* The main button: full width, light; the quiet ones (download, library, Kindle) beside below. */
+:root .screen.book .book-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 0 20px; }
+:root .screen.book .book-actions > .btn.primary.big { flex: 1 1 100%; border-radius: 999px; background: #f4f6fb; color: #0a1222; box-shadow: none; font-weight: 700; font-size: 17px; min-height: 54px; }
+:root .screen.book .book-actions > .btn.secondary.big:not(.sq) { flex: 1 1 100%; border-radius: 999px; background: none; border: 1.5px solid color-mix(in srgb, var(--text) 35%, transparent); }
+:root .screen.book .book-actions > .btn.sq { border-radius: 999px; background: none; border: 1.5px solid color-mix(in srgb, var(--text) 30%, transparent); }
+:root[data-mode='light'] .screen.book .book-actions > .btn.primary.big { background: var(--text); color: var(--bg); }
