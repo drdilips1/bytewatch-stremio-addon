@@ -12404,3 +12404,55 @@ button.cr-tile.on > img {
 .lib-hit { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; text-align: left; }
 .lib-hit small { color: var(--muted); }
 .lib-hit.on { border-color: var(--accent); }
+
+/* ---- Podcasts in the Discover style: tabs, Now listening card, show strip, tidy episode rows ---- */
+:root .pod2 .screen-title { font-family: var(--font); }
+:root .pod2 .pod-head { padding-top: calc(var(--safe-top) + 8px); }
+:root .pod2 .pod-tools { display: flex; align-items: center; gap: 2px; }
+:root .pod2 .pod-tabs { grid-template-columns: repeat(3, 1fr); margin-top: 6px; }
+:root .pod2 .d-head h3 { font-family: var(--font); }
+.pod-now { display: flex; align-items: center; min-height: 112px; text-align: left; }
+.pod-now-art { width: 104px; align-self: stretch; height: auto; object-fit: cover; flex: none; border-radius: 0; }
+.pod-now-m { flex: 1; min-width: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.pod-now-m em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pod-now-m b { font-size: 16px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pod-now-foot { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.pod-now-foot .d-prog { flex: 1; margin: 0; }
+.pod-now-foot span { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.pod-now .d-play { margin-right: 14px; }
+.pod-strip { display: grid; grid-auto-flow: column; grid-auto-columns: 84px; gap: 12px; overflow-x: auto; margin: 0 -20px; padding: 6px 20px 2px; scrollbar-width: none; }
+.pod-strip::-webkit-scrollbar { display: none; }
+.pod-strip-show { position: relative; display: block; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; }
+.pod-strip-show img, .pod-strip-show .show-ph { width: 84px; height: 84px; border-radius: 16px; object-fit: cover; display: grid; place-items: center; background: var(--surface); }
+.pod-strip-show small { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pod-new { position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; border: 2px solid var(--bg); }
+.pod-list { padding: 0 14px; }
+.pod-list .ep2:last-child { border-bottom: 0; }
+:root .pod2 .ep-filters { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 8px; margin: 0 -20px 4px; padding: 0 20px; scrollbar-width: none; }
+:root .pod2 .ep-filters::-webkit-scrollbar { display: none; }
+:root .pod2 .ep-filters .pill { flex: none; height: 34px; padding: 0 14px; font-size: 13px; }
+:root .pod2 .ep-filters .pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Episode rows (also on a show's page): artwork, two-line title, "show · length · when", a ring. */
+.ep2 .ep-main { align-items: center; }
+.ep2 .ep-art { width: 56px; height: 56px; border-radius: 12px; }
+.ep-art-ph { display: grid; place-items: center; background: var(--surface); color: var(--muted); font-weight: 800; }
+.ep2 .ep-text b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.25; }
+.ep2 .ep-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep-ring { width: 40px; height: 40px; flex: none; padding: 0; border: 0; background: none; color: var(--accent); }
+.ep-ring svg { width: 40px; height: 40px; }
+.ep-ring-track { fill: none; stroke: var(--border); stroke-width: 3; }
+.ep-ring-arc { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; }
+.ep-ring-fill { fill: currentColor; }
+.ep-ring-tick { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.ep-ring.done { color: var(--muted); }
+.ep2-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 0 68px; }
+.pod-recs { display: grid; grid-auto-flow: column; grid-auto-columns: 220px; gap: 12px; overflow-x: auto; margin: 0 -20px; padding: 0 20px 2px; scrollbar-width: none; }
+.pod-recs::-webkit-scrollbar { display: none; }
+.pod-rec { display: flex; flex-direction: column; text-align: left; }
+.pod-rec-art { width: 100%; height: 120px; object-fit: cover; }
+.pod-rec-m { padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.pod-rec-m b { font-size: 14.5px; line-height: 1.25; min-height: 2.5em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pod-rec-m small { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pod-rec-m em { font-style: normal; color: var(--accent); font-size: 12px; font-weight: 600; margin-top: 4px; }
+.pod-eq3 { grid-template-columns: repeat(3, 1fr); margin-bottom: 6px; }
+:root .pod2 .pod-opml { display: flex; flex-wrap: wrap; gap: 8px; }
