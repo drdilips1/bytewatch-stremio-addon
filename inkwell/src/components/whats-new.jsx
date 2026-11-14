@@ -5,6 +5,23 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-11-14',
+    title: 'A calmer player, smarter scenes, a tidier library',
+    items: [
+      ['🎨', 'Player in the cover’s colours', 'The play button and controls take the cover’s colour; a line around the cover fills up through the chapter, with how many minutes are left in it.'],
+      ['🌙', 'Night mode', 'At night the player turns dark and warm with bigger buttons, and dims itself after 20 seconds (tap to wake). Hours in Settings → Appearance.'],
+      ['☾', 'You drifted off?', 'After the sleep timer stops a book: hear what happened in the last 10 minutes, or go back 10 minutes.'],
+      ['⏭️', 'Credits skipped', 'Opening and end credits and the publisher’s intro are skipped when their chapter starts. Settings → Playback.'],
+      ['🎯', 'Scenes found by reading', 'Play a scene: the AI reads the chapter in the ebook and finds where the moment starts — and the book plays from your place meanwhile. “Play …” always plays audio.'],
+      ['🧠', '“Remember this” · “Where am I?”', 'Say “remember this” for a named bookmark with a line of what was happening (in Notes); “where am I?” tells you the chapter, how far, and what’s happening. In driving mode, tap the book for it.'],
+      ['🚗', 'Driving mode by itself', 'Settings → Playback → pick your car’s audio: driving mode opens when it connects and closes when it goes. And a new driving mode layout.'],
+      ['🔥', 'This week on Home', 'A ring of this week’s listening with your streak, and Finish soon — the books you’re nearly done with.'],
+      ['📚', 'Bookcase', 'Library → the new layout button: your books as spines in their covers’ colours. Finished ones lean.'],
+      ['🪄', 'Tidy up', 'Library → the wand: the same book twice, missing covers, one author spelled two ways, books untouched for months, finished books still downloaded — each with a fix.'],
+      ['🗓️', 'Your year in books', 'Stats → Your year: a picture of your hours, books finished, top author and favourite highlight, to share.'],
+    ],
+  },
+  {
     id: '2026-11-08',
     title: 'Stats that add up, and your say on recommendations',
     items: [

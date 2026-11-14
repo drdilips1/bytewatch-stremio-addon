@@ -96,7 +96,7 @@ export async function yearCard(y = yearStats()) {
     }
   }
   // The box of facts.
-  const top = 470 + size + 70;
+  const top = cx > P ? 470 + size + 70 : 470;
   x.fillStyle = 'rgba(255,255,255,0.08)';
   x.beginPath();
   x.roundRect(P, top, W - P * 2, H - top - 170, 34);
