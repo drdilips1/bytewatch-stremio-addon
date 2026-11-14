@@ -238,6 +238,32 @@ public class InkwellPlayerPlugin extends Plugin {
         getContext().startService(new Intent(getContext(), PlaybackService.class));
     }
 
+    /**
+     * The cover for the lock screen, notification and car. Web addresses are fetched by Media3;
+     * covers kept inside the app (data: images — your own picks, a phone book's embedded art —
+     * and files in the app's storage) are handed over as the picture itself.
+     */
+    private static void setArtwork(MediaMetadata.Builder meta, String art) {
+        if (art == null || art.isEmpty()) return;
+        try {
+            if (art.startsWith("data:")) {
+                int comma = art.indexOf(',');
+                if (comma > 0 && art.substring(0, comma).contains(";base64")) {
+                    byte[] bytes = android.util.Base64.decode(art.substring(comma + 1), android.util.Base64.DEFAULT);
+                    meta.setArtworkData(bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER);
+                }
+                return;
+            }
+            int cap = art.indexOf("/_capacitor_file_");
+            if (cap >= 0) {
+                meta.setArtworkUri(Uri.fromFile(new java.io.File(Uri.decode(art.substring(cap + "/_capacitor_file_".length())))));
+                return;
+            }
+            if (art.startsWith("http://") && !art.startsWith("http://localhost")) art = "https://" + art.substring(7);
+            if (art.startsWith("https://") || art.startsWith("file://") || art.startsWith("content://")) meta.setArtworkUri(Uri.parse(art));
+        } catch (Exception ignored) {}
+    }
+
     private static String describe(PlaybackException error) {
         Throwable cause = error.getCause();
         while (cause != null) {
@@ -346,8 +372,7 @@ public class InkwellPlayerPlugin extends Plugin {
                 .setTitle(c.getString("title", ""))
                 .setArtist(c.getString("artist", ""))
                 .setAlbumTitle(c.getString("album", ""));
-            String art = c.getString("artwork");
-            if (art != null && !art.isEmpty()) meta.setArtworkUri(Uri.parse(art));
+            setArtwork(meta, c.getString("artwork"));
 
             MediaItem item = new MediaItem.Builder().setUri(url).setMediaMetadata(meta.build()).build();
             double position = c.getDouble("position", 0.0);
@@ -356,6 +381,11 @@ public class InkwellPlayerPlugin extends Plugin {
             player.setVolume(1f);
             player.prepare();
             player.setPlayWhenReady(c.getBoolean("autoplay", true));
+            // The lock-screen / notification player: make sure its service is running (it stops
+            // itself when the app is swiped away while paused, and wasn't started again).
+            try {
+                getContext().startService(new Intent(getContext(), PlaybackService.class));
+            } catch (Exception ignored) {}
             currentBookId = c.getString("bookId", null);
             CarLibrary.loaded(player, currentBookId); // a book the car asked for: now it plays there too
             c.resolve();
@@ -381,8 +411,7 @@ public class InkwellPlayerPlugin extends Plugin {
                         .setTitle(it.optString("title", ""))
                         .setArtist(it.optString("artist", ""))
                         .setAlbumTitle(it.optString("album", ""));
-                    String art = it.optString("artwork", "");
-                    if (!art.isEmpty()) meta.setArtworkUri(Uri.parse(art));
+                    setArtwork(meta, it.optString("artwork", ""));
                     list.add(new MediaItem.Builder().setUri(url).setMediaMetadata(meta.build()).build());
                 }
             }

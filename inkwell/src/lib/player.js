@@ -10,6 +10,11 @@ import { applyLocal, isDownloaded, downloads } from './downloads.js';
 import { otherCopyProgress, sameWork } from './works.js';
 import { estimateDuration, copyPlace, partByPercent, fitted } from './place.js';
 import { samePhoneBook } from './match.js';
+import { localCfg } from '../sources/local.js';
+import { fixFor } from './meta.js';
+
+/** The cover the app shows for a book (your pick, a phone book's own) — for the lock screen too. */
+const artworkOf = (b) => fixFor(b?.uid)?.cover || (b?.source === 'loc' && (localCfg.get().books || []).find((x) => x.uid === b.uid)?.cover) || b?.cover || '';
 
 // ---- safety net: a part that won't play --------------------------------------
 // First a fresh link and one more try; then another copy of the same book you
@@ -451,7 +456,7 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
       autoplay,
       rate: state.rate,
       headers: t.headers,
-      meta: { title: t.title || b.title, artist: b.author || '', album: b.title, artwork: b.cover || '', bookId: b.uid },
+      meta: { title: t.title || b.title, artist: b.author || '', album: b.title, artwork: artworkOf(b), bookId: b.uid },
     });
     if (!autoplay) set({ loading: false, phase: '' });
     // One long file with chapter marks inside (M4B): read them, for the chapter list,
@@ -499,7 +504,7 @@ async function queueAhead(token) {
       break; // e.g. still downloading on TorBox: the app starts it itself later
     }
     if (token !== loadToken || !t.url) break;
-    items.push({ url: t.url, title: t.title || b.title, artist: b.author || '', album: b.title, artwork: b.cover || '' });
+    items.push({ url: t.url, title: t.title || b.title, artist: b.author || '', album: b.title, artwork: artworkOf(b) });
   }
   if (token === loadToken) engine.queue(items).catch?.(() => {});
 }
