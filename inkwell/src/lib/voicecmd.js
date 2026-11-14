@@ -217,12 +217,15 @@ async function inEbook(book, want, part) {
   const inCh = Math.min(0.95, Math.max(0, Number(want.at) || 0));
   const inside = {};
   const anywhere = {};
-  let tok = ch ? sceneInText(bt, words, ch, { strict: true, target: ch[0] + inCh * (ch[1] - ch[0]), details: inside }) : null;
+  // A line the AI remembers from the scene, found word for word: the surest of all.
+  const { quoteAt } = await import('./scenefind.js');
+  const exact = want.quote ? (ch ? quoteAt(bt, want.quote, ch[0], ch[1]) : null) ?? quoteAt(bt, want.quote) : null;
+  let tok = exact ?? (ch ? sceneInText(bt, words, ch, { strict: true, target: ch[0] + inCh * (ch[1] - ch[0]), details: inside }) : null);
   // The whole book too: the AI can name the wrong chapter (the egg is talked about in two). If
   // somewhere else has clearly more of the scene's telling words, that's the scene.
   const all = sceneInText(bt, words, null, { details: anywhere });
   if (tok == null) tok = all ?? sceneInText(bt, words, rangeOf(anchors, part, ci));
-  else if (all != null && anywhere.hit && inside.hit && (anywhere.hit.distinct > inside.hit.distinct + 1 || anywhere.hit.s > inside.hit.s * 1.4)) tok = all;
+  else if (exact == null && all != null && anywhere.hit && inside.hit && (anywhere.hit.distinct > inside.hit.distinct + 1 || anywhere.hit.s > inside.hit.s * 1.4)) tok = all;
   if (tok == null) return null;
   const g = timeOf(anchors, tok);
   const at = part.findIndex((c) => g >= c.start && g < (c.end || Infinity));
