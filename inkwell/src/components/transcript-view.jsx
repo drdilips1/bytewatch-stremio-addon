@@ -387,7 +387,7 @@ export function TranscriptView({ s }) {
   return (
     <div class="transcript-col">
       <div class="tl-top">
-        {!t?.published ? <EbookStatus b={t?.bookText} /> : <span class="tl-grow" />}
+        {!t?.published && t?.bookText?.state !== 'pod' ? <EbookStatus b={t?.bookText} /> : t?.bookText?.state === 'pod' && !t?.published ? <span class="tl-note">Heard from the audio — some words may be wrong</span> : <span class="tl-grow" />}
         <button
           class="icon-btn tl-mark-btn"
           aria-label="Add a bookmark here"

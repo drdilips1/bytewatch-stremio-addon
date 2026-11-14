@@ -92,7 +92,7 @@ export function SourceBadge({ uid, book }) {
   const plain = isInk(activePalette(useStore(settings))) && PLAIN[key];
   if (plain) return <span class="badge">{plain}</span>;
   // Books from places without a source entry (e.g. direct ebook links) get a plain badge.
-  const s = SOURCES[key] || { short: book?.addon || (book?.kind === 'text' ? 'Ebook' : 'Book'), hue: 210 };
+  const s = SOURCES[key] || { short: book?.addon || (key === 'pod' || book?.source === 'pod' ? 'Podcast' : book?.kind === 'text' ? 'Ebook' : 'Book'), hue: 210 };
   const label = key === 'addon' ? book?.addonName || s.short : book?.via === 'lv' ? 'LibriVox' : s.short;
   return (
     <span class="badge" style={{ '--h': key === 'ia' && book?.via === 'lv' ? SOURCES.lv.hue : s.hue }}>

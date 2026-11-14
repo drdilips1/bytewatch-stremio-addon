@@ -78,6 +78,12 @@ let btRun = 0; // the latest ebook load: an older, slower one must not win
 // bookText: { state: 'loading' | 'on' | 'none' | 'error', title, error }
 function bookTextFor(book, again = false) {
   if (!book || (book.uid === btUid && !again)) return;
+  // A podcast has no ebook: its words are only what's heard.
+  if (book.source === 'pod' || String(book.uid || '').startsWith('pod:')) {
+    btUid = book.uid;
+    bt = null;
+    return set({ bookText: { state: 'pod' } });
+  }
   btUid = book.uid;
   bt = null;
   const run = ++btRun;
@@ -390,7 +396,7 @@ export function parsePublished(text, type = '') {
       const segs = (j.segments || j || [])
         .map((g) => ({ start: Number(g.startTime) || 0, end: Number(g.endTime) || Number(g.startTime) || 0, text: String(g.body || '').trim(), speaker: g.speaker || '' }))
         .filter((g) => g.text);
-      if (segs.length) return joinShort(segs);
+      if (segs.length) return joinShort(withoutRepeats(segs));
     } catch {}
   }
   if (/-->/.test(t)) {
@@ -409,7 +415,7 @@ export function parsePublished(text, type = '') {
         .trim();
       if (words) segs.push({ start: clock(a), end: clock(b.split(/\s/).filter(Boolean)[0]), text: words, speaker: '' });
     }
-    if (segs.length) return joinShort(segs);
+    if (segs.length) return joinShort(withoutRepeats(segs));
   }
   // Plain text or a web page: untimed paragraphs.
   const plainText = /<[a-z][\s\S]*>/i.test(t) ? new DOMParser().parseFromString(t, 'text/html').body.innerText || '' : t;
