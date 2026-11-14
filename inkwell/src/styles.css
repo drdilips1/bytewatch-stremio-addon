@@ -12572,3 +12572,8 @@ button.cr-tile.on > img {
 .tidy-row > span { flex: 1; min-width: 0; }
 .tidy-row b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tidy-row small { display: block; color: var(--muted); font-size: 12px; }
+.spine-slot.face { padding-left: 4px; padding-right: 4px; }
+.face-book { padding: 0; border: 0; background: none; border-radius: 4px; box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.5); }
+.face-book .cover { width: 104px; height: 104px; border-radius: 4px; display: block; }
+.face-book.now { outline: 2px solid #fff; outline-offset: 2px; }
+.spine-slot.face.lean .face-book { transform: rotate(-4deg); transform-origin: bottom left; }
