@@ -11,6 +11,31 @@ import { mainTitle } from '../lib/match.js';
 import { fmtTime } from '../lib/format.js';
 import { canListen, listen, speakAnswer, stopAnswer, voiceLang, aiVoiceOn } from '../lib/voiceask.js';
 
+const MIC = (
+  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+    <rect x="9" y="3" width="6" height="12" rx="3" />
+    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+  </svg>
+);
+const BOOK = (
+  <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 5h7a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H2z" />
+    <path d="M22 5h-7a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h8z" />
+  </svg>
+);
+const PLAY = (
+  <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor">
+    <path d="M7 4.5v15l12-7.5z" />
+  </svg>
+);
+const CMD = (
+  <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+    <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+    <circle cx="16" cy="7" r="2" />
+    <circle cx="10" cy="17" r="2" />
+  </svg>
+);
+
 let pendingListen = false;
 /** Open driving mode; `listenNow` starts listening for a question straight away ('scene': for a scene to play). */
 export function openDrive(listenNow = false) {
@@ -172,6 +197,12 @@ export function DriveMode() {
       </header>
 
       {book && (
+        <div class="drive-prog">
+          <i style={{ width: `${Math.min(100, (player.globalTime() / Math.max(1, player.totalDuration() || 1)) * 100)}%` }} />
+        </div>
+      )}
+
+      {book && (
         <div class="drive-controls">
           <button onClick={() => player.skip(-30)} aria-label="Back 30 seconds">
             <SkipIcon seconds={30} size={56} />
@@ -202,33 +233,36 @@ export function DriveMode() {
       ) : (
         <div class="drive-voices">
           <button class="drive-v v-book" disabled={!book} onClick={() => voice('book')}>
-            <span class="drive-v-i">📖</span>
+            <span class="drive-v-tap">{MIC} Tap &amp; speak</span>
+            <span class="drive-v-i">{BOOK}</span>
             <span>
               <b>In this book</b>
-              <small>“Play the part where…” · “Who is…?” · “What just happened?”</small>
+              <small>A scene, or a question about it</small>
             </span>
           </button>
-          <button class="drive-v v-play" onClick={() => voice('play')}>
-            <span class="drive-v-i">▶</span>
-            <span>
-              <b>Play something else</b>
-              <small>“Play Atomic Habits” · “Next book in the series” · “Something short about history”</small>
-            </span>
-          </button>
-          <button class="drive-v v-cmd" onClick={() => voice('cmd')}>
-            <span class="drive-v-i">⚙</span>
-            <span>
-              <b>Quick command</b>
-              <small>“Back 1 minute” · “Next chapter” · “Start this chapter again” · “Sleep in 20 minutes”</small>
-            </span>
-          </button>
+          <div class="drive-v-row">
+            <button class="drive-v v-play" onClick={() => voice('play')}>
+              <span class="drive-v-i">{PLAY}</span>
+              <span>
+                <b>Another book</b>
+                <small>Title or series</small>
+              </span>
+            </button>
+            <button class="drive-v v-cmd" onClick={() => voice('cmd')}>
+              <span class="drive-v-i">{CMD}</span>
+              <span>
+                <b>Command</b>
+                <small>Skip, sleep, speed</small>
+              </span>
+            </button>
+          </div>
         </div>
       )}
 
       <div class="drive-opts">
         <label>
           <input type="checkbox" class="switch" checked={cfg.followUp} onChange={(e) => driveCfg.set({ ...cfg, followUp: e.currentTarget.checked })} />
-          Listen for a follow-up after each answer
+          Listen again after an answer
         </label>
         <button class="drive-lang" onClick={() => voiceLang.set(lang === 'hi-IN' ? 'en-IN' : 'hi-IN')}>
           {lang === 'hi-IN' ? 'हिंदी' : 'English'}
