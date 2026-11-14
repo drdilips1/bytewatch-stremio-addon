@@ -1,5 +1,36 @@
 import Foundation
+import UIKit
 import ZIPFoundation
+
+/// One part's download, reporting bytes as they arrive.
+private final class PartDownload: NSObject, URLSessionDownloadDelegate {
+    var onBytes: ((Int64) -> Void)?
+    var result: Result<URL, Error> = .failure(URLError(.unknown))
+    let done = DispatchSemaphore(value: 0)
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
+                    totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        onBytes?(totalBytesWritten)
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        if let http = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            result = .failure(NSError(domain: "p2a", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode)"]))
+            return
+        }
+        // The temporary file is removed when this returns: keep it.
+        let keep = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        do {
+            try FileManager.default.moveItem(at: location, to: keep)
+            result = .success(keep)
+        } catch { result = .failure(error) }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error = error { result = .failure(error) }
+        done.signal()
+    }
+}
 
 /// The voice packs, downloaded once from the same place as on Android (the app's own GitHub release,
 /// a zip in parts), then kept on the phone: Documents/voices/<folder>.
@@ -58,26 +89,18 @@ final class Packs {
         return try result.get()
     }
 
-    /// Downloads one part to a temporary file (no whole part held in memory).
-    private func download(_ url: URL) throws -> URL {
-        var result: Result<URL, Error> = .failure(URLError(.unknown))
-        let sem = DispatchSemaphore(value: 0)
-        URLSession.shared.downloadTask(with: url) { tmp, response, error in
-            if let error = error { result = .failure(error) }
-            else if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                result = .failure(NSError(domain: "p2a", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode)"]))
-            } else if let tmp = tmp {
-                // The temporary file is removed when this returns: keep it.
-                let keep = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-                do {
-                    try FileManager.default.moveItem(at: tmp, to: keep)
-                    result = .success(keep)
-                } catch { result = .failure(error) }
-            }
-            sem.signal()
-        }.resume()
-        sem.wait()
-        return try result.get()
+    /// Downloads one part to a temporary file (no whole part held in memory), reporting bytes as they come.
+    private func download(_ url: URL, onBytes: @escaping (Int64) -> Void) throws -> URL {
+        let d = PartDownload()
+        d.onBytes = onBytes
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 60 * 60
+        let session = URLSession(configuration: config, delegate: d, delegateQueue: nil)
+        session.downloadTask(with: url).resume()
+        d.done.wait()
+        session.finishTasksAndInvalidate()
+        return try d.result.get()
     }
 
     private func run(_ p: VoiceCatalog.Pack, progress: (Int, String) -> Void) -> String? {
@@ -92,10 +115,25 @@ final class Packs {
             fm.createFile(atPath: zip.path, contents: nil)
             let out = try FileHandle(forWritingTo: zip)
             var have: Int64 = 0
+            // The screen stays on while downloading (a locked iPhone pauses the app and the download).
+            DispatchQueue.main.async { UIApplication.shared.isIdleTimerDisabled = true }
+            defer { DispatchQueue.main.async { UIApplication.shared.isIdleTimerDisabled = false } }
+            var lastShown = Date.distantPast
             for (i, part) in manifest.parts.enumerated() {
-                progress(Int(have * 90 / total), "Downloading \(p.title)… part \(i + 1) of \(manifest.parts.count), \(have / 1_000_000) of \(total / 1_000_000) MB")
+                let before = have
+                let show = { (got: Int64) in
+                    let now = before + got
+                    progress(Int(now * 90 / total), "Downloading \(p.title)… \(now / 1_000_000) of \(total / 1_000_000) MB (\(Int(now * 100 / total))%) · keep the app open")
+                }
+                show(0)
                 guard let url = URL(string: "\(mirror)/\(part.name)") else { continue }
-                let tmp = try download(url)
+                let tmp = try download(url) { got in
+                    // About twice a second is enough.
+                    if Date().timeIntervalSince(lastShown) > 0.5 {
+                        lastShown = Date()
+                        show(got)
+                    }
+                }
                 let input = try FileHandle(forReadingFrom: tmp)
                 while true {
                     let chunk = input.readData(ofLength: 4 << 20)

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import './library.css';
 import { listBooks, putBook, deleteBook, getBook, percentOf } from './db.js';
 import { importFile, fromText } from './importers.js';
-import { Speech, native, pickVoice, voiceName, rate, setRate } from './speech.js';
+import { Speech, native, pickVoice, voiceName, rate, setRate, packs, watchDownloads, downloadPack } from './speech.js';
 
 const VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '';
 const SPEEDS = [0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
@@ -116,6 +116,55 @@ function Player({ reading, books }) {
   );
 }
 
+/** Paper to Audio's voice packs: downloaded or not, with live progress and a Download button. */
+function VoicePacks() {
+  const [list, setList] = useState([]);
+  const [prog, setProg] = useState({});
+  useEffect(() => {
+    if (!native) return;
+    const load = () => packs().then(setList).catch(() => {});
+    load();
+    return watchDownloads((d) => {
+      setProg((p) => ({ ...p, [d.key]: d }));
+      if (d.done) load();
+    });
+  }, []);
+  if (!native || !list.length) return null;
+  const names = { supertonic: 'Light voices (Supertonic)', pocket: 'Real readers', kokoro: 'More voices (Kokoro)' };
+  return (
+    <>
+      <div class="k">Voice downloads</div>
+      {list.map((p) => {
+        const d = prog[p.key];
+        const busy = (d && !d.done) || p.downloading;
+        return (
+          <div class="rowbtn" key={p.key}>
+            <span>
+              {names[p.key] || p.title}
+              <br />
+              <span class="muted small">
+                {p.installed ? 'Downloaded · works offline' : busy ? d?.message || 'Downloading…' : d?.error || `${p.mb} MB, once`}
+              </span>
+            </span>
+            {!p.installed && !busy && (
+              <button
+                class="primary"
+                onClick={() => {
+                  setProg((x) => ({ ...x, [p.key]: { progress: 0, message: 'Starting download…', done: false } }));
+                  downloadPack(p.key).catch((e) => setProg((x) => ({ ...x, [p.key]: { done: true, error: e.message } })));
+                }}
+              >
+                Download
+              </button>
+            )}
+          </div>
+        );
+      })}
+      <p class="muted small">Keep the app open while a download runs (the screen stays on by itself). Wi-Fi recommended.</p>
+    </>
+  );
+}
+
 function Settings({ onClose }) {
   const [speed, setSpeed] = useState(rate());
   const [voice, setVoice] = useState(voiceName());
@@ -149,6 +198,8 @@ function Settings({ onClose }) {
             Zoe, Evan, Nathan…). They're free, work offline and are light on battery. Then choose it above.
           </p>
         )}
+
+        <VoicePacks />
 
         <div class="k">Reading speed</div>
         <div class="chips">
