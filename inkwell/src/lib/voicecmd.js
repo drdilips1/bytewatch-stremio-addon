@@ -203,17 +203,33 @@ const loaded = (quiet = false) =>
     setTimeout(() => done(false), 25e3);
   });
 
+const textMemo = new Map();
+
+/** The ebook of the book asked for and its words: { eb, bt }, or { eb: null }. Read once per book. */
+function ebookText(book, want) {
+  const key = `${book.uid}|${want.title}`;
+  if (textMemo.has(key)) return textMemo.get(key);
+  const job = (async () => {
+    const { ebookFor, ebookByTitle, autoFindEbook, textOfEbook } = await import('./booktext.js');
+    const names = [want.title, want.book].filter(Boolean);
+    const fits = (eb) => eb && names.some((n) => matches(mainTitle(n), `${eb.title || ''} ${eb.ebookName || ''}`));
+    // The ebook of the book asked for — never another book of the same series.
+    let eb = [ebookFor(book)].find(fits) || names.map((n) => ebookByTitle(n, want.author)).find(Boolean) || null;
+    if (!eb && names.some((n) => matches(mainTitle(n), book.title || ''))) eb = await Promise.race([autoFindEbook(book), new Promise((r) => setTimeout(() => r(null), 40e3))]);
+    if (!fits(eb)) return { eb: null };
+    return { eb, bt: await textOfEbook(eb) };
+  })();
+  textMemo.clear(); // one book's words at a time (they're large)
+  textMemo.set(key, job);
+  job.catch(() => textMemo.delete(key));
+  return job;
+}
+
 /** The scene's time, found in the book's ebook (when there is one): { g, where } or null. */
 async function inEbook(book, want, part, diag = {}, said = '', step = () => {}) {
-  const { ebookFor, ebookByTitle, autoFindEbook, textOfEbook } = await import('./booktext.js');
-  const names = [want.title, want.book].filter(Boolean);
-  const fits = (eb) => eb && names.some((n) => matches(mainTitle(n), `${eb.title || ''} ${eb.ebookName || ''}`));
-  // The ebook of the book asked for — never another book of the same series.
-  let eb = [ebookFor(book)].find(fits) || names.map((n) => ebookByTitle(n, want.author)).find(Boolean) || null;
-  if (!eb && names.some((n) => matches(mainTitle(n), book.title || ''))) eb = await Promise.race([autoFindEbook(book), new Promise((r) => setTimeout(() => r(null), 40e3))]);
-  if (!fits(eb)) return (diag.ebook = ''), null;
+  const { eb, bt } = await ebookText(book, want);
+  if (!eb) return (diag.ebook = ''), null;
   diag.ebook = eb.title || eb.ebookName || 'yes';
-  const bt = await textOfEbook(eb);
   // The book's length: the player's, else where its last chapter ends (a book just opened
   // didn't report one yet and the scene fell back to a guess).
   const total = player.totalDuration() || part[part.length - 1]?.end || Number(book.duration) || 0;
@@ -255,7 +271,7 @@ async function inEbook(book, want, part, diag = {}, said = '', step = () => {}) 
     // The chapter the AI named first; where the telling words gather first when that's elsewhere.
     const tries = [];
     if (tok != null && (!ch || tok < ch[0] || tok >= ch[1])) tries.push([around(tok), tok]);
-    if (ch) tries.push([ch, tok != null && tok >= ch[0] && tok < ch[1] ? tok : null]);
+    if (ch) tries.push([ch, tok != null && tok >= ch[0] && tok < ch[1] ? tok : Math.round(ch[0] + inCh * (ch[1] - ch[0]))]);
     else if (all != null && all !== tok) tries.push([around(all), all]);
     step('Reading the chapter…');
     let pick = null;
@@ -296,7 +312,8 @@ async function inEbook(book, want, part, diag = {}, said = '', step = () => {}) 
  */
 async function aiReads(bt, range, want, said, near = null) {
   const { passagesOf } = await import('./scenefind.js');
-  const ps = passagesOf(bt, range, { near });
+  // About 4,000 words (a quick read for the AI), around where the scene likely is.
+  const ps = passagesOf(bt, range, { near, max: 4000 });
   if (ps.length < 2) return null;
   const text = ps.map((p, i) => `[${i + 1}] ${p.text}`).join('\n');
   const raw = await askAi(
@@ -359,6 +376,12 @@ export async function playScene(said, step = () => {}, preset = null) {
     if (!player.getState().playing) player.toggle();
     return { book: details, scene: details.title, where: 'from where you left off' };
   }
+  // The ebook's words load while the book's chapters arrive.
+  ebookText(details, want).catch(() => {});
+  // Opened just now: it plays from where you left off while the scene is looked for (a
+  // minute of silence before), then moves to the scene.
+  const playingMeanwhile = details.uid !== now.book?.uid || !now.playing;
+  if (playingMeanwhile && !player.getState().playing) player.toggle();
   let g = null;
   let where = '';
   // A book just opened: a single file's own chapters (M4B) arrive a moment after it loads —
