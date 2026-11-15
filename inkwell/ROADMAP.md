@@ -36,9 +36,6 @@ Noted while building; to pick up after Saturday.
   Justice in an Unjust World" wasn't taken (play / "already on server" checks didn't treat " - …" as a
   subtitle) → sent to the home server from MAM (a second copy). Fixed both checks; a book the server
   has is never sent home now; page count also from Open Library when Google Books has none.
-- **Rule: one copy at home.** Every send-home path (qBittorrent send, MAM grab, tracker grab,
-  auto-forward, Find & play) checks your Audiobookshelf first and refuses if it has the book — no
-  "send anyway" prompt. Only when the server can't be reached does a send go ahead unchecked.
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf

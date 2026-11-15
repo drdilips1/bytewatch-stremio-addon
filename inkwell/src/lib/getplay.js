@@ -49,7 +49,7 @@ export async function getAndPlay(want, step = () => {}) {
       const picks = await q.mamResults({ words: `${title} ${author}`.trim(), title, author });
       if (picks[0]) {
         step(`Sending ${title} to your home server…`);
-        const r = await q.grabMam(picks[0], { title, author });
+        const r = await q.grabMam(picks[0]);
         if (r?.sent) {
           note(`“${title}”: sent to the home server (${picks[0].title}) — waiting for Audiobookshelf`);
           waitForServer(title, author, want.quote ? preset : null);
