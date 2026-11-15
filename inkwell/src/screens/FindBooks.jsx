@@ -281,8 +281,14 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
     try {
       const data = await shrink(src);
       // Never left waiting: the picture is read within 45 s, else say so (and why, in Report a problem).
-      const { books } = await Promise.race([booksInImage(data, m), new Promise((_, no) => setTimeout(() => no(new Error('Reading the picture took too long — try again, or a closer / smaller picture')), 45000))]);
+      const read = await Promise.race([booksInImage(data, m), new Promise((_, no) => setTimeout(() => no(new Error('Reading the picture took too long — try again, or a closer / smaller picture')), 45000))]);
+      const { books } = read;
       if (my !== run.current) return;
+      if (read.page) {
+        // A page of text, whatever mode was picked: played from that page.
+        note(`picture (${m}, ${Math.round(data.length / 1024)} KB) read in ${Math.round((Date.now() - t0) / 1000)} s — a page of text`);
+        return runPage(null, read.page, my);
+      }
       note(`picture (${m}, ${Math.round(data.length / 1024)} KB) read in ${Math.round((Date.now() - t0) / 1000)} s — ${books.length} book(s)`);
       if (!books.length) throw new Error('No book found in that picture — try closer, or the barcode');
       const single = books.length === 1 && (m === 'cover' || m === 'barcode');
@@ -305,15 +311,15 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
     if (my === run.current) setBusy('');
   };
   // A page: which book and which line, then that audiobook plays from there.
-  const runPage = async (src) => {
-    setResult(null);
-    const my = ++run.current;
+  // (`pre`: the page already read, when a photo taken as a cover turned out to be a page.)
+  const runPage = async (src, pre = null, keep = 0) => {
+    if (!pre) setResult(null);
+    const my = keep || ++run.current;
     const t0 = Date.now();
-    setBusy('Reading the page…');
+    setBusy(pre ? 'A page of text — finding where it is…' : 'Reading the page…');
     try {
-      const data = await shrink(src, 1500);
       const cur = player.getState().book;
-      const pg = await Promise.race([pageInImage(data, cur), new Promise((_, no) => setTimeout(() => no(new Error('Reading the page took too long — try again')), 45000))]);
+      const pg = pre || (await Promise.race([shrink(src, 1500).then((data) => pageInImage(data, cur)), new Promise((_, no) => setTimeout(() => no(new Error('Reading the page took too long — try again')), 45000))]));
       if (my !== run.current) return;
       // The book: as the AI named it, else found by the page's own words, else the one playing.
       let { title, author } = pg;
@@ -396,7 +402,7 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
         <div class="fb-start">
           <div class="fb-modes">
             {MODES.map(([k, label]) => (
-              <button class={'pill small' + (mode === k ? ' on' : '')} onClick={() => setMode(k)}>
+              <button class={'pill small' + (mode === k ? ' active' : '')} aria-pressed={mode === k} onClick={() => setMode(k)}>
                 {label}
               </button>
             ))}

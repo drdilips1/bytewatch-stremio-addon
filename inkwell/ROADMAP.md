@@ -30,6 +30,8 @@ Noted while building; to pick up after Saturday.
 - **Server book covers kept disappearing**: saved cover links carried the server address of then
   (home Wi-Fi vs Tailscale) and the sign-in token of then (renewed by newer servers) → refused →
   typed title. Now every server cover is shown with the address that answers and the current token.
+- **Page photo taken in Cover mode** (report 15 Nov 7:13 pm: "cover … 0 book(s)"): any photo that's a
+  page of text is now read as a page, whatever mode is picked; and the picked mode now shows.
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf

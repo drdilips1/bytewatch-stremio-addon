@@ -81,8 +81,30 @@ export async function booksInImage(dataUrl, mode = 'cover') {
       : mode === 'shelf'
         ? 'This is a photo of a bookshelf or a pile of books. List every book whose title you can read on the spines or covers.'
         : 'This is a screenshot or picture that shows books (covers, a list, a post). List every book shown or named in it.';
-  const raw = await askAiImage(`${ask} Reply with JSON only: {"books":[{"title":"the book's title as published","author":"the author, if shown or known"}]}. Leave out anything you can't read with confidence.`, dataUrl, { json: true });
-  return { books: tidy(parseJson(raw)?.books), how: mode };
+  // A page of text from inside a book (taken in any mode): read as a page, not as a cover.
+  const orPage = mode === 'shelf' ? '' : ` If instead the photo is a page of text from inside a book (not a cover, not a list of books), reply {"page":${PAGE_JSON}} — ${PAGE_ASK}`;
+  const raw = await askAiImage(`${ask} Reply with JSON only: {"books":[{"title":"the book's title as published","author":"the author, if shown or known"}]}. Leave out anything you can't read with confidence.${orPage}`, dataUrl, { json: true });
+  const j = parseJson(raw) || {};
+  const page = j.page && typeof j.page === 'object' ? pageFrom(j.page) : null;
+  return { books: page ? [] : tidy(j.books), how: mode, page };
+}
+
+const PAGE_ASK =
+  'work out which book it is from the running header, the names and the story, and copy the words to start listening from: the line that is marked (pointed at with a finger, underlined, highlighted or circled), or if none is marked, the first full sentence at the top of the page. Copy those words exactly as printed, about 25 to 40 words.';
+const PAGE_JSON = '{"title":"the book\'s title as published, or empty if you can\'t tell","author":"","quote":"the exact words","keywords":["5 to 8 unusual words or names from this page"],"chapter":0,"chapterTitle":"the chapter heading if one shows on the page, else empty","page":"the printed page number, 0 if none shows"}';
+/** The AI's reading of a page → { title, author, quote, keywords, chapter, chapterTitle, page }, or null. */
+function pageFrom(j) {
+  const quote = String(j?.quote || '').replace(/\s+/g, ' ').trim();
+  if (quote.split(' ').length < 6) return null;
+  return {
+    title: String(j.title || '').trim(),
+    author: String(j.author || '').trim(),
+    quote,
+    keywords: (Array.isArray(j.keywords) ? j.keywords : []).map(String).filter(Boolean).slice(0, 10),
+    chapter: Number(j.chapter) || 0,
+    chapterTitle: String(j.chapterTitle || '').trim(),
+    page: Number(String(j.page || '').replace(/[^0-9]/g, '')) || 0,
+  };
 }
 
 const stripHtml = (h) =>
@@ -200,23 +222,10 @@ export function saveShelf(name, books) {
 export async function pageInImage(dataUrl, hint = null) {
   if (!canSeeImages()) throw new Error('Reading a page needs a Gemini or Claude key (Settings → AI)');
   const now = hint?.title ? ` The listener is in the middle of "${hint.title}"${hint.author ? ` by ${hint.author}` : ''} — it's likely this book, but say so only if the page fits it.` : '';
-  const raw = await askAiImage(
-    `This is a photo of a page of a book (printed, or on a screen).${now} Work out which book it is from the running header, the names and the story, and copy the words to start listening from: the line that is marked (pointed at with a finger, underlined, highlighted or circled), or if none is marked, the first full sentence at the top of the page. Copy those words exactly as printed, about 25 to 40 words. Reply with JSON only: {"title":"the book's title as published, or empty if you can't tell","author":"","quote":"the exact words","keywords":["5 to 8 unusual words or names from this page"],"chapter":0,"chapterTitle":"the chapter heading if one shows on the page, else empty","page":"the printed page number, 0 if none shows"}`,
-    dataUrl,
-    { json: true }
-  );
-  const j = parseJson(raw) || {};
-  const quote = String(j.quote || '').replace(/\s+/g, ' ').trim();
-  if (quote.split(' ').length < 6) throw new Error("Couldn't read the words on that page — try again, closer and straight on");
-  return {
-    title: String(j.title || '').trim(),
-    author: String(j.author || '').trim(),
-    quote,
-    keywords: (Array.isArray(j.keywords) ? j.keywords : []).map(String).filter(Boolean).slice(0, 10),
-    chapter: Number(j.chapter) || 0,
-    chapterTitle: String(j.chapterTitle || '').trim(),
-    page: Number(String(j.page || '').replace(/[^0-9]/g, '')) || 0,
-  };
+  const raw = await askAiImage(`This is a photo of a page of a book (printed, or on a screen).${now} ${PAGE_ASK[0].toUpperCase()}${PAGE_ASK.slice(1)} Reply with JSON only: ${PAGE_JSON}`, dataUrl, { json: true });
+  const pg = pageFrom(parseJson(raw));
+  if (!pg) throw new Error("Couldn't read the words on that page — try again, closer and straight on");
+  return pg;
 }
 
 /**
