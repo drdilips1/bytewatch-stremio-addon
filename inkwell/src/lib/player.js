@@ -2,6 +2,7 @@
 // bookmarks, progress persistence and system media controls. Audio output is
 // delegated to an engine (native Media3 on Android, <audio> on the web).
 import * as stats from './stats.js';
+import { catchUpFor } from './resume.js';
 import { createEngine } from './engine.js';
 import { progress, bookmarks, settings, summarize, persisted } from './store.js';
 import { syncProgress, switchTracks, closeSession, serverPlace, mirrorPlace, connected as absConnected } from '../sources/audiobookshelf.js';
@@ -271,6 +272,10 @@ const handlers = {
   },
   playing(on) {
     if (on) loadingAt = null;
+    // Back after a break: a few seconds again, so the sentence you were in isn't lost
+    // (5 s after a call or a notification, 30 s after a pause of hours). Not after a jump.
+    if (on) catchUp();
+    else if (state.book && !paused) paused = { at: Date.now(), g: globalTime(), call: !!state.interrupted };
     set({ playing: on, ...(on ? { loading: false, error: null, phase: '', interrupted: false } : {}) });
     if (on) clearTimeout(resumeTimer), clearTimeout(stallTimer), (stallTimer = null);
     if (!on) saveProgress(true), stats.tick(false);
@@ -291,6 +296,7 @@ const handlers = {
     if (state.loading) set({ loading: false, phase: '' });
   },
   interrupted(on) {
+    if (on && state.book) paused = { at: paused?.at || Date.now(), g: paused?.g ?? globalTime(), call: true };
     if (on) set({ playing: false, loading: false, phase: '', interrupted: true });
     else set({ interrupted: false });
   },
@@ -877,6 +883,21 @@ const hist = (type, g = globalTime(), to) => {
 
 // --- controls ---------------------------------------------------------------
 let resumeTimer = null;
+
+// Where and when the book stopped, and whether a call / notification stopped it.
+let paused = null;
+function catchUp() {
+  const p = paused;
+  paused = null;
+  if (!p || !state.book) return;
+  // Only where it stopped: after you've moved (a jump, a chapter, another book) it plays from there.
+  if (Math.abs(globalTime() - p.g) > 3) return;
+  const back = catchUpFor(p, Date.now(), settings.get());
+  if (back > 0 && state.time > 1) {
+    seekTo(Math.max(0, state.time - back));
+    window.dispatchEvent(new CustomEvent('inkwell-toast', { detail: `⏪ Back ${back} s to pick up the thread` }));
+  }
+}
 
 export function toggle() {
   if (state.preparing) return; // starts by itself when the download finishes

@@ -1819,6 +1819,7 @@ export function Settings() {
         <Stepper label="Skip back" value={st.skipBack} options={[5, 10, 15, 30]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipBack: v })} />
         <Stepper label="Skip forward" value={st.skipForward} options={[10, 15, 30, 45, 60]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipForward: v })} />
         <CarPicker st={st} />
+        <Toggle label="Back a little when you carry on" hint="5 seconds after a call or a notification paused the book, 30 seconds after a pause of a couple of hours or more — so you don't lose the thread" on={st.resumeRewind !== false} onChange={(v) => settings.patch({ resumeRewind: v })} />
         <Toggle label="Skip credits" hint="Opening and end credits and the publisher's intro are skipped when their chapter starts (going back to one on purpose plays it)" on={st.skipCredits !== false} onChange={(v) => settings.patch({ skipCredits: v })} />
         <Toggle label="Play Up next by itself" hint="When a book ends, the next one in Up next starts (press and hold a book → Add to Up next)" on={st.upNextAuto !== false} onChange={(v) => settings.patch({ upNextAuto: v })} />
       </Section>
