@@ -170,4 +170,93 @@ enum TextPrep {
         let words = t.split(whereSeparator: { $0.isWhitespace }).filter { $0.contains { $0.isLetter || $0.isNumber } }.count
         return words <= 4 || matches(t, stammer) || matches(t, startsWell)
     }
+    // MARK: - Text as the on-device voices read it best (Renderer.plainQuotes on Android)
+
+    /// Replaces each match of [r] in [s] with what [f] makes of it (its groups: 0 = whole match).
+    private static func replace(_ s: String, _ r: NSRegularExpression, using f: ([String]) -> String) -> String {
+        let ns = s as NSString
+        var out = ""
+        var last = 0
+        for m in r.matches(in: s, range: NSRange(location: 0, length: ns.length)) {
+            out += ns.substring(with: NSRange(location: last, length: m.range.location - last))
+            let groups = (0..<m.numberOfRanges).map { i -> String in
+                let g = m.range(at: i)
+                return g.location == NSNotFound ? "" : ns.substring(with: g)
+            }
+            out += f(groups)
+            last = m.range.location + m.range.length
+        }
+        return out + ns.substring(from: last)
+    }
+
+    private static let abbreviationWords: [String: String] = [
+        "mr": "Mister", "mrs": "Missus", "ms": "Miz", "dr": "Doctor", "prof": "Professor",
+        "jr": "Junior", "sr": "Senior", "mt": "Mount", "vs": "versus", "approx": "approximately",
+        "cf": "compare", "etc": "et cetera", "no": "number", "nos": "numbers", "fig": "figure",
+        "figs": "figures", "eq": "equation", "eqs": "equations", "vol": "volume", "ch": "chapter",
+        "dept": "department", "univ": "university", "inc": "Inc", "ltd": "Ltd",
+        "co": "Co", "al": "al", "jan": "January", "feb": "February", "mar": "March",
+        "apr": "April", "jun": "June", "jul": "July", "aug": "August", "sep": "September",
+        "sept": "September", "oct": "October", "nov": "November", "dec": "December",
+    ]
+    private static let months: Set<String> = ["jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec"]
+    private static let titleNoDot = re("\\b(Mr|Mrs|Ms|Dr|Prof|St)\\b(?=\\s+\\p{Lu})")
+    private static let dottedAbbreviation = re("\\b(" + abbreviationWords.keys.sorted { $0.count > $1.count }.joined(separator: "|") + "|st)\\.(?=\\s+(\\S))", [.caseInsensitive])
+    private static let eg = re("\\b(e\\.g|i\\.e)\\.(?=\\s+\\S)", [.caseInsensitive])
+    private static let stutter = re("\\b([a-z]{1,3})-(?=\\1)", [.caseInsensitive])
+    private static let oddSpaces = re("[\\u00A0\\u2007\\u202F\\u2009\\u200A]")
+    private static let titleGlued = re("\\b(Mr|Mrs|Ms|Dr|St)\\.(?=\\p{Lu})")
+    private static let shush = re("\\b[Ss]+[Hh]+\\b")
+    private static let citation = re("\\s?\\[\\d+(?:\\s*[,\\u2013-]\\s*\\d+)*]")
+    private static let footnote = re("(?<=\\p{Ll}[.!?,;:])\\d{1,3}(?=\\s|$)")
+    private static let quoteMarks = re("[\\u201C\\u201D\"\\u00AB\\u00BB()\\[\\]{}]")
+    private static let loneApostrophe = re("(?<![\\p{L}])'|'(?![\\p{L}])")
+    private static let dottedInitials = re("\\b(?:\\p{Lu}\\.){2,}")
+    private static let spaceBeforePunct = re("\\s+([,.;:!?\\u2026])")
+    private static let manySpaces = re("\\s{2,}")
+    private static let endEllipsis = re("(?:\\u2026|\\.{2,})(?=\\s*$)")
+    private static let midEllipsis = re("(?:\\u2026|\\.{2,})\\s*")
+    private static let commaBeforeMark = re(",\\s*([,.;:!?])")
+    private static let leadingComma = re("^,\\s*")
+
+    private static func spellAbbreviations(_ input: String) -> String {
+        var t = replace(input, titleNoDot) { g in g[1] == "St" ? "Saint" : (abbreviationWords[g[1].lowercased()] ?? g[1]) }
+        t = replace(t, eg) { g in g[1].lowercased() == "e.g" ? "for example," : "that is," }
+        return replace(t, dottedAbbreviation) { g in
+            let key = g[1].lowercased()
+            let next = g[2].first ?? " "
+            if (key == "no" || key == "nos") && !next.isNumber { return g[0] }
+            if months.contains(key) && !next.isNumber { return g[0] }
+            if key == "st" { return next.isUppercase ? "Saint" : "Street" }
+            return abbreviationWords[key] ?? g[0]
+        }
+    }
+
+    /// Plain apostrophes, no quote marks or brackets (after a full stop they hide it and the voice runs on
+    /// mumbling: "…anywhere.\"" at the end of most paragraphs of a story), titles said in full, ellipses as
+    /// pauses, written stutters ("t-t-to") as the word.
+    static func plainQuotes(_ input: String) -> String {
+        var t = replace(input, oddSpaces, " ")
+        t = replace(t, titleGlued, "$1. ")
+        if !t.contains(where: { $0.isLetter || $0.isNumber }) { return "" }
+        t = replace(t, shush) { g in g[0].first?.isUppercase == true ? "Shush" : "shush" }
+        t = replace(t, citation, "")
+        t = replace(t, footnote, "")
+        t = t.replacingOccurrences(of: "\u{2019}", with: "'").replacingOccurrences(of: "\u{2018}", with: "'").replacingOccurrences(of: "\u{02BC}", with: "'")
+        t = replace(t, quoteMarks, " ")
+        t = replace(t, loneApostrophe, " ")
+        t = replace(t, dottedInitials) { g in g[0].replacingOccurrences(of: ".", with: "") }
+        t = spellAbbreviations(t)
+        t = replace(t, spaceBeforePunct, "$1")
+        t = replace(t, manySpaces, " ").trimmingCharacters(in: .whitespaces)
+        t = replace(t, endEllipsis, ".")
+        t = replace(t, midEllipsis, ", ")
+        t = replace(t, commaBeforeMark, "$1")
+        t = replace(t, leadingComma, "").trimmingCharacters(in: .whitespaces)
+        while true {
+            let next = replace(t, stutter, "")
+            if next == t { return t }
+            t = next
+        }
+    }
 }

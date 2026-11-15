@@ -87,7 +87,8 @@ final class NeuralReader {
     private func piecesOf(_ para: Int) -> [Piece] {
         let text = TextPrep.normalize(paras[para]).trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty || !text.contains(where: { $0.isLetter || $0.isNumber }) { return [] }
-        let parts = TextPrep.pieces(text, voice: voice)
+        // Each piece as the on-device voices read it best (no quote marks, titles in full…), as on Android.
+        let parts = TextPrep.pieces(text, voice: voice).map { TextPrep.plainQuotes($0) }.filter { !$0.isEmpty }
         return parts.enumerated().map { Piece(para: para, text: $0.element, lastInParagraph: $0.offset == parts.count - 1) }
     }
 
