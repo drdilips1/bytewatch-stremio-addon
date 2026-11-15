@@ -1,6 +1,7 @@
 // "Find books in…": take a photo (a cover, a barcode, a shelf), pick a screenshot, or paste a
 // link or a list — the books in it, where you have each, and one tap to listen, read or save.
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { useStore } from '../lib/store.js';
 import { TopBar, Cover, toast } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { nav } from '../lib/nav.js';
@@ -176,13 +177,40 @@ function ManyBooks({ name, url, list }) {
   );
 }
 
+// What each open Find books screen found, kept while it's in the back stack: open a book,
+// come back, and the list is still there (no reading the page again).
+const visits = new Map();
+function visitFor(key) {
+  if (!visits.has(key)) {
+    let v = { busy: '', result: null, started: false, run: 0 };
+    const subs = new Set();
+    visits.set(key, {
+      get: () => v,
+      set(next) {
+        v = { ...v, ...(typeof next === 'function' ? next(v) : next) };
+        subs.forEach((f) => f(v));
+      },
+      subscribe(f) {
+        subs.add(f);
+        return () => subs.delete(f);
+      },
+    });
+    while (visits.size > 6) visits.delete(visits.keys().next().value);
+  }
+  return visits.get(key);
+}
+
 export function FindBooks({ text = '', subject = '', image = '', mode: startMode = 'cover' }) {
+  const [visitKey] = useState(() => nav.state().top?.key ?? Math.random());
+  const visit = visitFor(visitKey);
+  const { busy, result } = useStore(visit);
+  const setBusy = (b) => visit.set({ busy: b });
+  const setResult = (r) => visit.set((v) => ({ result: typeof r === 'function' ? r(v.result) : r }));
+  // The latest search (a cancelled one is ignored when it answers).
+  const run = { get current() { return visit.get().run; }, set current(n) { visit.set({ run: n }); } };
   const [mode, setMode] = useState(startMode);
-  const [busy, setBusy] = useState('');
-  const [result, setResult] = useState(null); // { one } | { name, url, list }
   const [paste, setPaste] = useState('');
   const [secs, setSecs] = useState(0);
-  const run = useRef(0); // the latest search (a cancelled one is ignored when it answers)
   useEffect(() => {
     if (!busy) return setSecs(0);
     const t0 = Date.now();
@@ -240,8 +268,11 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
     setBusy('');
   };
   useEffect(() => {
+    if (visit.get().started) return; // back from a book page: keep what was found
+    if (!image && !text) return;
+    visit.set({ started: true });
     if (image) runImage(image, 'shot');
-    else if (text) runText(text, subject);
+    else runText(text, subject);
   }, [image, text]);
 
   const file = (e, m) => {
