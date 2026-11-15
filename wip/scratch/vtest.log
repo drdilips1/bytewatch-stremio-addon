@@ -1,0 +1,369 @@
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+N1_Female    ref  30.3s | word errors 3/118 ( 2.5%) | 'Well' leaks 0 | retakes 0 | pitch   226 Hz, spread  2.6 st
+    0 err | When I first arrived in the city, I had no money, no friends, and no idea where I would sleep that night.
+    0 err | Mr. Dursley was the director of a firm called Grunnings, which made drills.
+    2 err | "Could I say goodbye to him, sir?" asked Hagrid.
+    0 err | She opened the door, looked outside, and saw nothing but rain.
+    0 err | The real problem is that we developed no new drugs for many years.
+    0 err | He paused, looked around the room, and then, with a sigh, sat down on the edge of the bed.
+    1 err | Why? My new classes of drugs to treat bacterial infections are not easy to find.
+    0 err | It was late and the house was quiet except for the ticking of the old clock.
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+N2_Female    ref  30.4s | word errors 3/118 ( 2.5%) | 'Well' leaks 0 | retakes 0 | pitch   151 Hz, spread  4.5 st
+    0 err | When I first arrived in the city, I had no money, no friends, and no idea where I would sleep that night.
+    0 err | Mr. Dursley was the director of a firm called Grunnings, which made drills.
+    3 err | "Could I say goodbye to him?" asked Hagrid.
+    0 err | She opened the door, looked outside, and saw nothing but rain.
+    0 err | The real problem is that we developed no new drugs for many years.
+    0 err | He paused, looked around the room, and then, with a sigh, sat down on the edge of the bed.
+    0 err | Why? New classes of drugs to treat bacterial infections are not easy to find.
+    0 err | It was late and the house was quiet except for the ticking of the old clock.
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+N4_Female    ref  30.4s | word errors 5/118 ( 4.2%) | 'Well' leaks 0 | retakes 0 | pitch   190 Hz, spread  3.5 st
+    0 err | When I first arrived in the city, I had no money, no friends, and no idea where I would sleep that night.
+    1 err | Mr. Dersley was the director of a firm called Grunnings, which made drills.
+    2 err | "Could I say goodbye to him, sir?" asked Hagrid.
+    1 err | She opened the door, booked outside, and saw nothing but rain.
+    1 err | The real problem is that we develop no new drugs for many years.
+    0 err | He paused, looked around the room, and then, with a sigh, sat down on the edge of the bed.
+    0 err | Why? New classes of drugs to treat bacterial infections are not easy to find.
+    0 err | It was late and the house was quiet except for the ticking of the old clock.
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+N5_Female    ref  30.2s | word errors 5/118 ( 4.2%) | 'Well' leaks 0 | retakes 0 | pitch   166 Hz, spread  4.7 st
+    0 err | When I first arrived in the city, I had no money, no friends, and no idea where I would sleep that night.
+    1 err | Mr. Dursley was the director of a firm called "Brunnings" which made drills.
+    4 err | Could I say goodbye to him, sir? Osthagred.
+    0 err | She opened the door, looked outside, and saw nothing but rain.
+    0 err | The real problem is that we developed no new drugs for many years.
+    0 err | he paused, looked around the room, and then, with a sigh, sat down on the edge of the bed.
+    0 err | Why? New classes of drugs to treat bacterial infections are not easy to find.
+    0 err | It was late and the house was quiet except for the ticking of the old clock.
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+N1_Male      ref  30.4s | word errors 5/118 ( 4.2%) | 'Well' leaks 0 | retakes 0 | pitch    97 Hz, spread  3.4 st
+    0 err | When I first arrived in the city, I had no money, no friends, and no idea where I would sleep that night.
+    0 err | Mr. Dursley was the director of a firm called Grunnings, which made drills.
+    3 err | Could I say goodbye to him, sir? First Hagrid.
+    0 err | She opened the door, looked outside, and saw nothing but rain.
+    1 err | The real problem is that we develop no new drugs for many years.
+    1 err | he paused, looked around the room, and then, with a sigh, sat down on the edge of the bed. (buzzing)
+    0 err | Why? New classes of drugs to treat bacterial infections are not easy to find.
+    0 err | It was late and the house was quiet except for the ticking of the old clock.
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+N2_Male      ref  30.9s | word errors 7/118 ( 5.9%) | 'Well' leaks 0 | retakes 0 | pitch    84 Hz, spread  5.9 st
+    0 err | When I first arrived in the city, I had no money, no friends, and no idea where I would sleep that night.
+    0 err | Mr. Dursley was the director of a firm called "Grunnings" which made drills.
+    4 err | Could I say goodbye to him sir?
+    0 err | She opened the door, looked outside, and saw nothing but rain.
+    1 err | The real problem is that we develop no new drugs for many years.
+    2 err | He paused, looked around the room, and then with a sigh, sat down on the edge of the bed. (buzzer buzzes)
+    0 err | Why? New classes of drugs to treat bacterial infections are not easy to find.
+    0 err | It was late and the house was quiet except for the ticking of the old clock.
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+N3_Male      ref  31.1s | word errors 7/118 ( 5.9%) | 'Well' leaks 0 | retakes 0 | pitch   127 Hz, spread  2.8 st
+    1 err | When I first arrived in the city, I had no money, no friends, and no idea where I would sleep that night. (buzzer)
+    0 err | Mr. Dursley was the director of a firm called Grunnings, which made drills.
+    4 err | Could I say goodbye to him, sir? As Thaggard
+    1 err | She opened the door and looked outside and saw nothing but rain.
+    1 err | The real problem is that we develop no new drugs for many years.
+    0 err | He paused, looked around the room, and then, with a sigh, sat down on the edge of the bed.
+    0 err | Why? New classes of drugs to treat bacterial infections are not easy to find.
+    0 err | It was late and the house was quiet except for the ticking of the old clock.
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+N4_Male      ref  30.9s | word errors 4/118 ( 3.4%) | 'Well' leaks 0 | retakes 0 | pitch   118 Hz, spread  1.4 st
+    0 err | When I first arrived in the city, I had no money, no friends, and no idea where I would sleep that night.
+    0 err | Mr. Dursley was the director of a firm called Grunnings, which made drills.
+    2 err | Could I say goodbye to him, sir, asked Hagrid.
+    0 err | She opened the door, looked outside, and saw nothing but rain.
+    0 err | The real problem is that we developed no new drugs for many years.
+    0 err | He paused, looked around the room, and then, with a sigh, sat down on the edge of the bed.
+    0 err | Why? New classes of drugs to treat bacterial infections are not easy to find.
+    2 err | It was late and the house was quiet except for the ticking of the old clock. (buzzer buzz
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+/project/sherpa-onnx/csrc/offline-stream.cc:AcceptWaveformImpl:151 Creating a resampler:
+   in_sample_rate: 24000
+   output_sample_rate: 16000
+
+N5_Male      ref  30.6s | word errors 7/118 ( 5.9%) | 'Well' leaks 0 | retakes 2 | pitch   122 Hz, spread  3.9 st
+    1 err | When I first arrived in the city, I had no money, no friends, and no idea where I would sleep that night. (static)
+    0 err | Mr. Dursley was the director of a firm called Grunnings, which made drills.
+    4 err | Can I say goodbye to him sir? Fast Hagrid?
+    0 err | She opened the door, looked outside, and saw nothing but rain.
+    0 err | The real problem is that we developed no new drugs for many years.
+    2 err | He paused, looked around the room and then with a sigh sat down on the edge of the bed. (buzzer buzzes
+    0 err | Why? New classes of drugs to treat bacterial infections are not easy to find. //
+    0 err | It was late and the house was quiet except for the ticking of the old clock.

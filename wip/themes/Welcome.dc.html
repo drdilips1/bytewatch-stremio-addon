@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Welcome: your name</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&amp;family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2F7D78}a:hover{color:#235E5A}
+button{font:inherit;cursor:pointer}
+input:focus{outline:2px solid #2F7D78;outline-offset:1px}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FAF7F0; color: #23262B; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; padding: 56px 24px 32px">
+  <div style="display: flex; justify-content: center">
+    <svg width="88" height="88" viewBox="0 0 512 512" role="img" aria-label="Narrato logo"><defs><linearGradient id="nb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4F46E5"/><stop offset="0.5" stop-color="#3730A3"/><stop offset="1" stop-color="#1E1B4B"/></linearGradient></defs><rect width="512" height="512" rx="116" fill="url(#nb)"/><g transform="translate(0,-16)"><path fill="#FBBF24" d="M163,229 a13,13 0 0 1 26,0 V249 a13,13 0 0 1 -26,0 Z"/><path fill="#FBBF24" d="M203,183 a13,13 0 0 1 26,0 V249 a13,13 0 0 1 -26,0 Z"/><path fill="#FBBF24" d="M243,143 a13,13 0 0 1 26,0 V249 a13,13 0 0 1 -26,0 Z"/><path fill="#FBBF24" d="M283,183 a13,13 0 0 1 26,0 V249 a13,13 0 0 1 -26,0 Z"/><path fill="#FBBF24" d="M323,229 a13,13 0 0 1 26,0 V249 a13,13 0 0 1 -26,0 Z"/><path fill="#FFFFFF" d="M256,300 C214,274 160,270 118,284 L118,386 C160,372 214,376 256,402 Z"/><path fill="#E0E7FF" d="M256,300 C298,274 352,270 394,284 L394,386 C352,372 298,376 256,402 Z"/></g></svg>
+  </div>
+  <div style="font-family: Fraunces, Georgia, serif; font-size: 30px; font-weight: 600; text-align: center; margin-top: 28px; line-height: 1.2">What should we call you?</div>
+  <div style="font-size: 15px; color: #5B5F66; text-align: center; margin-top: 10px; line-height: 1.5">So Narrato can greet you. It stays on this phone only.</div>
+
+  <label for="name" style="font-size: 13px; font-weight: 600; color: #5B5F66; margin-top: 40px">Your first name</label>
+  <input id="name" type="text" placeholder="e.g. Sam" autocomplete="given-name" style="margin-top: 8px; height: 56px; border-radius: 16px; border: 1px solid #D9D2C3; background: #FFFFFF; padding: 0 18px; font-size: 17px; color: #23262B; font-family: inherit; box-sizing: border-box">
+
+  <div style="margin-top: 22px; border-radius: 18px; background: #FFFFFF; border: 1px solid #E6E0D3; padding: 16px">
+    <div style="font-size: 12px; font-weight: 600; color: #5B5F66">PREVIEW</div>
+    <div style="font-family: Fraunces, Georgia, serif; font-size: 22px; font-weight: 500; margin-top: 6px">Good evening, <span style="color: #2F7D78">Sam</span></div>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+  <button style="height: 56px; border-radius: 28px; border: none; background: #2F7D78; color: #FFFFFF; font-weight: 600; font-size: 16px">Continue</button>
+  <button style="height: 48px; border: none; background: transparent; color: #2F7D78; font-weight: 600; font-size: 15px; margin-top: 8px">Skip for now</button>
+  <div style="display: flex; justify-content: center; gap: 8px; margin-top: 14px" aria-hidden="true">
+    <div style="width: 8px; height: 8px; border-radius: 4px; background: #D9D2C3"></div>
+    <div style="width: 8px; height: 8px; border-radius: 4px; background: #D9D2C3"></div>
+    <div style="width: 22px; height: 8px; border-radius: 4px; background: #2F7D78"></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
