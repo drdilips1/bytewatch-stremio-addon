@@ -39,6 +39,15 @@ async function listen(m) {
   player.playBook(d, { exact: true });
 }
 
+/** Not yours: found wherever it is and played (or sent home, or its page with the ebooks). */
+async function getIt(m, step) {
+  const { getAndPlay } = await import('../lib/getplay.js');
+  const r = await getAndPlay({ title: m.want.title || m.book.title, author: m.want.author || m.book.author || '' }, step);
+  if (r.playing) return;
+  if (r.none) nav.push('book', { book: m.book });
+  toast(r.message);
+}
+
 /** One book found (a cover or a barcode): is this it, and where to carry on. */
 function OneBook({ m, again }) {
   const [page, setPage] = useState('');
@@ -56,7 +65,7 @@ function OneBook({ m, again }) {
     setLeft(-1);
     setStatus(m.mine ? `Opening ${m.book.title} · ${m.place}…` : `Looking for ${m.book.title}…`);
     // Yours (phone, server, TorBox / Real-Debrid): that copy plays. Else found and fetched.
-    const job = m.mine ? listen(m) : playIt({ action: 'play_book', moment: false, title: m.want.title || m.book.title, author: m.want.author || m.book.author || '' }, setStatus);
+    const job = m.mine ? listen(m) : getIt(m, setStatus);
     job
       .then(() => (setStatus(''), note(`auto-play “${m.book.title}”: playing (${m.mine ? m.place : 'from sources'})`)))
       .catch((e) => (setStatus(''), toast(e.message), note(`auto-play “${m.book.title}” failed (${m.mine ? m.place : 'not yours'}): ${e.message}`)));
@@ -100,8 +109,19 @@ function OneBook({ m, again }) {
         </span>
       </div>
       <div class="fb-actions">
-        <button class="btn primary" onClick={() => listen(m).catch((e) => toast(e.message))}>
-          <Icon name={m.mine?.kind === 'text' ? 'book' : 'headphones'} size={16} /> {m.mine ? (m.mine.kind === 'text' ? 'Read' : 'Listen') : 'Where to get it'}
+        <button
+          class="btn primary"
+          disabled={!!status}
+          onClick={() => {
+            stop();
+            if (m.mine) return listen(m).catch((e) => toast(e.message));
+            setStatus(`Looking for ${m.book.title}…`);
+            getIt(m, setStatus)
+              .catch((e) => toast(e.message))
+              .finally(() => setStatus(''));
+          }}
+        >
+          <Icon name={m.mine?.kind === 'text' ? 'book' : 'headphones'} size={16} /> {m.mine ? (m.mine.kind === 'text' ? 'Read' : 'Listen') : 'Find & play'}
         </button>
         <button class="btn secondary" onClick={() => nav.push('book', { book: m.book })}>
           Book page
@@ -191,8 +211,8 @@ function ManyBooks({ name, url, list }) {
               {m.matching ? <em class="fb-badge">Matching…</em> : m.mine ? <em class="fb-badge yours">✓ Yours · {m.place}</em> : m.sure ? <em class="fb-badge find">Find it</em> : <em class="fb-badge">Unclear — “{m.want.title}”</em>}
             </span>
           </button>
-          <button class="pill small" onClick={() => listen(m).catch((e) => toast(e.message))}>
-            {m.mine ? (m.mine.kind === 'text' ? 'Read' : 'Listen') : 'Get'}
+          <button class="pill small" onClick={() => (m.mine ? listen(m) : (toast(`Looking for ${m.book.title}…`), getIt(m, () => {}))).catch((e) => toast(e.message))}>
+            {m.mine ? (m.mine.kind === 'text' ? 'Read' : 'Listen') : 'Get & play'}
           </button>
         </div>
       ))}

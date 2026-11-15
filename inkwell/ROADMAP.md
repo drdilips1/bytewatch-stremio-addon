@@ -11,6 +11,9 @@ Noted while building; to pick up after Saturday.
   sync (the `readLater` section merge) or another copy of the same book (different uid) re-adds it.
 - **Find books**: a book on the Audiobookshelf server (never opened in the app) showed "Not yours
   yet" — the match now also asks the server and TorBox / Real-Debrid; auto-play plays that copy.
+- **Find books → not yours anywhere**: "Find & play" / auto-play now gets it: your sources through
+  TorBox / Real-Debrid (plays in a minute) → else MyAnonamouse to the home server, played by
+  itself once it's on Audiobookshelf (checked every 45 s for 40 min, app open) → else its page.
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf
