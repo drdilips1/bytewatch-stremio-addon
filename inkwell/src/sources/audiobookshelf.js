@@ -1,6 +1,7 @@
 // Audiobookshelf — connect your self-hosted server: browse libraries, stream,
 // and sync listening progress back to the server.
 import { isWeb, getJson, sendJson, qs, cleanUrl } from '../lib/http.js';
+import { setCoverFix } from '../lib/format.js';
 import { abs } from '../lib/store.js';
 import { logError } from '../lib/report.js';
 
@@ -43,6 +44,22 @@ export async function resolveServer(force = false) {
   return (active = trim(server));
 }
 export const connected = () => !!(cfg().server && cfg().token);
+
+// A saved cover link (in your library, progress, Continue…) has the address in use then (home
+// Wi-Fi or Tailscale) and the sign-in token of then, which newer servers renew: away from home,
+// or once the token was renewed, the picture was refused and the book showed its typed title.
+// Shown with the address that answers now and the current token instead.
+setCoverFix((u) => {
+  const { server, altServer, token } = cfg();
+  if (!token || !/\/api\/items\/[^/?]+\/cover/.test(u)) return u;
+  const mine = [server, altServer].filter(Boolean).map(trim);
+  const from = mine.find((x) => u.startsWith(x + '/api/items/'));
+  if (!from) return u;
+  const id = u.slice(from.length).match(/^\/api\/items\/([^/?]+)\/cover/)[1];
+  return `${base()}/api/items/${id}/cover?${qs({ token, width: 400 })}`;
+});
+// Find out which address answers, so covers point at it from the start.
+if (connected()) resolveServer().catch(() => {});
 
 function normalizeServer(server) {
   const bare = cleanUrl(server, '').replace(/^:\/\//, '');

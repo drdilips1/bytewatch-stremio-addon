@@ -27,6 +27,9 @@ Noted while building; to pick up after Saturday.
   words exactly; words read off a photo often differ slightly. Now also found by overlapping
   three-word pieces (the live-text matcher), near the page's share of the book / the chapter first.
   Next report's "Play a scene" line shows how it was found (or why not).
+- **Server book covers kept disappearing**: saved cover links carried the server address of then
+  (home Wi-Fi vs Tailscale) and the sign-in token of then (renewed by newer servers) → refused →
+  typed title. Now every server cover is shown with the address that answers and the current token.
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf
