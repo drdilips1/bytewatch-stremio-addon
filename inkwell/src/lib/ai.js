@@ -217,7 +217,9 @@ export const canSeeImages = () => aiOn() && PROVIDERS.some((p) => (p.id === 'gem
 export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
   if (!aiOn()) throw new Error('AI is off (Settings → AI)');
   const [, mime = 'image/jpeg', b64 = ''] = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl) || [];
-  const order = PROVIDERS.filter((p) => keyOf(p) && (p.id === 'gemini' || p.anthropic || p.custom));
+  // Your preferred service first (Settings → AI), else Gemini (fast), then Claude.
+  const prefer = ai.get().prefer;
+  const order = PROVIDERS.filter((p) => keyOf(p) && (p.id === 'gemini' || p.anthropic || p.custom)).sort((a, b) => Number(b.id === prefer) - Number(a.id === prefer));
   if (!order.length) throw new Error('Reading pictures needs a Gemini or Claude key (Settings → AI)');
   let last;
   for (const p of order) {
