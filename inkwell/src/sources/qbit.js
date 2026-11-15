@@ -717,12 +717,12 @@ async function grabVia(base, { download, wedge, name, ebook }) {
  * isn't free, download it (trying again when the site doesn't hand it over) and send it to
  * qBittorrent. All in the background. Anything unclear opens the search page instead.
  */
-export async function grabFromTracker({ words, title = '', author = '', ebook = false, filtered = false }) {
-  if (!canGrab()) return openTracker(words, filtered, ebook);
+/**
+ * Search MyAnonamouse with your own sign-in (the app's browser, else your session ID).
+ * { base, data: { data: [...] } | null, why: [...], hasSession }. `signin`: the site needs you to sign in.
+ */
+async function mamSearch({ words, title = '', ebook = false }) {
   const base = 'https://' + trackerName();
-  // Anything unclear opens the site's search — always across all torrents, not only FL / VIP.
-  const fallback = (msg) => (nativeToast(msg), openTracker(words, false, ebook));
-  nativeToast(`Looking on ${trackerName().replace(/^www\./, '')} for “${title || words}”…`);
   const cat = ebook ? 14 : 13;
   const asJson = (text) =>
     JSON.stringify({
@@ -788,10 +788,26 @@ export async function grabFromTracker({ words, title = '', author = '', ebook = 
         k--;
         continue;
       }
-      if (/signin/.test(e?.message)) return fallback('Sign in to the tracker once — opening it');
+      if (/signin/.test(e?.message)) throw Object.assign(new Error('Sign in to MyAnonamouse once (press and hold M)'), { signin: true });
       why.push(String(e?.message || e).slice(0, 100));
     }
   }
+  return { base, data, why, hasSession };
+}
+
+export async function grabFromTracker({ words, title = '', author = '', ebook = false, filtered = false }) {
+  if (!canGrab()) return openTracker(words, filtered, ebook);
+  // Anything unclear opens the site's search — always across all torrents, not only FL / VIP.
+  const fallback = (msg) => (nativeToast(msg), openTracker(words, false, ebook));
+  nativeToast(`Looking on ${trackerName().replace(/^www\./, '')} for “${title || words}”…`);
+  let found;
+  try {
+    found = await mamSearch({ words, title, ebook });
+  } catch (e) {
+    if (e.signin) return fallback('Sign in to the tracker once — opening it');
+    throw e;
+  }
+  const { base, data, why, hasSession } = found;
   if (!data) {
     logError('tracker grab', `“${words}”: ${why.join(' | ')}`);
     return fallback(`${trackerName().replace(/^www\./, '')}: no answer for “${title || words}” (${why[why.length - 1] || 'unknown'}) — opening the search`);
@@ -818,6 +834,56 @@ export async function grabFromTracker({ words, title = '', author = '', ebook = 
   nativeToast(r.sent ? '✓ ' + text : text);
   if (hasSession) await clearMamSession(base);
   return r;
+}
+
+/** The torrents on MyAnonamouse for this book, best first (for the results list): [] when none. */
+const mamMemo = new Map(); // search -> { at, p }: the same book's page opened again doesn't ask MAM again
+export function mamResults(q) {
+  if (!canGrab()) return Promise.resolve([]);
+  const key = `${q.title}|${q.author}|${q.ebook ? 1 : 0}`;
+  const hit = mamMemo.get(key);
+  if (hit && Date.now() - hit.at < 30 * 60e3) return hit.p;
+  const p = mamResultsNow(q);
+  mamMemo.set(key, { at: Date.now(), p });
+  p.catch(() => mamMemo.delete(key));
+  return p;
+}
+async function mamResultsNow({ words, title = '', author = '', ebook = false }) {
+  const { data, hasSession, base } = await mamSearch({ words, title, ebook });
+  if (hasSession) await clearMamSession(base);
+  const list = data?.data || [];
+  const out = [];
+  let rest = list;
+  // Rank with the same choice the M button makes, one at a time.
+  for (let i = 0; i < 6 && rest.length; i++) {
+    const p = pickTorrent(rest, { words, title, author, ebook });
+    if (!p) break;
+    out.push(p);
+    rest = rest.filter((t) => t.id !== p.id);
+  }
+  return out;
+}
+
+/** Send one MyAnonamouse result to qBittorrent (a wedge first if you allowed that and it isn't free). */
+export async function grabMam(pick, { ebook = false } = {}) {
+  const base = 'https://' + trackerName();
+  const useWedge = !pick.free && !pick.vip && tracker.get().wedge === true;
+  const ts = Date.now();
+  const name = `${String(pick.title || 'book').replace(/[\\/:*?"<>|]+/g, ' ').trim()}.torrent`;
+  const hadSession = !!String(mamSession.get().id || '').trim() && (await useMamSession(base));
+  try {
+    const r = await grabVia(base, {
+      download: pick.dl ? `/tor/download.php/${pick.dl}` : `/tor/download.php?tid=${pick.id}`,
+      wedge: useWedge ? `/json/bonusBuy.php/${ts}?spendtype=personalFL&torrentid=${pick.id}&timestamp=${ts}` : '',
+      name,
+      ebook,
+    });
+    if (!r.sent) logError('tracker grab', `${pick.title}: ${r.message}`);
+    noteCapture({ type: 'torrent', name, data: r.data, sent: r.sent, message: r.message });
+    return r;
+  } finally {
+    if (hadSession) await clearMamSession(base);
+  }
 }
 
 /** What happened to the last download tapped in the tracker browser. */

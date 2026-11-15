@@ -310,6 +310,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           {trackerSite && (title || query) && <TrackerMini site={trackerSite} filter={trackerFilter} words={title ? trackerWords('', { title, author }) : query} title={title} author={author} ebook={qb.isEbookName(query)} />}
         </div>
       )}
+      {qb.canGrab() && title && <MamResults words={trackerWords('', { title, author })} title={title} author={author} ebook={qb.isEbookName(query)} />}
       {onServer && (
         <button class="on-server" onClick={() => nav.push('book', { book: onServer })}>
           <Icon name="check" size={16} />
@@ -1351,6 +1352,78 @@ function friendlyError(e) {
 }
 
 /** Your tracker, always at hand next to "Sources": a round badge with its initial, plus filtered / plain search. */
+/**
+ * MyAnonamouse in the results, with your own sign-in: the best few copies of this book (free /
+ * VIP, then M4B / MP3, then seeders — as the M button picks), each sent to your qBittorrent.
+ */
+function MamResults({ words, title, author, ebook }) {
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState('');
+  const [sent, setSent] = useState({});
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setList(null);
+    setErr('');
+    qb.mamResults({ words, title, author, ebook })
+      .then((l) => alive && setList(l))
+      .catch((e) => alive && (setErr(e.message || 'No answer'), setList([])));
+    return () => (alive = false);
+  }, [words, title, author, ebook]);
+  if (list && !list.length && !err) return null;
+  const authors = (t) => {
+    try {
+      return Object.values(JSON.parse(t.author_info || '{}')).join(', ');
+    } catch {
+      return '';
+    }
+  };
+  const shown = open ? list || [] : (list || []).slice(0, 2);
+  return (
+    <div class="mam-results">
+      <div class="mam-head">
+        <b>MyAnonamouse</b>
+        <small>{list == null ? 'Searching…' : err ? err : `${list.length} cop${list.length === 1 ? 'y' : 'ies'} · to your qBittorrent`}</small>
+      </div>
+      {list == null && <span class="spinner small" />}
+      {shown.map((t) => (
+        <div class="mam-row" key={t.id}>
+          <span class="mam-text">
+            <b>{t.title}</b>
+            <small>
+              {[authors(t), String(t.filetype || '').toUpperCase(), t.size, `${t.seeders || 0} seeds`].filter(Boolean).join(' · ')}
+              {t.free ? <em class="mam-fl"> FL</em> : t.vip ? <em class="mam-fl"> VIP</em> : null}
+            </small>
+          </span>
+          <button
+            class={'pill small' + (sent[t.id] ? ' on' : '')}
+            disabled={!!busy || sent[t.id]}
+            onClick={async () => {
+              setBusy(String(t.id));
+              try {
+                const r = await qb.grabMam(t, { ebook });
+                if (r.sent) setSent((x) => ({ ...x, [t.id]: true }));
+                toast(r.sent ? `✓ ${r.message || 'Sent to qBittorrent'}` : r.message || 'Couldn’t send it');
+              } catch (e) {
+                toast(e.message);
+              }
+              setBusy('');
+            }}
+          >
+            {busy === String(t.id) ? <span class="spinner small" /> : sent[t.id] ? '✓ Sent' : 'Get'}
+          </button>
+        </div>
+      ))}
+      {list && list.length > 2 && (
+        <button class="link-btn" onClick={() => setOpen(!open)}>
+          {open ? 'Fewer' : `${list.length - 2} more`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TrackerMini({ site, filter, words, title = '', author = '', ebook }) {
   const name = site.replace(/^www\./, '');
   const open = (filtered) => qb.openTracker(words, filtered, ebook).catch((e) => toast(e.message));
