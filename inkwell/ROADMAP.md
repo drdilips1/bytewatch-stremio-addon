@@ -23,6 +23,10 @@ Noted while building; to pick up after Saturday.
 - **Page photo played from the start** (no ebook found for the line): the ebook is now always looked
   for on a page photo (skips the "tried in the last day" wait), and with none, the printed page
   number ÷ the book's page count (Google Books) sets how far in to start.
+- **Page photo with the ebook attached still started at the beginning**: the line had to match 6+
+  words exactly; words read off a photo often differ slightly. Now also found by overlapping
+  three-word pieces (the live-text matcher), near the page's share of the book / the chapter first.
+  Next report's "Play a scene" line shows how it was found (or why not).
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf

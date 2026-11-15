@@ -254,7 +254,16 @@ async function inEbook(book, want, part, diag = {}, said = '', step = () => {}) 
   // A line the AI remembers from the scene, found word for word: the surest of all.
   const { quoteAt } = await import('./scenefind.js');
   // In the chapter the AI named when it's known; anywhere in the book only when there's no chapter to go on.
-  const exact = want.quote ? (ch ? quoteAt(bt, want.quote, ch[0], ch[1]) : quoteAt(bt, want.quote)) : null;
+  let exact = want.quote ? (ch ? quoteAt(bt, want.quote, ch[0], ch[1]) : quoteAt(bt, want.quote)) : null;
+  // Not word for word (words read off a photo: a hyphen at a line's end, a curly quote, one word
+  // misread): found by its overlapping three-word pieces instead, the way a heard line is found —
+  // near the page's share of the book first when its page number is known.
+  if (exact == null && want.quote) {
+    const { locate } = await import('./booktext.js');
+    const near = want.bookAt > 0 ? Math.round(want.bookAt * bt.keys.length) : ch ? ch[0] : null;
+    const l = locate(bt, want.quote, near);
+    if (l) (exact = l.from), (diag.loose = true);
+  }
   let tok = exact ?? (ch ? sceneInText(bt, words, ch, { strict: true, target: ch[0] + inCh * (ch[1] - ch[0]), details: inside }) : null);
   // The whole book too: the AI can name the wrong chapter (the egg is talked about in two). If
   // somewhere else has clearly more of the scene's telling words, that's the scene.
