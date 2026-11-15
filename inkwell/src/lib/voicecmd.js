@@ -292,6 +292,14 @@ async function inEbook(book, want, part, diag = {}, said = '', step = () => {}) 
   // Inside the audiobook's own chapter (its start and end are exact): the same share of the way
   // through as in the ebook's chapter — closer than spreading the time across the whole book.
   const head0 = ch && tok >= ch[0] && tok < ch[1] ? ch : null;
+  // Seconds of audio per word here (to turn a few words off into seconds when correcting).
+  let pace = 0;
+  {
+    let a = anchors[0];
+    let b = anchors[anchors.length - 1];
+    for (let i = 1; i < anchors.length; i++) if (anchors[i].tok >= tok) ((a = anchors[i - 1]), (b = anchors[i]), (i = anchors.length));
+    pace = (b.g - a.g) / Math.max(1, b.tok - a.tok);
+  }
   if (head0) {
     const cs = timeOf(anchors, head0[0]);
     const ac = part.find((c) => Math.abs(c.start - cs) < 90 && (c.end || 0) > c.start);
@@ -300,15 +308,17 @@ async function inEbook(book, want, part, diag = {}, said = '', step = () => {}) 
       // The audio chapter is this ebook chapter (they end about together too).
       if (Math.abs(ac.end - ce) < 150) {
         g = ac.start + ((tok - head0[0]) / Math.max(1, head0[1] - head0[0])) * (ac.end - ac.start);
+        pace = (ac.end - ac.start) / Math.max(1, head0[1] - head0[0]);
         diag.local = true;
       }
     }
   }
+  if (!(pace > 0.1 && pace < 1.5)) pace = 0.4; // about 150 words a minute
   const at = part.findIndex((c) => g >= c.start && g < (c.end || Infinity));
   // The start of the chapter it's in (for "play the chapter where …").
   const { chapterStartBefore } = await import('./scenefind.js');
   const head = ch && tok >= ch[0] && tok < ch[1] ? ch[0] : chapterStartBefore(bt, tok);
-  return { g, chapterG: head != null ? timeOf(anchors, head) : null, where: `${part[at]?.title || 'found'} · from the ebook` };
+  return { g, tok, bt, pace, chapterG: head != null ? timeOf(anchors, head) : null, where: `${part[at]?.title || 'found'} · from the ebook` };
 }
 
 /**
@@ -332,6 +342,65 @@ Reply with JSON only: {"passage": <number>, "sure": true|false}`,
   const n = Math.round(Number(r.passage) || 0);
   if (n < 1 || n > ps.length) return null;
   return ps[n - 1].tok;
+}
+
+const say = (text) => window.dispatchEvent(new CustomEvent('inkwell-toast', { detail: text }));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * After the jump: the live transcript reads the next few seconds (it runs ahead of the
+ * playback), those words are found in the ebook, and the book moves by the difference to the
+ * scene's own sentence (a few seconds before it). Nothing changes when it was already right,
+ * when nothing could be heard in time, or when you moved on meanwhile.
+ */
+async function correctScene({ tok, bt, pace }, g) {
+  const T = await import('./transcript.js');
+  const { locate } = await import('./booktext.js');
+  if (!T.transcriptAvailable) return;
+  const ps0 = player.getState();
+  if (!ps0.book) return;
+  const uid = ps0.book.uid;
+  const wasOpen = T.transcriptCfg.get().open;
+  let latest = null;
+  const un = T.subscribeTranscript((st) => (latest = st));
+  say('🎯 Finding the exact spot…');
+  try {
+    await sleep(800);
+    const startAt = player.getState().time; // part seconds where it now plays from
+    T.follow(player.getState());
+    const t0 = Date.now();
+    let heard = null;
+    while (Date.now() - t0 < 25000) {
+      await sleep(1000);
+      const ps = player.getState();
+      if (ps.book?.uid !== uid) return; // another book
+      if (Math.abs(player.globalTime() - (g - LEAD)) > 120) return; // you moved on
+      if (latest?.status === 'no-model' || latest?.status === 'error') return;
+      if (latest?.key !== `${uid}#${ps.index}`) continue;
+      const segs = (latest.segments || []).filter((x) => x.start >= startAt - 2 && x.start <= startAt + 60);
+      const words = segs.reduce((n, x) => n + x.text.split(/\s+/).length, 0);
+      if (words >= 30) {
+        heard = { at: segs[0].start, text: segs.map((x) => x.text).join(' ') };
+        break;
+      }
+    }
+    if (!heard) return;
+    const loc = locate(bt, heard.text, tok);
+    if (!loc) return;
+    const ps = player.getState();
+    const heardG = player.trackOffset(ps.index) + heard.at;
+    // Where the scene's first word really is in the audio, and a few seconds before it.
+    const sceneG = heardG + (tok - loc.from) * pace;
+    const target = Math.max(0, sceneG - 5);
+    const off = target - player.globalTime();
+    if (Math.abs(off) < 12) return say('🎯 Right at the scene');
+    if (Math.abs(sceneG - g) > 600) return; // too far from the estimate to trust
+    player.playAt(target);
+    say(`🎯 Moved ${off > 0 ? 'on' : 'back'} ${Math.round(Math.abs(off))} s to the scene`);
+  } finally {
+    un();
+    if (!wasOpen && !T.transcriptCfg.get().open) T.stopTranscript();
+  }
 }
 
 /**
@@ -440,6 +509,8 @@ export async function playScene(said, step = () => {}, preset = null) {
   diag.found = g != null ? where : 'no';
   import('./report.js').then((r) => r.logError('Play a scene', `“${String(said).slice(0, 80)}” in ${details.title}: ${JSON.stringify(diag)}`)).catch(() => {});
   if (g != null) player.playAt(g - LEAD);
+  // Listen and correct: hear where it really landed and move to the scene's own sentence.
+  if (g != null && hit?.tok != null && settings.get().sceneCorrect !== false) correctScene(hit, g).catch(() => {});
   else {
     // Not found: say so plainly (and why), rather than quietly carrying on from where you were.
     if (!player.getState().playing) player.toggle();
