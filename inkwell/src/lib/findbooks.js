@@ -201,7 +201,7 @@ export async function pageInImage(dataUrl, hint = null) {
   if (!canSeeImages()) throw new Error('Reading a page needs a Gemini or Claude key (Settings → AI)');
   const now = hint?.title ? ` The listener is in the middle of "${hint.title}"${hint.author ? ` by ${hint.author}` : ''} — it's likely this book, but say so only if the page fits it.` : '';
   const raw = await askAiImage(
-    `This is a photo of a page of a book (printed, or on a screen).${now} Work out which book it is from the running header, the names and the story, and copy the words to start listening from: the line that is marked (pointed at with a finger, underlined, highlighted or circled), or if none is marked, the first full sentence at the top of the page. Copy those words exactly as printed, about 25 to 40 words. Reply with JSON only: {"title":"the book's title as published, or empty if you can't tell","author":"","quote":"the exact words","keywords":["5 to 8 unusual words or names from this page"],"chapter":0,"chapterTitle":"the chapter heading if one shows on the page, else empty"}`,
+    `This is a photo of a page of a book (printed, or on a screen).${now} Work out which book it is from the running header, the names and the story, and copy the words to start listening from: the line that is marked (pointed at with a finger, underlined, highlighted or circled), or if none is marked, the first full sentence at the top of the page. Copy those words exactly as printed, about 25 to 40 words. Reply with JSON only: {"title":"the book's title as published, or empty if you can't tell","author":"","quote":"the exact words","keywords":["5 to 8 unusual words or names from this page"],"chapter":0,"chapterTitle":"the chapter heading if one shows on the page, else empty","page":"the printed page number, 0 if none shows"}`,
     dataUrl,
     { json: true }
   );
@@ -215,6 +215,7 @@ export async function pageInImage(dataUrl, hint = null) {
     keywords: (Array.isArray(j.keywords) ? j.keywords : []).map(String).filter(Boolean).slice(0, 10),
     chapter: Number(j.chapter) || 0,
     chapterTitle: String(j.chapterTitle || '').trim(),
+    page: Number(String(j.page || '').replace(/[^0-9]/g, '')) || 0,
   };
 }
 
@@ -234,4 +235,16 @@ export async function bookForQuote(quote) {
     } catch {}
   }
   return null;
+}
+
+/** How many pages the printed book has (Google Books), or 0. */
+export async function pagesOf(title, author = '') {
+  try {
+    const d = await getJson('https://www.googleapis.com/books/v1/volumes?' + qs({ q: `intitle:${mainTitle(title)}${author ? ` inauthor:${author}` : ''}`, maxResults: 5, printType: 'books' }), { timeout: 10000 });
+    const counts = (d?.items || []).map((x) => x.volumeInfo || {}).filter((v) => matches(mainTitle(title), v.title || '') && v.pageCount > 40).map((v) => v.pageCount);
+    // The usual edition (the middle of what's listed), not a large-print or a sampler.
+    return counts.length ? counts.sort((a, b) => a - b)[Math.floor(counts.length / 2)] : 0;
+  } catch {
+    return 0;
+  }
 }

@@ -20,6 +20,9 @@ Noted while building; to pick up after Saturday.
 - **Server search missed titles with punctuation** ("Right Thing, Right Now" searched as "Right
   Thing Right Now" → nothing): now the title as written, without punctuation, the part before a
   comma, then the whole library list matched in the app. Used by Find books, voice "play …", Find & play.
+- **Page photo played from the start** (no ebook found for the line): the ebook is now always looked
+  for on a page photo (skips the "tried in the last day" wait), and with none, the printed page
+  number ÷ the book's page count (Google Books) sets how far in to start.
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf

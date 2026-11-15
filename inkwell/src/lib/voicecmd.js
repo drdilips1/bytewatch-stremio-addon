@@ -215,7 +215,7 @@ function ebookText(book, want) {
     const fits = (eb) => eb && names.some((n) => matches(mainTitle(n), `${eb.title || ''} ${eb.ebookName || ''}`));
     // The ebook of the book asked for — never another book of the same series.
     let eb = [ebookFor(book)].find(fits) || names.map((n) => ebookByTitle(n, want.author)).find(Boolean) || null;
-    if (!eb && names.some((n) => matches(mainTitle(n), book.title || ''))) eb = await Promise.race([autoFindEbook(book), new Promise((r) => setTimeout(() => r(null), 40e3))]);
+    if (!eb && names.some((n) => matches(mainTitle(n), book.title || ''))) eb = await Promise.race([autoFindEbook(book, { force: !!want.forceEbook }), new Promise((r) => setTimeout(() => r(null), want.forceEbook ? 60e3 : 40e3))]);
     if (!fits(eb)) return { eb: null };
     return { eb, bt: await textOfEbook(eb) };
   })();
@@ -487,6 +487,16 @@ export async function playScene(said, step = () => {}, preset = null) {
   if (g == null) {
     g = findHeard(details.uid, want.quote, chapters);
     if (g != null) where = 'where you heard it';
+  }
+  // A page photo with no ebook to search: how far into the book that page is (page 143 of 288),
+  // the same share of the way into the audiobook — a few minutes off at most, not the start.
+  if (g == null && want.bookAt > 0 && want.bookAt < 1) {
+    const total = player.totalDuration() || chapters[chapters.length - 1]?.end || Number(details.duration) || 0;
+    if (total) {
+      g = Math.min(0.98, want.bookAt) * total;
+      where = `about page ${want.page} of ${want.pages} · no ebook to find the line`;
+      diag.page = `${want.page}/${want.pages}`;
+    }
   }
   if (g == null) {
     const ci = pickChapter(chapters, want);

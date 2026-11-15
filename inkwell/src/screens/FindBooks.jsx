@@ -11,7 +11,7 @@ import { toggleLibrary } from '../lib/store.js';
 import { toggleReadLater } from '../lib/readlists.js';
 import { addUpNext } from '../lib/upnext.js';
 import { canSeeImages } from '../lib/ai.js';
-import { shrink, booksInImage, booksInText, matchBooks, saveShelf, pending, pageInImage, bookForQuote } from '../lib/findbooks.js';
+import { shrink, booksInImage, booksInText, matchBooks, saveShelf, pending, pageInImage, bookForQuote, pagesOf } from '../lib/findbooks.js';
 
 const note = (msg) => import('../lib/report.js').then((r) => r.logError('Find books', msg)).catch(() => {});
 
@@ -327,8 +327,12 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
       if (!title) throw new Error("Couldn't tell which book this page is from — try a page with the book's name at the top, or play the book first");
       note(`page read in ${Math.round((Date.now() - t0) / 1000)} s — ${title}${pg.title ? '' : ' (by its words)'}: “${pg.quote.slice(0, 60)}…”`);
       // Yours, or found wherever it is (your sources, else sent home) — then from this page.
+      // The printed page number and the book's page count: where to start if there's no ebook.
+      const pages = pg.page ? await pagesOf(title, author) : 0;
+      const bookAt = pages && pg.page < pages ? pg.page / pages : 0;
+      note(`page ${pg.page || '?'} of ${pages || '?'}`);
       const { getAndPlay } = await import('../lib/getplay.js');
-      const r = await getAndPlay({ title, author, quote: pg.quote, keywords: pg.keywords, chapter: pg.chapter, chapterTitle: pg.chapterTitle, scene: 'the page you took' }, (t) => my === run.current && setBusy(t));
+      const r = await getAndPlay({ title, author, quote: pg.quote, keywords: pg.keywords, chapter: pg.chapter, chapterTitle: pg.chapterTitle, scene: 'the page you took', forceEbook: true, page: pg.page, pages, bookAt }, (t) => my === run.current && setBusy(t));
       if (my !== run.current) return;
       if (r.playing) toast(r.result?.notFound ? r.result.scene : `▶ ${r.result?.book?.title || title} · from your page${r.result?.where ? ` (${r.result.where})` : ''}`);
       else toast(r.message);

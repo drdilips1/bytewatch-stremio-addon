@@ -4,7 +4,7 @@ vi.mock('../src/lib/http.js', () => ({ getJson: vi.fn(), getText: vi.fn(), qs: (
 vi.mock('../src/lib/store.js', () => ({ persisted: (k, v) => ({ get: () => v, set: () => {} }), library: { get: () => ({}) }, progress: { get: () => ({}) } }));
 vi.mock('../src/lib/downloads.js', () => ({ downloads: { get: () => ({}) } }));
 vi.mock('../src/sources/local.js', () => ({ localCfg: { get: () => ({}) } }));
-const { booksInList, bookForQuote } = await import('../src/lib/findbooks.js');
+const { booksInList, bookForQuote, pagesOf } = await import('../src/lib/findbooks.js');
 const http = await import('../src/lib/http.js');
 
 describe('find books in a pasted list', () => {
@@ -26,5 +26,12 @@ describe('which book a page is from', () => {
   it('null when nothing is found', async () => {
     http.getJson.mockResolvedValue({ items: [] });
     expect(await bookForQuote('a few words that are in no book at all here')).toBe(null);
+  });
+});
+
+describe('how many pages the book has', () => {
+  it('the middle of the editions listed, ignoring other books and tiny ones', async () => {
+    http.getJson.mockResolvedValueOnce({ items: [{ volumeInfo: { title: 'Right Thing, Right Now', pageCount: 288 } }, { volumeInfo: { title: 'Right Thing, Right Now (Large Print)', pageCount: 410 } }, { volumeInfo: { title: 'Right Thing, Right Now', pageCount: 304 } }, { volumeInfo: { title: 'Ego Is the Enemy', pageCount: 256 } }, { volumeInfo: { title: 'Right Thing, Right Now', pageCount: 12 } }] });
+    expect(await pagesOf('Right Thing, Right Now', 'Ryan Holiday')).toBe(304);
   });
 });
