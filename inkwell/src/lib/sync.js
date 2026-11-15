@@ -1,6 +1,7 @@
-// Account + cloud sync on the user's own Supabase project (free tier).
-// Email/password or Google sign-in via Supabase Auth; data lives in one row per
-// user in `public.user_data` protected by row-level security.
+// Account + cloud sync. Two services: Audiohub's own (the api.audiohubapp.com Worker, data
+// encrypted on the phone with your password — see cfsync.js; the default) or a Supabase
+// project (the older way: email/password or Google; one row per user in
+// `public.user_data` protected by row-level security). `account.backend` says which.
 //
 // Each synced store is a "section" with its own timestamp; lists that can be
 // edited on several devices (progress, library, bookmarks, addons) merge item
@@ -40,7 +41,15 @@ export const account = persisted('account', {
   lastSync: 0,
   syncKeys: true, // also sync TorBox / Real-Debrid / ABS / Hardcover credentials
   status: '',
+  // Audiohub's own sync: kept on this phone only (never synced). cfKey opens your data.
+  backend: '', // 'cf' | 'supabase' ('' = Supabase if signed in there from before, else cf)
+  cfUser: '',
+  cfAuth: '',
+  cfKey: '',
+  cfToken: '',
+  cfVersion: 0,
 });
+import * as cf from './cfsync.js';
 // The app's own sync server is built in: a device that saved an empty one earlier
 // (or never had it) gets it back, so nobody is ever asked to set up a server.
 if (BAKED_URL && (!account.get().url || !account.get().anonKey)) account.patch({ url: account.get().url || BAKED_URL, anonKey: account.get().anonKey || BAKED_KEY });
@@ -137,8 +146,11 @@ const cfg = () => account.get();
 export const goodServer = (u) => /^https?:\/\/[^/@\s]+\.[^/@\s]+/i.test(String(u || '').trim()) && !String(u).includes('@');
 /** A server address was saved but it isn't one (e.g. an email) — Settings asks for it again. */
 export const badServer = () => !!cfg().url && !goodServer(cfg().url);
-export const configured = () => !!(cfg().url && cfg().anonKey) && goodServer(cfg().url);
-export const signedIn = () => !!cfg().refreshToken;
+/** Which sync service: Audiohub's own (encrypted) unless you're signed in to Supabase from before. */
+export const backend = () => cfg().backend || (cfg().refreshToken ? 'supabase' : 'cf');
+const supaConfigured = () => !!(cfg().url && cfg().anonKey) && goodServer(cfg().url);
+export const configured = () => backend() === 'cf' || supaConfigured();
+export const signedIn = () => (backend() === 'cf' ? !!(cfg().cfKey && cfg().cfUser) : !!cfg().refreshToken);
 
 async function api(path, { method = 'GET', body, token, headers = {} } = {}) {
   const res = await fetch(cfg().url.replace(/\/+$/, '') + path, {
@@ -235,7 +247,115 @@ async function handleRedirect(href) {
   return true;
 }
 
+// ---- Audiohub's own sync (encrypted) --------------------------------------------
+async function cfStart(email, password, create) {
+  if (String(password || '').length < 8) throw new Error('Use a password of at least 8 characters');
+  account.patch({ status: 'Securing your account…' });
+  const k = await cf.deriveKeys(email, password);
+  const r = create ? await cf.signup(k.user, k.auth) : await cf.login(k.user, k.auth);
+  account.patch({ backend: 'cf', email: email.trim(), cfUser: k.user, cfAuth: k.auth, cfKey: k.key, cfToken: r.token, cfVersion: 0, status: '' });
+  await syncNow({ first: true });
+}
+export async function cfSignUp(email, password) {
+  await cfStart(email, password, true);
+  return 'Account created — your data is encrypted and synced';
+}
+export async function cfSignIn(email, password) {
+  await cfStart(email, password, false);
+  return 'Signed in — your data is synced';
+}
+/** From Supabase to Audiohub's own sync: this phone's data (already merged) goes up encrypted. */
+export async function moveToOwn(password) {
+  const email = cfg().email;
+  if (!email) throw new Error('No email on this account');
+  try {
+    await syncNow(); // the latest from Supabase first
+  } catch {}
+  const k = await cf.deriveKeys(email, password);
+  let r;
+  try {
+    r = await cf.signup(k.user, k.auth);
+  } catch (e) {
+    if (e.status !== 409) throw e;
+    r = await cf.login(k.user, k.auth); // already moved from another device
+  }
+  account.patch({ backend: 'cf', cfUser: k.user, cfAuth: k.auth, cfKey: k.key, cfToken: r.token, cfVersion: 0, accessToken: '', refreshToken: '', expiresAt: 0 });
+  await syncNow({ first: true });
+  return 'Moved — Supabase is no longer used';
+}
+/** A sign-in token for the Worker (signing in again by itself when it ran out). */
+async function cfToken(force = false) {
+  if (!force && cfg().cfToken) return cfg().cfToken;
+  const r = await cf.login(cfg().cfUser, cfg().cfAuth);
+  account.patch({ cfToken: r.token });
+  return r.token;
+}
+async function cfSync(first) {
+  let tok = await cfToken();
+  let remote;
+  try {
+    remote = await cf.getData(tok);
+  } catch (e) {
+    if (e.status !== 401) throw e;
+    tok = await cfToken(true);
+    remote = await cf.getData(tok);
+  }
+  if (remote.blob) apply(await cf.open(remote.blob, cfg().cfKey));
+  let base = remote.version || 0;
+  // Saved by another device in between: merge its copy, then try again (twice at most).
+  for (let i = 0; i < 3; i++) {
+    try {
+      const r = await cf.putData(tok, await cf.seal(snapshot(), cfg().cfKey), base);
+      account.patch({ cfVersion: r.version, lastSync: Date.now(), status: first ? 'Synced' : '' });
+      lastCfPush = Date.now();
+      return;
+    } catch (e) {
+      if (e.status !== 409 || i === 2) throw e;
+      if (e.data?.blob) apply(await cf.open(e.data.blob, cfg().cfKey));
+      base = e.data?.version || 0;
+    }
+  }
+}
+let lastCfPush = 0;
+
+/** A backup file of your data (keys and logins only when asked): JSON text. */
+export function exportBackup(withKeys = false) {
+  const sections = {};
+  for (const [k, sec] of Object.entries(SECTIONS)) {
+    if (sec.secret && !withKeys) continue;
+    sections[k] = { t: stamps.get()[k] || 0, v: sec.store.get() };
+  }
+  return JSON.stringify({ app: 'audiohub', kind: 'backup', at: Date.now(), withKeys, sections });
+}
+/** Bring a backup file back: merged with what's on this phone, as another device's copy would be. */
+export function importBackup(text) {
+  let d;
+  try {
+    d = JSON.parse(text);
+  } catch {
+    throw new Error("That isn't an Audiohub backup file");
+  }
+  if (d?.app !== 'audiohub' || !d.sections) throw new Error("That isn't an Audiohub backup file");
+  // Its own keys and logins come back even with "Sync service keys" off.
+  const keep = cfg().syncKeys;
+  if (d.withKeys) account.patch({ syncKeys: true });
+  apply(d.sections);
+  if (d.withKeys && !keep) setTimeout(() => account.patch({ syncKeys: keep }), 600);
+  return `Backup from ${new Date(d.at).toLocaleDateString()} brought back`;
+}
+/** Delete your synced copy and account on the server (this phone keeps everything). */
+export async function deleteOwnAccount() {
+  await cf.deleteAccount(await cfToken());
+  account.patch({ backend: '', cfUser: '', cfAuth: '', cfKey: '', cfToken: '', cfVersion: 0, lastSync: 0, status: '' });
+  return 'Your synced copy was deleted — everything stays on this phone';
+}
+
 export async function signOut() {
+  if (backend() === 'cf') {
+    await cf.logout(cfg().cfToken);
+    account.patch({ backend: '', cfUser: '', cfAuth: '', cfKey: '', cfToken: '', cfVersion: 0, lastSync: 0, status: '' });
+    return;
+  }
   try {
     if (cfg().accessToken) await api('/auth/v1/logout', { method: 'POST', token: cfg().accessToken });
   } catch {}
@@ -283,6 +403,18 @@ export function syncNow({ first = false } = {}) {
   if (!configured() || !signedIn()) return Promise.resolve();
   if (syncing) return syncing;
   syncing = (async () => {
+    if (backend() === 'cf') {
+      try {
+        account.patch({ status: 'Syncing…' });
+        await cfSync(first);
+      } catch (e) {
+        account.patch({ status: 'Sync failed: ' + e.message });
+        throw e;
+      } finally {
+        syncing = null;
+      }
+      return;
+    }
     try {
       account.patch({ status: 'Syncing…' });
       let tok = await token();
@@ -329,11 +461,21 @@ for (const [k, s] of Object.entries(SECTIONS)) {
     stamps.set((st) => ({ ...st, [k]: Math.max(Date.now(), (st[k] || 0) + 1) }));
     if (!signedIn()) return;
     clearTimeout(pushTimer);
-    pushTimer = setTimeout(() => syncNow().catch(() => {}), 8000);
+    // Audiohub's own sync: at most every 3 minutes (the server's free plan allows about a
+    // thousand saves a day; progress changes all the time while a book plays). Closing or
+    // leaving the app sends the rest at once.
+    const wait = backend() === 'cf' ? Math.max(8000, 180e3 - (Date.now() - lastCfPush)) : 8000;
+    pushTimer = setTimeout(() => syncNow().catch(() => {}), wait);
   });
 }
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && signedIn() && Date.now() - cfg().lastSync > 60e3) syncNow().catch(() => {});
+  // Leaving the app: what changed since the last save goes now.
+  if (document.visibilityState === 'hidden' && signedIn() && pushTimer && Date.now() - lastCfPush > 20e3) {
+    clearTimeout(pushTimer);
+    pushTimer = null;
+    syncNow().catch(() => {});
+  }
 });
 if (Capacitor.isNativePlatform()) {
   CapApp.addListener('appUrlOpen', ({ url }) => {

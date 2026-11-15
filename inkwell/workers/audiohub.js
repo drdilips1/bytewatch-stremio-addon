@@ -14,7 +14,7 @@
 const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization, apikey, x-relay-headers",
   "Access-Control-Expose-Headers": "x-relay-version"
 };
@@ -345,6 +345,89 @@ const ADDONS = {
   }
 };
 
+// ---- Account sync: /sync/… — each person's app data, ENCRYPTED ON THEIR PHONE with their
+// password before it's sent, so this worker only ever keeps scrambled bytes it can't read.
+// Stored in a KV namespace bound as SYNC (Workers & Pages → audiohub → Settings → Bindings →
+// KV namespace, variable name SYNC). Keys: u:<user> sign-in check, t:<token> → user,
+// d:<user> the encrypted copy with its version, r:<ip> sign-in attempts (rate limit).
+// <user> is a hash of the email made on the phone: the email itself never reaches here.
+const enc = new TextEncoder();
+const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+const sha = async (text) => hex(await crypto.subtle.digest("SHA-256", enc.encode(text)));
+const randHex = (n) => hex(crypto.getRandomValues(new Uint8Array(n)));
+const jsonReply = (o, status = 200) => reply(JSON.stringify(o), status);
+const TOKEN_TTL = 60 * 60 * 24 * 60; // 60 days; the app signs in again by itself when one runs out
+async function syncRoute(request, path, env) {
+  const kv = env.SYNC;
+  if (!kv) return jsonReply({ error: "Sync isn't set up on the server yet (a KV namespace named SYNC)" }, 503);
+  const op = path.slice("/sync/".length);
+  const body = request.method === "POST" || request.method === "PUT" ? await request.json().catch(() => ({})) : {};
+  const user = String(body.user || "");
+  const auth = String(body.auth || "");
+  const okUser = /^[a-f0-9]{64}$/.test(user) && auth.length >= 32 && auth.length <= 200;
+  // Too many wrong passwords from one address: wait a bit (10 tries in 15 minutes).
+  const ip = request.headers.get("CF-Connecting-IP") || "?";
+  const tooMany = async () => {
+    const n = Number(await kv.get("r:" + ip)) || 0;
+    return n >= 10;
+  };
+  const failed = async () => {
+    const n = Number(await kv.get("r:" + ip)) || 0;
+    await kv.put("r:" + ip, String(n + 1), { expirationTtl: 900 });
+  };
+  const issue = async () => {
+    const token = randHex(32);
+    await kv.put("t:" + token, user, { expirationTtl: TOKEN_TTL });
+    return token;
+  };
+  if (op === "signup" && request.method === "POST") {
+    if (!okUser) return jsonReply({ error: "Bad request" }, 400);
+    if (await kv.get("u:" + user)) return jsonReply({ error: "There's already an account with that email — sign in instead" }, 409);
+    const salt = randHex(16);
+    await kv.put("u:" + user, JSON.stringify({ salt, hash: await sha(salt + auth), at: Date.now() }));
+    return jsonReply({ token: await issue(), version: 0 });
+  }
+  if (op === "login" && request.method === "POST") {
+    if (!okUser) return jsonReply({ error: "Bad request" }, 400);
+    if (await tooMany()) return jsonReply({ error: "Too many tries — wait 15 minutes" }, 429);
+    const rec = JSON.parse((await kv.get("u:" + user)) || "null");
+    if (!rec || (await sha(rec.salt + auth)) !== rec.hash) {
+      await failed();
+      return jsonReply({ error: rec ? "Wrong password" : "No account with that email — create one first" }, rec ? 401 : 404);
+    }
+    return jsonReply({ token: await issue() });
+  }
+  // Everything else needs a sign-in token.
+  const token = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  const who = /^[a-f0-9]{64}$/.test(token) ? await kv.get("t:" + token) : null;
+  if (!who) return jsonReply({ error: "Signed out" }, 401);
+  if (op === "data" && request.method === "GET") {
+    const d = JSON.parse((await kv.get("d:" + who)) || "null");
+    return jsonReply(d || { version: 0, blob: "" });
+  }
+  if (op === "data" && request.method === "PUT") {
+    const blob = String(body.blob || "");
+    if (!blob || blob.length > 20 * 1024 * 1024) return jsonReply({ error: "Nothing to save, or too big" }, 400);
+    const cur = JSON.parse((await kv.get("d:" + who)) || "null");
+    const version = cur?.version || 0;
+    // Another device saved in between: send its copy back to be merged first.
+    if (Number(body.base || 0) !== version) return jsonReply({ error: "Changed elsewhere", version, blob: cur?.blob || "" }, 409);
+    await kv.put("d:" + who, JSON.stringify({ version: version + 1, blob, at: Date.now() }));
+    return jsonReply({ version: version + 1 });
+  }
+  if (op === "delete" && request.method === "POST") {
+    await kv.delete("d:" + who);
+    await kv.delete("u:" + who);
+    await kv.delete("t:" + token);
+    return jsonReply({ ok: true });
+  }
+  if (op === "logout" && request.method === "POST") {
+    await kv.delete("t:" + token);
+    return jsonReply({ ok: true });
+  }
+  return jsonReply({ error: "Not found" }, 404);
+}
+
 function reply(body, status = 200) {
   return new Response(body, { status, headers: HEADERS });
 }
@@ -544,6 +627,7 @@ export default {
 
     try {
       if (path === "/relay") return await relay(request, url);
+      if (path.startsWith("/sync/")) return await syncRoute(request, path, env);
 
       // LibGen / EXTto / RuTracker: /libgen/…, /extto/…, /rutracker/… passed to their workers,
       // with their links in the answer pointing back here.

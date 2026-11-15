@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Icon } from '../components/icons.jsx';
 import { nav } from '../lib/nav.js';
 import { toast } from '../components/common.jsx';
@@ -50,6 +50,178 @@ export function NameRow() {
 
 export function AccountCard() {
   const a = useStore(sync.account);
+  if (sync.backend() === 'supabase') return <SupabaseCard toOwn={() => sync.account.patch({ backend: 'cf' })} />;
+  return (
+    <>
+      <OwnSyncCard a={a} />
+      <BackupRow />
+    </>
+  );
+}
+
+/** Audiohub's own sync: encrypted on this phone with your password. */
+function OwnSyncCard({ a }) {
+  const [email, setEmail] = useState(a.email);
+  const [pass, setPass] = useState('');
+  const [busy, setBusy] = useState('');
+  const run = (name, fn) => async (e) => {
+    e?.preventDefault?.();
+    setBusy(name);
+    try {
+      const msg = await fn();
+      if (msg) toast(msg);
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      setBusy('');
+    }
+  };
+  if (sync.signedIn())
+    return (
+      <>
+        <div class="set-row">
+          <div>
+            <b>{a.email}</b>
+            <small>
+              🔒 Encrypted with your password · last synced {ago(a.lastSync)}
+              {a.status && ` · ${a.status}`}
+            </small>
+          </div>
+          <button class="pill small" disabled={!!busy} onClick={run('sync', () => sync.syncNow().then(() => 'Synced'))}>
+            {busy === 'sync' ? <span class="spinner small" /> : 'Sync now'}
+          </button>
+        </div>
+        <label class="set-row">
+          <div>
+            <b>Sync service keys</b>
+            <small>TorBox, Real-Debrid, Audiobookshelf, trackers & voice keys — encrypted like everything else</small>
+          </div>
+          <input type="checkbox" class="switch" checked={a.syncKeys} onChange={(e) => sync.account.patch({ syncKeys: e.currentTarget.checked })} />
+        </label>
+        <div class="set-row">
+          <small>Synced through Audiohub’s own server, which only ever sees scrambled data.</small>
+          <button class="pill danger small" onClick={run('out', () => sync.signOut().then(() => 'Signed out'))}>
+            Sign out
+          </button>
+        </div>
+        <div class="set-row">
+          <small>Delete the synced copy and the account from the server (this phone keeps everything).</small>
+          <button class="pill danger small" disabled={!!busy} onClick={run('del', () => (confirm('Delete your synced copy and account from the server?') ? sync.deleteOwnAccount() : ''))}>
+            Delete
+          </button>
+        </div>
+      </>
+    );
+  return (
+    <form class="set-form" onSubmit={run('in', () => sync.cfSignIn(email, pass))}>
+      <p class="muted">
+        Back up your library, progress, addons and logins, and use them on your other devices. Everything is <b>encrypted on this phone with your password</b> before it’s sent — the server can’t read it. {a.status && <b>{a.status}</b>}
+      </p>
+      <input type="email" placeholder="Email" value={email} onInput={(e) => setEmail(e.currentTarget.value)} autocapitalize="off" autocomplete="email" />
+      <input type="password" placeholder="Password (8+ characters)" value={pass} onInput={(e) => setPass(e.currentTarget.value)} autocomplete="current-password" />
+      <div class="btn-row">
+        <button class="btn primary" disabled={!email || pass.length < 8 || !!busy}>
+          {busy === 'in' ? <span class="spinner" /> : null} Sign in
+        </button>
+        <button type="button" class="btn secondary" disabled={!email || pass.length < 8 || !!busy} onClick={run('up', () => sync.cfSignUp(email, pass))}>
+          {busy === 'up' ? <span class="spinner" /> : null} Create account
+        </button>
+      </div>
+      <p class="muted small">A forgotten password can’t be reset — nobody can open the synced copy without it. This phone keeps everything, and a backup file (below) covers you.</p>
+      <div class="btn-row small">
+        <button type="button" class="link-btn" onClick={() => sync.account.patch({ backend: 'supabase' })}>
+          Use your own Supabase instead
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** Signed in to Supabase from before: move to Audiohub's own encrypted sync. */
+function MoveToOwn() {
+  const [pass, setPass] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <form
+      class="set-form move-own"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        try {
+          toast(await sync.moveToOwn(pass));
+        } catch (err) {
+          toast(err.message);
+        }
+        setBusy(false);
+      }}
+    >
+      <p class="muted">
+        <b>Move to Audiohub’s own sync</b> — encrypted with a password, and no Supabase project that can pause. Choose a password (8+ characters); use the same one on your other devices.
+      </p>
+      <input type="password" placeholder="Password for your encrypted sync" value={pass} onInput={(e) => setPass(e.currentTarget.value)} autocomplete="new-password" />
+      <button class="btn primary" disabled={pass.length < 8 || busy}>
+        {busy ? <span class="spinner" /> : null} Move my data
+      </button>
+    </form>
+  );
+}
+
+/** Export / import a backup file — your data without any server. */
+function BackupRow() {
+  const fileRef = useRef(null);
+  const [keys, setKeys] = useState(false);
+  const save = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([sync.exportBackup(keys)], { type: 'application/json' }));
+    a.download = `audiohub-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    toast(keys ? 'Backup saved — it has your keys and logins, keep it private' : 'Backup saved');
+  };
+  return (
+    <>
+      <div class="set-row">
+        <div>
+          <b>Backup file</b>
+          <small>Your library, progress, bookmarks, addons and settings in one file — no server needed</small>
+        </div>
+        <div class="btn-row small">
+          <button class="pill small" onClick={save}>
+            Export
+          </button>
+          <button class="pill small" onClick={() => fileRef.current?.click()}>
+            Import
+          </button>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={async (e) => {
+            const f = e.currentTarget.files?.[0];
+            e.currentTarget.value = '';
+            if (!f) return;
+            try {
+              toast(sync.importBackup(await f.text()));
+            } catch (err) {
+              toast(err.message);
+            }
+          }}
+        />
+      </div>
+      <label class="set-row">
+        <div>
+          <b>Include keys and logins</b>
+          <small>TorBox, Real-Debrid, server and tracker logins go in the file too (not encrypted — keep it private)</small>
+        </div>
+        <input type="checkbox" class="switch" checked={keys} onChange={(e) => setKeys(e.currentTarget.checked)} />
+      </label>
+    </>
+  );
+}
+
+function SupabaseCard({ toOwn }) {
+  const a = useStore(sync.account);
   const [url, setUrl] = useState(a.url);
   const [key, setKey] = useState(a.anonKey);
   const [email, setEmail] = useState(a.email);
@@ -95,6 +267,7 @@ export function AccountCard() {
           </div>
           <input type="checkbox" class="switch" checked={a.syncKeys} onChange={(e) => sync.account.patch({ syncKeys: e.currentTarget.checked })} />
         </label>
+        <MoveToOwn />
         <div class="set-row">
           <small>Library, progress, bookmarks, addons, shelves and settings sync automatically.</small>
           <button class="pill danger small" onClick={run('out', () => sync.signOut().then(() => 'Signed out'))}>
@@ -174,6 +347,9 @@ export function AccountCard() {
             Change sync server
           </button>
         )}
+        <button type="button" class="link-btn" onClick={toOwn}>
+          Use Audiohub’s own sync instead
+        </button>
       </div>
 
     </form>

@@ -8,6 +8,7 @@ export const CHANGES = [
     id: '2026-11-14',
     title: 'A calmer player, smarter scenes, a tidier library',
     items: [
+      ['🔒', 'Your own encrypted sync', 'Settings → Account: sync now runs on Audiohub’s own server, encrypted on your phone with your password — the server can’t read it, and it never pauses. Signed in to the old sync? Use “Move my data” once. Plus Export / Import a backup file.'],
       ['🎨', 'Player in the cover’s colours', 'The play button and controls take the cover’s colour; a line around the cover fills up through the chapter, with how many minutes are left in it.'],
       ['🌙', 'Night mode', 'At night the player turns dark and warm with bigger buttons, and dims itself after 20 seconds (tap to wake). Hours in Settings → Appearance.'],
       ['☾', 'You drifted off?', 'After the sleep timer stops a book: hear what happened in the last 10 minutes, or go back 10 minutes.'],
