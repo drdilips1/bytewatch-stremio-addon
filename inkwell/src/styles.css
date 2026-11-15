@@ -12699,3 +12699,56 @@ button.cr-tile.on > img {
 .fb-bar small { color: var(--muted); }
 .fb-bar > div { display: flex; gap: 8px; margin-top: 6px; }
 .fb-bar .btn { flex: 1; padding: 10px; }
+
+/* Library header: keep the title whole on narrow phones. */
+.library-head .screen-title {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.library-head-actions {
+  min-width: 0;
+  justify-content: flex-end;
+}
+@media (max-width: 430px) {
+  .library-head {
+    padding-right: 12px;
+    gap: 8px;
+  }
+  .library-head .screen-title {
+    font-size: 30px;
+    padding-left: 16px;
+    padding-right: 0;
+  }
+  .library-head-actions,
+  :root[data-palette='paperink'] .library-head-actions {
+    gap: 6px;
+  }
+  .library-head-actions .icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+  .library-head-actions .pill.small {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+/* Found shelves (saved from Find books) */
+.found-shelf {
+  margin-bottom: 18px;
+}
+.found-shelf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.found-shelf-head h3 {
+  font-size: 17px;
+  font-weight: 650;
+}
+.found-shelf-head span {
+  font-size: 13px;
+  color: var(--text-2, var(--muted));
+}

@@ -20,6 +20,7 @@ import { EbookSearchBox, EbookSearchResults } from '../components/ebook-search.j
 import * as lb from '../sources/libby.js';
 import { readLater, readElsewhere } from '../lib/readlists.js';
 import { myRatings, alreadyRead } from '../lib/taste.js';
+import { foundShelves } from '../lib/findbooks.js';
 
 const TABS = [
   ['progress', 'Continue'],
@@ -76,6 +77,38 @@ function CoverGrid({ items }) {
         </button>
       )}
     </>
+  );
+}
+
+/** Lists saved from Find books (a photo, a screenshot or pasted text), newest first. */
+function FoundShelves({ shelves }) {
+  const day = (t) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return (
+    <div class="found-shelves">
+      {shelves.map((sh) => (
+        <section class="found-shelf" key={sh.id}>
+          <div class="found-shelf-head pad">
+            <div>
+              <h3>{sh.name}</h3>
+              <span>
+                {sh.books.length} {sh.books.length === 1 ? 'book' : 'books'} · {day(sh.at)}
+              </span>
+            </div>
+            <button
+              class="icon-btn"
+              aria-label={`Delete shelf ${sh.name}`}
+              onClick={() => {
+                foundShelves.set((all) => all.filter((x) => x.id !== sh.id));
+                toast('Shelf deleted');
+              }}
+            >
+              <Icon name="trash" size={17} />
+            </button>
+          </div>
+          <CoverGrid items={sh.books} />
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -152,7 +185,8 @@ export function Library() {
   const later = useStore(readLater);
   const rated = useStore(myRatings);
   const readList = useStore(alreadyRead);
-  const tab = TABS.some(([k]) => k === view.tab) || (view.tab === 'libby' && lb.connected()) ? view.tab : 'progress';
+  const shelves = useStore(foundShelves) || [];
+  const tab = TABS.some(([k]) => k === view.tab) || (view.tab === 'libby' && lb.connected()) || (view.tab === 'found' && shelves.length) ? view.tab : 'progress';
   const where = view.where || 'all';
   const mode = view.mode || (view.list ? 'list' : 'grid');
   const setTab = (t) => libView.set((v) => ({ ...v, tab: t, where: 'all' }));
@@ -266,9 +300,6 @@ export function Library() {
           <button class="icon-btn glass" onClick={() => nav.push('tidy')} aria-label="Tidy up">
             <Icon name="wand" size={19} />
           </button>
-          <button class="icon-btn glass" onClick={() => nav.push('stats')} aria-label="Listening stats">
-            <Icon name="chart" size={20} />
-          </button>
           <button class={'pill small' + (editing ? ' active' : '')} onClick={() => setEditing(!editing)}>
             {editing ? 'Done' : 'Edit'}
           </button>
@@ -317,7 +348,7 @@ export function Library() {
         </div>
       </button>
       <div class="segmented scroll">
-        {[...TABS, ...(lb.connected() ? [['libby', 'Libby']] : [])].map(([k, label]) => (
+        {[...TABS.slice(0, 2), ...(shelves.length ? [['found', 'Found']] : []), ...TABS.slice(2), ...(lb.connected() ? [['libby', 'Libby']] : [])].map(([k, label]) => (
           <button class={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
             {label}
           </button>
@@ -366,11 +397,13 @@ export function Library() {
           </div>
         </div>
       )}
-      {tab !== 'podcasts' && tab !== 'libby' && <MissingCovers items={items} local={local} />}
+      {tab !== 'podcasts' && tab !== 'libby' && tab !== 'found' && <MissingCovers items={items} local={local} />}
       {subs && where === 'phone' && !items.length ? (
         <PhoneEmpty />
       ) : tab === 'libby' ? (
         <LibbyShelf />
+      ) : tab === 'found' ? (
+        <FoundShelves shelves={shelves} />
       ) : tab === 'podcasts' ? (
         <div class="lib-pods">
           {items.length > 0 && (

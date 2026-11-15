@@ -123,7 +123,7 @@ function ManyBooks({ name, url, list }) {
             {list.length} book{list.length === 1 ? '' : 's'} found{url ? ` · ${new URL(url).hostname}` : ''}
           </small>
         </span>
-        <button class="pill small" onClick={() => (saveShelf(name, list.map((m) => m.book)), toast('Saved as a shelf in Library'))}>
+        <button class="pill small" onClick={() => (saveShelf(name, list.map((m) => m.book)), toast('Saved — see Library → Found'))}>
           Save as shelf
         </button>
       </div>
