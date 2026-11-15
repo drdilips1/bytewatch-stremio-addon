@@ -235,8 +235,13 @@ async function inEbook(book, want, part, diag = {}, said = '', step = () => {}) 
   const total = player.totalDuration() || part[part.length - 1]?.end || Number(book.duration) || 0;
   if (!total || !part.length) return (diag.noLength = true), null;
   const { anchorsFor, timeOf, sceneInText, rangeOf } = await import('./scenefind.js');
-  const end = part[part.length - 1].end || total;
-  const anchors = anchorsFor(bt, part, end, want.title, part[0].start);
+  // End credits (and closing music) after the story aren't the book's words: the text's end is
+  // tied to the end of the last story part, not the end of the credits — else a scene near the
+  // end of the last chapter landed in the credits.
+  let body = part;
+  while (body.length > 2 && /credits?|outro|closing|end of (the )?book|epilogue music/i.test(body[body.length - 1].title || '') && !/chapter/i.test(body[body.length - 1].title || '')) body = body.slice(0, -1);
+  const end = body[body.length - 1].end || total;
+  const anchors = anchorsFor(bt, body, end, want.title, body[0].start);
   const ci = want.chapterTitle || want.chapter ? pickChapter(part, want) : -1;
   const words = [...(want.keywords || []), want.quote || ''];
   // The chapter the AI named, found in the ebook itself: the scene is looked for there

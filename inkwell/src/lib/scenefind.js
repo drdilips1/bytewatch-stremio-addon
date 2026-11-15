@@ -99,12 +99,12 @@ export function anchorsFor(bt, chapters, total, bookTitle, from = 0) {
         if (c && c.start > paired[paired.length - 1].g && heads[i] > paired[paired.length - 1].tok) paired.push({ tok: heads[i], g: c.start });
       }
       if (numbered ? paired.length >= heads.length : paired.length > anchors.length) {
-        paired.push({ tok: keys.length, g: total });
+        paired.push({ tok: storyEnd(keys, paired[paired.length - 1].tok), g: total });
         return paired;
       }
     }
   }
-  anchors.push({ tok: keys.length, g: total });
+  anchors.push({ tok: storyEnd(keys, anchors[anchors.length - 1].tok), g: total });
   return anchors;
 }
 
@@ -277,7 +277,23 @@ export function chapterRange(bt, chapter, chapterTitle) {
         end = i;
         break;
       }
+  // The last chapter: it ends where the back matter starts (acknowledgements, about the author,
+  // also by…), not at the end of the file — else its end was stretched over the back pages.
+  if (next == null) end = Math.min(end, backMatterAfter(keys, start + 500) ?? end);
   return [start, end];
+}
+
+/** Where the story's words end: the back pages after the last chapter, else the end of the text. */
+const storyEnd = (keys, lastTok) => backMatterAfter(keys, lastTok + 500) ?? keys.length;
+
+/** Where the book's back pages begin after `from` (word position), or null. */
+export function backMatterAfter(keys, from) {
+  const at = (i, ...w) => w.every((x, k) => keys[i + k] === x);
+  for (let i = Math.max(0, from); i < keys.length - 2; i++) {
+    const w = keys[i];
+    if (w === 'acknowledgements' || w === 'acknowledgments' || w === 'afterword' || at(i, 'about', 'the', 'author') || at(i, 'also', 'by') || at(i, 'the', 'end') || at(i, 'reading', 'group', 'guide')) return i;
+  }
+  return null;
 }
 
 /** The chapter the AI named, as a stretch of the text (between its anchor and the next). */

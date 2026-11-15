@@ -100,3 +100,25 @@ describe('passagesOf', () => {
     expect(ps[ps.length - 1].tok).toBeLessThan(18000);
   });
 });
+
+describe('the last chapter', () => {
+  it('a scene near the end of the last chapter lands in that chapter, not in the end credits', () => {
+    const story = [filler(200), 'Chapter One', filler(3000), 'Chapter Two', filler(3000), 'the feast ended with cheering in the great hall', filler(40), 'Acknowledgements', filler(1500), 'About the Author', filler(300)].join(' ');
+    const bt = { keys: ebookKeys(story) };
+    // Audio: intro, two chapters, end credits.
+    const chapters = [
+      { title: 'Opening Credits', start: 0, end: 60 },
+      { title: 'Chapter One', start: 60, end: 1260 },
+      { title: 'Chapter Two', start: 1260, end: 2460 },
+      { title: 'End Credits', start: 2460, end: 2520 },
+    ];
+    const body = chapters.slice(0, 3);
+    const anchors = anchorsFor(bt, body, body[2].end, 'A Book', 0);
+    const tok = bt.keys.indexOf('feast');
+    const g = timeOf(anchors, tok);
+    expect(g).toBeGreaterThan(2300);
+    expect(g).toBeLessThan(2460); // before the credits
+    const r = chapterRange(bt, 2, '');
+    expect(bt.keys[r[1]]).toBe('acknowledgements');
+  });
+});
