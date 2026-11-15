@@ -25,6 +25,7 @@ import { UpdateCard } from '../components/update.jsx';
 import * as qb from '../sources/qbit.js';
 import { QbitListActions } from '../components/qbit-actions.jsx';
 import { TrackerCard } from './Tracker.jsx';
+import { blinkist, signInBlinkist, openBlinkist } from '../sources/blinkist.js';
 import { pickTorrentFile } from '../lib/torrentfile.js';
 
 // Which sections are open; kept while the app runs so going back to Settings keeps them.
@@ -47,6 +48,32 @@ function Section({ icon, title, children }) {
       </button>
       {open && <div class="set-card">{children}</div>}
     </section>
+  );
+}
+
+/** Blinkist with your own account: its website and player, inside the app. */
+function BlinkistSettings() {
+  const cfg = useStore(blinkist);
+  return (
+    <>
+      <Toggle
+        label="Blinkist"
+        hint="A B on books Blinkist has, Read / listen on Blinkist on the book page, and its free book of the day on Home — in Blinkist's own player, signed in as you"
+        on={!!cfg.on}
+        onChange={(v) => blinkist.set((b) => ({ ...b, on: v }))}
+      />
+      {cfg.on && (
+        <div class="row-actions">
+          <button class="pill small" onClick={() => signInBlinkist()}>
+            {cfg.signedIn ? 'Sign in again' : 'Sign in to Blinkist'}
+          </button>
+          <button class="pill small" onClick={() => openBlinkist()}>
+            Open Blinkist
+          </button>
+        </div>
+      )}
+      {cfg.on && <p class="muted small">Your sign-in stays in the app's browser (the same one as the tracker). Audio plays in Blinkist's player there, not the Audiohub player.</p>}
+    </>
   );
 }
 
@@ -1705,6 +1732,9 @@ export function Settings() {
       </Section>
       <Section icon="external" title="Tracker">
         <TrackerCard />
+      </Section>
+      <Section icon="book" title="Blinkist">
+        <BlinkistSettings />
       </Section>
       <Section icon="library" title="Libby (public libraries)">
         <LibbySettings />

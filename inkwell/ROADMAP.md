@@ -37,6 +37,12 @@ Noted while building; to pick up after Saturday.
   subtitle) → sent to the home server from MAM (a second copy). Fixed both checks; a book the server
   has is never sent home now; page count also from Open Library when Google Books has none.
 
+## Blinkist (built 15 Nov, option A)
+Your own account, Blinkist's own website/player in the in-app browser (sign-in kept). B badge once a
+book page found it (blinkist.com/en/books/<title>-en, then <title>-<author>-en; else its search),
+Free Daily card on Home, Settings → Blinkist. Not done on purpose: pulling its paid text/audio into
+the Audiohub player (private API, against its terms — account risk). Untested on a phone.
+
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf
 apps like Absorb, and Storyteller for read-along). Fixes from that test are committed, not built

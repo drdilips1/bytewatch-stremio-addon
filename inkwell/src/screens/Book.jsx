@@ -64,6 +64,7 @@ import { usePlayerBasics, useCoverColor } from "../components/player-ui.jsx";
 import { RelatedRows } from "../components/related.jsx";
 import { openExternal } from "../sources/summaries.js";
 import { useStoryShots, chooseStoryShots } from "../sources/storyshots.js";
+import { useBlinkist, openBlinkist } from "../sources/blinkist.js";
 import { absUploads } from "../lib/absupload.js";
 
 // Books you already have (cloud, server, addons) can still show other copies from source addons.
@@ -232,6 +233,7 @@ export function Book({ book: initial }) {
       )}
       {book.source !== "pod" && book.source !== "sum" && <SeriesCard book={book} />}
       <StoryShotsLink book={book} />
+      <BlinkistLink book={book} />
       {(book.libbyLoan || book.libbyHold) && <LibbyLoanActions book={book} />}
       <div class="book-actions">
         {book.kind === "discover" && !book.libbyLoan && (
@@ -657,6 +659,18 @@ export function Book({ book: initial }) {
         />
       )}
     </div>
+  );
+}
+
+/** Blinkist (with your account): its summary of this book, in its own player inside the app. */
+function BlinkistLink({ book }) {
+  const bl = useBlinkist(book);
+  if (!bl) return null;
+  return (
+    <button class="ss-link bl-link" onClick={() => openBlinkist(bl.url)}>
+      <span class={"bl-badge" + (bl.exact ? "" : " outline")}>B</span>{" "}
+      {bl.exact ? "Read / listen on Blinkist" : bl.checking ? "Looking on Blinkist…" : "Find it on Blinkist"}
+    </button>
   );
 }
 
