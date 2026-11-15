@@ -1386,44 +1386,69 @@ function MamResults({ words, title, author, ebook }) {
     }
   };
   const shown = open ? list || [] : (list || []).slice(0, 2);
+  const get = async (t) => {
+    setBusy(String(t.id));
+    try {
+      const r = await qb.grabMam(t, { ebook });
+      if (r.sent) setSent((x) => ({ ...x, [t.id]: true }));
+      toast(r.sent ? `✓ ${r.message || 'Sent to qBittorrent'}` : r.message || 'Couldn’t send it');
+    } catch (e) {
+      toast(e.message);
+    }
+    setBusy('');
+  };
+  // Laid out as the other results: a card per copy, with your home server as its one service.
   return (
-    <div class="mam-results">
-      <div class="mam-head">
-        <b>MyAnonamouse</b>
-        <small>{list == null ? 'Searching…' : err ? err : `${list.length} cop${list.length === 1 ? 'y' : 'ies'} · to your qBittorrent`}</small>
+    <div class="src-sec">
+      <div class="src-sec-head">
+        <span>MyAnonamouse</span>
+        <small>{list == null ? <span class="spinner small" /> : err ? '' : list.length}</small>
       </div>
-      {list == null && <span class="spinner small" />}
-      {shown.map((t) => (
-        <div class="mam-row" key={t.id}>
-          <span class="mam-text">
-            <b>{t.title}</b>
-            <small>
-              {[authors(t), String(t.filetype || '').toUpperCase(), t.size, `${t.seeders || 0} seeds`].filter(Boolean).join(' · ')}
-              {t.free ? <em class="mam-fl"> FL</em> : t.vip ? <em class="mam-fl"> VIP</em> : null}
-            </small>
-          </span>
-          <button
-            class={'pill small' + (sent[t.id] ? ' on' : '')}
-            disabled={!!busy || sent[t.id]}
-            onClick={async () => {
-              setBusy(String(t.id));
-              try {
-                const r = await qb.grabMam(t, { ebook });
-                if (r.sent) setSent((x) => ({ ...x, [t.id]: true }));
-                toast(r.sent ? `✓ ${r.message || 'Sent to qBittorrent'}` : r.message || 'Couldn’t send it');
-              } catch (e) {
-                toast(e.message);
-              }
-              setBusy('');
-            }}
-          >
-            {busy === String(t.id) ? <span class="spinner small" /> : sent[t.id] ? '✓ Sent' : 'Get'}
-          </button>
-        </div>
-      ))}
+      {err && <p class="src-errors">MyAnonamouse: {err}</p>}
+      <div class="src-list">
+        {shown.map((t) => {
+          const fmt = String(t.filetype || '').split(/[\s,/]+/)[0].toUpperCase();
+          const done = !!sent[t.id];
+          return (
+            <div class={'src-row' + (done ? ' is-ready' : '')} key={t.id}>
+              <div class="src-top">
+                <span class="src-fmt">{fmt || <Icon name={ebook ? 'book' : 'headphones'} size={18} />}</span>
+                <div class="src-names">
+                  <div class="src-title">{t.title}</div>
+                  {authors(t) && <div class="src-sub">{authors(t)}</div>}
+                  <div class="src-meta">
+                    {t.size && <span>{t.size}</span>}
+                    <span class={'seeds ' + seedClass(Number(t.seeders) || 0)}>
+                      {t.seeders || 0} seed{Number(t.seeders) === 1 ? '' : 's'}
+                    </span>
+                    {t.free ? <span class="mam-fl">Freeleech</span> : t.vip ? <span class="mam-fl">VIP</span> : null}
+                    <span>MyAnonamouse</span>
+                  </div>
+                </div>
+              </div>
+              <div class="src-services svc-row">
+                <button class={'svc-chip' + (done ? ' ok' : '')} disabled={!!busy || done} onClick={() => get(t)} aria-label="Send to your home server">
+                  <i class="svc-dot" />
+                  <span>
+                    <b>Home</b>
+                    <small>{done ? 'sent' : 'qBittorrent'}</small>
+                  </span>
+                  {busy === String(t.id) ? <span class="spinner small" /> : <Icon name={done ? 'check' : 'plus'} size={15} />}
+                </button>
+              </div>
+              <div class="src-actions ready">
+                <button class="btn primary" disabled={!!busy || done} onClick={() => get(t)}>
+                  {busy === String(t.id) ? <span class="spinner small" /> : <Icon name={done ? 'check' : 'download'} size={16} />} {done ? 'Sent to Home' : 'Get · Home'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
       {list && list.length > 2 && (
-        <button class="link-btn" onClick={() => setOpen(!open)}>
-          {open ? 'Fewer' : `${list.length - 2} more`}
+        <button class="src-more" onClick={() => setOpen(!open)}>
+          {open ? 'Show fewer' : <span class="src-more-text"><b>Show {list.length - 2} more from MyAnonamouse</b></span>}
+          <Icon name={open ? 'up' : 'down'} size={14} />
         </button>
       )}
     </div>
