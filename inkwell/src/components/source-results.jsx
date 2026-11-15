@@ -1426,16 +1426,6 @@ function MamResults({ words, title, author, ebook }) {
                   </div>
                 </div>
               </div>
-              <div class="src-services svc-row">
-                <button class={'svc-chip' + (done ? ' ok' : '')} disabled={!!busy || done} onClick={() => get(t)} aria-label="Send to your home server">
-                  <i class="svc-dot" />
-                  <span>
-                    <b>Home</b>
-                    <small>{done ? 'sent' : 'qBittorrent'}</small>
-                  </span>
-                  {busy === String(t.id) ? <span class="spinner small" /> : <Icon name={done ? 'check' : 'plus'} size={15} />}
-                </button>
-              </div>
               <div class="src-actions ready">
                 <button class="btn primary" disabled={!!busy || done} onClick={() => get(t)}>
                   {busy === String(t.id) ? <span class="spinner small" /> : <Icon name={done ? 'check' : 'download'} size={16} />} {done ? 'Sent to Home' : 'Get · Home'}
