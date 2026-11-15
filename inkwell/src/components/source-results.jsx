@@ -906,11 +906,8 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
   const homeHash = home ? cloud.infoHash(r.magnet, r.hash) : '';
   const sentHome = !!homeHash && qb.wasSent(homeHash);
   const sendHome = async () => {
-    // This book page is your Audiobookshelf's own copy: it's there already.
-    if (book?.source === 'abs' && !confirm(`“${book.title}” is already on your Audiobookshelf. Send it home again anyway?`)) return;
-    const have = book?.source === 'abs' ? null : await qb.onServer({ title: book?.title || r.title, author: book?.author || r.author || '', rawName: r.title }).catch(() => 'down');
-    if (have === 'down' && !confirm("Couldn't reach your Audiobookshelf to check whether you already have this. Send it home anyway?")) return;
-    if (have && have !== 'down' && !confirm(`Your Audiobookshelf already has “${have.title}”. Send it home again anyway?`)) return;
+    // One copy of a book at home: never a second one (qb.send checks your Audiobookshelf too).
+    if (book?.source === 'abs' && !isEbookResult(r)) return toast(`“${book.title}” is already on your Audiobookshelf — not sent again`);
     setBusy('home');
     try {
       toast(await qb.send({ hash: homeHash, magnet: r.magnet, title: book?.title || r.title, author: book?.author || r.author || '', rawName: r.title }));
@@ -1389,7 +1386,7 @@ function MamResults({ words, title, author, ebook }) {
   const get = async (t) => {
     setBusy(String(t.id));
     try {
-      const r = await qb.grabMam(t, { ebook });
+      const r = await qb.grabMam(t, { ebook, title, author });
       if (r.sent) setSent((x) => ({ ...x, [t.id]: true }));
       toast(r.sent ? `✓ ${r.message || 'Sent to qBittorrent'}` : r.message || 'Couldn’t send it');
     } catch (e) {

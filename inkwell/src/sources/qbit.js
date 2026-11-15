@@ -256,6 +256,17 @@ export async function onServer(book) {
   return null;
 }
 
+/**
+ * The rule: a second copy of a book never goes home when your Audiobookshelf has it. Throws
+ * (nothing sent) when the server has it; audiobooks only (an ebook goes to its own folder).
+ * When the server can't be reached, it can't be checked — then the send goes ahead.
+ */
+export async function notOnServer({ title = '', author = '', rawName = '' }, ebook = false) {
+  if (ebook || !absSrc.connected() || !(title || rawName)) return;
+  const have = await onServer({ title: title || rawName, author, rawName }).catch(() => null);
+  if (have) throw Object.assign(new Error(`Already on your Audiobookshelf as “${have.title}” — not sent again`), { onServer: have });
+}
+
 /** Add one cloud item (needs its info-hash) to qBittorrent. */
 export async function send(book) {
   if (!available) throw new Error('Sending to qBittorrent works in the Android app');
@@ -263,7 +274,9 @@ export async function send(book) {
   const hash = String(book.hash || '').toLowerCase();
   if (!hash) throw new Error('Only torrents can be sent (this item has no magnet)');
   const { category } = qbit.get();
-  const savePath = folderFor(book.ebook ?? isEbookName(`${book.rawName || ''} ${book.title || ''} ${book.format || ''}`));
+  const ebook = book.ebook ?? isEbookName(`${book.rawName || ''} ${book.title || ''} ${book.format || ''}`);
+  await notOnServer(book, ebook);
+  const savePath = folderFor(ebook);
   const magnet = withTrackers(magnetFor(book.magnet, hash, book.rawName || book.title));
   const { body, contentType } = multipart({ urls: magnet, savepath: savePath, category, tags: 'kathava', autoTMM: savePath ? 'false' : undefined });
   if (!session && !apiKey()) await login();
@@ -799,6 +812,11 @@ async function mamSearch({ words, title = '', ebook = false }) {
 }
 
 export async function grabFromTracker({ words, title = '', author = '', ebook = false, filtered = false }) {
+  try {
+    await notOnServer({ title: title || words, author }, ebook);
+  } catch (e) {
+    return nativeToast(e.message);
+  }
   if (!canGrab()) return openTracker(words, filtered, ebook);
   // Anything unclear opens the site's search — always across all torrents, not only FL / VIP.
   const fallback = (msg) => (nativeToast(msg), openTracker(words, false, ebook));
@@ -868,7 +886,12 @@ async function mamResultsNow({ words, title = '', author = '', ebook = false }) 
 }
 
 /** Send one MyAnonamouse result to qBittorrent (a wedge first if you allowed that and it isn't free). */
-export async function grabMam(pick, { ebook = false } = {}) {
+export async function grabMam(pick, { ebook = false, title = '', author = '' } = {}) {
+  try {
+    await notOnServer({ title: title || pick.title, author, rawName: pick.title }, ebook);
+  } catch (e) {
+    return { sent: false, message: e.message, onServer: e.onServer };
+  }
   const base = 'https://' + trackerName();
   const useWedge = !pick.free && !pick.vip && tracker.get().wedge === true;
   const ts = Date.now();
