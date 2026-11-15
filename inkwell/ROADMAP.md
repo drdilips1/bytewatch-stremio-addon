@@ -2,7 +2,7 @@
 
 Noted while building; to pick up after Saturday.
 
-## Noted 15 Nov (after v1.0.219) — to fix later
+## Noted 15 Nov (after v1.0.219) — fixed, not built yet
 - Library front page: the **Continue reading** card shows a plain placeholder instead of the
   book's cover (the cover exists — e.g. "Then She Was Gone", an ebook). The card should use the
   same cover lookup as the book cards in the rows (phone cover / fetched metadata).

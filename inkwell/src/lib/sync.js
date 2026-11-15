@@ -10,7 +10,7 @@ import { qbit, qbitSent, tracker, mamSession } from '../sources/qbit.js';
 import { annas } from '../sources/annas.js';
 import { metaFixes } from './meta.js';
 import { preferredCopy } from './editions.js';
-import { readLater } from './readlists.js';
+import { readLater, readLaterGone, withoutGone } from './readlists.js';
 import { upNext } from './upnext.js';
 import { ideas } from './askbook.js';
 import { moreLike } from './shelves.js';
@@ -82,7 +82,9 @@ const SECTIONS = {
   // Up next, saved ideas, taste (not interested, already heard, more like this), podcast prefs.
   metaFixes: { store: metaFixes, merge: mergeById },
   preferredCopy: { store: preferredCopy, merge: mergeById },
-  readLater: { store: readLater, merge: mergeById },
+  // Removals from Read later first (newest of each side), so the list below can drop them.
+  readLaterGone: { store: readLaterGone, merge: mergeLatest },
+  readLater: { store: readLater, merge: (l, r) => withoutGone(mergeById(l, r)) },
   upNext: { store: upNext },
   savedIdeas: { store: ideas },
   notInterested: { store: notInterested, merge: mergeById },
@@ -106,6 +108,12 @@ let applying = false;
 // ---- merging ------------------------------------------------------------------
 function mergeById(local, remote) {
   return { ...remote, ...local };
+}
+// uid -> time: the later time of the two sides.
+function mergeLatest(local, remote) {
+  const out = { ...(remote || {}) };
+  for (const [k, t] of Object.entries(local || {})) out[k] = Math.max(Number(t) || 0, Number(out[k]) || 0);
+  return out;
 }
 function mergeNewest(local, remote) {
   const out = { ...local };

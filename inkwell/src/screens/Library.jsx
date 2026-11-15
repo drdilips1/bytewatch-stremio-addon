@@ -18,7 +18,7 @@ import { podcasts } from '../sources/podcasts.js';
 import { ShowGrid } from './Podcasts.jsx';
 import { EbookSearchBox, EbookSearchResults } from '../components/ebook-search.jsx';
 import * as lb from '../sources/libby.js';
-import { readLater, readElsewhere } from '../lib/readlists.js';
+import { readLater, readElsewhere, removeReadLater } from '../lib/readlists.js';
 import { myRatings, alreadyRead } from '../lib/taste.js';
 import { foundShelves } from '../lib/findbooks.js';
 import { LibraryHome, LibMenu } from '../components/library-home.jsx';
@@ -626,6 +626,10 @@ function PhoneEmpty() {
 
 /** Remove a book from the library: saved copy, reading/listening history and, for ebooks, the file kept on the phone. */
 async function remove(book, tab) {
+  if (tab === 'later') {
+    removeReadLater(book);
+    return toast('Off Read later');
+  }
   if (tab === 'downloaded') {
     if (book.kind === 'text') {
       await forgetEbook(book.uid);

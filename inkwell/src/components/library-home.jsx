@@ -1,7 +1,7 @@
 // Library's front page: the book you're on, then a row per shelf (in progress, read later,
 // found, audiobooks, ebooks, podcasts, finished) — "See all" opens that shelf with its filters.
 import { useState } from 'preact/hooks';
-import { BookCard, Cover, Empty } from './common.jsx';
+import { BookCard, BookCover, Empty } from './common.jsx';
 import { Icon } from './icons.jsx';
 import { nav } from '../lib/nav.js';
 import { useStore, progress } from '../lib/store.js';
@@ -47,7 +47,7 @@ function ContinueCard({ book }) {
   return (
     <div class="lh-continue" role="button" onClick={() => nav.push(text ? 'reader' : 'book', { book })}>
       <div class="lh-cover">
-        <Cover book={book} />
+        <BookCover book={book} />
       </div>
       <div class="lh-info">
         <small>{text ? 'CONTINUE READING' : 'CONTINUE'}</small>
