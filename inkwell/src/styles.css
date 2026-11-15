@@ -12774,3 +12774,17 @@ button.cr-tile.on > img {
   font-size: 14px;
   margin: 6px 2px;
 }
+
+/* Person photo: add / change */
+button.pp-av { padding: 0; cursor: pointer; }
+.pp-av-add { position: absolute; z-index: 2; bottom: 8px; left: 50%; transform: translateX(-50%); width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: rgba(0, 0, 0, 0.45); color: #fff; font-style: normal; }
+.pp-pair i { overflow: hidden; position: relative; }
+.pp-pair i img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pp-pick { margin: 4px 0 14px; padding: 12px; border-radius: 18px; background: var(--card, color-mix(in srgb, var(--text) 5%, transparent)); border: 1px solid color-mix(in srgb, var(--text) 10%, transparent); text-align: left; }
+.pp-pick-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.pp-pick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pp-pick-one { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0; background: none; border: none; color: var(--muted); font: inherit; }
+.pp-pick-one img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 50%; border: 3px solid transparent; }
+.pp-pick-one.on img { border-color: var(--accent); }
+.pp-pick-one small { font-size: 10.5px; }
+.pp-pick-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }

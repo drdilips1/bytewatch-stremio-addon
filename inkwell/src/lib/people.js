@@ -138,3 +138,75 @@ export async function newFromFollowed() {
   return slim;
 }
 export const followNew = fresh;
+
+// ---- Photos -------------------------------------------------------------------------
+// A photo you picked (from the choices found, or your own picture) wins over the bio's.
+export const personPhotos = persisted('personPhotos', {}, { delay: 1000 }); // key -> url or small data URL
+/** The photo to show for a person (yours, else the bio's), or ''. */
+export const photoOf = (name) => personPhotos.get()[personKey(name)] || bios.get()[personKey(name)]?.photo || '';
+export function setPhoto(name, url) {
+  personPhotos.set((all) => {
+    const next = { ...all };
+    if (url) next[personKey(name)] = url;
+    else delete next[personKey(name)];
+    return next;
+  });
+}
+
+/**
+ * Photos that could be this person, best first: [{ url, from }]. Wikipedia (their page, and
+ * "Name (author)"-style pages), Open Library's author photos and Wikimedia Commons.
+ */
+export async function photoChoices(name, role = 'author') {
+  const out = [];
+  const add = (url, from) => url && !out.some((x) => x.url === url) && out.push({ url, from });
+  const nm = String(name).trim();
+  const words = role === 'narrator' ? 'narrator OR actor OR actress OR voice' : 'author OR writer OR novelist';
+  const wiki = getJson(
+    'https://en.wikipedia.org/w/api.php?' +
+      qs({ action: 'query', format: 'json', origin: '*', generator: 'search', gsrsearch: `${nm} ${words}`, gsrlimit: 8, prop: 'pageimages', piprop: 'thumbnail', pithumbsize: 400 }),
+    { timeout: 10000 }
+  )
+    .then((d) =>
+      Object.values(d?.query?.pages || {})
+        .sort((a, b) => (a.index || 0) - (b.index || 0))
+        .filter((p) => p.thumbnail?.source && hasPerson(String(p.title).replace(/\s*\(.*\)\s*$/, ''), nm))
+        .map((p) => ({ url: p.thumbnail.source, from: 'Wikipedia' }))
+    )
+    .catch(() => []);
+  const ol = getJson('https://openlibrary.org/search/authors.json?' + qs({ q: nm, limit: 3 }), { timeout: 10000 })
+    .then(async (s) => {
+      const list = [];
+      for (const a of (s?.docs || []).filter((a) => a?.key && hasPerson(a.name, nm))) {
+        const d = await getJson(`https://openlibrary.org/authors/${a.key}.json`, { timeout: 8000 }).catch(() => null);
+        for (const id of (d?.photos || []).filter((x) => x > 0).slice(0, 2)) list.push({ url: `https://covers.openlibrary.org/a/id/${id}-M.jpg`, from: 'Open Library' });
+      }
+      return list;
+    })
+    .catch(() => []);
+  const commons = getJson(
+    'https://commons.wikimedia.org/w/api.php?' +
+      qs({ action: 'query', format: 'json', origin: '*', generator: 'search', gsrnamespace: 6, gsrsearch: `"${nm}"`, gsrlimit: 8, prop: 'imageinfo', iiprop: 'url', iiurlwidth: 400 }),
+    { timeout: 10000 }
+  )
+    .then((d) =>
+      Object.values(d?.query?.pages || {})
+        .sort((a, b) => (a.index || 0) - (b.index || 0))
+        .filter((p) => /\.(jpe?g|png|webp)$/i.test(p.title || '') && !/(signature|logo|cover|book|map|grave)/i.test(p.title || ''))
+        .map((p) => ({ url: p.imageinfo?.[0]?.thumburl || p.imageinfo?.[0]?.url, from: 'Wikimedia' }))
+    )
+    .catch(() => []);
+  const bio = bios.get()[personKey(nm)]?.photo;
+  if (bio) add(bio, 'Wikipedia');
+  for (const list of await Promise.all([wiki, ol, commons])) for (const x of list) add(x.url, x.from);
+  return out.slice(0, 12);
+}
+
+/** No photo yet: the first sure one (their Wikipedia page or Open Library), kept. */
+export async function findPhoto(name, role) {
+  if (photoOf(name)) return photoOf(name);
+  const list = await photoChoices(name, role).catch(() => []);
+  const sure = list.find((x) => x.from !== 'Wikimedia');
+  if (sure) setPhoto(name, sure.url);
+  return sure?.url || '';
+}

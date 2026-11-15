@@ -9,7 +9,7 @@ import { myRatings, rateKey } from '../lib/taste.js';
 import { aiReady, askAi } from '../lib/ai.js';
 import { fmtDuration, hashHue } from '../lib/format.js';
 import { openExternal } from '../sources/summaries.js';
-import { bioOf, yourBooks, moreBy, oftenWith, following, personKey, toggleFollow } from '../lib/people.js';
+import { bioOf, yourBooks, moreBy, oftenWith, following, personKey, toggleFollow, personPhotos, photoOf, setPhoto, photoChoices, findPhoto } from '../lib/people.js';
 
 const initials = (n) =>
   String(n || '')
@@ -110,13 +110,20 @@ export function Person({ name, role = 'author' }) {
     let alive = true;
     setBio(null);
     setMore(null);
-    bioOf(name).then((b) => alive && setBio(b));
+    bioOf(name).then((b) => {
+      if (alive) setBio(b);
+      // No photo from the bio: look in more places (kept once found).
+      if (!b?.photo && !photoOf(name)) findPhoto(name, role).catch(() => {});
+    });
     moreBy(name, role, mine).then((l) => alive && setMore(l));
     return () => {
       alive = false;
       audio.current?.pause();
     };
   }, [name, role]);
+  const pics = useStore(personPhotos);
+  const photo = pics[personKey(name)] || bio?.photo || '';
+  const [picking, setPicking] = useState(false);
   const followed = !!fol[personKey(name)];
   const heard = mine.filter((x) => x.p?.finished).length;
   const hours = mine.reduce((a, x) => a + (x.p?.global || 0), 0);
@@ -161,10 +168,16 @@ In 2 short sentences: which book to start with and why, then what to try next. N
             <Icon name="back" />
           </button>
         </header>
-        <div class="pp-av" style={{ background: `linear-gradient(140deg, hsl(${hue} 45% 55%), hsl(${hue} 50% 25%))` }}>
-          {bio?.photo ? <img src={bio.photo} alt="" onError={(e) => (e.currentTarget.style.display = 'none')} /> : null}
+        <button class="pp-av" aria-label={photo ? 'Change photo' : 'Add a photo'} onClick={() => setPicking(!picking)} style={{ background: `linear-gradient(140deg, hsl(${hue} 45% 55%), hsl(${hue} 50% 25%))` }}>
+          {photo ? <img key={photo} src={photo} alt="" onError={(e) => (e.currentTarget.style.display = 'none')} /> : null}
           <span>{initials(name)}</span>
-        </div>
+          {!photo && (
+            <em class="pp-av-add">
+              <Icon name="camera" size={14} />
+            </em>
+          )}
+        </button>
+        {picking && <PhotoPicker name={name} role={role} current={photo} close={() => setPicking(false)} />}
         <h1>{name}</h1>
         <div class="pp-roles">
           <span>{narrator ? 'Narrator' : 'Author'}</span>
@@ -275,7 +288,7 @@ In 2 short sentences: which book to start with and why, then what to try next. N
           <div class="pp-pairs">
             {partners.map((n) => (
               <button class="pp-pair" onClick={() => nav.push('person', { name: n, role: 'narrator' })}>
-                <i style={{ background: `hsl(${hashHue(n)} 45% 45%)` }}>{initials(n)}</i>
+                <i style={{ background: `hsl(${hashHue(n)} 45% 45%)` }}>{photoOf(n) ? <img src={photoOf(n)} alt="" onError={(e) => (e.currentTarget.style.display = 'none')} /> : initials(n)}</i>
                 {n}
               </button>
             ))}
@@ -289,6 +302,68 @@ In 2 short sentences: which book to start with and why, then what to try next. N
         </div>
       )}
       <div class="footer-space" />
+    </div>
+  );
+}
+
+/** Choose their photo: the ones found (Wikipedia, Open Library, Wikimedia), or your own picture. */
+function PhotoPicker({ name, role, current, close }) {
+  const [list, setList] = useState(null);
+  const file = useRef(null);
+  useEffect(() => {
+    let alive = true;
+    photoChoices(name, role)
+      .then((l) => alive && setList(l))
+      .catch(() => alive && setList([]));
+    return () => (alive = false);
+  }, [name]);
+  const pick = (url) => (setPhoto(name, url), toast('Photo updated'), close());
+  const own = async (e) => {
+    const f = e.currentTarget.files?.[0];
+    e.currentTarget.value = '';
+    if (!f) return;
+    try {
+      const { shrink } = await import('../lib/findbooks.js');
+      pick(await shrink(f, 360));
+    } catch (err) {
+      toast(err.message);
+    }
+  };
+  return (
+    <div class="pp-pick">
+      <div class="pp-pick-head">
+        <b>Photo of {name}</b>
+        <button class="icon-btn" aria-label="Close" onClick={close}>
+          <Icon name="close" size={16} />
+        </button>
+      </div>
+      {list == null ? (
+        <p class="muted small">
+          <span class="spinner small" /> Looking for photos…
+        </p>
+      ) : list.length ? (
+        <div class="pp-pick-grid">
+          {list.map((x) => (
+            <button class={'pp-pick-one' + (x.url === current ? ' on' : '')} onClick={() => pick(x.url)} aria-label={`Use this photo (${x.from})`}>
+              <img src={x.url} alt="" loading="lazy" onError={(e) => (e.currentTarget.parentElement.style.display = 'none')} />
+              <small>{x.from}</small>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p class="muted small">No photos found online.</p>
+      )}
+      <div class="pp-pick-actions">
+        <button class="pill small" onClick={() => file.current?.click()}>
+          <Icon name="image" size={14} /> Your own picture
+        </button>
+        {current && (
+          <button class="pill small" onClick={() => pick('')}>
+            Remove photo
+          </button>
+        )}
+      </div>
+      <input ref={file} type="file" accept="image/*" hidden onChange={own} />
     </div>
   );
 }
