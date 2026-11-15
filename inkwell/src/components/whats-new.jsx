@@ -8,6 +8,9 @@ export const CHANGES = [
     id: '2026-11-14',
     title: 'A calmer player, smarter scenes, a tidier library',
     items: [
+      ['📷', 'Find books in…', 'Discover → the camera: a photo of a cover, a barcode or a shelf, a screenshot, or a pasted link or list — the books in it, where you have each, Listen / Read, “I’m on page …”, and Read later / Library / Up next for many at once. Or Share → Audiohub+ from Chrome, Instagram and others.'],
+      ['👤', 'Authors and narrators', 'Tap a name under By / Read by: a short bio, your books by them, their series, more of their books, a narrator’s voice — and Follow for “New from people you follow” on Home.'],
+      ['🎯', 'Scenes land on the sentence', 'After jumping to a scene, the app listens a few seconds and moves to the scene’s own sentence (Settings → Playback to turn off). And back 5 s after a call, 30 s after a long break.'],
       ['🔒', 'Your own encrypted sync', 'Settings → Account: sync now runs on Audiohub’s own server, encrypted on your phone with your password — the server can’t read it, and it never pauses. Signed in to the old sync? Use “Move my data” once. Plus Export / Import a backup file.'],
       ['🎨', 'Player in the cover’s colours', 'The play button and controls take the cover’s colour; a line around the cover fills up through the chapter, with how many minutes are left in it.'],
       ['🌙', 'Night mode', 'At night the player turns dark and warm with bigger buttons, and dims itself after 20 seconds (tap to wake). Hours in Settings → Appearance.'],

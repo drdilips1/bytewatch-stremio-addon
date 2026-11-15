@@ -85,6 +85,9 @@ export function Discover() {
           <button class="icon-btn" aria-label="Search" onClick={() => (setOpen(true), setTimeout(() => inputRef.current?.focus(), 30))}>
             <Icon name="search" size={22} />
           </button>
+          <button class="icon-btn" aria-label="Find books from a photo, a screenshot or a link" onClick={() => nav.push('find', {})}>
+            <Icon name="camera" size={22} />
+          </button>
           <AskButton />
         </div>
       </div>

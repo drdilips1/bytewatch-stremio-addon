@@ -12653,3 +12653,49 @@ button.cr-tile.on > img {
 .pp-pair i { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; font: 800 12px var(--font); font-style: normal; }
 .pp-ai { margin: 14px 16px 0; padding: 12px 14px; border-radius: 16px; font-size: 14px; line-height: 1.45; background: color-mix(in srgb, var(--accent) 10%, var(--bg)); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); }
 .follow-row { margin: 6px 0 12px; }
+
+/* ---- Find books in… ---- */
+.findbooks { padding-bottom: 120px; }
+.fb-start { padding: 8px 16px; display: flex; flex-direction: column; gap: 12px; }
+.fb-modes { display: flex; gap: 8px; justify-content: center; }
+.fb-cam { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 34px 16px; border-radius: 22px; border: 2px dashed color-mix(in srgb, var(--text) 25%, transparent); background: color-mix(in srgb, var(--text) 4%, transparent); color: var(--text); font: inherit; }
+.fb-cam b { font-size: 17px; }
+.fb-cam small { color: var(--muted); }
+.fb-paste { display: flex; flex-direction: column; gap: 8px; }
+.fb-paste textarea { min-height: 90px; padding: 12px; border-radius: 14px; border: 1.5px solid color-mix(in srgb, var(--text) 18%, transparent); background: var(--card, transparent); color: var(--text); font: inherit; resize: vertical; }
+.fb-busy { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 80px 20px; }
+.fb-label { display: block; padding: 0 16px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.fb-one { padding: 6px 0; }
+.fb-match { display: flex; gap: 14px; padding: 10px 16px; }
+.fb-match .cover { width: 96px; height: 96px; border-radius: 10px; flex: none; }
+.fb-match b { display: block; font-size: 19px; }
+.fb-match small { display: block; color: var(--muted); margin: 2px 0 8px; }
+.fb-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font: 700 12px var(--font); font-style: normal; background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); border: 0; }
+.fb-badge.yours { background: #dff5f1; color: #1b7f72; }
+.fb-badge.find { background: #fdeedd; color: #a5620f; }
+.fb-badge.on { outline: 2px solid var(--text); }
+.fb-actions { display: flex; gap: 10px; padding: 8px 16px; }
+.fb-actions .btn { flex: 1; }
+.fb-page { display: flex; align-items: center; gap: 8px; margin: 8px 16px; padding: 12px 14px; border-radius: 16px; background: var(--card, color-mix(in srgb, var(--text) 5%, transparent)); }
+.fb-page > span { flex: 1; min-width: 0; }
+.fb-page b { display: block; }
+.fb-page small { font-size: 12px; color: var(--muted); }
+.fb-page input { width: 58px; padding: 8px; border-radius: 10px; border: 1.5px solid color-mix(in srgb, var(--text) 25%, transparent); background: transparent; color: var(--text); text-align: center; font: 700 15px var(--font); }
+.fb-quick { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 16px; }
+.fb-many { padding: 0 16px; }
+.fb-src { display: flex; gap: 10px; align-items: center; padding: 12px; border-radius: 14px; background: var(--card, color-mix(in srgb, var(--text) 5%, transparent)); }
+.fb-src > span { flex: 1; min-width: 0; }
+.fb-src b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fb-src small { color: var(--muted); font-size: 12px; }
+.fb-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 4px; }
+.fb-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); }
+.fb-row input[type=checkbox] { width: 20px; height: 20px; flex: none; accent-color: var(--text); }
+.fb-row-main { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: center; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; }
+.fb-row-main .cover { width: 52px; height: 52px; border-radius: 8px; flex: none; }
+.fb-row-main > span { min-width: 0; }
+.fb-row-main b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fb-row-main small { display: block; color: var(--muted); font-size: 13px; margin-bottom: 3px; }
+.fb-bar { position: fixed; left: 0; right: 0; bottom: calc(var(--nav-h, 64px) + var(--safe-bottom, 0px)); padding: 10px 16px 12px; background: var(--bg); box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.1); z-index: 5; }
+.fb-bar small { color: var(--muted); }
+.fb-bar > div { display: flex; gap: 8px; margin-top: 6px; }
+.fb-bar .btn { flex: 1; padding: 10px; }

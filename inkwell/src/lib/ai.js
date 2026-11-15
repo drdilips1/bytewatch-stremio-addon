@@ -209,6 +209,53 @@ async function call(p, model, prompt, json) {
   }
 }
 
+/**
+ * Ask about a picture (a book cover, a bookshelf, a screenshot): only services that can see
+ * images — Gemini and Claude (and your own, if its model can). `dataUrl`: a data: URL (JPEG).
+ */
+export const canSeeImages = () => aiOn() && PROVIDERS.some((p) => (p.id === 'gemini' || p.anthropic || p.custom) && keyOf(p));
+export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
+  if (!aiOn()) throw new Error('AI is off (Settings → AI)');
+  const [, mime = 'image/jpeg', b64 = ''] = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl) || [];
+  const order = PROVIDERS.filter((p) => keyOf(p) && (p.id === 'gemini' || p.anthropic || p.custom));
+  if (!order.length) throw new Error('Reading pictures needs a Gemini or Claude key (Settings → AI)');
+  let last;
+  for (const p of order) {
+    try {
+      if (p.anthropic) {
+        const { default: Anthropic } = await import('@anthropic-ai/sdk');
+        const client = new Anthropic({ apiKey: keyOf(p), dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 60000 });
+        const res = await client.messages.create({
+          model: p.models[0],
+          max_tokens: 4000,
+          messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mime, data: b64 } }, { type: 'text', text: prompt }] }],
+        });
+        const text = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+        if (text) return text;
+        continue;
+      }
+      const model = p.custom ? (await modelsFor(p))[0] : ((await modelsFor(p)).find((m) => /flash|pro/.test(m)) || 'gemini-2.5-flash');
+      const res = await fetch(p.custom ? customEndpoint() : p.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keyOf(p)}` },
+        body: JSON.stringify({
+          model,
+          temperature: 0.2,
+          messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
+          ...(json && p.json ? { response_format: { type: 'json_object' } } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw Object.assign(new Error(data?.error?.message || `${p.name} error ${res.status}`), { status: res.status });
+      const text = (data.choices?.[0]?.message?.content || '').trim();
+      if (text) return text;
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last || new Error("Couldn't read the picture");
+}
+
 /** Pull the JSON object out of a reply (some models wrap it in prose or fences). */
 export function parseJson(text) {
   const t = text.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, '');

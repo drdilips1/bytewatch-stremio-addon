@@ -59,6 +59,37 @@ public class InkwellLocalPlugin extends Plugin {
 
     private JSObject takeBook(Intent i) {
         if (i == null) return null;
+        // A link / text or a picture shared to Audiohub ("Find books in…"): handed to the app as is.
+        if (Intent.ACTION_SEND.equals(i.getAction()) && i.getType() != null) {
+            String type = i.getType();
+            if (type.startsWith("text/")) {
+                CharSequence t = i.getCharSequenceExtra(Intent.EXTRA_TEXT);
+                if (t == null) return null;
+                JSObject o = new JSObject();
+                o.put("text", t.toString());
+                CharSequence subj = i.getCharSequenceExtra(Intent.EXTRA_SUBJECT);
+                if (subj != null) o.put("subject", subj.toString());
+                return o;
+            }
+            if (type.startsWith("image/")) {
+                Uri img = i.getParcelableExtra(Intent.EXTRA_STREAM);
+                if (img == null) return null;
+                java.io.File out = new java.io.File(getContext().getCacheDir(), "shared-" + System.currentTimeMillis() + ".img");
+                try (java.io.InputStream in = getContext().getContentResolver().openInputStream(img); java.io.OutputStream os = new java.io.FileOutputStream(out)) {
+                    if (in == null) return null;
+                    byte[] b = new byte[1 << 16];
+                    int n;
+                    while ((n = in.read(b)) > 0) os.write(b, 0, n);
+                } catch (Exception e) {
+                    return null;
+                }
+                JSObject o = new JSObject();
+                o.put("image", "data:" + type + ";base64," + android.util.Base64.encodeToString(readAll(out), android.util.Base64.NO_WRAP));
+                //noinspection ResultOfMethodCallIgnored
+                out.delete();
+                return o;
+            }
+        }
         Uri uri = null;
         if (Intent.ACTION_VIEW.equals(i.getAction())) uri = i.getData();
         else if (Intent.ACTION_SEND.equals(i.getAction())) uri = i.getParcelableExtra(Intent.EXTRA_STREAM);
@@ -92,6 +123,17 @@ public class InkwellLocalPlugin extends Plugin {
         o.put("format", pdf ? "PDF" : "EPUB");
         o.put("size", out.length());
         return o;
+    }
+
+    private static byte[] readAll(java.io.File f) {
+        try (java.io.InputStream in = new java.io.FileInputStream(f); java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream()) {
+            byte[] b = new byte[1 << 16];
+            int n;
+            while ((n = in.read(b)) > 0) bo.write(b, 0, n);
+            return bo.toByteArray();
+        } catch (Exception e) {
+            return new byte[0];
+        }
     }
 
     /** Pick EPUB / PDF files to add (copied into the app, like Open with). */
