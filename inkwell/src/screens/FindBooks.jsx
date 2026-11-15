@@ -12,6 +12,8 @@ import { addUpNext } from '../lib/upnext.js';
 import { canSeeImages } from '../lib/ai.js';
 import { shrink, booksInImage, booksInText, matchBooks, saveShelf, pending } from '../lib/findbooks.js';
 
+const note = (msg) => import('../lib/report.js').then((r) => r.logError('Find books', msg)).catch(() => {});
+
 const MODES = [
   ['cover', 'Cover'],
   ['barcode', 'Barcode'],
@@ -179,15 +181,28 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
   const [busy, setBusy] = useState('');
   const [result, setResult] = useState(null); // { one } | { name, url, list }
   const [paste, setPaste] = useState('');
+  const [secs, setSecs] = useState(0);
+  const run = useRef(0); // the latest search (a cancelled one is ignored when it answers)
+  useEffect(() => {
+    if (!busy) return setSecs(0);
+    const t0 = Date.now();
+    const iv = setInterval(() => setSecs(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(iv);
+  }, [!!busy]);
   const cam = useRef(null);
   const gallery = useRef(null);
 
   const runImage = async (src, m) => {
     setResult(null);
+    const my = ++run.current;
+    const t0 = Date.now();
     setBusy(m === 'barcode' ? 'Reading the barcode…' : m === 'shelf' ? 'Reading the spines…' : m === 'shot' ? 'Finding the books in the picture…' : 'Reading the cover…');
     try {
       const data = await shrink(src);
-      const { books } = await booksInImage(data, m);
+      // Never left waiting: the picture is read within 45 s, else say so (and why, in Report a problem).
+      const { books } = await Promise.race([booksInImage(data, m), new Promise((_, no) => setTimeout(() => no(new Error('Reading the picture took too long — try again, or a closer / smaller picture')), 45000))]);
+      if (my !== run.current) return;
+      note(`picture (${m}, ${Math.round(data.length / 1024)} KB) read in ${Math.round((Date.now() - t0) / 1000)} s — ${books.length} book(s)`);
       if (!books.length) throw new Error('No book found in that picture — try closer, or the barcode');
       const single = books.length === 1 && (m === 'cover' || m === 'barcode');
       const name = m === 'shelf' ? 'Your shelf photo' : 'Books in the picture';
@@ -201,15 +216,20 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
         await matchBooks(books, (i, mm) => setResult((r) => (r?.list ? { ...r, list: r.list.map((x, k) => (k === i ? mm : x)) } : r)));
       }
     } catch (e) {
-      toast(e.message);
+      if (my === run.current) {
+        toast(e.message);
+        note(`picture (${m}) failed after ${Math.round((Date.now() - t0) / 1000)} s: ${e.message}`);
+      }
     }
-    setBusy('');
+    if (my === run.current) setBusy('');
   };
   const runText = async (t, subj = '') => {
     setResult(null);
     setBusy(/https?:\/\//.test(t) ? 'Reading the page…' : 'Reading the list…');
+    const my = ++run.current;
     try {
-      const { name, url, books } = await booksInText(t, subj);
+      const { name, url, books } = await Promise.race([booksInText(t, subj), new Promise((_, no) => setTimeout(() => no(new Error('That page took too long to read — try again, or paste the list')), 45000))]);
+      if (my !== run.current) return;
       if (!books.length) throw new Error('No books found there');
       setBusy('');
       setResult({ name, url, list: books.map(pending) });
@@ -237,6 +257,12 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
         <div class="fb-busy">
           <span class="spinner" />
           <b>{busy}</b>
+          {secs > 2 && <small class="muted">{secs} s</small>}
+          {secs > 8 && (
+            <button class="pill small" onClick={() => (run.current++, setBusy(''))}>
+              Cancel
+            </button>
+          )}
         </div>
       ) : result?.one ? (
         <OneBook m={result.one} again={() => setResult(null)} />
