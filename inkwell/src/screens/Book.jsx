@@ -21,6 +21,7 @@ import {
 } from "../sources/index.js";
 import { library, progress, toggleLibrary, useStore } from "../lib/store.js";
 import { readLater, toggleReadLater } from "../lib/readlists.js";
+import { namesIn } from "../lib/people.js";
 import { BookTags } from "../components/book-tags.jsx";
 import { fmtDuration, fmtTime } from "../lib/format.js";
 import { finishLine } from "../lib/stats.js";
@@ -200,14 +201,14 @@ export function Book({ book: initial }) {
               {book.author && (
                 <div>
                   <small>By</small>
-                  <b>{String(book.author).split(",").slice(0, 2).join(" & ")}</b>
+                  <PeopleLinks names={book.author} role="author" />
                 </div>
               )}
               {book.author && book.narrator && <i />}
               {book.narrator && (
                 <div>
                   <small>Read by</small>
-                  <b>{String(book.narrator).split(",").slice(0, 2).join(" & ")}</b>
+                  <PeopleLinks names={book.narrator} role="narrator" />
                 </div>
               )}
             </div>
@@ -849,6 +850,24 @@ function BookCheck({ check }) {
 }
 
 /** Under the title, two quiet lines: length · parts · year · language, then the ratings. */
+/** Names that open the person's page (authors, narrators). */
+function PeopleLinks({ names, role }) {
+  const list = namesIn(names).slice(0, 2);
+  if (!list.length) return <b>{names}</b>;
+  return (
+    <b>
+      {list.map((n, i) => (
+        <>
+          {i > 0 && " & "}
+          <a class="person-link" onClick={() => nav.push("person", { name: n, role })}>
+            {n}
+          </a>
+        </>
+      ))}
+    </b>
+  );
+}
+
 /** "Title: Subtitle" → { main, sub } (or the book's own subtitle). */
 function splitTitle(book) {
   const t = String(book.title || "");

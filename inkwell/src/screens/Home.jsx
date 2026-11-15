@@ -14,6 +14,7 @@ import { Icon } from '../components/icons.jsx';
 import { ia, gb, ol, absSrc, addonSrc, cloud, localSrc, hc, gr, lb, enabled, sourceOrder, sourceRank } from '../sources/index.js';
 import { Fragment } from 'preact';
 import { sameWork } from '../lib/works.js';
+import { FollowRow } from '../components/follow-row.jsx';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary, hideFromContinue } from '../lib/store.js';
 import { greeting, firstName, fmtDuration, hiResCover } from '../lib/format.js';
 import { useSquareCover } from '../lib/meta.js';
@@ -755,6 +756,7 @@ export function Home() {
             return (
               <Fragment key={id}>
                 <ContinueRow />
+                <FollowRow />
                 <WaitingRow />
               </Fragment>
             );

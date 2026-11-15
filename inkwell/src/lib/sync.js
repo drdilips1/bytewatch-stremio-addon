@@ -14,6 +14,7 @@ import { readLater } from './readlists.js';
 import { upNext } from './upnext.js';
 import { ideas } from './askbook.js';
 import { moreLike } from './shelves.js';
+import { following } from './people.js';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { App as CapApp } from '@capacitor/app';
@@ -89,6 +90,7 @@ const SECTIONS = {
   moreLike: { store: moreLike },
   podcastShowPrefs: { store: showPrefs, merge: mergeById },
   episodeVotes: { store: episodeVotes, merge: mergeById },
+  following: { store: following },
   // Logins and addresses for the book sources (with "Sync logins" on).
   tracker: { store: tracker, secret: true },
   mamSession: { store: mamSession, secret: true },
