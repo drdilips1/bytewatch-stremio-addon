@@ -2,6 +2,11 @@
 
 Noted while building; to pick up after Saturday.
 
+## Noted 15 Nov (after v1.0.219) — to fix later
+- Library front page: the **Continue reading** card shows a plain placeholder instead of the
+  book's cover (the cover exists — e.g. "Then She Was Gone", an ebook). The card should use the
+  same cover lookup as the book cards in the rows (phone cover / fetched metadata).
+
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf
 apps like Absorb, and Storyteller for read-along). Fixes from that test are committed, not built
