@@ -237,6 +237,28 @@ export async function findEditions(book) {
  * Real-Debrid files) — for the book page's "Available" row. Only your own services
  * are searched, so it's quick.
  */
+// Audiobookshelf matches the letters as typed: "Right Thing Right Now" doesn't find
+// "Right Thing, Right Now". So: the title as written, without its punctuation, the part before
+// a comma, and — when none of those finds it — the whole library list, matched here.
+let absAll = null;
+let absAllAt = 0;
+async function serverCopies(t, plain) {
+  const safe = (p) => p.catch(() => []);
+  const head = t.split(/\s*[,;–—-]\s*/)[0].trim();
+  const terms = [...new Set([t.trim(), plain, head.length >= 4 ? head : ''].filter(Boolean))];
+  const seen = new Set();
+  const out = [];
+  for (const list of await Promise.all(terms.map((q) => safe(absSrc.search(q))))) for (const b of list) if (!seen.has(b.uid) && seen.add(b.uid)) out.push(b);
+  if (out.some((b) => matches(t, `${b.title} ${b.rawName || ''}`))) return out;
+  try {
+    if (!absAll || Date.now() - absAllAt > 10 * 60e3) {
+      absAll = await absSrc.all();
+      absAllAt = Date.now();
+    }
+  } catch {}
+  return [...out, ...(absAll || []).filter((b) => !seen.has(b.uid) && matches(t, `${b.title} ${b.rawName || ''}`))];
+}
+
 export async function findOwned(book) {
   const t = mainTitle(hasDevanagari(book.title) ? translit(book.title) : book.title);
   const plain = t.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
@@ -256,7 +278,7 @@ export async function findOwned(book) {
       return text.includes(sn) || (!b.author && sameTitle(b));
     });
   const [server, cloudHits] = await Promise.all([
-    enabled('abs') && absSrc.connected() ? safe(absSrc.search(plain)) : [],
+    enabled('abs') && absSrc.connected() ? serverCopies(t, plain) : [],
     (enabled('tb') && cloud.tbConnected()) || (enabled('rd') && cloud.rdConnected()) ? safe(cloud.search(plain)) : [],
   ]);
   return { server: byTitle(server), cloud: byTitle(cloudHits) };

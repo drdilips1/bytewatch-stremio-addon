@@ -17,6 +17,9 @@ Noted while building; to pick up after Saturday.
 - **Page photo**: the page alone is enough — book named by the AI, else found by the page's exact
   words (Google Books full-text search), else the one playing; then got the same way (copies →
   debrid sources → sent home) and played from that page (also once it arrives on the server).
+- **Server search missed titles with punctuation** ("Right Thing, Right Now" searched as "Right
+  Thing Right Now" → nothing): now the title as written, without punctuation, the part before a
+  comma, then the whole library list matched in the app. Used by Find books, voice "play …", Find & play.
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf
