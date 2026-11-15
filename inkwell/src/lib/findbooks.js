@@ -257,7 +257,13 @@ export async function pagesOf(title, author = '') {
     const d = await getJson('https://www.googleapis.com/books/v1/volumes?' + qs({ q: `intitle:${mainTitle(title)}${author ? ` inauthor:${author}` : ''}`, maxResults: 5, printType: 'books' }), { timeout: 10000 });
     const counts = (d?.items || []).map((x) => x.volumeInfo || {}).filter((v) => matches(mainTitle(title), v.title || '') && v.pageCount > 40).map((v) => v.pageCount);
     // The usual edition (the middle of what's listed), not a large-print or a sampler.
-    return counts.length ? counts.sort((a, b) => a - b)[Math.floor(counts.length / 2)] : 0;
+    if (counts.length) return counts.sort((a, b) => a - b)[Math.floor(counts.length / 2)];
+  } catch {}
+  // Else Open Library's usual page count for the book.
+  try {
+    const d = await getJson('https://openlibrary.org/search.json?' + qs({ title: mainTitle(title), author: author || undefined, limit: 3, fields: 'title,number_of_pages_median' }), { timeout: 10000 });
+    const doc = (d?.docs || []).find((x) => matches(mainTitle(title), x.title || '') && x.number_of_pages_median > 40);
+    return doc?.number_of_pages_median || 0;
   } catch {
     return 0;
   }

@@ -58,10 +58,15 @@ async function findCopies(want, onHand = false) {
   // The book's own title: "The Secret" is not "The Secret History" — extra words are allowed
   // only when they're the author's name, a year or the usual noise ("Unabridged").
   const authorWords = new Set(words(want.author));
+  // A copy's title can carry a subtitle after a dash ("Right Thing, Right Now - Justice in an
+  // Unjust World") or the author before one ("Ryan Holiday - Right Thing, Right Now"): any one
+  // part that is the book's title will do.
   const fits = (title) => {
     if (!title || !matches(t, title)) return false;
     const mine = new Set(words(t));
-    return words(mainTitle(title)).every((w) => mine.has(w) || authorWords.has(w) || NOISE.has(w) || /^\d+$/.test(w));
+    const whole = mainTitle(title);
+    const parts = [whole, ...whole.split(/\s+[-–—|]\s+/)];
+    return parts.some((p) => words(p).length && words(p).every((w) => mine.has(w) || authorWords.has(w) || NOISE.has(w) || /^\d+$/.test(w)) && matches(t, p));
   };
   const same = (b) => fits(b.title) || (!b.title && fits(b.rawName));
   // The whole series in one audiobook ("Harry Potter (Pottermore)" for "Harry Potter and the

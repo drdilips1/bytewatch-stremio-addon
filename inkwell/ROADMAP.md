@@ -32,6 +32,10 @@ Noted while building; to pick up after Saturday.
   typed title. Now every server cover is shown with the address that answers and the current token.
 - **Page photo taken in Cover mode** (report 15 Nov 7:13 pm: "cover … 0 book(s)"): any photo that's a
   page of text is now read as a page, whatever mode is picked; and the picked mode now shows.
+- **Report 15 Nov 8:05 pm**: page read fine (p. 215), but the server copy "Right Thing, Right Now -
+  Justice in an Unjust World" wasn't taken (play / "already on server" checks didn't treat " - …" as a
+  subtitle) → sent to the home server from MAM (a second copy). Fixed both checks; a book the server
+  has is never sent home now; page count also from Open Library when Google Books has none.
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf

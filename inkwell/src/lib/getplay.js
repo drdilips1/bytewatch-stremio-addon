@@ -28,6 +28,19 @@ export async function getAndPlay(want, step = () => {}) {
     if (/downloading in your/i.test(e.message || '')) return { none: false, message: e.message };
     note(`“${title}”: not in your copies or debrid sources (${e.message})`);
   }
+  // Already on your Audiobookshelf after all (a title the matching above didn't take): that
+  // copy plays — never a second download of a book the server has.
+  try {
+    const q = await import('../sources/qbit.js');
+    const hit = await q.onServer({ title, author }).catch(() => null);
+    if (hit) {
+      note(`“${title}”: on your Audiobookshelf as “${hit.title}” — playing that`);
+      const { getDetails } = await import('../sources/index.js');
+      nav.openOverlay('player');
+      await player.playBook(await getDetails(hit, { fast: true }), { autoplay: true });
+      return { playing: true, result: { book: hit, where: 'from your Audiobookshelf (couldn’t place the page)', notFound: !!want.quote, scene: want.quote ? 'Playing your copy — the page couldn’t be placed in it' : '' } };
+    }
+  } catch {}
   // 2. MyAnonamouse → your home server, then it plays when Audiobookshelf has it.
   try {
     const q = await import('../sources/qbit.js');
