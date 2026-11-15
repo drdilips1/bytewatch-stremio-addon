@@ -316,7 +316,6 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           {trackerSite && (title || query) && <TrackerMini site={trackerSite} filter={trackerFilter} words={title ? trackerWords('', { title, author }) : query} title={title} author={author} ebook={qb.isEbookName(query)} />}
         </div>
       )}
-      {qb.canGrab() && title && <MamResults words={trackerWords('', { title, author })} title={title} author={author} ebook={qb.isEbookName(query)} />}
       {onServer && (
         <button class="on-server" onClick={() => nav.push('book', { book: onServer })}>
           <Icon name="check" size={16} />
@@ -326,6 +325,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           </span>
         </button>
       )}
+      {qb.canGrab() && title && <MamResults words={trackerWords('', { title, author })} title={title} author={author} ebook={qb.isEbookName(query)} />}
       {!provider && (
         <button class="btn ghost-wide" onClick={() => nav.tab('settings')}>
           <Icon name="link" size={16} /> Connect TorBox or Real-Debrid to play these
