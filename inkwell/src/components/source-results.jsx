@@ -288,7 +288,13 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
     if (book?.uid) publishQuick(book.uid, { instant: instant.slice(0, 3), readable: readable.slice(0, 2), fetch: instant.length ? [] : fetchable.slice(0, 2), pending });
   }, [quickKey, pending, book?.uid]);
 
-  if (!count) return null;
+  // Nothing from the other sources: MyAnonamouse can still have it.
+  if (!count)
+    return qb.canGrab() && title ? (
+      <section class="source-results">
+        <MamResults words={trackerWords('', { title, author })} title={title} author={author} ebook={qb.isEbookName(query)} />
+      </section>
+    ) : null;
 
   return (
     <section class="source-results">
