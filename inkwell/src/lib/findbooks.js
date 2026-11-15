@@ -12,7 +12,7 @@ import { localCfg } from '../sources/local.js';
 export const foundShelves = persisted('foundShelves', []);
 
 /** A picture file → a JPEG data URL no bigger than `max` pixels a side (smaller to send). */
-export function shrink(fileOrUrl, max = 1400) {
+export function shrink(fileOrUrl, max = 1100) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -21,7 +21,7 @@ export function shrink(fileOrUrl, max = 1400) {
       c.width = Math.round(img.width * s);
       c.height = Math.round(img.height * s);
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      resolve(c.toDataURL('image/jpeg', 0.85));
+      resolve(c.toDataURL('image/jpeg', 0.8));
     };
     img.onerror = () => reject(new Error("Couldn't open that picture"));
     img.src = typeof fileOrUrl === 'string' ? fileOrUrl : URL.createObjectURL(fileOrUrl);
@@ -142,24 +142,38 @@ const PLACE = { abs: 'Audiobookshelf', tb: 'TorBox', rd: 'Real-Debrid', loc: 'ph
  * Each found title matched to the catalogue (Audible) and marked: { want, book, mine, place,
  * sure }. `book` is a catalogue entry (for its page), or your own copy when that's all there is.
  */
-export async function matchBooks(list) {
+export async function matchBooks(list, onEach = null) {
   const { audible } = await import('../sources/catalogs.js');
-  const one = async (want) => {
+  const one = async (want, i) => {
     const mineList = yours(want);
     const mine = mineList.find((b) => b.kind !== 'text') || mineList[0] || null;
     let hit = null;
-    try {
-      const found = await audible.search(`${mainTitle(want.title)} ${want.author || ''}`.trim());
-      hit = found.find((b) => matches(mainTitle(want.title), b.title)) || null;
-    } catch {}
+    // Yours already: your own copy is the match (no catalogue lookup needed).
+    if (!mine)
+      try {
+        const found = await Promise.race([audible.search(`${mainTitle(want.title)} ${want.author || ''}`.trim()), new Promise((r) => setTimeout(() => r([]), 8000))]);
+        hit = found.find((b) => matches(mainTitle(want.title), b.title)) || null;
+      } catch {}
     const book = hit || mine || { uid: `want:${mainTitle(want.title).toLowerCase()}`, kind: 'discover', title: want.title, author: want.author };
-    return { want, book, mine, place: mine ? PLACE[String(mine.source || mine.uid || '').split(':')[0]] || 'Library' : '', sure: !!hit || !!mine };
+    const m = { want, book, mine, place: mine ? PLACE[String(mine.source || mine.uid || '').split(':')[0]] || 'Library' : '', sure: !!hit || !!mine };
+    onEach?.(i, m);
+    return m;
   };
-  const out = [];
-  // A few at a time (lists can be long).
-  for (let i = 0; i < list.length; i += 4) out.push(...(await Promise.all(list.slice(i, i + 4).map(one))));
+  // Eight at a time, each shown as soon as it's matched.
+  const out = new Array(list.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(8, list.length) }, async () => {
+      while (next < list.length) {
+        const i = next++;
+        out[i] = await one(list[i], i);
+      }
+    })
+  );
   return out;
 }
+/** A found title before it's matched (shown at once while matching). */
+export const pending = (want) => ({ want, book: { uid: `want:${mainTitle(want.title).toLowerCase()}`, kind: 'discover', title: want.title, author: want.author }, mine: null, place: '', sure: false, matching: true });
 
 /** Keep a found list as a shelf in Library. */
 export function saveShelf(name, books) {

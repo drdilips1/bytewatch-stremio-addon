@@ -10,7 +10,7 @@ import { toggleLibrary } from '../lib/store.js';
 import { toggleReadLater } from '../lib/readlists.js';
 import { addUpNext } from '../lib/upnext.js';
 import { canSeeImages } from '../lib/ai.js';
-import { shrink, booksInImage, booksInText, matchBooks, saveShelf } from '../lib/findbooks.js';
+import { shrink, booksInImage, booksInText, matchBooks, saveShelf, pending } from '../lib/findbooks.js';
 
 const MODES = [
   ['cover', 'Cover'],
@@ -104,10 +104,10 @@ function OneBook({ m, again }) {
 
 /** Many books (a shelf, a screenshot, a page, a list). */
 function ManyBooks({ name, url, list }) {
-  const [ticked, setTicked] = useState(() => new Set(list.filter((m) => !m.mine).map((m) => m.book.uid)));
+  const [ticked, setTicked] = useState(() => new Set());
   const [onlyUnsure, setOnlyUnsure] = useState(false);
   const yoursN = list.filter((m) => m.mine).length;
-  const unsure = list.filter((m) => !m.sure).length;
+  const unsure = list.filter((m) => !m.sure && !m.matching).length;
   const shown = onlyUnsure ? list.filter((m) => !m.sure) : list;
   const picked = list.filter((m) => ticked.has(m.book.uid));
   const all = (fn, msg) => (picked.forEach((m) => fn(m.book)), toast(`${msg} · ${picked.length}`));
@@ -146,7 +146,7 @@ function ManyBooks({ name, url, list }) {
             <span>
               <b>{m.book.title}</b>
               <small>{m.book.author || m.want.author}</small>
-              {m.mine ? <em class="fb-badge yours">✓ Yours · {m.place}</em> : m.sure ? <em class="fb-badge find">Find it</em> : <em class="fb-badge">Unclear — “{m.want.title}”</em>}
+              {m.matching ? <em class="fb-badge">Matching…</em> : m.mine ? <em class="fb-badge yours">✓ Yours · {m.place}</em> : m.sure ? <em class="fb-badge find">Find it</em> : <em class="fb-badge">Unclear — “{m.want.title}”</em>}
             </span>
           </button>
           <button class="pill small" onClick={() => listen(m).catch((e) => toast(e.message))}>
@@ -189,9 +189,17 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
       const data = await shrink(src);
       const { books } = await booksInImage(data, m);
       if (!books.length) throw new Error('No book found in that picture — try closer, or the barcode');
-      setBusy(`Matching ${books.length} book${books.length === 1 ? '' : 's'}…`);
-      const list = await matchBooks(books);
-      setResult(list.length === 1 && (m === 'cover' || m === 'barcode') ? { one: list[0] } : { name: m === 'shelf' ? 'Your shelf photo' : 'Books in the picture', list });
+      const single = books.length === 1 && (m === 'cover' || m === 'barcode');
+      const name = m === 'shelf' ? 'Your shelf photo' : 'Books in the picture';
+      if (single) {
+        setBusy('Finding it…');
+        setResult({ one: (await matchBooks(books))[0] });
+      } else {
+        // The titles at once; each fills in as it's matched.
+        setBusy('');
+        setResult({ name, list: books.map(pending) });
+        await matchBooks(books, (i, mm) => setResult((r) => (r?.list ? { ...r, list: r.list.map((x, k) => (k === i ? mm : x)) } : r)));
+      }
     } catch (e) {
       toast(e.message);
     }
@@ -203,8 +211,9 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
     try {
       const { name, url, books } = await booksInText(t, subj);
       if (!books.length) throw new Error('No books found there');
-      setBusy(`Matching ${books.length} book${books.length === 1 ? '' : 's'}…`);
-      setResult({ name, url, list: await matchBooks(books) });
+      setBusy('');
+      setResult({ name, url, list: books.map(pending) });
+      await matchBooks(books, (i, mm) => setResult((r) => (r?.list ? { ...r, list: r.list.map((x, k) => (k === i ? mm : x)) } : r)));
     } catch (e) {
       toast(e.message);
     }

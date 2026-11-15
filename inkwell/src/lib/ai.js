@@ -227,24 +227,35 @@ export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
         const client = new Anthropic({ apiKey: keyOf(p), dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 60000 });
         const res = await client.messages.create({
           model: p.models[0],
-          max_tokens: 4000,
+          max_tokens: 2000,
+          output_config: { effort: 'low' }, // reading titles off a picture: quick
           messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mime, data: b64 } }, { type: 'text', text: prompt }] }],
         });
         const text = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
         if (text) return text;
         continue;
       }
-      const model = p.custom ? (await modelsFor(p))[0] : ((await modelsFor(p)).find((m) => /flash|pro/.test(m)) || 'gemini-2.5-flash');
-      const res = await fetch(p.custom ? customEndpoint() : p.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keyOf(p)}` },
-        body: JSON.stringify({
-          model,
-          temperature: 0.2,
-          messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
-          ...(json && p.json ? { response_format: { type: 'json_object' } } : {}),
-        }),
-      });
+      // A fast model that can see (Flash, not Pro — Pro thinks for a long time first).
+      const ms = p.custom ? [] : await modelsFor(p);
+      const model = p.custom ? (await modelsFor(p))[0] : ms.find((m) => /flash/.test(m) && !/lite|thinking|image|tts|live/.test(m)) || ms.find((m) => /flash/.test(m)) || 'gemini-2.5-flash';
+      const ctrl = new AbortController();
+      setTimeout(() => ctrl.abort(), 25000);
+      const send = (fast) =>
+        fetch(p.custom ? customEndpoint() : p.url, {
+          method: 'POST',
+          signal: ctrl.signal,
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keyOf(p)}` },
+          body: JSON.stringify({
+            model,
+            temperature: 0.2,
+            // Gemini: answer without "thinking" first (much faster for reading a picture).
+            ...(fast ? { reasoning_effort: 'none' } : {}),
+            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
+            ...(json && p.json ? { response_format: { type: 'json_object' } } : {}),
+          }),
+        });
+      let res = await send(p.id === 'gemini');
+      if (res.status === 400 && p.id === 'gemini') res = await send(false); // that model can't skip thinking
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw Object.assign(new Error(data?.error?.message || `${p.name} error ${res.status}`), { status: res.status });
       const text = (data.choices?.[0]?.message?.content || '').trim();
