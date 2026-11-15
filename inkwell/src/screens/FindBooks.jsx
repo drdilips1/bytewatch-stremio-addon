@@ -54,10 +54,12 @@ function OneBook({ m, again }) {
     }
     m.auto = false; // not again when coming back to this screen
     setLeft(-1);
-    setStatus(`Looking for ${m.book.title}…`);
-    playIt({ action: 'play_book', moment: false, title: m.want.title || m.book.title, author: m.want.author || m.book.author || '' }, setStatus)
-      .then(() => setStatus(''))
-      .catch((e) => (setStatus(''), toast(e.message)));
+    setStatus(m.mine ? `Opening ${m.book.title} · ${m.place}…` : `Looking for ${m.book.title}…`);
+    // Yours (phone, server, TorBox / Real-Debrid): that copy plays. Else found and fetched.
+    const job = m.mine ? listen(m) : playIt({ action: 'play_book', moment: false, title: m.want.title || m.book.title, author: m.want.author || m.book.author || '' }, setStatus);
+    job
+      .then(() => (setStatus(''), note(`auto-play “${m.book.title}”: playing (${m.mine ? m.place : 'from sources'})`)))
+      .catch((e) => (setStatus(''), toast(e.message), note(`auto-play “${m.book.title}” failed (${m.mine ? m.place : 'not yours'}): ${e.message}`)));
   }, [left]);
   const stop = () => ((m.auto = false), setLeft(-1));
   const go = async () => {

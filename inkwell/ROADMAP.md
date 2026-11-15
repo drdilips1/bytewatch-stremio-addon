@@ -9,6 +9,8 @@ Noted while building; to pick up after Saturday.
 - **Read later**: removing a book from Read later in Library doesn't stick — it comes back.
   Check the remove path for the `later` shelf (Library remove / book menu toggle) and whether
   sync (the `readLater` section merge) or another copy of the same book (different uid) re-adds it.
+- **Find books**: a book on the Audiobookshelf server (never opened in the app) showed "Not yours
+  yet" — the match now also asks the server and TorBox / Real-Debrid; auto-play plays that copy.
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf

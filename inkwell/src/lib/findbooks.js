@@ -146,14 +146,24 @@ export async function matchBooks(list, onEach = null) {
   const { audible } = await import('../sources/catalogs.js');
   const one = async (want, i) => {
     const mineList = yours(want);
-    const mine = mineList.find((b) => b.kind !== 'text') || mineList[0] || null;
+    let mine = mineList.find((b) => b.kind !== 'text') || mineList[0] || null;
     let hit = null;
-    // Yours already: your own copy is the match (no catalogue lookup needed).
-    if (!mine)
-      try {
-        const found = await Promise.race([audible.search(`${mainTitle(want.title)} ${want.author || ''}`.trim()), new Promise((r) => setTimeout(() => r([]), 8000))]);
-        hit = found.find((b) => matches(mainTitle(want.title), b.title)) || null;
-      } catch {}
+    // Yours already: your own copy is the match (no catalogue lookup needed). Else the catalogue,
+    // and at the same time your Audiobookshelf and TorBox / Real-Debrid (a book on the server
+    // you never opened in the app is yours too).
+    if (!mine) {
+      const late = (ms, v) => new Promise((r) => setTimeout(() => r(v), ms));
+      const [found, owned] = await Promise.all([
+        Promise.race([audible.search(`${mainTitle(want.title)} ${want.author || ''}`.trim()).catch(() => []), late(8000, [])]),
+        Promise.race([
+          import('../sources/index.js').then((m) => m.findOwned({ title: want.title, author: want.author || '' })).catch(() => null),
+          late(9000, null),
+        ]),
+      ]);
+      hit = (found || []).find((b) => matches(mainTitle(want.title), b.title)) || null;
+      const theirs = [...(owned?.server || []), ...(owned?.cloud || [])];
+      mine = theirs.find((b) => b.kind !== 'text') || theirs[0] || null;
+    }
     const book = hit || mine || { uid: `want:${mainTitle(want.title).toLowerCase()}`, kind: 'discover', title: want.title, author: want.author };
     const m = { want, book, mine, place: mine ? PLACE[String(mine.source || mine.uid || '').split(':')[0]] || 'Library' : '', sure: !!hit || !!mine };
     onEach?.(i, m);
