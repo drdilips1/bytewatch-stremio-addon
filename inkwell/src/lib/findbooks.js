@@ -82,8 +82,13 @@ export async function booksInImage(dataUrl, mode = 'cover') {
         ? 'This is a photo of a bookshelf or a pile of books. List every book whose title you can read on the spines or covers.'
         : 'This is a screenshot or picture that shows books (covers, a list, a post). List every book shown or named in it.';
   // A page of text from inside a book (taken in any mode): read as a page, not as a cover.
-  const orPage = mode === 'shelf' ? '' : ` If instead the photo is a page of text from inside a book (not a cover, not a list of books), reply {"page":${PAGE_JSON}} — ${PAGE_ASK}`;
-  const raw = await askAiImage(`${ask} Reply with JSON only: {"books":[{"title":"the book's title as published","author":"the author, if shown or known"}]}. Leave out anything you can't read with confidence.${orPage}`, dataUrl, { json: true });
+  // Asked first, before "which book": a page from the middle of a book names its book too (the
+  // running header), and was taken for a cover — the book then played from the start.
+  const pageFirst =
+    mode === 'shelf'
+      ? ''
+      : `First look at what the photo shows. If it is a page of text from inside a book — running text, paragraphs, maybe a page number or a running header — and not a cover, not a list of books: reply {"page":${PAGE_JSON}}, where you ${PAGE_ASK} Only if it is not a page of text: `;
+  const raw = await askAiImage(`${pageFirst}${ask} Reply with JSON only: {"books":[{"title":"the book's title as published","author":"the author, if shown or known"}]}. Leave out anything you can't read with confidence.`, dataUrl, { json: true });
   const j = parseJson(raw) || {};
   const page = j.page && typeof j.page === 'object' ? pageFrom(j.page) : null;
   return { books: page ? [] : tidy(j.books), how: mode, page };
