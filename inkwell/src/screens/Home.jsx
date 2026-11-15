@@ -518,7 +518,7 @@ function ContinueRow() {
             class="d-more"
             onClick={() =>
               import('./Library.jsx').then((m) => {
-                m.libView.set((v) => ({ ...v, tab: 'progress' }));
+                m.libView.set((v) => ({ ...v, tab: 'progress', where: 'all', open: true }));
                 nav.tab('library');
               })
             }

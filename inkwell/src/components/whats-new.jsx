@@ -8,6 +8,7 @@ export const CHANGES = [
     id: '2026-11-15',
     title: 'Take a photo, start listening',
     items: [
+      ['📚', 'A calmer Library', 'The book you’re on at the top with a play button, then a row for each shelf — In progress, Read later, Found, Audiobooks, Ebooks, Finished. See all opens the shelf with its filters. Notes, Tidy up, Stats and more are under ⋯.'],
       ['📖', 'Photo of a page → plays from there', 'Find books → Page: take the page of a paper book or an ebook. The audiobook plays from that page — point a finger at a line (or underline it) to start from that line.'],
       ['▶️', 'One book found? It plays', 'A cover or a barcode: the book plays by itself in 3 seconds — from your phone, Audiobookshelf, TorBox / Real-Debrid, or the best copy from your sources. Stop to just look, or switch it off on the Find books screen.'],
       ['🧑', 'Photos for authors and narrators', 'A missing photo is looked for in more places by itself. Tap the round photo on their page to pick another one, or use your own picture.'],

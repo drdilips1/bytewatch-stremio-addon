@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Grid, Empty, BookCover, toast, AskButton, BookCard } from '../components/common.jsx';
+import { Grid, Empty, BookCover, toast, BookCard } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { SpineShelf } from '../components/spine-shelf.jsx';
 import { library, progress, useStore, forgetBook, persisted, clearPodcastHistory, bookTags } from '../lib/store.js';
@@ -21,6 +21,7 @@ import * as lb from '../sources/libby.js';
 import { readLater, readElsewhere } from '../lib/readlists.js';
 import { myRatings, alreadyRead } from '../lib/taste.js';
 import { foundShelves } from '../lib/findbooks.js';
+import { LibraryHome, LibMenu } from '../components/library-home.jsx';
 
 const TABS = [
   ['progress', 'Continue'],
@@ -155,7 +156,9 @@ const SORTS = [
   ['series', 'Series'],
 ];
 const surname = (name) => String(name).split(',')[0].trim().split(/\s+/).pop() || '';
-export const libView = persisted('libraryView', { list: false, sort: 'recent', tab: 'progress', where: 'all' });
+export const libView = persisted('libraryView', { list: false, sort: 'recent', tab: 'progress', where: 'all', open: false });
+// The app opens on Library's front page (the shelves), not inside the last shelf you looked at.
+libView.set((v) => ({ ...v, open: false }));
 const lengthOf = (b) => b.duration || metaNow(b)?.runtime || b.size || 0;
 // Phone and cloud books often get their author from the online lookup.
 const authorOf = (b) => metaNow(b)?.author || b.author || '';
@@ -190,6 +193,9 @@ export function Library() {
   const where = view.where || 'all';
   const mode = view.mode || (view.list ? 'list' : 'grid');
   const setTab = (t) => libView.set((v) => ({ ...v, tab: t, where: 'all' }));
+  const detail = !!view.open;
+  const openTab = (t) => (libView.set((v) => ({ ...v, tab: t, where: 'all', open: true })), window.scrollTo(0, 0));
+  const closeTab = () => (libView.set((v) => ({ ...v, open: false })), setEditing(false), window.scrollTo(0, 0));
   const setWhere = (w) => libView.set((v) => ({ ...v, where: w }));
   const [editing, setEditing] = useState(false);
   const [ebookQ, setEbookQ] = useState('');
@@ -281,8 +287,15 @@ export function Library() {
 
   return (
     <div class="screen library">
-      <div class="library-head">
-        <h1 class="screen-title">Library</h1>
+      <div class={'library-head' + (detail ? ' in-shelf' : '')}>
+        {detail ? (
+          <button class="lib-back" onClick={closeTab} aria-label="Back to Library">
+            <Icon name="back" size={20} />
+            <h1 class="screen-title">{([...TABS, ['found', 'Found'], ['libby', 'Libby']].find(([k]) => k === tab) || [])[1] || 'Library'}</h1>
+          </button>
+        ) : (
+          <h1 class="screen-title">Library</h1>
+        )}
         <div class="library-head-actions">
           <button
             class={'icon-btn glass' + (finding ? ' active' : '')}
@@ -294,16 +307,7 @@ export function Library() {
           >
             <Icon name="search" size={19} />
           </button>
-          <button class="icon-btn glass" onClick={() => nav.push('notes')} aria-label="Notes and bookmarks">
-            <Icon name="bookmark" size={19} />
-          </button>
-          <button class="icon-btn glass" onClick={() => nav.push('tidy')} aria-label="Tidy up">
-            <Icon name="wand" size={19} />
-          </button>
-          <button class={'pill small' + (editing ? ' active' : '')} onClick={() => setEditing(!editing)}>
-            {editing ? 'Done' : 'Edit'}
-          </button>
-          <AskButton />
+          <LibMenu editing={editing} setEditing={setEditing} canEdit={detail && tab !== 'podcasts' && tab !== 'libby' && tab !== 'found'} />
         </div>
       </div>
       {finding && (
@@ -333,21 +337,11 @@ export function Library() {
         </>
       ) : (
         <>
-      <button class="stats" onClick={() => nav.push('stats')} aria-label="Listening stats">
-        <div>
-          <b>{stats.books}</b>
-          <span>started</span>
-        </div>
-        <div>
-          <b>{stats.hours}</b>
-          <span>hours listened</span>
-        </div>
-        <div>
-          <b>{stats.done}</b>
-          <span>finished</span>
-        </div>
-      </button>
-      <div class="segmented scroll">
+      {!detail ? (
+        <LibraryHome groups={groups} shelves={shelves} stats={stats} libby={lb.connected()} openTab={openTab} />
+      ) : (
+        <>
+      <div class="segmented scroll lib-tabs">
         {[...TABS.slice(0, 2), ...(shelves.length ? [['found', 'Found']] : []), ...TABS.slice(2), ...(lb.connected() ? [['libby', 'Libby']] : [])].map(([k, label]) => (
           <button class={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
             {label}
@@ -379,25 +373,26 @@ export function Library() {
           <Icon name="download" size={16} /> Manage downloads
         </button>
       )}
-      {tab !== 'podcasts' && items.length > 1 && (
+      {tab !== 'podcasts' && tab !== 'libby' && tab !== 'found' && items.length > 1 && (
         <div class="lib-tools">
-          <div class="lib-sort">
-            {SORTS.map(([k, label]) => (
-              <button class={'pill small' + (view.sort === k ? ' active' : '')} onClick={() => libView.set((v) => ({ ...v, sort: k }))}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <label class="lib-pick">
+            <span>Sort</span>
+            <select value={view.sort} onChange={(e) => libView.set((v) => ({ ...v, sort: e.currentTarget.value }))}>
+              {SORTS.map(([k, label]) => (
+                <option value={k}>{label}</option>
+              ))}
+            </select>
+          </label>
           <div class="lib-views" role="group" aria-label="Show as">
             {VIEWS.map(([k, icon, label]) => (
               <button class={'icon-btn' + (mode === k ? ' active' : '')} aria-label={`Show as ${label}`} onClick={() => libView.set((v) => ({ ...v, mode: k, list: k === 'list' }))}>
-                <Icon name={icon} size={18} />
+                <Icon name={icon} size={17} />
               </button>
             ))}
           </div>
         </div>
       )}
-      {tab !== 'podcasts' && tab !== 'libby' && tab !== 'found' && <MissingCovers items={items} local={local} />}
+      {tab !== 'podcasts' && tab !== 'libby' && tab !== 'found' && <MissingCovers items={items} local={local} silent />}
       {subs && where === 'phone' && !items.length ? (
         <PhoneEmpty />
       ) : tab === 'libby' ? (
@@ -475,6 +470,8 @@ export function Library() {
           .
         </Empty>
         )
+      )}
+        </>
       )}
         </>
       )}
@@ -694,7 +691,7 @@ function SeriesGroups({ items, mode = 'grid', prog }) {
 // Google Books, the first that is clearly the book) — on its own when the Library opens, or
 // with the button. No choosing.
 let coversRunning = false;
-function MissingCovers({ items, local }) {
+function MissingCovers({ items, local, silent = false }) {
   useStore(metaFixes);
   useStore(typedCovers);
   const [run, setRun] = useState(null); // { done, total, found }
@@ -721,7 +718,7 @@ function MissingCovers({ items, local }) {
       return () => clearTimeout(t);
     }
   }, [missing.length]);
-  if (!missing.length && !run) return null;
+  if ((!missing.length && !run) || (silent && !run)) return null;
   return (
     <button class="btn ghost-wide lib-manage" disabled={!!run} onClick={() => go(false)}>
       {run ? (

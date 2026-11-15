@@ -12788,3 +12788,47 @@ button.pp-av { padding: 0; cursor: pointer; }
 .pp-pick-one.on img { border-color: var(--accent); }
 .pp-pick-one small { font-size: 10.5px; }
 .pp-pick-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+/* ---- Library front page (shelves) ---- */
+.lib-home { padding-bottom: 8px; }
+.lh-stats { display: block; margin: -6px 20px 4px; padding: 0; background: none; border: 0; color: var(--muted); font: 500 13.5px var(--font); text-align: left; }
+.lh-continue { display: flex; align-items: center; gap: 14px; margin: 12px 16px 4px; padding: 14px; border-radius: 22px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--bg)), color-mix(in srgb, var(--accent-2, var(--accent)) 8%, var(--bg))); border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent); cursor: pointer; }
+.lh-cover { width: 92px; flex: none; }
+.lh-cover > * { width: 100%; border-radius: 12px; box-shadow: 0 10px 22px -10px rgba(0, 0, 0, 0.45); }
+.lh-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lh-info small { font-size: 11.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--accent); }
+.lh-info b { font-size: 16.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lh-info span { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lh-bar { height: 4px; border-radius: 3px; background: color-mix(in srgb, var(--text) 10%, transparent); margin-top: 6px; overflow: hidden; }
+.lh-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.lh-play { width: 48px; height: 48px; flex: none; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--text); color: var(--bg); }
+.lh-row { margin-top: 18px; }
+.lh-head { display: flex; align-items: baseline; justify-content: space-between; padding: 0 20px 8px; }
+.lh-head h3 { font-size: 19px; font-weight: 750; letter-spacing: -0.01em; }
+.lh-head h3 small { font-size: 14px; font-weight: 600; color: var(--muted); margin-left: 4px; }
+.lh-all { background: none; border: 0; padding: 4px 0; color: var(--accent); font: 700 14px var(--font); }
+.lh-links { display: flex; gap: 8px; flex-wrap: wrap; padding: 6px 20px 0; }
+
+/* Inside a shelf: back + the shelf's name, underline tabs, one tools row */
+.lib-back { display: flex; align-items: center; gap: 2px; background: none; border: 0; padding: 0 0 0 10px; color: var(--text); min-width: 0; }
+.lib-back .screen-title { padding-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.segmented.lib-tabs { background: none; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent); border-radius: 0; box-shadow: none; padding: 0 12px; margin: 0 0 4px; gap: 4px; }
+.segmented.lib-tabs button { background: none !important; box-shadow: none !important; border-radius: 0; padding: 10px 8px 9px; color: var(--muted); font-weight: 700; border-bottom: 3px solid transparent; }
+.segmented.lib-tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+.lib-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 16px 6px; }
+.lib-pick { display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--muted); }
+.lib-pick select { appearance: none; -webkit-appearance: none; border: 1px solid color-mix(in srgb, var(--text) 14%, transparent); background: var(--bg-2, transparent); color: var(--text); font: 600 13.5px var(--font); padding: 6px 26px 6px 12px; border-radius: 999px; background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%); background-position: calc(100% - 14px) 52%, calc(100% - 9px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+.lib-tools .lib-views { display: flex; gap: 2px; }
+.lib-tools .lib-views .icon-btn { width: 34px; height: 34px; }
+
+/* ⋯ menu */
+.lib-menu { position: relative; }
+.lib-menu-back { position: fixed; inset: 0; z-index: 40; }
+.lib-menu-list { position: absolute; right: 0; top: calc(100% + 6px); z-index: 41; min-width: 250px; padding: 6px; border-radius: 18px; background: var(--bg); border: 1px solid color-mix(in srgb, var(--text) 12%, transparent); box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.35); display: flex; flex-direction: column; }
+.lib-menu-list button { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 12px; background: none; border: 0; color: var(--text); font: 600 14.5px var(--font); text-align: left; }
+.lib-menu-list button:active { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.screen.library .segmented.lib-tabs { background: none !important; border: 0 !important; border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent) !important; box-shadow: none !important; border-radius: 0 !important; margin: 0 0 6px !important; }
+.screen.library .lib-pick select { height: 34px !important; min-height: 0 !important; width: auto !important; padding: 0 28px 0 12px !important; border-radius: 999px !important; font-size: 13.5px !important; box-shadow: none !important; }
+.lib-home .row-scroll { gap: 12px; padding-left: 16px; padding-right: 16px; }
+.lib-home .row-scroll .book-card { width: 112px; }
+.lib-home .lh-head { padding-left: 16px; padding-right: 16px; }
