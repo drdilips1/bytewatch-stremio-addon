@@ -5,7 +5,7 @@
 // Reading aloud is done by the iPhone itself (PaperSpeech, ios-plugins/speech): it keeps reading with the
 // screen off and shows the book on the lock screen; the reader just follows it, as on Android.
 import { getBook } from './db.js';
-import { Speech, native, VOICE_KEY, VOICE_ID, sheet, pickVoice, whenVoiceChosen } from './speech.js';
+import { Speech, native, VOICE_KEY, VOICE_ID, sheet, pickVoice, whenVoiceChosen, pronunciations, pronounceSheet, chaptersOf } from './speech.js';
 
 let loaded = null; // the book as stored (its blocks: what each paragraph says)
 
@@ -39,47 +39,77 @@ async function theBook() {
   const headings = [];
   b.blocks.forEach((bl, i) => {
     if (bl.h) {
-      html += `<h2 id="c${i}" data-i="${i}">${esc(bl.t)}</h2>\n`;
+      html += `<h2 id="c${i}" data-i="${i}"${bl.s ? ' data-skip' : ''}>${esc(bl.t)}</h2>\n`;
       headings.push({ id: 'c' + i, text: bl.t, level: 2 });
-    } else html += `<p data-i="${i}">${esc(bl.t)}</p>\n`;
+    } else html += `<p data-i="${i}"${bl.s ? ' data-skip' : ''}>${esc(bl.t)}</p>\n`;
   });
   return { uid: b.id, id: b.id, title: b.title, author: b.author || '', html, headings, at: 0 };
 }
 
 // ---- reading aloud by the iPhone (the reader's "InkwellReadAloud" calls, as the Android app answers them) ----
 
+// The iPhone counts in the book's own paragraphs (so the home screen's player, saved places and the reader
+// agree); the reader counts its elements, which leave out the skipped contents and index. idx: element → paragraph.
+let idxMap = null;
+const toBook = (el) => (idxMap && idxMap[el] >= 0 ? idxMap[el] : el);
+function toElement(para) {
+  if (!idxMap) return para;
+  const i = idxMap.indexOf(para);
+  if (i >= 0) return i;
+  const next = idxMap.findIndex((b) => b > para);
+  return next >= 0 ? next : Math.max(0, idxMap.length - 1);
+}
+const forReader = (st) => (st && st.para != null ? { ...st, para: toElement(st.para) } : st);
+
 async function readAloud(method, a) {
   switch (method) {
     case 'start': {
-      // The reader sends which book paragraph each of its elements is (idx); the words come from the book.
       const blocks = loaded?.blocks || (await getBook(bookId))?.blocks || [];
-      const paras = a.paras?.length ? a.paras : (a.idx || []).map((i) => (i >= 0 && blocks[i] ? blocks[i].t : ''));
+      let paras;
+      let from = a.from || 0;
+      if (a.paras?.length) {
+        // A translation: what to say comes from the reader, counted as it counts.
+        idxMap = null;
+        paras = a.paras;
+      } else {
+        // The book's paragraphs, the ones the reader left out (skipped) silent.
+        idxMap = a.idx || null;
+        const shown = new Set((a.idx || []).filter((i) => i >= 0));
+        paras = blocks.map((b, i) => (shown.has(i) ? b.t : ''));
+        from = toBook(from);
+      }
       return Speech.start({
         uid: a.uid || loaded?.id || bookId || '',
         title: a.title || loaded?.title || '',
         author: loaded?.author || '',
         paras,
-        from: a.from || 0,
+        from,
         rate: a.rate || 1,
         voice: localStorage.getItem(VOICE_ID) || '',
+        chapters: chaptersOf(loaded),
+        pronounce: pronunciations(),
+        lang: 'en',
       });
     }
     case 'status':
-      return Speech.status();
+      return forReader(await Speech.status());
     case 'pause':
     case 'resume':
     case 'stop':
       return Speech[method]();
     case 'seek':
-      return Speech.seek({ para: a.para || 0 });
+      return Speech.seek({ para: toBook(a.para || 0) });
+    case 'map':
+      idxMap = a.idx || null;
+      return {};
     case 'setRate':
       return Speech.setRate({ rate: a.rate || 1 });
     default:
-      return {}; // map, addParas: nothing to do (the page and the iPhone count paragraphs the same way)
+      return {}; // addParas: nothing to do
   }
 }
 
-if (native) Speech.addListener('state', (st) => window.__p2aEvent?.('InkwellReadAloud', 'state', JSON.stringify(st)));
+if (native) Speech.addListener('state', (st) => window.__p2aEvent?.('InkwellReadAloud', 'state', JSON.stringify(forReader(st))));
 
 async function lookUp(raw) {
   const word = String(raw || '').trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').replace(/['’]s$/, '');
@@ -139,6 +169,9 @@ async function handle(plugin, method, args) {
       return {};
     case 'lookup':
       lookUp(args.word);
+      return {};
+    case 'pronounce':
+      pronounceSheet(args.word);
       return {};
     default:
       throw new Error('Not available on iPhone yet');

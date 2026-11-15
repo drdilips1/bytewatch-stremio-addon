@@ -25,6 +25,8 @@ final class NeuralReader {
     private var paras: [String] = []
     private var lang: String?
     private(set) var current = 0
+    /// The listener's pronunciations, applied before each paragraph is split into pieces.
+    var pronounce: [String: String] = [:]
     private(set) var playing = false
 
     init() {
@@ -85,7 +87,7 @@ final class NeuralReader {
     // MARK: - Making ahead (background queue)
 
     private func piecesOf(_ para: Int) -> [Piece] {
-        let text = TextPrep.normalize(paras[para]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = TextPrep.normalize(TextPrep.applyPronunciations(paras[para], pronounce)).trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty || !text.contains(where: { $0.isLetter || $0.isNumber }) { return [] }
         // Each piece as the on-device voices read it best (no quote marks, titles in full…), as on Android.
         let parts = TextPrep.pieces(text, voice: voice).map { TextPrep.plainQuotes($0) }.filter { !$0.isEmpty }

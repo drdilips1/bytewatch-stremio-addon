@@ -5,8 +5,11 @@ import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import './library.css';
 import { listBooks, putBook, deleteBook, getBook, percentOf } from './db.js';
-import { importFile, fromText } from './importers.js';
-import { Speech, native, pickVoice, voiceName, rate, setRate, packs, watchDownloads, downloadPack } from './speech.js';
+import { importFile, fromText, fromWebPage, fromPhotos, fileFromBase64 } from './importers.js';
+import {
+  Speech, native, pickVoice, voiceName, rate, setRate, packs, watchDownloads, downloadPack,
+  playBook, positionOf, chaptersOf, setSleep, pronounceSheet,
+} from './speech.js';
 
 const VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '';
 const SPEEDS = [0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
@@ -52,11 +55,11 @@ function Cover({ title, big }) {
   return <div class={'cover' + (big ? ' big' : '')}>{(title?.[0] || '?').toUpperCase()}</div>;
 }
 
-function Continue({ book, reading }) {
+function Continue({ book, reading, onPlayer }) {
   const here = reading && reading.uid === book.id;
-  const pct = percentOf(book.id);
+  const pct = progressOf(book, reading);
   return (
-    <section class="continue" onClick={() => open(book.id)}>
+    <section class="continue" onClick={() => onPlayer(book.id)}>
       <Cover title={book.title} big />
       <div class="info">
         <span class="label">{here ? (reading.playing ? 'Listening now' : 'Paused') : 'Continue listening'}</span>
@@ -73,6 +76,7 @@ function Continue({ book, reading }) {
         onClick={(e) => {
           e.stopPropagation();
           if (here) (reading.playing ? Speech.pause() : Speech.resume()).catch(() => {});
+          else if (native) startBook(book.id).then(() => onPlayer(book.id));
           else open(book.id, true);
         }}
       >
@@ -82,11 +86,11 @@ function Continue({ book, reading }) {
   );
 }
 
-function Player({ reading, books }) {
+function MiniPlayer({ reading, books, onPlayer }) {
   if (!reading) return null;
   const b = (books || []).find((x) => x.id === reading.uid);
   return (
-    <div class="player" onClick={() => b && open(b.id)}>
+    <div class="player" onClick={() => b && onPlayer(b.id)}>
       <Cover title={b?.title} />
       <div class="info">
         <b>{b?.title || 'Reading'}</b>
@@ -165,6 +169,197 @@ function VoicePacks() {
   );
 }
 
+
+/** How far into a book: where the iPhone is reading it, else where it was left, else the reader's own. */
+function progressOf(book, reading) {
+  const total = book.blocks?.length || book.paras || 0;
+  const at = reading?.uid === book.id ? reading.para : positionOf(book.id);
+  if (at != null && (reading?.total || total)) return Math.round((at * 100) / Math.max(1, (reading?.uid === book.id && reading.total) || total));
+  return percentOf(book.id);
+}
+
+/** Starts reading a book here (no need to open the reader), where it was left. */
+async function startBook(id, from) {
+  const b = await getBook(id);
+  if (!b) return;
+  await putBook({ ...b, opened: Date.now() });
+  await playBook(b, from).catch(() => {});
+}
+
+const SLEEPS = [
+  [0, 'Off'],
+  [15, '15 min'],
+  [30, '30 min'],
+  [45, '45 min'],
+  [60, '1 hour'],
+  [-1, 'End of chapter'],
+];
+
+/** The player: the book being listened to, with every control. */
+function PlayerScreen({ id, reading, onClose }) {
+  const [book, setBook] = useState(null);
+  const [panel, setPanel] = useState(null); // 'chapters' | 'speed' | 'sleep'
+  const [speed, setSpeed] = useState(rate());
+  const [drag, setDrag] = useState(null);
+  const [voice, setVoice] = useState(voiceName());
+  useEffect(() => {
+    getBook(id).then(setBook);
+    const t = setInterval(() => setVoice(voiceName()), 800);
+    return () => clearInterval(t);
+  }, [id]);
+  if (!book) return null;
+  const here = reading && reading.uid === id;
+  const total = book.blocks.length;
+  const at = here ? reading.para : positionOf(id) ?? 0;
+  const chapters = chaptersOf(book);
+  const chapter = [...chapters].reverse().find((c) => c.para <= at);
+  const now = book.blocks[Math.min(at, total - 1)]?.t || '';
+  const go = (para) => {
+    const p = Math.max(0, Math.min(total - 1, para));
+    if (here) Speech.seek({ para: p }).catch(() => {});
+    else playBook(book, p).catch(() => {});
+  };
+  const playPause = () => {
+    if (here && reading.finished) return go(0);
+    if (here) return (reading.playing ? Speech.pause() : Speech.resume()).catch(() => {});
+    playBook(book).catch(() => {});
+  };
+  const sleepLabel = here && reading.sleep != null ? (reading.sleep === 'chapter' ? 'End of chapter' : `${Math.ceil(reading.sleep / 60)} min`) : 'Sleep';
+  const pct = Math.round(((drag ?? at) * 100) / Math.max(1, total - 1));
+  return (
+    <div class="screen">
+      <div class="screen-head">
+        <button class="icon" aria-label="Close" onClick={onClose}>
+          ⌄
+        </button>
+        <span class="muted small">{chapter?.title || 'Now playing'}</span>
+        <button class="icon" aria-label="Read" onClick={() => open(id)}>
+          📖
+        </button>
+      </div>
+      <div class="screen-body">
+        <Cover title={book.title} big />
+        <h2 class="p-title">{book.title}</h2>
+        {book.author && <p class="muted">{book.author}</p>}
+        <p class="now-text">{now}</p>
+        {here && reading.error && <p class="status err">{reading.error}</p>}
+        <input
+          class="seek"
+          type="range"
+          min="0"
+          max={Math.max(0, total - 1)}
+          value={drag ?? at}
+          onInput={(e) => setDrag(+e.currentTarget.value)}
+          onChange={(e) => {
+            setDrag(null);
+            go(+e.currentTarget.value);
+          }}
+        />
+        <div class="seek-row muted small">
+          <span>{pct}%</span>
+          <span>{Math.round(((book.words || 0) * (100 - pct)) / 100 / 150 / Math.max(0.5, speed))} min left</span>
+        </div>
+        <div class="controls">
+          <button class="round ghost big" aria-label="Previous paragraph" onClick={() => go(at - 1)}>
+            ⏮
+          </button>
+          <button class="round huge" aria-label={here && reading.playing ? 'Pause' : 'Play'} onClick={playPause}>
+            {here && reading.playing ? '❚❚' : '▶'}
+          </button>
+          <button class="round ghost big" aria-label="Next paragraph" onClick={() => go(at + 1)}>
+            ⏭
+          </button>
+        </div>
+        <div class="tools">
+          <button onClick={() => setPanel(panel === 'speed' ? null : 'speed')}>{speed}×</button>
+          <button onClick={() => pickVoice()}>{voice ? voice.split(' · ')[0].slice(0, 18) : 'Voice'}</button>
+          <button onClick={() => setPanel(panel === 'sleep' ? null : 'sleep')}>⏾ {sleepLabel}</button>
+          {chapters.length > 0 && <button onClick={() => setPanel(panel === 'chapters' ? null : 'chapters')}>☰ Chapters</button>}
+        </div>
+        {panel === 'speed' && (
+          <div class="chips center-chips">
+            {SPEEDS.map((v) => (
+              <button
+                class={v === speed ? 'on' : ''}
+                onClick={() => {
+                  setSpeed(v);
+                  setRate(v);
+                }}
+              >
+                {v}×
+              </button>
+            ))}
+          </div>
+        )}
+        {panel === 'sleep' && (
+          <div class="chips center-chips">
+            {SLEEPS.map(([m, l]) => (
+              <button
+                onClick={() => {
+                  setSleep(m).catch(() => {});
+                  setPanel(null);
+                }}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
+        {panel === 'chapters' && (
+          <ul class="chapters">
+            {chapters.map((c) => (
+              <li
+                class={c === chapter ? 'on' : ''}
+                onClick={() => {
+                  go(c.para);
+                  setPanel(null);
+                }}
+              >
+                {c.title}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** What can be added: a file, a web page, photos of pages, or pasted text. */
+function AddMenu({ onClose, onFile, onPhotos, onCamera, onLink, onPaste }) {
+  const item = (icon, title, sub, f) => (
+    <button
+      class="rowbtn"
+      onClick={() => {
+        onClose();
+        f();
+      }}
+    >
+      <span>
+        {icon} {title}
+        <br />
+        <span class="muted small">{sub}</span>
+      </span>
+      <span class="muted">›</span>
+    </button>
+  );
+  return (
+    <div class="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div class="sheet">
+        <div class="sheet-head">
+          <h2>Add</h2>
+          <button onClick={onClose}>Cancel</button>
+        </div>
+        {item('📚', 'A book or document', 'EPUB, PDF, text or web page file from Files', onFile)}
+        {item('🔗', 'A web page', 'Paste or type its link', onLink)}
+        {item('🖼', 'Photos of pages', 'Printed pages from your photos: the text is read out', onPhotos)}
+        {item('📷', 'Take a photo', 'Photograph a printed page', onCamera)}
+        {item('📋', 'Paste text', 'Any text to listen to', onPaste)}
+      </div>
+    </div>
+  );
+}
+
 function Settings({ onClose }) {
   const [speed, setSpeed] = useState(rate());
   const [voice, setVoice] = useState(voiceName());
@@ -198,6 +393,11 @@ function Settings({ onClose }) {
             Zoe, Evan, Nathan…). They're free, work offline and are light on battery. Then choose it above.
           </p>
         )}
+
+        <button class="rowbtn" onClick={() => pronounceSheet()}>
+          <span>Pronunciations</span>
+          <span class="muted">Fix how words are said ›</span>
+        </button>
 
         <VoicePacks />
 
@@ -253,10 +453,26 @@ function Library() {
   const [msg, setMsg] = useState('');
   const [paste, setPaste] = useState(null);
   const [settings, setSettings] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [player, setPlayer] = useState(null); // the book shown in the player
   const reading = useReading();
   const file = useRef();
+  const photos = useRef();
+  const camera = useRef();
   const refresh = () => listBooks().then(setBooks).catch((e) => setMsg(e.message));
   useEffect(() => void refresh(), []);
+
+  // Files opened in the app from elsewhere (Files, Mail, Share → Paper to Audio): added to the library.
+  useEffect(() => {
+    if (!native) return;
+    const take = () =>
+      Speech.takeOpened()
+        .then(({ files = [] }) => files.length && add(files.map((f) => fileFromBase64(f.name, f.data))))
+        .catch(() => {});
+    take();
+    const h = Speech.addListener('opened', take);
+    return () => h.then((x) => x.remove());
+  }, []);
 
   async function add(files) {
     for (const f of files) {
@@ -266,6 +482,32 @@ function Library() {
       } catch (e) {
         setMsg(`Couldn't add “${f.name}”: ${e.message}`);
       }
+    }
+    setBusy('');
+    refresh();
+  }
+
+  async function addPhotos(files) {
+    if (!files.length) return;
+    setBusy(`Reading the text in ${files.length === 1 ? 'the photo' : `${files.length} photos`}…`);
+    try {
+      if (!native) throw new Error('Reading photos needs the iPhone app');
+      await putBook(await fromPhotos(files, (a) => Speech.recognize(a)));
+    } catch (e) {
+      setMsg(e.message);
+    }
+    setBusy('');
+    refresh();
+  }
+
+  async function addLink() {
+    const link = prompt('Web page link', '');
+    if (!link || !link.trim()) return;
+    setBusy('Opening the page…');
+    try {
+      await putBook(await fromWebPage(link));
+    } catch (e) {
+      setMsg(`Couldn't open that page: ${e.message}`);
     }
     setBusy('');
     refresh();
@@ -302,7 +544,7 @@ function Library() {
           <button class="icon" aria-label="Settings" onClick={() => setSettings(true)}>
             ⚙
           </button>
-          <button class="add" onClick={() => file.current.click()}>
+          <button class="add" onClick={() => setAdding(true)}>
             ＋ Add
           </button>
         </div>
@@ -317,6 +559,28 @@ function Library() {
             e.target.value = '';
           }}
         />
+        <input
+          ref={photos}
+          type="file"
+          multiple
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            addPhotos([...e.target.files]);
+            e.target.value = '';
+          }}
+        />
+        <input
+          ref={camera}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={(e) => {
+            addPhotos([...e.target.files]);
+            e.target.value = '';
+          }}
+        />
       </header>
 
       {busy && <p class="status">{busy}</p>}
@@ -326,10 +590,12 @@ function Library() {
         </p>
       )}
 
-      {current && <Continue book={current} reading={reading} />}
+      {current && <Continue book={current} reading={reading} onPlayer={setPlayer} />}
 
       <div class="actions">
         <button onClick={() => file.current.click()}>Add a book or PDF</button>
+        <button onClick={addLink}>Web page</button>
+        <button onClick={() => photos.current.click()}>Photos of pages</button>
         <button onClick={() => setPaste('')}>Paste text</button>
       </div>
 
@@ -358,9 +624,9 @@ function Library() {
       {rest.length > 0 && <h3 class="section">Library</h3>}
       <ul class="books">
         {rest.map((b) => {
-          const pct = percentOf(b.id);
+          const pct = progressOf(b, reading);
           return (
-            <li key={b.id} onClick={() => open(b.id)}>
+            <li key={b.id} onClick={() => (native ? setPlayer(b.id) : open(b.id))}>
               <Cover title={b.title} />
               <div class="info">
                 <b>{b.title}</b>
@@ -396,7 +662,18 @@ function Library() {
         </p>
       )}
 
-      <Player reading={reading} books={books} />
+      <MiniPlayer reading={reading} books={books} onPlayer={setPlayer} />
+      {player && <PlayerScreen id={player} reading={reading} onClose={() => setPlayer(null)} />}
+      {adding && (
+        <AddMenu
+          onClose={() => setAdding(false)}
+          onFile={() => file.current.click()}
+          onPhotos={() => photos.current.click()}
+          onCamera={() => camera.current.click()}
+          onLink={addLink}
+          onPaste={() => setPaste('')}
+        />
+      )}
       {settings && <Settings onClose={() => setSettings(false)} />}
     </div>
   );

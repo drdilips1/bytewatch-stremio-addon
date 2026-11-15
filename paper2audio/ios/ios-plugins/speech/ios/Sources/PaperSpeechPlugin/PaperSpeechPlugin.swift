@@ -3,6 +3,7 @@ import Capacitor
 import AVFoundation
 import MediaPlayer
 import UIKit
+import Vision
 
 /// Reads the book aloud with the iPhone's own voices, by itself: the page hands over the
 /// paragraphs once, then this keeps reading with the screen off or in another app, shows the
@@ -23,8 +24,22 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "voices", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "packs", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "downloadPack", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "downloadPack", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "sleep", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "recognize", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "takeOpened", returnType: CAPPluginReturnPromise)
     ]
+
+    /// Where each chapter starts (paragraph numbers), for the sleep timer's "end of chapter".
+    private var chapterStarts: [Int] = []
+    /// The listener's pronunciations ("Nguyen" → "Win"), for every voice.
+    private var pronounce: [String: String] = [:]
+    private var sleepTimer: DispatchSourceTimer?
+    private var sleepUntil: Date?
+    /// Pause when reading reaches this paragraph (the next chapter's start).
+    private var sleepAtPara: Int?
+    /// Files opened in the app from elsewhere (Files, Mail, Share → Open in), until the page takes them.
+    private var opened: [[String: Any]] = []
 
     /// Paper to Audio's own voices (Supertonic, Kokoro, real readers), made on the phone.
     private let neural = NeuralReader()
@@ -49,6 +64,7 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
 
     public override func load() {
         synth.delegate = self
+        NotificationCenter.default.addObserver(self, selector: #selector(openedURL(_:)), name: Notification.Name.capacitorOpenURL, object: nil)
         neural.onState = { [weak self] para, isPlaying, isFinished, error in
             guard let self = self, self.usingNeural else { return }
             self.index = para
@@ -76,6 +92,10 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
             self.rate = Float(call.getDouble("rate") ?? 1)
             if let v = call.getString("voice"), !v.isEmpty { self.voiceId = v }
             self.lang = call.getString("lang")
+            self.chapterStarts = (call.getArray("chapters") ?? []).compactMap { ($0 as? [String: Any])?["para"] as? Int }.sorted()
+            if let p = call.getObject("pronounce") {
+                self.pronounce = p.compactMapValues { $0 as? String }
+            }
             self.active = true
             self.finished = false
             self.setUpAudio()
@@ -158,6 +178,117 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
         call.resolve(["voices": list, "neural": VoiceCatalog.listForChooser(), "packs": packStatus()])
     }
 
+    // MARK: - Sleep timer (runs here, so it works with the screen off)
+
+    /// {minutes}: pause after that many minutes; -1: at the end of this chapter; 0: off.
+    @objc func sleep(_ call: CAPPluginCall) {
+        let minutes = call.getInt("minutes") ?? 0
+        DispatchQueue.main.async {
+            self.sleepTimer?.cancel()
+            self.sleepTimer = nil
+            self.sleepUntil = nil
+            self.sleepAtPara = nil
+            if minutes > 0 {
+                let t = DispatchSource.makeTimerSource(queue: .main)
+                t.schedule(deadline: .now() + .seconds(minutes * 60))
+                t.setEventHandler { [weak self] in
+                    guard let self = self else { return }
+                    self.sleepTimer = nil
+                    self.sleepUntil = nil
+                    self.doPause()
+                }
+                t.resume()
+                self.sleepTimer = t
+                self.sleepUntil = Date().addingTimeInterval(TimeInterval(minutes * 60))
+            } else if minutes < 0 {
+                // The first chapter start after where reading is now (else the end of the book).
+                self.sleepAtPara = self.chapterStarts.first { $0 > self.index } ?? Int.max
+            }
+            self.sendState()
+            call.resolve()
+        }
+    }
+
+    // MARK: - Text in photos (Apple's on-device text recognition)
+
+    /// {images: [base64 JPEG/PNG]} → {pages: [text]}, lines joined into paragraphs by the gaps between them.
+    @objc func recognize(_ call: CAPPluginCall) {
+        let images = (call.getArray("images") ?? []).compactMap { $0 as? String }
+        DispatchQueue.global(qos: .userInitiated).async {
+            var pages: [String] = []
+            for b64 in images {
+                guard let data = Data(base64Encoded: b64, options: .ignoreUnknownCharacters), let img = UIImage(data: data)?.cgImage else {
+                    pages.append("")
+                    continue
+                }
+                let request = VNRecognizeTextRequest()
+                request.recognitionLevel = .accurate
+                request.usesLanguageCorrection = true
+                let handler = VNImageRequestHandler(cgImage: img, orientation: Self.orientation(UIImage(data: data)), options: [:])
+                try? handler.perform([request])
+                let lines = (request.results ?? []).compactMap { o -> (String, CGRect)? in
+                    guard let t = o.topCandidates(1).first?.string else { return nil }
+                    return (t, o.boundingBox)
+                }.sorted { $0.1.maxY > $1.1.maxY } // top of the page first (Vision measures from the bottom)
+                let heights = lines.map { $0.1.height }.sorted()
+                let lineHeight = heights.isEmpty ? 0.02 : heights[heights.count / 2]
+                var text = ""
+                var lastBottom: CGFloat?
+                for (t, box) in lines {
+                    if let b = lastBottom {
+                        if (b - box.maxY) > lineHeight * 0.9 {
+                            text += "\n\n" // a bigger gap than between lines: a new paragraph
+                        } else if text.hasSuffix("-") {
+                            text.removeLast() // a word split at the end of the line
+                        } else {
+                            text += " "
+                        }
+                    }
+                    text += t
+                    lastBottom = box.minY
+                }
+                pages.append(text)
+            }
+            call.resolve(["pages": pages])
+        }
+    }
+
+    private static func orientation(_ image: UIImage?) -> CGImagePropertyOrientation {
+        switch image?.imageOrientation ?? .up {
+        case .down: return .down
+        case .left: return .left
+        case .right: return .right
+        case .upMirrored: return .upMirrored
+        case .downMirrored: return .downMirrored
+        case .leftMirrored: return .leftMirrored
+        case .rightMirrored: return .rightMirrored
+        default: return .up
+        }
+    }
+
+    // MARK: - Files opened in the app from elsewhere
+
+    @objc private func openedURL(_ note: Notification) {
+        guard let info = note.object as? [String: Any], let url = info["url"] as? URL, url.isFileURL else { return }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url) else { return }
+        let file: [String: Any] = ["name": url.lastPathComponent, "data": data.base64EncodedString()]
+        DispatchQueue.main.async {
+            self.opened.append(file)
+            self.notifyListeners("opened", data: ["count": self.opened.count])
+        }
+    }
+
+    /// The files opened from elsewhere since last asked ({files: [{name, data (base64)}]}).
+    @objc func takeOpened(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            let files = self.opened
+            self.opened = []
+            call.resolve(["files": files])
+        }
+    }
+
     // MARK: - Voice packs
 
     private func packStatus() -> [[String: Any]] {
@@ -205,6 +336,7 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
             usingNeural = true
             finished = false
             index = i
+            neural.pronounce = pronounce
             neural.start(paras: paras, from: i, voice: voiceId, rate: rate, lang: lang)
             return
         }
@@ -226,7 +358,7 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
             return
         }
         index = at
-        let u = AVSpeechUtterance(string: paras[at])
+        let u = AVSpeechUtterance(string: TextPrep.applyPronunciations(paras[at], pronounce))
         u.voice = voice()
         let base = AVSpeechUtteranceDefaultSpeechRate
         u.rate = min(AVSpeechUtteranceMaximumSpeechRate, max(AVSpeechUtteranceMinimumSpeechRate, base * rate))
@@ -340,12 +472,21 @@ public class PaperSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizer
     // MARK: - State for the page
 
     private func state() -> [String: Any] {
-        var st: [String: Any] = ["active": active, "uid": uid, "para": index, "playing": playing, "finished": finished, "voice": voiceId]
+        var st: [String: Any] = ["active": active, "uid": uid, "para": index, "playing": playing, "finished": finished, "voice": voiceId,
+                                 "total": paras.count]
+        if let until = sleepUntil { st["sleep"] = max(0, Int(until.timeIntervalSinceNow)) }
+        if sleepAtPara != nil { st["sleep"] = "chapter" }
         if let e = lastError { st["error"] = e }
         return st
     }
 
     private func sendState() {
+        // The sleep timer's "end of chapter": the next chapter has started.
+        if let stop = sleepAtPara, index >= stop, playing {
+            sleepAtPara = nil
+            doPause()
+            return
+        }
         notifyListeners("state", data: state())
     }
 }

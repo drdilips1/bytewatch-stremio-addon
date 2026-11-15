@@ -231,3 +231,120 @@ async function pickNativeVoice() {
     }
   });
 }
+
+// ---- Where each book was left, starting a book from the home screen, sleep timer ----
+
+const POS_KEY = 'p2a:pos';
+const positions = () => {
+  try {
+    return JSON.parse(localStorage.getItem(POS_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+/** The paragraph a book was left at (as the iPhone last read it). */
+export const positionOf = (uid) => positions()[uid] ?? null;
+if (native)
+  Speech.addListener('state', (st) => {
+    if (!st?.uid || st.para == null) return;
+    const all = positions();
+    if (all[st.uid] === st.para) return;
+    all[st.uid] = st.para;
+    localStorage.setItem(POS_KEY, JSON.stringify(all));
+  });
+
+/** The listener's pronunciations ("Nguyen" → "Win"), used by every voice. */
+const PRON_KEY = 'p2a:pronounce';
+export function pronunciations() {
+  try {
+    return JSON.parse(localStorage.getItem(PRON_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+export function setPronunciation(word, say) {
+  const all = pronunciations();
+  if (say) all[word] = say;
+  else delete all[word];
+  localStorage.setItem(PRON_KEY, JSON.stringify(all));
+}
+
+/** Whether the reader skips the contents, copyright pages and index (its own setting; on by default). */
+export function skipsFrontMatter() {
+  try {
+    return JSON.parse(localStorage.getItem('inkwell:settings') || '{}').skipFrontMatter !== false;
+  } catch {
+    return true;
+  }
+}
+
+/** The chapters of a stored book: each heading block. */
+export const chaptersOf = (book) => (book?.blocks || []).map((b, i) => (b.h ? { para: i, title: b.t.slice(0, 80) } : null)).filter(Boolean);
+
+/** Reads [book] aloud from paragraph [from] (else where it was left), without opening the reader. */
+export function playBook(book, from) {
+  const skip = skipsFrontMatter();
+  const paras = book.blocks.map((b) => (skip && b.s ? '' : b.t));
+  let at = from ?? positionOf(book.id) ?? 0;
+  // A new book starts after the contents and copyright pages.
+  if (from == null && positionOf(book.id) == null && skip) at = Math.max(0, paras.findIndex((t) => t));
+  return Speech.start({
+    uid: book.id,
+    title: book.title,
+    author: book.author || '',
+    paras,
+    from: Math.min(at, Math.max(0, paras.length - 1)),
+    rate: rate(),
+    voice: localStorage.getItem(VOICE_ID) || '',
+    chapters: chaptersOf(book),
+    pronounce: pronunciations(),
+    lang: 'en',
+  });
+}
+
+/** Sleep timer: minutes, -1 for the end of the chapter, 0 off (kept by the iPhone, so it works with the screen off). */
+export const setSleep = (minutes) => Speech.sleep({ minutes });
+
+/** "Fix how a word is said": the word as written, and how to say it. */
+export function pronounceSheet(word0 = '') {
+  const word = String(word0).trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+  sheet(word ? `Say “${word}” as…` : 'Pronunciations', (box, close) => {
+    const el = (tag, cls, text) => {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text != null) e.textContent = text;
+      return e;
+    };
+    const input = (ph, value) => {
+      const i = el('input');
+      i.placeholder = ph;
+      i.value = value || '';
+      i.style.cssText = 'width:100%;font:inherit;padding:12px;border-radius:12px;border:1px solid rgba(127,127,127,.4);background:transparent;color:inherit;margin:6px 0';
+      return i;
+    };
+    const w = input('Word as written (e.g. Nguyen)', word);
+    const say = input('Say it as (e.g. Win)', pronunciations()[word] || '');
+    box.appendChild(el('p', 'm', 'Every voice will say it this way, in every book.'));
+    box.appendChild(w);
+    box.appendChild(say);
+    const save = el('button', 'v dlbtn', 'Save');
+    save.onclick = () => {
+      if (w.value.trim() && say.value.trim()) setPronunciation(w.value.trim(), say.value.trim());
+      close();
+    };
+    box.appendChild(save);
+    const list = Object.entries(pronunciations());
+    if (list.length) {
+      box.appendChild(el('div', 'k', 'Your pronunciations'));
+      for (const [k, v] of list) {
+        const b = el('button', 'v', `${k}  →  ${v}   ✕`);
+        b.onclick = () => {
+          setPronunciation(k, '');
+          b.remove();
+        };
+        box.appendChild(b);
+      }
+    }
+    setTimeout(() => (word ? say : w).focus(), 100);
+  });
+}

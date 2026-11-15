@@ -259,4 +259,15 @@ enum TextPrep {
             t = next
         }
     }
+    /// The listener's pronunciations ("Nguyen" → "Win"): whole words, any case, longer ones first.
+    static func applyPronunciations(_ text: String, _ map: [String: String]) -> String {
+        if map.isEmpty { return text }
+        var t = text
+        for (word, say) in map.sorted(by: { $0.key.count > $1.key.count }) where !word.isEmpty {
+            let pattern = "(?<![\\p{L}\\p{N}])" + NSRegularExpression.escapedPattern(for: word) + "(?![\\p{L}\\p{N}])"
+            guard let r = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+            t = r.stringByReplacingMatches(in: t, range: NSRange(t.startIndex..., in: t), withTemplate: NSRegularExpression.escapedTemplate(for: say))
+        }
+        return t
+    }
 }

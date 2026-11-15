@@ -32,7 +32,7 @@ export const deleteBook = (id) => run('readwrite', (s) => s.delete(id));
 export async function listBooks() {
   const all = (await run('readonly', (s) => s.getAll())) || [];
   return all
-    .map(({ blocks, ...rest }) => ({ ...rest, words: rest.words ?? 0 }))
+    .map(({ blocks, ...rest }) => ({ ...rest, words: rest.words ?? 0, paras: blocks?.length || 0 }))
     .sort((a, b) => (b.opened || b.added) - (a.opened || a.added));
 }
 

@@ -5,5 +5,10 @@
   "ios": {
     "contentInset": "never",
     "backgroundColor": "#101012"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
   }
 }

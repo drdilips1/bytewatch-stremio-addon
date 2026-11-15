@@ -96,6 +96,20 @@ jobs:
           pb "Add :UIBackgroundModes array"
           pb "Add :UIBackgroundModes:0 string audio"
           pb "Add :ITSAppUsesNonExemptEncryption bool false"
+          # Opens EPUB, PDF, text and web page files from Files, Mail and Share → Paper to Audio.
+          pb "Add :CFBundleDocumentTypes array"
+          i=0
+          for t in "EPUB book:org.idpf.epub-container" "PDF document:com.adobe.pdf" "Text:public.plain-text" "Web page:public.html"; do
+            pb "Add :CFBundleDocumentTypes:$i dict"
+            pb "Add :CFBundleDocumentTypes:$i:CFBundleTypeName string ${t%%:*}"
+            pb "Add :CFBundleDocumentTypes:$i:LSHandlerRank string Alternate"
+            pb "Add :CFBundleDocumentTypes:$i:LSItemContentTypes array"
+            pb "Add :CFBundleDocumentTypes:$i:LSItemContentTypes:0 string ${t##*:}"
+            i=$((i+1))
+          done
+          pb "Add :LSSupportsOpeningDocumentsInPlace bool false"
+          pb "Add :NSCameraUsageDescription string Photograph printed pages to listen to them."
+          pb "Add :NSPhotoLibraryUsageDescription string Choose photos of printed pages to listen to them."
           /usr/libexec/PlistBuddy -c Print "$P"
 
       - name: Build

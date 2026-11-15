@@ -51,6 +51,18 @@ function parseHtml(text, type = 'text/html') {
 
 // ---- EPUB ----
 
+// Pages read aloud only if the listener wants them (marked s: skipped like on Android): contents, copyright,
+// index and the like, known by their heading or their file name.
+const FRONT_HEADING = /^(table of )?contents$|^copyright|^index$|^acknowledg|^dedication$|^also by|^about the (author|publisher)|^praise for|^title page$|^colophon$|^imprint$|^other (books|titles) by/i;
+const FRONT_FILE = /(^|[\/_-])(toc|contents|copyright|cover|titlepage|title|index|acknowledg\w*|dedication|colophon|about|alsoby|also-by|praise|imprint)[\d_-]*\.x?html?$/i;
+
+function frontMatter(path, blocks) {
+  const first = blocks.slice(0, 3).map((b) => b.t.trim());
+  if (first.some((t) => t.length < 60 && FRONT_HEADING.test(t))) return true;
+  // By file name: only short pages (a long one called "title" may be the whole book), the index at any length.
+  return FRONT_FILE.test(path) && (blocks.length < 60 || /index/i.test(path));
+}
+
 async function fromEpub(data, name) {
   const zip = await JSZip.loadAsync(data);
   const read = (path) => zip.file(path)?.async('string');
@@ -72,7 +84,8 @@ async function fromEpub(data, name) {
     const path = decodeURIComponent(new URL(href, 'https://x/' + dir).pathname.slice(1));
     const html = await read(path);
     if (!html) continue;
-    blocks.push(...blocksOf(parseHtml(html, 'application/xhtml+xml')));
+    const page = blocksOf(parseHtml(html, 'application/xhtml+xml'));
+    blocks.push(...(frontMatter(path, page) ? page.map((b) => ({ ...b, s: true })) : page));
   }
   return book(meta('title') || baseName(name), meta('creator'), blocks);
 }
@@ -146,4 +159,65 @@ export async function importFile(file) {
   }
   if (['txt', 'md', 'text', ''].includes(ext) || file.type.startsWith('text/')) return fromText(await file.text(), baseName(name));
   throw new Error('This app reads EPUB, PDF, text and web page files');
+}
+
+// ---- Web pages by link ----
+
+/** A web page as a book: its article text (menus, ads and footers left out). Fetched by the iPhone itself. */
+export async function fromWebPage(link) {
+  let url = link.trim();
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' } });
+  if (!r.ok) throw new Error(`The page answered ${r.status}`);
+  const doc = parseHtml(await r.text());
+  doc.querySelectorAll('script,style,noscript,nav,header,footer,aside,form,iframe,svg,button,[role=navigation],[aria-hidden=true],.share,.comments,#comments').forEach((e) => e.remove());
+  const root = doc.querySelector('article') || doc.querySelector('main') || doc.querySelector('[role=main]') || doc.body;
+  const page = document.implementation.createHTMLDocument('');
+  page.body.innerHTML = root ? root.innerHTML : '';
+  const title = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || doc.title || new URL(url).hostname;
+  const author = doc.querySelector('meta[name=author]')?.getAttribute('content') || new URL(url).hostname.replace(/^www\./, '');
+  const b = book(title, author, blocksOf(page));
+  b.link = url;
+  return b;
+}
+
+// ---- Photos and scans of printed pages (the iPhone's own text recognition) ----
+
+/** A photo as a smaller JPEG (base64): enough for reading the text, quick to hand over. */
+function shrink(file, max = 2200) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k);
+      c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      resolve(c.toDataURL('image/jpeg', 0.85).split(',')[1]);
+    };
+    img.onerror = () => reject(new Error('That photo could not be opened'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+/** Photos of pages (in order) as one book. */
+export async function fromPhotos(files, recognize) {
+  const images = [];
+  for (const f of files) images.push(await shrink(f));
+  const { pages = [] } = await recognize({ images });
+  const text = pages.filter((p) => p && p.trim()).join('\n\n');
+  if (!text.trim()) throw new Error('No text found in the photos (try a sharper, well-lit photo)');
+  const when = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return fromText(text, `Scanned pages · ${when}`);
+}
+
+/** A file handed over by the iPhone (opened from Files, Mail…): name and base64 data. */
+export function fileFromBase64(name, b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const ext = (name.match(/\.([^.]+)$/)?.[1] || '').toLowerCase();
+  const type = { epub: 'application/epub+zip', pdf: 'application/pdf', txt: 'text/plain', html: 'text/html', htm: 'text/html' }[ext] || '';
+  return new File([bytes], name, { type });
 }
