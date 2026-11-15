@@ -217,3 +217,21 @@ export async function pageInImage(dataUrl, hint = null) {
     chapterTitle: String(j.chapterTitle || '').trim(),
   };
 }
+
+/**
+ * Which book a passage is from, by its exact words (Google Books searches inside books):
+ * { title, author } or null. For a page the AI couldn't name.
+ */
+export async function bookForQuote(quote) {
+  const ws = String(quote || '').replace(/[“”"]/g, '').split(/\s+/).filter(Boolean);
+  for (const n of [9, 6]) {
+    if (ws.length < n) continue;
+    const phrase = ws.slice(1, 1 + n).join(' '); // the first word is often cut off mid-line
+    try {
+      const d = await getJson('https://www.googleapis.com/books/v1/volumes?' + qs({ q: `"${phrase}"`, maxResults: 5, printType: 'books' }), { timeout: 10000 });
+      const v = (d?.items || []).map((x) => x.volumeInfo || {}).find((v) => v.title && !/summary|study guide|analysis|workbook|sparknotes|cliffsnotes/i.test(`${v.title} ${v.subtitle || ''}`));
+      if (v) return { title: v.title, author: (v.authors || [])[0] || '' };
+    } catch {}
+  }
+  return null;
+}

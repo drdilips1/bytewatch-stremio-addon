@@ -15,13 +15,15 @@ const waiting = new Map(); // title -> true while waiting for the server
 export async function getAndPlay(want, step = () => {}) {
   const title = mainTitle(want.title || '');
   const author = want.author || '';
+  // A page you took: played from that page (its words found in the book's ebook text).
+  const preset = want.quote ? { ...want, action: 'play_scene', title, author, anySource: true } : { action: 'play_book', moment: false, title, author };
   // 1. Your copies, then your sources through TorBox / Real-Debrid (the voice "play …" path).
   try {
     const { playScene } = await import('./voicecmd.js');
-    await playScene('', step, { action: 'play_book', moment: false, title, author });
+    const r = await playScene('', step, preset);
     nav.openOverlay('player');
-    note(`“${title}”: playing (your copy or debrid)`);
-    return { playing: true };
+    note(`“${title}”: playing (your copy or debrid)${want.quote ? ` · ${r?.notFound ? 'page not found in the text' : r?.where || ''}` : ''}`);
+    return { playing: true, result: r };
   } catch (e) {
     if (/downloading in your/i.test(e.message || '')) return { none: false, message: e.message };
     note(`“${title}”: not in your copies or debrid sources (${e.message})`);
@@ -37,7 +39,7 @@ export async function getAndPlay(want, step = () => {}) {
         const r = await q.grabMam(picks[0]);
         if (r?.sent) {
           note(`“${title}”: sent to the home server (${picks[0].title}) — waiting for Audiobookshelf`);
-          waitForServer(title, author);
+          waitForServer(title, author, want.quote ? preset : null);
           return { sentHome: true, message: `${title} is downloading at home — it starts playing by itself when it’s on your Audiobookshelf (keep the app open)` };
         }
         note(`“${title}”: home server didn't take it (${r?.message || 'unknown'})`);
@@ -50,7 +52,7 @@ export async function getAndPlay(want, step = () => {}) {
 }
 
 /** Every 45 s for up to 40 minutes: on your Audiobookshelf yet? Then it plays. */
-function waitForServer(title, author) {
+function waitForServer(title, author, scene = null) {
   if (waiting.has(title)) return;
   waiting.set(title, true);
   const until = Date.now() + 40 * 60e3;
@@ -61,15 +63,20 @@ function waitForServer(title, author) {
       const hit = await onServer({ title, author });
       if (hit) {
         waiting.delete(title);
-        const { getDetails } = await import('../sources/index.js');
-        const d = await getDetails(hit, { fast: true });
         // Don't cut into something else you started meanwhile.
         if (player.getState().playing) {
           const { toast } = await import('../components/common.jsx');
           return toast(`${title} is on your Audiobookshelf now — it’s in Library`);
         }
         nav.openOverlay('player');
-        player.playBook(d, { autoplay: true });
+        if (scene) {
+          // From the page you took.
+          const { playScene } = await import('./voicecmd.js');
+          await playScene('', () => {}, scene);
+        } else {
+          const { getDetails } = await import('../sources/index.js');
+          player.playBook(await getDetails(hit, { fast: true }), { autoplay: true });
+        }
         note(`“${title}”: on Audiobookshelf — playing`);
         return;
       }

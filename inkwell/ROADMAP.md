@@ -14,6 +14,9 @@ Noted while building; to pick up after Saturday.
 - **Find books → not yours anywhere**: "Find & play" / auto-play now gets it: your sources through
   TorBox / Real-Debrid (plays in a minute) → else MyAnonamouse to the home server, played by
   itself once it's on Audiobookshelf (checked every 45 s for 40 min, app open) → else its page.
+- **Page photo**: the page alone is enough — book named by the AI, else found by the page's exact
+  words (Google Books full-text search), else the one playing; then got the same way (copies →
+  debrid sources → sent home) and played from that page (also once it arrives on the server).
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf

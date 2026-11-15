@@ -11,7 +11,7 @@ import { toggleLibrary } from '../lib/store.js';
 import { toggleReadLater } from '../lib/readlists.js';
 import { addUpNext } from '../lib/upnext.js';
 import { canSeeImages } from '../lib/ai.js';
-import { shrink, booksInImage, booksInText, matchBooks, saveShelf, pending, pageInImage } from '../lib/findbooks.js';
+import { shrink, booksInImage, booksInText, matchBooks, saveShelf, pending, pageInImage, bookForQuote } from '../lib/findbooks.js';
 
 const note = (msg) => import('../lib/report.js').then((r) => r.logError('Find books', msg)).catch(() => {});
 
@@ -22,13 +22,6 @@ const MODES = [
   ['page', 'Page'],
 ];
 
-/** Find a copy (phone, Audiobookshelf, TorBox / Real-Debrid — or the best one from your sources) and play it. */
-async function playIt(want, step) {
-  const { playScene } = await import('../lib/voicecmd.js');
-  const r = await playScene('', step, want);
-  nav.openOverlay('player');
-  return r;
-}
 
 async function listen(m) {
   const b = m.mine;
@@ -322,12 +315,23 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
       const cur = player.getState().book;
       const pg = await Promise.race([pageInImage(data, cur), new Promise((_, no) => setTimeout(() => no(new Error('Reading the page took too long — try again')), 45000))]);
       if (my !== run.current) return;
-      const title = pg.title || cur?.title || '';
-      if (!title) throw new Error("Couldn't tell which book this page is from — play the book first, then take the page again");
-      note(`page read in ${Math.round((Date.now() - t0) / 1000)} s — ${title}: “${pg.quote.slice(0, 60)}…”`);
-      const r = await playIt({ action: 'play_scene', title, author: pg.author || (title === cur?.title ? cur?.author : '') || '', quote: pg.quote, keywords: pg.keywords, chapter: pg.chapter, chapterTitle: pg.chapterTitle, scene: 'the page you took', anySource: true }, (t) => my === run.current && setBusy(t));
+      // The book: as the AI named it, else found by the page's own words, else the one playing.
+      let { title, author } = pg;
+      if (!title) {
+        setBusy('Finding which book these words are from…');
+        const byText = await bookForQuote(pg.quote).catch(() => null);
+        if (byText) ({ title, author } = byText);
+      }
+      if (!title && cur?.title) ({ title, author } = { title: cur.title, author: cur.author || '' });
       if (my !== run.current) return;
-      toast(r?.notFound ? r.scene : `▶ ${r?.book?.title || title} · from your page${r?.where ? ` (${r.where})` : ''}`);
+      if (!title) throw new Error("Couldn't tell which book this page is from — try a page with the book's name at the top, or play the book first");
+      note(`page read in ${Math.round((Date.now() - t0) / 1000)} s — ${title}${pg.title ? '' : ' (by its words)'}: “${pg.quote.slice(0, 60)}…”`);
+      // Yours, or found wherever it is (your sources, else sent home) — then from this page.
+      const { getAndPlay } = await import('../lib/getplay.js');
+      const r = await getAndPlay({ title, author, quote: pg.quote, keywords: pg.keywords, chapter: pg.chapter, chapterTitle: pg.chapterTitle, scene: 'the page you took' }, (t) => my === run.current && setBusy(t));
+      if (my !== run.current) return;
+      if (r.playing) toast(r.result?.notFound ? r.result.scene : `▶ ${r.result?.book?.title || title} · from your page${r.result?.where ? ` (${r.result.where})` : ''}`);
+      else toast(r.message);
     } catch (e) {
       if (my === run.current) {
         toast(e.message);
