@@ -103,7 +103,7 @@ final class Packs {
         return try d.result.get()
     }
 
-    private func run(_ p: VoiceCatalog.Pack, progress: (Int, String) -> Void) -> String? {
+    private func run(_ p: VoiceCatalog.Pack, progress: @escaping (Int, String) -> Void) -> String? {
         let fm = FileManager.default
         let zip = root.appendingPathComponent(p.folder + ".zip.part")
         do {
