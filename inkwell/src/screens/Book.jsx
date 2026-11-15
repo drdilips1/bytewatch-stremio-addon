@@ -33,7 +33,7 @@ import { mainTitle, searchTitle, matches, surname } from "../lib/match.js";
 import { STARTERS } from "../lib/askbook.js";
 import { SourceResults } from "../components/source-results.jsx";
 import { FixDetails } from "../components/fix-details.jsx";
-import { Available } from "../components/available.jsx";
+import { Available, useWhere } from "../components/available.jsx";
 import { LibbyCard, LibbyLoanActions } from "../components/libby-card.jsx";
 import * as lbSrc from "../sources/libby.js";
 import { SeriesCard } from "../components/series-card.jsx";
@@ -212,9 +212,7 @@ export function Book({ book: initial }) {
               )}
             </div>
           )}
-          <div class="book-meta">
-            <SourceBadge uid={book.uid} book={book} />
-          </div>
+          <WhereBadges book={book} />
           {!loading &&
             !book.cover &&
             book.source !== "pod" &&
@@ -866,19 +864,47 @@ const stars = (r) => {
   return "★".repeat(n) + (half ? "½" : "");
 };
 
+/** Where it plays from: the copy's own place, and wherever else you have it (phone, server, cloud). */
+const CATALOG = /^(audible|itunes|apple|gr|goodreads|hc|hardcover|ol|openlibrary|gb|google|discover|sum)$/i;
+function WhereBadges({ book }) {
+  const where = useWhere(book.uid);
+  const catalog = book.kind === "discover" || CATALOG.test(String(book.source || ""));
+  if (catalog && !where.length) return null;
+  return (
+    <div class="book-meta">
+      {!catalog && <SourceBadge uid={book.uid} book={book} />}
+      {where.map((w) => (
+        <span class="badge where">{w}</span>
+      ))}
+    </div>
+  );
+}
+
 /** Under the cover: your thumbs (the verdict further down) and Read later. */
 function HeroPills({ book }) {
   const later = useStore(readLater);
   const on = !!later[book.uid];
+  const verdict = useStore(myRatings)[rateKey(book)]?.verdict || "";
   return (
     <div class="book-pills">
-      <button
-        class="book-pill"
-        aria-label="Your verdict"
-        onClick={() => document.querySelector(".myrate")?.scrollIntoView({ behavior: "smooth", block: "center" })}
-      >
-        👍 👎
-      </button>
+      <span class="book-pill thumbs">
+        {[
+          ["like", "👍", "Liked it"],
+          ["dislike", "👎", "Not for me"],
+        ].map(([k, emoji, label]) => (
+          <button
+            class={verdict === k ? "on" : ""}
+            aria-label={label}
+            onClick={() => {
+              const off = verdict === k;
+              rateBook(book, { verdict: off ? "" : k });
+              toast(off ? "Rating removed" : k === "like" ? "👍 Liked — more like this" : "👎 Noted — fewer like this");
+            }}
+          >
+            {emoji}
+          </button>
+        ))}
+      </span>
       <button
         class={"book-pill" + (on ? " on" : "")}
         onClick={() => {

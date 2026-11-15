@@ -12598,3 +12598,8 @@ button.cr-tile.on > img {
 .mam-text b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mam-text small { display: block; font-size: 12px; color: var(--muted); }
 .mam-fl { font-style: normal; font-weight: 700; color: #2bb3a3; }
+.book-pill.thumbs { display: inline-flex; padding: 0; overflow: hidden; }
+.book-pill.thumbs button { background: none; border: 0; padding: 7px 13px; font-size: 16px; opacity: 0.6; filter: grayscale(0.6); }
+.book-pill.thumbs button.on { opacity: 1; filter: none; background: color-mix(in srgb, var(--text) 12%, transparent); }
+.book-pill.thumbs button + button { border-left: 1.5px solid color-mix(in srgb, var(--text) 25%, transparent); }
+:root .screen.book .book-meta .badge.where::before { content: none; }
