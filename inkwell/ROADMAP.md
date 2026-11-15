@@ -6,6 +6,9 @@ Noted while building; to pick up after Saturday.
 - Library front page: the **Continue reading** card shows a plain placeholder instead of the
   book's cover (the cover exists — e.g. "Then She Was Gone", an ebook). The card should use the
   same cover lookup as the book cards in the rows (phone cover / fetched metadata).
+- **Read later**: removing a book from Read later in Library doesn't stick — it comes back.
+  Check the remove path for the `later` shelf (Library remove / book menu toggle) and whether
+  sync (the `readLater` section merge) or another copy of the same book (different uid) re-adds it.
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf
