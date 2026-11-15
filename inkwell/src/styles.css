@@ -12752,3 +12752,25 @@ button.cr-tile.on > img {
   font-size: 13px;
   color: var(--text-2, var(--muted));
 }
+
+.fb-auto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.fb-auto b {
+  flex: 1;
+  font-size: 14px;
+}
+.fb-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  margin: 6px 2px;
+}

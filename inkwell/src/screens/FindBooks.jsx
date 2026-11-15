@@ -1,7 +1,7 @@
 // "Find books in…": take a photo (a cover, a barcode, a shelf), pick a screenshot, or paste a
 // link or a list — the books in it, where you have each, and one tap to listen, read or save.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { useStore } from '../lib/store.js';
+import { useStore, settings } from '../lib/store.js';
 import { TopBar, Cover, toast } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { nav } from '../lib/nav.js';
@@ -11,7 +11,7 @@ import { toggleLibrary } from '../lib/store.js';
 import { toggleReadLater } from '../lib/readlists.js';
 import { addUpNext } from '../lib/upnext.js';
 import { canSeeImages } from '../lib/ai.js';
-import { shrink, booksInImage, booksInText, matchBooks, saveShelf, pending } from '../lib/findbooks.js';
+import { shrink, booksInImage, booksInText, matchBooks, saveShelf, pending, pageInImage } from '../lib/findbooks.js';
 
 const note = (msg) => import('../lib/report.js').then((r) => r.logError('Find books', msg)).catch(() => {});
 
@@ -19,7 +19,16 @@ const MODES = [
   ['cover', 'Cover'],
   ['barcode', 'Barcode'],
   ['shelf', 'Shelf'],
+  ['page', 'Page'],
 ];
+
+/** Find a copy (phone, Audiobookshelf, TorBox / Real-Debrid — or the best one from your sources) and play it. */
+async function playIt(want, step) {
+  const { playScene } = await import('../lib/voicecmd.js');
+  const r = await playScene('', step, want);
+  nav.openOverlay('player');
+  return r;
+}
 
 async function listen(m) {
   const b = m.mine;
@@ -34,6 +43,23 @@ async function listen(m) {
 function OneBook({ m, again }) {
   const [page, setPage] = useState('');
   const [pages, setPages] = useState('');
+  // One book found: it plays by itself in a moment (Stop to just look).
+  const [left, setLeft] = useState(() => (m.auto && settings.get().findAutoPlay !== false ? 3 : -1));
+  const [status, setStatus] = useState('');
+  useEffect(() => {
+    if (left < 0) return;
+    if (left > 0) {
+      const t = setTimeout(() => setLeft(left - 1), 1000);
+      return () => clearTimeout(t);
+    }
+    m.auto = false; // not again when coming back to this screen
+    setLeft(-1);
+    setStatus(`Looking for ${m.book.title}…`);
+    playIt({ action: 'play_book', moment: false, title: m.want.title || m.book.title, author: m.want.author || m.book.author || '' }, setStatus)
+      .then(() => setStatus(''))
+      .catch((e) => (setStatus(''), toast(e.message)));
+  }, [left]);
+  const stop = () => ((m.auto = false), setLeft(-1));
   const go = async () => {
     const p = Number(page);
     const n = Number(pages);
@@ -51,6 +77,17 @@ function OneBook({ m, again }) {
   };
   return (
     <div class="fb-one">
+      {(left > 0 || status) && (
+        <div class="fb-auto">
+          <span class="spinner" />
+          <b>{status || `Playing in ${left}…`}</b>
+          {left > 0 && (
+            <button class="pill small" onClick={stop}>
+              Stop
+            </button>
+          )}
+        </div>
+      )}
       <small class="fb-label">Is this it?</small>
       <div class="fb-match">
         <Cover book={m.book} />
@@ -221,6 +258,7 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
   const gallery = useRef(null);
 
   const runImage = async (src, m) => {
+    if (m === 'page') return runPage(src);
     setResult(null);
     const my = ++run.current;
     const t0 = Date.now();
@@ -236,7 +274,7 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
       const name = m === 'shelf' ? 'Your shelf photo' : 'Books in the picture';
       if (single) {
         setBusy('Finding it…');
-        setResult({ one: (await matchBooks(books))[0] });
+        setResult({ one: { ...(await matchBooks(books))[0], auto: true } });
       } else {
         // The titles at once; each fills in as it's matched.
         setBusy('');
@@ -247,6 +285,31 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
       if (my === run.current) {
         toast(e.message);
         note(`picture (${m}) failed after ${Math.round((Date.now() - t0) / 1000)} s: ${e.message}`);
+      }
+    }
+    if (my === run.current) setBusy('');
+  };
+  // A page: which book and which line, then that audiobook plays from there.
+  const runPage = async (src) => {
+    setResult(null);
+    const my = ++run.current;
+    const t0 = Date.now();
+    setBusy('Reading the page…');
+    try {
+      const data = await shrink(src, 1500);
+      const cur = player.getState().book;
+      const pg = await Promise.race([pageInImage(data, cur), new Promise((_, no) => setTimeout(() => no(new Error('Reading the page took too long — try again')), 45000))]);
+      if (my !== run.current) return;
+      const title = pg.title || cur?.title || '';
+      if (!title) throw new Error("Couldn't tell which book this page is from — play the book first, then take the page again");
+      note(`page read in ${Math.round((Date.now() - t0) / 1000)} s — ${title}: “${pg.quote.slice(0, 60)}…”`);
+      const r = await playIt({ action: 'play_scene', title, author: pg.author || (title === cur?.title ? cur?.author : '') || '', quote: pg.quote, keywords: pg.keywords, chapter: pg.chapter, chapterTitle: pg.chapterTitle, scene: 'the page you took', anySource: true }, (t) => my === run.current && setBusy(t));
+      if (my !== run.current) return;
+      toast(r?.notFound ? r.scene : `▶ ${r?.book?.title || title} · from your page${r?.where ? ` (${r.where})` : ''}`);
+    } catch (e) {
+      if (my === run.current) {
+        toast(e.message);
+        note(`page failed after ${Math.round((Date.now() - t0) / 1000)} s: ${e.message}`);
       }
     }
     if (my === run.current) setBusy('');
@@ -310,23 +373,34 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
           </div>
           <button class="fb-cam" onClick={() => cam.current?.click()}>
             <Icon name="camera" size={34} />
-            <b>{mode === 'barcode' ? 'Photo of the barcode' : mode === 'shelf' ? 'Photo of a bookshelf' : 'Photo of the cover'}</b>
-            <small>{mode === 'barcode' ? 'Read on the phone — no AI needed' : canSeeImages() ? 'Read by your AI service' : 'Needs a Gemini or Claude key (Settings → AI)'}</small>
+            <b>{mode === 'barcode' ? 'Photo of the barcode' : mode === 'shelf' ? 'Photo of a bookshelf' : mode === 'page' ? 'Photo of the page you’re on' : 'Photo of the cover'}</b>
+            <small>{mode === 'barcode' ? 'Read on the phone — no AI needed' : !canSeeImages() ? 'Needs a Gemini or Claude key (Settings → AI)' : mode === 'page' ? 'The audiobook plays from that page — point at a line to start there' : 'Read by your AI service'}</small>
           </button>
           <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => file(e, mode)} />
           <button class="btn ghost-wide" onClick={() => gallery.current?.click()}>
             <Icon name="image" size={16} /> A screenshot or picture from your gallery
           </button>
-          <input ref={gallery} type="file" accept="image/*" hidden onChange={(e) => file(e, mode === 'barcode' ? 'barcode' : 'shot')} />
+          <input ref={gallery} type="file" accept="image/*" hidden onChange={(e) => file(e, mode === 'barcode' || mode === 'page' ? mode : 'shot')} />
           <div class="fb-paste">
             <textarea placeholder="Paste a link to a page with books, or a list (one book a line)" value={paste} onInput={(e) => setPaste(e.currentTarget.value)} />
             <button class="btn primary" disabled={paste.trim().length < 3} onClick={() => runText(paste)}>
               Find the books
             </button>
           </div>
+          <AutoPlayToggle />
           <p class="muted small">Tip: in Chrome, Instagram or any app, tap Share → Audiohub+ on a page or a picture.</p>
         </div>
       )}
     </div>
+  );
+}
+
+function AutoPlayToggle() {
+  const on = useStore(settings).findAutoPlay !== false;
+  return (
+    <label class="fb-toggle">
+      <input type="checkbox" checked={on} onChange={() => settings.set((v) => ({ ...v, findAutoPlay: !on }))} />
+      <span>Play at once when it finds one book (a cover or a barcode)</span>
+    </label>
   );
 }

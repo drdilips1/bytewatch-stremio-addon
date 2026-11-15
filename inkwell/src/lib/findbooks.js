@@ -181,3 +181,29 @@ export function saveShelf(name, books) {
   foundShelves.set((all) => [{ id, name: String(name || 'Found books').slice(0, 80), at: Date.now(), books: books.map(({ uid, source, kind, title, author, narrator, cover, year, duration, link }) => ({ uid, source, kind, title, author, narrator, cover, year, duration, link })) }, ...all].slice(0, 30));
   return id;
 }
+
+/**
+ * A photo of a page (paper or a screen): which book, and the words to start from — a line
+ * that's marked (a finger, a pen, a highlight) or else the first full sentence on the page.
+ * { title, author, quote, keywords, chapter, chapterTitle }
+ */
+export async function pageInImage(dataUrl, hint = null) {
+  if (!canSeeImages()) throw new Error('Reading a page needs a Gemini or Claude key (Settings → AI)');
+  const now = hint?.title ? ` The listener is in the middle of "${hint.title}"${hint.author ? ` by ${hint.author}` : ''} — it's likely this book, but say so only if the page fits it.` : '';
+  const raw = await askAiImage(
+    `This is a photo of a page of a book (printed, or on a screen).${now} Work out which book it is from the running header, the names and the story, and copy the words to start listening from: the line that is marked (pointed at with a finger, underlined, highlighted or circled), or if none is marked, the first full sentence at the top of the page. Copy those words exactly as printed, about 25 to 40 words. Reply with JSON only: {"title":"the book's title as published, or empty if you can't tell","author":"","quote":"the exact words","keywords":["5 to 8 unusual words or names from this page"],"chapter":0,"chapterTitle":"the chapter heading if one shows on the page, else empty"}`,
+    dataUrl,
+    { json: true }
+  );
+  const j = parseJson(raw) || {};
+  const quote = String(j.quote || '').replace(/\s+/g, ' ').trim();
+  if (quote.split(' ').length < 6) throw new Error("Couldn't read the words on that page — try again, closer and straight on");
+  return {
+    title: String(j.title || '').trim(),
+    author: String(j.author || '').trim(),
+    quote,
+    keywords: (Array.isArray(j.keywords) ? j.keywords : []).map(String).filter(Boolean).slice(0, 10),
+    chapter: Number(j.chapter) || 0,
+    chapterTitle: String(j.chapterTitle || '').trim(),
+  };
+}

@@ -5,6 +5,15 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-11-15',
+    title: 'Take a photo, start listening',
+    items: [
+      ['📖', 'Photo of a page → plays from there', 'Find books → Page: take the page of a paper book or an ebook. The audiobook plays from that page — point a finger at a line (or underline it) to start from that line.'],
+      ['▶️', 'One book found? It plays', 'A cover or a barcode: the book plays by itself in 3 seconds — from your phone, Audiobookshelf, TorBox / Real-Debrid, or the best copy from your sources. Stop to just look, or switch it off on the Find books screen.'],
+      ['🗂️', 'Found shelves', 'Lists you save from Find books are in Library → Found. And coming back from a book page keeps the list.'],
+    ],
+  },
+  {
     id: '2026-11-14',
     title: 'A calmer player, smarter scenes, a tidier library',
     items: [

@@ -437,7 +437,8 @@ export async function playScene(said, step = () => {}, preset = null) {
   }
   // Not yours yet: just play it — the best torrent from your sources (instant in TorBox /
   // Real-Debrid first, then the most seeds), through your debrid service.
-  if (!details && justBook) details = await fromSources(want, step).catch(() => null);
+  // (A page you took a photo of plays the book from there even when it isn't yours yet.)
+  if (!details && (justBook || want.anySource)) details = await fromSources(want, step).catch(() => null);
   if (!details) {
     const e = new Error(copies.length ? `Couldn't open your copy of ${want.title} — showing it in Search` : `${want.title} isn't in your library — showing it in Search`);
     e.want = want;
