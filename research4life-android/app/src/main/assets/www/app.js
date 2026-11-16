@@ -604,6 +604,9 @@
 
   const tabPlace = {};
   async function render() {
+    // Lesionaut: its screens (lesionaut.js, the last script) may still be downloading when the
+    // library is ready; wait for them instead of showing DermScholar's first page.
+    if (window.LESIONAUT && !ext.routes.lxhome) { setTimeout(render, 60); return; }
     closeSheet();
     closeDrawer();
     closeLightbox();
