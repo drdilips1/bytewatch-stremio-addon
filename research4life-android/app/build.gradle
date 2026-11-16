@@ -34,7 +34,7 @@ android {
             applicationId 'app.lesionaut'
             versionCode 1
             versionName '1.0'
-            buildConfigField 'String', 'START_PAGE', '"lesionaut.html"'
+            buildConfigField 'String', 'START_PAGE', '"lx/index.html"'
             buildConfigField 'String', 'RELEASE_TAG', '"lesionaut-latest"'
             buildConfigField 'String', 'APK_NAME', '"Lesionaut.apk"'
         }

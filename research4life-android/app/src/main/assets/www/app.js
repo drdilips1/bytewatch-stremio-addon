@@ -604,9 +604,6 @@
 
   const tabPlace = {};
   async function render() {
-    // Lesionaut: its screens (lesionaut.js, the last script) may still be downloading when the
-    // library is ready; wait for them instead of showing DermScholar's first page.
-    if (window.LESIONAUT && !ext.routes.lxhome) { setTimeout(render, 60); return; }
     closeSheet();
     closeDrawer();
     closeLightbox();
@@ -619,7 +616,7 @@
     applyTheme();
     const r = parseHash();
     current = r;
-    const tab = ext.tabOf?.[r.name] ?? TAB_OF[r.name];
+    const tab = TAB_OF[r.name];
     if (tab !== null && tab !== undefined) {
       $$('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
       // Each tab remembers where it was (a journal issue, a library filter…) for coming back.
@@ -640,8 +637,6 @@
         case 'settings': return renderSettings();
         default:
           if (ext.routes[r.name]) return ext.routes[r.name](r.arg, r.params);
-          // Lesionaut (the diagnosis app built from these screens) has its own first page.
-          if (window.LESIONAUT && ext.routes.lxhome) return ext.routes.lxhome(r.arg, r.params);
           return renderHome();
       }
     } catch (e) {
@@ -3279,13 +3274,11 @@
           <div class="swatches">${Object.entries(BG_DARK).map(([k, [c, l]]) => `<button class="bgswatch dark ${settings.bgDark === k ? 'on' : ''}" data-act="bg-dark" data-v="${k}" style="--sw:${c}"><i></i>${l}</button>`).join('')}</div>
           <p class="muted small" style="margin:12px 0 0">Reading colours and fonts for papers are in the reader's <b>Aa</b> menu.</p>
         </div></div>
-      ${window.LESIONAUT ? '' : `<div class="section"><div class="section-h"><h3>Accounts</h3></div>
+      <div class="section"><div class="section-h"><h3>Accounts</h3></div>
         ${r4lAccounts()}${accRow('utd')}${accRow('spr')}${collegeRow()}${myloftRow()}
         <p class="muted small">Switches: use a source for Get PDF or not. Switching off keeps its login.</p>
-        <p class="muted small">Passwords are encrypted with this phone's keystore and only sent to the provider's own sign-in page.</p></div>`}
+        <p class="muted small">Passwords are encrypted with this phone's keystore and only sent to the provider's own sign-in page.</p></div>
       ${ext.settingsSection ? ext.settingsSection() : ''}
-      ${window.LESIONAUT ? `<div class="section"><div class="section-h"><h3>About</h3></div>
-        <p class="small muted">Lesionaut ${esc(Native.version())}: an AI copilot for dermatological diagnosis. It reads clinical, dermoscopic, histological, immunofluorescence and laboratory evidence together and suggests a ranked differential with the evidence for and against each. It is decision support for clinicians, not a validated diagnostic device: the diagnosis remains the clinician's. Cases and pictures stay on this device.</p></div>` : `
       <div class="section"><div class="section-h"><h3>Bottom bar</h3></div>
         ${sw('showUTD', 'Show UpToDate tab', 'Quick access from anywhere in the app')}
         ${sw('showR4L', 'Show Research4Life tab', 'Get PDF works without it; hide it if you never browse R4L')}</div>
@@ -3302,7 +3295,7 @@
         <button class="btn small" data-act="clear-history">Clear search history</button></div>
       <div class="section"><div class="section-h"><h3>About</h3></div>
         <p class="small muted">DermScholar ${esc(Native.version())}. Paper data from <b>Europe PMC</b> (PubMed, PMC and more); journal metrics from <b>OpenAlex</b>.
-        "Key finding" is taken from each abstract's own conclusion. It is not a medical recommendation. Fonts: Inter, Literata, Fraunces (SIL OFL); PDF engine: pdf.js.</p></div>`}`;
+        "Key finding" is taken from each abstract's own conclusion. It is not a medical recommendation. Fonts: Inter, Literata, Fraunces (SIL OFL); PDF engine: pdf.js.</p></div>`;
     $$('[data-src]').forEach((el) => el.addEventListener('change', () => { setSrc(el.dataset.src, el.checked); ext.secretsChanged?.(); render(); }));
     $$('[data-set]').forEach((el) => el.addEventListener('change', () => { settings[el.dataset.set] = el.checked; saveSettings(); searchCache.clear(); applyNav(); }));
     actions['set-sort'] = () => pickOne('Default sort', Object.fromEntries(Object.entries(SORTS).map(([k, v]) => [k, v.label])), settings.sort, (v) => { settings.sort = v; saveSettings(); render(); });
@@ -3512,7 +3505,6 @@
   function switchTab(tab) {
     if (tab === 'portal') { Native.openPortal(PORTAL, '', ''); return; }
     if (tab === 'utd') { go(utdHash('')); return; }
-    if (ext.tabs?.[tab] !== undefined) { const t = ext.tabs[tab]; if (parseHash().name === (t || 'home')) window.scrollTo({ top: 0, behavior: 'smooth' }); else go(t); return; }
     const target = { search: '', intel: 'intel', journals: 'journals', library: 'library' }[tab];
     if (parseHash().name === (target || 'home')) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     const here = TAB_OF[parseHash().name];

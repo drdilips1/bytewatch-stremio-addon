@@ -55,6 +55,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_CAMERA = 13;
     private static final int REQUEST_SPEECH = 14;
     private static final int REQUEST_IMAGE_AI = 15;
+    private static final int REQUEST_CAMERA_AI = 19;
     /** Which web request asked for an image (pickImage). */
     private String pendingImageId;
     private Uri cameraUri;
@@ -564,6 +565,27 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void pickImage(String id) {
             pickImages(id, 1);
+        }
+
+        /** A photo taken with the camera now, answered like pickImage ("imagePicked" {id, dataUrl}). */
+        @JavascriptInterface
+        public void captureImage(String id) {
+            main.post(() -> {
+                try {
+                    File dir = new File(getCacheDir(), "camera");
+                    dir.mkdirs();
+                    File f = new File(dir, "shot.jpg");
+                    if (f.exists()) f.delete();
+                    cameraUri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                    pendingImageId = id;
+                    Intent i = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+                    i.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, cameraUri);
+                    i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivityForResult(i, REQUEST_CAMERA_AI);
+                } catch (Exception e) {
+                    emit(event("imagePicked", "id", id, "error", "No camera app available"));
+                }
+            });
         }
 
         /** Like pickImage, choosing up to {@code max} photos at once; the event also has "dataUrls". */
@@ -1486,6 +1508,16 @@ public class MainActivity extends Activity {
             else emit(event("speech", "error", ""));
         } else if (requestCode == REQUEST_CAMERA && resultCode == RESULT_OK && cameraUri != null) {
             handleIncoming(cameraUri, "image/jpeg", true);
+        } else if (requestCode == REQUEST_CAMERA_AI) {
+            String id = pendingImageId;
+            pendingImageId = null;
+            if (id == null) return;
+            if (resultCode != RESULT_OK || cameraUri == null) { emit(event("imagePicked", "id", id, "error", "cancelled")); return; }
+            final Uri shot = cameraUri;
+            io.execute(() -> {
+                try { emit(event("imagePicked", "id", id, "dataUrl", imageDataUrl(shot))); }
+                catch (Exception e) { emit(event("imagePicked", "id", id, "error", "Couldn't read the photo")); }
+            });
         } else if (requestCode == REQUEST_IMAGE_AI) {
             String id = pendingImageId;
             pendingImageId = null;
@@ -1493,7 +1525,7 @@ public class MainActivity extends Activity {
             java.util.List<Uri> uris = new java.util.ArrayList<>();
             if (resultCode == RESULT_OK && data != null) {
                 android.content.ClipData clip = data.getClipData();
-                if (clip != null) for (int k = 0; k < clip.getItemCount() && k < 6; k++) uris.add(clip.getItemAt(k).getUri());
+                if (clip != null) for (int k = 0; k < clip.getItemCount() && k < 12; k++) uris.add(clip.getItemAt(k).getUri());
                 else if (data.getData() != null) uris.add(data.getData());
             }
             if (uris.isEmpty()) {
