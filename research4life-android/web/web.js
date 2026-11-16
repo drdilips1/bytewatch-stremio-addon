@@ -177,9 +177,9 @@
   function aiOrder(docChars, imageOnly) {
     const order = [];
     const chosen = provider();
-    // Pictures: the strongest readers of medical images first (Gemini free, then Claude), Groq's
+    // Pictures: a saved (paid) Claude key first (Sonnet reads a picture in seconds), then Gemini's free allowance, Groq's
     // small vision model and OpenRouter's free one after.
-    if (imageOnly) return auto() ? ['gemini', 'claude', 'groq', 'openrouter'].filter((p) => keyFor(p)) : [chosen];
+    if (imageOnly) return auto() ? ['claude', 'gemini', 'groq', 'openrouter'].filter((p) => keyFor(p)) : [chosen];
     order.push(chosen);
     if (auto()) {
       // Groq, then Claude when its key is saved (the owner's choice), then Gemini, then OpenRouter.
@@ -206,7 +206,7 @@
     // A picture question gets 60 seconds per AI, so the next one is tried while you still wait.
     const picture = /"inlineData"|"image_url"|"type":"image"/.test(json);
     const many = (json.match(/"inlineData"|"image_url"|"type":"image"/g) || []).length > 1;
-    const t = setTimeout(() => ctl.abort(), body.stream || /stream/i.test(url) ? 45000 : picture ? (many ? 90000 : 60000) : 150000);
+    const t = setTimeout(() => ctl.abort(), body.stream || /stream/i.test(url) ? 45000 : picture ? (many ? 75000 : 45000) : 150000);
     let res;
     try {
       res = await realFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: json, signal: ctl.signal });
@@ -470,7 +470,8 @@
   // ---- Claude (Anthropic API, direct from the browser)
   const takesFallback = (m) => ['claude-opus-5-5', 'claude-opus-5', 'claude-fable-5-1', 'claude-sonnet-5-5'].includes(m);
   async function claude({ system, doc, task, max, schema, onText, image }) {
-    const model = modelFor('claude');
+    // Sonnet for pictures whatever model is chosen for text: Opus is slow with photos.
+    const model = image ? DEFAULT_MODEL.claude : modelFor('claude');
     const content = [];
     if (doc) content.push({ type: 'text', text: doc, cache_control: { type: 'ephemeral' } });
     for (const u of image ? [].concat(image) : []) {

@@ -25,6 +25,8 @@ final class ClaudeProvider implements LlmProvider {
 
     private final String apiKey;
     private final String model;
+    // Pictures get a shorter wait, so a slow Claude hands over to the next AI in time.
+    private int readTimeout = 300_000;
 
     ClaudeProvider(String apiKey, String model) {
         this.apiKey = apiKey;
@@ -56,6 +58,7 @@ final class ClaudeProvider implements LlmProvider {
 
     /** Several pictures (each {base64, mime}) and one question about them all. */
     Result completeWithImages(String system, String task, java.util.List<String[]> images, int maxTokens) throws AiException {
+        readTimeout = images.size() > 1 ? 75_000 : 45_000;
         try {
             JSONArray content = new JSONArray();
             for (String[] im : images) {
@@ -115,7 +118,7 @@ final class ClaudeProvider implements LlmProvider {
             c = (HttpURLConnection) new URL(URL_MESSAGES).openConnection(java.net.Proxy.NO_PROXY);
             c.setRequestMethod("POST");
             c.setConnectTimeout(20_000);
-            c.setReadTimeout(300_000);
+            c.setReadTimeout(readTimeout);
             c.setDoOutput(true);
             c.setRequestProperty("content-type", "application/json");
             c.setRequestProperty("x-api-key", apiKey);

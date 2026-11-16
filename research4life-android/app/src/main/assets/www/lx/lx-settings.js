@@ -24,7 +24,7 @@
         <div class="card">${AIS.map(([p, n, d, url]) => { const has = safe(() => N.aiHasKeyFor?.(p), false); const tail = has ? safe(() => N.aiKeyTail?.(p), '') : '';
           return `<div class="li" style="cursor:default"><span class="ph">${icon('key')}</span><span><b>${n}</b><small>${has ? `Key saved${tail ? ' (…' + esc(tail) + ')' : ''}` : esc(d)}</small></span>
             <button class="btn sm ${has ? '' : 'pri'}" data-act="key-set" data-p="${p}">${has ? 'Change' : 'Add'}</button>${has ? `<button class="ib" data-act="key-del" data-p="${p}" aria-label="Remove">${icon('trash')}</button>` : ''}</div>`; }).join('')}
-          <div class="li" style="cursor:default"><span><b>Use every saved AI</b><small>If one is busy or fails, the next takes over (pictures: Gemini → Claude → Groq → OpenRouter)</small></span>
+          <div class="li" style="cursor:default"><span><b>Use every saved AI</b><small>If one is busy or fails, the next takes over (pictures: Claude → Gemini → Groq → OpenRouter)</small></span>
             <button class="btn sm ${auto ? 'pri' : ''}" data-act="ai-auto">${auto ? 'On' : 'Off'}</button></div></div>
         <div class="card"><h4>${icon('people')} Bring keys from your DermScholar account</h4><p class="small muted">Sign in with your DermScholar account (email and password). Your AI keys are synced there encrypted with that password; Lesionaut opens them on this device only and saves them in the phone's keystore.</p>
           <button class="btn sm" data-act="acct-keys">${icon('key')}Bring my keys</button></div></div>

@@ -298,7 +298,7 @@ final class GroqProvider implements LlmProvider {
             body.put("messages", messages);
             body.put(or ? "max_tokens" : "max_completion_tokens", Math.min(maxTokens, 4000));
             body.put("temperature", 0.2);
-            JSONObject res = post("chat/completions", body, dataUrls.size() > 1 ? 90000 : 60000);
+            JSONObject res = post("chat/completions", body, dataUrls.size() > 1 ? 60000 : 45000);
             String text = res.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "").trim();
             if (text.isEmpty()) throw new AiException(name + " returned an empty answer. Try again.");
             visionModel.put(base, visionId);

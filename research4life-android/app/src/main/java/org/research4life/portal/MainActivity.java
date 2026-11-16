@@ -660,7 +660,8 @@ public class MainActivity extends Activity {
                             if ("gemini".equals(prov)) r = new GeminiProvider(key, modelFor("gemini")).completeWithImages(system, task, parts, maxTokens);
                             else if ("groq".equals(prov)) r = new GroqProvider(key, null).completeWithImages(system, task, urls, maxTokens);
                             else if ("openrouter".equals(prov)) r = GroqProvider.openRouter(key, null).completeWithImages(system, task, urls, maxTokens);
-                            else if ("claude".equals(prov)) r = new ClaudeProvider(key, modelFor("claude")).completeWithImages(system, task, parts, maxTokens);
+                            // Sonnet for pictures whatever model is chosen for text: Opus is slow with photos.
+                            else if ("claude".equals(prov)) r = new ClaudeProvider(key, ClaudeProvider.DEFAULT_MODEL).completeWithImages(system, task, parts, maxTokens);
                             else continue;
                             recordUsage(r.model, r);
                             emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model));
@@ -1127,9 +1128,9 @@ public class MainActivity extends Activity {
             java.util.List<String> order = new java.util.ArrayList<>();
             if (imageOnly && !aiAuto()) { order.add(provider()); return order; }
             if (imageOnly) {
-                // Pictures: the strongest readers of medical images first (Gemini free, then Claude), Groq's
-                // small vision model and OpenRouter's free one after.
-                for (String p : new String[]{"gemini", "claude", "groq", "openrouter"}) {
+                // Pictures: a saved (paid) Claude key first (Sonnet reads a picture in seconds), then Gemini's
+                // free allowance, Groq's small vision model and OpenRouter's free one after.
+                for (String p : new String[]{"claude", "gemini", "groq", "openrouter"}) {
                     if (R4LSession.hasCredentials(MainActivity.this, p)) order.add(p);
                 }
                 return order;
