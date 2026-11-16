@@ -112,7 +112,15 @@ async function fromSources(want, step) {
   const ebookish = /\b(epub|pdf|mobi|azw3?|ebook)\b/i;
   const list = [...found.values()]
     .flat()
-    .filter((r) => r && !r.loose && (r.magnet || r.hash) && r.contentType !== 'ebook' && !ebookish.test(`${r.title} ${r.format || ''}`));
+    .filter((r) => r && !r.loose && (r.magnet || r.hash) && r.contentType !== 'ebook' && !ebookish.test(`${r.title} ${r.format || ''}`))
+    // The torrent's own name has to be this book (all the title's words, and the author's surname
+    // when it says one) — not whatever a search turned up for a few of its words.
+    .filter((r) => {
+      const name = `${r.title || ''} ${r.rawName || ''}`;
+      if (!matches(mainTitle(want.title), name)) return false;
+      const sn = surname(want.author);
+      return !sn || !r.author || words(`${r.author} ${name}`).includes(sn);
+    });
   if (!list.length) return null;
   const ready = (r) => (provider === 'torbox' ? r.cache?.torbox : r.cache?.realdebrid) || false;
   list.sort((x, y) => Number(ready(y)) - Number(ready(x)) || (y.seeders || 0) - (x.seeders || 0));

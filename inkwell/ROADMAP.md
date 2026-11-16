@@ -42,6 +42,10 @@ Noted while building; to pick up after Saturday.
   the server off: it waited on both server addresses and every search. Now a server that doesn't answer
   is skipped (remembered 2 min) and TorBox / Real-Debrid isn't held up — 4 s after the cloud answers,
   the server's results so far are all there is. Order stays TorBox / Real-Debrid first.
+- Shared TIME "100 best nonfiction" page gave only 14: the page text was cut at 14,000 characters.
+  Now read in pieces (~14,000 each, up to 12, 3 at a time) and joined in order; up to 150 books kept.
+- A dermatology textbook "played from sources": the sources step took a torrent that only half matched.
+  Now the torrent's name must have all the title's words (and the author's surname when it gives one).
 
 ## Blinkist — tried and removed (16 Nov)
 Built (B badge, Blinkist's own player in the in-app browser, free book of the day) and taken out again:

@@ -62,7 +62,7 @@ const tidy = (list) =>
     .map((b) => ({ title: String(b?.title || '').trim(), author: String(b?.author || '').trim() }))
     .filter((b) => b.title.length > 1)
     .filter((b, i, all) => all.findIndex((x) => mainTitle(x.title).toLowerCase() === mainTitle(b.title).toLowerCase()) === i)
-    .slice(0, 40);
+    .slice(0, 150); // a "100 best" list fits
 
 /** Books in a picture: one cover, a shelf of spines, or a screenshot of covers / a list. */
 export async function booksInImage(dataUrl, mode = 'cover') {
@@ -147,12 +147,47 @@ export async function booksInText(input, subject = '') {
     text = stripHtml(html);
   }
   if (!aiReady()) return { name: name || 'Pasted list', url, books: booksInList(s) };
-  const raw = await askAi(
-    `Below is the text of ${url ? 'a web page' : 'a message'}${name ? ` ("${name}")` : ''}. List every book it names or recommends (not films, podcasts or articles). Reply with JSON only: {"books":[{"title":"","author":""}]}.
-"""${text.slice(0, 14000)}"""`,
-    { json: true }
+  // A long page ("100 best books", each with a paragraph about it) is read in pieces — a few at
+  // a time, all of it, in the page's order — not just its first part (that gave 14 of 100).
+  const pieces = textPieces(text);
+  const ask = (piece, i) =>
+    askAi(
+      `Below is ${pieces.length > 1 ? `part ${i + 1} of ${pieces.length} of ` : ''}the text of ${url ? 'a web page' : 'a message'}${name ? ` ("${name}")` : ''}. List every book it names or recommends, in the order they appear (not films, podcasts or articles). Reply with JSON only: {"books":[{"title":"","author":""}]}.
+"""${piece}"""`,
+      { json: true }
+    )
+      .then((raw) => parseJson(raw)?.books || [])
+      .catch(() => []);
+  const found = new Array(pieces.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(3, pieces.length) }, async () => {
+      while (next < pieces.length) {
+        const i = next++;
+        found[i] = await ask(pieces[i], i);
+      }
+    })
   );
-  return { name: name || 'Pasted list', url, books: tidy(parseJson(raw)?.books) };
+  return { name: name || 'Pasted list', url, books: tidy(found.flat()), parts: pieces.length };
+}
+
+/** The text in pieces of about 14,000 characters (a little overlap, so a book on a cut isn't lost), up to 12 (~160,000). */
+export function textPieces(text, size = 14000, overlap = 600, max = 12) {
+  const t = String(text || '');
+  if (t.length <= size) return [t];
+  const out = [];
+  for (let at = 0; at < t.length && out.length < max; at += size - overlap) {
+    let end = Math.min(t.length, at + size);
+    // End at a sentence or a gap, not in the middle of a title.
+    if (end < t.length) {
+      const cut = t.lastIndexOf('. ', end);
+      if (cut > at + size * 0.7) end = cut + 1;
+    }
+    out.push(t.slice(at, end));
+    if (end >= t.length) break;
+    at = end - (size - overlap); // the next piece starts just before this one ended
+  }
+  return out;
 }
 
 // Where you have a book: your phone, downloads, Library, played books (by title and author).
