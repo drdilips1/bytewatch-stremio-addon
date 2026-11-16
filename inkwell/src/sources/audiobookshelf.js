@@ -45,6 +45,25 @@ export async function resolveServer(force = false) {
 }
 export const connected = () => !!(cfg().server && cfg().token);
 
+// Is the server answering at all (either address)? Remembered for 2 minutes when it isn't, so
+// finding your copy of a book doesn't wait on a server that's off (it went on to TorBox only
+// after every address and search had timed out).
+let downUntil = 0;
+export async function serverUp() {
+  if (!connected()) return false;
+  if (Date.now() < downUntil) return false;
+  const { server, altServer } = cfg();
+  for (const u of [active, server, altServer].filter(Boolean)) {
+    if (await reachable(u)) {
+      active = trim(u);
+      checkedAt = Date.now();
+      return true;
+    }
+  }
+  downUntil = Date.now() + 120e3;
+  return false;
+}
+
 // A saved cover link (in your library, progress, Continue…) has the address in use then (home
 // Wi-Fi or Tailscale) and the sign-in token of then, which newer servers renew: away from home,
 // or once the token was renewed, the picture was refused and the book showed its typed title.

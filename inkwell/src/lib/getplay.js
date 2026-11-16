@@ -32,7 +32,8 @@ export async function getAndPlay(want, step = () => {}) {
   // copy plays — never a second download of a book the server has.
   try {
     const q = await import('../sources/qbit.js');
-    const hit = await q.onServer({ title, author }).catch(() => null);
+    const { serverUp } = await import('../sources/audiobookshelf.js');
+    const hit = (await serverUp().catch(() => false)) ? await Promise.race([q.onServer({ title, author }).catch(() => null), new Promise((r) => setTimeout(() => r(null), 8000))]) : null;
     if (hit) {
       note(`“${title}”: on your Audiobookshelf as “${hit.title}” — playing that`);
       const { getDetails } = await import('../sources/index.js');

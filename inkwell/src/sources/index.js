@@ -277,10 +277,12 @@ export async function findOwned(book) {
       const text = words(`${b.author || ''} ${b.narrator || ''} ${b.title} ${b.rawName || ''}`);
       return text.includes(sn) || (!b.author && sameTitle(b));
     });
-  const [server, cloudHits] = await Promise.all([
-    enabled('abs') && absSrc.connected() ? serverCopies(t, plain) : [],
-    (enabled('tb') && cloud.tbConnected()) || (enabled('rd') && cloud.rdConnected()) ? safe(cloud.search(plain)) : [],
-  ]);
+  // TorBox / Real-Debrid and your server at once; a server that's off (or slow) isn't waited
+  // for — 4 s after the cloud has answered, what the server found by then is all there is.
+  const late = (ms) => new Promise((r) => setTimeout(() => r([]), ms));
+  const serverJob = enabled('abs') && absSrc.connected() ? absSrc.serverUp().then((up) => (up ? serverCopies(t, plain) : [])).catch(() => []) : Promise.resolve([]);
+  const cloudHits = (enabled('tb') && cloud.tbConnected()) || (enabled('rd') && cloud.rdConnected()) ? await safe(cloud.search(plain)) : [];
+  const server = await Promise.race([serverJob, late(cloudHits.length ? 4000 : 12000)]);
   return { server: byTitle(server), cloud: byTitle(cloudHits) };
 }
 

@@ -37,6 +37,12 @@ Noted while building; to pick up after Saturday.
   subtitle) → sent to the home server from MAM (a second copy). Fixed both checks; a book the server
   has is never sent home now; page count also from Open Library when Google Books has none.
 
+## Noted 16 Nov — fixed, not built yet
+- Page photo of Born a Crime worked (read as a page in Cover mode), but finding the copy was slow with
+  the server off: it waited on both server addresses and every search. Now a server that doesn't answer
+  is skipped (remembered 2 min) and TorBox / Real-Debrid isn't held up — 4 s after the cloud answers,
+  the server's results so far are all there is. Order stays TorBox / Real-Debrid first.
+
 ## Blinkist (built 15 Nov, option A)
 Your own account, Blinkist's own website/player in the in-app browser (sign-in kept). B badge once a
 book page found it (blinkist.com/en/books/<title>-en, then <title>-<author>-en; else its search),
