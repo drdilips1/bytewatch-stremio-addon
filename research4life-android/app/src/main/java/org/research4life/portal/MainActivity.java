@@ -487,7 +487,13 @@ public class MainActivity extends Activity {
                 JSONObject o = new JSONObject(json);
                 JSONObject creds = o.optJSONObject("creds");
                 boolean hadAi = aiHasKey();
-                if (creds != null) for (String p : SECRET_PROVIDERS) R4LSession.importProvider(MainActivity.this, p, creds.optJSONObject(p));
+                // An AI key already on this phone is never replaced from the sync: another device on the
+                // same account may still upload an old, used-up key, which used to overwrite a new one.
+                if (creds != null) for (String p : SECRET_PROVIDERS) {
+                    boolean aiKey = "groq".equals(p) || "gemini".equals(p) || "claude".equals(p) || "openrouter".equals(p);
+                    if (aiKey && R4LSession.hasCredentials(MainActivity.this, p)) continue;
+                    R4LSession.importProvider(MainActivity.this, p, creds.optJSONObject(p));
+                }
                 JSONObject px = o.optJSONObject("px");
                 if (px != null && !CollegeProxy.configured(MainActivity.this) && !px.optString("host").isEmpty()) {
                     main.post(() -> CollegeProxy.save(MainActivity.this, px.optString("host"), px.optInt("port")));
