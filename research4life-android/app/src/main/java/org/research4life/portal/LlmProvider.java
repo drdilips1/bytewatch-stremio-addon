@@ -5,6 +5,16 @@ package org.research4life.portal;
  * switching provider means adding one implementation of this interface.
  */
 interface LlmProvider {
+    /** Why a request couldn't get through, in plain words (shown in the error, so the cause is visible). */
+    static String netWhy(Exception e) {
+        if (e instanceof java.net.UnknownHostException) return "the phone couldn't look up its address (DNS)";
+        if (e instanceof java.net.SocketTimeoutException) return "it timed out (slow or interrupted connection)";
+        if (e instanceof javax.net.ssl.SSLException) return "the secure connection failed (a network filter or the phone's date and time)";
+        if (e instanceof java.net.ConnectException) return "the connection was refused";
+        String m = e.getMessage();
+        return e.getClass().getSimpleName() + (m == null || m.isEmpty() ? "" : ": " + (m.length() > 120 ? m.substring(0, 120) + "…" : m));
+    }
+
 
     final class Result {
         final String text;

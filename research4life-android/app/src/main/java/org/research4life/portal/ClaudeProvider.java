@@ -145,7 +145,7 @@ final class ClaudeProvider implements LlmProvider {
         } catch (AiException e) {
             throw e;
         } catch (java.io.IOException e) {
-            throw new AiException("Couldn't reach Claude. Check your connection.");
+            throw new AiException("Couldn't reach Claude: " + LlmProvider.netWhy(e) + ".");
         } catch (Exception e) {
             throw new AiException("Claude request failed: " + e.getClass().getSimpleName());
         } finally {

@@ -141,7 +141,7 @@ final class GroqProvider implements LlmProvider {
         } catch (AiException e) {
             throw e;
         } catch (IOException e) {
-            throw new AiException("Couldn't reach " + name + ". Check your connection.");
+            throw new AiException("Couldn't reach " + name + ": " + LlmProvider.netWhy(e) + ".");
         } catch (Exception e) {
             throw new AiException(name + " request failed: " + e.getClass().getSimpleName());
         }
@@ -259,7 +259,7 @@ final class GroqProvider implements LlmProvider {
         } catch (AiException e) {
             throw e;
         } catch (Exception e) {
-            throw new AiException("Couldn't list " + name + " models.");
+            throw new AiException("Couldn't list " + name + " models: " + LlmProvider.netWhy(e) + ".");
         }
     }
 
@@ -308,7 +308,7 @@ final class GroqProvider implements LlmProvider {
         } catch (AiException e) {
             throw e;
         } catch (IOException e) {
-            throw new AiException("Couldn't reach " + name + ". Check your connection.");
+            throw new AiException("Couldn't reach " + name + ": " + LlmProvider.netWhy(e) + ".");
         } catch (Exception e) {
             throw new AiException(name + " image request failed: " + e.getClass().getSimpleName());
         }
@@ -333,7 +333,7 @@ final class GroqProvider implements LlmProvider {
         } catch (AiException e) {
             throw e;
         } catch (Exception e) {
-            throw new AiException("Couldn't list Groq models.");
+            throw new AiException("Couldn't list Groq models: " + LlmProvider.netWhy(e) + ".");
         }
     }
 
