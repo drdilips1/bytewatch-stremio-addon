@@ -227,7 +227,7 @@ export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
     try {
       if (p.anthropic) {
         const { default: Anthropic } = await import('@anthropic-ai/sdk');
-        const client = new Anthropic({ apiKey: keyOf(p), dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 60000 });
+        const client = new Anthropic({ apiKey: keyOf(p), dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 18000 });
         const res = await client.messages.create({
           model: p.models[0],
           max_tokens: 2000,
@@ -242,7 +242,7 @@ export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
       const ms = p.custom ? [] : await modelsFor(p);
       const model = p.custom ? (await modelsFor(p))[0] : ms.find((m) => /flash/.test(m) && !/lite|thinking|image|tts|live/.test(m)) || ms.find((m) => /flash/.test(m)) || 'gemini-2.5-flash';
       const ctrl = new AbortController();
-      setTimeout(() => ctrl.abort(), 25000);
+      setTimeout(() => ctrl.abort(), 20000);
       const send = (fast) =>
         fetch(p.custom ? customEndpoint() : p.url, {
           method: 'POST',
@@ -267,8 +267,12 @@ export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
       last = e;
       // Each service's own reason (no credit left, quota used up, key not valid…), kept for
       // Report a problem and shown together if none of them could read the picture.
-      why.push(`${p.name}: ${String(e.message || e).slice(0, 160)}`);
-      import('./report.js').then((r) => r.logError('AI picture', `${p.name}${e.status ? ` (HTTP ${e.status})` : ''}: ${String(e.message || e).slice(0, 300)}`)).catch(() => {});
+      // No answer at all (the request hung) reads differently from a refusal: that's the
+      // network (Private DNS, a VPN or ad blocker), not the key.
+      const hung = !e.status && /abort|timed? ?out|timeout|failed to fetch|network/i.test(`${e.name || ''} ${e.message || ''}`);
+      const msg = hung ? `no answer in ${p.anthropic ? 18 : 20} s — something on this phone's network may be blocking it` : String(e.message || e).slice(0, 160);
+      why.push(`${p.name}: ${msg}`);
+      import('./report.js').then((r) => r.logError('AI picture', `${p.name}${e.status ? ` (HTTP ${e.status})` : ''}: ${hung ? msg : String(e.message || e).slice(0, 300)}`)).catch(() => {});
     }
   }
   if (why.length) throw Object.assign(new Error(`Couldn't read the picture — ${why.join(' · ')}`), { status: last?.status });
