@@ -14,7 +14,6 @@ import { useMeta } from '../lib/meta.js';
 import { useTileRating } from '../lib/ratings.js';
 import { openExternal } from '../sources/summaries.js';
 import { useStoryShots, chooseStoryShots } from '../sources/storyshots.js';
-import { useBlinkistBadge, knownBlinkist, openBlinkist } from '../sources/blinkist.js';
 import { useLocalCover } from '../sources/local.js';
 import { audioFormat } from '../sources/debrid.js';
 import { markNotInterested, notInterested, isNotInterested, alreadyRead, isHiddenRec } from '../lib/taste.js';
@@ -198,7 +197,6 @@ export const BookCard = memo(function BookCard({ book: raw, wide, rec = false })
       ? { rating: book.rating, count: book.ratings || 0, url: book.link || '', from: 'Audible' }
       : null);
   const ss = useStoryShots(book);
-  const bl = useBlinkistBadge(book);
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
   const match = !(book.rank > 0) && book.match > 0 ? book.match : 0;
   // Press and hold: the book's actions (play, download, tag, finished…).
@@ -269,19 +267,6 @@ export const BookCard = memo(function BookCard({ book: raw, wide, rec = false })
               }}
             >
               S
-            </span>
-          )}
-          {bl && (
-            <span
-              class="card-bl"
-              role="link"
-              title="On Blinkist — opens it there"
-              onClick={(e) => {
-                e.stopPropagation();
-                openBlinkist(knownBlinkist(book));
-              }}
-            >
-              B
             </span>
           )}
         </div>

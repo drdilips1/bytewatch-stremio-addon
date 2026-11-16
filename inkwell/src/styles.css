@@ -12832,13 +12832,3 @@ button.pp-av { padding: 0; cursor: pointer; }
 .lib-home .row-scroll { gap: 12px; padding-left: 16px; padding-right: 16px; }
 .lib-home .row-scroll .book-card { width: 112px; }
 .lib-home .lh-head { padding-left: 16px; padding-right: 16px; }
-
-/* Blinkist (with your account) */
-.bl-badge { display: inline-grid; place-items: center; width: 22px; height: 22px; flex: none; border-radius: 50%; font-size: 12px; font-weight: 900; line-height: 1; color: #04261d; background: #2ce080; border: 1.5px solid rgba(255, 255, 255, 0.9); }
-.bl-badge.outline { background: none; color: #2ce080; border-color: #2ce080; }
-.bl-link { margin-top: 0; }
-.card-bl { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: 800; background: #2ce080; color: #04261d; }
-.bl-daily { display: flex; align-items: center; gap: 12px; width: calc(100% - 32px); margin: 10px 16px; padding: 12px 14px; border-radius: 18px; border: 1px solid color-mix(in srgb, #2ce080 35%, transparent); background: color-mix(in srgb, #2ce080 10%, var(--bg)); color: var(--text); text-align: left; font: inherit; }
-.bl-daily span:last-child { display: flex; flex-direction: column; min-width: 0; }
-.bl-daily small { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; color: color-mix(in srgb, #2ce080 70%, var(--text)); }
-.bl-daily b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

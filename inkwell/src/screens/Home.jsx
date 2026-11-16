@@ -15,7 +15,6 @@ import { ia, gb, ol, absSrc, addonSrc, cloud, localSrc, hc, gr, lb, enabled, sou
 import { Fragment } from 'preact';
 import { sameWork } from '../lib/works.js';
 import { FollowRow } from '../components/follow-row.jsx';
-import { BlinkistDaily } from '../components/blinkist-daily.jsx';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary, hideFromContinue } from '../lib/store.js';
 import { greeting, firstName, fmtDuration, hiResCover } from '../lib/format.js';
 import { useSquareCover } from '../lib/meta.js';
@@ -758,7 +757,6 @@ export function Home() {
               <Fragment key={id}>
                 <ContinueRow />
                 <FollowRow />
-                <BlinkistDaily />
                 <WaitingRow />
               </Fragment>
             );

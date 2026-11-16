@@ -43,11 +43,9 @@ Noted while building; to pick up after Saturday.
   is skipped (remembered 2 min) and TorBox / Real-Debrid isn't held up — 4 s after the cloud answers,
   the server's results so far are all there is. Order stays TorBox / Real-Debrid first.
 
-## Blinkist (built 15 Nov, option A)
-Your own account, Blinkist's own website/player in the in-app browser (sign-in kept). B badge once a
-book page found it (blinkist.com/en/books/<title>-en, then <title>-<author>-en; else its search),
-Free Daily card on Home, Settings → Blinkist. Not done on purpose: pulling its paid text/audio into
-the Audiohub player (private API, against its terms — account risk). Untested on a phone.
+## Blinkist — tried and removed (16 Nov)
+Built (B badge, Blinkist's own player in the in-app browser, free book of the day) and taken out again:
+too much for what it gave. Pulling its paid audio into the Audiohub player was never an option.
 
 ## Duet — on hold (noted 11 Nov)
 Paused after the first phone test and a talk about whether it can compete (free Audiobookshelf
