@@ -222,6 +222,7 @@ export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
   const order = PROVIDERS.filter((p) => keyOf(p) && (p.id === 'gemini' || p.anthropic || p.custom)).sort((a, b) => rank(a) - rank(b));
   if (!order.length) throw new Error('Reading pictures needs a Gemini or Claude key (Settings → AI)');
   let last;
+  const why = [];
   for (const p of order) {
     try {
       if (p.anthropic) {
@@ -264,8 +265,13 @@ export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
       if (text) return text;
     } catch (e) {
       last = e;
+      // Each service's own reason (no credit left, quota used up, key not valid…), kept for
+      // Report a problem and shown together if none of them could read the picture.
+      why.push(`${p.name}: ${String(e.message || e).slice(0, 160)}`);
+      import('./report.js').then((r) => r.logError('AI picture', `${p.name}${e.status ? ` (HTTP ${e.status})` : ''}: ${String(e.message || e).slice(0, 300)}`)).catch(() => {});
     }
   }
+  if (why.length) throw Object.assign(new Error(`Couldn't read the picture — ${why.join(' · ')}`), { status: last?.status });
   throw last || new Error("Couldn't read the picture");
 }
 
