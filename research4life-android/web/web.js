@@ -626,7 +626,7 @@
   const N = {
     isWeb: !IOS,
     isIos: !!IOS,
-    version: () => (IOS ? '5.45 iOS' : '5.45 web'),
+    version: () => (IOS ? '5.46 iOS' : '5.46 web'),
 
     // ---- PDFs
     listPdfs: () => JSON.stringify(Object.entries(pdfIndex()).map(([key, o]) => ({ ...o, key }))),
