@@ -85,6 +85,21 @@
       Native.aiRunImage(id, system, task, dataUrl, 3500);
     });
   }
+  /** One question about several pictures (data URLs); null when the app can only send one (use a collage). */
+  function aiImages(task, dataUrls, system, max = 4000) {
+    if (!Native.aiRunImages) return null;
+    return new Promise((resolve, reject) => {
+      if (!D.aiHasKey()) { reject(new Error('NO_KEY')); return; }
+      const id = 'vis' + (++imgSeq) + '_' + Date.now();
+      const stop = setTimeout(() => {
+        if (!aiImgWait[id]) return;
+        delete aiImgWait[id];
+        reject(new Error('No AI answered about the pictures within 4 minutes. They may be busy: try again, or check your Gemini key in Settings → AI.'));
+      }, 240000);
+      aiImgWait[id] = (evt) => { clearTimeout(stop); if (evt.state === 'done') resolve(evt.text); else reject(new Error(evt.message || 'AI request failed')); };
+      Native.aiRunImages(id, system, task, JSON.stringify(dataUrls), max);
+    });
+  }
   const EDU = 'Educational use only: this is a learning aid for clinicians, not a diagnosis. Diagnosis needs clinical examination and, where appropriate, histopathology.';
 
   // ================================================================ My Research notebooks
@@ -758,7 +773,7 @@
     const [a, b] = await Promise.all([openI(query).catch(() => []), commons(query).catch(() => [])]);
     return [...a.slice(0, Math.ceil(n * 0.6)), ...b].slice(0, n);
   }
-  Object.assign(I, { pickImage, pickImages, aiImage, EDU, openI, commons, pics });
+  Object.assign(I, { pickImage, pickImages, aiImage, aiImages, EDU, openI, commons, pics });
   Object.assign(ext.routes, {
     research: renderResearch, project: renderProject, rp: renderRP, gaps: renderGaps, compare: renderCompare,
     drug: renderDrug, images: renderImages, imgread: renderImgRead,

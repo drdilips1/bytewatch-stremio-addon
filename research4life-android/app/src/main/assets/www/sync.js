@@ -94,7 +94,7 @@
   }
 
   // ---------------------------------------------------------------- what syncs
-  const SKIP = /^ds\.(sync\.|stub\.|intel\.|groqModels|r4l|acc\.|accs\.|utdLoggedIn)/;
+  const SKIP = /^ds\.(lx\.|sync\.|stub\.|intel\.|groqModels|r4l|acc\.|accs\.|utdLoggedIn)/;
   const MAX_VALUE = 400000;
   const syncKeys = () => Object.keys(localStorage).filter((k) => k.startsWith('ds.') && !SKIP.test(k) && (localStorage.getItem(k) || '').length < MAX_VALUE);
   const hash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h); };

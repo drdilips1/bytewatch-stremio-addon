@@ -264,10 +264,16 @@ final class GroqProvider implements LlmProvider {
     }
 
     Result completeWithImage(String system, String task, String base64Jpeg, int maxTokens) throws AiException {
+        return completeWithImages(system, task, java.util.Collections.singletonList("data:image/jpeg;base64," + base64Jpeg), maxTokens);
+    }
+
+    /** Several pictures (data URLs; Groq's picture model takes at most 5) and one question. */
+    Result completeWithImages(String system, String task, java.util.List<String> dataUrls, int maxTokens) throws AiException {
+        java.util.List<String> imgs = dataUrls.size() > (or ? 10 : 5) ? dataUrls.subList(0, or ? 10 : 5) : dataUrls;
         String model = visionModel.get(base);
         if (model == null) model = or ? findVisionModel() : "meta-llama/llama-4-scout-17b-16e-instruct";
         try {
-            return imageOnce(model, system, task, base64Jpeg, maxTokens);
+            return imageOnce(model, system, task, imgs, maxTokens);
         } catch (AiException e) {
             String m = e.getMessage() == null ? "" : e.getMessage();
             // Retired or not offered to this key: find the current picture model and try it once.
@@ -275,24 +281,24 @@ final class GroqProvider implements LlmProvider {
             visionModel.remove(base);
             String next = findVisionModel();
             if (next.equals(model)) throw e;
-            return imageOnce(next, system, task, base64Jpeg, maxTokens);
+            return imageOnce(next, system, task, imgs, maxTokens);
         }
     }
 
-    private Result imageOnce(String visionId, String system, String task, String base64Jpeg, int maxTokens) throws AiException {
+    private Result imageOnce(String visionId, String system, String task, java.util.List<String> dataUrls, int maxTokens) throws AiException {
         try {
             JSONObject body = new JSONObject();
             body.put("model", visionId);
             JSONArray messages = new JSONArray();
             messages.put(new JSONObject().put("role", "system").put("content", system));
-            JSONArray content = new JSONArray()
-                    .put(new JSONObject().put("type", "image_url").put("image_url", new JSONObject().put("url", "data:image/jpeg;base64," + base64Jpeg)))
-                    .put(new JSONObject().put("type", "text").put("text", task));
+            JSONArray content = new JSONArray();
+            for (String u : dataUrls) content.put(new JSONObject().put("type", "image_url").put("image_url", new JSONObject().put("url", u)));
+            content.put(new JSONObject().put("type", "text").put("text", task));
             messages.put(new JSONObject().put("role", "user").put("content", content));
             body.put("messages", messages);
             body.put(or ? "max_tokens" : "max_completion_tokens", Math.min(maxTokens, 4000));
             body.put("temperature", 0.2);
-            JSONObject res = post("chat/completions", body, 60000);
+            JSONObject res = post("chat/completions", body, dataUrls.size() > 1 ? 90000 : 60000);
             String text = res.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "").trim();
             if (text.isEmpty()) throw new AiException(name + " returned an empty answer. Try again.");
             visionModel.put(base, visionId);

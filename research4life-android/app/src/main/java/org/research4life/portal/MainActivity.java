@@ -27,6 +27,7 @@ import android.widget.Toast;
 import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewAssetLoader;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
@@ -46,7 +47,8 @@ import java.util.concurrent.Executors;
 public class MainActivity extends Activity {
 
     static final String APP_HOST = "appassets.androidplatform.net";
-    private static final String APP_URL = "https://" + APP_HOST + "/assets/www/index.html";
+    // DermScholar opens index.html; Lesionaut (the diagnosis app, a build flavour) lesionaut.html.
+    private static final String APP_URL = "https://" + APP_HOST + "/assets/www/" + BuildConfig.START_PAGE;
     private static final int REQUEST_IMPORT = 10;
     private static final int REQUEST_PORTAL = 11;
     private static final int REQUEST_IMPORT_PDF = 12;
@@ -593,21 +595,44 @@ public class MainActivity extends Activity {
         /** An AI question about an image (data URL); answers with an "ai" event like aiRun. */
         @JavascriptInterface
         public void aiRunImage(String id, String system, String task, String dataUrl, int maxTokens) {
+            runImages(id, system, task, java.util.Collections.singletonList(dataUrl == null ? "" : dataUrl), maxTokens);
+        }
+
+        /** One AI question about several pictures (a JSON array of data URLs), e.g. a whole case. */
+        @JavascriptInterface
+        public void aiRunImages(String id, String system, String task, String dataUrlsJson, int maxTokens) {
+            java.util.List<String> urls = new java.util.ArrayList<>();
+            try {
+                JSONArray a = new JSONArray(dataUrlsJson == null ? "[]" : dataUrlsJson);
+                for (int i = 0; i < a.length(); i++) if (!a.optString(i).isEmpty()) urls.add(a.optString(i));
+            } catch (Exception ignored) {
+            }
+            runImages(id, system, task, urls, maxTokens);
+        }
+
+        private void runImages(String id, String system, String task, java.util.List<String> dataUrls, int maxTokens) {
             io.execute(() -> {
                 LlmProvider.AiException first = null;
                 StringBuilder also = new StringBuilder();
                 try {
-                    String b64 = dataUrl == null ? "" : dataUrl.substring(dataUrl.indexOf(',') + 1);
-                    String mime = dataUrl != null && dataUrl.startsWith("data:") && dataUrl.contains(";") ? dataUrl.substring(5, dataUrl.indexOf(';')) : "image/jpeg";
+                    // {base64, mime} for each picture; the OpenAI-style APIs take the data URLs as they are.
+                    java.util.List<String[]> parts = new java.util.ArrayList<>();
+                    java.util.List<String> urls = new java.util.ArrayList<>();
+                    for (String u : dataUrls) {
+                        String b64 = u.substring(u.indexOf(',') + 1);
+                        String mime = u.startsWith("data:") && u.contains(";") ? u.substring(5, u.indexOf(';')) : "image/jpeg";
+                        parts.add(new String[]{b64, mime});
+                        urls.add(u.startsWith("data:") ? u : "data:image/jpeg;base64," + u);
+                    }
                     for (String prov : aiOrder(0, true)) {
                         try {
                             String key = R4LSession.password(MainActivity.this, prov);
                             if (key == null || key.isEmpty()) throw new LlmProvider.AiException("Add your " + label(prov) + " API key in Settings → AI.");
                             LlmProvider.Result r;
-                            if ("gemini".equals(prov)) r = new GeminiProvider(key, modelFor("gemini")).completeWithImage(system, task, b64, maxTokens);
-                            else if ("groq".equals(prov)) r = new GroqProvider(key, null).completeWithImage(system, task, b64, maxTokens);
-                            else if ("openrouter".equals(prov)) r = GroqProvider.openRouter(key, null).completeWithImage(system, task, b64, maxTokens);
-                            else if ("claude".equals(prov)) r = new ClaudeProvider(key, modelFor("claude")).completeWithImage(system, task, b64, mime, maxTokens);
+                            if ("gemini".equals(prov)) r = new GeminiProvider(key, modelFor("gemini")).completeWithImages(system, task, parts, maxTokens);
+                            else if ("groq".equals(prov)) r = new GroqProvider(key, null).completeWithImages(system, task, urls, maxTokens);
+                            else if ("openrouter".equals(prov)) r = GroqProvider.openRouter(key, null).completeWithImages(system, task, urls, maxTokens);
+                            else if ("claude".equals(prov)) r = new ClaudeProvider(key, modelFor("claude")).completeWithImages(system, task, parts, maxTokens);
                             else continue;
                             recordUsage(r.model, r);
                             emit(event("ai", "id", id, "state", "done", "text", r.text, "model", r.model));

@@ -78,7 +78,12 @@ final class GeminiProvider implements LlmProvider {
 
     /** Answers about an image (JPEG, base64): Gemini models read images natively. */
     Result completeWithImage(String system, String task, String base64Jpeg, int maxTokens) throws AiException {
-        return run(system, null, task, maxTokens, null, base64Jpeg);
+        return run(system, null, task, maxTokens, null, java.util.Collections.singletonList(new String[]{base64Jpeg, "image/jpeg"}));
+    }
+
+    /** Several pictures (each {base64, mime}) and one question about them all. */
+    Result completeWithImages(String system, String task, java.util.List<String[]> images, int maxTokens) throws AiException {
+        return run(system, null, task, maxTokens, null, images);
     }
 
     @Override
@@ -86,7 +91,7 @@ final class GeminiProvider implements LlmProvider {
         return run(system, document, task, maxTokens, jsonSchema, null);
     }
 
-    private Result run(String system, String document, String task, int maxTokens, String jsonSchema, String imageB64) throws AiException {
+    private Result run(String system, String document, String task, int maxTokens, String jsonSchema, java.util.List<String[]> images) throws AiException {
         boolean ioRetried = false;
         for (int attempt = 0; ; attempt++) {
             try {
@@ -100,8 +105,8 @@ final class GeminiProvider implements LlmProvider {
                 }
                 String user = document == null || document.isEmpty() ? task : "<document>\n" + document + "\n</document>\n\n" + task;
                 JSONArray parts = new JSONArray();
-                if (imageB64 != null) {
-                    parts.put(new JSONObject().put("inlineData", new JSONObject().put("mimeType", "image/jpeg").put("data", imageB64)));
+                if (images != null) for (String[] im : images) {
+                    parts.put(new JSONObject().put("inlineData", new JSONObject().put("mimeType", im[1] == null ? "image/jpeg" : im[1]).put("data", im[0])));
                 }
                 parts.put(new JSONObject().put("text", user));
                 body.put("contents", new JSONArray().put(new JSONObject().put("role", "user").put("parts", parts)));
@@ -121,7 +126,7 @@ final class GeminiProvider implements LlmProvider {
                 HttpURLConnection c = (HttpURLConnection) new URL(BASE + model + ":generateContent").openConnection(java.net.Proxy.NO_PROXY);
                 c.setConnectTimeout(20000);
                 // A picture question gets a minute, so the next AI is tried while the person still waits.
-                c.setReadTimeout(imageB64 != null ? 60000 : 240000);
+                c.setReadTimeout(images != null ? (images.size() > 1 ? 90000 : 60000) : 240000);
                 c.setRequestMethod("POST");
                 c.setDoOutput(true);
                 c.setRequestProperty("x-goog-api-key", apiKey);

@@ -21,7 +21,8 @@ import java.net.URL;
  * the library, because every build is signed with the same key).
  */
 final class Updater {
-    static final String BASE = "https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/dermscholar-latest";
+    // Each app has its own channel: dermscholar-latest/DermScholar.apk or lesionaut-latest/Lesionaut.apk.
+    static final String BASE = "https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/" + BuildConfig.RELEASE_TAG;
 
     interface Progress { void onProgress(int pct); }
 
@@ -56,9 +57,9 @@ final class Updater {
     static File download(Context ctx, Progress p) throws Exception {
         File dir = new File(ctx.getCacheDir(), "updates");
         if (!dir.isDirectory() && !dir.mkdirs()) throw new java.io.IOException("No space for the update");
-        File part = new File(dir, "DermScholar.apk.part");
-        File apk = new File(dir, "DermScholar.apk");
-        HttpURLConnection c = open(BASE + "/DermScholar.apk");
+        File part = new File(dir, BuildConfig.APK_NAME + ".part");
+        File apk = new File(dir, BuildConfig.APK_NAME);
+        HttpURLConnection c = open(BASE + "/" + BuildConfig.APK_NAME);
         try {
             if (c.getResponseCode() != 200) throw new java.io.IOException("Download failed (HTTP " + c.getResponseCode() + ")");
             long total = c.getContentLengthLong();

@@ -205,7 +205,8 @@
     const json = JSON.stringify(body);
     // A picture question gets 60 seconds per AI, so the next one is tried while you still wait.
     const picture = /"inlineData"|"image_url"|"type":"image"/.test(json);
-    const t = setTimeout(() => ctl.abort(), body.stream || /stream/i.test(url) ? 45000 : picture ? 60000 : 150000);
+    const many = (json.match(/"inlineData"|"image_url"|"type":"image"/g) || []).length > 1;
+    const t = setTimeout(() => ctl.abort(), body.stream || /stream/i.test(url) ? 45000 : picture ? (many ? 90000 : 60000) : 150000);
     let res;
     try {
       res = await realFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: json, signal: ctl.signal });
@@ -305,7 +306,8 @@
     const tag = (m) => (or ? 'openrouter/' + m : m);
     const strict = !or && (model.startsWith('openai/gpt-oss') || model.startsWith('qwen/'));
     const messages = [{ role: 'system', content: system }];
-    if (image) messages.push({ role: 'user', content: [{ type: 'image_url', image_url: { url: image } }, { type: 'text', text: task }] });
+    // One picture or several (Groq's picture model takes at most 5).
+    if (image) messages.push({ role: 'user', content: [...[].concat(image).slice(0, or ? 10 : 5).map((u) => ({ type: 'image_url', image_url: { url: u } })), { type: 'text', text: task }] });
     else messages.push({ role: 'user', content: userText(doc, task) });
     // Low randomness and a fixed seed: asking again gives (nearly) the same evidence answer.
     const body = { model, messages, temperature: 0.2, seed: 7 };
@@ -392,7 +394,7 @@
       let sys = system || '';
       if (schema && !streaming) sys += '\nReply with JSON only, matching this JSON Schema: ' + schema;
       const parts = [];
-      if (image) parts.push({ inlineData: { mimeType: 'image/jpeg', data: image.slice(image.indexOf(',') + 1) } });
+      for (const u of image ? [].concat(image) : []) parts.push({ inlineData: { mimeType: /^data:(image\/[a-z]+);/.exec(u)?.[1] || 'image/jpeg', data: u.slice(u.indexOf(',') + 1) } });
       parts.push({ text: userText(doc, task) });
       const gen = { maxOutputTokens: Math.min(65536, Math.max(1024, max) + gem.headroom), temperature: 0.3 };
       if (gem.light) gen.thinkingConfig = model.startsWith('gemini-2') ? { thinkingBudget: 1024 } : { thinkingLevel: 'low' };
@@ -471,9 +473,9 @@
     const model = modelFor('claude');
     const content = [];
     if (doc) content.push({ type: 'text', text: doc, cache_control: { type: 'ephemeral' } });
-    if (image) {
-      const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,/.exec(image);
-      content.push({ type: 'image', source: { type: 'base64', media_type: m ? m[1] : 'image/jpeg', data: image.slice(image.indexOf(',') + 1) } });
+    for (const u of image ? [].concat(image) : []) {
+      const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,/.exec(u);
+      content.push({ type: 'image', source: { type: 'base64', media_type: m ? m[1] : 'image/jpeg', data: u.slice(u.indexOf(',') + 1) } });
     }
     content.push({ type: 'text', text: task });
     const body = { model, max_tokens: max, system: system || '', messages: [{ role: 'user', content }] };
@@ -624,7 +626,7 @@
   const N = {
     isWeb: !IOS,
     isIos: !!IOS,
-    version: () => (IOS ? '5.43 iOS' : '5.43 web'),
+    version: () => (IOS ? '5.44 iOS' : '5.44 web'),
 
     // ---- PDFs
     listPdfs: () => JSON.stringify(Object.entries(pdfIndex()).map(([key, o]) => ({ ...o, key }))),
@@ -859,6 +861,8 @@
     aiRunStream: (id, system, doc, task, max) => aiRun(id, { system, doc, task, max, onText: (t) => emit({ type: 'aiPartial', id, text: t }) }),
     aiRunStreamFast: (id, system, doc, task, max) => aiRun(id, { system, doc, task, max, onText: (t) => emit({ type: 'aiPartial', id, text: t }) }, { fast: true }),
     aiRunImage: (id, system, task, dataUrl, max) => aiRun(id, { system, task, max, image: dataUrl }, { imageOnly: true }),
+    // Several pictures in one question (a case: clinical, dermoscopy, histology, reports…).
+    aiRunImages: (id, system, task, dataUrlsJson, max) => aiRun(id, { system, task, max, image: JSON.parse(dataUrlsJson || '[]') }, { imageOnly: true }),
 
     // ---- read aloud
     ttsStart: (title, itemsJson, start, rate, voice) => {

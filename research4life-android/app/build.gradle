@@ -10,10 +10,34 @@ android {
         applicationId 'app.dermscholar'
         minSdk 24
         targetSdk 34
-        versionCode 71
-        versionName '5.43'
+        versionCode 72
+        versionName '5.44'
         // 64-bit ARM only: every current phone (Samsung Galaxy included); keeps the APK small enough to share.
         ndk { abiFilters 'arm64-v8a' }
+    }
+
+    buildFeatures { buildConfig true }
+
+    // Two apps from one code base: DermScholar (the research app) and Lesionaut (the diagnosis
+    // copilot: the same screens opened on lesionaut.html). Each has its own ID, name, icon,
+    // version and update channel, so both install side by side.
+    flavorDimensions 'app'
+    productFlavors {
+        dermscholar {
+            dimension 'app'
+            buildConfigField 'String', 'START_PAGE', '"index.html"'
+            buildConfigField 'String', 'RELEASE_TAG', '"dermscholar-latest"'
+            buildConfigField 'String', 'APK_NAME', '"DermScholar.apk"'
+        }
+        lesionaut {
+            dimension 'app'
+            applicationId 'app.lesionaut'
+            versionCode 1
+            versionName '1.0'
+            buildConfigField 'String', 'START_PAGE', '"lesionaut.html"'
+            buildConfigField 'String', 'RELEASE_TAG', '"lesionaut-latest"'
+            buildConfigField 'String', 'APK_NAME', '"Lesionaut.apk"'
+        }
     }
 
     // A fixed key so new builds install over old ones without wiping the saved library.

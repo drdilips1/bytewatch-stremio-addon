@@ -51,12 +51,19 @@ final class ClaudeProvider implements LlmProvider {
 
     /** A picture (base64, JPEG/PNG/WebP/GIF) and a question about it. */
     Result completeWithImage(String system, String task, String imageBase64, String mime, int maxTokens) throws AiException {
+        return completeWithImages(system, task, java.util.Collections.singletonList(new String[]{imageBase64, mime}), maxTokens);
+    }
+
+    /** Several pictures (each {base64, mime}) and one question about them all. */
+    Result completeWithImages(String system, String task, java.util.List<String[]> images, int maxTokens) throws AiException {
         try {
-            String type = mime == null || !mime.matches("image/(jpeg|png|webp|gif)") ? "image/jpeg" : mime;
-            JSONArray content = new JSONArray()
-                    .put(new JSONObject().put("type", "image").put("source", new JSONObject()
-                            .put("type", "base64").put("media_type", type).put("data", imageBase64)))
-                    .put(new JSONObject().put("type", "text").put("text", task));
+            JSONArray content = new JSONArray();
+            for (String[] im : images) {
+                String type = im[1] == null || !im[1].matches("image/(jpeg|png|webp|gif)") ? "image/jpeg" : im[1];
+                content.put(new JSONObject().put("type", "image").put("source", new JSONObject()
+                        .put("type", "base64").put("media_type", type).put("data", im[0])));
+            }
+            content.put(new JSONObject().put("type", "text").put("text", task));
             return run(system, content, maxTokens, null);
         } catch (AiException e) {
             throw e;
