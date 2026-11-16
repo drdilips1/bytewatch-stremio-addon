@@ -213,6 +213,7 @@ async function call(p, model, prompt, json) {
  * Ask about a picture (a book cover, a bookshelf, a screenshot): only services that can see
  * images — Gemini and Claude (and your own, if its model can). `dataUrl`: a data: URL (JPEG).
  */
+const PICTURE_MODEL = 'claude-sonnet-5-5';
 export const canSeeImages = () => aiOn() && PROVIDERS.some((p) => (p.id === 'gemini' || p.anthropic || p.custom) && keyOf(p));
 export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
   if (!aiOn()) throw new Error('AI is off (Settings → AI)');
@@ -227,9 +228,11 @@ export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
     try {
       if (p.anthropic) {
         const { default: Anthropic } = await import('@anthropic-ai/sdk');
-        const client = new Anthropic({ apiKey: keyOf(p), dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 18000 });
+        const client = new Anthropic({ apiKey: keyOf(p), dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 25000 });
         const res = await client.messages.create({
-          model: p.models[0],
+          // Pictures: Sonnet — quick and good at reading covers and pages (Opus, used for the
+          // rest, took long enough on a picture to hit the time limit).
+          model: PICTURE_MODEL,
           max_tokens: 2000,
           output_config: { effort: 'low' }, // reading titles off a picture: quick
           messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mime, data: b64 } }, { type: 'text', text: prompt }] }],
@@ -242,7 +245,7 @@ export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
       const ms = p.custom ? [] : await modelsFor(p);
       const model = p.custom ? (await modelsFor(p))[0] : ms.find((m) => /flash/.test(m) && !/lite|thinking|image|tts|live/.test(m)) || ms.find((m) => /flash/.test(m)) || 'gemini-2.5-flash';
       const ctrl = new AbortController();
-      setTimeout(() => ctrl.abort(), 20000);
+      setTimeout(() => ctrl.abort(), 15000);
       const send = (fast) =>
         fetch(p.custom ? customEndpoint() : p.url, {
           method: 'POST',
@@ -270,7 +273,11 @@ export async function askAiImage(prompt, dataUrl, { json = false } = {}) {
       // No answer at all (the request hung) reads differently from a refusal: that's the
       // network (Private DNS, a VPN or ad blocker), not the key.
       const hung = !e.status && /abort|timed? ?out|timeout|failed to fetch|network/i.test(`${e.name || ''} ${e.message || ''}`);
-      const msg = hung ? `no answer in ${p.anthropic ? 18 : 20} s — something on this phone's network may be blocking it` : String(e.message || e).slice(0, 160);
+      const msg = hung
+        ? `no answer in ${p.anthropic ? 25 : 15} s — something on this phone's network may be blocking it`
+        : e.status === 429
+          ? 'limit used up for now (Gemini: the free daily quota, shared by every key in the same Google project)'
+          : String(e.message || e).slice(0, 160);
       why.push(`${p.name}: ${msg}`);
       import('./report.js').then((r) => r.logError('AI picture', `${p.name}${e.status ? ` (HTTP ${e.status})` : ''}: ${hung ? msg : String(e.message || e).slice(0, 300)}`)).catch(() => {});
     }
