@@ -280,8 +280,9 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
     setBusy(m === 'barcode' ? 'Reading the barcode…' : m === 'shelf' ? 'Reading the spines…' : m === 'shot' ? 'Finding the books in the picture…' : 'Reading the cover…');
     try {
       const data = await shrink(src);
-      // Never left waiting: the picture is read within 45 s, else say so (and why, in Report a problem).
-      const read = await Promise.race([booksInImage(data, m), new Promise((_, no) => setTimeout(() => no(new Error('Reading the picture took too long — try again, or a closer / smaller picture')), 45000))]);
+      // Never left waiting: the picture is read within a minute, else say so. Each AI service gives up
+      // sooner than that on its own, so the real reason (no answer, limit used up…) is what shows.
+      const read = await Promise.race([booksInImage(data, m), new Promise((_, no) => setTimeout(() => no(new Error('Reading the picture took too long — no AI service answered in a minute')), 60000))]);
       const { books } = read;
       if (my !== run.current) return;
       if (read.page) {
