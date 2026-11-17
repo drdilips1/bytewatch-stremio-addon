@@ -158,7 +158,7 @@ function OneBook({ m, again }) {
 }
 
 /** Many books (a shelf, a screenshot, a page, a list). */
-function ManyBooks({ name, url, list }) {
+function ManyBooks({ name, url, list, reading = '' }) {
   const [ticked, setTicked] = useState(() => new Set());
   const [onlyUnsure, setOnlyUnsure] = useState(false);
   const yoursN = list.filter((m) => m.mine).length;
@@ -180,6 +180,11 @@ function ManyBooks({ name, url, list }) {
           Save as shelf
         </button>
       </div>
+      {reading && (
+        <div class="fb-reading">
+          <span class="spinner small" /> {reading}
+        </div>
+      )}
       <div class="fb-chips">
         <span class="fb-badge yours">{yoursN} yours</span>
         <span class="fb-badge find">{list.length - yoursN} to find</span>
@@ -353,19 +358,31 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
   };
   const runText = async (t, subj = '') => {
     setResult(null);
-    setBusy(/https?:\/\//.test(t) ? 'Reading the page…' : 'Reading the list…');
+    const page = /https?:\/\//.test(t);
+    setBusy(page ? 'Reading the page…' : 'Reading the list…');
     const my = ++run.current;
     try {
-      const { name, url, books } = await Promise.race([booksInText(t, subj), new Promise((_, no) => setTimeout(() => no(new Error('That page took too long to read — try again, or paste the list')), 45000))]);
+      // A long page is read in parts: say how far it's got, and show the books found so far.
+      let shown = 0;
+      const onPart = (done, total, sofar, name, url) => {
+        if (my !== run.current || total < 2) return;
+        if (!sofar.length) return setBusy(`Reading the page… part ${done + 1} of ${total}`);
+        if (sofar.length > shown) {
+          shown = sofar.length;
+          setBusy('');
+          setResult((r) => ({ name, url, reading: done < total ? `Reading part ${Math.min(total, done + 1)} of ${total}…` : '', list: sofar.map((w) => r?.list?.find((x) => x.want.title === w.title) || pending(w)) }));
+        } else setResult((r) => (r ? { ...r, reading: done < total ? `Reading part ${Math.min(total, done + 1)} of ${total}…` : '' } : r));
+      };
+      const { name, url, books } = await booksInText(t, subj, onPart);
       if (my !== run.current) return;
-      if (!books.length) throw new Error('No books found there');
+      if (!books.length) throw new Error(page ? "Couldn't find any books on that page" : 'No books found there');
       setBusy('');
       setResult({ name, url, list: books.map(pending) });
-      await matchBooks(books, (i, mm) => setResult((r) => (r?.list ? { ...r, list: r.list.map((x, k) => (k === i ? mm : x)) } : r)));
+      await matchBooks(books, (i, mm) => my === run.current && setResult((r) => (r?.list ? { ...r, list: r.list.map((x, k) => (k === i ? mm : x)) } : r)));
     } catch (e) {
-      toast(e.message);
+      if (my === run.current) toast(e.message);
     }
-    setBusy('');
+    if (my === run.current) setBusy('');
   };
   useEffect(() => {
     if (visit.get().started) return; // back from a book page: keep what was found
@@ -398,7 +415,7 @@ export function FindBooks({ text = '', subject = '', image = '', mode: startMode
       ) : result?.one ? (
         <OneBook m={result.one} again={() => setResult(null)} />
       ) : result?.list ? (
-        <ManyBooks name={result.name} url={result.url} list={result.list} />
+        <ManyBooks name={result.name} url={result.url} list={result.list} reading={result.reading} />
       ) : (
         <div class="fb-start">
           <div class="fb-modes">

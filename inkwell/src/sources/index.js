@@ -259,6 +259,29 @@ async function serverCopies(t, plain) {
   return [...out, ...(absAll || []).filter((b) => !seen.has(b.uid) && matches(t, `${b.title} ${b.rawName || ''}`))];
 }
 
+/**
+ * For a long list of books (a "100 best" page): your server's whole list fetched once and
+ * matched here, instead of three server searches per book. { server, cloud } like findOwned.
+ */
+export async function findOwnedQuick(book) {
+  const t = mainTitle(book.title || '');
+  if (!words(t).length) return { server: [], cloud: [] };
+  const sn = words(String(book.author || '').split(/,|&|\band\b/)[0]).slice(-1)[0] || '';
+  const fits = (b) => matches(t, `${b.title} ${b.rawName || ''}`) && !otherBook(b.rawName || b.title, t, book.author || '') && (words(t).length >= 3 || !sn || words(`${b.author || ''} ${b.title}`).includes(sn));
+  let server = [];
+  if (enabled('abs') && absSrc.connected() && (await absSrc.serverUp().catch(() => false))) {
+    try {
+      if (!absAll || Date.now() - absAllAt > 10 * 60e3) {
+        absAll = await absSrc.all();
+        absAllAt = Date.now();
+      }
+    } catch {}
+    server = (absAll || []).filter(fits);
+  }
+  const cloudHits = (enabled('tb') && cloud.tbConnected()) || (enabled('rd') && cloud.rdConnected()) ? await cloud.search(t).catch(() => []) : [];
+  return { server, cloud: cloudHits.filter(fits) };
+}
+
 export async function findOwned(book) {
   const t = mainTitle(hasDevanagari(book.title) ? translit(book.title) : book.title);
   const plain = t.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();

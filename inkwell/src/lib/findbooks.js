@@ -136,7 +136,7 @@ export function booksInList(text) {
 }
 
 /** Books in a shared link or pasted text: the page's words read by the AI (or a plain list). */
-export async function booksInText(input, subject = '') {
+export async function booksInText(input, subject = '', onPart = null) {
   const s = String(input || '').trim();
   const url = (s.match(/https?:\/\/\S+/) || [])[0];
   let name = subject || '';
@@ -158,13 +158,20 @@ export async function booksInText(input, subject = '') {
     )
       .then((raw) => parseJson(raw)?.books || [])
       .catch(() => []);
+  // Each piece on its own clock: a slow one is left out, never the whole page.
+  const askTimed = (piece, i) => Promise.race([ask(piece, i), new Promise((r) => setTimeout(() => r([]), 40000))]);
   const found = new Array(pieces.length);
   let next = 0;
+  let done = 0;
+  onPart?.(0, pieces.length, []);
   await Promise.all(
-    Array.from({ length: Math.min(3, pieces.length) }, async () => {
+    Array.from({ length: Math.min(4, pieces.length) }, async () => {
       while (next < pieces.length) {
         const i = next++;
-        found[i] = await ask(pieces[i], i);
+        found[i] = await askTimed(pieces[i], i);
+        done++;
+        // What's found so far, in the page's order (shown while the rest is read).
+        onPart?.(done, pieces.length, tidy(found.filter(Boolean).flat()), name || 'Pasted list', url);
       }
     })
   );
@@ -205,6 +212,8 @@ const PLACE = { abs: 'Audiobookshelf', tb: 'TorBox', rd: 'Real-Debrid', loc: 'ph
  * sure }. `book` is a catalogue entry (for its page), or your own copy when that's all there is.
  */
 export async function matchBooks(list, onEach = null) {
+  // A long list: your libraries matched here from one fetch each, not searched book by book.
+  const quick = list.length > 15;
   const { audible } = await import('../sources/catalogs.js');
   const one = async (want, i) => {
     const mineList = yours(want);
@@ -218,7 +227,7 @@ export async function matchBooks(list, onEach = null) {
       const [found, owned] = await Promise.all([
         Promise.race([audible.search(`${mainTitle(want.title)} ${want.author || ''}`.trim()).catch(() => []), late(8000, [])]),
         Promise.race([
-          import('../sources/index.js').then((m) => m.findOwned({ title: want.title, author: want.author || '' })).catch(() => null),
+          import('../sources/index.js').then((m) => (quick ? m.findOwnedQuick : m.findOwned)({ title: want.title, author: want.author || '' })).catch(() => null),
           late(9000, null),
         ]),
       ]);
