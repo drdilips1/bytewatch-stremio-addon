@@ -10,8 +10,8 @@ android {
         applicationId 'app.dermscholar'
         minSdk 24
         targetSdk 34
-        versionCode 74
-        versionName '5.46'
+        versionCode 75
+        versionName '5.47'
         // 64-bit ARM only: every current phone (Samsung Galaxy included); keeps the APK small enough to share.
         ndk { abiFilters 'arm64-v8a' }
     }
@@ -32,8 +32,8 @@ android {
         lesionaut {
             dimension 'app'
             applicationId 'app.lesionaut'
-            versionCode 2
-            versionName '2.0'
+            versionCode 3
+            versionName '2.1'
             buildConfigField 'String', 'START_PAGE', '"lx/index.html"'
             buildConfigField 'String', 'RELEASE_TAG', '"lesionaut-latest"'
             buildConfigField 'String', 'APK_NAME', '"Lesionaut.apk"'
