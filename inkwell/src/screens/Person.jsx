@@ -1,7 +1,7 @@
 // An author's or narrator's page: photo and a short bio, your numbers with them, their
 // books you have, their series, more of their books, who they often read with, Follow.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Cover, toast } from '../components/common.jsx';
+import { Cover, toast, Skeleton } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
 import { nav } from '../lib/nav.js';
 import { useStore, progress, library } from '../lib/store.js';
@@ -184,9 +184,9 @@ In 2 short sentences: which book to start with and why, then what to try next. N
           {more && more.length > 0 && <span>{more.length}+ books</span>}
         </div>
         {bio == null ? (
-          <p class="pp-bio muted">
-            <span class="spinner small" />
-          </p>
+          <div class="pp-bio mo-lines" aria-label="Loading">
+            <span class="shimmer" /> <span class="shimmer" /> <span class="shimmer short" />
+          </div>
         ) : bio.bio ? (
           <p class={'pp-bio' + (open ? ' open' : '')} onClick={() => setOpen(!open)}>
             {bio.bio}{' '}
@@ -268,9 +268,11 @@ In 2 short sentences: which book to start with and why, then what to try next. N
           {narrator ? 'More they’ve read' : 'More by them'} {others.length > 0 && <small>{others.length}</small>}
         </h3>
         {more == null ? (
-          <p class="muted">
-            <span class="spinner small" /> Looking…
-          </p>
+          <div class="pp-row" aria-label="Looking">
+            {[0, 1, 2, 3].map(() => (
+              <Skeleton />
+            ))}
+          </div>
         ) : others.length ? (
           <div class="pp-row">
             {others.slice(0, 24).map((b) => (
@@ -338,9 +340,13 @@ function PhotoPicker({ name, role, current, close }) {
         </button>
       </div>
       {list == null ? (
-        <p class="muted small">
-          <span class="spinner small" /> Looking for photos…
-        </p>
+        <div class="pp-pick-grid" aria-label="Looking for photos">
+          {[0, 1, 2, 3].map(() => (
+            <span class="pp-pick-one">
+              <span class="mo-circle shimmer" />
+            </span>
+          ))}
+        </div>
       ) : list.length ? (
         <div class="pp-pick-grid">
           {list.map((x) => (

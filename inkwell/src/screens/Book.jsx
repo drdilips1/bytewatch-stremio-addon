@@ -65,6 +65,8 @@ import { RelatedRows } from "../components/related.jsx";
 import { openExternal } from "../sources/summaries.js";
 import { useStoryShots, chooseStoryShots } from "../sources/storyshots.js";
 import { absUploads } from "../lib/absupload.js";
+import { burst } from "../lib/motion.js";
+import { DownloadIcon } from "../components/motion-icons.jsx";
 
 // Books you already have (cloud, server, addons) can still show other copies from source addons.
 const OTHER_SOURCES = new Set(["tb", "rd", "abs", "addon"]);
@@ -321,14 +323,15 @@ export function Book({ book: initial }) {
                 .catch((e) => e.message !== "cancelled" && toast(e.message));
             }}
           >
-            {dl?.status === "downloading" ? <span class="spinner small" /> : <Icon name={dl?.status === "done" ? "check" : "download"} size={20} />}
+            <DownloadIcon dl={dl} size={20} />
           </button>
         )}
         {book.source !== "pod" && (
           <button
             class={"btn secondary big sq" + (saved ? " liked" : "")}
             aria-label={saved ? "Remove from library" : "Add to library"}
-            onClick={() => {
+            onClick={(e) => {
+              if (!saved) burst(e.currentTarget);
               toggleLibrary(book);
               toast(saved ? "Removed from your library" : "Added to your library");
             }}
@@ -926,7 +929,8 @@ function HeroPills({ book }) {
       </span>
       <button
         class={"book-pill" + (on ? " on" : "")}
-        onClick={() => {
+        onClick={(e) => {
+          if (!on) burst(e.currentTarget);
           toggleReadLater(book);
           toast(on ? "Off Read later" : "Added to Read later");
         }}

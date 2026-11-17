@@ -5,6 +5,13 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-11-17',
+    title: 'A little motion',
+    items: [
+      ['✨', 'Quiet animations', 'The cover breathes while it plays, play turns into pause, a ripple on skip, the chapter name rises in, sparks on a like, a ring and tick for downloads, the cover grows into the player, and a moon rises for the sleep timer. Settings → Appearance → Motion: Off, Gentle or Full.'],
+    ],
+  },
+  {
     id: '2026-11-15',
     title: 'Take a photo, start listening',
     items: [

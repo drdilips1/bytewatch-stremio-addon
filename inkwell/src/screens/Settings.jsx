@@ -1759,6 +1759,23 @@ export function Settings() {
             ))}
           </div>
         </div>
+        <div class="set-row column">
+          <div>
+            <b>Motion</b>
+            <small>Small animations: the cover breathing while it plays, play ⇄ pause, a ripple on skip, the cover growing into the player, a moon for the sleep timer. Gentle follows your phone's "reduce motion".</small>
+          </div>
+          <div class="chips">
+            {[
+              ['off', 'Off'],
+              ['gentle', 'Gentle'],
+              ['full', 'Full'],
+            ].map(([m, label]) => (
+              <button class={'pill small' + ((st.motion || 'gentle') === m ? ' active' : '')} onClick={() => settings.patch({ motion: m })}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         {/* Every colour theme right here, light and dark: one tap sets the mode and the colours. */}
         {[
           ['Light', true],

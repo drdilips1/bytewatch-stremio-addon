@@ -7,6 +7,8 @@ import * as player from '../lib/player.js';
 import { isNative as isNativeEngine } from '../lib/engine.js';
 import { Cover, toast, SourceBadge } from './common.jsx';
 import { Icon, SkipIcon } from './icons.jsx';
+import { PlayPauseIcon } from './motion-icons.jsx';
+import { ripple, openFrom } from '../lib/motion.js';
 import { fmtTime } from '../lib/format.js';
 import { coverColor } from '../lib/color.js';
 import { nav, useBackClose } from '../lib/nav.js';
@@ -90,7 +92,7 @@ export function MiniPlayer() {
   if (!s.book) return null;
   const pct = s.duration ? (s.time / s.duration) * 100 : 0;
   return (
-    <div class="mini-player" style={color ? { '--dyn': color } : null} onClick={() => nav.openOverlay('player')}>
+    <div class="mini-player" style={color ? { '--dyn': color } : null} onClick={(e) => openFrom(e.currentTarget.querySelector('.mini-cover'), () => nav.openOverlay('player'))}>
       <div class="mini-progress" style={{ width: pct + '%' }} />
       <Cover book={s.book} class="mini-cover" />
       <div class="mini-meta">
@@ -114,6 +116,7 @@ export function MiniPlayer() {
         aria-label="Back"
         onClick={(e) => {
           e.stopPropagation();
+          ripple(e.currentTarget);
           player.skip(-settings.get().skipBack);
         }}
       >
@@ -127,7 +130,7 @@ export function MiniPlayer() {
           player.toggle();
         }}
       >
-        {s.loading ? <span class="spinner" /> : <Icon name={s.playing ? 'pause' : 'play'} size={20} />}
+        {s.loading ? <span class="spinner" /> : <PlayPauseIcon playing={s.playing} size={20} />}
       </button>
       <button
         class="icon-btn mini-close"
@@ -161,6 +164,19 @@ export function isNight(st) {
 }
 
 const chapterAt = (chapters, g) => (chapters.length > 1 ? chapters.find((c) => g >= c.start && g < (c.end || Infinity)) : null);
+
+/** Sleep timer on: a moon rises over the cover and a few stars twinkle. */
+function SleepSky() {
+  return (
+    <div class="fp-sky" aria-hidden="true">
+      <span class="fp-moon" />
+      <i style={{ left: '14%', top: '30%', animationDelay: '0s' }} />
+      <i style={{ left: '78%', top: '18%', animationDelay: '1.1s' }} />
+      <i style={{ left: '88%', top: '52%', animationDelay: '2.2s' }} />
+      <i style={{ left: '30%', top: '12%', animationDelay: '0.6s' }} />
+    </div>
+  );
+}
 
 /** A thin line around the cover filling up through the chapter. */
 function ChapterRing({ chapters, g }) {
@@ -282,6 +298,8 @@ export function FullPlayer() {
         <TranscriptView s={s} />
       ) : (
         <div class={'fp-art' + (s.playing ? ' playing' : '')}>
+          <div class="fp-glow" aria-hidden="true" />
+          {s.sleepUntil > 0 && <SleepSky key={s.sleepUntil} />}
           <div class="fp-ring">
             <Cover book={s.book} eager />
             <ChapterRing chapters={chapters} g={g} />
@@ -303,13 +321,13 @@ export function FullPlayer() {
           {chapters.length > 1 ? (
             <button class="fp-chapters" onClick={() => setSheet('chapters')}>
               <Icon name="list" size={15} />
-              <span>{chapterLabel(chapters, g)}</span>
+              <span class="fp-ch-label" key={chapterLabel(chapters, g)}>{chapterLabel(chapters, g)}</span>
             </button>
           ) : (
             s.tracks.length > 1 && (
               <button class="fp-chapters" onClick={() => setSheet('chapters')}>
                 <Icon name="list" size={15} />
-                <span>{s.tracks[s.index]?.title || `Part ${s.index + 1}`}</span>
+                <span class="fp-ch-label" key={s.index}>{s.tracks[s.index]?.title || `Part ${s.index + 1}`}</span>
               </button>
             )
           )}
@@ -342,7 +360,7 @@ export function FullPlayer() {
       </div>
 
 
-      <div class="fp-scrub">
+      <div class={"fp-scrub" + (s.playing ? " playing" : "")}>
         <input
           type="range"
           min="0"
@@ -384,13 +402,13 @@ export function FullPlayer() {
         <button class="icon-btn lg" onClick={() => player.prev()} aria-label="Previous">
           <Icon name="prev" size={24} />
         </button>
-        <button class="icon-btn lg" onClick={() => player.skip(-st.skipBack)} aria-label={`Back ${st.skipBack}s`}>
+        <button class="icon-btn lg" onClick={(e) => (ripple(e.currentTarget), player.skip(-st.skipBack))} aria-label={`Back ${st.skipBack}s`}>
           <SkipIcon seconds={st.skipBack} size={36} />
         </button>
         <button class="play-btn big" onClick={() => player.toggle()} aria-label={s.playing ? 'Pause' : 'Play'}>
-          {s.loading ? <span class="spinner" /> : <Icon name={s.playing ? 'pause' : 'play'} size={34} />}
+          {s.loading ? <span class="spinner" /> : <PlayPauseIcon playing={s.playing} size={34} />}
         </button>
-        <button class="icon-btn lg" onClick={() => player.skip(st.skipForward)} aria-label={`Forward ${st.skipForward}s`}>
+        <button class="icon-btn lg" onClick={(e) => (ripple(e.currentTarget), player.skip(st.skipForward))} aria-label={`Forward ${st.skipForward}s`}>
           <SkipIcon seconds={st.skipForward} forward size={36} />
         </button>
         <button class="icon-btn lg" onClick={() => player.next()} aria-label="Next">
@@ -470,13 +488,13 @@ export function FullPlayer() {
       {showText && (
         // Text, full screen: the words take the screen; a slim strip keeps play / skip / speed.
         <div class="text-strip">
-          <button class="icon-btn" onClick={() => player.skip(-st.skipBack)} aria-label={`Back ${st.skipBack}s`}>
+          <button class="icon-btn" onClick={(e) => (ripple(e.currentTarget), player.skip(-st.skipBack))} aria-label={`Back ${st.skipBack}s`}>
             <SkipIcon seconds={st.skipBack} size={26} />
           </button>
           <button class="play-btn" onClick={() => player.toggle()} aria-label={s.playing ? 'Pause' : 'Play'}>
-            {s.loading ? <span class="spinner small" /> : <Icon name={s.playing ? 'pause' : 'play'} size={22} />}
+            {s.loading ? <span class="spinner small" /> : <PlayPauseIcon playing={s.playing} size={22} />}
           </button>
-          <button class="icon-btn" onClick={() => player.skip(st.skipForward)} aria-label={`Forward ${st.skipForward}s`}>
+          <button class="icon-btn" onClick={(e) => (ripple(e.currentTarget), player.skip(st.skipForward))} aria-label={`Forward ${st.skipForward}s`}>
             <SkipIcon seconds={st.skipForward} forward size={26} />
           </button>
           <div

@@ -12832,3 +12832,93 @@ button.pp-av { padding: 0; cursor: pointer; }
 .lib-home .row-scroll { gap: 12px; padding-left: 16px; padding-right: 16px; }
 .lib-home .row-scroll .book-card { width: 112px; }
 .lib-home .lh-head { padding-left: 16px; padding-right: 16px; }
+
+/* =====================================================================
+   Motion (Settings → Appearance → Motion). Quiet, cheap (transform / opacity), paused in the
+   background; html[data-motion] is off | gentle | full.
+   ===================================================================== */
+:root { --mo-ease: cubic-bezier(0.2, 0.8, 0.2, 1); --mo-spring: cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* 1 · the cover breathes while it plays */
+.fp-art { position: relative; }
+.fp-glow { position: absolute; left: 50%; top: 50%; width: min(70vw, 40vh, 330px); aspect-ratio: 1; transform: translate(-50%, -50%) scale(0.9); border-radius: 30%; background: var(--dyn, var(--accent)); filter: blur(42px); opacity: 0; pointer-events: none; transition: opacity 0.9s var(--mo-ease); z-index: 0; }
+.fp-art .fp-ring { position: relative; z-index: 1; }
+.fp-art.playing .fp-glow { opacity: 0.5; animation: mo-breathe 5s ease-in-out infinite; }
+html[data-motion='full'] .fp-art.playing .fp-glow { opacity: 0.55; animation-duration: 4s; }
+@keyframes mo-breathe { 0%, 100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.4; } 50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.7; } }
+.full-player.night .fp-glow { display: none; }
+
+/* 2 · play ⇄ pause: one shape turning into the other */
+.mo-pp path { transition: d 0.32s var(--mo-ease); }
+.play-btn { transition: transform 0.25s var(--mo-spring); }
+
+/* 3 · ripple on skip */
+.mo-ripple { position: absolute; inset: 0; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--dyn, var(--accent)) 75%, transparent); pointer-events: none; animation: mo-ripple 0.6s var(--mo-ease) forwards; }
+@keyframes mo-ripple { from { transform: scale(0.9); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+.fp-controls .icon-btn, .text-strip .icon-btn, .mini-player .icon-btn { position: relative; }
+
+/* 4 · a small light pulses at the front of the progress line while playing */
+.fp-scrub.playing input[type='range']::-webkit-slider-thumb { animation: mo-pulse 2.6s ease-out infinite; }
+.mini-progress::after { content: ''; position: absolute; right: -3px; top: -1.5px; width: 6px; height: 6px; border-radius: 50%; background: inherit; box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.7); }
+@keyframes mo-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--dyn, var(--accent)) 50%, transparent); } 70%, 100% { box-shadow: 0 0 0 9px transparent; } }
+
+/* 5 · chapter change: the new name rises in */
+.fp-ch-label { display: inline-block; animation: mo-rise 0.5s var(--mo-ease); }
+@keyframes mo-rise { from { transform: translateY(10px); opacity: 0; filter: blur(2px); } }
+
+/* 6 · sparks on a like / Read later */
+.book-pill, .btn.sq { position: relative; overflow: visible; }
+.mo-spark { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: var(--accent); pointer-events: none; animation: mo-spark 0.6s var(--mo-ease) forwards; }
+@keyframes mo-spark { from { transform: rotate(var(--a)) translateY(0) scale(1); opacity: 1; } to { transform: rotate(var(--a)) translateY(-30px) scale(0.3); opacity: 0; } }
+.btn.sq.liked svg { animation: mo-pop 0.45s var(--mo-spring); }
+@keyframes mo-pop { 0% { transform: scale(0.6); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+
+/* 7 · download: a ring fills with the parts saved, then a tick draws itself */
+.mo-dl { position: relative; display: inline-grid; place-items: center; }
+.mo-dl-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.mo-dl-ring circle { fill: none; stroke-width: 2.6; }
+.mo-dl-ring .bg { stroke: color-mix(in srgb, currentColor 18%, transparent); }
+.mo-dl-ring .on { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 100.5; transition: stroke-dashoffset 0.6s var(--mo-ease); }
+.mo-dl.going svg:last-child { transform: scale(0.72); }
+.mo-tick { stroke-dasharray: 24; stroke-dashoffset: 0; animation: mo-draw 0.45s var(--mo-ease); }
+@keyframes mo-draw { from { stroke-dashoffset: 24; } }
+
+/* 8 · the cover grows from the mini player into the player */
+.mo-fly { position: fixed; z-index: 9999; border-radius: 8px; background-size: cover; background-position: center; box-shadow: 0 24px 50px -16px rgba(0, 0, 0, 0.55); pointer-events: none; transition: left 0.5s var(--mo-ease), top 0.5s var(--mo-ease), width 0.5s var(--mo-ease), height 0.5s var(--mo-ease), border-radius 0.5s var(--mo-ease), opacity 0.18s; }
+.mo-fly.done { opacity: 0; }
+html.mo-opening .full-player .fp-ring { opacity: 0; }
+html.mo-opening .full-player { animation: mo-fade 0.35s var(--mo-ease); }
+@keyframes mo-fade { from { opacity: 0; } }
+
+/* 9 · sleep timer: a moon rises, a few stars twinkle */
+.fp-sky { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.fp-moon { z-index: 2; }
+.fp-moon { position: absolute; right: 10%; top: 4%; width: 26px; height: 26px; border-radius: 50%; box-shadow: -6px 3px 0 0 #f4e3b5; animation: mo-moon 1.6s var(--mo-ease) both; opacity: 0.9; }
+@keyframes mo-moon { from { transform: translateY(60px); opacity: 0; } }
+.fp-sky i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #fff7df; opacity: 0; animation: mo-twinkle 3s ease-in-out 3 both; }
+html[data-motion='full'] .fp-sky i { animation-iteration-count: infinite; }
+@keyframes mo-twinkle { 0%, 100% { opacity: 0.1; } 50% { opacity: 0.85; } }
+
+/* 10 · shimmer while loading (instead of a spinner) */
+.mo-lines { display: grid; gap: 8px; }
+.mo-lines span { display: block; height: 12px; border-radius: 6px; }
+.mo-lines span.short { width: 60%; }
+.mo-circle { display: block; width: 100%; aspect-ratio: 1; border-radius: 50%; }
+
+/* Off (or the phone's reduce motion): all of it still */
+html[data-motion='off'] .fp-glow,
+html[data-motion='off'] .fp-sky,
+html[data-motion='off'] .mo-ripple,
+html[data-motion='off'] .mo-spark,
+html[data-motion='off'] .mo-fly { display: none !important; }
+html[data-motion='off'] .fp-ch-label,
+html[data-motion='off'] .mo-tick,
+html[data-motion='off'] .btn.sq.liked svg,
+html[data-motion='off'] .shimmer,
+html[data-motion='off'] .fp-scrub.playing input[type='range']::-webkit-slider-thumb { animation: none !important; }
+html[data-motion='off'] .mo-pp path { transition: none; }
+/* Nothing moves while the app is in the background */
+html.app-hidden .fp-glow,
+html.app-hidden .fp-sky i,
+html.app-hidden .shimmer,
+html.app-hidden .fp-scrub.playing input[type='range']::-webkit-slider-thumb { animation-play-state: paused !important; }
