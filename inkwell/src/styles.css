@@ -12979,3 +12979,11 @@ html.mo-opening .full-player { animation: mo-rise-up 0.55s var(--mo-ease); }
 html[data-motion='off'] .fp-ring-sweep, html[data-motion='off'] .mo-sweep { display: none !important; }
 html[data-motion='off'] .fp-ribbon, html[data-motion='off'] .fp-chapters.mo-flash, html[data-motion='off'] .play-btn.mo-squash, html[data-motion='off'] .mo-turn svg, html[data-motion='off'] .full-player.mo-swap .fp-art, html[data-motion='off'] .full-player.mo-swap .fp-meta { animation: none !important; }
 .fb-reading { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding: 2px 4px 8px; }
+
+/* Opening the player, smooth: the copy only moves and scales; the player only fades; the glow waits */
+.mo-fly { transition: none !important; transform-origin: 0 0; will-change: transform; border-radius: 14px; contain: strict; }
+.mo-fly.go { transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s !important; }
+.mo-fly.done { opacity: 0; }
+html.mo-opening .full-player { animation: mo-fade 0.3s ease-out !important; }
+html.mo-opening .fp-glow { animation: none !important; opacity: 0 !important; }
+html.mo-opening .fp-sky { opacity: 0; }

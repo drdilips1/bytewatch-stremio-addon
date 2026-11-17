@@ -63,31 +63,41 @@ export function burst(el) {
 
 /**
  * The cover grows from where it was tapped (the mini player) into the big player cover:
- * a copy of the picture flies there while the player opens, then the real one takes over.
+ * a copy of the picture, already the big cover's size, starts shrunk onto the small one and
+ * grows into place — moved and scaled only (the phone's graphics chip does that smoothly;
+ * changing its size every frame made the page re-layout and stutter).
  */
 export function openFrom(fromEl, open) {
   const img = fromEl?.querySelector('img');
   if (!fromEl || !on()) return open();
   const from = fromEl.getBoundingClientRect();
-  const fly = document.createElement('div');
-  fly.className = 'mo-fly';
-  if (img?.currentSrc || img?.src) fly.style.backgroundImage = `url("${img.currentSrc || img.src}")`;
-  else fly.style.background = getComputedStyle(fromEl).backgroundColor || 'var(--surface-2)';
-  Object.assign(fly.style, { left: `${from.left}px`, top: `${from.top}px`, width: `${from.width}px`, height: `${from.height}px` });
-  document.body.appendChild(fly);
+  const src = img?.currentSrc || img?.src || '';
   document.documentElement.classList.add('mo-opening');
   open();
+  // The player is on screen after the next frame: measure where the big cover is, then fly.
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
       const to = document.querySelector('.full-player .fp-ring')?.getBoundingClientRect();
-      if (!to || !to.width) return finish();
-      Object.assign(fly.style, { left: `${to.left}px`, top: `${to.top}px`, width: `${to.width}px`, height: `${to.height}px`, borderRadius: '14px' });
-      setTimeout(finish, 520);
+      if (!to || !to.width || !from.width) return done(null);
+      const fly = document.createElement('div');
+      fly.className = 'mo-fly';
+      if (src) fly.style.backgroundImage = `url("${src}")`;
+      else fly.style.background = getComputedStyle(fromEl).backgroundColor || 'var(--surface-2)';
+      Object.assign(fly.style, { left: `${to.left}px`, top: `${to.top}px`, width: `${to.width}px`, height: `${to.height}px` });
+      const sx = from.width / to.width;
+      const sy = from.height / to.height;
+      fly.style.transform = `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${sx}, ${sy})`;
+      document.body.appendChild(fly);
+      void fly.offsetWidth; // start from the small cover
+      fly.classList.add('go');
+      fly.style.transform = 'none';
+      setTimeout(() => done(fly), 560);
     })
   );
-  function finish() {
+  function done(fly) {
     document.documentElement.classList.remove('mo-opening');
+    if (!fly) return;
     fly.classList.add('done');
-    setTimeout(() => fly.remove(), 180);
+    setTimeout(() => fly.remove(), 200);
   }
 }
