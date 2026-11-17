@@ -454,3 +454,15 @@ back to Psychology, Science and History. Recommended rows are non-fiction only. 
 - Start fresh: forget learned listening history, keep ratings and "Not for me".
 - Fiction too: a switch to let fiction into the recommended rows.
 - Show samples/screenshots before building.
+
+## AudioYam: before the next release (noted 17 Nov)
+- Bring back AudioYam's older logo on Home. The port of the new Home brought Audiohub+'s brand bar
+  (headphones icon + plain "AudioYam"); the older one was better: the gradient headphones-and-Y logo
+  with "Audio**Y**am" and the tagline "**Y**our books, **Y**our way" (in AudioYam's Home.jsx at commit
+  60fccfa, `home-logo` / `home-hello`). Keep the rest of the new Home.
+- Play start speed: Audiohub+ takes 5–10 s+ to start a book, AudioYam a couple of seconds. The play code
+  is the same in both; a "Play timing" line is now in Report a problem in both apps (each step, app
+  busy time, storage size). Next build: play the same book in each app, send both reports, fix the
+  slow step (suspects: app storage nearly full; background work for the car lists). Don't release
+  AudioYam with any added slowness.
+- No builds until credits are back.
