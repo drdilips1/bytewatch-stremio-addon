@@ -477,3 +477,7 @@ back to Psychology, Science and History. Recommended rows are non-fiction only. 
   TorBox usenet items). Optional: send home to SABnzbd / NZBGet.
 - German content matters (user's mum): search German titles too and keep German results.
 - Note: AIOStreams/Stremio stream addons don't help here (IMDb ids, movies/series only).
+- Easynews (what I use) first: it has its own search and plays files straight over HTTPS with your
+  Easynews username/password — no indexer, no NZB, no TorBox step. Search for audiobook files (m4b/mp3,
+  multi-part sets grouped into one book), play/download directly like a cloud book, resume and Live
+  text as usual. Sign-in kept on the phone only. Then Newznab indexers + TorBox Usenet as the second route.
