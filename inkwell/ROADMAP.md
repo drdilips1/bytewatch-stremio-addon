@@ -467,3 +467,13 @@ back to Psychology, Science and History. Recommended rows are non-fiction only. 
   AudioYam with any added slowness. Update: the AudioYam test build with the 15 features (v1.0.35) starts
   fast too, so the slowness is specific to Audiohub+ (its data/setup or private extras), not the shared code.
 - No builds until credits are back.
+
+## Usenet (noted 17 Nov, requested on Reddit) — both apps
+- Settings: add a Newznab indexer (URL + API key); several allowed. Asked for: NZBgeek, NinjaCentral,
+  Treasure Maps (check it is Newznab).
+- Search the audiobook (3030) and ebook (7020) categories; results on the book page beside the others,
+  marked Usenet.
+- One tap: send the NZB to TorBox's Usenet downloader, then it plays like any TorBox book (already reads
+  TorBox usenet items). Optional: send home to SABnzbd / NZBGet.
+- German content matters (user's mum): search German titles too and keep German results.
+- Note: AIOStreams/Stremio stream addons don't help here (IMDb ids, movies/series only).
