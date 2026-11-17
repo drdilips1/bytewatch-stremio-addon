@@ -8,7 +8,7 @@ import { isNative as isNativeEngine } from '../lib/engine.js';
 import { Cover, toast, SourceBadge } from './common.jsx';
 import { Icon, SkipIcon } from './icons.jsx';
 import { PlayPauseIcon } from './motion-icons.jsx';
-import { ripple, openFrom } from '../lib/motion.js';
+import { ripple, openFrom, squash } from '../lib/motion.js';
 import { fmtTime } from '../lib/format.js';
 import { coverColor } from '../lib/color.js';
 import { nav, useBackClose } from '../lib/nav.js';
@@ -174,6 +174,9 @@ function SleepSky() {
       <i style={{ left: '78%', top: '18%', animationDelay: '1.1s' }} />
       <i style={{ left: '88%', top: '52%', animationDelay: '2.2s' }} />
       <i style={{ left: '30%', top: '12%', animationDelay: '0.6s' }} />
+      <i style={{ left: '6%', top: '62%', animationDelay: '1.6s' }} />
+      <i style={{ left: '94%', top: '80%', animationDelay: '0.3s' }} />
+      <i style={{ left: '52%', top: '6%', animationDelay: '2.6s' }} />
     </div>
   );
 }
@@ -184,9 +187,11 @@ function ChapterRing({ chapters, g }) {
   if (!c || !(c.end > c.start)) return null;
   const pct = Math.max(0, Math.min(100, ((g - c.start) / (c.end - c.start)) * 100));
   return (
-    <svg class="fp-ring-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    // A new chapter (the last one done): a gold light runs once round the cover.
+    <svg class="fp-ring-svg" key={c.start} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       <rect x="1" y="1" width="98" height="98" rx="7.5" pathLength="100" class="fp-ring-bg" />
       <rect x="1" y="1" width="98" height="98" rx="7.5" pathLength="100" class="fp-ring-on" style={{ strokeDasharray: `${pct} 100` }} />
+      <rect x="1" y="1" width="98" height="98" rx="7.5" pathLength="100" class="fp-ring-sweep" />
     </svg>
   );
 }
@@ -228,6 +233,29 @@ export function FullPlayer() {
     return () => clearInterval(iv);
   }, [s.sleepUntil]);
   const held = useRef(false); // a finger is on the slider
+  // A far jump (a scene, a page photo, a chapter): a streak runs along the bar to the new spot.
+  const lastPos = useRef(null);
+  const [sweep, setSweep] = useState(null); // { from, to, k } in % of this part
+  useEffect(() => {
+    const d = s.duration || s.tracks?.[s.index]?.duration || 0;
+    const prev = lastPos.current;
+    lastPos.current = { t: s.time, i: s.index, uid: s.book?.uid };
+    if (!prev || !d || prev.uid !== s.book?.uid || prev.i !== s.index || scrub != null) return;
+    if (Math.abs(s.time - prev.t) > 45) {
+      setSweep({ from: (prev.t / d) * 100, to: (s.time / d) * 100, k: Date.now() });
+      setTimeout(() => setSweep(null), 900);
+    }
+  }, [s.time, s.index, s.book?.uid]);
+  // Another book: the player fades over into its colours (not a jump).
+  const [swap, setSwap] = useState(false);
+  const firstUid = useRef(s.book?.uid);
+  useEffect(() => {
+    if (!s.book?.uid || s.book.uid === firstUid.current) return;
+    firstUid.current = s.book.uid;
+    setSwap(true);
+    const t = setTimeout(() => setSwap(false), 700);
+    return () => clearTimeout(t);
+  }, [s.book?.uid]);
   // A drag left over (no finger on it for a few seconds): follow the playing time again.
   useEffect(() => {
     if (scrub == null) return;
@@ -255,7 +283,7 @@ export function FullPlayer() {
 
   return (
     <div
-      class={'full-player' + (showText ? ' text-mode' : '') + (night ? ' night' : '') + (night && dimmed ? ' dimmed' : '')}
+      class={'full-player' + (showText ? ' text-mode' : '') + (night ? ' night' : '') + (night && dimmed ? ' dimmed' : '') + (swap ? ' mo-swap' : '') + (s.sleepUntil > 0 ? ' sleeping' : '')}
       onPointerDown={wake}
       style={{ ...(color ? { '--dyn': color } : {}), transform: drag ? `translateY(${drag}px)` : undefined, transition: drag ? 'none' : undefined }}
       onTouchStart={(e) => {
@@ -303,6 +331,7 @@ export function FullPlayer() {
           <div class="fp-ring">
             <Cover book={s.book} eager />
             <ChapterRing chapters={chapters} g={g} />
+            {bms.some((b) => Math.abs((b.global ?? -1e9) - g) < 90) && <span class="fp-ribbon" aria-label="Bookmarked here" />}
           </div>
         </div>
       )}
@@ -319,9 +348,9 @@ export function FullPlayer() {
         {/* Chapter (one tap to the list) and X-Ray, as pills. */}
         <div class="fp-pills">
           {chapters.length > 1 ? (
-            <button class="fp-chapters" onClick={() => setSheet('chapters')}>
+            <button class="fp-chapters mo-flash" key={chapterLabel(chapters, g)} onClick={() => setSheet('chapters')}>
               <Icon name="list" size={15} />
-              <span class="fp-ch-label" key={chapterLabel(chapters, g)}>{chapterLabel(chapters, g)}</span>
+              <span class="fp-ch-label">{chapterLabel(chapters, g)}</span>
             </button>
           ) : (
             s.tracks.length > 1 && (
@@ -361,6 +390,9 @@ export function FullPlayer() {
 
 
       <div class={"fp-scrub" + (s.playing ? " playing" : "")}>
+        {sweep && (
+          <span class="mo-sweep" key={sweep.k} style={{ left: `${Math.min(sweep.from, sweep.to)}%`, width: `${Math.abs(sweep.to - sweep.from)}%`, '--dir': sweep.to >= sweep.from ? 1 : -1 }} />
+        )}
         <input
           type="range"
           min="0"
@@ -405,7 +437,7 @@ export function FullPlayer() {
         <button class="icon-btn lg" onClick={(e) => (ripple(e.currentTarget), player.skip(-st.skipBack))} aria-label={`Back ${st.skipBack}s`}>
           <SkipIcon seconds={st.skipBack} size={36} />
         </button>
-        <button class="play-btn big" onClick={() => player.toggle()} aria-label={s.playing ? 'Pause' : 'Play'}>
+        <button class="play-btn big" onClick={(e) => (squash(e.currentTarget), player.toggle())} aria-label={s.playing ? 'Pause' : 'Play'}>
           {s.loading ? <span class="spinner" /> : <PlayPauseIcon playing={s.playing} size={34} />}
         </button>
         <button class="icon-btn lg" onClick={(e) => (ripple(e.currentTarget), player.skip(st.skipForward))} aria-label={`Forward ${st.skipForward}s`}>

@@ -25,22 +25,36 @@ if (typeof document !== 'undefined') {
 }
 const on = () => motionLevel() !== 'off';
 
-/** A ring spreading out from a button (skip 15 / 30). */
+/** Two rings spreading out from a button (skip 15 / 30), and the icon gives a small turn. */
 export function ripple(el) {
   if (!el || !on()) return;
-  const r = document.createElement('span');
-  r.className = 'mo-ripple';
-  el.appendChild(r);
-  setTimeout(() => r.remove(), 650);
+  for (const delay of [0, 120]) {
+    const r = document.createElement('span');
+    r.className = 'mo-ripple';
+    r.style.animationDelay = `${delay}ms`;
+    el.appendChild(r);
+    setTimeout(() => r.remove(), 800);
+  }
+  el.classList.remove('mo-turn');
+  void el.offsetWidth;
+  el.classList.add('mo-turn');
+}
+
+/** A quick squash-and-bounce (the play button). */
+export function squash(el) {
+  if (!el || !on()) return;
+  el.classList.remove('mo-squash');
+  void el.offsetWidth;
+  el.classList.add('mo-squash');
 }
 
 /** A few sparks flying out of a button (a like, Read later). */
 export function burst(el) {
   if (!el || !on()) return;
-  const n = motionLevel() === 'full' ? 10 : 6;
+  const n = motionLevel() === 'full' ? 16 : 12;
   for (let i = 0; i < n; i++) {
     const s = document.createElement('span');
-    s.className = 'mo-spark';
+    s.className = 'mo-spark' + (i % 2 ? ' alt' : '');
     s.style.setProperty('--a', `${(i * 360) / n}deg`);
     el.appendChild(s);
     setTimeout(() => s.remove(), 650);

@@ -8,6 +8,7 @@ export const CHANGES = [
     id: '2026-11-17',
     title: 'A little motion',
     items: [
+      ['🎀', 'Bookmark ribbon, chapter light, jump streak', 'A ribbon hangs on the cover near a bookmark; a gold light runs round the cover when a chapter ends; a streak runs along the bar when you jump far; another book fades in with its colours.'],
       ['✨', 'Quiet animations', 'The cover breathes while it plays, play turns into pause, a ripple on skip, the chapter name rises in, sparks on a like, a ring and tick for downloads, the cover grows into the player, and a moon rises for the sleep timer. Settings → Appearance → Motion: Off, Gentle or Full.'],
     ],
   },
