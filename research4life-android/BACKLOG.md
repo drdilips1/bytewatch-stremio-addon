@@ -153,3 +153,11 @@ Already in DermScholar: Research4Life + MyLOFT access; Europe PMC search (PubMed
 | S4 | **Scientific poster** | Conference poster from a project or paper. |
 | S5 | **Zotero / Mendeley** | Import a reference library, or send papers to it. |
 | S6 | **Task builder** ("I want to… / Use… / Make a…") | One Intel screen: pick a goal, sources and an output format. |
+
+## Lesionaut backlog
+
+Points from the user, newest last. Nothing is built until the user says "build".
+
+| # | Type | Item | Status |
+|---|------|------|--------|
+| L1 | Bug | **Assess only finishes if the app stays open.** Leaving the app (or locking the phone) while a case is assessed ends in an error. Likely cause: Android (Samsung battery saving) cuts a background app's network, and Safari pauses a page in the background. Plan: keep the request alive in a foreground service with a notification ("Lesionaut is assessing…") and resume or retry when the app comes back; on the web, warn to keep the page open. | 🟡 noted |
