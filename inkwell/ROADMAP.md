@@ -481,3 +481,16 @@ back to Psychology, Science and History. Recommended rows are non-fiction only. 
   Easynews username/password — no indexer, no NZB, no TorBox step. Search for audiobook files (m4b/mp3,
   multi-part sets grouped into one book), play/download directly like a cloud book, resume and Live
   text as usual. Sign-in kept on the phone only. Then Newznab indexers + TorBox Usenet as the second route.
+
+## Book page: "people and details" like a streaming app's show page (noted 17 Nov) — both apps
+Seen in a TV app (cast circles, ratings row, show details, trailers, More like this). For books:
+- People row: round photos — author(s), narrator(s), translator, full-cast voices for dramatised
+  audiobooks (name + role, e.g. "Narrator", "Voice of Harry"). Tap → their page (author/narrator pages
+  exist). Photos from the existing photo picker / lookups.
+- Ratings row in one line with source logos: Goodreads, Audible (story / narration), Hardcover, Open
+  Library, your own 👍/👎.
+- "Book details" table: Series (#), Length, Published, Publisher, Original language, Format/edition
+  (unabridged, full cast), Genres, ISBN/ASIN, Awards.
+- Media: Audible sample (play 5 min), author interviews / book trailer if found.
+- "More like this" row at the bottom (same series, same author, readers also liked).
+- Show samples/screenshots before building.
