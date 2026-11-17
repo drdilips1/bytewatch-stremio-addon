@@ -134,6 +134,44 @@ export function libraries({ all = false } = {}) {
 export const toggleLibrary = (key, on) =>
   libby.set((l) => ({ ...l, skip: on ? (l.skip || []).filter((k) => k !== key) : [...new Set([...(l.skip || []), key])] }));
 
+/**
+ * Borrowable right now: the flag alone isn't enough — search results can be out of date, and
+ * count copies that aren't free. A free copy (or a title that's always available) is needed.
+ */
+function canBorrow(it) {
+  if (!it?.isAvailable) return false;
+  if (it.availabilityType === 'always' || it.isAlwaysAvailable) return true;
+  const free = (it.availableCopies ?? 0) + (it.luckyDayAvailableCopies ?? 0);
+  return it.availableCopies == null && it.luckyDayAvailableCopies == null ? true : free > 0;
+}
+
+/** The library's live answer for one title (what Libby itself shows), or null. */
+async function liveAvailability(key, id) {
+  try {
+    return await getJson(`${THUNDER}/libraries/${key}/media/${id}/availability`, { timeout: 8000 });
+  } catch {
+    return null;
+  }
+}
+
+/** A search hit updated with the live answer (copies, holds, wait) — kept as it was if that fails. */
+async function withLive(b) {
+  const a = await liveAvailability(b.libby.key, b.libby.id);
+  if (!a || typeof a !== 'object' || a.isAvailable == null) return b;
+  return {
+    ...b,
+    libby: {
+      ...b.libby,
+      available: canBorrow(a),
+      copies: a.availableCopies ?? b.libby.copies,
+      owned: a.ownedCopies ?? b.libby.owned,
+      holds: a.holdsCount ?? b.libby.holds,
+      waitDays: a.estimatedWaitDays ?? b.libby.waitDays,
+      checked: true,
+    },
+  };
+}
+
 function toBook(it, key, name = '') {
   const covers = it.covers || {};
   const cover = covers.cover510Wide?.href || covers.cover300Wide?.href || covers.cover150Wide?.href || '';
@@ -150,7 +188,7 @@ function toBook(it, key, name = '') {
     libby: {
       id: it.id,
       format,
-      available: !!it.isAvailable,
+      available: canBorrow(it),
       copies: it.availableCopies ?? null,
       owned: it.ownedCopies ?? null,
       holds: it.holdsCount ?? null,
@@ -242,10 +280,15 @@ export async function availability(book) {
   const author = (book.author || '').split(',')[0].trim();
   const q = `${t} ${author.split(' ').pop() || ''}`.trim();
   const per = await Promise.all(libraries().map((l) => searchOne(l, q).catch(() => [])));
-  return per
-    .flat()
-    .filter((b) => matches(t, b.title))
-    .sort((a, b) => Number(b.libby.available) - Number(a.libby.available) || (a.libby.format === 'audiobook' ? -1 : 0) - (b.libby.format === 'audiobook' ? -1 : 0));
+  // Checked live with each library (search results said "available" for books that weren't).
+  const hits = await Promise.all(
+    per
+      .flat()
+      .filter((b) => matches(t, b.title))
+      .slice(0, 12)
+      .map(withLive)
+  );
+  return hits.sort((a, b) => Number(b.libby.available) - Number(a.libby.available) || (a.libby.format === 'audiobook' ? -1 : 0) - (b.libby.format === 'audiobook' ? -1 : 0));
 }
 
 /**
