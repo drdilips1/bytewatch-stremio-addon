@@ -464,5 +464,6 @@ back to Psychology, Science and History. Recommended rows are non-fiction only. 
   is the same in both; a "Play timing" line is now in Report a problem in both apps (each step, app
   busy time, storage size). Next build: play the same book in each app, send both reports, fix the
   slow step (suspects: app storage nearly full; background work for the car lists). Don't release
-  AudioYam with any added slowness.
+  AudioYam with any added slowness. Update: the AudioYam test build with the 15 features (v1.0.35) starts
+  fast too, so the slowness is specific to Audiohub+ (its data/setup or private extras), not the shared code.
 - No builds until credits are back.
