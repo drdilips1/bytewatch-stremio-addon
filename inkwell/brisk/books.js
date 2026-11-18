@@ -6,6 +6,7 @@ import { audible } from '../src/sources/catalogs.js';
 import { getDetails } from '../src/sources/index.js';
 import * as cloud from '../src/sources/debrid.js';
 import { searchSources, sureMatches } from '../src/sources/sourceaddons.js';
+import { searchTitle, matches } from '../src/lib/match.js';
 import { downloads, downloadBook, canDownload } from '../src/lib/downloads.js';
 import * as player from '../src/lib/player.js';
 import bundle from './audio-sources.json';
@@ -52,16 +53,27 @@ const rank = (r) =>
 
 /** Every copy of this book the sources found, best first (instantly ready ones on top). */
 export function findCopies(book, onUpdate) {
+  // The catalogue's title tidied for torrent sites: no "(Full-Cast Edition)" / subtitle, plain apostrophes.
+  const title = searchTitle(book.title).replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim();
+  const author = String(book.author || '').split(',')[0].trim();
+  const surname = author.split(/\s+/).pop() || '';
   const all = new Map();
-  const params = { title: book.title, author: String(book.author || '').split(',')[0], query: `${book.title} ${String(book.author || '').split(',')[0]}`.trim() };
-  const list = () =>
-    sureMatches([...all.values()].flat(), book.title, book.author)
-      .filter((r) => (r.hash || r.magnet) && !EBOOK.test(`${r.format || ''}`) && r.contentType !== 'ebook')
-      .sort((a, b) => rank(b) - rank(a));
-  return searchSources(params, (name, results) => {
-    all.set(name, results || []);
-    onUpdate?.(list());
-  }).then(list);
+  const list = () => {
+    const found = [...all.values()].flat().filter((r) => (r.hash || r.magnet) && !EBOOK.test(`${r.format || ''}`) && r.contentType !== 'ebook');
+    let sure = sureMatches(found, title, author);
+    // Nothing certain: results whose name has the whole title still count (author missing from the name).
+    if (!sure.length) sure = found.filter((r) => matches(title, `${r.title} ${r.author || ''}`));
+    const seen = new Set();
+    return sure.filter((r) => !seen.has(r.hash || r.magnet) && seen.add(r.hash || r.magnet)).sort((a, b) => rank(b) - rank(a));
+  };
+  const run = (params, key) =>
+    searchSources(params, (name, results) => {
+      all.set(key + name, results || []);
+      onUpdate?.(list());
+    });
+  return run({ title, author, query: `${title} ${surname}`.trim() }, 'a:')
+    .then(() => (list().length ? null : run({ title, query: title }, 'b:')))
+    .then(list);
 }
 
 // Which copy each book played from (Audible id → the debrid book), so it opens again at once.
