@@ -12,3 +12,4 @@ Covers and details come by themselves (Audible's catalogue); the only setting is
   "Choose another copy" on the book page lists the rest.
 - Build: a commit with `[build brisk]` in its message. Releases: pre-releases tagged `audibrisk-v…`.
 - Icons / splash: `node brisk/make-icons.mjs` → `brisk/android-res/`.
+- v1.0.x: first build — search, play, save offline, one debrid key.
