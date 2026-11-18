@@ -1,0 +1,260 @@
+{
+  "name": "Audio sources",
+  "addons": [
+    {
+      "schemaVersion": "1.0.0",
+      "id": "my-audiobookbay",
+      "name": "AudiobookBay",
+      "version": "1.0.0",
+      "description": "Audiobook search via my Audiohub Worker",
+      "icon": "https://audiobookbay.lu/apple-touch-icon.png",
+      "provides": [
+        "source"
+      ],
+      "contentType": "audiobook",
+      "rateLimit": {
+        "requestsPerMinute": 10,
+        "retryAfterMs": 6000
+      },
+      "matching": {
+        "algorithm": "fuzzy",
+        "threshold": 0.4
+      },
+      "adapters": {
+        "source": {
+          "cacheNotifyUrl": "https://api.audiohubapp.com/abb/api/debrid-notify",
+          "request": {
+            "method": "POST",
+            "url": "https://api.audiohubapp.com/abb/api/search",
+            "timeout": 30000,
+            "headers": {
+              "Accept": "application/json",
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "title": "{TITLE}",
+              "author": "{AUTHOR}",
+              "limit": 20
+            }
+          },
+          "response": {
+            "type": "json",
+            "resultsPath": "results",
+            "mapping": {
+              "title": "title",
+              "author": "author",
+              "narrator": "narrator",
+              "magnetUrl": "magnetUrl",
+              "infoHash": "infoHash",
+              "sizeBytes": "sizeBytes",
+              "seeders": "seeders",
+              "format": "format",
+              "language": "language",
+              "date": "posted",
+              "debridCache": "debridCache"
+            }
+          }
+        }
+      }
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "id": "my-knaben-audiobooks",
+      "name": "Knaben AudioBooks",
+      "version": "1.0.0",
+      "description": "Audiobook torrent search via my Audiohub Worker",
+      "icon": "https://knaben.org/favicon.ico",
+      "provides": [
+        "source"
+      ],
+      "contentType": "audiobook",
+      "matching": {
+        "algorithm": "fuzzy",
+        "threshold": 0.6
+      },
+      "adapters": {
+        "source": {
+          "request": {
+            "method": "POST",
+            "url": "https://api.audiohubapp.com/knaben/audiobooks",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "query": "{TITLE}",
+              "search_field": "title",
+              "size": 50,
+              "categories": [
+                1003000
+              ]
+            }
+          },
+          "response": {
+            "type": "json",
+            "resultsPath": "hits",
+            "mapping": {
+              "title": "title",
+              "magnetUrl": "magnetUrl",
+              "sizeBytes": "bytes",
+              "seeders": "seeders",
+              "infoHash": "hash"
+            }
+          }
+        }
+      }
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "id": "extto-audiohub",
+      "name": "EXTto",
+      "version": "1.4.0",
+      "description": "Audiobook torrent search via EXTto",
+      "icon": "https://extto.org/favicon.ico",
+      "provides": [
+        "source"
+      ],
+      "contentType": "audiobook",
+      "rateLimit": {
+        "requestsPerMinute": 10,
+        "retryAfterMs": 6000
+      },
+      "matching": {
+        "algorithm": "fuzzy",
+        "threshold": 0.4
+      },
+      "adapters": {
+        "source": {
+          "request": {
+            "method": "GET",
+            "url": "https://api.audiohubapp.com/extto/extto/search?q={QUERY}",
+            "timeout": 30000,
+            "headers": {
+              "Accept": "application/json"
+            }
+          },
+          "response": {
+            "type": "json",
+            "resultsPath": "results",
+            "mapping": {
+              "title": "title",
+              "author": "author",
+              "url": "magnetUrl",
+              "magnetUrl": "magnetUrl",
+              "hash": "hash",
+              "infoHash": "hash",
+              "format": "format",
+              "language": "language",
+              "date": "date",
+              "sizeBytes": "sizeBytes",
+              "cover": "cover",
+              "description": "description",
+              "debridCache": "debridCache",
+              "seeders": "seeders",
+              "seeds": "seeds",
+              "leechers": "leechers"
+            }
+          }
+        }
+      }
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "id": "rutracker-english-audiobooks",
+      "name": "RuTracker English Audiobooks",
+      "version": "1.0.0",
+      "description": "English audiobooks on RuTracker: magnets, authors, narrators, sizes and release details",
+      "icon": "https://rutracker.org/favicon.ico",
+      "provides": [
+        "source"
+      ],
+      "contentType": "audiobook",
+      "adapters": {
+        "source": {
+          "request": {
+            "method": "GET",
+            "url": "https://api.audiohubapp.com/rutracker/?q={TITLE}",
+            "headers": {
+              "Accept": "application/json"
+            },
+            "timeout": 30000
+          },
+          "response": {
+            "type": "json",
+            "resultsPath": "results",
+            "mapping": {
+              "id": "id",
+              "title": "title",
+              "author": "author",
+              "narrator": "narrator",
+              "magnetUrl": "magnetUrl",
+              "infoHash": "infoHash",
+              "sizeBytes": "sizeBytes",
+              "seeders": "seeders",
+              "format": "format",
+              "bitrate": "bitrate",
+              "language": "language",
+              "source": "source",
+              "sourceUrl": "sourceUrl",
+              "coverUrl": "coverUrl"
+            }
+          }
+        }
+      }
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "id": "inkandecho-v2-bestsearch-audiobook",
+      "name": "Ink & Echo Audiobooks",
+      "version": "1.0.0",
+      "description": "Ink & Echo source for audiobooks. Search mode: Best. Resolver: TorBox. Language: English.",
+      "icon": "https://i.ibb.co/wJ13Y1y/logo.png",
+      "provides": [
+        "source",
+        "search"
+      ],
+      "contentType": "audiobook",
+      "rateLimit": {
+        "requestsPerMinute": 10,
+        "retryAfterMs": 6000
+      },
+      "matching": {
+        "algorithm": "fuzzy",
+        "threshold": 0.4
+      },
+      "adapters": {
+        "source": {
+          "request": {
+            "method": "POST",
+            "url": "https://inkandecho-builder.pages.dev/audiobook/search?debrid=torbox&torboxTier=standard&lang=en&profile=best&client=ie_bbb06c1c17904fdfd1a0bdc7&experimental=1&cacheBust=comics-evidence-v8&titleStyle=clean",
+            "timeout": 30000,
+            "headers": {
+              "Accept": "application/json",
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "title": "{TITLE}",
+              "author": "{AUTHOR}",
+              "limit": 80,
+              "contentType": "audiobook"
+            }
+          },
+          "response": {
+            "type": "json",
+            "resultsPath": "results",
+            "mapping": {
+              "title": "fileTypeTitle",
+              "author": "author",
+              "sizeBytes": "sizeBytes",
+              "seeders": "seeders",
+              "format": "fileType",
+              "date": "posted",
+              "debridCache": "debridCache",
+              "magnetUrl": "magnetUrl",
+              "infoHash": "infoHash"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

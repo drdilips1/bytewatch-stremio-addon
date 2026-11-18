@@ -6,6 +6,8 @@ on:
       - 'inkwell/**'
       - '!inkwell/hearth/**'
       - '!inkwell/duet/**'
+      - '!inkwell/brisk/**'
+      - '!inkwell/vite.brisk.config.js'
       - '.github/workflows/inkwell-apk.yml'
   workflow_dispatch:
 

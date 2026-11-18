@@ -11,3 +11,4 @@ android/capacitor-cordova-android-plugins/
 *.keystore
 *.jks
 out/
+dist-brisk/

@@ -11,6 +11,8 @@ on:
       - 'inkwell/**'
       - '!inkwell/hearth/**'
       - '!inkwell/duet/**'
+      - '!inkwell/brisk/**'
+      - '!inkwell/vite.brisk.config.js'
       - '.github/workflows/inkwell-web.yml'
   workflow_dispatch:
   # Weekly: refresh the StoryShots list (new summaries) even without app changes.
