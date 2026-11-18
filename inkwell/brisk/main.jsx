@@ -6,6 +6,8 @@ import { aiOff } from '../src/lib/ai.js';
 import { settings } from '../src/lib/store.js';
 import { installSources } from './books.js';
 import { App } from './app.jsx';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 try {
   aiOff.set(true);
@@ -13,5 +15,6 @@ try {
   if (!s.briskV) settings.set({ ...s, briskV: 1, voiceOff: true, skipCredits: true });
 } catch {}
 installSources();
+if (Capacitor.isNativePlatform()) StatusBar.setStyle({ style: Style.Light }).catch(() => {});
 
 render(<App />, document.getElementById('app'));

@@ -2,10 +2,10 @@
   "appId": "app.audibrisk.player",
   "appName": "Audibrisk",
   "webDir": "dist-brisk",
-  "backgroundColor": "#0d0c0b",
+  "backgroundColor": "#f6efe4",
   "android": {
     "allowMixedContent": true,
-    "backgroundColor": "#0d0c0b"
+    "backgroundColor": "#f6efe4"
   },
   "plugins": {
     "CapacitorHttp": { "enabled": true },
@@ -13,9 +13,9 @@
     "SplashScreen": {
       "launchShowDuration": 600,
       "launchAutoHide": true,
-      "backgroundColor": "#0d0c0b",
+      "backgroundColor": "#f6efe4",
       "showSpinner": false
     },
-    "StatusBar": { "overlaysWebView": true, "style": "DARK" }
+    "StatusBar": { "overlaysWebView": true, "style": "LIGHT" }
   }
 }

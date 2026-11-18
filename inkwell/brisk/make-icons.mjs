@@ -12,15 +12,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(here, 'android-res');
 const res = path.join(here, '../android/app/src/main/res');
 
-// An italic serif A inside a fine gold ring, on ink.
-const FLAME = '<circle cx="256" cy="224" r="150" fill="none" stroke="#c9a96e" stroke-width="9"/><text x="256" y="292" text-anchor="middle" font-family="Georgia, \'Times New Roman\', serif" font-style="italic" font-size="210" fill="#e3c88f">A</text>';
-const BG = '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c1a17"/><stop offset="1" stop-color="#0b0a09"/></linearGradient></defs>';
+// Headphones with a small sound wave, deep brown on warm cream (as in the app's header).
+const FLAME = '<g transform="translate(64 40) scale(8)"><path d="M8 28v-4a16 16 0 0 1 32 0v4" fill="none" stroke="#4a3b2c" stroke-width="3.2" stroke-linecap="round"/><rect x="5" y="26" width="8" height="14" rx="4" fill="#4a3b2c"/><rect x="35" y="26" width="8" height="14" rx="4" fill="#4a3b2c"/><g stroke="#66754f" stroke-width="2.2" stroke-linecap="round"><path d="M18 31v4"/><path d="M21 28v10"/><path d="M24 25v16"/><path d="M27 28v10"/><path d="M30 31v4"/></g></g>';
+const BG = '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf5ea"/><stop offset="1" stop-color="#efe3cf"/></linearGradient></defs>';
 const full = (round) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${BG}<rect width="512" height="512" rx="${round ? 256 : 116}" fill="url(#g)"/><g transform="translate(256 262) scale(1.32) translate(-256 -224)">${FLAME}</g></svg>`;
 const fg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><g transform="translate(256 262) scale(0.86) translate(-256 -224)">${FLAME}</g></svg>`;
 const bg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${BG}<rect width="512" height="512" fill="url(#g)"/></svg>`;
 const splash = (w, h) => {
   const s = Math.min(w, h) * 0.26;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#0d0c0b"/><g transform="translate(${(w - s) / 2} ${(h - s) / 2}) scale(${s / 512})">${full(false).replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#f6efe4"/><g transform="translate(${(w - s) / 2} ${(h - s) / 2}) scale(${s / 512})">${full(false).replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g></svg>`;
 };
 
 const DENS = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
