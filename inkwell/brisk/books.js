@@ -10,6 +10,7 @@ import { searchTitle, matches } from '../src/lib/match.js';
 import { downloads, downloadBook, canDownload } from '../src/lib/downloads.js';
 import * as player from '../src/lib/player.js';
 import bundle from './audio-sources.json';
+import { getJson, qs } from '../src/lib/http.js';
 
 /** The audio-only sources, added the first time (and any new ones after an update). */
 export function installSources() {
@@ -48,6 +49,9 @@ export async function searchBooks(term) {
 // ---- copies ------------------------------------------------------------------------------------
 const AUDIO = /\b(m4b|m4a|mp3|aac|flac|opus|audiobook|unabridged)\b/i;
 const EBOOK = /\b(epub|pdf|mobi|azw3?)\b/i;
+const ARCHIVE = /\b(rar|zip|7z|iso)\b/i;
+const AUDIO_FILE = /\.(mp3|m4b|m4a|aac|flac|ogg|oga|opus|wav|wma|mka)$/i;
+const ARCHIVE_FILE = /\.(rar|r\d\d|zip|7z|iso)$/i;
 const rank = (r) =>
   (r.cache?.any ? 1000 : 0) + (/\bm4b\b/i.test(`${r.format} ${r.title}`) ? 40 : 0) + (AUDIO.test(`${r.format} ${r.title}`) ? 20 : 0) + Math.min(30, (r.seeders || 0) / 3) + (r.score || 0) * 10;
 
@@ -59,7 +63,7 @@ export function findCopies(book, onUpdate) {
   const surname = author.split(/\s+/).pop() || '';
   const all = new Map();
   const list = () => {
-    const found = [...all.values()].flat().filter((r) => (r.hash || r.magnet) && !EBOOK.test(`${r.format || ''}`) && r.contentType !== 'ebook');
+    const found = [...all.values()].flat().filter((r) => (r.hash || r.magnet) && !EBOOK.test(`${r.format || ''}`) && !ARCHIVE.test(`${r.format || ''} ${r.title || ''}`) && r.contentType !== 'ebook');
     let sure = sureMatches(found, title, author);
     // Nothing certain: results whose name has the whole title still count (author missing from the name).
     if (!sure.length) sure = found.filter((r) => matches(title, `${r.title} ${r.author || ''}`));
@@ -84,8 +88,38 @@ const summary = (d) => ({ uid: d.uid, source: d.source, title: d.title, author: 
 async function ready(book, r, onStatus) {
   const stub = await cloud.prepareMagnet(provider(), r, (text, pct) => onStatus?.(text, pct));
   const d = await getDetails({ ...stub, title: book.title, author: book.author, narrator: book.narrator, cover: book.cover, description: book.description });
+  if (!d?.tracks?.length && !d?.resolveTracks) throw new Error('That copy has no playable audio files');
   return { ...d, title: book.title, author: book.author || d.author, cover: book.cover || d.cover, narrator: book.narrator || d.narrator };
 }
+
+/**
+ * What TorBox already holds for these copies, with their files: hash -> 'audio' (playable files
+ * inside) | 'archive' (only RAR / ZIP — can't stream) | absent (not ready there yet).
+ */
+async function inspect(list) {
+  if (provider() !== 'torbox') return {};
+  const hashes = [...new Set(list.map((r) => String(r.hash || '').toLowerCase()).filter(Boolean))].slice(0, 40);
+  if (!hashes.length) return {};
+  try {
+    const r = await getJson('https://api.torbox.app/v1/api/torrents/checkcached?' + qs({ hash: hashes.join(','), format: 'list', list_files: 'true' }), {
+      headers: { Authorization: `Bearer ${debrid.get().torbox}` },
+      fresh: true,
+      timeout: 15000,
+    });
+    const out = {};
+    const items = Array.isArray(r?.data) ? r.data : Object.entries(r?.data || {}).map(([hash, v]) => ({ hash, ...v }));
+    for (const it of items) {
+      const names = (it.files || []).map((f) => String(f.name || f.short_name || ''));
+      out[String(it.hash).toLowerCase()] = names.some((n) => AUDIO_FILE.test(n)) ? 'audio' : names.some((n) => ARCHIVE_FILE.test(n)) ? 'archive' : names.length ? 'other' : 'audio';
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Errors that mean "this copy is no good, try the next one". */
+const wrongCopy = (e) => /no playable audio|ebook, not an audiobook|no magnet|could not fetch|hasn.t listed|has no/i.test(e?.message || '');
 
 /** Details for this book, ready to play: the copy it played from before, else the best one found. */
 export async function prepare(book, onStatus, copies = null) {
@@ -99,20 +133,27 @@ export async function prepare(book, onStatus, copies = null) {
   onStatus?.('Looking for the audiobook…');
   const list = copies || (await findCopies(book));
   if (!list.length) throw new Error('No audio copy found for this book');
+  // Look inside the copies TorBox already has: playable audio first, archives (RAR / ZIP) never.
+  const seen = await inspect(list);
+  const h = (r) => String(r.hash || '').toLowerCase();
+  const ok = list.filter((r) => seen[h(r)] !== 'archive' && seen[h(r)] !== 'other');
+  if (!ok.length) throw new Error('Only archive (RAR / ZIP) copies found — nothing that can stream');
+  const tries = [...ok.filter((r) => seen[h(r)] === 'audio'), ...ok.filter((r) => !seen[h(r)] && r.cache?.any), ...ok.filter((r) => !seen[h(r)] && !r.cache?.any).slice(0, 3)].slice(0, copies?.length === 1 ? 1 : 8);
   let lastErr = null;
-  // Ready-to-stream copies first (up to three), then the best of the rest.
-  const tries = [...list.filter((r) => r.cache?.any).slice(0, 3), ...list.filter((r) => !r.cache?.any).slice(0, 1)];
-  for (const r of tries) {
+  let pending = null;
+  for (const [i, r] of tries.entries()) {
     try {
-      onStatus?.(r.cache?.any ? `Opening on ${providerName()}…` : `${providerName()} is fetching it…`);
+      onStatus?.(seen[h(r)] === 'audio' || r.cache?.any ? `Opening on ${providerName()}…` : `Trying copy ${i + 1}…`);
       const d = await ready(book, r, onStatus);
       links.set((l) => ({ ...l, [book.uid]: summary(d) }));
       return d;
     } catch (e) {
       lastErr = e;
-      if (e.pending) throw new Error(`${providerName()} is downloading it (${Math.round((e.pending.progress || 0) * 100)}%) — try again in a few minutes`);
+      if (e.pending) pending ||= e.pending;
+      else if (!wrongCopy(e)) break;
     }
   }
+  if (pending) throw new Error(`${providerName()} is downloading it (${Math.round((pending.progress || 0) * 100)}%) — try again in a few minutes`);
   throw lastErr || new Error('Couldn’t open this book');
 }
 
