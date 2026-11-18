@@ -7,6 +7,7 @@ import { useStore, progress } from '../src/lib/store.js';
 import { debrid } from '../src/lib/store.js';
 import { downloads, cancelDownload, canDownload } from '../src/lib/downloads.js';
 import { fmtDuration } from '../src/lib/format.js';
+import { metaFixes } from '../src/lib/meta.js';
 import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
 import { VERSION, checkUpdate } from './update.js';
@@ -88,8 +89,14 @@ export function Home() {
       });
     }, 380);
   }, [q]);
-  const cont = bk.continuing(allProgress);
-  const off = bk.offline(dls);
+  const cloudBooks = useStore(bk.cloudShelf).books;
+  useStore(metaFixes);
+  useEffect(() => {
+    bk.refreshCloud();
+  }, [bk.provider()]);
+  const cont = bk.continuing(allProgress).map(bk.withCover);
+  const off = bk.offline(dls).map(bk.withCover);
+  const mine = cloudBooks.map(bk.withCover);
   const open = (b) => nav.push('book', { book: b });
   const play = (b) =>
     bk
@@ -134,8 +141,9 @@ export function Home() {
       ) : (
         <>
           <Row title="Continue" items={cont} onOpen={play} />
+          <Row title={`In your ${bk.providerName() || 'cloud'}`} items={mine} onOpen={play} small />
           <Row title="On this phone" items={off} onOpen={play} small />
-          {!cont.length && !off.length && bk.provider() && <p class="b-quiet">Search for any audiobook above — it plays in a moment.</p>}
+          {!cont.length && !off.length && !mine.length && bk.provider() && <p class="b-quiet">Search for any audiobook above — it plays in a moment.</p>}
         </>
       )}
       {sheet && <SettingsSheet close={() => setSheet(false)} />}

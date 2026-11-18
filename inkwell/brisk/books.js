@@ -11,6 +11,7 @@ import { downloads, downloadBook, canDownload } from '../src/lib/downloads.js';
 import * as player from '../src/lib/player.js';
 import bundle from './audio-sources.json';
 import { getJson, qs } from '../src/lib/http.js';
+import { findMissingCovers, coverNow } from '../src/lib/meta.js';
 
 /** The audio-only sources, added the first time (and any new ones after an update). */
 export function installSources() {
@@ -121,7 +122,7 @@ async function inspect(list) {
 /** Errors that mean "this copy is no good, try the next one". */
 const wrongCopy = (e) => /no playable audio|ebook, not an audiobook|no magnet|could not fetch|hasn.t listed|has no/i.test(e?.message || '');
 
-/** Details for this book, ready to play: the copy it played from before, else the best one found. */
+/** Details for this book, ready to play: the copy it played from before, your own cloud copy, else the best one found. */
 export async function prepare(book, onStatus, copies = null) {
   if (!provider()) throw Object.assign(new Error('Connect TorBox or Real-Debrid first'), { needKey: true });
   const known = links.get()[book.uid];
@@ -129,6 +130,21 @@ export async function prepare(book, onStatus, copies = null) {
     try {
       return await getDetails(known);
     } catch {}
+  }
+  // Already in your TorBox / Real-Debrid: that copy, at once (not when you picked a copy by hand).
+  if (!(copies && copies.length === 1)) {
+    const mine = await inMyCloud(book).catch(() => null);
+    if (mine) {
+      try {
+        onStatus?.(`Opening from your ${providerName()}…`);
+        const d = await getDetails(mine);
+        if (d?.tracks?.length || d?.resolveTracks) {
+          const out = { ...d, title: book.title, author: book.author || d.author, cover: book.cover || d.cover, narrator: book.narrator || d.narrator };
+          links.set((l) => ({ ...l, [book.uid]: summary(out) }));
+          return out;
+        }
+      } catch {}
+    }
   }
   onStatus?.('Looking for the audiobook…');
   const list = copies || (await findCopies(book));
@@ -196,4 +212,34 @@ export const offline = (all = downloads.get()) =>
 export async function resume(b) {
   const d = b.dl?.status === 'done' ? b.dl.book : await getDetails({ uid: b.uid, source: b.source, title: b.title, author: b.author, cover: b.cover });
   player.playBook({ ...d, title: b.title || d.title, author: b.author || d.author, cover: b.cover || d.cover });
+}
+
+// ---- your own cloud ----------------------------------------------------------------------------
+export const cloudShelf = persisted('briskCloud', { books: [], at: 0 }); // the audiobooks in your debrid, kept for a quick start
+let cloudRun = null;
+/** The audiobooks already in your TorBox / Real-Debrid (refreshed in the background). */
+export function refreshCloud() {
+  if (cloudRun || !provider()) return cloudRun || Promise.resolve(cloudShelf.get().books);
+  cloudRun = (provider() === 'torbox' ? cloud.torboxLibrary() : cloud.realdebridLibrary())
+    .then((list) => {
+      const books = (list || []).filter((b) => b?.uid && b.title && b.kind !== 'text' && !b.fetching).map((b) => ({ uid: b.uid, source: b.source, title: b.title, author: b.author || '', narrator: b.narrator || '', cover: b.cover || '', duration: b.duration || 0, addedAt: b.addedAt || 0 }));
+      cloudShelf.set({ books, at: Date.now() });
+      // Real covers for the ones without (looked up once, quietly).
+      setTimeout(() => findMissingCovers(books.filter((b) => !coverNow(b)).slice(0, 40)).catch(() => {}), 1500);
+      return books;
+    })
+    .catch(() => cloudShelf.get().books)
+    .finally(() => (cloudRun = null));
+  return cloudRun;
+}
+export const withCover = (b) => ({ ...b, cover: coverNow(b) || b.cover || '' });
+
+/** This book in your own cloud, if it's there. */
+export async function inMyCloud(book) {
+  const t = searchTitle(book.title);
+  let list = cloudShelf.get().books;
+  if (!list.length || Date.now() - cloudShelf.get().at > 10 * 60e3) list = await refreshCloud();
+  const sn = String(book.author || '').split(',')[0].trim().split(/\s+/).pop()?.toLowerCase() || '';
+  const hits = list.filter((b) => matches(t, `${b.title} ${b.author || ''}`));
+  return hits.find((b) => !sn || `${b.title} ${b.author}`.toLowerCase().includes(sn)) || hits[0] || null;
 }
