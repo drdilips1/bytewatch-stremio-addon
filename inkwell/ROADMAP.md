@@ -494,3 +494,19 @@ Seen in a TV app (cast circles, ratings row, show details, trailers, More like t
 - Media: Audible sample (play 5 min), author interviews / book trailer if found.
 - "More like this" row at the bottom (same series, same author, readers also liked).
 - Show samples/screenshots before building.
+
+## Feedback 19 Nov (Audiohub+ unless said)
+- Android Auto: plays ~1 min then stops taking commands with the phone screen off; "media isn't
+  available, check your app" for a few seconds before it plays; search and picking another book don't
+  work with the screen off (big issue).
+- A Real-Debrid audiobook didn't reach the wife's iPhone app (check RD library / sent items on iOS).
+- Home: greeting smaller; remove the "time left" line under it.
+- Book page: a heart (save / favourite) next to 👍 / 👎.
+- Local files: too deep to find, and missing on iPhone (iOS Files folder + "Add files").
+- Author / narrator page: the promised option to hear the narrator's or author's voice.
+- Library → Found: delete one list (only "delete all" today).
+- Find book and play: many books say "not in library or sources" when they are.
+- Remove the mini-player → full-player opening animation (flickers); keep the other effects.
+- Sources list: clear headings per source — Audiobooks: AudiobookBay, Mobilism…; Ebooks: likewise.
+- Frosted-glass metadata panels over the cover (65–75% opacity, blur, thin white borders, white text,
+  darker bottom strip for title / rating, panels a little narrower) — design image still to receive.
