@@ -125,6 +125,7 @@
   x-bh-annas-key (per-user Mobilism sessions; the user's key rides in the file link as `ak`), and
   uses its own secrets only for searches without details (`own=1` links). To share: redeploy
   bookhunt.js, delete the worker's own secrets, re-add the addon, enter details in the app. In v1.0.239.
+- Book Hunt worker /file (worker-only change, redeploy bookhunt.js): tries the Anna's fast link and up to 4 LibGen mirrors in turn and skips any that send a web page or error instead of the book (that was "isn't a readable EPUB" / HTTP 502 on iPhone); the 502 now says why (e.g. Anna's "Invalid secret key"). isBookFile tested. Having the key both in the worker secrets and in the app is fine: the app's details win.
 - FALL-BACK (user asked to remember): if the shared Book Hunt (each person's details) doesn't work,
   go back to `inkwell/workers/bookhunt-private-v1.js` — the private version that works for the user
   and their wife on their iPhone (worker secrets MOBILISM_USER / MOBILISM_PASS / ANNAS_KEY). The new

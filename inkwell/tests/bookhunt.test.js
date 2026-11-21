@@ -26,3 +26,14 @@ describe('Mobilism pages', () => {
     expect(t.text).toContain('Narrated by Ray Porter');
   });
 });
+
+describe('isBookFile', () => {
+  it('takes a real file and skips web pages a mirror sends instead of the book', async () => {
+    const { isBookFile } = await import('../workers/bookhunt.js');
+    expect(isBookFile(200, 'application/epub+zip')).toBe(true);
+    expect(isBookFile(200, 'application/octet-stream')).toBe(true);
+    expect(isBookFile(200, 'text/html; charset=utf-8')).toBe(false);
+    expect(isBookFile(200, 'application/json')).toBe(false);
+    expect(isBookFile(503, 'application/epub+zip')).toBe(false);
+  });
+});

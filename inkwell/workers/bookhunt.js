@@ -169,23 +169,36 @@ async function annasSearch(q, env, origin, creds = {}) {
 const LIBGEN = ["https://libgen.li", "https://libgen.gl", "https://libgen.vg", "https://libgen.la", "https://libgen.bz", "https://libgen.gs"];
 
 async function fileByMd5(md5, env, key = "") {
-  // Your Anna's membership: its fast download.
+  const links = [];
+  let why = "";
+  // Your Anna's membership: its fast download (the first mirror that gives a link).
   if (key) {
     for (const base of [env.ANNAS_BASE, ...ANNAS].filter(Boolean)) {
       const r = await get(`${base}/dyn/api/fast_download.json?md5=${md5}&key=${encodeURIComponent(key)}`, { headers: { Accept: "application/json" } }).catch(() => null);
       const j = r ? await r.json().catch(() => null) : null;
-      if (j?.download_url) return j.download_url;
+      if (j?.download_url) {
+        links.push(j.download_url);
+        break;
+      }
+      if (j?.error) why = `Anna's Archive: ${j.error}`; // "Invalid secret key", daily limit reached…
     }
   }
-  // LibGen's copy (same MD5): ads.php → its keyed get.php link.
+  // LibGen's copies (same MD5): ads.php → its keyed get.php link. All of them, so a mirror that
+  // sends a web page instead of the book is skipped for the next one.
   for (const m of LIBGEN) {
     const r = await get(`${m}/ads.php?md5=${md5}`, {}, 12000).catch(() => null);
     if (!r || r.status >= 400) continue;
     const html = await r.text();
     const href = /href="([^"]*get\.php\?[^"]*md5=[^"]*key=[^"]*)"/i.exec(html)?.[1];
-    if (href) return new URL(href.replace(/&amp;/g, "&"), m + "/").href;
+    if (href) links.push(new URL(href.replace(/&amp;/g, "&"), m + "/").href);
+    if (links.length >= 4) break;
   }
-  return "";
+  return { links, why };
+}
+
+/** A real book file, not an error or "please wait" web page. */
+export function isBookFile(status, type) {
+  return status >= 200 && status < 300 && !/text\/html|application\/json/i.test(type || "");
 }
 
 async function file(url, env) {
@@ -193,13 +206,23 @@ async function file(url, env) {
   if (!md5) return reply({ error: "No book" }, 400);
   // A key that came with the search (someone's own), else the worker's own.
   const key = unb64u(url.searchParams.get("ak")) || (url.searchParams.get("own") === "1" ? env.ANNAS_KEY || "" : "");
-  const link = await fileByMd5(md5, env, key);
-  if (!link) return reply({ error: "No mirror has this book right now — try again later" }, 502);
-  const up = await get(link, {}, 120000);
-  if (!up.ok) return reply({ error: `The mirror answered HTTP ${up.status}` }, 502);
+  const { links, why } = await fileByMd5(md5, env, key);
+  let up = null;
+  let last = why;
+  for (const link of links) {
+    const r = await get(link, {}, 120000).catch(() => null);
+    if (r && isBookFile(r.status, r.headers.get("Content-Type"))) {
+      up = r;
+      break;
+    }
+    last = r ? `a mirror sent ${r.status >= 400 ? `HTTP ${r.status}` : "a web page instead of the book"}` : "a mirror didn't answer";
+    r?.body?.cancel?.();
+  }
+  if (!up) return reply({ error: `No mirror has this book right now${last ? ` (${last})` : ""} — try another copy or later` }, 502);
   const ext = (url.searchParams.get("ext") || "epub").replace(/[^a-z0-9]/gi, "");
   const name = `${(url.searchParams.get("name") || "book").replace(/[\\/:*?"<>|]+/g, " ").trim()}.${ext}`;
-  const h = new Headers({ "Access-Control-Allow-Origin": "*", "Content-Type": up.headers.get("Content-Type") || "application/octet-stream", "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(name)}` });
+  const type = { epub: "application/epub+zip", pdf: "application/pdf" }[ext.toLowerCase()];
+  const h = new Headers({ "Access-Control-Allow-Origin": "*", "Content-Type": type || up.headers.get("Content-Type") || "application/octet-stream", "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(name)}` });
   if (up.headers.get("Content-Length")) h.set("Content-Length", up.headers.get("Content-Length"));
   return new Response(up.body, { status: 200, headers: h });
 }
