@@ -1,0 +1,14 @@
+{
+  "name": "Lesionaut",
+  "short_name": "Lesionaut",
+  "description": "Dermatology diagnostic copilot: clinical, dermoscopy, histology, DIF and lab evidence read together.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f6f1",
+  "theme_color": "#0B2233",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
