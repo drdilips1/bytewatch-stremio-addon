@@ -1075,7 +1075,7 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
               </button>
             </>
           ) : (
-            <button class="btn primary" onClick={() => WebPlugin.open({ url: r.link, title: r.title }).catch((e) => toast(e.message))}>
+            <button class="btn primary" onClick={() => WebPlugin.open({ url: r.link, title: r.title }).catch(() => window.open(r.link, '_blank'))}>
               <Icon name="external" size={16} /> {r.aaMd5 ? 'Open' : 'Open topic'}
             </button>
           )

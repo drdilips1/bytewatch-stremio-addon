@@ -97,3 +97,10 @@
 - Still waiting on the user: boxed text under covers (sample A vs B sent, I suggested B); the
   server-side addon for Mobilism / Anna's on iPhone (explained bot checks + Mobilism login).
 - Book cards: one faint glowing frame around cover + text (user picked sample B). Not built yet.
+- Book Hunt worker (`inkwell/workers/bookhunt.js`, user deploys it as a new Cloudflare worker and adds
+  https://<worker>/addon.json in Settings → Addons): Anna's Archive search (regex parser, mirrors
+  .org/.li/.se/.pk or ANNAS_BASE) with files via LibGen by MD5 or ANNAS_KEY fast download (/file);
+  Mobilism with secrets MOBILISM_USER / MOBILISM_PASS (phpBB sign-in, topic file-host links as
+  `downloads`, which sourceaddons.js now maps → the existing TopicToCloud flow). Bot checks may block
+  the server: errors come back in "errors". Parsers tested; not tried against the live sites (this
+  sandbox can't reach them). Not built yet.

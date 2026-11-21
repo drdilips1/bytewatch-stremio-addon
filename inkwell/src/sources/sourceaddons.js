@@ -291,6 +291,13 @@ async function searchOnce(addon, vars, key, { title = '', author = '', query = '
         link: get(row, 'downloadUrl') || get(row, 'url') || get(row, 'link') || get(row, 'pageUrl') || '',
       };
       r.hash = infoHash(r.magnet, get(row, 'infoHash'));
+      // A forum topic's file-host links (Book Hunt's Mobilism results): sent to TorBox /
+      // Real-Debrid as with Mobilism in the Android app.
+      const dls = get(row, 'downloads');
+      if (Array.isArray(dls) && dls.length) {
+        r.downloads = dls.filter((d) => d && /^https?:/i.test(d.url || '')).map((d) => ({ url: d.url, host: d.host || '' }));
+        r.inApp = true;
+      }
       r.score = wanted ? similarity(wanted, r.title) : 1;
       return r;
     })
