@@ -508,7 +508,7 @@ Seen in a TV app (cast circles, ratings row, show details, trailers, More like t
 - ✓ (21 Nov, v1.0.233) Find book and play: many books say "not in library or sources" when they are.
 - ✓ (21 Nov, v1.0.233) Remove the mini-player → full-player opening animation (flickers); keep the other effects.
 - ✓ (21 Nov, v1.0.233) Sources list: clear headings per source — Audiobooks: AudiobookBay, Mobilism…; Ebooks: likewise.
-- ✓ (21 Nov, v1.0.233) Frosted-glass metadata panels over the cover (65–75% opacity, blur, thin white borders, white text,
+- Tried and taken back (21 Nov, user: covers as before, only a glass sheen): Frosted-glass metadata panels over the cover (65–75% opacity, blur, thin white borders, white text,
   darker bottom strip for title / rating, panels a little narrower) — design image still to receive.
 
 ## Feedback 21 Nov
@@ -519,6 +519,6 @@ Seen in a TV app (cast circles, ratings row, show details, trailers, More like t
   fallback across LibGen mirrors/domains.
 - ✓ (21 Nov, v1.0.233) More debrid services (AllDebrid, Premiumize, Debrid-Link…).
 - ✓ (21 Nov, v1.0.233) iPhone: add your own downloaded audiobooks (Files folder + Add files).
-- ✓ (21 Nov, v1.0.233) Frosted-glass book cards (design image 21 Nov): cover art with glass panels on the right — Author,
+- Tried and taken back (21 Nov, user: covers as before, only a glass sheen): Frosted-glass book cards (design image 21 Nov): cover art with glass panels on the right — Author,
   Narrator, Duration, Format with white icons, 65–75% opacity, blur, thin white borders; darker bottom
   strip with title and ★ rating; panels a little narrower so the cover breathes.

@@ -3943,6 +3943,7 @@ button.source-card:active {
   min-width: 0;
 }
 
+
 /* =====================================================================
    Audiohub v2 — Material You-inspired: soft tonal surfaces with a faint
    violet tint, pastel gradients, rounder shapes, Outfit for headings.
@@ -6498,6 +6499,7 @@ button.rt {
   box-shadow: 0 -10px 30px -10px rgba(0, 0, 0, 0.5);
 }
 
+
 /* =====================================================================
    Studio look (default): clean neutral black / white, warm orange accent,
    one crisp sans-serif everywhere, flatter cards and squarer corners.
@@ -7286,6 +7288,77 @@ button.rt {
 .continue-section {
   margin: 18px 0;
 }
+.continue-big {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: calc(100% - 40px);
+  margin: 0 20px 12px;
+  padding: 16px;
+  border-radius: 22px;
+  overflow: hidden;
+  text-align: left;
+  color: #fff;
+  background: #121018;
+  border: 1px solid var(--border);
+}
+.continue-big-bg {
+  position: absolute;
+  inset: -30px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(26px) saturate(1.3) brightness(0.45);
+}
+.continue-big .cover {
+  position: relative;
+  width: 96px;
+  flex: none;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+}
+.continue-big-text {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.continue-big-text em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+.continue-big-text b {
+  font-size: 18px;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.continue-big-text small {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+}
+.continue-big-text .progress-bar {
+  margin-top: 4px;
+}
+.continue-big-play {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--grad);
+  color: #111;
+  box-shadow: 0 8px 22px -6px var(--accent);
+}
 
 /* Cards: cover at the top, text packed tight under it (no gaps for short titles) */
 .book-card {
@@ -7370,7 +7443,8 @@ button.rt {
 /* Titles: an editorial serif, slightly tightened */
 :root[data-palette='atelier'] .screen-title,
 :root[data-palette='atelier'] .book .book-hero h1,
-:root[data-palette='atelier'] .pick-text b {
+:root[data-palette='atelier'] .pick-text b,
+:root[data-palette='atelier'] .continue-big-text b {
   font-family: var(--display);
   font-weight: 600;
   letter-spacing: -0.015em;
@@ -7385,11 +7459,11 @@ button.rt {
 }
 
 /* Contours: every raised surface gets a hairline rim, a lit top edge and a soft shadow */
-:root[data-palette='atelier'] :is(.continue-card, .pick-hero, .bookseller, .bookseller-bar, .lib-row, .stats, .search-box, .segmented, .mini-player, .bookseller-item, .card, .setting-card, .src-row, .book-tools, .gr-tile) {
+:root[data-palette='atelier'] :is(.continue-card, .continue-big, .pick-hero, .bookseller, .bookseller-bar, .lib-row, .stats, .search-box, .segmented, .mini-player, .bookseller-item, .card, .setting-card, .src-row, .book-tools, .gr-tile) {
   border: 1px solid var(--rim);
   box-shadow: inset 0 1px 0 var(--rim-top), var(--lift);
 }
-:root[data-palette='atelier'] :is(.pick-hero) {
+:root[data-palette='atelier'] :is(.continue-big, .pick-hero) {
   box-shadow: inset 0 1px 0 var(--rim-top), var(--lift-hi);
 }
 :root[data-palette='atelier'] .search-box:focus-within {
@@ -7422,7 +7496,7 @@ button.rt {
 }
 
 /* Accent pieces: brass gradient with dark ink text */
-:root[data-palette='atelier'] :is(.btn.primary, .play-btn, .pick-btn, .continue-play, .pill.active, .segmented button.on, .chip-btn.active) {
+:root[data-palette='atelier'] :is(.btn.primary, .play-btn, .pick-btn, .continue-big-play, .continue-play, .pill.active, .segmented button.on, .chip-btn.active) {
   background: var(--grad);
   color: var(--on-grad);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 20px -10px color-mix(in srgb, var(--accent) 70%, transparent);
@@ -7691,6 +7765,7 @@ button.stats {
   flex: none;
   margin-top: 1px;
 }
+
 
 /* PDFs: original pages view */
 .pdf-pages {
@@ -8617,7 +8692,36 @@ button.stats {
 :root[data-palette='paperink'] .mini-sub .err {
   color: #a4473b;
 }
-
+/* Home under Paper & Ink: the Continue card is a book-white card, the cover is the colour. */
+:root[data-palette='paperink'] .continue-big {
+  background: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+:root[data-palette='paperink'] .continue-big-bg {
+  display: none;
+}
+:root[data-palette='paperink'] .continue-big .cover {
+  box-shadow: 0 8px 20px -12px rgba(36, 39, 32, 0.45);
+}
+:root[data-palette='paperink'] .continue-big-text em {
+  color: var(--muted);
+}
+:root[data-palette='paperink'] .continue-big-text small {
+  color: var(--muted);
+}
+:root[data-palette='paperink'] .continue-big-text .progress-bar {
+  background: var(--border);
+}
+:root[data-palette='paperink'] .continue-big-play {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: none;
+}
+:root[data-mode='dark'][data-palette='paperink'] .continue-big-play {
+  color: #191b18;
+}
 :root[data-palette='paperink'] .progress-bar > div {
   background: var(--accent);
 }
@@ -8758,6 +8862,7 @@ button.stats {
 }
 
 /* Home → Continue: ✕ takes a book off the row */
+.continue-big,
 .continue-card {
   position: relative;
 }
@@ -9473,12 +9578,17 @@ button.notes-book-head {
   z-index: 2;
   border-radius: inherit;
   pointer-events: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0) 30%);
+  /* Frosted-glass sheen: light across the top-left, a fine bright top edge, a soft fade below. */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06) 28%, rgba(255, 255, 255, 0) 42%),
+    linear-gradient(to top, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0) 30%);
 }
 :root[data-mode='light'] .cover::after {
-  box-shadow: inset 0 0 0 1px rgba(30, 20, 10, 0.08);
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 30%);
+  box-shadow: inset 0 0 0 1px rgba(30, 20, 10, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.08) 28%, rgba(255, 255, 255, 0) 42%),
+    linear-gradient(to top, rgba(40, 25, 10, 0.08), rgba(40, 25, 10, 0) 30%);
 }
 /* The jacket (shown until — or instead of — a cover image) */
 :root[data-palette][data-mode] .cover-fallback {
@@ -10631,6 +10741,8 @@ button.notes-book-head {
   max-width: 100%;
 }
 
+
+
 /* ---- Home top (B3): the logo, a small greeting over "Audiohub", plain icons; it sits on the
    page above the banner (nothing behind the text). ---- */
 :root[data-palette='paperink'] {
@@ -10889,6 +11001,7 @@ button.notes-book-head {
   color: var(--muted);
   line-height: 1.25;
 }
+
 
 /* Book cards: the cover stays clean — rating, StoryShots and progress sit under it. */
 .progress-under {
@@ -12150,7 +12263,14 @@ button.cr-tile.on > img {
 .d-card { display: block; width: 100%; padding: 0; text-align: left; font: inherit; color: inherit; border-radius: 18px; background: var(--surface); border: 1px solid var(--border); overflow: hidden; }
 .d-pick { display: flex; min-height: 176px; background: linear-gradient(110deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%); cursor: pointer; }
 .d-pick.shimmer { min-height: 176px; }
-.d-series > .cover { width: 118px; height: auto; aspect-ratio: auto; border-radius: 0; flex: none; align-self: stretch; object-fit: cover; }
+.d-pick > .cover, .d-series > .cover { width: 118px; height: auto; aspect-ratio: auto; border-radius: 0; flex: none; align-self: stretch; object-fit: cover; }
+.d-pick-m { flex: 1; min-width: 0; padding: 14px; display: flex; flex-direction: column; gap: 5px; }
+.d-pick-m b { font-size: 19px; line-height: 1.2; }
+.d-pick-m small { color: var(--muted); font-size: 13px; }
+.d-badge { align-self: flex-start; display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, #34d399 18%, transparent); color: #6ee7b7; }
+.d-pick-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
+.d-chips { display: flex; gap: 6px; min-width: 0; overflow: hidden; }
+.d-chips span { font-size: 11px; padding: 4px 9px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
 .d-play { width: 46px; height: 46px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; flex: none; }
 .d-why { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 11px; border: 0; border-top: 1px solid var(--border); background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; }
 .d-why-list { margin: 0; padding: 0 18px 14px 34px; color: var(--muted); font-size: 13px; line-height: 1.6; }
@@ -12215,7 +12335,14 @@ button.cr-tile.on > img {
 
 .home .continue-section { padding-top: 22px; }
 .home-head { padding: 0 20px; }
-
+.home .continue-big { padding: 0; gap: 0; background: var(--surface); color: var(--text); align-items: stretch; min-height: 150px; }
+.home .continue-big-bg { display: none; }
+.home .continue-big .cover { width: 104px; border-radius: 0; box-shadow: none; align-self: stretch; height: auto; object-fit: cover; }
+.home .continue-big-text { padding: 14px; justify-content: center; }
+.home .continue-big-play { align-self: center; margin-right: 14px; }
+.home .continue-big-text em { color: var(--accent); }
+.home .continue-big-text small { color: var(--muted); }
+.home .continue-big-play { background: var(--accent); color: #fff; }
 /* Every row head on Home and Discover: accent icon, accent See all. */
 .home .row-head h2 .icon, .disc2 .row-head h2 .icon { color: var(--accent); }
 .home .row-head .see-all, .disc2 .row-head .see-all { color: var(--accent); font-weight: 600; }
@@ -12258,13 +12385,8 @@ button.cr-tile.on > img {
 :root .home .feature-spacer { display: none; }
 :root .home .feature.shimmer { height: 214px; }
 /* One plain font for Home's and Discover's headings and titles, as in the sample. */
-.home-greet h1,
-.home .row-head h2,
-.home .d-head h3,
-.home .section-label,
-.disc2 .row-head h2,
-.disc2 .d-head h3,
-.discover .screen-title { font-family: var(--font); }
+.home-greet h1, .home .row-head h2, .home .d-head h3, .home .section-label, .home .continue-big-text b,
+.disc2 .row-head h2, .disc2 .d-head h3, .disc2 .d-pick-m b, .discover .screen-title { font-family: var(--font); }
 .home .row-head h2, .disc2 .row-head h2 { font-size: 18px; font-weight: 700; }
 
 /* Card titles: exactly two lines, cut cleanly with "…" (never half a third line), whatever the theme. */
@@ -12687,6 +12809,16 @@ button.pp-av { padding: 0; cursor: pointer; }
 /* ---- Library front page (shelves) ---- */
 .lib-home { padding-bottom: 8px; }
 .lh-stats { display: block; margin: -6px 20px 4px; padding: 0; background: none; border: 0; color: var(--muted); font: 500 13.5px var(--font); text-align: left; }
+.lh-continue { display: flex; align-items: center; gap: 14px; margin: 12px 16px 4px; padding: 14px; border-radius: 22px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--bg)), color-mix(in srgb, var(--accent-2, var(--accent)) 8%, var(--bg))); border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent); cursor: pointer; }
+.lh-cover { width: 92px; flex: none; }
+.lh-cover > * { width: 100%; border-radius: 12px; box-shadow: 0 10px 22px -10px rgba(0, 0, 0, 0.45); }
+.lh-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lh-info small { font-size: 11.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--accent); }
+.lh-info b { font-size: 16.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lh-info span { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lh-bar { height: 4px; border-radius: 3px; background: color-mix(in srgb, var(--text) 10%, transparent); margin-top: 6px; overflow: hidden; }
+.lh-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.lh-play { width: 48px; height: 48px; flex: none; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--text); color: var(--bg); }
 .lh-row { margin-top: 18px; }
 .lh-head { display: flex; align-items: baseline; justify-content: space-between; padding: 0 20px 8px; }
 .lh-head h3 { font-size: 19px; font-weight: 750; letter-spacing: -0.01em; }
@@ -12871,52 +13003,3 @@ html[data-motion='full'] .fp-art.playing .fp-glow { animation: mo-glow-in-full 0
 .set-away { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: calc(100% - 32px); margin: 0 16px 10px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line, rgba(0, 0, 0, 0.1)); background: var(--surface, transparent); color: var(--text); text-align: left; font: inherit; }
 .set-away small { color: var(--muted); }
 
-
-/* ---- The frosted-glass book card (Continue listening, the book page) ----
-   The whole cover on the left (never cropped), the same cover blurred behind the glass panels,
-   a dark strip with the title and ★. On a pale cover (.light) the glass darkens. */
-.glass-card { position: relative; isolation: isolate; overflow: hidden; display: block; width: calc(100% - 40px); max-width: 640px; height: 272px; margin: 0 20px 12px; border-radius: 22px; color: #fff; text-align: left; cursor: pointer; background: #2a2620; box-shadow: 0 18px 34px -18px rgba(60, 40, 15, 0.55), 0 2px 6px rgba(60, 40, 15, 0.12); -webkit-tap-highlight-color: transparent; }
-.gc-bg { position: absolute; inset: -30px; z-index: -1; background-size: cover; background-position: center; filter: blur(22px) saturate(1.25) brightness(0.82); }
-.glass-card.light .gc-bg { filter: blur(22px) saturate(1.3) brightness(0.62); }
-.gc-cover { position: absolute; left: 0; top: 0; bottom: 62px; width: calc(100% - 172px); display: flex; align-items: center; justify-content: center; }
-.gc-cover .cover { width: min(calc(100% - 24px), 186px); border-radius: 12px; box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4); }
-.gc-pills { position: absolute; right: 12px; top: 12px; width: 150px; display: flex; flex-direction: column; gap: 5px; }
-.gc-pill { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 14px; color: #fff; background: color-mix(in srgb, var(--tint, #fff) 14%, rgba(255, 255, 255, 0.1)); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); border: 1px solid rgba(255, 255, 255, 0.07); box-shadow: none; }
-.glass-card.light .gc-pill { background: rgba(40, 36, 28, 0.34); border-color: rgba(255, 255, 255, 0.08); }
-.gc-pill svg { flex: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); }
-.gc-pill > div { min-width: 0; flex: 1; }
-.gc-pill small { display: block; font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; opacity: 0.8; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gc-pill b { display: block; font-size: 13px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
-.gc-pill.tap:active { transform: scale(0.97); }
-.gc-where small { text-transform: none; letter-spacing: 0; font-size: 11.5px; font-weight: 600; opacity: 0.92; }
-.gc-bar { height: 3px; border-radius: 2px; margin-top: 5px; background: rgba(255, 255, 255, 0.3); overflow: hidden; }
-.gc-bar i { display: block; height: 100%; background: #f2c14e; }
-.gc-strip { position: absolute; left: 0; right: 0; bottom: 0; height: 62px; padding: 0 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(to top, rgba(8, 7, 6, 0.86), rgba(8, 7, 6, 0.6) 75%, rgba(8, 7, 6, 0)); }
-.gc-strip b { display: block; min-width: 0; font-family: Georgia, 'Times New Roman', var(--display), serif; font-size: 21px; font-weight: 600; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gc-rate { flex: none; font-size: 16px; font-weight: 600; }
-.gc-rate::first-letter { color: #f2c14e; }
-.glass-card .continue-hide { position: absolute; top: 10px; left: 10px; right: auto; z-index: 2; }
-html[data-motion='off'] .gc-pill.tap:active { transform: none; }
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.book-hero-content .glass-card { width: 100%; margin: 4px auto 14px; }
-
-/* The glass card, small (rows and grids): same layout, scaled down; nothing under it. */
-.glass-card.small { flex: none; width: 272px; height: 164px; margin: 0; border-radius: 16px; scroll-snap-align: start; }
-.glass-card.small .gc-cover { bottom: 40px; width: calc(100% - 128px); }
-.glass-card.small .gc-cover .cover { width: min(calc(100% - 16px), 116px); border-radius: 8px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.38); }
-.glass-card.small .gc-pills { right: 8px; top: 8px; width: 116px; gap: 4px; }
-.glass-card.small .gc-pill { padding: 4px 8px; gap: 6px; border-radius: 10px; }
-.glass-card.small .gc-pill b { font-size: 11px; line-height: 1.3; }
-.glass-card.small .gc-where small { font-size: 10px; }
-.glass-card.small .gc-bar { margin-top: 3px; height: 2px; }
-.glass-card.small .gc-strip { height: 40px; padding: 0 10px; gap: 8px; }
-.glass-card.small .gc-strip b { font-size: 14px; }
-.glass-card.small .gc-rate { font-size: 12px; }
-.glass-card.small .rank-badge { top: 6px; left: 6px; z-index: 2; }
-.glass-card.small .fetch-badge { top: 6px; bottom: auto; left: auto; right: 132px; z-index: 2; }
-.glass-card.small .gc-not { position: absolute; top: 6px; left: 6px; z-index: 2; }
-.glass-card.small:active { transform: scale(0.98); }
-.grid:has(> .glass-card.small) { grid-template-columns: repeat(auto-fill, minmax(272px, 1fr)); gap: 14px; }
-.grid > .glass-card.small { width: 100%; }
-.d-card:has(> .glass-card) { background: none; border: 0; overflow: visible; }
-.d-card > .glass-card { width: 100%; margin: 0 0 8px; }

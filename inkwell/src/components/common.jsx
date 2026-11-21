@@ -6,7 +6,6 @@ import { SOURCES, sourceOf } from '../sources/index.js';
 import { Icon } from './icons.jsx';
 import { nav } from '../lib/nav.js';
 import { progress as progressStore, useStoreKey, persisted, useStore, settings } from '../lib/store.js';
-import { GlassCard } from './glass-card.jsx';
 import { useImage, coverFrame, frameStyle, frameTall } from '../lib/image.js';
 import { longPress } from './book-actions.jsx';
 import { useSquareCover, fixFor, coverFailed, coverLoaded, markTyped } from '../lib/meta.js';
@@ -206,35 +205,6 @@ export const BookCard = memo(function BookCard({ book: raw, wide, rec = false })
   const hold = useMemo(() => longPress(() => bookRef.current), []);
   const bookRef = useRef(book);
   bookRef.current = rec ? { ...book, rec: true } : book;
-  // The frosted-glass look (Settings → Appearance → Book cards): title and ★ in a dark strip on
-  // the cover, with two glass chips — length and format, or how far you are and the time left.
-  const glass = useStoreKey(settings, 'cardStyle') !== 'classic';
-  if (glass) {
-    // The frosted-glass card, small: the whole cover on the left, author / narrator / length (or
-    // how far you are) / where it is on the right, title and ★ along the bottom — nothing under it.
-    const open = () => (isReaderEbook(book) ? nav.push('reader', { book }) : nav.push('book', { book }));
-    return (
-      <GlassCard small book={book} prog={pct > 0 ? prog : null} rating={rt} onPlay={open} rootProps={hold}>
-        {book.rank > 0 && <span class="rank-badge">#{book.rank}</span>}
-        {book.fetching != null && <span class="fetch-badge">{Math.round((book.fetching || 0) * 100)}%</span>}
-        {rec && (
-          <span
-            class="card-not gc-not"
-            role="button"
-            aria-label="Not interested"
-            title="Not interested — show less like this (or press and hold the book)"
-            onClick={(e) => {
-              e.stopPropagation();
-              markNotInterested(book);
-              toast('Hidden — you’ll see less like this (undo in Settings → AI)');
-            }}
-          >
-            <Icon name="close" size={11} />
-          </span>
-        )}
-      </GlassCard>
-    );
-  }
   return (
     <button class={'book-card' + (wide ? ' wide' : '')} {...hold} onClick={() => (isReaderEbook(book) ? nav.push('reader', { book }) : nav.push('book', { book }))}>
       <div class="book-card-cover">

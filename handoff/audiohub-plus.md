@@ -68,3 +68,9 @@
   "Your books" count tiles stay. Source results: each source in its own box (name + count). In v1.0.234.
 
   Panel borders now very faint (0.07 white), softer fill.
+- 21 Nov, after v1.0.234: the user asked for every cover as it was before 21 Nov — the glass cards
+  (big and small, glass-card.jsx, Book cards setting, coverLight) are removed; Continue card, book
+  page hero, Library Continue card, Discover pick and small covers are back to the 20 Nov look. Kept:
+  a stronger glass sheen on all covers (`.cover::after`), and everything else from 21 Nov (service
+  rows on Home, source boxes, phone-files shortcuts, ♡ by 👍/👎…). Not built yet.
+

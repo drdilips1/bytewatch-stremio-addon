@@ -1,11 +1,11 @@
 // Discover, browsing (nothing typed): four tabs — For you, Moods, Genres, Lists — each section
 // with the same head (icon, title, See all), covers on the card edge, equal-width chips.
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { GlassCard } from './glass-card.jsx';
 import { Row, Cover, Skeleton, Grid, cachedRow } from './common.jsx';
 import { Icon } from './icons.jsx';
 import { persisted, useStore, progress, settings } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
+import { fmtDuration } from '../lib/format.js';
 import { mainTitle, matches } from '../lib/match.js';
 import { rankForYou, fitsHours, scoreBook } from '../lib/taste.js';
 import { anchorBooks, tasteShelves } from '../lib/shelves.js';
@@ -138,8 +138,31 @@ function PickedForYou() {
         <div class="d-card d-pick shimmer" />
       ) : (
         <div class="d-card">
-          {/* The frosted-glass card, as on Home: tap it for the book. */}
-          <GlassCard book={book} onPlay={open} />
+          <div class="d-pick" onClick={open}>
+            <Cover book={book} eager />
+            <div class="d-pick-m">
+              {book.match ? (
+                <span class="d-badge">
+                  <Icon name="check" size={13} /> {book.match}% your taste
+                </span>
+              ) : null}
+              <b>{book.title}</b>
+              <small>
+                {book.author}
+                {book.duration ? ` · ${fmtDuration(book.duration)}` : ''}
+              </small>
+              <div class="d-pick-foot">
+                <div class="d-chips">
+                  {(book.genres || []).slice(0, 2).map((g) => (
+                    <span>{String(g).split(/ & |, /)[0]}</span>
+                  ))}
+                </div>
+                <span class="d-play">
+                  <Icon name="play" size={18} solid />
+                </span>
+              </div>
+            </div>
+          </div>
           {reasons.length > 0 && (
             <button class="d-why" onClick={() => setWhy(!why)}>
               <Icon name="headphones" size={15} /> Why this pick? <Icon name={why ? 'up' : 'down'} size={14} />

@@ -7,6 +7,7 @@ import { SceneButton } from '../components/scene-cmd.jsx';
 import { useTileRating } from '../lib/ratings.js';
 import { openExternal } from '../sources/summaries.js';
 import { useMeta } from '../lib/meta.js';
+import { useLocalCover } from '../sources/local.js';
 import { picksForYou } from '../lib/bookseller.js';
 import { mainTitle } from '../lib/match.js';
 import { Icon } from '../components/icons.jsx';
@@ -16,7 +17,6 @@ import { sameWork } from '../lib/works.js';
 import { FollowRow } from '../components/follow-row.jsx';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary, hideFromContinue } from '../lib/store.js';
 import { greeting, firstName, fmtDuration, hiResCover } from '../lib/format.js';
-import { GlassCard } from '../components/glass-card.jsx';
 import { MORE, moreConnected, moreLibrary } from '../sources/moredebrid.js';
 
 /** AllDebrid, Premiumize, Debrid-Link — the ones connected and switched on: [[provider, info]]. */
@@ -458,6 +458,18 @@ const audioOnly = (load) => () => load().then((list) => (list || []).filter((b) 
 // A Continue card's cover: the book's own current cover (the phone copy's, or one you picked),
 // not only the picture saved with your place — that one can be out of date or another book's.
 const topUidKey = (p) => p.book.uid;
+function ContinueCover({ book, big }) {
+  const local = useLocalCover(book);
+  const meta = useMeta(book);
+  const b = withMeta(local ? { ...book, cover: local } : book, meta?.fixed ? meta : null);
+  return (
+    <>
+      {big && b.cover && <div class="continue-big-bg" style={{ backgroundImage: `url("${b.cover}")` }} />}
+      <Cover book={b} eager={big} />
+    </>
+  );
+}
+
 function ContinueRow() {
   const prog = useStore(progress);
   const items = useMemo(
@@ -485,6 +497,7 @@ function ContinueRow() {
     nav.openOverlay('player');
     player.openAndPlay(p.book, getDetails);
   };
+  const left = (p) => (p.kind === 'text' ? 'Reading' : p.total ? `${fmtDuration(p.total - p.global)} left` : 'Listening');
   // ✕: off the Continue row (every copy of that book), its place kept for later.
   const hide = (e, p) => {
     e.stopPropagation();
@@ -519,10 +532,25 @@ function ContinueRow() {
           </button>
         )}
       </div>
-      {/* The book you were last on: the frosted-glass card (tap it to carry on). */}
-      <GlassCard key={topUidKey(top)} book={top.book} prog={top} onPlay={() => open(top)}>
+      {/* The book you were last on, big; the others in a row below. */}
+      <button class="continue-big" onClick={() => open(top)}>
+        <ContinueCover key={topUidKey(top)} book={top.book} big />
+        <div class="continue-big-text">
+          <em>{top.book.narrator ? `Read by ${String(top.book.narrator).split(',')[0]}` : top.kind === 'text' ? 'Reading' : 'Listening'}</em>
+          <b>{top.book.title}</b>
+          {top.book.author && <small>{top.book.author}</small>}
+          <div class="progress-bar">
+            <div style={{ width: Math.round((top.percent || 0) * 100) + '%' }} />
+          </div>
+          <small>
+            {Math.round((top.percent || 0) * 100)}% · {left(top)}
+          </small>
+        </div>
+        <span class="continue-big-play">
+          <Icon name={top.kind === 'text' ? 'book' : 'play'} size={24} />
+        </span>
         <Hide p={top} />
-      </GlassCard>
+      </button>
 
     </section>
   );

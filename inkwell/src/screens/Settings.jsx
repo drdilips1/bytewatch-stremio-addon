@@ -1864,7 +1864,7 @@ export function Settings() {
       </Section>
 
       <p class="set-group">App</p>
-      <Section icon="palette" title="Appearance" keys="cards glass theme colours dark light motion">
+      <Section icon="palette" title="Appearance" keys="covers theme colours dark light motion">
         <div class="set-row column">
           <div>
             <b>Mode</b>
@@ -1890,22 +1890,6 @@ export function Settings() {
               ['full', 'Full'],
             ].map(([m, label]) => (
               <button class={'pill small' + ((st.motion || 'gentle') === m ? ' active' : '')} onClick={() => settings.patch({ motion: m })}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div class="set-row column">
-          <div>
-            <b>Book cards</b>
-            <small>Glass: the title and ★ on the cover, with its length and format (or how far you are) in small glass chips. Classic: the title and details under the cover.</small>
-          </div>
-          <div class="chips">
-            {[
-              ['glass', 'Glass'],
-              ['classic', 'Classic'],
-            ].map(([m, label]) => (
-              <button class={'pill small' + ((st.cardStyle || 'glass') === m ? ' active' : '')} onClick={() => settings.patch({ cardStyle: m })}>
                 {label}
               </button>
             ))}

@@ -5,6 +5,7 @@ import { BgImage } from "../components/bg-image.jsx";
 import { BookBookmarks } from '../components/bookmarks.jsx';
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
+  Cover,
   SourceBadge,
   Row,
   BookCard,
@@ -20,6 +21,7 @@ import {
 } from "../sources/index.js";
 import { library, progress, toggleLibrary, useStore } from "../lib/store.js";
 import { readLater, toggleReadLater } from "../lib/readlists.js";
+import { namesIn } from "../lib/people.js";
 import { BookTags } from "../components/book-tags.jsx";
 import { fmtDuration, fmtTime } from "../lib/format.js";
 import { finishLine } from "../lib/stats.js";
@@ -27,7 +29,6 @@ import { nav, useBackClose } from "../lib/nav.js";
 import * as qb from "../sources/qbit.js";
 import { canSendToKindle, sendToKindle, shareEbook } from "../lib/kindle.js";
 import { cloudReaderBook } from "../lib/epub.js";
-import { GlassCard } from "../components/glass-card.jsx";
 import { openSearch } from "./Discover.jsx";
 import { mainTitle, searchTitle, matches, surname } from "../lib/match.js";
 import { STARTERS } from "../lib/askbook.js";
@@ -191,13 +192,28 @@ export function Book({ book: initial }) {
           </div>
         </header>
         <div class="book-hero-content">
-          {/* The frosted-glass card: the whole cover, author, narrator, length, format (or where
-              you are in it) and the rating. Tap it to listen. */}
-          <GlassCard book={book} prog={canListen && pct > 0 ? prog : null} onPlay={canListen ? () => listen() : undefined} />
+          <Cover book={book} class="book-cover" eager />
           {book.source !== "pod" && book.source !== "sum" && <HeroPills book={book} />}
-          <h1 class="sr-only">{splitTitle(book).main}</h1>
+          <h1>{splitTitle(book).main}</h1>
           {splitTitle(book).sub && <p class="book-sub">{splitTitle(book).sub}</p>}
           <HeroFacts book={book} tracks={tracks} />
+          {(book.author || book.narrator) && (
+            <div class={"book-people" + (book.author && book.narrator ? "" : " one")}>
+              {book.author && (
+                <div>
+                  <small>By</small>
+                  <PeopleLinks names={book.author} role="author" />
+                </div>
+              )}
+              {book.author && book.narrator && <i />}
+              {book.narrator && (
+                <div>
+                  <small>Read by</small>
+                  <PeopleLinks names={book.narrator} role="narrator" />
+                </div>
+              )}
+            </div>
+          )}
           <WhereBadges book={book} />
           {!loading &&
             !book.cover &&
@@ -823,6 +839,24 @@ function BookCheck({ check }) {
 }
 
 /** Under the title, two quiet lines: length · parts · year · language, then the ratings. */
+/** Names that open the person's page (authors, narrators). */
+function PeopleLinks({ names, role }) {
+  const list = namesIn(names).slice(0, 2);
+  if (!list.length) return <b>{names}</b>;
+  return (
+    <b>
+      {list.map((n, i) => (
+        <>
+          {i > 0 && " & "}
+          <a class="person-link" onClick={() => nav.push("person", { name: n, role })}>
+            {n}
+          </a>
+        </>
+      ))}
+    </b>
+  );
+}
+
 /** "Title: Subtitle" → { main, sub } (or the book's own subtitle). */
 function splitTitle(book) {
   const t = String(book.title || "");
