@@ -6,7 +6,10 @@
   (Actions → AudioYam iPhone app → Run workflow; each run publishes `ios-N` and updates the AltStore
   source `releases/download/ios-source/altstore.json`). It used to start on any push touching ios.yml;
   run 2 started that way on 21 Nov and was cancelled during install (nothing published).
-- Latest released: Android v1.0.36 (15-feature port + old logo); iPhone ios-1.
+- Latest released (21 Nov, user said "build and release"): Android v1.0.39 + web app from `main` ed4b61f
+  (= `work`), iPhone ios-4 (run 4, AltStore source updated). Everything in the "On `work`" notes below is in it.
+  Reddit post text for 1.0.39 given to the user (incl. public addon pack sources.booksources.workers.dev/addons/all.json).
+- Earlier: Android v1.0.36; iPhone ios-1.
 - Built 21 Nov (user said "build"): iPhone `ios-3` from 26aa8e2 (run 3; files + player + transcribe plugins in;
   AltStore source updated) — not tried on a device yet. Android test APK from dea8d92 (run 38, release
   `test-build` / AudioYam-test.apk, not an update); run 37 failed: shareImage was in InkwellWebPlugin twice
