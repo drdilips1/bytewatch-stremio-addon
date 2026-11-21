@@ -510,3 +510,15 @@ Seen in a TV app (cast circles, ratings row, show details, trailers, More like t
 - Sources list: clear headings per source — Audiobooks: AudiobookBay, Mobilism…; Ebooks: likewise.
 - Frosted-glass metadata panels over the cover (65–75% opacity, blur, thin white borders, white text,
   darker bottom strip for title / rating, panels a little narrower) — design image still to receive.
+
+## Feedback 21 Nov
+- Settings are hard to find (local storage files, all cloud / Audiobookshelf files, turning off music
+  files in the cloud…): make them findable — a search box in Settings and a clearer grouping.
+- Home: long-press a cover → Play doesn't work even with plenty of results.
+- Ebook "Attach": only LibGen shows and it fails (HTTP 500). Knaben Ebooks first, then LibGen with
+  fallback across LibGen mirrors/domains.
+- More debrid services (AllDebrid, Premiumize, Debrid-Link…).
+- iPhone: add your own downloaded audiobooks (Files folder + Add files).
+- Frosted-glass book cards (design image 21 Nov): cover art with glass panels on the right — Author,
+  Narrator, Duration, Format with white icons, 65–75% opacity, blur, thin white borders; darker bottom
+  strip with title and ★ rating; panels a little narrower so the cover breathes.
