@@ -28,9 +28,10 @@ export const easynewsBooks = persisted('easynewsBooks', {});
 const EN = 'https://members.easynews.com';
 
 /** Easynews files for these words, grouped into books: [{ key, title, files: [{ name, size, url }] }]. */
-export async function easynewsSearch(query) {
+export async function easynewsSearch(query, { limit = 250, timeout = 45000 } = {}) {
   if (!easynewsOn()) return [];
-  const r = await getJson(`${EN}/2.0/search/solr-search/?${qs({ fly: 2, gps: query, pby: 250, pno: 1, sS: 5, s1: 'dsize', s1d: '-', fex: 'm4b m4a mp3 epub pdf', safeO: 0 })}`, { headers: { Authorization: basic() }, fresh: true });
+  // Easynews' search can take half a minute: give it time (the usual wait is 15 s).
+  const r = await getJson(`${EN}/2.0/search/solr-search/?${qs({ fly: 2, gps: query, pby: limit, pno: 1, sS: 5, s1: 'dsize', s1d: '-', fex: 'm4b m4a mp3 epub pdf', safeO: 0 })}`, { headers: { Authorization: basic() }, fresh: true, timeout });
   const down = r?.downURL || `${EN}/dl`;
   const groups = new Map();
   for (const it of r?.data || []) {

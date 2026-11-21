@@ -95,12 +95,18 @@ function UsenetCard() {
             const prev = usenetCfg.get().easynews;
             usenetCfg.set((c) => ({ ...c, easynews: { user: en.user.trim(), pass: en.pass } }));
             try {
-              await easynewsSearch('test');
+              await easynewsSearch('audiobook', { limit: 5, timeout: 30000 });
               setEn({ user: '', pass: '' });
               toast('Easynews connected');
             } catch (err) {
-              usenetCfg.set((c) => ({ ...c, easynews: prev }));
-              toast(err.status === 401 ? 'Easynews rejected that username or password' : `Easynews: ${err.message}`);
+              // Only a refused sign-in undoes it; a slow answer keeps it (searches wait longer).
+              if (err.status === 401 || err.status === 403 || /HTTP 40[13]/.test(err.message || '')) {
+                usenetCfg.set((c) => ({ ...c, easynews: prev }));
+                toast('Easynews rejected that username or password');
+              } else {
+                setEn({ user: '', pass: '' });
+                toast(`Saved — Easynews didn't answer the test in time (${err.message}); book pages will try again`);
+              }
             } finally {
               setBusy('');
             }
