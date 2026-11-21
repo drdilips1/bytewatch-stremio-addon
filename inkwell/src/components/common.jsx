@@ -161,13 +161,13 @@ function SafeCard({ book, wide, rec }) {
 }
 
 /** Small lines under the author: file format · length (e.g. "M4B · 11h 10m"), then the narrator. */
-function CardFacts({ book, meta }) {
+function CardFacts({ book, meta, narratorOnly = false }) {
   // An ebook: no length or narrator (the online details are the audiobook's), just "Ebook" / its format.
   const ebook = book.kind === 'text' || /#ebook$/.test(book.uid || '');
   const secs = ebook ? 0 : Number(book.duration) || Number(meta?.runtime) || 0;
   const narrator = ebook ? '' : str(book.narrator || meta?.narrator).split(',')[0].trim();
   const format = str(book.format).toUpperCase() || (ebook ? 'Ebook' : Array.isArray(book.files) ? audioFormat(book.files) : ''); // phone books scanned before formats were noted
-  const line = [format, secs ? fmtDuration(secs) : ''].filter(Boolean).join(' · ');
+  const line = narratorOnly ? '' : [format, secs ? fmtDuration(secs) : ''].filter(Boolean).join(' · ');
   if (!line && !narrator) return null;
   return (
     <>
@@ -205,6 +205,94 @@ export const BookCard = memo(function BookCard({ book: raw, wide, rec = false })
   const hold = useMemo(() => longPress(() => bookRef.current), []);
   const bookRef = useRef(book);
   bookRef.current = rec ? { ...book, rec: true } : book;
+  // The frosted-glass look (Settings → Appearance → Book cards): title and ★ in a dark strip on
+  // the cover, with two glass chips — length and format, or how far you are and the time left.
+  const glass = useStoreKey(settings, 'cardStyle') !== 'classic';
+  if (glass) {
+    const ebook = book.kind === 'text' || /#ebook$/.test(book.uid || '');
+    const secs = ebook ? 0 : Number(book.duration) || Number(meta?.runtime) || 0;
+    const format = str(book.format).toUpperCase() || (ebook ? 'Ebook' : Array.isArray(book.files) ? audioFormat(book.files) : '');
+    // Short, so both fit on one line of a small cover ("40%", "6h left").
+    const rest = prog?.total ? Math.max(0, prog.total - (prog.global || 0)) : 0;
+    const short = rest >= 3600 ? `${Math.round(rest / 3600)}h left` : rest > 0 ? `${Math.max(1, Math.round(rest / 60))}m left` : '';
+    const chips = pct > 0 ? [`${pct}%`, short] : [secs && fmtDuration(secs), format];
+    const title = String(book.title || '').replace(/^[\s\-–—_.,:;]+/, '');
+    return (
+      <button class={'book-card glass' + (wide ? ' wide' : '')} {...hold} onClick={() => (isReaderEbook(book) ? nav.push('reader', { book }) : nav.push('book', { book }))}>
+        <div class="book-card-cover">
+          <Cover book={book} />
+          {book.rank > 0 && <span class="rank-badge">#{book.rank}</span>}
+          {book.copies > 1 && <span class="copies-badge">{book.copies} copies</span>}
+          {book.fetching != null && <span class="fetch-badge">{Math.round((book.fetching || 0) * 100)}%</span>}
+          {chips.some(Boolean) && (
+            <div class="bc-chips">
+              {chips.filter(Boolean).map((c) => (
+                <span>{c}</span>
+              ))}
+            </div>
+          )}
+          <div class="bc-strip">
+            <b>{title}</b>
+            {rt && (
+              <span
+                class="bc-rate"
+                role="link"
+                title={`${rt.from}: ${rt.rating.toFixed(1)} from ${rt.count.toLocaleString()} ratings — tap for reviews`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (rt.url) openExternal(rt.url);
+                }}
+              >
+                ★ {rt.rating.toFixed(1)}
+              </span>
+            )}
+          </div>
+          {pct > 0 && (
+            <div class="bc-progress">
+              <i style={{ width: pct + '%' }} />
+            </div>
+          )}
+        </div>
+        <div class="book-card-head">
+          <div class="book-card-author">{book.author || ' '}</div>
+          {rec && (
+            <span
+              class="card-not"
+              role="button"
+              aria-label="Not interested"
+              title="Not interested — show less like this (or press and hold the book)"
+              onClick={(e) => {
+                e.stopPropagation();
+                markNotInterested(book);
+                toast('Hidden — you’ll see less like this (undo in Settings → AI)');
+              }}
+            >
+              <Icon name="close" size={11} />
+            </span>
+          )}
+        </div>
+        {(match > 0 || ss) && (
+          <div class="book-card-badges">
+            {match > 0 && <span class={'card-match' + (match >= 80 ? ' hi' : '')}>{match}%</span>}
+            {ss && (
+              <span
+                class={'card-ss' + (ss.ep ? '' : ' outline')}
+                role="link"
+                title={ss.ep ? 'StoryShots audio summary — plays here' : 'Summary in StoryShots — tap for options'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  chooseStoryShots(book, ss);
+                }}
+              >
+                S
+              </span>
+            )}
+          </div>
+        )}
+        <CardFacts book={book} meta={meta} narratorOnly />
+      </button>
+    );
+  }
   return (
     <button class={'book-card' + (wide ? ' wide' : '')} {...hold} onClick={() => (isReaderEbook(book) ? nav.push('reader', { book }) : nav.push('book', { book }))}>
       <div class="book-card-cover">

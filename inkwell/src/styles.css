@@ -12693,16 +12693,6 @@ button.pp-av { padding: 0; cursor: pointer; }
 /* ---- Library front page (shelves) ---- */
 .lib-home { padding-bottom: 8px; }
 .lh-stats { display: block; margin: -6px 20px 4px; padding: 0; background: none; border: 0; color: var(--muted); font: 500 13.5px var(--font); text-align: left; }
-.lh-continue { display: flex; align-items: center; gap: 14px; margin: 12px 16px 4px; padding: 14px; border-radius: 22px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--bg)), color-mix(in srgb, var(--accent-2, var(--accent)) 8%, var(--bg))); border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent); cursor: pointer; }
-.lh-cover { width: 92px; flex: none; }
-.lh-cover > * { width: 100%; border-radius: 12px; box-shadow: 0 10px 22px -10px rgba(0, 0, 0, 0.45); }
-.lh-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.lh-info small { font-size: 11.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--accent); }
-.lh-info b { font-size: 16.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.lh-info span { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lh-bar { height: 4px; border-radius: 3px; background: color-mix(in srgb, var(--text) 10%, transparent); margin-top: 6px; overflow: hidden; }
-.lh-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
-.lh-play { width: 48px; height: 48px; flex: none; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--text); color: var(--bg); }
 .lh-row { margin-top: 18px; }
 .lh-head { display: flex; align-items: baseline; justify-content: space-between; padding: 0 20px 8px; }
 .lh-head h3 { font-size: 19px; font-weight: 750; letter-spacing: -0.01em; }
@@ -12904,6 +12894,7 @@ html[data-motion='full'] .fp-art.playing .fp-glow { animation: mo-glow-in-full 0
 .gc-pill small { display: block; font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; opacity: 0.8; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gc-pill b { display: block; font-size: 13px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
 .gc-pill.tap:active { transform: scale(0.97); }
+.gc-where small { text-transform: none; letter-spacing: 0; font-size: 11.5px; font-weight: 600; opacity: 0.92; }
 .gc-bar { height: 3px; border-radius: 2px; margin-top: 5px; background: rgba(255, 255, 255, 0.3); overflow: hidden; }
 .gc-bar i { display: block; height: 100%; background: #f2c14e; }
 .gc-strip { position: absolute; left: 0; right: 0; bottom: 0; height: 62px; padding: 0 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(to top, rgba(8, 7, 6, 0.86), rgba(8, 7, 6, 0.6) 75%, rgba(8, 7, 6, 0)); }
@@ -12916,3 +12907,20 @@ html[data-motion='full'] .fp-art.playing .fp-glow { animation: mo-glow-in-full 0
 html[data-motion='off'] .gc-pill.tap:active { transform: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .book-hero-content .glass-card { width: 100%; margin: 4px auto 14px; }
+
+/* ---- Small book cards, frosted glass (rows and grids; Settings → Appearance → Book cards) ----
+   Title and ★ in a dark strip on the cover, two glass chips above it. */
+.book-card.glass .book-card-cover { overflow: hidden; border-radius: var(--radius-sm); }
+.bc-strip { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; padding: 18px 8px 7px; color: #fff; background: linear-gradient(to top, rgba(8, 7, 6, 0.86), rgba(8, 7, 6, 0.55) 65%, rgba(8, 7, 6, 0)); pointer-events: none; }
+.bc-strip b { min-width: 0; font-family: Georgia, 'Times New Roman', var(--display), serif; font-size: 12.5px; font-weight: 600; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+.bc-rate { flex: none; font-size: 11px; font-weight: 600; pointer-events: auto; }
+.bc-rate::first-letter { color: #f2c14e; }
+.bc-chips { position: absolute; left: 6px; right: 6px; bottom: 44px; z-index: 2; display: flex; gap: 4px; overflow: hidden; pointer-events: none; }
+.bc-chips span { font-size: 10px; font-weight: 600; line-height: 1; color: #fff; padding: 4px 7px; border-radius: 9px; background: rgba(30, 26, 20, 0.42); border: 1px solid rgba(255, 255, 255, 0.42); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: none; }
+.bc-chips span + span { flex: 0 1 auto; }
+.lib-home .glass-card { width: calc(100% - 32px); margin: 12px 16px 8px; }
+.bc-progress { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; height: 3px; background: rgba(255, 255, 255, 0.25); }
+.bc-progress i { display: block; height: 100%; background: #f2c14e; }
+.book-card.glass .book-card-head { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
+.book-card.glass .book-card-author { flex: 1; min-width: 0; margin-top: 0; }
+.book-card.glass .fetch-badge { bottom: auto; top: 7px; }

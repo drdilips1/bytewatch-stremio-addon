@@ -57,7 +57,9 @@ export function GlassCard({ book, prog = null, rating = null, onPlay, children }
   const length = Number(b.duration) || Number(prog?.total) || 0;
   const format = String(b.format || '').toUpperCase() || whereOf(b);
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
-  const left = prog?.total ? fmtDuration(Math.max(0, prog.total - (prog.global || 0))) : '';
+  // Time left, short enough for the panel ("16h", "2h 14m", "45m").
+  const rest = prog?.total ? Math.max(0, prog.total - (prog.global || 0)) : 0;
+  const left = rest >= 36000 ? `${Math.round(rest / 3600)}h` : rest > 0 ? fmtDuration(rest) : '';
   const person = (e, name, role) => (e.stopPropagation(), nav.push('person', { name, role }));
   const panel = (icon, label, value, onClick) =>
     value && (

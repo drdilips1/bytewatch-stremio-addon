@@ -1,16 +1,15 @@
 // Library's front page: the book you're on, then a row per shelf (in progress, read later,
 // found, audiobooks, ebooks, podcasts, finished) — "See all" opens that shelf with its filters.
 import { useState } from 'preact/hooks';
-import { BookCard, BookCover, Empty } from './common.jsx';
+import { BookCard, Empty } from './common.jsx';
+import { GlassCard } from './glass-card.jsx';
 import { Icon } from './icons.jsx';
 import { nav } from '../lib/nav.js';
 import { useStore, progress } from '../lib/store.js';
 import { aiOff } from '../lib/ai.js';
-import { fmtDuration } from '../lib/format.js';
 import * as player from '../lib/player.js';
 import { getDetails } from '../sources/index.js';
 
-const shown = (b) => String(b?.title || '').replace(/^[\s\-–—_.,:;]+/, '');
 
 function Shelf({ title, count, items, onAll }) {
   if (!items.length) return null;
@@ -33,35 +32,15 @@ function Shelf({ title, count, items, onAll }) {
   );
 }
 
+/** The book you're on: the frosted-glass card (tap it to carry on). */
 function ContinueCard({ book }) {
   const p = useStore(progress)[book.uid];
-  const text = book.kind === 'text';
-  const left = p?.total && !text ? `${fmtDuration(Math.max(0, p.total - p.global))} left` : p?.percent ? `${Math.round(p.percent * 100)}% read` : '';
-  const pct = Math.round((p?.percent || 0) * 100);
-  const go = (e) => {
-    e.stopPropagation();
-    if (text) return nav.push('reader', { book });
+  const go = () => {
+    if (book.kind === 'text') return nav.push('reader', { book });
     nav.openOverlay('player');
     player.openAndPlay(book, getDetails);
   };
-  return (
-    <div class="lh-continue" role="button" onClick={() => nav.push(text ? 'reader' : 'book', { book })}>
-      <div class="lh-cover">
-        <BookCover book={book} />
-      </div>
-      <div class="lh-info">
-        <small>{text ? 'CONTINUE READING' : 'CONTINUE'}</small>
-        <b>{shown(book)}</b>
-        <span>{[book.author, left].filter(Boolean).join(' · ')}</span>
-        <div class="lh-bar">
-          <i style={{ width: pct + '%' }} />
-        </div>
-      </div>
-      <button class="lh-play" aria-label={text ? `Read ${shown(book)}` : `Play ${shown(book)}`} onClick={go}>
-        <Icon name={text ? 'book' : 'play'} size={20} />
-      </button>
-    </div>
-  );
+  return <GlassCard book={book} prog={p || { percent: 0 }} onPlay={go} />;
 }
 
 export function LibraryHome({ groups, shelves, stats, libby, openTab }) {

@@ -35,6 +35,7 @@
   Continue card, the big hero cover and the By / Read by row). Whole cover left (not cropped), the
   cover blurred behind 150 px glass panels (Author, Narrator — tap for their page; Duration; Format
   or, when in progress, % + time left + gold bar), dark strip with title + ★ (Goodreads). Pale
-  covers darken the glass (`coverLight` / `meanLight` in color.js, tested). Not done: the small
-  version for Home rows (sample 6) — offer after the user sees the card in a build.
-
+  covers darken the glass (`coverLight` / `meanLight` in color.js, tested). Small covers too:
+  `BookCard` (common.jsx) glass mode — title + ★ strip on the cover, two chips (length + format, or
+  % + "6h left"), gold progress line; Settings → Appearance → Book cards: Glass (default) / Classic.
+  Library's Continue card is the glass card as well.
