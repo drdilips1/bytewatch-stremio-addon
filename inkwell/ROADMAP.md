@@ -523,3 +523,13 @@ Seen in a TV app (cast circles, ratings row, show details, trailers, More like t
 - Tried and taken back (21 Nov, user: covers as before, only a glass sheen): Frosted-glass book cards (design image 21 Nov): cover art with glass panels on the right — Author,
   Narrator, Duration, Format with white icons, 65–75% opacity, blur, thin white borders; darker bottom
   strip with title and ★ rating; panels a little narrower so the cover breathes.
+
+## Cloudflare traffic (21 Nov) — fix before sharing addons widely (Audiohub+ and AudioYam)
+- Worker: 30.3k requests / 24 h (free limit 100k/day), up 287%.
+- Goodreads: 15k requests, ALL refused (4xx) — Goodreads blocks Cloudflare. Stop sending Goodreads
+  through the worker/relay; after a refusal don't ask again for that book for days, pause Goodreads
+  for an hour after a few refusals in a row.
+- iTunes ~1k (957 refused) and Hardcover (half refused): back off after a refusal, remember results.
+- Worker: cache ratings / search answers 12–24 h; per-IP limit.
+- Then share https://api.audiohubapp.com/addons/all.json; later move public addon routes to a separate
+  Cloudflare account (see "How to share without blocks").
