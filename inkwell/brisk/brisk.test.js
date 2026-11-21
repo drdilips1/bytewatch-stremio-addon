@@ -1,0 +1,53 @@
+import { describe, it, expect } from 'vitest';
+import { rankResults, fitsWords, syncSources, copyFacts, backAfterInterruption } from './logic.js';
+import bundle from './audio-sources.json';
+
+describe('Audibrisk search order', () => {
+  it('a word anywhere in the title beats a title that only starts like it', () => {
+    const list = [
+      { uid: 'au:1', title: 'Everything Was Beautiful and Nothing Hurt', author: 'Ben Reeves' },
+      { uid: 'au:2', title: 'Every Summer After', author: 'Carley Fortune' },
+      { uid: 'au:3', title: 'The Design of Everyday Things', author: 'Don Norman' },
+    ];
+    expect(rankResults(list, 'everyday')[0].title).toBe('The Design of Everyday Things');
+  });
+  it('keeps the catalogue order within a group and drops duplicates', () => {
+    const list = [
+      { uid: 'a', title: 'Dune', author: 'Frank Herbert' },
+      { uid: 'b', title: 'Dune Messiah', author: 'Frank Herbert' },
+      { uid: 'a', title: 'Dune', author: 'Frank Herbert' },
+    ];
+    expect(rankResults(list, 'dune').map((b) => b.uid)).toEqual(['a', 'b']);
+  });
+  it('free books need every word you typed', () => {
+    expect(fitsWords({ title: 'Pride and Prejudice', author: 'Jane Austen' }, 'pride austen')).toBe(true);
+    expect(fitsWords({ title: 'Prejudice and Pride of Lions', author: 'Someone Else' }, 'pride austen')).toBe(false);
+  });
+});
+
+describe('Audibrisk built-in sources', () => {
+  it('only the public worker and Ink & Echo — nothing personal', () => {
+    const text = JSON.stringify(bundle.addons);
+    expect(text).not.toMatch(/audiohubapp|drdilip|extto|rutracker/i);
+    expect(bundle.addons.map((a) => a.id)).toEqual(['public-audiobookbay', 'public-knaben-audiobooks', 'inkandecho-v2-bestsearch-audiobook']);
+  });
+  it('an existing install swaps the old sources for the new ones by itself', () => {
+    const old = ['my-audiobookbay', 'my-knaben-audiobooks', 'extto-audiohub', 'rutracker-english-audiobooks'].map((id) => ({ kind: 'source', url: '', manifest: { id } }));
+    const ie = { kind: 'source', url: '', manifest: { id: 'inkandecho-v2-bestsearch-audiobook', version: 'old' } };
+    const out = syncSources([...old, ie], bundle);
+    expect(out.map((a) => a.manifest.id).sort()).toEqual(['inkandecho-v2-bestsearch-audiobook', 'public-audiobookbay', 'public-knaben-audiobooks']);
+    expect(syncSources(out, bundle)).toBe(out); // nothing to do the next time
+  });
+});
+
+describe('Audibrisk copies and playback', () => {
+  it('a copy box shows instant or seeds, size and format — no site name', () => {
+    expect(copyFacts({ cache: { any: true }, sizeBytes: 153e6, format: 'M4B' }).line).toBe('Instant · 153 MB · M4B');
+    expect(copyFacts({ seeders: 42, size: 1.2e9, title: 'Book [MP3]' }).line).toBe('42 seeds · 1.2 GB · MP3');
+  });
+  it('5 seconds back after a call or a notification, once', () => {
+    expect(backAfterInterruption(600, 600.4)).toBe(5);
+    expect(backAfterInterruption(600, 595)).toBe(0); // the player already went back
+    expect(backAfterInterruption(600, 900)).toBe(0); // moved on meanwhile
+  });
+});

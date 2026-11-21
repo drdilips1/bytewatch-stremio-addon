@@ -3,10 +3,10 @@
   "addons": [
     {
       "schemaVersion": "1.0.0",
-      "id": "my-audiobookbay",
+      "id": "public-audiobookbay",
       "name": "AudiobookBay",
       "version": "1.0.0",
-      "description": "Audiobook search via my Audiohub Worker",
+      "description": "Audiobook torrents from AudiobookBay. Needs TorBox or Real-Debrid to play.",
       "icon": "https://audiobookbay.lu/apple-touch-icon.png",
       "provides": [
         "source"
@@ -22,19 +22,12 @@
       },
       "adapters": {
         "source": {
-          "cacheNotifyUrl": "https://api.audiohubapp.com/abb/api/debrid-notify",
           "request": {
-            "method": "POST",
-            "url": "https://api.audiohubapp.com/abb/api/search",
-            "timeout": 30000,
+            "method": "GET",
+            "url": "https://sources.booksources.workers.dev/abb/search?q={QUERY}",
+            "timeout": 45000,
             "headers": {
-              "Accept": "application/json",
-              "Content-Type": "application/json"
-            },
-            "body": {
-              "title": "{TITLE}",
-              "author": "{AUTHOR}",
-              "limit": 20
+              "Accept": "application/json"
             }
           },
           "response": {
@@ -42,16 +35,13 @@
             "resultsPath": "results",
             "mapping": {
               "title": "title",
-              "author": "author",
-              "narrator": "narrator",
-              "magnetUrl": "magnetUrl",
               "infoHash": "infoHash",
+              "magnetUrl": "magnetUrl",
               "sizeBytes": "sizeBytes",
-              "seeders": "seeders",
               "format": "format",
+              "date": "date",
               "language": "language",
-              "date": "posted",
-              "debridCache": "debridCache"
+              "pageUrl": "pageUrl"
             }
           }
         }
@@ -59,10 +49,10 @@
     },
     {
       "schemaVersion": "1.0.0",
-      "id": "my-knaben-audiobooks",
+      "id": "public-knaben-audiobooks",
       "name": "Knaben AudioBooks",
       "version": "1.0.0",
-      "description": "Audiobook torrent search via my Audiohub Worker",
+      "description": "Audiobook torrents found by Knaben (many sites at once). Needs TorBox or Real-Debrid to play.",
       "icon": "https://knaben.org/favicon.ico",
       "provides": [
         "source"
@@ -75,18 +65,11 @@
       "adapters": {
         "source": {
           "request": {
-            "method": "POST",
-            "url": "https://api.audiohubapp.com/knaben/audiobooks",
+            "method": "GET",
+            "url": "https://sources.booksources.workers.dev/knaben/audiobooks?q={TITLE}",
+            "timeout": 30000,
             "headers": {
-              "Content-Type": "application/json"
-            },
-            "body": {
-              "query": "{TITLE}",
-              "search_field": "title",
-              "size": 50,
-              "categories": [
-                1003000
-              ]
+              "Accept": "application/json"
             }
           },
           "response": {
@@ -95,107 +78,10 @@
             "mapping": {
               "title": "title",
               "magnetUrl": "magnetUrl",
+              "infoHash": "hash",
               "sizeBytes": "bytes",
               "seeders": "seeders",
-              "infoHash": "hash"
-            }
-          }
-        }
-      }
-    },
-    {
-      "schemaVersion": "1.0.0",
-      "id": "extto-audiohub",
-      "name": "EXTto",
-      "version": "1.4.0",
-      "description": "Audiobook torrent search via EXTto",
-      "icon": "https://extto.org/favicon.ico",
-      "provides": [
-        "source"
-      ],
-      "contentType": "audiobook",
-      "rateLimit": {
-        "requestsPerMinute": 10,
-        "retryAfterMs": 6000
-      },
-      "matching": {
-        "algorithm": "fuzzy",
-        "threshold": 0.4
-      },
-      "adapters": {
-        "source": {
-          "request": {
-            "method": "GET",
-            "url": "https://api.audiohubapp.com/extto/extto/search?q={QUERY}",
-            "timeout": 30000,
-            "headers": {
-              "Accept": "application/json"
-            }
-          },
-          "response": {
-            "type": "json",
-            "resultsPath": "results",
-            "mapping": {
-              "title": "title",
-              "author": "author",
-              "url": "magnetUrl",
-              "magnetUrl": "magnetUrl",
-              "hash": "hash",
-              "infoHash": "hash",
-              "format": "format",
-              "language": "language",
-              "date": "date",
-              "sizeBytes": "sizeBytes",
-              "cover": "cover",
-              "description": "description",
-              "debridCache": "debridCache",
-              "seeders": "seeders",
-              "seeds": "seeds",
-              "leechers": "leechers"
-            }
-          }
-        }
-      }
-    },
-    {
-      "schemaVersion": "1.0.0",
-      "id": "rutracker-english-audiobooks",
-      "name": "RuTracker English Audiobooks",
-      "version": "1.0.0",
-      "description": "English audiobooks on RuTracker: magnets, authors, narrators, sizes and release details",
-      "icon": "https://rutracker.org/favicon.ico",
-      "provides": [
-        "source"
-      ],
-      "contentType": "audiobook",
-      "adapters": {
-        "source": {
-          "request": {
-            "method": "GET",
-            "url": "https://api.audiohubapp.com/rutracker/?q={TITLE}",
-            "headers": {
-              "Accept": "application/json"
-            },
-            "timeout": 30000
-          },
-          "response": {
-            "type": "json",
-            "resultsPath": "results",
-            "mapping": {
-              "id": "id",
-              "title": "title",
-              "author": "author",
-              "narrator": "narrator",
-              "magnetUrl": "magnetUrl",
-              "infoHash": "infoHash",
-              "sizeBytes": "sizeBytes",
-              "seeders": "seeders",
-              "format": "format",
-              "bitrate": "bitrate",
-              "language": "language",
-              "source": "source",
-              "sourceUrl": "sourceUrl",
-              "coverUrl": "coverUrl"
+              "date": "date"
             }
           }
         }
@@ -256,5 +142,11 @@
         }
       }
     }
+  ],
+  "retired": [
+    "my-audiobookbay",
+    "my-knaben-audiobooks",
+    "extto-audiohub",
+    "rutracker-english-audiobooks"
   ]
 }

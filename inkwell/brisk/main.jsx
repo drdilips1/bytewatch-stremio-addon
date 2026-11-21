@@ -4,7 +4,7 @@ import { render } from 'preact';
 import './brisk.css';
 import { aiOff } from '../src/lib/ai.js';
 import { settings } from '../src/lib/store.js';
-import { installSources } from './books.js';
+import { installSources, startWatching } from './books.js';
 import { App } from './app.jsx';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -15,6 +15,7 @@ try {
   if (!s.briskV) settings.set({ ...s, briskV: 1, voiceOff: true, skipCredits: true });
 } catch {}
 installSources();
+startWatching(); // books your service was still getting ready when you closed the app
 if (Capacitor.isNativePlatform()) StatusBar.setStyle({ style: Style.Light }).catch(() => {});
 
 render(<App />, document.getElementById('app'));

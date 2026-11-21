@@ -9,6 +9,24 @@ import { fmtTime, fmtDuration } from '../src/lib/format.js';
 import { bookmarks } from '../src/lib/store.js';
 import * as player from '../src/lib/player.js';
 import { useCoverColor } from '../src/components/player-ui.jsx';
+import { backAfterInterruption } from './logic.js';
+
+// 5 seconds back after a call or a notification sound took the audio, even a short one, once.
+// (The shared player already does it after longer breaks; this never doubles it.)
+let cut = null;
+player.subscribe((s) => {
+  if (s.interrupted && cut == null) cut = player.globalTime();
+  else if (!s.interrupted && s.playing && cut != null) {
+    const before = cut;
+    cut = null;
+    setTimeout(() => {
+      const back = backAfterInterruption(before, player.globalTime());
+      if (back) player.seekGlobal(Math.max(0, player.globalTime() - back));
+    }, 400);
+  } else if (!s.interrupted && !s.playing && cut != null && !s.book) cut = null;
+});
+
+const leftInBook = () => Math.max(0, player.totalDuration() - player.globalTime());
 
 function usePlayer() {
   const [s, setS] = useState(player.getState());
@@ -32,7 +50,7 @@ export function MiniPlayer() {
       <Cover book={s.book} />
       <div class="b-mini-text">
         <b>{s.book.title}</b>
-        <span>{s.loading ? s.phase || 'Opening…' : chapterNow(s)?.title || s.book.author}</span>
+        <span>{s.loading ? s.phase || 'Opening…' : [chapterNow(s)?.title, player.totalDuration() > 0 && `${fmtDuration(leftInBook())} left`].filter(Boolean).join(' · ') || s.book.author}</span>
       </div>
       <button
         class="b-mini-btn"
@@ -131,6 +149,12 @@ export function FullPlayer() {
         <span>{fmtTime(at)}</span>
         <span>−{fmtTime(len - at)}</span>
       </div>
+      {player.totalDuration() > 0 && (
+        <p class="b-p-left">
+          {all.length > 1 && chIndex >= 0 ? `Chapter ${chIndex + 1} of ${all.length} · ` : ''}
+          {fmtDuration(left)} left in the book
+        </p>
+      )}
       <div class="b-ctl">
         <button aria-label="Back 15 seconds" onClick={() => player.skip(-15)}>
           <Icon name="replay" size={30} />
