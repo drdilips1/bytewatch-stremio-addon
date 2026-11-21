@@ -153,7 +153,7 @@ export function Book({ book: initial }) {
   const canRead = book.kind === "text" && (book.readUrl || cloudEpub || book.ebookUrl || /#ebook$/.test(book.uid));
   const prog = allProgress[canRead ? readBook.uid : initial.uid];
   const tracks = book.tracks || [];
-  const partsOpen = showParts ?? tracks.length <= 5;
+  const partsOpen = showParts ?? false;
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
   const authorKey = (book.author || "").split(",")[0].trim();
   // What Sources search with: a cloud / phone file's tidy title and author (found or picked —
@@ -345,6 +345,51 @@ export function Book({ book: initial }) {
           </button>
         )}
       </div>
+      {/* The audio files, then the ebook files — the same kind of row, together near the top. */}
+      {tracks.length > 0 && (
+        <section class="pad cloud-ebooks audio-files">
+          <h3 class="section-label">
+            <Icon name="headphones" size={16} /> {tracks.length} audio {tracks.length === 1 ? "file" : "files"}
+          </h3>
+          {tracks.map((t, i) => {
+            // Many files: the first five and the one you're on, the rest on "Show all".
+            const here = isCurrent ? ps.index : prog?.track || 0;
+            if (!partsOpen && i >= 5 && i !== here) return null;
+            const active = isCurrent && ps.index === i;
+            const done = prog && (prog.track > i || prog.finished);
+            const ext = (/\.([a-z0-9]{2,4})(?:$|\?)/i.exec(t.title || t.url || "")?.[1] || book.format || "Audio").toUpperCase();
+            return (
+              <button class={"cloud-ebook audio-file" + (active ? " active" : "") + (done ? " done" : "")} onClick={() => listen({ index: i, time: 0 })}>
+                <span class="fmt-chip">
+                  {active && ps.playing ? (
+                    <span class="eq on">
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  ) : done ? (
+                    <Icon name="check" size={12} />
+                  ) : tracks.length > 1 ? (
+                    i + 1
+                  ) : (
+                    ext
+                  )}
+                </span>
+                <div class="cloud-ebook-name">
+                  <b>{t.title}</b>
+                  {(t.duration > 0 || t.size > 1e5) && <small>{[t.duration > 0 && fmtTime(t.duration), t.size > 1e5 && fmtBytes(t.size)].filter(Boolean).join(" · ")}</small>}
+                </div>
+                <Icon name="play" size={16} />
+              </button>
+            );
+          })}
+          {tracks.length > 5 && (
+            <button class="link-btn" onClick={() => setShowParts(!partsOpen)}>
+              {partsOpen ? "Show fewer" : `Show all ${tracks.length} files`}
+            </button>
+          )}
+        </section>
+      )}
       {cloudEbooks.length > 0 && (
         <CloudEbooks book={book} files={cloudEbooks} />
       )}
@@ -560,66 +605,6 @@ export function Book({ book: initial }) {
 
       <BookBookmarks book={book} />
 
-      {tracks.length > 0 && (
-        <section class="pad">
-          <button
-            class="section-label parts-toggle"
-            onClick={() => setShowParts(!partsOpen)}
-          >
-            <Icon name="library" size={16} />
-            <span class="parts-sum">
-              <b>
-                {tracks.length} {tracks.length === 1 ? "file" : "files"}
-              </b>
-              {!partsOpen && (
-                <small>
-                  {/* Folded: which file you're on — the list opens on tap. */}
-                  you're on {(isCurrent ? ps.index : prog?.track || 0) + 1} ·{" "}
-                  {tracks[isCurrent ? ps.index : prog?.track || 0]?.title}
-                </small>
-              )}
-            </span>
-            {tracks.length > 5 && (
-              <span class="parts-more">
-                {partsOpen ? "Hide" : "Show all"}
-                <Icon name={partsOpen ? "up" : "down"} size={14} />
-              </span>
-            )}
-          </button>
-          {partsOpen && <ol class="chapter-list flat">
-            {tracks.map((t, i) => {
-              // Folded: only the part you're on (or the first) is listed.
-              const here = isCurrent ? ps.index : prog?.track || 0;
-              if (!partsOpen && i !== here) return null;
-              const active = isCurrent && ps.index === i;
-              const done = prog && (prog.track > i || prog.finished);
-              return (
-                <li class={(active ? "active " : "") + (done ? "done" : "")}>
-                  <button onClick={() => listen({ index: i, time: 0 })}>
-                    <span class="ch-num">
-                      {active && ps.playing ? (
-                        <span class="eq on">
-                          <i />
-                          <i />
-                          <i />
-                        </span>
-                      ) : done ? (
-                        <Icon name="check" size={14} />
-                      ) : (
-                        i + 1
-                      )}
-                    </span>
-                    <span class="ch-title">{t.title}</span>
-                    <span class="ch-time">
-                      {t.duration ? fmtTime(t.duration) : ""}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>}
-        </section>
-      )}
 
       {authorKey && sourceOf(book.uid) === "ia" && (
         <Row

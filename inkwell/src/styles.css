@@ -3121,17 +3121,6 @@ pre.sql {
 .src-folder.open .src-row {
   margin: 10px;
 }
-.parts-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  background: none;
-  border: 0;
-  color: inherit;
-  padding: 0;
-  cursor: pointer;
-}
 .other-sources summary {
   display: flex;
   align-items: center;
@@ -4354,6 +4343,14 @@ textarea {
   background: var(--tint, var(--accent));
   color: var(--on-grad, #111);
 }
+
+/* Audio files on the book page: the same rows as the ebook files. */
+.audio-files .audio-file { width: 100%; text-align: left; font: inherit; color: inherit; border: 0; }
+.audio-files .audio-file .fmt-chip { min-width: 34px; text-align: center; }
+.audio-files .audio-file.active { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+.audio-files .audio-file.done .cloud-ebook-name b { color: var(--muted); }
+.audio-files .audio-file > .icon { flex: none; color: var(--muted); }
+.audio-files .link-btn { justify-self: start; }
 
 /* Download links panel on source results */
 .links-panel {
@@ -10813,36 +10810,6 @@ button.notes-book-head {
 }
 
 /* Book page: the audio files as one line ("6 files · you're on 1 · …", Show all). */
-.parts-toggle {
-  padding: 10px 0;
-  text-align: left;
-}
-.parts-sum {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-.parts-sum b {
-  font-size: 15px;
-}
-.parts-sum small {
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.parts-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--accent);
-}
 /* Your verdict: one slim row — the label, then five small faces (the picked one says its name). */
 .book .myrate,
 .myrate {
