@@ -4,7 +4,7 @@
 - Build ("build"): dispatch `inkwell-apk.yml` and `audiohub-ios.yml` on the branch; when the APK
   release is out, dispatch `inkwell-web.yml` (its pages job failing is expected). Releases
   `inkwell-v1.0.N` (Android, in-app update), `audiohub-ios-N` (unsigned IPA for AltStore).
-- Latest: Android v1.0.237; iPhone build 118 (21 Nov — everything below is in them).
+- Latest: Android v1.0.238; iPhone build 119 (21 Nov — everything below is in them; build 119 has the native iOS player).
 - In v1.0.233 / iOS 114 (built 21 Nov): instant play (server place asked in the background),
   glow fade on player background, Libby live availability, auto-send never re-sends backlog + skips torrents
   qBittorrent has, Goodreads clearer refusal + CSV hint, ebook cards, banner title fit, Play timing line.
@@ -107,15 +107,15 @@
 - iPhone / web app: Anna's Archive, Mobilism and Bookshare (hidden-browser sources) are left out of searches there instead of erroring; Book Hunt covers them. In v1.0.237.
 - Source addons: an empty answer with "errors" (Book Hunt) now shows the reason under the results; Book Hunt is left out on Android when the built-in Anna's / Mobilism are set up (no repeats). In v1.0.237.
 - Sync: addon lists merge across devices (lib/addonmerge.js, tested; addonLog of added/removed times) instead of the newer list replacing the other — the Android app saving its list had wiped Book Hunt added in the web app. In v1.0.237.
-- Fix: Book Hunt was deleted right after installing by the old 'retired Anna's Archive addon' clean-up (its name has "Anna's Archive"); id audiohub-bookhunt exempt (checked in a browser). Not built yet.
-- iPhone lighter: place saved every 12 s while playing (was 4 s: each save rewrites the whole progress list + redraws), no card glow (html.ios). The buffering itself still needs details from the user. Not built yet.
-- iPhone/iPad: no in-file chapter reading (up to 80 ranged fetches through the web view, competing with the start of TorBox / Real-Debrid M4Bs); published chapters only. Proposed next: a native iOS player (AVPlayer) like Android's. Not built yet.
-- Easynews: searches wait 45 s (was the 15 s default); the Settings check only signs you out when Easynews refuses the password (a slow answer keeps it). Note: on iPhone/iPad and the web app Easynews files can't play yet — their web-view audio can't send the sign-in (needs the native iOS player). Not built yet.
+- Fix: Book Hunt was deleted right after installing by the old 'retired Anna's Archive addon' clean-up (its name has "Anna's Archive"); id audiohub-bookhunt exempt (checked in a browser). In v1.0.238.
+- iPhone lighter: place saved every 12 s while playing (was 4 s: each save rewrites the whole progress list + redraws), no card glow (html.ios). The buffering itself still needs details from the user. In v1.0.238.
+- iPhone/iPad: no in-file chapter reading (up to 80 ranged fetches through the web view, competing with the start of TorBox / Real-Debrid M4Bs); published chapters only. Proposed next: a native iOS player (AVPlayer) like Android's. In v1.0.238.
+- Easynews: searches wait 45 s (was the 15 s default); the Settings check only signs you out when Easynews refuses the password (a slow answer keeps it). Note: on iPhone/iPad and the web app Easynews files can't play yet — their web-view audio can't send the sign-in (needs the native iOS player). In v1.0.238.
 - Native iPhone/iPad player: `ios-plugins/player` (Swift, jsName `InkwellPlayer`, AVQueuePlayer):
   load / queue / play / pause / seek / setRate / setVolume / stop / setSkips (+ no-op setSkipSilence,
   setBoost, setSleepDetect); events state / progress / ended / error / advanced / remote like
   Android; sign-in headers per item (AVURLAssetHTTPHeaderFieldsKey — Easynews, Audiobookshelf);
   audio session .playback/.spokenAudio, lock-screen info + artwork, skip / next / previous / scrub
   commands, resumes after interruptions. Added in audiohub-ios.yml. Android-only extras hidden on iOS
-  (`nativeExtras`). First real test is the iOS build; if it misbehaves, drop it from the workflow
+  (`nativeExtras`). Compiled in iOS build 119 (on-device test pending); if it misbehaves, drop it from the workflow
   line to fall back to the web-view audio.
