@@ -4,7 +4,7 @@
 - Build ("build"): dispatch `inkwell-apk.yml` and `audiohub-ios.yml` on the branch; when the APK
   release is out, dispatch `inkwell-web.yml` (its pages job failing is expected). Releases
   `inkwell-v1.0.N` (Android, in-app update), `audiohub-ios-N` (unsigned IPA for AltStore).
-- Latest: Android v1.0.238; iPhone build 119 (21 Nov — everything below is in them; build 119 has the native iOS player).
+- Latest: Android v1.0.239; iPhone build 120 (21 Nov — everything below is in them; build 119+ has the native iOS player).
 - In v1.0.233 / iOS 114 (built 21 Nov): instant play (server place asked in the background),
   glow fade on player background, Libby live availability, auto-send never re-sends backlog + skips torrents
   qBittorrent has, Goodreads clearer refusal + CSV hint, ebook cards, banner title fit, Play timing line.
@@ -124,10 +124,10 @@
   `userHeaders()` sends them with each search. The worker reads x-bh-mobilism-user / -pass and
   x-bh-annas-key (per-user Mobilism sessions; the user's key rides in the file link as `ak`), and
   uses its own secrets only for searches without details (`own=1` links). To share: redeploy
-  bookhunt.js, delete the worker's own secrets, re-add the addon, enter details in the app. Not built yet.
+  bookhunt.js, delete the worker's own secrets, re-add the addon, enter details in the app. In v1.0.239.
 - FALL-BACK (user asked to remember): if the shared Book Hunt (each person's details) doesn't work,
   go back to `inkwell/workers/bookhunt-private-v1.js` — the private version that works for the user
   and their wife on their iPhone (worker secrets MOBILISM_USER / MOBILISM_PASS / ANNAS_KEY). The new
   bookhunt.js still uses those secrets for searches without details, so keep the secrets until the
   shared way is proven.
-- Easynews: audiobook pages search audio only (m4b/m4a/mp3), ebook pages EPUB/PDF; each result shows its type; ebooks get Read (fetched with the sign-in into a blob, then the reader keeps it); names cleaned (cleanName, tested: "Bren&Atilde;&Acirc;&copy;" → "Brené"); title over details layout. Not built yet.
+- Easynews: audiobook pages search audio only (m4b/m4a/mp3), ebook pages EPUB/PDF; each result shows its type; ebooks get Read (fetched with the sign-in into a blob, then the reader keeps it); names cleaned (cleanName, tested: "Bren&Atilde;&Acirc;&copy;" → "Brené"); title over details layout. In v1.0.239.
