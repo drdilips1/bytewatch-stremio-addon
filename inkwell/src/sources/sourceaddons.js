@@ -43,7 +43,11 @@ const cleanTitle = (t) => String(t).replace(/^\s*\[[^\]]{1,24}\]\s*/, '').replac
 // (iPhone, the web app) they're left out quietly — the Book Hunt addon covers Anna's and Mobilism there.
 const IN_APP_ONLY = new Set(['mobilism', 'annas', 'bookshare']);
 const hiddenBrowser = () => Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('InkwellWeb');
-export const sourceAddons = () => addons.get().filter((a) => a.kind === 'source' && (!IN_APP_ONLY.has(a.special) || hiddenBrowser()));
+// Book Hunt does the same searches on a server: on Android, where the built-in Anna's Archive /
+// Mobilism are set up, it would only repeat their results — left out there.
+const builtInsHere = () => hiddenBrowser() && addons.get().some((a) => a.special === 'mobilism' || a.special === 'annas');
+export const sourceAddons = () =>
+  addons.get().filter((a) => a.kind === 'source' && (!IN_APP_ONLY.has(a.special) || hiddenBrowser()) && !(a.manifest?.id === 'audiohub-bookhunt' && builtInsHere()));
 
 // ---- helpers ----------------------------------------------------------------
 function fill(v, vars, encode) {
@@ -269,6 +273,10 @@ async function searchOnce(addon, vars, key, { title = '', author = '', query = '
   const hasData = data && typeof data === 'object' && Object.keys(data).length > 0;
   if ((list === undefined && hasData) || (list != null && !Array.isArray(list)))
     throw why(`unexpected reply — no result list at "${res.resultsPath || '(top level)'}" (keys: ${Object.keys(data || {}).slice(0, 6).join(', ')})`);
+  // Nothing found and the addon says why (Book Hunt: "Mobilism's bot check stopped the server"):
+  // shown under the results instead of an empty silence.
+  const said = data && typeof data.errors === 'object' ? Object.values(data.errors).filter(Boolean) : [];
+  if (Array.isArray(list) && !list.length && said.length) throw why(said.join(' · '));
   const map = res.mapping || {};
   const get = (row, field) => (map[field] ? at(row, map[field]) : row[field]);
   const threshold = addon.manifest.matching?.threshold ?? 0;

@@ -105,3 +105,4 @@
   the server: errors come back in "errors". Parsers tested; not tried against the live sites (this
   sandbox can't reach them). In v1.0.236.
 - iPhone / web app: Anna's Archive, Mobilism and Bookshare (hidden-browser sources) are left out of searches there instead of erroring; Book Hunt covers them. Not built yet.
+- Source addons: an empty answer with "errors" (Book Hunt) now shows the reason under the results; Book Hunt is left out on Android when the built-in Anna's / Mobilism are set up (no repeats). Not built yet.
