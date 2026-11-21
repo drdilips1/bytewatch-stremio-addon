@@ -11,7 +11,9 @@ const AUDIO = /\.(mp3|m4a|m4b|aac|flac|ogg|oga|opus|wav|wma|mka|mp4a)$/i;
 const RETIRED = /anna'?s?[\s_-]*archive|^annas?$/i;
 // (The old server-searched Anna's Archive add-ons — not the built-in one searched in the in-app
 // browser, special: 'annas', which works.)
-const isRetired = (a) => a?.special !== 'annas' && (RETIRED.test(a?.manifest?.id || '') || RETIRED.test(a?.manifest?.name || ''));
+// Book Hunt (your own server; "Anna's Archive · Mobilism" in its name) is a different, working addon.
+const KEEP = new Set(['audiohub-bookhunt']);
+const isRetired = (a) => a?.special !== 'annas' && !KEEP.has(a?.manifest?.id) && (RETIRED.test(a?.manifest?.id || '') || RETIRED.test(a?.manifest?.name || ''));
 const prune = (list) => list.some(isRetired) && addons.set(list.filter((a) => !isRetired(a)));
 prune(addons.get());
 addons.subscribe(prune); // also catches copies restored from sync

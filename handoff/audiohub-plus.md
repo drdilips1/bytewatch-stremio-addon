@@ -107,3 +107,4 @@
 - iPhone / web app: Anna's Archive, Mobilism and Bookshare (hidden-browser sources) are left out of searches there instead of erroring; Book Hunt covers them. In v1.0.237.
 - Source addons: an empty answer with "errors" (Book Hunt) now shows the reason under the results; Book Hunt is left out on Android when the built-in Anna's / Mobilism are set up (no repeats). In v1.0.237.
 - Sync: addon lists merge across devices (lib/addonmerge.js, tested; addonLog of added/removed times) instead of the newer list replacing the other — the Android app saving its list had wiped Book Hunt added in the web app. In v1.0.237.
+- Fix: Book Hunt was deleted right after installing by the old 'retired Anna's Archive addon' clean-up (its name has "Anna's Archive"); id audiohub-bookhunt exempt (checked in a browser). Not built yet.
