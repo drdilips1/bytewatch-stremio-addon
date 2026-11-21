@@ -15,6 +15,7 @@ export const CHANGES = [
       ['⚡', 'The player opens at once', 'No more opening animation from the mini player (it flickered); the other effects stay.'],
       ['☁️', 'Real-Debrid books on every phone', 'Books sent to Real-Debrid from a topic (Rapidgator and the like) now show on your other phones too — Real-Debrid’s own Downloads list is read, not just this phone’s. And every torrent shows, not only the newest 200.'],
       ['✨', 'Covers with a glassy sheen', 'Every cover catches a little light now — a soft glass sheen across the top, the cover itself untouched.'],
+      ['📰', 'Usenet', 'Settings → Usenet: sign in to Easynews (books play straight from it) and add your indexers — NZBgeek, NinjaCentral, Treasure Maps… (their NZBs go to your TorBox, then play). Results show on each book page; German books included.'],
       ['✉️', 'Send to Kindle from any e-mail', 'Not just Gmail: Outlook, iCloud, Yahoo, Fastmail and others are set up by themselves, or enter your own mail server (host, port, security). Gmail stays the default.'],
       ['🗑️', 'Delete a book', 'Press and hold a book → Delete…: it leaves Audiohub (your place, library, download). A book from a phone folder is hidden (the file stays — bring it back in Settings → Your files on this phone); a TorBox / Real-Debrid book can be deleted from your cloud too.'],
       ['🆕', 'Newest first', 'Your TorBox, Real-Debrid and phone rows (and their See all pages) start with the books added most recently — on the phone, by when the files arrived.'],

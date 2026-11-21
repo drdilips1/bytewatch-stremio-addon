@@ -33,6 +33,7 @@ import { openSearch } from "./Discover.jsx";
 import { mainTitle, searchTitle, matches, surname } from "../lib/match.js";
 import { STARTERS } from "../lib/askbook.js";
 import { SourceResults } from "../components/source-results.jsx";
+import { UsenetResults } from "../components/usenet-results.jsx";
 import { FixDetails } from "../components/fix-details.jsx";
 import { Available, useWhere } from "../components/available.jsx";
 import { LibbyCard, LibbyLoanActions } from "../components/libby-card.jsx";
@@ -582,6 +583,12 @@ export function Book({ book: initial }) {
             />
           </section>
         )}
+      {/* Usenet: Easynews and your indexers (Settings → Usenet). */}
+      {(book.kind === "discover" || book.kind === "text" || (book.kind === "audio" && OTHER_SOURCES.has(book.source))) && !loading && (
+        <section class="pad">
+          <UsenetResults title={srcTitle} author={srcAuthor} book={book} />
+        </section>
+      )}
       {editions?.audio?.length > 0 && (
         <Row
           title="Free audiobooks"

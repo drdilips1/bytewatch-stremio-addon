@@ -469,6 +469,7 @@ back to Psychology, Science and History. Recommended rows are non-fiction only. 
 - No builds until credits are back.
 
 ## Usenet (noted 17 Nov, requested on Reddit) — both apps
+- ✓ (21 Nov, Audiohub+, not yet built) Easynews (search + play with sign-in, multi-part grouped) and Newznab indexers → TorBox Usenet; book-page Usenet box; Settings → Usenet. Not yet: SABnzbd / NZBGet, AudioYam.
 - Settings: add a Newznab indexer (URL + API key); several allowed. Asked for: NZBgeek, NinjaCentral,
   Treasure Maps (check it is Newznab).
 - Search the audiobook (3030) and ebook (7020) categories; results on the book page beside the others,

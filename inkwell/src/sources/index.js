@@ -8,6 +8,7 @@ import * as addonSrc from './addons.js';
 import * as cloud from './debrid.js';
 import * as itunes from './itunes.js';
 import * as localSrc from './local.js';
+import * as usenetSrc from './usenet.js';
 import * as hc from './hardcover.js';
 import * as gr from './goodreads.js';
 import * as lb from './libby.js';
@@ -35,6 +36,7 @@ export const SOURCES = {
   abs: { name: 'Audiobookshelf', short: 'My Server', hue: 265, kind: 'Listen', blurb: 'Your self-hosted audiobook server', impl: absSrc },
   tb: { name: 'TorBox', short: 'TorBox', hue: 130, kind: 'Cloud', blurb: 'Stream audiobooks from your TorBox cloud', impl: cloud },
   rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud },
+  en: { name: 'Easynews', short: 'Easynews', hue: 210, kind: 'Cloud', blurb: 'Audiobooks on Usenet, played straight from Easynews', impl: usenetSrc, hidden: true },
   ad: { name: 'AllDebrid', short: 'AllDebrid', hue: 15, kind: 'Cloud', blurb: 'Stream audiobooks from your AllDebrid cloud', impl: cloud },
   pm: { name: 'Premiumize', short: 'Premiumize', hue: 5, kind: 'Cloud', blurb: 'Stream audiobooks from your Premiumize cloud', impl: cloud },
   dl: { name: 'Debrid-Link', short: 'Debrid-Link', hue: 190, kind: 'Cloud', blurb: 'Stream audiobooks from your Debrid-Link cloud', impl: cloud },

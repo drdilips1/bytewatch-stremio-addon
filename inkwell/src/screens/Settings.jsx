@@ -3,6 +3,7 @@ import { createContext } from 'preact';
 import { nav } from '../lib/nav.js';
 import { MORE } from '../sources/moredebrid.js';
 import { smtpFor, knownServer } from '../lib/smtp.js';
+import { usenetCfg, easynewsSearch, searchIndexer, apiBase } from '../sources/usenet.js';
 import * as localSrc from '../sources/local.js';
 import { PhoneButtons, usePhoneRun } from './Library.jsx';
 import { LibbySettings } from '../components/libby-settings.jsx';
@@ -58,6 +59,111 @@ function Section({ icon, title, keys = '', children }) {
       </button>
       {open && <div class="set-card">{children}</div>}
     </section>
+  );
+}
+
+/**
+ * Usenet: Easynews (plays straight from it with your sign-in) and Newznab indexers (NZBgeek,
+ * NinjaCentral, Treasure Maps…: their NZBs go to TorBox's Usenet downloader). Kept on this phone.
+ */
+function UsenetCard() {
+  const u = useStore(usenetCfg);
+  const [en, setEn] = useState({ user: '', pass: '' });
+  const [ix, setIx] = useState({ name: '', url: '', apikey: '' });
+  const [busy, setBusy] = useState('');
+  const enSaved = !!(u.easynews?.user && u.easynews?.pass);
+  return (
+    <>
+      <p class="muted">Usenet results show on a book's page next to your other sources. Every language is kept (German books too).</p>
+      <b class="set-sub">Easynews</b>
+      {enSaved ? (
+        <div class="set-row">
+          <div>
+            <b>{u.easynews.user}</b>
+            <small>Signed in — Easynews books play straight away</small>
+          </div>
+          <button class="pill danger small" onClick={() => usenetCfg.set((c) => ({ ...c, easynews: { user: '', pass: '' } }))}>
+            Remove
+          </button>
+        </div>
+      ) : (
+        <form
+          class="set-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy('en');
+            const prev = usenetCfg.get().easynews;
+            usenetCfg.set((c) => ({ ...c, easynews: { user: en.user.trim(), pass: en.pass } }));
+            try {
+              await easynewsSearch('test');
+              setEn({ user: '', pass: '' });
+              toast('Easynews connected');
+            } catch (err) {
+              usenetCfg.set((c) => ({ ...c, easynews: prev }));
+              toast(err.status === 401 ? 'Easynews rejected that username or password' : `Easynews: ${err.message}`);
+            } finally {
+              setBusy('');
+            }
+          }}
+        >
+          <input value={en.user} placeholder="Easynews username" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setEn({ ...en, user: e.currentTarget.value })} />
+          <input type="password" value={en.pass} placeholder="Easynews password" onInput={(e) => setEn({ ...en, pass: e.currentTarget.value })} />
+          <button class="btn primary" disabled={busy === 'en' || !en.user.trim() || !en.pass}>
+            {busy === 'en' ? <span class="spinner" /> : <Icon name="link" size={16} />} Connect Easynews
+          </button>
+        </form>
+      )}
+
+      <b class="set-sub">Indexers (Newznab)</b>
+      {(u.indexers || []).map((x, i) => (
+        <div class="set-row">
+          <div>
+            <b>{x.name || apiBase(x.url)}</b>
+            <small>{apiBase(x.url)} · NZBs go to your TorBox</small>
+          </div>
+          <button class="icon-btn" aria-label={`Remove ${x.name}`} onClick={() => usenetCfg.set((c) => ({ ...c, indexers: c.indexers.filter((_, j) => j !== i) }))}>
+            <Icon name="trash" size={18} />
+          </button>
+        </div>
+      ))}
+      <div class="chips">
+        {[
+          ['NZBgeek', 'https://api.nzbgeek.info'],
+          ['NinjaCentral', 'https://ninjacentral.co.za'],
+          ['Treasure Maps', ''],
+        ].map(([name, url]) => (
+          <button type="button" class="pill small" onClick={() => setIx({ ...ix, name, url: url || ix.url })}>
+            {name}
+          </button>
+        ))}
+      </div>
+      <form
+        class="set-form"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const entry = { name: ix.name.trim() || apiBase(ix.url).replace(/^https?:\/\//, ''), url: apiBase(ix.url), apikey: ix.apikey.trim() };
+          setBusy('ix');
+          try {
+            await searchIndexer(entry, 'book');
+            usenetCfg.set((c) => ({ ...c, indexers: [...(c.indexers || []).filter((y) => apiBase(y.url) !== entry.url), entry] }));
+            setIx({ name: '', url: '', apikey: '' });
+            toast(`${entry.name} added`);
+          } catch (err) {
+            toast(`${entry.name} didn't answer: ${err.message}`);
+          } finally {
+            setBusy('');
+          }
+        }}
+      >
+        <input value={ix.name} placeholder="Name, e.g. NZBgeek" onInput={(e) => setIx({ ...ix, name: e.currentTarget.value })} />
+        <input value={ix.url} placeholder="Indexer address (its API page shows it)" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setIx({ ...ix, url: e.currentTarget.value })} />
+        <input type="password" value={ix.apikey} placeholder="API key" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setIx({ ...ix, apikey: e.currentTarget.value })} />
+        <button class="btn primary" disabled={busy === 'ix' || !ix.url.trim() || !ix.apikey.trim()}>
+          {busy === 'ix' ? <span class="spinner" /> : <Icon name="plus" size={16} />} Add indexer
+        </button>
+      </form>
+      <p class="muted small">Indexer results are sent to TorBox's Usenet downloader (connect TorBox above), then play like any TorBox book.</p>
+    </>
   );
 }
 
@@ -1843,6 +1949,9 @@ export function Settings() {
         </Section>
       ))}
       <PreferredDebrid />
+      <Section icon="cloud" title="Usenet (Easynews, indexers)" keys="usenet easynews newznab nzb nzbgeek ninja ninjacentral treasure maps indexer german">
+        <UsenetCard />
+      </Section>
       <Section icon="search" title="Finding your books" keys="order phone cloud server first copy">
         <FindOrderCard />
       </Section>

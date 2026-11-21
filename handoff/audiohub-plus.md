@@ -88,3 +88,11 @@
   sender's own host / port / security / username, else the provider's (Gmail, Outlook, iCloud, Yahoo,
   Fastmail, Zoho, GMX, AOL, Yandex, web.de), else Gmail as before; `GmailSender` now does SSL,
   STARTTLS or plain on any host; Settings → Send to Kindle "Use my own mail server". Not built yet.
+- Usenet (Reddit request, Zee-Bln; user uses Easynews): `sources/usenet.js` — Easynews solr search
+  with Basic auth (files grouped with `bookKey`, played with Authorization headers; source `en`,
+  books kept in `easynewsBooks` for Continue) and Newznab indexers (JSON or XML, cat 3030/7020,
+  `parseNewznab` tested) → `sendNzbToTorbox` (TorBox /usenet/createusenetdownload). Book page "Usenet"
+  box (`components/usenet-results.jsx`), Settings → Usenet (Easynews sign-in, indexers with NZBgeek /
+  NinjaCentral / Treasure Maps name chips). No language filter. Untested against real accounts. Not built.
+- Still waiting on the user: boxed text under covers (sample A vs B sent, I suggested B); the
+  server-side addon for Mobilism / Anna's on iPhone (explained bot checks + Mobilism login).

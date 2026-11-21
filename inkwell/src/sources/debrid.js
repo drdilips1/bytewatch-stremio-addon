@@ -293,6 +293,36 @@ async function tbAddFile(file) {
   return r?.detail || 'Added to TorBox';
 }
 
+/**
+ * An NZB (from your Usenet indexer) into TorBox's Usenet downloader. Ready within half a minute
+ * (TorBox often has it already): a book stub to open; else it's left downloading there — it shows in
+ * Your TorBox when done. Resolves { book } or { pending: true }.
+ */
+export async function sendNzbToTorbox(nzbUrl, name, onStatus) {
+  if (!tbConnected()) throw new Error('Connect TorBox in Settings to send Usenet downloads there');
+  onStatus?.('Sending to TorBox Usenet…');
+  const form = new FormData();
+  form.append('link', nzbUrl);
+  if (name) form.append('name', String(name).slice(0, 200));
+  const res = await fetch(TB + '/usenet/createusenetdownload', { method: 'POST', headers: tbHeaders(), body: form });
+  const r = await res.json().catch(() => null);
+  if (!res.ok || r?.success === false) throw new Error(r?.detail || `TorBox didn't take the NZB (HTTP ${res.status})`);
+  const id = r?.data?.usenetdownload_id || r?.data?.id;
+  forget();
+  if (!id) return { pending: true };
+  for (let i = 0; i < 12; i++) {
+    const data = await getJson(`${TB}/usenet/mylist?` + qs({ id, bypass_cache: 'true' }), { headers: tbHeaders(), fresh: true }).catch(() => null);
+    const it = (Array.isArray(data?.data) ? data.data[0] : data?.data) || null;
+    if (it && (it.download_finished || it.download_present) && (it.files || []).length) {
+      forget();
+      return { book: toBook('tb', 'tb', `u:${it.id}`, it.name || name, it.files || []) };
+    }
+    onStatus?.(`TorBox is fetching it… ${it?.progress ? Math.round(it.progress * 100) + '%' : ''}`.trim());
+    await sleep(2500);
+  }
+  return { pending: true };
+}
+
 // ---------------- Real-Debrid ----------------
 const rdHeaders = () => ({ Authorization: `Bearer ${rdKey()}` });
 
