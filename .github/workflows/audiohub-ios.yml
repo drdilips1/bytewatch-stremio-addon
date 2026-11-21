@@ -40,7 +40,9 @@ jobs:
           npm pkg set "dependencies.inkwell-transcribe-ios=file:ios-plugins/transcribe"
           # iPhone-only: your own audiobook / ebook files (the Audiohub folder in the Files app).
           npm pkg set "dependencies.inkwell-files-ios=file:ios-plugins/files"
-          npm i --install-links --no-audit --no-fund "@capacitor/ios@$CORE" ./ios-plugins/transcribe ./ios-plugins/files
+          # iPhone-only: the audiobook player (Apple's AVPlayer), same calls as the Android player.
+          npm pkg set "dependencies.inkwell-player-ios=file:ios-plugins/player"
+          npm i --install-links --no-audit --no-fund "@capacitor/ios@$CORE" ./ios-plugins/transcribe ./ios-plugins/files ./ios-plugins/player
 
       - name: Build the screens
         env:

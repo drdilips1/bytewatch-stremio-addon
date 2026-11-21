@@ -6,6 +6,9 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 
 const Native = registerPlugin('InkwellPlayer');
 export const isNative = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellPlayer');
+// Skip silence, volume boost and drift-off detection: the Android player's extras (the iPhone /
+// iPad player is Apple's own, without them).
+export const nativeExtras = isNative && Capacitor.getPlatform() === 'android';
 
 /**
  * handlers: { time(pos, dur), playing(bool), waiting(), ready(), ended(), error(msg), remote(action) }

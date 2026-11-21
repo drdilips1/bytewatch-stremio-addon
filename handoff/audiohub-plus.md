@@ -111,3 +111,11 @@
 - iPhone lighter: place saved every 12 s while playing (was 4 s: each save rewrites the whole progress list + redraws), no card glow (html.ios). The buffering itself still needs details from the user. Not built yet.
 - iPhone/iPad: no in-file chapter reading (up to 80 ranged fetches through the web view, competing with the start of TorBox / Real-Debrid M4Bs); published chapters only. Proposed next: a native iOS player (AVPlayer) like Android's. Not built yet.
 - Easynews: searches wait 45 s (was the 15 s default); the Settings check only signs you out when Easynews refuses the password (a slow answer keeps it). Note: on iPhone/iPad and the web app Easynews files can't play yet — their web-view audio can't send the sign-in (needs the native iOS player). Not built yet.
+- Native iPhone/iPad player: `ios-plugins/player` (Swift, jsName `InkwellPlayer`, AVQueuePlayer):
+  load / queue / play / pause / seek / setRate / setVolume / stop / setSkips (+ no-op setSkipSilence,
+  setBoost, setSleepDetect); events state / progress / ended / error / advanced / remote like
+  Android; sign-in headers per item (AVURLAssetHTTPHeaderFieldsKey — Easynews, Audiobookshelf);
+  audio session .playback/.spokenAudio, lock-screen info + artwork, skip / next / previous / scrub
+  commands, resumes after interruptions. Added in audiohub-ios.yml. Android-only extras hidden on iOS
+  (`nativeExtras`). First real test is the iOS build; if it misbehaves, drop it from the workflow
+  line to fall back to the web-view audio.

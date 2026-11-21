@@ -16,6 +16,7 @@ export const CHANGES = [
       ['☁️', 'Real-Debrid books on every phone', 'Books sent to Real-Debrid from a topic (Rapidgator and the like) now show on your other phones too — Real-Debrid’s own Downloads list is read, not just this phone’s. And every torrent shows, not only the newest 200.'],
       ['🖼️', 'Each book one tile', 'Covers and the words under them sit in one faint frame — a soft glow in dark mode, a thin warm line in light mode.'],
       ['✨', 'Covers with a glassy sheen', 'Every cover catches a little light now — a soft glass sheen across the top, the cover itself untouched.'],
+      ['🍎', 'A real player on iPhone and iPad', 'Books now play through Apple’s own player: big TorBox / Real-Debrid files start faster and don’t stop to buffer, Easynews plays, the lock screen and headphones control it, and it keeps going with the screen off.'],
       ['🔎', 'Anna’s Archive and Mobilism on iPhone', 'The Book Hunt addon searches both on your own server, so they work on iPhone and the web app too (Mobilism signs in with your account, set on the server). Add it in Settings → Addons.'],
       ['📰', 'Usenet', 'Settings → Usenet: sign in to Easynews (books play straight from it) and add your indexers — NZBgeek, NinjaCentral, Treasure Maps… (their NZBs go to your TorBox, then play). Results show on each book page; German books included.'],
       ['✉️', 'Send to Kindle from any e-mail', 'Not just Gmail: Outlook, iCloud, Yahoo, Fastmail and others are set up by themselves, or enter your own mail server (host, port, security). Gmail stays the default.'],

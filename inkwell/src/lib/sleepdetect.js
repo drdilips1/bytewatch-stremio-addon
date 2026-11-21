@@ -2,7 +2,7 @@
 // motion sensor; if it lies still for the chosen time it fades out, pauses and
 // rewinds to where you stopped moving.
 import { registerPlugin } from '@capacitor/core';
-import { isNative } from './engine.js';
+import { nativeExtras as isNative } from './engine.js';
 import { settings } from './store.js';
 import { toast } from '../components/common.jsx';
 

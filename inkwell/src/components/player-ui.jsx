@@ -4,7 +4,7 @@ import { loadImage } from '../lib/image.js';
 import { CatchUp } from './catchup.jsx';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import * as player from '../lib/player.js';
-import { isNative as isNativeEngine } from '../lib/engine.js';
+import { nativeExtras as isNativeEngine } from '../lib/engine.js';
 import { Cover, toast, SourceBadge } from './common.jsx';
 import { providerName } from '../sources/debrid.js';
 import { Icon, SkipIcon } from './icons.jsx';

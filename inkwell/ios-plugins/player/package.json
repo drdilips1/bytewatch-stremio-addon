@@ -1,0 +1,11 @@
+{
+  "name": "inkwell-player-ios",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iPhone / iPad audiobook player for Audiohub (AVPlayer): the same interface as the Android InkwellPlayer plugin — streams big cloud files, lock-screen controls, plays with the screen off. Added to the app only by the iPhone build (.github/workflows/audiohub-ios.yml).",
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  }
+}
