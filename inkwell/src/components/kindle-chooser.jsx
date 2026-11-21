@@ -1,5 +1,5 @@
 // "Which Kindle?" — asked by Send to Kindle when there's more than one Kindle address
-// (or Gmail sender) in Settings → Send to Kindle.
+// (or sending account) in Settings → Send to Kindle.
 import { useEffect, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { setKindleAsker } from '../lib/kindle.js';

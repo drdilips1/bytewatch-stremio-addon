@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'preact/hooks';
 import { createContext } from 'preact';
 import { nav } from '../lib/nav.js';
 import { MORE } from '../sources/moredebrid.js';
+import { smtpFor, knownServer } from '../lib/smtp.js';
 import * as localSrc from '../sources/local.js';
 import { PhoneButtons, usePhoneRun } from './Library.jsx';
 import { LibbySettings } from '../components/libby-settings.jsx';
@@ -2102,20 +2103,24 @@ function AutoSendStatus() {
   );
 }
 
-/** Send to Kindle: your Kindles (name + @kindle.com address) and the Gmail account(s) that send to them. */
+/** Send to Kindle: your Kindles (name + @kindle.com address) and the e-mail account(s) that send to them — Gmail or any mail server. */
 function KindleCard() {
   const k = useStore(kindle);
   const [t, setT] = useState({ name: '', email: '' });
-  const [g, setG] = useState({ email: '', password: '' });
+  const [g, setG] = useState({ email: '', password: '', host: '', port: '', security: 'starttls', user: '' });
+  const [ownServer, setOwnServer] = useState(false);
   const okKindle = /^[^\s@]+@(free\.)?kindle\.(com|cn)$/i.test(t.email.trim());
   const okGmail = /^[^\s@]+@(gmail|googlemail)\.com$/i.test(g.email.trim()) || /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(g.email.trim());
-  const okPass = g.password.replace(/\s/g, '').length === 16;
+  // Gmail's app password is 16 letters; other servers have their own rules.
+  const gmail = !ownServer && /@(gmail|googlemail)\.com$/i.test(g.email.trim());
+  const okPass = gmail ? g.password.replace(/\s/g, '').length === 16 : g.password.length > 0;
+  const known = knownServer(g.email);
   const remove = (key, i) => kindle.set((x) => ({ ...x, [key]: x[key].filter((_, j) => j !== i) }));
   return (
     <>
       <p class="muted">
-        With a Kindle and a Gmail account below, Kindle buttons e-mail the book <b>straight to the Kindle</b> — no e-mail app. With several Kindles, you pick one (or all) each
-        time. Without a Gmail account, Kindle buttons open your e-mail app instead.
+        With a Kindle and an e-mail account below (Gmail, Outlook, iCloud… or your own mail server), Kindle buttons e-mail the book <b>straight to the Kindle</b> — no e-mail app.
+        With several Kindles, you pick one (or all) each time. Without an account here, Kindle buttons open your e-mail app instead.
       </p>
 
       <b class="set-sub">Kindles</b>
@@ -2150,12 +2155,14 @@ function KindleCard() {
         Find a Kindle's address: <b>amazon.com → Manage Your Content and Devices → Preferences → Personal Document Settings</b>.
       </p>
 
-      <b class="set-sub">Send from (Gmail)</b>
+      <b class="set-sub">Send from</b>
       {k.senders.map((x, i) => (
         <div class="set-row">
           <div>
             <b>{x.email}</b>
-            <small>App password saved on this phone</small>
+            <small>
+              {smtpFor(x).host}:{smtpFor(x).port} · password saved on this phone
+            </small>
           </div>
           <button class="icon-btn" aria-label={`Remove ${x.email}`} onClick={() => remove('senders', i)}>
             <Icon name="trash" size={18} />
@@ -2166,23 +2173,57 @@ function KindleCard() {
         class="set-form kindle-form"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!okGmail) return toast('Enter the Gmail address to send from');
-          if (!okPass) return toast('An app password is 16 letters (Google shows it as 4 groups of 4)');
-          kindle.set((x) => ({ ...x, senders: [...x.senders.filter((y) => y.email.toLowerCase() !== g.email.trim().toLowerCase()), { email: g.email.trim(), password: g.password.replace(/\s/g, '') }] }));
-          setG({ email: '', password: '' });
-          toast('Gmail added — Kindle buttons now send directly');
+          if (!okGmail) return toast('Enter the e-mail address to send from');
+          if (!okPass) return toast(gmail ? 'A Gmail app password is 16 letters (Google shows it as 4 groups of 4)' : 'Enter the password for this mail server');
+          if (!ownServer && !known && !/@(gmail|googlemail)\.com$/i.test(g.email.trim())) {
+            setOwnServer(true);
+            return toast('Enter your mail server (SMTP) for this address');
+          }
+          if (ownServer && !g.host.trim()) return toast('Enter the mail server, e.g. smtp.example.com');
+          const own = ownServer ? { host: g.host.trim(), port: Number(g.port) || 0, security: g.security, user: g.user.trim() } : {};
+          kindle.set((x) => ({ ...x, senders: [...x.senders.filter((y) => y.email.toLowerCase() !== g.email.trim().toLowerCase()), { email: g.email.trim(), password: gmail ? g.password.replace(/\s/g, '') : g.password, ...own }] }));
+          setG({ email: '', password: '', host: '', port: '', security: 'starttls', user: '' });
+          setOwnServer(false);
+          toast('Added — Kindle buttons now send directly');
         }}
       >
-        <input type="email" value={g.email} placeholder="you@gmail.com" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setG({ ...g, email: e.currentTarget.value })} />
-        <input type="password" value={g.password} placeholder="App password (16 letters)" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setG({ ...g, password: e.currentTarget.value })} />
+        <input type="email" value={g.email} placeholder="you@gmail.com (or any address)" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setG({ ...g, email: e.currentTarget.value })} />
+        <input type="password" value={g.password} placeholder={gmail ? 'App password (16 letters)' : 'Password (or app password)'} autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setG({ ...g, password: e.currentTarget.value })} />
+        {!ownServer && g.email.includes('@') && (
+          <small class="muted">
+            {known || gmail ? `Sends through ${smtpFor(g).host}. ` : 'Unknown provider — '}
+            <a href="#" onClick={(e) => (e.preventDefault(), setOwnServer(true))}>
+              Use my own mail server
+            </a>
+          </small>
+        )}
+        {ownServer && (
+          <>
+            <input value={g.host} placeholder="Mail server (SMTP), e.g. smtp.example.com" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setG({ ...g, host: e.currentTarget.value })} />
+            <input value={g.port} inputMode="numeric" placeholder="Port (587 or 465)" onInput={(e) => setG({ ...g, port: e.currentTarget.value.replace(/\D/g, '') })} />
+            <div class="chips">
+              {[
+                ['starttls', 'STARTTLS (587)'],
+                ['ssl', 'SSL / TLS (465)'],
+                ['none', 'None'],
+              ].map(([k, label]) => (
+                <button type="button" class={'pill small' + (g.security === k ? ' active' : '')} onClick={() => setG({ ...g, security: k })}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <input value={g.user} placeholder="Username (if not the e-mail address)" autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setG({ ...g, user: e.currentTarget.value })} />
+          </>
+        )}
         <button class="btn primary" disabled={!g.email.trim() || !g.password.trim()}>
-          <Icon name="plus" size={16} /> Add Gmail
+          <Icon name="plus" size={16} /> Add sender
         </button>
       </form>
       <p class="muted small">
-        <b>App password</b> (not your normal password): turn on 2-Step Verification in your Google account, then <b>myaccount.google.com/apppasswords</b> → create one named
-        "Audiohub" → copy the 16 letters here. Then add this Gmail address to each Kindle's <b>Approved Personal Document E-mail List</b> (same Amazon page as above). EPUB and PDF
-        work; Gmail sends books up to about 18 MB.
+        <b>Gmail:</b> use an <b>app password</b> (not your normal password): turn on 2-Step Verification in your Google account, then <b>myaccount.google.com/apppasswords</b> →
+        create one named "Audiohub" → copy the 16 letters here. <b>Other providers</b> (Outlook, iCloud, Yahoo, Fastmail…) are filled in by themselves — most want an app password
+        too; or enter <b>your own mail server</b>. Then add the sending address to each Kindle's <b>Approved Personal Document E-mail List</b> (same Amazon page as above). EPUB and
+        PDF work; books up to about 18 MB.
       </p>
     </>
   );

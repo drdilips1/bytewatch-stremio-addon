@@ -14,29 +14,50 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 /**
- * Sends one file as an e-mail attachment through Gmail (smtp.gmail.com, SSL), signed in
- * with a Google "app password". Used by Send to Kindle, so books go straight to a
- * Kindle's @kindle.com address without opening an e-mail app. Nothing is stored here.
+ * Sends one file as an e-mail attachment through a mail server (SMTP) — Gmail by default
+ * (smtp.gmail.com, SSL, a Google "app password"), or your own: any host and port, encrypted from
+ * the start (SSL, usually 465), upgraded with STARTTLS (usually 587), or plain. Used by Send to
+ * Kindle, so books go straight to a Kindle's @kindle.com address without an e-mail app.
+ * Nothing is stored here. (The class keeps its old name.)
  */
 final class GmailSender {
     private GmailSender() {}
 
-    /** Gmail's limit is 25 MB per message; the attachment grows by a third when encoded. */
+    /** Most servers take 25 MB per message; the attachment grows by a third when encoded. */
     static final long MAX_BYTES = 18L * 1024 * 1024;
 
+    /** Gmail, as before. */
     static void send(String from, String password, List<String> to, String subject, File file, String fileName, String mime) throws Exception {
-        if (file.length() > MAX_BYTES) throw new Exception("the book is " + (file.length() / (1024 * 1024)) + " MB — Gmail sends up to about 18 MB");
-        SSLSocket s = (SSLSocket) SSLSocketFactory.getDefault().createSocket("smtp.gmail.com", 465);
+        send("smtp.gmail.com", 465, "ssl", from, from, password, to, subject, file, fileName, mime);
+    }
+
+    static String server = "Gmail";
+
+    static void send(String host, int port, String security, String user, String from, String password, List<String> to, String subject, File file, String fileName, String mime) throws Exception {
+        server = "smtp.gmail.com".equals(host) ? "Gmail" : host;
+        if (file.length() > MAX_BYTES) throw new Exception("the book is " + (file.length() / (1024 * 1024)) + " MB — mail servers send up to about 18 MB");
+        java.net.Socket s = "ssl".equals(security) ? SSLSocketFactory.getDefault().createSocket(host, port) : new java.net.Socket(host, port);
         s.setSoTimeout(60_000);
         try {
             BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.US_ASCII));
             OutputStream out = s.getOutputStream();
             expect(in, 220);
             cmd(out, in, "EHLO audiohub", 250);
+            if ("starttls".equals(security)) {
+                // Upgrade the plain connection to an encrypted one, then introduce ourselves again.
+                cmd(out, in, "STARTTLS", 220);
+                SSLSocket tls = (SSLSocket) ((SSLSocketFactory) SSLSocketFactory.getDefault()).createSocket(s, host, port, true);
+                tls.setSoTimeout(60_000);
+                tls.startHandshake();
+                s = tls;
+                in = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.US_ASCII));
+                out = s.getOutputStream();
+                cmd(out, in, "EHLO audiohub", 250);
+            }
             cmd(out, in, "AUTH LOGIN", 334);
-            cmd(out, in, b64(from), 334);
-            int auth = cmd(out, in, b64(password.replace(" ", "")), -1);
-            if (auth != 235) throw new Exception("Gmail didn't accept the app password for " + from + " (check it in Settings → Send to Kindle)");
+            cmd(out, in, b64(user.isEmpty() ? from : user), 334);
+            int auth = cmd(out, in, b64("Gmail".equals(server) ? password.replace(" ", "") : password), -1);
+            if (auth != 235) throw new Exception(server + " didn't accept the password for " + (user.isEmpty() ? from : user) + " (check it in Settings → Send to Kindle)");
             cmd(out, in, "MAIL FROM:<" + from + ">", 250);
             for (String t : to) cmd(out, in, "RCPT TO:<" + t + ">", 250);
             cmd(out, in, "DATA", 354);
@@ -108,7 +129,7 @@ final class GmailSender {
 
     private static int expect(BufferedReader in, int code) throws Exception {
         int got = reply(in);
-        if (got != code) throw new Exception("Gmail answered " + got + " (" + last + ")");
+        if (got != code) throw new Exception(server + " answered " + got + " (" + last + ")");
         return got;
     }
 
@@ -119,7 +140,7 @@ final class GmailSender {
         String line;
         do {
             line = in.readLine();
-            if (line == null) throw new Exception("Gmail closed the connection");
+            if (line == null) throw new Exception(server + " closed the connection");
         } while (line.length() > 3 && line.charAt(3) == '-');
         last = line.length() > 4 ? line.substring(4) : line;
         return Integer.parseInt(line.substring(0, 3));

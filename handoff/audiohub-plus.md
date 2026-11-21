@@ -84,3 +84,7 @@
   iPhone Settings card says "Audiohub for iPhone build N" (not "web app"); Hear the voice only with a
   real sample (YouTube fallback removed); Get the ebook lists the best 3 per source (LibGen no longer
   pushed out by Knaben) with a cover thumbnail left, "Show all". Not built yet.
+- Send to Kindle through any mail server (Reddit request, zfa): `lib/smtp.js` (tested) picks the
+  sender's own host / port / security / username, else the provider's (Gmail, Outlook, iCloud, Yahoo,
+  Fastmail, Zoho, GMX, AOL, Yandex, web.de), else Gmail as before; `GmailSender` now does SSL,
+  STARTTLS or plain on any host; Settings → Send to Kindle "Use my own mail server". Not built yet.

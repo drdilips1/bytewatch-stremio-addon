@@ -44,7 +44,8 @@ async function share(url, name, mime, title) {
     const pick = await chooseTarget();
     if (!pick) return; // cancelled
     toast(`Sending to ${pick.label}…`);
-    await withLimit(Web.mailFile({ url, name, mime, to: pick.to, from: pick.sender.email, password: pick.sender.password }));
+    const { smtpFor } = await import('./smtp.js');
+    await withLimit(Web.mailFile({ url, name, mime, to: pick.to, from: pick.sender.email, password: pick.sender.password, ...smtpFor(pick.sender) }));
     toast(`Sent to ${pick.label} — it shows up on the Kindle in a few minutes`);
     return;
   }

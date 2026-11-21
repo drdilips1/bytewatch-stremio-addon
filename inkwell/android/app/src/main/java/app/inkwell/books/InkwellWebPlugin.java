@@ -228,8 +228,8 @@ public class InkwellWebPlugin extends Plugin {
     }
 
     /**
-     * Download a file and e-mail it straight to Kindle addresses through Gmail (an app
-     * password, see GmailSender) — no e-mail app or share menu.
+     * Download a file and e-mail it straight to Kindle addresses through your mail server (Gmail
+     * by default, see GmailSender) — no e-mail app or share menu.
      */
     @PluginMethod
     public void mailFile(PluginCall call) {
@@ -238,6 +238,11 @@ public class InkwellWebPlugin extends Plugin {
         String mime = call.getString("mime", "application/epub+zip");
         String from = call.getString("from", "");
         String password = call.getString("password", "");
+        // The mail server (Settings → Send to Kindle); Gmail when none is given.
+        String host = call.getString("host", "smtp.gmail.com");
+        int port = call.getInt("port", 465);
+        String security = call.getString("security", "ssl");
+        String user = call.getString("user", from);
         java.util.List<String> to = new java.util.ArrayList<>();
         try {
             com.getcapacitor.JSArray list = call.getArray("to");
@@ -245,7 +250,7 @@ public class InkwellWebPlugin extends Plugin {
         } catch (Exception ignored) {
         }
         if (url == null || to.isEmpty() || from.isEmpty() || password.isEmpty()) {
-            call.reject("Missing book, Kindle address or Gmail sender");
+            call.reject("Missing book, Kindle address or sender");
             return;
         }
         new Thread(() -> {
@@ -259,7 +264,7 @@ public class InkwellWebPlugin extends Plugin {
                 f.delete();
                 ParallelDownloader.fetch(url, f, 2, null);
                 if (looksLikeWebPage(f)) throw new Exception("the link gave a web page instead of the ebook file");
-                GmailSender.send(from, password, to, name.replaceAll("\\.[A-Za-z0-9]{2,5}$", ""), f, name, mime);
+                GmailSender.send(host, port, security, user, from, password, to, name.replaceAll("\\.[A-Za-z0-9]{2,5}$", ""), f, name, mime);
                 call.resolve();
             } catch (Throwable e) {
                 call.reject("Couldn't send it: " + e.getMessage());
