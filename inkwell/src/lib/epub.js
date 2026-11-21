@@ -260,6 +260,9 @@ const safeDecode = (s) => {
 export function directEbookFile(r) {
   // Bookshare: the link is the book's page (you download it there, signed in) — not a file.
   if (r?.bookshare) return null;
+  // A forum post's file-host links (Book Hunt's Mobilism results): the link is the post, not the
+  // file — the book comes through TorBox / Real-Debrid, never opened straight in the reader.
+  if (r?.downloads?.length) return null;
   // Anna's Archive: your membership's fast link, or the free copy (LibGen / slow server).
   if (r?.aaMd5) {
     if (!EBOOK_FORMATS.test(String(r.format || ''))) return null;

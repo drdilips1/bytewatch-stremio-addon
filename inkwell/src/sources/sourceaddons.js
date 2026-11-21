@@ -157,7 +157,7 @@ async function run(addon, params, onSlow) {
       try {
         const r = await runOnce(addon, p, retry);
         // A wider search (title only) still has to be this book: same check as the precise one.
-        if (r.length) return title && author && !p.author ? sameBook(r, title, author) : r;
+        if (r.length) return title && author && !p.author ? Object.assign(sameBook(r, title, author), { partial: r.partial }) : r;
         break;
       } catch (e) {
         lastErr = e;
@@ -346,7 +346,11 @@ async function searchOnce(addon, vars, key, { title = '', author = '', query = '
     loose: results.filter((r) => r.loose).length,
   });
   // Only remember searches that found something, so a temporary empty answer isn't sticky.
-  if (results.length) remember(key, results);
+  // (Not when part of the addon failed: "Try again" should really ask again.)
+  if (results.length && !said.length) remember(key, results);
+  // Some found, but part of the addon failed (Book Hunt: Mobilism answered, Anna's Archive didn't):
+  // the results show, and why the rest is missing is said under them.
+  if (results.length && said.length) results.partial = said.join(' · ');
   return results;
 }
 
@@ -425,8 +429,9 @@ export function searchSources(params, onResult, only = null) {
             // Show results straight away; which ones TorBox can stream instantly is filled in after.
             // Didn't answer, but found this book before: show that, and say so.
             if (r.older) return onResult(a.manifest.name, r, Object.assign(new Error('older'), { older: r.older }));
-            onResult(a.manifest.name, r, null);
-            return markInstant(r).then((marked) => marked && onResult(a.manifest.name, marked, null));
+            const part = r.partial ? Object.assign(new Error(r.partial), { partial: true }) : null;
+            onResult(a.manifest.name, r, part);
+            return markInstant(r).then((marked) => marked && onResult(a.manifest.name, marked, part));
           })
           .catch((e) => {
             logError(`source ${a.manifest.name}`, `${e.status ? `HTTP ${e.status} ` : ''}${e.message}`);

@@ -126,6 +126,8 @@
   uses its own secrets only for searches without details (`own=1` links). To share: redeploy
   bookhunt.js, delete the worker's own secrets, re-add the addon, enter details in the app. In v1.0.239.
 - Book Hunt worker /file (worker-only change, redeploy bookhunt.js): tries the Anna's fast link and up to 4 LibGen mirrors in turn and skips any that send a web page or error instead of the book (that was "isn't a readable EPUB" / HTTP 502 on iPhone); the 502 now says why (e.g. Anna's "Invalid secret key"). isBookFile tested. Having the key both in the worker secrets and in the app is fine: the app's details win.
+- Book Hunt in the app: when part of it fails (Anna's Archive errors but Mobilism answers) the reason shows under the results (results.partial → group error; such results aren't cached so Try again asks again). Mobilism posts (results with downloads) are never direct ebook files, so no Read on a viewtopic page ("isn't a readable EPUB"); tests/ebookfile.test.js. Not built yet.
+- Open: iPhone can't unpack Mobilism archives (.zip/.rar) yet — unpack is the Android InkwellDownloads plugin only. On Android, Book Hunt's Mobilism can hit Mobilism's bot check on the server; the built-in Mobilism (hidden browser) passes it and Book Hunt then hides itself.
 - FALL-BACK (user asked to remember): if the shared Book Hunt (each person's details) doesn't work,
   go back to `inkwell/workers/bookhunt-private-v1.js` — the private version that works for the user
   and their wife on their iPhone (worker secrets MOBILISM_USER / MOBILISM_PASS / ANNAS_KEY). The new
