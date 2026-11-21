@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { Cover, toast } from './common.jsx';
-import { useStore, library, progress, bookTags, toggleLibrary, hideFromContinue, summarize } from '../lib/store.js';
+import { useStore, library, progress, bookTags, toggleLibrary, hideFromContinue, summarize, forgetBook } from '../lib/store.js';
 import { nav, useBackClose } from '../lib/nav.js';
 import { allTags } from './book-tags.jsx';
 import { FixDetails, EditDetails } from './fix-details.jsx';
@@ -137,6 +137,32 @@ export function BookActionsSheet() {
       setBusy('');
     }
   };
+  // Delete: out of the app everywhere — your place, library, Read later, Up next, the download,
+  // a kept ebook; a phone-folder book is hidden (its file stays); a TorBox / Real-Debrid book can
+  // be deleted from your cloud too (asked separately).
+  const del = async () => {
+    if (!window.confirm(`Delete “${book.title}” from Audiohub?\n\nYour place, library entry and any download on this phone go.`)) return;
+    const cloud = await import('../sources/debrid.js');
+    const fromCloud = cloud.cloudDeletable(book) && window.confirm(`Also delete it from your ${book.uid.startsWith('tb:') ? 'TorBox' : 'Real-Debrid'}?\n\nOK: deleted there too. Cancel: kept there (it may show again in your cloud rows).`);
+    close();
+    try {
+      const { removeDownload } = await import('../lib/downloads.js');
+      const { forgetEbook } = await import('../lib/epub.js');
+      const local = await import('../sources/local.js');
+      forgetBook(book.uid);
+      hideFromContinue([book.uid]);
+      removeUpNext(book.uid);
+      if (readLater.get()[book.uid]) toggleReadLater(book);
+      await removeDownload(book.uid).catch(() => {});
+      if (book.kind === 'text') await forgetEbook(book.uid).catch(() => {});
+      if (book.imported) await local.removeImported(book.uid);
+      else if (book.source === 'loc') local.hideBook(book.uid);
+      if (fromCloud) await cloud.deleteFromCloud(book);
+      toast(`Deleted “${book.title}”${fromCloud ? ` (and from your ${book.uid.startsWith('tb:') ? 'TorBox' : 'Real-Debrid'})` : ''}`);
+    } catch (e) {
+      toast(e.message);
+    }
+  };
   const tag = () => {
     const have = bookTags.get()[book.uid] || [];
     const others = allTags().filter((t) => !have.includes(t)).slice(0, 8);
@@ -254,6 +280,9 @@ export function BookActionsSheet() {
         )}
         <button class="menu-item" onClick={act(() => (toggleLibrary(book), toast(saved ? 'Removed from your library' : 'Added to your library')))}>
           <Icon name="heart" size={18} fill={saved} /> {saved ? 'Remove from library' : 'Add to library'}
+        </button>
+        <button class="menu-item danger" disabled={!!busy} onClick={del}>
+          <Icon name="trash" size={18} /> Delete…
         </button>
         <button class="menu-item" onClick={tag}>
           <Icon name="plus" size={18} /> Add a tag

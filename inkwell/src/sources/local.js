@@ -71,6 +71,9 @@ export async function rescan() {
       errors.push(`${folder.name}: ${e.message}`);
     }
   }
+  // Books you deleted from the app stay out (their files are still in the folder).
+  const hidden = new Set(localCfg.get().hidden || []);
+  books.splice(0, books.length, ...books.filter((b) => !hidden.has(b.uid)));
   books.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
   localCfg.set((c) => ({ ...c, books: [...books, ...(c.imported || [])], scannedAt: Date.now(), v: 3 }));
   if (errors.length && !books.length) throw new Error(errors.join(' · '));
@@ -278,6 +281,17 @@ export async function pickBooks(opts = {}) {
     openHandler = keep;
   }
   return opts.books ? added : added.length;
+}
+
+/** Take a folder book out of the app (Delete): its files stay in the folder, a rescan leaves it out. */
+export function hideBook(uid) {
+  localCfg.set((c) => ({ ...c, hidden: [...new Set([...(c.hidden || []), uid])], books: (c.books || []).filter((b) => b.uid !== uid) }));
+}
+
+/** Bring back the folder books you deleted from the app (Settings → Your files on this phone). */
+export function unhideAll() {
+  localCfg.set((c) => ({ ...c, hidden: [] }));
+  return rescan();
 }
 
 /** Remove a book that was opened with / shared to Audiohub (its copy too). */

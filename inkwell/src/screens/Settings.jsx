@@ -96,6 +96,11 @@ function PhoneFilesCard() {
         </div>
       )}
       <PhoneButtons busy={busy} run={run} />
+      {(cfg.hidden || []).length > 0 && (
+        <button class="link-btn" onClick={run('unhide', localSrc.unhideAll)}>
+          Bring back {cfg.hidden.length} deleted book{cfg.hidden.length === 1 ? '' : 's'} (their files are still in the folder)
+        </button>
+      )}
     </>
   );
 }

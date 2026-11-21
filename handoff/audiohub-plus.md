@@ -77,3 +77,4 @@
   date (Android scan COLUMN_LAST_MODIFIED, iOS contentModificationDate → `addedAt`, one rescan on
   update: localBooks v3); new debrid services sort by date; Shelf's "Recent" sorts by addedAt.
 - Library header: folder button beside search → phone files view (Add folder / Rescan there); no folder yet → picker.
+- Delete a book: press-and-hold → Delete… (forgetBook + download + Up next + Read later + ebook; folder books hidden via localCfg.hidden, Settings can bring them back; TorBox t/u/w and Real-Debrid torrents deleted from the cloud when confirmed — `deleteFromCloud`). Not built yet.

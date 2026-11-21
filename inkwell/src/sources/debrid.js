@@ -578,6 +578,26 @@ export function details(book) {
   return book.uid.startsWith('tb:') ? tbDetails(book) : rdDetails(book);
 }
 
+/** Can this book be deleted from your cloud by the app (TorBox, Real-Debrid)? */
+export const cloudDeletable = (book) => /^tb:[tuw]:|^rd:(l:)?[^:]+$/.test(book?.uid || '') && !/^rd:d:/.test(book?.uid || '');
+
+/** Delete a book from your TorBox / Real-Debrid (the files there go too). */
+export async function deleteFromCloud(book) {
+  const uid = String(book?.uid || '');
+  const tb = /^tb:([tuw]):(.+)$/.exec(uid);
+  if (tb) {
+    const [path, idKey] = { t: ['/torrents/controltorrent', 'torrent_id'], u: ['/usenet/controlusenetdownload', 'usenet_id'], w: ['/webdl/controlwebdownload', 'webdl_id'] }[tb[1]];
+    const res = await fetch(TB + path, { method: 'POST', headers: { ...tbHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ [idKey]: Number(tb[2]) || tb[2], operation: 'delete' }) });
+    if (!res.ok) throw new Error(`TorBox didn't delete it (HTTP ${res.status})`);
+  } else if (uid.startsWith('rd:l:')) {
+    forgetSent(uid.slice(5)); // sent from a topic: only this phone kept it
+  } else if (/^rd:[^:]+$/.test(uid)) {
+    const res = await fetch(`${RD}/torrents/delete/${uid.slice(3)}`, { method: 'DELETE', headers: rdHeaders() });
+    if (!res.ok && res.status !== 404) throw new Error(`Real-Debrid didn't delete it (HTTP ${res.status})`);
+  } else throw new Error("This one can't be deleted from here — remove it on the service's website");
+  forget();
+}
+
 /** A service's name for messages ("TorBox", "Real-Debrid", "AllDebrid"…). */
 export const providerName = (p) => (p === 'torbox' ? 'TorBox' : p === 'realdebrid' ? 'Real-Debrid' : MORE[p]?.name || 'your debrid service');
 
