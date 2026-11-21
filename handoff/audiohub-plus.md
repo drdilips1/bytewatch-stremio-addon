@@ -96,3 +96,4 @@
   NinjaCentral / Treasure Maps name chips). No language filter. Untested against real accounts. Not built.
 - Still waiting on the user: boxed text under covers (sample A vs B sent, I suggested B); the
   server-side addon for Mobilism / Anna's on iPhone (explained bot checks + Mobilism login).
+- Book cards: one faint glowing frame around cover + text (user picked sample B). Not built yet.

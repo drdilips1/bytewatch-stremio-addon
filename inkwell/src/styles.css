@@ -12975,3 +12975,22 @@ html[data-motion='full'] .fp-art.playing .fp-glow { animation: mo-glow-in-full 0
 .set-away { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: calc(100% - 32px); margin: 0 16px 10px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line, rgba(0, 0, 0, 0.1)); background: var(--surface, transparent); color: var(--text); text-align: left; font: inherit; }
 .set-away small { color: var(--muted); }
 
+
+/* Book cards in one faint glowing frame (cover + the text under it), so each book is one tile.
+   Dark: a soft warm glow. Light: a thin warm line and a soft shadow (a glow would vanish). */
+.book-card:not(.broken) {
+  width: 146px;
+  padding: 7px 7px 10px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: 0 0 14px -4px color-mix(in srgb, var(--accent) 40%, transparent), inset 0 0 12px -8px color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 3%, transparent);
+}
+:root[data-mode='light'] .book-card:not(.broken) {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  box-shadow: 0 6px 16px -12px rgba(80, 55, 20, 0.45);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+.book-card:not(.broken) .book-card-cover,
+.book-card:not(.broken) .cover { border-radius: 12px; }
+.grid .book-card:not(.broken) { width: auto; }

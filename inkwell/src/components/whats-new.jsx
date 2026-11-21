@@ -14,6 +14,7 @@ export const CHANGES = [
       ['📖', 'Get the ebook: Knaben first', 'Ebook torrents from Knaben Ebooks come first (fetched through your TorBox / Real-Debrid), then every other source and LibGen — the best three of each, with a cover beside each one; LibGen tries every mirror when one is down.'],
       ['⚡', 'The player opens at once', 'No more opening animation from the mini player (it flickered); the other effects stay.'],
       ['☁️', 'Real-Debrid books on every phone', 'Books sent to Real-Debrid from a topic (Rapidgator and the like) now show on your other phones too — Real-Debrid’s own Downloads list is read, not just this phone’s. And every torrent shows, not only the newest 200.'],
+      ['🖼️', 'Each book one tile', 'Covers and the words under them sit in one faint frame — a soft glow in dark mode, a thin warm line in light mode.'],
       ['✨', 'Covers with a glassy sheen', 'Every cover catches a little light now — a soft glass sheen across the top, the cover itself untouched.'],
       ['📰', 'Usenet', 'Settings → Usenet: sign in to Easynews (books play straight from it) and add your indexers — NZBgeek, NinjaCentral, Treasure Maps… (their NZBs go to your TorBox, then play). Results show on each book page; German books included.'],
       ['✉️', 'Send to Kindle from any e-mail', 'Not just Gmail: Outlook, iCloud, Yahoo, Fastmail and others are set up by themselves, or enter your own mail server (host, port, security). Gmail stays the default.'],
