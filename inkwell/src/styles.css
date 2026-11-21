@@ -9432,6 +9432,10 @@ button.notes-book-head {
   text-transform: uppercase;
   color: var(--faint);
 }
+/* A heading per source inside Audiobooks / Ebooks (feedback 19 Nov). */
+.src-sub + .src-sub { margin-top: 12px; }
+.src-sub-head { display: flex; align-items: baseline; gap: 8px; margin: 2px 2px 6px; font-size: 14px; font-weight: 700; color: var(--text); }
+.src-sub-head small { font-size: 12px; font-weight: 500; color: var(--muted); }
 .src-sec .src-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -12320,7 +12324,6 @@ button.cr-tile.on > img {
 .home-bar .home-top-actions .icon-btn { background: none; border: 0; box-shadow: none; }
 .home-greet { padding: 10px 20px 4px; }
 .home-greet h1 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.15; }
-.home-greet p { margin: 4px 0 0; color: var(--muted); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The banner as a card, inset like everything else. */
 
 .home .continue-section { padding-top: 22px; }
@@ -12746,6 +12749,11 @@ button.cr-tile.on > img {
   gap: 10px;
   margin-bottom: 8px;
 }
+.found-shelf-head > div { flex: 1; min-width: 0; }
+.found-edit { list-style: none; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.found-edit li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line, rgba(0, 0, 0, 0.08)); }
+.found-edit li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.found-edit small { color: var(--muted); }
 .found-shelf-head h3 {
   font-size: 17px;
   font-weight: 650;
@@ -12978,3 +12986,13 @@ html[data-motion='off'] .fp-ribbon, html[data-motion='off'] .fp-chapters.mo-flas
 html[data-motion='full'] .fp-art.playing .fp-glow { animation: mo-glow-in-full 0.9s ease-out, mo-breathe-full 3.6s ease-in-out 0.9s infinite; }
 @keyframes mo-glow-in { from { opacity: 0; transform: translate(-50%, -50%) scale(1.08); } to { opacity: 0.6; transform: translate(-50%, -50%) scale(1.08); } }
 @keyframes mo-glow-in-full { from { opacity: 0; transform: translate(-50%, -50%) scale(1.12); } to { opacity: 0.75; transform: translate(-50%, -50%) scale(1.12); } }
+
+/* Home: a smaller greeting (feedback 19 Nov). */
+.home .home-greet h1, .home-greet h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.2px; }
+
+/* Settings: a search box at the top (feedback 21 Nov). */
+.set-search { display: flex; align-items: center; gap: 8px; margin: 4px 16px 12px; padding: 0 12px; border-radius: 14px; background: var(--surface-2, rgba(0, 0, 0, 0.05)); color: var(--muted); }
+.set-search input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 11px 0; font: inherit; color: var(--text); outline: none; }
+.set-away { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: calc(100% - 32px); margin: 0 16px 10px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line, rgba(0, 0, 0, 0.1)); background: var(--surface, transparent); color: var(--text); text-align: left; font: inherit; }
+.set-away small { color: var(--muted); }
+

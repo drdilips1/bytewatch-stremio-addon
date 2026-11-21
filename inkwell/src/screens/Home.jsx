@@ -803,24 +803,11 @@ export function Home() {
 
 // ---- Greeting and Your books --------------------------------------------------------
 
-/** "Good evening, Dilip" and how long is left in the book you're on. */
+/** "Good evening, Dilip" — small and quiet (how long is left is on the Continue card already). */
 function Greeting({ me }) {
-  const prog = useStore(progress);
-  const cur = useMemo(
-    () =>
-      Object.values(prog)
-        .filter((p) => p?.book && !p.finished && !p.hidden && p.kind !== 'text' && p.total > 0)
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0],
-    [prog]
-  );
   return (
     <div class="home-greet">
       <h1>{me ? `${greeting()}, ${me}` : greeting()}</h1>
-      {cur && (
-        <p>
-          {fmtDuration(Math.max(0, cur.total - (cur.global || 0)))} left in {cur.book.title}
-        </p>
-      )}
     </div>
   );
 }

@@ -500,19 +500,19 @@ Seen in a TV app (cast circles, ratings row, show details, trailers, More like t
   available, check your app" for a few seconds before it plays; search and picking another book don't
   work with the screen off (big issue).
 - A Real-Debrid audiobook didn't reach the wife's iPhone app (check RD library / sent items on iOS).
-- Home: greeting smaller; remove the "time left" line under it.
-- Book page: a heart (save / favourite) next to 👍 / 👎.
+- ✓ (21 Nov, not yet built) Home: greeting smaller; remove the "time left" line under it.
+- ✓ (21 Nov, not yet built) Book page: a heart (save / favourite) next to 👍 / 👎.
 - Local files: too deep to find, and missing on iPhone (iOS Files folder + "Add files").
 - Author / narrator page: the promised option to hear the narrator's or author's voice.
-- Library → Found: delete one list (only "delete all" today).
+- ✓ (21 Nov, not yet built) Library → Found: delete one list (only "delete all" today).
 - ✓ (21 Nov, not yet built) Find book and play: many books say "not in library or sources" when they are.
 - ✓ (21 Nov, not yet built) Remove the mini-player → full-player opening animation (flickers); keep the other effects.
-- Sources list: clear headings per source — Audiobooks: AudiobookBay, Mobilism…; Ebooks: likewise.
+- ✓ (21 Nov, not yet built) Sources list: clear headings per source — Audiobooks: AudiobookBay, Mobilism…; Ebooks: likewise.
 - Frosted-glass metadata panels over the cover (65–75% opacity, blur, thin white borders, white text,
   darker bottom strip for title / rating, panels a little narrower) — design image still to receive.
 
 ## Feedback 21 Nov
-- Settings are hard to find (local storage files, all cloud / Audiobookshelf files, turning off music
+- ✓ (21 Nov, not yet built) Settings are hard to find (local storage files, all cloud / Audiobookshelf files, turning off music
   files in the cloud…): make them findable — a search box in Settings and a clearer grouping.
 - ✓ (21 Nov, not yet built) Home: long-press a cover → Play doesn't work even with plenty of results.
 - ✓ (21 Nov, not yet built) Ebook "Attach": only LibGen shows and it fails (HTTP 500). Knaben Ebooks first, then LibGen with

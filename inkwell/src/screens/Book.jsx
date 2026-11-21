@@ -90,7 +90,6 @@ export function Book({ book: initial }) {
   const [expanded, setExpanded] = useState(false);
   const gr = useGoodreads(book);
   const [editions, setEditions] = useState(null);
-  const saved = !!useStore(library)[initial.uid];
   const allProgress = useStore(progress);
   const ps = usePlayerBasics();
   const color = useCoverColor(book);
@@ -324,19 +323,6 @@ export function Book({ book: initial }) {
             }}
           >
             <DownloadIcon dl={dl} size={20} />
-          </button>
-        )}
-        {book.source !== "pod" && (
-          <button
-            class={"btn secondary big sq" + (saved ? " liked" : "")}
-            aria-label={saved ? "Remove from library" : "Add to library"}
-            onClick={(e) => {
-              if (!saved) burst(e.currentTarget);
-              toggleLibrary(book);
-              toast(saved ? "Removed from your library" : "Added to your library");
-            }}
-          >
-            <Icon name="heart" size={20} fill={saved} />
           </button>
         )}
         {canSendToKindle(book) && (
@@ -902,14 +888,28 @@ function WhereBadges({ book }) {
   );
 }
 
-/** Under the cover: your thumbs (the verdict further down) and Read later. */
+/** Under the cover: ♥ (keep it in your library), your thumbs (the verdict further down) and Read later. */
 function HeroPills({ book }) {
   const later = useStore(readLater);
   const on = !!later[book.uid];
+  const saved = !!useStore(library)[book.uid];
   const verdict = useStore(myRatings)[rateKey(book)]?.verdict || "";
   return (
     <div class="book-pills">
       <span class="book-pill thumbs">
+        {book.source !== "pod" && (
+          <button
+            class={saved ? "on" : ""}
+            aria-label={saved ? "Remove from your library" : "Save to your library"}
+            onClick={(e) => {
+              if (!saved) burst(e.currentTarget);
+              toggleLibrary(book);
+              toast(saved ? "Removed from your library" : "♥ Saved to your library");
+            }}
+          >
+            {saved ? "❤️" : "♡"}
+          </button>
+        )}
         {[
           ["like", "👍", "Liked it"],
           ["dislike", "👎", "Not for me"],

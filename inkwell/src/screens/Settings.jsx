@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useContext, useEffect, useRef, useState } from 'preact/hooks';
+import { createContext } from 'preact';
+import { nav } from '../lib/nav.js';
 import { LibbySettings } from '../components/libby-settings.jsx';
 import { ssBadges } from '../sources/storyshots.js';
 import { Icon } from '../components/icons.jsx';
@@ -30,16 +32,21 @@ import { pickTorrentFile } from '../lib/torrentfile.js';
 // Which sections are open; kept while the app runs so going back to Settings keeps them.
 const openSections = new Set();
 
-/** A settings group that stays collapsed until you tap its title. */
-function Section({ icon, title, children }) {
-  const [open, setOpen] = useState(openSections.has(title));
+// What's typed in Settings' search box: every section opens, and only matching settings show.
+const SearchCtx = createContext('');
+
+/** A settings group that stays collapsed until you tap its title (or a search finds it). */
+function Section({ icon, title, keys = '', children }) {
+  const searching = !!useContext(SearchCtx);
+  const [opened, setOpen] = useState(openSections.has(title));
+  const open = searching || opened;
   const toggle = () => {
     if (open) openSections.delete(title);
     else openSections.add(title);
     setOpen(!open);
   };
   return (
-    <section class={'set-section' + (open ? ' open' : '')}>
+    <section class={'set-section' + (open ? ' open' : '')} data-keys={`${title} ${keys}`}>
       <button class="set-head" aria-expanded={open} onClick={toggle}>
         <Icon name={icon} size={20} />
         <span>{title}</span>
@@ -1673,16 +1680,87 @@ function PreferredDebrid() {
   );
 }
 
+// Things looked for in Settings that live elsewhere in the app: a way there.
+const ELSEWHERE = [
+  {
+    words: 'phone folders local files storage my own audiobooks downloaded add folder device',
+    label: 'Your own audiobook files on this phone (folders)',
+    note: 'Library → Audiobooks → On this phone',
+    go: async () => {
+      const { libView } = await import('./Library.jsx');
+      libView.set((v) => ({ ...v, tab: 'audio', where: 'phone', open: true }));
+      nav.tab('library');
+    },
+  },
+  {
+    words: 'downloads offline saved on phone storage space',
+    label: 'Books saved on this phone (downloads)',
+    note: 'Library → Audiobooks → Downloaded',
+    go: async () => {
+      const { libView } = await import('./Library.jsx');
+      libView.set((v) => ({ ...v, tab: 'audio', where: 'downloaded', open: true }));
+      nav.tab('library');
+    },
+  },
+];
+
+/** Every word typed is somewhere in the text (any order, any case). */
+const hasAll = (text, q) => {
+  const t = String(text || '').toLowerCase();
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => t.includes(w));
+};
+
+/**
+ * Searching: hides the settings (each row of each section) that don't have the words, and the
+ * sections and group names left with nothing. A section whose name (or keywords) fits keeps all
+ * of its rows. Done on the page itself, so every label and hint is searched as it reads.
+ */
+function useFilter(root, q) {
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const all = el.querySelectorAll('.set-section, .set-section .set-card > *, .set-group, .update-card');
+    all.forEach((n) => (n.style.display = ''));
+    if (!q) return;
+    for (const sec of el.querySelectorAll('.set-section')) {
+      const whole = hasAll(sec.dataset.keys, q);
+      let any = whole;
+      for (const row of sec.querySelectorAll('.set-card > *')) {
+        const fits = whole || hasAll(row.textContent, q) || [...row.querySelectorAll('input[placeholder]')].some((i) => hasAll(i.placeholder, q));
+        row.style.display = fits ? '' : 'none';
+        any ||= fits;
+      }
+      sec.style.display = any ? '' : 'none';
+    }
+    el.querySelectorAll('.set-group, .update-card').forEach((n) => (n.style.display = 'none'));
+  });
+}
+
 export function Settings() {
   const st = useStore(settings);
   useStore(aiOff); // AI switched on / off: show or hide its settings
   const setSource = (k, v) => settings.patch({ sources: { ...st.sources, [k]: v } });
+  const [q, setQ] = useState('');
+  const root = useRef(null);
+  useFilter(root, q.trim());
+  const away = q.trim() ? ELSEWHERE.filter((x) => q.trim().toLowerCase().split(/\s+/).some((w) => w.length > 2 && x.words.includes(w))) : [];
   return (
-    <div class="screen settings">
+    <SearchCtx.Provider value={q.trim()}>
+    <div class="screen settings" ref={root}>
       <div class="screen-head">
         <h1 class="screen-title">Settings</h1>
         <AskButton />
       </div>
+      <div class="set-search">
+        <Icon name="search" size={17} />
+        <input type="search" value={q} placeholder="Search settings — “music”, “folders”, “sleep”…" onInput={(e) => setQ(e.currentTarget.value)} />
+      </div>
+      {away.map((x) => (
+        <button class="set-away" onClick={x.go}>
+          <b>{x.label}</b>
+          <small>{x.note} ›</small>
+        </button>
+      ))}
 
       <UpdateCard />
       {isWeb && (
@@ -1697,7 +1775,7 @@ export function Settings() {
       </Section>
 
       <p class="set-group">Where your books are</p>
-      <Section icon="server" title="Audiobookshelf">
+      <Section icon="server" title="Audiobookshelf" keys="server files library abs sign in">
         <AbsCard />
       </Section>
       <Section icon="server" title="Home server (qBittorrent)">
@@ -1709,22 +1787,22 @@ export function Settings() {
       <Section icon="library" title="Libby (public libraries)">
         <LibbySettings />
       </Section>
-      <Section icon="cloud" title="TorBox">
+      <Section icon="cloud" title="TorBox" keys="cloud debrid music files key">
         <DebridCard provider="torbox" label="TorBox" keyHint="torbox.app/settings" keyUrl="https://torbox.app/settings" />
         <MusicToggle />
       </Section>
-      <Section icon="cloud" title="Real-Debrid">
+      <Section icon="cloud" title="Real-Debrid" keys="cloud debrid music files key">
         <DebridCard provider="realdebrid" label="Real-Debrid" keyHint="real-debrid.com/apitoken" keyUrl="https://real-debrid.com/apitoken" />
         <MusicToggle />
       </Section>
       <PreferredDebrid />
-      <Section icon="search" title="Finding your books">
+      <Section icon="search" title="Finding your books" keys="order phone cloud server first copy">
         <FindOrderCard />
       </Section>
       <Section icon="puzzle" title="Addons">
         <AddonsCard />
       </Section>
-      <Section icon="download" title="Downloads">
+      <Section icon="download" title="Downloads" keys="storage offline phone files space">
         <DownloadsCard />
       </Section>
       <Section icon="upload" title="Send to Kindle">
@@ -1832,7 +1910,7 @@ export function Settings() {
         )}
       </Section>
 
-      <Section icon="headphones" title="Playback">
+      <Section icon="headphones" title="Playback" keys="skip speed sleep timer silence boost car">
         <Stepper label="Skip back" value={st.skipBack} options={[5, 10, 15, 30]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipBack: v })} />
         <Stepper label="Skip forward" value={st.skipForward} options={[10, 15, 30, 45, 60]} fmt={(v) => v + 's'} onChange={(v) => settings.patch({ skipForward: v })} />
         <CarPicker st={st} />
@@ -1858,7 +1936,7 @@ export function Settings() {
       </Section>
 
 
-      <Section icon="list" title="Sources">
+      <Section icon="list" title="Sources" keys="search torrents ebooks audiobooks addons">
         <SourceOrder st={st} setSource={setSource} />
         <Stepper label="Ebook language" value={st.language} options={['en', 'fr', 'de', 'es', 'it', 'pt', 'nl']} fmt={(v) => v.toUpperCase()} onChange={(v) => settings.patch({ language: v })} />
       </Section>
@@ -1941,8 +2019,10 @@ export function Settings() {
         <br />
         Addons and servers you add are your responsibility.
       </p>
+      {q.trim() && <p class="muted pad set-none">Not what you're after? Try another word — or ask in Issues & support.</p>}
       <div class="footer-space" />
     </div>
+    </SearchCtx.Provider>
   );
 }
 

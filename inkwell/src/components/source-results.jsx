@@ -246,7 +246,16 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           <span>{name}</span>
           <small>{groups.length}</small>
         </div>
-        <div class="src-list">{(more ? groups : topOf(groups)).map(item)}</div>
+        {/* A heading per source (AudiobookBay, Knaben, Mobilism…), its results under it. */}
+        {bySource(more ? groups : topOf(groups)).map(([src, gs]) => (
+          <div class="src-sub" key={src}>
+            <div class="src-sub-head">
+              <span>{sourceLabel(src) || 'Other'}</span>
+              <small>{gs.length}</small>
+            </div>
+            <div class="src-list">{gs.map(item)}</div>
+          </div>
+        ))}
         {groups.length > topOf(groups).length && (
           <button class="src-more" onClick={() => setMore(!more)}>
             {more ? (
@@ -1288,6 +1297,17 @@ function topOf(groups) {
     }
   }
   return top;
+}
+
+/** Results by source, in order of each source's best result: [[name, groups]]. */
+function bySource(groups) {
+  const out = new Map();
+  for (const g of groups) {
+    const name = g.items[0]?.addon || '';
+    if (!out.has(name)) out.set(name, []);
+    out.get(name).push(g);
+  }
+  return [...out];
 }
 
 /** Which sources the hidden results come from ("from AudiobookBay, Knaben AudioBooks"). */

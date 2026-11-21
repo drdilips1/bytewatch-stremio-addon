@@ -22,4 +22,12 @@
   - Player opens with no animation (cover fly / slide-up removed; background + glow fades kept).
   - Get the ebook: Knaben Ebooks torrents included (through TorBox / Real-Debrid), Knaben first,
     LibGen last; the phone's LibGen fallback tries every mirror.
+  - Home greeting smaller, no "time left" line; book page ♡ (Library) moved next to 👍 / 👎 from the
+    action row; Library → Found → Edit removes single books (bin = that list only, asks first);
+    source results get a heading per source inside Audiobooks / Ebooks; Settings search box (filters
+    the rows on the page, every section searched; `ELSEWHERE` shortcuts e.g. phone folders) and
+    keywords on key sections.
+- Still open from 19 / 21 Nov: RD book not reaching the iPhone (needs a look on the phone), local
+  files on iPhone (Files folder + Add files), author's / narrator's voice on their page, more debrid
+  services (AllDebrid, Premiumize, Debrid-Link), frosted-glass cards (design image + samples first).
 

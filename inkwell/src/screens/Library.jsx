@@ -84,6 +84,9 @@ function CoverGrid({ items }) {
 /** Lists saved from Find books (a photo, a screenshot or pasted text), newest first. */
 function FoundShelves({ shelves }) {
   const day = (t) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  // The list being edited: each book can be taken off it on its own.
+  const [editing, setEditing] = useState('');
+  const dropBook = (sh, uid) => foundShelves.set((all) => all.map((x) => (x.id === sh.id ? { ...x, books: x.books.filter((b) => b.uid !== uid) } : x)).filter((x) => x.books.length));
   return (
     <div class="found-shelves">
       {shelves.map((sh) => (
@@ -95,18 +98,39 @@ function FoundShelves({ shelves }) {
                 {sh.books.length} {sh.books.length === 1 ? 'book' : 'books'} · {day(sh.at)}
               </span>
             </div>
+            <button class="pill small" onClick={() => setEditing(editing === sh.id ? '' : sh.id)}>
+              {editing === sh.id ? 'Done' : 'Edit'}
+            </button>
             <button
               class="icon-btn"
-              aria-label={`Delete shelf ${sh.name}`}
+              aria-label={`Delete the list ${sh.name}`}
+              title="Delete this list"
               onClick={() => {
+                if (!window.confirm(`Delete the list “${sh.name}”? (Only this list — the books stay wherever else they are.)`)) return;
                 foundShelves.set((all) => all.filter((x) => x.id !== sh.id));
-                toast('Shelf deleted');
+                toast('List deleted');
               }}
             >
               <Icon name="trash" size={17} />
             </button>
           </div>
-          <CoverGrid items={sh.books} />
+          {editing === sh.id ? (
+            <ul class="found-edit pad">
+              {sh.books.map((b) => (
+                <li key={b.uid}>
+                  <span>
+                    <b>{b.title}</b>
+                    {b.author ? <small> · {b.author}</small> : null}
+                  </span>
+                  <button class="icon-btn" aria-label={`Take ${b.title} off this list`} onClick={() => dropBook(sh, b.uid)}>
+                    <Icon name="close" size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <CoverGrid items={sh.books} />
+          )}
         </section>
       ))}
     </div>
