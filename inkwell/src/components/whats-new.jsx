@@ -15,6 +15,7 @@ export const CHANGES = [
       ['⚡', 'The player opens at once', 'No more opening animation from the mini player (it flickered); the other effects stay.'],
       ['☁️', 'Real-Debrid books on every phone', 'Books sent to Real-Debrid from a topic (Rapidgator and the like) now show on your other phones too — Real-Debrid’s own Downloads list is read, not just this phone’s. And every torrent shows, not only the newest 200.'],
       ['✨', 'Covers with a glassy sheen', 'Every cover catches a little light now — a soft glass sheen across the top, the cover itself untouched.'],
+      ['🆕', 'Newest first', 'Your TorBox, Real-Debrid and phone rows (and their See all pages) start with the books added most recently — on the phone, by when the files arrived.'],
       ['🗂️', 'Your services on Home', 'TorBox, Real-Debrid, the books on your phone (and AllDebrid, Premiumize, Debrid-Link) each get their own row on Home, as Audiobookshelf does.'],
       ['📦', 'Source results in boxes', 'On a book page, each source (AudiobookBay, Knaben, Mobilism…) has its results in a box of its own, with its name and how many it found.'],
       ['📁', 'Your own files, easy to find', 'Settings → Your files on this phone (near the top), and Library → Your files on this phone: add a folder or files, rescan, and see what’s there.'],

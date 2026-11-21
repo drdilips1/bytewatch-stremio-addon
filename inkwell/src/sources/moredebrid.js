@@ -95,7 +95,11 @@ export async function moreLibrary(provider) {
       const b = bookOf(provider, x.id, x.name, x.files || [], { addedAt: x.at });
       if (x.files) seen.set(b.uid, x.files);
       return b;
-    });
+    })
+    // Newest first (the service's own order when it gives no dates).
+    .map((b, i) => ({ b, i }))
+    .sort((x, y) => (y.b.addedAt || 0) - (x.b.addedAt || 0) || x.i - y.i)
+    .map((x) => x.b);
 }
 
 /** A Premiumize folder's files (its sub-folders too, a few levels down). */

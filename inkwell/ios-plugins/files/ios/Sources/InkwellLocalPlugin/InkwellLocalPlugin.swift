@@ -144,7 +144,7 @@ public class InkwellLocalPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDe
         DispatchQueue.global(qos: .userInitiated).async {
             var files: [[String: Any]] = []
             var covers: [[String: Any]] = []
-            let keys: [URLResourceKey] = [.isDirectoryKey, .fileSizeKey]
+            let keys: [URLResourceKey] = [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
             let walker = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles, .skipsPackageDescendants])
             let rootPath = root.standardizedFileURL.path
             while let url = walker?.nextObject() as? URL {
@@ -159,7 +159,7 @@ public class InkwellLocalPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDe
                 dir = dir.hasPrefix(rootPath) ? String(dir.dropFirst(rootPath.count)) : dir
                 dir = dir.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                 if Self.audio.contains(ext) || Self.ebook.contains(ext) {
-                    files.append(["uri": url.absoluteString, "name": url.lastPathComponent, "dir": dir, "size": values?.fileSize ?? 0])
+                    files.append(["uri": url.absoluteString, "name": url.lastPathComponent, "dir": dir, "size": values?.fileSize ?? 0, "modified": Int((values?.contentModificationDate?.timeIntervalSince1970 ?? 0) * 1000)])
                 } else if Self.image.contains(ext) {
                     covers.append(["uri": url.absoluteString, "dir": dir])
                 }

@@ -66,12 +66,13 @@ export async function rescan() {
       // (iPhone: covers made by the app are made again — their folder moved with the update;
       // a cover you chose yourself stays.)
       const keep = (c) => (isIos && /_capacitor_file_/.test(c || '') ? '' : c || '');
-      books.push(...group(folder, files, covers).map((b) => ({ ...b, cover: keep(before.get(b.uid)?.cover) })));
+      books.push(...group(folder, files, covers).map((b) => ({ ...b, cover: keep(before.get(b.uid)?.cover), addedAt: files.some((f) => f.modified) ? b.addedAt : before.get(b.uid)?.addedAt || b.addedAt })));
     } catch (e) {
       errors.push(`${folder.name}: ${e.message}`);
     }
   }
-  localCfg.set((c) => ({ ...c, books: [...books, ...(c.imported || [])], scannedAt: Date.now(), v: 2 }));
+  books.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+  localCfg.set((c) => ({ ...c, books: [...books, ...(c.imported || [])], scannedAt: Date.now(), v: 3 }));
   if (errors.length && !books.length) throw new Error(errors.join(' · '));
   makeCovers();
   return books;
@@ -118,7 +119,7 @@ export function setCover(uid, cover, noCover = false) {
 }
 if (available) setTimeout(makeCovers, 4000); // books scanned before covers existed
 // Folders scanned before ebooks were found: look again once, so EPUB / PDF files show up.
-if (available && connected() && (localCfg.get().v || 1) < 2) setTimeout(() => rescan().catch(() => {}), 2500);
+if (available && connected() && (localCfg.get().v || 1) < 3) setTimeout(() => rescan().catch(() => {}), 2500); // v3: file dates (newest first)
 if (available && isIos && connected()) setTimeout(() => rescan().catch(() => {}), 1500);
 
 function group(folder, files, covers = []) {
@@ -157,7 +158,7 @@ function group(folder, files, covers = []) {
       ebookFormat: format,
       ebookUri: f.uri,
       ebookUrl: localUrl(f.uri),
-      addedAt: Date.now(),
+      addedAt: Number(f.modified) || Date.now(),
     });
   }
   for (const [key, { parts, files: list }] of byDir) {
@@ -180,7 +181,8 @@ function group(folder, files, covers = []) {
       // A cover image in the book's folder (or its CD1 / Disc 1 folder).
       coverImage: parts.length ? coverIn.get(parts.join('/')) || list.map((f) => coverIn.get(f.dir || '')).find(Boolean) || '' : '',
       files: list.map((f) => ({ uri: f.uri, name: f.name, size: Number(f.size) || 0 })),
-      addedAt: Date.now(),
+      // The newest file's date: when the book arrived on the phone (newest books first).
+      addedAt: Math.max(0, ...list.map((f) => Number(f.modified) || 0)) || Date.now(),
     });
   }
   return out.sort((a, b) => a.title.localeCompare(b.title));
@@ -191,7 +193,8 @@ export async function library() {
   if (!connected()) return [];
   const c = localCfg.get();
   if (!c.scannedAt) return rescan();
-  return c.books;
+  // Newest first (books added from other apps among them).
+  return c.books.slice().sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
 }
 
 export async function search(q) {

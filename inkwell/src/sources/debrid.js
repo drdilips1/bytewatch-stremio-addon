@@ -2,7 +2,7 @@
 // TorBox or Real-Debrid account, and add new magnets / links to it.
 import { getJson, sendForm, qs } from '../lib/http.js';
 import { logError } from '../lib/report.js';
-import { debrid, persisted, progress } from '../lib/store.js';
+import { debrid, persisted } from '../lib/store.js';
 import { matches } from '../lib/match.js';
 import { groupDownloads } from '../lib/rdgroups.js';
 import { MORE, isMore, moreConnected, connectedMore, morePrepare, moreDetails, verifyMore } from './moredebrid.js';
@@ -188,11 +188,8 @@ export const forget = () => {
 };
 
 // Most recent first: whichever is later — added to the cloud, or last played.
-const recentFirst = (list) => {
-  const prog = progress.get() || {};
-  const when = (b) => Math.max(b.addedAt || 0, prog[b.uid]?.updatedAt || 0);
-  return list.slice().sort((a, b) => when(b) - when(a));
-};
+// Newest added first (what you played lately is under Continue listening, not moved up here).
+const recentFirst = (list) => list.slice().sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
 export const torboxLibrary = () => (tbConnected() ? remember('tb', torboxLibraryRaw).then(recentFirst) : Promise.resolve([]));
 export const realdebridLibrary = () => (rdConnected() ? remember('rd', realdebridLibraryRaw).then(recentFirst) : Promise.resolve([]));
 

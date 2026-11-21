@@ -451,7 +451,7 @@ public class InkwellLocalPlugin extends Plugin {
         if (depth > 6 || files.length() >= MAX_FILES) return;
         ContentResolver cr = getContext().getContentResolver();
         Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId);
-        String[] cols = { DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_SIZE };
+        String[] cols = { DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_SIZE, DocumentsContract.Document.COLUMN_LAST_MODIFIED };
         try (Cursor c = cr.query(children, cols, null, null, null)) {
             if (c == null) return;
             while (c.moveToNext()) {
@@ -459,6 +459,8 @@ public class InkwellLocalPlugin extends Plugin {
                 String name = c.getString(1);
                 String mime = c.getString(2);
                 long size = c.isNull(3) ? 0 : c.getLong(3);
+                // When the file was added / changed: phone books newest first.
+                long modified = c.isNull(4) ? 0 : c.getLong(4);
                 if (name == null || name.startsWith(".")) continue;
                 if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
                     walk(tree, id, dir.isEmpty() ? name : dir + "/" + name, files, covers, depth + 1);
@@ -468,6 +470,7 @@ public class InkwellLocalPlugin extends Plugin {
                     f.put("name", name);
                     f.put("dir", dir);
                     f.put("size", size);
+                    f.put("modified", modified);
                     files.put(f);
                 } else if (IMAGE.matcher(name).matches()) {
                     JSObject f = new JSObject();

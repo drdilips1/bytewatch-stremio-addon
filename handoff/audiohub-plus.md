@@ -73,4 +73,7 @@
   page hero, Library Continue card, Discover pick and small covers are back to the 20 Nov look. Kept:
   a stronger glass sheen on all covers (`.cover::after`), and everything else from 21 Nov (service
   rows on Home, source boxes, phone-files shortcuts, ♡ by 👍/👎…). Not built yet.
+- Newest first: debrid rows sort by date added only (not last played); phone books carry the files'
+  date (Android scan COLUMN_LAST_MODIFIED, iOS contentModificationDate → `addedAt`, one rescan on
+  update: localBooks v3); new debrid services sort by date; Shelf's "Recent" sorts by addedAt.
 

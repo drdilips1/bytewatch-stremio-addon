@@ -28,6 +28,8 @@ export function Shelf({ title, subtitle, load }) {
     if (!items) return null;
     const q = words(filter);
     let list = q.length ? items.filter((b) => q.every((w) => words(`${b.title} ${b.author} ${b.rawName || ''}`).some((x) => x.startsWith(w)))) : items.slice();
+    // Recent: newest added first (books without a date keep their place, after the dated ones).
+    if (sort === 'recent' && list.some((b) => b.addedAt)) list = list.map((b, i) => ({ b, i })).sort((x, y) => (y.b.addedAt || 0) - (x.b.addedAt || 0) || x.i - y.i).map((x) => x.b);
     if (sort === 'title') list.sort((a, b) => a.title.localeCompare(b.title));
     if (sort === 'author') list.sort((a, b) => (a.author || '~').localeCompare(b.author || '~') || a.title.localeCompare(b.title));
     return list;
