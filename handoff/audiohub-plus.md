@@ -134,3 +134,10 @@
   bookhunt.js still uses those secrets for searches without details, so keep the secrets until the
   shared way is proven.
 - Easynews: audiobook pages search audio only (m4b/m4a/mp3), ebook pages EPUB/PDF; each result shows its type; ebooks get Read (fetched with the sign-in into a blob, then the reader keeps it); names cleaned (cleanName, tested: "Bren&Atilde;&Acirc;&copy;" → "Brené"); title over details layout. In v1.0.239.
+
+## Book Hunt — pipeline (parked 21 Nov, user's choice)
+- LIVE now: the user went back to `inkwell/workers/bookhunt-private-v1.js` (worker's own secrets) so their wife's iPhone works. Others who want Book Hunt make their own worker from that file (steps below) — no shared worker for now.
+- Later, to make one shared worker work for everyone (`bookhunt.js`, Your details): find why Anna's search fails from the worker (the app now shows the reason), Mobilism's bot check on Cloudflare IPs, then test with the user before telling them to delete secrets.
+- Also pending: unpack .zip on iPhone (native, e.g. ZIPFoundation in ios-plugins); .rar is harder.
+- Own-worker steps (give to anyone interested): Cloudflare (free) → Workers & Pages → Create → Hello World → Deploy → Edit code → paste bookhunt-private-v1.js → Deploy; Settings → Variables and Secrets → add Secret MOBILISM_USER, MOBILISM_PASS, (optional) ANNAS_KEY; app Settings → Addons → add `https://<their-worker>.workers.dev/addon.json`.
+- Note: the old worker doesn't allow the x-bh-* headers, so an addon entry with saved Your details would fail on iPhone/web — remove the addon and add it again after switching back (the old manifest has no fields, so nothing is sent).
