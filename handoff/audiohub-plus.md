@@ -67,3 +67,4 @@
   Premiumize, Debrid-Link — like Audiobookshelf); the combined "Recently added" row is gone; the
   "Your books" count tiles stay. Source results: each source in its own box (name + count). Not built.
 
+  Panel borders now very faint (0.07 white), softer fill.

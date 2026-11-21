@@ -12881,8 +12881,8 @@ html[data-motion='full'] .fp-art.playing .fp-glow { animation: mo-glow-in-full 0
 .gc-cover { position: absolute; left: 0; top: 0; bottom: 62px; width: calc(100% - 172px); display: flex; align-items: center; justify-content: center; }
 .gc-cover .cover { width: min(calc(100% - 24px), 186px); border-radius: 12px; box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4); }
 .gc-pills { position: absolute; right: 12px; top: 12px; width: 150px; display: flex; flex-direction: column; gap: 5px; }
-.gc-pill { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 14px; color: #fff; background: color-mix(in srgb, var(--tint, #fff) 22%, rgba(255, 255, 255, 0.14)); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1); }
-.glass-card.light .gc-pill { background: rgba(40, 36, 28, 0.38); border-color: rgba(255, 255, 255, 0.24); }
+.gc-pill { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 14px; color: #fff; background: color-mix(in srgb, var(--tint, #fff) 14%, rgba(255, 255, 255, 0.1)); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); border: 1px solid rgba(255, 255, 255, 0.07); box-shadow: none; }
+.glass-card.light .gc-pill { background: rgba(40, 36, 28, 0.34); border-color: rgba(255, 255, 255, 0.08); }
 .gc-pill svg { flex: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); }
 .gc-pill > div { min-width: 0; flex: 1; }
 .gc-pill small { display: block; font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; opacity: 0.8; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
