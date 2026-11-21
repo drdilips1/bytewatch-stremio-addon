@@ -62,3 +62,6 @@ try {
 } catch {}
 
 render(<App />, document.getElementById('app'));
+
+// iPhone: lighter drawing (no blurred glows on every card — slow in its web view).
+import('@capacitor/core').then(({ Capacitor }) => Capacitor.getPlatform() === 'ios' && document.documentElement.classList.add('ios')).catch(() => {});

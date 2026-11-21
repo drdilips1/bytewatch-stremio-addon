@@ -12994,3 +12994,6 @@ html[data-motion='full'] .fp-art.playing .fp-glow { animation: mo-glow-in-full 0
 .book-card:not(.broken) .book-card-cover,
 .book-card:not(.broken) .cover { border-radius: 12px; }
 .grid .book-card:not(.broken) { width: auto; }
+/* iPhone: no blurred glow on every card (slow to draw in its web view); the thin line stays. */
+html.ios .book-card:not(.broken) { box-shadow: none; }
+

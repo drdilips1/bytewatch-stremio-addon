@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 // Global audiobook player: multi-track books, chapters, speed, sleep timer,
 // bookmarks, progress persistence and system media controls. Audio output is
 // delegated to an engine (native Media3 on Android, <audio> on the web).
@@ -22,6 +23,7 @@ const artworkOf = (b) => fixFor(b?.uid)?.cover || (b?.source === 'loc' && (local
 // have (downloaded, on the phone, Audiobookshelf, TorBox / Real-Debrid), at the
 // same point in the book.
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+const IOS = typeof navigator !== 'undefined' && Capacitor.getPlatform() === 'ios';
 let rescue = { key: '', step: 0 };
 const rescueTried = new Set(); // copies already tried for this listen
 /**
@@ -1161,7 +1163,8 @@ let lastSaved = { uid: '', g: -1 }; // the place last saved (to skip saving an u
 function saveProgress(force = false) {
   if (!state.book || !state.tracks.length) return;
   const now = Date.now();
-  if (!force && now - lastSave < 4000) return;
+  // iPhone: every 12 s (each save rewrites the whole progress list, slow in its web view); Android 4 s.
+  if (!force && now - lastSave < (IOS ? 12000 : 4000)) return;
   const total = totalDuration();
   const g = globalTime();
   // Paused and not moved: nothing new to save. (Saving it again would stamp an old place as

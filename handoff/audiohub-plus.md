@@ -108,3 +108,4 @@
 - Source addons: an empty answer with "errors" (Book Hunt) now shows the reason under the results; Book Hunt is left out on Android when the built-in Anna's / Mobilism are set up (no repeats). In v1.0.237.
 - Sync: addon lists merge across devices (lib/addonmerge.js, tested; addonLog of added/removed times) instead of the newer list replacing the other — the Android app saving its list had wiped Book Hunt added in the web app. In v1.0.237.
 - Fix: Book Hunt was deleted right after installing by the old 'retired Anna's Archive addon' clean-up (its name has "Anna's Archive"); id audiohub-bookhunt exempt (checked in a browser). Not built yet.
+- iPhone lighter: place saved every 12 s while playing (was 4 s: each save rewrites the whole progress list + redraws), no card glow (html.ios). The buffering itself still needs details from the user. Not built yet.
