@@ -251,7 +251,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           <div class="src-sub" key={src}>
             <div class="src-sub-head">
               <span>{sourceLabel(src) || 'Other'}</span>
-              <small>{gs.length}</small>
+              <small>{gs.length} {gs.length === 1 ? 'result' : 'results'}</small>
             </div>
             <div class="src-list">{gs.map(item)}</div>
           </div>

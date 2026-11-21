@@ -63,4 +63,7 @@
   cloud = where), file type its own panel when there's room (5 big / 4 small), else joined to the
   length. Own files easy to find: Settings → "Your files on this phone" (first under Where your books
   are: folders, Add folder / Add files / Rescan, Show them) and a Library home button. Not built yet.
+- Home: every service has its own row(s) in "Your services" (TorBox, Real-Debrid, phone, AllDebrid,
+  Premiumize, Debrid-Link — like Audiobookshelf); the combined "Recently added" row is gone; the
+  "Your books" count tiles stay. Source results: each source in its own box (name + count). Not built.
 

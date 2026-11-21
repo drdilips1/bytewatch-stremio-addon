@@ -765,9 +765,8 @@ export function Home() {
             return (
               <Fragment key={id}>
                 <YourBooks />
-                {sourceOrder()
-                  .filter((k) => !YOURS.includes(k))
-                  .map((k) => (
+                {/* Every service its own rows (TorBox, Real-Debrid, the phone… as Audiobookshelf). */}
+                {sourceOrder().map((k) => (
                     <Fragment key={k}>{blocks[k]}</Fragment>
                   ))}
               </Fragment>
@@ -799,7 +798,6 @@ function Greeting({ me }) {
 // Your services' books: one tile each (how many, tap for all), and one "Recently added" row
 // across them all, instead of a long row per service.
 // Your server keeps its own rows (in progress, recently added); the tile just opens it.
-const YOURS = ['loc', 'tb', 'rd', 'ad', 'pm', 'dl'];
 function yourSources() {
   const out = [];
   if (localSrc.connected() && enabled('loc')) out.push({ k: 'loc', icon: 'headphones', name: 'On this phone', sub: 'Audiobooks in your folders', load: audioOnly(localSrc.library) });
@@ -810,20 +808,6 @@ function yourSources() {
   return out;
 }
 const yourCounts = persisted('yourBookCounts', {});
-const tagFrom = { loc: 'Phone', tb: 'TorBox', rd: 'Real-Debrid', abs: 'Server' };
-async function recentAcross() {
-  const lists = await Promise.all(
-    yourSources().filter((s) => s.k !== 'abs').map(async (s) => {
-      const r = await s.load().catch(() => []);
-      return (r || []).map((b, i) => ({ ...b, _from: s.k, _i: i }));
-    })
-  );
-  const all = lists.flat();
-  const dated = all.some((b) => b.addedAt);
-  return (dated ? all.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0) || a._i - b._i) : all.sort((a, b) => a._i - b._i))
-    .slice(0, 24)
-    .map(({ _i, _from, ...b }) => b);
-}
 function YourBooks() {
   const counts = useStore(yourCounts);
   const list = yourSources();
@@ -857,7 +841,6 @@ function YourBooks() {
           ))}
         </div>
       </section>
-      {list.some((s) => s.k !== 'abs') && <Row title="Recently added" subtitle={list.filter((s) => s.k !== 'abs').map((s) => tagFrom[s.k]).join(' · ')} icon="clock" cacheKey="homeRecentAll" load={recentAcross} deps={[list.map((s) => s.k).join()]} />}
     </>
   );
 }
