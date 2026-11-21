@@ -7,14 +7,15 @@ const ctx = { waitUntil: () => {} };
 const get = (p) => worker.fetch(new Request('https://addons.example.workers.dev' + p), {}, ctx);
 
 describe('public addons worker', () => {
-  it('lists its addons, each pointing at its own address', async () => {
+  it('lists the four public addons, each pointing at sources.booksources.workers.dev', async () => {
     const all = await (await get('/addons/all.json')).json();
-    expect(all.addons).toContain('https://addons.example.workers.dev/addons/libgen-epub.json');
+    expect(all.addons).toEqual(['audiobookbay', 'knaben-audiobooks', 'knaben-ebooks', 'libgen-epub'].map((n) => `https://sources.booksources.workers.dev/addons/${n}.json`));
     for (const link of all.addons) {
       const a = await (await get(new URL(link).pathname)).json();
-      expect(a.adapters.source.request.url.startsWith('https://addons.example.workers.dev/')).toBe(true);
+      expect(a.adapters.source.request.url.startsWith('https://sources.booksources.workers.dev/')).toBe(true);
       expect(a.id.startsWith('public-')).toBe(true);
     }
+    expect((await get('/addons/extto.json')).status).toBe(404);
   });
   it('has nothing personal in it', () => {
     const code = readFileSync(new URL('../workers/public-addons.js', import.meta.url), 'utf8');

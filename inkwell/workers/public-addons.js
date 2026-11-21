@@ -4,13 +4,11 @@
 // no sync, no keys, no secrets, no accounts, and no calls to any other worker or server of
 // ours. Every search is done right here, straight with the sites.
 //
-// Addons (each file points back at this worker's own address, whatever it is):
+// Addons, at https://sources.booksources.workers.dev (every addon file points there):
 //   /addons/audiobookbay.json          AudiobookBay (audiobook torrents)
 //   /addons/knaben-audiobooks.json     Knaben AudioBooks
 //   /addons/knaben-ebooks.json         Knaben Ebooks
 //   /addons/libgen-epub.json           LibGen English EPUB (several mirrors, the next one if one is down)
-//   /addons/extto.json                 EXTto (audiobook torrents)
-//   /addons/rutracker-audiobooks.json  RuTracker English Audiobooks
 //   /addons/all.json                   all of them with one link
 //
 // Kind to the sites and to this account's daily limit (100,000 requests on the free plan):
@@ -19,10 +17,12 @@
 //
 // Deploy: dash.cloudflare.com (the public account) → Workers & Pages → Create → Hello World →
 // name it (e.g. audioyam-addons) → Deploy → Edit code → replace everything with this file →
-// Deploy. Then share https://<worker>.<account>.workers.dev/addons/all.json
-// (or a custom domain on that account — some networks block *.workers.dev).
+// Deploy. Share https://sources.booksources.workers.dev/addons/all.json
+// (moving it to another address? change ORIGIN below).
 
 const VERSION_PUBLIC = "1.0.0";
+// This worker's public address: the addon files and download links all point here.
+const ORIGIN = "https://sources.booksources.workers.dev";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -1305,7 +1305,7 @@ const LibGen = (() => {
   return {
     async search(q, url) {
       const pages = Math.max(1, Math.min(MAX_PAGES, parseInt(url.searchParams.get("pages") || "2", 10) || 2));
-      const res = await runSearch(q, 1, pages, `${url.origin}/libgen`);
+      const res = await runSearch(q, 1, pages, `${ORIGIN}/libgen`);
       const d = await res.json();
       if (!d.ok && !(d.results || []).length) throw new Error("No LibGen mirror answered — try again later");
       return { results: d.results || [] };
@@ -1313,21 +1313,6 @@ const LibGen = (() => {
     download: (id, request) => resolveLibgenDownload(id, request),
   };
 })();
-
-// ---------------- EXTto ----------------
-// PENDING: EXTto's search code lives only in the personal "extoaudiohub" worker; it's added here
-// once that code is copied in. Until then this addon isn't listed in /addons/all.json.
-const EXTTO_READY = false;
-async function exttoSearch() {
-  throw new Error("EXTto isn't set up on this server yet");
-}
-
-// ---------------- RuTracker English Audiobooks ----------------
-// PENDING, as EXTto (the personal "rutracker" worker's code); not listed until it's added.
-const RUTRACKER_READY = false;
-async function rutrackerSearch() {
-  throw new Error("RuTracker isn't set up on this server yet");
-}
 
 // ---------------- the addon files ----------------
 // Ids start with "public-" so they sit beside (never replace) anyone's own copies of these addons.
@@ -1402,43 +1387,7 @@ function addons(origin) {
         },
       },
     },
-    extto: {
-      schemaVersion: "1.0.0",
-      id: "public-extto",
-      name: "EXTto",
-      version: VERSION_PUBLIC,
-      description: "Audiobook torrents from EXTto. Needs TorBox or Real-Debrid to play.",
-      icon: "https://extto.org/favicon.ico",
-      provides: ["source"],
-      contentType: "audiobook",
-      rateLimit: { requestsPerMinute: 10, retryAfterMs: 6000 },
-      matching: { algorithm: "fuzzy", threshold: 0.4 },
-      adapters: {
-        source: {
-          request: { method: "GET", url: `${origin}/extto/search?q={QUERY}`, timeout: 30000, headers: { Accept: "application/json" } },
-          response: { type: "json", resultsPath: "results", mapping: { title: "title", author: "author", magnetUrl: "magnetUrl", infoHash: "hash", format: "format", language: "language", date: "date", sizeBytes: "sizeBytes", cover: "cover", description: "description", seeders: "seeders" } },
-        },
-      },
-    },
-    "rutracker-audiobooks": {
-      schemaVersion: "1.0.0",
-      id: "public-rutracker-audiobooks",
-      name: "RuTracker English Audiobooks",
-      version: VERSION_PUBLIC,
-      description: "English audiobooks on RuTracker: magnets, authors, narrators, sizes and release details.",
-      icon: "https://rutracker.org/favicon.ico",
-      provides: ["source"],
-      contentType: "audiobook",
-      adapters: {
-        source: {
-          request: { method: "GET", url: `${origin}/rutracker/search?q={TITLE}`, timeout: 30000, headers: { Accept: "application/json" } },
-          response: { type: "json", resultsPath: "results", mapping: { title: "title", author: "author", narrator: "narrator", magnetUrl: "magnetUrl", infoHash: "infoHash", sizeBytes: "sizeBytes", seeders: "seeders", format: "format", language: "language", coverUrl: "coverUrl" } },
-        },
-      },
-    },
   };
-  if (!EXTTO_READY) delete all.extto;
-  if (!RUTRACKER_READY) delete all["rutracker-audiobooks"];
   return all;
 }
 
@@ -1448,8 +1397,6 @@ const SEARCHES = {
   "/knaben/audiobooks": { name: "knaben-audiobooks", run: (q) => knabenSearch("audiobooks", q) },
   "/knaben/ebooks": { name: "knaben-ebooks", run: (q) => knabenSearch("ebooks", q) },
   "/libgen/search": { name: "libgen-epub", run: (q, url) => LibGen.search(q, url) },
-  "/extto/search": { name: "extto", run: (q) => exttoSearch(q) },
-  "/rutracker/search": { name: "rutracker-audiobooks", run: (q) => rutrackerSearch(q) },
 };
 
 export default {
@@ -1461,8 +1408,8 @@ export default {
       // The addon files.
       const file = /^\/addons\/([a-z-]+)(\.json)?$/.exec(path);
       if (file && request.method === "GET") {
-        const list = addons(url.origin);
-        if (file[1] === "all") return reply({ name: "AudioYam addons", addons: Object.keys(list).map((n) => `${url.origin}/addons/${n}.json`) }, 200, { "Cache-Control": "public, max-age=3600" });
+        const list = addons(ORIGIN);
+        if (file[1] === "all") return reply({ name: "AudioYam addons", addons: Object.keys(list).map((n) => `${ORIGIN}/addons/${n}.json`) }, 200, { "Cache-Control": "public, max-age=3600" });
         const a = list[file[1]];
         return a ? reply(a, 200, { "Cache-Control": "public, max-age=3600" }) : reply({ error: "No such addon", addons: Object.keys(list) }, 404);
       }
@@ -1473,7 +1420,6 @@ export default {
       // The searches.
       const s = SEARCHES[path];
       if (s && request.method === "GET") {
-        if (!addons(url.origin)[s.name]) return reply({ results: [], hits: [], error: "This addon isn't set up on this server" }, 404);
         const q = (url.searchParams.get("q") || "").replace(/\s+/g, " ").trim();
         if (!q) return reply({ results: [], hits: [] });
         if (q.length > 200) return reply({ results: [], hits: [], error: "That search is too long" }, 400);
@@ -1483,7 +1429,7 @@ export default {
       }
 
       if (path === "/" || path === "/health") {
-        return reply({ name: "AudioYam public addons", version: VERSION_PUBLIC, status: "ok", addons: Object.keys(addons(url.origin)).map((n) => `${url.origin}/addons/${n}.json`), all: `${url.origin}/addons/all.json` });
+        return reply({ name: "AudioYam public addons", version: VERSION_PUBLIC, status: "ok", addons: Object.keys(addons(ORIGIN)).map((n) => `${ORIGIN}/addons/${n}.json`), all: `${ORIGIN}/addons/all.json` });
       }
       return reply({ error: "Not found" }, 404);
     } catch (e) {

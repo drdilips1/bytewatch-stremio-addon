@@ -148,8 +148,8 @@
 - `src/lib/answers.js`: Cache Storage answer keeping — iTunes search/lookup 12 h (getJson), Hardcover `query B(`/`query S(` 24 h (hardcover.js gql).
 - Workers (user redeploys by pasting): `relay/index.ts` v9 (audiohub-relay.drdilipgreat.workers.dev) and `workers/audiohub.js` /relay v9 (api.audiohubapp.com): no Goodreads; caches.default keeps answers 12 h (Knaben 1 h), refusals 1 h, JSON/XML/text < 2 MB only; never TorBox/RD/AllDebrid/Premiumize, never Hardcover `me`/mutations; key = SHA-256 of method+url+body+Authorization; 240 req/min per IP (per isolate).
 
-## Public addons worker (21 Nov) — `inkwell/workers/public-addons.js`, not deployed (user pastes it into a SEPARATE public Cloudflare account)
-- Standalone: /addons/<name>.json + /addons/all.json, manifests point at the worker's own origin, ids `public-…`. Searches done in the worker: AudiobookBay (/abb/search, mirrors), Knaben audiobooks/ebooks (/knaben/…?q=, its own POST to api.knaben.org), LibGen EPUB (/libgen/search, /libgen/download — libgen.js 10.8.2 wrapped in its own scope, mirror fallback).
-- 12 h Cloudflare cache of search answers (only answers that found something; key ignores case/spacing); 30 searches/min per CF-Connecting-IP (per isolate); downloads not limited.
+## Public addons worker (21 Nov) — `inkwell/workers/public-addons.js`, live address https://sources.booksources.workers.dev (separate public Cloudflare account; user pastes it)
+- Only 4 public sources (user's decision): AudiobookBay (/abb/search, mirrors), Knaben AudioBooks / Ebooks (/knaben/…?q=, its own POST to api.knaben.org), LibGen English EPUB (/libgen/search, /libgen/download — libgen.js 10.8.2 wrapped in its own scope, mirror fallback). No EXTto, no RuTracker.
+- `ORIGIN` constant = the address above: all manifests, /addons/all.json and LibGen download links use it (change it there if the address moves). Ids `public-…`.
+- 12 h Cloudflare cache of search answers (only ones that found something; key ignores case/spacing); 30 searches/min per CF-Connecting-IP (per isolate); downloads not limited.
 - No sync, keys, env, KV, or calls to personal workers / api.audiohubapp.com (tests/publicaddons.test.js checks).
-- EXTto and RuTracker: PENDING — their code exists only in the personal Cloudflare workers (extoaudiohub, rutracker), not in the repo. Stubs with EXTTO_READY / RUTRACKER_READY = false (left out of all.json). Waiting for the user to paste those two workers' code; RuTracker search may need a login (would break "no keys").
