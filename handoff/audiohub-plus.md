@@ -4,13 +4,13 @@
 - Build ("build"): dispatch `inkwell-apk.yml` and `audiohub-ios.yml` on the branch; when the APK
   release is out, dispatch `inkwell-web.yml` (its pages job failing is expected). Releases
   `inkwell-v1.0.N` (Android, in-app update), `audiohub-ios-N` (unsigned IPA for AltStore).
-- Latest: Android v1.0.232; iPhone build 112 (later iOS builds fail — Mac minutes used up).
-- Built in since v1.0.232 (not yet in a build): instant play (server place asked in the background),
+- Latest: Android v1.0.233; iPhone build 114 (21 Nov — everything below is in them).
+- In v1.0.233 / iOS 114 (built 21 Nov): instant play (server place asked in the background),
   glow fade on player background, Libby live availability, auto-send never re-sends backlog + skips torrents
   qBittorrent has, Goodreads clearer refusal + CSV hint, ebook cards, banner title fit, Play timing line.
 - Pending / feedback: see `inkwell/ROADMAP.md` (sections "Feedback 19 Nov", "Feedback 21 Nov", Usenet,
   book page people row, AudioYam items).
-- Done 21 Nov (not yet built; shared `inkwell/src/` code, used by Hearth / Duet / Audibrisk too):
+- Done 21 Nov (in v1.0.233 / iOS 114; shared `inkwell/src/` code, used by Hearth / Duet / Audibrisk too):
   - Android Auto, screen off: skip buttons seek on the phone itself (`setSkips`, no app JS needed);
     the app's page is kept "visible" while playing or after the car connects (`MainActivity.onStop`,
     `InkwellPlayerPlugin.wake`), so car picks / searches are answered; the car shows "Loading…" + the
@@ -27,7 +27,7 @@
     source results get a heading per source inside Audiobooks / Ebooks; Settings search box (filters
     the rows on the page, every section searched; `ELSEWHERE` shortcuts e.g. phone folders) and
     keywords on key sections.
-- 19 / 21 Nov feedback: all done in code (not yet built). Needs real-world checks: Android Auto in the
+- 19 / 21 Nov feedback: all done, built in v1.0.233 / iOS 114. Needs real-world checks: Android Auto in the
   car, the iPhone files plugin (first iOS build), the new debrid services with real accounts.
 - Frosted-glass card (user picked "your choice" from samples based on their 21 Nov design image):
   `components/glass-card.jsx` on Home's Continue listening and the book page top (replaces the old
@@ -45,7 +45,7 @@
   pickFolder / scan / cover / pickBook) — books live in the app's Documents, shown in the Files app
   (Info.plist UIFileSharingEnabled + LSSupportsOpeningDocumentsInPlace, set in audiohub-ios.yml);
   Add folder / Add files copy in. Rescanned at start (the container path changes per update).
-  Not compiled yet (no Mac here; iOS builds need Mac minutes).
+  Compiled in iOS build 114.
 - Person page voice: `voiceSample` / `voiceSearch` (people.js, tested) — a sample of a book the
   person reads (authors who read their own), else a YouTube search; "Where to start" beside it.
 - More debrid: `sources/moredebrid.js` (AllDebrid v4 with apikey, Premiumize apikey, Debrid-Link v2
