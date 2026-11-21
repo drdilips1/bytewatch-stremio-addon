@@ -13,6 +13,7 @@ export const CHANGES = [
       ['▶️', 'Press and hold → Play on Home', 'Works for books from Audible and Home’s lists too: your copy if you have one, else the best one from your sources.'],
       ['📖', 'Get the ebook: Knaben first', 'Ebook torrents from Knaben Ebooks come first (fetched through your TorBox / Real-Debrid), then LibGen — trying every LibGen mirror when one is down.'],
       ['⚡', 'The player opens at once', 'No more opening animation from the mini player (it flickered); the other effects stay.'],
+      ['🪟', 'Frosted-glass book card', 'Continue listening on Home and the top of a book page: the whole cover, with glass panels for the author, narrator, length and where you are in it, and the title and ★ rating along the bottom. Tap the author or narrator for their page.'],
       ['⚙️', 'Search in Settings', 'Type “music”, “sleep” or “folders” at the top of Settings: only the matching settings show — and a way to things kept elsewhere, like your own audiobook files on the phone.'],
       ['♡', 'A heart on the book page', 'Next to 👍 / 👎: tap ♡ to keep the book in your library.'],
       ['🗂️', 'Edit a Found list', 'Library → Found → Edit: take single books off a list; the bin deletes just that list.'],

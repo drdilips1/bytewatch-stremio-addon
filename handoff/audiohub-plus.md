@@ -29,5 +29,12 @@
     keywords on key sections.
 - Still open from 19 / 21 Nov: RD book not reaching the iPhone (needs a look on the phone), local
   files on iPhone (Files folder + Add files), author's / narrator's voice on their page, more debrid
-  services (AllDebrid, Premiumize, Debrid-Link), frosted-glass cards (design image + samples first).
+  services (AllDebrid, Premiumize, Debrid-Link).
+- Frosted-glass card (user picked "your choice" from samples based on their 21 Nov design image):
+  `components/glass-card.jsx` on Home's Continue listening and the book page top (replaces the old
+  Continue card, the big hero cover and the By / Read by row). Whole cover left (not cropped), the
+  cover blurred behind 150 px glass panels (Author, Narrator — tap for their page; Duration; Format
+  or, when in progress, % + time left + gold bar), dark strip with title + ★ (Goodreads). Pale
+  covers darken the glass (`coverLight` / `meanLight` in color.js, tested). Not done: the small
+  version for Home rows (sample 6) — offer after the user sees the card in a build.
 
