@@ -2,6 +2,8 @@
 // On Android, Capacitor's native HTTP patches fetch(), so sources without CORS work too.
 
 import { Capacitor } from '@capacitor/core';
+import { emptyBackoff, waitFor, noteAnswer, isRefusal } from './backoff.js';
+import { keptAnswer, keepAnswer } from './answers.js';
 
 const cache = new Map();
 const TTL = 10 * 60 * 1000;
@@ -11,7 +13,11 @@ const TTL = 10 * 60 * 1000;
 // app sends those through a small relay (a Supabase Edge Function, see
 // inkwell/relay/). The Android app talks to everything directly.
 const WEB = !Capacitor.isNativePlatform();
-const RELAY_HOSTS = /^(sentry\.libbyapp\.com|thunder\.api\.overdrive\.com|api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|itunes\.apple\.com)$/i;
+const RELAY_HOSTS = /^(sentry\.libbyapp\.com|thunder\.api\.overdrive\.com|api\.hardcover\.app|api\.audible\.[a-z.]+|(www\.)?getstoryshots\.com|itunes\.apple\.com)$/i;
+// Goodreads is never sent through the relay: it refuses Cloudflare's addresses outright (15,000
+// refused requests in one day on 21 Nov). The phone apps ask Goodreads themselves; the web app
+// can't reach it at all (browsers block it), so it doesn't try — ratings come from Audible there.
+const GOODREADS = /^www\.goodreads\.com$/i;
 const DEFAULT_RELAY = import.meta.env.VITE_RELAY_URL || (import.meta.env.VITE_SUPABASE_URL ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/relay` : '');
 
 export function relayUrl() {
@@ -50,7 +56,7 @@ function rememberRelayVersion(v) {
 
 // Hosts the relay will forward to (keep in step with relay/index.ts). Anything
 // else — e.g. your own Audiobookshelf server — must allow the web app directly.
-const RELAY_ALLOWED = /^(sentry\.libbyapp\.com|thunder\.api\.overdrive\.com|api\.hardcover\.app|api\.audible\.[a-z.]+|www\.goodreads\.com|(www\.)?getstoryshots\.com|itunes\.apple\.com|api\.torbox\.app|api\.real-debrid\.com|openlibrary\.org|www\.googleapis\.com|archive\.org|gutendex\.com|standardebooks\.org|librivox\.org|jsonkeeper\.com|([a-z0-9-]+\.)*knaben\.(org|eu|net|cc)|[a-z0-9.-]+\.workers\.dev)$/i;
+const RELAY_ALLOWED = /^(sentry\.libbyapp\.com|thunder\.api\.overdrive\.com|api\.hardcover\.app|api\.audible\.[a-z.]+|(www\.)?getstoryshots\.com|itunes\.apple\.com|api\.torbox\.app|api\.real-debrid\.com|openlibrary\.org|www\.googleapis\.com|archive\.org|gutendex\.com|standardebooks\.org|librivox\.org|jsonkeeper\.com|([a-z0-9-]+\.)*knaben\.(org|eu|net|cc)|[a-z0-9.-]+\.workers\.dev)$/i;
 function relayable(url) {
   try {
     const u = new URL(url);
@@ -78,7 +84,46 @@ function needsRelay(url) {
   }
 }
 
-async function request(url, { timeout = 15000, headers, method = 'GET', body, feed = false, hops = 0 } = {}) {
+// Services that refused recently are left alone for a while (see backoff.js), kept on the device.
+let backoff = emptyBackoff();
+try {
+  backoff = { ...emptyBackoff(), ...JSON.parse(localStorage.getItem('inkwell:backoff') || '{}') };
+} catch {}
+const saveBackoff = () => {
+  try {
+    localStorage.setItem('inkwell:backoff', JSON.stringify(backoff));
+  } catch {}
+};
+const refused = (msg, status, url) => Object.assign(new Error(msg), { status, refused: true, url });
+const hostName = (url) => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+};
+
+async function request(url, opts = {}) {
+  const host = hostName(url);
+  if (WEB && GOODREADS.test(host)) throw refused("Goodreads can't be reached from the web app — use the phone app, or import your Goodreads export file (CSV)", 403, url);
+  const askKey = opts.method && opts.method !== 'GET' ? `${url} ${String(opts.body || '').slice(0, 300)}` : url;
+  const wait = waitFor(backoff, url, askKey);
+  if (wait) {
+    const mins = Math.max(1, Math.round((wait.until - Date.now()) / 60e3));
+    throw refused(wait.why === 'paused' ? `${host} keeps refusing — paused for ${mins < 90 ? `${mins} min` : `${Math.round(mins / 60)} h`}` : `${host} refused this a little while ago — not asked again yet`, 429, url);
+  }
+  const note = (status, retryAfter = 0) => noteAnswer(backoff, url, askKey, status, Date.now(), retryAfter) && saveBackoff();
+  try {
+    const res = await send(url, opts);
+    note(res.status);
+    return res;
+  } catch (e) {
+    if (e.status) note(e.status, e.retryAfter || 0);
+    throw e;
+  }
+}
+
+async function send(url, { timeout = 15000, headers, method = 'GET', body, feed = false, hops = 0 } = {}) {
   const ctrl = new AbortController();
   let timer;
   // Android's native HTTP ignores abort signals, so also race a timer:
@@ -181,6 +226,8 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body, fe
       const err = new Error(relayMissing ? 'This service needs the web relay — see Settings → Web app' : `HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
       err.url = url.replace(/([?&](token|apikey|api_key)=)[^&]+/gi, '$1…');
       err.status = res.status;
+      if (isRefusal(res.status)) err.refused = true;
+      err.retryAfter = Number(res.headers.get('Retry-After')) || 0;
       throw err;
     }
     return res;
@@ -189,15 +236,23 @@ async function request(url, { timeout = 15000, headers, method = 'GET', body, fe
   }
 }
 
+// iTunes searches and lookups are kept 12 hours on the device (it refuses shared addresses fast).
+const KEEP_LONG = /^https:\/\/itunes\.apple\.com\/(search|lookup)\?/i;
 export async function getJson(url, opts = {}) {
   const key = opts.method && opts.method !== 'GET' ? null : 'j:' + url + JSON.stringify(opts.headers || {});
   if (key && !opts.fresh) {
     const hit = cache.get(key);
     if (hit && Date.now() - hit.t < TTL) return hit.v;
   }
+  const long = key && KEEP_LONG.test(url);
+  if (long && !opts.fresh) {
+    const kept = await keptAnswer(key, 12 * 3600e3);
+    if (kept !== undefined) return (cache.set(key, { t: Date.now(), v: kept }), kept);
+  }
   const res = await request(url, opts);
   const v = await res.json();
   if (key) cache.set(key, { t: Date.now(), v });
+  if (long && v) keepAnswer(key, v);
   return v;
 }
 
@@ -333,7 +388,7 @@ export async function probeRelay() {
     if (v) {
       rememberRelayVersion(v);
       // Works — but Safari / iPhone need the pre-check-free form (v8).
-      if (v < 8) return { ok: true, version: v, how, error: '', note: 'Works here. For Safari and iPhone, copy the new relay code (v8) below and deploy it again' };
+      if (v < 8) return { ok: true, version: v, how, error: '', note: 'Works here. For Safari and iPhone, copy the new relay code (v9) below and deploy it again' };
       return { ok: true, version: v, how, error: '' };
     }
     seen.push(`${how}: HTTP ${res.status}${v ? '' : ' (from Supabase, not the relay)'}`);
@@ -344,5 +399,5 @@ export async function probeRelay() {
   if (/HTTP 404/.test(all) && !/Load failed|Failed to fetch/i.test(all))
     return { ok: false, error: `Supabase says there's nothing at ${host}${url !== DEFAULT_RELAY && DEFAULT_RELAY ? ' — this browser uses its own relay address: tap "Use built-in address" below' : ' — deploy the relay (steps below)'}` };
   if (/HTTP 401/.test(all)) return { ok: false, error: 'Supabase refused the request (401): open the relay function in Supabase and turn off "Verify JWT", then Check again' };
-  return { ok: false, error: `Can't reach the relay at ${host} (${all}). Copy the new relay code (v8) below and deploy it again; if it still fails, a content blocker, iCloud Private Relay or "Limit IP address tracking" may be blocking supabase.co` };
+  return { ok: false, error: `Can't reach the relay at ${host} (${all}). Copy the new relay code (v9) below and deploy it again; if it still fails, a content blocker, iCloud Private Relay or "Limit IP address tracking" may be blocking supabase.co` };
 }

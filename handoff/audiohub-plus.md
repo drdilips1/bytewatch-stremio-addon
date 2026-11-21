@@ -141,3 +141,9 @@
 - Also pending: unpack .zip on iPhone (native, e.g. ZIPFoundation in ios-plugins); .rar is harder.
 - Own-worker steps (give to anyone interested): Cloudflare (free) → Workers & Pages → Create → Hello World → Deploy → Edit code → paste bookhunt-private-v1.js → Deploy; Settings → Variables and Secrets → add Secret MOBILISM_USER, MOBILISM_PASS, (optional) ANNAS_KEY; app Settings → Addons → add `https://<their-worker>.workers.dev/addon.json`.
 - Note: the old worker doesn't allow the x-bh-* headers, so an addon entry with saved Your details would fail on iPhone/web — remove the addon and add it again after switching back (the old manifest has no fields, so nothing is sent).
+
+## Cloudflare traffic fix (21 Nov) — not built yet
+- App: `src/lib/backoff.js` (pure, tests/backoff.test.js) used by `http.js` request(): a refused request (4xx except 404, 429, 503) isn't sent again for a while (Goodreads 72 h, iTunes/Hardcover 6 h); 3 refusals in a row pause the host (Goodreads 1 h; iTunes/Hardcover 10 min doubling to 2 h; Retry-After honoured). State in localStorage `inkwell:backoff`. Errors carry `refused`.
+- Goodreads: removed from RELAY_HOSTS / RELAY_ALLOWED (never via relay; Android no longer retries it through the relay); web app throws at once without a request. ratings.js `cached()` remembers refusals (`refused: true`, 72 h for gr kinds); goodreads() stops at the first refusal.
+- `src/lib/answers.js`: Cache Storage answer keeping — iTunes search/lookup 12 h (getJson), Hardcover `query B(`/`query S(` 24 h (hardcover.js gql).
+- Workers (user redeploys by pasting): `relay/index.ts` v9 (audiohub-relay.drdilipgreat.workers.dev) and `workers/audiohub.js` /relay v9 (api.audiohubapp.com): no Goodreads; caches.default keeps answers 12 h (Knaben 1 h), refusals 1 h, JSON/XML/text < 2 MB only; never TorBox/RD/AllDebrid/Premiumize, never Hardcover `me`/mutations; key = SHA-256 of method+url+body+Authorization; 240 req/min per IP (per isolate).

@@ -5,6 +5,7 @@
 // and per day, so shelves are fetched in ONE shallow query and cached, and book
 // pages only call the API when the user taps a status button.
 import { sendJson } from '../lib/http.js';
+import { remembered } from '../lib/answers.js';
 import { hardcover, persisted } from '../lib/store.js';
 import { matches } from '../lib/match.js';
 
@@ -15,7 +16,13 @@ export const connected = () => !!hardcover.get().token;
 const token = () => hardcover.get().token.trim().replace(/^Bearer\s+/i, '');
 const lastGood = persisted('hardcoverShelves', { at: 0, items: [] });
 
+// Book lookups and searches (not your shelves or status changes): kept a day on the device.
+const KEEP = /^query (B|S)\(/;
 async function gql(query, variables = {}, tok = token()) {
+  if (KEEP.test(query)) return remembered(`hc:${query}:${JSON.stringify(variables)}`, 24 * 3600e3, () => ask(query, variables, tok));
+  return ask(query, variables, tok);
+}
+async function ask(query, variables, tok) {
   let r;
   try {
     r = await sendJson(API, 'POST', { query, variables }, {
@@ -24,8 +31,10 @@ async function gql(query, variables = {}, tok = token()) {
       'User-Agent': 'Inkwell/1.5 (Android audiobook app)',
     });
   } catch (e) {
-    if (e.status === 401 || e.status === 403) throw new Error('Hardcover rejected the token — copy a fresh one from hardcover.app/account/api (tokens expire after a year)');
-    if (e.status === 429) throw new Error('Hardcover rate limit reached — try again in a minute');
+    // (status and "refused" kept, so ratings remember the refusal instead of asking again)
+    const keep = (m) => Object.assign(new Error(m), { status: e.status, refused: e.refused });
+    if (e.status === 401 || e.status === 403) throw keep('Hardcover rejected the token — copy a fresh one from hardcover.app/account/api (tokens expire after a year)');
+    if (e.status === 429) throw keep(e.refused && /paused|not asked/.test(e.message) ? `Hardcover is busy — ${e.message.replace(/^\S+\s/, '')}` : 'Hardcover rate limit reached — try again in a minute');
     throw e;
   }
   if (r?.errors?.length) throw new Error(r.errors[0].message || 'Hardcover request failed');

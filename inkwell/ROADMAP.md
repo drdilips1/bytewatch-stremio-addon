@@ -525,6 +525,7 @@ Seen in a TV app (cast circles, ratings row, show details, trailers, More like t
   strip with title and ★ rating; panels a little narrower so the cover breathes.
 
 ## Cloudflare traffic (21 Nov) — fix before sharing addons widely (Audiohub+ and AudioYam)
+- DONE in Audiohub+ (21 Nov, not built yet): lib/backoff.js (refused request not asked again — Goodreads 3 days per book; 3 refusals in a row pause the host — Goodreads 1 h, iTunes/Hardcover 10 min doubling to 2 h; tested), Goodreads never via the relay (removed from RELAY_HOSTS / RELAY_ALLOWED; web app doesn't ask it at all), ratings remember a refusal (3 days for Goodreads), iTunes search/lookup kept 12 h and Hardcover book queries 24 h on the device (lib/answers.js, Cache Storage). Workers: relay/index.ts v9 and workers/audiohub.js /relay v9 drop Goodreads, keep answers in Cloudflare's cache 12 h (Knaben 1 h; refusals 1 h; never debrid or Hardcover `me`/mutations; token part of the key), 240 requests/min per IP. User must redeploy both workers. AudioYam: to port.
 - Worker: 30.3k requests / 24 h (free limit 100k/day), up 287%.
 - Goodreads: 15k requests, ALL refused (4xx) — Goodreads blocks Cloudflare. Stop sending Goodreads
   through the worker/relay; after a refusal don't ask again for that book for days, pause Goodreads

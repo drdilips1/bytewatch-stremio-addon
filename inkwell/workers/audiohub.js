@@ -23,8 +23,41 @@ const HEADERS = {
 // can't let call some services directly (they don't allow other sites' pages). Only these
 // services; the request (with its own headers, e.g. a TorBox key) is passed on and the
 // answer returned. Nothing is stored or logged.
-const RELAY_OK = /^(api\.torbox\.app|api\.real-debrid\.com|api\.alldebrid\.com|www\.premiumize\.me|itunes\.apple\.com|openlibrary\.org|archive\.org|gutendex\.com|librivox\.org|standardebooks\.org|api\.hardcover\.app|www\.goodreads\.com|api\.audible\.[a-z.]+|(www\.)?getstoryshots\.com|([a-z0-9-]+\.)*knaben\.(org|eu|net|cc))$/i;
-async function relay(request, url) {
+const RELAY_OK = /^(api\.torbox\.app|api\.real-debrid\.com|api\.alldebrid\.com|www\.premiumize\.me|itunes\.apple\.com|openlibrary\.org|archive\.org|gutendex\.com|librivox\.org|standardebooks\.org|api\.hardcover\.app|api\.audible\.[a-z.]+|(www\.)?getstoryshots\.com|([a-z0-9-]+\.)*knaben\.(org|eu|net|cc))$/i;
+// Answers kept on Cloudflare (21 Nov: 30,000 relay requests a day, half refused): good ones for
+// 12 h (Knaben 1 h), a service's "no" for 1 h — the same question from many phones reaches the
+// service once. Never TorBox / Real-Debrid / other account services, never anything that changes.
+// Goodreads isn't passed on at all any more: it refuses Cloudflare's addresses every time.
+const KEEP_HOURS = [[/^itunes\.apple\.com$/, 12], [/^openlibrary\.org$/, 12], [/^api\.audible\.[a-z.]+$/, 12], [/^api\.hardcover\.app$/, 12], [/^gutendex\.com$/, 12], [/^librivox\.org$/, 12], [/^standardebooks\.org$/, 12], [/^(www\.)?getstoryshots\.com$/, 12], [/(^|\.)knaben\.(org|eu|net|cc)$/, 1]];
+export function keepHours(host, method, body = "") {
+  const rule = KEEP_HOURS.find(([re]) => re.test(host));
+  if (!rule) return 0;
+  if (method === "GET") return rule[1];
+  // Hardcover is all POSTs: only book searches and lookups, never your shelves (me) or changes.
+  if (method === "POST" && /hardcover/.test(host)) return /"query"\s*:\s*"\s*query\b/.test(body) && !/\bme\s*[{(]|mutation/.test(body) ? rule[1] : 0;
+  return 0;
+}
+const refusal = (st) => st === 429 || st === 503 || (st >= 400 && st < 500 && st !== 404);
+async function keptKey(target, method, body) {
+  const bytes = new TextEncoder().encode(`${method} ${target} ${body || ""}`);
+  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return new Request(`https://relay-kept.local/${hash}`);
+}
+// One address: at most 240 relay requests a minute (per Cloudflare machine; rough, but enough).
+const seen = new Map();
+export function tooMany(ip, now = Date.now()) {
+  if (!ip) return false;
+  const s = seen.get(ip);
+  if (!s || now - s.from > 60e3) {
+    if (seen.size > 5000) seen.clear();
+    seen.set(ip, { n: 1, from: now });
+    return false;
+  }
+  return ++s.n > 240;
+}
+
+async function relay(request, url, ctx) {
+  if (tooMany(request.headers.get("cf-connecting-ip"))) return reply(JSON.stringify({ error: "Too many requests from this address — wait a minute" }), 429);
   let target;
   try {
     target = new URL(url.searchParams.get("url") || "");
@@ -53,10 +86,32 @@ async function relay(request, url) {
     if (type) headers["Content-Type"] = type;
     if (method !== "GET") body = await request.text();
   }
-  const up = await fetch(target.toString(), { method, headers, body: method === "GET" || method === "HEAD" ? undefined : body, redirect: "follow" });
+  const hours = keepHours(target.hostname, method, typeof body === "string" ? body : "");
+  const cache = hours && typeof caches !== "undefined" ? caches.default : null;
+  // (Your own token is part of the key: one person's refused token never answers for another.)
+  const auth = Object.entries(headers || {}).find(([k]) => /^authorization$/i.test(k))?.[1] || "";
+  const key = cache ? await keptKey(target.toString(), method, `${body || ""} ${auth}`) : null;
   const out = new Headers(HEADERS);
-  out.set("Content-Type", up.headers.get("Content-Type") || "application/octet-stream");
-  out.set("x-relay-version", "8");
+  out.set("x-relay-version", "9");
+  if (key) {
+    const hit = await cache.match(key).catch(() => null);
+    if (hit) {
+      out.set("Content-Type", hit.headers.get("Content-Type") || "application/json");
+      out.set("x-relay-cache", "hit");
+      return new Response(hit.body, { status: hit.status, headers: out });
+    }
+  }
+  const up = await fetch(target.toString(), { method, headers, body: method === "GET" || method === "HEAD" ? undefined : body, redirect: "follow" });
+  const type = up.headers.get("Content-Type") || "application/octet-stream";
+  out.set("Content-Type", type);
+  if (key && (up.ok || refusal(up.status)) && /json|xml|text/i.test(type) && Number(up.headers.get("Content-Length") || 0) < 2e6) {
+    const text = await up.text();
+    if (text.length < 2e6) {
+      const put = cache.put(key, new Response(text, { status: up.status, headers: { "Content-Type": type, "Cache-Control": `public, max-age=${up.ok ? hours * 3600 : 3600}` } })).catch(() => {});
+      if (ctx && ctx.waitUntil) ctx.waitUntil(put);
+    }
+    return new Response(text, { status: up.status, headers: out });
+  }
   return new Response(up.body, { status: up.status, headers: out });
 }
 
@@ -617,7 +672,7 @@ main{width:100%;max-width:520px;padding:28px 18px 40px}
 }
 
 export default {
-  async fetch(request, env = {}) {
+  async fetch(request, env = {}, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -626,7 +681,7 @@ export default {
     }
 
     try {
-      if (path === "/relay") return await relay(request, url);
+      if (path === "/relay") return await relay(request, url, ctx);
       if (path.startsWith("/sync/")) return await syncRoute(request, path, env);
 
       // LibGen / EXTto / RuTracker: /libgen/…, /extto/…, /rutracker/… passed to their workers,

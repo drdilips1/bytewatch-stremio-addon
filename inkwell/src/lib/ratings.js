@@ -31,6 +31,8 @@ function plainTitle(b) {
 const norm = (b) => ({ ...b, title: plainTitle(b), author: String(b?.author || '').split(AUTHOR_SPLIT).filter(Boolean).join(', ') });
 const HIT_TTL = 30 * 864e5;
 const MISS_TTL = 6 * 3600e3;
+// A book a service refused: Goodreads isn't asked again for days, the others after the usual 6 h.
+const REFUSED_TTL = (kind) => (kind.startsWith('gr') ? 72 * 3600e3 : MISS_TTL);
 const keyFor = (b) => `${words(plainTitle(b)).join(' ')}|${words(firstAuthor(b.author)).slice(-1)[0] || ''}`;
 
 // Why a lookup came back empty (shown on the book page when there's no rating at all).
@@ -40,18 +42,22 @@ export const whyNoRating = (kind, book) => why.get(`${kind}:${keyFor(book)}`) ||
 async function cached(kind, book, fn) {
   const key = `${kind}:${keyFor(book)}`;
   const hit = cache.get()[key];
-  if (hit && Date.now() - hit.t < (hit.v ? HIT_TTL : MISS_TTL)) {
-    if (!hit.v) why.set(key, 'not found');
+  if (hit && Date.now() - hit.t < (hit.v ? HIT_TTL : hit.refused ? REFUSED_TTL(kind) : MISS_TTL)) {
+    if (!hit.v) why.set(key, hit.refused ? 'refused' : 'not found');
     return hit.v;
   }
+  let refused = false;
   const v = await fn().catch((e) => {
     why.set(key, e?.status ? `HTTP ${e.status}` : /timed out/i.test(e?.message || '') ? 'timed out' : e?.message || 'failed');
+    // The service said no (Goodreads blocks the relay, iTunes / Hardcover rate limits): remembered
+    // as "nothing" for a while, so the tile doesn't ask again every few seconds.
+    if (e?.refused) return (refused = true), null;
     return undefined;
   });
   if (v === null) why.set(key, 'not found');
   if (v === undefined) return undefined; // network trouble: not remembered, tried again next time
   cache.set((c) => {
-    const next = { ...c, [key]: { t: Date.now(), v } };
+    const next = { ...c, [key]: refused ? { t: Date.now(), v, refused: true } : { t: Date.now(), v } };
     const keys = Object.keys(next);
     if (keys.length > 800) keys.sort((a, b) => next[a].t - next[b].t).slice(0, keys.length - 800).forEach((k) => delete next[k]);
     return next;
@@ -229,12 +235,16 @@ export const goodreads = (raw) => {
       const tries = [...new Set([`${book.title} ${author}`.trim(), `${book.title} ${last}`.trim(), book.title])];
       let hit = null;
       let failed = 0;
+      let said = null; // Goodreads refusing (not just slow): stop asking it for this book
+      const miss = (e) => ((failed++, e?.refused && (said = e)), []);
       for (const q of tries) {
-        const list = await ask(q).catch(() => (failed++, []));
+        const list = await ask(q).catch(miss);
+        if (said) throw said;
         hit = pick(list);
         if (hit) break;
       }
-      if (!hit) hit = pick(await goodreadsSearch(`${book.title} ${author}`.trim()).catch(() => (failed++, [])));
+      if (!hit) hit = pick(await goodreadsSearch(`${book.title} ${author}`.trim()).catch(miss));
+      if (!hit && said) throw said;
       if (!hit && failed > tries.length) throw new Error('Goodreads not reachable'); // try again later
       if (!hit) return null;
       const url = hit.bookUrl ? `https://www.goodreads.com${hit.bookUrl.split('?')[0]}` : '';

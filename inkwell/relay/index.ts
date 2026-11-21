@@ -16,12 +16,18 @@
 //
 // Version 8: also takes one POST with a text body (?env=1) carrying the method,
 // headers and body, so browsers skip the CORS pre-check (Safari / iPhone).
+// Version 9 (21 Nov — the relay carried 30,000 requests a day, half of them refused):
+//  • Goodreads is no longer passed on: it refuses Cloudflare's addresses, every time.
+//  • Answers are kept 12 hours on Cloudflare (iTunes, Open Library, Audible's catalog,
+//    Hardcover book searches…), and a service's "no" is kept an hour, so the same question
+//    from many phones reaches the service once. Never anything with your accounts
+//    (TorBox, Real-Debrid) or anything that changes something.
+//  • One address may send at most 240 requests a minute.
 
 // Only these services can be reached through the relay.
 const ALLOWED = [
   /^api\.hardcover\.app$/,
   /^api\.audible\.[a-z.]+$/,
-  /^www\.goodreads\.com$/,
   /^(www\.)?getstoryshots\.com$/,
   /^itunes\.apple\.com$/,
   /^api\.torbox\.app$/,
@@ -44,7 +50,7 @@ const CORS = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Expose-Headers': 'X-Relay-Version, Content-Type, Content-Disposition, *',
   'Access-Control-Max-Age': '86400',
-  'X-Relay-Version': '8',
+  'X-Relay-Version': '9',
 };
 
 // Headers meant for Supabase or the browser, never forwarded. The service's own
@@ -52,12 +58,61 @@ const CORS = {
 const DROP_REQUEST = ['host', 'origin', 'referer', 'cookie', 'content-length', 'connection', 'authorization', 'apikey', 'x-client-info', 'x-relay-headers', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port', 'x-real-ip', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor', 'baggage', 'sb-request-id'];
 const DROP_RESPONSE = ['set-cookie', 'content-encoding', 'content-length', 'transfer-encoding', 'connection'];
 
-async function handle(req) {
+// ---- kept answers (Cloudflare's cache; Supabase has none, so nothing is kept there) ----
+const KEEP_HOURS = [
+  [/^itunes\.apple\.com$/, 12],
+  [/^openlibrary\.org$/, 12],
+  [/^api\.audible\.[a-z.]+$/, 12],
+  [/^api\.hardcover\.app$/, 12],
+  [/^www\.googleapis\.com$/, 12],
+  [/^gutendex\.com$/, 12],
+  [/^librivox\.org$/, 12],
+  [/^standardebooks\.org$/, 12],
+  [/^(www\.)?getstoryshots\.com$/, 12],
+  [/(^|\.)knaben\.(org|eu|net|cc)$/, 1],
+];
+const shared = () => (typeof caches !== 'undefined' && caches.default) || null;
+/** How long this request's answer may be kept (hours), or 0 for never. */
+function keepHours(url, method, body) {
+  const rule = KEEP_HOURS.find(([re]) => re.test(url.hostname));
+  if (!rule) return 0;
+  if (method === 'GET') return rule[1];
+  // Hardcover is all POSTs: only book searches and lookups, never your shelves (me) or changes.
+  if (method === 'POST' && /hardcover/.test(url.hostname)) {
+    const q = String(body || '');
+    return /"query"\s*:\s*"\s*query\b/.test(q) && !/\bme\s*[{(]|mutation/.test(q) ? rule[1] : 0;
+  }
+  return 0;
+}
+async function keyFor(url, method, body) {
+  const bytes = new TextEncoder().encode(`${method} ${url.href} ${body || ''}`);
+  const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return new Request(`https://relay-kept.local/${hash}`);
+}
+const refusal = (st) => st === 429 || st === 503 || (st >= 400 && st < 500 && st !== 404);
+
+// ---- one address, at most 240 requests a minute (per Cloudflare machine; rough, but enough) ----
+const seen = new Map(); // ip -> { n, from }
+function tooMany(req) {
+  const ip = req.headers.get('cf-connecting-ip');
+  if (!ip) return false;
+  const now = Date.now();
+  const s = seen.get(ip);
+  if (!s || now - s.from > 60e3) {
+    if (seen.size > 5000) seen.clear();
+    seen.set(ip, { n: 1, from: now });
+    return false;
+  }
+  return ++s.n > 240;
+}
+
+async function handle(req, ctx) {
   if (req.method === 'OPTIONS') {
     // Echo whatever headers the browser asks to send.
     const asked = req.headers.get('access-control-request-headers');
     return new Response('ok', { headers: asked ? { ...CORS, 'Access-Control-Allow-Headers': `${CORS['Access-Control-Allow-Headers']}, ${asked}` } : CORS });
   }
+  if (tooMany(req)) return new Response('Too many requests from this address — wait a minute', { status: 429, headers: { ...CORS, 'Retry-After': '60' } });
   const target = new URL(req.url).searchParams.get('url') || '';
   let url;
   try {
@@ -100,7 +155,34 @@ async function handle(req) {
   }
   try {
     if (feed && method !== 'GET') return new Response('Feeds are read-only', { status: 403, headers: CORS });
+    const bodyText = body == null ? '' : typeof body === 'string' ? body : new TextDecoder().decode(body);
+    const hours = feed ? 0 : keepHours(url, method, bodyText);
+    const cache = hours ? shared() : null;
+    // (Your own token is part of the key: one person's refused token never answers for another.)
+    const key = cache ? await keyFor(url, method, `${bodyText} ${headers.get('authorization') || ''}`) : null;
+    if (key) {
+      const hit = await cache.match(key).catch(() => null);
+      if (hit) {
+        const out = new Headers(hit.headers);
+        for (const [k, v] of Object.entries(CORS)) out.set(k, v);
+        out.set('X-Relay-Cache', 'hit');
+        return new Response(hit.body, { status: hit.status, headers: out });
+      }
+    }
     const res = await fetch(url, { method, headers, body, redirect: 'follow' });
+    // Keep it: a good answer for its hours, a refusal for one hour (small text answers only).
+    const type = res.headers.get('content-type') || '';
+    if (key && (res.ok || refusal(res.status)) && /json|xml|text/i.test(type) && Number(res.headers.get('content-length') || 0) < 2e6) {
+      const text = await res.text();
+      const out = new Headers({ 'Content-Type': type, 'Cache-Control': `public, max-age=${res.ok ? hours * 3600 : 3600}` });
+      if (text.length < 2e6) {
+        const put = cache.put(key, new Response(text, { status: res.status, headers: out })).catch(() => {});
+        if (ctx?.waitUntil) ctx.waitUntil(put);
+      }
+      for (const [k, v] of Object.entries(CORS)) out.set(k, v);
+      out.delete('Cache-Control');
+      return new Response(text, { status: res.status, headers: out });
+    }
     if (feed && !/xml|rss|atom|opml/i.test(res.headers.get('content-type') || '')) {
       // Many feeds are served as text/plain or octet-stream: peek at the start.
       const head = (await res.clone().text()).slice(0, 400);
@@ -116,6 +198,6 @@ async function handle(req) {
 }
 
 // Supabase Edge Function (Deno) …
-if (typeof Deno !== 'undefined' && Deno.serve) Deno.serve(handle);
+if (typeof Deno !== 'undefined' && Deno.serve) Deno.serve((req) => handle(req));
 // … or Cloudflare Worker (paste this same code into a Worker and deploy).
-export default { fetch: handle };
+export default { fetch: (req, env, ctx) => handle(req, ctx) };
