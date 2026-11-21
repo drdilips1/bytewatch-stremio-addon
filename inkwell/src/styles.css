@@ -9433,11 +9433,12 @@ button.notes-book-head {
   color: var(--faint);
 }
 /* A heading per source inside Audiobooks / Ebooks (feedback 19 Nov). */
-/* Each source's results in a box of its own, with its name on top. */
-.src-sub { padding: 10px 10px 12px; border-radius: 18px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border)); box-shadow: 0 6px 18px -14px rgba(60, 40, 15, 0.45); }
-.src-sub + .src-sub { margin-top: 14px; }
-.src-sub-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 4px 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); font-size: 16px; font-weight: 750; color: var(--text); }
-.src-sub-head small { flex: none; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+/* Each source's results in a box of its own, with its name on top (snug: little space around). */
+.src-group { margin: 0 -10px; padding: 8px 6px 6px; border-radius: 18px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border)); box-shadow: 0 6px 18px -14px rgba(60, 40, 15, 0.45); }
+.src-group + .src-group { margin-top: 10px; }
+.src-group .src-list { gap: 6px; }
+.src-group-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 6px 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-size: 16px; font-weight: 750; color: var(--text); }
+.src-group-head small { flex: none; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .src-sec .src-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -12598,9 +12599,12 @@ button.cr-tile.on > img {
 :root .screen.book .book-meta { margin-top: 10px; }
 /* The main button: full width, light; the quiet ones (download, library, Kindle) beside below. */
 :root .screen.book .book-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 0 20px; }
-:root .screen.book .book-actions > .btn.primary.big { flex: 1 1 100%; border-radius: 999px; background: #f4f6fb; color: #0a1222; box-shadow: none; font-weight: 700; font-size: 17px; min-height: 54px; }
+:root .screen.book .book-actions > .btn.primary.big { flex: 1 1 0; min-width: 0; border-radius: 999px; background: #f4f6fb; color: #0a1222; box-shadow: none; font-weight: 700; font-size: 17px; min-height: 54px; }
 :root .screen.book .book-actions > .btn.secondary.big:not(.sq) { flex: 1 1 100%; border-radius: 999px; background: none; border: 1.5px solid color-mix(in srgb, var(--text) 35%, transparent); }
 :root .screen.book .book-actions > .btn.sq { border-radius: 999px; background: none; border: 1.5px solid color-mix(in srgb, var(--text) 30%, transparent); }
+/* Listen and the download button on one line: Listen a little narrower, download on its right. */
+:root .screen.book .book-actions { flex-wrap: wrap; align-items: center; }
+:root .screen.book .book-actions > .btn.sq { flex: none; width: 54px; height: 54px; min-height: 54px; padding: 0; }
 :root[data-mode='light'] .screen.book .book-actions > .btn.primary.big { background: var(--text); color: var(--bg); }
 .mam-results { margin: 6px 16px 12px; padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, var(--text) 5%, transparent); }
 .mam-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }

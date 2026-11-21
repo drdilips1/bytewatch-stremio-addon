@@ -248,8 +248,8 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
         </div>
         {/* A heading per source (AudiobookBay, Knaben, Mobilism…), its results under it. */}
         {bySource(more ? groups : topOf(groups)).map(([src, gs]) => (
-          <div class="src-sub" key={src}>
-            <div class="src-sub-head">
+          <div class="src-group" key={src}>
+            <div class="src-group-head">
               <span>{sourceLabel(src) || 'Other'}</span>
               <small>{gs.length} {gs.length === 1 ? 'result' : 'results'}</small>
             </div>

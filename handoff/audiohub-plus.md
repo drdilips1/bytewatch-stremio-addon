@@ -78,3 +78,4 @@
   update: localBooks v3); new debrid services sort by date; Shelf's "Recent" sorts by addedAt.
 - Library header: folder button beside search → phone files view (Add folder / Rescan there); no folder yet → picker.
 - Delete a book: press-and-hold → Delete… (forgetBook + download + Up next + Read later + ebook; folder books hidden via localCfg.hidden, Settings can bring them back; TorBox t/u/w and Real-Debrid torrents deleted from the cloud when confirmed — `deleteFromCloud`). Not built yet.
+- Book page: Listen (narrower) and the download button on one line (download on the right). Source boxes: class renamed src-group (src-sub clashed with each row's subtitle), snugger margins. Not built yet.
