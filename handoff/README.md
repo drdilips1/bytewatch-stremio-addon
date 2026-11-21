@@ -9,7 +9,8 @@ rules) and **that app's file**, so it knows everything without the long chat his
 | AudioYam (public) | audioyam.md | `drdilips1/Audiohub`, branch `work` |
 | Audibrisk (minimal search & play) | audibrisk.md | this repo, `inkwell/brisk/` |
 | Hearth / Duet (library apps) | hearth-duet.md | this repo, `inkwell/hearth/`, `inkwell/duet/` |
-| Narrato / store edition | store-edition.md | this repo, `store-edition/` |
+| Narrato (separate app) | narrato.md | this repo, **branch `claude/narrato-stable`**, `paper2audio/` |
+| AudioYam store edition / Lite | store-edition.md | this repo, `store-edition/` |
 
 Opening message for a new window (copy, change the app name):
 
