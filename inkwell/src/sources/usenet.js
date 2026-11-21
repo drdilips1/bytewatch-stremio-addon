@@ -27,23 +27,48 @@ export const easynewsBooks = persisted('easynewsBooks', {});
 // ---------------- Easynews ----------------
 const EN = 'https://members.easynews.com';
 
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', Atilde: 'Ã', Acirc: 'Â', copy: '©', eacute: 'é', egrave: 'è', ccedil: 'ç', uuml: 'ü', ouml: 'ö', auml: 'ä', szlig: 'ß', ntilde: 'ñ', aacute: 'á', iacute: 'í', oacute: 'ó', uacute: 'ú', reg: '®', laquo: '«', raquo: '»', ndash: '–', mdash: '—' };
+/**
+ * A file name as Easynews sends it, readable: HTML entities undone, and UTF-8 read twice by
+ * mistake put right — "Bren&Atilde;&Acirc;&copy; Brown" → "Brené Brown".
+ */
+export function cleanName(raw) {
+  let s = String(raw || '')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&([a-z]+);/gi, (m, n) => ENTITIES[n] ?? m);
+  for (let i = 0; i < 3 && /[ÃÂ][\u0080-\u00ff]/.test(s); i++) {
+    try {
+      s = decodeURIComponent(escape(s)); // bytes read as Latin-1 → read again as UTF-8
+    } catch {
+      // Read wrongly twice, with a byte lost on the way ("ÃÂ©"): without the stray "Â" it reads.
+      if (!/Â/.test(s)) break;
+      s = s.replace(/Â/g, '');
+    }
+  }
+  return s.replace(/\s+/g, ' ').trim();
+}
+
 /** Easynews files for these words, grouped into books: [{ key, title, files: [{ name, size, url }] }]. */
-export async function easynewsSearch(query, { limit = 250, timeout = 45000 } = {}) {
+export async function easynewsSearch(query, { limit = 250, timeout = 45000, ebooks = false } = {}) {
   if (!easynewsOn()) return [];
   // Easynews' search can take half a minute: give it time (the usual wait is 15 s).
-  const r = await getJson(`${EN}/2.0/search/solr-search/?${qs({ fly: 2, gps: query, pby: limit, pno: 1, sS: 5, s1: 'dsize', s1d: '-', fex: 'm4b m4a mp3 epub pdf', safeO: 0 })}`, { headers: { Authorization: basic() }, fresh: true, timeout });
+  // An audiobook's page: audio files only; an ebook's: EPUB / PDF.
+  const fex = ebooks ? 'epub pdf' : 'm4b m4a mp3';
+  const r = await getJson(`${EN}/2.0/search/solr-search/?${qs({ fly: 2, gps: query, pby: limit, pno: 1, sS: 5, s1: 'dsize', s1d: '-', fex, safeO: 0 })}`, { headers: { Authorization: basic() }, fresh: true, timeout });
   const down = r?.downURL || `${EN}/dl`;
   const groups = new Map();
   for (const it of r?.data || []) {
     const hash = it['0'] || it.hash;
     const ext = it['11'] || it.extension || '';
-    const base = it['10'] || it.filename || '';
+    const rawBase = it['10'] || it.filename || '';
+    const base = cleanName(rawBase);
     const name = `${base}${ext}`;
     if (!hash || !(AUDIO.test(name) || EBOOK.test(name))) continue;
-    const url = `${down}/${r.dlFarm}/${r.dlPort}/${hash}${ext}/${encodeURIComponent(base)}${ext}`;
+    const url = `${down}/${r.dlFarm}/${r.dlPort}/${hash}${ext}/${encodeURIComponent(rawBase)}${ext}`;
     const key = bookKey(name);
     if (!key) continue;
-    const g = groups.get(key) || { key, title: base.replace(/[\s._-]+\d{1,3}$/, '').replace(/[._]+/g, ' ').trim() || base, files: [] };
+    const g = groups.get(key) || { key, title: base.replace(/[\s._-]+\d{1,3}$/, '').replace(/[._]+/g, ' ').trim() || base, files: [], kind: AUDIO.test(name) ? 'audio' : 'ebook', format: fmtOf(name) };
     if (!g.files.some((f) => f.url === url)) g.files.push({ name, size: Number(it.rawSize) || 0, url });
     groups.set(key, g);
   }
@@ -60,6 +85,30 @@ export function easynewsBook(g, book = {}) {
     return next;
   });
   return { uid, source: 'en', kind: g.files.some((f) => AUDIO.test(f.name)) ? 'audio' : 'text', title: book.title || g.title, author: book.author || '', cover: book.cover || '', rawName: g.files[0]?.name || '', parts: g.files.length, format: fmtOf(g.files.find((f) => AUDIO.test(f.name))?.name) };
+}
+
+/**
+ * An Easynews ebook, opened in the reader: fetched once with your sign-in (the reader can't send
+ * it), then kept on the phone like any ebook you open.
+ */
+export async function easynewsReaderBook(g, book = {}) {
+  const f = g.files.find((x) => /\.(epub|pdf)$/i.test(x.name));
+  if (!f) throw new Error('No EPUB or PDF in this one');
+  const res = await fetch(f.url, { headers: { Authorization: basic() } });
+  if (!res.ok) throw new Error(`Easynews answered HTTP ${res.status}`);
+  const blobUrl = URL.createObjectURL(new Blob([await res.arrayBuffer()]));
+  const format = fmtOf(f.name);
+  return {
+    uid: `en:${g.key.slice(0, 80)}#ebook`,
+    source: 'en',
+    kind: 'text',
+    title: book.title || g.title,
+    author: book.author || '',
+    cover: book.cover || '',
+    ebookName: f.name,
+    ebookFormat: format,
+    ebookFile: { name: f.name, format, size: f.size, resolve: async () => blobUrl },
+  };
 }
 
 /** Playable details of an Easynews book: its files in order, with your sign-in. */
@@ -140,14 +189,14 @@ export async function indexerSearch(query) {
  * Usenet results for a book: { easynews: [books], indexers: [results] } — only those whose name has
  * the title's words (German titles kept: no language filter).
  */
-export async function searchUsenet(title, author = '') {
+export async function searchUsenet(title, author = '', { ebooks = false } = {}) {
   const t = mainTitle(title);
   const sn = words(String(author).split(/,|&/)[0]).slice(-1)[0] || '';
   const q = `${t} ${sn}`.trim();
   const fits = (name) => matches(t, name);
-  const [en, ix] = await Promise.all([easynewsSearch(q).catch(() => []), indexerSearch(q).catch(() => [])]);
+  const [en, ix] = await Promise.all([easynewsSearch(q, { ebooks }).catch(() => []), indexerSearch(q).catch(() => [])]);
   // Few hits with the author's name too: the title alone.
-  const enMore = en.length < 2 && sn ? await easynewsSearch(t).catch(() => []) : [];
+  const enMore = en.length < 2 && sn ? await easynewsSearch(t, { ebooks }).catch(() => []) : [];
   const ixMore = ix.length < 2 && sn ? await indexerSearch(t).catch(() => []) : [];
   const seen = new Set();
   return {

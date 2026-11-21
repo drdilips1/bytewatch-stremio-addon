@@ -28,3 +28,13 @@ describe('parseNewznab', () => {
     expect(parseNewznab('<rss><channel></channel></rss>')).toEqual([]);
   });
 });
+
+describe('cleanName (Easynews file names)', () => {
+  it('undoes HTML entities and doubly read UTF-8', async () => {
+    const { cleanName } = await import('../src/sources/usenet.js');
+    expect(cleanName('Bren&Atilde;&Acirc;&copy; Brown - Daring Greatly')).toBe('Brené Brown - Daring Greatly');
+    expect(cleanName('BrenÃ© Brown')).toBe('Brené Brown');
+    expect(cleanName('Tom &amp; Jerry')).toBe('Tom & Jerry');
+    expect(cleanName('Plain Title')).toBe('Plain Title');
+  });
+});

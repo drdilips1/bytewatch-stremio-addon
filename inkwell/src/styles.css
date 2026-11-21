@@ -13000,4 +13000,11 @@ html.ios .book-card:not(.broken) { box-shadow: none; }
 .addon-row { flex-wrap: wrap; }
 .addon-details { flex-basis: 100%; display: grid; gap: 8px; padding: 2px 0 6px 46px; justify-items: start; }
 .addon-details .set-form { width: 100%; }
+/* Usenet results: type chip, title over its details, the button on the right. */
+.usenet-row { display: flex; align-items: center; gap: 10px; }
+.usenet-row .fmt-chip { flex: none; }
+.usenet-text { flex: 1; min-width: 0; }
+.usenet-text b { display: block; font-size: 14px; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.usenet-text small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.usenet-row .pill { flex: none; }
 

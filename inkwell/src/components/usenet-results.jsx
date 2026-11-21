@@ -5,8 +5,9 @@ import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
 import { nav } from '../lib/nav.js';
 import * as player from '../lib/player.js';
-import { usenetOn, searchUsenet, easynewsBook } from '../sources/usenet.js';
+import { usenetOn, searchUsenet, easynewsBook, easynewsReaderBook } from '../sources/usenet.js';
 import { fmtBytes } from '../lib/downloads.js';
+import { cleanName as cleanTitle } from '../sources/usenet.js';
 
 export function UsenetResults({ title, author, book }) {
   const [res, setRes] = useState(null);
@@ -16,7 +17,7 @@ export function UsenetResults({ title, author, book }) {
     if (!usenetOn() || !title) return;
     let alive = true;
     setRes(null);
-    searchUsenet(title, author)
+    searchUsenet(title, author, { ebooks: book?.kind === 'text' })
       .then((r) => alive && setRes(r))
       .catch(() => alive && setRes({ easynews: [], indexers: [] }));
     return () => (alive = false);
@@ -28,9 +29,19 @@ export function UsenetResults({ title, author, book }) {
     try {
       const { getDetails } = await import('../sources/index.js');
       const d = await getDetails(easynewsBook(g, { title: book?.title || g.title, author: book?.author || author, cover: book?.cover || '' }));
-      if (d.kind === 'text' && d.ebooks?.length) return toast('Ebook on Easynews — use Download to keep it');
       nav.openOverlay('player');
       player.playBook(d, { exact: true });
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
+  const readEasynews = async (g) => {
+    setBusy(g.key);
+    try {
+      toast('Getting the ebook from Easynews…');
+      nav.push('reader', { book: await easynewsReaderBook(g, { title: book?.title || g.title, author: book?.author || author, cover: book?.cover || '' }) });
     } catch (e) {
       toast(e.message);
     } finally {
@@ -74,6 +85,7 @@ export function UsenetResults({ title, author, book }) {
             {shown.map((x) =>
               x.kind === 'en' ? (
                 <div class="src-row usenet-row">
+                  <span class="fmt-chip">{x.g.format || (x.g.kind === 'ebook' ? 'Ebook' : 'Audio')}</span>
                   <div class="usenet-text">
                     <b>{x.g.title}</b>
                     <small>
@@ -81,14 +93,21 @@ export function UsenetResults({ title, author, book }) {
                       {x.g.files.reduce((a, f) => a + f.size, 0) > 0 ? ` · ${fmtBytes(x.g.files.reduce((a, f) => a + f.size, 0))}` : ''}
                     </small>
                   </div>
-                  <button class="pill small active" disabled={!!busy} onClick={() => playEasynews(x.g)}>
-                    {busy === x.g.key ? <span class="spinner small" /> : <Icon name="play" size={14} />} Play
-                  </button>
+                  {x.g.kind === 'ebook' ? (
+                    <button class="pill small" disabled={!!busy} onClick={() => readEasynews(x.g)}>
+                      {busy === x.g.key ? <span class="spinner small" /> : <Icon name="book" size={14} />} Read
+                    </button>
+                  ) : (
+                    <button class="pill small active" disabled={!!busy} onClick={() => playEasynews(x.g)}>
+                      {busy === x.g.key ? <span class="spinner small" /> : <Icon name="play" size={14} />} Play
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div class="src-row usenet-row">
+                  <span class="fmt-chip">NZB</span>
                   <div class="usenet-text">
-                    <b>{x.r.title}</b>
+                    <b>{cleanTitle(x.r.title)}</b>
                     <small>
                       {x.r.indexer}
                       {x.r.size ? ` · ${fmtBytes(x.r.size)}` : ''}

@@ -130,3 +130,4 @@
   and their wife on their iPhone (worker secrets MOBILISM_USER / MOBILISM_PASS / ANNAS_KEY). The new
   bookhunt.js still uses those secrets for searches without details, so keep the secrets until the
   shared way is proven.
+- Easynews: audiobook pages search audio only (m4b/m4a/mp3), ebook pages EPUB/PDF; each result shows its type; ebooks get Read (fetched with the sign-in into a blob, then the reader keeps it); names cleaned (cleanName, tested: "Bren&Atilde;&Acirc;&copy;" → "Brené"); title over details layout. Not built yet.
