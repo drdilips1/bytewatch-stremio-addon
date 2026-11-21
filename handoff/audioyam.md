@@ -25,13 +25,19 @@
     Get the ebook for Live text: best 3 per source with covers; iPhone lighter (html.ios); What's new `nov-2026g`.
   - Left out (private or not on AudioYam): Libby, Mobilism, Anna's, Bookshare, Book Hunt (worker, KEEP id,
     in-app-only filter, forum `downloads`), MAM / getplay.js, Knaben ebook torrents via debrid (needs
-    unported onDownloadProgress / stopAutoEbook), Found shelves, spine shelf, ebookfile test (Mobilism).
+    unported onDownloadProgress / stopAutoEbook), spine shelf, ebookfile test (Mobilism). (Find books / Found added later, see below.)
   - Scrubbed: the user's first name / e-mail prefix in comments (Home.jsx, format.js — format.js was
     already public before). Still in the repo from before (old data clean-ups, ask before removing):
     `main.jsx` removes `inkwell:libby*` keys; `addons.js` RETIRED regex names Anna's Archive. The generic
     "your own tracker site" setting (Tracker.jsx, qbit.js) is old and not MAM-specific.
   - Checked: npm test (98), lint, vite build. Android Java not compiled here (no SDK) — first test APK
     (push to `test`) will tell.
+- On `work`, not released yet (21 Nov, 05c2251): Find books (`lib/findbooks.js`, `screens/FindBooks.jsx`,
+  route `find`, Discover camera button, Library ⋯ → Find books, Library → Found shelves + Edit) — cover / barcode /
+  shelf / page photo, screenshot, pasted link or list; Android share-in of text / images (manifest SEND
+  text/plain + image/*, InkwellLocalPlugin takeBook). `lib/getplay.js` is AudioYam's own (your copies →
+  debrid sources → Audiobookshelf; no MAM / home-server step), also used by press and hold → Play.
+  tests/findbooks.test.js. Photos need a Gemini / Claude key; barcode reader is Android's (none on iPhone).
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 3f408eb), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
