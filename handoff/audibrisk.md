@@ -23,7 +23,7 @@
     looking — fixes "no copy found" while your cloud copy plays), % while your service fetches.
   - Not-cached copies: kept as background jobs (`briskJobs`), checked every 20 s, card on Home with
     %, "Ready to play" toast (Android pop-up when the app is in the background). A real
-    notification-shade notification needs shared Android code — asked the user, not done.
+    notification-shade notification needs shared Android code — user said avoid for now (21 Nov).
   - TorBox and Real-Debrid both at once (copy ready on either plays; Library shows both clouds).
   - Folder on this phone (Settings): phone copy plays first, Save hidden when it's on the phone,
     Library → On this phone. Uses shared `src/sources/local.js` read-only.
@@ -38,4 +38,4 @@
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in
-  sources, offer adding one as an advanced option); public release link; notification-shade alert.
+  sources, offer adding one as an advanced option); public release link; notification-shade alert (on hold — user said avoid for now).
