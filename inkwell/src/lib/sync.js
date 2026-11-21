@@ -7,6 +7,7 @@
 // edited on several devices (progress, library, bookmarks, addons) merge item
 // by item, everything else takes the newest copy.
 import { qbit, qbitSent, tracker, mamSession } from '../sources/qbit.js';
+import { mergeAddonLog, mergeAddons, addonId } from './addonmerge.js';
 import { annas } from '../sources/annas.js';
 import { metaFixes } from './meta.js';
 import { preferredCopy } from './editions.js';
@@ -55,6 +56,10 @@ import * as cf from './cfsync.js';
 // (or never had it) gets it back, so nobody is ever asked to set up a server.
 if (BAKED_URL && (!account.get().url || !account.get().anonKey)) account.patch({ url: account.get().url || BAKED_URL, anonKey: account.get().anonKey || BAKED_KEY });
 
+// When each addon was added and removed on any device ({ id: { added, removed } }), so the addon
+// lists of your devices merge instead of one replacing the other (the Android app saving its list
+// used to wipe an addon you had just added in the web app).
+const addonLog = persisted('addonLog', {});
 const SECTIONS = {
   settings: { store: settings },
   // Removals first, so the merges below can drop books removed on any device.
@@ -62,7 +67,8 @@ const SECTIONS = {
   library: { store: library, merge: (l, r) => cleanLibrary(mergeById(l, r)) },
   progress: { store: progress, merge: (l, r) => cleanProgress(mergeNewest(l, r)) },
   bookmarks: { store: bookmarks, merge: mergeBookmarks },
-  addons: { store: addons },
+  addonLog: { store: addonLog, merge: mergeAddonLog },
+  addons: { store: addons, merge: (l, r) => mergeAddons(l, r, addonLog.get()) },
   goodreads: { store: goodreads },
   myRatings: { store: myRatings, merge: mergeNewest },
   libby: { store: libby },
@@ -109,6 +115,19 @@ let applying = false;
 function mergeById(local, remote) {
   return { ...remote, ...local };
 }
+// Note each addon added or removed here (not ones that arrive by sync).
+let addonIds = new Set((addons.get() || []).map(addonId));
+addons.subscribe((list) => {
+  const now = new Set((list || []).map(addonId));
+  if (!applying) {
+    const t = Date.now();
+    const changes = {};
+    for (const id of now) if (!addonIds.has(id)) changes[id] = { ...(addonLog.get()[id] || {}), added: t };
+    for (const id of addonIds) if (!now.has(id)) changes[id] = { ...(addonLog.get()[id] || {}), removed: t };
+    if (Object.keys(changes).length) addonLog.set((all) => ({ ...all, ...changes }));
+  }
+  addonIds = now;
+});
 // uid -> time: the later time of the two sides.
 function mergeLatest(local, remote) {
   const out = { ...(remote || {}) };
