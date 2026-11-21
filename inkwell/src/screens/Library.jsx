@@ -321,6 +321,27 @@ export function Library() {
           <h1 class="screen-title">Library</h1>
         )}
         <div class="library-head-actions">
+          {/* Your own files and folders on the phone: their books, Add folder, Rescan.
+              No folder chosen yet: choose one now. */}
+          {localSrc.available && (
+            <button
+              class="icon-btn glass"
+              aria-label="Your files and folders on this phone"
+              title="Your files and folders on this phone"
+              onClick={async () => {
+                const show = () => (libView.set((v) => ({ ...v, tab: 'audio', where: 'phone', open: true })), window.scrollTo(0, 0));
+                if (localSrc.connected()) return show();
+                try {
+                  await localSrc.addFolder();
+                  show();
+                } catch (e) {
+                  if (!/no folder chosen|cancelled/i.test(e.message)) toast(e.message);
+                }
+              }}
+            >
+              <Icon name="folder" size={19} />
+            </button>
+          )}
           <button
             class={'icon-btn glass' + (finding ? ' active' : '')}
             onClick={() => {

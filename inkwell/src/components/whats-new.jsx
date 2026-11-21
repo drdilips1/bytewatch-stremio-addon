@@ -18,7 +18,7 @@ export const CHANGES = [
       ['🆕', 'Newest first', 'Your TorBox, Real-Debrid and phone rows (and their See all pages) start with the books added most recently — on the phone, by when the files arrived.'],
       ['🗂️', 'Your services on Home', 'TorBox, Real-Debrid, the books on your phone (and AllDebrid, Premiumize, Debrid-Link) each get their own row on Home, as Audiobookshelf does.'],
       ['📦', 'Source results in boxes', 'On a book page, each source (AudiobookBay, Knaben, Mobilism…) has its results in a box of its own, with its name and how many it found.'],
-      ['📁', 'Your own files, easy to find', 'Settings → Your files on this phone (near the top), and Library → Your files on this phone: add a folder or files, rescan, and see what’s there.'],
+      ['📁', 'Your own files, easy to find', 'Library: the folder button beside search opens your files and folders on the phone (or lets you choose a folder). Also in Settings → Your files on this phone: add a folder or files, rescan, see what’s there.'],
       ['📱', 'Your own audiobooks on iPhone', 'Files app → On My iPhone → Audiohub: put audiobooks there (a folder per book), or tap Library → On this phone → Add folder / Add files. They play straight from the phone.'],
       ['🔌', 'AllDebrid, Premiumize, Debrid-Link', 'Connect them in Settings like TorBox and Real-Debrid: your cloud’s audiobooks show on Home, and Play from your sources fetches through whichever one you choose (Settings → Default debrid).'],
       ['🎙️', 'Hear the voice — authors too', 'On an author’s or narrator’s page: a sample of a book they read themselves, else a search for their voice. “Where to start” sits beside it.'],

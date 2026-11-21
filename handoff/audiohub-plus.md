@@ -76,4 +76,4 @@
 - Newest first: debrid rows sort by date added only (not last played); phone books carry the files'
   date (Android scan COLUMN_LAST_MODIFIED, iOS contentModificationDate → `addedAt`, one rescan on
   update: localBooks v3); new debrid services sort by date; Shelf's "Recent" sorts by addedAt.
-
+- Library header: folder button beside search → phone files view (Add folder / Rescan there); no folder yet → picker.
