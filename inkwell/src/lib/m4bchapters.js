@@ -6,6 +6,9 @@
 // used, fitted to this file's length. Remembered per book. Gives single-file books a
 // chapter list, "end of chapter" for the sleep timer and "next chapter" by voice.
 import { persisted } from './store.js';
+import { Capacitor } from '@capacitor/core';
+
+const IOS = Capacitor.getPlatform() === 'ios';
 
 const known = persisted('m4bChapters2', {}); // uid -> [{ title, start, end }] (or [] when none)
 const missAt = persisted('m4bChapterMiss', {}); // uid -> when none were found (looked at again later)
@@ -246,6 +249,9 @@ export async function m4bChapters(uid, url, headers, duration = 0, book = null) 
   let failed = false;
   let why = '';
   try {
+    // iPhone / iPad: no reading inside the file — its web view fetches those pieces slowly, and
+    // they held up the book starting (TorBox / Real-Debrid M4Bs). The published chapters below.
+    if (IOS) throw new Error('not read on iPhone');
     const read = reader(url, headers);
     const head = await read(0, 12);
     list = type(head, 0).startsWith('ID3') || (head[0] === 0xff && (head[1] & 0xe0) === 0xe0) ? await mp3Chapters(read) : type(head, 4) === 'ftyp' ? await mp4Chapters(read) : [];
