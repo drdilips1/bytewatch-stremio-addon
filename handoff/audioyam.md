@@ -7,6 +7,9 @@
   source `releases/download/ios-source/altstore.json`). It used to start on any push touching ios.yml;
   run 2 started that way on 21 Nov and was cancelled during install (nothing published).
 - Latest released: Android v1.0.36 (15-feature port + old logo); iPhone ios-1.
+- Built 21 Nov from `work` 26aa8e2 (user said "build"): test APK (push → `test`, Android run 37, release
+  `test-build` / AudioYam-test.apk — not an update) and iPhone run 3 (`ios-3`, AltStore source updated).
+  Not on `main`: Android v1.0.37 / web only when the user says release.
 - On `work`, not released yet (17 Nov): quiet logo (theme colour), instant play, glow fade, duplicate-send fix,
   banner title fit, Goodreads messages, iPhone build.
 - On `work`, not released yet (21 Nov, commits 547800a + 8c459ed) — port of Audiohub+ 678ea9e → 3f408eb:
