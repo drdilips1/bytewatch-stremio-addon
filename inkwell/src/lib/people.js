@@ -103,9 +103,6 @@ export function voiceSample(name, books) {
   return b ? { url: b.sample, title: b.title } : null;
 }
 
-/** When there's no sample: a search for their voice (a narrator's samples, an author's interviews). */
-export const voiceSearch = (name, role) => `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} ${role === 'narrator' ? 'narrator audiobook sample' : 'interview'}`)}`;
-
 /** Narrators who share books with this one (full casts, duets), most often first. */
 export function oftenWith(name, books) {
   const n = {};

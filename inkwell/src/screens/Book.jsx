@@ -352,9 +352,9 @@ export function Book({ book: initial }) {
             <Icon name="headphones" size={16} /> {tracks.length} audio {tracks.length === 1 ? "file" : "files"}
           </h3>
           {tracks.map((t, i) => {
-            // Many files: the first five and the one you're on, the rest on "Show all".
+            // Many files: folded to the one you're on; "Show all" lists them.
             const here = isCurrent ? ps.index : prog?.track || 0;
-            if (!partsOpen && i >= 5 && i !== here) return null;
+            if (!partsOpen && tracks.length > 5 && i !== here) return null;
             const active = isCurrent && ps.index === i;
             const done = prog && (prog.track > i || prog.finished);
             const ext = (/\.([a-z0-9]{2,4})(?:$|\?)/i.exec(t.title || t.url || "")?.[1] || book.format || "Audio").toUpperCase();

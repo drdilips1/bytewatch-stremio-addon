@@ -9,7 +9,7 @@ import { myRatings, rateKey } from '../lib/taste.js';
 import { aiReady, askAi } from '../lib/ai.js';
 import { fmtDuration, hashHue } from '../lib/format.js';
 import { openExternal } from '../sources/summaries.js';
-import { bioOf, yourBooks, moreBy, oftenWith, following, personKey, toggleFollow, personPhotos, photoOf, setPhoto, photoChoices, findPhoto, voiceSample, voiceSearch } from '../lib/people.js';
+import { bioOf, yourBooks, moreBy, oftenWith, following, personKey, toggleFollow, personPhotos, photoOf, setPhoto, photoChoices, findPhoto, voiceSample } from '../lib/people.js';
 
 const initials = (n) =>
   String(n || '')
@@ -211,17 +211,11 @@ In 2 short sentences: which book to start with and why, then what to try next. N
           >
             {followed ? '✓ Following' : '＋ Follow'}
           </button>
-          {/* Their voice: a sample they read, else a search for one (once the books have loaded). */}
-          {sample ? (
+          {/* Their voice: a sample of a book they read themselves — only when there is one. */}
+          {sample && (
             <button class="pp-btn" onClick={hear}>
               {playing ? '❚❚ Pause' : '▶ Hear the voice'}
             </button>
-          ) : (
-            more && (
-              <button class="pp-btn" onClick={() => openExternal(voiceSearch(name, role))}>
-                ▶ Hear the voice
-              </button>
-            )
           )}
           {aiReady() && (
             <button class="pp-btn" disabled={busy === 'start'} onClick={whereToStart}>

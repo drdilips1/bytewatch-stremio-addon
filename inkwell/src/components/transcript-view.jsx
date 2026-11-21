@@ -138,12 +138,22 @@ function EbookStatus({ b }) {
       ))}
     </div>
   );
+  // Every source gets a say: its best three (Knaben first, LibGen last), the rest on "Show all".
+  const [allHits, setAllHits] = useState(false);
+  const perSource = (list) => {
+    const n = {};
+    return list.filter((h) => (n[h.source] = (n[h.source] || 0) + 1) <= 3);
+  };
+  const listed = hits ? (allHits ? hits : perSource(hits)) : [];
+  const bookCover = player.getState().book?.cover || '';
   const srcList =
     hits &&
     (hits.length ? (
       <div class="tl-ebook-hits">
-        {hits.slice(0, 8).map((h) => (
+        {listed.map((h) => (
           <button class="tl-ebook-hit" disabled={!!busy} onClick={() => take(h)}>
+            {/* The result's own cover, else this book's — on the left, all lined up. */}
+            <img class="tl-ebook-thumb" src={h.r.cover || h.r.poster || h.r.thumbnail || bookCover} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.visibility = 'hidden')} />
             <span>
               <b>{h.r.title || h.file.name}</b>
               <small>
@@ -155,6 +165,11 @@ function EbookStatus({ b }) {
             {busy === hitKey(h) ? <span class="spinner small" /> : <em>Download</em>}
           </button>
         ))}
+        {hits.length > listed.length && (
+          <button class="link-btn" onClick={() => setAllHits(true)}>
+            Show all {hits.length} results
+          </button>
+        )}
       </div>
     ) : (
       <p class="tl-source">No EPUB {query.trim() ? `for “${query.trim()}”` : 'of this book'} in your sources — try other words.</p>
@@ -166,6 +181,7 @@ function EbookStatus({ b }) {
     setSheetOpen(false);
     setBusy('');
     setHits(null);
+    setAllHits(false);
     setMine(null);
     setQuery('');
     setAllPhone(false);

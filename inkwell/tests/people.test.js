@@ -3,7 +3,7 @@ vi.mock('../src/lib/store.js', () => ({ persisted: (k, v) => ({ get: () => v, se
 vi.mock('../src/lib/downloads.js', () => ({ downloads: { get: () => ({}) } }));
 vi.mock('../src/sources/local.js', () => ({ localCfg: { get: () => ({}) } }));
 vi.mock('../src/lib/http.js', () => ({ getJson: vi.fn(), qs: () => '' }));
-const { namesIn, hasPerson, voiceSample, voiceSearch } = await import('../src/lib/people.js');
+const { namesIn, hasPerson, voiceSample } = await import('../src/lib/people.js');
 
 describe('people', () => {
   it('splits names and drops "full cast"', () => {
@@ -29,10 +29,6 @@ describe('voiceSample (hear the person on their page)', () => {
   it('an author: only a book they read themselves', () => {
     expect(voiceSample('James Clear', books)?.title).toBe('Atomic Habits');
     expect(voiceSample('Frank Herbert', books)).toBe(null);
-  });
-  it('no sample: a search for their voice', () => {
-    expect(voiceSearch('Frank Herbert', 'author')).toContain('Frank%20Herbert%20interview');
-    expect(voiceSearch('Scott Brick', 'narrator')).toContain('narrator');
   });
 });
 

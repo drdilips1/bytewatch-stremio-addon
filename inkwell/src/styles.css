@@ -8765,6 +8765,7 @@ button.stats {
   color: inherit;
   text-align: left;
 }
+.tl-ebook-thumb { flex: none; width: 38px; height: 54px; border-radius: 5px; object-fit: cover; background: var(--surface-2); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18); }
 .tl-ebook-hit span {
   flex: 1;
   min-width: 0;

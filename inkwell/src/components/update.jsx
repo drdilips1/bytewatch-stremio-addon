@@ -176,6 +176,19 @@ export function UpdateCard() {
   const u = useStore(update);
   const [busy, setBusy] = useState(false);
   const avail = isApk && APP_VERSION !== 'dev' && num(u.latest) > num(APP_VERSION);
+  // The iPhone app (sideloaded with AltStore): its own build; new ones come through AltStore.
+  if (!isApk && Capacitor.getPlatform() === 'ios') {
+    return (
+      <section class="set-section">
+        <div class="update-card">
+          <div>
+            <b>Audiohub for iPhone {String(APP_VERSION).replace(/^ios-/, 'build ')}</b>
+            <small>New builds arrive through AltStore (My Apps → pull down to refresh). Your library stays.</small>
+          </div>
+        </div>
+      </section>
+    );
+  }
   if (!isApk) {
     return (
       <section class="set-section">

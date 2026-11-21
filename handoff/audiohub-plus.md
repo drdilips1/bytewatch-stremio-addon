@@ -80,3 +80,7 @@
 - Delete a book: press-and-hold → Delete… (forgetBook + download + Up next + Read later + ebook; folder books hidden via localCfg.hidden, Settings can bring them back; TorBox t/u/w and Real-Debrid torrents deleted from the cloud when confirmed — `deleteFromCloud`). Not built yet.
 - Book page: Listen (narrower) and the download button on one line (download on the right). Source boxes: class renamed src-group (src-sub clashed with each row's subtitle), snugger margins. Not built yet.
 - Book page: the audio files list moved up beside Ebook files, same rows (type / part chip, name, length · size, ▶); first five shown, Show all for more. Not built yet.
+- 21 Nov evening: book page audio files fold to the one you're on when there are more than 5;
+  iPhone Settings card says "Audiohub for iPhone build N" (not "web app"); Hear the voice only with a
+  real sample (YouTube fallback removed); Get the ebook lists the best 3 per source (LibGen no longer
+  pushed out by Knaben) with a cover thumbnail left, "Show all". Not built yet.
