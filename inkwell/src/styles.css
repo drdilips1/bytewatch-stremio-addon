@@ -12996,4 +12996,8 @@ html[data-motion='full'] .fp-art.playing .fp-glow { animation: mo-glow-in-full 0
 .grid .book-card:not(.broken) { width: auto; }
 /* iPhone: no blurred glow on every card (slow to draw in its web view); the thin line stays. */
 html.ios .book-card:not(.broken) { box-shadow: none; }
+/* An addon's own details (Book Hunt): under its row, full width. */
+.addon-row { flex-wrap: wrap; }
+.addon-details { flex-basis: 100%; display: grid; gap: 8px; padding: 2px 0 6px 46px; justify-items: start; }
+.addon-details .set-form { width: 100%; }
 

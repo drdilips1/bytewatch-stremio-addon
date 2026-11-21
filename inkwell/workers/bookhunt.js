@@ -10,6 +10,12 @@
 //    forum and reads each topic's file-host links (Rapidgator, Nitroflare…), which the app sends to
 //    your Real-Debrid / TorBox as it does with Mobilism on Android.
 //
+// Shared with others: each person enters their own Mobilism login and Anna's key in the app
+// (Settings → Addons → Book Hunt → Your details); the app sends them with each search and this
+// server uses them for that search only — never stored or logged. The worker's own secrets above
+// are used only for searches that bring no details of their own: to share this worker without
+// sharing your accounts, delete those secrets and enter yours in the app like everyone else.
+//
 // Both sites put a bot check in front of their pages. When it stops this server, the search says
 // so in "errors" and the app shows the other sources as usual. Nothing is stored or logged.
 //
@@ -20,7 +26,7 @@ const JSON_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Accept",
+  "Access-Control-Allow-Headers": "Content-Type, Accept, x-bh-annas-key, x-bh-mobilism-user, x-bh-mobilism-pass",
 };
 const UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36";
 const reply = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: JSON_HEADERS });
@@ -48,6 +54,15 @@ function manifest(origin) {
     description: "Anna's Archive and Mobilism, searched by your own server — works on iPhone and the web app too",
     icon: "https://annas-archive.org/favicon.ico",
     provides: ["source"],
+    // Each person's own accounts, kept in their app and sent with each search (see the top).
+    userConfig: {
+      note: "Your own accounts, kept on this device and sent with each search to the server running this addon (it doesn't store them). Leave empty to skip.",
+      fields: [
+        { key: "mobilismUser", label: "Mobilism username", header: "x-bh-mobilism-user" },
+        { key: "mobilismPass", label: "Mobilism password", header: "x-bh-mobilism-pass", secret: true },
+        { key: "annasKey", label: "Anna's Archive key (membership — fast downloads)", header: "x-bh-annas-key", secret: true },
+      ],
+    },
     rateLimit: { requestsPerMinute: 10, retryAfterMs: 6000 },
     matching: { algorithm: "fuzzy", threshold: 0.4 },
     adapters: {
@@ -62,6 +77,36 @@ function manifest(origin) {
     },
   };
 }
+
+// ---------------- whose accounts ----------------
+/** The searcher's own details (from the app), else the worker's own secrets. */
+function credsOf(request, env) {
+  const h = (n) => {
+    try {
+      return decodeURIComponent(request.headers.get(n) || "");
+    } catch {
+      return request.headers.get(n) || "";
+    }
+  };
+  const user = h("x-bh-mobilism-user");
+  const pass = h("x-bh-mobilism-pass");
+  const key = h("x-bh-annas-key");
+  const own = !user && !pass && !key;
+  return {
+    mobUser: user || (own ? env.MOBILISM_USER || "" : ""),
+    mobPass: pass || (own ? env.MOBILISM_PASS || "" : ""),
+    annasKey: key || (own ? env.ANNAS_KEY || "" : ""),
+    fromApp: !own,
+  };
+}
+const b64u = (s) => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64u = (s) => {
+  try {
+    return decodeURIComponent(escape(atob(String(s || "").replace(/-/g, "+").replace(/_/g, "/"))));
+  } catch {
+    return "";
+  }
+};
 
 // ---------------- Anna's Archive ----------------
 const ANNAS = ["https://annas-archive.org", "https://annas-archive.li", "https://annas-archive.se", "https://annas-archive.pk"];
@@ -91,7 +136,7 @@ export function annasResults(html, base) {
   return [...seen.values()].slice(0, 30);
 }
 
-async function annasSearch(q, env, origin) {
+async function annasSearch(q, env, origin, creds = {}) {
   const bases = [env.ANNAS_BASE, ...ANNAS].filter(Boolean);
   let why = "";
   for (const base of [...new Set(bases)]) {
@@ -112,7 +157,8 @@ async function annasSearch(q, env, origin) {
       language: x.language,
       sizeBytes: x.sizeBytes,
       cover: x.cover,
-      url: `${origin}/file?md5=${x.md5}&name=${encodeURIComponent(`${x.title}${x.author ? ` - ${x.author}` : ""}`.slice(0, 120))}&ext=${x.format.toLowerCase()}`,
+      // The searcher's own Anna's key rides along (only to this server) for their fast download.
+      url: `${origin}/file?md5=${x.md5}&name=${encodeURIComponent(`${x.title}${x.author ? ` - ${x.author}` : ""}`.slice(0, 120))}&ext=${x.format.toLowerCase()}${creds.annasKey ? (creds.fromApp ? `&ak=${b64u(creds.annasKey)}` : "&own=1") : ""}`,
       description: "Anna's Archive",
     }));
   }
@@ -122,11 +168,11 @@ async function annasSearch(q, env, origin) {
 // ---------------- a book's file, by its MD5 ----------------
 const LIBGEN = ["https://libgen.li", "https://libgen.gl", "https://libgen.vg", "https://libgen.la", "https://libgen.bz", "https://libgen.gs"];
 
-async function fileByMd5(md5, env) {
+async function fileByMd5(md5, env, key = "") {
   // Your Anna's membership: its fast download.
-  if (env.ANNAS_KEY) {
+  if (key) {
     for (const base of [env.ANNAS_BASE, ...ANNAS].filter(Boolean)) {
-      const r = await get(`${base}/dyn/api/fast_download.json?md5=${md5}&key=${encodeURIComponent(env.ANNAS_KEY)}`, { headers: { Accept: "application/json" } }).catch(() => null);
+      const r = await get(`${base}/dyn/api/fast_download.json?md5=${md5}&key=${encodeURIComponent(key)}`, { headers: { Accept: "application/json" } }).catch(() => null);
       const j = r ? await r.json().catch(() => null) : null;
       if (j?.download_url) return j.download_url;
     }
@@ -145,7 +191,9 @@ async function fileByMd5(md5, env) {
 async function file(url, env) {
   const md5 = /^[a-f0-9]{32}$/i.test(url.searchParams.get("md5") || "") ? url.searchParams.get("md5").toLowerCase() : "";
   if (!md5) return reply({ error: "No book" }, 400);
-  const link = await fileByMd5(md5, env);
+  // A key that came with the search (someone's own), else the worker's own.
+  const key = unb64u(url.searchParams.get("ak")) || (url.searchParams.get("own") === "1" ? env.ANNAS_KEY || "" : "");
+  const link = await fileByMd5(md5, env, key);
   if (!link) return reply({ error: "No mirror has this book right now — try again later" }, 502);
   const up = await get(link, {}, 120000);
   if (!up.ok) return reply({ error: `The mirror answered HTTP ${up.status}` }, 502);
@@ -158,8 +206,7 @@ async function file(url, env) {
 
 // ---------------- Mobilism ----------------
 const MOB = "https://forum.mobilism.org";
-let mobCookies = ""; // the forum session (kept while this worker copy runs)
-let mobAt = 0;
+const mobSessions = new Map(); // username -> { jar, at } (forum sessions, while this worker copy runs)
 
 function cookiesOf(res, prev = "") {
   const jar = new Map(prev.split(/;\s*/).filter(Boolean).map((c) => [c.split("=")[0], c]));
@@ -171,22 +218,23 @@ function cookiesOf(res, prev = "") {
   return [...jar.values()].join("; ");
 }
 
-async function mobSignIn(env) {
-  if (mobCookies && Date.now() - mobAt < 6 * 3600e3) return mobCookies;
+async function mobSignIn(creds) {
+  const kept = mobSessions.get(creds.mobUser);
+  if (kept && Date.now() - kept.at < 6 * 3600e3) return kept.jar;
   const form = await get(`${MOB}/ucp.php?mode=login`);
   let jar = cookiesOf(form);
   const html = await form.text();
   if (challenged(form.status, html)) throw new Error("Mobilism's bot check stopped the server");
   const hidden = (n) => new RegExp(`name="${n}"\\s+value="([^"]*)"`, "i").exec(html)?.[1] || "";
-  const body = new URLSearchParams({ username: env.MOBILISM_USER, password: env.MOBILISM_PASS, autologin: "on", login: "Login", redirect: "index.php", sid: hidden("sid"), form_token: hidden("form_token"), creation_time: hidden("creation_time") });
+  const body = new URLSearchParams({ username: creds.mobUser, password: creds.mobPass, autologin: "on", login: "Login", redirect: "index.php", sid: hidden("sid"), form_token: hidden("form_token"), creation_time: hidden("creation_time") });
   await sleep(1200); // phpBB refuses a form sent too fast after it was shown
   const res = await get(`${MOB}/ucp.php?mode=login`, { method: "POST", body, redirect: "manual", headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: jar, Referer: `${MOB}/ucp.php?mode=login` } });
   jar = cookiesOf(res, jar);
   const check = await get(`${MOB}/index.php`, { headers: { Cookie: jar } });
   jar = cookiesOf(check, jar);
-  if (!/mode=logout/.test(await check.text())) throw new Error("Mobilism didn't accept the sign-in (check MOBILISM_USER / MOBILISM_PASS)");
-  mobCookies = jar;
-  mobAt = Date.now();
+  if (!/mode=logout/.test(await check.text())) throw new Error("Mobilism didn't accept the sign-in (check the username and password)");
+  if (mobSessions.size > 50) mobSessions.clear();
+  mobSessions.set(creds.mobUser, { jar, at: Date.now() });
   return jar;
 }
 
@@ -216,9 +264,9 @@ export function mobTopic(html) {
   return { downloads, text: clean(post).slice(0, 600) };
 }
 
-async function mobilismSearch(q, env) {
-  if (!env.MOBILISM_USER || !env.MOBILISM_PASS) return [];
-  const jar = await mobSignIn(env);
+async function mobilismSearch(q, creds) {
+  if (!creds.mobUser || !creds.mobPass) return [];
+  const jar = await mobSignIn(creds);
   const r = await get(`${MOB}/search.php?keywords=${encodeURIComponent(q)}&sc=1&sr=topics&sf=titleonly`, { headers: { Cookie: jar } }, 25000);
   const html = await r.text();
   if (challenged(r.status, html)) throw new Error("Mobilism's bot check stopped the server");
@@ -246,14 +294,15 @@ async function mobilismSearch(q, env) {
 }
 
 // ---------------- both, at once ----------------
-async function search(url, env) {
+async function search(url, env, request) {
   const q = clean(url.searchParams.get("q") || "");
   if (!q) return reply({ results: [] });
   const errors = {};
+  const creds = credsOf(request, env);
   const within = (p, ms, name) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error(`${name} took too long`)), ms))]);
   const [aa, mob] = await Promise.all([
-    within(annasSearch(q, env, url.origin), 25000, "Anna's Archive").catch((e) => ((errors.annas = e.message), [])),
-    within(mobilismSearch(q, env), 35000, "Mobilism").catch((e) => ((errors.mobilism = e.message), [])),
+    within(annasSearch(q, env, url.origin, creds), 25000, "Anna's Archive").catch((e) => ((errors.annas = e.message), [])),
+    within(mobilismSearch(q, creds), 35000, "Mobilism").catch((e) => ((errors.mobilism = e.message), [])),
   ]);
   return reply({ results: [...mob, ...aa], errors });
 }
@@ -264,7 +313,7 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: JSON_HEADERS });
     try {
       if (url.pathname === "/addon.json" || url.pathname === "/") return reply(manifest(url.origin));
-      if (url.pathname === "/search") return await search(url, env);
+      if (url.pathname === "/search") return await search(url, env, request);
       if (url.pathname === "/file") return await file(url, env);
       if (url.pathname === "/health") return reply({ ok: true, annas: true, mobilism: !!(env.MOBILISM_USER && env.MOBILISM_PASS), annasKey: !!env.ANNAS_KEY });
       return reply({ error: "Not found" }, 404);

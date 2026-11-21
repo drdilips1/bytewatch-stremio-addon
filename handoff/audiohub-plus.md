@@ -119,3 +119,9 @@
   commands, resumes after interruptions. Added in audiohub-ios.yml. Android-only extras hidden on iOS
   (`nativeExtras`). Compiled in iOS build 119 (on-device test pending); if it misbehaves, drop it from the workflow
   line to fall back to the web-view audio.
+- Book Hunt shared safely: addons can declare `userConfig.fields` ({ key, label, header, secret });
+  Settings → Addons shows "Your details" (saved in the addon entry's `config` on the device) and
+  `userHeaders()` sends them with each search. The worker reads x-bh-mobilism-user / -pass and
+  x-bh-annas-key (per-user Mobilism sessions; the user's key rides in the file link as `ak`), and
+  uses its own secrets only for searches without details (`own=1` links). To share: redeploy
+  bookhunt.js, delete the worker's own secrets, re-add the addon, enter details in the app. Not built yet.

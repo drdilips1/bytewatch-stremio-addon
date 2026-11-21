@@ -238,6 +238,16 @@ async function searchBookshare(vars, { title = '', author = '', query = '' }) {
   return results;
 }
 
+/** The headers an addon asks your details in (manifest.userConfig.fields), from what you entered. */
+export function userHeaders(addon) {
+  const out = {};
+  for (const f of addon?.manifest?.userConfig?.fields || []) {
+    const v = String(addon?.config?.[f.key] ?? '').trim();
+    if (f.header && v) out[f.header] = encodeURIComponent(v);
+  }
+  return out;
+}
+
 const slowSources = new Map(); // addon id -> { fails, at }: sources that keep timing out
 async function searchOnce(addon, vars, key, { title = '', author = '', query = '' }, retry) {
   const src = addon.manifest.adapters.source;
@@ -246,7 +256,9 @@ async function searchOnce(addon, vars, key, { title = '', author = '', query = '
   const req = src.request || {};
   const method = (req.method || 'GET').toUpperCase();
   const url = fill(req.url, vars, true);
-  const headers = req.headers || {};
+  // Your own details for this addon (Book Hunt: your Mobilism login, your Anna's key), kept on
+  // this device and sent with each search in the headers the addon asks for.
+  const headers = { ...(req.headers || {}), ...userHeaders(addon) };
   // Torrent search sites can take a while; the second go waits longer. A source that timed out
   // twice in the last half hour (down, or very slow) gets only 10 s — the others aren't held up.
   const id = addon.manifest.id;

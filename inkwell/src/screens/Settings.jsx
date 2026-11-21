@@ -173,6 +173,40 @@ function UsenetCard() {
   );
 }
 
+/**
+ * An addon that asks for your own details (Book Hunt: your Mobilism login, your Anna's key):
+ * entered here, kept on this device (and your synced devices), sent with its searches.
+ */
+function AddonDetails({ a }) {
+  const fields = a.manifest.userConfig.fields;
+  const [open, setOpen] = useState(false);
+  const [v, setV] = useState(() => ({ ...(a.config || {}) }));
+  const filled = fields.some((f) => String(a.config?.[f.key] || '').trim());
+  const save = () => {
+    addons.set((list) => list.map((x) => (x.manifest?.id === a.manifest.id ? { ...x, config: Object.fromEntries(fields.map((f) => [f.key, String(v[f.key] || '').trim()])) } : x)));
+    setOpen(false);
+    toast('Saved — used for its next searches');
+  };
+  return (
+    <div class="addon-details">
+      <button class="pill small" onClick={() => setOpen(!open)}>
+        <Icon name="user" size={14} /> {filled ? 'Your details ✓' : 'Your details'}
+      </button>
+      {open && (
+        <div class="set-form">
+          {a.manifest.userConfig.note && <p class="muted small">{a.manifest.userConfig.note}</p>}
+          {fields.map((f) => (
+            <input type={f.secret ? 'password' : 'text'} value={v[f.key] || ''} placeholder={f.label} autocapitalize="off" autocorrect="off" spellcheck={false} onInput={(e) => setV({ ...v, [f.key]: e.currentTarget.value })} />
+          ))}
+          <button class="btn primary" onClick={save}>
+            Save
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Your own audiobook / ebook files: the folders the app reads, and adding more (also in Library). */
 function PhoneFilesCard() {
   const cfg = useStore(localSrc.localCfg);
@@ -1703,6 +1737,7 @@ function AddonsCard() {
           <button class="icon-btn" aria-label="Remove addon" onClick={() => addonSrc.uninstall(a.manifest.id)}>
             <Icon name="trash" size={18} />
           </button>
+          {a.manifest.userConfig?.fields?.length > 0 && <AddonDetails a={a} />}
         </div>
       ))}
       {suggestedSources().length > 0 && (
