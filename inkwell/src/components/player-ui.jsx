@@ -8,7 +8,7 @@ import { isNative as isNativeEngine } from '../lib/engine.js';
 import { Cover, toast, SourceBadge } from './common.jsx';
 import { Icon, SkipIcon } from './icons.jsx';
 import { PlayPauseIcon } from './motion-icons.jsx';
-import { ripple, openFrom, squash } from '../lib/motion.js';
+import { ripple, squash } from '../lib/motion.js';
 import { fmtTime } from '../lib/format.js';
 import { coverColor } from '../lib/color.js';
 import { nav, useBackClose } from '../lib/nav.js';
@@ -92,7 +92,7 @@ export function MiniPlayer() {
   if (!s.book) return null;
   const pct = s.duration ? (s.time / s.duration) * 100 : 0;
   return (
-    <div class="mini-player" style={color ? { '--dyn': color } : null} onClick={(e) => openFrom(e.currentTarget.querySelector('.mini-cover'), () => nav.openOverlay('player'))}>
+    <div class="mini-player" style={color ? { '--dyn': color } : null} onClick={() => nav.openOverlay('player')}>
       <div class="mini-progress" style={{ width: pct + '%' }} />
       <Cover book={s.book} class="mini-cover" />
       <div class="mini-meta">

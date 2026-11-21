@@ -5,6 +5,17 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-11-21',
+    title: 'Steadier in the car, and fixes from your notes',
+    items: [
+      ['🚗', 'Android Auto with the screen off', 'Skip buttons, picking a book and searching in the car keep working with the phone locked; the car shows “Loading…” with the book’s name while it gets ready instead of “Media isn’t available”.'],
+      ['🔎', 'Find and play finds your books', 'Books in your Library, on your Audiobookshelf or in TorBox / Real-Debrid under a longer name (“James Clear - Atomic Habits (2018) [MP3]”) are found and played, not called “not in your library”. A slow server no longer marks a book “Not yours yet”.'],
+      ['▶️', 'Press and hold → Play on Home', 'Works for books from Audible and Home’s lists too: your copy if you have one, else the best one from your sources.'],
+      ['📖', 'Get the ebook: Knaben first', 'Ebook torrents from Knaben Ebooks come first (fetched through your TorBox / Real-Debrid), then LibGen — trying every LibGen mirror when one is down.'],
+      ['⚡', 'The player opens at once', 'No more opening animation from the mini player (it flickered); the other effects stay.'],
+    ],
+  },
+  {
     id: '2026-11-17',
     title: 'A little motion',
     items: [

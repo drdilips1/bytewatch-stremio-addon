@@ -6,7 +6,20 @@
   `inkwell-v1.0.N` (Android, in-app update), `audiohub-ios-N` (unsigned IPA for AltStore).
 - Latest: Android v1.0.232; iPhone build 112 (later iOS builds fail — Mac minutes used up).
 - Built in since v1.0.232 (not yet in a build): instant play (server place asked in the background),
-  glow fade on player open, Libby live availability, auto-send never re-sends backlog + skips torrents
+  glow fade on player background, Libby live availability, auto-send never re-sends backlog + skips torrents
   qBittorrent has, Goodreads clearer refusal + CSV hint, ebook cards, banner title fit, Play timing line.
 - Pending / feedback: see `inkwell/ROADMAP.md` (sections "Feedback 19 Nov", "Feedback 21 Nov", Usenet,
   book page people row, AudioYam items).
+- Done 21 Nov (not yet built; shared `inkwell/src/` code, used by Hearth / Duet / Audibrisk too):
+  - Android Auto, screen off: skip buttons seek on the phone itself (`setSkips`, no app JS needed);
+    the app's page is kept "visible" while playing or after the car connects (`MainActivity.onStop`,
+    `InkwellPlayerPlugin.wake`), so car picks / searches are answered; the car shows "Loading…" + the
+    book's name while the app prepares a pick (`setCarLoading`) instead of "Media isn't available".
+    Needs testing in the car.
+  - Find and play: `sameBook` (match.js, tested); server / cloud copies found by `findOwned` are taken
+    as they are, Library books count; Find books updates a book to "Yours" when a slow check answers.
+  - Long-press → Play on Home for catalogue books: `getAndPlay` (your copy, else best source).
+  - Player opens with no animation (cover fly / slide-up removed; background + glow fades kept).
+  - Get the ebook: Knaben Ebooks torrents included (through TorBox / Real-Debrid), Knaben first,
+    LibGen last; the phone's LibGen fallback tries every mirror.
+

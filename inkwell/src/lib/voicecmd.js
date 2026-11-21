@@ -4,7 +4,7 @@
 // Audiobookshelf and TorBox / Real-Debrid; it starts 30 seconds before the scene.
 import { askAi, parseJson, aiReady } from './ai.js';
 import { mainTitle, matches, words } from './match.js';
-import { progress, settings, bookmarks } from './store.js';
+import { progress, settings, bookmarks, library } from './store.js';
 import { downloads } from './downloads.js';
 import { localCfg } from '../sources/local.js';
 import { getDetails, findOwned } from '../sources/index.js';
@@ -12,7 +12,7 @@ import { heardLines } from './transcript.js';
 import * as player from './player.js';
 import { findOrder, placeOf } from './findorder.js';
 import { STOPWORDS } from './scenefind.js';
-import { surname } from './match.js';
+import { surname, sameBook } from './match.js';
 
 const LEAD = 30; // seconds before the scene
 const NOISE = new Set(['unabridged', 'abridged', 'audiobook', 'audio', 'book', 'a', 'novel', 'edition', 'mp3', 'm4b', 'by', 'read', 'narrated', 'the', 'and']);
@@ -68,21 +68,26 @@ async function findCopies(want, onHand = false) {
     const parts = [whole, ...whole.split(/\s+[-–—|]\s+/)];
     return parts.some((p) => words(p).length && words(p).every((w) => mine.has(w) || authorWords.has(w) || NOISE.has(w) || /^\d+$/.test(w)) && matches(t, p));
   };
-  const same = (b) => fits(b.title) || (!b.title && fits(b.rawName));
+  // Or simply this book under a longer name ("James Clear - Atomic Habits (2018) [MP3]").
+  const same = (b) => fits(b.title) || (!b.title && fits(b.rawName)) || sameBook(b, want.title, want.author || '');
   // The whole series in one audiobook ("Harry Potter (Pottermore)" for "Harry Potter and the
   // Philosopher's Stone"): it has the book too, tried after copies of the book itself.
   const series = (b) => !!mainTitle(b.title || '') && matches(mainTitle(b.title || ''), t);
   const out = [];
-  const add = (b, local = false) => audio(b) && (same(b) || series(b)) && !out.some((x) => x.b.uid === b.uid) && out.push({ b, local, loose: !same(b) });
+  // `found`: your server's / cloud's own search already judged it this book — taken as it is
+  // (checking it again here turned away real copies, and the book "wasn't in your library").
+  const add = (b, local = false, found = false) => audio(b) && (found || same(b) || series(b)) && !out.some((x) => x.b.uid === b.uid) && out.push({ b, local, loose: !found && !same(b) });
   add(player.getState().book);
   for (const b of localCfg.get().books || []) add(b, true);
   for (const d of Object.values(downloads.get() || {})) if (d?.status === 'done') add(d.book, true);
   for (const p of Object.values(progress.get() || {}).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))) add(p.book);
+  // Your Library too (books you added but never played).
+  for (const b of Object.values(library.get() || {})) if (b?.uid && !/^(pod|want|discover):/.test(b.uid)) add(b);
   // On the phone, downloaded or played before: no need to search your services (slow) first.
   if (!onHand && !out.some((x) => !x.loose)) {
     try {
       const owned = await findOwned({ title: want.title, author: want.author || '' });
-      for (const b of [...owned.cloud, ...owned.server]) add(b);
+      for (const b of [...owned.cloud, ...owned.server]) add(b, false, true);
     } catch {}
   }
   const first = settings.get().debridPreferred === 'realdebrid' ? 'rd' : 'tb';

@@ -27,7 +27,8 @@ export const getLinkIn = (html, at) => hrefsIn(html, at).find((l) => /get\.php\?
 export async function libgenByMd5(md5, firstTry = []) {
   if (!canDirect()) return '';
   const h = String(md5 || '').toLowerCase();
-  const tries = [...new Set([...firstTry, ...LIBGEN_MIRRORS.map((m) => `${m}/ads.php?md5=${h}`)])].slice(0, 5);
+  // Every mirror in turn (one that's down — HTTP 500, 522, a timeout — is just skipped).
+  const tries = [...new Set([...firstTry, ...LIBGEN_MIRRORS.map((m) => `${m}/ads.php?md5=${h}`)])];
   for (const u of tries) {
     const r = await visit(u).catch(() => null);
     if (!r || (r.status || 200) >= 400) continue;
@@ -40,7 +41,7 @@ export async function libgenByMd5(md5, firstTry = []) {
 /** The file's link for a LibGen file id (what the LibGen worker's /download?id=… is for). */
 export async function libgenById(id) {
   if (!canDirect() || !/^\d+$/.test(String(id || ''))) return '';
-  for (const m of LIBGEN_MIRRORS.slice(0, 4)) {
+  for (const m of LIBGEN_MIRRORS) {
     const r = await visit(`${m}/file.php?id=${id}`).catch(() => null);
     if (!r || (r.status || 200) >= 400) continue;
     const md5 = /(?:ads\.php|get\.php)[^"'<>]*[?&]md5=([a-f0-9]{32})/i.exec(r.html || '')?.[1] || /\bmd5\b[^a-f0-9]{0,40}([a-f0-9]{32})/i.exec(r.text || r.html || '')?.[1];

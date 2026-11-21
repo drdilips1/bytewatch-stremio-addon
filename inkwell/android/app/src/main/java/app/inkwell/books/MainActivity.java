@@ -43,6 +43,24 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception ignored) {}
     }
 
+    /**
+     * The screen went off (or another app came up) while a book plays or the car is connected:
+     * Android hides the app's page and slows it to a crawl, so after a minute or so the car's
+     * picks, searches and the app's own steps (the next part, your place) stop being answered.
+     * Tell the page it's still shown; Android sends "hidden" a moment after this, hence the
+     * second go.
+     */
+    @Override
+    public void onStop() {
+        super.onStop();
+        android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+        Runnable keep = () -> {
+            if (InkwellPlayerPlugin.wantsAwake()) InkwellPlayerPlugin.wake();
+        };
+        h.postDelayed(keep, 400);
+        h.postDelayed(keep, 2000);
+    }
+
     /** "Play … on Audiohub" from Google Assistant: hand the words to the player. */
     private void voice(Intent intent) {
         if (intent == null || !"android.media.action.MEDIA_PLAY_FROM_SEARCH".equals(intent.getAction())) return;

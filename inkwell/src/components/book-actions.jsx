@@ -105,6 +105,17 @@ export function BookActionsSheet() {
     try {
       const d = await details();
       const player = await import('../lib/player.js');
+      // A book from a catalogue (Audible, a list on Home) has nothing to play by itself: your
+      // copy if you have one, else the best one from your sources — as Find and play does.
+      if (!d?.tracks?.length && !d?.resolveTracks) {
+        close();
+        toast(`Looking for ${book.title}…`);
+        const { getAndPlay } = await import('../lib/getplay.js');
+        const r = await getAndPlay({ title: book.title, author: book.author || '' }, () => {});
+        if (r.none) nav.push('book', { book });
+        if (!r.playing) toast(r.message);
+        return;
+      }
       close();
       nav.openOverlay('player');
       player.playBook(d);

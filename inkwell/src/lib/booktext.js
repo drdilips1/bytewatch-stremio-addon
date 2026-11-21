@@ -5,7 +5,7 @@
 import { savedEbooks, loadCloudEbook, cloudReaderBook, directEbookFile, directReaderBook, probeEbook, isBadEbook } from './epub.js';
 import { localCfg } from '../sources/local.js';
 import { mainTitle, matches, words } from './match.js';
-import { persisted, progress, library } from './store.js';
+import { persisted, progress, library, settings } from './store.js';
 import { sameWork } from './works.js';
 import { findOrder, autoEbook } from './findorder.js';
 import { surname } from './match.js';
@@ -160,6 +160,9 @@ export async function findEbookInSources(book, query = '') {
     .filter((a) => a.manifest.contentType !== 'audiobook')
     .map((a) => a.manifest.name);
   if (!only.length) return [];
+  // Ebook torrents (Knaben Ebooks): fetched through your TorBox / Real-Debrid when picked.
+  const { preferredProvider } = await import('../sources/debrid.js');
+  const via = preferredProvider(settings.get().debridPreferred);
   let early = null;
   const ready = new Promise((res) => (early = res));
   // Your own words ("harry potter chamber of secrets"): every one of them in the result.
@@ -171,15 +174,20 @@ export async function findEbookInSources(book, query = '') {
       // A direct link from an ebook source with no file type given (Ink & Echo does that):
       // a candidate too — it's checked when picked.
       const unknown = !r.inApp && !(r.magnet || r.hash) && r.contentType === 'ebook' && /^https?:/i.test(r.link || '') && !directEbookFile(r);
-      const file = unknown ? { name: String(r.title || 'Book').slice(0, 90), format: '?', size: r.size || 0, resolve: async () => r.link } : !(r.magnet || r.hash) && directEbookFile(r);
+      const torrent = !!(r.magnet || r.hash) && !!via && r.seeders !== 0 && !AUDIO_TORRENT.test(`${r.title || ''} ${r.format || ''}`);
+      const file = torrent
+        ? { name: String(r.title || 'Book').slice(0, 90), format: /\bepub\b/i.test(`${r.title} ${r.format || ''}`) ? 'EPUB' : /\bpdf\b/i.test(`${r.title} ${r.format || ''}`) ? 'PDF' : '?', size: r.size || 0 }
+        : unknown
+          ? { name: String(r.title || 'Book').slice(0, 90), format: '?', size: r.size || 0, resolve: async () => r.link }
+          : !(r.magnet || r.hash) && directEbookFile(r);
       if (!file || (file.format !== 'EPUB' && file.format !== 'PDF' && file.format !== '?')) continue;
       if (t && !matches(t, `${r.title || ''} ${file.name}`)) continue;
       // A short title ("Civilization") is part of many other books' names: the author too.
       if (!query && sn && words(t).length < 3 && !words(`${r.title || ''} ${r.author || ''} ${file.name}`).includes(sn)) continue;
-      if (found.some((x) => x.r.link === r.link)) continue;
-      found.push({ r, file, source: name, book: directReaderBook(r, file, book) });
+      if (found.some((x) => (torrent ? x.r.magnet === r.magnet && x.r.hash === r.hash : x.r.link === r.link))) continue;
+      found.push(torrent ? { r, file, source: name, torrent: via, book } : { r, file, source: name, book: directReaderBook(r, file, book) });
       // A clear EPUB (title matches, author named): no need to wait for slower sources.
-      if (!query && file.format === 'EPUB' && (!sn || words(`${r.title || ''} ${r.author || ''} ${file.name}`).includes(sn))) early?.();
+      if (!query && !torrent && file.format === 'EPUB' && (!sn || words(`${r.title || ''} ${r.author || ''} ${file.name}`).includes(sn))) early?.();
     }
   };
   // Two searches, like the main search box: the clean title (no "Unabridged" etc.) with
@@ -195,8 +203,15 @@ export async function findEbookInSources(book, query = '') {
     new Promise((res) => setTimeout(res, 25000)),
   ]);
   const rank = { EPUB: 0, PDF: 1, '?': 2 };
-  return found.sort((a, b) => titleFit(a, t) - titleFit(b, t) || rank[a.file.format] - rank[b.file.format]);
+  // The book itself before summaries; then Knaben Ebooks first (the most dependable), other
+  // sources, LibGen last (its mirrors are often down) — each the best-fitting title first.
+  const key = (h) => (titleFit(h, t) >= 3 ? 100 : 0) + sourceRank(h.source) * 10 + titleFit(h, t);
+  return found.sort((a, b) => key(a) - key(b) || rank[a.file.format] - rank[b.file.format]);
 }
+
+const AUDIO_TORRENT = /\b(mp3|m4b|m4a|aac|flac|audiobook|audio ?book|unabridged|narrated)\b/i;
+/** Where a found ebook comes from, in the order they're offered: Knaben, others, LibGen. */
+export const sourceRank = (name) => (/knaben/i.test(name || '') ? 0 : /lib ?gen/i.test(name || '') ? 2 : 1);
 
 // How well a found ebook is the book itself (lower is better): its name starts with the
 // title (0), has it a little way in — publisher or series words first (1), or not at all
@@ -211,7 +226,18 @@ export function titleFit(hit, title) {
 }
 
 /** A found ebook ready to open: one of unknown type is fetched and checked first (EPUB / PDF only). */
-export async function readyHit(hit, book) {
+export async function readyHit(hit, book, onStatus = () => {}) {
+  // A torrent: fetched through your TorBox / Real-Debrid, its EPUB (else PDF) taken.
+  if (hit.torrent) {
+    const cloud = await import('../sources/debrid.js');
+    const { getDetails } = await import('../sources/index.js');
+    const stub = await cloud.prepareMagnet(hit.torrent, hit.r, onStatus, { ebook: true });
+    const details = await getDetails({ ...stub, title: book?.title || stub.title, author: book?.author || hit.r.author || stub.author, cover: book?.cover || stub.cover });
+    const files = details.ebooks || [];
+    const file = files.find((f) => f.format === 'EPUB') || files.find((f) => f.format === 'PDF');
+    if (!file) throw new Error(files.length ? `Only ${[...new Set(files.map((f) => f.format))].join(' / ')} in this one — the transcript needs an EPUB or PDF` : 'No ebook files in this one');
+    return cloudReaderBook(details, file);
+  }
   if (hit.file.format !== '?') return hit.book;
   const f = await probeEbook(hit.r);
   if (!f || (f.format !== 'EPUB' && f.format !== 'PDF')) throw new Error(f ? `That one is a ${f.format} file — the transcript needs an EPUB or PDF` : "That file isn't an ebook the app can read");
@@ -232,9 +258,9 @@ export function ebooksOnHand(book, query = '', { all: everything = false } = {})
 }
 
 /** Download a found ebook, keep it on the phone and use it for this audiobook's transcript. */
-export async function keepFoundEbook(audioUid, hit, book = null) {
+export async function keepFoundEbook(audioUid, hit, book = null, onStatus) {
   stopAutoEbook();
-  const eb = await readyHit(hit, book || hit.book);
+  const eb = await readyHit(hit, book || hit.book, onStatus);
   await loadCloudEbook(eb, { fresh: true });
   linkEbook(audioUid, eb);
 }

@@ -202,22 +202,42 @@ public class InkwellPlayerPlugin extends Plugin {
 
             @Override
             public void seekToNext() {
-                remote("next");
+                skipBy(skipForwardS, "next");
             }
 
             @Override
             public void seekToNextMediaItem() {
-                remote("next");
+                skipBy(skipForwardS, "next");
             }
 
             @Override
             public void seekToPrevious() {
-                remote("previous");
+                skipBy(-skipBackS, "previous");
             }
 
             @Override
             public void seekToPreviousMediaItem() {
-                remote("previous");
+                skipBy(-skipBackS, "previous");
+            }
+
+            // While the app prepares a book the car picked, the car sees "loading" and the
+            // book's name — not an empty, stopped player ("Media isn't available").
+            @Override
+            public int getPlaybackState() {
+                int st = super.getPlaybackState();
+                return carLoading != null && (st == Player.STATE_IDLE || st == Player.STATE_ENDED) ? Player.STATE_BUFFERING : st;
+            }
+
+            @Override
+            public boolean getPlayWhenReady() {
+                return carLoading != null || super.getPlayWhenReady();
+            }
+
+            @NonNull
+            @Override
+            public MediaMetadata getMediaMetadata() {
+                MediaMetadata m = carLoading;
+                return m != null && super.getMediaItemCount() == 0 ? m : super.getMediaMetadata();
             }
         };
 
@@ -295,6 +315,78 @@ public class InkwellPlayerPlugin extends Plugin {
     }
 
     // --------------------------------------------------------------- events
+
+    // Skip lengths (Settings), so the car's, headset's and lock screen's skip buttons work with
+    // the app asleep: the phone seeks by itself. Crossing into another part is left to the app.
+    private static volatile double skipForwardS = 30, skipBackS = 15;
+
+    @PluginMethod
+    public void setSkips(PluginCall call) {
+        skipForwardS = Math.max(5, call.getDouble("forward", 30.0));
+        skipBackS = Math.max(5, call.getDouble("back", 15.0));
+        call.resolve();
+    }
+
+    private void skipBy(double seconds, String action) {
+        if (player == null) return;
+        long pos = player.getCurrentPosition();
+        long dur = player.getDuration();
+        long to = pos + (long) (seconds * 1000);
+        if (dur != C.TIME_UNSET && to >= 0 && to < dur - 1000) {
+            player.seekTo(to);
+            emitProgress();
+            return;
+        }
+        if (to < 0 && player.getCurrentMediaItemIndex() == 0) {
+            player.seekTo(0);
+            emitProgress();
+            return;
+        }
+        remote(action);
+    }
+
+    // A book the car picked that the app is preparing: its name, shown in the car meanwhile.
+    @androidx.annotation.Nullable
+    static volatile MediaMetadata carLoading = null;
+
+    /** The car is waiting for the app (title, author) — or not any more (null). */
+    static void setCarLoading(@androidx.annotation.Nullable String title, @androidx.annotation.Nullable String author) {
+        InkwellPlayerPlugin p = instance;
+        if (p == null) return;
+        p.main.post(() -> {
+            carLoading = title == null ? null : new MediaMetadata.Builder().setTitle(title).setArtist(author == null ? "" : author).setSubtitle("Loading…").build();
+            // Nothing playing meanwhile: a real change on the (idle) player, so the session
+            // tells the car what it now reads. A book that is playing just carries on.
+            ExoPlayer x = p.player;
+            if (x == null) return;
+            int st = x.getPlaybackState();
+            if (st != Player.STATE_IDLE && st != Player.STATE_ENDED) return;
+            x.setPlayWhenReady(title == null);
+            x.setPlayWhenReady(title != null);
+        });
+    }
+
+    /** Playing, or the car connected lately: keep the app's page awake with the screen off. */
+    static boolean wantsAwake() {
+        InkwellPlayerPlugin p = instance;
+        if (p == null) return false;
+        return (p.player != null && p.player.getPlayWhenReady()) || System.currentTimeMillis() - PlaybackService.carSeenAt < 6 * 3600 * 1000L;
+    }
+
+    /** Make the app's page carry on as if on screen (Android slows a hidden page to a crawl). */
+    static void wake() {
+        InkwellPlayerPlugin p = instance;
+        if (p == null || p.getBridge() == null) return;
+        p.main.post(() -> {
+            try {
+                android.webkit.WebView w = p.getBridge().getWebView();
+                if (w == null) return;
+                w.resumeTimers();
+                w.onResume();
+                w.dispatchWindowVisibilityChanged(android.view.View.VISIBLE);
+            } catch (Exception ignored) {}
+        });
+    }
 
     private void remote(String action) {
         JSObject o = new JSObject();
@@ -742,6 +834,7 @@ public class InkwellPlayerPlugin extends Plugin {
         JSObject o = new JSObject();
         o.put("query", query);
         if (book != null) o.put("id", book.optString("id"));
+        wake();
         p.main.post(() -> p.notifyListeners("voicePlay", o, true));
     }
 
@@ -759,16 +852,8 @@ public class InkwellPlayerPlugin extends Plugin {
         // Did the app answer? (Asleep in the background, it doesn't — the log says so.)
         final long asked = System.currentTimeMillis();
         carAsked = asked;
-        p.main.post(() -> {
-            p.notifyListeners("carPlay", o, true);
-            // Its screen woken in case Android paused it.
-            try {
-                if (p.getBridge() != null && p.getBridge().getWebView() != null) {
-                    p.getBridge().getWebView().resumeTimers();
-                    p.getBridge().getWebView().onResume();
-                }
-            } catch (Exception ignored) {}
-        });
+        wake(); // its page woken first, in case Android paused it
+        p.main.post(() -> p.notifyListeners("carPlay", o, true));
         p.main.postDelayed(() -> {
             if (carAsked == asked) CarCatalog.log(p.getContext(), "the app didn't answer within 5 s (asleep in the background?)");
         }, 5000);
@@ -791,6 +876,7 @@ public class InkwellPlayerPlugin extends Plugin {
         JSObject o = new JSObject();
         o.put("query", query);
         o.put("token", token);
+        wake();
         p.main.post(() -> p.notifyListeners("carSearch", o, true));
         try {
             org.json.JSONArray a = new org.json.JSONArray(f.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS));

@@ -66,9 +66,17 @@ public class PlaybackService extends MediaLibraryService {
         }
     }
 
+    // When a car (or another outside controller) last connected: while it's recent, the app's
+    // page is kept awake with the screen off, so picks and searches in the car are answered.
+    static volatile long carSeenAt = 0;
+
     @Nullable
     @Override
     public MediaLibrarySession onGetSession(MediaSession.ControllerInfo controllerInfo) {
+        if (!getPackageName().equals(controllerInfo.getPackageName()) && controllerInfo.getPackageName().contains("gearhead")) {
+            carSeenAt = System.currentTimeMillis();
+            InkwellPlayerPlugin.wake();
+        }
         // The app is running: its own player serves the car. Else (app closed) a car-only one.
         if (session == null && !InkwellPlayerPlugin.ensureForCar()) {
             makeOwn();

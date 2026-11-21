@@ -424,6 +424,17 @@ export function applyAudio() {
   engine.setBoost?.(boost ?? s.boost ?? 0)?.catch?.(() => {});
 }
 applyAudio();
+// The skip lengths, also for the car's and headset's skip buttons (the phone does those itself).
+let skipsSent = '';
+const sendSkips = () => {
+  const s = settings.get();
+  const key = `${s.skipForward || 30}/${s.skipBack || 15}`;
+  if (key === skipsSent) return;
+  skipsSent = key;
+  engine.setSkips?.(s.skipForward || 30, s.skipBack || 15)?.catch?.(() => {});
+};
+sendSkips();
+settings.subscribe(sendSkips);
 export function setAudio(patch) {
   settings.patch(patch);
   if ('boost' in patch) savePref({ boost: patch.boost });

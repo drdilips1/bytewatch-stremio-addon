@@ -511,6 +511,11 @@ public class CarLibrary implements MediaLibraryService.MediaLibrarySession.Callb
         SettableFuture<MediaSession.MediaItemsWithStartPosition> f = SettableFuture.create();
         pending = f;
         pendingId = id;
+        // The car shows "Loading…" with the book's name meanwhile, not "Media isn't available".
+        InkwellPlayerPlugin.setCarLoading(title, null);
+        f.addListener(() -> {
+            if (pending == null) InkwellPlayerPlugin.setCarLoading(null, null);
+        }, com.google.common.util.concurrent.MoreExecutors.directExecutor());
         final long t0 = System.currentTimeMillis();
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             if (pending != f) return;

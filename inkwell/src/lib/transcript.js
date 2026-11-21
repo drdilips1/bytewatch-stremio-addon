@@ -138,11 +138,11 @@ import('./epub.js').then(({ savedEbooks }) =>
 );
 
 /** Download one of those, keep it, and show its words in the transcript. */
-export async function takeEbook(hit) {
+export async function takeEbook(hit, onStatus) {
   const ps = player.getState();
   if (!ps.book) return;
   const { keepFoundEbook } = await import('./booktext.js');
-  await keepFoundEbook(ps.book.uid, hit, ps.book);
+  await keepFoundEbook(ps.book.uid, hit, ps.book, onStatus);
   bookTextFor(ps.book, true);
 }
 let locate = null;

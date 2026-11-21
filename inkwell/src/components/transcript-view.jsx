@@ -86,7 +86,7 @@ function EbookStatus({ b }) {
   };
   const [prog, setProg] = useState(''); // "2.1 MB · 45%" while the tapped ebook downloads
   const take = async (h) => {
-    setBusy(h.r.link);
+    setBusy(hitKey(h));
     setProg('');
     const mb = (n) => `${(n / 1048576).toFixed(1)} MB`;
     // Only this file's download (the first one that starts after the tap), out of its size —
@@ -100,10 +100,10 @@ function EbookStatus({ b }) {
       setProg(p.done ? 'Reading the book…' : total ? `${mb(Math.min(p.got, total))} of ${mb(total)} · ${Math.min(99, Math.round((p.got / total) * 100))}%` : `${mb(p.got)} so far`);
     });
     try {
-      await takeEbook(h);
+      await takeEbook(h, (text) => setProg(text));
       close();
     } catch (e) {
-      toast(e?.message || String(e));
+      toast(e?.pending ? `${e.message} — tap it again in a minute` : e?.message || String(e));
       // Why it didn't attach, for Report a problem (the file's site, not its address).
       let host = '';
       try {
@@ -141,16 +141,17 @@ function EbookStatus({ b }) {
     hits &&
     (hits.length ? (
       <div class="tl-ebook-hits">
-        {hits.slice(0, 6).map((h) => (
+        {hits.slice(0, 8).map((h) => (
           <button class="tl-ebook-hit" disabled={!!busy} onClick={() => take(h)}>
             <span>
               <b>{h.r.title || h.file.name}</b>
               <small>
-                {h.file.format === '?' ? 'Type unknown (checked when picked)' : h.file.format}
-                {busy === h.r.link && prog ? ` · ${prog}` : <>{h.r.size ? ` · ${(h.r.size / 1048576).toFixed(1)} MB` : ''} · {h.source}</>}
+                {h.file.format === '?' ? (h.torrent ? 'Ebook torrent' : 'Type unknown (checked when picked)') : h.file.format}
+                {h.torrent ? ` · via your ${h.torrent === 'torbox' ? 'TorBox' : 'Real-Debrid'}` : ''}
+                {busy === hitKey(h) && prog ? ` · ${prog}` : <>{h.r.size ? ` · ${(h.r.size / 1048576).toFixed(1)} MB` : ''} · {h.source}</>}
               </small>
             </span>
-            {busy === h.r.link ? <span class="spinner small" /> : <em>Download</em>}
+            {busy === hitKey(h) ? <span class="spinner small" /> : <em>Download</em>}
           </button>
         ))}
       </div>
@@ -241,6 +242,9 @@ function EbookStatus({ b }) {
     </div>
   );
 }
+
+// One found ebook (a link, or a torrent's magnet), for showing which one is downloading.
+const hitKey = (h) => h.r.link || h.r.magnet || h.r.hash || h.file.name;
 
 function PickSheet({ close, children }) {
   useBackClose(true, close);

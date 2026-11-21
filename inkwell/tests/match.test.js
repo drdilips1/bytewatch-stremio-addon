@@ -1,6 +1,6 @@
 // Title matching: phone copies, search titles, copycats, "another book".
 import { describe, it, expect } from 'vitest';
-import { words, mainTitle, searchTitle, surname, cleanAuthor, matches, otherBook, samePhoneBook, sinkCopycats } from '../src/lib/match.js';
+import { words, mainTitle, searchTitle, surname, cleanAuthor, matches, otherBook, samePhoneBook, sinkCopycats, sameBook } from '../src/lib/match.js';
 
 describe('words / mainTitle', () => {
   it('ignores case, accents, punctuation and small words', () => {
@@ -115,5 +115,20 @@ describe('author names with degrees', () => {
   it('finds the real surname', () => {
     expect(surname('Brené Brown PhD LMSW')).toBe('brown');
     expect(surname('Gabor Maté MD')).toBe('maté');
+  });
+});
+
+describe('sameBook (a copy you have is this book)', () => {
+  it('takes the book under a longer release name', () => {
+    expect(sameBook({ title: 'James Clear - Atomic Habits (2018) [MP3]' }, 'Atomic Habits', 'James Clear')).toBe(true);
+    expect(sameBook({ title: 'Atomic.Habits.Unabridged.MP3' }, 'Atomic Habits: An Easy & Proven Way', '')).toBe(true);
+    expect(sameBook({ title: 'Dune', author: 'Frank Herbert' }, 'Dune', 'Frank Herbert')).toBe(true);
+  });
+
+  it('turns away another book borrowing the title, or another author', () => {
+    expect(sameBook({ title: 'The Secret History' }, 'The Secret', 'Rhonda Byrne')).toBe(false);
+    expect(sameBook({ title: 'Dune Messiah' }, 'Dune', 'Frank Herbert')).toBe(false);
+    expect(sameBook({ title: 'Dune', author: 'Someone Else' }, 'Dune', 'Frank Herbert')).toBe(false);
+    expect(sameBook({ title: 'Atomic Habits' }, '', '')).toBe(false);
   });
 });

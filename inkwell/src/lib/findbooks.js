@@ -224,19 +224,27 @@ export async function matchBooks(list, onEach = null) {
     // you never opened in the app is yours too).
     if (!mine) {
       const late = (ms, v) => new Promise((r) => setTimeout(() => r(v), ms));
+      const ownedJob = import('../sources/index.js').then((m) => (quick ? m.findOwnedQuick : m.findOwned)({ title: want.title, author: want.author || '' })).catch(() => null);
+      const pick = (owned) => {
+        const theirs = [...(owned?.server || []), ...(owned?.cloud || [])];
+        return theirs.find((b) => b.kind !== 'text') || theirs[0] || null;
+      };
       const [found, owned] = await Promise.all([
         Promise.race([audible.search(`${mainTitle(want.title)} ${want.author || ''}`.trim()).catch(() => []), late(8000, [])]),
-        Promise.race([
-          import('../sources/index.js').then((m) => (quick ? m.findOwnedQuick : m.findOwned)({ title: want.title, author: want.author || '' })).catch(() => null),
-          late(9000, null),
-        ]),
+        Promise.race([ownedJob, late(onEach ? 9000 : 20000, undefined)]),
       ]);
       hit = (found || []).find((b) => matches(mainTitle(want.title), b.title)) || null;
-      const theirs = [...(owned?.server || []), ...(owned?.cloud || [])];
-      mine = theirs.find((b) => b.kind !== 'text') || theirs[0] || null;
+      mine = pick(owned);
+      // Your server or cloud answered slowly (eight books looked up at once): when it does, a
+      // copy it has still marks the book yours — not "Not yours yet" for good.
+      if (owned === undefined && onEach) {
+        ownedJob.then((o) => {
+          const got = pick(o);
+          if (got) onEach(i, mark(want, hit, got));
+        });
+      }
     }
-    const book = hit || mine || { uid: `want:${mainTitle(want.title).toLowerCase()}`, kind: 'discover', title: want.title, author: want.author };
-    const m = { want, book, mine, place: mine ? PLACE[String(mine.source || mine.uid || '').split(':')[0]] || 'Library' : '', sure: !!hit || !!mine };
+    const m = mark(want, hit, mine);
     onEach?.(i, m);
     return m;
   };
@@ -253,6 +261,12 @@ export async function matchBooks(list, onEach = null) {
   );
   return out;
 }
+/** A found title, matched: { want, book, mine, place, sure }. */
+function mark(want, hit, mine) {
+  const book = hit || mine || { uid: `want:${mainTitle(want.title).toLowerCase()}`, kind: 'discover', title: want.title, author: want.author };
+  return { want, book, mine, place: mine ? PLACE[String(mine.source || mine.uid || '').split(':')[0]] || 'Library' : '', sure: !!hit || !!mine };
+}
+
 /** A found title before it's matched (shown at once while matching). */
 export const pending = (want) => ({ want, book: { uid: `want:${mainTitle(want.title).toLowerCase()}`, kind: 'discover', title: want.title, author: want.author }, mine: null, place: '', sure: false, matching: true });
 

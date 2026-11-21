@@ -102,6 +102,22 @@ export function otherBook(resultTitle, title, author) {
 
 
 /**
+ * A copy you have is this book: all the title's words are in its name and it isn't another
+ * book borrowing them — "James Clear - Atomic Habits (2018) [MP3]" and "Atomic.Habits.MP3"
+ * are "Atomic Habits"; "The Secret History" is not "The Secret". When both say an author,
+ * the surname has to fit.
+ */
+export function sameBook(copy, title, author = '') {
+  const t = mainTitle(title);
+  const name = `${copy?.title || ''} ${copy?.rawName || ''}`;
+  if (!words(t).length || !matches(t, name)) return false;
+  const own = copy?.title || copy?.rawName || '';
+  if (otherBook(own, t, author) && (!copy?.rawName || otherBook(copy.rawName, t, author))) return false;
+  const sn = surname(author);
+  return !sn || !copy?.author || words(`${copy.author} ${name}`).includes(sn);
+}
+
+/**
  * A phone book that is this book: its title (or folder name, after an author name in front)
  * starts with this book's main title — "12 Rules for Life An Antidote to Chaos" for
  * "12 Rules for Life", but not "Beyond Order: 12 More Rules for Life" — and the author fits.

@@ -66,6 +66,8 @@ function nativeEngine(h) {
     },
     setSkipSilence: (on) => Native.setSkipSilence({ on: !!on }),
     setBoost: (db) => Native.setBoost({ db: Number(db) || 0 }),
+    /** Skip lengths, so the car's / headset's skip buttons work with the app asleep. */
+    setSkips: (forward, back) => Native.setSkips({ forward: Number(forward) || 30, back: Number(back) || 15 }),
     /** The parts after the current one, played next by the phone itself. */
     queue: (items) => Native.queue({ items }),
     play: () => ((wantPlay = true), Native.play()),
