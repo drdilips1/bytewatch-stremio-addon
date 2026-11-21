@@ -362,7 +362,7 @@ export function Library() {
       ) : (
         <>
       {!detail ? (
-        <LibraryHome groups={groups} shelves={shelves} stats={stats} libby={lb.connected()} openTab={openTab} />
+        <LibraryHome groups={groups} shelves={shelves} stats={stats} libby={lb.connected()} openTab={openTab} openPhone={localSrc.available ? () => (libView.set((v) => ({ ...v, tab: 'audio', where: 'phone', open: true })), window.scrollTo(0, 0)) : null} />
       ) : (
         <>
       <div class="segmented scroll lib-tabs">
@@ -543,7 +543,7 @@ function ListView({ items, prog }) {
 }
 
 /** Run a phone-books action with a busy flag and a short result toast. */
-function usePhoneRun() {
+export function usePhoneRun() {
   const [busy, setBusy] = useState('');
   const run = (label, fn) => async () => {
     setBusy(label);
@@ -561,7 +561,7 @@ function usePhoneRun() {
 }
 
 /** Choose folder / Add EPUB or PDF files / Rescan. */
-function PhoneButtons({ busy, run }) {
+export function PhoneButtons({ busy, run }) {
   const cfg = useStore(localSrc.localCfg);
   return (
     <div class="phone-actions">

@@ -65,15 +65,41 @@ export function GlassCard({ book, prog = null, rating = null, onPlay, small = fa
   // Time left, short enough for the panel ("16h", "2h 14m", "45m").
   const rest = prog?.total ? Math.max(0, prog.total - (prog.global || 0)) : 0;
   const left = rest >= 36000 ? `${Math.round(rest / 3600)}h` : rest > 0 ? fmtDuration(rest) : '';
-  const lengthLine = [length && fmtDuration(length), format].filter(Boolean).join(' · ');
   const person = (e, name, role) => (e.stopPropagation(), nav.push('person', { name, role }));
-  const panel = (icon, label, value, onClick) =>
-    value && (
-      <div class={'gc-pill' + (onClick && !small ? ' tap' : '')} role={onClick && !small ? 'button' : undefined} onClick={small ? undefined : onClick}>
-        <Icon name={icon} size={small ? 13 : 18} />
+  // The panels, most useful first: who wrote it, who reads it, how long (or how far you are),
+  // the file type when there's room, and where it is. Icons only — no words like "Author".
+  const max = small ? 4 : 5;
+  const progress = prog && pct > 0;
+  let list = [
+    author && { k: 'author', icon: 'feather', value: author, title: 'Author', tap: (e) => person(e, firstOnly(b.author), 'author') },
+    narrator && { k: 'narrator', icon: 'headphones', value: narrator, title: 'Narrator', tap: (e) => person(e, firstOnly(b.narrator || meta?.narrator), 'narrator') },
+    progress ? { k: 'progress' } : length && { k: 'length', icon: 'clock', value: fmtDuration(length), title: 'Length' },
+    format && { k: 'format', icon: 'bookmark', value: format, title: 'File type' },
+    where && { k: 'where', icon: 'cloud', value: where, title: 'Where it is' },
+  ].filter(Boolean);
+  // Short of room: the file type joins the length ("10h 39m · MP3"), else it's left out.
+  if (list.length > max) {
+    const len = list.find((x) => x.k === 'length');
+    if (len && format) len.value = `${len.value} · ${format}`;
+    list = list.filter((x) => x.k !== 'format');
+  }
+  list = list.slice(0, max);
+  const panel = (x) =>
+    x.k === 'progress' ? (
+      <div class="gc-pill">
+        <Icon name={ebook ? 'book' : 'play'} size={small ? 13 : 18} />
+        <div class="gc-where">
+          <small>{left ? `${pct}% · ${left} left` : `${pct}%`}</small>
+          <div class="gc-bar">
+            <i style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      </div>
+    ) : (
+      <div class={'gc-pill' + (x.tap && !small ? ' tap' : '')} title={x.title} aria-label={`${x.title}: ${x.value}`} role={x.tap && !small ? 'button' : undefined} onClick={small ? undefined : x.tap}>
+        <Icon name={x.icon} size={small ? 13 : 18} />
         <div>
-          {!small && <small>{label}</small>}
-          <b>{value}</b>
+          <b>{x.value}</b>
         </div>
       </div>
     );
@@ -83,25 +109,8 @@ export function GlassCard({ book, prog = null, rating = null, onPlay, small = fa
       <div class="gc-cover">
         <Cover book={b} eager={!small} />
       </div>
-      {/* Author, narrator, length (or where you are), and where it is — all on the right. */}
-      <div class="gc-pills">
-        {panel('user', 'Author', author, author && ((e) => person(e, firstOnly(b.author), 'author')))}
-        {panel('mic', 'Narrator', narrator, narrator && ((e) => person(e, firstOnly(b.narrator || meta?.narrator), 'narrator')))}
-        {prog && pct > 0 ? (
-          <div class="gc-pill">
-            <Icon name={ebook ? 'book' : 'play'} size={small ? 13 : 18} />
-            <div class="gc-where">
-              <small>{left ? `${pct}% · ${left} left` : `${pct}%`}</small>
-              <div class="gc-bar">
-                <i style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          </div>
-        ) : (
-          panel('clock', 'Length', lengthLine)
-        )}
-        {panel('cloud', 'From', where)}
-      </div>
+      {/* Author, narrator, length (or where you are), file type and where it is — on the right. */}
+      <div class="gc-pills">{list.map(panel)}</div>
       <div class="gc-strip">
         <b>{b.title}</b>
         {stars > 0 && <span class="gc-rate">★ {stars.toFixed(1)}</span>}

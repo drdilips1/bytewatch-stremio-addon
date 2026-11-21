@@ -59,4 +59,8 @@
   under the card (match %, StoryShots S and the facts lines are gone in glass mode). Big card: the
   source is a "From" panel, panel borders fainter. Discover's "Picked for your taste" is a glass card.
   Not built yet.
+- Glass panels: icons only (feather = author, headphones = narrator, clock, bookmark = file type,
+  cloud = where), file type its own panel when there's room (5 big / 4 small), else joined to the
+  length. Own files easy to find: Settings → "Your files on this phone" (first under Where your books
+  are: folders, Add folder / Add files / Rescan, Show them) and a Library home button. Not built yet.
 

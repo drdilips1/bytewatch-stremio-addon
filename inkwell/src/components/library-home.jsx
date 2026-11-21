@@ -43,7 +43,7 @@ function ContinueCard({ book }) {
   return <GlassCard book={book} prog={p || { percent: 0 }} onPlay={go} />;
 }
 
-export function LibraryHome({ groups, shelves, stats, libby, openTab }) {
+export function LibraryHome({ groups, shelves, stats, libby, openTab, openPhone }) {
   const inProgress = groups.progress.filter((b) => b.source !== 'pod');
   const [top, ...rest] = inProgress;
   const seen = new Set();
@@ -63,6 +63,12 @@ export function LibraryHome({ groups, shelves, stats, libby, openTab }) {
       <Shelf title="Podcast episodes" count={groups.podcasts.length} items={groups.podcasts} onAll={() => openTab('podcasts')} />
       <Shelf title="Finished" count={groups.finished.length} items={groups.finished} onAll={() => openTab('finished')} />
       <div class="lh-links">
+        {/* Your own audiobook / ebook files and folders on the phone, one tap away. */}
+        {openPhone && (
+          <button class="pill small" onClick={openPhone}>
+            <Icon name="headphones" size={14} /> Your files on this phone
+          </button>
+        )}
         {!groups.podcasts.length && (
           <button class="pill small" onClick={() => openTab('podcasts')}>
             <Icon name="mic" size={14} /> Your podcasts

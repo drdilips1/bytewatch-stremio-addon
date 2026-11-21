@@ -2,6 +2,8 @@ import { useContext, useEffect, useRef, useState } from 'preact/hooks';
 import { createContext } from 'preact';
 import { nav } from '../lib/nav.js';
 import { MORE } from '../sources/moredebrid.js';
+import * as localSrc from '../sources/local.js';
+import { PhoneButtons, usePhoneRun } from './Library.jsx';
 import { LibbySettings } from '../components/libby-settings.jsx';
 import { ssBadges } from '../sources/storyshots.js';
 import { Icon } from '../components/icons.jsx';
@@ -55,6 +57,46 @@ function Section({ icon, title, keys = '', children }) {
       </button>
       {open && <div class="set-card">{children}</div>}
     </section>
+  );
+}
+
+/** Your own audiobook / ebook files: the folders the app reads, and adding more (also in Library). */
+function PhoneFilesCard() {
+  const cfg = useStore(localSrc.localCfg);
+  const [busy, run] = usePhoneRun();
+  if (!localSrc.available) return <p class="muted">Audiobooks and ebooks already on the phone are played from the Android and iPhone apps.</p>;
+  const books = cfg.books || [];
+  const au = books.filter((b) => b.kind !== 'text').length;
+  return (
+    <>
+      <p class="muted">
+        {localSrc.isIos
+          ? 'Your own audiobooks and ebooks: put them in the Files app → On My iPhone → Audiohub (a folder per book), or add them here. They play straight from the phone.'
+          : 'Your own audiobooks and ebooks: choose the folder they’re in (e.g. Audiobooks or Download), or add single EPUB / PDF files. They play straight from the phone.'}
+      </p>
+      {cfg.folders.length > 0 && (
+        <div class="set-row">
+          <div>
+            <b>{cfg.folders.map((f) => f.name).join(', ')}</b>
+            <small>
+              {au} audiobook{au === 1 ? '' : 's'} · {books.length - au} ebook{books.length - au === 1 ? '' : 's'}
+            </small>
+          </div>
+          <button
+            class="pill small"
+            onClick={() =>
+              import('./Library.jsx').then((m) => {
+                m.libView.set((v) => ({ ...v, tab: 'audio', where: 'phone', open: true }));
+                nav.tab('library');
+              })
+            }
+          >
+            Show them
+          </button>
+        </div>
+      )}
+      <PhoneButtons busy={busy} run={run} />
+    </>
   );
 }
 
@@ -1684,16 +1726,6 @@ function PreferredDebrid() {
 // Things looked for in Settings that live elsewhere in the app: a way there.
 const ELSEWHERE = [
   {
-    words: 'phone folders local files storage my own audiobooks downloaded add folder device',
-    label: 'Your own audiobook files on this phone (folders)',
-    note: 'Library → Audiobooks → On this phone',
-    go: async () => {
-      const { libView } = await import('./Library.jsx');
-      libView.set((v) => ({ ...v, tab: 'audio', where: 'phone', open: true }));
-      nav.tab('library');
-    },
-  },
-  {
     words: 'downloads offline saved on phone storage space',
     label: 'Books saved on this phone (downloads)',
     note: 'Library → Audiobooks → Downloaded',
@@ -1776,6 +1808,9 @@ export function Settings() {
       </Section>
 
       <p class="set-group">Where your books are</p>
+      <Section icon="headphones" title="Your files on this phone" keys="local files folders storage phone own audiobooks downloaded mp3 m4b epub pdf add folder">
+        <PhoneFilesCard />
+      </Section>
       <Section icon="server" title="Audiobookshelf" keys="server files library abs sign in">
         <AbsCard />
       </Section>
