@@ -4,7 +4,7 @@
 - Build ("build"): dispatch `inkwell-apk.yml` and `audiohub-ios.yml` on the branch; when the APK
   release is out, dispatch `inkwell-web.yml` (its pages job failing is expected). Releases
   `inkwell-v1.0.N` (Android, in-app update), `audiohub-ios-N` (unsigned IPA for AltStore).
-- Latest: Android v1.0.234; iPhone build 115 (21 Nov — everything below is in them).
+- Latest: Android v1.0.235; iPhone build 116 (21 Nov — everything below is in them).
 - In v1.0.233 / iOS 114 (built 21 Nov): instant play (server place asked in the background),
   glow fade on player background, Libby live availability, auto-send never re-sends backlog + skips torrents
   qBittorrent has, Goodreads clearer refusal + CSV hint, ebook cards, banner title fit, Play timing line.
@@ -72,7 +72,7 @@
   (big and small, glass-card.jsx, Book cards setting, coverLight) are removed; Continue card, book
   page hero, Library Continue card, Discover pick and small covers are back to the 20 Nov look. Kept:
   a stronger glass sheen on all covers (`.cover::after`), and everything else from 21 Nov (service
-  rows on Home, source boxes, phone-files shortcuts, ♡ by 👍/👎…). Not built yet.
+  rows on Home, source boxes, phone-files shortcuts, ♡ by 👍/👎…). In v1.0.235.
 - Newest first: debrid rows sort by date added only (not last played); phone books carry the files'
   date (Android scan COLUMN_LAST_MODIFIED, iOS contentModificationDate → `addedAt`, one rescan on
   update: localBooks v3); new debrid services sort by date; Shelf's "Recent" sorts by addedAt.
