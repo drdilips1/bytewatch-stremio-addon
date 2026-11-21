@@ -4,7 +4,7 @@
 - Build ("build"): dispatch `inkwell-apk.yml` and `audiohub-ios.yml` on the branch; when the APK
   release is out, dispatch `inkwell-web.yml` (its pages job failing is expected). Releases
   `inkwell-v1.0.N` (Android, in-app update), `audiohub-ios-N` (unsigned IPA for AltStore).
-- Latest: Android v1.0.233; iPhone build 114 (21 Nov — everything below is in them).
+- Latest: Android v1.0.234; iPhone build 115 (21 Nov — everything below is in them).
 - In v1.0.233 / iOS 114 (built 21 Nov): instant play (server place asked in the background),
   glow fade on player background, Libby live availability, auto-send never re-sends backlog + skips torrents
   qBittorrent has, Goodreads clearer refusal + CSV hint, ebook cards, banner title fit, Play timing line.
@@ -58,13 +58,13 @@
   panels on the right (author, narrator, length or progress, where it is), title + ★ strip; nothing
   under the card (match %, StoryShots S and the facts lines are gone in glass mode). Big card: the
   source is a "From" panel, panel borders fainter. Discover's "Picked for your taste" is a glass card.
-  Not built yet.
+  In v1.0.234.
 - Glass panels: icons only (feather = author, headphones = narrator, clock, bookmark = file type,
   cloud = where), file type its own panel when there's room (5 big / 4 small), else joined to the
   length. Own files easy to find: Settings → "Your files on this phone" (first under Where your books
-  are: folders, Add folder / Add files / Rescan, Show them) and a Library home button. Not built yet.
+  are: folders, Add folder / Add files / Rescan, Show them) and a Library home button. In v1.0.234.
 - Home: every service has its own row(s) in "Your services" (TorBox, Real-Debrid, phone, AllDebrid,
   Premiumize, Debrid-Link — like Audiobookshelf); the combined "Recently added" row is gone; the
-  "Your books" count tiles stay. Source results: each source in its own box (name + count). Not built.
+  "Your books" count tiles stay. Source results: each source in its own box (name + count). In v1.0.234.
 
   Panel borders now very faint (0.07 white), softer fill.
