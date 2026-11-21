@@ -104,3 +104,4 @@
   `downloads`, which sourceaddons.js now maps → the existing TopicToCloud flow). Bot checks may block
   the server: errors come back in "errors". Parsers tested; not tried against the live sites (this
   sandbox can't reach them). In v1.0.236.
+- iPhone / web app: Anna's Archive, Mobilism and Bookshare (hidden-browser sources) are left out of searches there instead of erroring; Book Hunt covers them. Not built yet.

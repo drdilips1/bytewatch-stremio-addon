@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 // "Source" addons in the InkShelf declarative format: the manifest describes an
 // HTTP request (with {TITLE}/{AUTHOR}/{QUERY} placeholders) and how to map the
 // JSON response into results carrying a magnet link / info-hash. Inkwell hands
@@ -38,7 +39,11 @@ export const sourceLabel = (name) => name;
 // Leading tags some sources put on titles: "[EPUB] …", "M4B • Standard • ABB • …".
 const cleanTitle = (t) => String(t).replace(/^\s*\[[^\]]{1,24}\]\s*/, '').replace(/^(?:[A-Za-z0-9+]{2,10}\s*•\s*){2,4}/, '').trim() || String(t);
 
-export const sourceAddons = () => addons.get().filter((a) => a.kind === 'source');
+// Anna's Archive, Mobilism and Bookshare search in the Android app's hidden browser: elsewhere
+// (iPhone, the web app) they're left out quietly — the Book Hunt addon covers Anna's and Mobilism there.
+const IN_APP_ONLY = new Set(['mobilism', 'annas', 'bookshare']);
+const hiddenBrowser = () => Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('InkwellWeb');
+export const sourceAddons = () => addons.get().filter((a) => a.kind === 'source' && (!IN_APP_ONLY.has(a.special) || hiddenBrowser()));
 
 // ---- helpers ----------------------------------------------------------------
 function fill(v, vars, encode) {
