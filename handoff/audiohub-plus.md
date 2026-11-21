@@ -53,4 +53,10 @@
   `debrid.js` routes prepareMagnet / downloadLinks / addMagnetOnly / details / verify / addLink;
   `connectedProviders`, `providerName`; Settings has a card each and Default debrid lists every
   connected one. No instant-cache badges for the new ones (they show as "fetch via …").
+- After v1.0.233 (user feedback on the build): small covers are now the glass card itself
+  (`GlassCard small`, 272×164 in rows, one column of them in grids) — cover uncovered on the left,
+  panels on the right (author, narrator, length or progress, where it is), title + ★ strip; nothing
+  under the card (match %, StoryShots S and the facts lines are gone in glass mode). Big card: the
+  source is a "From" panel, panel borders fainter. Discover's "Picked for your taste" is a glass card.
+  Not built yet.
 

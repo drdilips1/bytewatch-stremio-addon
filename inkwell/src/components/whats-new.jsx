@@ -5,7 +5,7 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
-    id: '2026-11-21',
+    id: '2026-11-21b',
     title: 'Steadier in the car, and fixes from your notes',
     items: [
       ['🚗', 'Android Auto with the screen off', 'Skip buttons, picking a book and searching in the car keep working with the phone locked; the car shows “Loading…” with the book’s name while it gets ready instead of “Media isn’t available”.'],
@@ -13,8 +13,8 @@ export const CHANGES = [
       ['▶️', 'Press and hold → Play on Home', 'Works for books from Audible and Home’s lists too: your copy if you have one, else the best one from your sources.'],
       ['📖', 'Get the ebook: Knaben first', 'Ebook torrents from Knaben Ebooks come first (fetched through your TorBox / Real-Debrid), then LibGen — trying every LibGen mirror when one is down.'],
       ['⚡', 'The player opens at once', 'No more opening animation from the mini player (it flickered); the other effects stay.'],
-      ['🪟', 'Frosted-glass book card', 'Continue listening on Home and the top of a book page: the whole cover, with glass panels for the author, narrator, length and where you are in it, and the title and ★ rating along the bottom. Tap the author or narrator for their page.'],
-      ['🃏', 'Glass on the small covers too', 'Rows and Library: the title and ★ sit on the cover, with its length and format — or how far you are — in two small glass chips. Prefer the old look? Settings → Appearance → Book cards → Classic.'],
+      ['🪟', 'Frosted-glass book card', 'Continue listening on Home and the top of a book page: the whole cover, with glass panels for the author, narrator, length (or where you are in it) and where it is, and the title and ★ rating along the bottom. Tap the author or narrator for their page.'],
+      ['🃏', 'Glass cards everywhere', 'Rows, Library, search and Discover use the glass card too: the whole cover on the left, author, narrator, length (or how far you are) and where it is on the right, title and ★ along the bottom — nothing under the cover. Prefer the old look? Settings → Appearance → Book cards → Classic.'],
       ['☁️', 'Real-Debrid books on every phone', 'Books sent to Real-Debrid from a topic (Rapidgator and the like) now show on your other phones too — Real-Debrid’s own Downloads list is read, not just this phone’s. And every torrent shows, not only the newest 200.'],
       ['📱', 'Your own audiobooks on iPhone', 'Files app → On My iPhone → Audiohub: put audiobooks there (a folder per book), or tap Library → On this phone → Add folder / Add files. They play straight from the phone.'],
       ['🔌', 'AllDebrid, Premiumize, Debrid-Link', 'Connect them in Settings like TorBox and Real-Debrid: your cloud’s audiobooks show on Home, and Play from your sources fetches through whichever one you choose (Settings → Default debrid).'],

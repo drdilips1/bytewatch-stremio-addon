@@ -14,9 +14,9 @@ import { coverLight } from '../lib/color.js';
 import { fmtDuration } from '../lib/format.js';
 import { nav } from '../lib/nav.js';
 
-// Where a copy plays from, for a book whose file type isn't known.
-const WHERE = { loc: 'On this phone', abs: 'Audiobookshelf', tb: 'TorBox', rd: 'Real-Debrid', url: 'Link' };
-const whereOf = (b) => WHERE[String(b?.source || b?.uid || '').split(':')[0]] || '';
+// Where a copy is: your services by name; a book from a catalogue by the catalogue's name.
+const WHERE = { loc: 'On this phone', abs: 'Audiobookshelf', tb: 'TorBox', rd: 'Real-Debrid', ad: 'AllDebrid', pm: 'Premiumize', dl: 'Debrid-Link', url: 'Link', au: 'Audible', it: 'Apple Books', gbk: 'Google Books', lb: 'Libby', lbl: 'Libby', hc: 'Hardcover', gr: 'Goodreads' };
+const whereOf = (b) => (b?.source === 'addon' && b.addonName) || WHERE[String(b?.source || b?.uid || '').split(':')[0]] || '';
 // The first name, and how many more ("Neil Gaiman +2" for a full cast).
 const first = (names) => {
   const all = String(names || '').split(/,|&|;/).map((n) => n.trim()).filter(Boolean);
@@ -27,12 +27,14 @@ const firstOnly = (names) => String(names || '').split(/,|&|;/)[0].trim();
 /**
  * book: the book; prog: its progress (percent, total, global) for a book you're on;
  * rating: { rating } when known (else looked up from Goodreads' cache); onPlay: a tap on the
- * cover or the strip; children: extra pieces on top (the Continue ✕).
+ * card; small: the size for rows and grids (icon and value only, the whole card one tap);
+ * rootProps: more handlers for the card (press and hold); children: extra pieces on top.
  */
-export function GlassCard({ book, prog = null, rating = null, onPlay, children }) {
+export function GlassCard({ book, prog = null, rating = null, onPlay, small = false, rootProps = null, children }) {
   const local = useLocalCover(book);
   const meta = useMeta(book);
-  const b = withMeta(local ? { ...book, cover: local } : book, meta?.fixed ? meta : null);
+  // Rows: tidy title / author / cover from the lookup (as the old cards did); the big card only what you fixed.
+  const b = withMeta(local ? { ...book, cover: local } : book, small ? meta : meta?.fixed ? meta : null);
   const tint = useCoverColor(b);
   const [light, setLight] = useState(false);
   useEffect(() => {
@@ -43,6 +45,7 @@ export function GlassCard({ book, prog = null, rating = null, onPlay, children }
   const [stars, setStars] = useState(0);
   useEffect(() => {
     if (rating?.rating || b.rating) return setStars(Number(rating?.rating || b.rating) || 0);
+    if (small) return setStars(0); // rows pass the rating they found (no lookup per card here)
     let alive = true;
     setStars(0);
     import('../lib/ratings.js')
@@ -52,38 +55,41 @@ export function GlassCard({ book, prog = null, rating = null, onPlay, children }
     return () => (alive = false);
   }, [b.uid, b.title, rating?.rating]);
 
+  const ebook = b.kind === 'text' || /#ebook$/.test(b.uid || '');
   const author = first(b.author);
-  const narrator = first(b.narrator || meta?.narrator);
-  const length = Number(b.duration) || Number(prog?.total) || 0;
-  const format = String(b.format || '').toUpperCase() || whereOf(b);
+  const narrator = ebook ? '' : first(b.narrator || meta?.narrator);
+  const length = ebook ? 0 : Number(b.duration) || Number(meta?.runtime) || Number(prog?.total) || 0;
+  const format = String(b.format || '').toUpperCase() || (ebook ? 'Ebook' : '');
+  const where = whereOf(b);
   const pct = prog ? Math.round((prog.percent || 0) * 100) : 0;
   // Time left, short enough for the panel ("16h", "2h 14m", "45m").
   const rest = prog?.total ? Math.max(0, prog.total - (prog.global || 0)) : 0;
   const left = rest >= 36000 ? `${Math.round(rest / 3600)}h` : rest > 0 ? fmtDuration(rest) : '';
+  const lengthLine = [length && fmtDuration(length), format].filter(Boolean).join(' · ');
   const person = (e, name, role) => (e.stopPropagation(), nav.push('person', { name, role }));
   const panel = (icon, label, value, onClick) =>
     value && (
-      <div class={'gc-pill' + (onClick ? ' tap' : '')} role={onClick ? 'button' : undefined} onClick={onClick}>
-        <Icon name={icon} size={18} />
+      <div class={'gc-pill' + (onClick && !small ? ' tap' : '')} role={onClick && !small ? 'button' : undefined} onClick={small ? undefined : onClick}>
+        <Icon name={icon} size={small ? 13 : 18} />
         <div>
-          <small>{label}</small>
+          {!small && <small>{label}</small>}
           <b>{value}</b>
         </div>
       </div>
     );
   return (
-    <div class={'glass-card' + (light ? ' light' : '')} style={tint ? { '--tint': tint } : null} onClick={onPlay}>
+    <div class={'glass-card' + (small ? ' small' : '') + (light ? ' light' : '')} style={tint ? { '--tint': tint } : null} onClick={onPlay} {...(rootProps || {})}>
       {b.cover && <div class="gc-bg" style={{ backgroundImage: `url("${b.cover}")` }} />}
       <div class="gc-cover">
-        <Cover book={b} eager />
+        <Cover book={b} eager={!small} />
       </div>
+      {/* Author, narrator, length (or where you are), and where it is — all on the right. */}
       <div class="gc-pills">
         {panel('user', 'Author', author, author && ((e) => person(e, firstOnly(b.author), 'author')))}
         {panel('mic', 'Narrator', narrator, narrator && ((e) => person(e, firstOnly(b.narrator || meta?.narrator), 'narrator')))}
-        {panel('clock', 'Duration', length && fmtDuration(length))}
-        {prog ? (
+        {prog && pct > 0 ? (
           <div class="gc-pill">
-            <Icon name={b.kind === 'text' ? 'book' : 'play'} size={18} />
+            <Icon name={ebook ? 'book' : 'play'} size={small ? 13 : 18} />
             <div class="gc-where">
               <small>{left ? `${pct}% · ${left} left` : `${pct}%`}</small>
               <div class="gc-bar">
@@ -92,14 +98,12 @@ export function GlassCard({ book, prog = null, rating = null, onPlay, children }
             </div>
           </div>
         ) : (
-          panel('bookmark', 'Format', format)
+          panel('clock', 'Length', lengthLine)
         )}
+        {panel('cloud', 'From', where)}
       </div>
       <div class="gc-strip">
-        <div>
-          <b>{b.title}</b>
-          {prog && whereOf(b) && <em>{whereOf(b)}</em>}
-        </div>
+        <b>{b.title}</b>
         {stars > 0 && <span class="gc-rate">★ {stars.toFixed(1)}</span>}
       </div>
       {children}
