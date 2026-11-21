@@ -4,7 +4,7 @@
 - Build ("build"): dispatch `inkwell-apk.yml` and `audiohub-ios.yml` on the branch; when the APK
   release is out, dispatch `inkwell-web.yml` (its pages job failing is expected). Releases
   `inkwell-v1.0.N` (Android, in-app update), `audiohub-ios-N` (unsigned IPA for AltStore).
-- Latest: Android v1.0.235; iPhone build 116 (21 Nov — everything below is in them).
+- Latest: Android v1.0.236; iPhone build 117 (21 Nov — everything below is in them).
 - In v1.0.233 / iOS 114 (built 21 Nov): instant play (server place asked in the background),
   glow fade on player background, Libby live availability, auto-send never re-sends backlog + skips torrents
   qBittorrent has, Goodreads clearer refusal + CSV hint, ebook cards, banner title fit, Play timing line.
@@ -72,35 +72,35 @@
   (big and small, glass-card.jsx, Book cards setting, coverLight) are removed; Continue card, book
   page hero, Library Continue card, Discover pick and small covers are back to the 20 Nov look. Kept:
   a stronger glass sheen on all covers (`.cover::after`), and everything else from 21 Nov (service
-  rows on Home, source boxes, phone-files shortcuts, ♡ by 👍/👎…). In v1.0.235.
+  rows on Home, source boxes, phone-files shortcuts, ♡ by 👍/👎…). In v1.0.235/236.
 - Newest first: debrid rows sort by date added only (not last played); phone books carry the files'
   date (Android scan COLUMN_LAST_MODIFIED, iOS contentModificationDate → `addedAt`, one rescan on
   update: localBooks v3); new debrid services sort by date; Shelf's "Recent" sorts by addedAt.
 - Library header: folder button beside search → phone files view (Add folder / Rescan there); no folder yet → picker.
-- Delete a book: press-and-hold → Delete… (forgetBook + download + Up next + Read later + ebook; folder books hidden via localCfg.hidden, Settings can bring them back; TorBox t/u/w and Real-Debrid torrents deleted from the cloud when confirmed — `deleteFromCloud`). Not built yet.
-- Book page: Listen (narrower) and the download button on one line (download on the right). Source boxes: class renamed src-group (src-sub clashed with each row's subtitle), snugger margins. Not built yet.
-- Book page: the audio files list moved up beside Ebook files, same rows (type / part chip, name, length · size, ▶); first five shown, Show all for more. Not built yet.
+- Delete a book: press-and-hold → Delete… (forgetBook + download + Up next + Read later + ebook; folder books hidden via localCfg.hidden, Settings can bring them back; TorBox t/u/w and Real-Debrid torrents deleted from the cloud when confirmed — `deleteFromCloud`). In v1.0.236.
+- Book page: Listen (narrower) and the download button on one line (download on the right). Source boxes: class renamed src-group (src-sub clashed with each row's subtitle), snugger margins. In v1.0.236.
+- Book page: the audio files list moved up beside Ebook files, same rows (type / part chip, name, length · size, ▶); first five shown, Show all for more. In v1.0.236.
 - 21 Nov evening: book page audio files fold to the one you're on when there are more than 5;
   iPhone Settings card says "Audiohub for iPhone build N" (not "web app"); Hear the voice only with a
   real sample (YouTube fallback removed); Get the ebook lists the best 3 per source (LibGen no longer
-  pushed out by Knaben) with a cover thumbnail left, "Show all". Not built yet.
+  pushed out by Knaben) with a cover thumbnail left, "Show all". In v1.0.236.
 - Send to Kindle through any mail server (Reddit request, zfa): `lib/smtp.js` (tested) picks the
   sender's own host / port / security / username, else the provider's (Gmail, Outlook, iCloud, Yahoo,
   Fastmail, Zoho, GMX, AOL, Yandex, web.de), else Gmail as before; `GmailSender` now does SSL,
-  STARTTLS or plain on any host; Settings → Send to Kindle "Use my own mail server". Not built yet.
+  STARTTLS or plain on any host; Settings → Send to Kindle "Use my own mail server". In v1.0.236.
 - Usenet (Reddit request, Zee-Bln; user uses Easynews): `sources/usenet.js` — Easynews solr search
   with Basic auth (files grouped with `bookKey`, played with Authorization headers; source `en`,
   books kept in `easynewsBooks` for Continue) and Newznab indexers (JSON or XML, cat 3030/7020,
   `parseNewznab` tested) → `sendNzbToTorbox` (TorBox /usenet/createusenetdownload). Book page "Usenet"
   box (`components/usenet-results.jsx`), Settings → Usenet (Easynews sign-in, indexers with NZBgeek /
-  NinjaCentral / Treasure Maps name chips). No language filter. Untested against real accounts. Not built.
+  NinjaCentral / Treasure Maps name chips). No language filter. Untested against real accounts. In v1.0.236.
 - Still waiting on the user: boxed text under covers (sample A vs B sent, I suggested B); the
   server-side addon for Mobilism / Anna's on iPhone (explained bot checks + Mobilism login).
-- Book cards: one faint glowing frame around cover + text (user picked sample B). Not built yet.
+- Book cards: one faint glowing frame around cover + text (user picked sample B). In v1.0.236.
 - Book Hunt worker (`inkwell/workers/bookhunt.js`, user deploys it as a new Cloudflare worker and adds
   https://<worker>/addon.json in Settings → Addons): Anna's Archive search (regex parser, mirrors
   .org/.li/.se/.pk or ANNAS_BASE) with files via LibGen by MD5 or ANNAS_KEY fast download (/file);
   Mobilism with secrets MOBILISM_USER / MOBILISM_PASS (phpBB sign-in, topic file-host links as
   `downloads`, which sourceaddons.js now maps → the existing TopicToCloud flow). Bot checks may block
   the server: errors come back in "errors". Parsers tested; not tried against the live sites (this
-  sandbox can't reach them). Not built yet.
+  sandbox can't reach them). In v1.0.236.
