@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import * as player from '../lib/player.js';
 import { isNative as isNativeEngine } from '../lib/engine.js';
 import { Cover, toast, SourceBadge } from './common.jsx';
+import { providerName } from '../sources/debrid.js';
 import { Icon, SkipIcon } from './icons.jsx';
 import { PlayPauseIcon } from './motion-icons.jsx';
 import { ripple, squash } from '../lib/motion.js';
@@ -68,14 +69,14 @@ export function useCoverColor(book) {
 }
 
 const prepPct = (st) => Math.max(0, Math.min(100, Math.round((st.progress || 0) * 100)));
-const prepLabel = (st) => `${st.provider === 'realdebrid' ? 'Real-Debrid' : 'TorBox'} is downloading · ${prepPct(st)}%`;
+const prepLabel = (st) => `${providerName(st.provider)} is downloading · ${prepPct(st)}%`;
 
 function PrepBar({ st }) {
   const pct = prepPct(st);
   return (
     <div class="prep">
       <div class="prep-head">
-        <span>{st.provider === 'realdebrid' ? 'Real-Debrid' : 'TorBox'} is still downloading this</span>
+        <span>{providerName(st.provider)} is still downloading this</span>
         <b>{pct}%</b>
       </div>
       <div class="prep-track">

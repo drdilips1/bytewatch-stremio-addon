@@ -3,7 +3,7 @@ vi.mock('../src/lib/store.js', () => ({ persisted: (k, v) => ({ get: () => v, se
 vi.mock('../src/lib/downloads.js', () => ({ downloads: { get: () => ({}) } }));
 vi.mock('../src/sources/local.js', () => ({ localCfg: { get: () => ({}) } }));
 vi.mock('../src/lib/http.js', () => ({ getJson: vi.fn(), qs: () => '' }));
-const { namesIn, hasPerson } = await import('../src/lib/people.js');
+const { namesIn, hasPerson, voiceSample, voiceSearch } = await import('../src/lib/people.js');
 
 describe('people', () => {
   it('splits names and drops "full cast"', () => {
@@ -16,3 +16,23 @@ describe('people', () => {
     expect(hasPerson('', 'Ana Reyes')).toBe(false);
   });
 });
+
+describe('voiceSample (hear the person on their page)', () => {
+  const books = [
+    { title: 'Dune', narrator: 'Scott Brick, Euan Morton', sample: 'https://a/dune.mp3' },
+    { title: 'Atomic Habits', narrator: 'James Clear', sample: 'https://a/atomic.mp3' },
+    { title: 'No Sample', narrator: 'James Clear' },
+  ];
+  it('a narrator: a book they read', () => {
+    expect(voiceSample('Scott Brick', books)).toEqual({ url: 'https://a/dune.mp3', title: 'Dune' });
+  });
+  it('an author: only a book they read themselves', () => {
+    expect(voiceSample('James Clear', books)?.title).toBe('Atomic Habits');
+    expect(voiceSample('Frank Herbert', books)).toBe(null);
+  });
+  it('no sample: a search for their voice', () => {
+    expect(voiceSearch('Frank Herbert', 'author')).toContain('Frank%20Herbert%20interview');
+    expect(voiceSearch('Scott Brick', 'narrator')).toContain('narrator');
+  });
+});
+

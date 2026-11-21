@@ -35,6 +35,9 @@ export const SOURCES = {
   abs: { name: 'Audiobookshelf', short: 'My Server', hue: 265, kind: 'Listen', blurb: 'Your self-hosted audiobook server', impl: absSrc },
   tb: { name: 'TorBox', short: 'TorBox', hue: 130, kind: 'Cloud', blurb: 'Stream audiobooks from your TorBox cloud', impl: cloud },
   rd: { name: 'Real-Debrid', short: 'Real-Debrid', hue: 45, kind: 'Cloud', blurb: 'Stream audiobooks from your Real-Debrid cloud', impl: cloud },
+  ad: { name: 'AllDebrid', short: 'AllDebrid', hue: 15, kind: 'Cloud', blurb: 'Stream audiobooks from your AllDebrid cloud', impl: cloud },
+  pm: { name: 'Premiumize', short: 'Premiumize', hue: 5, kind: 'Cloud', blurb: 'Stream audiobooks from your Premiumize cloud', impl: cloud },
+  dl: { name: 'Debrid-Link', short: 'Debrid-Link', hue: 190, kind: 'Cloud', blurb: 'Stream audiobooks from your Debrid-Link cloud', impl: cloud },
   addon: { name: 'Addons', short: 'Addon', hue: 185, kind: 'Listen', blurb: 'Community catalog addons', impl: addonSrc },
   lb: { name: 'Libby (your libraries)', short: 'Libby', hue: 200, kind: 'Library', blurb: 'Borrow ebooks & audiobooks free with your library cards', impl: lb },
   lbl: { name: 'Libby loans', short: 'Libby', hue: 200, kind: 'Library', blurb: 'Books you borrowed in Libby', impl: { details: async (b) => b }, hidden: true },
@@ -50,7 +53,7 @@ export const SOURCES = {
 const enabled = (k) => !SOURCES[k]?.free && settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
 
 // Your own services first, then listings, then free catalogues — until the user rearranges them.
-const DEFAULT_ORDER = ['loc', 'abs', 'tb', 'rd', 'lb', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'se', 'ol', 'hi'];
+const DEFAULT_ORDER = ['loc', 'abs', 'tb', 'rd', 'ad', 'pm', 'dl', 'lb', 'hc', 'gr', 'addon', 'au', 'gbk', 'ia', 'lv', 'gb', 'se', 'ol', 'hi'];
 /** Source keys in the user's chosen order (Settings → Sources). */
 export function sourceOrder() {
   const saved = (settings.get().sourceOrder || []).filter((k) => SOURCES[k] && !SOURCES[k].hidden);

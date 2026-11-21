@@ -5,6 +5,7 @@ import { logError } from '../lib/report.js';
 import { debrid, persisted, progress } from '../lib/store.js';
 import { matches } from '../lib/match.js';
 import { groupDownloads } from '../lib/rdgroups.js';
+import { MORE, isMore, moreConnected, connectedMore, morePrepare, moreDetails, verifyMore } from './moredebrid.js';
 
 const AUDIO = /\.(mp3|m4a|m4b|aac|flac|ogg|oga|opus|wav|wma|mka|mp4a)$/i;
 // Ebook files in the cloud: EPUB opens in the app's reader; the rest go to Kindle or another app.
@@ -495,6 +496,7 @@ async function rdAddFile(file) {
 export async function addTorrentFile(provider, file) {
   if (!file) throw new Error('No file chosen');
   if (!/\.torrent$/i.test(file.name || '') && file.type !== 'application/x-bittorrent') throw new Error('Choose a .torrent file');
+  if (isMore(provider)) throw new Error(`For ${MORE[provider].name}, paste the magnet link instead`);
   return provider === 'torbox' ? tbAddFile(file) : rdAddFile(file);
 }
 
@@ -519,7 +521,7 @@ async function rdAdd(link) {
 
 // ---------------- shared ----------------
 function pendingError(st) {
-  const e = new Error(`${st.provider === 'torbox' ? 'TorBox' : 'Real-Debrid'} is still downloading this (${Math.round((st.progress || 0) * 100)}%)`);
+  const e = new Error(`${providerName(st.provider)} is still downloading this (${Math.round((st.progress || 0) * 100)}%)`);
   e.pending = st;
   return e;
 }
@@ -546,6 +548,7 @@ export async function fetchStatus(book) {
 
 export async function verify(provider, key) {
   key = key.trim();
+  if (isMore(provider)) return verifyMore(provider, key);
   if (provider === 'torbox') {
     const r = await getJson(`${TB}/user/me`, { headers: { Authorization: `Bearer ${key}` }, fresh: true });
     return r?.data?.email || 'TorBox account';
@@ -554,7 +557,12 @@ export async function verify(provider, key) {
   return `${r?.username || 'Real-Debrid'}${r?.type ? ` · ${r.type}` : ''}`;
 }
 
-export const addLink = (provider, link) => (provider === 'torbox' ? tbAdd(link.trim()) : rdAdd(link.trim()));
+export const addLink = (provider, link) => {
+  if (!isMore(provider)) return provider === 'torbox' ? tbAdd(link.trim()) : rdAdd(link.trim());
+  // AllDebrid, Premiumize, Debrid-Link: magnet links here.
+  if (!/^magnet:/i.test(link.trim())) return Promise.reject(new Error('Paste a magnet link (magnet:?…)'));
+  return addMagnetOnly(provider, { magnet: link.trim() });
+};
 
 /**
  * Is this cloud item an audiobook (has audio files)? TorBox items already list
@@ -569,8 +577,12 @@ export async function hasAudio(book) {
 }
 
 export function details(book) {
+  if (/^(ad|pm|dl):/.test(book.uid || '')) return moreDetails(book);
   return book.uid.startsWith('tb:') ? tbDetails(book) : rdDetails(book);
 }
+
+/** A service's name for messages ("TorBox", "Real-Debrid", "AllDebrid"…). */
+export const providerName = (p) => (p === 'torbox' ? 'TorBox' : p === 'realdebrid' ? 'Real-Debrid' : MORE[p]?.name || 'your debrid service');
 
 export async function search(term) {
   const [a, b] = await Promise.all([torboxLibrary().catch(() => []), realdebridLibrary().catch(() => [])]);
@@ -606,7 +618,10 @@ export function magnetFor(magnet, hash, name) {
 }
 
 export const preferredProvider = (pref) =>
-  pref === 'realdebrid' && rdConnected() ? 'realdebrid' : pref === 'torbox' && tbConnected() ? 'torbox' : tbConnected() ? 'torbox' : rdConnected() ? 'realdebrid' : null;
+  pref === 'realdebrid' && rdConnected() ? 'realdebrid' : pref === 'torbox' && tbConnected() ? 'torbox' : moreConnected(pref) ? pref : tbConnected() ? 'torbox' : rdConnected() ? 'realdebrid' : connectedMore()[0] || null;
+
+/** Every debrid service you've connected, the preferred one first. */
+export const connectedProviders = (pref) => [preferredProvider(pref), tbConnected() && 'torbox', rdConnected() && 'realdebrid', ...connectedMore()].filter((p, i, a) => p && a.indexOf(p) === i);
 
 /** Which of these hashes TorBox can stream instantly (one batched call). */
 export async function torboxCached(hashes) {
@@ -699,6 +714,8 @@ export async function prepareMagnet(provider, { magnet, hash, title }, onStatus,
   const h = infoHash(magnet, hash);
   const m = magnetFor(magnet, h, title);
   if (!m) throw new Error('This result has no magnet link');
+  // AllDebrid, Premiumize, Debrid-Link (sources/moredebrid.js).
+  if (isMore(provider)) return morePrepare(provider, m, h, title, onStatus);
 
   if (provider === 'torbox') {
     let it = await tbEnsure(m, h, onStatus);
@@ -765,6 +782,15 @@ export async function downloadLinks(provider, { magnet, hash, title }, onStatus)
   const h = infoHash(magnet, hash);
   const m = magnetFor(magnet, h, title);
   if (!m) throw new Error('This result has no magnet link');
+  // Another service: its files once it has them, each link fetched when tapped.
+  if (isMore(provider)) {
+    const stub = await morePrepare(provider, m, h, title, onStatus).catch((e) => {
+      throw e.pending ? new Error(`Still downloading on ${MORE[provider].name} — links work once it's finished`) : e;
+    });
+    const d = await moreDetails(stub);
+    const files = [...(d.tracks || []).map((t) => ({ name: t.title, size: t.size, resolve: t.resolve })), ...(d.ebooks || [])];
+    return { provider, name: stub.rawName || title, files, zip: null };
+  }
   if (provider === 'torbox') {
     let it = await tbEnsure(m, h, onStatus);
     const ready = (x) => x?.download_finished || x?.download_present;
@@ -823,6 +849,12 @@ export async function addMagnetOnly(provider, { magnet, hash, title }) {
   const h = infoHash(magnet, hash);
   const m = magnetFor(magnet, h, title);
   if (!m) throw new Error('This result has no magnet link');
+  if (isMore(provider)) {
+    await morePrepare(provider, m, h, title).catch((e) => {
+      if (!e.pending) throw e;
+    });
+    return `Added to ${MORE[provider].name}`;
+  }
   if (provider === 'torbox') await tbEnsure(m, h);
   else {
     const t = await rdEnsure(m, h);

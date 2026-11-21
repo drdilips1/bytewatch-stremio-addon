@@ -264,7 +264,7 @@ export function importBackup(text) {
   if (data.highlights) highlights.set(mergeHighlights(highlights.get(), data.highlights));
 }
 
-export const debrid = persisted('debrid', { torbox: '', realdebrid: '' });
+export const debrid = persisted('debrid', { torbox: '', realdebrid: '', alldebrid: '', premiumize: '', debridlink: '' });
 // Send to Kindle: Kindle addresses ([{ name, email }]) and Gmail senders ([{ email, password }] — an app password).
 export const kindle = persisted('kindle', { targets: [], senders: [] });
 // Your own tags per book: uid -> ['Psychology', …]

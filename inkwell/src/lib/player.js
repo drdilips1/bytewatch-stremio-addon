@@ -54,7 +54,7 @@ async function instantCopy(book, why) {
   const { searchSources, sourceAddons } = await import('../sources/sourceaddons.js');
   if (!sourceAddons().length) return null;
   const { getDetails } = await import('../sources/index.js');
-  const where = provider === 'torbox' ? 'TorBox' : 'Real-Debrid';
+  const where = cloud.providerName(provider);
   const ebookish = /\b(epub|pdf|mobi|azw3?|ebook)\b/i;
   const { matches } = await import('./match.js');
   const usable = (r, title) =>

@@ -12514,7 +12514,7 @@ button.cr-tile.on > img {
 .pp-bio.open { -webkit-line-clamp: unset; }
 .pp-bio a { color: var(--accent); font-weight: 600; }
 .pp-facts { font-size: 13px; color: var(--muted); margin-top: 8px; }
-.pp-btns { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
+.pp-btns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 14px; }
 .pp-btn { padding: 10px 18px; border-radius: 999px; font: 700 15px var(--font); border: 1.5px solid color-mix(in srgb, var(--text) 25%, transparent); background: none; color: var(--text); }
 .pp-btn.pri { background: var(--text); color: var(--bg); border-color: var(--text); }
 .pp-btn.pri.on { background: none; color: var(--text); }

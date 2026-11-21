@@ -131,14 +131,14 @@ async function fromSources(want, step) {
   list.sort((x, y) => Number(ready(y)) - Number(ready(x)) || (y.seeders || 0) - (x.seeders || 0));
   for (const r of list.slice(0, 3)) {
     try {
-      step(`Getting ${want.title} from your ${provider === 'torbox' ? 'TorBox' : 'Real-Debrid'}…`);
+      step(`Getting ${want.title} from your ${cloud.providerName(provider)}…`);
       const stub = await cloud.prepareMagnet(provider, r, (text) => step(text));
       const details = await getDetails({ ...stub, title: want.title, author: want.author || r.author || stub.author });
       if (!details?.tracks?.length && !details?.resolveTracks) continue;
       player.playBook(details, { autoplay: true });
       if (await loaded(false)) return details;
     } catch (e) {
-      if (e.pending) throw Object.assign(new Error(`${want.title} is downloading in your ${provider === 'torbox' ? 'TorBox' : 'Real-Debrid'} — play it from Search when it's ready`), { want });
+      if (e.pending) throw Object.assign(new Error(`${want.title} is downloading in your ${cloud.providerName(provider)} — play it from Search when it's ready`), { want });
     }
   }
   return null;

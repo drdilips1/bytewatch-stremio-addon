@@ -27,7 +27,8 @@
     source results get a heading per source inside Audiobooks / Ebooks; Settings search box (filters
     the rows on the page, every section searched; `ELSEWHERE` shortcuts e.g. phone folders) and
     keywords on key sections.
-- Still open from 19 / 21 Nov: author's / narrator's voice on their page, more debrid services.
+- 19 / 21 Nov feedback: all done in code (not yet built). Needs real-world checks: Android Auto in the
+  car, the iPhone files plugin (first iOS build), the new debrid services with real accounts.
 - Frosted-glass card (user picked "your choice" from samples based on their 21 Nov design image):
   `components/glass-card.jsx` on Home's Continue listening and the book page top (replaces the old
   Continue card, the big hero cover and the By / Read by row). Whole cover left (not cropped), the
@@ -45,4 +46,11 @@
   (Info.plist UIFileSharingEnabled + LSSupportsOpeningDocumentsInPlace, set in audiohub-ios.yml);
   Add folder / Add files copy in. Rescanned at start (the container path changes per update).
   Not compiled yet (no Mac here; iOS builds need Mac minutes).
+- Person page voice: `voiceSample` / `voiceSearch` (people.js, tested) — a sample of a book the
+  person reads (authors who read their own), else a YouTube search; "Where to start" beside it.
+- More debrid: `sources/moredebrid.js` (AllDebrid v4 with apikey, Premiumize apikey, Debrid-Link v2
+  bearer; tested with sample answers, not with real accounts). Sources `ad` / `pm` / `dl`;
+  `debrid.js` routes prepareMagnet / downloadLinks / addMagnetOnly / details / verify / addLink;
+  `connectedProviders`, `providerName`; Settings has a card each and Default debrid lists every
+  connected one. No instant-cache badges for the new ones (they show as "fetch via …").
 

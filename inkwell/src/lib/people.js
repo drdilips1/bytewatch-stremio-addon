@@ -93,6 +93,19 @@ export async function moreBy(name, role, have = []) {
     .sort((a, b) => (b.released || 0) - (a.released || 0));
 }
 
+/**
+ * A clip of this person's own voice: { url, title } or null. A narrator: a sample of a book they
+ * read. An author: a sample of one of their books they read themselves ("Atomic Habits", read by
+ * James Clear) — another narrator's sample isn't their voice.
+ */
+export function voiceSample(name, books) {
+  const b = (books || []).find((x) => x?.sample && hasPerson(x.narrator, name));
+  return b ? { url: b.sample, title: b.title } : null;
+}
+
+/** When there's no sample: a search for their voice (a narrator's samples, an author's interviews). */
+export const voiceSearch = (name, role) => `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} ${role === 'narrator' ? 'narrator audiobook sample' : 'interview'}`)}`;
+
 /** Narrators who share books with this one (full casts, duets), most often first. */
 export function oftenWith(name, books) {
   const n = {};

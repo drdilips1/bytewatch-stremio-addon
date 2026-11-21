@@ -1,6 +1,7 @@
 // Live transcript panel for the full player: lines appear a little ahead of the
 // audio, the current one is highlighted and kept in view; tap a line to jump.
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { providerName } from '../sources/debrid.js';
 import { useBackClose } from '../lib/nav.js';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
@@ -147,7 +148,7 @@ function EbookStatus({ b }) {
               <b>{h.r.title || h.file.name}</b>
               <small>
                 {h.file.format === '?' ? (h.torrent ? 'Ebook torrent' : 'Type unknown (checked when picked)') : h.file.format}
-                {h.torrent ? ` · via your ${h.torrent === 'torbox' ? 'TorBox' : 'Real-Debrid'}` : ''}
+                {h.torrent ? ` · via your ${providerName(h.torrent)}` : ''}
                 {busy === hitKey(h) && prog ? ` · ${prog}` : <>{h.r.size ? ` · ${(h.r.size / 1048576).toFixed(1)} MB` : ''} · {h.source}</>}
               </small>
             </span>

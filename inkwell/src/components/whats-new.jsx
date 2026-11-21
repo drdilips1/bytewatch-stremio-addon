@@ -17,6 +17,8 @@ export const CHANGES = [
       ['🃏', 'Glass on the small covers too', 'Rows and Library: the title and ★ sit on the cover, with its length and format — or how far you are — in two small glass chips. Prefer the old look? Settings → Appearance → Book cards → Classic.'],
       ['☁️', 'Real-Debrid books on every phone', 'Books sent to Real-Debrid from a topic (Rapidgator and the like) now show on your other phones too — Real-Debrid’s own Downloads list is read, not just this phone’s. And every torrent shows, not only the newest 200.'],
       ['📱', 'Your own audiobooks on iPhone', 'Files app → On My iPhone → Audiohub: put audiobooks there (a folder per book), or tap Library → On this phone → Add folder / Add files. They play straight from the phone.'],
+      ['🔌', 'AllDebrid, Premiumize, Debrid-Link', 'Connect them in Settings like TorBox and Real-Debrid: your cloud’s audiobooks show on Home, and Play from your sources fetches through whichever one you choose (Settings → Default debrid).'],
+      ['🎙️', 'Hear the voice — authors too', 'On an author’s or narrator’s page: a sample of a book they read themselves, else a search for their voice. “Where to start” sits beside it.'],
       ['⚙️', 'Search in Settings', 'Type “music”, “sleep” or “folders” at the top of Settings: only the matching settings show — and a way to things kept elsewhere, like your own audiobook files on the phone.'],
       ['♡', 'A heart on the book page', 'Next to 👍 / 👎: tap ♡ to keep the book in your library.'],
       ['🗂️', 'Edit a Found list', 'Library → Found → Edit: take single books off a list; the bin deletes just that list.'],

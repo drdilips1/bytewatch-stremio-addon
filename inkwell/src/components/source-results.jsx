@@ -47,7 +47,7 @@ import { onFreeNote } from '../sources/annas.js';
 // Anna's Archive free copies take a while: say what's happening.
 onFreeNote((text) => toast(text));
 
-const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
+const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize', debridlink: 'Debrid-Link' };
 
 // ---- what's ready right now, for the book page's "Available" row --------------
 // Results that play at once (cached in your debrid, or ready in your account) and
@@ -153,7 +153,7 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const count = sourceAddons().length;
   const provider = cloud.preferredProvider(st.debridPreferred);
   // Every connected service, preferred one first.
-  const providers = [provider, cloud.tbConnected() && 'torbox', cloud.rdConnected() && 'realdebrid'].filter((p, i, a) => p && a.indexOf(p) === i);
+  const providers = cloud.connectedProviders(st.debridPreferred);
 
   const lastQuery = useRef(query);
   const mounted = useRef(true);

@@ -17,6 +17,10 @@ import { FollowRow } from '../components/follow-row.jsx';
 import { progress, settings, addons, abs, debrid, hardcover, goodreads, useStore, persisted, library, toggleLibrary, hideFromContinue } from '../lib/store.js';
 import { greeting, firstName, fmtDuration, hiResCover } from '../lib/format.js';
 import { GlassCard } from '../components/glass-card.jsx';
+import { MORE, moreConnected, moreLibrary } from '../sources/moredebrid.js';
+
+/** AllDebrid, Premiumize, Debrid-Link — the ones connected and switched on: [[provider, info]]. */
+const moreServices = () => Object.entries(MORE).filter(([p, m]) => moreConnected(p) && enabled(m.source));
 import { useSquareCover } from '../lib/meta.js';
 import { UpNextRow, PlanRow } from '../components/up-next.jsx';
 import { account } from '../lib/sync.js';
@@ -188,6 +192,7 @@ function heroSources() {
   if (absSrc.connected() && enabled('abs')) list.push([() => absSrc.inProgress(), 'Continue on your server', 'abs'], [() => absSrc.recent(), 'New on your server', 'abs']);
   if (cloud.tbConnected() && enabled('tb')) list.push([() => cloud.torboxLibrary(), 'In your TorBox', 'tb']);
   if (cloud.rdConnected() && enabled('rd')) list.push([() => cloud.realdebridLibrary(), 'In your Real-Debrid', 'rd']);
+  for (const [p, m] of moreServices()) list.push([() => moreLibrary(p), `In your ${m.name}`, m.source]);
   if (hc.connected() && enabled('hc')) list.push([() => hc.shelf(hc.STATUS.reading), 'Reading on Hardcover', 'hc'], [() => hc.shelf(hc.STATUS.want), 'On your Want to Read', 'hc']);
   const rank = (k) => (k === 'ai' ? -2 : k === 'top' ? -1 : sourceRank(k));
   return list.sort((a, b) => rank(a[2]) - rank(b[2]));
@@ -543,7 +548,7 @@ function WaitingRow() {
             <div class="wait-meta">
               <b>{w.bookTitle || w.title}</b>
               <span>
-                {w.ready ? 'Ready to play' : `${Math.round((w.progress || 0) * 100)}%${w.state ? ` · ${w.state}` : ''}`} · {w.provider === 'torbox' ? 'TorBox' : 'Real-Debrid'}
+                {w.ready ? 'Ready to play' : `${Math.round((w.progress || 0) * 100)}%${w.state ? ` · ${w.state}` : ''}`} · {cloud.providerName(w.provider)}
               </span>
               <div class="progress-bar">
                 <div style={{ width: (w.ready ? 100 : Math.round((w.progress || 0) * 100)) + '%' }} />
@@ -671,6 +676,13 @@ export function Home() {
     loc: localSrc.connected() && enabled('loc') && <Row title="On this phone" subtitle="Audiobooks in your folders" icon="headphones" cacheKey="loc" load={audioOnly(localSrc.library)} deps={[localCfg.scannedAt]} onMore={() => nav.push('shelf', { title: 'On this phone', subtitle: 'Audiobooks in your folders', load: audioOnly(localSrc.library) })} emptyText="No audiobooks found in your folder." />,
     tb: cloud.tbConnected() && enabled('tb') && <Row title="Your TorBox" subtitle="Audiobooks in your cloud" icon="download" cacheKey="tb" load={audioOnly(cloud.torboxLibrary)} deps={[deb.torbox]} onMore={() => nav.push('shelf', { title: 'Your TorBox', subtitle: 'Audiobooks in your TorBox cloud', load: audioOnly(cloud.torboxLibrary) })} showErrors emptyText="No audiobooks in your TorBox yet." />,
     rd: cloud.rdConnected() && enabled('rd') && <Row title="Your Real-Debrid" subtitle="Audiobooks in your cloud" icon="download" cacheKey="rd" load={audioOnly(cloud.realdebridLibrary)} deps={[deb.realdebrid]} onMore={() => nav.push('shelf', { title: 'Your Real-Debrid', subtitle: 'Audiobooks in your Real-Debrid cloud', load: audioOnly(cloud.realdebridLibrary) })} showErrors emptyText="No audiobooks in your Real-Debrid yet." />,
+    // AllDebrid, Premiumize, Debrid-Link: a row each, like TorBox and Real-Debrid.
+    ...Object.fromEntries(
+      moreServices().map(([p, m]) => [
+        m.source,
+        <Row title={`Your ${m.name}`} subtitle="Audiobooks in your cloud" icon="download" cacheKey={m.source} load={audioOnly(() => moreLibrary(p))} deps={[deb[p]]} onMore={() => nav.push('shelf', { title: `Your ${m.name}`, subtitle: `Audiobooks in your ${m.name} cloud`, load: audioOnly(() => moreLibrary(p)) })} showErrors emptyText={`No audiobooks in your ${m.name} yet.`} />,
+      ])
+    ),
     hc: hc.connected() && enabled('hc') && (
         <>
           <Row title="Currently reading" subtitle="Hardcover" icon="book" load={() => hc.shelf(hc.STATUS.reading)} deps={[hcCfg.token]} onMore={() => nav.push('shelf', { title: 'Currently reading', subtitle: 'Hardcover', load: () => hc.shelf(hc.STATUS.reading) })} showErrors emptyText="Nothing on your Hardcover Currently Reading shelf." />
@@ -787,12 +799,13 @@ function Greeting({ me }) {
 // Your services' books: one tile each (how many, tap for all), and one "Recently added" row
 // across them all, instead of a long row per service.
 // Your server keeps its own rows (in progress, recently added); the tile just opens it.
-const YOURS = ['loc', 'tb', 'rd'];
+const YOURS = ['loc', 'tb', 'rd', 'ad', 'pm', 'dl'];
 function yourSources() {
   const out = [];
   if (localSrc.connected() && enabled('loc')) out.push({ k: 'loc', icon: 'headphones', name: 'On this phone', sub: 'Audiobooks in your folders', load: audioOnly(localSrc.library) });
   if (cloud.tbConnected() && enabled('tb')) out.push({ k: 'tb', icon: 'cloud', name: 'TorBox', sub: 'Audiobooks in your TorBox cloud', load: audioOnly(cloud.torboxLibrary) });
   if (cloud.rdConnected() && enabled('rd')) out.push({ k: 'rd', icon: 'cloud', name: 'Real-Debrid', sub: 'Audiobooks in your Real-Debrid cloud', load: audioOnly(cloud.realdebridLibrary) });
+  for (const [p, m] of moreServices()) out.push({ k: m.source, icon: 'cloud', name: m.name, sub: `Audiobooks in your ${m.name} cloud`, load: audioOnly(() => moreLibrary(p)) });
   if (absSrc.connected() && enabled('abs')) out.push({ k: 'abs', icon: 'server', name: 'Your server', sub: 'Audiobookshelf · your whole library', load: absSrc.all });
   return out;
 }

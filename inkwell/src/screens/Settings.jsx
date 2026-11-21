@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef, useState } from 'preact/hooks';
 import { createContext } from 'preact';
 import { nav } from '../lib/nav.js';
+import { MORE } from '../sources/moredebrid.js';
 import { LibbySettings } from '../components/libby-settings.jsx';
 import { ssBadges } from '../sources/storyshots.js';
 import { Icon } from '../components/icons.jsx';
@@ -1656,8 +1657,11 @@ function MetadataCard() {
 
 function PreferredDebrid() {
   const st = useStore(settings);
-  const d = useStore(debrid);
-  if (!d.torbox || !d.realdebrid) return null;
+  useStore(debrid);
+  // Two or more services connected: which one Add / Play uses.
+  const list = [['torbox', 'TorBox'], ['realdebrid', 'Real-Debrid'], ...Object.entries(MORE).map(([p, m]) => [p, m.name])].filter(([p]) => cloud.connectedProviders(p).includes(p));
+  if (list.length < 2) return null;
+  const current = cloud.preferredProvider(st.debridPreferred);
   return (
     <Section icon="cloud" title="Default debrid">
       <div class="set-row">
@@ -1666,11 +1670,8 @@ function PreferredDebrid() {
           <small>Source addon results go to this service</small>
         </div>
         <div class="chips">
-          {[
-            ['torbox', 'TorBox'],
-            ['realdebrid', 'Real-Debrid'],
-          ].map(([k, label]) => (
-            <button class={'pill small' + (st.debridPreferred === k ? ' active' : '')} onClick={() => settings.patch({ debridPreferred: k })}>
+          {list.map(([k, label]) => (
+            <button class={'pill small' + (current === k ? ' active' : '')} onClick={() => settings.patch({ debridPreferred: k })}>
               {label}
             </button>
           ))}
@@ -1795,6 +1796,11 @@ export function Settings() {
         <DebridCard provider="realdebrid" label="Real-Debrid" keyHint="real-debrid.com/apitoken" keyUrl="https://real-debrid.com/apitoken" />
         <MusicToggle />
       </Section>
+      {Object.entries(MORE).map(([p, m]) => (
+        <Section icon="cloud" title={m.name} keys="cloud debrid key alldebrid premiumize debrid-link">
+          <DebridCard provider={p} label={m.name} keyHint={m.keyHint} keyUrl={m.keyUrl} />
+        </Section>
+      ))}
       <PreferredDebrid />
       <Section icon="search" title="Finding your books" keys="order phone cloud server first copy">
         <FindOrderCard />
