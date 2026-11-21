@@ -4,6 +4,7 @@ import { getJson, sendForm, qs } from '../lib/http.js';
 import { logError } from '../lib/report.js';
 import { debrid, persisted, progress } from '../lib/store.js';
 import { matches } from '../lib/match.js';
+import { groupDownloads } from '../lib/rdgroups.js';
 
 const AUDIO = /\.(mp3|m4a|m4b|aac|flac|ogg|oga|opus|wav|wma|mka|mp4a)$/i;
 // Ebook files in the cloud: EPUB opens in the app's reader; the rest go to Kindle or another app.
@@ -332,8 +333,41 @@ function sentBooks() {
   });
 }
 
+// Real-Debrid's own Downloads list as books (for another phone that didn't send them), by uid.
+const rdDownloaded = new Map();
+
+/** Books from Real-Debrid's Downloads list that this phone doesn't keep itself. */
+async function downloadBooks() {
+  const list = [];
+  for (let page = 1; page <= 3; page++) {
+    const got = await getJson(`${RD}/downloads?limit=500&page=${page}`, { headers: rdHeaders(), fresh: true }).catch(() => []);
+    if (!Array.isArray(got) || !got.length) break;
+    list.push(...got);
+    if (got.length < 500) break;
+  }
+  const known = new Set(rdSent.get().flatMap((x) => x.links || []));
+  return groupDownloads(list, known).map((g) => {
+    const uid = `rd:d:${g.key.slice(0, 80)}`;
+    rdDownloaded.set(uid, g);
+    const audio = g.files.some((f) => SENT_AUDIO.test(f.name));
+    return { uid, source: 'rd', kind: audio ? 'audio' : 'text', title: g.title, author: '', cover: '', rawName: g.files[0].name, parts: g.files.length, addedAt: g.at };
+  });
+}
+
+/** Real-Debrid's torrents, all of them (it gives a page at a time). */
+async function rdTorrents() {
+  const all = [];
+  for (let page = 1; page <= 10; page++) {
+    const got = await getJson(`${RD}/torrents?limit=500&page=${page}`, { headers: rdHeaders(), fresh: true });
+    if (!Array.isArray(got) || !got.length) break;
+    all.push(...got);
+    if (got.length < 500) break;
+  }
+  return all;
+}
+
 function sentDetails(book) {
-  const x = rdSent.get().find((s) => `rd:l:${s.id}` === book.uid);
+  const x = rdSent.get().find((s) => `rd:l:${s.id}` === book.uid) || rdDownloaded.get(book.uid);
   if (!x) throw new Error('This one is no longer in your Real-Debrid list — send it again from its topic');
   const fresh = async (f) => (await unrestrict(f.link)).url;
   const files = x.files.filter((f) => SENT_AUDIO.test(f.name)).sort(naturalSort);
@@ -351,8 +385,9 @@ function sentDetails(book) {
 }
 
 async function realdebridLibraryRaw() {
-  const sent = sentBooks();
-  const items = await getJson(`${RD}/torrents?limit=200`, { headers: rdHeaders(), fresh: true }).catch((e) => {
+  // Books sent from this phone, then Real-Debrid's Downloads list (books another phone sent).
+  const sent = [...sentBooks(), ...(await downloadBooks())];
+  const items = await rdTorrents().catch((e) => {
     if (sent.length) return [];
     throw e;
   });
@@ -369,6 +404,10 @@ async function realdebridLibraryRaw() {
 
 async function rdDetails(book) {
   if (book.uid.startsWith('rd:l:')) return sentDetails(book);
+  if (book.uid.startsWith('rd:d:')) {
+    if (!rdDownloaded.has(book.uid)) await downloadBooks(); // opened before the library loaded
+    return sentDetails(book);
+  }
   const id = book.uid.slice(3);
   const info = await getJson(`${RD}/torrents/info/${id}`, { headers: rdHeaders(), fresh: true });
   // Links map 1:1 onto the selected files, in file order.
@@ -524,7 +563,7 @@ export const addLink = (provider, link) => (provider === 'torbox' ? tbAdd(link.t
  */
 export async function hasAudio(book) {
   if (book.kind === 'text' || EBOOK.test(book.rawName || '')) return false;
-  if (book.uid?.startsWith('tb:')) return book.kind === 'audio';
+  if (book.uid?.startsWith('tb:') || /^rd:[ld]:/.test(book.uid || '')) return book.kind === 'audio'; // file-host books: no torrent to ask about
   const info = await getJson(`${RD}/torrents/info/${book.uid.slice(3)}`, { headers: rdHeaders(), fresh: true });
   return audioOf(info.files, info.filename || '').length > 0;
 }
@@ -638,7 +677,7 @@ async function tbEnsure(magnet, hash, onStatus) {
 }
 
 async function rdEnsure(magnet, hash, onStatus) {
-  const list = await getJson(`${RD}/torrents?limit=200`, { headers: rdHeaders(), fresh: true });
+  const list = await rdTorrents();
   let t = (list || []).find((x) => String(x.hash || '').toLowerCase() === hash);
   if (!t) {
     onStatus?.('Adding to Real-Debrid…', null);
@@ -826,7 +865,7 @@ export async function accountStatus() {
     );
   if (rdConnected())
     jobs.push(
-      remember('rd-status', async () => getJson(`${RD}/torrents?limit=200`, { headers: rdHeaders(), fresh: true }))
+      remember('rd-status', rdTorrents)
         .then((items) => {
           for (const t of items || []) {
             if (!t.hash) continue;

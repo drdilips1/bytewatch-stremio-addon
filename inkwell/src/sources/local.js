@@ -8,6 +8,10 @@ import { cleanTitle, splitAuthor, audioFormat } from './debrid.js';
 
 export const Native = registerPlugin('InkwellLocal');
 export const available = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellLocal');
+// iPhone: the books live in the app's own folder (On My iPhone → Audiohub in the Files app);
+// Add folder / Add files copy what you choose into it. Its path changes with each app update,
+// so it's one folder entry, read afresh when the app starts.
+export const isIos = Capacitor.getPlatform() === 'ios';
 
 /**
  * Save text as a file where you choose (Android's "Save to" screen). The text goes over
@@ -43,7 +47,7 @@ const hash = (s) => {
 export async function addFolder() {
   if (!available) throw new Error('Books on this phone work in the Android app');
   const f = await Native.pickFolder();
-  localCfg.set((c) => ({ ...c, folders: [...c.folders.filter((x) => x.uri !== f.uri), { uri: f.uri, name: f.name || 'Folder' }] }));
+  localCfg.set((c) => ({ ...c, folders: isIos ? [{ uri: f.uri, name: f.name || 'Audiohub folder' }] : [...c.folders.filter((x) => x.uri !== f.uri), { uri: f.uri, name: f.name || 'Folder' }] }));
   return rescan();
 }
 export function removeFolder(uri) {
@@ -59,7 +63,10 @@ export async function rescan() {
     try {
       const { files = [], covers = [] } = await Native.scan({ uri: folder.uri });
       // Keep covers already made for books that are still there.
-      books.push(...group(folder, files, covers).map((b) => ({ ...b, cover: before.get(b.uid)?.cover || '' })));
+      // (iPhone: covers made by the app are made again — their folder moved with the update;
+      // a cover you chose yourself stays.)
+      const keep = (c) => (isIos && /_capacitor_file_/.test(c || '') ? '' : c || '');
+      books.push(...group(folder, files, covers).map((b) => ({ ...b, cover: keep(before.get(b.uid)?.cover) })));
     } catch (e) {
       errors.push(`${folder.name}: ${e.message}`);
     }
@@ -112,6 +119,7 @@ export function setCover(uid, cover, noCover = false) {
 if (available) setTimeout(makeCovers, 4000); // books scanned before covers existed
 // Folders scanned before ebooks were found: look again once, so EPUB / PDF files show up.
 if (available && connected() && (localCfg.get().v || 1) < 2) setTimeout(() => rescan().catch(() => {}), 2500);
+if (available && isIos && connected()) setTimeout(() => rescan().catch(() => {}), 1500);
 
 function group(folder, files, covers = []) {
   const coverIn = new Map();

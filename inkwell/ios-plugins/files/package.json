@@ -1,0 +1,11 @@
+{
+  "name": "inkwell-files-ios",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iPhone: your own audiobook and ebook files for Audiohub — the same interface as the Android InkwellLocal plugin (pickFolder, scan, cover, pickBook). Added to the app only by the iPhone build (.github/workflows/audiohub-ios.yml).",
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  }
+}

@@ -27,9 +27,7 @@
     source results get a heading per source inside Audiobooks / Ebooks; Settings search box (filters
     the rows on the page, every section searched; `ELSEWHERE` shortcuts e.g. phone folders) and
     keywords on key sections.
-- Still open from 19 / 21 Nov: RD book not reaching the iPhone (needs a look on the phone), local
-  files on iPhone (Files folder + Add files), author's / narrator's voice on their page, more debrid
-  services (AllDebrid, Premiumize, Debrid-Link).
+- Still open from 19 / 21 Nov: author's / narrator's voice on their page, more debrid services.
 - Frosted-glass card (user picked "your choice" from samples based on their 21 Nov design image):
   `components/glass-card.jsx` on Home's Continue listening and the book page top (replaces the old
   Continue card, the big hero cover and the By / Read by row). Whole cover left (not cropped), the
@@ -39,3 +37,12 @@
   `BookCard` (common.jsx) glass mode — title + ★ strip on the cover, two chips (length + format, or
   % + "6h left"), gold progress line; Settings → Appearance → Book cards: Glass (default) / Classic.
   Library's Continue card is the glass card as well.
+- Real-Debrid on other phones: books sent from a topic were kept only in the sending phone's
+  `rdSent`; now Real-Debrid's own /downloads list is grouped into books (`lib/rdgroups.js`, tested;
+  uid `rd:d:…`) on every device. RD torrents are read page by page (was the first 200 only).
+- iPhone own files: `ios-plugins/files` (Swift, jsName `InkwellLocal`, same calls as Android:
+  pickFolder / scan / cover / pickBook) — books live in the app's Documents, shown in the Files app
+  (Info.plist UIFileSharingEnabled + LSSupportsOpeningDocumentsInPlace, set in audiohub-ios.yml);
+  Add folder / Add files copy in. Rescanned at start (the container path changes per update).
+  Not compiled yet (no Mac here; iOS builds need Mac minutes).
+

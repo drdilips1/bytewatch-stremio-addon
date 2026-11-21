@@ -499,10 +499,10 @@ Seen in a TV app (cast circles, ratings row, show details, trailers, More like t
 - ✓ (21 Nov, not yet built) Android Auto: plays ~1 min then stops taking commands with the phone screen off; "media isn't
   available, check your app" for a few seconds before it plays; search and picking another book don't
   work with the screen off (big issue).
-- A Real-Debrid audiobook didn't reach the wife's iPhone app (check RD library / sent items on iOS).
+- ✓ (21 Nov, not yet built) A Real-Debrid audiobook didn't reach the wife's iPhone app (check RD library / sent items on iOS).
 - ✓ (21 Nov, not yet built) Home: greeting smaller; remove the "time left" line under it.
 - ✓ (21 Nov, not yet built) Book page: a heart (save / favourite) next to 👍 / 👎.
-- Local files: too deep to find, and missing on iPhone (iOS Files folder + "Add files").
+- ✓ (21 Nov, not yet built) Local files: too deep to find, and missing on iPhone (iOS Files folder + "Add files").
 - Author / narrator page: the promised option to hear the narrator's or author's voice.
 - ✓ (21 Nov, not yet built) Library → Found: delete one list (only "delete all" today).
 - ✓ (21 Nov, not yet built) Find book and play: many books say "not in library or sources" when they are.
@@ -518,7 +518,7 @@ Seen in a TV app (cast circles, ratings row, show details, trailers, More like t
 - ✓ (21 Nov, not yet built) Ebook "Attach": only LibGen shows and it fails (HTTP 500). Knaben Ebooks first, then LibGen with
   fallback across LibGen mirrors/domains.
 - More debrid services (AllDebrid, Premiumize, Debrid-Link…).
-- iPhone: add your own downloaded audiobooks (Files folder + Add files).
+- ✓ (21 Nov, not yet built) iPhone: add your own downloaded audiobooks (Files folder + Add files).
 - ✓ (21 Nov, not yet built) Frosted-glass book cards (design image 21 Nov): cover art with glass panels on the right — Author,
   Narrator, Duration, Format with white icons, 65–75% opacity, blur, thin white borders; darker bottom
   strip with title and ★ rating; panels a little narrower so the cover breathes.

@@ -15,6 +15,8 @@ export const CHANGES = [
       ['⚡', 'The player opens at once', 'No more opening animation from the mini player (it flickered); the other effects stay.'],
       ['🪟', 'Frosted-glass book card', 'Continue listening on Home and the top of a book page: the whole cover, with glass panels for the author, narrator, length and where you are in it, and the title and ★ rating along the bottom. Tap the author or narrator for their page.'],
       ['🃏', 'Glass on the small covers too', 'Rows and Library: the title and ★ sit on the cover, with its length and format — or how far you are — in two small glass chips. Prefer the old look? Settings → Appearance → Book cards → Classic.'],
+      ['☁️', 'Real-Debrid books on every phone', 'Books sent to Real-Debrid from a topic (Rapidgator and the like) now show on your other phones too — Real-Debrid’s own Downloads list is read, not just this phone’s. And every torrent shows, not only the newest 200.'],
+      ['📱', 'Your own audiobooks on iPhone', 'Files app → On My iPhone → Audiohub: put audiobooks there (a folder per book), or tap Library → On this phone → Add folder / Add files. They play straight from the phone.'],
       ['⚙️', 'Search in Settings', 'Type “music”, “sleep” or “folders” at the top of Settings: only the matching settings show — and a way to things kept elsewhere, like your own audiobook files on the phone.'],
       ['♡', 'A heart on the book page', 'Next to 👍 / 👎: tap ♡ to keep the book in your library.'],
       ['🗂️', 'Edit a Found list', 'Library → Found → Edit: take single books off a list; the bin deletes just that list.'],

@@ -566,7 +566,7 @@ function PhoneButtons({ busy, run }) {
   return (
     <div class="phone-actions">
       <button class="btn primary" disabled={!!busy} onClick={run('add', localSrc.addFolder)}>
-        {busy === 'add' ? <span class="spinner" /> : <Icon name="plus" size={16} />} {cfg.folders.length ? 'Add folder' : 'Choose folder'}
+        {busy === 'add' ? <span class="spinner" /> : <Icon name="plus" size={16} />} {localSrc.isIos ? 'Add folder / audiobooks' : cfg.folders.length ? 'Add folder' : 'Choose folder'}
       </button>
       <button class="btn secondary" disabled={!!busy} onClick={run('files', localSrc.pickBooks)}>
         {busy === 'files' ? <span class="spinner" /> : <Icon name="book" size={16} />} Add EPUB / PDF
@@ -635,14 +635,16 @@ function PhoneEmpty() {
   if (!localSrc.available)
     return (
       <Empty icon="library" title="Books on your phone">
-        Audiobooks and ebooks (EPUB, PDF) already on the phone show here in the Android app.
+        Audiobooks and ebooks (EPUB, PDF) already on the phone show here in the Android and iPhone apps.
       </Empty>
     );
   return (
     <Empty icon="library" title={localSrc.connected() ? 'No books found' : 'Books on your phone'}>
       {localSrc.connected()
         ? 'Nothing playable in your chosen folders yet.'
-        : 'Choose the folder where your audiobooks and ebooks are (e.g. Audiobooks or Books), or add single EPUB / PDF files. They play and open straight from the phone, no internet needed.'}
+        : localSrc.isIos
+          ? 'Put audiobooks and ebooks in the Files app → On My iPhone → Audiohub (a folder per book), or tap Add folder / Add files to copy them in. They play straight from the phone, no internet needed.'
+          : 'Choose the folder where your audiobooks and ebooks are (e.g. Audiobooks or Books), or add single EPUB / PDF files. They play and open straight from the phone, no internet needed.'}
       <PhoneButtons busy={busy} run={run} />
     </Empty>
   );
