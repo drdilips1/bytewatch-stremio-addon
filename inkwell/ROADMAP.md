@@ -534,3 +534,15 @@ Seen in a TV app (cast circles, ratings row, show details, trailers, More like t
 - Worker: cache ratings / search answers 12–24 h; per-IP limit.
 - Then share https://api.audiohubapp.com/addons/all.json; later move public addon routes to a separate
   Cloudflare account (see "How to share without blocks").
+
+## Public addons on a separate Cloudflare account (21 Nov)
+- User creates a new Cloudflare account (neutral workers.dev name). Audiohub+ window writes
+  `inkwell/workers/public-addons.js`: standalone worker serving /addons/<name>.json and /addons/all.json
+  (AudiobookBay, Knaben AudioBooks/Ebooks, LibGen EPUB with mirror fallback, EXTto, RuTracker English
+  Audiobooks), doing the searches itself (no calls to personal workers or api.audiohubapp.com),
+  12-h cache, 30 searches/min per IP, nothing personal. User pastes it into the new account.
+- Already-shared https://api.audiohubapp.com/addons/starter.json: keep working; once the public
+  worker is live, make starter.json and the main account's addon files point to the public address
+  (new installs go there); next AudioYam release rewrites installed addons that point at
+  api.audiohubapp.com to the public address (once, silently). Later switch off the main account's
+  public routes when their traffic is ~0.
