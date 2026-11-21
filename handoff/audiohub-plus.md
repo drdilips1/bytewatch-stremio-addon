@@ -127,6 +127,6 @@
   bookhunt.js, delete the worker's own secrets, re-add the addon, enter details in the app. Not built yet.
 - FALL-BACK (user asked to remember): if the shared Book Hunt (each person's details) doesn't work,
   go back to `inkwell/workers/bookhunt-private-v1.js` — the private version that works for the user
-  and his wife on his iPhone (worker secrets MOBILISM_USER / MOBILISM_PASS / ANNAS_KEY). The new
+  and their wife on their iPhone (worker secrets MOBILISM_USER / MOBILISM_PASS / ANNAS_KEY). The new
   bookhunt.js still uses those secrets for searches without details, so keep the secrets until the
   shared way is proven.
