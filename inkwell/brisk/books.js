@@ -283,10 +283,11 @@ export async function prepare(book, onStatus, copies = null) {
   throw lastErr || new Error('Couldn’t open this book');
 }
 
-export async function play(book, onStatus, copies) {
+/** Play a book; `percent` carries your place over when you switch to another copy. */
+export async function play(book, onStatus, copies, { percent } = {}) {
   busy.now++;
   const d = await prepare(book, onStatus, copies).finally(() => busy.now--);
-  player.playBook(d, { exact: true });
+  player.playBook(d, { exact: true, ...(percent > 0.002 ? { percent } : {}) });
   return d;
 }
 

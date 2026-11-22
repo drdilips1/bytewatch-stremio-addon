@@ -132,6 +132,19 @@ export function FullPlayer() {
       <p class="b-p-author">{s.book.author}</p>
       <p class="b-p-ch">{s.loading ? s.phase || 'Opening the book…' : ch?.title || ''}</p>
       {s.error && <p class="b-p-err">{s.error}</p>}
+      {s.error && !s.book.offline && (
+        // That copy won't play (e.g. Real-Debrid's "hoster_unavailable"): pick another, keeping your place.
+        <button
+          class="b-link"
+          onClick={() => {
+            const b = s.book;
+            nav.closeOverlay();
+            nav.push('book', { book: { uid: b.uid, source: b.source, title: b.title, author: b.author, narrator: b.narrator, cover: b.cover, duration: b.duration }, fresh: true });
+          }}
+        >
+          Try another copy
+        </button>
+      )}
       <input
         class="b-scrub"
         type="range"

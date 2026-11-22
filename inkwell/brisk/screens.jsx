@@ -85,7 +85,7 @@ const leftOf = (b) => {
 function ContinueCard({ b, onOpen }) {
   const opening = useOpening() === b.uid;
   return (
-    <div class="b-cont" onClick={() => onOpen(b)}>
+    <div class="b-cont" onClick={() => onOpen(b)} {...holdProps(b)}>
       <Cover book={b} px={240} />
       <div class="b-cont-text">
         <b>{b.title}</b>
@@ -114,7 +114,7 @@ function Grid({ items, onOpen, empty }) {
     <>
     <div class="b-grid">
       {shown.map((b) => (
-        <button class="b-tile" onClick={() => onOpen(b)}>
+        <button class="b-tile" onClick={() => onOpen(b)} {...holdProps(b)}>
           <div class="b-tile-art">
             <Cover book={b} px={320} />
             {opening === b.uid && (
@@ -157,6 +157,69 @@ function useOpening() {
   useEffect(() => (openingSubs.add(setV), () => openingSubs.delete(setV)), []);
   return v;
 }
+// Press and hold a book (library or Continue): a small menu — Play, Find other copies, Book page.
+let heldAt = 0;
+let holdNow = null;
+const holdSubs = new Set();
+const setHold = (b) => ((holdNow = b), holdSubs.forEach((f) => f(b)));
+function useHoldBook() {
+  const [v, setV] = useState(holdNow);
+  useEffect(() => (holdSubs.add(setV), () => holdSubs.delete(setV)), []);
+  return v;
+}
+/** Handlers for an element: hold half a second → the menu (a tap still plays). */
+const holdProps = (b) => {
+  let t = 0;
+  let x = 0;
+  let y = 0;
+  return {
+    onPointerDown: (e) => {
+      x = e.clientX;
+      y = e.clientY;
+      clearTimeout(t);
+      t = setTimeout(() => {
+        heldAt = Date.now();
+        navigator.vibrate?.(15);
+        setHold(b);
+      }, 480);
+    },
+    onPointerMove: (e) => Math.abs(e.clientX - x) + Math.abs(e.clientY - y) > 12 && clearTimeout(t),
+    onPointerUp: () => clearTimeout(t),
+    onPointerCancel: () => clearTimeout(t),
+    onClickCapture: (e) => {
+      if (Date.now() - heldAt < 900) e.stopPropagation(), e.preventDefault();
+    },
+    onContextMenu: (e) => e.preventDefault(),
+  };
+};
+function HoldSheet() {
+  const b = useHoldBook();
+  const close = () => setHold(null);
+  useBackClose(!!b, close);
+  if (!b) return null;
+  const go = (fn) => () => (close(), fn());
+  return (
+    <div class="b-sheet-bg" onClick={close}>
+      <div class="b-sheet" onClick={(e) => e.stopPropagation()}>
+        <h3>{b.title}</h3>
+        <div class="b-list">
+          <button onClick={go(() => playIt(b))}>
+            <Icon name="play" size={18} /> Play
+          </button>
+          {bk.provider() && !bk.isFree(b) && (
+            <button onClick={go(() => nav.push('book', { book: b, fresh: true }))}>
+              <Icon name="search" size={18} /> Find other copies
+            </button>
+          )}
+          <button onClick={go(() => nav.push('book', { book: b }))}>
+            <Icon name="book" size={18} /> Book page
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const playIt = (b) => {
   if (openingNow === b.uid) return;
   // Already the book in the player: straight to it.
@@ -267,6 +330,7 @@ export function Home() {
         </>
       )}
       {sheet && <SettingsSheet close={() => setSheet(false)} />}
+      <HoldSheet />
     </div>
   );
 }
@@ -361,7 +425,7 @@ function YourLibrary({ skip = [] }) {
   );
 }
 
-export function BookPage({ book }) {
+export function BookPage({ book, fresh = false }) {
   const [status, setStatus] = useState('');
   const [pct, setPct] = useState(null);
   const [err, setErr] = useState('');
@@ -369,6 +433,9 @@ export function BookPage({ book }) {
   const [searching, setSearching] = useState(false);
   const [mine, setMine] = useState(null); // this book already in your TorBox / Real-Debrid
   const [more, setMore] = useState(false);
+  // Looking for other copies even though this book already plays from one (its copy failed, or
+  // you'd like another): from the player's "Try another copy", a long press, or the link below.
+  const [want, setWant] = useState(fresh);
   const dls = useStore(downloads);
   const job = useStore(bk.jobs)[book.uid];
   useStore(phone.localCfg);
@@ -380,15 +447,15 @@ export function BookPage({ book }) {
   const local = bk.onPhone(book, dls);
   useEffect(() => {
     // Look for copies as soon as the page opens, so Play starts at once (free LibriVox books need none).
-    if (free || !bk.provider() || link || local) return;
+    if (free || !bk.provider() || ((link || local) && !want)) return;
     let alive = true;
-    bk.inMyCloud(book).then((m) => alive && setMine(m)).catch(() => {});
+    if (!want) bk.inMyCloud(book).then((m) => alive && setMine(m)).catch(() => {});
     setSearching(true);
     bk.findCopies(book, (l) => alive && setCopies(l))
       .then((l) => alive && setCopies(l))
       .finally(() => alive && setSearching(false));
     return () => (alive = false);
-  }, [book.uid]);
+  }, [book.uid, want]);
   const status1 = (t, p) => {
     setStatus(t);
     setPct(typeof p === 'number' && p > 0 && p < 1 ? p : null);
@@ -414,16 +481,33 @@ export function BookPage({ book }) {
     if (await run(bk.save)()) toast('Saving for offline…');
   };
   const pick = async (r) => {
+    // Your place in the copy you were listening to comes along (same point, or same percent).
+    const was = progress.get()[uid || book.uid]?.percent || progress.get()[book.uid]?.percent || 0;
     bk.links.set((l) => {
       const next = { ...l };
       delete next[book.uid];
       return next;
     });
-    if (await run(bk.play, [r])()) nav.openOverlay('player');
+    setErr('');
+    status1('Getting ready…');
+    try {
+      await bk.play(book, status1, [r], { percent: was });
+      status1('');
+      nav.openOverlay('player');
+    } catch (e) {
+      status1('');
+      setErr(e.message || String(e));
+    }
   };
   const savePct = saved?.total ? Math.round(((saved.done || 0) / saved.total) * 100) : 0;
   // One clear line about where this book will play from.
-  const where = free
+  const where = want && !copies?.length && searching
+    ? 'Looking for other copies…'
+    : want && copies?.length
+      ? `${copies.length} other cop${copies.length === 1 ? 'y' : 'ies'} — tap one to play it${searching ? ' · still looking…' : ''}`
+      : want && copies && !searching
+        ? 'No other audio copy found'
+        : free
     ? 'Free from LibriVox · no debrid needed'
     : local
       ? local.dl
@@ -483,7 +567,12 @@ export function BookPage({ book }) {
           Stop saving
         </button>
       )}
-      {!!copies?.length && !local && !free && <Copies copies={copies} provider={bk.provider()} onPick={pick} busy={!!status} />}
+      {!!copies?.length && (!local || want) && !free && <Copies copies={copies} provider={bk.provider()} onPick={pick} busy={!!status} />}
+      {!want && !free && bk.provider() && (link || local || mine) && (
+        <button class="b-link" onClick={() => setWant(true)}>
+          Find other copies
+        </button>
+      )}
       {book.description && <p class={'b-desc' + (more ? ' open' : '')} onClick={() => setMore(!more)}>{book.description}</p>}
     </div>
   );

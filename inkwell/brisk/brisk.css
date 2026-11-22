@@ -296,3 +296,7 @@ button, a, .b-cont, .b-job-text { touch-action: manipulation; -webkit-tap-highli
 .b-list button { display: flex; align-items: center; gap: 12px; }
 .b-col { flex-direction: column; align-items: stretch; }
 .b-col .b-pills { margin-top: 10px; }
+
+/* press and hold a book: our menu, not the phone's text selection */
+.b-tile, .b-cont { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.b-player > .b-link { margin-top: 6px; }

@@ -104,6 +104,11 @@
   download checked (200, 18 MB). Installs on v1.0.9 or older must install it by hand once (they
   looked at the private repo); from v1.0.10 on, Settings → Update now. Reddit post text given to
   the user (r/RealDebrid, r/TorBox, r/Piracy; check each sub's rules).
+- Next (committed, not built): when a copy won't play (e.g. RD "HTTP 503 — hoster_unavailable"):
+  player shows "Try another copy" under the error → book page with `fresh` (searches copies even
+  when the book already has one); long-press a library cover / Continue card → Play · Find other
+  copies · Book page (`holdProps`/`HoldSheet` in screens.jsx); book page always offers "Find other
+  copies"; picking a copy carries your place over (`play(..., { percent })` → shared playBook percent).
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in
