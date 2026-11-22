@@ -97,3 +97,21 @@ export function thumb(url, px) {
   if (/mzstatic\.com/.test(u)) return u.replace(/\/\d+x\d+(bb|cc)?\.(jpe?g|png|webp)/i, `/${px}x${px}bb.$2`);
   return u;
 }
+
+/**
+ * Where a book in the Library plays from, for the small label on its cover: saved on this
+ * phone wins (it plays offline), then a phone folder, your TorBox, your Real-Debrid, or free LibriVox.
+ */
+export function placeOf(book, saved = false) {
+  if (saved || book?.dl?.status === 'done') return { key: 'saved', label: 'Saved' };
+  const src = book?.source || String(book?.uid || '').split(':')[0];
+  return (
+    {
+      loc: { key: 'phone', label: 'Phone' },
+      tb: { key: 'tb', label: 'TorBox' },
+      rd: { key: 'rd', label: 'Real-Debrid' },
+      lv: { key: 'free', label: 'Free' },
+      ia: { key: 'free', label: 'Free' },
+    }[src] || null
+  );
+}

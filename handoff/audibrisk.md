@@ -52,6 +52,8 @@
     the book already in the player opens straight away; press feedback on every tap.
   - Logo: user chose B — a play button with speed lines. Header `Logo` (screens.jsx) and app
     icon / splash (make-icons.mjs: cream mark on a sage gradient) done.
+  - Library / Downloads covers carry a small label saying where the book plays from: TorBox,
+    Real-Debrid, Phone, Saved (downloaded here — wins), Free (`placeOf` in logic.js).
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in

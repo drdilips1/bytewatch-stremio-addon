@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rankResults, fitsWords, syncSources, copyFacts, backAfterInterruption, thumb } from './logic.js';
+import { rankResults, fitsWords, syncSources, copyFacts, backAfterInterruption, thumb, placeOf } from './logic.js';
 import bundle from './audio-sources.json';
 
 describe('Audibrisk search order', () => {
@@ -58,5 +58,15 @@ describe('Audibrisk covers', () => {
     expect(thumb('https://m.media-amazon.com/images/I/51abc.jpg', 160)).toBe('https://m.media-amazon.com/images/I/51abc._SL160_.jpg');
     expect(thumb('https://is1-ssl.mzstatic.com/image/thumb/a/b/600x600bb.jpg', 160)).toBe('https://is1-ssl.mzstatic.com/image/thumb/a/b/160x160bb.jpg');
     expect(thumb('https://archive.org/services/img/x', 160)).toBe('https://archive.org/services/img/x');
+  });
+});
+
+describe('Audibrisk library labels', () => {
+  it('says where each book plays from', () => {
+    expect(placeOf({ uid: 'tb:t:1', source: 'tb' }).label).toBe('TorBox');
+    expect(placeOf({ uid: 'rd:abc', source: 'rd' }).label).toBe('Real-Debrid');
+    expect(placeOf({ uid: 'loc:x', source: 'loc' }).label).toBe('Phone');
+    expect(placeOf({ uid: 'tb:t:1', source: 'tb' }, true).label).toBe('Saved'); // saved here: plays offline
+    expect(placeOf({ uid: 'lv:12' }).label).toBe('Free');
   });
 });

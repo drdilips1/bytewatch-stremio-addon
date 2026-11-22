@@ -263,3 +263,16 @@ button, a, .b-cont, .b-job-text { touch-action: manipulation; -webkit-tap-highli
 .b-tile .b-cover, .b-result, .b-cont, .b-copy, .b-play, .b-big-play, .b-cont-play, .b-pill, .b-icon { transition: transform 0.08s ease-out; }
 .b-tile-wait { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.28); color: #fff; border-radius: 12px; }
 .b-modes { margin-top: 6px; }
+
+/* where a library book plays from: a small label on its cover */
+.b-tile-src { position: absolute; top: 8px; left: 8px; font-style: normal; font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em; padding: 3px 8px; border-radius: 99px; background: rgba(252, 248, 242, 0.94); color: var(--b-ink); box-shadow: 0 2px 6px -2px rgba(0, 0, 0, 0.3); }
+.b-tile-src.tb { color: #2f7a4f; }
+.b-tile-src.rd { color: #a5622a; }
+.b-tile-src.phone { color: #3f6f8c; }
+.b-tile-src.saved { background: var(--b-sage); color: #fff; }
+.b-tile-src.free { color: var(--b-sage); }
+:root[data-mode='dark'] .b-tile-src { background: rgba(30, 28, 25, 0.88); color: var(--b-ink); }
+:root[data-mode='dark'] .b-tile-src.tb { color: #8fd3a8; }
+:root[data-mode='dark'] .b-tile-src.rd { color: #f0b27e; }
+:root[data-mode='dark'] .b-tile-src.phone { color: #9cc7e2; }
+:root[data-mode='dark'] .b-tile-src.saved { background: var(--b-sage); color: #1e1c19; }

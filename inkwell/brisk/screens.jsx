@@ -12,7 +12,7 @@ import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
 import { VERSION, checkUpdate } from './update.js';
 import { Scene, rollScene, modeChoice } from './scenes.jsx';
-import { copyFacts, thumb } from './logic.js';
+import { copyFacts, thumb, placeOf } from './logic.js';
 import * as phone from '../src/sources/local.js';
 
 /** A cover, or a quiet typographic one when there's no picture. */
@@ -107,6 +107,7 @@ function Grid({ items, onOpen, empty }) {
   // A big cloud library: the first 30 at once, the rest when asked (drawing hundreds is slow).
   const [all, setAll] = useState(false);
   const opening = useOpening();
+  const dls = useStore(downloads);
   if (!items.length) return <p class="b-quiet">{empty}</p>;
   const shown = all ? items : items.slice(0, 30);
   return (
@@ -126,6 +127,10 @@ function Grid({ items, onOpen, empty }) {
                 <b style={{ width: Math.round(b.percent * 100) + '%' }} />
               </i>
             )}
+            {(() => {
+              const at = placeOf(b, dls[b.uid]?.status === 'done');
+              return at && <em class={'b-tile-src ' + at.key}>{at.label}</em>;
+            })()}
             {b.dl && b.dl.status !== 'done' && <em class="b-tile-tag">{b.dl.total ? Math.round(((b.dl.done || 0) / b.dl.total) * 100) : 0}%</em>}
           </div>
           <span>{b.title}</span>
