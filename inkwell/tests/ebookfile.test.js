@@ -10,3 +10,12 @@ describe('directEbookFile', () => {
     expect(directEbookFile(post)).toBe(null);
   });
 });
+
+describe('isCloudEbook', () => {
+  it('opens ebooks from every cloud in the cloud reader, not as a Gutenberg book', async () => {
+    const { isCloudEbook } = await import('../src/lib/epub.js');
+    for (const p of ['tb', 'rd', 'ad', 'pm', 'dl', 'en', 'src', 'loc', 'abs']) expect(isCloudEbook({ uid: `${p}:123#ebook` })).toBe(true);
+    expect(isCloudEbook({ uid: 'gb:1342' })).toBe(false);
+    expect(isCloudEbook({ uid: 'pm:123' })).toBe(false);
+  });
+});

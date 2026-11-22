@@ -234,7 +234,10 @@ export async function epubToHtml(bytes) {
 // ---- ebooks in your TorBox / Real-Debrid -------------------------------------
 
 /** Reader UIDs for cloud ebooks look like "tb:t:123#ebook" (kept apart from the item's audio progress). */
-export const isCloudEbook = (book) => /^(tb|rd|src|loc|abs):/.test(book?.uid || '') && book.uid.endsWith('#ebook');
+// Every cloud an ebook can come from: TorBox, Real-Debrid, AllDebrid, Premiumize, Debrid-Link,
+// Easynews, source links, phone files, Audiobookshelf. One missing here opened as a blank page at 0%
+// (a Premiumize EPUB went to the Project Gutenberg loader).
+export const isCloudEbook = (book) => /^(tb|rd|ad|pm|dl|en|src|loc|abs):/.test(book?.uid || '') && book.uid.endsWith('#ebook');
 
 // ---- direct ebook links from source addons (e.g. Bookracy) -------------------
 

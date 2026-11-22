@@ -153,3 +153,4 @@
 - `ORIGIN` constant = the address above: all manifests, /addons/all.json and LibGen download links use it (change it there if the address moves). Ids `public-…`.
 - 12 h Cloudflare cache of search answers (only ones that found something; key ignores case/spacing); 30 searches/min per CF-Connecting-IP (per isolate); downloads not limited.
 - No sync, keys, env, KV, or calls to personal workers / api.audiohubapp.com (tests/publicaddons.test.js checks).
+- Ebooks from Premiumize / AllDebrid / Debrid-Link / Easynews opened blank (isCloudEbook missed ad|pm|dl|en; now /^(tb|rd|ad|pm|dl|en|src|loc|abs):/, tested in tests/ebookfile.test.js). Reported by AudioYam (Reddit). Not built yet.
