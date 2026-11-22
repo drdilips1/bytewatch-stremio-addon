@@ -129,3 +129,11 @@ describe('Audibrisk free books and Deep Search', () => {
     expect(back).toMatch(/torboxTier=standard/);
   });
 });
+
+describe('Audibrisk: a copy that will not play', () => {
+  it('tries ready copies first, never the ones already tried, four at most', async () => {
+    const { rescueOrder } = await import('./logic.js');
+    const copies = [{ hash: 'A' }, { hash: 'B', cache: { any: true } }, { hash: 'C' }, { hash: 'D', cache: { any: true } }, { hash: 'E' }, { hash: 'F' }];
+    expect(rescueOrder(copies, new Set(['b'])).map((r) => r.hash)).toEqual(['D', 'A', 'C', 'E']);
+  });
+});

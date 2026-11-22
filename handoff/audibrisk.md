@@ -111,6 +111,12 @@
   copies"; picking a copy carries your place over (`play(..., { percent })` → shared playBook percent).
 - Next (committed, not built): mini player shows × instead of back-15 when nothing is playing →
   shared `player.stop()` (saves place, clears the book; it stays under Continue listening).
+- Next (committed, not built): automatic fallback — `watchFailures` (books.js, started in main.jsx)
+  watches the player; when a cloud copy (tb/rd/ad/pm) errors, it finds the copies again (catalogue
+  book via `links` when known), and plays the next one that gets ready (`rescueOrder`: not tried,
+  instant first, ≤4; same RD/TB id = skipped), carrying the percent. Toasts "trying another…" /
+  "Playing another copy"; only if none works the error stays (with "Try another copy"). Not
+  testable here without a real failing copy — check on the phone.
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in

@@ -19,7 +19,7 @@ import * as phone from '../src/sources/local.js';
 import { samePhoneBook } from '../src/lib/match.js';
 import { registerPlugin } from '@capacitor/core';
 import { toast } from '../src/components/common.jsx';
-import { rankResults, fitsWords, syncSources, mixFree, deepSearchFor } from './logic.js';
+import { rankResults, fitsWords, syncSources, mixFree, deepSearchFor, rescueOrder, copyKey } from './logic.js';
 
 const Web = registerPlugin('InkwellWeb');
 // Opening a book never waits for a details lookup (covers, descriptions): what's known already is
@@ -289,6 +289,59 @@ export async function play(book, onStatus, copies, { percent } = {}) {
   const d = await prepare(book, onStatus, copies).finally(() => busy.now--);
   player.playBook(d, { exact: true, ...(percent > 0.002 ? { percent } : {}) });
   return d;
+}
+
+// ---- a copy that won't play: the next one, by itself -------------------------------------------
+// E.g. Real-Debrid's "HTTP 503 — hoster_unavailable" on a copy that was ready: the copies are
+// found again and the next good one plays (ready ones first) from the same place. Up to 4 tries;
+// only if none works does the player show the error (with "Try another copy").
+const SERVICE_SOURCES = new Set(['tb', 'rd', 'ad', 'pm']);
+let rescuing = null; // { failed: Set(book uids), tried: Set(copy keys) }
+async function rescue(failedBook, percent) {
+  // The catalogue book this copy belongs to (better title / author to search with), if known.
+  const owner = Object.entries(links.get()).find(([, l]) => l?.uid === failedBook.uid);
+  const book = owner ? { uid: owner[0], title: owner[1].title || failedBook.title, author: owner[1].author || failedBook.author, cover: owner[1].cover || failedBook.cover, narrator: owner[1].narrator || '' } : { uid: failedBook.uid, title: failedBook.title, author: failedBook.author || '', cover: failedBook.cover || '' };
+  toast('That copy won’t play — trying another…', 4000);
+  const copies = await findCopies(book).catch(() => []);
+  for (const r of rescueOrder(copies, rescuing.tried)) {
+    rescuing.tried.add(copyKey(r));
+    try {
+      busy.now++;
+      const d = await ready(book, r, null, serviceFor(r)).finally(() => busy.now--);
+      if (rescuing.failed.has(d.uid)) continue; // the same copy again
+      links.set((l) => ({ ...l, [book.uid]: summary(d) }));
+      player.playBook(d, { exact: true, ...(percent > 0.002 ? { percent } : {}) });
+      toast('Playing another copy', 3000);
+      return true;
+    } catch {}
+  }
+  return false;
+}
+const serviceFor = (r) => providers().find((p) => p !== provider() && r.cache?.[p] && !r.cache?.[provider()]) || provider();
+/** Watch the player: a cloud copy that fails gets replaced by the next one that plays. */
+export function watchFailures() {
+  let lastError = null;
+  player.subscribe((s) => {
+    const err = s.error && s.book && !s.book.offline && SERVICE_SOURCES.has(s.book.source) && provider() ? s.error : null;
+    if (!err || err === lastError) return (lastError = err);
+    lastError = err;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return; // offline: nothing to switch to
+    // One round per book: the copies already tried stay tried; at most 4 copies replaced.
+    if (!rescuing) rescuing = { failed: new Set(), tried: new Set(), active: false };
+    if (rescuing.active || rescuing.failed.size >= 4) return;
+    const book = s.book;
+    const percent = progress.get()[book.uid]?.percent || 0;
+    rescuing.failed.add(book.uid);
+    rescuing.active = true;
+    rescue(book, percent)
+      .then((ok) => !ok && toast('No other copy would play — try again later, or pick one with “Try another copy”', 6000))
+      .finally(() => {
+        rescuing.active = false;
+        // A fresh start next time something else fails much later.
+        const mine = rescuing;
+        setTimeout(() => rescuing === mine && !mine.active && (rescuing = null), 10 * 60e3);
+      });
+  });
 }
 
 export async function save(book, onStatus, copies) {

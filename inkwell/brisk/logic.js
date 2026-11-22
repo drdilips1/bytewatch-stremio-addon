@@ -159,3 +159,14 @@ export function deepSearchFor(manifest, service) {
   if (url === req.url) return manifest;
   return { ...manifest, debrid: service === 'realdebrid' ? 'realdebrid' : 'torbox', adapters: { ...manifest.adapters, source: { ...manifest.adapters.source, request: { ...req, url } } } };
 }
+
+/**
+ * The copies to try after one failed: not the ones already tried, ready-on-your-service ones
+ * first (they start at once), then the rest in their found order; at most `max`.
+ */
+export function rescueOrder(copies, tried = new Set(), max = 4) {
+  const key = (r) => String(r.hash || r.magnet || r.title || '').toLowerCase();
+  const left = copies.filter((r) => key(r) && !tried.has(key(r)));
+  return [...left.filter((r) => r.cache?.any), ...left.filter((r) => !r.cache?.any)].slice(0, max);
+}
+export const copyKey = (r) => String(r?.hash || r?.magnet || r?.title || '').toLowerCase();
