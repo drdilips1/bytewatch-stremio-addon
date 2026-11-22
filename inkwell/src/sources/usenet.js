@@ -26,6 +26,14 @@ export const easynewsBooks = persisted('easynewsBooks', {});
 
 // ---------------- Easynews ----------------
 const EN = 'https://members.easynews.com';
+// Networks that block Easynews (some Indian providers, where Private DNS doesn't help): its
+// searches and streams can go through your own small Cloudflare worker (workers/easynews-relay.js),
+// set in Settings → Usenet. Files keep their real Easynews address; only the request is routed.
+export const relayOf = (c = cfg()) => String(c?.easynews?.relay || '').trim().replace(/\/+$/, '');
+export function viaEasynewsRelay(url, relay = relayOf()) {
+  if (!relay || !/^https:\/\/([a-z0-9-]+\.)*easynews\.com\//i.test(url)) return url;
+  return `${relay}/fetch?url=${encodeURIComponent(url)}`;
+}
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', Atilde: 'Ã', Acirc: 'Â', copy: '©', eacute: 'é', egrave: 'è', ccedil: 'ç', uuml: 'ü', ouml: 'ö', auml: 'ä', szlig: 'ß', ntilde: 'ñ', aacute: 'á', iacute: 'í', oacute: 'ó', uacute: 'ú', reg: '®', laquo: '«', raquo: '»', ndash: '–', mdash: '—' };
 /**
@@ -55,7 +63,7 @@ export async function easynewsSearch(query, { limit = 250, timeout = 45000, eboo
   // Easynews' search can take half a minute: give it time (the usual wait is 15 s).
   // An audiobook's page: audio files only; an ebook's: EPUB / PDF.
   const fex = ebooks ? 'epub pdf' : 'm4b m4a mp3';
-  const r = await getJson(`${EN}/2.0/search/solr-search/?${qs({ fly: 2, gps: query, pby: limit, pno: 1, sS: 5, s1: 'dsize', s1d: '-', fex, safeO: 0 })}`, { headers: { Authorization: basic() }, fresh: true, timeout });
+  const r = await getJson(viaEasynewsRelay(`${EN}/2.0/search/solr-search/?${qs({ fly: 2, gps: query, pby: limit, pno: 1, sS: 5, s1: 'dsize', s1d: '-', fex, safeO: 0 })}`), { headers: { Authorization: basic() }, fresh: true, timeout });
   const down = r?.downURL || `${EN}/dl`;
   const groups = new Map();
   for (const it of r?.data || []) {
@@ -94,7 +102,7 @@ export function easynewsBook(g, book = {}) {
 export async function easynewsReaderBook(g, book = {}) {
   const f = g.files.find((x) => /\.(epub|pdf)$/i.test(x.name));
   if (!f) throw new Error('No EPUB or PDF in this one');
-  const res = await fetch(f.url, { headers: { Authorization: basic() } });
+  const res = await fetch(viaEasynewsRelay(f.url), { headers: { Authorization: basic() } });
   if (!res.ok) throw new Error(`Easynews answered HTTP ${res.status}`);
   const blobUrl = URL.createObjectURL(new Blob([await res.arrayBuffer()]));
   const format = fmtOf(f.name);
@@ -119,7 +127,7 @@ export async function details(book) {
   const headers = { Authorization: basic() };
   const sorted = x.files.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   const audio = sorted.filter((f) => AUDIO.test(f.name));
-  const ebooks = sorted.filter((f) => EBOOK.test(f.name)).map((f) => ({ name: f.name, format: fmtOf(f.name), size: f.size, resolve: async () => f.url, headers }));
+  const ebooks = sorted.filter((f) => EBOOK.test(f.name)).map((f) => ({ name: f.name, format: fmtOf(f.name), size: f.size, resolve: async () => viaEasynewsRelay(f.url), headers }));
   return {
     ...book,
     title: book.title || x.title,
@@ -127,7 +135,7 @@ export async function details(book) {
     cover: book.cover || x.cover,
     kind: audio.length ? 'audio' : 'text',
     description: `${audio.length || ebooks.length} file${(audio.length || ebooks.length) === 1 ? '' : 's'} on Easynews.`,
-    tracks: audio.map((f, i) => ({ title: f.name.replace(AUDIO, ''), index: i, size: f.size, url: f.url, headers })),
+    tracks: audio.map((f, i) => ({ title: f.name.replace(AUDIO, ''), index: i, size: f.size, url: viaEasynewsRelay(f.url), headers })),
     ebooks,
   };
 }

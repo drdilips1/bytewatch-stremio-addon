@@ -38,3 +38,21 @@ describe('cleanName (Easynews file names)', () => {
     expect(cleanName('Plain Title')).toBe('Plain Title');
   });
 });
+
+describe('Easynews through your relay', () => {
+  it('routes only Easynews addresses, and only when a relay is set', async () => {
+    const { viaEasynewsRelay } = await import('../src/sources/usenet.js');
+    const f = 'https://members.easynews.com/dl/auto/443/abc.m4b/Atomic%20Habits.m4b';
+    expect(viaEasynewsRelay(f, '')).toBe(f);
+    expect(viaEasynewsRelay(f, 'https://en.example.workers.dev')).toBe(`https://en.example.workers.dev/fetch?url=${encodeURIComponent(f)}`);
+    expect(viaEasynewsRelay('https://api.torbox.app/x', 'https://en.example.workers.dev')).toBe('https://api.torbox.app/x');
+  });
+  it('the relay passes on Easynews and nothing else', async () => {
+    const { allowed } = await import('../workers/easynews-relay.js');
+    expect(allowed('https://members.easynews.com/2.0/search/solr-search/?gps=x')).toBeTruthy();
+    expect(allowed('https://iad-dl-08.easynews.com/news/x.m4b')).toBeTruthy();
+    expect(allowed('https://easynews.com.evil.example/x')).toBe(null);
+    expect(allowed('http://members.easynews.com/x')).toBe(null);
+    expect(allowed('https://example.com/?u=easynews.com')).toBe(null);
+  });
+});

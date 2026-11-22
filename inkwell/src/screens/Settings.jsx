@@ -3,7 +3,7 @@ import { createContext } from 'preact';
 import { nav } from '../lib/nav.js';
 import { MORE } from '../sources/moredebrid.js';
 import { smtpFor, knownServer } from '../lib/smtp.js';
-import { usenetCfg, easynewsSearch, searchIndexer, apiBase } from '../sources/usenet.js';
+import { usenetCfg, easynewsSearch, searchIndexer, apiBase, relayOf } from '../sources/usenet.js';
 import * as localSrc from '../sources/local.js';
 import { PhoneButtons, usePhoneRun } from './Library.jsx';
 import { LibbySettings } from '../components/libby-settings.jsx';
@@ -18,7 +18,7 @@ import { annas as annasStore } from '../sources/annas.js';
 import { notInterested, alreadyRead, myRatings, profile } from '../lib/taste.js';
 import { importReadList, takeGoodreadsReads } from '../lib/readlists.js';
 import { SOURCES, absSrc, addonSrc, cloud, hc, gr, sourceOrder } from '../sources/index.js';
-import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl } from '../lib/http.js';
+import { clearHttpCache, isWeb, relayUrl, setRelayUrl, probeRelay, defaultRelayUrl, cleanUrl } from '../lib/http.js';
 import { searchSources, sourceAddons, suggestedSources, addSuggested } from '../sources/sourceaddons.js';
 import { ai, PROVIDERS as AI_PROVIDERS, testProvider, aiOff, aiOn } from '../lib/ai.js';
 import relayCode from '../../relay/index.ts?raw';
@@ -66,6 +66,55 @@ function Section({ icon, title, keys = '', children }) {
  * Usenet: Easynews (plays straight from it with your sign-in) and Newznab indexers (NZBgeek,
  * NinjaCentral, Treasure Maps…: their NZBs go to TorBox's Usenet downloader). Kept on this phone.
  */
+/**
+ * Easynews through your own Cloudflare worker, for networks that block it (some Indian
+ * providers, where Private DNS doesn't help). The worker is workers/easynews-relay.js.
+ */
+function EasynewsRelay() {
+  const u = useStore(usenetCfg);
+  const saved = relayOf(u);
+  const [addr, setAddr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const save = (relay) => usenetCfg.set((c) => ({ ...c, easynews: { ...c.easynews, relay } }));
+  const check = async () => {
+    const a = cleanUrl(addr).replace(/\/+$/, '');
+    setBusy(true);
+    try {
+      const r = await fetch(`${a}/health`).then((x) => x.json());
+      if (!r?.ok || !/easynews/i.test(r.name || '')) throw new Error("that address isn't the Easynews relay");
+      save(a);
+      setAddr('');
+      toast('Easynews now goes through your relay');
+    } catch (e) {
+      toast(`Couldn't use it: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return saved ? (
+    <div class="set-row">
+      <div>
+        <b>Through your relay</b>
+        <small>{saved.replace(/^https:\/\//, '')} — for networks that block Easynews</small>
+      </div>
+      <button class="pill small" onClick={() => save('')}>
+        Stop
+      </button>
+    </div>
+  ) : (
+    <details class="relay-help">
+      <summary>Easynews blocked on your network?</summary>
+      <p class="muted">
+        Some providers block Easynews (a VPN works, Private DNS doesn't). Instead, put the small Easynews relay on your own free Cloudflare account and paste its address here: searches and books then go through it.
+      </p>
+      <input value={addr} placeholder="https://easynews-relay.yourname.workers.dev" autocapitalize="off" autocorrect="off" spellcheck={false} inputmode="url" onInput={(e) => setAddr(e.currentTarget.value)} />
+      <button class="btn secondary" disabled={busy || !addr.trim()} onClick={check}>
+        {busy ? <span class="spinner" /> : <Icon name="check" size={16} />} Check and use
+      </button>
+    </details>
+  );
+}
+
 function UsenetCard() {
   const u = useStore(usenetCfg);
   const [en, setEn] = useState({ user: '', pass: '' });
@@ -82,7 +131,7 @@ function UsenetCard() {
             <b>{u.easynews.user}</b>
             <small>Signed in — Easynews books play straight away</small>
           </div>
-          <button class="pill danger small" onClick={() => usenetCfg.set((c) => ({ ...c, easynews: { user: '', pass: '' } }))}>
+          <button class="pill danger small" onClick={() => usenetCfg.set((c) => ({ ...c, easynews: { ...c.easynews, user: '', pass: '' } }))}>
             Remove
           </button>
         </div>
@@ -93,7 +142,7 @@ function UsenetCard() {
             e.preventDefault();
             setBusy('en');
             const prev = usenetCfg.get().easynews;
-            usenetCfg.set((c) => ({ ...c, easynews: { user: en.user.trim(), pass: en.pass } }));
+            usenetCfg.set((c) => ({ ...c, easynews: { ...c.easynews, user: en.user.trim(), pass: en.pass } }));
             try {
               await easynewsSearch('audiobook', { limit: 5, timeout: 30000 });
               setEn({ user: '', pass: '' });
@@ -119,6 +168,8 @@ function UsenetCard() {
           </button>
         </form>
       )}
+
+      <EasynewsRelay />
 
       <b class="set-sub">Indexers (Newznab)</b>
       {(u.indexers || []).map((x, i) => (
