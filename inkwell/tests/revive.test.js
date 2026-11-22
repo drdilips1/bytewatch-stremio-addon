@@ -5,16 +5,19 @@ import { tbGone, rdGone, moveProgress, toKeepReady } from '../src/lib/revive.js'
 const H = 'a'.repeat(40);
 describe('revive', () => {
   it('knows a gone TorBox torrent from a working one', () => {
-    expect(tbGone(null)).toBe(true);
+    expect(tbGone(null)).toBe(false); // no answer: can't tell, left alone
     expect(tbGone({ download_state: 'inactive' })).toBe(true);
     expect(tbGone({ download_state: 'expired', download_present: false })).toBe(true);
     expect(tbGone({ download_finished: true, download_present: false })).toBe(true);
-    expect(tbGone({ active: false, download_present: false })).toBe(true);
+    // Idle, stalled or slow: fine, never re-added
+    expect(tbGone({ active: false, download_present: false })).toBe(false);
+    expect(tbGone({ active: false, download_finished: true })).toBe(false);
+    expect(tbGone({ download_state: 'stalled (no seeds)', download_finished: false })).toBe(false);
     expect(tbGone({ download_state: 'cached', download_finished: true, download_present: true })).toBe(false);
     expect(tbGone({ download_state: 'uploading', active: false, download_present: true })).toBe(false);
   });
   it('knows a dead Real-Debrid torrent', () => {
-    expect(rdGone(null)).toBe(true);
+    expect(rdGone(null)).toBe(false);
     expect(rdGone({ status: 'dead' })).toBe(true);
     expect(rdGone({ status: 'magnet_error' })).toBe(true);
     expect(rdGone({ status: 'downloaded' })).toBe(false);

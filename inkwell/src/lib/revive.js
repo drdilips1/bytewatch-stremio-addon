@@ -4,18 +4,19 @@
 // itself and carries on at the same point. Pure: the checks and the bookkeeping.
 
 /** TorBox's entry for a torrent → is it gone (missing, inactive, expired, failed)? */
+// Only clear signs count: a torrent that's merely idle, stalled or slow to answer is left alone
+// (an early version also counted "not active" and "stalled", and re-added books that were fine).
 export function tbGone(item) {
-  if (!item) return true;
+  if (!item) return false; // couldn't tell (no answer): never treated as gone
   const state = String(item.download_state || '').toLowerCase();
-  if (/inactive|expired|missing|error|failed|stalled/.test(state)) return true;
-  if (item.active === false && !item.download_present) return true;
-  // Finished once, but its files are no longer on TorBox.
-  return !!item.download_finished && item.download_present === false;
+  if (/\b(inactive|expired)\b/.test(state)) return true;
+  // Finished once, but TorBox says its files are no longer there.
+  return item.download_finished === true && item.download_present === false;
 }
 
 /** Real-Debrid's torrent info (null when it's gone, 404) → dead? */
 export function rdGone(info) {
-  if (!info) return true;
+  if (!info) return false; // couldn't tell: never treated as gone
   return /dead|error|virus|magnet_error/i.test(String(info.status || ''));
 }
 

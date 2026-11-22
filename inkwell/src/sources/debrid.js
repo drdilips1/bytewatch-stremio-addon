@@ -644,19 +644,19 @@ export async function revive(book, onStatus) {
   if (tb && tbConnected()) {
     const it = await tbOne(tb[1]);
     if (!tbGone(it)) return null;
-    if (it) await deleteFromCloud(book).catch(() => {});
+    // Noted for Report a problem: which book, and what TorBox said about it.
+    logError('Revive', `TorBox "${it.name || book.title}": state ${it.download_state || '?'}, finished ${it.download_finished}, present ${it.download_present} — re-adding`);
+    await deleteFromCloud(book).catch(() => {});
     forget();
     onStatus?.('Your TorBox let this one go inactive — adding it again…');
     return { ...(await prepareMagnet('torbox', { hash, title: book.title }, onStatus)), hash };
   }
   const rd = /^rd:([^:]+)$/.exec(uid);
   if (rd && rdConnected()) {
-    const info = await getJson(`${RD}/torrents/info/${rd[1]}`, { headers: rdHeaders(), fresh: true }).catch((e) => {
-      if (e.status === 404) return null;
-      throw e;
-    });
+    const info = await getJson(`${RD}/torrents/info/${rd[1]}`, { headers: rdHeaders(), fresh: true }).catch(() => null);
     if (!rdGone(info)) return null;
-    if (info) await deleteFromCloud(book).catch(() => {});
+    logError('Revive', `Real-Debrid "${info.filename || book.title}": status ${info.status} — re-adding`);
+    await deleteFromCloud(book).catch(() => {});
     forget();
     onStatus?.('Real-Debrid lost this one — adding it again…');
     return { ...(await prepareMagnet('realdebrid', { hash, title: book.title }, onStatus)), hash };
