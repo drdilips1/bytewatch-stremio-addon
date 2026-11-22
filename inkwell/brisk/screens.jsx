@@ -10,7 +10,7 @@ import { fmtDuration } from '../src/lib/format.js';
 import { metaFixes } from '../src/lib/meta.js';
 import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
-import { VERSION, checkUpdate } from './update.js';
+import { VERSION, checkUpdate, installUpdate, updState, newer } from './update.js';
 import { Scene, rollScene, modeChoice } from './scenes.jsx';
 import { copyFacts, thumb, placeOf } from './logic.js';
 import * as phone from '../src/sources/local.js';
@@ -519,6 +519,53 @@ function Copies({ copies, provider, onPick, busy }) {
   );
 }
 
+/** This version, and the newest: check, then download (with its %) and install, in the app. */
+function UpdateRow() {
+  const u = useStore(updState);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const ready = u.latest && VERSION !== 'dev' && newer(u.latest, VERSION);
+  const check = async () => {
+    setBusy(true);
+    try {
+      const r = await checkUpdate();
+      setNote(r.none ? 'No public release yet' : r.newer ? '' : 'You have the latest version');
+    } catch {
+      setNote('Couldn’t check right now');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const line =
+    u.phase === 'downloading'
+      ? `Downloading ${u.latest} · ${u.pct}%`
+      : u.phase === 'permission'
+        ? 'Allow installs from Audibrisk, then come back — it carries on by itself'
+        : u.phase === 'installing'
+          ? 'Opening the installer…'
+          : u.phase === 'error'
+            ? u.error
+            : ready
+              ? `Version ${u.latest} is ready`
+              : note || 'Covers and details are found by themselves.';
+  return (
+    <div class="b-set-row">
+      <div>
+        <b>Audibrisk {VERSION}</b>
+        <small>{line}</small>
+        {u.phase === 'downloading' && (
+          <i class="b-cont-bar">
+            <em style={{ width: Math.max(3, u.pct) + '%' }} />
+          </i>
+        )}
+      </div>
+      <button class="b-pill" disabled={busy || u.phase === 'downloading'} onClick={ready ? installUpdate : check}>
+        {busy ? <span class="b-spin small" /> : ready ? (u.phase === 'error' ? 'Try again' : 'Update now') : 'Check'}
+      </button>
+    </div>
+  );
+}
+
 /** Light, dark, or as the phone is set. (The dice on Home changes the picture and its colours.) */
 function ModeSwitch() {
   const mode = useStore(modeChoice);
@@ -644,7 +691,6 @@ function SettingsSheet({ close }) {
   useBackClose(true, close);
   useStore(debrid);
   const local = useStore(phone.localCfg);
-  const [upd, setUpd] = useState('');
   const [scanning, setScanning] = useState(false);
   const [more, setMore] = useState(false);
   const addFolder = async () => {
@@ -705,22 +751,7 @@ function SettingsSheet({ close }) {
           </>
         )}
         <Sources />
-        <div class="b-set-row">
-          <div>
-            <b>Audibrisk {VERSION}</b>
-            <small>{upd || 'Covers and details are found by themselves.'}</small>
-          </div>
-          <button
-            class="b-pill"
-            onClick={() =>
-              checkUpdate(true)
-                .then((u) => setUpd(u.newer ? `Version ${u.version} — downloading` : 'You have the latest version'))
-                .catch(() => setUpd('Couldn’t check right now'))
-            }
-          >
-            Update
-          </button>
-        </div>
+        <UpdateRow />
       </div>
     </div>
   );

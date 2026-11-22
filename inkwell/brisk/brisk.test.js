@@ -74,3 +74,33 @@ describe('Audibrisk library labels', () => {
     expect(placeOf({ uid: 'lv:12' }).label).toBe('Free');
   });
 });
+
+describe('Audibrisk public build (Android side)', () => {
+  it('empties a method without breaking strings or comments around it', async () => {
+    const { emptyMethods, publicJava } = await import('./publicjava.mjs');
+    const java = [
+      'class A {',
+      '    /** Bookshare: get a book */',
+      '    public void bookshareGet(PluginCall call) {',
+      '        String js = "if (a) { b(); } // not a comment";',
+      "        char c = '}';",
+      '        c.setRequestProperty("Accept", "*/*"); // Bookshare',
+      '    }',
+      '    public void keep(PluginCall call) { String u = "https://forum.mobilism.org/x"; }',
+      '}',
+    ].join('\n');
+    const out = publicJava(emptyMethods(java, ['bookshareGet']));
+    expect(out).toContain('public void siteBookGet(PluginCall call) {\n        call.reject("Not part of Audibrisk");\n    }');
+    expect(out).toContain('public void keep(PluginCall call) { String u = "https://forum.site-a.invalid/x"; }');
+    expect(out).not.toMatch(/bookshare|mobilism/i);
+  });
+});
+
+describe('Audibrisk updates', () => {
+  it('compares versions as numbers', async () => {
+    const { newer } = await import('./logic.js');
+    expect(newer('1.0.12', '1.0.9')).toBe(true);
+    expect(newer('1.0.9', '1.0.9')).toBe(false);
+    expect(newer('1.0.8', '1.0.10')).toBe(false);
+  });
+});

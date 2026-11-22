@@ -3,6 +3,9 @@ name: Audibrisk Android APK
 # Audibrisk: search and play, streamed through TorBox / Real-Debrid or saved offline (inkwell/brisk).
 # Built only when asked: a commit with [build brisk] in its message (or Run workflow once on main).
 # Releases are pre-releases tagged audibrisk-v…, so they never show up as Audiohub's in-app update.
+# [release brisk] instead also publishes it in the PUBLIC repository drdilips1/audibrisk, which is
+# what everyone's in-app update reads (needs the AUDIBRISK_PUBLIC_TOKEN secret: a token that can
+# write to that repository).
 on:
   workflow_dispatch:
   # Or a commit whose message says [build brisk].
@@ -20,7 +23,7 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build brisk]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build brisk]') || contains(github.event.head_commit.message, '[release brisk]')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -28,6 +31,7 @@ jobs:
     env:
       VERSION_CODE: ${{ github.run_number }}
       VERSION_NAME: 1.0.${{ github.run_number }}
+      HAS_PUBLIC_TOKEN: ${{ secrets.AUDIBRISK_PUBLIC_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -117,3 +121,24 @@ jobs:
           body: |
             Audibrisk for Android — search any audiobook and play it, streamed through TorBox or Real-Debrid or saved for offline.
             Download the APK below and open it on your phone.
+
+      # The public release (only for [release brisk]): the APK in drdilips1/audibrisk, as its
+      # latest release — the in-app update finds it there.
+      - name: Publish publicly (drdilips1/audibrisk)
+        if: contains(github.event.head_commit.message, '[release brisk]') && env.HAS_PUBLIC_TOKEN == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: drdilips1/audibrisk
+          token: ${{ secrets.AUDIBRISK_PUBLIC_TOKEN }}
+          tag_name: v${{ env.VERSION_NAME }}
+          name: Audibrisk ${{ env.VERSION_NAME }}
+          prerelease: false
+          make_latest: true
+          files: inkwell/out/*.apk
+          body: |
+            Audibrisk for Android — search an audiobook and play it, through your own TorBox, Real-Debrid, AllDebrid or Premiumize, or free from LibriVox.
+            Download the APK below and open it on your phone. Already installed? Settings → Update now.
+
+      - name: Public release skipped
+        if: contains(github.event.head_commit.message, '[release brisk]') && env.HAS_PUBLIC_TOKEN != 'true'
+        run: echo "::warning::[release brisk] asked for a public release, but the AUDIBRISK_PUBLIC_TOKEN secret isn't set — only the private test build was made."

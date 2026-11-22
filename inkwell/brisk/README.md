@@ -11,6 +11,11 @@ AllDebrid, Premiumize (any or all), a folder on the phone, and a folded Sources 
   ids under `retired` are removed from existing installs by themselves. Plus LibriVox (free).
 - Play picks the best copy: ready-to-stream on your debrid first, then M4B, then seeds.
   The book page shows the copies as small boxes (Instant, or seeds · size · format) to pick by hand.
-- Build: a commit with `[build brisk]` in its message. Releases: pre-releases tagged `audibrisk-v…`.
+- Build: a commit with `[build brisk]` in its message → a private test pre-release `audibrisk-v…`.
+  `[release brisk]` also publishes it in the public repo drdilips1/audibrisk (in-app updates read
+  that; needs the AUDIBRISK_PUBLIC_TOKEN secret).
+- Public-safe: `vite.brisk.config.js` leaves out Audiohub+-only code (Mobilism, Libby, Anna's,
+  Bookshare, tracker, personal sync/relay) and fails the build if any of it is left;
+  `rebrand.mjs` + `publicjava.mjs` do the same for the Android side in CI.
 - Icons / splash: `node brisk/make-icons.mjs` → `brisk/android-res/`.
 - Pure rules in `brisk/logic.js`, tested by `brisk/brisk.test.js` (part of `npm test`).

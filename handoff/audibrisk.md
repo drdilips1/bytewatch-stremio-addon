@@ -77,6 +77,25 @@
   Ink & Echo files in shared src/ still carry the old personal id — not touched, Audiohub+ window.)
   This repo's cloud environment now allows inkandecho-builder.pages.dev and
   sources.booksources.workers.dev.
+- Public-safe build (22 Nov, committed, not built) — `inkwell/vite.brisk.config.js` plugin
+  `audibrisk-public-only`: Mobilism, Libby, Anna's, Bookshare, qbit/tracker, cfsync/sync,
+  quoteshare, source-results, libby cards, Tracker screen, storyshots → generated stand-ins (same
+  export names, do nothing); built-in source JSONs → public worker versions; small text edits
+  (sourceaddons specials, http.js Libby/OverDrive relay hosts, report/transcript links →
+  drdilips1/audibrisk); relay + Supabase env blanked (no personal relay for public users); hashed
+  chunk names; the build FAILS if any banned word is left (myanonamouse, mam_id, mobilism,
+  libbyapp, overdrive, annas-archive, bookshare, audiohubapp, drdilipgreat,
+  bytewatch-stremio-addon). Android side: `brisk/rebrand.mjs` (CI copy only) empties
+  trackerSearch/trackerGrab/trackerFetch/bookshareGet(→siteBookGet)/qbitSend and blanks site names
+  (`brisk/publicjava.mjs`, tested), and fails if any is left. javac syntax check: no new errors.
+- In-app update (A, the user's go-ahead): `brisk/update.js` reads the PUBLIC repo
+  drdilips1/audibrisk (releases/latest), downloads in the app with % via the shared InkwellUpdate
+  plugin, asks once for "install unknown apps", installs; Settings row Check → Update now.
+  Workflow: `[build brisk]` = private test pre-release as before; `[release brisk]` = also publish
+  `v1.0.N` (latest) in drdilips1/audibrisk — needs secret AUDIBRISK_PUBLIC_TOKEN (else a warning).
+  WAITING ON THE USER: create public repo drdilips1/audibrisk (with a README so it has a branch),
+  and add the AUDIBRISK_PUBLIC_TOKEN secret (fine-grained token, Contents: read & write on that
+  repo) in this private repo's Actions secrets.
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in

@@ -117,3 +117,11 @@ export function placeOf(book, saved = false) {
     }[src] || null
   );
 }
+
+/** Is version a newer than b? Compared as numbers: "1.0.12" is newer than "1.0.9". */
+export function newer(a, b) {
+  const x = String(a).split('.').map(Number);
+  const y = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  return false;
+}

@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { emptyMethods, publicJava } from './publicjava.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.join(here, '../android/app');
@@ -32,6 +33,20 @@ edit('src/main/AndroidManifest.xml', (s) =>
     .replace(/\s*<meta-data android:name="android\.app\.shortcuts"[^>]*\/>/, '')
     .replace(/\s*<!-- Home-screen widget[\s\S]*?<\/receiver>/, ''),
 );
+
+// Public build: the shared Android code's helpers for Audiohub+-only sites (the tracker,
+// qBittorrent, Bookshare) do nothing in Audibrisk, and their site names are gone from the app.
+// The methods stay (with an empty body that says so), so the code compiles the same.
+const javaDir = 'src/main/java/app/inkwell/books';
+const BANNED = /bookshare|mobilism|libby|overdrive|annas|myanonamouse/i;
+edit(`${javaDir}/InkwellWebPlugin.java`, (s) => publicJava(emptyMethods(s, ['trackerSearch', 'trackerGrab', 'trackerFetch', 'bookshareGet', 'qbitSend'])));
+edit(`${javaDir}/InkwellWebActivity.java`, publicJava);
+edit(`${javaDir}/InkwellLocalPlugin.java`, publicJava);
+for (const f of fs.readdirSync(path.join(app, javaDir))) {
+  const code = fs.readFileSync(path.join(app, javaDir, f), 'utf8');
+  const m = BANNED.exec(code);
+  if (m) throw new Error(`${f} still mentions "${m[0]}": ${code.slice(Math.max(0, m.index - 60), m.index + 40)}`);
+}
 
 // Icons and splash screens.
 const res = path.join(here, 'android-res');
