@@ -136,6 +136,30 @@ async function recover(msg = '') {
     rescue.step = 2;
     rescueTried.add(b.uid);
     const g = globalTime();
+    // A TorBox / Real-Debrid copy whose torrent went inactive (TorBox lets old ones go): added
+    // again by itself — usually ready at once — and carried on at the same point.
+    let refetching = null;
+    if ((b.source === 'tb' || b.source === 'rd') && b.hash && !rescueTried.has('revive:' + b.hash)) {
+      rescueTried.add('revive:' + b.hash);
+      try {
+        const { cloud, getDetails } = await import('../sources/index.js');
+        set({ loading: true, error: null, phase: 'This copy stopped answering — checking your cloud…' });
+        const stub = await cloud.revive(b, (text) => set({ loading: true, error: null, phase: text }));
+        if (stub) {
+          const d = await getDetails({ ...stub, title: b.title, author: b.author, cover: b.cover });
+          const { moveProgress } = await import('./revive.js');
+          const percent = progress.get()[b.uid]?.percent;
+          progress.set((all) => moveProgress(all, b.uid, d.uid));
+          rescuing = true;
+          await playBook(d, { globalStart: g, percent });
+          return true;
+        }
+      } catch (e) {
+        rescuing = false;
+        // Downloading again in your account: play another copy meanwhile (below).
+        if (e?.pending) refetching = `${b.source === 'rd' ? 'Real-Debrid' : 'TorBox'} is downloading it again (${Math.round((e.pending.progress || 0) * 100)}%)`;
+      }
+    }
     // A Real-Debrid book: your Audiobookshelf copy first (checked like "Already on your
     // Audiobookshelf"), then the same torrent from TorBox (instant when TorBox has it).
     if (b.source === 'rd') {
@@ -170,8 +194,10 @@ async function recover(msg = '') {
       }
     }
     const alt = await otherCopy(b).catch(() => null);
-    if (!alt && b.source === 'abs') {
-      const inst = await instantCopy(b, 'Your server isn’t answering').catch(() => null);
+    // No copy of your own: one ready to stream from your sources (your server down, or the
+    // cloud copy downloading again).
+    if (!alt && (b.source === 'abs' || refetching)) {
+      const inst = await instantCopy(b, refetching || 'Your server isn’t answering').catch(() => null);
       if (inst) {
         rescuing = true;
         await playBook(inst.details, { globalStart: g, percent: progress.get()[b.uid]?.percent });
@@ -179,7 +205,7 @@ async function recover(msg = '') {
       }
     }
     if (alt) {
-      set({ loading: true, error: null, phase: `This copy won't play — switching to ${alt.label}…` });
+      set({ loading: true, error: null, phase: `${refetching ? `${refetching} — meanwhile` : "This copy won't play —"} switching to ${alt.label}…` });
       try {
         const { getDetails } = await import('../sources/index.js');
         const d = await getDetails(alt.book);
@@ -189,6 +215,11 @@ async function recover(msg = '') {
       } catch {
         rescuing = false;
       }
+    }
+    // Nothing else to play while it downloads again: say so (not a bare error).
+    if (refetching) {
+      set({ loading: false, playing: false, phase: '', error: `${refetching} — it plays again once it's back; try in a few minutes` });
+      return true;
     }
   }
   return false;

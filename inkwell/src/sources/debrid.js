@@ -1,5 +1,6 @@
 // Debrid cloud libraries — stream the audiobooks already sitting in your
 // TorBox or Real-Debrid account, and add new magnets / links to it.
+import { tbGone, rdGone, toKeepReady } from '../lib/revive.js';
 import { getJson, sendForm, qs } from '../lib/http.js';
 import { logError } from '../lib/report.js';
 import { debrid, persisted } from '../lib/store.js';
@@ -626,6 +627,67 @@ export async function deleteFromCloud(book) {
     if (!res.ok && res.status !== 404) throw new Error(`Real-Debrid didn't delete it (HTTP ${res.status})`);
   } else throw new Error("This one can't be deleted from here — remove it on the service's website");
   forget();
+}
+
+/**
+ * A TorBox / Real-Debrid book whose torrent has gone inactive or died, brought back: the dead
+ * entry is removed and the same torrent added again (usually ready at once — still cached there).
+ * Resolves the new book stub, or null when the entry looks fine (then it's something else: a
+ * file server hiccup, not a dead torrent). Throws prepareMagnet's "still downloading" error
+ * (with .pending) when it has to download again — it carries on in your account meanwhile.
+ */
+export async function revive(book, onStatus) {
+  const uid = String(book?.uid || '');
+  const hash = String(book?.hash || '').toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(hash)) return null;
+  const tb = /^tb:t:(.+)$/.exec(uid);
+  if (tb && tbConnected()) {
+    const it = await tbOne(tb[1]);
+    if (!tbGone(it)) return null;
+    if (it) await deleteFromCloud(book).catch(() => {});
+    forget();
+    onStatus?.('Your TorBox let this one go inactive — adding it again…');
+    return { ...(await prepareMagnet('torbox', { hash, title: book.title }, onStatus)), hash };
+  }
+  const rd = /^rd:([^:]+)$/.exec(uid);
+  if (rd && rdConnected()) {
+    const info = await getJson(`${RD}/torrents/info/${rd[1]}`, { headers: rdHeaders(), fresh: true }).catch((e) => {
+      if (e.status === 404) return null;
+      throw e;
+    });
+    if (!rdGone(info)) return null;
+    if (info) await deleteFromCloud(book).catch(() => {});
+    forget();
+    onStatus?.('Real-Debrid lost this one — adding it again…');
+    return { ...(await prepareMagnet('realdebrid', { hash, title: book.title }, onStatus)), hash };
+  }
+  return null;
+}
+
+/**
+ * Before you press play: books you're partway through whose TorBox / Real-Debrid torrent has gone
+ * inactive are added again quietly (at most 3 a run, once every 6 hours), and your place moves to
+ * the new entry. Resolves how many came back.
+ */
+export async function keepReady({ progress: prog, moveTo } = {}) {
+  try {
+    const last = Number(localStorage.getItem('inkwell:keepReadyAt')) || 0;
+    if (Date.now() - last < 6 * 3600e3) return 0;
+    localStorage.setItem('inkwell:keepReadyAt', String(Date.now()));
+  } catch {}
+  const entries = [];
+  if (tbConnected()) for (const it of await tbList('torrents', true).catch(() => [])) entries.push({ uid: `tb:t:${it.id}`, hash: String(it.hash || '').toLowerCase(), title: it.name || '', gone: tbGone(it) });
+  if (rdConnected()) for (const t of await rdTorrents().catch(() => [])) entries.push({ uid: `rd:${t.id}`, hash: String(t.hash || '').toLowerCase(), title: t.filename || '', gone: rdGone(t) });
+  let n = 0;
+  for (const e of toKeepReady(entries, prog).slice(0, 3)) {
+    try {
+      const stub = await revive({ uid: e.uid, hash: e.hash, title: e.title });
+      if (stub?.uid) (moveTo?.(e.uid, stub.uid), n++);
+    } catch (err) {
+      logError('Keep ready', `${e.title}: ${err.message}`); // still downloading again, or refused
+    }
+  }
+  return n;
 }
 
 /** A service's name for messages ("TorBox", "Real-Debrid", "AllDebrid"…). */
