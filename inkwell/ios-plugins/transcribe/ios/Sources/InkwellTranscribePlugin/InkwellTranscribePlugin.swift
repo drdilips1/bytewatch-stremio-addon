@@ -10,7 +10,8 @@ import Speech
 /// - MP3 (most multi-part books): each ~45 s piece is fetched on its own with an HTTP
 ///   range request (from the file's size and length) and recognised directly.
 /// - Other formats (M4B / M4A): the part is downloaded once, then cut locally; the copy
-///   is deleted when the transcript stops or moves on.
+///   is deleted when the transcript stops or moves on. Parts too big to download (over 900 MB)
+///   are cut straight from the server (Apple's reader fetches only the bytes it needs).
 @objc(InkwellTranscribePlugin)
 public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "InkwellTranscribePlugin"
@@ -172,10 +173,23 @@ public class InkwellTranscribePlugin: CAPPlugin, CAPBridgedPlugin {
                     mp3Start = min(info.audioStart, info.size / 2)
                 } else {
                     if info.size > 900_000_000 {
-                        status(job, "error", "This part is too big to transcribe on iPhone (\(info.size / 1_000_000) MB).")
-                        return
+                        // Too big to download (a whole audiobook in one 1.8 GB .mp4): pieces are cut
+                        // straight from the server instead — Apple's reader fetches only the bytes
+                        // each minute needs, as the player does.
+                        var opts: [String: Any] = headers.isEmpty ? [:] : ["AVURLAssetHTTPHeaderFieldsKey": headers]
+                        let ext = url.pathExtension.lowercased()
+                        if info.type.contains("mp4") || info.type.contains("m4a") { opts["AVURLAssetOutOfBandMIMETypeKey"] = info.type }
+                        else if ["m4a", "m4b"].contains(ext) { opts["AVURLAssetOutOfBandMIMETypeKey"] = "audio/mp4" }
+                        else { opts["AVURLAssetOutOfBandMIMETypeKey"] = "video/mp4" }
+                        let remote = AVURLAsset(url: url, options: opts)
+                        guard let d = try? await remote.load(.duration), d.seconds.isFinite, d.seconds > 0 else {
+                            status(job, "error", "This part is too big to transcribe on iPhone (\(info.size / 1_000_000) MB).")
+                            return
+                        }
+                        localAsset = remote
+                    } else {
+                        localAsset = AVURLAsset(url: try await localCopy(url, headers: headers, job: job))
                     }
-                    localAsset = AVURLAsset(url: try await localCopy(url, headers: headers, job: job))
                 }
             }
         } catch {
