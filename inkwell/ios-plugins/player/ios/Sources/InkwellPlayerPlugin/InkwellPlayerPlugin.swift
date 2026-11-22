@@ -82,9 +82,17 @@ public class InkwellPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             let path = String(s[r.upperBound...]).removingPercentEncoding ?? String(s[r.upperBound...])
             return URL(fileURLWithPath: path)
         }
-        if s.hasPrefix("file:") || s.hasPrefix("http:") || s.hasPrefix("https:") { return URL(string: s) }
+        if s.hasPrefix("file:") || s.hasPrefix("http:") || s.hasPrefix("https:") { return URL(string: s) ?? Self.encoded(s) }
         if s.hasPrefix("/") { return URL(fileURLWithPath: s) }
-        return URL(string: s)
+        return URL(string: s) ?? Self.encoded(s)
+    }
+
+    /// A link with spaces or brackets left in (some file servers hand them out like that): older
+    /// iOS won't take it as it is, so those characters are encoded (what's already encoded stays).
+    private static func encoded(_ s: String) -> URL? {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.insert(charactersIn: "%#")
+        return s.addingPercentEncoding(withAllowedCharacters: allowed).flatMap { URL(string: $0) }
     }
 
     /// `mime`: the file's type from its name ("video/mp4" for an audiobook packed as .mp4). Cloud
@@ -306,6 +314,10 @@ public class InkwellPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             if underlying.code == -1009 { message = "No internet connection" }
             else if underlying.code == -1001 { message = "The server took too long to answer" }
             else if underlying.domain == "CoreMediaErrorDomain" && underlying.code == -12938 { message = "The file was not found on the server (HTTP 404)." }
+        }
+        // Apple's bare "Cannot Open": the player didn't recognise the file's format.
+        if e?.domain == AVFoundationErrorDomain && (e?.code == -11828 || e?.code == -11829) {
+            message = "iPhone couldn't open this file's format"
         }
         notifyListeners("error", data: ["code": "\(e?.code ?? 0)", "message": message])
     }
