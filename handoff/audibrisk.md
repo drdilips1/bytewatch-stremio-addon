@@ -8,7 +8,7 @@
   Releases `audibrisk-v1.0.N` (pre-releases, private repo — not downloadable by others yet).
 - v1.0.5 — calm cream/sage look (lake scene, "Less app. More listening."), Home / Library /
   Downloads tabs, own TorBox/RD cloud first, RAR/ZIP copies skipped, tidied titles.
-- v1.0.6 (21 Nov, building) — user's feedback list:
+- v1.0.6 (21 Nov, released: https://github.com/drdilips1/bytewatch-stremio-addon/releases/tag/audibrisk-v1.0.6) — user’s feedback list:
   - Sources: `audio-sources.json` = public worker (sources.booksources.workers.dev) AudiobookBay
     (`public-audiobookbay`) + Knaben AudioBooks (`public-knaben-audiobooks`) + Ink & Echo.
     `retired` ids (my-audiobookbay, my-knaben-audiobooks, extto-audiohub,
