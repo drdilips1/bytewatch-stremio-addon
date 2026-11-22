@@ -93,14 +93,17 @@
   plugin, asks once for "install unknown apps", installs; Settings row Check → Update now.
   Workflow: `[build brisk]` = private test pre-release as before; `[release brisk]` = also publish
   `v1.0.N` (latest) in drdilips1/audibrisk — needs secret AUDIBRISK_PUBLIC_TOKEN (else a warning).
-  WAITING ON THE USER: create public repo drdilips1/audibrisk (with a README so it has a branch),
-  and add the AUDIBRISK_PUBLIC_TOKEN secret (fine-grained token, Contents: read & write on that
-  repo) in this private repo's Actions secrets.
-- Next (committed, not built): free LibriVox books inside the top 10 (3rd and 7th, rest at the
+  Public repo drdilips1/audibrisk and secret AUDIBRISK_PUBLIC_TOKEN set up by the user (22 Nov).
+- In v1.0.10: free LibriVox books inside the top 10 (3rd and 7th, rest at the
   end; all first without debrid) — `mixFree`; Deep Search follows the connected service
   (`deepSearchFor`: Real-Debrid when it's yours and TorBox isn't connected, else TorBox; Ink & Echo
   knows only these two — its builder gives TorBox for AllDebrid/Premiumize), re-set on
   connect/disconnect. Checked live: the Real-Debrid search answers.
+- v1.0.10 (22 Nov) — FIRST PUBLIC RELEASE: run 10 built and published to drdilips1/audibrisk
+  (tag v1.0.10, latest). Public link https://github.com/drdilips1/audibrisk/releases/latest — APK
+  download checked (200, 18 MB). Installs on v1.0.9 or older must install it by hand once (they
+  looked at the private repo); from v1.0.10 on, Settings → Update now. Reddit post text given to
+  the user (r/RealDebrid, r/TorBox, r/Piracy; check each sub's rules).
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in
