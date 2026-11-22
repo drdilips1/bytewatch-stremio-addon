@@ -117,7 +117,7 @@
   instant first, ≤4; same RD/TB id = skipped), carrying the percent. Toasts "trying another…" /
   "Playing another copy"; only if none works the error stays (with "Try another copy"). Not
   testable here without a real failing copy — check on the phone.
-- v1.0.11 (22 Nov, building, private test) — user's "1 to 4":
+- v1.0.11 (22 Nov, built OK, private test: https://github.com/drdilips1/bytewatch-stremio-addon/releases/tag/audibrisk-v1.0.11) — user's "1 to 4":
   - Ready before you tap: `prewarm`/`warmed` (books.js) fetch the playable details of the first
     Continue book (Home, after 2.5 s) and of an open book page with a known copy; prepare/resume
     use them (10 min). NOT done: download-ahead while listening (needs shared native player buffer
