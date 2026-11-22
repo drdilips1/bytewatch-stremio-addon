@@ -47,7 +47,7 @@ export function MiniPlayer() {
   const done = total > 0 ? Math.min(100, (player.globalTime() / total) * 100) : 0;
   return (
     <div class="b-mini" onClick={() => nav.openOverlay('player')}>
-      <Cover book={s.book} />
+      <Cover book={s.book} px={120} />
       <div class="b-mini-text">
         <b>{s.book.title}</b>
         <span>{s.loading ? s.phase || 'Opening…' : [chapterNow(s)?.title, player.totalDuration() > 0 && `${fmtDuration(leftInBook())} left`].filter(Boolean).join(' · ') || s.book.author}</span>

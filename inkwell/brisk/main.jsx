@@ -6,6 +6,7 @@ import { aiOff } from '../src/lib/ai.js';
 import { settings } from '../src/lib/store.js';
 import { installSources, startWatching } from './books.js';
 import { App } from './app.jsx';
+import { watchLook } from './scenes.jsx';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 
@@ -16,6 +17,9 @@ try {
 } catch {}
 installSources();
 startWatching(); // books your service was still getting ready when you closed the app
-if (Capacitor.isNativePlatform()) StatusBar.setStyle({ style: Style.Light }).catch(() => {});
+// Light or dark, and the scene's colours; the status bar follows (dark icons on light, light on dark).
+watchLook((dark) => {
+  if (Capacitor.isNativePlatform()) StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {});
+});
 
 render(<App />, document.getElementById('app'));

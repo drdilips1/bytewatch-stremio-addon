@@ -4,6 +4,29 @@
 import { persisted, useStore } from '../src/lib/store.js';
 
 export const sceneChoice = persisted('briskScene', 'sunrise');
+/** Light, dark, or whatever the phone is set to ('auto'). */
+export const modeChoice = persisted('briskMode', 'auto');
+
+const darkQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)') : null;
+export const isDark = () => modeChoice.get() === 'dark' || (modeChoice.get() === 'auto' && !!darkQuery?.matches);
+let onLook = () => {};
+/** Colours for the scene and mode: set on <html>, so the whole app changes at once. */
+export function applyLook() {
+  const root = document.documentElement;
+  root.dataset.scene = sceneChoice.get();
+  root.dataset.mode = isDark() ? 'dark' : 'light';
+  const bg = getComputedStyle(root).getPropertyValue('--b-bg').trim();
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg || '#f6efe4');
+  onLook(isDark());
+}
+/** Start following the choices (and the phone's own setting in Auto). fn(dark) e.g. for the status bar. */
+export function watchLook(fn) {
+  onLook = fn || onLook;
+  applyLook();
+  sceneChoice.subscribe(applyLook);
+  modeChoice.subscribe(applyLook);
+  darkQuery?.addEventListener?.('change', applyLook);
+}
 export const SCENES = ['sunrise', 'sunset', 'night', 'meadow', 'mountains'];
 /** Another scene than the one showing. */
 export function rollScene() {

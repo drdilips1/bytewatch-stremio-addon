@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rankResults, fitsWords, syncSources, copyFacts, backAfterInterruption } from './logic.js';
+import { rankResults, fitsWords, syncSources, copyFacts, backAfterInterruption, thumb } from './logic.js';
 import bundle from './audio-sources.json';
 
 describe('Audibrisk search order', () => {
@@ -49,5 +49,14 @@ describe('Audibrisk copies and playback', () => {
     expect(backAfterInterruption(600, 600.4)).toBe(5);
     expect(backAfterInterruption(600, 595)).toBe(0); // the player already went back
     expect(backAfterInterruption(600, 900)).toBe(0); // moved on meanwhile
+  });
+});
+
+describe('Audibrisk covers', () => {
+  it('small covers ask for small pictures', () => {
+    expect(thumb('https://m.media-amazon.com/images/I/51abc._SL500_.jpg', 160)).toBe('https://m.media-amazon.com/images/I/51abc._SL160_.jpg');
+    expect(thumb('https://m.media-amazon.com/images/I/51abc.jpg', 160)).toBe('https://m.media-amazon.com/images/I/51abc._SL160_.jpg');
+    expect(thumb('https://is1-ssl.mzstatic.com/image/thumb/a/b/600x600bb.jpg', 160)).toBe('https://is1-ssl.mzstatic.com/image/thumb/a/b/160x160bb.jpg');
+    expect(thumb('https://archive.org/services/img/x', 160)).toBe('https://archive.org/services/img/x');
   });
 });

@@ -11,19 +11,19 @@ import { metaFixes } from '../src/lib/meta.js';
 import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
 import { VERSION, checkUpdate } from './update.js';
-import { Scene, rollScene } from './scenes.jsx';
-import { copyFacts } from './logic.js';
+import { Scene, rollScene, modeChoice } from './scenes.jsx';
+import { copyFacts, thumb } from './logic.js';
 import * as phone from '../src/sources/local.js';
 
 /** A cover, or a quiet typographic one when there's no picture. */
-export function Cover({ book, class: cls = '' }) {
+export function Cover({ book, class: cls = '', px = 0 }) {
   // Remember which picture failed, not just "failed": a better cover found later still shows.
   const [bad, setBad] = useState('');
-  const src = book?.cover && book.cover !== bad ? book.cover : '';
+  const src = book?.cover && book.cover !== bad ? thumb(book.cover, px) : '';
   return (
     <div class={'b-cover ' + cls}>
       {src ? (
-        <img src={src} alt="" decoding="async" onError={() => setBad(src)} />
+        <img src={src} alt="" decoding="async" onError={() => setBad(book.cover)} />
       ) : (
         <div class="b-cover-blank">
           <b>{book?.title}</b>
@@ -36,11 +36,11 @@ export function Cover({ book, class: cls = '' }) {
 
 /** Headphones with a small sound wave: the mark. */
 export const Logo = () => (
-  <svg viewBox="0 0 48 48" width="40" height="40" aria-hidden="true">
-    <path d="M8 28v-4a16 16 0 0 1 32 0v4" fill="none" stroke="#4a3b2c" stroke-width="3.2" stroke-linecap="round" />
-    <rect x="5" y="26" width="8" height="14" rx="4" fill="#4a3b2c" />
-    <rect x="35" y="26" width="8" height="14" rx="4" fill="#4a3b2c" />
-    <g stroke="#4a3b2c" stroke-width="2.2" stroke-linecap="round">
+  <svg class="b-logo" viewBox="0 0 48 48" width="40" height="40" aria-hidden="true">
+    <path d="M8 28v-4a16 16 0 0 1 32 0v4" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" />
+    <rect x="5" y="26" width="8" height="14" rx="4" fill="currentColor" />
+    <rect x="35" y="26" width="8" height="14" rx="4" fill="currentColor" />
+    <g stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
       <path d="M18 31v4" /><path d="M21 28v10" /><path d="M24 25v16" /><path d="M27 28v10" /><path d="M30 31v4" />
     </g>
   </svg>
@@ -85,9 +85,10 @@ const leftOf = (b) => {
 
 /** One book you're listening to: cover, title, progress, time left, play. */
 function ContinueCard({ b, onOpen }) {
+  const opening = useOpening() === b.uid;
   return (
     <div class="b-cont" onClick={() => onOpen(b)}>
-      <Cover book={b} />
+      <Cover book={b} px={240} />
       <div class="b-cont-text">
         <b>{b.title}</b>
         <span>{String(b.author || '').split(',')[0]}</span>
@@ -97,7 +98,7 @@ function ContinueCard({ b, onOpen }) {
         <small>{leftOf(b)}</small>
       </div>
       <button class="b-cont-play" aria-label="Play">
-        <Icon name="play" size={20} />
+        {opening ? <span class="b-spin" /> : <Icon name="play" size={20} />}
       </button>
     </div>
   );
@@ -107,6 +108,7 @@ function ContinueCard({ b, onOpen }) {
 function Grid({ items, onOpen, empty }) {
   // A big cloud library: the first 30 at once, the rest when asked (drawing hundreds is slow).
   const [all, setAll] = useState(false);
+  const opening = useOpening();
   if (!items.length) return <p class="b-quiet">{empty}</p>;
   const shown = all ? items : items.slice(0, 30);
   return (
@@ -115,7 +117,12 @@ function Grid({ items, onOpen, empty }) {
       {shown.map((b) => (
         <button class="b-tile" onClick={() => onOpen(b)}>
           <div class="b-tile-art">
-            <Cover book={b} />
+            <Cover book={b} px={320} />
+            {opening === b.uid && (
+              <span class="b-tile-wait">
+                <span class="b-spin" />
+              </span>
+            )}
             {b.percent > 0 && (
               <i class="b-tile-bar">
                 <b style={{ width: Math.round(b.percent * 100) + '%' }} />
@@ -137,11 +144,28 @@ function Grid({ items, onOpen, empty }) {
   );
 }
 
-const playIt = (b) =>
-  bk
+// The book being opened from a grid or card: its tile shows a spinner at once, so a tap never
+// feels ignored while TorBox / Real-Debrid lists its files.
+let openingNow = '';
+const openingSubs = new Set();
+const setOpening = (uid) => ((openingNow = uid), openingSubs.forEach((f) => f(uid)));
+function useOpening() {
+  const [v, setV] = useState(openingNow);
+  useEffect(() => (openingSubs.add(setV), () => openingSubs.delete(setV)), []);
+  return v;
+}
+const playIt = (b) => {
+  if (openingNow === b.uid) return;
+  // Already the book in the player: straight to it.
+  if (player.getState().book?.uid === b.uid) return nav.openOverlay('player');
+  setOpening(b.uid);
+  bk.busy.now++;
+  return bk
     .resume(b)
     .then(() => nav.openOverlay('player'))
-    .catch((e) => toast(e.message));
+    .catch((e) => toast(e.message))
+    .finally(() => (bk.busy.now--, setOpening('')));
+};
 
 export function Home() {
   const [q, setQ] = useState('');
@@ -181,7 +205,7 @@ export function Home() {
             More listening.
           </h1>
           <svg class="b-swoosh" viewBox="0 0 200 12" aria-hidden="true">
-            <path d="M2 10 C60 2 130 1 198 4" fill="none" stroke="#c9a15c" stroke-width="2.4" stroke-linecap="round" />
+            <path d="M2 10 C60 2 130 1 198 4" fill="none" stroke="var(--b-gold)" stroke-width="2.4" stroke-linecap="round" />
           </svg>
           <Scene />
         </div>
@@ -199,7 +223,7 @@ export function Home() {
       {!bk.provider() && !q && (
         <button class="b-welcome" onClick={() => setSheet(true)}>
           <b>Connect your debrid</b>
-          <span>Audibrisk streams through your TorBox or Real-Debrid. Add your key once — that’s the only setting.</span>
+          <span>Audibrisk streams through your TorBox or Real-Debrid — add your key once. Free LibriVox books play without one.</span>
           <em>Connect →</em>
         </button>
       )}
@@ -210,7 +234,7 @@ export function Home() {
           {!results.length && !busy && <p class="b-empty">Nothing found for “{q}”.</p>}
           {results.map((b) => (
             <button class="b-result" onClick={() => open(b)}>
-              <Cover book={b} />
+              <Cover book={b} px={160} />
               <div>
                 <b>{b.title}</b>
                 <span>
@@ -253,7 +277,7 @@ function Jobs() {
     <section class="b-sec b-jobs">
       {list.map(([uid, j]) => (
         <div class={'b-job ' + j.state}>
-          <Cover book={bk.withCover(j.book)} />
+          <Cover book={bk.withCover(j.book)} px={160} />
           <div class="b-job-text" onClick={() => nav.push('book', { book: j.book })}>
             <b>{j.book.title}</b>
             <small>{j.state === 'ready' ? 'Ready to play' : j.state === 'failed' ? j.error || 'That copy didn’t work — try another' : `${bk.nameOf(j.provider)} is getting it ready · ${Math.round((j.progress || 0) * 100)}%`}</small>
@@ -495,6 +519,24 @@ function Copies({ copies, provider, onPick, busy }) {
   );
 }
 
+/** Light, dark, or as the phone is set. (The dice on Home changes the picture and its colours.) */
+function ModeSwitch() {
+  const mode = useStore(modeChoice);
+  return (
+    <div class="b-seg b-modes">
+      {[
+        ['auto', 'Auto'],
+        ['light', 'Light'],
+        ['dark', 'Dark'],
+      ].map(([k, label]) => (
+        <button class={mode === k ? 'on' : ''} onClick={() => modeChoice.set(k)}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** One debrid service: connected (with Disconnect), or a box for its key. */
 function ServiceRow({ which }) {
   useStore(debrid);
@@ -559,6 +601,7 @@ function SettingsSheet({ close }) {
     <div class="b-sheet-bg" onClick={close}>
       <div class="b-sheet" onClick={(e) => e.stopPropagation()}>
         <h3>Settings</h3>
+        <ModeSwitch />
         <p class="b-sheet-sub">Connect TorBox, Real-Debrid or both. With both, a copy ready on either plays at once.</p>
         <ServiceRow which="torbox" />
         <ServiceRow which="realdebrid" />

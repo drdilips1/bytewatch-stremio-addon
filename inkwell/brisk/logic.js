@@ -82,3 +82,18 @@ export function backAfterInterruption(before, now) {
   if (Math.abs(now - before) > 4) return 0; // you moved it yourself meanwhile
   return 5;
 }
+
+/**
+ * A smaller picture for a small cover: Audible and Apple serve any size, so a 60-px thumbnail
+ * loads a 160-px image instead of the 500-px one (much quicker on mobile data).
+ * "…/I/51abc._SL500_.jpg" → "…/I/51abc._SL160_.jpg"; "…/600x600bb.jpg" → "…/160x160bb.jpg".
+ */
+export function thumb(url, px) {
+  if (!url || !px) return url || '';
+  const u = String(url);
+  if (/media-amazon\.com|ssl-images-amazon\.com/.test(u)) {
+    return /\._S[LX]\d+_\./.test(u) ? u.replace(/\._S[LX]\d+_\./, `._SL${px}_.`) : u.replace(/\.(jpe?g|png)(\?|$)/i, `._SL${px}_.$1$2`);
+  }
+  if (/mzstatic\.com/.test(u)) return u.replace(/\/\d+x\d+(bb|cc)?\.(jpe?g|png|webp)/i, `/${px}x${px}bb.$2`);
+  return u;
+}
