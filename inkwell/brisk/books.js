@@ -11,7 +11,7 @@ import { downloads, downloadBook, canDownload } from '../src/lib/downloads.js';
 import * as player from '../src/lib/player.js';
 import bundle from './audio-sources.json';
 import { getJson, qs } from '../src/lib/http.js';
-import { findMissingCovers, coverNow, lookup } from '../src/lib/meta.js';
+import { coverNow, lookup } from '../src/lib/meta.js';
 import * as librivox from '../src/sources/librivox.js';
 import * as phone from '../src/sources/local.js';
 import { samePhoneBook } from '../src/lib/match.js';
@@ -20,6 +20,9 @@ import { toast } from '../src/components/common.jsx';
 import { rankResults, fitsWords, syncSources } from './logic.js';
 
 const Web = registerPlugin('InkwellWeb');
+// Opening a book never waits for a details lookup (covers, descriptions): what's known already is
+// enough to play, and the shared lookup queue stays free.
+const FAST = { fast: true };
 
 /**
  * The audio-only sources, kept the same as the bundle on every start: new ones added, changed ones
@@ -129,7 +132,7 @@ const summary = (d) => ({ uid: d.uid, source: d.source, title: d.title, author: 
 /** The playable book for a copy: put on your debrid service, then its parts listed. */
 async function ready(book, r, onStatus, via = provider()) {
   const stub = await cloud.prepareMagnet(via, r, (text, pct) => onStatus?.(text, pct));
-  const d = await getDetails({ ...stub, title: book.title, author: book.author, narrator: book.narrator, cover: book.cover, description: book.description });
+  const d = await getDetails({ ...stub, title: book.title, author: book.author, narrator: book.narrator, cover: book.cover, description: book.description }, FAST);
   if (!d?.tracks?.length && !d?.resolveTracks) throw new Error('That copy has no playable audio files');
   return { ...d, title: book.title, author: book.author || d.author, cover: book.cover || d.cover, narrator: book.narrator || d.narrator };
 }
@@ -167,7 +170,7 @@ const wrongCopy = (e) => /no playable audio|ebook, not an audiobook|no magnet|co
 export async function prepare(book, onStatus, copies = null) {
   if (isFree(book)) {
     onStatus?.('Opening from LibriVox…');
-    const d = await getDetails(book);
+    const d = await getDetails(book, FAST);
     if (!d?.tracks?.length) throw new Error('This LibriVox recording has no playable files');
     return { ...d, title: book.title || d.title, author: book.author || d.author, cover: book.cover || d.cover };
   }
@@ -177,7 +180,7 @@ export async function prepare(book, onStatus, copies = null) {
     if (local) {
       try {
         if (local.dl) return { ...local.dl.book, title: book.title || local.dl.book.title, cover: book.cover || local.dl.book.cover };
-        const d = await getDetails(local);
+        const d = await getDetails(local, FAST);
         if (d?.tracks?.length) return { ...d, title: book.title || d.title, author: book.author || d.author, cover: book.cover || d.cover };
       } catch {}
     }
@@ -186,7 +189,7 @@ export async function prepare(book, onStatus, copies = null) {
   const known = links.get()[book.uid];
   if (known) {
     try {
-      return await getDetails(known);
+      return await getDetails(known, FAST);
     } catch {}
   }
   // Already in your TorBox / Real-Debrid: that copy, at once (not when you picked a copy by hand).
@@ -195,7 +198,7 @@ export async function prepare(book, onStatus, copies = null) {
     if (mine) {
       try {
         onStatus?.(`Opening from your ${nameOf(mine.source === 'rd' ? 'realdebrid' : 'torbox')}…`);
-        const d = await getDetails(mine);
+        const d = await getDetails(mine, FAST);
         if (d?.tracks?.length || d?.resolveTracks) {
           const out = { ...d, title: book.title, author: book.author || d.author, cover: book.cover || d.cover, narrator: book.narrator || d.narrator };
           links.set((l) => ({ ...l, [book.uid]: summary(out) }));
@@ -239,7 +242,8 @@ export async function prepare(book, onStatus, copies = null) {
 }
 
 export async function play(book, onStatus, copies) {
-  const d = await prepare(book, onStatus, copies);
+  busy.now++;
+  const d = await prepare(book, onStatus, copies).finally(() => busy.now--);
   player.playBook(d, { exact: true });
   return d;
 }
@@ -341,7 +345,7 @@ export const offline = (all = downloads.get()) =>
 
 /** Resume a book from Continue / Offline (its own debrid or phone copy). */
 export async function resume(b) {
-  const d = b.dl?.status === 'done' ? b.dl.book : await getDetails({ uid: b.uid, source: b.source, title: b.title, author: b.author, cover: b.cover });
+  const d = b.dl?.status === 'done' ? b.dl.book : await getDetails({ uid: b.uid, source: b.source, title: b.title, author: b.author, cover: b.cover }, FAST);
   player.playBook({ ...d, title: b.title || d.title, author: b.author || d.author, cover: b.cover || d.cover });
 }
 
@@ -349,15 +353,17 @@ export async function resume(b) {
 export const cloudShelf = persisted('briskCloud', { books: [], at: 0 }); // the audiobooks in your debrid, kept for a quick start
 let cloudRun = null;
 /** The audiobooks already in your TorBox / Real-Debrid (refreshed in the background). */
-export function refreshCloud() {
+export function refreshCloud(force = false) {
   if (cloudRun || !provider()) return cloudRun || Promise.resolve(cloudShelf.get().books);
+  // Fetched lately: what we have (a big library re-read on every tab switch made the app sluggish).
+  if (!force && cloudShelf.get().at && Date.now() - cloudShelf.get().at < 5 * 60e3) return Promise.resolve(cloudShelf.get().books);
   cloudRun = Promise.all([cloud.torboxLibrary().catch(() => []), cloud.realdebridLibrary().catch(() => [])])
     .then(([tb, rd]) => [...tb, ...rd])
     .then((list) => {
       const books = (list || []).filter((b) => b?.uid && b.title && b.kind !== 'text' && !b.fetching).map((b) => ({ uid: b.uid, source: b.source, title: b.title, author: b.author || '', narrator: b.narrator || '', cover: b.cover || '', duration: b.duration || 0, addedAt: b.addedAt || 0 }));
       cloudShelf.set({ books, at: Date.now() });
       // Real covers for the ones without (looked up once, quietly).
-      setTimeout(() => fillCovers(books), 800);
+      fillCovers(books);
       return books;
     })
     .catch(() => cloudShelf.get().books)
@@ -366,26 +372,43 @@ export function refreshCloud() {
 }
 export const withCover = (b) => ({ ...b, cover: coverNow(b) || covers.get()[b.uid] || b.cover || '' });
 
-// Covers for cloud and phone books, found the same way the book page finds them (four at a time),
-// then the wider search for the ones still without — so the grid fills without tapping each book.
-export const covers = persisted('briskCovers', {}); // uid -> cover found
+// Covers for cloud and phone books, found quietly in the background: one at a time, a few seconds
+// apart, at most 24 a session, and saved together — so taps and Play never wait behind them.
+// (v1.0.6 looked up every book at once and froze the app for minutes on a big cloud library.)
+export const covers = persisted('briskCovers', {}, { delay: 3000 }); // uid -> cover found
 const tried = new Set();
-export async function fillCovers(books) {
-  const todo = books.filter((b) => b?.uid && !tried.has(b.uid) && !coverNow(b) && !covers.get()[b.uid]);
-  todo.forEach((b) => tried.add(b.uid));
-  const queue = [...todo];
-  const missed = [];
-  await Promise.all(
-    Array.from({ length: 4 }, async () => {
-      while (queue.length) {
-        const b = queue.shift();
-        const m = await lookup(b).catch(() => null);
-        if (m?.cover) covers.set((c) => ({ ...c, [b.uid]: m.cover }));
-        else missed.push(b);
-      }
-    })
-  );
-  if (missed.length) findMissingCovers(missed.slice(0, 30), () => {}, (b, url) => covers.set((c) => ({ ...c, [b.uid]: url }))).catch(() => {});
+const waiting = [];
+let filling = false;
+export const busy = { now: 0 }; // > 0 while a book is opening: covers wait
+export function fillCovers(books) {
+  for (const b of books) {
+    if (tried.size + waiting.length >= 24) break;
+    if (!b?.uid || tried.has(b.uid) || waiting.some((w) => w.uid === b.uid) || coverNow(b) || covers.get()[b.uid]) continue;
+    waiting.push(b);
+  }
+  if (filling || !waiting.length) return;
+  filling = true;
+  const found = {};
+  const flush = () => Object.keys(found).length && covers.set((c) => ({ ...c, ...found }));
+  const step = async () => {
+    if (busy.now > 0) return setTimeout(step, 3000);
+    const b = waiting.shift();
+    if (!b) {
+      flush();
+      filling = false;
+      return;
+    }
+    tried.add(b.uid);
+    const m = await lookup(b).catch(() => null);
+    if (m?.cover) found[b.uid] = m.cover;
+    // Shown a few at a time, not one redraw per cover.
+    if (Object.keys(found).length >= 4) {
+      flush();
+      for (const k of Object.keys(found)) delete found[k];
+    }
+    setTimeout(step, 2500);
+  };
+  setTimeout(step, 6000);
 }
 
 /** This book in your own cloud, if it's there. */

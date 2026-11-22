@@ -105,10 +105,14 @@ function ContinueCard({ b, onOpen }) {
 
 /** A grid of books (Library, Downloads). */
 function Grid({ items, onOpen, empty }) {
+  // A big cloud library: the first 30 at once, the rest when asked (drawing hundreds is slow).
+  const [all, setAll] = useState(false);
   if (!items.length) return <p class="b-quiet">{empty}</p>;
+  const shown = all ? items : items.slice(0, 30);
   return (
+    <>
     <div class="b-grid">
-      {items.map((b) => (
+      {shown.map((b) => (
         <button class="b-tile" onClick={() => onOpen(b)}>
           <div class="b-tile-art">
             <Cover book={b} />
@@ -124,6 +128,12 @@ function Grid({ items, onOpen, empty }) {
         </button>
       ))}
     </div>
+    {items.length > 30 && !all && (
+      <button class="b-link" onClick={() => setAll(true)}>
+        Show all {items.length}
+      </button>
+    )}
+    </>
   );
 }
 
@@ -160,7 +170,6 @@ export function Home() {
   }, [q]);
   const cont = bk.continuing(allProgress).map(bk.withCover);
   const open = (b) => nav.push('book', { book: b });
-  useStore(bk.covers);
   return (
     <div class={'b-home' + (q ? ' searching' : '')}>
       <Header onSettings={() => setSheet(true)} dice={!q} />
@@ -499,7 +508,7 @@ function ServiceRow({ which }) {
       await bk.connect(which, key);
       toast(`${name} connected`);
       setKey('');
-      bk.refreshCloud();
+      bk.refreshCloud(true);
     } catch (e) {
       toast(e.message);
     } finally {

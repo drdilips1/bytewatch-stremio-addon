@@ -35,6 +35,13 @@
     waits for the whole cloud library, covers fixed (a failed cover no longer blocks a later good
     one; missing covers looked up 4 at a time like the book page does — `briskCovers`).
   - Theme dice in the header: sunrise lake, sunset sea, night sky, meadow, mountains (drawn SVG).
+- v1.0.7 (22 Nov) — fix: v1.0.6 froze taps for ~15 min on a big cloud library. Cause: cover
+  finder looked up every cloud book at once (filled the shared meta lookup queue — 3 slots — that
+  opening a book also waits on) and each found cover redrew Home + the whole Library grid. Now:
+  covers one at a time, 2.5 s apart, max 24 a session, paused while a book opens, saved in batches
+  of 4; Home doesn't redraw for covers; grids show 30 then "Show all"; Play/resume call
+  getDetails with `{ fast: true }` (never wait for a lookup); cloud library re-read at most every
+  5 min (was on every Home/Library visit after 60 s).
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in
