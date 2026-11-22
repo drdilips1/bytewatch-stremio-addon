@@ -8,7 +8,10 @@
   (Actions → AudioYam iPhone app → Run workflow; each run publishes `ios-N` and updates the AltStore
   source `releases/download/ios-source/altstore.json`). It used to start on any push touching ios.yml;
   run 2 started that way on 21 Nov and was cancelled during install (nothing published).
-- Latest released (21 Nov, user said "build and release"): Android v1.0.39 + web app from `main` ed4b61f
+- Latest released (22 Nov, "release"): Android v1.0.42 + web + iPhone ios-5 from `main` 87bb711 — cloud EPUBs
+  (ad/pm/dl/en) open, Goodreads CSV-only with steps, reports skip "already registered". No new What's new card.
+  On `work` after it (not released): subreddit link in Settings / README (998a5be).
+- Before that: (21 Nov, user said "build and release"): Android v1.0.39 + web app from `main` ed4b61f
   (= `work`), iPhone ios-4 (run 4, AltStore source updated). Everything in the "On `work`" notes below is in it.
   Reddit post text for 1.0.39 given to the user (incl. public addon pack sources.booksources.workers.dev/addons/all.json).
 - Earlier: Android v1.0.36; iPhone ios-1.
