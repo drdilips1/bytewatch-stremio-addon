@@ -77,7 +77,7 @@
   Ink & Echo files in shared src/ still carry the old personal id — not touched, Audiohub+ window.)
   This repo's cloud environment now allows inkandecho-builder.pages.dev and
   sources.booksources.workers.dev.
-- Public-safe build (22 Nov, committed, not built) — `inkwell/vite.brisk.config.js` plugin
+- Public-safe build (22 Nov, built as v1.0.9 test) — `inkwell/vite.brisk.config.js` plugin
   `audibrisk-public-only`: Mobilism, Libby, Anna's, Bookshare, qbit/tracker, cfsync/sync,
   quoteshare, source-results, libby cards, Tracker screen, storyshots → generated stand-ins (same
   export names, do nothing); built-in source JSONs → public worker versions; small text edits

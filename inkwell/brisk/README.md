@@ -19,3 +19,4 @@ AllDebrid, Premiumize (any or all), a folder on the phone, and a folded Sources 
   `rebrand.mjs` + `publicjava.mjs` do the same for the Android side in CI.
 - Icons / splash: `node brisk/make-icons.mjs` → `brisk/android-res/`.
 - Pure rules in `brisk/logic.js`, tested by `brisk/brisk.test.js` (part of `npm test`).
+- v1.0.9: first public-safe build (stripped code, in-app updates from drdilips1/audibrisk).
