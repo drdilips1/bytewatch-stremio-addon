@@ -87,13 +87,23 @@ public class InkwellPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         return URL(string: s)
     }
 
-    private func makeItem(_ address: String) -> AVPlayerItem? {
+    /// `mime`: the file's type from its name ("video/mp4" for an audiobook packed as .mp4). Cloud
+    /// links often have no extension and say "plain file": Apple's player works MP3 out by itself
+    /// but won't open an MP4 it isn't told about (it played on Android, not here).
+    private func makeItem(_ address: String, mime: String? = nil) -> AVPlayerItem? {
         guard let url = urlOf(address) else { return nil }
-        let options: [String: Any] = url.isFileURL || headers.isEmpty ? [:] : ["AVURLAssetHTTPHeaderFieldsKey": headers]
+        var options: [String: Any] = url.isFileURL || headers.isEmpty ? [:] : ["AVURLAssetHTTPHeaderFieldsKey": headers]
+        if let m = mime, !m.isEmpty, !url.isFileURL { options["AVURLAssetOutOfBandMIMETypeKey"] = m }
         let item = AVPlayerItem(asset: AVURLAsset(url: url, options: options))
         item.preferredForwardBufferDuration = 120 // a long lead rides out patchy mobile data
         item.audioTimePitchAlgorithm = .timeDomain // speech at 1.5× without chipmunks
         let obs = item.observe(\.status, options: [.new]) { [weak self] it, _ in
+            if it.status == .readyToPlay {
+                // An .mp4 audiobook carries a still picture as video: switched off, so iOS keeps
+                // playing it with the screen locked (it pauses players that show video).
+                for t in it.tracks where t.assetTrack?.mediaType == .video { t.isEnabled = false }
+                return
+            }
             guard it.status == .failed else { return }
             DispatchQueue.main.async { self?.failed(it) }
         }
@@ -109,6 +119,7 @@ public class InkwellPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         for (k, v) in call.getObject("headers") ?? [:] { if let s = v as? String { h[k] = s } }
         let position = call.getDouble("position") ?? 0
         let autoplay = call.getBool("autoplay") ?? true
+        let mime = call.getString("mime")
         rate = Float(call.getDouble("rate") ?? 1)
         DispatchQueue.main.async {
             self.headers = h
@@ -119,7 +130,7 @@ public class InkwellPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             self.items = []
             self.itemObservers = []
             self.ended = false
-            guard let item = self.makeItem(address) else { call.reject("Can't open that address"); return }
+            guard let item = self.makeItem(address, mime: mime) else { call.reject("Can't open that address"); return }
             self.items = [item]
             p.insert(item, after: nil)
             if position > 0 { item.seek(to: CMTime(seconds: position, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil) }
@@ -147,7 +158,7 @@ public class InkwellPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             self.items = Array(self.items.prefix(cur + 1))
             var last = self.items.last
             for x in list {
-                guard let address = x["url"] as? String, !address.isEmpty, let item = self.makeItem(address) else { continue }
+                guard let address = x["url"] as? String, !address.isEmpty, let item = self.makeItem(address, mime: x["mime"] as? String) else { continue }
                 p.insert(item, after: last)
                 self.items.append(item)
                 last = item

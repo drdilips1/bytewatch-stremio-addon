@@ -1,5 +1,6 @@
 // Debrid cloud libraries — stream the audiobooks already sitting in your
 // TorBox or Real-Debrid account, and add new magnets / links to it.
+import { mimeFor } from '../lib/mime.js';
 import { tbGone, rdGone, toKeepReady } from '../lib/revive.js';
 import { getJson, sendForm, qs } from '../lib/http.js';
 import { logError } from '../lib/report.js';
@@ -283,6 +284,7 @@ async function tbDetails(book) {
     fetching: pending,
     tracks: files.map((f, i) => ({
       title: f.name.replace(TRACK_EXT, ''),
+      mime: mimeFor(f.name),
       index: i,
       size: Number(f.size || f.bytes) || 0, // estimates the part's length before it plays
       // Download links expire, so they're requested right before playback.
@@ -433,7 +435,7 @@ function sentDetails(book) {
     ...book,
     description: `${files.length} audio file${files.length === 1 ? '' : 's'} ${where}.`,
     ebooks,
-    tracks: files.map((f, i) => ({ title: f.name.replace(AUDIO, ''), index: i, size: f.size || 0, resolve: () => fresh(f) })),
+    tracks: files.map((f, i) => ({ title: f.name.replace(AUDIO, ''), mime: mimeFor(f.name), index: i, size: f.size || 0, resolve: () => fresh(f) })),
   };
 }
 
@@ -524,6 +526,7 @@ async function rdDetails(book) {
     ebooks,
     tracks: files.map((f, i) => ({
       title: f.name.replace(TRACK_EXT, ''),
+      mime: mimeFor(f.name),
       index: i,
       size: Number(f.size || f.bytes) || 0, // estimates the part's length before it plays
       resolve: async () => {

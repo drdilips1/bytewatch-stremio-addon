@@ -566,7 +566,7 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
       autoplay,
       rate: state.rate,
       headers: t.headers,
-      meta: { title: t.title || b.title, artist: b.author || '', album: b.title, artwork: artworkOf(b), bookId: b.uid },
+      meta: { title: t.title || b.title, artist: b.author || '', album: b.title, artwork: artworkOf(b), bookId: b.uid, ...(t.mime ? { mime: t.mime } : {}) },
     });
     if (!autoplay) set({ loading: false, phase: '' });
     // One long file with chapter marks inside (M4B): read them, for the chapter list,
@@ -614,7 +614,7 @@ async function queueAhead(token) {
       break; // e.g. still downloading on TorBox: the app starts it itself later
     }
     if (token !== loadToken || !t.url) break;
-    items.push({ url: t.url, title: t.title || b.title, artist: b.author || '', album: b.title, artwork: artworkOf(b) });
+    items.push({ url: t.url, title: t.title || b.title, artist: b.author || '', album: b.title, artwork: artworkOf(b), ...(t.mime ? { mime: t.mime } : {}) });
   }
   if (token === loadToken) engine.queue(items).catch?.(() => {});
 }

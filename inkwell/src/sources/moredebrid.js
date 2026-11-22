@@ -2,6 +2,7 @@
 // Each does the same few things: connect with your key, list the audiobooks in your cloud,
 // open one (its files, each link fetched fresh when played), and fetch a torrent picked from
 // your sources (a cached one plays at once; otherwise it's "downloading — play when ready").
+import { mimeFor } from '../lib/mime.js';
 import { getJson, sendForm, qs } from '../lib/http.js';
 import { debrid } from '../lib/store.js';
 import { cleanTitle, splitAuthor, audioFormat, looksLikeVideo, EBOOK } from './debrid.js';
@@ -154,7 +155,7 @@ export async function moreDetails(book) {
     ...book,
     description: `${audio.length} audio file${audio.length === 1 ? '' : 's'} in your ${name}.`,
     ebooks,
-    tracks: audio.map((f, i) => ({ title: String(f.name).replace(AUDIO, ''), index: i, size: f.size || 0, resolve: () => linkOf(f) })),
+    tracks: audio.map((f, i) => ({ title: String(f.name).replace(AUDIO, ''), mime: mimeFor(f.name), index: i, size: f.size || 0, resolve: () => linkOf(f) })),
   };
 }
 
