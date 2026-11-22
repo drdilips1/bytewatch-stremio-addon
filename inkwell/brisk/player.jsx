@@ -53,16 +53,30 @@ export function MiniPlayer() {
         <b>{s.book.title}</b>
         <span>{s.loading ? s.phase || 'Opening…' : [chapterNow(s)?.title, player.totalDuration() > 0 && `${fmtDuration(leftInBook())} left`].filter(Boolean).join(' · ') || s.book.author}</span>
       </div>
-      <button
-        class="b-mini-btn"
-        aria-label="Back 15 seconds"
-        onClick={(e) => {
-          e.stopPropagation();
-          player.skip(-15);
-        }}
-      >
-        <Icon name="replay" size={20} />
-      </button>
+      {s.playing || s.loading ? (
+        <button
+          class="b-mini-btn"
+          aria-label="Back 15 seconds"
+          onClick={(e) => {
+            e.stopPropagation();
+            player.skip(-15);
+          }}
+        >
+          <Icon name="replay" size={20} />
+        </button>
+      ) : (
+        // Nothing playing: put the strip away (your place is kept; the book waits under Continue).
+        <button
+          class="b-mini-btn b-mini-x"
+          aria-label="Close the player"
+          onClick={(e) => {
+            e.stopPropagation();
+            player.stop();
+          }}
+        >
+          <Icon name="close" size={18} />
+        </button>
+      )}
       <button
         class="b-mini-btn"
         aria-label={s.playing ? 'Pause' : 'Play'}

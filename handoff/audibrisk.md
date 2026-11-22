@@ -109,6 +109,8 @@
   when the book already has one); long-press a library cover / Continue card → Play · Find other
   copies · Book page (`holdProps`/`HoldSheet` in screens.jsx); book page always offers "Find other
   copies"; picking a copy carries your place over (`play(..., { percent })` → shared playBook percent).
+- Next (committed, not built): mini player shows × instead of back-15 when nothing is playing →
+  shared `player.stop()` (saves place, clears the book; it stays under Continue listening).
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in

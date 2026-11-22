@@ -300,3 +300,4 @@ button, a, .b-cont, .b-job-text { touch-action: manipulation; -webkit-tap-highli
 /* press and hold a book: our menu, not the phone's text selection */
 .b-tile, .b-cont { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .b-player > .b-link { margin-top: 6px; }
+.b-mini-x { color: var(--b-muted); }
