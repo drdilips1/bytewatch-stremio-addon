@@ -1,6 +1,8 @@
 # AudioYam (public)
 
 - Code: `drdilips1/Audiohub` (clone to `/home/user/audiohub`), work on branch `work`.
+- Subreddit: r/audiohubapp (https://www.reddit.com/r/audiohubapp/) — in Settings → Issues & support (report.jsx
+  SupportLinks) and the README on `work` since 22 Nov; put it in Reddit posts.
 - Release: push `work` → `main` publishes Android `v1.0.N` (in-app update) and the web app; push to
   `test` builds a test APK only. iPhone: `.github/workflows/ios.yml` — **manual only** since 21 Nov
   (Actions → AudioYam iPhone app → Run workflow; each run publishes `ios-N` and updates the AltStore
