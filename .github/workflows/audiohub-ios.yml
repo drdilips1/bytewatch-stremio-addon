@@ -42,7 +42,9 @@ jobs:
           npm pkg set "dependencies.inkwell-files-ios=file:ios-plugins/files"
           # iPhone-only: the audiobook player (Apple's AVPlayer), same calls as the Android player.
           npm pkg set "dependencies.inkwell-player-ios=file:ios-plugins/player"
-          npm i --install-links --no-audit --no-fund "@capacitor/ios@$CORE" ./ios-plugins/transcribe ./ios-plugins/files ./ios-plugins/player
+          # iPhone-only: unpacking Mobilism archives (.zip / .rar) so they play, as on Android.
+          npm pkg set "dependencies.inkwell-unpack-ios=file:ios-plugins/unpack"
+          npm i --install-links --no-audit --no-fund "@capacitor/ios@$CORE" ./ios-plugins/transcribe ./ios-plugins/files ./ios-plugins/player ./ios-plugins/unpack
 
       - name: Build the screens
         env:

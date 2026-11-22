@@ -5,8 +5,10 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { persisted } from './store.js';
 import { downloads } from './downloads.js';
 
-const Native = registerPlugin('InkwellDownloads');
-export const canUnpack = () => Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('InkwellDownloads');
+// Android: part of the downloads plugin; iPhone: its own small plugin (ios-plugins/unpack), same calls.
+const IOS = Capacitor.getPlatform() === 'ios';
+const Native = registerPlugin(IOS ? 'InkwellUnpack' : 'InkwellDownloads');
+export const canUnpack = () => (IOS ? Capacitor.isPluginAvailable('InkwellUnpack') : Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('InkwellDownloads'));
 const ARCHIVE = /\.(zip|rar|7z|r\d\d)$|\.part\d+\.rar$/i;
 export const isArchive = (name) => ARCHIVE.test(String(name || ''));
 

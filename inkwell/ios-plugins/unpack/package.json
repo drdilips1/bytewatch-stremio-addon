@@ -1,0 +1,11 @@
+{
+  "name": "inkwell-unpack-ios",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iPhone: download a Mobilism topic's archive parts (.zip / .rar, split .partN.rar too) and unpack the audio inside, so it plays like on Android. jsName InkwellUnpack (same unpack() and unpackProgress as the Android InkwellDownloads plugin). Added to the app only by the iPhone build (.github/workflows/audiohub-ios.yml).",
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  }
+}
