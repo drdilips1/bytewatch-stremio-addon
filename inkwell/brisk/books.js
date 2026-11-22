@@ -19,7 +19,7 @@ import * as phone from '../src/sources/local.js';
 import { samePhoneBook } from '../src/lib/match.js';
 import { registerPlugin } from '@capacitor/core';
 import { toast } from '../src/components/common.jsx';
-import { rankResults, fitsWords, syncSources, mixFree, deepSearchFor, rescueOrder, copyKey } from './logic.js';
+import { rankResults, fitsWords, syncSources, mixFree, deepSearchFor, rescueOrder, copyKey, applyChapters, seriesOf, nextInSeries, healthBonus } from './logic.js';
 
 const Web = registerPlugin('InkwellWeb');
 // Opening a book never waits for a details lookup (covers, descriptions): what's known already is
@@ -135,8 +135,30 @@ const EBOOK = /\b(epub|pdf|mobi|azw3?)\b/i;
 const ARCHIVE = /\b(rar|zip|7z|iso)\b/i;
 const AUDIO_FILE = /\.(mp3|m4b|m4a|aac|flac|ogg|oga|opus|wav|wma|mka)$/i;
 const ARCHIVE_FILE = /\.(rar|r\d\d|zip|7z|iso)$/i;
+// What happened with copies and sources before: a copy that played moves up, one that failed down.
+export const health = persisted('briskHealth', { copies: {}, sources: {}, byUid: {} }, { delay: 2000 });
+const sourceOf = (r) => String(r?.key || '').split(':')[0];
+function noteHealth(r, ok) {
+  const k = copyKey(r);
+  const src = sourceOf(r);
+  if (!k) return;
+  health.set((h) => {
+    const copies = { ...h.copies, [k]: { ...(h.copies[k] || {}), [ok ? 'ok' : 'fail']: ((h.copies[k] || {})[ok ? 'ok' : 'fail'] || 0) + 1 } };
+    const sources = src ? { ...h.sources, [src]: { ...(h.sources[src] || {}), [ok ? 'ok' : 'fail']: ((h.sources[src] || {})[ok ? 'ok' : 'fail'] || 0) + 1 } } : h.sources;
+    // Keep it small: the 400 most recent copies.
+    const keys = Object.keys(copies);
+    return { ...h, copies: keys.length > 400 ? Object.fromEntries(keys.slice(-400).map((x) => [x, copies[x]])) : copies, sources };
+  });
+}
+/** Which copy a playing book came from (its TorBox / Real-Debrid id → the copy), to mark a failure. */
+const rememberCopy = (uid, r) => uid && health.set((h) => ({ ...h, byUid: { ...Object.fromEntries(Object.entries(h.byUid || {}).slice(-200)), [uid]: { hash: r.hash || '', title: r.title || '', key: r.key || '' } } }));
 const rank = (r) =>
-  (r.cache?.any ? 1000 : 0) + (/\bm4b\b/i.test(`${r.format} ${r.title}`) ? 40 : 0) + (AUDIO.test(`${r.format} ${r.title}`) ? 20 : 0) + Math.min(30, (r.seeders || 0) / 3) + (r.score || 0) * 10;
+  (r.cache?.any ? 1000 : 0) +
+  (/\bm4b\b/i.test(`${r.format} ${r.title}`) ? 40 : 0) +
+  (AUDIO.test(`${r.format} ${r.title}`) ? 20 : 0) +
+  Math.min(30, (r.seeders || 0) / 3) +
+  (r.score || 0) * 10 +
+  healthBonus(health.get().copies[copyKey(r)], health.get().sources[sourceOf(r)]);
 
 /** Every copy of this book the sources found, best first (instantly ready ones on top). */
 export function findCopies(book, onUpdate) {
@@ -173,10 +195,60 @@ const summary = (d) => ({ uid: d.uid, source: d.source, title: d.title, author: 
 
 /** The playable book for a copy: put on your debrid service, then its parts listed. */
 async function ready(book, r, onStatus, via = provider()) {
-  const stub = await cloud.prepareMagnet(via, r, (text, pct) => onStatus?.(text, pct));
-  const d = await getDetails({ ...stub, title: book.title, author: book.author, narrator: book.narrator, cover: book.cover, description: book.description }, FAST);
-  if (!d?.tracks?.length && !d?.resolveTracks) throw new Error('That copy has no playable audio files');
-  return { ...d, title: book.title, author: book.author || d.author, cover: book.cover || d.cover, narrator: book.narrator || d.narrator };
+  const chapters = chaptersFor(book); // looked up meanwhile
+  let d;
+  try {
+    const stub = await cloud.prepareMagnet(via, r, (text, pct) => onStatus?.(text, pct));
+    d = await getDetails({ ...stub, title: book.title, author: book.author, narrator: book.narrator, cover: book.cover, description: book.description }, FAST);
+    if (!d?.tracks?.length && !d?.resolveTracks) throw new Error('That copy has no playable audio files');
+  } catch (e) {
+    if (!e.pending && wrongCopy(e)) noteHealth(r, false);
+    throw e;
+  }
+  noteHealth(r, true);
+  rememberCopy(d.uid, r);
+  const out = { ...d, title: book.title, author: book.author || d.author, cover: book.cover || d.cover, narrator: book.narrator || d.narrator };
+  return withChapters(out, await Promise.race([chapters, new Promise((res) => setTimeout(() => res(null), 1200))]));
+}
+
+// ---- chapter names for books split into "Track 01, Track 02…" files ---------------------------
+// Audible's published chapter list (via Audnexus, like Audiohub does for one-file books), for the
+// catalogue book this copy belongs to; kept on the phone, so it's instant the next time.
+const chapterCache = persisted('briskChapters', {}, { delay: 3000 }); // asin -> [{ title, lengthMs }]
+const asinOf = (book) => (/^au:([A-Z0-9]{10})$/i.exec(book?.uid || '') || [])[1] || (Object.entries(links.get()).find(([, l]) => l?.uid === book?.uid)?.[0] || '').replace(/^au:/, '');
+async function chaptersFor(book) {
+  const asin = asinOf(book);
+  if (!/^[A-Z0-9]{10}$/i.test(asin)) return null;
+  if (chapterCache.get()[asin]) return chapterCache.get()[asin];
+  try {
+    const d = await getJson(`https://api.audnex.us/books/${asin}/chapters`, { timeout: 8000 });
+    const flat = [];
+    const walk = (list) => (list || []).forEach((c) => (flat.push({ title: c.title || '', lengthMs: c.lengthMs || 0 }), walk(c.chapters)));
+    walk(d?.chapters);
+    chapterCache.set((c) => ({ ...Object.fromEntries(Object.entries(c).slice(-150)), [asin]: flat }));
+    return flat;
+  } catch {
+    return null;
+  }
+}
+function withChapters(d, chapters) {
+  if (chapters) return applyChapters(d, chapters);
+  // Not here in time: added once they arrive (the player's chapter list updates by itself).
+  chaptersFor(d).then((list) => {
+    const named = list && applyChapters(d, list);
+    if (named && named !== d && player.getState().book?.uid === d.uid) player.patchBook(d.uid, named.chaptersMeta ? { chaptersMeta: named.chaptersMeta } : { chaptersMeta: chapterMarks(named) });
+  });
+  return d;
+}
+/** Chapter marks from renamed files (once their lengths are known), for a book already playing. */
+function chapterMarks(d) {
+  let at = 0;
+  if (!d.tracks.every((t) => t.duration > 0)) return undefined;
+  return d.tracks.map((t) => {
+    const c = { title: t.title, start: at, end: at + t.duration };
+    at += t.duration;
+    return c;
+  });
 }
 
 /**
@@ -231,7 +303,7 @@ export async function prepare(book, onStatus, copies = null) {
   const known = links.get()[book.uid];
   if (known) {
     try {
-      return await getDetails(known, FAST);
+      return withChapters(await warmed(known), await Promise.race([chaptersFor(book), new Promise((res) => setTimeout(() => res(null), 600))]));
     } catch {}
   }
   // Already in your TorBox / Real-Debrid: that copy, at once (not when you picked a copy by hand).
@@ -240,7 +312,7 @@ export async function prepare(book, onStatus, copies = null) {
     if (mine) {
       try {
         onStatus?.(`Opening from your ${nameOf(serviceOf(mine))}…`);
-        const d = await getDetails(mine, FAST);
+        const d = await warmed(mine);
         if (d?.tracks?.length || d?.resolveTracks) {
           const out = { ...d, title: book.title, author: book.author || d.author, cover: book.cover || d.cover, narrator: book.narrator || d.narrator };
           links.set((l) => ({ ...l, [book.uid]: summary(out) }));
@@ -291,6 +363,26 @@ export async function play(book, onStatus, copies, { percent } = {}) {
   return d;
 }
 
+// ---- ready before you tap ---------------------------------------------------------------------
+// The playable details of a book you'll likely play next (its page is open, it's first in
+// Continue): fetched quietly ahead, so Play starts at once. Kept 10 minutes (links expire).
+const warm = new Map(); // uid -> { p, at }
+export function warmed(book) {
+  const hit = warm.get(book.uid);
+  if (hit && Date.now() - hit.at < 10 * 60e3) return hit.p;
+  const p = getDetails(book, FAST);
+  warm.set(book.uid, { p, at: Date.now() });
+  p.catch(() => warm.delete(book.uid));
+  return p;
+}
+/** Get this book's copy ready in the background (nothing plays). */
+export function prewarm(book) {
+  if (!book?.uid || busy.now > 0 || !provider()) return;
+  const known = links.get()[book.uid];
+  const target = known || (/^(tb|rd|ad|pm):/.test(book.uid) ? book : null);
+  if (target) warmed(target).catch(() => {});
+}
+
 // ---- a copy that won't play: the next one, by itself -------------------------------------------
 // E.g. Real-Debrid's "HTTP 503 — hoster_unavailable" on a copy that was ready: the copies are
 // found again and the next good one plays (ready ones first) from the same place. Up to 4 tries;
@@ -309,6 +401,7 @@ async function rescue(failedBook, percent) {
       busy.now++;
       const d = await ready(book, r, null, serviceFor(r)).finally(() => busy.now--);
       if (rescuing.failed.has(d.uid)) continue; // the same copy again
+      rememberCopy(d.uid, r);
       links.set((l) => ({ ...l, [book.uid]: summary(d) }));
       player.playBook(d, { exact: true, ...(percent > 0.002 ? { percent } : {}) });
       toast('Playing another copy', 3000);
@@ -331,6 +424,9 @@ export function watchFailures() {
     if (rescuing.active || rescuing.failed.size >= 4) return;
     const book = s.book;
     const percent = progress.get()[book.uid]?.percent || 0;
+    const was = health.get().byUid?.[book.uid];
+    if (was) noteHealth(was, false); // that copy goes down for next time
+    warm.delete(book.uid);
     rescuing.failed.add(book.uid);
     rescuing.active = true;
     rescue(book, percent)
@@ -441,7 +537,8 @@ export const offline = (all = downloads.get()) =>
 
 /** Resume a book from Continue / Offline (its own debrid or phone copy). */
 export async function resume(b) {
-  const d = b.dl?.status === 'done' ? b.dl.book : await getDetails({ uid: b.uid, source: b.source, title: b.title, author: b.author, cover: b.cover }, FAST);
+  if (/^au:/.test(b.uid || '') || b.free) return play(b); // a catalogue book: its copy is found first
+  const d = b.dl?.status === 'done' ? b.dl.book : await warmed({ uid: b.uid, source: b.source, title: b.title, author: b.author, cover: b.cover });
   player.playBook({ ...d, title: b.title || d.title, author: b.author || d.author, cover: b.cover || d.cover });
 }
 
@@ -518,4 +615,75 @@ export async function inMyCloud(book) {
   const sn = String(book.author || '').split(',')[0].trim().split(/\s+/).pop()?.toLowerCase() || '';
   const hits = list.filter((b) => matches(t, `${b.title} ${b.author || ''}`));
   return hits.find((b) => !sn || `${b.title} ${b.author}`.toLowerCase().includes(sn)) || hits[0] || null;
+}
+
+// ---- get it ready for later ----------------------------------------------------------------------
+/**
+ * Put this book on your debrid service now, without playing: ready at once when you want it
+ * (e.g. the next book of a series). Resolves 'ready', or 'fetching' (Home shows its %).
+ */
+export async function getReady(book, onStatus) {
+  try {
+    await prepare(book, onStatus);
+    return 'ready';
+  } catch (e) {
+    if (e.pending) return 'fetching';
+    throw e;
+  }
+}
+
+// ---- when a book ends: the next one of its series ------------------------------------------------
+export const upNext = persisted('briskUpNext', null); // { from: { uid, title }, next: book, at }
+const SEEN_FINISH = new Set();
+async function seriesNext(b) {
+  // The catalogue book behind this copy (its series is known there).
+  const asin = asinOf(b);
+  let au = null;
+  if (asin) au = (await audible.search(asin).catch(() => [])).find((x) => x.uid === `au:${asin}`) || null;
+  if (!au) au = await audible.find(searchTitle(b.title), String(b.author || '').split(',')[0]).catch(() => null);
+  const s = seriesOf(au?.series || b.series);
+  if (!s) return null;
+  const list = await audible.series(s.name, String(au?.author || b.author || '').split(',')[0]).catch(() => []);
+  return nextInSeries(list, s.n);
+}
+/** Watch for a book finishing: find what comes next in its series, for Home and the player. */
+export function watchEndings() {
+  progress.subscribe((all) => {
+    const b = player.getState().book;
+    if (!b?.uid || SEEN_FINISH.has(b.uid) || !all[b.uid]?.finished) return;
+    SEEN_FINISH.add(b.uid);
+    seriesNext(b)
+      .then((next) => next && upNext.set({ from: { uid: b.uid, title: b.title }, next, at: Date.now() }))
+      .catch(() => {});
+  });
+}
+
+// ---- ready to play now: popular books already ready on your service --------------------------------
+// Once a day, quietly and slowly (one book every few seconds, paused while you play or search):
+// Audible's best sellers whose copies your service already holds. Tap one and it plays.
+export const readyNow = persisted('briskReadyNow', { at: 0, service: '', books: [] });
+let scanning = false;
+export async function findReadyNow({ force = false } = {}) {
+  const service = provider();
+  const r = readyNow.get();
+  if (scanning || !service || (!force && r.service === service && Date.now() - r.at < 864e5)) return;
+  scanning = true;
+  try {
+    const have = new Set([...Object.keys(links.get()), ...Object.keys(progress.get())]);
+    const list = (await audible.genre('bestsellers').catch(() => [])).filter((b) => b.title && !have.has(b.uid)).slice(0, 16);
+    const found = [];
+    for (const b of list) {
+      while (busy.now > 0) await new Promise((res) => setTimeout(res, 3000));
+      const copies = await findCopies(b).catch(() => []);
+      if (copies.some((c) => c.cache?.any)) {
+        found.push({ uid: b.uid, source: b.source, title: b.title, author: b.author || '', narrator: b.narrator || '', cover: b.cover || '', duration: b.duration || 0, series: b.series || '' });
+        readyNow.set({ at: Date.now(), service, books: [...found] });
+        if (found.length >= 8) break;
+      }
+      await new Promise((res) => setTimeout(res, 2500));
+    }
+    readyNow.set({ at: Date.now(), service, books: found });
+  } finally {
+    scanning = false;
+  }
 }

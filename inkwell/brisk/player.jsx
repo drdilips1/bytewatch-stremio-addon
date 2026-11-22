@@ -3,7 +3,7 @@
 // (chapters, bookmarks, skip silence, volume boost) waits in the small "More" menu.
 import { useEffect, useState } from 'preact/hooks';
 import { toast } from '../src/components/common.jsx';
-import { Cover } from './screens.jsx';
+import { Cover, UpNext } from './screens.jsx';
 import { Icon } from '../src/components/icons.jsx';
 import { nav, useBackClose } from '../src/lib/nav.js';
 import { fmtTime, fmtDuration } from '../src/lib/format.js';
@@ -196,6 +196,7 @@ export function FullPlayer() {
           <small>30</small>
         </button>
       </div>
+      <UpNext inPlayer />
       <div class="b-extra">
         <button onClick={() => setSheet('speed')}>
           <b>{s.rate}×</b>Speed

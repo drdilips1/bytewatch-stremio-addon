@@ -260,6 +260,11 @@ export function Home() {
   }, [q]);
   const cont = bk.continuing(allProgress).map(bk.withCover);
   const open = (b) => nav.push('book', { book: b });
+  // The book you'll most likely tap: its copy fetched ahead, so it starts at once.
+  useEffect(() => {
+    const t = setTimeout(() => cont[0] && bk.prewarm(cont[0]), 2500);
+    return () => clearTimeout(t);
+  }, [cont[0]?.uid]);
   return (
     <div class={'b-home' + (q ? ' searching' : '')}>
       <Header onSettings={() => setSheet(true)} dice={!q} />
@@ -290,6 +295,7 @@ export function Home() {
           <em>Connect →</em>
         </button>
       )}
+      {!q && <UpNext />}
       {!q && <Jobs />}
       {results ? (
         // Scrolling the results puts the keyboard away, so the first tap on a book opens it.
@@ -326,6 +332,7 @@ export function Home() {
             ))}
           </section>
         )}
+        <ReadyNow />
         <YourLibrary skip={cont} />
         </>
       )}
@@ -374,6 +381,98 @@ function Jobs() {
           )}
         </div>
       ))}
+    </section>
+  );
+}
+
+/**
+ * When a book ends: the next one of its series — play it, or get it ready for later.
+ * (Shown on Home and in the player.)
+ */
+export function UpNext({ inPlayer = false }) {
+  const u = useStore(bk.upNext);
+  const [busy, setBusy] = useState('');
+  if (!u?.next) return null;
+  if (inPlayer && player.getState().book?.uid !== u.from.uid) return null;
+  const n = u.next;
+  const play = () => {
+    setBusy('play');
+    bk.play(n, null)
+      .then(() => (bk.upNext.set(null), nav.openOverlay('player')))
+      .catch((e) => (toast(e.message), nav.push('book', { book: n })))
+      .finally(() => setBusy(''));
+  };
+  const ready = () => {
+    setBusy('ready');
+    bk.getReady(n)
+      .then((r) => toast(r === 'ready' ? `${n.title} is ready to play` : `Getting ${n.title} ready — Home shows its progress`))
+      .catch((e) => toast(e.message))
+      .finally(() => setBusy(''));
+  };
+  return (
+    <section class={'b-sec b-upnext' + (inPlayer ? ' in-player' : '')}>
+      <small class="b-label">Finished {u.from.title} · next in the series</small>
+      <div class="b-upnext-card">
+        <div class="b-upnext-top" onClick={() => nav.push('book', { book: n })}>
+          <Cover book={n} px={160} />
+          <div class="b-job-text">
+            <b>{n.title}</b>
+            <small>{[n.series, String(n.author || '').split(',')[0]].filter(Boolean).join(' · ')}</small>
+          </div>
+          {!inPlayer && (
+            <button
+              class="b-job-x"
+              aria-label="Hide"
+              onClick={(e) => {
+                e.stopPropagation();
+                bk.upNext.set(null);
+              }}
+            >
+              <Icon name="close" size={16} />
+            </button>
+          )}
+        </div>
+        <div class="b-upnext-actions">
+          <button class="b-pill" disabled={!!busy} onClick={ready}>
+            {busy === 'ready' ? <span class="b-spin small" /> : 'Get ready'}
+          </button>
+          <button class="b-pill b-pill-go" disabled={!!busy} onClick={play}>
+            {busy === 'play' ? <span class="b-spin small" /> : '▶ Play'}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Popular books your service already has ready: tap one and it plays. */
+function ReadyNow() {
+  const r = useStore(bk.readyNow);
+  const opening = useOpening();
+  const books = r.service === bk.provider() ? r.books : [];
+  if (books.length < 2) return null;
+  return (
+    <section class="b-sec">
+      <div class="b-sec-head">
+        <h2>Ready to play now</h2>
+      </div>
+      <div class="b-row">
+        {books.map((b) => (
+          <button class="b-row-item" onClick={() => playIt(b)} {...holdProps(b)}>
+            <div class="b-tile-art">
+              <Cover book={b} px={240} />
+              <em class="b-tile-src instant">⚡ Instant</em>
+              {opening === b.uid && (
+                <span class="b-tile-wait">
+                  <span class="b-spin" />
+                </span>
+              )}
+            </div>
+            <span>{b.title}</span>
+            <small>{String(b.author || '').split(',')[0]}</small>
+          </button>
+        ))}
+      </div>
     </section>
   );
 }
@@ -447,6 +546,7 @@ export function BookPage({ book, fresh = false }) {
   const local = bk.onPhone(book, dls);
   useEffect(() => {
     // Look for copies as soon as the page opens, so Play starts at once (free LibriVox books need none).
+    if (link && !want) bk.prewarm(book); // Play starts at once
     if (free || !bk.provider() || ((link || local) && !want)) return;
     let alive = true;
     if (!want) bk.inMyCloud(book).then((m) => alive && setMine(m)).catch(() => {});
@@ -476,6 +576,19 @@ export function BookPage({ book, fresh = false }) {
   const onPlay = async () => {
     if (ps.book && uid && ps.book.uid === uid) return nav.openOverlay('player');
     if (await run(bk.play)()) nav.openOverlay('player');
+  };
+  // On your service now, to play later at once (the next of a series, a long trip…).
+  const onReady = async () => {
+    setErr('');
+    status1('Getting ready…');
+    try {
+      const r = await bk.getReady(book, status1);
+      status1('');
+      toast(r === 'ready' ? 'Ready to play — it starts at once' : 'Getting it ready — Home shows its progress');
+    } catch (e) {
+      status1('');
+      setErr(e.message || String(e));
+    }
   };
   const onSave = async () => {
     if (await run(bk.save)()) toast('Saving for offline…');
@@ -549,6 +662,11 @@ export function BookPage({ book, fresh = false }) {
           {status ? <span class="b-spin" /> : <Icon name="play" size={20} />}
           {status ? (pct != null ? `${Math.round(pct * 100)}%` : 'Opening') : link || (free && progress.get()[uid]) ? 'Resume' : 'Play'}
         </button>
+        {!free && !local && !link && !mine && bk.provider() && !job && (
+          <button class="b-save" onClick={onReady} disabled={!!status}>
+            <Icon name="cloud" size={18} /> Get ready
+          </button>
+        )}
         {canSave && (
           <button class="b-save" onClick={saved?.status === 'done' ? undefined : onSave} disabled={!!status || saved?.status === 'downloading'}>
             <Icon name={saved?.status === 'done' ? 'check' : 'download'} size={18} />

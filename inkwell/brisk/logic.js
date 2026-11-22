@@ -170,3 +170,56 @@ export function rescueOrder(copies, tried = new Set(), max = 4) {
   return [...left.filter((r) => r.cache?.any), ...left.filter((r) => !r.cache?.any)].slice(0, max);
 }
 export const copyKey = (r) => String(r?.hash || r?.magnet || r?.title || '').toLowerCase();
+
+// ---- chapter names for books split into many files -----------------------------------------
+/** A file name that says nothing: "Track 01", "02", "Part 3", "Disc 1 - 04", "The Hobbit 07". */
+export function genericPart(title, bookTitle = '') {
+  let t = String(title || '').toLowerCase().replace(/\.[a-z0-9]{2,4}$/, '');
+  const bt = String(bookTitle || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').trim();
+  t = t.replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (bt && t.startsWith(bt)) t = t.slice(bt.length).trim();
+  return /^((track|part|pt|chapter|ch|cd|disc|disk|file|section)\s*)?\d{1,3}(\s*(of\s*)?\d{0,3})?$/.test(t) || /^(cd|disc|disk)\s*\d+\s*(track\s*)?\d+$/.test(t) || t === '';
+}
+
+/**
+ * The published chapters (Audible's list: [{ title, lengthMs }]) put on a book whose files have
+ * meaningless names. Same count → each file gets its chapter's name. Otherwise, when every file's
+ * length is known and the whole matches within 8% → chapter marks by time (another edition, whose
+ * length differs, gets nothing rather than marks in the wrong places).
+ */
+export function applyChapters(details, chapters) {
+  const tracks = details?.tracks || [];
+  if (tracks.length < 2 || !chapters?.length || details.chaptersMeta?.length) return details;
+  if (!tracks.every((t) => genericPart(t.title, details.title))) return details;
+  if (chapters.length === tracks.length) return { ...details, tracks: tracks.map((t, i) => ({ ...t, title: chapters[i].title || t.title })) };
+  const total = tracks.reduce((a, t) => a + (t.duration || 0), 0);
+  const published = chapters.reduce((a, c) => a + (c.lengthMs || 0), 0) / 1000;
+  if (!tracks.every((t) => t.duration > 0) || !published || Math.abs(1 - total / published) > 0.08) return details;
+  const k = total / published;
+  let at = 0;
+  const chaptersMeta = chapters.map((c, i) => {
+    const start = at * k;
+    at += (c.lengthMs || 0) / 1000;
+    return { title: c.title || `Chapter ${i + 1}`, start, end: at * k, published: true };
+  });
+  return { ...details, chaptersMeta };
+}
+
+// ---- the next book of a series ---------------------------------------------------------------
+/** "The Expanse #3" → { name: 'The Expanse', n: 3 } (or null). */
+export function seriesOf(text) {
+  const m = /^(.*?)\s*(?:#|book\s+|,\s*book\s+)(\d+(?:\.\d+)?)\s*$/i.exec(String(text || '').trim());
+  return m ? { name: m[1].trim(), n: parseFloat(m[2]) } : null;
+}
+/** The next one after number n, in a series list (each with seriesN), or null. */
+export function nextInSeries(list, n) {
+  return (list || []).filter((b) => b.seriesN > n).sort((a, b) => a.seriesN - b.seriesN)[0] || null;
+}
+
+// ---- remembering which copies and sources worked ----------------------------------------------
+/** Extra points for a copy (and its source) by how it went before: played → up, failed → down. */
+export function healthBonus(copy = {}, source = {}) {
+  const c = Math.min(90, (copy.ok || 0) * 30) - (copy.fail || 0) * 150;
+  const s = Math.max(-40, Math.min(20, ((source.ok || 0) - (source.fail || 0) * 2) * 2));
+  return c + s;
+}

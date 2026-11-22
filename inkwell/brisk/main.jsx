@@ -4,7 +4,7 @@ import { render } from 'preact';
 import './brisk.css';
 import { aiOff } from '../src/lib/ai.js';
 import { settings } from '../src/lib/store.js';
-import { installSources, startWatching, watchFailures } from './books.js';
+import { installSources, startWatching, watchFailures, watchEndings, findReadyNow } from './books.js';
 import { App } from './app.jsx';
 import { watchLook } from './scenes.jsx';
 import { Capacitor } from '@capacitor/core';
@@ -18,6 +18,8 @@ try {
 installSources();
 startWatching(); // books your service was still getting ready when you closed the app
 watchFailures(); // a copy that won't play: the next one plays by itself
+watchEndings(); // a finished book: the next one of its series
+setTimeout(() => findReadyNow().catch(() => {}), 20000); // popular books ready on your service (daily, quietly)
 // Light or dark, and the scene's colours; the status bar follows (dark icons on light, light on dark).
 watchLook((dark) => {
   if (Capacitor.isNativePlatform()) StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {});

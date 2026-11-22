@@ -137,3 +137,35 @@ describe('Audibrisk: a copy that will not play', () => {
     expect(rescueOrder(copies, new Set(['b'])).map((r) => r.hash)).toEqual(['D', 'A', 'C', 'E']);
   });
 });
+
+describe('Audibrisk chapters, series and what worked', () => {
+  it('knows meaningless file names', async () => {
+    const { genericPart } = await import('./logic.js');
+    for (const t of ['Track 01', '02', 'Part 3', 'CD1 Track 04', 'The Hobbit 07.mp3', 'Disc 2 - 05']) expect(genericPart(t, 'The Hobbit')).toBe(true);
+    for (const t of ['Chapter One: An Unexpected Party', 'Prologue']) expect(genericPart(t, 'The Hobbit')).toBe(false);
+  });
+  it('names files by their chapters, or marks chapters by time when lengths match', async () => {
+    const { applyChapters } = await import('./logic.js');
+    const d = { title: 'X', tracks: [{ title: 'Track 01', duration: 600 }, { title: 'Track 02', duration: 600 }] };
+    expect(applyChapters(d, [{ title: 'Opening', lengthMs: 600e3 }, { title: 'The End', lengthMs: 600e3 }]).tracks.map((t) => t.title)).toEqual(['Opening', 'The End']);
+    const three = [{ title: 'A', lengthMs: 400e3 }, { title: 'B', lengthMs: 400e3 }, { title: 'C', lengthMs: 400e3 }];
+    expect(applyChapters(d, three).chaptersMeta.map((c) => [c.title, Math.round(c.start)])).toEqual([['A', 0], ['B', 400], ['C', 800]]);
+    const other = [{ title: 'A', lengthMs: 900e3 }, { title: 'B', lengthMs: 900e3 }, { title: 'C', lengthMs: 900e3 }];
+    expect(applyChapters(d, other)).toBe(d); // another edition: left alone
+    const named = { title: 'X', tracks: [{ title: 'Prologue' }, { title: 'Chapter 1: Start' }] };
+    expect(applyChapters(named, [{ title: 'a' }, { title: 'b' }])).toBe(named);
+  });
+  it('finds the next book of a series', async () => {
+    const { seriesOf, nextInSeries } = await import('./logic.js');
+    expect(seriesOf('The Expanse #3')).toEqual({ name: 'The Expanse', n: 3 });
+    expect(seriesOf('Mistborn, Book 2')).toEqual({ name: 'Mistborn', n: 2 });
+    expect(nextInSeries([{ seriesN: 1 }, { seriesN: 4, t: 'd' }, { seriesN: 3.5, t: 'c' }], 3).t).toBe('c');
+    expect(nextInSeries([{ seriesN: 1 }], 1)).toBe(null);
+  });
+  it('copies that played go up, ones that failed go down', async () => {
+    const { healthBonus } = await import('./logic.js');
+    expect(healthBonus({ ok: 1 })).toBeGreaterThan(0);
+    expect(healthBonus({ ok: 2, fail: 1 })).toBeLessThan(0);
+    expect(healthBonus({}, { fail: 10 })).toBe(-40);
+  });
+});

@@ -117,6 +117,23 @@
   instant first, ≤4; same RD/TB id = skipped), carrying the percent. Toasts "trying another…" /
   "Playing another copy"; only if none works the error stays (with "Try another copy"). Not
   testable here without a real failing copy — check on the phone.
+- v1.0.11 (22 Nov, building, private test) — user's "1 to 4":
+  - Ready before you tap: `prewarm`/`warmed` (books.js) fetch the playable details of the first
+    Continue book (Home, after 2.5 s) and of an open book page with a known copy; prepare/resume
+    use them (10 min). NOT done: download-ahead while listening (needs shared native player buffer
+    change — ask the user/Audiohub+ window first).
+  - What worked: `briskHealth` (copies/sources ok/fail counts, uid → copy); `rank` adds
+    `healthBonus`; failures noted in ready() and when a playing copy errors.
+  - Endings: `watchEndings` → `upNext` (next in series via Audible: seriesOf/nextInSeries) shown on
+    Home and in the player (`UpNext`): Get ready · Play. "Get ready" on book pages (`getReady` =
+    prepare without playing; pending → background job with %).
+  - Chapter names for "Track 01…" multi-file copies: Audnexus chapters by the catalogue ASIN
+    (`briskChapters` cache) → `applyChapters` (same count → file names; else time marks when
+    lengths match within 8%); applied before play (≤1.2 s wait) or later via player.patchBook.
+  - Ready to play now: `findReadyNow` daily (20 s after start, slow, pauses while busy): Audible
+    best sellers whose copies are instant on your service (TorBox mostly — RD has no instant
+    flags) → row on Home (≥2 books), tap plays.
+  - Also in this build: automatic copy fallback, Try another copy, long-press menu, × on the strip.
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in
