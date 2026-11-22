@@ -110,6 +110,8 @@ export function placeOf(book, saved = false) {
       loc: { key: 'phone', label: 'Phone' },
       tb: { key: 'tb', label: 'TorBox' },
       rd: { key: 'rd', label: 'Real-Debrid' },
+      ad: { key: 'ad', label: 'AllDebrid' },
+      pm: { key: 'pm', label: 'Premiumize' },
       lv: { key: 'free', label: 'Free' },
       ia: { key: 'free', label: 'Free' },
     }[src] || null

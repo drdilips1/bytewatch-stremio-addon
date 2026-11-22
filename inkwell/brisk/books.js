@@ -5,6 +5,8 @@ import { debrid } from '../src/lib/store.js';
 import { audible } from '../src/sources/catalogs.js';
 import { getDetails } from '../src/sources/index.js';
 import * as cloud from '../src/sources/debrid.js';
+import { moreConnected, moreLibrary } from '../src/sources/moredebrid.js';
+import * as addonStore from '../src/sources/addons.js';
 import { searchSources, sureMatches } from '../src/sources/sourceaddons.js';
 import { searchTitle, matches } from '../src/lib/match.js';
 import { downloads, downloadBook, canDownload } from '../src/lib/downloads.js';
@@ -36,10 +38,40 @@ export function installSources(list = addons.get()) {
   } catch {}
 }
 
+// ---- sources: all searched by themselves; Settings → Sources can turn one off or add your own ----
+export const sourcesOff = persisted('briskSourcesOff', {}); // addon id -> true
+const isSource = (a) => a?.kind === 'source' || a?.manifest?.provides?.includes?.('source');
+/** Every source, built in or yours: { id, name, own, on }. */
+export const sourceList = () =>
+  addons
+    .get()
+    .filter(isSource)
+    .map((a) => ({ id: a.manifest.id, name: a.manifest.name, own: !bundle.addons.some((m) => m.id === a.manifest.id), on: !sourcesOff.get()[a.manifest.id] }));
+/** The names of the sources switched on (what a search asks). */
+const sourcesOn = () => sourceList().filter((x) => x.on).map((x) => x.name);
+export const toggleSource = (id) => sourcesOff.set((o) => ({ ...o, [id]: !o[id] }));
+/** Add a source from its link (a source addon or a collection of them). */
+export async function addSource(url) {
+  const before = new Set(addons.get().map((a) => a.manifest?.id));
+  await addonStore.install(url);
+  const fresh = addons.get().filter((a) => !before.has(a.manifest?.id));
+  // Catalogue-only addons don't find audiobook copies: not kept.
+  fresh.filter((a) => !isSource(a)).forEach((a) => addonStore.uninstall(a.manifest.id));
+  const added = fresh.filter(isSource);
+  if (!added.length) throw new Error('That link has no audiobook sources Audibrisk can use');
+  return added.length;
+}
+export const removeSource = (id) => addonStore.uninstall(id);
+
 // ---- your debrid services (TorBox, Real-Debrid, or both) -------------------------------------
-const NAMES = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
+const NAMES = { torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize' };
+export const SERVICES = Object.keys(NAMES);
+const SOURCE = { torbox: 'tb', realdebrid: 'rd', alldebrid: 'ad', premiumize: 'pm' }; // the id prefix of its books
+/** The service a cloud book lives in ('tb:…' → 'torbox'). */
+export const serviceOf = (book) => Object.keys(SOURCE).find((k) => SOURCE[k] === (book?.source || String(book?.uid || '').split(':')[0])) || 'torbox';
+const isOn = (p) => (p === 'torbox' ? cloud.tbConnected() : p === 'realdebrid' ? cloud.rdConnected() : moreConnected(p));
 /** Every service you connected, TorBox first. */
-export const providers = () => [cloud.tbConnected() && 'torbox', cloud.rdConnected() && 'realdebrid'].filter(Boolean);
+export const providers = () => SERVICES.filter(isOn);
 export const provider = () => providers()[0] || '';
 export const nameOf = (p) => NAMES[p] || '';
 export const providerName = () => providers().map(nameOf).join(' & ');
@@ -55,7 +87,7 @@ export async function connect(which, key) {
 }
 export const disconnect = (which) => {
   debrid.set((d) => ({ ...d, [which]: '' }));
-  cloudShelf.set({ books: cloudShelf.get().books.filter((b) => b.source !== (which === 'torbox' ? 'tb' : 'rd')), at: 0 });
+  cloudShelf.set({ books: cloudShelf.get().books.filter((b) => b.source !== SOURCE[which]), at: 0 });
 };
 
 // ---- search ----------------------------------------------------------------------------------
@@ -116,10 +148,14 @@ export function findCopies(book, onUpdate) {
     return sure.filter((r) => !seen.has(r.hash || r.magnet) && seen.add(r.hash || r.magnet)).sort((a, b) => rank(b) - rank(a));
   };
   const run = (params, key) =>
-    searchSources(params, (name, results) => {
-      all.set(key + name, results || []);
-      onUpdate?.(list());
-    });
+    searchSources(
+      params,
+      (name, results) => {
+        all.set(key + name, results || []);
+        onUpdate?.(list());
+      },
+      sourcesOn()
+    );
   return run({ title, author, query: `${title} ${surname}`.trim() }, 'a:')
     .then(() => (list().length ? null : run({ title, query: title }, 'b:')))
     .then(list);
@@ -197,7 +233,7 @@ export async function prepare(book, onStatus, copies = null) {
     const mine = await inMyCloud(book).catch(() => null);
     if (mine) {
       try {
-        onStatus?.(`Opening from your ${nameOf(mine.source === 'rd' ? 'realdebrid' : 'torbox')}…`);
+        onStatus?.(`Opening from your ${nameOf(serviceOf(mine))}…`);
         const d = await getDetails(mine, FAST);
         if (d?.tracks?.length || d?.resolveTracks) {
           const out = { ...d, title: book.title, author: book.author || d.author, cover: book.cover || d.cover, narrator: book.narrator || d.narrator };
@@ -357,8 +393,9 @@ export function refreshCloud(force = false) {
   if (cloudRun || !provider()) return cloudRun || Promise.resolve(cloudShelf.get().books);
   // Fetched lately: what we have (a big library re-read on every tab switch made the app sluggish).
   if (!force && cloudShelf.get().at && Date.now() - cloudShelf.get().at < 5 * 60e3) return Promise.resolve(cloudShelf.get().books);
-  cloudRun = Promise.all([cloud.torboxLibrary().catch(() => []), cloud.realdebridLibrary().catch(() => [])])
-    .then(([tb, rd]) => [...tb, ...rd])
+  const lib = (p) => (p === 'torbox' ? cloud.torboxLibrary() : p === 'realdebrid' ? cloud.realdebridLibrary() : moreLibrary(p));
+  cloudRun = Promise.all(providers().map((p) => lib(p).catch(() => [])))
+    .then((lists) => lists.flat())
     .then((list) => {
       const books = (list || []).filter((b) => b?.uid && b.title && b.kind !== 'text' && !b.fetching).map((b) => ({ uid: b.uid, source: b.source, title: b.title, author: b.author || '', narrator: b.narrator || '', cover: b.cover || '', duration: b.duration || 0, addedAt: b.addedAt || 0 }));
       cloudShelf.set({ books, at: Date.now() });

@@ -1,12 +1,13 @@
-// Audibrisk's player: a slim bar at the bottom, and the full player (cover, chapter, time,
-// back 15 / forward 30, speed, sleep timer, chapters, bookmark).
+// Audibrisk's player: a slim bar at the bottom, and the full player — cover, title, narrator,
+// chapter, progress with time left, back 15 / forward 30, speed and sleep timer. The rest
+// (chapters, bookmarks, skip silence, volume boost) waits in the small "More" menu.
 import { useEffect, useState } from 'preact/hooks';
 import { toast } from '../src/components/common.jsx';
 import { Cover } from './screens.jsx';
 import { Icon } from '../src/components/icons.jsx';
 import { nav, useBackClose } from '../src/lib/nav.js';
 import { fmtTime, fmtDuration } from '../src/lib/format.js';
-import { bookmarks } from '../src/lib/store.js';
+import { bookmarks, settings, useStore } from '../src/lib/store.js';
 import * as player from '../src/lib/player.js';
 import { useCoverColor } from '../src/components/player-ui.jsx';
 import { backAfterInterruption } from './logic.js';
@@ -102,7 +103,7 @@ function Sheet({ title, close, children }) {
 export function FullPlayer() {
   const s = usePlayer();
   const color = useCoverColor(s.book);
-  const [sheet, setSheet] = useState(null); // 'speed' | 'sleep' | 'chapters'
+  const [sheet, setSheet] = useState(null); // 'speed' | 'sleep' | 'chapters' | 'more'
   const [drag, setDrag] = useState(null);
   const [tab, setTab] = useState('chapters');
   if (!s.book) return null;
@@ -175,24 +176,14 @@ export function FullPlayer() {
         <button onClick={() => setSheet('sleep')}>
           <b>{sleeping || <Icon name="moon" size={19} />}</b>Sleep
         </button>
-        <button onClick={() => setSheet('chapters')}>
+        <button onClick={() => setSheet('more')}>
           <b>
-            <Icon name="list" size={19} />
+            <Icon name="dots" size={19} />
           </b>
-          Chapters
-        </button>
-        <button
-          onClick={() => {
-            const bm = player.addBookmark();
-            if (bm) toast(`Bookmarked at ${fmtTime(bm.global)}`);
-          }}
-        >
-          <b>
-            <Icon name="bookmark" size={19} />
-          </b>
-          Bookmark
+          More
         </button>
       </div>
+      {sheet === 'more' && <MoreSheet s={s} close={() => setSheet(null)} open={(k, t) => (t && setTab(t), setSheet(k))} />}
       {sheet === 'speed' && (
         <Sheet title="Speed" close={() => setSheet(null)}>
           <div class="b-pills">
@@ -275,5 +266,61 @@ export function FullPlayer() {
         </Sheet>
       )}
     </div>
+  );
+}
+
+const BOOSTS = [
+  [0, 'Off'],
+  [3, 'Low'],
+  [6, 'Medium'],
+  [10, 'High'],
+];
+/** The small menu: chapters, bookmarks, skip silence and volume boost (kept for this book). */
+function MoreSheet({ s, close, open }) {
+  const st = useStore(settings);
+  useStore(player.bookPrefs);
+  const boost = player.bookPrefs.get()[s.book.uid]?.boost ?? st.boost ?? 0;
+  return (
+    <Sheet title="More" close={close}>
+      <div class="b-list">
+        <button onClick={() => open('chapters', 'chapters')}>
+          <Icon name="list" size={18} /> Chapters
+        </button>
+        <button onClick={() => open('chapters', 'marks')}>
+          <Icon name="bookmark" size={18} /> Bookmarks
+        </button>
+        <button
+          onClick={() => {
+            const bm = player.addBookmark();
+            if (bm) toast(`Bookmarked at ${fmtTime(bm.global)}`);
+            close();
+          }}
+        >
+          <Icon name="plus" size={18} /> Bookmark this moment
+        </button>
+      </div>
+      <div class="b-set-row">
+        <div>
+          <b>Skip silence</b>
+          <small>Cuts the quiet gaps between sentences</small>
+        </div>
+        <button class={'b-switch' + (st.skipSilence ? ' on' : '')} role="switch" aria-checked={!!st.skipSilence} aria-label="Skip silence" onClick={() => player.setAudio({ skipSilence: !st.skipSilence })}>
+          <i />
+        </button>
+      </div>
+      <div class="b-set-row b-col">
+        <div>
+          <b>Volume boost</b>
+          <small>Makes quiet recordings louder (kept for this book)</small>
+        </div>
+        <div class="b-pills">
+          {BOOSTS.map(([db, label]) => (
+            <button class={boost === db ? 'on' : ''} onClick={() => player.setAudio({ boost: db })}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </Sheet>
   );
 }

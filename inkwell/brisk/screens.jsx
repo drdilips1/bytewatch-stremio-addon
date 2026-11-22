@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../src/components/icons.jsx';
 import { toast } from '../src/components/common.jsx';
 import { nav, useBackClose } from '../src/lib/nav.js';
-import { useStore, progress } from '../src/lib/store.js';
+import { useStore, progress, addons } from '../src/lib/store.js';
 import { debrid } from '../src/lib/store.js';
 import { downloads, cancelDownload, canDownload } from '../src/lib/downloads.js';
 import { fmtDuration } from '../src/lib/format.js';
@@ -202,11 +202,8 @@ export function Home() {
       <Header onSettings={() => setSheet(true)} dice={!q} />
       {!q && (
         <div class="b-hero">
-          <h1>
-            Less app.
-            <br />
-            More listening.
-          </h1>
+          <p class="b-hello">{greeting()}</p>
+          <h1>What shall we listen to?</h1>
           <svg class="b-swoosh" viewBox="0 0 200 12" aria-hidden="true">
             <path d="M2 10 C60 2 130 1 198 4" fill="none" stroke="var(--b-gold)" stroke-width="2.4" stroke-linecap="round" />
           </svg>
@@ -215,7 +212,7 @@ export function Home() {
       )}
       <label class="b-search">
         <Icon name="search" size={20} />
-        <input placeholder="Search audiobooks…" value={q} onInput={(e) => setQ(e.currentTarget.value)} enterkeyhint="search" autocomplete="off" />
+        <input placeholder="Books, authors, narrators…" value={q} onInput={(e) => setQ(e.currentTarget.value)} enterkeyhint="search" autocomplete="off" />
         {busy && <span class="b-spin small" />}
         {q && !busy && (
           <button aria-label="Clear" onClick={() => setQ('')}>
@@ -226,7 +223,7 @@ export function Home() {
       {!bk.provider() && !q && (
         <button class="b-welcome" onClick={() => setSheet(true)}>
           <b>Connect your debrid</b>
-          <span>Audibrisk streams through your TorBox or Real-Debrid — add your key once. Free LibriVox books play without one.</span>
+          <span>Add TorBox, Real-Debrid, AllDebrid or Premiumize once — then search, tap Play, and the app does the rest. Free LibriVox books play without one.</span>
           <em>Connect →</em>
         </button>
       )}
@@ -250,7 +247,8 @@ export function Home() {
           ))}
         </div>
       ) : (
-        cont.length > 0 && (
+        <>
+        {cont.length > 0 && (
           <section class="b-sec">
             <div class="b-sec-head">
               <h2>Continue Listening</h2>
@@ -264,7 +262,9 @@ export function Home() {
               <ContinueCard b={b} onOpen={playIt} />
             ))}
           </section>
-        )
+        )}
+        <YourLibrary skip={cont} />
+        </>
       )}
       {sheet && <SettingsSheet close={() => setSheet(false)} />}
     </div>
@@ -314,53 +314,50 @@ function Jobs() {
   );
 }
 
-export function LibraryTab() {
+/** "Good morning" / afternoon / evening / night, by the phone's clock. */
+const greeting = (h = new Date().getHours()) => (h >= 5 && h < 12 ? 'Good morning' : h >= 12 && h < 17 ? 'Good afternoon' : h >= 17 && h < 22 ? 'Good evening' : 'Good night');
+
+/**
+ * Your library, on Home: every book you have — in your debrid clouds, in your phone folder and
+ * saved here — in one grid, each cover labelled with where it plays from. Little filters appear
+ * when there's more than one kind. (No separate tabs: one screen does it all.)
+ */
+function YourLibrary({ skip = [] }) {
   const cloudBooks = useStore(bk.cloudShelf).books;
-  const allProgress = useStore(progress);
   const local = useStore(phone.localCfg);
+  const dls = useStore(downloads);
+  const [only, setOnly] = useState('all');
   useStore(metaFixes);
   useStore(bk.covers);
   useEffect(() => {
     bk.refreshCloud();
     if (phone.connected()) phone.library().then((l) => bk.fillCovers(l)).catch(() => {});
-  }, []);
-  const phoneBooks = phone.connected() ? local.books.filter((b) => b.kind !== 'text').map((b) => bk.withCover({ ...b, cover: b.cover || '' })) : [];
-  const cont = bk.continuing(allProgress).map(bk.withCover);
-  const ids = new Set(cont.map((b) => b.uid));
-  const mine = cloudBooks.filter((b) => !ids.has(b.uid)).map(bk.withCover);
+  }, [bk.provider()]);
+  const ids = new Set(skip.map((b) => b.uid));
+  const seen = new Set();
+  const items = [...bk.offline(dls), ...cloudBooks, ...(phone.connected() ? local.books.filter((b) => b.kind !== 'text') : [])]
+    .filter((b) => b?.uid && !ids.has(b.uid) && !seen.has(b.uid) && seen.add(b.uid))
+    .map(bk.withCover);
+  const kinds = [...new Set(items.map((b) => placeOf(b, dls[b.uid]?.status === 'done')?.key).filter(Boolean))];
+  const LABEL = { saved: 'Saved', phone: 'Phone', tb: 'TorBox', rd: 'Real-Debrid', ad: 'AllDebrid', pm: 'Premiumize', free: 'Free' };
+  const shown = only === 'all' ? items : items.filter((b) => placeOf(b, dls[b.uid]?.status === 'done')?.key === only);
+  if (!items.length && !bk.provider() && !phone.connected()) return null;
   return (
-    <div class="b-tab">
-      <h1 class="b-title">Library</h1>
-      {cont.length > 0 && (
-        <section class="b-sec">
-          <h2 class="b-label">Listening</h2>
-          <Grid items={cont} onOpen={playIt} />
-        </section>
+    <section class="b-sec">
+      <div class="b-sec-head">
+        <h2>Your library</h2>
+      </div>
+      {kinds.length > 1 && (
+        <div class="b-chips">
+          {['all', ...kinds].map((k) => (
+            <button class={only === k ? 'on' : ''} onClick={() => setOnly(k)}>
+              {k === 'all' ? 'All' : LABEL[k] || k}
+            </button>
+          ))}
+        </div>
       )}
-      <section class="b-sec">
-        <h2 class="b-label">In your {bk.providerName() || 'cloud'}</h2>
-        <Grid items={mine} onOpen={playIt} empty={bk.provider() ? 'Audiobooks in your cloud show here.' : 'Connect TorBox or Real-Debrid in Settings to see your cloud.'} />
-      </section>
-      {phoneBooks.length > 0 && (
-        <section class="b-sec">
-          <h2 class="b-label">On this phone</h2>
-          <Grid items={phoneBooks} onOpen={playIt} />
-        </section>
-      )}
-    </div>
-  );
-}
-
-export function DownloadsTab() {
-  const dls = useStore(downloads);
-  useStore(metaFixes);
-  const off = bk.offline(dls).map(bk.withCover);
-  return (
-    <div class="b-tab">
-      <h1 class="b-title">Downloads</h1>
-      <p class="b-sub">Saved on this phone — they play without internet.</p>
-      <Grid items={off} onOpen={playIt} empty={canDownload ? 'Tap Save on a book to keep it here for offline listening.' : 'Saving for offline works in the Android app.'} />
-    </div>
+      <Grid items={shown} onOpen={playIt} empty={bk.provider() ? 'Books in your cloud, your phone folder and the ones you save show here.' : 'Connect a debrid service in Settings to see your cloud.'} />
+    </section>
   );
 }
 
@@ -540,6 +537,67 @@ function ModeSwitch() {
   );
 }
 
+/**
+ * Sources, tucked away: every source is searched by itself, so most people never open this.
+ * Turn one off, or paste a link to add your own.
+ */
+function Sources() {
+  const [open, setOpen] = useState(false);
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
+  useStore(bk.sourcesOff);
+  useStore(addons);
+  const list = bk.sourceList();
+  const add = async () => {
+    setBusy(true);
+    try {
+      const n = await bk.addSource(link.trim());
+      toast(`${n} source${n > 1 ? 's' : ''} added`);
+      setLink('');
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <div class="b-set-row">
+        <div>
+          <b>Sources</b>
+          <small>{list.filter((x) => x.on).length} of {list.length} searched — all by themselves</small>
+        </div>
+        <button class="b-pill" onClick={() => setOpen(!open)}>
+          {open ? 'Done' : 'Manage'}
+        </button>
+      </div>
+      {open && (
+        <div class="b-sources">
+          {list.map((x) => (
+            <div class="b-src-row">
+              <span>{x.name}</span>
+              {x.own && (
+                <button class="b-link" onClick={() => bk.removeSource(x.id)}>
+                  Remove
+                </button>
+              )}
+              <button class={'b-switch' + (x.on ? ' on' : '')} role="switch" aria-checked={x.on} aria-label={x.name} onClick={() => bk.toggleSource(x.id)}>
+                <i />
+              </button>
+            </div>
+          ))}
+          <div class="b-set-key">
+            <input class="b-input" placeholder="Paste a source link" value={link} onInput={(e) => setLink(e.currentTarget.value)} autocomplete="off" />
+            <button class="b-pill" disabled={busy || !link.trim()} onClick={add}>
+              {busy ? <span class="b-spin small" /> : 'Add'}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 /** One debrid service: connected (with Disconnect), or a box for its key. */
 function ServiceRow({ which }) {
   useStore(debrid);
@@ -574,7 +632,7 @@ function ServiceRow({ which }) {
     );
   return (
     <div class="b-set-key">
-      <input class="b-input" type="password" placeholder={which === 'torbox' ? 'TorBox API key' : 'Real-Debrid API token'} value={key} onInput={(e) => setKey(e.currentTarget.value)} autocomplete="off" />
+      <input class="b-input" type="password" placeholder={`${name} ${which === 'realdebrid' ? 'API token' : 'API key'}`} value={key} onInput={(e) => setKey(e.currentTarget.value)} autocomplete="off" />
       <button class="b-pill" disabled={busy || !key.trim()} onClick={save}>
         {busy ? <span class="b-spin small" /> : 'Connect'}
       </button>
@@ -588,6 +646,7 @@ function SettingsSheet({ close }) {
   const local = useStore(phone.localCfg);
   const [upd, setUpd] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [more, setMore] = useState(false);
   const addFolder = async () => {
     setScanning(true);
     try {
@@ -605,9 +664,19 @@ function SettingsSheet({ close }) {
       <div class="b-sheet" onClick={(e) => e.stopPropagation()}>
         <h3>Settings</h3>
         <ModeSwitch />
-        <p class="b-sheet-sub">Connect TorBox, Real-Debrid or both. With both, a copy ready on either plays at once.</p>
+        <p class="b-sheet-sub">Connect one service or several. A copy ready on any of them plays at once.</p>
         <ServiceRow which="torbox" />
         <ServiceRow which="realdebrid" />
+        {more || bk.providers().some((p) => p === 'alldebrid' || p === 'premiumize') ? (
+          <>
+            <ServiceRow which="alldebrid" />
+            <ServiceRow which="premiumize" />
+          </>
+        ) : (
+          <button class="b-link" onClick={() => setMore(true)}>
+            AllDebrid or Premiumize?
+          </button>
+        )}
         {phone.available && (
           <>
             <h4 class="b-sheet-h">Folder on this phone</h4>
@@ -635,6 +704,7 @@ function SettingsSheet({ close }) {
             </div>
           </>
         )}
+        <Sources />
         <div class="b-set-row">
           <div>
             <b>Audibrisk {VERSION}</b>

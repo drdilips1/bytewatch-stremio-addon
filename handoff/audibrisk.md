@@ -42,7 +42,7 @@
   of 4; Home doesn't redraw for covers; grids show 30 then "Show all"; Play/resume call
   getDetails with `{ fast: true }` (never wait for a lookup); cloud library re-read at most every
   5 min (was on every Home/Library visit after 60 s).
-- Next (committed 22 Nov, NOT built — waiting for the user's "build"):
+- v1.0.8 (22 Nov, built — "Build all"):
   - Light / Dark / Auto (Settings, top). All colours are CSS variables on :root; `data-mode` and
     `data-scene` on <html> (scenes.jsx `watchLook`/`applyLook`); each dice scene tints the colours
     (sunrise sage, sunset terracotta, night indigo, meadow green, mountains slate); dark = warm
@@ -54,6 +54,18 @@
     icon / splash (make-icons.mjs: cream mark on a sage gradient) done.
   - Library / Downloads covers carry a small label saying where the book plays from: TorBox,
     Real-Debrid, Phone, Saved (downloaded here — wins), Free (`placeOf` in logic.js).
+  - One screen, no tabs (app.jsx): greeting ("Good morning" by the clock) + "What shall we listen
+    to?", search, Continue listening, Your library (`YourLibrary` in screens.jsx: saved + cloud +
+    phone books in one grid with labels and filter chips when there's more than one kind).
+  - Player: main row Speed · Sleep · More; More sheet = chapters, bookmarks, bookmark this moment,
+    skip silence, volume boost (shared `player.setAudio`, kept per book).
+  - Settings → Sources (folded): switch built-in/own sources off (`briskSourcesOff`, passed as
+    `only` to shared searchSources), paste a link to add your own (shared addons.install;
+    catalogue-only addons removed again), Remove for your own.
+  - AllDebrid and Premiumize as extra services (shared moredebrid.js), behind "AllDebrid or
+    Premiumize?" in Settings; labels AllDebrid / Premiumize.
+  - Not done (need shared Android code — ask first): overnight downloads on Wi-Fi + charging;
+    check Android Auto shows Audibrisk's library.
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in
