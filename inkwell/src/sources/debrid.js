@@ -220,13 +220,37 @@ async function torboxLibraryRaw() {
 const tbSeen = new Map();
 
 async function tbDetails(book) {
-  const [, code, id] = book.uid.split(':');
+  const [, code, oldId] = book.uid.split(':');
+  let id = oldId;
   const [kind, , param] = TB_KINDS.find(([, c]) => c === code);
   let it = tbSeen.get(`${code}:${id}`);
   tbSeen.delete(`${code}:${id}`);
   if (!it && kind === 'torrents') it = await tbOne(id);
-  if (!it) it = (await tbList(kind, true)).find((x) => String(x.id) === id);
-  if (!it) throw new Error('This item is no longer in your TorBox account');
+  if (!it) {
+    const all = await tbList(kind, true).catch(() => []);
+    it = all.find((x) => String(x.id) === id);
+    // The same torrent under a new entry (re-added — v1.0.240 did that to books that were fine):
+    // found by its hash, or failing that by its exact name, and used in its place.
+    const hash = String(book.hash || '').toLowerCase();
+    if (!it && kind === 'torrents') it = all.find((x) => (hash && String(x.hash || '').toLowerCase() === hash) || (book.rawName && x.name === book.rawName));
+    // Older saved places don't know the hash: the newest audiobook in your TorBox with this title.
+    if (!it && kind === 'torrents' && !hash && book.title) {
+      const same = all
+        .filter((x) => matches(book.title, cleanTitle(x.name || '')) && tbAudioCount(x) > 0)
+        .sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0));
+      it = same[0];
+    }
+    // Not in your TorBox at all: added back (usually at once — TorBox keeps it cached). Nothing is removed.
+    if (!it && kind === 'torrents' && /^[a-f0-9]{40}$/.test(hash)) {
+      logError('TorBox', `"${book.title}" was missing from your TorBox — adding it back`);
+      const stub = await prepareMagnet('torbox', { hash, title: book.title });
+      const key = stub.uid.replace(/^tb:/, '');
+      it = tbSeen.get(key) || (await tbOne(key.split(':')[1]));
+      tbSeen.delete(key);
+    }
+    if (it) id = String(it.id);
+  }
+  if (!it) throw new Error('This item is no longer in your TorBox account — find it again under Sources on this page');
   const done = code !== 't' || !!(it.download_finished || it.download_present);
   const pending = done ? null : { provider: 'torbox', hash: String(it.hash || '').toLowerCase(), progress: Number(it.progress) || 0, state: it.download_state || '' };
   const files = audioOf(it.files, it.name)

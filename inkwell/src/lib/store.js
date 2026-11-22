@@ -140,13 +140,15 @@ export const addons = persisted('addons', []); // [{ url, manifest }]
 export const abs = persisted('abs', { server: '', altServer: '', token: '', refreshToken: '', username: '', libraryId: '' });
 
 export function summarize(book) {
-  const { uid, source, kind, title, author, cover, year, duration, ebookUrl, ebookName, ebookFormat } = book;
+  const { uid, source, kind, title, author, cover, year, duration, ebookUrl, ebookName, ebookFormat, hash, rawName } = book;
   // Direct-link ebooks keep their link so Continue can reopen them.
   const direct = ebookUrl ? { ebookUrl, ebookName, ebookFormat } : {};
   // The first chapter / file name: the real title when a server's title is wrong ("Richard
   // Dawkin" for The Selfish Gene) — kept so another copy can be found while the server is down.
   const part0 = String(book.chaptersMeta?.[0]?.title || book.tracks?.[0]?.title || book.part0 || '').slice(0, 120);
-  return { uid, source, kind, title, author, cover, year, duration, ...direct, ...(part0 ? { part0 } : {}) };
+  // A cloud copy's torrent hash and name: it can be found again if its entry there changes.
+  const cloud = hash ? { hash, ...(rawName ? { rawName: String(rawName).slice(0, 200) } : {}) } : {};
+  return { uid, source, kind, title, author, cover, year, duration, ...direct, ...cloud, ...(part0 ? { part0 } : {}) };
 }
 
 export function toggleLibrary(book) {
