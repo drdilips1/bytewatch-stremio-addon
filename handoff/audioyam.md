@@ -68,6 +68,12 @@
   d4985d9: on an all-404 sync without key, `findKey` reads the key from review/list/<id>?shelf=read
   (`keyFromShelfPage`, tests/goodreadskey.test.js), saves it and retries; logs "Goodreads key" / "Goodreads sync".
   Test APK 1.0.41 (run 41) built — waiting for the user's result. Next release will be 1.0.42.
+- 22 Nov result: Goodreads RSS feeds are gone (every list_rss 404, the shelf page has no RSS link, even on the
+  website). User decided: CSV only. Settings → Goodreads now shows the 4 export steps (Chrome, not the Goodreads
+  app — it can't save the file; goodreads.com/review/import → Export Library → "Your export from …" link →
+  Downloads → Import CSV) + "Open Goodreads export page" (Capacitor Browser). Profile sync, findKey, the
+  pull-to-refresh sync, request opts.force and tests/goodreadskey.test.js removed; a saved userId is cleared.
+  BROWSER_HEADERS kept for ratings. On `work`, not released; next release 1.0.42.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 8eed093), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
