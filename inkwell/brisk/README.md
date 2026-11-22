@@ -20,3 +20,4 @@ AllDebrid, Premiumize (any or all), a folder on the phone, and a folded Sources 
 - Icons / splash: `node brisk/make-icons.mjs` → `brisk/android-res/`.
 - Pure rules in `brisk/logic.js`, tested by `brisk/brisk.test.js` (part of `npm test`).
 - v1.0.9: first public-safe build (stripped code, in-app updates from drdilips1/audibrisk).
+- v1.0.10: first public release (drdilips1/audibrisk) — free books in the top 10, Deep Search follows your service.
