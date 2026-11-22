@@ -70,9 +70,13 @@
   on by default since first start; shared player skips chapters titled Opening/End Credits,
   Publisher's intro… once, with a toast).
 - Next (committed, not built): Ink & Echo shown as "Deep Search" (name/description only; id
-  `inkandecho-v2-bestsearch-audiobook` kept so installs update by themselves). Its URL still carries
-  `debrid=torbox` and `client=ie_…` — asked the user whether that client id is personal before a
-  public release.
+  `inkandecho-v2-bestsearch-audiobook` kept so installs update by themselves). The old `client=ie_bbb06…` was
+  the user's own (a fresh build gave a different one), so Deep Search now uses the user's new public
+  link (provider.json v1.0.7, `client=ie_50d19612…`, made in a private window for public use).
+  Checked live 22 Nov: Deep Search, AudiobookBay and Knaben all answer. (Audiohub+'s built-in
+  Ink & Echo files in shared src/ still carry the old personal id — not touched, Audiohub+ window.)
+  This repo's cloud environment now allows inkandecho-builder.pages.dev and
+  sources.booksources.workers.dev.
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in
