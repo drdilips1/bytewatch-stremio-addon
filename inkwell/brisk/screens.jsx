@@ -34,14 +34,12 @@ export function Cover({ book, class: cls = '', px = 0 }) {
   );
 }
 
-/** Headphones with a small sound wave: the mark. */
+/** The mark: a play button with speed lines — press it and it plays. */
 export const Logo = () => (
-  <svg class="b-logo" viewBox="0 0 48 48" width="40" height="40" aria-hidden="true">
-    <path d="M8 28v-4a16 16 0 0 1 32 0v4" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" />
-    <rect x="5" y="26" width="8" height="14" rx="4" fill="currentColor" />
-    <rect x="35" y="26" width="8" height="14" rx="4" fill="currentColor" />
-    <g stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-      <path d="M18 31v4" /><path d="M21 28v10" /><path d="M24 25v16" /><path d="M27 28v10" /><path d="M30 31v4" />
+  <svg class="b-logo" viewBox="0 0 48 48" width="38" height="38" aria-hidden="true">
+    <path d="M18 12.5 C18 10.6 20 9.5 21.6 10.5 L38 21.5 C39.5 22.5 39.5 24.6 38 25.6 L21.6 36.6 C20 37.6 18 36.5 18 34.6 Z" fill="currentColor" />
+    <g stroke="currentColor" stroke-width="3" stroke-linecap="round">
+      <path d="M5 18 h8" /><path d="M3 24 h10" /><path d="M5 30 h8" />
     </g>
   </svg>
 );

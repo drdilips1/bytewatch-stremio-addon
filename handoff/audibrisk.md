@@ -42,7 +42,7 @@
   of 4; Home doesn't redraw for covers; grids show 30 then "Show all"; Play/resume call
   getDetails with `{ fast: true }` (never wait for a lookup); cloud library re-read at most every
   5 min (was on every Home/Library visit after 60 s).
-- Next (committed 22 Nov, NOT built — waiting for the user's "build" and logo choice):
+- Next (committed 22 Nov, NOT built — waiting for the user's "build"):
   - Light / Dark / Auto (Settings, top). All colours are CSS variables on :root; `data-mode` and
     `data-scene` on <html> (scenes.jsx `watchLook`/`applyLook`); each dice scene tints the colours
     (sunrise sage, sunset terracotta, night indigo, meadow green, mountains slate); dark = warm
@@ -50,9 +50,8 @@
   - Speed: thumbnails ask Audible/Apple for small pictures (`thumb` in logic.js: 120–320 px instead
     of 500); a Library/Continue tap shows a spinner at once and plays (covers pause meanwhile);
     the book already in the player opens straight away; press feedback on every tap.
-  - Logo: 3 options shown to the user (A swift bird, B play button with speed lines, C today's
-    headphones with a forward arrow). Not changed yet; after the choice update `Logo` in
-    screens.jsx and the app icon (`brisk/icon-512.png` → `node brisk/make-icons.mjs`).
+  - Logo: user chose B — a play button with speed lines. Header `Logo` (screens.jsx) and app
+    icon / splash (make-icons.mjs: cream mark on a sage gradient) done.
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in

@@ -12,11 +12,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(here, 'android-res');
 const res = path.join(here, '../android/app/src/main/res');
 
-// Headphones with a small sound wave, deep brown on warm cream (as in the app's header).
-const FLAME = '<g transform="translate(64 40) scale(8)"><path d="M8 28v-4a16 16 0 0 1 32 0v4" fill="none" stroke="#4a3b2c" stroke-width="3.2" stroke-linecap="round"/><rect x="5" y="26" width="8" height="14" rx="4" fill="#4a3b2c"/><rect x="35" y="26" width="8" height="14" rx="4" fill="#4a3b2c"/><g stroke="#66754f" stroke-width="2.2" stroke-linecap="round"><path d="M18 31v4"/><path d="M21 28v10"/><path d="M24 25v16"/><path d="M27 28v10"/><path d="M30 31v4"/></g></g>';
-const BG = '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf5ea"/><stop offset="1" stop-color="#efe3cf"/></linearGradient></defs>';
-const full = (round) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${BG}<rect width="512" height="512" rx="${round ? 256 : 116}" fill="url(#g)"/><g transform="translate(256 262) scale(1.32) translate(-256 -224)">${FLAME}</g></svg>`;
-const fg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><g transform="translate(256 262) scale(0.86) translate(-256 -224)">${FLAME}</g></svg>`;
+// A play button with speed lines, warm cream on sage (as in the app's header).
+const FLAME = '<g transform="translate(64 40) scale(8)"><path d="M18 12.5 C18 10.6 20 9.5 21.6 10.5 L38 21.5 C39.5 22.5 39.5 24.6 38 25.6 L21.6 36.6 C20 37.6 18 36.5 18 34.6 Z" fill="#fbf6ec"/><g stroke="#fbf6ec" stroke-width="3" stroke-linecap="round"><path d="M5 18 h8"/><path d="M3 24 h10"/><path d="M5 30 h8"/></g></g>';
+const BG = '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#76865c"/><stop offset="1" stop-color="#5e6d48"/></linearGradient></defs>';
+const full = (round) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${BG}<rect width="512" height="512" rx="${round ? 256 : 116}" fill="url(#g)"/><g transform="translate(286 252) scale(1.04) translate(-256 -224)">${FLAME}</g></svg>`;
+const fg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><g transform="translate(266 256) scale(0.8) translate(-256 -224)">${FLAME}</g></svg>`;
 const bg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${BG}<rect width="512" height="512" fill="url(#g)"/></svg>`;
 const splash = (w, h) => {
   const s = Math.min(w, h) * 0.26;
