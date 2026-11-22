@@ -174,11 +174,6 @@
             android:src="@drawable/ic_play" />
     </LinearLayout>
 
-    <FrameLayout
-        android:id="@+id/adBanner"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
-
     <!-- Home, Library, Voices, Settings (filled in by LiteMainActivity). -->
     <LinearLayout
         android:id="@+id/bottomNav"

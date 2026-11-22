@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The Play Store edition: a library and a player; on-device voices; ads. -->
+<!-- The Play Store edition: a library and a player; on-device voices; no ads. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- "Say it" when fixing how a word is said: the phone's speech recognizer. -->
@@ -59,9 +59,5 @@
             android:exported="false"
             android:launchMode="singleTop"
             android:parentActivityName=".LiteMainActivity" />
-
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="${admobAppId}" />
     </application>
 </manifest>

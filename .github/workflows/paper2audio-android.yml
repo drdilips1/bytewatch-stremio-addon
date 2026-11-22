@@ -53,10 +53,6 @@ jobs:
           KEYSTORE_B64: ${{ secrets.P2A_KEYSTORE_B64 || secrets.SIGNING_KEY }}
           P2A_KEYSTORE_PASSWORD: ${{ secrets.P2A_KEYSTORE_PASSWORD || secrets.SIGNING_PASSWORD }}
           P2A_KEY_ALIAS: ${{ secrets.P2A_KEY_ALIAS || secrets.SIGNING_ALIAS || 'p2a' }}
-          # Play Store edition ads (Google's test ads until these secrets are set).
-          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
-          ADMOB_BANNER_ID: ${{ secrets.ADMOB_BANNER_ID }}
-          ADMOB_INTERSTITIAL_ID: ${{ secrets.ADMOB_INTERSTITIAL_ID }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/p2a.keystore"

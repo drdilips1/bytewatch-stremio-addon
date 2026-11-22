@@ -47,22 +47,22 @@ large-book memory fix, reader skips contents/index like the player, Remove ads p
 offers the product). Voices play at their natural speed (as 1.9.18).
 
 **Committed on the stable line, not yet built:** theme name "Paper (paper white and ink)" (no "as in
-Audiohub").
+Audiohub"); ads removed (see below).
 
-## Remove ads ($2.99, product id `remove_ads`)
+## Ads: removed (user's decision, after the battery tests)
 
-- Code: `paper2audio/android/app/src/lite/java/com/paper2audio/app/RemoveAds.kt` (Play Billing 8), stub in
-  `src/full`. Menu rows appear only once Play returns the product's price.
-- Blocked on the user's Google payments verification: BillDesk video KYC (application ID 2611083835, link
-  valid 500 days). The user will do it from their permanent (parents') address on a visit home; then create
-  `remove_ads` at $2.99 in Play Console → Monetize → One-time products → Activate. No app update needed.
-- US tax form (W-8BEN) done; legal address verified (bank statement); public merchant profile should match
-  the verified address; GSTIN alert can be ignored (no GST registration needed at this income).
+The user's tests: online listening drained ~15–20%/h (old book) vs 3%/h in airplane mode, and battery stats
+blamed Narrato. Its own code makes no network calls while playing, so the suspect was the AdMob SDK running
+in the app (a preloaded full-screen ad kept alive by the playback wake lock). The user chose **no ads at all**:
+the AdMob, consent (UMP) and Play Billing libraries, `Ads.kt`/`RemoveAds.kt`, the banner, the "Remove ads" /
+"Ad privacy choices" menu rows and the AdMob CI secrets are gone. The merged manifest has no AD_ID permission.
+Committed on the stable line, not yet built. **Before uploading that build, in Play Console:** App content →
+Ads → "No"; Data safety → remove advertising ID / ad data; Advertising ID declaration → not used. Update the
+privacy policy (`docs/privacy.html` on main, gh-pages `privacy.html`) to drop the ads section. The
+`remove_ads` product need not be created; the BillDesk KYC is no longer needed for it. AdMob setup items are moot.
 
 ## Other pending items
 
-- AdMob → "Finish app setup": link to Google Play choosing **"Add to an existing AdMob app"** (Narrato).
-  Then app-ads.txt on GitHub Pages and that site as the Play listing's website.
 - Declare EU trader status in Play Console (public details).
 - Privacy policy: `docs/privacy.html` on the main branch, published at
   https://drdilips1.github.io/bytewatch-stremio-addon/privacy.html (gh-pages `privacy.html`). Any new data use

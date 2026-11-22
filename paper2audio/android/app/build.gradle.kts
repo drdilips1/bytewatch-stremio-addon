@@ -22,16 +22,13 @@ android {
     buildFeatures { buildConfig = true }
 
     // "full": the sideloaded app with every feature. "lite": the Play Store edition
-    // (on-device voices only, no AI or accounts, supported by ads).
+    // (on-device voices only, no AI or accounts, no ads).
     flavorDimensions += "edition"
     productFlavors {
         create("full") {
             dimension = "edition"
             targetSdk = 34
             buildConfigField("boolean", "LITE", "false")
-            buildConfigField("String", "AD_BANNER", "\"\"")
-            buildConfigField("String", "AD_INTERSTITIAL", "\"\"")
-            manifestPlaceholders["admobAppId"] = ""
         }
         create("lite") {
             dimension = "edition"
@@ -41,11 +38,6 @@ android {
             versionCode = 36
             versionName = "1.9.26"
             buildConfigField("boolean", "LITE", "true")
-            // AdMob IDs from the environment (GitHub secrets); Google's test IDs otherwise.
-            fun env(name: String, test: String) = System.getenv(name)?.takeIf { it.isNotBlank() } ?: test
-            manifestPlaceholders["admobAppId"] = env("ADMOB_APP_ID", "ca-app-pub-3940256099942544~3347511713")
-            buildConfigField("String", "AD_BANNER", "\"${env("ADMOB_BANNER_ID", "ca-app-pub-3940256099942544/9214589741")}\"")
-            buildConfigField("String", "AD_INTERSTITIAL", "\"${env("ADMOB_INTERSTITIAL_ID", "ca-app-pub-3940256099942544/1033173712")}\"")
         }
     }
 
@@ -115,9 +107,4 @@ dependencies {
     // On-device language detection, to pick voices that speak the document's language.
     implementation("com.google.mlkit:language-id:17.0.6")
     implementation("androidx.core:core:1.13.1")
-    // Ads and the EU/UK consent form, in the Play Store edition only.
-    "liteImplementation"("com.google.android.gms:play-services-ads:24.4.0")
-    "liteImplementation"("com.google.android.ump:user-messaging-platform:3.2.0")
-    // The one-time "Remove ads" purchase (Google Play Billing).
-    "liteImplementation"("com.android.billingclient:billing-ktx:8.0.0")
 }

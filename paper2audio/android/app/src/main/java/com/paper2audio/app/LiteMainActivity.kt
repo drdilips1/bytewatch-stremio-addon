@@ -92,17 +92,14 @@ class LiteMainActivity : Activity() {
 
         Speaker.init(this) {}
         Library.loadCurrentId(this)
-        // New users get a short walkthrough first; ads (and their consent form) come after it.
+        // New users get a short walkthrough first.
         LiteWelcome.showOnce(this) {
             // After the tour, once: the name the greeting uses (optional).
             if (!prefs().getBoolean("askedName", false)) {
                 prefs().edit().putBoolean("askedName", true).apply()
                 askName()
             }
-            Ads.init(this) { Ads.banner(this, findViewById<FrameLayout>(R.id.adBanner)) }
         }
-        // Whether "Remove ads" was bought (also on another phone, or refunded): checked with Play at each start.
-        if (BuildConfig.LITE) RemoveAds.refresh(this) { owned -> if (owned && !isFinishing) adsRemoved() }
         AppLog.offerCrashReport(this)
         handleIntent(intent)
     }
@@ -119,7 +116,6 @@ class LiteMainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
-        Ads.resume(findViewById(R.id.adBanner))
         Speaker.addListener(refresh)
         renderMini()
         reload()
@@ -127,13 +123,10 @@ class LiteMainActivity : Activity() {
 
     override fun onStop() {
         Speaker.removeListener(refresh)
-        // The banner kept refreshing behind the player and while listening with the screen off.
-        Ads.pause(findViewById(R.id.adBanner))
         super.onStop()
     }
 
     override fun onDestroy() {
-        Ads.destroy(findViewById(R.id.adBanner))
         scope.cancel()
         super.onDestroy()
     }
@@ -193,7 +186,7 @@ class LiteMainActivity : Activity() {
     private fun open(item: Library.Item) {
         if (working) return
         if (Speaker.doc?.key == item.id) {
-            Ads.interstitial(this, "open") { openPlayer() }
+            openPlayer()
             return
         }
         setBusy("Opening ${item.title}…")
@@ -202,7 +195,7 @@ class LiteMainActivity : Activity() {
                 val doc = withContext(Dispatchers.Default) { Opener.parse(this@LiteMainActivity, item) }
                 withContext(Dispatchers.IO) { Library.opened(this@LiteMainActivity, item, doc) }
                 Speaker.load(doc)
-                Ads.interstitial(this@LiteMainActivity, "open") { openPlayer() }
+                openPlayer()
             } catch (e: Exception) {
                 AppLog.e("Open", "Couldn't open ${item.kind}", e)
                 toast(e.message ?: "Could not read that file")
@@ -434,28 +427,8 @@ class LiteMainActivity : Activity() {
 
     // ---- Menu ----
 
-    /** After buying "Remove ads": the banner goes at once. */
-    private fun adsRemoved() {
-        val banner = findViewById<FrameLayout>(R.id.adBanner) ?: return
-        Ads.destroy(banner)
-        banner.removeAllViews()
-    }
-
     private fun showMenu() {
-        val adFree = !BuildConfig.LITE || RemoveAds.owned(this)
-        LiteSheet(this, getString(R.string.app_name), "Version ${Updater.currentName(this)} · free and unlimited")
-            .apply {
-                // Shown only once Google Play offers the purchase (its price is known): until then there's nothing to buy.
-                val price = RemoveAds.price
-                if (!adFree && price != null) {
-                    row(R.drawable.ic_shield, "Remove ads – $price", "One-time purchase, no ads ever again") {
-                        RemoveAds.buy(this@LiteMainActivity) { adsRemoved() }
-                    }
-                    row(R.drawable.ic_account, "Restore purchase", "Bought already? On a new phone or after reinstalling") {
-                        RemoveAds.restore(this@LiteMainActivity) { adsRemoved() }
-                    }
-                }
-            }
+        LiteSheet(this, getString(R.string.app_name), "Version ${Updater.currentName(this)} · free, unlimited, no ads")
             .row(R.drawable.ic_info, "How Narrato works", "The short tour, and getting better voices") { LiteWelcome.show(this) }
             .row(R.drawable.ic_palette, "Theme", "Colors of the app") { Themes.showPicker(this) }
             .row(R.drawable.ic_account, "Your name", userName()?.let { "Greeted as $it" } ?: "For the greeting on the first screen") { askName() }
@@ -464,14 +437,11 @@ class LiteMainActivity : Activity() {
             .row(R.drawable.ic_shield, "Privacy policy", "What the app stores and shares") {
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL))) }
             }
-            .row(R.drawable.ic_info, "Ad privacy choices", "Change how ads use your data") {
-                if (!Ads.privacyOptions(this)) toast("No ad choices are needed in your region.")
-            }
             .row(R.drawable.ic_text, "About and credits", "The voices and libraries in this app") {
                 AlertDialog.Builder(this)
                     .setTitle("${getString(R.string.app_name)} ${Updater.currentName(this)}")
                     .setMessage(
-                        "Listen to books, documents and web pages, as much as you like. Free, with ads.\n\n" +
+                        "Listen to books, documents and web pages, as much as you like. Free, with no ads.\n\n" +
                             "Voices run on your phone: Supertonic (Supertone), Kokoro (Apache 2.0), through sherpa-onnx (Apache 2.0). " +
                             "PDF reading: PdfBox-Android (Apache 2.0). Text recognition: Google ML Kit.",
                     )

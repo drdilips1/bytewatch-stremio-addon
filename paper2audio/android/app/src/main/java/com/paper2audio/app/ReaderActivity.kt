@@ -253,10 +253,8 @@ class ReaderActivity : Activity() {
         web.evaluateJavascript("window.__p2aBack ? (window.__p2aBack(), 1) : 0") { if (it != "1") leave() }
     }
 
-    /** Back to the library; a natural break for an ad when not listening (as from the player). */
-    private fun leave() {
-        if (BuildConfig.LITE) Ads.interstitial(this, "leave") { finish() } else finish()
-    }
+    /** Back to the library. */
+    private fun leave() = finish()
 
     /** The controls as on the player screen: play, speed, voice, sleep timer, where in the book. */
     private fun render() {
@@ -736,7 +734,6 @@ class ReaderActivity : Activity() {
             }
             exportWasRunning -> {
                 exportWasRunning = false
-                if (BuildConfig.LITE && Exporter.resultUri != null) Ads.interstitial(this, "audiobook")
                 showTaskResult()
             }
             !exportDone -> showTaskResult()

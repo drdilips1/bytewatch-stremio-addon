@@ -297,10 +297,8 @@ class LitePlayerActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() = leave()
 
-    /** Back to the library; a natural break for an ad when not listening. */
-    private fun leave() {
-        Ads.interstitial(this, "leave") { finish() }
-    }
+    /** Back to the library. */
+    private fun leave() = finish()
 
     // ---- Screen ----
 
@@ -441,9 +439,8 @@ class LitePlayerActivity : Activity() {
                 taskCancel.text = "Pause"
             }
             exportWasRunning -> {
-                // Just finished: a natural break for an ad, then the result.
+                // Just finished: the result.
                 exportWasRunning = false
-                if (Exporter.resultUri != null) Ads.interstitial(this, "audiobook")
                 showTaskResult()
             }
             !exportDone -> showTaskResult()
