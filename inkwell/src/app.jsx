@@ -83,14 +83,7 @@ if (Capacitor.isNativePlatform()) {
 
 // New podcast episodes for shows set to download by themselves (on Wi-Fi), soon after opening.
 setTimeout(() => import('./lib/podauto.js').then((m) => m.autoDownload()).catch(() => {}), 20000);
-// Cloud books you're partway through whose torrent went inactive: added again before you press play.
-setTimeout(
-  () =>
-    Promise.all([import('./sources/debrid.js'), import('./lib/revive.js'), import('./lib/store.js')])
-      .then(([cloud, { moveProgress }, { progress }]) => cloud.keepReady({ progress: progress.get(), moveTo: (from, to) => progress.set((all) => moveProgress(all, from, to)) }))
-      .catch(() => {}),
-  30000
-);
+// (Keeping inactive cloud books ready — cloud.keepReady — is switched off for now: see player.js REVIVE.)
 
 // A kept-alive tab: redraws only when its own data changes, not on every tab switch.
 const KeptTab = memo(function KeptTab({ Root }) {

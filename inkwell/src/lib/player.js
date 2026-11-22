@@ -25,6 +25,7 @@ const artworkOf = (b) => fixFor(b?.uid)?.cover || (b?.source === 'loc' && (local
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 const IOS = typeof navigator !== 'undefined' && Capacitor.getPlatform() === 'ios';
 let rescue = { key: '', step: 0 };
+const REVIVE = false; // re-adding inactive TorBox / Real-Debrid copies (see recover)
 const rescueTried = new Set(); // copies already tried for this listen
 /**
  * The names a book may go by when looking for another copy: its title, and — when the server's
@@ -139,7 +140,9 @@ async function recover(msg = '') {
     // A TorBox / Real-Debrid copy whose torrent went inactive (TorBox lets old ones go): added
     // again by itself — usually ready at once — and carried on at the same point.
     let refetching = null;
-    if ((b.source === 'tb' || b.source === 'rd') && b.hash && !rescueTried.has('revive:' + b.hash)) {
+    // Switched off (22 Nov): in v1.0.240 it broke books in Library that were fine. Kept for later,
+    // once it has been checked against real inactive torrents.
+    if (REVIVE && (b.source === 'tb' || b.source === 'rd') && b.hash && !rescueTried.has('revive:' + b.hash)) {
       rescueTried.add('revive:' + b.hash);
       try {
         const { cloud, getDetails } = await import('../sources/index.js');
