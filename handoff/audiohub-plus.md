@@ -135,6 +135,12 @@
   shared way is proven.
 - Easynews: audiobook pages search audio only (m4b/m4a/mp3), ebook pages EPUB/PDF; each result shows its type; ebooks get Read (fetched with the sign-in into a blob, then the reader keeps it); names cleaned (cleanName, tested: "Bren&Atilde;&Acirc;&copy;" → "Brené"); title over details layout. In v1.0.239.
 
+
+## Before every build (user, 22 Nov — after v1.0.240 broke playing Library books)
+- Playing audiobooks comes first. A change that touches finding / opening / playing a book (player.js, debrid.js, sources/index.js getDetails) needs a test of that path, or it doesn't go in the build — say so instead.
+- Nothing that changes the user's TorBox / Real-Debrid account (delete, re-add) ships switched on until tested on real books; new risky features go in off by default.
+- v1.0.240 lesson: "re-add inactive torrents" deleted working torrents (rules too loose) → v1.0.241 switched it off, v1.0.242 repaired moved books.
+
 ## Book Hunt — pipeline (parked 21 Nov, user's choice)
 - LIVE now: the user went back to `inkwell/workers/bookhunt-private-v1.js` (worker's own secrets) so their wife's iPhone works. Others who want Book Hunt make their own worker from that file (steps below) — no shared worker for now.
 - Later, to make one shared worker work for everyone (`bookhunt.js`, Your details): find why Anna's search fails from the worker (the app now shows the reason), Mobilism's bot check on Cloudflare IPs, then test with the user before telling them to delete secrets.
