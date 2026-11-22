@@ -85,7 +85,7 @@ public class InkwellLocalPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDe
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
                 let target = self.freeName(in: into, for: url.lastPathComponent)
                 do {
-                    try FileManager.default.copyItem(at: url, to: target)
+                    try self.copyCoordinated(url, to: target)
                     let ext = target.pathExtension.lowercased()
                     added.append([
                         "path": target.path,
@@ -103,6 +103,23 @@ public class InkwellLocalPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDe
                 call.resolve(self.folderAnswer())
             }
         }
+    }
+
+    /// A file (or folder) from iCloud Drive or another provider may not be on the phone yet: a
+    /// coordinated read has iOS fetch it first, then it's copied. A plain copy of such a file could
+    /// hang ("import keeps spinning" — reported on Reddit).
+    private func copyCoordinated(_ url: URL, to target: URL) throws {
+        var coordError: NSError?
+        var copyError: Error?
+        NSFileCoordinator(filePresenter: nil).coordinate(readingItemAt: url, options: [], error: &coordError) { readable in
+            do {
+                try FileManager.default.copyItem(at: readable, to: target)
+            } catch {
+                copyError = error
+            }
+        }
+        if let e = coordError { throw e }
+        if let e = copyError { throw e }
     }
 
     public func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
