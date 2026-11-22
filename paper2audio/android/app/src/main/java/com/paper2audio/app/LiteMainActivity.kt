@@ -100,6 +100,7 @@ class LiteMainActivity : Activity() {
                 askName()
             }
         }
+        Tonight.ensureScheduled(this)
         AppLog.offerCrashReport(this)
         handleIntent(intent)
     }
@@ -214,6 +215,19 @@ class LiteMainActivity : Activity() {
     private fun itemMenu(item: Library.Item) {
         LiteSheet(this, item.title, item.author)
             .row(R.drawable.ic_read, "Read and listen", "Continue where you left off") { open(item) }
+            .apply {
+                if (Tonight.contains(this@LiteMainActivity, item.id)) {
+                    row(R.drawable.ic_timer, "Remove from Tonight's list", "Stop preparing its audio overnight") {
+                        Tonight.remove(this@LiteMainActivity, item.id)
+                        toast("Removed from Tonight's list")
+                    }
+                } else {
+                    row(R.drawable.ic_timer, "Add to Tonight's list", "Its next hours are made overnight while charging") {
+                        Tonight.add(this@LiteMainActivity, item.id)
+                        toast("Added to Tonight's list: prepared ${Tonight.hourLabel(Tonight.fromHour(this@LiteMainActivity))}–${Tonight.hourLabel(Tonight.toHour(this@LiteMainActivity))} while charging")
+                    }
+                }
+            }
             .row(R.drawable.ic_delete, "Delete", "Remove it from your library") {
                 AlertDialog.Builder(this)
                     .setMessage("Delete “${item.title}” from the library?")
@@ -425,10 +439,69 @@ class LiteMainActivity : Activity() {
         return if (line.length <= 60) line else line.take(57).substringBeforeLast(' ') + "…"
     }
 
+    // ---- Tonight's list ----
+
+    private fun showTonight() {
+        val c = this
+        val sheet = LiteSheet(this, "Tonight's list", "Audio made ahead while your phone charges")
+        val note = TextView(this).apply {
+            text = "Books here have their next ${Tonight.hoursPerBook(c)} hours made between " +
+                "${Tonight.hourLabel(Tonight.fromHour(c))} and ${Tonight.hourLabel(Tonight.toHour(c))}, while the phone is " +
+                "charging and not in use. Listening to audio made ahead uses much less battery.\n\n" +
+                "It's only a help: every book plays the same without it, and anything not ready is made as you listen."
+            setTextColor(Themes.color(c, R.attr.p2aMuted))
+            textSize = 13f
+            val pad = LiteUi.dp(c, 24)
+            setPadding(pad, LiteUi.dp(c, 4), pad, LiteUi.dp(c, 8))
+        }
+        sheet.view(note)
+        val books = Tonight.ids(this).mapNotNull { Library.get(this, it) }
+        sheet.section("Books")
+        if (books.isEmpty()) {
+            sheet.row(R.drawable.ic_add, "No books yet", "Long-press a book in your library › Add to Tonight's list") {}
+        }
+        for (item in books) {
+            val ready = Tonight.readyMinutes(this, item.id)
+            val status = when {
+                ready < 0 -> "Not prepared yet · tap to remove"
+                ready < 60 -> "Ready ahead: about $ready min · tap to remove"
+                else -> "Ready ahead: about ${ready / 60} h ${ready % 60} min · tap to remove"
+            }
+            sheet.row(R.drawable.ic_read, item.title, status) {
+                Tonight.remove(c, item.id)
+                toast("Removed from Tonight's list")
+            }
+        }
+        sheet.section("Settings")
+            .row(R.drawable.ic_timer, "Hours: ${Tonight.hourLabel(Tonight.fromHour(c))} – ${Tonight.hourLabel(Tonight.toHour(c))}", "When the phone is usually on the charger") {
+                pickHour("Start at", Tonight.fromHour(c)) { from ->
+                    pickHour("Stop at", Tonight.toHour(c)) { to ->
+                        if (from == to) toast("Start and stop can't be the same hour")
+                        else Tonight.setHours(c, from, to)
+                    }
+                }
+            }
+            .row(R.drawable.ic_tune, "Prepare ${Tonight.hoursPerBook(c)} hours of each book", "Each hour takes about 170 MB of space") {
+                val options = intArrayOf(1, 2, 3, 4, 6)
+                AlertDialog.Builder(c)
+                    .setTitle("Hours of each book")
+                    .setItems(options.map { if (it == 1) "1 hour" else "$it hours" }.toTypedArray()) { _, i -> Tonight.setHoursPerBook(c, options[i]) }
+                    .show()
+            }
+            .row(R.drawable.ic_shield, "Let it run overnight", "Some phones stop apps in the background: allow Narrato") { Battery.ask(c) }
+        sheet.show()
+    }
+
+    private fun pickHour(title: String, current: Int, done: (Int) -> Unit) {
+        val labels = (0..23).map { Tonight.hourLabel(it) + if (it == current) "  ✓" else "" }.toTypedArray()
+        AlertDialog.Builder(this).setTitle(title).setItems(labels) { _, i -> done(i) }.show()
+    }
+
     // ---- Menu ----
 
     private fun showMenu() {
         LiteSheet(this, getString(R.string.app_name), "Version ${Updater.currentName(this)} · free, unlimited, no ads")
+            .row(R.drawable.ic_timer, "Tonight's list", "Books prepared overnight, to save battery") { showTonight() }
             .row(R.drawable.ic_info, "How Narrato works", "The short tour, and getting better voices") { LiteWelcome.show(this) }
             .row(R.drawable.ic_palette, "Theme", "Colors of the app") { Themes.showPicker(this) }
             .row(R.drawable.ic_account, "Your name", userName()?.let { "Greeted as $it" } ?: "For the greeting on the first screen") { askName() }

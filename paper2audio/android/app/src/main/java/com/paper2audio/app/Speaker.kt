@@ -1086,6 +1086,20 @@ object Speaker {
         return pieceSequence(d, 0, 0, voiceId).map { it.text to base.copy(voiceId = it.voice) }.toList()
     }
 
+    /**
+     * About [words] words of [d] from where the listener is (or left off), with their voicing: exactly the
+     * pieces playback will ask for, so audio made ahead is found in the cache (Tonight's list).
+     */
+    fun planAhead(d: Doc, words: Int): List<Pair<String, Voicing>> {
+        val base = voicing(d).copy(dialogue = null)
+        val from = if (d === doc) index else prefs.getInt("pos:${d.key}", d.start)
+        val piece = if (d === doc) pieceIndex else prefs.getInt("pc:${d.key}", 0)
+        var count = 0
+        return pieceSequence(d, from.coerceIn(0, maxOf(0, d.paragraphs.size - 1)), piece, voiceId)
+            .takeWhile { (count < words).also { _ -> count += it.text.count { c -> c == ' ' } + 1 } }
+            .map { it.text to base.copy(voiceId = it.voice) }.toList()
+    }
+
     /** The pause after a piece: longer after paragraphs, longest after headings. */
     /** Whether piece [p], the last of its paragraph, stops mid-sentence and the next paragraph carries it on. */
     private fun continuesIn(d: Doc, p: Piece): Boolean {
@@ -1163,7 +1177,9 @@ object Speaker {
                         savePosition()
                         notifyChanged()
                     }
-                    delay(60)
+                    // Often enough to move the highlight smoothly; with the screen off nobody sees it, so the
+                    // phone is woken less (the sentence heard, position and lock screen stay up to date).
+                    delay(if (out.screenOn()) 60 else 300)
                 }
             }
 

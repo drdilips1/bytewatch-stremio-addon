@@ -61,6 +61,24 @@ Ads → "No"; Data safety → remove advertising ID / ad data; Advertising ID de
 privacy policy (`docs/privacy.html` on main, gh-pages `privacy.html`) to drop the ads section. The
 `remove_ads` product need not be created; the BillDesk KYC is no longer needed for it. AdMob setup items are moot.
 
+## Battery work (after 1.9.27)
+
+- User's test with 1.9.27 (no ads), new book, online, screen off: **17%/h** (was ~30–40% with ads); Android
+  put ~10% on Narrato, nearly all of it making the voice for new text. Saved audio plays at ~2–3%/h.
+- **Tonight's list** (`Tonight.kt`, lite only): books the user picks (book menu › Add to Tonight's list;
+  main menu › Tonight's list). A JobScheduler job (charging + idle, persisted) makes the next N hours
+  (default 2) of each, from where it was left off, inside the chosen hours (default 12 am–6 am), with the
+  current voice and speed, into the normal audio cache. Battery ≥60% and cool. Stops when listening or the
+  voice changes. It is only a help: playback makes anything missing live, as always.
+  (PowerWise on the dev line combines `setRequiresDeviceIdle` with `setBackoffCriteria`, which Android
+  rejects: there it is probably never scheduled.)
+- Playback: notification and lock-screen details are sent only when they change (they were re-sent with the
+  cover at every sentence); with the screen off the player checks the sentence heard every 300 ms (was
+  60) and the full audio buffer every 200 ms (was 25). Sound is unchanged.
+- Voice-making speed: Pocket TTS already caches the voice's reference embedding (sherpa-onnx 1.13.8,
+  capacity 50), so no gain there. The remaining costs (the "Well." lead-in per sentence, second takes,
+  numSteps) are the voice recipe: voice lock, listening tests only.
+
 ## Other pending items
 
 - Declare EU trader status in Play Console (public details).

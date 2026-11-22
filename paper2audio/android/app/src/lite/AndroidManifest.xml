@@ -4,6 +4,8 @@
 
     <!-- "Say it" when fixing how a word is said: the phone's speech recognizer. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Tonight's list: its overnight job is kept across restarts of the phone. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application>
         <activity
@@ -59,5 +61,11 @@
             android:exported="false"
             android:launchMode="singleTop"
             android:parentActivityName=".LiteMainActivity" />
+
+        <!-- Tonight's list: makes audio ahead while the phone charges overnight. -->
+        <service
+            android:name=".TonightJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>
 </manifest>

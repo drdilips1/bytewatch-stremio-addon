@@ -57,6 +57,20 @@ class AudioStream(context: Context, boost: Float) {
         runCatching { if (wifiLock?.isHeld == true) wifiLock.release() }
     }
 
+    private val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    private var screenCheckedAt = 0L
+    private var screen = true
+
+    /** Whether the screen is on (looked up at most once a second). */
+    fun screenOn(): Boolean {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - screenCheckedAt > 1_000) {
+            screenCheckedAt = now
+            screen = runCatching { power.isInteractive }.getOrDefault(true)
+        }
+        return screen
+    }
+
     /** Frames the listener has heard so far. */
     private val heard: Long
         get() = track?.let { it.playbackHeadPosition.toLong() and 0xffffffffL } ?: 0L
@@ -112,7 +126,9 @@ class AudioStream(context: Context, boost: Float) {
             if (n < 0) error("Audio output error ($n)")
             off += n
             written += n
-            if (n == 0) delay(25) // buffer full (playing ahead, or paused)
+            // Buffer full (playing ahead, or paused): about two seconds are queued, so with the screen off
+            // waiting longer between tries wakes the phone far less and still never runs dry.
+            if (n == 0) delay(if (screenOn()) 25 else 200)
         }
     }
 
