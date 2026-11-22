@@ -66,6 +66,9 @@
     Premiumize?" in Settings; labels AllDebrid / Premiumize.
   - Not done (need shared Android code — ask first): overnight downloads on Wi-Fi + charging;
     check Android Auto shows Audibrisk's library.
+- Next (committed, not built): Skip credits switch in the player's More menu (settings.skipCredits,
+  on by default since first start; shared player skips chapters titled Opening/End Credits,
+  Publisher's intro… once, with a toast).
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in

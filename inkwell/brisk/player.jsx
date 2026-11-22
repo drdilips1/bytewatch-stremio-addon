@@ -275,7 +275,7 @@ const BOOSTS = [
   [6, 'Medium'],
   [10, 'High'],
 ];
-/** The small menu: chapters, bookmarks, skip silence and volume boost (kept for this book). */
+/** The small menu: chapters, bookmarks, skip silence, skip credits and volume boost (kept for this book). */
 function MoreSheet({ s, close, open }) {
   const st = useStore(settings);
   useStore(player.bookPrefs);
@@ -305,6 +305,15 @@ function MoreSheet({ s, close, open }) {
           <small>Cuts the quiet gaps between sentences</small>
         </div>
         <button class={'b-switch' + (st.skipSilence ? ' on' : '')} role="switch" aria-checked={!!st.skipSilence} aria-label="Skip silence" onClick={() => player.setAudio({ skipSilence: !st.skipSilence })}>
+          <i />
+        </button>
+      </div>
+      <div class="b-set-row">
+        <div>
+          <b>Skip credits</b>
+          <small>Jumps over chapters named Opening / End Credits or Publisher’s intro</small>
+        </div>
+        <button class={'b-switch' + (st.skipCredits !== false ? ' on' : '')} role="switch" aria-checked={st.skipCredits !== false} aria-label="Skip credits" onClick={() => settings.patch({ skipCredits: st.skipCredits === false })}>
           <i />
         </button>
       </div>
