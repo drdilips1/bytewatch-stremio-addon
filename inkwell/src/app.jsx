@@ -40,7 +40,7 @@ import { Shelf } from './screens/Shelf.jsx';
 import { Podcasts, Podcast } from './screens/Podcasts.jsx';
 import { PullToRefresh } from './components/pull-refresh.jsx';
 import { clearHttpCache } from './lib/http.js';
-import { cloud, hc, gr } from './sources/index.js';
+import { cloud, hc } from './sources/index.js';
 import { toast } from './components/common.jsx';
 import { KindleChooser } from './components/kindle-chooser.jsx';
 import { WhatsNew } from './components/whats-new.jsx';
@@ -102,7 +102,6 @@ export function App() {
     clearHttpCache();
     cloud.forget();
     hc.resetCache();
-    if (gr.profileConnected()) gr.syncProfile().catch(() => {});
     setRefreshKey((k) => k + 1);
     toast('Refreshed');
   };

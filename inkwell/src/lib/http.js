@@ -115,8 +115,7 @@ async function request(url, opts = {}) {
   const host = hostName(url);
   if (WEB && GOODREADS.test(host)) throw refused("Goodreads can't be reached from the web app — use the phone app, or import your Goodreads export file (CSV)", 403, url);
   const askKey = opts.method && opts.method !== 'GET' ? `${url} ${String(opts.body || '').slice(0, 300)}` : url;
-  // force: something you asked for yourself (Goodreads → Sync) — tried even while the service is paused.
-  const wait = opts.force ? null : waitFor(backoff, url, askKey);
+  const wait = waitFor(backoff, url, askKey);
   if (wait) {
     const mins = Math.max(1, Math.round((wait.until - Date.now()) / 60e3));
     throw refused(wait.why === 'paused' ? `${host} keeps refusing — paused for ${mins < 90 ? `${mins} min` : `${Math.round(mins / 60)} h`}` : `${host} refused this a little while ago — not asked again yet`, 429, url);

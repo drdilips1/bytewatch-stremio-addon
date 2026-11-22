@@ -1,11 +1,7 @@
 // Goodreads closed its public API, so shelves come from the library export:
 // goodreads.com → My Books → Import and export → Export library (CSV).
 import { goodreads } from '../lib/store.js';
-import { Capacitor, registerPlugin } from '@capacitor/core';
-import { getJson, getText, qs, clearHttpCache, BROWSER_HEADERS } from '../lib/http.js';
-
-const Web = registerPlugin('InkwellWeb');
-const hiddenBrowser = () => Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('InkwellWeb');
+import { getJson, qs } from '../lib/http.js';
 
 export function parseCsv(text) {
   const rows = [];
@@ -78,110 +74,7 @@ export async function details(book) {
   }
 }
 
-// ---- Profile sync (RSS) --------------------------------------------------------
-// Goodreads has no API, but every profile publishes its shelves as RSS feeds.
-// Paste a profile link (goodreads.com/user/show/12345-name) — or, for a private
-// profile, the RSS link from a shelf page (it carries a private key).
-
-const SHELVES = ['currently-reading', 'to-read', 'read'];
-
-export function parseProfile(input) {
-  const s = String(input || '').trim();
-  const id = (/user\/show\/(\d+)/.exec(s) || /list_rss\/(\d+)/.exec(s) || /review\/list\/(\d+)/.exec(s) || /^(\d+)$/.exec(s) || [])[1];
-  const key = (/[?&]key=([^&#]+)/.exec(s) || [])[1] || '';
-  return id ? { userId: id, key } : null;
-}
-
-const text = (el, tag) => el.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
-
-/**
- * A shelf's RSS page. Asked like a phone browser; if Goodreads still turns the app away (it
- * refused public profiles: "Goodreads refused" for a profile open to anyone), the Android app
- * opens the same address in its hidden browser, which Goodreads treats as a person.
- */
-async function shelfXml(url) {
-  try {
-    return await getText(url, { headers: BROWSER_HEADERS, force: true });
-  } catch (e) {
-    if (!hiddenBrowser() || !(e.status >= 400) || e.status === 404) throw e;
-    const v = await Web.pageVisit({ url, timeout: 25000, waitFor: '<rss|<channel' }).catch(() => null);
-    const xml = rssFromPage(v?.html);
-    if (!xml) throw e;
-    return xml;
-  }
-}
-
-/** The RSS feed inside what the hidden browser saw ('' when it isn't there). */
-export function rssFromPage(html) {
-  const h = String(html || '');
-  const at = h.search(/<rss[\s>]/i);
-  if (at < 0) return '';
-  const end = h.lastIndexOf('</rss>');
-  return h.slice(at, end > at ? end + 6 : undefined);
-}
-
-async function fetchShelf(userId, key, shelf) {
-  const out = [];
-  for (let page = 1; page <= 5; page++) {
-    const xml = await shelfXml(`https://www.goodreads.com/review/list_rss/${userId}?` + qs({ shelf, key, page, per_page: 100 }));
-    let doc = new DOMParser().parseFromString(xml, 'text/xml');
-    // From the hidden browser the feed can come back re-written as HTML (no CDATA): read it as HTML then.
-    if (doc.getElementsByTagName('parsererror').length && /<item[\s>]/i.test(xml)) doc = new DOMParser().parseFromString(xml, 'text/html');
-    if (doc.getElementsByTagName('parsererror').length) throw new Error('Goodreads returned something unexpected — is the profile public?');
-    const items = [...doc.getElementsByTagName('item')];
-    for (const it of items) {
-      const bookId = text(it, 'book_id');
-      const cover = text(it, 'book_large_image_url') || text(it, 'book_medium_image_url') || text(it, 'book_image_url');
-      out.push({
-        uid: 'gr:' + (bookId || text(it, 'title')),
-        source: 'gr',
-        kind: 'discover',
-        title: text(it, 'title').replace(/\s*\([^)]*#\d+[^)]*\)\s*$/, '').trim(),
-        author: text(it, 'author_name'),
-        shelf,
-        rating: +text(it, 'user_rating') || 0,
-        isbn: text(it, 'isbn'),
-        year: text(it, 'book_published'),
-        // Goodreads' placeholder images contain "nophoto"
-        cover: cover && !/nophoto/i.test(cover) ? cover.replace(/\._S[XY]\d+_/, '') : '',
-        description: text(it, 'book_description').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
-      });
-    }
-    if (items.length < 100) break;
-  }
-  return out;
-}
-
-export async function connectProfile(input) {
-  const p = parseProfile(input);
-  if (!p) throw new Error('Paste your Goodreads profile link, e.g. goodreads.com/user/show/12345-yourname');
-  goodreads.set({ ...goodreads.get(), userId: p.userId, key: p.key });
-  return syncProfile();
-}
-
-export async function syncProfile() {
-  const { userId, key } = goodreads.get();
-  if (!userId) return 0;
-  clearHttpCache();
-  // Each shelf on its own: one Goodreads refuses (or that's empty) doesn't lose the others.
-  const got = await Promise.allSettled(SHELVES.map((sh) => fetchShelf(userId, key, sh)));
-  const books = got.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
-  if (got.every((r) => r.status === 'rejected')) {
-    const e = got[0].reason;
-    if (e?.status === 404 || e?.status === 403 || e?.status === 401)
-      throw new Error(
-        key
-          ? 'Goodreads refused that RSS link — open your “Read” shelf on goodreads.com, copy the RSS link at the bottom again and paste it here — or import your Goodreads export file (CSV) below'
-          : 'Goodreads refused — profiles set to “Goodreads members only” count as private for this. Either set Goodreads → Settings → Privacy → “Who can view my profile” to “anyone”, or open your “Read” shelf on goodreads.com (in a browser), copy the RSS link at the bottom of the page and paste that here instead (it works whatever your privacy setting). Or import your Goodreads export file (CSV) below — that always works.'
-      );
-    throw e;
-  }
-  goodreads.set({ ...goodreads.get(), books, importedAt: Date.now() });
-  return books.length;
-}
-
-export const profileConnected = () => !!goodreads.get().userId;
-export const disconnectProfile = () => goodreads.set({ books: [], importedAt: 0, userId: '', key: '' });
-
-// Keep shelves fresh: on launch when older than an hour.
-if (goodreads.get().userId && Date.now() - (goodreads.get().importedAt || 0) > 3600e3) setTimeout(() => syncProfile().catch(() => {}), 5000);
+// Goodreads switched off shelf RSS feeds (Nov 2026: every list_rss address answers 404, even for
+// public profiles, and the site no longer shows an RSS link), so shelves come only from the
+// library export (CSV) above. Anyone still "connected" from before is quietly let go.
+if (goodreads.get().userId) goodreads.set({ ...goodreads.get(), userId: '', key: '' });

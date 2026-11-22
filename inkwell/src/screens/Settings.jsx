@@ -1390,64 +1390,31 @@ function HardcoverCard() {
 
 function GoodreadsCard() {
   const data = useStore(goodreads);
-  const [link, setLink] = useState('');
-  const [busy, setBusy] = useState(false);
-  const run = async (fn) => {
-    setBusy(true);
-    try {
-      toast(await fn());
-    } catch (err) {
-      toast(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
   const counts = gr.shelves().map((s) => `${s.replace(/-/g, ' ')} ${gr.shelf(s).length}`).join(' · ');
   return (
     <>
-      {data.userId ? (
-        <>
-          <div class="set-row">
-            <div>
-              <b>Connected · profile {data.userId}</b>
-              <small>
-                {counts || 'No books yet'}
-                {data.importedAt ? ` · synced ${new Date(data.importedAt).toLocaleString()}` : ''}
-              </small>
-            </div>
-            <button class="pill small" disabled={busy} onClick={() => run(async () => `Synced ${await gr.syncProfile()} books`)}>
-              {busy ? <span class="spinner small" /> : 'Sync'}
-            </button>
+      {data.books.length > 0 && (
+        <div class="set-row">
+          <div>
+            <b>Your Goodreads shelves</b>
+            <small>
+              {counts}
+              {data.importedAt ? ` · imported ${new Date(data.importedAt).toLocaleDateString()}` : ''}
+            </small>
           </div>
-          <div class="set-row">
-            <small class="muted">Shelves update automatically every hour and when you pull down to refresh.</small>
-            <button class="pill danger small" onClick={() => gr.disconnectProfile()}>
-              Disconnect
-            </button>
-          </div>
-        </>
-      ) : (
-        <form
-          class="set-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            run(async () => `Connected — ${await gr.connectProfile(link)} books from your shelves`);
-          }}
-        >
-          <p class="muted">
-            Goodreads has no app login any more, so the app reads your shelves from your profile. Open Goodreads → your profile, copy the link from the address bar and paste it here.
-          </p>
-          <input placeholder="https://www.goodreads.com/user/show/12345-yourname" value={link} onInput={(e) => setLink(e.currentTarget.value)} autocapitalize="off" autocorrect="off" spellcheck={false} inputmode="url" />
-          <button class="btn primary" disabled={busy || !link.trim()}>
-            {busy ? <span class="spinner" /> : <Icon name="link" size={16} />} Connect Goodreads
+          <button class="pill danger small" onClick={() => goodreads.set({ books: [], importedAt: 0, userId: '', key: '' })}>
+            Remove
           </button>
-          <small class="muted">Your profile must be visible to “anyone” — “Goodreads members only” counts as private (Goodreads → Settings → Privacy). Or, whatever your privacy setting: open your “Read” shelf on goodreads.com in a browser and paste the RSS link from the bottom of that page instead.</small>
-        </form>
+        </div>
       )}
+      {/* Goodreads switched off shelf feeds, so connecting a profile can't work: the export file is the way. */}
+      <p class="muted pad-s">
+        Goodreads no longer lets apps read your shelves, so bring them in with your library export: in Chrome (the Goodreads app can't save the file), open goodreads.com/review/import → Export Library → wait a moment, tap “Your export from …” → it saves to Downloads. Then tap Import CSV here and pick it. Do it again whenever you want your shelves fresh.
+      </p>
       <div class="set-row">
         <div>
-          <b>Or import a CSV</b>
-          <small>My Books → Import and export → Export library</small>
+          <b>Import your Goodreads export</b>
+          <small>The goodreads_library_export.csv file</small>
         </div>
         <label class="pill small">
           Import CSV
