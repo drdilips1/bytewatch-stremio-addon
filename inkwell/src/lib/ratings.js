@@ -1,7 +1,7 @@
 // Ratings and awards for a book page: Audible (stars and count), Goodreads (average
 // rating), and awards named in the description (Audie Awards, AudioFile Earphones).
 import { useEffect, useState } from 'preact/hooks';
-import { getJson, getText, qs } from './http.js';
+import { getJson, getText, qs, BROWSER_HEADERS } from './http.js';
 import { stripHtml } from './format.js';
 import { persisted } from './store.js';
 import { words, mainTitle, searchTitle } from './match.js';
@@ -184,7 +184,7 @@ export async function goodreadsPage(url) {
   if (!url) return null;
   const hit = grPages.get()[url];
   if (hit && Date.now() - hit.t < PAGE_TTL) return hit.v;
-  const html = await getText(url, { timeout: 15000 }).catch(() => null);
+  const html = await getText(url, { timeout: 15000, headers: BROWSER_HEADERS }).catch(() => null);
   if (!html) return null;
   const v = parseGoodreadsPage(html, url);
   if (!v.rating && !v.description) return null;
@@ -199,7 +199,7 @@ export async function goodreadsPage(url) {
 
 /** Goodreads' full search page, as suggestion-like entries. */
 async function goodreadsSearch(q) {
-  const html = await getText('https://www.goodreads.com/search?' + qs({ q }), { timeout: 15000 });
+  const html = await getText('https://www.goodreads.com/search?' + qs({ q }), { timeout: 15000, headers: BROWSER_HEADERS });
   const dec = (t) => stripHtml(t || '').trim();
   return String(html)
     .split(/itemtype=["']http:\/\/schema\.org\/Book["']/)
@@ -220,7 +220,7 @@ export const goodreads = (raw) => {
   return cached('gr8', book, () =>
     grLimited(async () => {
       const ask = async (q) => {
-        const list = await getJson('https://www.goodreads.com/book/auto_complete?' + qs({ format: 'json', q }), { timeout: 12000 });
+        const list = await getJson('https://www.goodreads.com/book/auto_complete?' + qs({ format: 'json', q }), { timeout: 12000, headers: BROWSER_HEADERS });
         return Array.isArray(list) ? list : [];
       };
       // The main edition: the matching entry with the most ratings.

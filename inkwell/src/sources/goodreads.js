@@ -1,7 +1,11 @@
 // Goodreads closed its public API, so shelves come from the library export:
 // goodreads.com → My Books → Import and export → Export library (CSV).
 import { goodreads } from '../lib/store.js';
-import { getJson, getText, qs, clearHttpCache } from '../lib/http.js';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+import { getJson, getText, qs, clearHttpCache, BROWSER_HEADERS } from '../lib/http.js';
+
+const Web = registerPlugin('InkwellWeb');
+const hiddenBrowser = () => Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('InkwellWeb');
 
 export function parseCsv(text) {
   const rows = [];
@@ -90,11 +94,39 @@ export function parseProfile(input) {
 
 const text = (el, tag) => el.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
 
+/**
+ * A shelf's RSS page. Asked like a phone browser; if Goodreads still turns the app away (it
+ * refused public profiles: "Goodreads refused" for a profile open to anyone), the Android app
+ * opens the same address in its hidden browser, which Goodreads treats as a person.
+ */
+async function shelfXml(url) {
+  try {
+    return await getText(url, { headers: BROWSER_HEADERS, force: true });
+  } catch (e) {
+    if (!hiddenBrowser() || !(e.status >= 400) || e.status === 404) throw e;
+    const v = await Web.pageVisit({ url, timeout: 25000, waitFor: '<rss|<channel' }).catch(() => null);
+    const xml = rssFromPage(v?.html);
+    if (!xml) throw e;
+    return xml;
+  }
+}
+
+/** The RSS feed inside what the hidden browser saw ('' when it isn't there). */
+export function rssFromPage(html) {
+  const h = String(html || '');
+  const at = h.search(/<rss[\s>]/i);
+  if (at < 0) return '';
+  const end = h.lastIndexOf('</rss>');
+  return h.slice(at, end > at ? end + 6 : undefined);
+}
+
 async function fetchShelf(userId, key, shelf) {
   const out = [];
   for (let page = 1; page <= 5; page++) {
-    const xml = await getText(`https://www.goodreads.com/review/list_rss/${userId}?` + qs({ shelf, key, page, per_page: 100 }));
-    const doc = new DOMParser().parseFromString(xml, 'text/xml');
+    const xml = await shelfXml(`https://www.goodreads.com/review/list_rss/${userId}?` + qs({ shelf, key, page, per_page: 100 }));
+    let doc = new DOMParser().parseFromString(xml, 'text/xml');
+    // From the hidden browser the feed can come back re-written as HTML (no CDATA): read it as HTML then.
+    if (doc.getElementsByTagName('parsererror').length && /<item[\s>]/i.test(xml)) doc = new DOMParser().parseFromString(xml, 'text/html');
     if (doc.getElementsByTagName('parsererror').length) throw new Error('Goodreads returned something unexpected — is the profile public?');
     const items = [...doc.getElementsByTagName('item')];
     for (const it of items) {

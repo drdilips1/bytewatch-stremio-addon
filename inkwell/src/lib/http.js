@@ -84,6 +84,14 @@ function needsRelay(url) {
   }
 }
 
+// Sites that turn away apps but not browsers (Goodreads refuses the phone's plain HTTP client):
+// asked the way a phone browser would.
+export const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36',
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+
 // Services that refused recently are left alone for a while (see backoff.js), kept on the device.
 let backoff = emptyBackoff();
 try {
@@ -107,7 +115,8 @@ async function request(url, opts = {}) {
   const host = hostName(url);
   if (WEB && GOODREADS.test(host)) throw refused("Goodreads can't be reached from the web app — use the phone app, or import your Goodreads export file (CSV)", 403, url);
   const askKey = opts.method && opts.method !== 'GET' ? `${url} ${String(opts.body || '').slice(0, 300)}` : url;
-  const wait = waitFor(backoff, url, askKey);
+  // force: something you asked for yourself (Goodreads → Sync) — tried even while the service is paused.
+  const wait = opts.force ? null : waitFor(backoff, url, askKey);
   if (wait) {
     const mins = Math.max(1, Math.round((wait.until - Date.now()) / 60e3));
     throw refused(wait.why === 'paused' ? `${host} keeps refusing — paused for ${mins < 90 ? `${mins} min` : `${Math.round(mins / 60)} h`}` : `${host} refused this a little while ago — not asked again yet`, 429, url);
