@@ -79,6 +79,9 @@
   Downloads → Import CSV) + "Open Goodreads export page" (Capacitor Browser). Profile sync, findKey, the
   pull-to-refresh sync, request opts.force and tests/goodreadskey.test.js removed; a saved userId is cleared.
   BROWSER_HEADERS kept for ratings. On `work`, not released; next release 1.0.42.
+- On `work`, not released (22 Nov, r/audiohubapp report "import on iOS keeps spinning"): ported Audiohub+ 0d35043 —
+  InkwellLocal documentPicker copies through NSFileCoordinator (`copyCoordinated`) so iCloud Drive files not yet
+  downloaded are fetched first. Not compiled or tried on a phone; needs an iPhone build (manual ios.yml).
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 8eed093), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
