@@ -50,7 +50,7 @@ const signedIn = (doc, html) => logoutOn(doc, html) || (!loginOn(doc) && memberO
 
 /** { signedIn, why } — read from Bookshare's own page in the hidden browser. */
 export async function status() {
-  if (!available()) return { signedIn: false, why: 'Android app only' };
+  if (!available()) return { signedIn: false, why: 'Not available here' };
   const { status: st, doc, html, url } = await page('/', null);
   const ok = signedIn(doc, html);
   // For Report a problem: what the check saw (no page text, no cookies).
@@ -83,7 +83,7 @@ export function booksOn(doc) {
 
 /** Search your Bookshare (title, author…) → source results; each opens its page in the app. */
 export async function search(query) {
-  if (!available()) throw fail(`${NAME} works in the Android app only (it uses the in-app browser)`);
+  if (!available()) throw fail(`${NAME} isn't available here`);
   const q = clean(query);
   if (!q) return [];
   const { status: st, doc, html, url } = await page(`/search?keyword=${encodeURIComponent(q)}`, '(?i)/browse/book/\\d+|no results|0 results|did not match');

@@ -18,7 +18,7 @@ const mb = (n) => `${(n / 1048576).toFixed(0)} MB`;
 
 /** Topic → the book as a download on the phone, then playing. `files`: [{ url, name }] (direct links). */
 export async function unpackAndPlay(r, files) {
-  if (!canUnpack()) throw new Error('Unpacking works in the Android app');
+  if (!canUnpack()) throw new Error('Archives (.zip / .rar) can’t be unpacked here — try another post');
   const key = r.key;
   const uid = `mob:${String(key).split(':').pop()}`;
   const job = `unpack:${uid}:${Date.now()}`;

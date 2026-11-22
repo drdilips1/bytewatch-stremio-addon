@@ -485,7 +485,7 @@ function TopicToCloud({ r }) {
       }
       const archives = got.filter((f) => isArchive(f.name));
       if (!archives.length) return toast('No audio files in these links');
-      if (!canUnpack()) return toast('These are archives (.zip / .rar) — unpacking works in the Android app');
+      if (!canUnpack()) return toast('This post only has archives (.zip / .rar), which can’t play here — try another post');
       // Fresh direct links for the archive parts (the ones Send got may be used up).
       const direct = [];
       for (const f of archives) direct.push({ ...(await cloud.unrestrict(f.link)), name: f.name });
@@ -521,6 +521,7 @@ function TopicToCloud({ r }) {
       const { files, playable } = await sendFirstWorking(hostGroups(r.downloads), { title: r.title, author: r.author || "" });
       cloud.forget();
       if (playable) toast(`Sent to Real-Debrid — in Library → Your Real-Debrid (${files.length} file${files.length === 1 ? '' : 's'})`);
+      else if (!canUnpack()) toast('Real-Debrid has it, but they’re archives (.rar / .zip), which can’t play here — try another post');
       else (setFiles(files.map((f) => ({ ...f, url: '' }))), toast('Real-Debrid has it, but they’re archives (.rar/.zip) — use Real-Debrid links → Save to unzip on the phone'));
     } catch (e) {
       toast(e.message);
@@ -557,7 +558,8 @@ function TopicToCloud({ r }) {
       toast(e.message);
     }
   };
-  const openTopic = () => WebPlugin.open({ url: r.link, title: r.title }).catch((e) => toast(e.message));
+  // The in-app browser where there is one; elsewhere (iPhone, web) the phone's own browser.
+  const openTopic = () => (Capacitor.isPluginAvailable('InkwellWeb') ? WebPlugin.open({ url: r.link, title: r.title }).catch((e) => toast(e.message)) : window.open(r.link, '_blank', 'noopener'));
   const working = ['download', 'unpack'].includes(unp?.phase);
   return (
     <div class="topic-cloud">

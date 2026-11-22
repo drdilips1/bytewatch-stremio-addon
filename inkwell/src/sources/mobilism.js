@@ -199,7 +199,7 @@ async function pool(items, n, fn) {
  * hidden browser (the one searches use), so it says what the search will see.
  */
 export async function status() {
-  if (!available()) return { signedIn: false, why: 'Android app only' };
+  if (!available()) return { signedIn: false, why: 'Not available here' };
   const { status: st, doc, html } = await page('/index.php');
   if (challenged(doc, html) || st === 403) return { signedIn: false, why: 'Mobilism is checking the browser — open Sign in once more' };
   const out = doc.querySelector('a[href*="mode=logout"]');
@@ -220,7 +220,7 @@ export function search(query, wanted = '') {
 const busyError = () => fail('Mobilism is busy (too many requests) — try again in a minute');
 
 async function searchNow(query, wanted = '') {
-  if (!available()) throw fail('Mobilism works in the Android app only (it uses the in-app browser)');
+  if (!available()) throw fail("Mobilism isn't available here");
   const q = clean(query);
   if (!q) return [];
   if (Date.now() < busyUntil) throw busyError();

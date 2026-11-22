@@ -67,7 +67,7 @@ const challenged = (html) => /ddos-guard|just a moment|checking your browser|cha
  * and does your secret key work (asked of the members' download service with a dummy book)?
  */
 export async function status() {
-  if (!available()) return { ok: false, why: 'Android app only' };
+  if (!available()) return { ok: false, why: 'Not available here' };
   const { status: st, html, doc, check } = await page('/account/');
   if (check || challenged(html)) return { ok: false, why: 'The site is checking the browser — tap Open, wait for it to load' };
   if (st >= 400) return { ok: false, why: `The site answered HTTP ${st} — check the address` };
@@ -171,7 +171,7 @@ export function parseResults(html, siteBase = base()) {
 
 /** Search for ebooks. */
 export async function search(query) {
-  if (!available()) throw fail(`${NAME} works in the Android app only (it uses the in-app browser)`);
+  if (!available()) throw fail(`${NAME} isn't available here`);
   const q = clean(query);
   if (!q) return [];
   if (Date.now() < busyUntil) throw fail(`${NAME} is busy (too many requests) — try again in a minute`);
