@@ -26,7 +26,11 @@ describe('Audibrisk search order', () => {
 });
 
 describe('Audibrisk built-in sources', () => {
-  it('only the public worker and Ink & Echo — nothing personal', () => {
+  it('the names people see: AudiobookBay, Knaben AudioBooks and Deep Search (Ink & Echo, renamed)', () => {
+    expect(bundle.addons.map((a) => a.name)).toEqual(['AudiobookBay', 'Knaben AudioBooks', 'Deep Search']);
+    expect(JSON.stringify(bundle.addons.map((a) => [a.name, a.description]))).not.toMatch(/ink|echo/i);
+  });
+  it('only the public worker and Deep Search — nothing personal', () => {
     const text = JSON.stringify(bundle.addons);
     expect(text).not.toMatch(/audiohubapp|drdilip|extto|rutracker/i);
     expect(bundle.addons.map((a) => a.id)).toEqual(['public-audiobookbay', 'public-knaben-audiobooks', 'inkandecho-v2-bestsearch-audiobook']);

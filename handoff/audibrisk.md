@@ -69,6 +69,10 @@
 - Next (committed, not built): Skip credits switch in the player's More menu (settings.skipCredits,
   on by default since first start; shared player skips chapters titled Opening/End Credits,
   Publisher's intro… once, with a toast).
+- Next (committed, not built): Ink & Echo shown as "Deep Search" (name/description only; id
+  `inkandecho-v2-bestsearch-audiobook` kept so installs update by themselves). Its URL still carries
+  `debrid=torbox` and `client=ie_…` — asked the user whether that client id is personal before a
+  public release.
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in
