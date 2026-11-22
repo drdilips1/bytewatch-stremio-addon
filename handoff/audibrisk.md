@@ -42,7 +42,7 @@
   of 4; Home doesn't redraw for covers; grids show 30 then "Show all"; Play/resume call
   getDetails with `{ fast: true }` (never wait for a lookup); cloud library re-read at most every
   5 min (was on every Home/Library visit after 60 s).
-- v1.0.8 (22 Nov, built — "Build all"):
+- v1.0.8 (22 Nov, released: https://github.com/drdilips1/bytewatch-stremio-addon/releases/tag/audibrisk-v1.0.8):
   - Light / Dark / Auto (Settings, top). All colours are CSS variables on :root; `data-mode` and
     `data-scene` on <html> (scenes.jsx `watchLook`/`applyLook`); each dice scene tints the colours
     (sunrise sage, sunset terracotta, night indigo, meadow green, mountains slate); dark = warm
