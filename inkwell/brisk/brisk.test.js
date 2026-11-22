@@ -104,3 +104,28 @@ describe('Audibrisk updates', () => {
     expect(newer('1.0.8', '1.0.10')).toBe(false);
   });
 });
+
+describe('Audibrisk free books and Deep Search', () => {
+  it('puts two free books inside the top 10, the rest at the end', async () => {
+    const { mixFree } = await import('./logic.js');
+    const paid = Array.from({ length: 12 }, (_, i) => ({ uid: `p${i}` }));
+    const free = [{ uid: 'f0' }, { uid: 'f1' }, { uid: 'f2' }];
+    const out = mixFree(paid, free).map((b) => b.uid);
+    expect(out.indexOf('f0')).toBe(2);
+    expect(out.indexOf('f1')).toBe(6);
+    expect(out[out.length - 1]).toBe('f2');
+    expect(mixFree(paid, free, { hasDebrid: false })[0].uid).toBe('f0');
+    expect(mixFree([{ uid: 'p0' }], free).map((b) => b.uid)).toEqual(['p0', 'f0', 'f1', 'f2']);
+  });
+  it('Deep Search follows your service', async () => {
+    const { deepSearchFor } = await import('./logic.js');
+    const deep = bundle.addons.find((a) => a.name === 'Deep Search');
+    const rd = deepSearchFor(deep, 'realdebrid').adapters.source.request.url;
+    expect(rd).toMatch(/debrid=realdebrid/);
+    expect(rd).not.toMatch(/torboxTier/);
+    expect(deepSearchFor(deep, 'torbox')).toBe(deep); // already TorBox: unchanged
+    const back = deepSearchFor(deepSearchFor(deep, 'realdebrid'), 'alldebrid').adapters.source.request.url;
+    expect(back).toMatch(/debrid=torbox/);
+    expect(back).toMatch(/torboxTier=standard/);
+  });
+});

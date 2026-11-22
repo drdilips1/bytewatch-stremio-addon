@@ -19,7 +19,7 @@ import * as phone from '../src/sources/local.js';
 import { samePhoneBook } from '../src/lib/match.js';
 import { registerPlugin } from '@capacitor/core';
 import { toast } from '../src/components/common.jsx';
-import { rankResults, fitsWords, syncSources } from './logic.js';
+import { rankResults, fitsWords, syncSources, mixFree, deepSearchFor } from './logic.js';
 
 const Web = registerPlugin('InkwellWeb');
 // Opening a book never waits for a details lookup (covers, descriptions): what's known already is
@@ -33,7 +33,9 @@ const FAST = { fast: true };
  */
 export function installSources(list = addons.get()) {
   try {
-    const next = syncSources(list, bundle);
+    // Deep Search set for the service you connected (Real-Debrid or TorBox).
+    const mine = { ...bundle, addons: bundle.addons.map((m) => deepSearchFor(m, provider())) };
+    const next = syncSources(list, mine);
     if (next !== list) addons.set(next);
   } catch {}
 }
@@ -84,9 +86,13 @@ export async function connect(which, key) {
   if (ok === false) throw new Error('That key didn’t work');
   debrid.set((d) => ({ ...d, [which]: key }));
   cloudShelf.set({ books: cloudShelf.get().books, at: 0 });
+  cache.clear();
+  installSources();
 }
 export const disconnect = (which) => {
   debrid.set((d) => ({ ...d, [which]: '' }));
+  cache.clear();
+  installSources();
   cloudShelf.set({ books: cloudShelf.get().books.filter((b) => b.source !== SOURCE[which]), at: 0 });
 };
 
@@ -95,7 +101,7 @@ const cache = new Map();
 /**
  * Audible's listings (its relevance search and its best sellers for the same words, so "everyday"
  * finds The Design of Everyday Things), the word itself in the title first; plus free LibriVox
- * recordings (first when no debrid is connected).
+ * recordings: two of them inside the top 10, all of them first when no debrid is connected.
  */
 export async function searchBooks(term) {
   const q = term.trim();
@@ -103,7 +109,7 @@ export async function searchBooks(term) {
   if (cache.has(q)) return cache.get(q);
   const [rel, best, free] = await Promise.all([audible.search(q).catch(() => []), audible.genre(q).catch(() => []), freeBooks(q)]);
   const paid = rankResults([...rel, ...best.slice(0, 16)].filter((b) => b.title), q).slice(0, 30);
-  const out = provider() ? [...paid, ...free] : [...free, ...paid];
+  const out = mixFree(paid, free, { hasDebrid: !!provider() });
   cache.set(q, out);
   return out;
 }

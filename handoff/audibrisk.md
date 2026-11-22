@@ -96,6 +96,11 @@
   WAITING ON THE USER: create public repo drdilips1/audibrisk (with a README so it has a branch),
   and add the AUDIBRISK_PUBLIC_TOKEN secret (fine-grained token, Contents: read & write on that
   repo) in this private repo's Actions secrets.
+- Next (committed, not built): free LibriVox books inside the top 10 (3rd and 7th, rest at the
+  end; all first without debrid) — `mixFree`; Deep Search follows the connected service
+  (`deepSearchFor`: Real-Debrid when it's yours and TorBox isn't connected, else TorBox; Ink & Echo
+  knows only these two — its builder gives TorBox for AllDebrid/Premiumize), re-set on
+  connect/disconnect. Checked live: the Real-Debrid search answers.
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in

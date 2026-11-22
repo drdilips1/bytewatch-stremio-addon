@@ -125,3 +125,37 @@ export function newer(a, b) {
   for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
   return false;
 }
+
+/**
+ * Free LibriVox books among the paid listings: a couple of them inside the top 10 (3rd and 7th),
+ * the rest at the end — so "pride and prejudice" shows the free recording near the top, not under
+ * thirty paid editions. With no debrid connected, free books come first (they're all that plays).
+ */
+export function mixFree(paid, free, { hasDebrid = true } = {}) {
+  if (!hasDebrid) return [...free, ...paid];
+  const out = [...paid];
+  const top = free.slice(0, 2);
+  [2, 6].forEach((at, i) => top[i] && out.splice(Math.min(at, out.length), 0, top[i]));
+  return [...out, ...free.slice(2)];
+}
+
+/**
+ * Deep Search asks for copies ready on the service you use: Real-Debrid when that's yours (and
+ * TorBox isn't connected), TorBox otherwise (Ink & Echo knows only these two; AllDebrid /
+ * Premiumize users get TorBox's list, which still finds the copies).
+ */
+export function deepSearchFor(manifest, service) {
+  const req = manifest?.adapters?.source?.request;
+  if (!req?.url || !/inkandecho/.test(req.url)) return manifest;
+  const u = new URL(req.url);
+  if (service === 'realdebrid') {
+    u.searchParams.set('debrid', 'realdebrid');
+    u.searchParams.delete('torboxTier');
+  } else {
+    u.searchParams.set('debrid', 'torbox');
+    if (!u.searchParams.has('torboxTier')) u.searchParams.set('torboxTier', 'standard');
+  }
+  const url = u.toString();
+  if (url === req.url) return manifest;
+  return { ...manifest, debrid: service === 'realdebrid' ? 'realdebrid' : 'torbox', adapters: { ...manifest.adapters, source: { ...manifest.adapters.source, request: { ...req, url } } } };
+}
