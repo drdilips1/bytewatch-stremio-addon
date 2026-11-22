@@ -667,7 +667,10 @@ main{width:100%;max-width:520px;padding:28px 18px 40px}
 <a class="btn p" id="open" href="${esc(app)}">▶ Open in Audiohub</a>
 <button class="btn s" onclick="document.getElementById('open').style.display='none';this.style.display='none'">Just read it</button>
 <p class="fine">Opens the book in Audiohub at this ${audio ? "moment" : "passage"}.<br>Don't have Audiohub? <a href="https://github.com/drdilips1/Audiohub">Get it free</a></p>
-</main><script>if(/Android/i.test(navigator.userAgent))document.getElementById('open').href=${JSON.stringify(intent)};</script></body></html>`;
+<p class="fine" id="noapp" style="display:none">Audiohub didn't open — is it installed on this iPhone? <a href="https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/audiohub-ios-source/altstore.json">Add it in SideStore / AltStore</a>.</p>
+</main><script>var o=document.getElementById('open');if(/Android/i.test(navigator.userAgent))o.href=${JSON.stringify(intent)};
+// iPhone: if the app didn't take over within 2 s, say why instead of leaving Safari's error alone.
+if(/iPhone|iPad|iPod/i.test(navigator.userAgent))o.addEventListener('click',function(){setTimeout(function(){if(!document.hidden)document.getElementById('noapp').style.display='block'},2000)});</script></body></html>`;
   return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=86400" } });
 }
 

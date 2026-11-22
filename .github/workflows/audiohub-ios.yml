@@ -85,6 +85,12 @@ jobs:
           # The app's folder shows in the Files app (On My iPhone → Audiohub): put audiobooks there.
           pb "Add :UIFileSharingEnabled bool true"
           pb "Add :LSSupportsOpeningDocumentsInPlace bool true"
+          # audiohub:// links (shared quotes and bookmarks: "Open in Audiohub") open the app, as on Android.
+          pb "Add :CFBundleURLTypes array"
+          pb "Add :CFBundleURLTypes:0 dict"
+          pb "Add :CFBundleURLTypes:0:CFBundleURLName string app.audiohub.links"
+          pb "Add :CFBundleURLTypes:0:CFBundleURLSchemes array"
+          pb "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string audiohub"
           /usr/libexec/PlistBuddy -c Print "$P"
 
       - name: Build
