@@ -64,6 +64,10 @@
   (5b025bc) — the user sees "Goodreads refused" on their own public profile in 1.0.39; next step depends on the
   code (403 → hidden browser like Audiohub+, 404 → needs the RSS key). Report a problem skips Capacitor's
   "plugin already registered" warnings (ef21df5).
+- 22 Nov: user's own public profile gives HTTP 404 on list_rss without key (test APK 1.0.40). Fix on `work`
+  d4985d9: on an all-404 sync without key, `findKey` reads the key from review/list/<id>?shelf=read
+  (`keyFromShelfPage`, tests/goodreadskey.test.js), saves it and retries; logs "Goodreads key" / "Goodreads sync".
+  Test APK 1.0.41 (run 41) built — waiting for the user's result. Next release will be 1.0.42.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 8eed093), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
