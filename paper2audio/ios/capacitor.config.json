@@ -1,0 +1,14 @@
+{
+  "appId": "com.narrato.reader",
+  "appName": "Narrato",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0E1116"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

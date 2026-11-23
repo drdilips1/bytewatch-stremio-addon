@@ -1,0 +1,179 @@
+name: Narrato iPhone app
+
+# Builds only when asked: "[narrato-ios]" in the commit message ("Build now Narrato iOS"), or run by hand.
+# Without the App Store secrets it makes an unsigned Narrato.ipa (for Sideloadly / AltStore); with them it
+# also signs the app and uploads it to TestFlight (App Store Connect).
+on:
+  push:
+    paths:
+      - "paper2audio/ios/**"
+      - ".github/workflows/narrato-ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: narrato-ios
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[narrato-ios]')
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: paper2audio/ios
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Narrato's voice engine (sherpa-onnx, the same version as the Android app) built for iPhone.
+      # It takes a while the first time; afterwards it comes from the cache.
+      - name: Voice engine from the cache
+        id: sherpa
+        uses: actions/cache@v4
+        with:
+          path: paper2audio/ios/ios-plugins/speech/Frameworks
+          key: sherpa-onnx-ios-v1.13.8-ort1.28.2
+
+      - name: Build the voice engine for iPhone
+        if: steps.sherpa.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          git clone --depth 1 -b v1.13.8 https://github.com/k2-fsa/sherpa-onnx.git
+          cd sherpa-onnx
+          ./build-ios.sh
+          F="$GITHUB_WORKSPACE/paper2audio/ios/ios-plugins/speech/Frameworks"
+          mkdir -p "$F"
+          cp -R build-ios/sherpa-onnx.xcframework "$F/"
+          cp -RL build-ios/ios-onnxruntime/onnxruntime.xcframework "$F/"
+          ls -la "$F"
+
+      - name: Voice engine's Swift interface and the readers' recordings
+        run: |
+          curl -fsSL -o ios-plugins/speech/ios/Sources/PaperSpeechPlugin/SherpaOnnx.swift \
+            https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/swift-api-examples/SherpaOnnx.swift
+          # The ready-made readers: the same recordings as Narrato on Android (both edition folders).
+          mkdir -p public/voices
+          cp ../android/app/src/main/assets/voices/* public/voices/
+          cp ../android/app/src/lite/assets/voices/* public/voices/
+          ls public/voices | wc -l
+
+      - name: Install
+        run: |
+          (cd ../reader-web && npm ci --no-audit --no-fund)
+          npm ci --no-audit --no-fund
+          # The iPhone's reading engine (screen off, lock screen): a local plugin, copied in (not linked) for Capacitor.
+          npm pkg set "dependencies.paper-speech-ios=file:ios-plugins/speech"
+          npm i --install-links --no-audit --no-fund ./ios-plugins/speech
+
+      - name: Build the screens
+        env:
+          APP_VERSION: 1.0.${{ github.run_number }}
+        run: npx vite build
+
+      - name: Generate the iOS project
+        run: |
+          npx cap add ios
+          npx cap sync ios
+          ls ios/App
+
+      - name: Icon, splash and settings
+        run: |
+          A=ios/App/App/Assets.xcassets
+          icon=$(ls $A/AppIcon.appiconset/*.png | head -1)
+          cp public/icon-1024.png "$icon"
+          for f in $A/Splash.imageset/*.png; do
+            sips -z 512 512 public/icon-1024.png --out /tmp/s.png >/dev/null
+            sips -p 2732 2732 --padColor 0E1116 /tmp/s.png --out "$f" >/dev/null
+          done
+          P=ios/App/App/Info.plist
+          pb() { /usr/libexec/PlistBuddy -c "$1" "$P" 2>/dev/null || true; }
+          pb "Delete :CFBundleDisplayName"
+          pb "Add :CFBundleDisplayName string Narrato"
+          pb "Add :UIBackgroundModes array"
+          pb "Add :UIBackgroundModes:0 string audio"
+          pb "Add :ITSAppUsesNonExemptEncryption bool false"
+          # Opens EPUB, PDF, text and web page files from Files, Mail and Share → Narrato.
+          pb "Add :CFBundleDocumentTypes array"
+          i=0
+          for t in "EPUB book:org.idpf.epub-container" "PDF document:com.adobe.pdf" "Text:public.plain-text" "Web page:public.html"; do
+            pb "Add :CFBundleDocumentTypes:$i dict"
+            pb "Add :CFBundleDocumentTypes:$i:CFBundleTypeName string ${t%%:*}"
+            pb "Add :CFBundleDocumentTypes:$i:LSHandlerRank string Alternate"
+            pb "Add :CFBundleDocumentTypes:$i:LSItemContentTypes array"
+            pb "Add :CFBundleDocumentTypes:$i:LSItemContentTypes:0 string ${t##*:}"
+            i=$((i+1))
+          done
+          pb "Add :LSSupportsOpeningDocumentsInPlace bool false"
+          pb "Add :NSCameraUsageDescription string Photograph printed pages to listen to them."
+          pb "Add :NSPhotoLibraryUsageDescription string Choose photos of printed pages to listen to them."
+          /usr/libexec/PlistBuddy -c Print "$P"
+
+      - name: Build (unsigned, for Sideloadly / AltStore)
+        working-directory: paper2audio/ios/ios/App
+        run: |
+          if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
+          xcodebuild -quiet $SRC -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build" \
+            MARKETING_VERSION="1.0.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry Narrato.ipa Payload
+          ls -la Narrato.ipa
+
+      # Signed for the App Store and sent to TestFlight, once the App Store Connect API key and Team ID are saved
+      # as repository secrets (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_B64, APPLE_TEAM_ID). Xcode creates the
+      # signing certificate and profile itself through the key.
+      - name: Sign and upload to TestFlight
+        if: env.ASC_KEY_ID != '' && env.ASC_ISSUER_ID != '' && env.ASC_KEY_P8_B64 != '' && env.APPLE_TEAM_ID != ''
+        working-directory: paper2audio/ios/ios/App
+        run: |
+          KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          echo "$ASC_KEY_P8_B64" | base64 --decode > "$KEY"
+          if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
+          AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
+          xcodebuild -quiet $SRC -scheme App -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Narrato.xcarchive" $AUTH \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic PRODUCT_BUNDLE_IDENTIFIER=com.narrato.reader \
+            MARKETING_VERSION="1.0.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" archive
+          cat > "$RUNNER_TEMP/export.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Narrato.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
+            -exportPath "$RUNNER_TEMP/export" $AUTH
+          rm -f "$KEY"
+          echo "Uploaded build 1.0.${{ github.run_number }} to App Store Connect: it appears in TestFlight after Apple processes it."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Narrato-ipa
+          path: paper2audio/ios/ios/App/Narrato.ipa
+
+      # One fixed link that always has the newest build.
+      - name: Publish release
+        working-directory: paper2audio/ios/ios/App
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Build 1.0.${{ github.run_number }} (${{ github.sha }}). Unsigned Narrato for iPhone: install with Sideloadly or AltStore using your Apple ID. Signed builds go to TestFlight."
+          gh release view narrato-ios >/dev/null 2>&1 || gh release create narrato-ios --target "${{ github.sha }}" \
+            --title "Narrato for iPhone – latest build" --prerelease --notes "$NOTES"
+          gh release upload narrato-ios Narrato.ipa --clobber
+          gh release edit narrato-ios --notes "$NOTES"

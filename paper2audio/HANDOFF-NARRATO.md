@@ -89,6 +89,24 @@ Lite overrides `bg_button`/`bg_play` with a sheen. Ivory unchanged. Fonts: DM Se
 before); Inter not bundled yet. Planned: Play subscription with a 7-day free trial (needs the payments
 verification first), iPhone app later as its own project.
 
+## Narrato for iPhone (`paper2audio/ios`, Stage 1 committed, not built yet)
+
+Started from Paper to Audio for iPhone as of its 1.0.6 build (`8dde536`, before the dev line's copied-voice
+update, so the voice recipe equals Narrato's: lead-in "Well.", seeds, temperature 0.6, 5 steps, second takes).
+Capacitor 8 + Swift plugin `PaperSpeech` (sherpa-onnx 1.13.8). Rebranded: Narrato, bundle id
+`com.narrato.reader`, Narrato icon (`public/icon-1024.png`, rendered from the Android vector), Pearl/Midnight
+colours, DM Serif Display bundled. Home rewritten as Narrato's (greeting, Now listening card with Resume and
+headphones, Your library, mini player, tabs Home/Library/Voices/Settings), Narrato's Add menu and book menu,
+Settings as Narrato's menu (+ speed, pronunciations, voice downloads), Voices sheet with Real readers / Light
+voices cards. EPUB covers extracted (thumbnails). `reader-web` is identical on both lines.
+- **"Build now Narrato iOS"**: commit with `[narrato-ios]` and push. Workflow `narrato-ios.yml` (macOS) makes
+  `Narrato.ipa` → release **narrato-ios** (unsigned, Sideloadly/AltStore). With repository secrets
+  `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_B64` (base64 of the .p8), `APPLE_TEAM_ID` it also archives,
+  signs (automatic, via the API key) and uploads to TestFlight. The user has an Apple developer account; the
+  App Store Connect app record for `com.narrato.reader` must exist first. Signing step is untested.
+- Stage 2 (not done): Tonight's list (iOS BGProcessingTask with external power), first-run tour, Look up /
+  double-tap checks on device, subscription with 7-day trial (App Store Connect).
+
 ## Other pending items
 
 - Declare EU trader status in Play Console (public details).

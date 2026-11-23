@@ -1,0 +1,21 @@
+{
+  "name": "narrato-ios",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Narrato for iPhone: the library, with the Android app's reader and Narrato's own on-device voices",
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "jszip": "^3.10.1",
+    "pdfjs-dist": "3.11.174"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "@preact/preset-vite": "^2.10.6",
+    "vite": "^8.3.0"
+  }
+}
