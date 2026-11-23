@@ -113,6 +113,11 @@
   detect, in-file M4B chapters, CarPlay, natural voices + read aloud screen-off, voice asking, Siri, open-with EPUB,
   share-in to Find books, native save/share, in-app update, backups outside the app, tracker browser, widgets.
   Suggested order: offline downloads → open-with + backups in Files → proper sharing.
+- GitHub issues (23 Nov check): #10 iPhone ios-5 "Cannot Open" on TorBox (fixed in ios-6, waiting for the reporter);
+  #9 bookmarks come back after delete — sync merged lists with no deletions; fixed on `work` (lib/marks.js +
+  tests/marks.test.js, removedMarks synced before bookmarks, removeBookmark in store.js) — same bug likely in
+  Audiohub+ sync.js (its own sync); #8 own files (answered by the user; now visible + iPhone); #11 comics idea (no
+  details). Replies drafted for the user, not posted. Login: user said avoid built-in Supabase for now.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
