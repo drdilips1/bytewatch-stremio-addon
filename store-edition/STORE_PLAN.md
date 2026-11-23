@@ -50,6 +50,29 @@ Model: like Stremio / Ink & Echo — **ships empty; people add their own add-ons
 
 ## Making money: AudioYam Plus
 
+**Decided 23 Nov (user, AudioYam window):** free app + **one-time Plus unlock** as the main offer, and an
+**optional AI pass subscription** only for AI without your own key (that's where the running cost is).
+Only the store edition is sold; the full AudioYam (AltStore / SideStore, APK, TestFlight internal testers)
+stays free. The table and prices below are the earlier plan; where they differ, this decision wins.
+
+| Free (everything people need) | **Plus**, one-time (≈ $9.99 / ₹499) | **AI pass**, optional subscription (≈ $2.99 / month) |
+|---|---|---|
+| Player, speed, sleep timer, bookmarks | Live Text + ebook sync, highlights, quote cards | Ask the book, summaries, X-Ray, recap without your own key |
+| Your files, Audiobookshelf, addons, downloads | Summaries / X-Ray / recap with your own key | Natural cloud voices (if a paid voice service is used) |
+| Goodreads CSV import, Send to Kindle, Find books (barcode / list) | Whole-book translation (own key) | |
+| | Stats history, themes, icons, player styles | |
+| | Later: Drive / Dropbox / WebDAV, Jellyfin / Plex, CarPlay | |
+
+- Tips (one-time) stay; no ads; your own AI key keeps AI features free (no AI pass needed).
+- Apple: join the **Small Business Program** (15% fee), accept the **Paid Apps Agreement**, tax and bank details;
+  turn on **Family Sharing** for the Plus unlock. Start with Plus only; add the AI pass when asked for (cap AI
+  use per month).
+- Groundwork in public AudioYam (`drdilips1/Audiohub` `work`): `src/lib/plus.js` names the Plus / AI-pass
+  features and `hasPlus(feature)`; it is always true in AudioYam builds (nothing locked there). A store build
+  sets `VITE_EDITION=store` and wires purchases to it.
+
+### Earlier plan (kept for reference)
+
 Free stays fully useful: the player, your library from every source, sync, bookmarks, sleep timer, speed and add-ons. Plus pays for what costs money to run, or saves real time.
 
 | Plus feature | Exists now? | Why people pay |
