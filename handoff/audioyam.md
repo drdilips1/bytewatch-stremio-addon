@@ -8,7 +8,8 @@
   (Actions → AudioYam iPhone app → Run workflow; each run publishes `ios-N` and updates the AltStore
   source `releases/download/ios-source/altstore.json`).
   Every AltStore-destination build also uploads to the fixed release `ios-latest`
-  (releases/download/ios-latest/AudioYam.ipa — the link to give iPhone users; on `work` since 9d9d1a0, exists after the next build). It used to start on any push touching ios.yml;
+  (releases/download/ios-latest/AudioYam.ipa — the link to give iPhone users; live since iPhone build 8, 23 Nov,
+  from `work` 9d9d1a0 — build 8 also has the bookmark / highlight deletion fixes). It used to start on any push touching ios.yml;
   run 2 started that way on 21 Nov and was cancelled during install (nothing published).
 - Latest released (22 Nov, "release"): Android v1.0.42 + web + iPhone ios-5 from `main` 87bb711 — cloud EPUBs
   (ad/pm/dl/en) open, Goodreads CSV-only with steps, reports skip "already registered". No new What's new card.
