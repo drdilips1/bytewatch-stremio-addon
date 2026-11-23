@@ -122,6 +122,14 @@
   Audiohub+ sync.js (its own sync); #8 own files (answered by the user; now visible + iPhone); #11 comics idea (no
   details). Replies drafted for the user, not posted. Highlights had half the same bug (highlightsGone local only):
   now synced (mergeGone) before highlights and mergeHighlights filters local lists too (from Audiohub+'s check). Login: user said avoid built-in Supabase for now.
+- 23 Nov: offline downloads on iPhone (user said build): new `ios-plugins/downloads` (inkwell-downloads-ios, SPM
+  InkwellDownloadsIos, jsName **InkwellDownloads** — same calls as Android: download {url, headers, name, folder,
+  job} → {uri, rel, size, location}, progress events, cancel, remove, move, publicAvailable=false, plus `paths`).
+  Saved in Application Support/Downloads (excluded from iCloud backup, not Documents so InkwellLocal doesn't list
+  them). downloads.js stores `rel` per part and rebuilds uris at every iOS start (container moves on update).
+  Foreground URLSession + beginBackgroundTask: leaving the app pauses big downloads, the app resumes them next
+  start. Send to Audiobookshelf stays Android-only (canSendToAbs). Settings → Downloads note on iPhone.
+  iPhone build 9 from `work` 59b6259 started — not tried on a phone yet.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
