@@ -144,7 +144,7 @@
   Documents/"AudioYam downloads" (scan skips only that) so a user's "Downloads" folder (Safari's) isn't skipped —
   load() moves build 9 (App Support/Downloads) and build 10 (Documents/Downloads/Audiohub) downloads over; iPhone
   buttons now "Add audiobooks (files or folders)" / "Add ebooks (EPUB / PDF)" (ebook picker greys out audio).
-  Exact cause not confirmed — asked the user what the person saw.
+  Exact cause not confirmed (the user's own iPad import worked on build 10). iPhone build 11 from b00c281 BUILT 23 Nov.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
