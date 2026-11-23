@@ -1,11 +1,17 @@
 # Audibrisk (minimal search & play)
 
-- iPhone: `.github/workflows/brisk-ios.yml` (Run workflow, or `[build brisk ios]` in a commit) —
-  unsigned .ipa for AltStore, bundle id app.audibrisk.player, shared ios-plugins player + files
-  (no unpack/transcribe), pre-release `audibrisk-ios-N` in this private repo. No Save on iPhone
-  (shared downloads are Android-only); Settings says updates come through AltStore.
-  First run (id 45201304457, 23 Nov 15:05 UTC) still QUEUED after 13 min waiting for a macos-15
-  runner (private repo Mac minutes) — told the user, not re-run (shared rule).
+- iPhone: private Mac minutes ran out (first run 23 Nov queued 15 min, cancelled, never started),
+  so the IPA is built in the PUBLIC repo drdilips1/audibrisk (free Mac runners), source stays
+  private. `.github/workflows/brisk-ios.yml` (Linux; Run workflow or `[build brisk ios]`) builds
+  dist-brisk with the public-only check, packs the kit (`brisk/ios-kit/make-kit.mjs`: screens,
+  capacitor.config, ios-plugins player + files, icon, VERSION, package.json with the same Capacitor
+  versions, and `brisk/ios-kit/ios.yml` as the public repo's workflow; fails on banned words) and
+  force-pushes it to the public repo's branch `ios-kit`; that repo's workflow (macos-15) makes
+  Audibrisk.ipa → pre-release `ios-<version>` (never latest) + AltStore source
+  https://github.com/drdilips1/audibrisk/releases/download/altstore/altstore.json. Kit tested on
+  Linux (npm install + cap add ios → 6 plugins). NEEDS: AUDIBRISK_PUBLIC_TOKEN with
+  Workflows: read & write too (pushing a workflow file). No Save on iPhone (shared downloads are
+  Android-only); Settings says updates come through AltStore.
 - Code: `inkwell/brisk/` (screens.jsx, player.jsx, books.js, logic.js, scenes.jsx, brisk.css, app.jsx),
   config `inkwell/vite.brisk.config.js`, workflow `.github/workflows/brisk-apk.yml`.
   Tests: `inkwell/brisk/brisk.test.js` (runs in `npm test`). The shared eslint config only covers

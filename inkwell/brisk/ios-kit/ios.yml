@@ -1,0 +1,98 @@
+name: Audibrisk iPhone app
+
+# Runs in the public repository drdilips1/audibrisk (free Mac runners). The private repository
+# pushes a ready "iPhone kit" to the branch ios-kit: Audibrisk's finished screens (already checked
+# to hold nothing private), its Capacitor settings and the two iPhone plugins (player, Files).
+# This turns it into an unsigned Audibrisk.ipa for AltStore and publishes it here as a
+# pre-release (never "latest", so the Android in-app update is not affected), plus an AltStore
+# source: https://github.com/drdilips1/audibrisk/releases/download/altstore/altstore.json
+on:
+  push:
+    branches: [ios-kit]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        run: npm install --install-links --no-audit --no-fund
+
+      - name: Generate the iOS project
+        run: |
+          npx cap add ios
+          npx cap sync ios
+          echo "--- plugins:"; grep -A8 packageClassList ios/App/App/capacitor.config.json || true
+
+      - name: Icon, splash and settings
+        run: |
+          A=ios/App/App/Assets.xcassets
+          icon=$(ls $A/AppIcon.appiconset/*.png | head -1)
+          sips -z 1024 1024 icon-512.png --out "$icon"
+          for f in $A/Splash.imageset/*.png; do
+            sips -z 512 512 icon-512.png --out /tmp/s.png >/dev/null
+            sips -p 2732 2732 --padColor F6EFE4 /tmp/s.png --out "$f" >/dev/null
+          done
+          P=ios/App/App/Info.plist
+          pb() { /usr/libexec/PlistBuddy -c "$1" "$P" 2>/dev/null || true; }
+          pb "Delete :CFBundleDisplayName"
+          pb "Add :CFBundleDisplayName string Audibrisk"
+          pb "Add :UIBackgroundModes array"
+          pb "Add :UIBackgroundModes:0 string audio"
+          pb "Add :NSAppTransportSecurity dict"
+          pb "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true"
+          pb "Add :NSAppTransportSecurity:NSAllowsArbitraryLoadsInWebContent bool true"
+          pb "Add :ITSAppUsesNonExemptEncryption bool false"
+          pb "Add :UIFileSharingEnabled bool true"
+          pb "Add :LSSupportsOpeningDocumentsInPlace bool true"
+
+      - name: Build
+        run: |
+          VERSION=$(cat VERSION)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          cd ios/App
+          if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
+          xcodebuild -quiet $SRC -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry ../../Audibrisk.ipa Payload
+          ls -la ../../Audibrisk.ipa
+
+      - name: Publish (pre-release) and the AltStore source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ios-$VERSION"
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" Audibrisk.ipa --target "${{ github.sha }}" --prerelease --latest=false \
+            --title "Audibrisk for iPhone $VERSION" \
+            --notes "Unsigned iPhone app for AltStore: in AltStore → Sources → + add https://github.com/${{ github.repository }}/releases/download/altstore/altstore.json — or on the Mac, AltServer menu, hold Option → Sideload .ipa. Signed with your free Apple ID (renewed every 7 days)."
+          SIZE=$(stat -f%z Audibrisk.ipa)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          node -e '
+            const [tag, version, repo, size, date] = process.argv.slice(1);
+            const url = `https://github.com/${repo}/releases/download/${tag}/Audibrisk.ipa`;
+            const v = { version, buildVersion: version, date, downloadURL: url, size: +size, localizedDescription: `Audibrisk ${version}`, minOSVersion: "15.0" };
+            const app = { name: "Audibrisk", bundleIdentifier: "app.audibrisk.player", developerName: "Audibrisk",
+              subtitle: "Search a book, press play", localizedDescription: "Audiobooks through your own TorBox, Real-Debrid, AllDebrid or Premiumize, and free LibriVox books.",
+              iconURL: `https://github.com/${repo}/releases/download/altstore/icon-512.png`, tintColor: "#66754F",
+              versions: [v], version, versionDate: date, downloadURL: url, size: +size, appPermissions: { entitlements: [], privacy: {} } };
+            require("fs").writeFileSync("altstore.json", JSON.stringify({ name: "Audibrisk", identifier: "app.audibrisk.source", apps: [app], news: [] }, null, 2));
+          ' "$TAG" "$VERSION" "${{ github.repository }}" "$SIZE" "$DATE"
+          gh release view altstore >/dev/null 2>&1 || gh release create altstore --target "${{ github.sha }}" --prerelease --latest=false \
+            --title "Audibrisk AltStore source" --notes "Add this source in AltStore: https://github.com/${{ github.repository }}/releases/download/altstore/altstore.json"
+          gh release upload altstore altstore.json icon-512.png --clobber
