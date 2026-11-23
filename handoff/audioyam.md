@@ -133,7 +133,8 @@
   — not tried on a phone yet. User chose Files: since 5250df1 downloads live in Documents/Downloads (Files →
   AudioYam → Downloads, excluded from iCloud backup), InkwellLocal scan skips Documents/Downloads, build-9
   downloads are moved over in the plugin's load(), `paths` also returns `missing` and downloads.js afterFiles()
-  (tested, tests/iosdownloads.test.js) marks a book not downloaded from the first missing part. iPhone build 10.
+  (tested, tests/iosdownloads.test.js) marks a book not downloaded from the first missing part. iPhone build 10
+  BUILT 23 Nov (compiled; ios-latest + source updated) — not tried on a phone yet.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
