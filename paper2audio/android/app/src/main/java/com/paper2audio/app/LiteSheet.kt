@@ -46,6 +46,17 @@ class LiteSheet(private val activity: Activity, title: String?, subtitle: String
     private val surface2 = Themes.color(activity, R.attr.p2aSurface2)
     private fun dp(v: Int) = LiteUi.dp(activity, v)
 
+    /**
+     * The rows scroll inside at most this height, worked out while measuring: the sheet opens at its final
+     * size (it used to open full height and shrink a moment later, which flickered).
+     */
+    private val maxBody = (activity.resources.displayMetrics.heightPixels * 0.85f).toInt() - dp(120)
+    private val scroll = object : ScrollView(activity) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(maxBody, MeasureSpec.AT_MOST))
+        }
+    }
+
     init {
         val sheet = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -80,7 +91,7 @@ class LiteSheet(private val activity: Activity, title: String?, subtitle: String
                 setPadding(dp(24), 0, dp(24), dp(10))
             })
         }
-        sheet.addView(ScrollView(activity).apply {
+        sheet.addView(scroll.apply {
             isVerticalScrollBarEnabled = false
             addView(body)
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -93,11 +104,6 @@ class LiteSheet(private val activity: Activity, title: String?, subtitle: String
             setWindowAnimations(android.R.style.Animation_InputMethod)
             addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             setDimAmount(0.45f)
-        }
-        // Keep the last row above the navigation bar, and the sheet below the status bar.
-        val maxHeight = (activity.resources.displayMetrics.heightPixels * 0.85f).toInt()
-        wrap.post {
-            if (sheet.height > maxHeight) sheet.layoutParams = FrameLayout.LayoutParams(-1, maxHeight, Gravity.BOTTOM)
         }
         if (Build.VERSION.SDK_INT >= 30) {
             sheet.setOnApplyWindowInsetsListener { v, insets ->
@@ -260,9 +266,12 @@ class LiteSheet(private val activity: Activity, title: String?, subtitle: String
         return this
     }
 
+    /** Empties the sheet to fill it again; it stays scrolled where it was (tapping a voice used to jump to the top). */
     fun clear(): LiteSheet {
+        val y = scroll.scrollY
         body.removeAllViews()
         target = body
+        if (y > 0) scroll.post { scroll.scrollTo(0, y) }
         return this
     }
 
