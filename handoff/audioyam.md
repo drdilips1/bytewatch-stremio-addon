@@ -101,6 +101,13 @@
   scheme in; AltStore source updated; SideStore post text given to the user),
   Android not released (work is ahead of main: Goodreads-free since 1.0.42 plus these).
   Not ported (user's list B): iPhone unpack (.zip/.rar), Easynews relay, revive.
+- 23 Nov: Send to Kindle on iPhone (user said yes): new `ios-plugins/mail` (package inkwell-mail-ios, SPM
+  InkwellMailIos, jsName **InkwellMail** — not InkwellWeb, so iPhone doesn't claim Android's other native parts).
+  mailFile(url, name, mime, to[], from, password, host, port, security, user) like Android GmailSender: URLSession
+  download, ≤18 MB, web-page check, SMTP over Foundation streams (SSL before open, STARTTLS mid-stream via
+  socketSecurityLevel), AUTH LOGIN, base64 MIME. kindle.js: canMailHere = Android || iOS plugin; sendsDirect uses
+  it; web-only note in Settings. Added to ios.yml install. AudioYam-only (Audiohub+ doesn't have it yet).
+  iPhone build run 7 from abb66bc started to compile it — not tested with a real mail server / Kindle yet.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
