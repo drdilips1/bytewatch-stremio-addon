@@ -125,7 +125,7 @@ object Renderer {
             v.voiceId.startsWith(Speaker.SUPER) -> "p5|"
             // A ready-made voice given a steadier seed: its older takes are remade. Narrato's (c8): audio saved
             // while 1.9.11-1.9.12 read badly is not replayed. Paper to Audio (c7): the clearer copied-voice recipe
-            // (sample cut at a pause, repeated phrases read in parts, "Right." warm-up, crisper treble).
+            // (sample cut at a pause, repeated phrases read in parts, "Right." warm-up, livelier exclamations).
             v.voiceId.startsWith(Speaker.CLONE) -> (if (BuildConfig.LITE) "c8|" else "c7|") + (MyVoices.seedOf(v.voiceId.removePrefix(Speaker.CLONE)).takeIf { it > 0 }?.let { "s$it|" } ?: "") +
                 (if (MyVoices.leadInOf(v.voiceId.removePrefix(Speaker.CLONE))) "" else "nl|")
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"

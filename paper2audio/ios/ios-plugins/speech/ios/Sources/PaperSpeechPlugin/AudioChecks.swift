@@ -130,33 +130,6 @@ enum AudioChecks {
         return Array(x.prefix(limit))
     }
 
-    /// High shelf: +[gainDb] above [cutoff], giving back the 5-8 kHz crispness the copying engine loses
-    /// (Android's Denoise.highShelf). Never clips.
-    static func highShelf(_ x: [Float], rate: Int, cutoff: Double = 4_500, gainDb: Double = 3.5) -> [Float] {
-        let a = pow(10.0, gainDb / 40)
-        let w = 2 * Double.pi * cutoff / Double(rate)
-        let c = cos(w)
-        let s = 2 * sqrt(a) * sin(w) / (2 * 0.7071)
-        let a0 = (a + 1) - (a - 1) * c + s
-        let b0 = a * ((a + 1) + (a - 1) * c + s) / a0
-        let b1 = -2 * a * ((a - 1) + (a + 1) * c) / a0
-        let b2 = a * ((a + 1) + (a - 1) * c - s) / a0
-        let a1 = 2 * ((a - 1) - (a + 1) * c) / a0
-        let a2 = ((a + 1) - (a - 1) * c - s) / a0
-        var y = x
-        var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0
-        var peak: Float = 0
-        for i in 0..<y.count {
-            let xi = Double(x[i])
-            let yi = b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
-            x2 = x1; x1 = xi; y2 = y1; y1 = yi
-            y[i] = Float(yi)
-            peak = max(peak, abs(y[i]))
-        }
-        if peak > 0.99 { for i in 0..<y.count { y[i] *= 0.99 / peak } }
-        return y
-    }
-
     /// A simple low-pass (two biquad passes at [cutoff] Hz).
     static func lowPass(_ x: [Float], rate: Int, cutoff: Double) -> [Float] {
         let w = 2 * Double.pi * cutoff / Double(rate)

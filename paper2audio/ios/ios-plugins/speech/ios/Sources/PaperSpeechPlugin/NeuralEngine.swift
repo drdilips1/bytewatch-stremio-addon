@@ -153,8 +153,8 @@ final class NeuralEngine {
                     samples += s
                 }
             }
-            // Hiss removed from the whole line, then the 5-8 kHz crispness the engine loses is given back.
-            samples = AudioChecks.dehiss(AudioChecks.highShelf(samples, rate: rate), rate: rate,
+            // Hiss removed from the whole line.
+            samples = AudioChecks.dehiss(samples, rate: rate,
                                          lowPassOn: VoiceCatalog.reader(name)?.denoised ?? false)
         }
         if samples.isEmpty { throw Failure.empty }
@@ -204,7 +204,7 @@ final class NeuralEngine {
             let second = take(seed + 7919)
             if AudioChecks.distance(secs(second), trimmed, pace) < AudioChecks.distance(secs(best), trimmed, pace) { best = second }
         }
-        // The run-on (if any) is cut here, take by take; hiss and crispness are done for the whole line.
+        // The run-on (if any) is cut here, take by take; hiss is removed for the whole line.
         return (AudioChecks.trimRunOn(best.samples, rate: best.rate, text: text, pace: pace), best.rate)
     }
 }

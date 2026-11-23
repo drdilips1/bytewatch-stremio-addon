@@ -199,8 +199,7 @@ object LocalTts {
         if (audio.samples.isEmpty()) error("The voice produced no audio")
         val samples = if (voiceId.startsWith(Speaker.CLONE)) {
             // Copied voices (run-ons already cut, take by take): clean the hiss the copy picked up from its recording.
-            // Then the crispness the engine loses in 5-8 kHz is given back (Denoise.highShelf).
-            CloneCheck.dehiss(Denoise.highShelf(audio.samples, audio.sampleRate), audio.sampleRate,
+            CloneCheck.dehiss(audio.samples, audio.sampleRate,
                 // A voice copied from a full-quality recording keeps its brightness.
                 lowPass = MyVoices.denoised(voiceId.substringAfter(':'))).also {
                 // (A line read in parts has pauses added between them: not this voice's pace.)

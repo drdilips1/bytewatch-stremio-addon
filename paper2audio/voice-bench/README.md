@@ -14,9 +14,9 @@ Setup (about 600 MB, into `~/p2a-models` or `$P2A_MODELS`):
 Run (4 cores: about 25 minutes per recipe for 20 readers × 18 lines):
 
     python3 run.py recipe_old base                       # the recipe before 6.9.14
-    SPLIT=1 LIVELY=0.7 CRISP=1 python3 run.py recipe_v2 new   # the current recipe
+    SPLIT=1 LIVELY=0.7 python3 run.py recipe_v2 new   # the current recipe
     python3 check.py base new                            # word errors, problem lines per test line
     LINESET=emo ...                                      # the 10 emotional lines instead
     python3 ltas.py new                                  # brightness of the copies vs the real recordings
 
-Results for 6.9.14 (Nov 2026): word errors 6.1% → see HANDOFF-PAPER2AUDIO.md.
+Results for 6.9.14 (Nov 2026): word errors 6.1% → 3.9%, extra words 60 → 15 (see HANDOFF-PAPER2AUDIO.md).
