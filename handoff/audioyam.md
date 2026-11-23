@@ -130,8 +130,10 @@
   Foreground URLSession + beginBackgroundTask: leaving the app pauses big downloads, the app resumes them next
   start. Send to Audiobookshelf stays Android-only (canSendToAbs). Settings → Downloads note on iPhone.
   iPhone build 9 from `work` 59b6259 BUILT 23 Nov (compiled, InkwellDownloadsPlugin in; ios-latest + source updated)
-  — not tried on a phone yet. Open question to the user: keep downloads inside the app, or visible in Files
-  (On My iPhone → AudioYam → Downloads, with the own-files scan skipping that folder).
+  — not tried on a phone yet. User chose Files: since 5250df1 downloads live in Documents/Downloads (Files →
+  AudioYam → Downloads, excluded from iCloud backup), InkwellLocal scan skips Documents/Downloads, build-9
+  downloads are moved over in the plugin's load(), `paths` also returns `missing` and downloads.js afterFiles()
+  (tested, tests/iosdownloads.test.js) marks a book not downloaded from the first missing part. iPhone build 10.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
