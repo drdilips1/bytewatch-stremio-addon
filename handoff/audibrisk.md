@@ -4,6 +4,8 @@
   unsigned .ipa for AltStore, bundle id app.audibrisk.player, shared ios-plugins player + files
   (no unpack/transcribe), pre-release `audibrisk-ios-N` in this private repo. No Save on iPhone
   (shared downloads are Android-only); Settings says updates come through AltStore.
+  First run (id 45201304457, 23 Nov 15:05 UTC) still QUEUED after 13 min waiting for a macos-15
+  runner (private repo Mac minutes) — told the user, not re-run (shared rule).
 - Code: `inkwell/brisk/` (screens.jsx, player.jsx, books.js, logic.js, scenes.jsx, brisk.css, app.jsx),
   config `inkwell/vite.brisk.config.js`, workflow `.github/workflows/brisk-apk.yml`.
   Tests: `inkwell/brisk/brisk.test.js` (runs in `npm test`). The shared eslint config only covers
