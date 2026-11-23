@@ -117,7 +117,8 @@
   #9 bookmarks come back after delete — sync merged lists with no deletions; fixed on `work` (lib/marks.js +
   tests/marks.test.js, removedMarks synced before bookmarks, removeBookmark in store.js) — same bug likely in
   Audiohub+ sync.js (its own sync); #8 own files (answered by the user; now visible + iPhone); #11 comics idea (no
-  details). Replies drafted for the user, not posted. Login: user said avoid built-in Supabase for now.
+  details). Replies drafted for the user, not posted. Highlights had half the same bug (highlightsGone local only):
+  now synced (mergeGone) before highlights and mergeHighlights filters local lists too (from Audiohub+'s check). Login: user said avoid built-in Supabase for now.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
