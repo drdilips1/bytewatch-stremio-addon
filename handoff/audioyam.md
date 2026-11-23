@@ -82,6 +82,10 @@
 - On `work`, not released (22 Nov, r/audiohubapp report "import on iOS keeps spinning"): ported Audiohub+ 0d35043 —
   InkwellLocal documentPicker copies through NSFileCoordinator (`copyCoordinated`) so iCloud Drive files not yet
   downloaded are fetched first. Not compiled or tried on a phone; needs an iPhone build (manual ios.yml).
+- On `work`, not released (23 Nov, Reddit question "Send to Kindle just downloads"): direct mail needs the Android
+  InkwellWeb plugin (mailFile); iPhone / web only download. Settings → Send to Kindle now says so on iPhone / web
+  (`canMailHere` in kindle.js) and the download shows a toast with what to do. A real iPhone sender would need a
+  native Swift SMTP plugin (pending idea, not started).
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 8eed093), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
