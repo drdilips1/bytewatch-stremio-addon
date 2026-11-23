@@ -9,8 +9,11 @@
   force-pushes it to the public repo's branch `ios-kit`; that repo's workflow (macos-15) makes
   Audibrisk.ipa → pre-release `ios-<version>` (never latest) + AltStore source
   https://github.com/drdilips1/audibrisk/releases/download/altstore/altstore.json. Kit tested on
-  Linux (npm install + cap add ios → 6 plugins). NEEDS: AUDIBRISK_PUBLIC_TOKEN with
-  Workflows: read & write too (pushing a workflow file). No Save on iPhone (shared downloads are
+  Linux (npm install + cap add ios → 6 plugins). Token has Contents + Workflows (user, 23 Nov).
+  FIRST IPA OK (23 Nov): kit run #2 → public Mac build → release ios-1.0.2
+  https://github.com/drdilips1/audibrisk/releases/download/ios-1.0.2/Audibrisk.ipa (1.5 MB) and the
+  AltStore source above (both checked 200). This session can't read the public repo's logs (not
+  attached) — ask the user to paste errors from github.com/drdilips1/audibrisk/actions. No Save on iPhone (shared downloads are
   Android-only); Settings says updates come through AltStore.
 - Code: `inkwell/brisk/` (screens.jsx, player.jsx, books.js, logic.js, scenes.jsx, brisk.css, app.jsx),
   config `inkwell/vite.brisk.config.js`, workflow `.github/workflows/brisk-apk.yml`.
