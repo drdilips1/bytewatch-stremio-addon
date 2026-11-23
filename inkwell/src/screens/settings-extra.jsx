@@ -810,13 +810,17 @@ export function FindOrderCard() {
     <>
       <List kind="audio" title="Audiobooks (voice: play a book)" note="Where your copy is looked for. Within TorBox / Real-Debrid, your default one first." />
       <List kind="ebook" title="Ebooks (for the transcript)" note="Where the audiobook's ebook is looked for." />
-      <label class="set-row">
+      <div class="set-row">
         <div>
-          <b>Attach the ebook by itself</b>
-          <small>When an audiobook plays, its ebook is found in this order, kept on the phone and used for the transcript's words. Only books already there — nothing new is added to TorBox / Real-Debrid.</small>
+          <b>The transcript's ebook</b>
+          <small>Ask me: in Text you pick the ebook; if you don't within {15} seconds (or close the list), it's chosen for you in this order. Automatic: chosen in the background as a book plays. Only books already in your sources — nothing new is added to TorBox / Real-Debrid.</small>
         </div>
-        <input type="checkbox" class="switch" checked={st.autoEbook !== false} onChange={(e) => settings.patch({ autoEbook: e.currentTarget.checked })} />
-      </label>
+        <select value={st.ebookPick || (st.autoEbook === false ? 'off' : 'ask')} onChange={(e) => settings.patch({ ebookPick: e.currentTarget.value })}>
+          <option value="ask">Ask me</option>
+          <option value="auto">Automatic</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
     </>
   );
 }

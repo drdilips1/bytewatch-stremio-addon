@@ -667,6 +667,19 @@ export function fixHeard(text, names) {
   });
 }
 
+/**
+ * You didn't pick the ebook (Settings → ebook: "Ask me"): it's found and attached for you, as the
+ * automatic setting does, and the transcript switches to the book's words.
+ */
+export async function autoPickEbook() {
+  const book = player.getState().book;
+  if (!book?.uid) return null;
+  const { autoFindEbook } = await import('./booktext.js');
+  const eb = await autoFindEbook(book, { force: true });
+  if (eb && player.getState().book?.uid === book.uid) bookTextFor(player.getState().book, true);
+  return eb;
+}
+
 /** Stop looking for this book's ebook (the lines stay as heard; Get the ebook to choose one). */
 export function stopLooking() {
   btRun++;

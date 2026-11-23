@@ -31,5 +31,11 @@ export function placeOf(b, local = false) {
   return k === 'tb' || k === 'rd' ? 'debrid' : k === 'loc' ? 'local' : k === 'abs' ? 'abs' : 'played';
 }
 
-/** Ebook auto-attach for the transcript (on unless switched off). */
-export const autoEbook = () => settings.get().autoEbook !== false;
+/**
+ * How the transcript's ebook is chosen: 'ask' (you pick it in Text; if you don't within a few
+ * seconds, or close the list without picking, it's chosen for you), 'auto' (chosen for you in
+ * the background, as before) or 'off'. Auto-attaching on its own picked editions people didn't want.
+ */
+export const ebookMode = () => settings.get().ebookPick || (settings.get().autoEbook === false ? 'off' : 'ask');
+/** Ebook found and attached in the background, without asking. */
+export const autoEbook = () => ebookMode() === 'auto';

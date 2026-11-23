@@ -11,7 +11,8 @@ import { useStore, bookmarks } from '../lib/store.js';
 import { onDownloadProgress } from '../lib/http.js';
 import { bookAt, bookAround, timeAtWord } from '../lib/transcript.js';
 import { fixCredit } from '../lib/booksync.js';
-import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard, stopLooking, transcriptCfg } from '../lib/transcript.js';
+import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard, stopLooking, transcriptCfg, autoPickEbook } from '../lib/transcript.js';
+import { ebookMode } from '../lib/findorder.js';
 import { cachedXray } from '../lib/xray.js';
 import { fmtTime } from '../lib/format.js';
 
@@ -42,8 +43,24 @@ function withNames(text, names, onTap) {
   return out;
 }
 
+// Books already asked about this session ("Ask me": once per book, then it's chosen for you).
+const askedFor = new Set();
+const ASK_SECONDS = 15;
+
 /** Whether the lines show the ebook's exact words, and a way to get the ebook from your sources. */
 function EbookStatus({ b }) {
+  const uid = player.getState().book?.uid || '';
+  // "Ask me": a few seconds to pick the ebook yourself; then (or when you close the list without
+  // picking) one is chosen for you.
+  const asking = b?.state === 'none' && ebookMode() === 'ask' && uid && !askedFor.has(uid);
+  const [left, setLeft] = useState(ASK_SECONDS);
+  const chose = useRef(false);
+  const autoChoose = () => {
+    if (!uid || askedFor.has(uid)) return;
+    askedFor.add(uid);
+    setLeft(0);
+    autoPickEbook().then((eb) => !eb && toast("No ebook of this book in your sources — tap Get the ebook to search")).catch(() => {});
+  };
   const [hits, setHits] = useState(null); // null: not searched; [] none found
   const [mine, setMine] = useState(null); // ebooks already on the phone
   const [busy, setBusy] = useState(''); // 'search' | link being downloaded
@@ -69,6 +86,8 @@ function EbookStatus({ b }) {
     if (my === run.current) setBusy('');
   };
   const pickMine = async (eb) => {
+    chose.current = true;
+    askedFor.add(uid);
     close();
     await takeOnPhone(eb);
   };
@@ -78,6 +97,8 @@ function EbookStatus({ b }) {
       const { pickBooks } = await import('../sources/local.js');
       const [eb] = await pickBooks({ books: true });
       if (!eb) return;
+      chose.current = true;
+      askedFor.add(uid);
       close();
       await takeOnPhone(eb);
       toast(`Using “${eb.title}”`);
@@ -102,6 +123,8 @@ function EbookStatus({ b }) {
     });
     try {
       await takeEbook(h, (text) => setProg(text));
+      chose.current = true;
+      askedFor.add(uid);
       close();
     } catch (e) {
       toast(e?.pending ? `${e.message} — tap it again in a minute` : e?.message || String(e));
@@ -178,6 +201,9 @@ function EbookStatus({ b }) {
   // Closing always works, even mid-search (that search is just forgotten).
   const close = () => {
     run.current++;
+    // Closed without picking one: chosen for you ("Ask me").
+    if (!chose.current && ebookMode() === 'ask' && b?.state !== 'on' && sheetOpen) setTimeout(autoChoose, 0);
+    chose.current = false;
     setSheetOpen(false);
     setBusy('');
     setHits(null);
@@ -222,7 +248,26 @@ function EbookStatus({ b }) {
       {srcList}
     </PickSheet>
   );
+  // The countdown (only while the list isn't open: you're choosing then).
+  useEffect(() => {
+    if (!asking || sheetOpen) return;
+    setLeft(ASK_SECONDS);
+    const t = setInterval(() => setLeft((n) => (n <= 1 ? (clearInterval(t), autoChoose(), 0) : n - 1)), 1000);
+    return () => clearInterval(t);
+  }, [asking, sheetOpen, uid]);
   if (!b) return null;
+  if (asking && !sheetOpen)
+    return (
+      <div class="tl-bar">
+        <span>📖 Pick this book's ebook — or one is chosen for you in {left} s</span>
+        <button class="pill small" onClick={() => search()}>
+          Choose
+        </button>
+        <button class="link-btn" onClick={autoChoose}>
+          Choose for me
+        </button>
+      </div>
+    );
   if (b.state === 'loading')
     return (
       <div class="tl-bar">
