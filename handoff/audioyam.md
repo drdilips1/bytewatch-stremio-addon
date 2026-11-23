@@ -134,7 +134,11 @@
   AudioYam → Downloads, excluded from iCloud backup), InkwellLocal scan skips Documents/Downloads, build-9
   downloads are moved over in the plugin's load(), `paths` also returns `missing` and downloads.js afterFiles()
   (tested, tests/iosdownloads.test.js) marks a book not downloaded from the first missing part. iPhone build 10
-  BUILT 23 Nov (compiled; ios-latest + source updated) — not tried on a phone yet.
+  BUILT 23 Nov (compiled; ios-latest + source updated) — user confirmed 23 Nov: downloads work on iPhone.
+- Still Android-only on iPhone (list given 23 Nov): Send to Audiobookshelf, skip silence / boost / sleep detect, in-file
+  M4B chapters, CarPlay (needs paid account + Apple entitlement), natural voices + read aloud with screen off,
+  voice asking, Siri, open-with EPUB, share-in to Find books, native save/share of files, in-app update, backups
+  outside the app, tracker browser, widgets. Send to Kindle built (ios-7), not confirmed with a real Kindle.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
