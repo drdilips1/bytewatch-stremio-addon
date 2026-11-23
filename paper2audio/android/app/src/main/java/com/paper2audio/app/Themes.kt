@@ -35,8 +35,8 @@ object Themes {
         Theme("midnight", "🌙  Midnight (dark)", R.style.Theme_P2A_Midnight),
         Theme("black", "⚫  Black (dark, saves battery on OLED)", R.style.Theme_P2A_Black),
         Theme("ivory", "🤍  Ivory (warm ivory and teal)", R.style.Theme_P2A_Ivory),
-        Theme("paper", "📄  Paper (paper white and ink)", R.style.Theme_P2A_Paper),
-        Theme("ink", "🖋  Ink (midnight ink, dark)", R.style.Theme_P2A_Ink),
+        Theme("paper", "📄  Pearl (pearl white and sapphire)", R.style.Theme_P2A_Paper),
+        Theme("ink", "🖋  Midnight (sapphire and platinum, dark)", R.style.Theme_P2A_Ink),
     )
 
     private fun prefs(context: Context) = context.getSharedPreferences("p2a", Context.MODE_PRIVATE)

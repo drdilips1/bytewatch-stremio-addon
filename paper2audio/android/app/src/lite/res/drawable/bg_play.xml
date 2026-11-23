@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Narrato's play button: the button colour with a soft sheen (light at the top, a touch darker below). -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#33FFFFFF">
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="oval">
+                    <solid android:color="?attr/p2aPlay" />
+                </shape>
+            </item>
+            <item>
+                <shape android:shape="oval">
+                    <gradient
+                        android:angle="270"
+                        android:startColor="#66FFFFFF"
+                        android:centerColor="#00FFFFFF"
+                        android:endColor="#2E000000" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</ripple>

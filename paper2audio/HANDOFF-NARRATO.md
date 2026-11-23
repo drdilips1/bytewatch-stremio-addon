@@ -10,14 +10,14 @@ Google Play** (production, 1.9.26, version code 36).
 |---|---|
 | `claude/narrato-stable` | **The Play Store line.** 1.9.18 (the first production version) plus only tested fixes. Every Play build comes from here. |
 | `backup/narrato-stable` | Backup of the stable line (pushed with `[skip ci]` so it never builds). |
-| `claude/paper2audio-unlimited-u69i8w` | The main development line (Paper to Audio and Narrato). Its Narrato (lite) is older-numbered (1.9.22, code 32) and has extra features not on Play (light voices first, addons, R8, PowerWise charging job…). **Don't build Narrato from here** unless the user asks; if ever, bump lite to version code **39+**. |
+| `claude/paper2audio-unlimited-u69i8w` | The main development line (Paper to Audio and Narrato). Its Narrato (lite) is older-numbered (1.9.22, code 32) and has extra features not on Play (light voices first, addons, R8, PowerWise charging job…). **Don't build Narrato from here** unless the user asks; if ever, bump lite to version code **40+**. |
 
 The user chose: **no experiments on Play – add only to the stable line.**
 
 ## Builds (only when the user says so)
 
 - **"Build now Narrato"**: on `claude/narrato-stable`, bump the `lite` flavor in
-  `paper2audio/android/app/build.gradle.kts` (next: **versionCode 39, versionName 1.9.29**), commit with
+  `paper2audio/android/app/build.gradle.kts` (next: **versionCode 40, versionName 1.9.30**), commit with
   `[narrato-only]` in the message, push the branch. CI "Paper2Audio Android APK" builds and publishes to the
   release **narrato-lite**: `Narrato.aab` (for Play) and `Narrato.apk` (phone test – it can't install over the
   Play copy, different signature; test through Play internal testing instead).
@@ -78,6 +78,16 @@ privacy policy (`docs/privacy.html` on main, gh-pages `privacy.html`) to drop th
 - Voice-making speed: Pocket TTS already caches the voice's reference embedding (sherpa-onnx 1.13.8,
   capacity 50), so no gain there. The remaining costs (the "Well." lead-in per sentence, second takes,
   numSteps) are the voice recipe: voice lock, listening tests only.
+
+## Look (1.9.29)
+
+Premium redesign, user-approved direction (mockup: claude.ai artifact "Narrato premium redesign"): the user
+disliked gold; chose sapphire blue + platinum silver. Paper theme is now **Pearl** (#F4F6FA, sapphire
+#3F5FD6), Ink is now **Midnight** (#0E1116, sapphire #7C9BFF, platinum buttons #D5DCE6 with dark icons); both
+backgrounds have a faint sapphire glow. New theme attr `p2aPlay` (button fill; = accent in every other theme).
+Lite overrides `bg_button`/`bg_play` with a sheen. Ivory unchanged. Fonts: DM Serif Display titles (as
+before); Inter not bundled yet. Planned: Play subscription with a 7-day free trial (needs the payments
+verification first), iPhone app later as its own project.
 
 ## Other pending items
 

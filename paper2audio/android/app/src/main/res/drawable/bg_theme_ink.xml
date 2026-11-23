@@ -1,5 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ink theme background (Narrato): flat midnight ink. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#161C27" />
-</shape>
+<!-- Midnight (the Ink theme, Narrato): deep ink with a faint sapphire glow at the top. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#0E1116" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:centerX="0.15"
+                android:centerY="0.0"
+                android:gradientRadius="70%p"
+                android:startColor="#246E8FFF"
+                android:endColor="#006E8FFF" />
+        </shape>
+    </item>
+</layer-list>

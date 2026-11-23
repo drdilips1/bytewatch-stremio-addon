@@ -5,6 +5,7 @@
         <item name="p2aSurface">#FFFFFF</item>
         <item name="p2aSurface2">#E8EEFA</item>
         <item name="p2aAccent">#2F5BEA</item>
+        <item name="p2aPlay">#2F5BEA</item>
         <item name="p2aOnAccent">#FFFFFF</item>
         <item name="p2aText">#111827</item>
         <item name="p2aMuted">#5B6475</item>
@@ -28,6 +29,7 @@
         <item name="p2aSurface">#FFFFFF</item>
         <item name="p2aSurface2">#E1EEE3</item>
         <item name="p2aAccent">#2E7D4F</item>
+        <item name="p2aPlay">#2E7D4F</item>
         <item name="p2aOnAccent">#FFFFFF</item>
         <item name="p2aText">#13201A</item>
         <item name="p2aMuted">#56665C</item>
@@ -51,6 +53,7 @@
         <item name="p2aSurface">#FFFFFF</item>
         <item name="p2aSurface2">#FCE6DA</item>
         <item name="p2aAccent">#D9480F</item>
+        <item name="p2aPlay">#D9480F</item>
         <item name="p2aOnAccent">#FFFFFF</item>
         <item name="p2aText">#2A1A14</item>
         <item name="p2aMuted">#7A5E53</item>
@@ -74,6 +77,7 @@
         <item name="p2aSurface">#FFFFFF</item>
         <item name="p2aSurface2">#ECE6FB</item>
         <item name="p2aAccent">#6D4AE0</item>
+        <item name="p2aPlay">#6D4AE0</item>
         <item name="p2aOnAccent">#FFFFFF</item>
         <item name="p2aText">#1D1733</item>
         <item name="p2aMuted">#655E7A</item>
@@ -97,6 +101,7 @@
         <item name="p2aSurface">#FFFFFF</item>
         <item name="p2aSurface2">#F9E0EA</item>
         <item name="p2aAccent">#C2255C</item>
+        <item name="p2aPlay">#C2255C</item>
         <item name="p2aOnAccent">#FFFFFF</item>
         <item name="p2aText">#2B1520</item>
         <item name="p2aMuted">#7A5968</item>
@@ -120,6 +125,7 @@
         <item name="p2aSurface">#FBF6EA</item>
         <item name="p2aSurface2">#E8DCC0</item>
         <item name="p2aAccent">#8B5E34</item>
+        <item name="p2aPlay">#8B5E34</item>
         <item name="p2aOnAccent">#FFFFFF</item>
         <item name="p2aText">#3B2F22</item>
         <item name="p2aMuted">#7A6A55</item>
@@ -143,6 +149,7 @@
         <item name="p2aSurface">#1A1D24</item>
         <item name="p2aSurface2">#262A35</item>
         <item name="p2aAccent">#8AA4FF</item>
+        <item name="p2aPlay">#8AA4FF</item>
         <item name="p2aOnAccent">#0F1115</item>
         <item name="p2aText">#E8EAF0</item>
         <item name="p2aMuted">#9AA1B2</item>
@@ -166,6 +173,7 @@
         <item name="p2aSurface">#121212</item>
         <item name="p2aSurface2">#1F1F1F</item>
         <item name="p2aAccent">#2DD4BF</item>
+        <item name="p2aPlay">#2DD4BF</item>
         <item name="p2aOnAccent">#00201C</item>
         <item name="p2aText">#EDEDED</item>
         <item name="p2aMuted">#9A9A9A</item>
@@ -189,6 +197,7 @@
         <item name="p2aSurface">#163A33</item>
         <item name="p2aSurface2">#1F4A41</item>
         <item name="p2aAccent">#D4B26A</item>
+        <item name="p2aPlay">#D4B26A</item>
         <item name="p2aOnAccent">#1B1608</item>
         <item name="p2aText">#F3EBDD</item>
         <item name="p2aMuted">#A9B8B0</item>
@@ -212,6 +221,7 @@
         <item name="p2aSurface">#FFFAF2</item>
         <item name="p2aSurface2">#F2E2CB</item>
         <item name="p2aAccent">#A9531A</item>
+        <item name="p2aPlay">#A9531A</item>
         <item name="p2aOnAccent">#FFFFFF</item>
         <item name="p2aText">#2B2118</item>
         <item name="p2aMuted">#7A6A58</item>
@@ -235,6 +245,7 @@
         <item name="p2aSurface">#FFFFFF</item>
         <item name="p2aSurface2">#E2E9F2</item>
         <item name="p2aAccent">#2F5E8C</item>
+        <item name="p2aPlay">#2F5E8C</item>
         <item name="p2aOnAccent">#FFFFFF</item>
         <item name="p2aText">#18222E</item>
         <item name="p2aMuted">#5D6878</item>

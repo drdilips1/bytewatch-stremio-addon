@@ -8,4 +8,6 @@
     <attr name="p2aText" format="color" />
     <attr name="p2aMuted" format="color" />
     <attr name="p2aBackground" format="reference" />
+    <!-- Fill of the main buttons (Narrato: with a sheen). Usually the accent; platinum in Midnight. -->
+    <attr name="p2aPlay" format="color" />
 </resources>
