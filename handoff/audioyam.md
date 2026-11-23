@@ -139,6 +139,12 @@
   M4B chapters, CarPlay (needs paid account + Apple entitlement), natural voices + read aloud with screen off,
   voice asking, Siri, open-with EPUB, share-in to Find books, native save/share of files, in-app update, backups
   outside the app, tracker browser, widgets. Send to Kindle built (ios-7), not confirmed with a real Kindle.
+- 23 Nov: "can manage downloads but can't import local files" (iPhone). Fixed on `work`, not built: folder-mode
+  copy failures were swallowed (pickFolder now returns added / failed, addFolder shows it); downloads folder renamed
+  Documents/"AudioYam downloads" (scan skips only that) so a user's "Downloads" folder (Safari's) isn't skipped —
+  load() moves build 9 (App Support/Downloads) and build 10 (Documents/Downloads/Audiohub) downloads over; iPhone
+  buttons now "Add audiobooks (files or folders)" / "Add ebooks (EPUB / PDF)" (ebook picker greys out audio).
+  Exact cause not confirmed — asked the user what the person saw.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
