@@ -54,6 +54,8 @@ class LiteMainActivity : Activity() {
     /** Above the library: the greeting, the book being listened to and the others to continue. */
     private lateinit var header: LinearLayout
     private var headerShown: String? = null
+    /** The Library tab: only the books (the greeting and the book being listened to are on Home). */
+    private var libraryTab = false
     private var miniCoverFor: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -610,11 +612,16 @@ class LiteMainActivity : Activity() {
         val listening = current != null && Speaker.doc?.key == current.id
         val pct = current?.let { Library.progress(this, it) }
         val chapter = if (listening) Speaker.doc?.chapterAt(Speaker.index)?.title else null
-        val shown = listOf(userName(), greeting(), current?.id, listening, Speaker.playing, pct, chapter, items.joinToString(",") { it.id }).joinToString("|")
+        val shown = listOf(libraryTab, userName(), greeting(), current?.id, listening, Speaker.playing, pct, chapter, items.joinToString(",") { it.id }).joinToString("|")
         if (shown == headerShown) return
         headerShown = shown
         header.removeAllViews()
         if (items.isEmpty()) return
+        if (libraryTab) {
+            header.addView(text("Your library", 25f, serif = true).apply { setPadding(dp(8), dp(8), dp(8), 0) })
+            header.addView(text(if (items.size == 1) "1 book" else "${items.size} books", 14f, muted = true).apply { setPadding(dp(8), dp(2), dp(8), dp(8)) })
+            return
+        }
 
         val name = userName()
         header.addView(text(if (name != null) "${greeting()}, $name" else greeting(), 25f, serif = true).apply {
@@ -746,8 +753,27 @@ class LiteMainActivity : Activity() {
 
     // ---- The bar at the bottom ----
 
+    /** Back from the Library tab goes to Home first. */
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (libraryTab) showTab(false) else @Suppress("DEPRECATION") super.onBackPressed()
+    }
+
+    /** Home (greeting, the book being listened to, the library) or Library (only the books). */
+    private fun showTab(library: Boolean) {
+        if (library == libraryTab) {
+            list.setSelection(0)
+            return
+        }
+        libraryTab = library
+        renderHeader()
+        list.setSelection(0)
+        buildBottomNav()
+    }
+
     private fun buildBottomNav() {
         val bar = findViewById<LinearLayout>(R.id.bottomNav)
+        bar.removeAllViews()
         fun item(icon: Int, label: String, selected: Boolean, action: () -> Unit) {
             val tint = color(if (selected) R.attr.p2aAccent else R.attr.p2aMuted)
             val cell = LinearLayout(this).apply {
@@ -779,8 +805,8 @@ class LiteMainActivity : Activity() {
             })
             bar.addView(cell, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
-        item(R.drawable.ic_home, "Home", true) { list.smoothScrollToPosition(0) }
-        item(R.drawable.ic_list, "Library", false) { list.setSelection(list.headerViewsCount) }
+        item(R.drawable.ic_home, "Home", !libraryTab) { showTab(false) }
+        item(R.drawable.ic_list, "Library", libraryTab) { showTab(true) }
         item(R.drawable.ic_voice, "Voices", false) { LiteUi.showVoices(this) }
         item(R.drawable.ic_settings, "Settings", false) { showMenu() }
     }
