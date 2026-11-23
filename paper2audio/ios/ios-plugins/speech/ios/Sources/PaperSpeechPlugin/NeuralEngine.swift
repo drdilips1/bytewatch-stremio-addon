@@ -139,14 +139,30 @@ final class NeuralEngine {
             samples = a.samples
             rate = Int(a.sampleRate)
         } else {
-            (samples, rate) = try copied(t, voice: voice, name: name, text: text)
+            // A line that repeats a phrase ("Oh no, oh no, oh no!") is read part by part, a comma's pause between.
+            let parts = TextPrep.parts(text)
+            if parts.count == 1 {
+                (samples, rate) = try copied(t, voice: voice, name: name, text: text)
+                recordPace(voice, chars: text.count, seconds: Double(samples.count) / Double(max(1, rate)))
+            } else {
+                samples = []; rate = AudioChecks.referenceRate
+                for (i, p) in parts.enumerated() {
+                    let (s, r) = try copied(t, voice: voice, name: name, text: p)
+                    rate = r
+                    if i > 0 { samples += [Float](repeating: 0, count: r * 18 / 100) }
+                    samples += s
+                }
+            }
+            // Hiss removed from the whole line, then the 5-8 kHz crispness the engine loses is given back.
+            samples = AudioChecks.dehiss(AudioChecks.highShelf(samples, rate: rate), rate: rate,
+                                         lowPassOn: VoiceCatalog.reader(name)?.denoised ?? false)
         }
         if samples.isEmpty { throw Failure.empty }
         return Audio(samples: samples, rate: rate)
     }
 
     /// A real reader: the copying engine with Android's settings and checks (the "Well." lead-in cut off,
-    /// a second take for doubtful lines, run-ons trimmed, hiss removed).
+    /// a second take for doubtful lines, run-ons trimmed).
     private func copied(_ t: SherpaOnnxOfflineTtsWrapper, voice: String, name: String, text: String) throws -> ([Float], Int) {
         guard let reader = VoiceCatalog.reader(name), let ref = AudioChecks.reference(name) else { throw Failure.unknown(voice) }
         let refRate = AudioChecks.referenceRate
@@ -154,6 +170,7 @@ final class NeuralEngine {
         let spoken = TextPrep.prepareForCopied(TextPrep.endSentence(text))
         let trimmed = spoken.trimmingCharacters(in: .whitespaces)
         let pace = paces[voice]
+        let temperature = text.contains(where: { $0 == "!" || $0 == "?" }) ? "0.7" : "0.6"
         func maxFrames(_ s: String) -> Int { min(400, max(25, Int(Double(s.count) * 1.15 + 15))) }
         func gen(_ say: String, seed: Int, extraFrames: Int = 0) -> (samples: [Float], rate: Int) {
             let config = SherpaOnnxGenerationConfigSwift(
@@ -161,7 +178,8 @@ final class NeuralEngine {
                 extra: [
                     "seed": String(seed),
                     "max_reference_audio_len": String(hears),
-                    "temperature": "0.6",
+                    // Exclamations and questions: the engine's own 0.7, livelier (as on Android).
+                    "temperature": temperature,
                     "chunk_size": "15",
                     "max_frames": String(maxFrames(trimmed) + extraFrames),
                     "frames_after_eos": "2",
@@ -171,7 +189,9 @@ final class NeuralEngine {
         }
         func take(_ seed: Int) -> (samples: [Float], rate: Int) {
             if !reader.leadIn { return gen(spoken, seed: seed) }
-            let led = gen(String(repeating: " ", count: 8) + "Well. " + trimmed, seed: seed, extraFrames: 12)
+            // A line starting with "Well" came out "Well, well…": warmed up with "Right." instead.
+            let warmUp = TextPrep.startsWithWell(trimmed) ? "Right. " : "Well. "
+            let led = gen(String(repeating: " ", count: 8) + warmUp + trimmed, seed: seed, extraFrames: 12)
             if let cut = AudioChecks.afterLeadIn(led.samples, rate: led.rate), cut < led.samples.count {
                 return (Array(led.samples[cut...]), led.rate)
             }
@@ -184,9 +204,7 @@ final class NeuralEngine {
             let second = take(seed + 7919)
             if AudioChecks.distance(secs(second), trimmed, pace) < AudioChecks.distance(secs(best), trimmed, pace) { best = second }
         }
-        let clean = AudioChecks.dehiss(AudioChecks.trimRunOn(best.samples, rate: best.rate, text: text, pace: pace),
-                                       rate: best.rate, lowPassOn: reader.denoised)
-        recordPace(voice, chars: text.count, seconds: Double(clean.count) / Double(max(1, best.rate)))
-        return (clean, best.rate)
+        // The run-on (if any) is cut here, take by take; hiss and crispness are done for the whole line.
+        return (AudioChecks.trimRunOn(best.samples, rate: best.rate, text: text, pace: pace), best.rate)
     }
 }

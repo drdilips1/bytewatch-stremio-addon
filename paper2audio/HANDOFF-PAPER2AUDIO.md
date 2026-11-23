@@ -18,7 +18,22 @@ Branch: **`claude/paper2audio-unlimited-u69i8w`** (develop and push here; backup
 Saving work without building: put `[skip ci]` in the head commit.
 
 **Waiting for the next "Build now" (Android):** voice speeds back to natural (the "equal pace" change reverted)
-and the theme name "Paper (paper white and ink)".
+and the theme name "Paper (paper white and ink)", plus the **copied-voice quality update** below (a voice
+update: the user listens before it ships; Android and iPhone both have it).
+
+**Copied-voice quality update (Nov 2026, measured with `paper2audio/voice-bench`, 20 readers × 18 lines):**
+word errors 6.1% → about 4%, repeated/extra words 60 → about 20, problem lines 74 → about 50.
+- Lines that repeat a phrase ("Oh no, oh no, oh no!", "it was the best of times, it was the worst…", "thirty,
+  thirty") are read part by part at their commas (`CloneCheck.parts`). Biggest gain.
+- A line starting with "Well" is warmed up with "Right." instead of the throwaway "Well." ("Well, well, I
+  suppose" for 17 of 20 readers before; 1 in 20 now).
+- The voice sample is cut at the speaker's last pause, never mid-word (`CloneCheck.cutAtPause`): 16 of the
+  20 readers' recordings were cut mid-word at 29.9 s. Imported clips start at a breath (`bestWindow`).
+- Crisper: +3.5 dB high shelf from 4.5 kHz (`Denoise.highShelf`); the copies were ~6 dB short of the real
+  voices in 5-8 kHz.
+- Exclamations and questions read at temperature 0.7 (narration stays 0.6): more pitch movement, as accurate.
+- Tried and dropped: an audio-only repeat detector (not reliable), reading "Stop!" apart from "he cried"
+  (more errors). Numbers already read correctly (no change). Cache key `c7|` so books remake that audio.
 
 ## Standing rules (from the user)
 

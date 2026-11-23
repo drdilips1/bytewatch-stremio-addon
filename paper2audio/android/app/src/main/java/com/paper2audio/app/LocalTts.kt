@@ -183,75 +183,102 @@ object LocalTts {
                 )
             }
             else -> {
-                val ref = MyVoices.reference(name) ?: error("That voice was deleted")
-                // The sample must end on exactly 80 ms of silence, as the engine was trained: ending on speech
-                // makes it continue that word, and a long silence (the 0.4 s added before) swallows the
-                // first sound of every sentence ("ello" for "Hello").
-                val room = MyVoices.LONG_REFERENCE_SECONDS * ref.sampleRate - ref.sampleRate / 10
-                val lead = CloneCheck.endOnPause(ref.samples.copyOf(minOf(ref.samples.size, room)), ref.sampleRate)
-                // The engine hears the whole stored sample (about 10 s, or 30 s for a "longer sample" voice).
-                val hears = (lead.size + ref.sampleRate - 1) / ref.sampleRate
-                val spoken = CloneCheck.prepareText(TextCleaner.endSentence(text))
-                val pace = MyVoices.pace(name)
-                fun gen(say: String, seed: Int, extraFrames: Int = 0) = tts.generateWithConfig(
-                    say,
-                    GenerationConfig(
-                        referenceAudio = lead,
-                        referenceSampleRate = ref.sampleRate,
-                        numSteps = 5,
-                        silenceScale = 1f,
-                        extra = mapOf(
-                            // One fixed seed per voice: the same person on every line.
-                            "seed" to seed.toString(),
-                            // The model is made for about 10 seconds of reference; a "longer sample" voice
-                            // keeps 30 for a closer likeness.
-                            "max_reference_audio_len" to "$hears",
-                            // A little below the engine's usual 0.7: steadier from sentence to sentence; lower
-                            // than this made it skip words.
-                            "temperature" to "0.6",
-                            "chunk_size" to "15",
-                            // Stops a sentence whose end the model misses from running on as babble.
-                            "max_frames" to (maxFrames(spoken.trim()) + extraFrames).toString(),
-                            "frames_after_eos" to "2",
-                        ),
-                    ),
-                )
-                // The engine fumbles the very start of what it says ("ello" for "Hello"). So it first says a
-                // throwaway "Well." and that is cut off at the pause after it: the sentence's own first word
-                // comes out whole. If no clear pause is found, the sentence is made the plain way.
-                val leadIn = MyVoices.leadInOf(name)
-                fun take(seed: Int): GeneratedAudio {
-                    if (!leadIn) return gen(spoken, seed)
-                    val led = gen(" ".repeat(8) + "Well. " + spoken.trim(), seed, extraFrames = 12)
-                    val cut = CloneCheck.afterLeadIn(led.samples, led.sampleRate)
-                    return if (cut != null) GeneratedAudio(led.samples.copyOfRange(cut, led.samples.size), led.sampleRate)
-                    else gen(spoken, seed)
-                }
-                val seed = seedOverride ?: seedFor(voiceId)
-                val first = take(seed)
-                // Far too long or too short for its words means the model lost its way (mumbling,
-                // skipping, or saying the sentence twice): make it once more with another take, and keep
-                // the more plausible one. Judged against this voice's own usual pace once it is known.
-                // Lines the model often fumbles (very short ones, stammers like "thirty… thirty…", lines that
-                // start with "Well" like the throwaway lead-in) always get a second take to choose from.
-                if (!CloneCheck.risky(spoken) && CloneCheck.plausible(first.samples.size.toDouble() / first.sampleRate, spoken.trim(), pace)) first
-                else take(seed + 7919).let { second ->
-                    val d1 = CloneCheck.distance(first.samples.size.toDouble() / first.sampleRate, spoken.trim(), pace)
-                    val d2 = CloneCheck.distance(second.samples.size.toDouble() / second.sampleRate, spoken.trim(), pace)
-                    if (d2 < d1) second else first
+                // A line that says a phrase again ("Oh no, oh no, oh no!", "it was the best of times, it was
+                // the worst of times…") is where the copy loses its place: it repeats a part once too often or
+                // skips one. Such lines are read part by part (cut at their commas), with a comma's pause between.
+                val parts = CloneCheck.parts(text)
+                if (parts.size == 1) copied(tts, voiceId, name, text, seedOverride)
+                else {
+                    val takes = parts.map { copied(tts, voiceId, name, it, seedOverride) }
+                    val rate = takes.first().sampleRate
+                    val gap = FloatArray(rate * 18 / 100)
+                    GeneratedAudio(takes.map { it.samples }.reduce { a, b -> a + gap + b }, rate)
                 }
             }
         }
         if (audio.samples.isEmpty()) error("The voice produced no audio")
         val samples = if (voiceId.startsWith(Speaker.CLONE)) {
-            // Copied voices: cut any run-on, then clean the hiss the copy picked up from its recording.
-            CloneCheck.dehiss(RunOn.trim(audio.samples, audio.sampleRate, text, MyVoices.pace(voiceId.substringAfter(':'))), audio.sampleRate,
+            // Copied voices (run-ons already cut, take by take): clean the hiss the copy picked up from its recording.
+            // Then the crispness the engine loses in 5-8 kHz is given back (Denoise.highShelf).
+            CloneCheck.dehiss(Denoise.highShelf(audio.samples, audio.sampleRate), audio.sampleRate,
                 // A voice copied from a full-quality recording keeps its brightness.
                 lowPass = MyVoices.denoised(voiceId.substringAfter(':'))).also {
-                MyVoices.recordPace(voiceId.substringAfter(':'), text.length, it.size.toDouble() / audio.sampleRate)
+                // (A line read in parts has pauses added between them: not this voice's pace.)
+                if (CloneCheck.parts(text).size == 1) MyVoices.recordPace(voiceId.substringAfter(':'), text.length, it.size.toDouble() / audio.sampleRate)
             }
         } else audio.samples
         return Pcm(toPcm16(samples), audio.sampleRate)
+    }
+
+    /** One take of [text] by copied voice [name], its run-on (if any) already cut off. */
+    private fun copied(tts: OfflineTts, voiceId: String, name: String, text: String, seedOverride: Int?): GeneratedAudio {
+        val ref = MyVoices.reference(name) ?: error("That voice was deleted")
+        // The sample must end on exactly 80 ms of silence, as the engine was trained: ending on speech
+        // makes it continue that word, and a long silence (the 0.4 s added before) swallows the
+        // first sound of every sentence ("ello" for "Hello").
+        val room = MyVoices.LONG_REFERENCE_SECONDS * ref.sampleRate - ref.sampleRate / 10
+        // Cut at the speaker's last pause before that limit, never mid-word: 16 of the 20 readers'
+        // 30-second recordings were cut off in the middle of a word, and the copy then carried on
+        // that word into the start of sentences.
+        val lead = CloneCheck.endOnPause(CloneCheck.cutAtPause(ref.samples, ref.sampleRate, room), ref.sampleRate)
+        // The engine hears the whole stored sample (about 10 s, or 30 s for a "longer sample" voice).
+        val hears = (lead.size + ref.sampleRate - 1) / ref.sampleRate
+        val spoken = CloneCheck.prepareText(TextCleaner.endSentence(text))
+        val pace = MyVoices.pace(name)
+        val temperature = if (text.any { it == '!' || it == '?' }) "0.7" else "0.6"
+        fun gen(say: String, seed: Int, extraFrames: Int = 0) = tts.generateWithConfig(
+            say,
+            GenerationConfig(
+                referenceAudio = lead,
+                referenceSampleRate = ref.sampleRate,
+                numSteps = 5,
+                silenceScale = 1f,
+                extra = mapOf(
+                    // One fixed seed per voice: the same person on every line.
+                    "seed" to seed.toString(),
+                    // The model is made for about 10 seconds of reference; a "longer sample" voice
+                    // keeps 30 for a closer likeness.
+                    "max_reference_audio_len" to "$hears",
+                    // A little below the engine's usual 0.7: steadier from sentence to sentence; lower
+                    // than this made it skip words. Exclamations and questions get the engine's own 0.7:
+                    // livelier (more rise and fall, more often heard as an exclamation) and as accurate.
+                    "temperature" to temperature,
+                    "chunk_size" to "15",
+                    // Stops a sentence whose end the model misses from running on as babble.
+                    "max_frames" to (maxFrames(spoken.trim()) + extraFrames).toString(),
+                    "frames_after_eos" to "2",
+                ),
+            ),
+        )
+        // The engine fumbles the very start of what it says ("ello" for "Hello"). So it first says a
+        // throwaway "Well." and that is cut off at the pause after it: the sentence's own first word
+        // comes out whole. If no clear pause is found, the sentence is made the plain way.
+        val leadIn = MyVoices.leadInOf(name)
+        fun take(seed: Int): GeneratedAudio {
+            if (!leadIn) return gen(spoken, seed)
+            // A line that itself starts with "Well" came out "Well, well, I suppose…" for 17 of the 20 readers:
+            // it is warmed up with "Right." instead (1 in 20).
+            val warmUp = if (CloneCheck.startsWithWell(spoken)) "Right. " else "Well. "
+            val led = gen(" ".repeat(8) + warmUp + spoken.trim(), seed, extraFrames = 12)
+            val cut = CloneCheck.afterLeadIn(led.samples, led.sampleRate)
+            return if (cut != null) GeneratedAudio(led.samples.copyOfRange(cut, led.samples.size), led.sampleRate)
+            else gen(spoken, seed)
+        }
+        val seed = seedOverride ?: seedFor(voiceId)
+        val first = take(seed)
+        // Far too long or too short for its words means the model lost its way (mumbling,
+        // skipping, or saying the sentence twice): make it once more with another take, and keep
+        // the more plausible one. Judged against this voice's own usual pace once it is known.
+        // Lines the model often fumbles (very short ones, stammers like "thirty… thirty…", lines that
+        // start with "Well" like the throwaway lead-in) always get a second take to choose from.
+        val best = if (!CloneCheck.risky(spoken) && CloneCheck.plausible(first.samples.size.toDouble() / first.sampleRate, spoken.trim(), pace)) first
+        else take(seed + 7919).let { second ->
+            val d1 = CloneCheck.distance(first.samples.size.toDouble() / first.sampleRate, spoken.trim(), pace)
+            val d2 = CloneCheck.distance(second.samples.size.toDouble() / second.sampleRate, spoken.trim(), pace)
+            if (d2 < d1) second else first
+        }
+        // Cut any run-on (babble after the sentence's end).
+        return GeneratedAudio(RunOn.trim(best.samples, best.sampleRate, text, pace), best.sampleRate)
     }
 
     // Room for a slow, unhurried speaker (about 11 characters a second) plus a breath.
@@ -403,6 +430,64 @@ object RunOn {
 
 /** Checks and clean-up for copied voices. */
 object CloneCheck {
+    private val WORD = Regex("""[\p{L}\p{N}']+""")
+
+    /**
+     * Whether [text] says a word twice in a row ("thirty, thirty") or opens two of its clauses with the same
+     * two words ("it was the best of times, it was the worst…", "oh no, oh no"). Ordinary repeats inside a
+     * long sentence ("of the… of the") don't count.
+     */
+    internal fun repeatsPhrase(text: String): Boolean {
+        val w = WORD.findAll(text.lowercase()).map { it.value }.toList()
+        if ((0 until w.size - 1).any { w[it] == w[it + 1] }) return true
+        val starts = text.lowercase().split(',').map { c -> WORD.findAll(c).map { it.value }.take(2).toList() }.filter { it.size == 2 }
+        return starts.size != starts.toSet().size
+    }
+
+    /**
+     * The parts a line that repeats a phrase is read in: cut after its commas, a part of one word joined to
+     * the next. Any other line is one part.
+     */
+    fun parts(text: String): List<String> {
+        if (!repeatsPhrase(text)) return listOf(text)
+        val out = ArrayList<String>()
+        for (p in text.split(Regex("""(?<=,)\s+""")).map { it.trim() }.filter { it.isNotEmpty() }) {
+            if (out.isNotEmpty() && WORD.findAll(out.last()).count() < 2) out[out.lastIndex] = out.last() + " " + p else out += p
+        }
+        return if (out.size > 1) out else listOf(text)
+    }
+
+    /**
+     * The voice sample up to [limit] samples, ending at its last pause (120 ms or more, 30 dB under the
+     * speech) within the final 8 seconds, so the engine never hears a word cut in half. A clip that fits
+     * and already trails off comes back as it is; with no pause found, the plain cut.
+     */
+    fun cutAtPause(x: FloatArray, rate: Int, limit: Int): FloatArray {
+        val frame = maxOf(1, rate / 50) // 20 ms
+        val n = minOf(x.size, limit) / frame
+        if (n < 10) return x.copyOf(minOf(x.size, limit))
+        val e = FloatArray(n) { f ->
+            var s = 0.0
+            for (i in f * frame until (f + 1) * frame) s += x[i] * x[i]
+            kotlin.math.sqrt(s / frame).toFloat()
+        }
+        val loud = e.sorted()[(n * 0.9).toInt().coerceAtMost(n - 1)]
+        val quiet = loud * 0.0316f // -30 dB
+        if (x.size <= limit && (maxOf(0, n - 6) until n).all { e[it] < quiet }) return x
+        val lo = maxOf(0, n - 8 * 50)
+        var f = n - 1
+        while (f >= lo) {
+            if (e[f] < quiet) {
+                var s = f
+                while (s > lo && e[s - 1] < quiet) s--
+                // At least 4 seconds of voice must stay.
+                if (f - s + 1 >= 6 && s * frame >= 4 * rate) return x.copyOf((s + 3) * frame)
+                f = s - 1
+            } else f--
+        }
+        return x.copyOf(minOf(x.size, limit))
+    }
+
     /**
      * Ends the voice sample on exactly 80 ms of silence (the engine makers' end_on_pause): trailing
      * quiet (20 ms frames over 35 dB below the loudest) is cut, the last 20 ms faded out, 80 ms of
@@ -486,6 +571,9 @@ object CloneCheck {
 
     private val STAMMER = Regex("""(?i)\b(\p{L}+)\b[\s,.\u2026-]+\1\b""")
     private val STARTS_WELL = Regex("""(?i)^\W*well\b""")
+
+    /** Whether [text] starts with "Well" (like the throwaway lead-in). */
+    fun startsWithWell(text: String) = STARTS_WELL.containsMatchIn(text.trim())
 
     /**
      * Lines a copied voice often gets wrong on the phone, skipping, doubling or garbling them: four words

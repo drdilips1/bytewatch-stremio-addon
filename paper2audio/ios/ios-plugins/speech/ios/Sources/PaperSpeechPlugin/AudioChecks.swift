@@ -108,6 +108,55 @@ enum AudioChecks {
         return Array(samples.prefix(at * frame))
     }
 
+    /// The voice sample up to [limit] samples, ending at its last pause (120 ms or more, 30 dB under the speech)
+    /// in the final 8 s, never mid-word (Android's CloneCheck.cutAtPause).
+    static func cutAtPause(_ x: [Float], rate: Int, limit: Int) -> [Float] {
+        let frame = max(1, rate / 50)
+        let n = min(x.count, limit) / frame
+        if n < 10 { return Array(x.prefix(limit)) }
+        let e = rms(Array(x.prefix(n * frame)), frame: frame)
+        let quiet = percentile(e, 0.9) * 0.0316
+        if x.count <= limit && (max(0, n - 6)..<n).allSatisfy({ e[$0] < quiet }) { return x }
+        let lo = max(0, n - 8 * 50)
+        var f = n - 1
+        while f >= lo {
+            if e[f] < quiet {
+                var s = f
+                while s > lo && e[s - 1] < quiet { s -= 1 }
+                if f - s + 1 >= 6 && s * frame >= 4 * rate { return Array(x.prefix((s + 3) * frame)) }
+                f = s - 1
+            } else { f -= 1 }
+        }
+        return Array(x.prefix(limit))
+    }
+
+    /// High shelf: +[gainDb] above [cutoff], giving back the 5-8 kHz crispness the copying engine loses
+    /// (Android's Denoise.highShelf). Never clips.
+    static func highShelf(_ x: [Float], rate: Int, cutoff: Double = 4_500, gainDb: Double = 3.5) -> [Float] {
+        let a = pow(10.0, gainDb / 40)
+        let w = 2 * Double.pi * cutoff / Double(rate)
+        let c = cos(w)
+        let s = 2 * sqrt(a) * sin(w) / (2 * 0.7071)
+        let a0 = (a + 1) - (a - 1) * c + s
+        let b0 = a * ((a + 1) + (a - 1) * c + s) / a0
+        let b1 = -2 * a * ((a - 1) + (a + 1) * c) / a0
+        let b2 = a * ((a + 1) + (a - 1) * c - s) / a0
+        let a1 = 2 * ((a - 1) - (a + 1) * c) / a0
+        let a2 = ((a + 1) - (a - 1) * c - s) / a0
+        var y = x
+        var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0
+        var peak: Float = 0
+        for i in 0..<y.count {
+            let xi = Double(x[i])
+            let yi = b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+            x2 = x1; x1 = xi; y2 = y1; y1 = yi
+            y[i] = Float(yi)
+            peak = max(peak, abs(y[i]))
+        }
+        if peak > 0.99 { for i in 0..<y.count { y[i] *= 0.99 / peak } }
+        return y
+    }
+
     /// A simple low-pass (two biquad passes at [cutoff] Hz).
     static func lowPass(_ x: [Float], rate: Int, cutoff: Double) -> [Float] {
         let w = 2 * Double.pi * cutoff / Double(rate)
@@ -164,7 +213,8 @@ enum AudioChecks {
         let url = ["wav", "mp3"].map { base.appendingPathComponent("\(id).\($0)") }.first { FileManager.default.fileExists(atPath: $0.path) }
         guard let url = url, let samples = decode(url) else { return nil }
         let room = 30 * referenceRate - referenceRate / 10
-        let ref = endOnPause(Array(samples.prefix(room)), rate: referenceRate)
+        // Cut at the last pause before the limit, never mid-word (most readers' recordings run past 30 s).
+        let ref = endOnPause(cutAtPause(samples, rate: referenceRate, limit: room), rate: referenceRate)
         cache[id] = ref
         return ref
     }

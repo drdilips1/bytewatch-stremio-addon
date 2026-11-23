@@ -338,7 +338,18 @@ object MyVoices {
             start += 50
         }
         val frame = rate / 50
-        return x.copyOfRange(best * frame, minOf(x.size, (best + win) * frame))
+        // Start where the speaker takes a breath (the end of the first pause of 100 ms or more in the first
+        // 1.5 s), not in the middle of a word: a sample opening on half a word made the copy mumble at the
+        // start of sentences. The end is cut at a pause when the voice reads (CloneCheck.cutAtPause).
+        var run = 0
+        var start0 = best
+        for (f in best until minOf(e.size, best + 75)) {
+            if (!v[f]) run++ else {
+                if (run >= 5) { start0 = maxOf(best, f - 3); break }
+                run = 0
+            }
+        }
+        return x.copyOfRange(start0 * frame, minOf(x.size, (start0 + win) * frame))
     }
 
     /**

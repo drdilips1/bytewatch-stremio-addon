@@ -164,6 +164,34 @@ enum TextPrep {
     private static let stammer = re("\\b(\\p{L}+)\\b[\\s,.\u{2026}-]+\\1\\b", [.caseInsensitive])
     private static let startsWell = re("^\\W*well\\b", [.caseInsensitive])
 
+    /// Whether [text] starts with "Well" (it is then warmed up with "Right." instead of "Well.").
+    static func startsWithWell(_ text: String) -> Bool { matches(text.trimmingCharacters(in: .whitespaces), startsWell) }
+
+    private static func words(_ s: String) -> [String] {
+        s.lowercased().split(whereSeparator: { !($0.isLetter || $0.isNumber || $0 == "'") }).map(String.init)
+    }
+
+    /// A word said twice in a row ("thirty, thirty") or two clauses opening with the same two words
+    /// ("it was the best of times, it was the worst…") – Android's CloneCheck.repeatsPhrase.
+    static func repeatsPhrase(_ text: String) -> Bool {
+        let w = words(text)
+        if w.count > 1 && (0..<(w.count - 1)).contains(where: { w[$0] == w[$0 + 1] }) { return true }
+        let starts = text.split(separator: ",").map { Array(words(String($0)).prefix(2)) }.filter { $0.count == 2 }.map { $0.joined(separator: " ") }
+        return Set(starts).count != starts.count
+    }
+
+    /// A line that repeats a phrase, cut after its commas into parts read one by one (Android's CloneCheck.parts).
+    static func parts(_ text: String) -> [String] {
+        if !repeatsPhrase(text) { return [text] }
+        var out: [String] = []
+        let pieces = text.components(separatedBy: ", ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        for (i, p0) in pieces.enumerated() {
+            let p = i < pieces.count - 1 ? p0 + "," : p0
+            if let last = out.last, words(last).count < 2 { out[out.count - 1] = last + " " + p } else { out.append(p) }
+        }
+        return out.count > 1 ? out : [text]
+    }
+
     /// Lines a copied voice often gets wrong: four words or fewer, a word said twice, or starting with "Well".
     static func risky(_ text: String) -> Bool {
         let t = text.trimmingCharacters(in: .whitespaces)
