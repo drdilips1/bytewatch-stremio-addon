@@ -1178,7 +1178,9 @@ object Speaker {
                         savePosition()
                         notifyChanged()
                     }
-                    delay(60)
+                    // Often enough to move the highlight smoothly; with the screen off nobody sees it, so the
+                    // phone is woken less (the sentence heard, position and lock screen stay up to date).
+                    delay(if (out.screenOn()) 60 else 300)
                 }
             }
 

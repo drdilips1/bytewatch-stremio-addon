@@ -120,6 +120,7 @@ class ReaderService : Service() {
 
     private fun goForeground() {
         updateSession()
+        shown = notificationKey()
         val n = build()
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(
@@ -132,10 +133,26 @@ class ReaderService : Service() {
         foreground = true
     }
 
+    /** What the notification last showed: it is posted again only when that changes (not at every sentence). */
+    private var shown: String? = null
+
+    private fun notificationKey(): String {
+        val doc = Speaker.doc
+        return listOf(
+            doc?.key, doc?.title, Speaker.playing, Speaker.index, doc?.paragraphs?.size,
+            Exporter.running, Exporter.message, Exporter.progress,
+            ModelPack.active?.message, ModelPack.active?.progress, Versions.running, Versions.message,
+        ).joinToString("|")
+    }
+
     private fun update() {
         updateSession()
         val nm = getSystemService(NotificationManager::class.java)
-        if (foreground) nm.notify(NOTIFICATION_ID, build())
+        val key = notificationKey()
+        if (foreground && key != shown) {
+            shown = key
+            nm.notify(NOTIFICATION_ID, build())
+        }
         val pack = ModelPack.active
         if (pack != null) nm.notify(DOWNLOAD_ID, downloadNotification(pack)) else nm.cancel(DOWNLOAD_ID)
     }
@@ -159,9 +176,19 @@ class ReaderService : Service() {
             .build()
     }
 
+    /** What the session last told the system, so the same details (and cover) aren't sent again at every sentence. */
+    private var sessionState: String? = null
+    private var sessionMeta: String? = null
+
     /** What the lock screen, car stereo or watch shows: title, chapter, cover and play state. */
     private fun updateSession() {
         val doc = Speaker.doc
+        val state = "${Speaker.playing}|${Speaker.index}"
+        val meta = "${doc?.key}|${doc?.title}|${doc?.author}|${doc?.chapterAt(Speaker.index)?.title}|${doc?.paragraphs?.size}"
+        if (state == sessionState && meta == sessionMeta) return
+        val metaChanged = meta != sessionMeta
+        sessionState = state
+        sessionMeta = meta
         val actions = PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE or
             PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_SKIP_TO_PREVIOUS or PlaybackState.ACTION_STOP or
             PlaybackState.ACTION_FAST_FORWARD or PlaybackState.ACTION_REWIND or PlaybackState.ACTION_SEEK_TO
@@ -174,6 +201,7 @@ class ReaderService : Service() {
                 )
                 .build()
         )
+        if (!metaChanged) return
         if (doc != null && artFor != doc.key) {
             artFor = doc.key
             art = runCatching { BitmapFactory.decodeFile(Library.thumb(this, doc.key).path) }.getOrNull()
