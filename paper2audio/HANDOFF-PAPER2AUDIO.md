@@ -11,15 +11,14 @@ Branch: **`claude/paper2audio-unlimited-u69i8w`** (develop and push here; backup
 
 | User says | Do |
 |---|---|
-| **"Build now"** | Android Paper to Audio: bump `versionCode`/`versionName` at the top of `paper2audio/android/app/build.gradle.kts` (next: **43 / 6.9.14**), commit, push the branch (no marker). CI "Paper2Audio Android APK" publishes `Paper2Audio.apk` to the release **paper2audio-apk** (in-app updater reads `version.json`). |
+| **"Build now"** | Android Paper to Audio: bump `versionCode`/`versionName` at the top of `paper2audio/android/app/build.gradle.kts` (next: **44 / 6.9.15**), commit, push the branch (no marker). CI "Paper2Audio Android APK" publishes `Paper2Audio.apk` to the release **paper2audio-apk** (in-app updater reads `version.json`). |
 | **"Build now iOS"** | iPhone app: commit with **`[ios-only]`** in the message and push. CI "Paper2Audio iPhone app" (macOS) builds `PaperToAudio.ipa` to the release **paper2audio-ios** (+ `altstore.json`); the Android build skips `[ios-only]` pushes. |
 | (Narrato) | See the Narrato notes – it's built from `claude/narrato-stable`, not here. |
 
 Saving work without building: put `[skip ci]` in the head commit.
 
-**Waiting for the next "Build now" (Android):** voice speeds back to natural (the "equal pace" change reverted)
-and the theme name "Paper (paper white and ink)", plus the **copied-voice quality update** below (a voice
-update: the user listens before it ships; Android and iPhone both have it).
+**Built in 6.9.14 (Android):** voice speeds back to natural, the theme name "Paper (paper white and ink)", and the
+**copied-voice quality update** below. The iPhone code has the same update but isn't built yet ("Build now iOS").
 
 **Copied-voice quality update (Nov 2026, measured with `paper2audio/voice-bench`, 20 readers × 18 lines):**
 word errors 6.1% → 3.9%, repeated/extra words 60 → 15, problem lines 74 → 46.
@@ -53,7 +52,7 @@ word errors 6.1% → 3.9%, repeated/extra words 60 → 15, problem lines 74 → 
 - Voices: Supertonic (light), Kokoro (int8 pack, 132 MB), copied "real readers" (Pocket TTS, 30 built-in: the
   20 Narrato readers + Luna, Bria, Carter, Declan, Elliot, Felix, Grant, Hugo, Ian, James), Microsoft online
   voices, phone voices. Engine settings in `LocalTts.kt`; readers' seeds/pauses in `MyVoices.kt`.
-- Last built: 6.9.13 (42). Main line also has: addons (OPDS + Inkwell-format, direct links only), R8,
+- Last built: 6.9.14 (43): natural voice speeds, theme name, copied-voice quality update. Main line also has: addons (OPDS + Inkwell-format, direct links only), R8,
   PowerWise charging job, next-book preparing, light voices first.
 - Compile check (needs an Android SDK): `cd paper2audio/android && ./gradlew -q --no-daemon compileLiteDebugKotlin compileFullDebugKotlin`.
 - Reader web bundle: `paper2audio/reader-web` (`npx vite build` → `android/app/src/main/assets/reader`, committed).
