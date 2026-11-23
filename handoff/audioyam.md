@@ -97,7 +97,8 @@
   TorBox / RD / more-debrid tracks, player.js passes it; Swift player out-of-band MIME + video off), 41dac5c (player
   percent-encodes links, "Cannot Open" → clear message + safety net), 16d4c06 (Text on >900 MB parts from the
   server), 7b94708 (CFBundleURLTypes audiohub in ios.yml). Player + transcribe Swift now identical to Audiohub+
-  (compiled there in build 124). With the Files-import fix: iPhone build from `work` 56ba5b6 (run 6 → ios-6),
+  (compiled there in build 124). With the Files-import fix: iPhone ios-6 from `work` 56ba5b6 — built 23 Nov (compiled; plugins + audiohub://
+  scheme in; AltStore source updated; SideStore post text given to the user),
   Android not released (work is ahead of main: Goodreads-free since 1.0.42 plus these).
   Not ported (user's list B): iPhone unpack (.zip/.rar), Easynews relay, revive.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
