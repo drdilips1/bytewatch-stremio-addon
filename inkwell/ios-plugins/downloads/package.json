@@ -1,0 +1,11 @@
+{
+  "name": "inkwell-downloads-ios",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iPhone: offline audiobook downloads for Audiohub — the same calls as the Android InkwellDownloads plugin (download with progress, cancel, remove, move). Added to the app only by the iPhone build (.github/workflows/audiohub-ios.yml).",
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  }
+}

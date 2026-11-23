@@ -7,7 +7,8 @@ import { persisted, abs } from './store.js';
 import { downloads, downloadBook, removeDownload, canDownload } from './downloads.js';
 
 const Native = registerPlugin('InkwellDownloads');
-export const canSendToAbs = () => canDownload && Capacitor.isPluginAvailable('InkwellDownloads') && !!(abs.get().server && abs.get().token);
+// Android only: the upload step is in the Android downloads plugin (the iPhone one only downloads).
+export const canSendToAbs = () => canDownload && Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('InkwellDownloads') && !!(abs.get().server && abs.get().token);
 
 // uid -> { status: 'downloading' | 'uploading' | 'done' | 'error', pct, error, library, at }
 export const absUploads = persisted('absUploads', {});

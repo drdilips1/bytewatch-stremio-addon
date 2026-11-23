@@ -7,7 +7,7 @@ import * as sync from '../lib/sync.js';
 import { PLACES, findOrder, setFindOrder, DEFAULT_ORDER } from '../lib/findorder.js';
 import { ttsCfg, engines as listEngines, voices as listVoices, speak, stopSpeaking, clearAudioCache, qualityLabel, RECOMMENDED, nativeReader, Reader, EDGE_VOICES, voiceSpec } from '../lib/tts.js';
 import { CATALOG, builtinAvailable, installedIds, download as downloadVoice, remove as removeVoice, activeDownload, follow as followDownload } from '../lib/voices.js';
-import { downloads, canDownload, removeDownload, publicAvailable, fmtBytes, unsorted, sortDownloads } from '../lib/downloads.js';
+import { downloads, canDownload, iosDownloads, removeDownload, publicAvailable, fmtBytes, unsorted, sortDownloads } from '../lib/downloads.js';
 import { settings } from '../lib/store.js';
 
 const ago = (t) => {
@@ -683,7 +683,7 @@ export function DownloadsCard() {
   useEffect(() => {
     publicAvailable().then(setPub);
   }, []);
-  if (!canDownload) return <p class="muted pad-s">Downloads work in the Android app.</p>;
+  if (!canDownload) return <p class="muted pad-s">Downloads work in the Android and iPhone apps.</p>;
   const list = Object.entries(all).filter(([, d]) => d.book);
   const total = list.reduce((a, [, d]) => a + (d.bytes || 0), 0);
   const target = pub ? st.downloadTarget || 'public' : 'app';
@@ -692,6 +692,11 @@ export function DownloadsCard() {
       <button class="btn ghost-wide" onClick={() => nav.push('downloads')}>
         <Icon name="download" size={16} /> Manage downloads — queue, pause, retry, sizes
       </button>
+      {iosDownloads ? (
+        <p class="muted small">
+          On iPhone, downloads are in the Files app → On My iPhone → Audiohub → Downloads (not backed up to iCloud), where you can copy them to a computer or AirDrop them. Don’t rename or move them there — the app then counts the book as not downloaded. Keep the app open while a big book downloads: if you leave it, the download pauses and carries on the next time you open Audiohub.
+        </p>
+      ) : (
       <div class="set-row column">
         <b>Save downloads to</b>
         <div class="dl-targets">
@@ -705,6 +710,7 @@ export function DownloadsCard() {
           </button>
         </div>
       </div>
+      )}
       <div class="set-row">
         <div>
           <b>{list.length ? `${list.length} book${list.length > 1 ? 's' : ''} · ${fmtBytes(total)}` : 'No downloads yet'}</b>

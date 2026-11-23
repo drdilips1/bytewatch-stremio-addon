@@ -1,13 +1,24 @@
-// Send to Kindle. With a Gmail sender and Kindle addresses set up (Settings → Send to
-// Kindle), the book is downloaded and e-mailed straight to the Kindle through Gmail
-// (native GmailSender). Otherwise it goes to Android's share sheet, where the Kindle app
-// or an e-mail to your @kindle.com address picks it up. Amazon accepts EPUB and PDF.
+// Send to Kindle. With a sender and Kindle addresses set up (Settings → Send to Kindle), the
+// book is downloaded and e-mailed straight to the Kindle through your mail server — on Android
+// (native GmailSender) and on iPhone (the InkwellMail plugin). Otherwise Android uses its share
+// sheet, and iPhone / the web app download the file. Amazon accepts EPUB and PDF.
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { settings, kindle } from './store.js';
 import { toast } from '../components/common.jsx';
 
 const Web = registerPlugin('InkwellWeb');
 const native = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
+// iPhone: its own small mail sender (same mailFile call), none of Android's other native parts.
+const Mail = registerPlugin('InkwellMail');
+const iosMail = Capacitor.getPlatform() === 'ios' && Capacitor.isPluginAvailable('InkwellMail');
+/** Can this app e-mail books itself? The Android and iPhone apps; the web app downloads them instead. */
+export const canMailHere = native || iosMail;
+
+// Said after the download where the book wasn't e-mailed: the web app can't send mail; the iPhone
+// app can once you've added a sender.
+const NOT_HERE = iosMail
+  ? 'Downloaded. To send books straight to your Kindle, add your Kindle and an e-mail to send from in Settings → Send to Kindle'
+  : 'Downloaded. Sending straight to a Kindle works in the Android and iPhone apps — here, upload the file at amazon.com/sendtokindle';
 
 export const canSendToKindle = (book) => !!book?.epubUrl;
 
@@ -20,8 +31,8 @@ export const canSendToKindle = (book) => !!book?.epubUrl;
 
 /** Your first Kindle's e-mail address, if any. */
 export const kindleEmail = () => kindle.get().targets[0]?.email || '';
-/** Sends straight from Gmail (Android app with a sender and a Kindle set up). */
-export const sendsDirect = () => native && kindle.get().senders.length > 0 && kindle.get().targets.length > 0;
+/** Sends straight through your mail server (Android or iPhone app, with a sender and a Kindle set up). */
+export const sendsDirect = () => canMailHere && kindle.get().senders.length > 0 && kindle.get().targets.length > 0;
 
 // "Which Kindle?" — shown by KindleChooser (components/kindle-chooser.jsx).
 let asker = null;
@@ -45,7 +56,7 @@ async function share(url, name, mime, title) {
     if (!pick) return; // cancelled
     toast(`Sending to ${pick.label}…`);
     const { smtpFor } = await import('./smtp.js');
-    await withLimit(Web.mailFile({ url, name, mime, to: pick.to, from: pick.sender.email, password: pick.sender.password, ...smtpFor(pick.sender) }));
+    await withLimit((native ? Web : Mail).mailFile({ url, name, mime, to: pick.to, from: pick.sender.email, password: pick.sender.password, ...smtpFor(pick.sender) }));
     toast(`Sent to ${pick.label} — it shows up on the Kindle in a few minutes`);
     return;
   }
@@ -55,9 +66,10 @@ async function share(url, name, mime, title) {
 
 export async function sendToKindle(book) {
   const name = `${(book.title || 'Book').slice(0, 80)}${book.author ? ` - ${book.author.split(',')[0]}` : ''}.epub`;
-  if (native) return share(book.epubUrl, name, 'application/epub+zip', 'Send to Kindle');
-  // Browser: download the EPUB, then upload it at amazon.com/sendtokindle.
+  if (native || sendsDirect()) return share(book.epubUrl, name, 'application/epub+zip', 'Send to Kindle');
+  // iPhone without a sender, or the web app: download the EPUB, then send it on yourself.
   window.open(book.epubUrl, '_blank');
+  toast(NOT_HERE, 6000);
 }
 
 const MIME = { EPUB: 'application/epub+zip', PDF: 'application/pdf', MOBI: 'application/x-mobipocket-ebook', AZW3: 'application/vnd.amazon.ebook', AZW: 'application/vnd.amazon.ebook', TXT: 'text/plain' };
@@ -67,6 +79,7 @@ export async function shareEbook(file, book) {
   // Amazon's e-mail service no longer takes MOBI / AZW3: say so instead of sending into the void.
   if (sendsDirect() && /^(MOBI|AZW3?)$/.test(file.format || '')) throw new Error(`Amazon doesn't accept ${file.format} by e-mail any more — pick an EPUB or PDF of this book`);
   const url = await file.resolve();
-  if (native) return share(url, file.name, MIME[file.format] || 'application/octet-stream', `Send "${book.title}" to…`);
+  if (native || sendsDirect()) return share(url, file.name, MIME[file.format] || 'application/octet-stream', `Send "${book.title}" to…`);
   window.open(url, '_blank');
+  toast(NOT_HERE, 6000);
 }

@@ -44,7 +44,11 @@ jobs:
           npm pkg set "dependencies.inkwell-player-ios=file:ios-plugins/player"
           # iPhone-only: unpacking Mobilism archives (.zip / .rar) so they play, as on Android.
           npm pkg set "dependencies.inkwell-unpack-ios=file:ios-plugins/unpack"
-          npm i --install-links --no-audit --no-fund "@capacitor/ios@$CORE" ./ios-plugins/transcribe ./ios-plugins/files ./ios-plugins/player ./ios-plugins/unpack
+          # iPhone-only: Send to Kindle by e-mail from the app (the same mailFile call as Android).
+          npm pkg set "dependencies.inkwell-mail-ios=file:ios-plugins/mail"
+          # iPhone-only: offline downloads (Files → Audiohub → Downloads), the same calls as Android.
+          npm pkg set "dependencies.inkwell-downloads-ios=file:ios-plugins/downloads"
+          npm i --install-links --no-audit --no-fund "@capacitor/ios@$CORE" ./ios-plugins/transcribe ./ios-plugins/files ./ios-plugins/player ./ios-plugins/unpack ./ios-plugins/mail ./ios-plugins/downloads
 
       - name: Build the screens
         env:

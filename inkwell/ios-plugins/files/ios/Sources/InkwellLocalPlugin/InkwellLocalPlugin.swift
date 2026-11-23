@@ -169,6 +169,11 @@ public class InkwellLocalPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDe
                 let values = try? url.resourceValues(forKeys: Set(keys))
                 if values?.isDirectory == true {
                     if url.lastPathComponent == ".Trash" { walker?.skipDescendants() }
+                    // The app's own downloads (Audiohub → Downloads) are listed as downloads, not
+                    // again as your own books.
+                    if url.lastPathComponent == "Downloads" && url.deletingLastPathComponent().standardizedFileURL.path == self.documents.standardizedFileURL.path {
+                        walker?.skipDescendants()
+                    }
                     continue
                 }
                 let ext = url.pathExtension.lowercased()

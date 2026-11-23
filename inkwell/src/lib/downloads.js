@@ -1,12 +1,15 @@
 // Offline downloads: saves every part of an audiobook to the phone, then plays
-// from the local files. Location: public Downloads/Audiohub (visible in the file
-// manager) or private app storage — chosen in Settings → Downloads.
+// from the local files. Android: public Downloads/Audiohub (visible in the file
+// manager) or private app storage — chosen in Settings → Downloads. iPhone: Files app →
+// Audiohub → Downloads (its own InkwellDownloads plugin), found again after updates by each
+// part's `rel`.
 import { metaNow } from './meta.js';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { persisted, settings, summarize } from './store.js';
 
 const Native = registerPlugin('InkwellDownloads');
 export const canDownload = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellDownloads');
+export const iosDownloads = canDownload && Capacitor.getPlatform() === 'ios';
 
 export const downloads = persisted('downloads', {}); // uid -> { book, status, tracks, done, total, bytes, location, error }
 
@@ -60,7 +63,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
  * with a fresh link when one has expired.
  */
 export async function downloadBook(details, { resume = false } = {}) {
-  if (!canDownload) throw new Error('Downloads work in the Android app');
+  if (!canDownload) throw new Error('Downloads work in the Android and iPhone apps');
   const uid = details.uid;
   if (running.has(uid)) return;
   running.add(uid);
@@ -112,7 +115,7 @@ export async function downloadBook(details, { resume = false } = {}) {
         }
       }
       bytes += r.size || 0;
-      saved.push({ title: t.title, uri: r.uri, duration: t.duration, offset: t.offset, size: r.size, name: r.name });
+      saved.push({ title: t.title, uri: r.uri, ...(r.rel ? { rel: r.rel } : {}), duration: t.duration, offset: t.offset, size: r.size, name: r.name });
       patch(uid, { done: i + 1, bytes, location: r.location || downloads.get()[uid]?.location, tracks: saved.slice(), current: 0, currentTotal: 0, error: '', tries: 0 });
     }
     patch(uid, { status: 'done', tracks: saved, bytes, finishedAt: Date.now(), error: '' });
@@ -153,6 +156,31 @@ export async function resumeDownload(uid) {
   const { getDetails } = await import('../sources/index.js');
   const details = await getDetails({ ...d.book, series: d.series });
   return downloadBook({ ...details, uid }, { resume: true });
+}
+
+// iPhone: an update or reinstall moves the app's folder, so the saved addresses go stale — they
+// are rebuilt from each part's place inside Downloads (`rel`) at every start. Parts deleted,
+// renamed or moved in the Files app: the book is no longer "downloaded" (it streams again) and
+// Resume downloads from the first missing part.
+if (iosDownloads)
+  (async () => {
+    const all = downloads.get();
+    const rels = [];
+    for (const d of Object.values(all)) for (const t of d?.tracks || []) if (t.rel) rels.push(t.rel);
+    if (!rels.length) return;
+    const { uris, missing = [] } = await Native.paths({ rels });
+    const now = Object.fromEntries(rels.map((r, i) => [r, uris[i]]));
+    const gone = new Set(rels.filter((r, i) => missing[i]));
+    downloads.set((cur) => Object.fromEntries(Object.entries(cur).map(([uid, d]) => [uid, d?.tracks ? afterFiles(d, now, gone) : d])));
+  })().catch(() => {});
+
+/** A download with today's addresses; cut back to the parts still there when some are gone. */
+export function afterFiles(d, now, gone) {
+  const tracks = d.tracks.map((t) => (t.rel && now[t.rel] ? { ...t, uri: now[t.rel] } : t));
+  const first = tracks.findIndex((t) => t.rel && gone.has(t.rel));
+  if (first < 0) return { ...d, tracks };
+  const kept = tracks.slice(0, first);
+  return { ...d, tracks: kept, done: kept.length, bytes: kept.reduce((n, t) => n + (t.size || 0), 0), status: 'error', error: 'Some parts were deleted or moved in the Files app — tap Resume to download them again' };
 }
 
 // The app was closed (or crashed) mid-download: those continue on their own.
@@ -210,7 +238,7 @@ export async function sortDownloads(onProgress) {
     for (const t of d.tracks || []) {
       try {
         const r = await Native.move({ uri: t.uri, folder });
-        tracks.push({ ...t, uri: r.uri });
+        tracks.push({ ...t, uri: r.uri, ...(r.rel ? { rel: r.rel } : {}) });
         location = r.location;
       } catch {
         tracks.push(t); // stays where it was, still plays

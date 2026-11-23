@@ -42,7 +42,7 @@ export function Downloads() {
   return (
     <div class="screen downloads-screen">
       <TopBar title="Downloads" ask={false} />
-      {!canDownload && <p class="muted pad">Downloads work in the Android app.</p>}
+      {!canDownload && <p class="muted pad">Downloads work in the Android and iPhone apps.</p>}
       <div class="dl-storage pad">
         <div>
           <b>{fmtBytes(audioBytes + ebookBytes)}</b>
