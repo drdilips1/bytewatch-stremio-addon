@@ -86,6 +86,13 @@
   InkwellWeb plugin (mailFile); iPhone / web only download. Settings → Send to Kindle now says so on iPhone / web
   (`canMailHere` in kindle.js) and the download shows a toast with what to do. A real iPhone sender would need a
   native Swift SMTP plugin (pending idea, not started).
+- TestFlight (23 Nov, user asked; Apple Developer enrollment submitted Fri 20 Nov, still pending Mon): ios.yml has
+  input `destination` (altstore default | testflight). testflight = archive signed via API key
+  (-allowProvisioningUpdates, cloud signing) + exportArchive method app-store-connect destination upload; skips
+  release / AltStore steps. Secrets needed: APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (Admin key);
+  app record app.audiohub.player in App Store Connect. VITE_IOS_CHANNEL → Settings card says TestFlight. Icon
+  flattened (no alpha). Plan: full app for INTERNAL testers only (no review); public TestFlight/App Store =
+  store edition (store-edition/STORE_PLAN.md). Not run yet (on `work`, needs the account).
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 8eed093), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
