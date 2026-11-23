@@ -14,6 +14,8 @@ export const VERSION = import.meta.env.VITE_APP_VERSION || 'dev';
 export const PUBLIC_REPO = 'drdilips1/audibrisk';
 const Updater = registerPlugin('InkwellUpdate');
 const native = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellUpdate');
+/** iPhone: updates come through AltStore (the releases here are Android APKs). */
+export const isIphone = Capacitor.getPlatform() === 'ios';
 
 export { newer };
 
@@ -24,6 +26,7 @@ if (updState.get().phase === 'downloading') put({ phase: 'idle', pct: 0 }); // t
 
 /** The newest public release: { version, url, newer }. No public release yet → not newer. */
 export async function checkUpdate() {
+  if (isIphone) return { newer: false, iphone: true };
   let rel;
   try {
     rel = await getJson(`https://api.github.com/repos/${PUBLIC_REPO}/releases/latest`, { fresh: true, timeout: 12000 });
@@ -87,7 +90,7 @@ if (native)
 // Once a day: a note when a new version is out.
 try {
   const last = Number(localStorage.getItem('brisk:updCheck') || 0);
-  if (Date.now() - last > 864e5)
+  if (!isIphone && Date.now() - last > 864e5)
     setTimeout(() => {
       localStorage.setItem('brisk:updCheck', String(Date.now()));
       checkUpdate()

@@ -1,0 +1,114 @@
+name: Audibrisk iPhone app
+
+# Audibrisk for iPhone: an unsigned .ipa to sideload with AltStore (signed with a free Apple ID on
+# the Mac, renewed every 7 days), like Audiohub's iPhone app. Audibrisk's own screens, name, icon
+# and bundle id (app.audibrisk.player — it sits beside Audiohub). The iOS project is generated here
+# by Capacitor; the shared iPhone plugins used are the player (AVPlayer) and Files (your folder in
+# the Files app → On My iPhone → Audibrisk). Saving for offline isn't on iPhone yet.
+# Built only when asked: Run workflow, or a commit with [build brisk ios] in its message.
+# (Mac runners cost more minutes on a private repository: it may wait for minutes.)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'inkwell/brisk/**'
+      - '.github/workflows/brisk-ios.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: brisk-ios
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build brisk ios]')
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: inkwell
+    env:
+      VERSION_NAME: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: inkwell/package-lock.json
+
+      - name: Install
+        run: |
+          npm ci
+          CORE=$(node -p "require('@capacitor/core/package.json').version")
+          # iPhone-only plugins Audibrisk uses: the player and your Files folder (dependencies here only).
+          npm pkg set "dependencies.inkwell-files-ios=file:ios-plugins/files"
+          npm pkg set "dependencies.inkwell-player-ios=file:ios-plugins/player"
+          npm i --install-links --no-audit --no-fund "@capacitor/ios@$CORE" ./ios-plugins/files ./ios-plugins/player
+
+      - name: Build Audibrisk's screens
+        env:
+          VITE_APP_VERSION: ios-${{ github.run_number }}
+        run: |
+          npx vite build --config vite.brisk.config.js
+          cp brisk/capacitor.config.json capacitor.config.json
+
+      - name: Generate the iOS project
+        run: |
+          npx cap add ios
+          npx cap sync ios
+          echo "--- plugins in the iPhone app:"; grep -A8 packageClassList ios/App/App/capacitor.config.json || true
+
+      - name: Icon, splash and settings
+        run: |
+          A=ios/App/App/Assets.xcassets
+          icon=$(ls $A/AppIcon.appiconset/*.png | head -1)
+          sips -z 1024 1024 brisk/icon-512.png --out "$icon"
+          for f in $A/Splash.imageset/*.png; do
+            sips -z 512 512 brisk/icon-512.png --out /tmp/s.png >/dev/null
+            sips -p 2732 2732 --padColor F6EFE4 /tmp/s.png --out "$f" >/dev/null
+          done
+          P=ios/App/App/Info.plist
+          pb() { /usr/libexec/PlistBuddy -c "$1" "$P" 2>/dev/null || true; }
+          pb "Delete :CFBundleDisplayName"
+          pb "Add :CFBundleDisplayName string Audibrisk"
+          pb "Add :UIBackgroundModes array"
+          pb "Add :UIBackgroundModes:0 string audio"
+          pb "Add :NSAppTransportSecurity dict"
+          pb "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true"
+          pb "Add :NSAppTransportSecurity:NSAllowsArbitraryLoadsInWebContent bool true"
+          pb "Add :ITSAppUsesNonExemptEncryption bool false"
+          # The app's folder shows in the Files app (On My iPhone → Audibrisk): audiobooks put there play.
+          pb "Add :UIFileSharingEnabled bool true"
+          pb "Add :LSSupportsOpeningDocumentsInPlace bool true"
+          /usr/libexec/PlistBuddy -c Print "$P"
+
+      - name: Build
+        working-directory: inkwell/ios/App
+        run: |
+          if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
+          xcodebuild -quiet $SRC -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build" \
+            MARKETING_VERSION="$VERSION_NAME" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry Audibrisk.ipa Payload
+          ls -la Audibrisk.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Audibrisk-ipa
+          path: inkwell/ios/App/Audibrisk.ipa
+
+      - name: Publish (pre-release)
+        working-directory: inkwell/ios/App
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "audibrisk-ios-${{ github.run_number }}" Audibrisk.ipa \
+            --target "${{ github.sha }}" \
+            --title "Audibrisk iPhone app (build ${{ github.run_number }})" \
+            --notes "Unsigned iPhone app. Install with AltStore on the Mac (AltServer menu, hold Option → Sideload .ipa), signed with a free Apple ID (renewed every 7 days). Your books and places stay when you reinstall." \
+            --prerelease

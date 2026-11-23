@@ -1,5 +1,9 @@
 # Audibrisk (minimal search & play)
 
+- iPhone: `.github/workflows/brisk-ios.yml` (Run workflow, or `[build brisk ios]` in a commit) —
+  unsigned .ipa for AltStore, bundle id app.audibrisk.player, shared ios-plugins player + files
+  (no unpack/transcribe), pre-release `audibrisk-ios-N` in this private repo. No Save on iPhone
+  (shared downloads are Android-only); Settings says updates come through AltStore.
 - Code: `inkwell/brisk/` (screens.jsx, player.jsx, books.js, logic.js, scenes.jsx, brisk.css, app.jsx),
   config `inkwell/vite.brisk.config.js`, workflow `.github/workflows/brisk-apk.yml`.
   Tests: `inkwell/brisk/brisk.test.js` (runs in `npm test`). The shared eslint config only covers

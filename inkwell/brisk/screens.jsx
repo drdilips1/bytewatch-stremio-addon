@@ -10,7 +10,7 @@ import { fmtDuration } from '../src/lib/format.js';
 import { metaFixes } from '../src/lib/meta.js';
 import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
-import { VERSION, checkUpdate, installUpdate, updState, newer } from './update.js';
+import { VERSION, checkUpdate, installUpdate, updState, newer, isIphone } from './update.js';
 import { Scene, rollScene, modeChoice } from './scenes.jsx';
 import { copyFacts, thumb, placeOf } from './logic.js';
 import * as phone from '../src/sources/local.js';
@@ -736,7 +736,7 @@ function UpdateRow() {
     setBusy(true);
     try {
       const r = await checkUpdate();
-      setNote(r.none ? 'No public release yet' : r.newer ? '' : 'You have the latest version');
+      setNote(r.iphone ? 'On iPhone, new versions come through AltStore' : r.none ? 'No public release yet' : r.newer ? '' : 'You have the latest version');
     } catch {
       setNote('Couldn’t check right now');
     } finally {
@@ -754,7 +754,7 @@ function UpdateRow() {
             ? u.error
             : ready
               ? `Version ${u.latest} is ready`
-              : note || 'Covers and details are found by themselves.';
+              : note || (isIphone ? 'New versions come through AltStore' : 'Covers and details are found by themselves.');
   return (
     <div class="b-set-row">
       <div>
