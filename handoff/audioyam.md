@@ -107,7 +107,12 @@
   download, ≤18 MB, web-page check, SMTP over Foundation streams (SSL before open, STARTTLS mid-stream via
   socketSecurityLevel), AUTH LOGIN, base64 MIME. kindle.js: canMailHere = Android || iOS plugin; sendsDirect uses
   it; web-only note in Settings. Added to ios.yml install. AudioYam-only (Audiohub+ doesn't have it yet).
-  iPhone build run 7 from abb66bc started to compile it — not tested with a real mail server / Kindle yet.
+  iPhone ios-7 from abb66bc BUILT 23 Nov (compiled, InkwellMailPlugin in the app, AltStore source updated) — not
+  tested with a real mail server / Kindle yet.
+- iPhone vs Android gaps (list given to the user 23 Nov): offline downloads, Send to ABS, skip silence / boost / sleep
+  detect, in-file M4B chapters, CarPlay, natural voices + read aloud screen-off, voice asking, Siri, open-with EPUB,
+  share-in to Find books, native save/share, in-app update, backups outside the app, tracker browser, widgets.
+  Suggested order: offline downloads → open-with + backups in Files → proper sharing.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
   port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
