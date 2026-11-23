@@ -93,7 +93,14 @@
   app record app.audiohub.player in App Store Connect. VITE_IOS_CHANNEL → Settings card says TestFlight. Icon
   flattened (no alpha). Plan: full app for INTERNAL testers only (no review); public TestFlight/App Store =
   store edition (store-edition/STORE_PLAN.md). Not run yet (on `work`, needs the account).
+- 23 Nov, iPhone first (user: "do 1 to 5, Android can wait"): ported Audiohub+ eca3784 (lib/mime.js + tests, mime on
+  TorBox / RD / more-debrid tracks, player.js passes it; Swift player out-of-band MIME + video off), 41dac5c (player
+  percent-encodes links, "Cannot Open" → clear message + safety net), 16d4c06 (Text on >900 MB parts from the
+  server), 7b94708 (CFBundleURLTypes audiohub in ios.yml). Player + transcribe Swift now identical to Audiohub+
+  (compiled there in build 124). With the Files-import fix: iPhone build from `work` 56ba5b6 (run 6 → ios-6),
+  Android not released (work is ahead of main: Goodreads-free since 1.0.42 plus these).
+  Not ported (user's list B): iPhone unpack (.zip/.rar), Easynews relay, revive.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
-  port, now 8eed093), then scrub everything private (see RULES.md) and grep.
+  port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
   tested with sample answers; see ROADMAP.
