@@ -22,7 +22,8 @@ import { App as CapApp } from '@capacitor/app';
 import { podcasts, showPrefs, episodeVotes } from '../sources/podcasts.js';
 import { libby, libbyAccount } from '../sources/libby.js';
 import { ai } from './ai.js';
-import { persisted, settings, library, progress, bookmarks, addons, abs, debrid, hardcover, goodreads, removedBooks, mergeRemoved, cleanLibrary, cleanProgress, kindle, bookTags, highlights, mergeHighlights } from './store.js';
+import { persisted, settings, library, progress, bookmarks, addons, abs, debrid, hardcover, goodreads, removedBooks, mergeRemoved, cleanLibrary, cleanProgress, kindle, bookTags, highlights, mergeHighlights, highlightsGone, removedMarks } from './store.js';
+import { mergeGone, mergeBookmarks } from './marks.js';
 import { cleanUrl } from './http.js';
 import { ttsCfg } from './tts.js';
 import { myRatings, notInterested, alreadyRead } from './taste.js';
@@ -66,7 +67,9 @@ const SECTIONS = {
   removedBooks: { store: removedBooks, merge: mergeRemoved },
   library: { store: library, merge: (l, r) => cleanLibrary(mergeById(l, r)) },
   progress: { store: progress, merge: (l, r) => cleanProgress(mergeNewest(l, r)) },
-  bookmarks: { store: bookmarks, merge: mergeBookmarks },
+  // Deleted bookmarks first, so the bookmark merge below can leave them out on every device.
+  removedMarks: { store: removedMarks, merge: (l, r) => mergeGone(l, r) },
+  bookmarks: { store: bookmarks, merge: (l, r) => mergeBookmarks(l, r, removedMarks.get()) },
   addonLog: { store: addonLog, merge: mergeAddonLog },
   addons: { store: addons, merge: (l, r) => mergeAddons(l, r, addonLog.get()) },
   goodreads: { store: goodreads },
@@ -83,6 +86,8 @@ const SECTIONS = {
   tts: { store: ttsCfg, secret: true },
   kindle: { store: kindle, secret: true, merge: mergeKindle },
   bookTags: { store: bookTags },
+  // Deleted highlights first (as with bookmarks), so they don't come back from another device.
+  highlightsGone: { store: highlightsGone, merge: (l, r) => mergeGone(l, r) },
   highlights: { store: highlights, merge: mergeHighlights },
   // Your own fixes and choices: edited titles / narrators, the copy Play uses, Read later,
   // Up next, saved ideas, taste (not interested, already heard, more like this), podcast prefs.
@@ -160,14 +165,6 @@ function mergeKindle(local, remote) {
   return { ...local, targets: byEmail(local?.targets, remote?.targets), senders: byEmail(local?.senders, remote?.senders) };
 }
 
-function mergeBookmarks(local, remote) {
-  const out = { ...local };
-  for (const [k, list] of Object.entries(remote || {})) {
-    const seen = new Set((out[k] || []).map((b) => b.createdAt));
-    out[k] = [...(out[k] || []), ...(list || []).filter((b) => !seen.has(b.createdAt))].sort((a, b) => (a.global || 0) - (b.global || 0));
-  }
-  return out;
-}
 
 // ---- auth -----------------------------------------------------------------------
 const cfg = () => account.get();

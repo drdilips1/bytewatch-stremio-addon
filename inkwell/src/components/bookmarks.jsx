@@ -3,7 +3,7 @@ import { useEffect } from 'preact/hooks';
 // book from that moment (straight in if it's the book playing now).
 import { Icon } from './icons.jsx';
 import { Cover, toast } from './common.jsx';
-import { bookmarks, progress, library, useStore } from '../lib/store.js';
+import { bookmarks, progress, library, useStore, removeBookmark } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { fmtTime } from '../lib/format.js';
 import * as player from '../lib/player.js';
@@ -27,7 +27,7 @@ export function noteBookmark(uid, bm) {
   bookmarks.set((all) => ({ ...all, [uid]: (all[uid] || []).map((b) => (b.createdAt === bm.createdAt ? { ...b, note: note.trim() } : b)) }));
 }
 
-const remove = (uid, bm) => bookmarks.set((all) => ({ ...all, [uid]: (all[uid] || []).filter((b) => b.createdAt !== bm.createdAt) }));
+const remove = (uid, bm) => removeBookmark(uid, bm.createdAt);
 
 /** Bookmark rows: tap to play from there, ✎ to add a note, bin to delete. */
 // Share a bookmark / transcript quote as a quote card + link another Audiohub user can open.

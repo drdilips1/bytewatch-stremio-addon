@@ -210,6 +210,15 @@ export function clearPodcastHistory() {
   progress.set((all) => Object.fromEntries(Object.entries(all).filter(([, p]) => !(p?.book?.source === 'pod' && !p.finished))));
 }
 
+// Deleted bookmarks ("uid|createdAt" → when), synced so another device's copy doesn't bring them back.
+export const removedMarks = persisted('removedMarks', {});
+
+/** Delete one bookmark (and remember that, for sync). */
+export function removeBookmark(uid, createdAt) {
+  removedMarks.set((g) => ({ ...g, [`${uid}|${createdAt}`]: Date.now() }));
+  bookmarks.set((all) => ({ ...all, [uid]: (all[uid] || []).filter((b) => b.createdAt !== createdAt) }));
+}
+
 export function forgetBook(uid) {
   markRemoved(uid, { lib: true, prog: true });
   library.set((lib) => {
@@ -278,11 +287,12 @@ export const highlightsGone = persisted('highlightsGone', {});
 
 /** Highlights from two places (backup, another device): every one of both, by id. */
 export function mergeHighlights(local, remote) {
-  const out = { ...local };
+  const gone = highlightsGone.get();
+  // Highlights deleted on any device (their deletions sync too) leave this device's list as well.
+  const out = Object.fromEntries(Object.entries(local || {}).map(([uid, list]) => [uid, Array.isArray(list) ? list.filter((h) => !gone[h?.id]) : list]));
   for (const [uid, list] of Object.entries(remote || {})) {
     if (!Array.isArray(list)) continue;
     const have = new Set((out[uid] || []).map((h) => h.id));
-    const gone = highlightsGone.get();
     const more = list.filter((h) => h?.id && h.parts?.length && !have.has(h.id) && !gone[h.id]);
     if (more.length) out[uid] = [...(out[uid] || []), ...more].sort((x, y) => x.parts[0].a - y.parts[0].a);
   }

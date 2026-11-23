@@ -5,7 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import * as stats from './stats.js';
 import { catchUpFor } from './resume.js';
 import { createEngine } from './engine.js';
-import { progress, bookmarks, settings, summarize, persisted } from './store.js';
+import { progress, bookmarks, settings, summarize, persisted, removeBookmark } from './store.js';
 import { syncProgress, switchTracks, closeSession, serverPlace, mirrorPlace, connected as absConnected } from '../sources/audiobookshelf.js';
 import { fetchStatus } from '../sources/debrid.js';
 import { applyLocal, isDownloaded, downloads } from './downloads.js';
@@ -1183,7 +1183,7 @@ export function toggleQuote(time, text) {
   const list = bookmarks.get()[uid] || [];
   const same = list.find((b) => b.quote && b.track === state.index && (Math.abs(b.time - time) < 1.5 || b.label === label));
   if (same) {
-    bookmarks.set((all) => ({ ...all, [uid]: (all[uid] || []).filter((b) => b !== same) }));
+    removeBookmark(uid, same.createdAt);
     return false;
   }
   const bm = { track: state.index, time, global: trackOffset(state.index) + time, label, quote: true, createdAt: Date.now() };
