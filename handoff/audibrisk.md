@@ -151,7 +151,7 @@
     best sellers whose copies are instant on your service (TorBox mostly — RD has no instant
     flags) → row on Home (≥2 books), tap plays.
   - Also in this build: automatic copy fallback, Try another copy, long-press menu, × on the strip.
-- v1.0.12 (24 Nov, building; iPhone left out — user: "Audible rating and my fixes, then build; see you
+- v1.0.14 (24 Nov, built OK as Android private test — run 14, https://github.com/drdilips1/bytewatch-stremio-addon/releases/tag/audibrisk-v1.0.14 ; called "v1.0.12" in the README line; iPhone left out — user: "Audible rating and my fixes, then build; see you
   Saturday"): Audible rating (`fmtRating`) on results and the book page (no Goodreads: slow and
   blocked); search shows Audible's results as soon as they come (`searchBooks(term, onFirst)`,
   250 ms wait), "In your library" matches first (`libraryMatches`, `MineInSearch`); covers for
