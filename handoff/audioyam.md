@@ -188,3 +188,15 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   extend code that exists (askbook, xray, scenefind, transcripts) and need only the user's own AI key, no server.
   Listening Rooms / Book Club / social need a server → decide the server question first. Store edition: these
   are natural **Plus** (own key) / **AI pass** (no key) features (see store-edition/STORE_PLAN.md).
+
+## WAITING (user away until Saturday 28 Nov, out of credit) — nothing to build until they say
+- **X-Ray redesign:** sample shown 24 Nov (`handoff/samples/audioyam-xray-sample.png`, its HTML next to it): main
+  screen with "In this scene" photo cards + People / Places / Topics list with round photos; character page like the
+  author page (big photo + credit, aliases, quick facts First seen / Chapters / Status now, "In the story so far",
+  Connections with photos, timeline of moments → play); real-person page (Wikipedia photo + bio, role in this book).
+  Photos: Wikipedia for real people and adapted characters (credited), else a portrait tile in the cover's colours
+  (no AI faces). Needs the X-Ray AI request to return kind (real / fictional), wiki title, connections, status at
+  your point (still spoiler-safe, own key). Waiting for the user's feedback or "go".
+- Also open: GitHub replies drafted (#8–#11, close done ones) — not posted; TestFlight — waiting for the 4 GitHub
+  secrets; Android / web release of what's on `work` (bookmark + highlight deletion fixes, subreddit link, Kindle
+  note, Plus switch, iPhone fixes) — waiting for "release"; Support link (Ko-fi / Sponsors) — waiting for the account.
