@@ -1,0 +1,82 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;background:#0f0d14;color:#f3eee6;display:flex;gap:28px;padding:24px;width:1290px}
+.phone{width:400px;min-height:860px;border-radius:34px;background:linear-gradient(180deg,#22263a 0%,#15161f 40%,#111218 100%);padding:22px 18px;position:relative;overflow:hidden;box-shadow:0 20px 60px #000a}
+.label{position:absolute;top:0;left:0;right:0;text-align:center;font-size:11px;color:#99a;letter-spacing:.12em;text-transform:uppercase;padding-top:8px}
+h1{font:700 26px Georgia,serif;margin:18px 0 2px}.sub{color:#aab0c4;font-size:13px}
+.sec{margin:18px 0 10px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#d6b26e;font-weight:700}
+.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font:700 15px Georgia,serif;color:#fff;border:2px solid #ffffff30;flex:none}
+.group{background:#ffffff0a;border:1px solid #ffffff12;border-radius:16px;padding:10px 12px;margin-bottom:10px}
+.group h4{font-size:12px;color:#c9cde0;margin-bottom:8px;display:flex;justify-content:space-between}
+.people{display:flex;gap:10px;flex-wrap:wrap}.p{width:62px;text-align:center;font-size:10.5px;color:#d9dcea;position:relative}
+.p .av{width:50px;height:50px;margin:0 auto 4px}
+.dot{position:absolute;top:0;right:6px;width:13px;height:13px;border-radius:50%;border:2px solid #15161f}
+.alive{background:#5fbf7f}.missing{background:#e0b04a}.dead{background:#d35d5d}.unknown{background:#8a8fa8}
+.legend{display:flex;gap:12px;font-size:11px;color:#aab0c4;margin-top:4px}.legend span{display:flex;align-items:center;gap:5px}.legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.new{font-size:10px;background:#d6b26e;color:#1a1420;border-radius:8px;padding:1px 6px;font-weight:700}
+svg text{font:600 10px sans-serif;fill:#e6e8f2}
+.ev{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #ffffff10}.ev .av{width:36px;height:36px;font-size:12px}
+.ev b{font-size:13px}.ev small{display:block;font-size:11.5px;color:#aab0c4;margin-top:2px}.ev .ch{margin-left:auto;font-size:11px;color:#d6b26e;white-space:nowrap}
+.stat{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.stat div{background:#ffffff0d;border-radius:12px;padding:9px 6px;text-align:center}.stat b{display:block;font-size:18px}.stat small{font-size:10px;color:#aab0c4}
+.q{background:#ffffff0a;border:1px dashed #ffffff26;border-radius:14px;padding:10px 12px;font-size:12.5px;color:#d9dcea;margin-bottom:8px}
+.q small{display:block;color:#8f94ad;font-size:10.5px;margin-top:3px}
+.safe{margin-top:12px;font-size:11px;color:#7f849a;text-align:center}
+</style></head><body>
+<div class="phone"><div class="label">Who's who · status at your point</div>
+<h1>Characters</h1><div class="sub">A Game of Shadows · up to Chapter 18 · no spoilers</div>
+<div class="stat" style="margin-top:14px"><div><b>31</b><small>met</small></div><div><b>24</b><small>alive</small></div><div><b>3</b><small>missing</small></div><div><b>4</b><small>dead</small></div></div>
+<div class="legend" style="margin-top:10px"><span><i class="alive"></i>alive</span><span><i class="missing"></i>missing</span><span><i class="dead"></i>dead</span><span><i class="unknown"></i>unknown</span></div>
+<div class="sec">By house</div>
+<div class="group"><h4>House Ardent <span>9</span></h4><div class="people">
+<div class="p"><div class="av" style="background:#6b4f8f">LA</div><span class="dot alive"></span>Lord Aric</div>
+<div class="p"><div class="av" style="background:#7a5a99">MA</div><span class="dot missing"></span>Mira</div>
+<div class="p"><div class="av" style="background:#5d4a80">TA</div><span class="dot alive"></span>Tomas</div>
+<div class="p"><div class="av" style="background:#8a6aa8">SA</div><span class="dot dead"></span>Ser Alan</div></div></div>
+<div class="group"><h4>House Vire <span>7</span></h4><div class="people">
+<div class="p"><div class="av" style="background:#8f4f4f">QV</div><span class="dot alive"></span>Queen Vela</div>
+<div class="p"><div class="av" style="background:#a85d5d">KV</div><span class="dot alive"></span>Kael</div>
+<div class="p"><div class="av" style="background:#7a4444">DV</div><span class="dot unknown"></span>Dorn</div></div></div>
+<div class="group"><h4>The Free Cities <span>5</span> <span class="new">2 new</span></h4><div class="people">
+<div class="p"><div class="av" style="background:#4f7f6a">NS</div><span class="dot alive"></span>Nessa</div>
+<div class="p"><div class="av" style="background:#5a8f78">OB</div><span class="dot alive"></span>Orin</div></div></div>
+<div class="safe">Status and groups only as far as you've listened</div>
+</div>
+
+<div class="phone"><div class="label">Relationship map</div>
+<h1>Connections</h1><div class="sub">Tap anyone to centre the map on them</div>
+<svg width="364" height="430" style="margin-top:14px">
+<g stroke="#ffffff30" stroke-width="2">
+<line x1="182" y1="200" x2="80" y2="90"/><line x1="182" y1="200" x2="290" y2="95"/><line x1="182" y1="200" x2="60" y2="290"/>
+<line x1="182" y1="200" x2="300" y2="300"/><line x1="182" y1="200" x2="182" y2="370"/>
+</g>
+<g stroke="#d35d5d88" stroke-width="2" stroke-dasharray="5 4"><line x1="290" y1="95" x2="300" y2="300"/></g>
+<g stroke="#5fbf7f88" stroke-width="2"><line x1="80" y1="90" x2="60" y2="290"/></g>
+<circle cx="182" cy="200" r="38" fill="#7a5a99" stroke="#d6b26e" stroke-width="3"/><text x="182" y="205" text-anchor="middle" style="font:700 16px Georgia">MA</text>
+<text x="182" y="256" text-anchor="middle" style="font:700 12px sans-serif">Mira Ardent</text>
+<circle cx="80" cy="90" r="26" fill="#6b4f8f"/><text x="80" y="94" text-anchor="middle">LA</text><text x="80" y="132" text-anchor="middle">Lord Aric</text>
+<circle cx="290" cy="95" r="26" fill="#8f4f4f"/><text x="290" y="99" text-anchor="middle">QV</text><text x="290" y="137" text-anchor="middle">Queen Vela</text>
+<circle cx="60" cy="290" r="26" fill="#5d4a80"/><text x="60" y="294" text-anchor="middle">TA</text><text x="60" y="332" text-anchor="middle">Tomas</text>
+<circle cx="300" cy="300" r="26" fill="#a85d5d"/><text x="300" y="304" text-anchor="middle">KV</text><text x="300" y="342" text-anchor="middle">Kael</text>
+<circle cx="182" cy="370" r="26" fill="#4f7f6a"/><text x="182" y="374" text-anchor="middle">NS</text><text x="182" y="412" text-anchor="middle">Nessa</text>
+<text x="118" y="140" fill="#c9cde0">father</text><text x="228" y="170">sworn enemy</text><text x="96" y="252">brother</text>
+<text x="246" y="262">betrothed</text><text x="190" y="300">rescued her</text><text x="304" y="200" fill="#d35d5d">rivals</text>
+</svg>
+<div class="legend" style="justify-content:center"><span><i style="background:#ffffff60"></i>family / bond</span><span><i style="background:#d35d5d"></i>enemies</span><span><i style="background:#5fbf7f"></i>allies</span></div>
+<div class="safe">Links appear as the story reveals them — a secret parent stays hidden until you get there</div>
+</div>
+
+<div class="phone"><div class="label">What changed · catch-up</div>
+<h1>Since you last listened</h1><div class="sub">Chapters 15–18 · 2 days ago</div>
+<div class="sec">Character changes</div>
+<div class="ev"><div class="av" style="background:#7a5a99">MA</div><div><b>Mira went missing</b><small>Last seen leaving the castle at night</small></div><span class="ch">Ch 16</span></div>
+<div class="ev"><div class="av" style="background:#8a6aa8">SA</div><div><b>Ser Alan died</b><small>Fell defending the bridge</small></div><span class="ch">Ch 17</span></div>
+<div class="ev"><div class="av" style="background:#5a8f78">OB</div><div><b>New: Orin</b><small>A smuggler from the Free Cities</small></div><span class="ch">Ch 18</span></div>
+<div class="ev"><div class="av" style="background:#a85d5d">KV</div><div><b>Kael ↔ Mira: betrothed</b><small>Announced by Queen Vela</small></div><span class="ch">Ch 15</span></div>
+<div class="sec">Open questions so far</div>
+<div class="q">Who sent the letter to Lord Aric?<small>raised in Ch 9 · still open</small></div>
+<div class="q">Where is the third key?<small>raised in Ch 14 · still open</small></div>
+<div class="sec">Also called</div>
+<div class="ev"><div class="av" style="background:#8f4f4f">QV</div><div><b>Queen Vela</b><small>“the Red Queen”, “Her Grace”, “Vela of Vire”</small></div></div>
+<div class="safe">Built from the chapters you've heard (and Live Text when on) · your own AI key</div>
+</div>
+</body></html>

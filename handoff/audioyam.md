@@ -197,6 +197,11 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   Photos: Wikipedia for real people and adapted characters (credited), else a portrait tile in the cover's colours
   (no AI faces). Needs the X-Ray AI request to return kind (real / fictional), wiki title, connections, status at
   your point (still spoiler-safe, own key). Waiting for the user's feedback or "go".
+- **Character Tracker idea:** sample shown 24 Nov (`handoff/samples/audioyam-character-tracker-sample.png` + HTML):
+  who's who grouped by house / family with status dots (alive / missing / dead / unknown) and counts; relationship
+  map centred on one character (family / enemies / allies lines, links appear only once revealed); "Since you last
+  listened" catch-up (status changes, new people, new links), open questions so far, "also called" aliases.
+  Would share data with the X-Ray redesign (one AI request per chapter gives groups, links, status). Waiting.
 - Also open: GitHub replies drafted (#8–#11, close done ones) — not posted; TestFlight — waiting for the 4 GitHub
   secrets; Android / web release of what's on `work` (bookmark + highlight deletion fixes, subreddit link, Kindle
   note, Plus switch, iPhone fixes) — waiting for "release"; Support link (Ko-fi / Sponsors) — waiting for the account.
