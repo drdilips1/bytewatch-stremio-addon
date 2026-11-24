@@ -1,5 +1,7 @@
 # Audibrisk (minimal search & play)
 
+- iPhone LEFT OUT (user, 24 Nov): don't build or check the iPhone app unless the user asks again
+  (no `[build brisk ios]` in commits). Its 24 Nov kit had already gone to the public repo.
 - iPhone: private Mac minutes ran out (first run 23 Nov queued 15 min, cancelled, never started),
   so the IPA is built in the PUBLIC repo drdilips1/audibrisk (free Mac runners), source stays
   private. `.github/workflows/brisk-ios.yml` (Linux; Run workflow or `[build brisk ios]`) builds
@@ -149,7 +151,7 @@
     best sellers whose copies are instant on your service (TorBox mostly — RD has no instant
     flags) → row on Home (≥2 books), tap plays.
   - Also in this build: automatic copy fallback, Try another copy, long-press menu, × on the strip.
-- v1.0.12 + iPhone (24 Nov, building — user: "Audible rating and my fixes, then build; see you
+- v1.0.12 (24 Nov, building; iPhone left out — user: "Audible rating and my fixes, then build; see you
   Saturday"): Audible rating (`fmtRating`) on results and the book page (no Goodreads: slow and
   blocked); search shows Audible's results as soon as they come (`searchBooks(term, onFirst)`,
   250 ms wait), "In your library" matches first (`libraryMatches`, `MineInSearch`); covers for
