@@ -205,3 +205,38 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
 - Also open: GitHub replies drafted (#8–#11, close done ones) — not posted; TestFlight — waiting for the 4 GitHub
   secrets; Android / web release of what's on `work` (bookmark + highlight deletion fixes, subreddit link, Kindle
   note, Plus switch, iPhone fixes) — waiting for "release"; Support link (Ko-fi / Sponsors) — waiting for the account.
+
+## Ideas 13–22 (noted 24 Nov, user's list, NOT started) + Claude's notes
+13. **Sidekick / listen to the world** (location → short history, related chapters): new; needs location permission,
+    a places source (Wikipedia geosearch is free) — privacy-sensitive, opt-in only. Later.
+14. **The Unheard Chapter** (AI side-scene, labelled fiction): same engine as What If? (#3); cheap with own key.
+15. **Voice Constellation** (other narrator styles, keep position): only for text the user owns (EPUB) via TTS; the app
+    already has read-aloud voices + Live Text alignment. Never clone real narrators' voices (rights).
+16. **Book DNA between friends**: needs two people's histories → share a "taste card" link/QR (no server: data inside
+    the link, like quote links) and compare on the other phone. Viral-friendly.
+17. **Alternate Ending Debate**: votes need a server; light version = after finishing, AI-posed questions + share your
+    answers as a card/link; friends compare.
+18. **Whisper Notes** (user's favourite): partly exists — "Remember this" (askbook.js) saves spoken ideas as text cards.
+    Gap: keep the actual voice clip at the timestamp, play it when you reach that chapter again, share with a friend.
+    On-device recording, no server. Strong candidate.
+19. **Audiobook Relay** (chapter per person + 30 s reaction): needs sharing between people; could start as a shared
+    "relay diary" link passed along (each adds a reaction), no server. Families / classrooms.
+20. **Silence Intelligence**: Android has skip silence (player extra); new = classify pauses (sentence / paragraph /
+    dramatic / recording gap) and per-user rules; analysis on-device for local + downloaded files. iPhone needs it too.
+21. **Book Resurrection**: mostly exists in parts — catchup.jsx (recap on resume), resume.js, story sheet, bookmarks;
+    gap: a gentle "come back to …" card after N weeks with recap + characters + your notes in one place. Easy win.
+22. **Book Universe** (connected books: same era, figures, interpretations): parts exist (series.js, people.js, X-Ray real
+    people, Wikipedia); gap: a "connections" page per book. Good discovery feature without a server.
+- User's shortlist: 18, 21, 22, 19, 20. Claude agrees; order by effort: 21 (easy) → 18 → 22 → 20 → 19.
+- Next-10 direction (user asked): Claude suggests **revenue without a cloud subscription** mixed with **viral sharing**
+  (link/QR cards, no server) — see the 10 ideas given in chat on 24 Nov (23–32 below).
+23. Study mode (non-fiction → flashcards/quiz from what you heard, spaced repetition) — Plus.
+24. Language-learner mode (dual-language Live Text, tap a word, slow repeat) — Plus.
+25. Kids / family profiles with a parent's voice reading the EPUB at bedtime (own recording, on-device) — Plus.
+26. "Listening passport" share card (books, hours, places visited in stories) — viral.
+27. Gift a listen: send a friend a link that opens the book page + your voice note — viral.
+28. Offline AI pack (small on-device model for recaps without any key/cloud) — one-time purchase.
+29. Car mode pro (big-button, voice-only control, auto-resume per car) — Plus.
+30. Sleep story mode (gentle fade, auto-rewind to where you dozed via motion/no-interaction) — Plus.
+31. Book-to-podcast (your highlights + notes as a private mini audio episode via TTS) — Plus.
+32. Classroom pack (teacher shares a relay/quiz link; no accounts) — one-time / school licence.
