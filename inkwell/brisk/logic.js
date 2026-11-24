@@ -223,3 +223,18 @@ export function healthBonus(copy = {}, source = {}) {
   const s = Math.max(-40, Math.min(20, ((source.ok || 0) - (source.fail || 0) * 2) * 2));
   return c + s;
 }
+
+/** Audible's rating as one small line: "★ 4.8 · 120k" ("" when it has none). */
+export function fmtRating(b) {
+  const r = Number(b?.rating) || 0;
+  if (!r) return '';
+  const n = Number(b?.ratings) || 0;
+  const count = n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : n ? String(n) : '';
+  return `★ ${r.toFixed(1)}${count ? ` · ${count}` : ''}`;
+}
+
+/** Books of yours (cloud, phone, saved) that fit what you typed — shown first in search. */
+export function libraryMatches(books, term, max = 4) {
+  const seen = new Set();
+  return (books || []).filter((b) => b?.title && fitsWords(b, term) && !seen.has(b.uid) && seen.add(b.uid)).slice(0, max);
+}

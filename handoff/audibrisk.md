@@ -149,13 +149,16 @@
     best sellers whose copies are instant on your service (TorBox mostly — RD has no instant
     flags) → row on Home (≥2 books), tap plays.
   - Also in this build: automatic copy fallback, Try another copy, long-press menu, × on the strip.
+- v1.0.12 + iPhone (24 Nov, building — user: "Audible rating and my fixes, then build; see you
+  Saturday"): Audible rating (`fmtRating`) on results and the book page (no Goodreads: slow and
+  blocked); search shows Audible's results as soon as they come (`searchBooks(term, onFirst)`,
+  250 ms wait), "In your library" matches first (`libraryMatches`, `MineInSearch`); covers for
+  cloud books from the catalogue book they were played as (`linkCover`), cover look-ups up to 60 a
+  session and each retried after a day (`briskCoverTried`); long-press → "Find cover"
+  (`CoverSheet`, shared searchCovers → setFix). NOT done: iPhone downloads (needs a new shared
+  Swift plugin — can't compile/test it here or read the public repo's logs).
 - NOTED, not built (24 Nov, user "just note"):
   - iPhone: Save / download for offline (needs a shared iOS downloads plugin — shared native code).
-  - Covers missing for books added to Real-Debrid later (Library). Idea: use the catalogue cover the
-    book was played from (`links` has it), retry daily, lift the 24-a-session cap gradually.
-  - Search takes a few seconds even with the full title. Idea: show Audible's results as soon as
-    they come (don't wait for best sellers / LibriVox), and your own library's matches first.
-  - Long-press menu: "Find cover" (pick from the covers found, like Audiohub's cover picker).
   - ChatGPT list — already in: one-tap resume, copy fallback keeping place, theme dice, chapters,
     continuity across files, sleep fade (shared player fades out). Worth doing: search your own
     library first (cloud/phone), shake to extend sleep, a small private "your listening" card

@@ -23,3 +23,4 @@ AllDebrid, Premiumize (any or all), a folder on the phone, and a folded Sources 
 - v1.0.10: first public release (drdilips1/audibrisk) — free books in the top 10, Deep Search follows your service.
 - v1.0.11: ready before you tap, what worked ranks first, next in series + Get ready, chapter names for multi-file copies, Ready to play now.
 - iPhone: built in the public repo drdilips1/audibrisk from a kit (brisk/ios-kit), AltStore source on its Releases page.
+- v1.0.12: Audible ratings, faster search with your own books first, catalogue covers for cloud books, Find cover.

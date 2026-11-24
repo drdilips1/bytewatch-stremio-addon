@@ -103,11 +103,16 @@ const cache = new Map();
  * finds The Design of Everyday Things), the word itself in the title first; plus free LibriVox
  * recordings: two of them inside the top 10, all of them first when no debrid is connected.
  */
-export async function searchBooks(term) {
+export async function searchBooks(term, onFirst) {
   const q = term.trim();
   if (!q) return [];
   if (cache.has(q)) return cache.get(q);
-  const [rel, best, free] = await Promise.all([audible.search(q).catch(() => []), audible.genre(q).catch(() => []), freeBooks(q)]);
+  const relP = audible.search(q).catch(() => []);
+  const bestP = audible.genre(q).catch(() => []);
+  const freeP = freeBooks(q);
+  // Audible's own results on screen the moment they come; best sellers and free books join after.
+  relP.then((rel) => !cache.has(q) && rel.length && onFirst?.(rankResults(rel.filter((b) => b.title), q).slice(0, 30)));
+  const [rel, best, free] = await Promise.all([relP, bestP, freeP]);
   const paid = rankResults([...rel, ...best.slice(0, 16)].filter((b) => b.title), q).slice(0, 30);
   const out = mixFree(paid, free, { hasDebrid: !!provider() });
   cache.set(q, out);
@@ -564,7 +569,19 @@ export function refreshCloud(force = false) {
     .finally(() => (cloudRun = null));
   return cloudRun;
 }
-export const withCover = (b) => ({ ...b, cover: coverNow(b) || covers.get()[b.uid] || b.cover || '' });
+export const withCover = (b) => ({ ...b, cover: coverNow(b) || covers.get()[b.uid] || linkCover(b.uid) || b.cover || '' });
+// The catalogue cover of the book a cloud copy was played as (books you played here, then find in
+// your Real-Debrid / TorBox later): known already, nothing to look up.
+let linkCovers = null;
+let linkCoversOf = null;
+function linkCover(uid) {
+  const l = links.get();
+  if (linkCoversOf !== l) {
+    linkCoversOf = l;
+    linkCovers = new Map(Object.values(l).filter((x) => x?.uid && x.cover).map((x) => [x.uid, x.cover]));
+  }
+  return linkCovers.get(uid) || '';
+}
 
 // Covers for cloud and phone books, found quietly in the background: one at a time, a few seconds
 // apart, at most 24 a session, and saved together — so taps and Play never wait behind them.
@@ -574,10 +591,14 @@ const tried = new Set();
 const waiting = [];
 let filling = false;
 export const busy = { now: 0 }; // > 0 while a book is opening: covers wait
+// Books looked for already (and when): each is tried again after a day, never more often.
+const coverTried = persisted('briskCoverTried', {}, { delay: 3000 });
 export function fillCovers(books) {
+  const day = Date.now() - 864e5;
   for (const b of books) {
-    if (tried.size + waiting.length >= 24) break;
-    if (!b?.uid || tried.has(b.uid) || waiting.some((w) => w.uid === b.uid) || coverNow(b) || covers.get()[b.uid]) continue;
+    if (tried.size + waiting.length >= 60) break;
+    if (!b?.uid || tried.has(b.uid) || waiting.some((w) => w.uid === b.uid) || coverNow(b) || covers.get()[b.uid] || linkCover(b.uid)) continue;
+    if ((coverTried.get()[b.uid] || 0) > day) continue;
     waiting.push(b);
   }
   if (filling || !waiting.length) return;
@@ -593,6 +614,7 @@ export function fillCovers(books) {
       return;
     }
     tried.add(b.uid);
+    coverTried.set((t) => ({ ...Object.fromEntries(Object.entries(t).slice(-500)), [b.uid]: Date.now() }));
     const m = await lookup(b).catch(() => null);
     if (m?.cover) found[b.uid] = m.cover;
     // Shown a few at a time, not one redraw per cover.

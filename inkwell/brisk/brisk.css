@@ -322,3 +322,12 @@ button, a, .b-cont, .b-job-text { touch-action: manipulation; -webkit-tap-highli
 :root[data-mode='dark'] .b-pill-go { color: #1e1c19; }
 .b-upnext.in-player { width: 100%; max-width: 420px; margin-top: 18px; text-align: left; }
 .b-upnext-actions .b-pill { text-align: center; }
+
+/* ratings, your books in search, the cover picker */
+.b-rating { margin: 6px 0 0; color: var(--b-gold); font-size: 13.5px; font-weight: 600; }
+.b-mine .b-label { display: block; margin: 6px 0 2px; }
+.b-mine .b-label:last-child { margin-top: 16px; }
+.b-cover-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.b-cover-pick button { text-align: center; }
+.b-cover-pick .b-cover { border-radius: 10px; }
+.b-cover-pick small { display: block; margin-top: 4px; color: var(--b-muted); font-size: 11px; }

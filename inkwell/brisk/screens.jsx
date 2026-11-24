@@ -12,7 +12,9 @@ import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
 import { VERSION, checkUpdate, installUpdate, updState, newer, isIphone } from './update.js';
 import { Scene, rollScene, modeChoice } from './scenes.jsx';
-import { copyFacts, thumb, placeOf } from './logic.js';
+import { copyFacts, thumb, placeOf, fmtRating, libraryMatches } from './logic.js';
+import { searchCovers, setFix, fixFor } from '../src/lib/meta.js';
+import { searchTitle } from '../src/lib/match.js';
 import * as phone from '../src/sources/local.js';
 
 /** A cover, or a quiet typographic one when there's no picture. */
@@ -192,6 +194,88 @@ const holdProps = (b) => {
     onContextMenu: (e) => e.preventDefault(),
   };
 };
+// "Find cover": covers from Audible, Apple, Google Books and Open Library — tap one to keep it.
+let pickNow = null;
+const pickSubs = new Set();
+const setPickCover = (b) => ((pickNow = b), pickSubs.forEach((f) => f(b)));
+function CoverSheet() {
+  const [b, setB] = useState(pickNow);
+  const [list, setList] = useState(null);
+  useEffect(() => (pickSubs.add(setB), () => pickSubs.delete(setB)), []);
+  const close = () => setPickCover(null);
+  useBackClose(!!b, close);
+  useEffect(() => {
+    if (!b) return setList(null);
+    let alive = true;
+    setList(null);
+    const term = `${searchTitle(b.title)} ${String(b.author || '').split(',')[0]}`.trim();
+    searchCovers(term)
+      .then((all) => {
+        const seen = new Set();
+        alive && setList(all.filter((m) => m?.cover && !seen.has(m.cover) && seen.add(m.cover)).slice(0, 18));
+      })
+      .catch(() => alive && setList([]));
+    return () => (alive = false);
+  }, [b?.uid]);
+  if (!b) return null;
+  const keep = (cover) => {
+    setFix(b.uid, { ...(fixFor(b.uid) || {}), cover });
+    toast('Cover changed');
+    close();
+  };
+  return (
+    <div class="b-sheet-bg" onClick={close}>
+      <div class="b-sheet" onClick={(e) => e.stopPropagation()}>
+        <h3>Cover for {b.title}</h3>
+        {list == null ? (
+          <p class="b-sheet-sub">
+            <span class="b-spin small" /> Looking for covers…
+          </p>
+        ) : !list.length ? (
+          <p class="b-sheet-sub">No covers found for this title.</p>
+        ) : (
+          <div class="b-cover-pick">
+            {list.map((m) => (
+              <button onClick={() => keep(m.cover)}>
+                <Cover book={{ title: m.title, author: m.author, cover: m.cover }} px={240} />
+                <small>{m.from}</small>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Your own books that fit the search, first (plays at once, with where it plays from). */
+function MineInSearch({ q }) {
+  const cloud = useStore(bk.cloudShelf).books;
+  const dls = useStore(downloads);
+  const local = useStore(phone.localCfg);
+  const mine = libraryMatches([...bk.offline(dls), ...cloud, ...(phone.connected() ? local.books.filter((b) => b.kind !== 'text') : [])], q).map(bk.withCover);
+  if (!mine.length) return null;
+  return (
+    <div class="b-mine">
+      <small class="b-label">In your library</small>
+      {mine.map((b) => {
+        const at = placeOf(b, dls[b.uid]?.status === 'done');
+        return (
+          <button class="b-result" onClick={() => playIt(b)} {...holdProps(b)}>
+            <Cover book={b} px={160} />
+            <div>
+              <b>{b.title}</b>
+              <span>{String(b.author || '').split(',')[0]}</span>
+              <small>{at ? `Plays from ${at.label}` : ''}</small>
+            </div>
+          </button>
+        );
+      })}
+      <small class="b-label">Everything else</small>
+    </div>
+  );
+}
+
 function HoldSheet() {
   const b = useHoldBook();
   const close = () => setHold(null);
@@ -213,6 +297,9 @@ function HoldSheet() {
           )}
           <button onClick={go(() => nav.push('book', { book: b }))}>
             <Icon name="book" size={18} /> Book page
+          </button>
+          <button onClick={go(() => setPickCover(b))}>
+            <Icon name="image" size={18} /> Find cover
           </button>
         </div>
       </div>
@@ -252,11 +339,11 @@ export function Home() {
     setBusy(true);
     timer.current = setTimeout(() => {
       const term = q;
-      bk.searchBooks(term).then((r) => {
+      bk.searchBooks(term, (first) => term === q && setResults(first)).then((r) => {
         if (term === q) setResults(r);
         setBusy(false);
       });
-    }, 380);
+    }, 250);
   }, [q]);
   const cont = bk.continuing(allProgress).map(bk.withCover);
   const open = (b) => nav.push('book', { book: b });
@@ -300,6 +387,7 @@ export function Home() {
       {results ? (
         // Scrolling the results puts the keyboard away, so the first tap on a book opens it.
         <div class="b-results" onTouchStart={() => document.activeElement?.blur?.()}>
+          <MineInSearch q={q} />
           {!results.length && !busy && <p class="b-empty">Nothing found for “{q}”.</p>}
           {results.map((b) => (
             <button class="b-result" onClick={() => open(b)}>
@@ -310,7 +398,7 @@ export function Home() {
                   {b.free && <em class="b-free">Free</em>}
                   {b.author}
                 </span>
-                <small>{[b.narrator && `Read by ${b.narrator.split(',')[0]}`, b.duration && fmtDuration(b.duration)].filter(Boolean).join(' · ')}</small>
+                <small>{[fmtRating(b), b.narrator && `Read by ${b.narrator.split(',')[0]}`, b.duration && fmtDuration(b.duration)].filter(Boolean).join(' · ')}</small>
               </div>
             </button>
           ))}
@@ -338,6 +426,7 @@ export function Home() {
       )}
       {sheet && <SettingsSheet close={() => setSheet(false)} />}
       <HoldSheet />
+      <CoverSheet />
     </div>
   );
 }
@@ -657,6 +746,7 @@ export function BookPage({ book, fresh = false }) {
         {[book.narrator && `Read by ${book.narrator.split(',')[0]}`, book.duration && fmtDuration(book.duration), book.year].filter(Boolean).join('  ·  ')}
       </p>
       {book.series && <p class="b-series">{book.series}</p>}
+      {fmtRating(book) && <p class="b-rating">{fmtRating(book)} ratings on Audible</p>}
       <div class="b-actions">
         <button class="b-play" onClick={onPlay} disabled={!!status}>
           {status ? <span class="b-spin" /> : <Icon name="play" size={20} />}

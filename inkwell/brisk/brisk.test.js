@@ -169,3 +169,19 @@ describe('Audibrisk chapters, series and what worked', () => {
     expect(healthBonus({}, { fail: 10 })).toBe(-40);
   });
 });
+
+describe('Audibrisk ratings and your own books in search', () => {
+  it('shows Audible’s rating as one short line', async () => {
+    const { fmtRating } = await import('./logic.js');
+    expect(fmtRating({ rating: 4.83, ratings: 120456 })).toBe('★ 4.8 · 120k');
+    expect(fmtRating({ rating: 4.5, ratings: 2300000 })).toBe('★ 4.5 · 2.3M');
+    expect(fmtRating({ rating: 4, ratings: 12 })).toBe('★ 4.0 · 12');
+    expect(fmtRating({})).toBe('');
+  });
+  it('finds your own books that fit the words you typed', async () => {
+    const { libraryMatches } = await import('./logic.js');
+    const mine = [{ uid: 'rd:1', title: 'Atomic Habits', author: 'James Clear' }, { uid: 'tb:2', title: 'Dune', author: 'Frank Herbert' }, { uid: 'rd:1', title: 'Atomic Habits' }];
+    expect(libraryMatches(mine, 'atomic').map((b) => b.uid)).toEqual(['rd:1']);
+    expect(libraryMatches(mine, 'herbert dune').map((b) => b.uid)).toEqual(['tb:2']);
+  });
+});
