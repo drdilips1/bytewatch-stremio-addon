@@ -149,6 +149,21 @@
     best sellers whose copies are instant on your service (TorBox mostly — RD has no instant
     flags) → row on Home (≥2 books), tap plays.
   - Also in this build: automatic copy fallback, Try another copy, long-press menu, × on the strip.
+- NOTED, not built (24 Nov, user "just note"):
+  - iPhone: Save / download for offline (needs a shared iOS downloads plugin — shared native code).
+  - Covers missing for books added to Real-Debrid later (Library). Idea: use the catalogue cover the
+    book was played from (`links` has it), retry daily, lift the 24-a-session cap gradually.
+  - Search takes a few seconds even with the full title. Idea: show Audible's results as soon as
+    they come (don't wait for best sellers / LibriVox), and your own library's matches first.
+  - Long-press menu: "Find cover" (pick from the covers found, like Audiohub's cover picker).
+  - ChatGPT list — already in: one-tap resume, copy fallback keeping place, theme dice, chapters,
+    continuity across files, sleep fade (shared player fades out). Worth doing: search your own
+    library first (cloud/phone), shake to extend sleep, a small private "your listening" card
+    (shared stats exist), playback-reliability check (resume after restart, expired links,
+    file-to-file joins, Bluetooth/lock screen). Needs shared native: download-ahead cache, widget.
+    Don't add: AI recommendations, podcasts, social, profiles, cloud accounts, discovery feeds.
+  - Personality: user's/ChatGPT's "D" (elegant outside, capable engine) — keep the surface as
+    plain as "C" (search, play, resume); extras only via long-press / More.
 - Not Audibrisk (noted for Audiohub+): user asks for Mobilism as an in-app username/password login
   that re-logs in by itself when the site logs out, opening the website only if that fails.
 - Pending / ideas: optional "Add your own source link" under Settings (recommended: keep built-in
