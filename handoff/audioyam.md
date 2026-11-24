@@ -153,3 +153,38 @@
   port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
   tested with sample answers; see ROADMAP.
+
+## Ideas: beyond a player (noted 24 Nov, user's list, NOT started, no code)
+User's 12 ideas + "social network around stories". Status = what AudioYam already has to build on.
+1. **Story Companion** (spoiler-safe AI that knows your position; voice): mostly exists: Ask the book
+   (askbook.js, "ask about what I'm hearing", never past your place), voiceask.js, X-Ray. Gap: one tap
+   from the player straight into a spoiler-safe chat; works best with the ebook or Live Text.
+2. **Character Tracker** (aliases, relations, first appearance, alive/dead at your point): partly: X-Ray
+   (xray.js, people per chapter up to your place) + story-sheet knownCharacters. Gap: kept per book over time,
+   relationships, status at your point, tap for a spoiler-safe profile.
+3. **What If?** (non-canonical alternate scenes): new; easy with AI (own key), clearly marked "not the book".
+4. **Time Machine** (search everything you've listened to): partly: Play a scene (scenefind.js, inside one
+   book via its ebook), transcripts cache, bookmarks / highlights / notes, playback history. Gap: one search
+   across all books (index transcripts + notes + chapter titles), jump to the moment.
+5. **Dream Cast**: new; portraits = image AI (costly, rights questions with real actors' faces → keep to names
+   + optional AI art, never real-photo deepfakes).
+6. **Nightly Book Club**: new; needs shared accounts / server (sync is per-user Supabase today; no shared
+   server in AudioYam by rule). Could start as a shared schedule link + discussion questions by AI.
+7. **Audio DNA** (suspense / mystery / romance %): partly: taste.js profile, mood shelves, "why this pick".
+   Gap: per-book profile shown on the book page + "experience" based recommendations.
+8. **Audio Postcards**: mostly exists: quote cards / shared quote links (quoteshare.js). Gap: waveform look,
+   reaction note, chapter reference; text excerpt + timestamp only (no audio clip: copyright).
+9. **Mood Radio**: partly: Discover moods, bookseller.js AI picks, taste ranking. Gap: a "what do I want to
+   feel" queue built from books you already have / can get.
+10. **Memory Palace** (what did I learn across books, with sources): new on top of Ask the book (library mode)
+    + transcripts / highlights; needs a per-user index (embeddings) — biggest but most unique.
+11. **Listener Challenges**: easy; stats.js + Your year already count authors / genres / books.
+12. **Living Book** (timeline of events, places, objects, open questions): extends X-Ray / Character Tracker;
+    very AI-heavy.
+- **Stories-not-people social layer** (who's on the same book / chapter, listening parties, voice-note recs):
+  needs a shared server and accounts → conflicts with AudioYam's "no own sync server" rule; would be an
+  Audiohub+ / store-edition decision. Privacy first (opt-in, no follower counts).
+- **Suggestion (Claude):** agree with starting from Story Companion + Character Tracker + Time Machine — all three
+  extend code that exists (askbook, xray, scenefind, transcripts) and need only the user's own AI key, no server.
+  Listening Rooms / Book Club / social need a server → decide the server question first. Store edition: these
+  are natural **Plus** (own key) / **AI pass** (no key) features (see store-edition/STORE_PLAN.md).
