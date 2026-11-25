@@ -59,3 +59,39 @@ export function hueOf(name) {
   for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) % 360;
   return h;
 }
+
+/**
+ * The relationship map around one person: { nodes: [{ name, x, y, centre }], edges: [{ a, b, label,
+ * type }] } with x / y from 0 to 1. Their connections sit in a ring (at most 8); links between
+ * two of those people (from either one's own connections) are drawn too.
+ */
+export function mapAround(person, people = []) {
+  const ring = [];
+  const seen = new Set([key(person.name)]);
+  for (const c of person.connections || []) {
+    if (!c?.to || seen.has(key(c.to))) continue;
+    seen.add(key(c.to));
+    ring.push(c);
+    if (ring.length >= 8) break;
+  }
+  const n = ring.length;
+  const nodes = [{ name: person.name, x: 0.5, y: 0.5, centre: true }];
+  ring.forEach((c, i) => {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(n, 1);
+    nodes.push({ name: c.to, x: 0.5 + 0.38 * Math.cos(a), y: 0.5 + 0.36 * Math.sin(a) });
+  });
+  const edges = ring.map((c) => ({ a: person.name, b: c.to, label: c.label || '', type: c.type || 'other' }));
+  const inRing = new Map(ring.map((c) => [key(c.to), c.to]));
+  const byName = new Map(people.map((p) => [key(p.name), p]));
+  const drawn = new Set();
+  for (const c of ring) {
+    for (const l of byName.get(key(c.to))?.connections || []) {
+      const other = inRing.get(key(l.to));
+      const pair = [key(c.to), key(l.to)].sort().join('|');
+      if (!other || drawn.has(pair) || key(l.to) === key(c.to)) continue;
+      drawn.add(pair);
+      edges.push({ a: c.to, b: other, label: l.label || '', type: l.type || 'other' });
+    }
+  }
+  return { nodes, edges };
+}

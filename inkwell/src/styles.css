@@ -13117,3 +13117,20 @@ html.ios .book-card:not(.broken) { box-shadow: none; }
 .xr-facts .st-dead { color: #e5484d; } .xr-facts .st-missing { color: #e0a83a; } .xr-facts .st-alive { color: #3fb36b; }
 .char-chips span { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
 .char-chips .st-dead { color: #e5484d; } .char-chips .st-missing { color: #e0a83a; } .char-chips .st-alive { color: #3fb36b; }
+
+/* X-Ray photos and the relationship map. */
+.xr-face { overflow: hidden; } .xr-face img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.xr-hero-photo { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 14px 0 8px; }
+.xr-hero-photo img { width: 96px; height: 96px; border-radius: 16px; object-fit: cover; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35); }
+.xr-hero-photo small { font-size: 11px; color: rgba(255, 255, 255, 0.7); }
+.xr-map { position: relative; width: 100%; max-width: 420px; margin: 4px auto 0; }
+.xr-map svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.xr-edge { stroke: color-mix(in srgb, var(--text) 35%, transparent); stroke-width: 1.6; }
+.xr-edge.enemy { stroke: #e5484d; stroke-dasharray: 5 4; } .xr-edge.ally { stroke: #3fb36b; }
+.xr-edge-label { font: 700 10.5px var(--font, system-ui); fill: var(--text); paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
+.xr-edge-label.enemy { fill: #e5484d; } .xr-edge-label.ally { fill: #2f9a59; }
+.xr-node { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; padding: 0; color: var(--text); font: inherit; }
+.xr-node small { font-size: 11px; font-weight: 700; white-space: nowrap; text-shadow: 0 0 4px var(--bg); }
+.xr-node.centre .xr-face { box-shadow: 0 0 0 3px var(--accent); }
+.xr-line { display: inline-block; width: 16px; height: 0; border-top: 2px solid color-mix(in srgb, var(--text) 40%, transparent); vertical-align: middle; }
+.xr-line.enemy { border-top: 2px dashed #e5484d; } .xr-line.ally { border-top-color: #3fb36b; }

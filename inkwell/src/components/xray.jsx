@@ -9,7 +9,8 @@ import * as player from '../lib/player.js';
 import { aiReady } from '../lib/ai.js';
 import { subscribeTranscript } from '../lib/transcript.js';
 import { loadXray, cachedXray, previousXray, timeline, inScene } from '../lib/xray.js';
-import { groupsOf, counts, changesSince, initials, hueOf, statusOf } from '../lib/xraytrack.js';
+import { groupsOf, counts, changesSince, initials, hueOf, statusOf, mapAround } from '../lib/xraytrack.js';
+import { photoFor } from '../lib/xrayphotos.js';
 import { knownCharacters } from './story-sheet.jsx';
 import { fmtTime } from '../lib/format.js';
 
@@ -23,14 +24,63 @@ function useRecent(s) {
   return segs.filter((g) => g.start != null && g.start <= s.time + 1 && g.start >= s.time - 180).map((g) => (t?.bookText?.state === 'on' && g.book) || g.text);
 }
 
-/** A portrait: initials on the person's own colour, with a status dot when asked. */
+// The book whose X-Ray is open (photos are looked up for its characters).
+let xrBook = null;
+/** A person's Wikipedia photo (real people; characters with a page of their own), or null. */
+function usePhoto(x, place) {
+  const [p, setP] = useState(null);
+  useEffect(() => {
+    let live = true;
+    setP(null);
+    if (!place && x?.name && xrBook) photoFor(x, xrBook).then((r) => live && setP(r));
+    return () => (live = false);
+  }, [x?.name, x?.kind, place]);
+  return p;
+}
+
+/** A portrait: the Wikipedia photo when there is one, else initials on the person's own colour. */
 function Face({ x, size = 44, dot = false, place = false }) {
   const h = hueOf(x.name);
+  const photo = usePhoto(x, place);
   return (
     <span class={'xr-face' + (place ? ' place' : '')} style={{ width: size, height: size, fontSize: size * 0.36, '--h': h }}>
-      {place ? '📍' : initials(x.name)}
+      {photo ? <img src={photo.url} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = 'none')} /> : place ? '📍' : initials(x.name)}
       {dot && <i class={'xr-dot ' + statusOf(x)} />}
     </span>
+  );
+}
+
+/** The relationship map: this person in the middle, their connections around (tap to go there). */
+function RelationMap({ x, people, open }) {
+  const { nodes, edges } = mapAround(x, people);
+  if (nodes.length < 2) return null;
+  const at = new Map(nodes.map((n) => [n.name, n]));
+  const W = 320, H = 290;
+  return (
+    <div class="xr-map" style={{ aspectRatio: `${W} / ${H}` }}>
+      <svg viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+        {edges.map((e) => {
+          const a = at.get(e.a), b = at.get(e.b);
+          if (!a || !b) return null;
+          return <line class={'xr-edge ' + e.type} x1={a.x * W} y1={a.y * H} x2={b.x * W} y2={b.y * H} />;
+        })}
+        {edges.map((e) => {
+          const a = at.get(e.a), b = at.get(e.b);
+          if (!a || !b || !e.label) return null;
+          return (
+            <text class={'xr-edge-label ' + e.type} x={((a.x + b.x) / 2) * W} y={((a.y + b.y) / 2) * H - 4} text-anchor="middle">
+              {e.label.length > 16 ? e.label.slice(0, 15) + '…' : e.label}
+            </text>
+          );
+        })}
+      </svg>
+      {nodes.map((n) => (
+        <button class={'xr-node' + (n.centre ? ' centre' : '')} style={{ left: `${n.x * 100}%`, top: `${n.y * 100}%` }} onClick={() => !n.centre && open(n.name)}>
+          <Face x={people.find((p) => p.name === n.name) || { name: n.name }} size={n.centre ? 64 : 46} />
+          <small>{n.name.length > 14 ? n.name.slice(0, 13) + '…' : n.name}</small>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -38,6 +88,7 @@ const chapterName = (i) => player.chapters()[i]?.title || `Part ${i + 1}`;
 const short = (t, n = 26) => (t.length > n ? t.slice(0, n - 1) + '…' : t);
 
 export function XraySheet({ s }) {
+  xrBook = s.book;
   const [data, setData] = useState(() => cachedXray(s.book.uid));
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('people');
@@ -232,6 +283,7 @@ function Since({ data, prev, changes, open }) {
 /** One person's (or place's) page: who they are so far, connections, and moments to jump to. */
 function Person({ x, data, place, back, open }) {
   const tl = timeline(x, data);
+  const photo = usePhoto(x, place);
   const first = x.chapters?.[0];
   const st = statusOf(x);
   return (
@@ -240,7 +292,14 @@ function Person({ x, data, place, back, open }) {
         <button class="pill small" onClick={back}>
           ‹ X-Ray
         </button>
-        <span class="xr-hero-art">{place ? '📍' : initials(x.name)}</span>
+        {photo ? (
+          <span class="xr-hero-photo">
+            <img src={photo.url} alt="" />
+            <small>Photo: Wikipedia{photo.page && photo.page !== x.name ? ` · ${photo.page}` : ''}</small>
+          </span>
+        ) : (
+          <span class="xr-hero-art">{place ? '📍' : initials(x.name)}</span>
+        )}
         <h3>{x.name}</h3>
         {x.role && <p>{x.role}</p>}
         <div class="xr-chips">
@@ -273,6 +332,10 @@ function Person({ x, data, place, back, open }) {
       {x.connections?.length > 0 && (
         <>
           <b class="xr-kick">Connections</b>
+          <RelationMap x={x} people={data.people} open={open} />
+          <p class="xr-legend">
+            <i class="xr-line family" /> family / bond <i class="xr-line enemy" /> enemies <i class="xr-line ally" /> allies · links only as the story reveals them
+          </p>
           <div class="xr-faces">
             {x.connections.map((c) => (
               <button onClick={() => open(c.to)}>
