@@ -381,3 +381,10 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   slowing the Cloudflare worker (or its domain list being out of date) while the + server gets through. To do
   (when told): compare the two servers' ABB code (domains / mirrors, headers, retries), port what makes the +
   one reliable into the public worker — without anything private (no + server address in AudioYam).
+- NOTED 25 Nov (asked, NOT built — design change, show sample first): a series (e.g. Weeb Central Solo Leveling,
+  201 chapters) should be ONE book, not a chapter list + one book per chapter. Plan: one shelf item per series
+  (uid by series url), progress = { chapter, page }; result row "Read" (start / Continue · Ch 13) + "Chapters"
+  optional; reader flows from the last page of a chapter straight into the next (swipe on, no button needed),
+  a chapter picker sheet in the reader (current marked, newest/oldest toggle), Continue / Library show
+  "Solo Leveling · Chapter 13 · page 5"; old per-chapter entries folded into the series. Same model can later
+  serve GetComics/IA issues of one series.
