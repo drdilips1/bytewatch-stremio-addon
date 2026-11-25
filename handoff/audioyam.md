@@ -388,3 +388,6 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   a chapter picker sheet in the reader (current marked, newest/oldest toggle), Continue / Library show
   "Solo Leveling · Chapter 13 · page 5"; old per-chapter entries folded into the series. Same model can later
   serve GetComics/IA issues of one series.
+- 25 Nov: user — GlobalComix is paid, remove it. Worker 2.7.1 (handoff/workers/audiohub-comics.js): no GlobalComix
+  webSearch link, route (404), registry entry or web_search in /api/search. Manifest webSearch = Comics Plus only.
+  App unchanged (webSearch is generic); the link disappears once 2.7.1 is deployed and the manifest refreshes.

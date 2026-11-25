@@ -1,7 +1,9 @@
-// Audiohub Comics — Cloudflare Worker, version 2.7.0
-// Sources that search here: GetComics and Internet Archive (source=all), ReadComicsOnline
-// (source=readcomicsonline) and Kitsu (manga titles only, source=kitsu). GlobalComix and Comics Plus are
-// opened in their own reader (see WEB_ONLY below for why they aren't searched here).
+// Audiohub Comics — Cloudflare Worker, version 2.7.1
+// Sources that search here: GetComics, Internet Archive and Weeb Central (source=all),
+// ReadComicsOnline (source=readcomicsonline) and Kitsu (manga titles only, source=kitsu).
+// Comics Plus opens in its own reader (see WEB_ONLY below for why it isn't searched here).
+// Changes from 2.7.0:
+//  - GlobalComix removed (mostly paid): no "Also look on" link, no route.
 // Changes from 2.6.1:
 //  - Weeb Central (manga): search, series chapter lists and each chapter's pages, which the
 //    app shows in its own comic reader (right to left). In source=all.
@@ -26,7 +28,7 @@
 
 const CONFIG = {
   NAME: "Audiohub Comics",
-  VERSION: "2.7.0",
+  VERSION: "2.7.1",
   KITSU_API: "https://kitsu.io/api/edge",
   ARCHIVE_API: "https://archive.org",
   GETCOMICS_FEED: "https://getcomics.org/feed/",
@@ -891,22 +893,13 @@ async function kitsuItem(id) {
   return { success: true, source: "kitsu", result: normalizeKitsu(d.data) };
 }
 
-/* GLOBALCOMIX and COMICS PLUS — opened in their own reader, never searched by this server
-   GlobalComix: no public API, its terms forbid robots / scrapers and framing, and the RSS
-   search its OpenSearch file names now redirects to a script-drawn page. Its own search
-   (the OpenSearch address) is offered as a link; free, member and paid comics stay under
-   GlobalComix's own sign-in and checks.
+/* COMICS PLUS — opened in its own reader, never searched by this server
    Comics Plus (LibraryPass): its catalogue API is licensed to libraries (they ask LibraryPass
    support), not to readers, and each library has its own sign-in. Your library's Comics Plus
    link stays in the app on your phone; your card number only ever goes into Comics Plus's
    own sign-in page. Nothing about it reaches this server. */
 
 const WEB_ONLY = {
-  globalcomix: {
-    provider_name: "GlobalComix",
-    open_url: (q) => `https://globalcomix.com/search?q=${encodeURIComponent(q)}`,
-    message: "GlobalComix can't be searched by apps (no public API; its terms forbid automated access) — open its own search instead"
-  },
   comicsplus: {
     provider_name: "Comics Plus",
     open_url: () => null,
@@ -1098,14 +1091,6 @@ function sources() {
       note: "Manga titles, covers and synopses only — nothing to read or download. Not part of source=all."
     },
     {
-      id: "globalcomix",
-      name: "GlobalComix",
-      status: "web_only",
-      in_all: false,
-      capabilities: ["open_official_search"],
-      note: "No public API and its terms forbid automated access, so it isn't searched here; the app opens GlobalComix's own search, where its sign-in and subscriptions apply."
-    },
-    {
       id: "comicsplus",
       name: "Comics Plus (LibraryPass)",
       status: "web_only",
@@ -1124,7 +1109,7 @@ function manifest(base) {
     id: "audiohub-comics",
     name: "Audiohub Comics",
     version: CONFIG.VERSION,
-    description: "Comics from GetComics and the Internet Archive with download options, manga from Weeb Central read in the app's comic reader, plus GlobalComix and your library's Comics Plus.",
+    description: "Comics from GetComics and the Internet Archive with download options, manga from Weeb Central read in the app's comic reader, plus your library's Comics Plus.",
     icon: "https://archive.org/images/glogo.jpg",
     provides: ["source"],
     contentType: "comic",
@@ -1146,7 +1131,6 @@ function manifest(base) {
     },
     // Searches the app opens in the browser (these sites can't be searched by a server).
     webSearch: [
-      { name: "GlobalComix", url: "https://globalcomix.com/search?q={TITLE}", note: "Free, member and paid comics — read in GlobalComix" },
       { name: "Comics Plus", url: "{library_link}", needs: "library_link", inApp: true, note: "Your library's comics — sign in with your card" }
     ],
     adapters: {
@@ -1296,7 +1280,7 @@ export default {
         return json(await kitsuItem(id));
       }
 
-      if (path === "/api/globalcomix/search" || path === "/api/comicsplus/search") {
+      if (path === "/api/comicsplus/search") {
         return json(webOnly(path.split("/")[2], q));
       }
 
@@ -1305,7 +1289,7 @@ export default {
 
         const source = u.searchParams.get("source") || "all";
 
-        const valid = ["all", "internet_archive", "getcomics", "weebcentral", "readcomicsonline", "kitsu", "globalcomix", "comicsplus"];
+        const valid = ["all", "internet_archive", "getcomics", "weebcentral", "readcomicsonline", "kitsu", "comicsplus"];
 
         if (!valid.includes(source)) {
           return error("Unsupported source");
@@ -1337,7 +1321,7 @@ export default {
           add("kitsu", () => searchKitsu(q, limit));
         }
 
-        if (source === "globalcomix" || source === "comicsplus") {
+        if (source === "comicsplus") {
           add(source, async () => webOnly(source, q));
         }
 
@@ -1370,8 +1354,6 @@ export default {
           total: results.length,
           sources: groups,
           results,
-          // Searches to open in the browser (sites this server can't search).
-          web_search: [{ name: "GlobalComix", url: WEB_ONLY.globalcomix.open_url(q) }]
         });
       }
 
