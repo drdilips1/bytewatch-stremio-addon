@@ -13021,3 +13021,8 @@ html.ios .book-card:not(.broken) { box-shadow: none; }
 .source-results .src-more,
 .source-results .src-fold { width: calc(100% + 20px); margin-left: -10px; margin-right: -10px; }
 .wait-item { cursor: pointer; }
+
+/* "Picked for you" banner (25 Nov): a bigger cover in the same box — it sat in a lot of empty space. */
+:root .home .feature-poster { width: 136px; height: 136px; }
+:root .home .feature-poster img, :root .home .feature-poster .bg-image { width: 136px; height: 136px; border-radius: 14px; }
+:root .home .feature-poster-empty { width: 136px; height: 136px; border-radius: 14px; }
