@@ -1,0 +1,82 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;background:#0e0e12;color:#f2efe9;display:flex;gap:28px;padding:24px;width:1290px}
+.phone{width:400px;height:860px;border-radius:34px;background:#000;position:relative;overflow:hidden;box-shadow:0 20px 60px #000a}
+.label{position:absolute;top:-1px;left:0;right:0;text-align:center;font-size:11px;color:#999;letter-spacing:.12em;text-transform:uppercase;padding-top:8px;z-index:9}
+/* a comic page drawn with panels */
+.page{position:absolute;inset:104px 14px 150px;background:#f6f1e4;border-radius:4px;padding:10px;display:grid;gap:8px}
+.p1{grid-template-rows:1.1fr .9fr 1fr;grid-template-columns:1fr 1fr}
+.pan{border:3px solid #111;border-radius:2px;position:relative;overflow:hidden}
+.pan:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 30%,#ffffff55,transparent 60%)}
+.bub{position:absolute;background:#fff;border:2px solid #111;border-radius:50%;font:700 10px "Comic Sans MS",cursive;color:#111;padding:8px 10px;text-align:center}
+.top{position:absolute;top:0;left:0;right:0;height:98px;padding:34px 16px 0;background:#000;display:flex;align-items:center;gap:10px;z-index:5}
+.top b{font-size:15px;flex:1;line-height:1.2}.top b small{display:block;font-weight:400;color:#bbb;font-size:12px}
+.ic{width:36px;height:36px;border-radius:50%;background:#ffffff1f;display:flex;align-items:center;justify-content:center;font-size:15px}
+.bottom{position:absolute;bottom:0;left:0;right:0;padding:12px 16px 22px;background:linear-gradient(#0000,#000e 35%);z-index:5}
+.thumbs{display:flex;gap:6px;margin-bottom:10px}.thumbs i{flex:1;height:46px;border-radius:4px;background:#f6f1e4;opacity:.5;border:2px solid transparent}.thumbs i.on{opacity:1;border-color:#e9b45c}
+.bar{height:4px;background:#ffffff30;border-radius:2px;position:relative}.bar i{position:absolute;left:0;top:0;bottom:0;width:7%;background:#e9b45c;border-radius:2px}
+.bar b{position:absolute;left:7%;top:-6px;width:16px;height:16px;border-radius:50%;background:#e9b45c;transform:translateX(-50%)}
+.row{display:flex;justify-content:space-between;font-size:12px;color:#ccc;margin-top:10px}
+.chip{display:inline-block;font-size:11px;padding:4px 9px;border-radius:10px;background:#e9b45c22;color:#f0c578;border:1px solid #e9b45c55}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#1b1a20;border-radius:24px 24px 0 0;padding:16px 18px 26px;z-index:6}
+.sheet h3{font-size:16px;margin:4px 0 12px}.grab{width:40px;height:4px;border-radius:2px;background:#555;margin:0 auto 10px}
+.opt{margin-bottom:14px}.opt small{display:block;color:#aaa;font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px}
+.seg{display:flex;background:#ffffff10;border-radius:12px;padding:3px}.seg span{flex:1;text-align:center;font-size:12.5px;padding:8px 4px;border-radius:9px;color:#ccc}.seg .on{background:#e9b45c;color:#1a1410;font-weight:700}
+.dir{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#000b;border-radius:16px;padding:12px 16px;font-size:13px;z-index:4;text-align:center}
+.dir b{font-size:26px;display:block;color:#e9b45c}
+.lib{position:absolute;inset:0;background:#fbf6ee;color:#2a221b;padding:40px 18px}
+.lib h1{font:700 24px Georgia,serif;margin-bottom:4px}.lib .sub{color:#8a7d70;font-size:13px}
+.shelf{display:flex;gap:12px;margin:14px 0 6px}
+.cv{width:108px}.cv div{height:156px;border-radius:8px;box-shadow:0 6px 14px #0003;position:relative;overflow:hidden}
+.cv b{display:block;font-size:12.5px;margin-top:7px}.cv small{font-size:11px;color:#8a7d70}
+.prog{position:absolute;left:0;right:0;bottom:0;height:4px;background:#0003}.prog i{display:block;height:100%;background:#e9b45c}
+.tagm{position:absolute;top:6px;left:6px;font:700 9px sans-serif;background:#000b;color:#fff;padding:2px 6px;border-radius:6px}
+.card{background:#fff;border:1px solid #ecdcc9;border-radius:16px;padding:12px;margin-top:14px}
+.card .t{font-weight:700;font-size:14px}.card .m{font-size:12px;color:#8a7d70;margin:2px 0 8px}
+.lnk{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid #f0e6d8;font-size:12.5px}
+.lnk span:first-child{flex:1}.lnk small{display:block;color:#8a7d70;font-size:11px}
+.btn{flex:none;font-size:12px;padding:6px 11px;border-radius:12px;border:1px solid #e0cdb5}.btn.p{background:#c98a3c;color:#fff;border-color:#c98a3c}
+</style></head><body>
+
+<div class="phone"><div class="label">Comic · controls shown on tap</div>
+<div class="page p1">
+ <div class="pan" style="grid-column:1/3;background:linear-gradient(135deg,#3b5a8a,#1b2b48)"><div class="bub" style="top:12px;left:16px">THE CITY<br>NEEDS US.</div></div>
+ <div class="pan" style="background:linear-gradient(135deg,#8a2b2b,#3a1010)"></div>
+ <div class="pan" style="background:linear-gradient(135deg,#2b2b2b,#555)"><div class="bub" style="bottom:10px;right:8px">NOT<br>TONIGHT.</div></div>
+ <div class="pan" style="grid-column:1/3;background:linear-gradient(135deg,#d99a2b,#7a3d10)"></div>
+</div>
+<div class="top"><span class="ic">‹</span><b>Batman – Superman: World's Finest #57<small>Page 12 of 32</small></b><span class="ic">⚙</span></div>
+<div class="bottom">
+ <div class="thumbs"><i></i><i></i><i class="on"></i><i></i><i></i><i></i></div>
+ <div class="bar"><i style="width:37%"></i><b style="left:37%"></b></div>
+ <div class="row"><span>Left → right</span><span>Swipe · pinch to zoom · double-tap a panel</span></div>
+</div></div>
+
+<div class="phone"><div class="label">Manga · right-to-left + settings</div>
+<div class="page" style="grid-template-rows:1fr 1fr 1fr;grid-template-columns:1fr 1fr;background:#f4f4f2">
+ <div class="pan" style="background:linear-gradient(160deg,#ddd,#999)"></div><div class="pan" style="background:linear-gradient(160deg,#eee,#777)"><div class="bub" style="top:10px;right:8px">まて!</div></div>
+ <div class="pan" style="grid-column:1/3;background:linear-gradient(160deg,#ccc,#666)"></div>
+ <div class="pan" style="background:linear-gradient(160deg,#bbb,#444)"></div><div class="pan" style="background:linear-gradient(160deg,#e5e5e5,#888)"></div>
+</div>
+<div class="dir"><b>← ←</b>Right to left · like the printed book</div>
+<div class="sheet"><div class="grab"></div><h3>Reading settings · this book</h3>
+ <div class="opt"><small>Direction</small><div class="seg"><span>Left → right</span><span class="on">Right → left</span><span>Vertical</span></div></div>
+ <div class="opt"><small>Pages</small><div class="seg"><span>Single</span><span>Double</span><span class="on">Auto</span></div></div>
+ <div class="opt"><small>Fit</small><div class="seg"><span class="on">Screen</span><span>Width</span><span>Height</span></div></div>
+ <div class="opt" style="margin:0"><span class="chip">Manga found from the source — right-to-left set for you</span></div>
+</div></div>
+
+<div class="phone"><div class="label">Library + saving from Download options</div>
+<div class="lib"><h1>Comics</h1><div class="sub">3 comics · 1 manga · kept on this phone</div>
+ <div class="shelf">
+  <div class="cv"><div style="background:linear-gradient(160deg,#3b5a8a,#111)"><span class="tagm">CBZ</span><span class="prog"><i style="width:37%"></i></span></div><b>World's Finest #57</b><small>page 12 / 32</small></div>
+  <div class="cv"><div style="background:linear-gradient(160deg,#ddd,#666)"><span class="tagm">MANGA</span><span class="prog"><i style="width:64%"></i></span></div><b>One-Punch Vol. 3</b><small>page 118 / 184</small></div>
+  <div class="cv"><div style="background:linear-gradient(160deg,#d99a2b,#5a2a10)"><span class="tagm">PDF</span><span class="prog"><i style="width:0"></i></span></div><b>Batman (1940) #1</b><small>new</small></div>
+ </div>
+ <div class="card"><div class="t">Batman – Superman: World's Finest #57</div><div class="m">GetComics · Download options</div>
+  <div class="lnk"><span>DOWNLOAD NOW<small>comicfiles · CBR · file</small></span><span class="btn p">Read in app</span><span class="btn">Save</span></div>
+  <div class="lnk"><span>MEDIAFIRE<small>mediafire.com · opens in the browser</small></span><span class="btn">Open ↗</span></div>
+ </div>
+ <div class="sub" style="margin-top:12px;font-size:12px">“Read in app” keeps the comic here and opens the viewer; “Save” still puts it in Downloads for other apps.</div>
+</div></div>
+</body></html>
