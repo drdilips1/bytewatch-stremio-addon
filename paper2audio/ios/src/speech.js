@@ -134,7 +134,7 @@ if (native)
     downloadWatchers.forEach((f) => f(d));
     // The first voice pack downloaded becomes the voice, if none was chosen yet.
     if (d.done && !d.error && !localStorage.getItem(VOICE_ID)) {
-      const first = { supertonic: ['super:F2', 'Supertonic female 2'], kokoro: ['kokoro:af_heart', 'Heart'], pocket: ['clone:emma', 'Emma'] }[d.key];
+      const first = { supertonic: ['super:F2', 'Supertonic female 2'], kokoro: ['kokoro:af_heart', 'Heart'], pocket: ['clone:lily', 'Lily'] }[d.key];
       if (first) chooseVoice(first[1], first[0]);
     }
   });

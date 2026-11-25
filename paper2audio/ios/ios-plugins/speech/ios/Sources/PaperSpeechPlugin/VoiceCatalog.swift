@@ -80,38 +80,17 @@ enum VoiceCatalog {
     }
 
     static let readers: [Reader] = [
-        // Narrato's readers, with exactly the settings they have on Android.
-        Reader(id: "emma", name: "Emma", description: "female · English", pause: 700, denoised: false, seed: 64194),
+        // Narrato for iPhone: these ten readers, with exactly the settings they have on Android.
         Reader(id: "lily", name: "Lily", description: "female · English", pause: 700, denoised: false, seed: 90538),
         Reader(id: "grace", name: "Grace", description: "female · English", pause: 480, denoised: false, seed: 34312),
-        Reader(id: "isla", name: "Isla", description: "female · English", pause: 900, denoised: false, seed: 4618),
         Reader(id: "sophie", name: "Sophie", description: "female · English", pause: 700, denoised: false, seed: 92620),
         Reader(id: "ava", name: "Ava", description: "female · English", pause: 760, denoised: false, seed: 97744),
-        Reader(id: "clara", name: "Clara", description: "female · English", pause: 900, denoised: false, seed: 41723),
         Reader(id: "maya", name: "Maya", description: "female · English", pause: 720, denoised: false, seed: 56628),
-        Reader(id: "nora", name: "Hazel", description: "female · English", pause: 540, denoised: false, seed: 98730),
-        Reader(id: "rose", name: "Rose", description: "female · English", pause: 560, denoised: false, seed: 6471),
         Reader(id: "daniel", name: "Daniel", description: "male · English", pause: 740, denoised: false, seed: 20604),
         Reader(id: "henry", name: "Henry", description: "male · English", pause: 900, denoised: false, seed: 54287),
-        Reader(id: "oscar", name: "Oscar", description: "male · English", pause: 800, denoised: false, seed: 15734),
         Reader(id: "jack", name: "Jack", description: "male · English", pause: 520, denoised: false, seed: 81386),
         Reader(id: "arthur", name: "Arthur", description: "male · English", pause: 840, denoised: false, seed: 57008),
-        Reader(id: "leo", name: "Noah", description: "male · English", pause: 500, denoised: false, seed: 31250),
-        Reader(id: "sam", name: "Lucas", description: "male · English", pause: 560, denoised: false, seed: 84032),
         Reader(id: "theo", name: "Theo", description: "male · English", pause: 740, denoised: false, seed: 31800),
-        Reader(id: "ethan", name: "Ethan", description: "male · English", pause: 640, denoised: false, seed: 92573),
-        Reader(id: "ryan", name: "Ryan", description: "male · English", pause: 700, denoised: false, seed: 41746),
-        // Copied from openly licensed sample voices.
-        Reader(id: "luna", name: "Luna", description: "female · US"),
-        Reader(id: "bria", name: "Bria", description: "female · US"),
-        Reader(id: "carter", name: "Carter", description: "male · US"),
-        Reader(id: "declan", name: "Declan", description: "male · US, deep"),
-        Reader(id: "elliot", name: "Elliot", description: "male · US, deep"),
-        Reader(id: "felix", name: "Felix", description: "male · US"),
-        Reader(id: "grant", name: "Grant", description: "male · US, deep"),
-        Reader(id: "hugo", name: "Hugo", description: "male · US"),
-        Reader(id: "ian", name: "Ian", description: "male · US, lighter"),
-        Reader(id: "james", name: "James", description: "male · British"),
     ]
 
     static func reader(_ id: String) -> Reader? { readers.first { $0.id == id } }

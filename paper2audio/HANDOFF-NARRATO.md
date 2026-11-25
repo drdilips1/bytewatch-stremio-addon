@@ -115,6 +115,7 @@ paragraph and Play reads from it (double-tap-to-read removed); WebView long-pres
 word selection wins; controls under the page slide away while playing (mini pause button); **medical
 articles**: `Speaker.medicalMode` auto/on/off (Narrato default auto, `MedicalText.looksMedical`), Settings
 row "Medical articles", more clinical shorthand, lab names and units in `Speech`.
+iPhone real readers: only Lily, Grace, Sophie, Ava, Maya, Daniel, Henry, Jack, Arthur, Theo (user choice; Light voices, Kokoro and the iPhone voices stay).
 Not done: "diffi ult" (letter lost next to the ffi ligature; needs the PDF). Items 4 and 8 (repetitions,
 skipped lines starting with “) were about **Paper to Audio's new engine**: leave them out of Narrato.
 

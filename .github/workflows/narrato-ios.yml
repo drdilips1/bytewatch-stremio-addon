@@ -61,11 +61,12 @@ jobs:
         run: |
           curl -fsSL -o ios-plugins/speech/ios/Sources/PaperSpeechPlugin/SherpaOnnx.swift \
             https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/swift-api-examples/SherpaOnnx.swift
-          # The ready-made readers: the same recordings as Narrato on Android (both edition folders).
+          # Narrato for iPhone's ten readers: the same recordings as Narrato on Android.
           mkdir -p public/voices
-          cp ../android/app/src/main/assets/voices/* public/voices/
-          cp ../android/app/src/lite/assets/voices/* public/voices/
-          ls public/voices | wc -l
+          for v in lily grace sophie ava maya daniel henry jack arthur theo; do
+            cp ../android/app/src/lite/assets/voices/$v.* public/voices/ 2>/dev/null || cp ../android/app/src/main/assets/voices/$v.* public/voices/
+          done
+          ls public/voices
 
       - name: Install
         run: |
