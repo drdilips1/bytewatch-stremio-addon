@@ -285,6 +285,29 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     else ctl.current?.stop();
     setAloud((a) => a && { ...a, playing: false });
   };
+  /**
+   * The start point: a paragraph tapped once is marked, and Play (here or under the page) starts there.
+   * (Double-tapping to read from a paragraph jumped about: a tap only marks, Play reads.)
+   */
+  const startMark = useRef(null);
+  const markStart = (el) => {
+    startMark.current?.classList.remove('start-here');
+    if (startMark.current === el) {
+      startMark.current = null;
+      return;
+    }
+    startMark.current = el;
+    el.classList.add('start-here');
+  };
+  /** Plays from the marked paragraph, if one is marked (and clears the mark); false otherwise. */
+  const playFromMark = () => {
+    const el = startMark.current;
+    if (!el || !el.isConnected) return false;
+    el.classList.remove('start-here');
+    startMark.current = null;
+    readFrom(el);
+    return true;
+  };
   /** Read from this element (a tapped paragraph or a chapter), even in skipped front matter. */
   const readFrom = (el) => {
     const all = blocks();
@@ -318,7 +341,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
   };
   // Paper to Audio / Narrato: the player's controls under the page work this Read aloud.
   window.__p2aAloud = {
-    play: () => (ctl.current?.native ? playAloud(aloud?.index ?? 0) : startAloud()),
+    play: () => playFromMark() || (ctl.current?.native ? playAloud(aloud?.index ?? 0) : startAloud()),
     follow: async () => {
       if (ctl.current?.native || !doc) return;
       const attached = await attachAloud(book.uid, speakBlocks(), aloudHandlers());
@@ -522,10 +545,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
 
   const selAt = useRef(0); // when words were last selected: a tap then isn't a page turn
   const selecting = () => Date.now() - selAt.current < 900 || !(window.getSelection()?.isCollapsed ?? true);
-  const lastTap = useRef(null);
-  const tapTimer = useRef(null);
   const downAt = useRef(null);
-  const doubleAt = useRef(0);
   const page = (dir) => {
     const el = scroller.current;
     el.scrollBy({ top: dir * (el.clientHeight - 60), behavior: 'smooth' });
@@ -551,7 +571,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         )}
         <button
           class={'icon-btn' + (aloud ? ' on' : '')}
-          onClick={() => (aloud ? setPanel(panel === 'listen' ? null : 'listen') : (setPanel(null), startAloud()))}
+          onClick={() => (aloud ? setPanel(panel === 'listen' ? null : 'listen') : (setPanel(null), playFromMark() || startAloud()))}
           aria-label={aloud ? 'Voice' : 'Read aloud'}
         >
           <Icon name="headphones" />
@@ -574,53 +594,29 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         class="reader-scroll"
         style={pages ? { display: 'none' } : null}
         ref={scroller}
-        // Double tap on a paragraph: read aloud from there. Detected from the touches
-        // themselves: on phones the second tap of a double tap often selects a word
-        // instead of producing a click.
         onPointerDown={(e) => (downAt.current = { t: Date.now(), x: e.clientX, y: e.clientY })}
-        onPointerUp={(e) => {
-          const d = downAt.current;
-          if (!d || Date.now() - d.t > 350 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 20) return; // a scroll or a long press
-          if (selecting()) return (lastTap.current = null); // moving the selection handles
-          const now = Date.now();
-          const prev = lastTap.current;
-          lastTap.current = { at: now, x: e.clientX, y: e.clientY };
-          if (!prev || now - prev.at > 400 || Math.hypot(e.clientX - prev.x, e.clientY - prev.y) > 50) return;
-          lastTap.current = null;
-          const x = e.clientX / window.innerWidth;
-          if (!aloud && (x < 0.22 || x > 0.78)) return; // double tap at the edges: just page turns
-          const block = blocks().find((b) => b.contains(e.target));
-          if (!block) return;
-          clearTimeout(tapTimer.current);
-          doubleAt.current = now;
-          setTimeout(() => {
-            window.getSelection()?.removeAllRanges();
-            setSel(null);
-          }, 300);
-          readFrom(block);
-        }}
         onClick={(e) => {
           if (e.target.closest('a')) return;
-          if (Date.now() - doubleAt.current < 500) return; // the second tap of a double tap
           // Finishing or adjusting a selection (or tapping it away): not a page turn.
           if (sel || selecting()) return;
+          // A press that moved or lasted (a scroll, a hold): nothing.
+          const d = downAt.current;
+          if (d && (Date.now() - d.t > 600 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 20)) return;
           const mark = e.target.closest('mark.hl');
           if (mark) {
             const h = forWork(book, sameWork).find((x) => x.id === mark.dataset.id);
             if (h) return setSheet({ type: 'hl', h });
           }
           const x = e.clientX / window.innerWidth;
-          const tap = () => {
-            if (x < 0.22) page(-1);
-            else if (x > 0.78) page(1);
-            else setChrome((c) => !c);
-            setPanel(null);
-          };
-          // Reading aloud: a tap shows / hides the bars, after a moment in case it is
-          // the first tap of a double tap (handled above).
-          if (!aloud) return tap();
-          clearTimeout(tapTimer.current);
-          tapTimer.current = setTimeout(tap, 380);
+          if (x < 0.22) return (page(-1), setPanel(null));
+          if (x > 0.78) return (page(1), setPanel(null));
+          // On a paragraph: it becomes the start point (Play reads from there). Elsewhere: the bars.
+          const block = blocks().find((b) => b.contains(e.target));
+          if (block) {
+            markStart(block);
+            setChrome(true);
+          } else setChrome((c) => !c);
+          setPanel(null);
         }}
       >
         {error ? (
@@ -707,7 +703,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
           <button class="icon-btn" onClick={() => startAloud(Math.max(0, aloud.index - 1), aloudAll.current)} aria-label="Previous paragraph">
             <Icon name="prev" size={20} />
           </button>
-          <button class="play-btn small" onClick={() => (aloud.playing ? pauseAloud() : playAloud(aloud.index))} aria-label={aloud.playing ? 'Pause' : 'Play'}>
+          <button class="play-btn small" onClick={() => (aloud.playing ? pauseAloud() : playFromMark() || playAloud(aloud.index))} aria-label={aloud.playing ? 'Pause' : 'Play'}>
             <Icon name={aloud.playing ? 'pause' : 'play'} size={20} />
           </button>
           <button class="icon-btn" onClick={() => startAloud(aloud.index + 1, aloudAll.current)} aria-label="Next paragraph">
@@ -726,7 +722,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
           >
             {+voiceRate.toFixed(2)}×
           </button>
-          <span class="aloud-label">{nativeReader ? 'Keeps reading with the screen off · double-tap a paragraph to read from there' : 'Double-tap a paragraph to read from there'}</span>
+          <span class="aloud-label">{nativeReader ? 'Keeps reading with the screen off · tap a paragraph, then Play, to start there' : 'Tap a paragraph, then Play, to start there'}</span>
           <button class="icon-btn" onClick={() => setPanel(panel === 'listen' ? null : 'listen')} aria-label="Choose a voice">
             <Icon name="mic" size={18} />
           </button>

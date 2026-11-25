@@ -2358,6 +2358,16 @@ select {
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent);
   transition: background 0.3s;
 }
+/* The start point: a paragraph tapped once (Play reads from there). */
+.reader-text .start-here {
+  border-radius: 8px;
+  box-shadow: -10px 0 0 -6px var(--accent), 0 0 0 6px color-mix(in srgb, var(--accent) 10%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+/* Selected words stand out from the paragraph being read (a word could hardly be told apart from it). */
+.reader-text ::selection {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+}
 .aloud-bar {
   position: absolute;
   z-index: 4;

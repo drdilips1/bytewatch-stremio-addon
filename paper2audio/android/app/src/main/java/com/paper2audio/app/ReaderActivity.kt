@@ -73,6 +73,52 @@ class ReaderActivity : Activity() {
     private val refresh: () -> Unit = { runOnUiThread { render(); sendState() } }
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
+    // ---- The controls slide away while a book plays, so the whole page shows ----
+    private lateinit var dock: View
+    private lateinit var miniPause: ImageButton
+    private var retracted = false
+    private val retract = Runnable {
+        if (!Speaker.playing || retracted || draggingPosition || !::dock.isInitialized) return@Runnable
+        retracted = true
+        dock.animate().translationY(dock.height.toFloat()).setDuration(220).withEndAction {
+            if (retracted) dock.visibility = View.GONE
+        }.start()
+        miniPause.visibility = View.VISIBLE
+        miniPause.alpha = 0f
+        miniPause.animate().alpha(1f).setDuration(220).start()
+    }
+
+    private var touchDown: Triple<Float, Float, Long>? = null
+
+    /** A tap (not a scroll) brings the controls back for a while; touching them keeps them up. */
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                touchDown = Triple(ev.rawX, ev.rawY, ev.eventTime)
+                if (!retracted && Speaker.playing) handler.removeCallbacks(retract)
+            }
+            android.view.MotionEvent.ACTION_UP -> {
+                val d = touchDown
+                val tap = d != null && ev.eventTime - d.third < 400 &&
+                    kotlin.math.hypot(ev.rawX - d.first, ev.rawY - d.second) < 24 * resources.displayMetrics.density
+                if (Speaker.playing && (tap || !retracted)) showDock(thenRetract = true)
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    /** Brings the controls back (paused, or the listener reached for them); they go again after a while if playing. */
+    private fun showDock(thenRetract: Boolean = Speaker.playing) {
+        handler.removeCallbacks(retract)
+        if (::dock.isInitialized && retracted) {
+            retracted = false
+            dock.visibility = View.VISIBLE
+            dock.animate().translationY(0f).setDuration(200).start()
+            miniPause.visibility = View.GONE
+        }
+        if (thenRetract) handler.postDelayed(retract, 4_000)
+    }
+
     /**
      * The words being read, as on the player screen: the sentence marked and the word being spoken in the
      * accent color (sent to the page several times a second while the voice reads).
@@ -109,6 +155,28 @@ class ReaderActivity : Activity() {
         where = findViewById(R.id.where)
         left = findViewById(R.id.left)
         btnPlay = findViewById(R.id.btnPlay)
+        dock = findViewById(R.id.dock)
+        // While the controls are away: a small pause button over the page (pausing brings them back).
+        miniPause = ImageButton(this).apply {
+            setImageResource(R.drawable.ic_pause)
+            setBackgroundResource(R.drawable.bg_play)
+            imageTintList = android.content.res.ColorStateList.valueOf(Themes.color(this@ReaderActivity, R.attr.p2aOnAccent))
+            contentDescription = "Pause"
+            elevation = 6 * resources.displayMetrics.density
+            visibility = View.GONE
+            setOnClickListener {
+                Speaker.pause()
+                showDock(thenRetract = false)
+            }
+        }
+        val fab = (52 * resources.displayMetrics.density).toInt()
+        findViewById<FrameLayout>(R.id.readerPage).addView(
+            miniPause,
+            FrameLayout.LayoutParams(fab, fab, android.view.Gravity.BOTTOM or android.view.Gravity.END).apply {
+                val m = (16 * resources.displayMetrics.density).toInt()
+                setMargins(m, m, m, m + (8 * resources.displayMetrics.density).toInt())
+            },
+        )
         btnSpeed = findViewById(R.id.btnSpeed)
         btnVoice = findViewById(R.id.btnVoice)
         btnSleep = findViewById(R.id.btnSleep)
@@ -194,6 +262,11 @@ class ReaderActivity : Activity() {
             settings.allowFileAccess = false
             setBackgroundColor(0xFF131218.toInt())
             addJavascriptInterface(Bridge(), "P2AReader")
+            // The phone's own long-press selection grabbed a whole sentence or paragraph ("smart selection")
+            // and fought the page's word-by-word selection: the page's own one alone selects.
+            setOnLongClickListener { true }
+            isLongClickable = false
+            isHapticFeedbackEnabled = false
             webViewClient = object : WebViewClient() {
                 // The page is served from the app's assets at an https address (its scripts are modules,
                 // which don't load from file:// addresses), and its saved settings stay with that address.
@@ -226,6 +299,7 @@ class ReaderActivity : Activity() {
     }
 
     override fun onStop() {
+        handler.removeCallbacks(retract)
         Exporter.removeListener(refresh)
         ModelPack.removeListener(refresh)
         handler.removeCallbacks(follower)
@@ -296,6 +370,8 @@ class ReaderActivity : Activity() {
         }
         // The voice started from the controls (or the notification): the page follows it.
         if (Speaker.playing && !wasPlaying && ::web.isInitialized) web.evaluateJavascript("window.__p2aAloud && window.__p2aAloud.follow()", null)
+        if (Speaker.playing && !wasPlaying) showDock(thenRetract = true)
+        if (!Speaker.playing && wasPlaying) showDock(thenRetract = false)
         wasPlaying = Speaker.playing
     }
 
