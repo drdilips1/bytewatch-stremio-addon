@@ -175,7 +175,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           NOTES="Build 1.0.${{ github.run_number }} (${{ github.sha }}). Unsigned Narrato for iPhone: install with Sideloadly or AltStore using your Apple ID. Signed builds go to TestFlight."
-          gh release view narrato-ios >/dev/null 2>&1 || gh release create narrato-ios --target "${{ github.sha }}" \
+          # GitHub's release service now and then answers "HTTP 500": each call is tried a few times.
+          retry() { for i in 1 2 3 4 5; do "$@" && return 0; echo "Retrying in $((i * 10)) s…"; sleep $((i * 10)); done; return 1; }
+          gh release view narrato-ios >/dev/null 2>&1 || retry gh release create narrato-ios --target "${{ github.sha }}" \
             --title "Narrato for iPhone – latest build" --prerelease --notes "$NOTES"
-          gh release upload narrato-ios Narrato.ipa --clobber
-          gh release edit narrato-ios --notes "$NOTES"
+          retry gh release upload narrato-ios Narrato.ipa --clobber
+          retry gh release edit narrato-ios --notes "$NOTES"
