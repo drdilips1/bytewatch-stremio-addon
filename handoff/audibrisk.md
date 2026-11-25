@@ -159,6 +159,16 @@
   session and each retried after a day (`briskCoverTried`); long-press → "Find cover"
   (`CoverSheet`, shared searchCovers → setFix). NOT done: iPhone downloads (needs a new shared
   Swift plugin — can't compile/test it here or read the public repo's logs).
+- PROPOSED redesign (25 Nov, ChatGPT "premium" brief) — plan + sample shown, WAITING for the
+  user's OK; nothing changed. Two themes: Ivory (#F5F3EE / white / #202630 / accent #9C8055) as the
+  default, Midnight (#0B1018 / #151E2B / #F4F2ED / champagne #D6BD91) for dark; champagne play
+  button with glow, ambient cover-colour light on Now Playing, thin glowing progress, Continue
+  hero card, glass only on the small floating mini player. Keep: one screen (no bottom tabs /
+  Library tab / Discover), no blur on scrolling surfaces (v1.0.7 taps), no queue (Audibrisk has
+  none), haptics via navigator.vibrate. Files: brisk/brisk.css (tokens + all surfaces),
+  scenes.jsx (themes: Ivory/Midnight + Auto; scenes become optional), player.jsx (Now Playing +
+  mini), screens.jsx (Home hero, library grid/list + sort, settings groups), app.jsx (page
+  transitions). Open questions to the user: Ivory default?; keep the dice scenes?; sage → champagne.
 - NOTED, not built (24 Nov, user "just note"):
   - iPhone: Save / download for offline (needs a shared iOS downloads plugin — shared native code).
   - ChatGPT list — already in: one-tap resume, copy fallback keeping place, theme dice, chapters,
