@@ -355,3 +355,11 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   Fix: SourceResults passes fullTitle; sourceaddons runOnce uses it for contentType 'comic' addons. Worker 2.6.1
   (updated): IA title words ANDed (archiveWords). Tested: Under the Red Hood → GetComics 1 exact; Absolute
   Batman / Spider-Man: Blue precise. User still had 2.6.0 deployed (RCO showing).
+- Weeb Central (user: "weebventral") 25 Nov: no bot check, robots.txt allows all (Crawl-delay 10). search/data
+  (HTML, Full Display), /series/ID/full-chapter-list, /chapters/ID/images?…reading_style=long_strip → plain
+  image links (scans-hot.planeptune.us) that load with a plain request → read IN the app's reader. Worker 2.7.0:
+  /api/weebcentral/search|series?id=&title=|chapter?id= (pages), in source=all, reading_direction rtl/vertical.
+  App: comics.js chapterBook / nearChapters / pageList (tests), ebookFormat 'PAGES' (ebookUrl = pages endpoint),
+  uid pg:…#comic, summarize keeps seriesUrl + direction, reader Prev/Next chapter, "Chapters" button, comic titles
+  keep brackets. Browser test: headless desktop UA got ERR_BLOCKED_BY_ORB on images; Pixel 7 emulation loads them
+  (1200 px) — confirm on the phone. Envs: AudioYam has weebcentral + image hosts.
