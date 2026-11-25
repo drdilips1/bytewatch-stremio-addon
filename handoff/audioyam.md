@@ -426,6 +426,11 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   link / Desktop view, black slim bar, fullscreen). Dropped with the removed sites: series-as-one-book, chapters
   offline, GPLinks/BatCave/YSK. The generic chapter / issue-list code stays (addon features, unused by 2.8.0).
   Not built yet. Comics DONE unless the user asks.
+- CORRECTION 25 Nov: user — keep Weeb Central too ("keep weeb central, internet archive, comic plus"); GetComics
+  kept as well (it was on the previous list; told the user, remove only if asked). Worker 2.8.1 = 2.7.1 minus
+  ReadComicsOnline + Kitsu: sources getcomics / internet_archive / weebcentral / comicsplus (tested live: Chainsaw
+  Man 232 chapters, 30 pages). 2.8.0 superseded. Series-as-one-book and offline chapters are back on the noted
+  list (sample first), not started.
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from

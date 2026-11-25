@@ -1,15 +1,16 @@
-// Audiohub Comics — Cloudflare Worker, version 2.8.0
+// Audiohub Comics — Cloudflare Worker, version 2.8.1
 // Sources: GetComics and the Internet Archive (searched; download options with direct files),
+// Weeb Central (manga: search, chapter lists and chapter pages for the app's comic reader),
 // and Comics Plus (your library's own reader, opened by the app — never searched here).
-// Changes from 2.7.1: only these three are kept (the user's choice): Weeb Central,
-// ReadComicsOnline and Kitsu are removed, with their routes.
+// Changes from 2.7.1: ReadComicsOnline and Kitsu removed, with their routes (the user keeps
+// GetComics, Weeb Central, Internet Archive and Comics Plus).
 // Kept: one result shape for every source (unify), GetComics search + release download options
-// with direct-file detection, Internet Archive comics only (CBZ / CBR, every title word, CBZ first)
-// with its files, the Comics Plus link in the manifest (opened in the app, link kept on the phone).
+// with direct-file detection, Internet Archive comics only (CBZ / CBR, every title word, CBZ first),
+// Weeb Central search / series / chapter pages, the Comics Plus link in the manifest.
 
 const CONFIG = {
   NAME: "Audiohub Comics",
-  VERSION: "2.8.0",
+  VERSION: "2.8.1",
   ARCHIVE_API: "https://archive.org",
   GETCOMICS_FEED: "https://getcomics.org/feed/",
   GETCOMICS_SEARCH: "https://getcomics.org/wp-json/wp/v2/search",
@@ -701,6 +702,129 @@ function webOnly(id, q) {
   };
 }
 
+/* WEEB CENTRAL (manga)
+   Its own search, series and chapter pages answer plain requests (no bot check; robots.txt
+   allows everything, with a 10-second crawl delay — so answers are cached here and nothing is
+   crawled ahead). A chapter's pages are plain picture links that load in any app, so chapters
+   open in the app's own comic reader (right to left). Nothing is downloaded by this server. */
+
+const WC = "https://weebcentral.com";
+const WC_UA = `Mozilla/5.0 (compatible; Audiohub-Comics/${CONFIG.VERSION})`;
+
+async function wcText(path, ttl) {
+  const r = await fetch(`${WC}${path}`, {
+    headers: { "User-Agent": WC_UA, Accept: "text/html,*/*;q=0.8", "HX-Request": "true" },
+    cf: { cacheTtl: ttl, cacheEverything: true }
+  });
+  const text = await r.text();
+  if (/_cf_chl_opt|Just a moment\.\.\./.test(text.slice(0, 20000))) throw new Error("Weeb Central showed its bot check to the server");
+  if (!r.ok) throw new Error(`Weeb Central answered HTTP ${r.status}`);
+  return text;
+}
+
+const strip = (v) => decodeXml(String(v || "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+// What follows a label like "<strong class=…>Author(s): </strong>" up to the end of its row.
+const after = (block, label) => {
+  const m = new RegExp(`<strong[^>]*>\\s*${label}`).exec(block);
+  if (!m) return "";
+  const from = block.indexOf("</strong>", m.index) + 9;
+  const end = block.indexOf("</div>", from);
+  return block.slice(from, end < 0 ? from + 600 : end);
+};
+
+function wcResult(block) {
+  const m = /href="https:\/\/weebcentral\.com\/series\/([0-9A-Z]{20,30})\/([^"]*)"/.exec(block);
+  if (!m) return null;
+  const [, id, slug] = m;
+  const title = strip((new RegExp(`series/${id}/[^"]*">([^<]+)</a>`).exec(block) || [])[1]) ||
+    strip((/alt="([^"]+?) cover"/.exec(block) || [])[1]) || slug.replace(/-/g, " ");
+  const authors = [...after(block, "Author").matchAll(/>([^<>]+)<\/a>/g)].map((x) => strip(x[1])).filter(Boolean);
+  const tags = [...after(block, "Tag").matchAll(/<span>([^<]+)<\/span>/g)].map((x) => strip(x[1]).replace(/,$/, "")).filter(Boolean);
+  const year = strip(after(block, "Year:")) || null;
+  const type = strip(after(block, "Type:")) || "Manga";
+  const status = strip(after(block, "Status:")) || null;
+  const page = `${WC}/series/${id}/${slug}`;
+  return unify({
+    id: `weebcentral:${id}`,
+    provider: "weebcentral",
+    provider_name: "Weeb Central",
+    title: `[Weeb Central] ${title}`,
+    original_title: title,
+    series: title,
+    author: authors.join(", "),
+    creator: authors.join(", "),
+    cover: `https://temp.compsci88.com/cover/fallback/${id}.jpg`,
+    genres: tags,
+    publication_date: /^\d{4}$/.test(year || "") ? year : null,
+    status,
+    format: type,
+    content_type: "series",
+    access_type: "free",
+    language: "en",
+    reading_url: page,
+    external_url: page,
+    url: page,
+    source_url: page,
+    download_available: false,
+    issues_url: `${WORKER}/api/weebcentral/series?id=${id}&title=${encodeURIComponent(title)}`,
+    reader: "app",
+    // Manga and manhua read right to left; manhwa / webtoons top to bottom.
+    reading_direction: /manhwa|webtoon/i.test(type) ? "vertical" : /manga/i.test(type) ? "rtl" : "ltr"
+  });
+}
+
+async function searchWeebCentral(q, limit) {
+  const p = new URLSearchParams({ text: q, sort: "Best Match", order: "Descending", official: "Any", display_mode: "Full Display" });
+  const html = await wcText(`/search/data?${p}`, 600);
+  const blocks = html.split(/<article class="bg-base-300 flex gap-4 p-4">/).slice(1);
+  const results = blocks.map(wcResult).filter(Boolean).slice(0, limit);
+  return { success: true, source: "weebcentral", provider_name: "Weeb Central", query: q, total: results.length, results };
+}
+
+async function wcSeries(id, title) {
+  if (!/^[0-9A-Z]{20,30}$/.test(id)) throw new Error("Missing series");
+  const html = await wcText(`/series/${id}/full-chapter-list`, 1800);
+  const name = title || "Chapter";
+  const chapters = [];
+  const seen = new Set();
+  for (const m of html.matchAll(/<a href="(?:https:\/\/weebcentral\.com)?\/chapters\/([0-9A-Z]{20,30})"([\s\S]*?)<\/a>/g)) {
+    const [, cid, inner] = m;
+    if (seen.has(cid)) continue;
+    seen.add(cid);
+    const label = strip((/<span class="">([^<]+)<\/span>/.exec(inner) || /<span[^>]*>\s*((?:Chapter|Episode|Volume|Special|Side|Extra)[^<]*)<\/span>/i.exec(inner) || [])[1]) || "Chapter";
+    const date = (/datetime="([^"]+)"/.exec(inner) || /checkNewChapter\('([^']+)'\)/.exec(html.slice(Math.max(0, m.index - 400), m.index)) || [])[1] || null;
+    chapters.push({
+      id: `weebcentral:${cid}`,
+      issue_number: (/[\d.]+/.exec(label) || [""])[0],
+      title: `${name} · ${label}`,
+      reading_url: `${WC}/chapters/${cid}`,
+      external_url: `${WC}/chapters/${cid}`,
+      pages_url: `${WORKER}/api/weebcentral/chapter?id=${cid}`,
+      date,
+      access_type: "free",
+      download_available: false
+    });
+  }
+  return {
+    success: true,
+    source: "weebcentral",
+    provider_name: "Weeb Central",
+    series: { title: name, issue_count: chapters.length, external_url: `${WC}/series/${id}` },
+    total: chapters.length,
+    issues: chapters,
+    reader: "app"
+  };
+}
+
+async function wcChapter(id) {
+  if (!/^[0-9A-Z]{20,30}$/.test(id)) throw new Error("Missing chapter");
+  const html = await wcText(`/chapters/${id}/images?is_prev=False&current_page=1&reading_style=long_strip`, 86400);
+  const pages = [...new Set([...html.matchAll(/<img[^>]+src="(https:\/\/[^"]+\.(?:png|jpe?g|webp|gif|avif))"/gi)].map((m) => m[1]))]
+    .filter((u) => !/\/static\//.test(u));
+  if (!pages.length) throw new Error("No pages found for this chapter");
+  return { success: true, source: "weebcentral", provider_name: "Weeb Central", id, total: pages.length, pages, external_url: `${WC}/chapters/${id}` };
+}
+
 /* SOURCE REGISTRY */
 
 function sources() {
@@ -722,6 +846,14 @@ function sources() {
       note: "Access depends on each item's rights and lending restrictions."
     },
     {
+      id: "weebcentral",
+      name: "Weeb Central",
+      status: "active",
+      in_all: true,
+      capabilities: ["search", "covers", "chapter_list", "chapter_pages", "read_in_app"],
+      note: "Manga. Search, chapter lists and chapter pages from its own pages (cached; robots.txt asks a 10 s crawl delay, nothing is crawled ahead). Chapters open in the app's comic reader. No downloads."
+    },
+    {
       id: "comicsplus",
       name: "Comics Plus (LibraryPass)",
       status: "web_only",
@@ -740,7 +872,7 @@ function manifest(base) {
     id: "audiohub-comics",
     name: "Audiohub Comics",
     version: CONFIG.VERSION,
-    description: "Comics from GetComics and the Internet Archive with download options and the app's comic reader, plus your library's Comics Plus.",
+    description: "Comics from GetComics and the Internet Archive with download options, manga from Weeb Central read in the app's comic reader, plus your library's Comics Plus.",
     icon: "https://archive.org/images/glogo.jpg",
     provides: ["source"],
     contentType: "comic",
@@ -794,7 +926,9 @@ function manifest(base) {
             external_url: "external_url",
             issue_count: "issue_count",
             publication_date: "publication_date",
+            issues_url: "issues_url",
             reader: "reader",
+            reading_direction: "reading_direction",
             download_available: "download_available",
             download_links_url: "download_links_url"
           }
@@ -874,6 +1008,19 @@ export default {
         return json(await getComicsDownloads(pageUrl));
       }
 
+      if (path === "/api/weebcentral/search") {
+        if (!q) return error("Missing query. Use ?q=one%20piece");
+        return json(await searchWeebCentral(q, limit));
+      }
+
+      if (path === "/api/weebcentral/series") {
+        return json(await wcSeries(clean(u.searchParams.get("id"), 40), clean(u.searchParams.get("title"), 150)));
+      }
+
+      if (path === "/api/weebcentral/chapter") {
+        return json(await wcChapter(clean(u.searchParams.get("id"), 40)));
+      }
+
       if (path === "/api/comicsplus/search") {
         return json(webOnly(path.split("/")[2], q));
       }
@@ -883,7 +1030,7 @@ export default {
 
         const source = u.searchParams.get("source") || "all";
 
-        const valid = ["all", "internet_archive", "getcomics", "comicsplus"];
+        const valid = ["all", "internet_archive", "getcomics", "weebcentral", "comicsplus"];
 
         if (!valid.includes(source)) {
           return error("Unsupported source");
@@ -901,6 +1048,10 @@ export default {
 
         if (source === "all" || source === "internet_archive") {
           add("internet_archive", () => searchArchive(q, limit));
+        }
+
+        if (source === "all" || source === "weebcentral") {
+          add("weebcentral", () => searchWeebCentral(q, limit));
         }
 
         if (source === "comicsplus") {
