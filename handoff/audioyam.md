@@ -291,3 +291,7 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   5 s) → direct_file + real file URL; /api/archive/downloads?id= gives Internet Archive files in the same links shape;
   manifest searches source=all, GetComics first. Tested with fake sites. handoff/workers/audiohub-comics.js = 2.5.0.
   The app needs the `work` comics code (not released) to show Download options.
+- Comic / manga viewer PLAN (25 Nov, not started; waiting for "sample" or "go"): one viewer for CBZ (fflate, already used
+  for EPUB) + PDF; swipe pages, pinch / double-tap zoom, right-to-left per book (auto for manga), double pages in landscape
+  / tablet, vertical webtoon mode, page remembered, only nearby pages decoded (battery); Download options Save keeps
+  comics in the app; Add files accepts CBZ. Then RTL / double pages, CBR (needs a RAR library) last.
