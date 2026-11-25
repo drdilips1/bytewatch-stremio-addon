@@ -13115,3 +13115,5 @@ html.ios .book-card:not(.broken) { box-shadow: none; }
 .xr-facts span { display: flex; flex-direction: column; gap: 2px; padding: 9px 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); min-width: 0; }
 .xr-facts small { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); } .xr-facts b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .xr-facts .st-dead { color: #e5484d; } .xr-facts .st-missing { color: #e0a83a; } .xr-facts .st-alive { color: #3fb36b; }
+.char-chips span { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.char-chips .st-dead { color: #e5484d; } .char-chips .st-missing { color: #e0a83a; } .char-chips .st-alive { color: #3fb36b; }

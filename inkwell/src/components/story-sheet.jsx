@@ -1,3 +1,4 @@
+import { createPortal } from 'preact/compat';
 // "Story" sheet in the player: a spoiler-safe recap (read or listen) and a
 // character glossary with a timeline slider that never goes past where you are.
 import { useEffect, useState } from 'preact/hooks';
@@ -213,15 +214,36 @@ function Characters() {
 /** Small card for a character tapped in the transcript. */
 export function CharacterCard({ c, close }) {
   useBackClose(true, close);
-  return (
+  const st = ['alive', 'missing', 'dead'].includes(c.status) ? c.status : '';
+  // Drawn on the page itself (a portal): inside the Text panel it was boxed into a small cut-off strip.
+  return createPortal(
     <div class="sheet-backdrop" onClick={close}>
       <div class="sheet char-card" onClick={(e) => e.stopPropagation()}>
         <div class="sheet-handle" />
         <h3>{c.name}</h3>
         {c.role && <p class="muted">{c.role}</p>}
+        {(c.aliases?.length > 0 || st || c.group || c.kind === 'real') && (
+          <div class="xr-chips char-chips">
+            {(c.aliases || []).slice(0, 3).map((a) => (
+              <span>“{a}”</span>
+            ))}
+            {c.group && <span>{c.group}</span>}
+            {st && <span class={'st-' + st}>{st[0].toUpperCase() + st.slice(1)}</span>}
+            {c.kind === 'real' && <span>Real person</span>}
+          </div>
+        )}
         <p>{c.about}</p>
-        <small class="muted">Only what's known up to where you are.</small>
+        {c.connections?.length > 0 && (
+          <p class="muted small">
+            {c.connections
+              .slice(0, 4)
+              .map((x) => `${x.label || 'linked'}: ${x.to}`)
+              .join(' · ')}
+          </p>
+        )}
+        <small class="muted">Only what's known up to where you are · more in the player's X-Ray.</small>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
