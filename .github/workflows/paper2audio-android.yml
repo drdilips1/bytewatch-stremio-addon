@@ -17,6 +17,8 @@ permissions:
 
 jobs:
   build:
+    # "Build now Narrato iOS" ([narrato-ios]) builds only the iPhone app, never this one.
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[narrato-ios]')
     runs-on: ubuntu-latest
     env:
       # Narrato builds only when asked: "[narrato]" in the commit message, or the box when run by hand.
