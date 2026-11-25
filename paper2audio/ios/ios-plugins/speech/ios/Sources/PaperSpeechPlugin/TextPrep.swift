@@ -180,15 +180,26 @@ enum TextPrep {
         return Set(starts).count != starts.count
     }
 
-    /// A line that repeats a phrase, cut after its commas into parts read one by one (Android's CloneCheck.parts).
+    /// The parts a line is read in: a sentence that repeats a phrase within itself is cut after its commas; other
+    /// sentences stay whole and together (Android's CloneCheck.parts).
     static func parts(_ text: String) -> [String] {
-        if !repeatsPhrase(text) { return [text] }
-        var out: [String] = []
-        let pieces = text.components(separatedBy: ", ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        for (i, p0) in pieces.enumerated() {
-            let p = i < pieces.count - 1 ? p0 + "," : p0
-            if let last = out.last, words(last).count < 2 { out[out.count - 1] = last + " " + p } else { out.append(p) }
+        let sentences = text.trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: "(?<=[.!?])\\s+", with: "\u{1}", options: .regularExpression)
+            .split(separator: "\u{1}").map(String.init).filter { !$0.isEmpty }
+        if !sentences.contains(where: repeatsPhrase) { return [text] }
+        var out: [String] = [], keep: [String] = []
+        for s in sentences {
+            if !repeatsPhrase(s) { keep.append(s); continue }
+            if !keep.isEmpty { out.append(keep.joined(separator: " ")); keep = [] }
+            var ps: [String] = []
+            let pieces = s.components(separatedBy: ", ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            for (i, p0) in pieces.enumerated() {
+                let p = i < pieces.count - 1 ? p0 + "," : p0
+                if let last = ps.last, words(last).count < 2 { ps[ps.count - 1] = last + " " + p } else { ps.append(p) }
+            }
+            out += ps
         }
+        if !keep.isEmpty { out.append(keep.joined(separator: " ")) }
         return out.count > 1 ? out : [text]
     }
 

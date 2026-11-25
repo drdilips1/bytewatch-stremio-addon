@@ -27,7 +27,9 @@ word errors 6.1% → 3.9%, repeated/extra words 60 → 15, problem lines 74 → 
 - A line starting with "Well" is warmed up with "Right." instead of the throwaway "Well." ("Well, well, I
   suppose" for 17 of 20 readers before; 1 in 20 now).
 - The voice sample is cut at the speaker's last pause, never mid-word (`CloneCheck.cutAtPause`): 16 of the
-  20 readers' recordings were cut mid-word at 29.9 s. Imported clips start at a breath (`bestWindow`).
+  20 readers' recordings were cut mid-word at 29.9 s. Only samples longer than the limit: in 6.9.14 it also
+  cut short home recordings, and the user's own copied voices skipped short first sentences ("I heard it.");
+  fixed after 6.9.14 (cache key `c9|`). Split reading only for repeats within one sentence. Imported clips start at a breath (`bestWindow`).
 - Crispness: across the 20 readers the copies are already as bright as the real voices (within ~0.5 dB in
   4-8 kHz; `voice-bench/ltas.py`); a fixed treble lift overshot by ~3 dB and was dropped. Only some voices
   are dull (Emma, Lily, Isla, Grace: 2-10 dB short) – a per-voice lift is the next step if wanted.

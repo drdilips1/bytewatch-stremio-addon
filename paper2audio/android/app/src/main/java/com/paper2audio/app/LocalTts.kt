@@ -444,15 +444,25 @@ object CloneCheck {
     }
 
     /**
-     * The parts a line that repeats a phrase is read in: cut after its commas, a part of one word joined to
-     * the next. Any other line is one part.
+     * The parts a line is read in: a sentence that repeats a phrase within itself is cut after its commas (a part
+     * of one word joined to the next); other sentences stay whole and together. Repeats across sentences
+     * ("…shooting stars. … Shooting stars down in Kent") don't count: cutting those garbled the line.
      */
     fun parts(text: String): List<String> {
-        if (!repeatsPhrase(text)) return listOf(text)
+        val sentences = text.trim().split(Regex("""(?<=[.!?])\s+""")).filter { it.isNotBlank() }
+        if (sentences.none { repeatsPhrase(it) }) return listOf(text)
         val out = ArrayList<String>()
-        for (p in text.split(Regex("""(?<=,)\s+""")).map { it.trim() }.filter { it.isNotEmpty() }) {
-            if (out.isNotEmpty() && WORD.findAll(out.last()).count() < 2) out[out.lastIndex] = out.last() + " " + p else out += p
+        val keep = ArrayList<String>()
+        for (s in sentences) {
+            if (!repeatsPhrase(s)) { keep += s; continue }
+            if (keep.isNotEmpty()) { out += keep.joinToString(" "); keep.clear() }
+            val ps = ArrayList<String>()
+            for (p in s.split(Regex("""(?<=,)\s+""")).map { it.trim() }.filter { it.isNotEmpty() }) {
+                if (ps.isNotEmpty() && WORD.findAll(ps.last()).count() < 2) ps[ps.lastIndex] = ps.last() + " " + p else ps += p
+            }
+            out += ps
         }
+        if (keep.isNotEmpty()) out += keep.joinToString(" ")
         return if (out.size > 1) out else listOf(text)
     }
 
@@ -462,9 +472,12 @@ object CloneCheck {
      * and already trails off comes back as it is; with no pause found, the plain cut.
      */
     fun cutAtPause(x: FloatArray, rate: Int, limit: Int): FloatArray {
+        // A sample that fits is used whole, as before 6.9.14: on short home recordings (your own copied voices)
+        // the cut could take away most of the sample, and the copy then skipped short first sentences.
+        if (x.size <= limit) return x
         val frame = maxOf(1, rate / 50) // 20 ms
-        val n = minOf(x.size, limit) / frame
-        if (n < 10) return x.copyOf(minOf(x.size, limit))
+        val n = limit / frame
+        if (n < 10) return x.copyOf(limit)
         val e = FloatArray(n) { f ->
             var s = 0.0
             for (i in f * frame until (f + 1) * frame) s += x[i] * x[i]
@@ -472,7 +485,6 @@ object CloneCheck {
         }
         val loud = e.sorted()[(n * 0.9).toInt().coerceAtMost(n - 1)]
         val quiet = loud * 0.0316f // -30 dB
-        if (x.size <= limit && (maxOf(0, n - 6) until n).all { e[it] < quiet }) return x
         val lo = maxOf(0, n - 8 * 50)
         var f = n - 1
         while (f >= lo) {

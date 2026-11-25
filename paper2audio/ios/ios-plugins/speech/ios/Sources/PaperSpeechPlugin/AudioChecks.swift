@@ -111,12 +111,12 @@ enum AudioChecks {
     /// The voice sample up to [limit] samples, ending at its last pause (120 ms or more, 30 dB under the speech)
     /// in the final 8 s, never mid-word (Android's CloneCheck.cutAtPause).
     static func cutAtPause(_ x: [Float], rate: Int, limit: Int) -> [Float] {
+        if x.count <= limit { return x }   // a sample that fits is used whole
         let frame = max(1, rate / 50)
-        let n = min(x.count, limit) / frame
+        let n = limit / frame
         if n < 10 { return Array(x.prefix(limit)) }
         let e = rms(Array(x.prefix(n * frame)), frame: frame)
         let quiet = percentile(e, 0.9) * 0.0316
-        if x.count <= limit && (max(0, n - 6)..<n).allSatisfy({ e[$0] < quiet }) { return x }
         let lo = max(0, n - 8 * 50)
         var f = n - 1
         while f >= lo {
