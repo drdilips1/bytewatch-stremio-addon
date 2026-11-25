@@ -351,3 +351,7 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   then opens it (ComicReader onReplace). No header spoofing. (4) RCO read online unusable (captcha + pop-ups):
   worker 2.6.1 drops RCO from source=all. (5) IA mostly unrelated: worker 2.6.1 only items with Comic Book
   ZIP/RAR formats, CBZ first. App commit on work; worker 2.6.1 = handoff/workers/audiohub-comics.js.
+- "Batman under the red hood" gave every Batman: book page srcTitle = searchTitle → mainTitle cuts after ":".
+  Fix: SourceResults passes fullTitle; sourceaddons runOnce uses it for contentType 'comic' addons. Worker 2.6.1
+  (updated): IA title words ANDed (archiveWords). Tested: Under the Red Hood → GetComics 1 exact; Absolute
+  Batman / Spider-Man: Blue precise. User still had 2.6.0 deployed (RCO showing).

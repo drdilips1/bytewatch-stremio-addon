@@ -8,6 +8,7 @@
 //  b. Internet Archive: only items that have comic files (CBZ / CBR), CBZ ones first — titles
 //     with "Batman" in them were mostly unrelated documents.
 //  c. Comics Plus opens in the app's own web screen (your library sign-in is kept).
+//  d. Internet Archive needs every word of the title (it took any one of them).
 // Changes from 2.5.0:
 //  1. ReadComicsOnline: series search and issue lists from the site's public sitemaps
 //     (its pages are behind a Cloudflare bot check, so reading opens in the browser).
@@ -135,10 +136,19 @@ function _normalizeArchive(x) {
   };
 }
 
+// "Batman: Under the Red Hood" → batman AND under AND red AND hood (small words left out).
+function archiveWords(q) {
+  const small = new Set(["the", "a", "an", "of", "and", "or", "to", "in", "on", "vol", "volume"]);
+  const words = String(q).toLowerCase().replace(/[^\p{L}\p{N}\s'-]+/gu, " ").split(/\s+/).filter((w) => w && !small.has(w)).slice(0, 8);
+  return words.length ? words.map((w) => `"${w.replace(/"/g, "")}"`).join(" AND ") : `"${String(q).replace(/"/g, "")}"`;
+}
+
 async function searchArchive(q, limit) {
   const params = new URLSearchParams({
     // Only items with comic files: a "Batman" title alone also finds theses, magazines and scans.
-    q: `mediatype:texts AND title:(${q.replace(/["\\]/g, " ")}) AND (format:"Comic Book ZIP" OR format:"Comic Book RAR" OR format:CBZ OR format:CBR)`,
+    // Every word of the title must be there ("under the red hood": not any Batman), and only
+    // items with comic files.
+    q: `mediatype:texts AND title:(${archiveWords(q)}) AND (format:"Comic Book ZIP" OR format:"Comic Book RAR" OR format:CBZ OR format:CBR)`,
     fl: "identifier,title,description,creator,year,mediatype,format",
     rows: String(Math.min(limit * 2, 50)),
     page: "1",
