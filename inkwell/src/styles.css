@@ -13134,3 +13134,6 @@ html.ios .book-card:not(.broken) { box-shadow: none; }
 .xr-node.centre .xr-face { box-shadow: 0 0 0 3px var(--accent); }
 .xr-line { display: inline-block; width: 16px; height: 0; border-top: 2px solid color-mix(in srgb, var(--text) 40%, transparent); vertical-align: middle; }
 .xr-line.enemy { border-top: 2px dashed #e5484d; } .xr-line.ally { border-top-color: #3fb36b; }
+.free-chips { flex-wrap: nowrap; overflow-x: auto; margin: 6px 0; padding-bottom: 2px; scrollbar-width: none; }
+.free-chips .pill { flex: none; }
+.free-sort { margin: 8px 0 12px; }

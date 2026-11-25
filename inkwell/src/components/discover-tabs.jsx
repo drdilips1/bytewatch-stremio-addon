@@ -1,4 +1,4 @@
-// Discover, browsing (nothing typed): four tabs — For you, Moods, Genres, Lists — each section
+// Discover, browsing (nothing typed): five tabs — For you, Moods, Genres, Lists, Free classics — each section
 // with the same head (icon, title, See all), covers on the card edge, equal-width chips.
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Row, Cover, Skeleton, Grid, cachedRow } from './common.jsx';
@@ -24,6 +24,7 @@ const TABS = [
   ['moods', 'Moods'],
   ['genres', 'Genres'],
   ['lists', 'Lists'],
+  ['free', 'Free'],
 ];
 
 /** The section head used everywhere on Discover: icon, title, See all →, and a note under it. */
@@ -487,6 +488,73 @@ function Lists() {
 }
 
 /** Tabs and the chosen tab's content. */
+// ---- Free classics -----------------------------------------------------------------
+const freeLook = persisted('freeClassics', { lang: 'en', genre: '', sort: 'popular' });
+/**
+ * Public-domain audiobooks to browse, free to stream: LibriVox's catalogue (on the Internet
+ * Archive) and Project Gutenberg's human-read audiobooks — one list, each book once, with
+ * where it plays from on each card. (Free catalogues stay out of search; this is their place.)
+ */
+function FreeClassics() {
+  const f = useStore(freeLook);
+  const [items, setItems] = useState(null);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    let live = true;
+    setItems(null);
+    setErr('');
+    Promise.all([import('../sources/archive.js'), import('../sources/gutenbergaudio.js'), import('../lib/freeclassics.js')]).then(async ([ia, gba, fc]) => {
+      const code = fc.LANGS.find((x) => x[0] === f.lang)?.[3] || '';
+      const [lv, gb] = await Promise.all([
+        ia.query(fc.iaQuery(f.lang, f.genre), { sort: f.sort === 'new' ? 'addeddate desc' : 'downloads desc', rows: 48 }).catch(() => null),
+        gba.list({ ...(code ? { languages: code } : {}), ...(f.genre ? { topic: f.genre } : {}), ...(f.sort === 'new' ? { sort: 'descending' } : {}) }).catch(() => null),
+      ]);
+      if (!live) return;
+      if (!lv && !gb) return setErr("LibriVox and Gutenberg aren't answering right now — try again in a minute");
+      setItems(fc.mergeFree([['LibriVox', (lv || []).map((b) => ({ ...b, via: 'lv' }))], ['Gutenberg', gb || []]]));
+    });
+    return () => (live = false);
+  }, [f.lang, f.genre, f.sort]);
+  const [LANGS, GENRES_FREE] = useFreeLists();
+  const set = (patch) => freeLook.set({ ...f, ...patch });
+  return (
+    <section class="d-sec free-classics">
+      <Head icon="headphones" title="Free classics" note="Public-domain audiobooks read by volunteers (LibriVox, Project Gutenberg) — free to listen, nothing to sign up for. Public domain in the US; a few may still be in copyright where you live." />
+      <div class="chips free-chips">
+        {LANGS.map(([k, l]) => (
+          <button class={'pill small' + (f.lang === k ? ' active' : '')} onClick={() => set({ lang: k })}>
+            {l}
+          </button>
+        ))}
+      </div>
+      <div class="chips free-chips">
+        {GENRES_FREE.map(([k, l]) => (
+          <button class={'pill small' + (f.genre === k ? ' active' : '')} onClick={() => set({ genre: k })}>
+            {l}
+          </button>
+        ))}
+      </div>
+      <div class="segmented free-sort">
+        <button class={f.sort !== 'new' ? 'on' : ''} onClick={() => set({ sort: 'popular' })}>
+          Most listened
+        </button>
+        <button class={f.sort === 'new' ? 'on' : ''} onClick={() => set({ sort: 'new' })}>
+          Newest
+        </button>
+      </div>
+      {err ? <p class="muted pad-s">{err}</p> : !items ? <div class="grid">{Array.from({ length: 6 }, () => <Skeleton />)}</div> : items.length ? <Grid items={items} /> : <p class="muted pad-s">Nothing here with these choices — try another genre or language.</p>}
+    </section>
+  );
+}
+// The chip lists live in lib/freeclassics.js (loaded with the tab).
+function useFreeLists() {
+  const [l, setL] = useState([[['en', 'English']], [['', 'All']]]);
+  useEffect(() => {
+    import('../lib/freeclassics.js').then((m) => setL([m.LANGS.map(([k, n]) => [k, n]), m.GENRES]));
+  }, []);
+  return l;
+}
+
 export function DiscoverBrowse() {
   const tab = useStore(discTab);
   useStore(settings);
@@ -499,7 +567,7 @@ export function DiscoverBrowse() {
           </button>
         ))}
       </div>
-      {tab === 'moods' ? <Moods /> : tab === 'genres' ? <Genres /> : tab === 'lists' ? <Lists /> : <ForYou />}
+      {tab === 'moods' ? <Moods /> : tab === 'genres' ? <Genres /> : tab === 'lists' ? <Lists /> : tab === 'free' ? <FreeClassics /> : <ForYou />}
     </div>
   );
 }

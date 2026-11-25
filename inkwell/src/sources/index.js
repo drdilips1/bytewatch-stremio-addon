@@ -2,6 +2,7 @@ import * as se from './standardebooks.js';
 import * as ia from './archive.js';
 import * as lv from './librivox.js';
 import * as gb from './gutenberg.js';
+import * as gba from './gutenbergaudio.js';
 import * as ol from './openlibrary.js';
 import * as absSrc from './audiobookshelf.js';
 import * as addonSrc from './addons.js';
@@ -27,6 +28,8 @@ export const SOURCES = {
   lv: { name: 'LibriVox', short: 'LibriVox', hue: 350, kind: 'Listen', blurb: '20,000+ volunteer-read public-domain audiobooks', impl: lv, hidden: true, free: true },
   se: { name: 'Standard Ebooks', short: 'Standard Ebooks', hue: 205, kind: 'Read', blurb: 'Beautifully made free classics — read in-app or send to Kindle', impl: se, hidden: true, free: true },
   gb: { name: 'Project Gutenberg', short: 'Gutenberg', hue: 150, kind: 'Read', blurb: '75,000+ free classic ebooks, read in-app', impl: gb, hidden: true, free: true },
+  // Opened from Discover → Free classics only (free catalogues stay out of search, see below).
+  gba: { name: 'Gutenberg audiobooks', short: 'Gutenberg', hue: 150, kind: 'Listen', blurb: 'Project Gutenberg’s human-read audiobooks', impl: gba, hidden: true, free: true },
   // Apple's audiobook catalogue: the Top / New rows in Discover open here (not searched — Audible is).
   it: { name: 'Audiobook catalogue', short: 'Apple Books', hue: 330, kind: 'Discover', blurb: 'Audiobook listings from Apple Books', impl: itunes, hidden: true },
   ol: { name: 'Open Library', short: 'Open Library', hue: 210, kind: 'Discover', blurb: 'Trending books, rich descriptions & covers', impl: ol, hidden: true, free: true },
@@ -51,7 +54,7 @@ export const SOURCES = {
 };
 
 // Free public-domain catalogues (LibriVox, Internet Archive, Gutenberg, Standard Ebooks,
-// Open Library) are switched off for good.
+// Open Library) stay out of search and book pages; Discover → Free classics is where they live.
 const enabled = (k) => !SOURCES[k]?.free && settings.get().sources[k === 'addon' ? 'addons' : k] !== false;
 
 // Your own services first, then listings, then free catalogues — until the user rearranges them.

@@ -14,6 +14,7 @@ export const CHANGES = [
       ['⏳', 'Time Machine', 'Library → menu → Time Machine: search everything you’ve heard with Text on, your bookmarks, highlights and saved ideas, across all your books — and go back to that moment.'],
       ['📬', 'Quote postcards', 'Sharing a bookmark adds its chapter, your reaction and a sound-wave strip to the card.'],
       ['🏅', 'Listener challenges', 'Stats: a small set of goals each month — hours, books finished, days in a row, a new author.'],
+      ['📚', 'Free classics', 'Discover → Free: public-domain audiobooks read by volunteers, from LibriVox and Project Gutenberg — pick a language and genre, tap and listen. Nothing to sign up for.'],
       ['👋', 'Come back to…', 'Home offers a book you left a few weeks ago, with the story so far and your bookmarks.'],
     ],
   },
