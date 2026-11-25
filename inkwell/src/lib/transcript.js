@@ -68,6 +68,10 @@ function remember() {
       for (const k of order) parts[k] = k === key ? segments.slice(-2500).map(({ start, end, text }) => ({ start, end, text })) : c.parts[k];
       return { order, parts };
     });
+    // Also kept for the Time Machine search (every part, not just the last few).
+    const b = player.getState().book;
+    const track = Number(key.slice(key.lastIndexOf('#') + 1));
+    if (b?.uid && key.startsWith(b.uid + '#') && Number.isInteger(track)) import('./heardarchive.js').then((m) => m.archivePart(b, track, segments)).catch(() => {});
   }, 3000);
 }
 

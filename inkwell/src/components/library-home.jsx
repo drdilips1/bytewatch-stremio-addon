@@ -131,6 +131,9 @@ export function LibMenu({ editing, setEditing, canEdit }) {
             <button onClick={go(() => nav.push('notes'))}>
               <Icon name="bookmark" size={17} /> Notes and bookmarks
             </button>
+            <button onClick={go(() => nav.push('timemachine'))}>
+              <Icon name="search" size={17} /> Time Machine — search all you've heard
+            </button>
             <button onClick={go(() => nav.push('tidy'))}>
               <Icon name="wand" size={17} /> Tidy up (covers, duplicates…)
             </button>

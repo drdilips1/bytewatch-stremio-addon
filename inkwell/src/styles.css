@@ -13061,3 +13061,13 @@ html.ios .book-card:not(.broken) { box-shadow: none; }
 .whisper-row { display: flex; align-items: center; gap: 6px; }
 .whisper-row .link-btn { flex: 1; text-align: left; font-size: 13.5px; }
 .whisper-auto { display: flex; gap: 8px; align-items: center; margin-top: 6px; font-size: 13px; color: var(--muted); }
+
+/* Time Machine: one search across everything heard and kept. */
+.tm-screen .search-box { margin: 0 16px 12px; }
+.tm-list { display: flex; flex-direction: column; gap: 6px; padding: 0 16px 24px; }
+.tm-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); text-align: left; color: var(--text); font: inherit; }
+.tm-cover { flex: none; width: 44px; height: 44px; border-radius: 8px; overflow: hidden; }
+.tm-text { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; text-align: left; }
+.tm-row { justify-content: flex-start; }
+.tm-text small { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.tm-text span { font-size: 14px; line-height: 1.4; }

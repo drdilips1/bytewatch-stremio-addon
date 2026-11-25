@@ -1,6 +1,7 @@
 import * as qbit from './sources/qbit.js';
 import { Ask } from './screens/Ask.jsx';
 import { Stats } from './screens/Stats.jsx';
+import { TimeMachine } from './screens/TimeMachine.jsx';
 import { Tidy } from './screens/Tidy.jsx';
 import { Person } from './screens/Person.jsx';
 import { FindBooks } from './screens/FindBooks.jsx';
@@ -94,7 +95,7 @@ const KeptTab = memo(function KeptTab({ Root }) {
   );
 });
 
-const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast, ask: Ask, stats: Stats, notes: Notes, downloads: Downloads, tidy: Tidy, person: Person, find: FindBooks };
+const ROUTES = { book: Book, browse: Browse, reader: Reader, shelf: Shelf, podcast: Podcast, ask: Ask, stats: Stats, timemachine: TimeMachine, notes: Notes, downloads: Downloads, tidy: Tidy, person: Person, find: FindBooks };
 
 export function App() {
   const [route, setRoute] = useState(nav.state());
