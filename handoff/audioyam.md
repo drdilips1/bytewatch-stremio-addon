@@ -205,6 +205,10 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
 - Also open: GitHub replies drafted (#8–#11, close done ones) — not posted; TestFlight — waiting for the 4 GitHub
   secrets; Android / web release of what's on `work` (bookmark + highlight deletion fixes, subreddit link, Kindle
   note, Plus switch, iPhone fixes) — waiting for "release"; Support link (Ko-fi / Sponsors) — waiting for the account.
+- 25 Nov: a user's video (couldn't be opened here: Streamable download refused by the session's safety check) shows
+  the same iPhone problem — downloads work, importing own files doesn't. Likely on build ≤10 → asked them to update
+  to build 11 and send the on-screen reason if it still fails. Suggested for Saturday (not built): log import results
+  (picked / copied / failed / scan found) to Report a problem when an import adds no books.
 
 ## Ideas 13–22 (noted 24 Nov, user's list, NOT started) + Claude's notes
 13. **Sidekick / listen to the world** (location → short history, related chapters): new; needs location permission,
