@@ -260,10 +260,31 @@ export async function recent() {
   return fromLibraries('/items?' + qs({ limit: 30, sort: 'addedAt', desc: 1, minified: 1 }), (d) => d.results || []);
 }
 
-/** Whole library (up to 500 items), newest first. */
+/**
+ * A library's books page by page (500 a page) until the server has given them all: it used to
+ * stop at the first 500, so a library of 800 showed "500" (up to 10,000 here).
+ */
+export async function allPages(fetchPage, size = 500, maxPages = 20) {
+  const out = [];
+  for (let page = 0; page < maxPages; page++) {
+    const d = await fetchPage(page);
+    const got = d?.results || [];
+    out.push(...got);
+    const total = Number(d?.total) || 0;
+    if (got.length < size || (total && out.length >= total)) break;
+  }
+  return out;
+}
+
+/** Whole library (every book, in pages), newest first. */
 export async function all({ strict = false } = {}) {
   if (!connected() || !(await ensureLibrary())) return [];
-  return fromLibraries('/items?' + qs({ limit: 500, sort: 'addedAt', desc: 1, minified: 1 }), (d) => d.results || [], strict);
+  const res = await Promise.allSettled(
+    libIds().map((id) => allPages((page) => call(`/api/libraries/${id}/items?` + qs({ limit: 500, page, sort: 'addedAt', desc: 1, minified: 1 }))))
+  );
+  const bad = res.filter((r) => r.status === 'rejected');
+  if (bad.length && (strict || bad.length === res.length)) throw bad[0].reason;
+  return res.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])).map(toBook);
 }
 
 export async function inProgress() {

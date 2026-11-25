@@ -46,6 +46,8 @@ export function Discover() {
   const [filter, setFilter] = useState('all');
   const history = useStore(recent);
   const [open, setOpen] = useState(false);
+  // Recent searches show only while you're in the search box (as suggestions), not on the page after.
+  const [typing, setTyping] = useState(false);
   useEffect(() => {
     const f = (x) => setQ(x);
     searchSubs.add(f);
@@ -100,7 +102,8 @@ export function Discover() {
           placeholder={aiOn() ? 'Search, describe what you want, or paste a link…' : 'Search, or paste a link…'}
           onInput={(e) => setQ(e.currentTarget.value)}
           onKeyDown={(e) => e.key === 'Enter' && (commit(true), e.currentTarget.blur())}
-          onBlur={() => commit()}
+          onFocus={() => setTyping(true)}
+          onBlur={() => (commit(), setTimeout(() => setTyping(false), 200))}
           enterkeyhint="search"
         />
         {q && (
@@ -119,16 +122,16 @@ export function Discover() {
               <Icon name="sparkle" size={14} /> Try “{hint}”
             </button>
           )}
-          {history.length > 0 && (
+          {typing && history.some((h) => !q.trim() || h.toLowerCase().includes(q.trim().toLowerCase())) && (
             <section class="recent">
               <h3>Recent</h3>
               <div class="chips">
-                {history.map((h) => (
-                  <button class="pill" onClick={() => setQ(h)}>
+                {history.filter((h) => !q.trim() || h.toLowerCase().includes(q.trim().toLowerCase())).map((h) => (
+                  <button class="pill" onMouseDown={(e) => e.preventDefault()} onClick={() => setQ(h)}>
                     {h}
                   </button>
                 ))}
-                <button class="pill ghost" onClick={() => recent.set([])}>
+                <button class="pill ghost" onMouseDown={(e) => e.preventDefault()} onClick={() => recent.set([])}>
                   Clear
                 </button>
               </div>
