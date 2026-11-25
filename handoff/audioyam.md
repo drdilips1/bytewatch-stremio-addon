@@ -214,6 +214,24 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   mp4 → folder copied but 0 books, no error. Also: imported books only in Library → Audiobooks → On this phone (and
   Home row if the 'loc' source is on). Asked the user to get: file type, the message shown, whether it's under On this phone.
   Fix for Saturday: accept .mp4 (picker + Swift scan + AUDIO), log import results, toast where the books went.
+- 25 Nov user feedback with screenshots (Android 1.0.42), all NOT fixed yet:
+  1. Author page wrong / empty: Robert Greene showed "Born 1558? · 278 works" = the Elizabethan dramatist (Open Library
+     name match). Fix: prefer Wikipedia, disambiguate by a book of theirs (e.g. "Robert Greene (American author)"),
+     check OL works overlap with the author's known titles before using its dates/bio (people.js).
+  2. Source result cards: inner boxes (TorBox / RD chips, Read / Save / Kindle buttons) a tiny bit smaller, and keep
+     the "…" more button on the same row (it wraps to its own row when Kindle is there).
+  3. "Show / Hide N loose matches" and "Show N more ebooks" boxes: same width as the source boxes (they're narrower).
+  4. Find books from a link: sometimes only the web link comes back, not the books (need an example link; check page
+     fetch failure → falls back to the raw text).
+  5. Battery drain / phone hot: investigate — suspects: on-device Live Text (speech recognition), motion (breathing
+     cover, glows, blurs), place saved every 4 s, frequent re-renders, background polling (Downloading for you,
+     debrid status). Add a "what was busy" line to Report a problem.
+  6. Home "Downloading for you" card (e.g. "Ready to play · TorBox") can't be tapped — make it play / open the book.
+  7. Live Text "Get the ebook" → Download spins a long time with no progress — show status + MB progress
+     (Audiohub+ has onDownloadProgress in http.js; not ported).
+  8. Home top-right floating play button overlaps the search button again.
+  9. Question: listen parties like watch parties? → needs a shared server (see ideas section; AudioYam rule).
+
 
 ## Ideas 13–22 (noted 24 Nov, user's list, NOT started) + Claude's notes
 13. **Sidekick / listen to the world** (location → short history, related chapters): new; needs location permission,
