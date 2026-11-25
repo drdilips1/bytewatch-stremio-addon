@@ -209,6 +209,11 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   the same iPhone problem — downloads work, importing own files doesn't. Likely on build ≤10 → asked them to update
   to build 11 and send the on-screen reason if it still fails. Suggested for Saturday (not built): log import results
   (picked / copied / failed / scan found) to Report a problem when an import adds no books.
+  Reporter IS on build 11. Found (not fixed): .mp4 audiobook files aren't audio anywhere on iPhone import — picker
+  types (.folder/.audio/.mp3/.mpeg4Audio/m4b → .mp4 greyed out), Swift scan `audio` set and local.js AUDIO regex lack
+  mp4 → folder copied but 0 books, no error. Also: imported books only in Library → Audiobooks → On this phone (and
+  Home row if the 'loc' source is on). Asked the user to get: file type, the message shown, whether it's under On this phone.
+  Fix for Saturday: accept .mp4 (picker + Swift scan + AUDIO), log import results, toast where the books went.
 
 ## Ideas 13–22 (noted 24 Nov, user's list, NOT started) + Claude's notes
 13. **Sidekick / listen to the world** (location → short history, related chapters): new; needs location permission,
