@@ -298,3 +298,38 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   Sample: handoff/samples/audioyam-comic-viewer-sample.png (comic page with tap controls + thumbnail strip;
   manga RTL with "Reading settings · this book" sheet: Direction / Pages / Fit; Comics shelf + Download options
   with "Read in app" / "Save" for files and "Open ↗" for browser-only hosts).
+- COMICS SOURCES + COMIC READER (25 Nov, user's full spec; app on `work` e0863c8, NOT released; worker 2.6.0
+  given, NOT deployed by me — the user deploys it). Investigated first (this session got its own "AudioYam"
+  environment with the comic hosts allowed):
+  - ReadComicsOnline: every page incl. search is behind a Cloudflare managed challenge (403 "Just a moment").
+    robots.txt + sitemaps are open: sitemap-comics.xml (9,671 series, caption + cover on cdn.readcomicsonline.ru),
+    sitemap-chapters-1/2.xml (every issue URL). Worker searches slugs word by word, issues from chapter maps.
+    Reader pages NOT scraped (would mean getting round the bot check) → issues open in Custom Tabs. No downloads.
+  - GlobalComix: no public API; terms forbid robots/scrapers/framing; OpenSearch RSS (search?q=&format=rss) now
+    302s to /browse (script-drawn). Only a web-search link (search?q=, its OpenSearch template). Its page
+    carries a web client key (gck_…) for api.globalcomix.com — deliberately NOT used.
+  - Comics Plus / LibraryPass: External API is free but licensed to LIBRARIES via a support ticket, not readers;
+    each library has its own sign-in. → manifest userConfig "library_link" (no header: never sent to the worker),
+    shown as a web-search link. Card number only ever typed on Comics Plus's own page.
+  - Kitsu restored in the worker as its own source (/api/kitsu/search, /api/kitsu/item) but NOT in source=all.
+- Worker 2.6.0 (handoff/workers/audiohub-comics.js): unify() gives every result the same fields (access_type,
+  reading_url, external_url, download_options_url, issue_count…, null when unknown); /api/readcomicsonline/search,
+  /series?slug= (= /issues), /api/kitsu/*, /api/globalcomix/search + /api/comicsplus/search (explain, no fake
+  results, open_url); /api/search source=all = GetComics + IA + RCO, results interleaved; manifest maps the new
+  fields + webSearch + userConfig. Tested locally (node, real sites): Batman 230 / Spider-Man 11 / Superman 69 RCO
+  series, One Piece 0 (site has no manga — Kitsu has it); batman-2016 169 issues; GetComics + IA download options
+  unchanged. Free-plan CPU (10 ms) may be tight on the first uncached sitemap read — watch for 1102 errors.
+- App (`work`): lib/comics.js (+ tests/comics.test.js, 9 tests): comicPages natural order, isComicArchive,
+  accessInfo, webSearches, issueList, turnPage (RTL), resumePage. components/comic-reader.jsx (Reader.jsx routes
+  CBZ there): page / vertical strip, LTR / RTL, tap thirds + swipe, zoom buttons + double-tap, fit width, full
+  screen (+ StatusBar.hide), brightness (comicLook), page + settings in progress (comicPage, comicMode, comicRtl,
+  comicFit). epub.js: CBZ sniffed (zip of pictures, no container.xml), kept in the ebook cache as CBZ (offline,
+  Downloaded), READABLE = EPUB|PDF|CBZ, CBR says it can't open yet; http.getBytes onProgress + signal (Cancel).
+  source-results: cover, access label, year, issues count; Issues (IssueList) + Read online (openInApp = Custom
+  Tabs) for reading-only results; DownloadOptions Read for CBZ/PDF/EPUB files; WebSearchLinks under each source.
+  addons.js: refreshSourceAddons() once a day (keeps config); reinstall keeps config. What's new card, nov-2026h.
+  UI-tested in Chromium with the real worker locally (all results labelled by provider, 20 covers, issues, links,
+  reader taps / RTL / zoom / strip / resume / offline reopen with file server cut off, audiobook rows unchanged).
+- Not done / can't: in-app page reading for RCO (bot check) and GlobalComix (terms); Comics Plus catalogue search
+  (library API); CBR (needs a RAR library); double-page spreads; issue-to-issue "next issue" inside the reader
+  (local CBZ files have no series link); pinch-zoom is the browser's own (buttons + double-tap are ours).

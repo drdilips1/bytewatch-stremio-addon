@@ -1,19 +1,23 @@
-// Audiohub Comics — Cloudflare Worker, version 2.5.0
-// Sources: GetComics and Internet Archive (the two that really search and give files).
-// Changes from 2.4.1:
-//  1. Removed the sources that never gave comics: Kitsu (titles and covers only), and Comic Book
-//     Plus / MANGA Plus / GlobalComix / AniList (one fake "Search X" result pointing at the site).
-//  2. GetComics "DOWNLOAD NOW"-style links are followed (redirects only, nothing downloaded): when
-//     one ends at a comic file, it's returned as that file with direct_file: true, so the app can
-//     offer one-tap Save. Mirror pages (Mega, Mediafire…) stay pages, opened in the browser.
-//  3. Internet Archive results get download options too (/api/archive/downloads?id=…): their
-//     comic / PDF files, each a direct file.
-//  4. The app's search covers both sources (source=all).
-// From 2.4.1: www.getcomics.org accepted; one CONFIG.VERSION; manifest maps the app's fields.
+// Audiohub Comics — Cloudflare Worker, version 2.6.0
+// Sources that search here: GetComics, Internet Archive, ReadComicsOnline (all three in
+// source=all), Kitsu (manga titles only, source=kitsu). GlobalComix and Comics Plus are
+// opened in their own reader (see WEB_ONLY below for why they aren't searched here).
+// Changes from 2.5.0:
+//  1. ReadComicsOnline: series search and issue lists from the site's public sitemaps
+//     (its pages are behind a Cloudflare bot check, so reading opens in the browser).
+//  2. Every result has the same fields (unify): access_type, reading_url, external_url,
+//     download_options_url, issue_count… — null when a source doesn't say.
+//  3. Kitsu back as its own source (/api/kitsu/search, /api/kitsu/item?id=), not in "all".
+//  4. /api/globalcomix/search and /api/comicsplus/search explain why they can't search and
+//     give GlobalComix's own search link; the manifest lists both as web searches.
+//  5. The manifest maps the new fields (cover, access, reading link, issue list).
+// Kept from 2.5.0: GetComics search, release download options and direct-file detection;
+// Internet Archive search, files and download options; every earlier route.
 
 const CONFIG = {
   NAME: "Audiohub Comics",
-  VERSION: "2.5.0",
+  VERSION: "2.6.0",
+  KITSU_API: "https://kitsu.io/api/edge",
   ARCHIVE_API: "https://archive.org",
   GETCOMICS_FEED: "https://getcomics.org/feed/",
   GETCOMICS_SEARCH: "https://getcomics.org/wp-json/wp/v2/search",
@@ -105,7 +109,7 @@ function archiveURLs(id, filename, base) {
 
 /* INTERNET ARCHIVE */
 
-function normalizeArchive(x) {
+function _normalizeArchive(x) {
   return {
     id: x.identifier,
     title: x.title || x.identifier,
@@ -305,7 +309,7 @@ function getComicsDownloadEndpoint(link) {
   return `${WORKER}/api/getcomics/downloads?url=${encodeURIComponent(link)}`;
 }
 
-function normalizeGCPost(x) {
+function _normalizeGCPost(x) {
   const link = x.url || "";
 
   const rawTitle =
@@ -323,6 +327,7 @@ function normalizeGCPost(x) {
     cover: imageFromHTML(x.excerpt?.rendered || "") || null,
     provider: "getcomics",
     provider_name: "GetComics",
+    access_type: "free",
     author: "",
     format: "comic",
     date: x.date || null,
@@ -334,7 +339,7 @@ function normalizeGCPost(x) {
   };
 }
 
-function normalizeGCRSS(block) {
+function _normalizeGCRSS(block) {
   const originalTitle =
     stripHTML(xmlField(block, "title")) || "Untitled release";
 
@@ -362,6 +367,7 @@ function normalizeGCRSS(block) {
     author: xmlField(block, "dc:creator") || "",
     provider: "getcomics",
     provider_name: "GetComics",
+    access_type: "free",
     format: "comic",
     url: link,
     source_url: link,
@@ -554,6 +560,7 @@ async function getComicsDownloads(pageUrl) {
     success: true,
     source: "getcomics",
     provider_name: "GetComics",
+    access_type: "free",
     release_url: page.href,
     total: links.length,
     links,
@@ -617,6 +624,287 @@ async function archiveDownloads(request, id) {
   };
 }
 
+const normalizeArchive = (x) => unify(_normalizeArchive(x));
+const normalizeGCPost = (x) => unify(_normalizeGCPost(x));
+const normalizeGCRSS = (x) => unify(_normalizeGCRSS(x));
+/* ONE RESULT SHAPE FOR EVERY SOURCE
+   Every result carries the same fields; a source that doesn't know one leaves it null
+   (never guessed). The older fields (url, source_url, download_links_url…) stay too, so
+   apps that read them keep working. */
+
+const ACCESS = ["free", "free_with_account", "subscription", "purchase", "library", "metadata", "unknown"];
+
+function unify(x) {
+  const pick = (...v) => v.find(a => a !== undefined && a !== null && a !== "") ?? null;
+  const access = ACCESS.includes(x.access_type) ? x.access_type : "unknown";
+  return {
+    ...x,
+    id: pick(x.id),
+    provider: pick(x.provider),
+    provider_name: pick(x.provider_name),
+    title: pick(x.title, x.original_title, "Untitled"),
+    original_title: pick(x.original_title, x.title),
+    author: pick(x.author, x.creator),
+    creator: pick(x.creator, x.author),
+    publisher: pick(x.publisher),
+    description: pick(x.description),
+    cover: pick(x.cover),
+    series: pick(x.series),
+    issue_number: pick(x.issue_number),
+    issue_count: pick(x.issue_count),
+    genres: Array.isArray(x.genres) ? x.genres : [],
+    language: pick(x.language),
+    publication_date: pick(x.publication_date, x.date, x.year),
+    content_type: pick(x.content_type, "comic"),
+    access_type: access,
+    reading_url: pick(x.reading_url),
+    download_available: x.download_available === true,
+    download_options_url: pick(x.download_options_url, x.download_links_url),
+    external_url: pick(x.external_url, x.source_url, x.url)
+  };
+}
+
+/* TEXT FETCH (sitemaps), cached at Cloudflare's edge */
+
+async function getText(url, ttl = CONFIG.CACHE_SECONDS) {
+  const r = await fetch(url, {
+    headers: { "User-Agent": `Mozilla/5.0 (compatible; Audiohub-Comics/${CONFIG.VERSION})`, Accept: "text/xml,application/xml,text/html;q=0.8,*/*;q=0.5" },
+    cf: { cacheTtl: ttl, cacheEverything: true }
+  });
+  const text = await r.text();
+  // A bot-check page: say so instead of pretending nothing was found.
+  if (/_cf_chl_opt|cf-browser-verification|Just a moment\.\.\./.test(text.slice(0, 20000))) {
+    throw new Error(`${new URL(url).hostname} showed its bot check to the server — open it in the browser instead`);
+  }
+  if (!r.ok) throw new Error(`${new URL(url).hostname} answered HTTP ${r.status}`);
+  return text;
+}
+
+/* READCOMICSONLINE
+   The site's own pages (search, series, reader) are behind Cloudflare's "managed challenge",
+   which only a real browser passes. Its sitemaps are open to everyone (robots.txt points to
+   them), and list every series (title, cover) and every issue's address — that's what this
+   searches. Reading opens the issue's page in the browser; the site offers no files. */
+
+const RCO = "https://readcomicsonline.ru";
+const RCO_TTL = 6 * 3600; // the sitemaps change a few times a day
+
+function slugify(v) {
+  return String(v || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+// "Batman (2016-)" → 2016
+const yearOf = (caption) => (/\((\d{4})/.exec(caption || "") || [])[1] || null;
+
+function rcoEntry(text, at) {
+  const end = text.indexOf("</url>", at);
+  const block = text.slice(at, end < 0 ? at + 2000 : end);
+  const slug = (/\/comic\/([^<\/]+)<\/loc>/.exec(block) || [])[1] || "";
+  const caption = decodeXml((/<image:caption>([\s\S]*?)<\/image:caption>/.exec(block) || [])[1] || "").trim();
+  const cover = decodeXml((/<image:loc>([^<]+)<\/image:loc>/.exec(block) || [])[1] || "").trim();
+  const lastmod = (/<lastmod>([^<]+)<\/lastmod>/.exec(block) || [])[1] || null;
+  return { slug, caption, cover, lastmod };
+}
+
+function rcoResult(e) {
+  const title = e.caption || e.slug.replace(/-/g, " ");
+  const page = `${RCO}/comic/${e.slug}`;
+  return unify({
+    id: `readcomicsonline:${e.slug}`,
+    provider: "readcomicsonline",
+    provider_name: "ReadComicsOnline",
+    title: `[ReadComicsOnline] ${title}`,
+    original_title: title,
+    series: title.replace(/\s*\(\d{4}[^)]*\)\s*$/, ""),
+    cover: e.cover || null,
+    publication_date: yearOf(title),
+    date: e.lastmod,
+    format: "comic",
+    content_type: "series",
+    access_type: "free",
+    reading_url: page,
+    external_url: page,
+    url: page,
+    source_url: page,
+    download_available: false,
+    issues_url: `${WORKER}/api/readcomicsonline/series?slug=${encodeURIComponent(e.slug)}`,
+    reader: "browser",
+    reader_note: "Opens in the browser: the site checks every visitor (Cloudflare), so its pages can't be shown inside the app."
+  });
+}
+
+async function searchReadComicsOnline(q, limit) {
+  const text = await getText(`${RCO}/sitemap-comics.xml`, RCO_TTL);
+  const want = slugify(q);
+  const words = want.split("-").filter(w => w.length > 1 || /\d/.test(w));
+  if (!words.length) return { success: true, source: "readcomicsonline", total: 0, results: [] };
+  const marker = `<loc>${RCO}/comic/`;
+  const hits = [];
+  // Addresses are lowercase slugs ("the-amazing-spider-man-2018"): matched word by word,
+  // so the whole list is read once without decoding every entry.
+  for (let i = text.indexOf(marker); i >= 0; i = text.indexOf(marker, i + marker.length)) {
+    const s = i + marker.length;
+    const slug = text.slice(s, text.indexOf("<", s));
+    const parts = slug.split("-");
+    if (!words.every(w => parts.includes(w))) continue;
+    const base = slug.replace(/-\d{4}$/, "");
+    const score = base === want ? 3 : base.startsWith(want + "-") || slug.startsWith(want) ? 2 : 1;
+    hits.push({ at: text.lastIndexOf("<url>", i), score, slug });
+  }
+  hits.sort((a, b) => b.score - a.score || a.slug.length - b.slug.length);
+  const results = hits.slice(0, limit).map(h => rcoResult(rcoEntry(text, h.at))).filter(r => r.reading_url);
+  return {
+    success: true,
+    source: "readcomicsonline",
+    provider_name: "ReadComicsOnline",
+    query: q,
+    total: hits.length,
+    results,
+    search_scope: "Series titles from the site's public sitemap (its search page is behind a bot check)"
+  };
+}
+
+async function rcoSeries(slug) {
+  slug = slugify(slug);
+  if (!slug) throw new Error("Missing series");
+  const comics = await getText(`${RCO}/sitemap-comics.xml`, RCO_TTL);
+  const at = comics.indexOf(`<loc>${RCO}/comic/${slug}</loc>`);
+  if (at < 0) throw new Error("Series not found on ReadComicsOnline");
+  const series = rcoResult(rcoEntry(comics, comics.lastIndexOf("<url>", at)));
+
+  // Every issue's address is in the chapter sitemaps the index lists.
+  const index = await getText(`${RCO}/sitemap.xml`, RCO_TTL);
+  const maps = [...index.matchAll(/<loc>([^<]*sitemap-chapters[^<]*)<\/loc>/g)].map(m => m[1]).slice(0, 6);
+  const seen = new Set();
+  const issues = [];
+  const marker = `${RCO}/comic/${slug}/`;
+  for (const map of maps) {
+    const text = await getText(map, RCO_TTL);
+    for (let i = text.indexOf(marker); i >= 0; i = text.indexOf(marker, i + marker.length)) {
+      const s = i + marker.length;
+      const end = text.indexOf("<", s);
+      const num = decodeXml(text.slice(s, end));
+      if (!num || num.includes("/") || seen.has(num)) continue;
+      seen.add(num);
+      const lastmod = (/^<\/loc>\s*<lastmod>([^<]+)/.exec(text.slice(end, end + 80)) || [])[1] || null;
+      const page = `${marker}${num}`;
+      issues.push({
+        id: `readcomicsonline:${slug}:${num}`,
+        issue_number: num,
+        title: `${series.series} #${num.replace(/-/g, ".")}`,
+        reading_url: page,
+        external_url: page,
+        date: lastmod,
+        access_type: "free",
+        download_available: false
+      });
+    }
+  }
+  const n = (v) => parseFloat(String(v).replace(/-/g, ".")) || 0;
+  issues.sort((a, b) => n(b.issue_number) - n(a.issue_number) || String(b.issue_number).localeCompare(String(a.issue_number)));
+  return {
+    success: true,
+    source: "readcomicsonline",
+    provider_name: "ReadComicsOnline",
+    series: { ...series, issue_count: issues.length },
+    total: issues.length,
+    issues,
+    reader: "browser",
+    reader_note: series.reader_note
+  };
+}
+
+/* KITSU (manga titles, covers and synopses only — nothing to read or download) */
+
+function normalizeKitsu(item) {
+  const a = item.attributes || {};
+  const t = a.titles || {};
+  const originalTitle = a.canonicalTitle || t.en || t.en_jp || t.ja_jp || "Untitled";
+  const page = `https://kitsu.io/manga/${a.slug || item.id}`;
+  return unify({
+    id: `kitsu:${item.id}`,
+    provider: "kitsu",
+    provider_name: "Kitsu",
+    title: `[Kitsu] ${originalTitle}`,
+    original_title: originalTitle,
+    alternate_titles: t,
+    description: a.synopsis || a.description || "",
+    cover: a.posterImage?.large || a.posterImage?.original || a.posterImage?.medium || null,
+    format: a.mangaType || a.subtype || "manga",
+    status: a.status || null,
+    issue_count: a.chapterCount ?? null,
+    volume_count: a.volumeCount ?? null,
+    date: a.startDate || null,
+    rating: a.averageRating || null,
+    url: page,
+    source_url: page,
+    external_url: page,
+    content_type: "metadata_only",
+    access_type: "metadata",
+    download_available: false
+  });
+}
+
+async function searchKitsu(q, limit) {
+  const p = new URLSearchParams();
+  p.set("filter[text]", q);
+  p.set("page[limit]", String(Math.min(limit, 20)));
+  const d = await getJSON(`${CONFIG.KITSU_API}/manga?${p}`, { Accept: "application/vnd.api+json" });
+  const results = (d.data || []).map(normalizeKitsu);
+  return { success: true, source: "kitsu", provider_name: "Kitsu", total: d.meta?.count ?? results.length, results };
+}
+
+async function kitsuItem(id) {
+  const d = await getJSON(`${CONFIG.KITSU_API}/manga/${encodeURIComponent(id)}`, { Accept: "application/vnd.api+json" });
+  if (!d.data) throw new Error("Not found on Kitsu");
+  return { success: true, source: "kitsu", result: normalizeKitsu(d.data) };
+}
+
+/* GLOBALCOMIX and COMICS PLUS — opened in their own reader, never searched by this server
+   GlobalComix: no public API, its terms forbid robots / scrapers and framing, and the RSS
+   search its OpenSearch file names now redirects to a script-drawn page. Its own search
+   (the OpenSearch address) is offered as a link; free, member and paid comics stay under
+   GlobalComix's own sign-in and checks.
+   Comics Plus (LibraryPass): its catalogue API is licensed to libraries (they ask LibraryPass
+   support), not to readers, and each library has its own sign-in. Your library's Comics Plus
+   link stays in the app on your phone; your card number only ever goes into Comics Plus's
+   own sign-in page. Nothing about it reaches this server. */
+
+const WEB_ONLY = {
+  globalcomix: {
+    provider_name: "GlobalComix",
+    open_url: (q) => `https://globalcomix.com/search?q=${encodeURIComponent(q)}`,
+    message: "GlobalComix can't be searched by apps (no public API; its terms forbid automated access) — open its own search instead"
+  },
+  comicsplus: {
+    provider_name: "Comics Plus",
+    open_url: () => null,
+    message: "Comics Plus is searched in your library's own Comics Plus (its catalogue API is only licensed to libraries) — add your library's link in the app"
+  }
+};
+
+function webOnly(id, q) {
+  const s = WEB_ONLY[id];
+  return {
+    success: true,
+    source: id,
+    provider_name: s.provider_name,
+    searchable: false,
+    query: q,
+    total: 0,
+    results: [],
+    open_url: s.open_url(q),
+    message: s.message,
+    errors: { [id]: s.message }
+  };
+}
+
 /* SOURCE REGISTRY */
 
 function sources() {
@@ -625,6 +913,7 @@ function sources() {
       id: "getcomics",
       name: "GetComics",
       status: "active",
+      in_all: true,
       capabilities: ["full_site_search", "rss_latest", "release_links", "download_link_discovery", "direct_file_detection"],
       note: "Search uses the public WordPress endpoint, with RSS fallback. Download links are found on release pages; main download links are followed to the file when they lead to one, mirrors stay pages."
     },
@@ -632,8 +921,41 @@ function sources() {
       id: "internet_archive",
       name: "Internet Archive",
       status: "active",
+      in_all: true,
       capabilities: ["search", "metadata", "file_listing", "streaming", "download"],
       note: "Access depends on each item's rights and lending restrictions."
+    },
+    {
+      id: "readcomicsonline",
+      name: "ReadComicsOnline",
+      status: "active",
+      in_all: true,
+      capabilities: ["series_search", "covers", "issue_list", "read_in_browser"],
+      note: "Searched through the site's public sitemaps; its pages are behind a Cloudflare bot check, so issues open in the browser. The site offers no downloads."
+    },
+    {
+      id: "kitsu",
+      name: "Kitsu",
+      status: "active",
+      in_all: false,
+      capabilities: ["search", "metadata"],
+      note: "Manga titles, covers and synopses only — nothing to read or download. Not part of source=all."
+    },
+    {
+      id: "globalcomix",
+      name: "GlobalComix",
+      status: "web_only",
+      in_all: false,
+      capabilities: ["open_official_search"],
+      note: "No public API and its terms forbid automated access, so it isn't searched here; the app opens GlobalComix's own search, where its sign-in and subscriptions apply."
+    },
+    {
+      id: "comicsplus",
+      name: "Comics Plus (LibraryPass)",
+      status: "web_only",
+      in_all: false,
+      capabilities: ["open_library_site"],
+      note: "The catalogue API is licensed to libraries, not readers. The app opens your library's Comics Plus; your card number never reaches this server."
     }
   ];
 }
@@ -646,7 +968,7 @@ function manifest(base) {
     id: "audiohub-comics",
     name: "Audiohub Comics",
     version: CONFIG.VERSION,
-    description: "Comics from GetComics and the Internet Archive, with download options inside the app.",
+    description: "Comics from GetComics, the Internet Archive and ReadComicsOnline — download options, issue lists and reading links inside the app — plus GlobalComix and your library's Comics Plus.",
     icon: "https://archive.org/images/glogo.jpg",
     provides: ["source"],
     contentType: "comic",
@@ -658,6 +980,19 @@ function manifest(base) {
       title: true,
       author: false
     },
+    // Asked in Settings → Addons and kept on the phone. No "header", so it's never sent to
+    // this server: the app only opens it.
+    userConfig: {
+      note: "Optional: the Comics Plus link your library gives you (on its website, under eBooks / digital comics). You sign in there with your library card.",
+      fields: [
+        { key: "library_link", label: "Your library's Comics Plus link", placeholder: "https://…", optional: true }
+      ]
+    },
+    // Searches the app opens in the browser (these sites can't be searched by a server).
+    webSearch: [
+      { name: "GlobalComix", url: "https://globalcomix.com/search?q={TITLE}", note: "Free, member and paid comics — read in GlobalComix" },
+      { name: "Comics Plus", url: "{library_link}", needs: "library_link", note: "Your library's comics — sign in with your card" }
+    ],
     adapters: {
       source: {
         request: {
@@ -679,9 +1014,17 @@ function manifest(base) {
             date: "date",
             cover: "cover",
             description: "description",
-            // The fields the app uses for the provider label and Download options.
+            // The fields the app uses for the provider label, access and reading / download actions.
             provider_name: "provider_name",
             original_title: "original_title",
+            publisher: "publisher",
+            access_type: "access_type",
+            reading_url: "reading_url",
+            external_url: "external_url",
+            issue_count: "issue_count",
+            publication_date: "publication_date",
+            issues_url: "issues_url",
+            reader: "reader",
             download_available: "download_available",
             download_links_url: "download_links_url"
           }
@@ -761,12 +1104,38 @@ export default {
         return json(await getComicsDownloads(pageUrl));
       }
 
+      if (path === "/api/readcomicsonline/search") {
+        if (!q) return error("Missing query. Use ?q=batman");
+        return json(await searchReadComicsOnline(q, limit));
+      }
+
+      if (path === "/api/readcomicsonline/series" || path === "/api/readcomicsonline/issues") {
+        const slug = clean(u.searchParams.get("slug"), 150);
+        if (!slug) return error("Missing series. Use ?slug=batman-2016");
+        return json(await rcoSeries(slug));
+      }
+
+      if (path === "/api/kitsu/search") {
+        if (!q) return error("Missing query. Use ?q=one%20piece");
+        return json(await searchKitsu(q, limit));
+      }
+
+      if (path === "/api/kitsu/item") {
+        const id = clean(u.searchParams.get("id"), 40).replace(/^kitsu:/, "");
+        if (!id) return error("Missing Kitsu id");
+        return json(await kitsuItem(id));
+      }
+
+      if (path === "/api/globalcomix/search" || path === "/api/comicsplus/search") {
+        return json(webOnly(path.split("/")[2], q));
+      }
+
       if (path === "/api/search") {
         if (!q) return error("Missing search query. Use ?q=batman");
 
         const source = u.searchParams.get("source") || "all";
 
-        const valid = ["all", "internet_archive", "getcomics"];
+        const valid = ["all", "internet_archive", "getcomics", "readcomicsonline", "kitsu", "globalcomix", "comicsplus"];
 
         if (!valid.includes(source)) {
           return error("Unsupported source");
@@ -786,6 +1155,18 @@ export default {
           add("internet_archive", () => searchArchive(q, limit));
         }
 
+        if (source === "all" || source === "readcomicsonline") {
+          add("readcomicsonline", () => searchReadComicsOnline(q, limit));
+        }
+
+        if (source === "kitsu") {
+          add("kitsu", () => searchKitsu(q, limit));
+        }
+
+        if (source === "globalcomix" || source === "comicsplus") {
+          add(source, async () => webOnly(source, q));
+        }
+
         const settled = await Promise.allSettled(
           tasks.map(t => t.promise)
         );
@@ -801,7 +1182,12 @@ export default {
               }
         );
 
-        const results = groups.flatMap(g => g.results || []);
+        // Taken in turns from each source (best of each first), so one site doesn't fill the top.
+        const lists = groups.map(g => g.results || []);
+        const results = [];
+        for (let i = 0; i < Math.max(0, ...lists.map(l => l.length)); i++) {
+          for (const l of lists) if (l[i]) results.push(l[i]);
+        }
 
         return json({
           success: true,
@@ -809,7 +1195,9 @@ export default {
           source,
           total: results.length,
           sources: groups,
-          results
+          results,
+          // Searches to open in the browser (sites this server can't search).
+          web_search: [{ name: "GlobalComix", url: WEB_ONLY.globalcomix.open_url(q) }]
         });
       }
 
