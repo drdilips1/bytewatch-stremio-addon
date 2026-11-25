@@ -400,6 +400,11 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   Confirmed: the saved value was "https://audiohub-comics…/manifest.jsonhttps://daytonmetrolibraryohfl.librarypass.com/"
   (pasted onto the manifest link). Fix 0a34ef3: webSearches uses the last http(s) link in a field (test). The
   library link itself opens the Dayton Metro LibraryPass sign-in fine (checked in an emulated phone).
+- 25 Nov comics site checks: YSK Comics (ysk-comics.com) — no bot check, search/series allowed, but pages only via
+  /api/v1 which robots.txt disallows → user: avoid it. comicslovers.com — every URL is a JS redirect to /lander
+  (parked/lander shell, renders empty in an emulated phone) → not the Hindi comics site; asked the user for the real
+  address. BatCave — no address yet. Comics Plus in app reader: impossible (DRM / licensed reader); offered
+  full-screen web screen or the official app — waiting for the user's choice.
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
