@@ -16,8 +16,8 @@ const b64u = (s) => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').re
 const unb64u = (s) => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
 
 /**
- * A quote to share: { kind: 'audio' | 'text', title, author, cover, quote, note, global }
- * (global: seconds into the whole audiobook).
+ * A quote to share: { kind: 'audio' | 'text', title, author, cover, quote, note, global, chapter }
+ * (global: seconds into the whole audiobook; note: your reaction; chapter: its name, when known).
  */
 function packQuote(q) {
   return {
@@ -29,10 +29,19 @@ function packQuote(q) {
     ...(q.note ? { n: String(q.note).slice(0, 1200) } : {}),
     ...(q.cover && /^https:\/\//.test(q.cover) && q.cover.length < 300 ? { c: q.cover } : {}),
     ...(q.kind !== 'text' && q.global >= 0 ? { g: Math.round(q.global) } : {}),
+    ...(q.chapter ? { h: String(q.chapter).slice(0, 100) } : {}),
   };
 }
+
+/** The chapter a moment (book seconds) falls in: its title, or '' (chapters: [{ title, start }]). */
+export function chapterAt(list, g) {
+  if (!Array.isArray(list) || !(g >= 0)) return '';
+  let hit = null;
+  for (const c of list) if ((c.start || 0) <= g + 0.5) hit = c;
+  return String(hit?.title || '').trim();
+}
 const unpack = (d) =>
-  d?.t && d?.q ? { kind: d.k === 'e' ? 'text' : 'audio', title: d.t, author: d.a || '', quote: d.q, note: d.n || '', cover: d.c || '', global: d.g ?? null } : null;
+  d?.t && d?.q ? { kind: d.k === 'e' ? 'text' : 'audio', title: d.t, author: d.a || '', quote: d.q, note: d.n || '', cover: d.c || '', global: d.g ?? null, chapter: d.h || '' } : null;
 
 /** The long link: the quote itself, inside the link (works without the server keeping it). */
 export function quoteLink(q) {
@@ -320,6 +329,20 @@ export async function quoteCard(q, style = 'paper') {
 
   // The book: a rule, the cover, title, author, where.
   const by = H - P - 132;
+  // An audio postcard: a sound-wave strip above the book (the same shape for the same quote).
+  if (q.kind !== 'text') {
+    let seed = 7;
+    for (const ch of quote) seed = (seed * 31 + ch.charCodeAt(0)) % 100003;
+    const bars = 64, gap = width / bars, mid = by - 78;
+    x.fillStyle = L.accent;
+    x.globalAlpha = 0.55;
+    for (let i = 0; i < bars; i++) {
+      seed = (seed * 1103 + 12345) % 100003;
+      const h = 6 + ((Math.sin(i / 3.1) + 1) / 2) * 18 + (seed % 14);
+      x.fillRect(P + i * gap, mid - h / 2, Math.max(4, gap * 0.45), h);
+    }
+    x.globalAlpha = 1;
+  }
   x.fillStyle = L.mark;
   x.fillRect(P, by - 44, width, 2);
   let tx = P;
@@ -353,7 +376,8 @@ export async function quoteCard(q, style = 'paper') {
   const at = atLabel(q);
   x.fillStyle = L.accent;
   x.font = `700 24px ${sans}`;
-  x.fillText((q.kind === 'text' ? 'EBOOK' : at ? `AUDIOBOOK · ${at}` : 'AUDIOBOOK') + '   ·   AUDIOHUB', tx, by + 128);
+  const where = q.kind === 'text' ? 'EBOOK' : at ? `AUDIOBOOK · ${at}` : 'AUDIOBOOK';
+  x.fillText(fit(q.chapter ? `${where} · ${String(q.chapter).toUpperCase()}` : `${where}   ·   AUDIOHUB`, `700 24px ${sans}`), tx, by + 128);
   return { data: c.toDataURL('image/jpeg', 0.92).split(',')[1], cut };
 }
 
@@ -379,12 +403,12 @@ export async function shareQuote(q) {
   shareRequest.set(q);
 }
 
-const byline = (q) => `${q.title}${q.author ? `, ${q.author}` : ''}${atLabel(q) ? ` (at ${atLabel(q)})` : ''}`;
+const byline = (q) => `${q.title}${q.author ? `, ${q.author}` : ''}${q.chapter ? ` — ${q.chapter}` : ''}${atLabel(q) ? ` (at ${atLabel(q)})` : ''}`;
 
 /** The words for the message: short with a picture; everything as text (or when the picture had to shorten it). */
 export function quoteMessage(q, link, full) {
   const open = `▶ Open in Audiohub: ${link}`;
-  if (!full) return `From “${q.title}”${q.author ? ` by ${q.author}` : ''}${atLabel(q) ? ` · at ${atLabel(q)}` : ''}\n${open}`;
+  if (!full) return `From “${q.title}”${q.author ? ` by ${q.author}` : ''}${q.chapter ? ` · ${q.chapter}` : ''}${atLabel(q) ? ` · at ${atLabel(q)}` : ''}${q.note ? `\n${q.note}` : ''}\n${open}`;
   return `“${q.quote}”\n— ${byline(q)}${q.note ? `\n\n${q.note}` : ''}\n\n${open}`;
 }
 

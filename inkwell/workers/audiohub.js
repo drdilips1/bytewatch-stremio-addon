@@ -635,7 +635,7 @@ function quotePage(data, origin, d = readQuote(data)) {
   if (!d) return new Response("This shared quote link is broken or has expired.", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   const audio = d.k !== "e";
   const at = audio && d.g != null ? fmtAt(d.g) : "";
-  const where = audio ? (at ? `audiobook at ${at}` : "audiobook") : "ebook";
+  const where = (audio ? (at ? `audiobook at ${at}` : "audiobook") : "ebook") + (d.h ? ` · ${String(d.h).slice(0, 100)}` : "");
   const app = `audiohub://q/${data}`;
   const intent = `intent://q/${data}#Intent;scheme=audiohub;package=app.inkwell.books;end`;
   const short = d.q.length > 140 ? d.q.slice(0, 137).replace(/\s+\S*$/, "") + "…" : d.q;

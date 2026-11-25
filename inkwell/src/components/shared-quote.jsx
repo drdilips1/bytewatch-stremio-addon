@@ -60,7 +60,7 @@ export function SharedQuoteSheet() {
         <div class="sheet-backdrop" onClick={close}>
           <div class="sheet shared-quote" onClick={(e) => e.stopPropagation()}>
             <div class="sheet-handle" />
-            <small class="sq-kicker">Shared quote{at ? ` · ${at}` : ''}</small>
+            <small class="sq-kicker">Shared quote{q.chapter ? ` · ${q.chapter}` : ''}{at ? ` · ${at}` : ''}</small>
             <p class="sq-quote">“{q.quote}”</p>
             {q.note && <p class="sq-note">{q.note}</p>}
             <div class="sq-book">
@@ -124,19 +124,31 @@ const STYLE_NAMES = { paper: 'Paper', cover: 'Cover colours', night: 'Night' };
 
 /** Sharing a quote: pick the card's look (a live preview), then share the picture — or just the text. */
 export function ShareQuoteSheet() {
-  const q = useStore(shareRequest);
+  const asked = useStore(shareRequest);
   const style = useStore(cardStyle);
   const [card, setCard] = useState(null); // { data, cut } for the look shown
   const [busy, setBusy] = useState(false);
+  // Your reaction (the postcard's note): starts as the bookmark's / highlight's note, editable here.
+  const [note, setNote] = useState('');
+  const [shown, setShown] = useState(''); // the note on the preview (follows your typing after a pause)
   useEffect(() => {
-    if (!q) return;
+    setNote(asked?.note || '');
+    setShown(asked?.note || '');
+  }, [asked]);
+  useEffect(() => {
+    const t = setTimeout(() => setShown(note), 500);
+    return () => clearTimeout(t);
+  }, [note]);
+  const q = asked ? { ...asked, note: note.trim() } : null;
+  useEffect(() => {
+    if (!asked) return;
     let live = true;
     setCard(null);
-    quoteCard(q, style)
+    quoteCard({ ...asked, note: shown.trim() }, style)
       .then((c) => live && setCard(c))
       .catch(() => live && setCard({ data: '', cut: true }));
     return () => (live = false);
-  }, [q, style]);
+  }, [asked, style, shown]);
   if (!q) return null;
   const close = () => shareRequest.set(null);
   const send = async (withPicture) => {
@@ -164,6 +176,7 @@ export function ShareQuoteSheet() {
             </button>
           ))}
         </div>
+        <textarea class="sq-reaction" rows="2" maxLength={300} placeholder="Your reaction (optional) — e.g. “This line got me”" value={note} onInput={(e) => setNote(e.currentTarget.value)} />
         {card?.cut && <p class="sq-hint">Too long for the picture, so it's shortened there — the full text goes with it in the message.</p>}
         <div class="sq-actions">
           <button class="btn primary" disabled={busy || !card?.data} onClick={() => send(true)}>

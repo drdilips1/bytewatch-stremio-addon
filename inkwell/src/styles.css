@@ -13045,3 +13045,4 @@ html.ios .book-card:not(.broken) { box-shadow: none; }
 .st-chal-ico { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
 .st-chal.won .st-chal-ico { background: var(--accent); color: var(--bg); }
 .st-chal .progress-bar { margin-top: 2px; }
+.sq-reaction { width: 100%; box-sizing: border-box; margin: 8px 0 4px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 500 14px var(--font); resize: none; }

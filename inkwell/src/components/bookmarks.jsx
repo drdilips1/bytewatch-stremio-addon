@@ -8,7 +8,7 @@ import { nav } from '../lib/nav.js';
 import { fmtTime } from '../lib/format.js';
 import * as player from '../lib/player.js';
 import { getDetails } from '../sources/index.js';
-import { shareQuote } from '../lib/quoteshare.js';
+import { shareQuote, chapterAt } from '../lib/quoteshare.js';
 
 /** The book a bookmark belongs to (from what you've played or saved). */
 export const bookOf = (uid) => (player.getState().book?.uid === uid && player.getState().book) || progress.get()[uid]?.book || library.get()[uid] || null;
@@ -33,7 +33,10 @@ const remove = (uid, bm) => removeBookmark(uid, bm.createdAt);
 // Share a bookmark / transcript quote as a quote card + link another Audiohub user can open.
 async function shareBookmark(book, bm) {
   try {
-    const r = await shareQuote({ kind: 'audio', title: book?.title || 'A book', author: book?.author || '', cover: book?.cover || '', quote: bm.label, note: bm.note || '', global: bm.global ?? bm.time });
+    const g = bm.global ?? bm.time;
+    // The chapter's name, when this is the book that's open in the player (it knows the chapters).
+    const chapter = player.getState().book?.uid === book?.uid ? chapterAt(player.chapters(), g) : '';
+    const r = await shareQuote({ kind: 'audio', title: book?.title || 'A book', author: book?.author || '', cover: book?.cover || '', quote: bm.label, note: bm.note || '', global: g, chapter });
     if (r === 'copied') toast('Copied — paste it anywhere');
   } catch (e) {
     toast(e.message);
