@@ -442,6 +442,15 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   Browser-tested live (Solo Leveling: Read → Chapter 0, last page → Chapter 1, back → Chapter 0's last page, sheet
   201 chapters, pick Chapter 5, Continue · Chapter 5, one Library entry). Offline download NOT testable here (web has
   no native fetch) — check on the phone. Comics now has nothing open besides phone checks.
+- 25 Nov, message from the Audiohub+ session: it fixed four of the 25 Nov feedback items in Audiohub+ commit
+  f9660234 (inkwell/): (1) author page — people.js mentionsBook(text, titles) + bioOf(name, titles) checks the
+  Wikipedia summary names one of the person's books, else Wikipedia search "name + first title", Open Library 5
+  authors picking the one whose top_work is one of the books, cache v2, Person.jsx passes titles; tests/people.test.js.
+  (2) source cards: override .src-actions.ready > .btn:first-child min-width inside .src-row (92px, 40px high,
+  padding 0 9px, 12.5px) so Read + Save + Kindle + … stay on one row at 390 px; .src-more / .src-fold width
+  calc(100% + 20px), margin -10px. (3) whole "Downloading for you" card tappable. (4) iPhone .mp4 import: picker
+  .mpeg4Movie, Swift audio set + mp4, local.js AUDIO mp4 on iPhone only. → To PORT to AudioYam when the user says
+  (3-way merge as before; scrub anything private). Not ported yet.
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
