@@ -22,6 +22,7 @@ import { aiReady, aiHint, aiOn } from '../lib/ai.js';
 import { TranscriptView } from './transcript-view.jsx';
 import { StorySheet } from './story-sheet.jsx';
 import { wantRecap } from '../lib/resurrect.js';
+import { TalkButton } from './talk-companion.jsx';
 import { XraySheet } from './xray.jsx';
 import { SceneButton } from './scene-cmd.jsx';
 import { Rows as BookmarkRows } from './bookmarks.jsx';
@@ -846,7 +847,7 @@ function ChapterSummary({ book, chapters, i, total }) {
   );
 }
 
-/** The player's AI row: Ask, Explain (what's being said), Find (in what you've heard), X-Ray. */
+/** The player's AI row: Ask, Explain (what's being said), Find (in what you've heard), X-Ray, Talk (ask out loud). */
 function Signature({ book, openXray }) {
   if (!book || book.source === 'pod') return null;
   const ask = (question) => {
@@ -874,6 +875,7 @@ function Signature({ book, openXray }) {
         <Icon name="xray" size={19} />
         X-Ray
       </button>
+      <TalkButton book={book} />
     </div>
   );
 }

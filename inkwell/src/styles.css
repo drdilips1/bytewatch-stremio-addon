@@ -10502,7 +10502,7 @@ button.notes-book-head {
 }
 .fp-signature {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   margin-top: 14px;
 }
@@ -13046,3 +13046,11 @@ html.ios .book-card:not(.broken) { box-shadow: none; }
 .st-chal.won .st-chal-ico { background: var(--accent); color: var(--bg); }
 .st-chal .progress-bar { margin-top: 2px; }
 .sq-reaction { width: 100%; box-sizing: border-box; margin: 8px 0 4px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 500 14px var(--font); resize: none; }
+
+/* Story Companion (Talk in the player's AI row): what you asked and the answer, while it's spoken. */
+.fp-signature { position: relative; }
+.fp-signature button.on { color: var(--accent); }
+.talk-card { grid-column: 1 / -1; margin-top: 4px; padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); text-align: left; }
+.talk-q { margin: 0 0 6px; font-style: italic; color: var(--muted); font-size: 13.5px; }
+.talk-a { margin: 0 0 6px; font-size: 15px; line-height: 1.45; max-height: 9em; overflow: auto; }
+.talk-card small { color: var(--muted); font-size: 12px; }
