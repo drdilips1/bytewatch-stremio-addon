@@ -1,22 +1,29 @@
-// Audiohub Comics — Cloudflare Worker, version 2.4.1
-// Changes from 2.4.0:
-//  1. GetComics download options: release pages on www.getcomics.org are accepted (the allowed-hosts
-//     list had a pasted Markdown link instead of the plain host name, so they were refused).
-//  2. One version number everywhere (CONFIG.VERSION), also in the User-Agent and the manifest.
-//  3. The manifest maps the GetComics fields the app uses (provider name, original title, download
-//     options) explicitly. The app also read them without this, so 2.4.0 manifests keep working.
+// Audiohub Comics — Cloudflare Worker, version 2.5.0
+// Sources: GetComics and Internet Archive (the two that really search and give files).
+// Changes from 2.4.1:
+//  1. Removed the sources that never gave comics: Kitsu (titles and covers only), and Comic Book
+//     Plus / MANGA Plus / GlobalComix / AniList (one fake "Search X" result pointing at the site).
+//  2. GetComics "DOWNLOAD NOW"-style links are followed (redirects only, nothing downloaded): when
+//     one ends at a comic file, it's returned as that file with direct_file: true, so the app can
+//     offer one-tap Save. Mirror pages (Mega, Mediafire…) stay pages, opened in the browser.
+//  3. Internet Archive results get download options too (/api/archive/downloads?id=…): their
+//     comic / PDF files, each a direct file.
+//  4. The app's search covers both sources (source=all).
+// From 2.4.1: www.getcomics.org accepted; one CONFIG.VERSION; manifest maps the app's fields.
 
 const CONFIG = {
   NAME: "Audiohub Comics",
-  VERSION: "2.4.1",
+  VERSION: "2.5.0",
   ARCHIVE_API: "https://archive.org",
-  KITSU_API: "https://kitsu.io/api/edge",
   GETCOMICS_FEED: "https://getcomics.org/feed/",
   GETCOMICS_SEARCH: "https://getcomics.org/wp-json/wp/v2/search",
   GETCOMICS_HOSTS: ["getcomics.org", "www.getcomics.org"],
   MAX_RESULTS: 20,
   CACHE_SECONDS: 300
 };
+
+// This worker's own address (the app is given absolute links to its download-options endpoints).
+const WORKER = "https://audiohub-comics.booksources.workers.dev";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -112,7 +119,9 @@ function normalizeArchive(x) {
     cover: null,
     url: `https://archive.org/details/${encodeURIComponent(x.identifier)}`,
     source_url: `https://archive.org/details/${encodeURIComponent(x.identifier)}`,
-    availability: "Check individual item access and file rights"
+    availability: "Check individual item access and file rights",
+    download_available: true,
+    download_links_url: `${WORKER}/api/archive/downloads?id=${encodeURIComponent(x.identifier)}`
   };
 }
 
@@ -242,78 +251,6 @@ async function serveArchiveFile(request, id, filename) {
   );
 }
 
-/* KITSU */
-
-function normalizeKitsu(item) {
-  const a = item.attributes || {};
-  const t = a.titles || {};
-
-  const originalTitle =
-    a.canonicalTitle || t.en || t.en_jp || t.ja_jp || "Untitled";
-
-  return {
-    id: item.id,
-    title: `[Kitsu] ${originalTitle}`,
-    original_title: originalTitle,
-    alternate_titles: t,
-    description: a.synopsis || a.description || "",
-    cover:
-      a.posterImage?.large ||
-      a.posterImage?.original ||
-      a.posterImage?.medium ||
-      null,
-    format: a.mangaType || a.subtype || "manga",
-    status: a.status || null,
-    chapter_count: a.chapterCount ?? null,
-    volume_count: a.volumeCount ?? null,
-    date: a.startDate || null,
-    rating: a.averageRating || null,
-    provider: "kitsu",
-    provider_name: "Kitsu",
-    url: `https://kitsu.io/manga/${a.slug || item.id}`,
-    source_url: `https://kitsu.io/manga/${a.slug || item.id}`,
-    content_type: "metadata_only",
-    download_available: false
-  };
-}
-
-async function searchKitsu(q, limit) {
-  const p = new URLSearchParams();
-
-  p.set("filter[text]", q);
-  p.set("page[limit]", String(Math.min(limit, 20)));
-
-  const d = await getJSON(`${CONFIG.KITSU_API}/manga?${p}`, {
-    Accept: "application/vnd.api+json"
-  });
-
-  const results = (d.data || []).map(normalizeKitsu);
-
-  return {
-    success: true,
-    source: "kitsu",
-    total: d.meta?.count ?? results.length,
-    results
-  };
-}
-
-async function kitsuItem(id) {
-  const d = await getJSON(
-    `${CONFIG.KITSU_API}/manga/${encodeURIComponent(id)}`,
-    {
-      Accept: "application/vnd.api+json"
-    }
-  );
-
-  if (!d.data) throw new Error("Manga not found in Kitsu");
-
-  return {
-    success: true,
-    source: "kitsu",
-    result: normalizeKitsu(d.data)
-  };
-}
-
 /* GETCOMICS */
 
 function decodeXml(v) {
@@ -365,7 +302,7 @@ function slugFromURL(link, guid) {
 }
 
 function getComicsDownloadEndpoint(link) {
-  return `https://audiohub-comics.booksources.workers.dev/api/getcomics/downloads?url=${encodeURIComponent(link)}`;
+  return `${WORKER}/api/getcomics/downloads?url=${encodeURIComponent(link)}`;
 }
 
 function normalizeGCPost(x) {
@@ -594,6 +531,25 @@ async function getComicsDownloads(pageUrl) {
     });
   }
 
+  // Follow the main "download" links (not mirror sites) to see where they end: a comic file → direct.
+  await Promise.all(
+    links
+      .filter(l => !l.direct_file && (CONFIG.GETCOMICS_HOSTS.includes(l.host) || /download now|main server|direct/i.test(l.label)))
+      .slice(0, 6)
+      .map(async l => {
+        const end = await finalFile(l.url);
+        if (end) {
+          l.page_url = l.url;
+          l.url = end.url;
+          l.direct_file = true;
+          if (end.name) l.file_name = end.name;
+        }
+      })
+  );
+
+  // Direct files first.
+  links.sort((a, b) => Number(b.direct_file) - Number(a.direct_file));
+
   return {
     success: true,
     source: "getcomics",
@@ -605,52 +561,60 @@ async function getComicsDownloads(pageUrl) {
   };
 }
 
-/* OFFICIAL LINK-OUT SOURCES */
-
-function linkResult(provider, title, url, description) {
-  return {
-    id: provider,
-    title,
-    description,
-    provider,
-    provider_name: provider,
-    format: "comic",
-    url,
-    source_url: url,
-    content_type: "external_reading",
-    download_available: false
-  };
+/**
+ * Where a link ends, following redirects by hand (up to 4, 5 s in all) with HEAD requests — no file
+ * is downloaded. { url, name } when it ends at a comic / PDF / EPUB / ZIP file, else null.
+ */
+async function finalFile(start) {
+  const FILE = /\.(cbz|cbr|cb7|zip|rar|pdf|epub)(?:[?#]|$)/i;
+  const until = Date.now() + 5000;
+  let url = start;
+  for (let hop = 0; hop < 5 && Date.now() < until; hop++) {
+    if (FILE.test(new URL(url).pathname)) return { url, name: decodeURIComponent(new URL(url).pathname.split("/").pop() || "") };
+    let r;
+    try {
+      r = await fetch(url, {
+        method: "HEAD",
+        redirect: "manual",
+        headers: { "User-Agent": `Mozilla/5.0 Audiohub-Comics/${CONFIG.VERSION}`, Referer: "https://getcomics.org/" },
+        signal: AbortSignal.timeout(Math.max(500, until - Date.now()))
+      });
+    } catch {
+      return null;
+    }
+    const loc = r.headers.get("Location");
+    if (r.status >= 300 && r.status < 400 && loc) {
+      url = new URL(loc, url).href;
+      continue;
+    }
+    if (!r.ok) return null;
+    // No redirect: a file if the server says so (a download name, or a comic / archive type).
+    const cd = r.headers.get("Content-Disposition") || "";
+    const ct = (r.headers.get("Content-Type") || "").toLowerCase();
+    const name = (/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd) || [])[1] || "";
+    if ((name && FILE.test(name)) || /comicbook|zip|rar|x-cbr|x-cbz|pdf|epub|octet-stream/.test(ct)) {
+      return { url, name: name ? decodeURIComponent(name) : "" };
+    }
+    return null;
+  }
+  return null;
 }
 
-function searchExternal(provider, q) {
-  if (provider === "comic_book_plus") {
-    return linkResult(
-      provider,
-      `Search Comic Book Plus: ${q}`,
-      "https://comicbookplus.com/",
-      "Open Comic Book Plus and use its site search or public-domain comic collections. Online reading is available; account login is required for downloads."
-    );
-  }
+/* INTERNET ARCHIVE DOWNLOAD OPTIONS (same shape as GetComics') */
 
-  if (provider === "mangaplus") {
-    return linkResult(
-      provider,
-      `Search MANGA Plus: ${q}`,
-      "https://mangaplus.shueisha.co.jp/",
-      "Official Shueisha manga catalogue and reader. Chapter availability depends on title and region."
-    );
-  }
-
-  if (provider === "globalcomix") {
-    return linkResult(
-      provider,
-      `Search GlobalComix: ${q}`,
-      "https://globalcomix.com/",
-      "Open GlobalComix to search and read through its official service."
-    );
-  }
-
-  throw new Error("Unknown external source");
+async function archiveDownloads(request, id) {
+  const d = await archiveFiles(request, id);
+  const links = d.files
+    .filter(f => /^(CBZ|CBR|PDF|EPUB|ZIP)$/.test(f.format))
+    .map(f => ({ label: f.name, host: "archive.org", url: f.download_url, direct_file: true, format: f.format, size_bytes: f.size_bytes }));
+  return {
+    success: true,
+    source: "internet_archive",
+    provider_name: "Internet Archive",
+    release_url: `https://archive.org/details/${encodeURIComponent(id)}`,
+    total: links.length,
+    links
+  };
 }
 
 /* SOURCE REGISTRY */
@@ -658,58 +622,18 @@ function searchExternal(provider, q) {
 function sources() {
   return [
     {
+      id: "getcomics",
+      name: "GetComics",
+      status: "active",
+      capabilities: ["full_site_search", "rss_latest", "release_links", "download_link_discovery", "direct_file_detection"],
+      note: "Search uses the public WordPress endpoint, with RSS fallback. Download links are found on release pages; main download links are followed to the file when they lead to one, mirrors stay pages."
+    },
+    {
       id: "internet_archive",
       name: "Internet Archive",
       status: "active",
       capabilities: ["search", "metadata", "file_listing", "streaming", "download"],
       note: "Access depends on each item's rights and lending restrictions."
-    },
-    {
-      id: "getcomics",
-      name: "GetComics",
-      status: "active",
-      capabilities: [
-        "full_site_search",
-        "rss_latest",
-        "release_links",
-        "download_link_discovery"
-      ],
-      note: "Search uses the public WordPress endpoint, with RSS fallback. Download-link discovery returns links found on release pages; some require a mirror page."
-    },
-    {
-      id: "kitsu",
-      name: "Kitsu",
-      status: "active",
-      capabilities: ["manga_search", "metadata", "covers"],
-      note: "Catalogue metadata only; no chapter files."
-    },
-    {
-      id: "comic_book_plus",
-      name: "Comic Book Plus",
-      status: "active",
-      capabilities: ["official_site_link"],
-      note: "Official-site discovery and online reading. Downloads require site login."
-    },
-    {
-      id: "mangaplus",
-      name: "MANGA Plus",
-      status: "active",
-      capabilities: ["official_site_link"],
-      note: "Official Shueisha catalogue and reading links; availability varies by title and region."
-    },
-    {
-      id: "globalcomix",
-      name: "GlobalComix",
-      status: "active",
-      capabilities: ["official_site_link"],
-      note: "Official-site link-out only; no automated scraping or content proxy."
-    },
-    {
-      id: "anilist",
-      name: "AniList",
-      status: "disabled",
-      capabilities: [],
-      note: "Disabled; no requests are sent."
     }
   ];
 }
@@ -722,7 +646,7 @@ function manifest(base) {
     id: "audiohub-comics",
     name: "Audiohub Comics",
     version: CONFIG.VERSION,
-    description: "Comics, manga, public-domain collections and official source discovery.",
+    description: "Comics from GetComics and the Internet Archive, with download options inside the app.",
     icon: "https://archive.org/images/glogo.jpg",
     provides: ["source"],
     contentType: "comic",
@@ -738,7 +662,7 @@ function manifest(base) {
       source: {
         request: {
           method: "GET",
-          url: `${base}/api/search?q={TITLE}&source=getcomics&limit=20`,
+          url: `${base}/api/search?q={TITLE}&source=all&limit=20`,
           timeout: 30000,
           headers: {
             Accept: "application/json"
@@ -755,7 +679,7 @@ function manifest(base) {
             date: "date",
             cover: "cover",
             description: "description",
-            // 2.4.1: the fields the app uses for the provider label and Download options.
+            // The fields the app uses for the provider label and Download options.
             provider_name: "provider_name",
             original_title: "original_title",
             download_available: "download_available",
@@ -821,6 +745,12 @@ export default {
         return json(await searchGetComics(q, limit));
       }
 
+      if (path === "/api/archive/downloads") {
+        const id = clean(u.searchParams.get("id"), 200);
+        if (!id) return error("Missing Internet Archive item id");
+        return json(await archiveDownloads(request, id));
+      }
+
       if (path === "/api/getcomics/downloads") {
         const pageUrl = u.searchParams.get("url");
 
@@ -836,15 +766,7 @@ export default {
 
         const source = u.searchParams.get("source") || "all";
 
-        const valid = [
-          "all",
-          "internet_archive",
-          "kitsu",
-          "getcomics",
-          "comic_book_plus",
-          "mangaplus",
-          "globalcomix"
-        ];
+        const valid = ["all", "internet_archive", "getcomics"];
 
         if (!valid.includes(source)) {
           return error("Unsupported source");
@@ -856,49 +778,12 @@ export default {
           tasks.push({ name, promise: fn() });
         };
 
-        if (source === "all" || source === "internet_archive") {
-          add("internet_archive", () => searchArchive(q, limit));
-        }
-
-        if (source === "all" || source === "kitsu") {
-          add("kitsu", () => searchKitsu(q, limit));
-        }
-
         if (source === "all" || source === "getcomics") {
           add("getcomics", () => searchGetComics(q, limit));
         }
 
-        if (source === "all" || source === "comic_book_plus") {
-          add("comic_book_plus", async () => ({
-            success: true,
-            source: "comic_book_plus",
-            total: 1,
-            results: [
-              searchExternal("comic_book_plus", q)
-            ]
-          }));
-        }
-
-        if (source === "all" || source === "mangaplus") {
-          add("mangaplus", async () => ({
-            success: true,
-            source: "mangaplus",
-            total: 1,
-            results: [
-              searchExternal("mangaplus", q)
-            ]
-          }));
-        }
-
-        if (source === "all" || source === "globalcomix") {
-          add("globalcomix", async () => ({
-            success: true,
-            source: "globalcomix",
-            total: 1,
-            results: [
-              searchExternal("globalcomix", q)
-            ]
-          }));
+        if (source === "all" || source === "internet_archive") {
+          add("internet_archive", () => searchArchive(q, limit));
         }
 
         const settled = await Promise.allSettled(
@@ -948,14 +833,6 @@ export default {
           source: "getcomics",
           result: found
         });
-      }
-
-      const kitsuMatch = path.match(/^\/api\/kitsu\/([^/]+)$/);
-
-      if (kitsuMatch) {
-        return json(
-          await kitsuItem(decodeURIComponent(kitsuMatch[1]))
-        );
       }
 
       const filesMatch = path.match(

@@ -286,3 +286,8 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
 - Corrected worker 2.4.1 given to the user (copy in handoff/workers/audiohub-comics.js): www.getcomics.org host fix
   (CONFIG.GETCOMICS_HOSTS), one CONFIG.VERSION, manifest maps provider_name / original_title / download_*. Tested
   locally with a fake fetch (www + plain host accepted, other hosts refused, manifest 2.4.1).
+- Worker 2.5.0 (25 Nov, user: remove sources that don't work; one-tap download): only GetComics + Internet Archive
+  (Kitsu and the fake link-out sources removed), GetComics main download links followed by HEAD redirects (≤5 hops,
+  5 s) → direct_file + real file URL; /api/archive/downloads?id= gives Internet Archive files in the same links shape;
+  manifest searches source=all, GetComics first. Tested with fake sites. handoff/workers/audiohub-comics.js = 2.5.0.
+  The app needs the `work` comics code (not released) to show Download options.
