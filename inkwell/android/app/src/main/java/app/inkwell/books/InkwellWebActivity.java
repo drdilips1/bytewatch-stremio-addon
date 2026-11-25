@@ -240,6 +240,12 @@ public class InkwellWebActivity extends AppCompatActivity {
             @Override
             public void onPageFinished(WebView view, String u) {
                 CookieManager.getInstance().flush();
+                // Mobilism's sign-in: "Remember me" ticked for you. Without it the forum ends your
+                // session after about an hour away or when Android closes the app, and the app's
+                // searches find you signed out again and again.
+                if (u != null && u.contains("mobilism.org") && u.contains("mode=login")) {
+                    view.evaluateJavascript("(function(){var b=document.querySelector('input[name=autologin]');if(b&&!b.checked){b.checked=true;}})()", null);
+                }
                 if (autoGet && !autoClicked) tryAutoGet(0);
             }
         });

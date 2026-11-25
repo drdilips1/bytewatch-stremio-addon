@@ -1517,7 +1517,7 @@ function BookshareRow({ list }) {
     !on ? 'Accessible ebooks from your own Bookshare membership'
     : st === 'checking' ? 'Checking your sign-in…'
     : st?.signedIn ? 'Signed in · books you download there go to your Library'
-    : st ? `${st.why} — tap Sign in, log in, close the page, then Check`
+    : st ? `${st.why} — tap Sign in, log in with “Remember me” ticked (so it lasts), close the page, then Check`
     : 'Searched in your signed-in in-app browser';
   return (
     <div class="set-row addon-row">
@@ -1579,7 +1579,7 @@ function MobilismRow({ list }) {
     !on ? 'Audiobook topics (forum 124), with your own Mobilism account'
     : st === 'checking' ? 'Checking your sign-in…'
     : st?.signedIn ? `Signed in${st.name ? ` as ${st.name}` : ''} · searched in the in-app browser`
-    : st ? `${st.why} — tap Sign in, log in, close the page, then Check`
+    : st ? `${st.why} — tap Sign in, log in with “Remember me” ticked (so it lasts), close the page, then Check`
     : 'Searched in your signed-in in-app browser';
   return (
     <div class="set-row addon-row">
