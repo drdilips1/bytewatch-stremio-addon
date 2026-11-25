@@ -333,3 +333,11 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
 - Not done / can't: in-app page reading for RCO (bot check) and GlobalComix (terms); Comics Plus catalogue search
   (library API); CBR (needs a RAR library); double-page spreads; issue-to-issue "next issue" inside the reader
   (local CBZ files have no series link); pinch-zoom is the browser's own (buttons + double-tap are ours).
+- Test APK #43 (e0863c8) feedback 25 Nov: (1) Read on GetComics "DOWNLOAD NOW" → HTTP 403 from fs3.comicfiles.ru
+  (the file server refuses the app; works from the site's button in a browser). Probing which headers it wants was
+  blocked by the safety check as access circumvention — NOT spoofing Referer/UA. Fix 803359a: reader explains and
+  offers "Download in the browser", then Library → Add EPUB / PDF / CBZ. (2) Save → "InkwellWeb.saveToDownloads()
+  is not implemented on android": the JS came with the Audiohub+ port but the Java method didn't (ebook Save was
+  broken too). Ported (DownloadManager → Downloads). Also CBZ accepted by Android/iPhone pickers, Open with, phone
+  folders (local.js EBOOK). AudioYam env got fs1/fs2/fs3.comicfiles.ru + comicfiles.ru (for the diagnosis).
+  Not built yet (waiting for "build").
