@@ -341,3 +341,13 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   broken too). Ported (DownloadManager → Downloads). Also CBZ accepted by Android/iPhone pickers, Open with, phone
   folders (local.js EBOOK). AudioYam env got fs1/fs2/fs3.comicfiles.ru + comicfiles.ru (for the diagnosis).
   Not built yet (waiting for "build").
+- More feedback 25 Nov (build 44): added CBZ was there but titled by "Author - Title" split → 3568f34 comic files keep
+  the whole name, first page = cover, one added file opens at once; skipped files are named (7b1f78f).
+  Then: (1) separate Comics shelf → Library tab "comics" + home shelf (lib/comics isComicBook; summarize keeps
+  comic flag; directReaderBook / local books set comic). (2) Comics Plus should read in app → opens in
+  InkwellWebActivity (openReaderScreen, manifest webSearch inApp:true); it's still their web reader (DRM, no
+  pages extracted). (3) GetComics Read 403 → on Android the phone's DownloadManager fetches it (saveToDownloads
+  now returns id; new downloadState; InkwellLocal.importDownload copies it in) with progress in the reader,
+  then opens it (ComicReader onReplace). No header spoofing. (4) RCO read online unusable (captcha + pop-ups):
+  worker 2.6.1 drops RCO from source=all. (5) IA mostly unrelated: worker 2.6.1 only items with Comic Book
+  ZIP/RAR formats, CBZ first. App commit on work; worker 2.6.1 = handoff/workers/audiohub-comics.js.

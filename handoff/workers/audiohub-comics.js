@@ -1,7 +1,13 @@
-// Audiohub Comics — Cloudflare Worker, version 2.6.0
-// Sources that search here: GetComics, Internet Archive, ReadComicsOnline (all three in
-// source=all), Kitsu (manga titles only, source=kitsu). GlobalComix and Comics Plus are
+// Audiohub Comics — Cloudflare Worker, version 2.6.1
+// Sources that search here: GetComics and Internet Archive (source=all), ReadComicsOnline
+// (source=readcomicsonline) and Kitsu (manga titles only, source=kitsu). GlobalComix and Comics Plus are
 // opened in their own reader (see WEB_ONLY below for why they aren't searched here).
+// Changes from 2.6.0 (after trying it in the app):
+//  a. ReadComicsOnline is out of source=all: reading on the site means a bot check, then pop-ups
+//     and spam — unusable. It can still be searched on its own (source=readcomicsonline).
+//  b. Internet Archive: only items that have comic files (CBZ / CBR), CBZ ones first — titles
+//     with "Batman" in them were mostly unrelated documents.
+//  c. Comics Plus opens in the app's own web screen (your library sign-in is kept).
 // Changes from 2.5.0:
 //  1. ReadComicsOnline: series search and issue lists from the site's public sitemaps
 //     (its pages are behind a Cloudflare bot check, so reading opens in the browser).
@@ -16,7 +22,7 @@
 
 const CONFIG = {
   NAME: "Audiohub Comics",
-  VERSION: "2.6.0",
+  VERSION: "2.6.1",
   KITSU_API: "https://kitsu.io/api/edge",
   ARCHIVE_API: "https://archive.org",
   GETCOMICS_FEED: "https://getcomics.org/feed/",
@@ -131,9 +137,10 @@ function _normalizeArchive(x) {
 
 async function searchArchive(q, limit) {
   const params = new URLSearchParams({
-    q: `mediatype:texts AND title:(${q.replace(/["\\]/g, " ")})`,
-    fl: "identifier,title,description,creator,year,mediatype",
-    rows: String(limit),
+    // Only items with comic files: a "Batman" title alone also finds theses, magazines and scans.
+    q: `mediatype:texts AND title:(${q.replace(/["\\]/g, " ")}) AND (format:"Comic Book ZIP" OR format:"Comic Book RAR" OR format:CBZ OR format:CBR)`,
+    fl: "identifier,title,description,creator,year,mediatype,format",
+    rows: String(Math.min(limit * 2, 50)),
     page: "1",
     output: "json"
   });
@@ -145,7 +152,12 @@ async function searchArchive(q, limit) {
     success: true,
     source: "internet_archive",
     total: d.response?.numFound || docs.length,
-    results: docs.map(normalizeArchive)
+    // CBZ first: they open in the app's comic reader (CBR can only be saved for now).
+    results: docs
+      .map((x) => ({ x, cbz: [].concat(x.format || []).some((f) => /Comic Book ZIP|^CBZ$/i.test(f)) }))
+      .sort((a, b) => b.cbz - a.cbz)
+      .slice(0, limit)
+      .map(({ x, cbz }) => ({ ...normalizeArchive(x), format: cbz ? "CBZ" : "CBR" }))
   };
 }
 
@@ -929,9 +941,9 @@ function sources() {
       id: "readcomicsonline",
       name: "ReadComicsOnline",
       status: "active",
-      in_all: true,
+      in_all: false,
       capabilities: ["series_search", "covers", "issue_list", "read_in_browser"],
-      note: "Searched through the site's public sitemaps; its pages are behind a Cloudflare bot check, so issues open in the browser. The site offers no downloads."
+      note: "Searched through the site's public sitemaps (source=readcomicsonline only). Its pages are behind a Cloudflare bot check and full of pop-ups, so it's left out of source=all. The site offers no downloads."
     },
     {
       id: "kitsu",
@@ -968,7 +980,7 @@ function manifest(base) {
     id: "audiohub-comics",
     name: "Audiohub Comics",
     version: CONFIG.VERSION,
-    description: "Comics from GetComics, the Internet Archive and ReadComicsOnline — download options, issue lists and reading links inside the app — plus GlobalComix and your library's Comics Plus.",
+    description: "Comics from GetComics and the Internet Archive with download options and the app's comic reader, plus GlobalComix and your library's Comics Plus.",
     icon: "https://archive.org/images/glogo.jpg",
     provides: ["source"],
     contentType: "comic",
@@ -991,7 +1003,7 @@ function manifest(base) {
     // Searches the app opens in the browser (these sites can't be searched by a server).
     webSearch: [
       { name: "GlobalComix", url: "https://globalcomix.com/search?q={TITLE}", note: "Free, member and paid comics — read in GlobalComix" },
-      { name: "Comics Plus", url: "{library_link}", needs: "library_link", note: "Your library's comics — sign in with your card" }
+      { name: "Comics Plus", url: "{library_link}", needs: "library_link", inApp: true, note: "Your library's comics — sign in with your card" }
     ],
     adapters: {
       source: {
@@ -1155,7 +1167,7 @@ export default {
           add("internet_archive", () => searchArchive(q, limit));
         }
 
-        if (source === "all" || source === "readcomicsonline") {
+        if (source === "readcomicsonline") {
           add("readcomicsonline", () => searchReadComicsOnline(q, limit));
         }
 
