@@ -5,6 +5,19 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-11-25',
+    title: 'Your books, remembered',
+    items: [
+      ['🧭', 'X-Ray with who’s who', 'In the player’s X-Ray: everyone grouped by house or family with their status at your point, what changed since you last listened, the story’s open questions, and a page for each person with their connections — never past where you are.'],
+      ['🎙️', 'Whisper Notes', 'More → Voice note: say what you think at a moment of a book. When you reach that moment again, your note is waiting (on this phone only).'],
+      ['🗣️', 'Talk to the book', 'Talk in the player: ask out loud (“Who is Gurney again?”), hear a spoiler-safe answer, and the book carries on by itself.'],
+      ['⏳', 'Time Machine', 'Library → menu → Time Machine: search everything you’ve heard with Text on, your bookmarks, highlights and saved ideas, across all your books — and go back to that moment.'],
+      ['📬', 'Quote postcards', 'Sharing a bookmark adds its chapter, your reaction and a sound-wave strip to the card.'],
+      ['🏅', 'Listener challenges', 'Stats: a small set of goals each month — hours, books finished, days in a row, a new author.'],
+      ['👋', 'Come back to…', 'Home offers a book you left a few weeks ago, with the story so far and your bookmarks.'],
+    ],
+  },
+  {
     id: '2026-11-21b',
     title: 'Steadier in the car, and fixes from your notes',
     items: [
