@@ -1,3 +1,4 @@
+import { challenges } from '../lib/challenges.js';
 import { useMemo, useState } from 'preact/hooks';
 import { TopBar, Cover } from '../components/common.jsx';
 import { Icon } from '../components/icons.jsx';
@@ -21,6 +22,32 @@ const PARTS = [
 ];
 
 /** Listening stats: how much, when, what, and your streak. */
+/** This month's Listener Challenges (lib/challenges.js): small goals from your own listening. */
+function Challenges({ log, prog }) {
+  const list = useMemo(() => challenges(log, prog), [log, prog]);
+  const done = list.filter((c) => c.done >= 1).length;
+  return (
+    <section class="st-card st-challenges">
+      <h3>This month's challenges</h3>
+      <p class="st-note">{done ? `${done} of ${list.length} done — ` : ''}a fresh set every month</p>
+      {list.map((c) => (
+        <div class={'st-chal' + (c.done >= 1 ? ' won' : '')}>
+          <span class="st-chal-ico">
+            <Icon name={c.done >= 1 ? 'check' : c.icon} size={16} />
+          </span>
+          <div>
+            <b>{c.title}</b>
+            <small>{c.text}</small>
+            <div class="progress-bar">
+              <div style={{ width: Math.round(c.done * 100) + '%' }} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 export function Stats() {
   flush(); // include what's been heard in the last few seconds
   const log = useStore(listenLog);
@@ -69,6 +96,8 @@ export function Stats() {
           <span>{reading ? 'days read' : 'days listened'}</span>
         </div>
       </div>
+
+      {!reading && <Challenges log={log} prog={prog} />}
 
       <section class="st-card">
         <h3>Last 30 days</h3>

@@ -205,3 +205,4 @@ catchup.jsx / resume.js, quoteshare.js, stats.js, taste.js, series.js, people.js
 - Questions for the user: which app first (suggest Audiohub+, then port); the X-Ray / Character Tracker samples OK?;
   start with Phase 1 + Story Companion?
 - #21 Book Resurrection (25 Nov): lib/resurrect.js (comeBackTo — unfinished 3–95%, untouched 21 days–1 year, furthest through first; "Not now" hides 30 days; tests/resurrect.test.js). Home ComeBackCard under Continue: cover, "Come back to", % · N weeks ago · bookmarks waiting, Story so far (AI key) / Carry on, ✕. "Story so far" sets wantRecap → player-ui opens the recap sheet once the book is up. Browser-tested. Not built yet.
+- #11 Listener Challenges (25 Nov): lib/challenges.js (this month: 10 hours, finish 2 books, 7 days in a row ≥5 min, an author new to you — from listenLog + progress; tests/challenges.test.js). Stats screen card "This month's challenges" with progress bars (listening view). Browser-tested. Not built yet.
