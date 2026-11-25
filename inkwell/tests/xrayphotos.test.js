@@ -2,7 +2,8 @@
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('../src/lib/http.js', () => ({ getJson: vi.fn(), qs: () => '' }));
 vi.mock('../src/lib/store.js', () => ({ persisted: (k, v) => ({ get: () => v, set: () => {}, subscribe: () => () => {} }) }));
-const { pickPage } = await import('../src/lib/xrayphotos.js');
+const { pickPage, pickFandom, wikisFor, wikiName, photoFor } = await import('../src/lib/xrayphotos.js');
+const http = await import('../src/lib/http.js');
 
 const pg = (title, description, img = 'x.jpg') => ({ title, description, thumbnail: img ? { source: img } : undefined });
 describe('pickPage', () => {
@@ -18,5 +19,30 @@ describe('pickPage', () => {
   it('no picture, no match', () => {
     expect(pickPage([pg('Mira Ardent', 'Fictional character', '')], 'Mira Ardent')).toBe(null);
     expect(pickPage([pg('John Smith (explorer)', 'English explorer', 'js.jpg')], 'Mira Smith', 'real')).toBe(null);
+  });
+});
+
+describe('fan wiki photos (characters)', () => {
+  it('the fan wiki page with this name, not another character or a gallery of something else', () => {
+    const pages = [pg('Leto Atreides I', '', 'leto.jpg'), pg('Paul Atreides/Gallery', '', 'gal.jpg'), pg('Paul Atreides', '', 'paul.jpg')];
+    expect(pickFandom(pages, 'Paul Atreides')).toEqual({ url: 'gal.jpg', page: 'Paul Atreides/Gallery' });
+    expect(pickFandom([pg('Leto Atreides I', '', 'leto.jpg')], 'Paul Atreides')).toBe(null);
+    expect(pickFandom([pg('Paul Atreides', '', null)], 'Paul Atreides')).toBe(null);
+    expect(pickFandom([pg('Paul Atreides', '', 'paul.jpg')], 'Paul')).toEqual({ url: 'paul.jpg', page: 'Paul Atreides' });
+  });
+  it('which wikis: the one the X-Ray named, else a guess from series or title', () => {
+    expect(wikiName('https://Dune.fandom.com/wiki/Main')).toBe('dune');
+    expect(wikiName('not a wiki!')).toBe('');
+    expect(wikisFor({ title: 'Dune: Deluxe Edition' }, '')).toEqual(['dune']);
+    expect(wikisFor({ title: 'A Game of Thrones', series: 'A Song of Ice and Fire' }, 'awoiaf')).toEqual(['awoiaf', 'asongoficeandfire']);
+  });
+  it('a character: the fan wiki first; a real person: Wikipedia only', async () => {
+    http.getJson.mockReset();
+    http.getJson.mockResolvedValueOnce({ query: { pages: { 1: { index: 1, title: 'Gurney Halleck', thumbnail: { source: 'gurney.jpg' } } } } });
+    expect(await photoFor({ name: 'Gurney Halleck', kind: 'fictional' }, { title: 'Dune' }, 'dune')).toMatchObject({ url: 'gurney.jpg', from: 'Fandom' });
+    http.getJson.mockReset();
+    http.getJson.mockResolvedValueOnce({ query: { pages: { 1: { index: 1, title: 'Winston Churchill', description: 'Prime Minister of the United Kingdom', thumbnail: { source: 'wc.jpg' } } } } });
+    expect(await photoFor({ name: 'Winston Churchill', kind: 'real' }, { title: 'The Splendid and the Vile' })).toMatchObject({ url: 'wc.jpg', from: 'Wikipedia' });
+    expect(http.getJson).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,8 +1,9 @@
-// Photos in X-Ray, the way author and narrator photos are found: Wikipedia's own page images
-// (only pictures Wikipedia may show freely). Real people get their page's photo; a fictional
-// character only when Wikipedia has a page for that character (a book or film / TV adaptation)
-// with a free picture — otherwise the portrait stays the initials in the person's colour. Never
-// AI-made faces. Found once per book and name, kept on this phone (misses too, for a month).
+// Photos in X-Ray. Real people: their Wikipedia photo, the way author and narrator photos are
+// found. Characters: Wikipedia almost never has a free picture of one (film stills aren't free,
+// so its API leaves them out — the first version found next to none), so the book's fan wiki on
+// Fandom comes first: "Paul Atreides" on dune.fandom.com, "Tyrion Lannister" on awoiaf. Then
+// Wikipedia; otherwise the initials in the person's colour. Never AI-made faces. Found once per
+// book and name, kept on this phone (misses too, for a month).
 import { getJson, qs } from './http.js';
 import { persisted } from './store.js';
 import { mainTitle } from './match.js';
@@ -32,17 +33,56 @@ export function pickPage(pages, name, kind = 'fictional') {
   return null;
 }
 
-/** A photo for someone in a book's X-Ray: { url, page } or null (from what's kept when it can). */
-export async function photoFor(x, book) {
-  const key = `${mainTitle(book?.title || '').toLowerCase()}|${String(x.name).toLowerCase()}`;
+/** A fandom.com subdomain as the AI gave it ("Dune", "dune.fandom.com") → "dune", or "" if it isn't one. */
+export function wikiName(w) {
+  const s = String(w || '').toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\.fandom\.com.*$/, '');
+  return /^[a-z0-9][a-z0-9-]{1,40}$/.test(s) ? s : '';
+}
+
+/** On a fan wiki every page is about the book's world: the name alone must match the title. */
+export function pickFandom(pages, name) {
+  const want = words(name).filter((w) => w.length > 1);
+  if (!want.length) return null;
+  for (const p of pages || []) {
+    const url = p?.thumbnail?.source;
+    if (!url) continue;
+    const got = words(String(p.title).split('/')[0]);
+    const [a, b] = want.length <= got.length ? [want, got] : [got, want];
+    if (a.length && a.every((w) => b.includes(w)) && got.includes(want[want.length - 1])) return { url, page: p.title };
+  }
+  return null;
+}
+
+/** Fan wikis to try for a book: the one the X-Ray named, else a guess from its series or title. */
+export function wikisFor(book, wiki) {
+  const slug = (s) => wikiName(mainTitle(String(s || '')).replace(/[^\p{L}\p{N}]+/gu, ''));
+  return [...new Set([wikiName(wiki), slug(book?.series), slug(book?.title)].filter(Boolean))].slice(0, 2);
+}
+
+async function fromFandom(x, book, wiki) {
+  for (const w of wikisFor(book, wiki)) {
+    try {
+      const d = await getJson(`https://${w}.fandom.com/api.php?` + qs({ action: 'query', format: 'json', origin: '*', generator: 'search', gsrsearch: x.name, gsrlimit: 5, prop: 'pageimages', piprop: 'thumbnail', pithumbsize: 300 }), { timeout: 8000 });
+      const pages = Object.values(d?.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
+      const hit = pickFandom(pages, x.name);
+      if (hit) return { ...hit, from: 'Fandom' };
+    } catch {}
+  }
+  return null;
+}
+
+/** A photo for someone in a book's X-Ray: { url, page, from } or null (from what's kept when it can). */
+export async function photoFor(x, book, wiki = '') {
+  const key = `v2|${mainTitle(book?.title || '').toLowerCase()}|${String(x.name).toLowerCase()}`;
   const hit = kept.get()[key];
   if (hit && Date.now() - hit.t < MONTH) return hit.url ? hit : null;
-  let found = null;
-  try {
+  let found = x.kind === 'real' ? null : await fromFandom(x, book, wiki);
+  if (!found) try {
     const search = x.kind === 'real' ? x.name : `${x.name} ${mainTitle(book?.title || '')} character`;
     const d = await getJson('https://en.wikipedia.org/w/api.php?' + qs({ action: 'query', format: 'json', origin: '*', generator: 'search', gsrsearch: search, gsrlimit: 6, prop: 'pageimages|description', piprop: 'thumbnail', pithumbsize: 300 }), { timeout: 10000 });
     const pages = Object.values(d?.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
     found = pickPage(pages, x.name, x.kind === 'real' ? 'real' : 'fictional');
+    if (found) found.from = 'Wikipedia';
   } catch {
     return null; // not reachable now: asked again next time, nothing kept
   }

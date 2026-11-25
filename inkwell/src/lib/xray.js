@@ -1,6 +1,7 @@
 // X-Ray: who and where, while you listen (like Prime Video's X-Ray). Your AI service
 // names the people, places and topic of each chapter up to where you are (never past
 // it); the live transcript, when it ran, adds the exact moments each name was said.
+import { wikiName } from './xrayphotos.js';
 import * as player from './player.js';
 import { askAi, parseJson, position } from './ai.js';
 import { heardLines } from './transcript.js';
@@ -55,6 +56,7 @@ Return JSON:
    "kind":"fictional|real","connections":[{"to":"another person's name from this list","label":"brother, mentor, sworn enemy… (2 words)","type":"family|enemy|ally|other"}]}],
  "places":[{"name":"","about":"one sentence","parts":[1]}],
  "topics":[{"part":1,"topic":"what happens or is discussed in this part, under 10 words"}],
+ "wiki":"the subdomain of this book's fan wiki on fandom.com if one exists (e.g. dune, harrypotter, awoiaf, wot, stormlightarchive), else \"\"",
  "questions":[{"q":"a mystery or open question the story has raised and NOT yet answered by this point","part":1}]}
 "parts" are the part numbers above where that person or place appears. "status" and "connections" only as revealed so far (a secret parent stays hidden until revealed; "unknown" when unsure). "kind" is "real" for real historical / living people. For non-fiction, people are the people discussed (status "unknown", no groups unless obvious), topics the sub-topics, questions may be empty. At most 25 people, 12 places, 5 questions, most important first. Include a topic for every part you can.
 ${p.heard ? `Transcript of what they have heard (may contain recognition errors):\n"""${p.heard.slice(-8000)}"""` : ''}`,
@@ -78,7 +80,7 @@ ${p.heard ? `Transcript of what they have heard (may contain recognition errors)
     connections: (Array.isArray(x.connections) ? x.connections : []).filter((c) => c && c.to).map((c) => ({ to: String(c.to), label: String(c.label || ''), type: ['family', 'enemy', 'ally'].includes(c.type) ? c.type : 'other' })),
   });
   const questions = (Array.isArray(d.questions) ? d.questions : []).filter((x) => x && x.q).slice(0, 5).map((x) => ({ q: String(x.q), part: Number(x.part) || 0 }));
-  const data = { at: max, people: asList(d.people).map(person), places: asList(d.places).map(fix), topics, questions };
+  const data = { at: max, people: asList(d.people).map(person), places: asList(d.places).map(fix), topics, questions, wiki: wikiName(d.wiki) };
   store.set((all) => {
     const keys = Object.keys(all);
     const next = keys.length > 30 ? Object.fromEntries(keys.slice(-20).map((k) => [k, all[k]])) : { ...all };

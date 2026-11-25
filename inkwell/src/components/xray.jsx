@@ -26,13 +26,14 @@ function useRecent(s) {
 
 // The book whose X-Ray is open (photos are looked up for its characters).
 let xrBook = null;
+let xrWiki = '';
 /** A person's Wikipedia photo (real people; characters with a page of their own), or null. */
 function usePhoto(x, place) {
   const [p, setP] = useState(null);
   useEffect(() => {
     let live = true;
     setP(null);
-    if (!place && x?.name && xrBook) photoFor(x, xrBook).then((r) => live && setP(r));
+    if (!place && x?.name && xrBook) photoFor(x, xrBook, xrWiki).then((r) => live && setP(r));
     return () => (live = false);
   }, [x?.name, x?.kind, place]);
   return p;
@@ -44,7 +45,7 @@ function Face({ x, size = 44, dot = false, place = false }) {
   const photo = usePhoto(x, place);
   return (
     <span class={'xr-face' + (place ? ' place' : '')} style={{ width: size, height: size, fontSize: size * 0.36, '--h': h }}>
-      {photo ? <img src={photo.url} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = 'none')} /> : place ? '📍' : initials(x.name)}
+      {photo ? <img src={photo.url} alt="" loading="lazy" referrerpolicy="no-referrer" onError={(e) => (e.currentTarget.style.display = 'none')} /> : place ? '📍' : initials(x.name)}
       {dot && <i class={'xr-dot ' + statusOf(x)} />}
     </span>
   );
@@ -94,6 +95,7 @@ export function XraySheet({ s }) {
   const [tab, setTab] = useState('people');
   const [pick, setPick] = useState(null);
   const [q, setQ] = useState('');
+  xrWiki = data?.wiki || '';
   const recent = useRecent(s);
   const load = (force) => {
     setBusy(true);
@@ -294,8 +296,8 @@ function Person({ x, data, place, back, open }) {
         </button>
         {photo ? (
           <span class="xr-hero-photo">
-            <img src={photo.url} alt="" />
-            <small>Photo: Wikipedia{photo.page && photo.page !== x.name ? ` · ${photo.page}` : ''}</small>
+            <img src={photo.url} alt="" referrerpolicy="no-referrer" />
+            <small>Photo: {photo.from || 'Wikipedia'}{photo.page && photo.page !== x.name ? ` · ${photo.page}` : ''}</small>
           </span>
         ) : (
           <span class="xr-hero-art">{place ? '📍' : initials(x.name)}</span>
