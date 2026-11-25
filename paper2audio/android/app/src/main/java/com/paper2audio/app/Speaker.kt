@@ -103,13 +103,28 @@ object Speaker {
     val pitch: Int get() = prefs.getInt("pitch", 0)
 
     /** How the current document is voiced. */
-    fun voicing(d: Doc? = doc): Voicing = Voicing(voiceId, dialogueVoice, d?.lang, pitch, medical)
+    fun voicing(d: Doc? = doc): Voicing = Voicing(voiceId, dialogueVoice, d?.lang, pitch, medicalFor(d))
 
-    /** Medical mode: dosing, routes and clinical-trial abbreviations are read in full. */
-    val medical: Boolean get() = prefs.getBoolean("medical", false)
+    /** Medical mode: dosing, routes, clinical abbreviations and units are read in full. */
+    val medical: Boolean get() = medicalFor(doc)
 
-    fun setMedical(on: Boolean) {
-        prefs.edit().putBoolean("medical", on).apply()
+    /**
+     * "auto" (Narrato's default): on for documents that read as medical (articles, guidelines, textbooks);
+     * "on" or "off" for every document. An earlier "Medical mode" switch turned on counts as "on".
+     */
+    val medicalMode: String
+        get() = prefs.getString("medicalMode", null) ?: if (prefs.getBoolean("medical", false)) "on" else if (BuildConfig.LITE) "auto" else "off"
+
+    fun medicalFor(d: Doc?): Boolean = when (medicalMode) {
+        "on" -> true
+        "off" -> false
+        else -> d != null && MedicalText.looksMedical(d)
+    }
+
+    fun setMedical(on: Boolean) = setMedicalMode(if (on) "on" else "off")
+
+    fun setMedicalMode(mode: String) {
+        prefs.edit().putString("medicalMode", mode).putBoolean("medical", mode == "on").apply()
         restartAudio()
     }
 

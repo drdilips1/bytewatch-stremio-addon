@@ -107,6 +107,17 @@ voices cards. EPUB covers extracted (thumbnails). `reader-web` is identical on b
 - Stage 2 (not done): Tonight's list (iOS BGProcessingTask with external power), first-run tour, Look up /
   double-tap checks on device, subscription with 7-day trial (App Store Connect).
 
+## Feedback of 25 Nov 2026 (artifact "Narrato App Feedback")
+
+Done (committed, `[skip ci]`): several files / a whole folder at once (Add › A folder); PDF words split by
+typographic/soft hyphens rejoined (`TextCleaner.SPLIT_WORD`, not "pre- and"); a tap marks the start
+paragraph and Play reads from it (double-tap-to-read removed); WebView long-press off so the reader's own
+word selection wins; controls under the page slide away while playing (mini pause button); **medical
+articles**: `Speaker.medicalMode` auto/on/off (Narrato default auto, `MedicalText.looksMedical`), Settings
+row "Medical articles", more clinical shorthand, lab names and units in `Speech`.
+Not done: "diffi ult" (letter lost next to the ffi ligature; needs the PDF). Items 4 and 8 (repetitions,
+skipped lines starting with “) were about **Paper to Audio's new engine**: leave them out of Narrato.
+
 ## Other pending items
 
 - Declare EU trader status in Play Console (public details).

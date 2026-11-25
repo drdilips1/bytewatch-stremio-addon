@@ -66,6 +66,14 @@ object Speech {
     /** Units after a number: "5 mg", "120 mmHg", "37 °C", "2 mg/kg/day". */
     private val UNITS = linkedMapOf(
         "mg/kg/day" to "milligrams per kilogram per day",
+        "mg/m2" to "milligrams per square meter",
+        "mg/m²" to "milligrams per square meter",
+        "mEq/L" to "milliequivalents per liter",
+        "U/kg" to "units per kilogram",
+        "L/min" to "liters per minute",
+        "mm³" to "cubic millimeters",
+        "mm3" to "cubic millimeters",
+        "cm²" to "square centimeters",
         "mg/kg/d" to "milligrams per kilogram per day",
         "mg/kg" to "milligrams per kilogram",
         "mg/dL" to "milligrams per deciliter",
@@ -211,6 +219,37 @@ object Speech {
         Regex("""\bdx\b""") to "diagnosis",
         Regex("""\btx\b""") to "treatment",
         Regex("""\bhx\b""") to "history",
+        // Clinical shorthand (charts, case reports, guidelines).
+        Regex("""\bDx\b""") to "diagnosis",
+        Regex("""\bTx\b""") to "treatment",
+        Regex("""\bHx\b""") to "history",
+        Regex("""\bRx\b""") to "prescription",
+        Regex("""\bSx\b""") to "symptoms",
+        Regex("""\bFx\b""") to "fracture",
+        Regex("""\bq\.o\.d\.|\bQOD\b""") to "every other day",
+        Regex("""\bNPO\b|\bn\.p\.o\.""") to "nothing by mouth",
+        Regex("""\bSL\b(?=\s|[,.;)])""") to "sublingual",
+        Regex("""(?<![\w/])w/o(?![\w/])""") to "without",
+        Regex("""(?<![\w/])w/(?=\s?\p{L})""") to "with ",
+        Regex("""(?<![\w/])s/p(?![\w/])""") to "status post",
+        Regex("""(?<![\w/])r/o(?![\w/])""") to "rule out",
+        Regex("""(?<![\w/])c/o(?![\w/])""") to "complains of",
+        Regex("""(?<![\w/])y/o(?![\w/])""") to "year-old",
+        Regex("""↑""") to " increased ",
+        Regex("""↓""") to " decreased ",
+        // Lab names the voices said as a word or garbled: letter by letter, as clinicians say them.
+        Regex("""\bHbA1c\b""") to "H b A 1 c",
+        Regex("""\beGFR\b""") to "e G F R",
+        Regex("""\bmRNA\b""") to "m R N A",
+        Regex("""\bIg([AGEMD])\b""") to "I g $1",
+        Regex("""\bNSAIDs\b""") to "N-SAIDs",
+        Regex("""\bNSAID\b""") to "N-SAID",
+        Regex("""\bIL-(\d+)""") to "interleukin $1",
+        // Receptor status: "CD4+", "HER2+", "ER-negative" stays as written.
+        Regex("""\b([A-Z]{1,4}\d{0,2})\+(?=[\s,.;)]|$)""") to "$1 positive",
+        // Counts: "4.5 ×10⁹/L", "x 10^9/L"
+        Regex("""[x×]\s?10\s?(?:\^|⁹|\*\*)?\s?9\s?/\s?L|×10⁹/L""") to " times ten to the ninth per liter",
+        Regex("""[x×]\s?10\s?(?:\^|¹²)?\s?12\s?/\s?L|×10¹²/L""") to " times ten to the twelfth per liter",
     )
 
     /** Words that stay capitalized when an ALL-CAPS line is turned into normal case. */

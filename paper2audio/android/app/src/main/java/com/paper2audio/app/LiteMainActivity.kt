@@ -584,6 +584,20 @@ class LiteMainActivity : Activity() {
         sheet.show()
     }
 
+    /** How medical documents are read: Automatic (default), Always or Never. */
+    private fun pickMedicalMode() {
+        val modes = listOf("auto" to "Automatic (medical documents)", "on" to "Always", "off" to "Never")
+        val now = modes.indexOfFirst { it.first == Speaker.medicalMode }.coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Medical articles")
+            .setSingleChoiceItems(modes.map { it.second }.toTypedArray(), now) { d, i ->
+                Speaker.setMedicalMode(modes[i].first)
+                d.dismiss()
+            }
+            .setMessage(null)
+            .show()
+    }
+
     private fun pickHour(title: String, current: Int, done: (Int) -> Unit) {
         val labels = (0..23).map { Tonight.hourLabel(it) + if (it == current) "  ✓" else "" }.toTypedArray()
         AlertDialog.Builder(this).setTitle(title).setItems(labels) { _, i -> done(i) }.show()
@@ -596,6 +610,11 @@ class LiteMainActivity : Activity() {
             .row(R.drawable.ic_timer, "Tonight's list", "Books prepared overnight, to save battery") { showTonight() }
             .row(R.drawable.ic_info, "How Narrato works", "The short tour, and getting better voices") { LiteWelcome.show(this) }
             .row(R.drawable.ic_palette, "Theme", "Colors of the app") { Themes.showPicker(this) }
+            .row(R.drawable.ic_text, "Medical articles", when (Speaker.medicalMode) {
+                "on" -> "Always: doses, units and clinical terms read in full"
+                "off" -> "Never: read as written"
+                else -> "Automatic: doses, units and clinical terms read in full in medical documents"
+            }) { pickMedicalMode() }
             .row(R.drawable.ic_account, "Your name", userName()?.let { "Greeted as $it" } ?: "For the greeting on the first screen") { askName() }
             .row(R.drawable.ic_bug, "Report a problem", "Share the app's error log to get it fixed") { AppLog.showReport(this) }
             .section("Privacy")
