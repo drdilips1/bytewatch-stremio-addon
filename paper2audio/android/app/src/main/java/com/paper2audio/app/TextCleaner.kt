@@ -55,7 +55,21 @@ object TextCleaner {
         "ﬂ" to "fl",
         "ﬀ" to "ff",
         "ﬃ" to "ffi",
+        "ﬄ" to "ffl",
+        "ﬅ" to "st",
+        "ﬆ" to "st",
+        // A soft hyphen only marks where a word may break: never read, never shown.
+        "\u00AD" to "",
     )
+
+    /** The hyphens PDFs break words with at a line's end (plain, typographic, non-breaking, soft). */
+    private const val HYPHENS = "-\u00AD\u2010\u2011"
+
+    /**
+     * A word split at a line's end that came out as "clin- ically" or "der- matoses" (medical and research PDFs):
+     * joined again. Not "pre- and post-operative" or "short- or long-term", where the hyphen is meant.
+     */
+    private val SPLIT_WORD = Regex("""(\p{Ll}{2,})[$HYPHENS]\s+(?!(?:and|or|nor|to|vs)\b)(\p{Ll}{2,})""")
 
     fun norm(line: String): String = DIGITS.replace(line.trim().lowercase(), "#")
 
@@ -134,8 +148,9 @@ object TextCleaner {
             }
             when {
                 buf.isEmpty() -> buf.append(s)
-                buf.endsWith("-") && s[0].isLowerCase() -> {
-                    buf.setLength(buf.length - 1) // de-hyphenate "exam-\nple"
+                buf.isNotEmpty() && buf.last() in HYPHENS && s[0].isLowerCase() &&
+                    !Regex("""^(and|or|nor|to|vs)\b""").containsMatchIn(s) -> {
+                    buf.setLength(buf.length - 1) // de-hyphenate "exam-\nple" (any hyphen character)
                     buf.append(s)
                 }
                 else -> buf.append(' ').append(s)
@@ -158,6 +173,7 @@ object TextCleaner {
     private fun speakable(text: String): String {
         var t = text
         for ((k, v) in SPOKEN) t = t.replace(k, v)
+        t = SPLIT_WORD.replace(t, "$1$2")
         t = CONTROL.replace(t, "")
         t = SPACE_BEFORE_PUNCT.replace(t, "$1")
         return MULTI_SPACE.replace(t, " ").trim()

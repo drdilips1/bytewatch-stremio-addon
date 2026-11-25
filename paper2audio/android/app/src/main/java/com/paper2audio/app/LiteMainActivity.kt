@@ -252,7 +252,8 @@ class LiteMainActivity : Activity() {
     private fun showAddMenu() {
         if (working) return
         LiteSheet(this, "Add something to listen to")
-            .row(R.drawable.ic_doc, "Book or document", "PDF, EPUB, Word, PowerPoint or text file") { pickFile() }
+            .row(R.drawable.ic_doc, "Book or document", "PDF, EPUB, Word, PowerPoint or text file · one or several") { pickFile() }
+            .row(R.drawable.ic_folder, "A folder", "Every book and document in it") { pickFolder() }
             .row(R.drawable.ic_paste, "Paste text", "From the clipboard, or type it") { askText() }
             .row(R.drawable.ic_link, "Web page", "An article or blog post, by its link") { askLink() }
             .section("From pictures")
@@ -274,9 +275,86 @@ class LiteMainActivity : Activity() {
                     "application/octet-stream",
                 ),
             )
+            // Several at once (they were added one only).
+            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         @Suppress("DEPRECATION")
         startActivityForResult(intent, REQ_FILE)
     }
+
+    /** A whole folder: every book and document in it (and its folders) is added. */
+    private fun pickFolder() {
+        @Suppress("DEPRECATION")
+        runCatching { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_FOLDER) }
+            .onFailure { toast("This phone can't choose folders. Choose the files instead (Book or document).") }
+    }
+
+    /** The books and documents in folder [tree], including its folders (a few levels down). */
+    private fun filesIn(tree: Uri): List<Pair<Uri, String>> {
+        val kinds = setOf("pdf", "epub", "txt", "md", "markdown", "html", "htm", "docx", "pptx")
+        val out = ArrayList<Pair<Uri, String>>()
+        fun walk(docId: String, depth: Int) {
+            val children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId)
+            contentResolver.query(
+                children,
+                arrayOf(
+                    android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE,
+                ),
+                null, null, null,
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getString(0) ?: continue
+                    val name = c.getString(1) ?: ""
+                    val mime = c.getString(2) ?: ""
+                    if (mime == android.provider.DocumentsContract.Document.MIME_TYPE_DIR) {
+                        if (depth < 3) walk(id, depth + 1)
+                    } else if (name.substringAfterLast('.', "").lowercase() in kinds) {
+                        out += android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, id) to name
+                    }
+                }
+            }
+        }
+        walk(android.provider.DocumentsContract.getTreeDocumentId(tree), 0)
+        return out.sortedBy { it.second.lowercase() }
+    }
+
+    /** Adds several files one after another, then shows the library (the player opens for a single one). */
+    private fun importMany(files: List<Pair<Uri, String>>) {
+        if (files.size == 1) return importUri(files[0].first)
+        if (files.isEmpty()) return toast("No books or documents found there.")
+        if (working) return
+        scope.launch {
+            var added = 0
+            val failed = ArrayList<String>()
+            for ((i, f) in files.withIndex()) {
+                val (uri, name) = f
+                setBusy("Adding ${i + 1} of ${files.size}: $name")
+                try {
+                    val (item, _) = withContext(Dispatchers.IO) {
+                        Opener.import(this@LiteMainActivity, { Loader.importUri(this@LiteMainActivity, uri) }, { })
+                    }
+                    thumbs.remove(item.id)
+                    added++
+                } catch (e: Exception) {
+                    AppLog.e("Import", "Couldn't add $name", e)
+                    failed += name
+                }
+            }
+            setBusy(null)
+            reload()
+            toast(
+                "Added $added of ${files.size}" +
+                    if (failed.isEmpty()) "." else ". Couldn't read: ${failed.take(3).joinToString(", ")}${if (failed.size > 3) "…" else ""}"
+            )
+        }
+    }
+
+    private fun nameOf(uri: Uri): String = runCatching {
+        contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+    }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/') ?: "file"
 
     private fun pickImages() {
         val intent = Intent(Intent.ACTION_GET_CONTENT)
@@ -310,7 +388,19 @@ class LiteMainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode != RESULT_OK) return
         when (requestCode) {
-            REQ_FILE -> data?.data?.let(::importUri)
+            REQ_FILE -> {
+                val uris = data?.clipData?.let { c -> (0 until c.itemCount).map { c.getItemAt(it).uri } }
+                    ?: listOfNotNull(data?.data)
+                importMany(uris.map { it to nameOf(it) })
+            }
+            REQ_FOLDER -> data?.data?.let { tree ->
+                scope.launch {
+                    setBusy("Looking in the folder…")
+                    val files = withContext(Dispatchers.IO) { runCatching { filesIn(tree) }.getOrDefault(emptyList()) }
+                    setBusy(null)
+                    importMany(files)
+                }
+            }
             REQ_IMAGES -> {
                 val uris = data?.clipData?.let { c -> (0 until c.itemCount).map { c.getItemAt(it).uri } }
                     ?: listOfNotNull(data?.data)
@@ -858,6 +948,7 @@ class LiteMainActivity : Activity() {
         private const val REQ_FILE = 1
         private const val REQ_IMAGES = 2
         private const val REQ_PHOTO = 3
+        private const val REQ_FOLDER = 4
         const val PRIVACY_URL = "https://drdilips1.github.io/bytewatch-stremio-addon/privacy.html"
     }
 }
