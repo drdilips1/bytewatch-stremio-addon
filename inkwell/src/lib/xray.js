@@ -6,7 +6,7 @@ import { askAi, parseJson, position } from './ai.js';
 import { heardLines } from './transcript.js';
 import { persisted } from './store.js';
 
-const store = persisted('xray', {}); // uid -> { at, data, t }
+const store = persisted('xray', {}); // uid -> { at, data, t, prev: { at, data } (the snapshot before, for "since you last listened") }
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** Every way a name can be said: full name, aliases, and a distinctive first or last name. */
@@ -50,10 +50,13 @@ ${list.length > 6000 ? '…' + list.slice(-6000) : list}
 
 Strict spoiler rules: use ONLY what is revealed up to and including part ${p.current + 1}. Never mention anything later. If unsure, leave it out.
 Return JSON:
-{"people":[{"name":"","aliases":[""],"role":"one short line","about":"2 sentences, only what is known by now","parts":[1,2]}],
+{"people":[{"name":"","aliases":[""],"role":"one short line","about":"2 sentences, only what is known by now","parts":[1,2],
+   "group":"house / family / faction / side they belong to, or \"\"","status":"alive|missing|dead|unknown — as known at this point",
+   "kind":"fictional|real","connections":[{"to":"another person's name from this list","label":"brother, mentor, sworn enemy… (2 words)","type":"family|enemy|ally|other"}]}],
  "places":[{"name":"","about":"one sentence","parts":[1]}],
- "topics":[{"part":1,"topic":"what happens or is discussed in this part, under 10 words"}]}
-"parts" are the part numbers above where that person or place appears. For non-fiction, people are the people discussed, and topics are the sub-topics. At most 25 people and 12 places, most important first. Include a topic for every part you can.
+ "topics":[{"part":1,"topic":"what happens or is discussed in this part, under 10 words"}],
+ "questions":[{"q":"a mystery or open question the story has raised and NOT yet answered by this point","part":1}]}
+"parts" are the part numbers above where that person or place appears. "status" and "connections" only as revealed so far (a secret parent stays hidden until revealed; "unknown" when unsure). "kind" is "real" for real historical / living people. For non-fiction, people are the people discussed (status "unknown", no groups unless obvious), topics the sub-topics, questions may be empty. At most 25 people, 12 places, 5 questions, most important first. Include a topic for every part you can.
 ${p.heard ? `Transcript of what they have heard (may contain recognition errors):\n"""${p.heard.slice(-8000)}"""` : ''}`,
     { json: true }
   );
@@ -67,14 +70,30 @@ ${p.heard ? `Transcript of what they have heard (may contain recognition errors)
   const fix = (x) => ({ ...x, aliases: (x.aliases || []).filter(Boolean), chapters: [...new Set(nums(x.parts).map((n) => n - 1).filter((i) => i <= max))].sort((a, b) => a - b) });
   const topics = {};
   for (const t of Array.isArray(d.topics) ? d.topics : []) if (t && Number(t.part) >= 1 && Number(t.part) - 1 <= max && t.topic) topics[Number(t.part) - 1] = String(t.topic);
-  const data = { at: max, people: asList(d.people).map(fix), places: asList(d.places).map(fix), topics };
+  const person = (x) => ({
+    ...fix(x),
+    group: String(x.group || '').trim(),
+    status: String(x.status || 'unknown').toLowerCase(),
+    kind: x.kind === 'real' ? 'real' : 'fictional',
+    connections: (Array.isArray(x.connections) ? x.connections : []).filter((c) => c && c.to).map((c) => ({ to: String(c.to), label: String(c.label || ''), type: ['family', 'enemy', 'ally'].includes(c.type) ? c.type : 'other' })),
+  });
+  const questions = (Array.isArray(d.questions) ? d.questions : []).filter((x) => x && x.q).slice(0, 5).map((x) => ({ q: String(x.q), part: Number(x.part) || 0 }));
+  const data = { at: max, people: asList(d.people).map(person), places: asList(d.places).map(fix), topics, questions };
   store.set((all) => {
     const keys = Object.keys(all);
     const next = keys.length > 30 ? Object.fromEntries(keys.slice(-20).map((k) => [k, all[k]])) : { ...all };
-    next[uid] = { at: max, data, t: Date.now() };
+    // The snapshot from an earlier chapter is kept, so "since you last listened" can compare.
+    const old = all[uid];
+    const prev = old && old.at < max ? { at: old.at, data: old.data, t: old.t } : old?.prev || null;
+    next[uid] = { at: max, data, t: Date.now(), prev };
     return next;
   });
   return data;
+}
+
+/** The snapshot before the latest one ({ at, data, t }), for "since you last listened". */
+export function previousXray(uid) {
+  return store.get()[uid]?.prev || null;
 }
 
 /** What's already known for the playing book (no AI call), or null. */
@@ -99,7 +118,7 @@ export function timeline(x, data) {
   const re = matcher(x);
   const out = new Map();
   // Heard: the first time the name was said in each chapter.
-  for (const l of heardLines(s.book.uid)) {
+  for (const l of s.book?.uid ? heardLines(s.book.uid) : []) {
     const g = player.trackOffset(l.track) + l.start;
     if (g > now + 1 || !re.test(l.text)) continue;
     const ci = chapterAt(chapters, g);
