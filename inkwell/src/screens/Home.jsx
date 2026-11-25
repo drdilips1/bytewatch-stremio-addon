@@ -33,6 +33,9 @@ import { waitlist, cancel, playNow } from '../lib/waitlist.js';
 import { toast, Cover } from '../components/common.jsx';
 import { getDetails } from '../sources/index.js';
 import * as player from '../lib/player.js';
+import { comeBackTo, comeBackDismissed, wantRecap, awayText } from '../lib/resurrect.js';
+import { bookmarks } from '../lib/store.js';
+import { aiOn, aiReady } from '../lib/ai.js';
 import { rollTheme, previousLook } from '../lib/theme.js';
 
 // Picks for the banner: the user's own services first; free classics only as a fallback.
@@ -556,6 +559,50 @@ function ContinueRow() {
   );
 }
 
+/**
+ * "Come back to …": a book you were into but left three weeks or more ago, offered again —
+ * with the story so far (spoiler-safe, own AI key) and how many bookmarks are waiting.
+ */
+function ComeBackCard() {
+  const prog = useStore(progress);
+  const dismissed = useStore(comeBackDismissed);
+  const marks = useStore(bookmarks);
+  const c = useMemo(() => comeBackTo(prog, { dismissed }), [prog, dismissed]);
+  if (!c) return null;
+  const n = (marks[c.uid] || []).length;
+  const go = (recap) => {
+    if (c.book.kind === 'text') return nav.push('reader', { book: c.book });
+    if (recap) wantRecap.set(c.uid);
+    nav.openOverlay('player');
+    player.openAndPlay(c.book, getDetails);
+  };
+  return (
+    <section class="comeback">
+      <Cover book={c.book} class="comeback-cover" />
+      <div class="comeback-text">
+        <em>Come back to</em>
+        <b>{c.book.title}</b>
+        <small>
+          {Math.round(c.percent * 100)}% through · {awayText(c.days)} ago{n ? ` · ${n} bookmark${n === 1 ? '' : 's'} waiting` : ''}
+        </small>
+        <div class="comeback-actions">
+          {aiOn() && aiReady() && c.book.kind !== 'text' && (
+            <button class="pill small active" onClick={() => go(true)}>
+              <Icon name="sparkle" size={14} /> Story so far
+            </button>
+          )}
+          <button class="pill small" onClick={() => go(false)}>
+            <Icon name={c.book.kind === 'text' ? 'book' : 'play'} size={14} /> Carry on
+          </button>
+        </div>
+      </div>
+      <button class="icon-btn comeback-x" aria-label="Not now" onClick={() => comeBackDismissed.set((d) => ({ ...d, [c.uid]: Date.now() }))}>
+        <Icon name="close" size={16} />
+      </button>
+    </section>
+  );
+}
+
 function WaitingRow() {
   const list = useStore(waitlist);
   if (!list.length) return null;
@@ -775,6 +822,7 @@ export function Home() {
             return (
               <Fragment key={id}>
                 <ContinueRow />
+                <ComeBackCard />
                 <FollowRow />
                 <WaitingRow />
               </Fragment>

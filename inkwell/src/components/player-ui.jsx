@@ -21,6 +21,7 @@ import { Answer } from '../screens/Ask.jsx';
 import { aiReady, aiHint, aiOn } from '../lib/ai.js';
 import { TranscriptView } from './transcript-view.jsx';
 import { StorySheet } from './story-sheet.jsx';
+import { wantRecap } from '../lib/resurrect.js';
 import { XraySheet } from './xray.jsx';
 import { SceneButton } from './scene-cmd.jsx';
 import { Rows as BookmarkRows } from './bookmarks.jsx';
@@ -222,6 +223,14 @@ export function FullPlayer() {
   const [sheet, setSheet] = useState(null); // 'chapters' | 'speed' | 'sleep' | 'bookmarks'
   // "Welcome back" offered once per book opening.
   const [awayDone, setAwayDone] = useState(false);
+  // Opened from Home's "Come back to … · Story so far": the recap opens once the book is up.
+  useEffect(() => {
+    if (s.book?.uid && wantRecap.get() === s.book.uid) {
+      wantRecap.set('');
+      setAwayDone(true);
+      setSheet('recap');
+    }
+  }, [s.book?.uid]);
   useEffect(() => setAwayDone(false), [s.book?.uid]);
   useBackClose(!!sheet, () => setSheet(null));
   const [scrub, setScrub] = useState(null);
