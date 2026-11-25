@@ -27,7 +27,9 @@ export async function saveTextFile({ name, text, mime }) {
 export const localCfg = persisted('localBooks', { folders: [], books: [], scannedAt: 0 });
 export const connected = () => available && localCfg.get().folders.length > 0;
 
-const AUDIO = /\.(mp3|m4b|m4a|aac|flac|ogg|oga|opus|wav|wma|mka)$/i;
+// iPhone also takes .mp4 (audiobooks are often packed as AAC in an .mp4: they were copied in but
+// never listed). Not on Android, where phone folders can hold films.
+const AUDIO = isIos ? /\.(mp3|m4b|m4a|aac|flac|ogg|oga|opus|wav|wma|mka|mp4)$/i : /\.(mp3|m4b|m4a|aac|flac|ogg|oga|opus|wav|wma|mka)$/i;
 const EBOOK = /\.(epub|pdf)$/i;
 
 /**
@@ -48,7 +50,10 @@ export async function addFolder() {
   if (!available) throw new Error('Books on this phone work in the Android app');
   const f = await Native.pickFolder();
   localCfg.set((c) => ({ ...c, folders: isIos ? [{ uri: f.uri, name: f.name || 'Audiohub folder' }] : [...c.folders.filter((x) => x.uri !== f.uri), { uri: f.uri, name: f.name || 'Folder' }] }));
-  return rescan();
+  const books = await rescan();
+  // iPhone: what was picked is copied in first — say when a copy failed instead of nothing at all.
+  if (isIos && f.failed) throw new Error(f.added ? `${f.added} added · ${f.failed}` : f.failed);
+  return books;
 }
 export function removeFolder(uri) {
   localCfg.set((c) => ({ ...c, folders: c.folders.filter((x) => x.uri !== uri), books: c.books.filter((b) => b.folder !== uri) }));

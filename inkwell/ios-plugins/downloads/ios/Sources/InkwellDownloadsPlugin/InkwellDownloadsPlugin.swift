@@ -5,7 +5,7 @@ import UIKit
 /// Offline downloads on iPhone, with the same calls as the Android plugin, so the app's
 /// Downloads code (queue, pause, resume, playing the saved copy) works as it is.
 ///
-/// Parts are saved where you can see them: Files app → On My iPhone → Audiohub → Downloads →
+/// Parts are saved where you can see them: Files app → On My iPhone → Audiohub → Audiohub downloads →
 /// Author → Title (copy them to a computer, AirDrop them…). The own-files scan skips that folder,
 /// so a download isn't listed again as "your own book"; the folder is kept out of iCloud backups
 /// (audiobooks are big). iOS moves an app's folder when it's updated or reinstalled, so every
@@ -54,7 +54,7 @@ public class InkwellDownloadsPlugin: CAPPlugin, CAPBridgedPlugin, URLSessionDown
 
     /// Documents/Downloads (shown in the Files app) — created on first use, never backed up to iCloud.
     private var root: URL {
-        var url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Downloads", isDirectory: true)
+        var url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Audiohub downloads", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
@@ -192,7 +192,7 @@ public class InkwellDownloadsPlugin: CAPPlugin, CAPBridgedPlugin, URLSessionDown
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let to = freeName(in: dir, for: from.lastPathComponent)
             try FileManager.default.moveItem(at: from, to: to)
-            call.resolve(["uri": to.absoluteString, "rel": relative(to), "location": "Files → Audiohub → Downloads"])
+            call.resolve(["uri": to.absoluteString, "rel": relative(to), "location": "Files → Audiohub → Audiohub downloads"])
         } catch {
             call.reject("Couldn't move it: \(error.localizedDescription)")
         }
@@ -273,7 +273,7 @@ public class InkwellDownloadsPlugin: CAPPlugin, CAPBridgedPlugin, URLSessionDown
         } else if let msg = j.error {
             j.call.reject(msg)
         } else {
-            j.call.resolve(["uri": j.target.absoluteString, "rel": j.rel, "size": j.saved, "location": "Files → Audiohub → Downloads"])
+            j.call.resolve(["uri": j.target.absoluteString, "rel": j.rel, "size": j.saved, "location": "Files → Audiohub → Audiohub downloads"])
         }
     }
 }

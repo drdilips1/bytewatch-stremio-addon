@@ -1,7 +1,7 @@
 // Offline downloads: saves every part of an audiobook to the phone, then plays
 // from the local files. Android: public Downloads/Audiohub (visible in the file
 // manager) or private app storage — chosen in Settings → Downloads. iPhone: Files app →
-// Audiohub → Downloads (its own InkwellDownloads plugin), found again after updates by each
+// Audiohub → Audiohub downloads (its own InkwellDownloads plugin), found again after updates by each
 // part's `rel`.
 import { metaNow } from './meta.js';
 import { Capacitor, registerPlugin } from '@capacitor/core';

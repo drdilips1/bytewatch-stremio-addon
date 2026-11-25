@@ -32,3 +32,14 @@ describe('voiceSample (hear the person on their page)', () => {
   });
 });
 
+
+describe('mentionsBook', () => {
+  it('tells the right Robert Greene by his books', async () => {
+    const { mentionsBook } = await import('../src/lib/people.js');
+    const mine = ['The 48 Laws of Power', 'Mastery: The Path to Excellence'];
+    expect(mentionsBook('Robert Greene is an American author known for his books on strategy, power and seduction, including The 48 Laws of Power…', mine)).toBe(true);
+    expect(mentionsBook('Robert Greene (1558–1592) was an English author popular in his day, now best known for a posthumous pamphlet…', mine)).toBe(false);
+    expect(mentionsBook('anything', [])).toBe(false);
+    expect(mentionsBook('He wrote It.', ['It'])).toBe(false); // too short to tell
+  });
+});

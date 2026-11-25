@@ -571,7 +571,14 @@ function WaitingRow() {
       </header>
       <div class="wait-list">
         {list.map((w) => (
-          <div class={'wait-item' + (w.ready ? ' ready' : '')}>
+          // The whole card is tappable (only the small button was): ready → plays; still downloading →
+          // says how far it is (it plays by itself when done).
+          <div
+            class={'wait-item' + (w.ready ? ' ready' : '')}
+            role="button"
+            tabindex="0"
+            onClick={() => (w.ready ? playNow(w).catch((e) => toast(e.message)) : toast(`Still downloading on ${cloud.providerName(w.provider)} (${Math.round((w.progress || 0) * 100)}%) — it plays by itself when it's ready`))}
+          >
             <Cover book={{ title: w.bookTitle || w.title, author: w.author, cover: w.cover }} class="wait-cover" />
             <div class="wait-meta">
               <b>{w.bookTitle || w.title}</b>
@@ -583,11 +590,11 @@ function WaitingRow() {
               </div>
             </div>
             {w.ready ? (
-              <button class="continue-play" aria-label="Play" onClick={() => playNow(w).catch((e) => toast(e.message))}>
+              <button class="continue-play" aria-label="Play" onClick={(e) => (e.stopPropagation(), playNow(w).catch((er) => toast(er.message)))}>
                 <Icon name="play" size={16} />
               </button>
             ) : (
-              <button class="icon-btn" aria-label="Stop waiting" onClick={() => cancel(w.hash)}>
+              <button class="icon-btn" aria-label="Stop waiting" onClick={(e) => (e.stopPropagation(), cancel(w.hash))}>
                 <Icon name="close" size={18} />
               </button>
             )}

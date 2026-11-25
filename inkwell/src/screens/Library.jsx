@@ -587,10 +587,10 @@ export function PhoneButtons({ busy, run }) {
   return (
     <div class="phone-actions">
       <button class="btn primary" disabled={!!busy} onClick={run('add', localSrc.addFolder)}>
-        {busy === 'add' ? <span class="spinner" /> : <Icon name="plus" size={16} />} {localSrc.isIos ? 'Add folder / audiobooks' : cfg.folders.length ? 'Add folder' : 'Choose folder'}
+        {busy === 'add' ? <span class="spinner" /> : <Icon name="plus" size={16} />} {localSrc.isIos ? 'Add audiobooks (files or folders)' : cfg.folders.length ? 'Add folder' : 'Choose folder'}
       </button>
       <button class="btn secondary" disabled={!!busy} onClick={run('files', localSrc.pickBooks)}>
-        {busy === 'files' ? <span class="spinner" /> : <Icon name="book" size={16} />} Add EPUB / PDF
+        {busy === 'files' ? <span class="spinner" /> : <Icon name="book" size={16} />} {localSrc.isIos ? 'Add ebooks (EPUB / PDF)' : 'Add EPUB / PDF'}
       </button>
       {cfg.folders.length > 0 && (
         <button class="btn secondary" disabled={!!busy} onClick={run('scan', localSrc.rescan)}>

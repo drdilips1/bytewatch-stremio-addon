@@ -26,7 +26,8 @@ public class InkwellLocalPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDe
         CAPPluginMethod(name: "removeIncoming", returnType: CAPPluginReturnPromise)
     ]
 
-    private static let audio: Set<String> = ["mp3", "m4b", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "wma", "mka"]
+    // "mp4": audiobooks packed as AAC in an .mp4 (they were copied in but never listed).
+    private static let audio: Set<String> = ["mp3", "m4b", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "wma", "mka", "mp4"]
     private static let ebook: Set<String> = ["epub", "pdf"]
     private static let image: Set<String> = ["jpg", "jpeg", "png", "webp"]
     private static let maxFiles = 20000
@@ -44,7 +45,8 @@ public class InkwellLocalPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDe
     /// answers with the Audiohub folder itself — the one the app reads — even if you only
     /// close the picker (books may already be there from the Files app).
     @objc func pickFolder(_ call: CAPPluginCall) {
-        var types: [UTType] = [.folder, .audio, .mp3, .mpeg4Audio]
+        // .mpeg4Movie: an .mp4 audiobook (it was greyed out in the picker).
+        var types: [UTType] = [.folder, .audio, .mp3, .mpeg4Audio, .mpeg4Movie]
         if let m4b = UTType(filenameExtension: "m4b") { types.append(m4b) }
         present(types, call: call, books: false)
     }
@@ -100,7 +102,11 @@ public class InkwellLocalPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDe
             if books {
                 if added.isEmpty && !failed.isEmpty { call.reject(failed) } else { call.resolve(["books": added]) }
             } else {
-                call.resolve(self.folderAnswer())
+                // How many were copied in, and why one wasn't (it used to fail without a word).
+                var answer = self.folderAnswer()
+                answer["added"] = added.count
+                if !failed.isEmpty { answer["failed"] = failed }
+                call.resolve(answer)
             }
         }
     }
@@ -169,9 +175,10 @@ public class InkwellLocalPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDe
                 let values = try? url.resourceValues(forKeys: Set(keys))
                 if values?.isDirectory == true {
                     if url.lastPathComponent == ".Trash" { walker?.skipDescendants() }
-                    // The app's own downloads (Audiohub → Downloads) are listed as downloads, not
-                    // again as your own books.
-                    if url.lastPathComponent == "Downloads" && url.deletingLastPathComponent().standardizedFileURL.path == self.documents.standardizedFileURL.path {
+                    // The app's own downloads (Audiohub → Audiohub downloads) are listed as downloads,
+                    // not again as your own books. (Not a folder named just "Downloads": that's often
+                    // Safari's, copied in with your audiobooks.)
+                    if url.lastPathComponent == "Audiohub downloads" && url.deletingLastPathComponent().standardizedFileURL.path == self.documents.standardizedFileURL.path {
                         walker?.skipDescendants()
                     }
                     continue

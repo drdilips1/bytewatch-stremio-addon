@@ -33,21 +33,61 @@ export function hasPerson(field, name) {
 
 const PERSONISH = /(author|writer|novelist|journalist|historian|actor|actress|narrator|voice|poet|essayist|biographer|comedian|broadcaster|economist|psycholog|physician|scientist|professor|philosopher|neurosci|entrepreneur|activist|speaker|monk|teacher|podcaster|presenter|singer|lawyer|politician)/i;
 
-/** A short bio and photo: { bio, photo, url, facts } ('' when nothing reliable was found). */
-export async function bioOf(name) {
+/**
+ * Does this text name one of the person's books? ("…The 48 Laws of Power…" for Robert Greene.)
+ * Titles of three letters or fewer are left out (too easily found by chance).
+ */
+export function mentionsBook(text, titles = []) {
+  const t = String(text || '').toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ');
+  return titles.some((x) => {
+    const m = mainTitle(x || '').toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim();
+    return m.length > 3 && t.includes(m);
+  });
+}
+
+const wikiSummary = async (title) => {
+  const w = await getJson(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(String(title).trim().replace(/\s+/g, '_'))}`, { timeout: 10000 });
+  return w?.type === 'standard' && w.extract ? w : null;
+};
+const wikiBio = (w) => ({ bio: w.extract, photo: w.thumbnail?.source || '', url: w.content_urls?.mobile?.page || w.content_urls?.desktop?.page || '', facts: w.description || '' });
+
+/**
+ * A short bio and photo: { bio, photo, url, facts } ('' when nothing reliable was found).
+ * `titles`: the person's books you have. Two people can share a name — "Robert Greene" on Wikipedia
+ * is the 16th-century dramatist, not the author of The 48 Laws of Power — so with titles known, a
+ * page counts only if it names one of them; else Wikipedia is searched for the name with a title.
+ */
+export async function bioOf(name, titles = []) {
   const k = personKey(name);
   const hit = bios.get()[k];
-  if (hit && Date.now() - hit.t < 30 * DAY) return hit;
+  // (v2: bios found before the book check could be someone else of the same name.)
+  if (hit && hit.v === 2 && Date.now() - hit.t < 30 * DAY) return hit;
+  const known = titles.filter(Boolean);
+  const fits = (text) => !known.length || mentionsBook(text, known);
   let out = { bio: '', photo: '', url: '', facts: '' };
   try {
-    const w = await getJson(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(String(name).trim().replace(/\s+/g, '_'))}`, { timeout: 10000 });
-    if (w?.type === 'standard' && w.extract && PERSONISH.test(`${w.description || ''} ${w.extract.slice(0, 300)}`))
-      out = { bio: w.extract, photo: w.thumbnail?.source || '', url: w.content_urls?.mobile?.page || w.content_urls?.desktop?.page || '', facts: w.description || '' };
+    const w = await wikiSummary(name);
+    if (w && PERSONISH.test(`${w.description || ''} ${w.extract.slice(0, 300)}`) && fits(w.extract)) out = wikiBio(w);
   } catch {}
+  // Same name, another person: Wikipedia's search for the name and one of their books.
+  if (!out.bio && known.length) {
+    try {
+      const s = await getJson('https://en.wikipedia.org/w/api.php?' + qs({ action: 'query', list: 'search', srsearch: `${name} ${mainTitle(known[0])}`, srlimit: 3, format: 'json', origin: '*' }), { timeout: 10000 });
+      for (const r of s?.query?.search || []) {
+        if (!hasPerson(String(r.title).replace(/\s*\(.*\)$/, ''), name)) continue;
+        const w = await wikiSummary(r.title).catch(() => null);
+        if (w && PERSONISH.test(`${w.description || ''} ${w.extract.slice(0, 300)}`)) {
+          out = wikiBio(w);
+          break;
+        }
+      }
+    } catch {}
+  }
   if (!out.bio) {
     try {
-      const s = await getJson('https://openlibrary.org/search/authors.json?' + qs({ q: name, limit: 1 }), { timeout: 10000 });
-      const a = s?.docs?.[0];
+      const s = await getJson('https://openlibrary.org/search/authors.json?' + qs({ q: name, limit: 5 }), { timeout: 10000 });
+      // The author whose best-known work is one of yours, else (no titles known) the first.
+      const a = (s?.docs || []).find((x) => hasPerson(x.name, name) && (!known.length || mentionsBook(x.top_work, known))) || (known.length ? null : s?.docs?.[0]);
       if (a?.key && hasPerson(a.name, name)) {
         const d = await getJson(`https://openlibrary.org/authors/${a.key}.json`, { timeout: 10000 });
         const bio = typeof d?.bio === 'string' ? d.bio : d?.bio?.value || '';
@@ -60,7 +100,7 @@ export async function bioOf(name) {
       }
     } catch {}
   }
-  bios.set((all) => ({ ...all, [k]: { ...out, t: Date.now() } }));
+  bios.set((all) => ({ ...all, [k]: { ...out, t: Date.now(), v: 2 } }));
   return out;
 }
 

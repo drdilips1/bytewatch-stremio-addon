@@ -110,7 +110,7 @@ export function Person({ name, role = 'author' }) {
     let alive = true;
     setBio(null);
     setMore(null);
-    bioOf(name).then((b) => {
+    bioOf(name, mine.map((x) => x.book?.title)).then((b) => {
       if (alive) setBio(b);
       // No photo from the bio: look in more places (kept once found).
       if (!b?.photo && !photoOf(name)) findPhoto(name, role).catch(() => {});

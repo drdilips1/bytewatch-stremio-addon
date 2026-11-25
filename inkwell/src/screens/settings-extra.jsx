@@ -694,7 +694,7 @@ export function DownloadsCard() {
       </button>
       {iosDownloads ? (
         <p class="muted small">
-          On iPhone, downloads are in the Files app → On My iPhone → Audiohub → Downloads (not backed up to iCloud), where you can copy them to a computer or AirDrop them. Don’t rename or move them there — the app then counts the book as not downloaded. Keep the app open while a big book downloads: if you leave it, the download pauses and carries on the next time you open Audiohub.
+          On iPhone, downloads are in the Files app → On My iPhone → Audiohub → Audiohub downloads (not backed up to iCloud), where you can copy them to a computer or AirDrop them. Don’t rename or move them there — the app then counts the book as not downloaded. Keep the app open while a big book downloads: if you leave it, the download pauses and carries on the next time you open Audiohub.
         </p>
       ) : (
       <div class="set-row column">

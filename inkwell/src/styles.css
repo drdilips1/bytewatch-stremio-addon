@@ -13008,3 +13008,16 @@ html.ios .book-card:not(.broken) { box-shadow: none; }
 .usenet-text small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
 .usenet-row .pill { flex: none; }
 
+
+/* 25 Nov feedback: source cards a little tighter — smaller buttons, so the "…" stays on the row
+   (it wrapped onto its own line when Kindle was there); "Show more" / "loose matches" as wide as
+   the source boxes above them. */
+.src-row .src-actions.ready { gap: 6px; }
+.source-results .src-row .src-actions.ready > .btn:first-child { flex: 1 1 92px; min-width: 92px; height: 40px; border-radius: 13px; font-size: 14px; }
+.source-results .src-row .src-actions.ready > .btn.play-alt { padding: 0 9px; }
+.src-row .src-actions.ready > .btn:not(:first-child) { height: 40px; min-width: 40px; padding: 0 9px; border-radius: 13px; font-size: 12.5px; gap: 4px; }
+.src-row .src-actions.ready > .src-dots { padding: 0; width: 40px; }
+.src-row .svc-chip { padding-top: 5px; padding-bottom: 5px; }
+.source-results .src-more,
+.source-results .src-fold { width: calc(100% + 20px); margin-left: -10px; margin-right: -10px; }
+.wait-item { cursor: pointer; }
