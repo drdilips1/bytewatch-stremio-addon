@@ -1,35 +1,15 @@
-// Audiohub Comics — Cloudflare Worker, version 2.7.1
-// Sources that search here: GetComics, Internet Archive and Weeb Central (source=all),
-// ReadComicsOnline (source=readcomicsonline) and Kitsu (manga titles only, source=kitsu).
-// Comics Plus opens in its own reader (see WEB_ONLY below for why it isn't searched here).
-// Changes from 2.7.0:
-//  - GlobalComix removed (mostly paid): no "Also look on" link, no route.
-// Changes from 2.6.1:
-//  - Weeb Central (manga): search, series chapter lists and each chapter's pages, which the
-//    app shows in its own comic reader (right to left). In source=all.
-// Changes from 2.6.0 (after trying it in the app):
-//  a. ReadComicsOnline is out of source=all: reading on the site means a bot check, then pop-ups
-//     and spam — unusable. It can still be searched on its own (source=readcomicsonline).
-//  b. Internet Archive: only items that have comic files (CBZ / CBR), CBZ ones first — titles
-//     with "Batman" in them were mostly unrelated documents.
-//  c. Comics Plus opens in the app's own web screen (your library sign-in is kept).
-//  d. Internet Archive needs every word of the title (it took any one of them).
-// Changes from 2.5.0:
-//  1. ReadComicsOnline: series search and issue lists from the site's public sitemaps
-//     (its pages are behind a Cloudflare bot check, so reading opens in the browser).
-//  2. Every result has the same fields (unify): access_type, reading_url, external_url,
-//     download_options_url, issue_count… — null when a source doesn't say.
-//  3. Kitsu back as its own source (/api/kitsu/search, /api/kitsu/item?id=), not in "all".
-//  4. /api/globalcomix/search and /api/comicsplus/search explain why they can't search and
-//     give GlobalComix's own search link; the manifest lists both as web searches.
-//  5. The manifest maps the new fields (cover, access, reading link, issue list).
-// Kept from 2.5.0: GetComics search, release download options and direct-file detection;
-// Internet Archive search, files and download options; every earlier route.
+// Audiohub Comics — Cloudflare Worker, version 2.8.0
+// Sources: GetComics and the Internet Archive (searched; download options with direct files),
+// and Comics Plus (your library's own reader, opened by the app — never searched here).
+// Changes from 2.7.1: only these three are kept (the user's choice): Weeb Central,
+// ReadComicsOnline and Kitsu are removed, with their routes.
+// Kept: one result shape for every source (unify), GetComics search + release download options
+// with direct-file detection, Internet Archive comics only (CBZ / CBR, every title word, CBZ first)
+// with its files, the Comics Plus link in the manifest (opened in the app, link kept on the phone).
 
 const CONFIG = {
   NAME: "Audiohub Comics",
-  VERSION: "2.7.1",
-  KITSU_API: "https://kitsu.io/api/edge",
+  VERSION: "2.8.0",
   ARCHIVE_API: "https://archive.org",
   GETCOMICS_FEED: "https://getcomics.org/feed/",
   GETCOMICS_SEARCH: "https://getcomics.org/wp-json/wp/v2/search",
@@ -691,208 +671,6 @@ function unify(x) {
   };
 }
 
-/* TEXT FETCH (sitemaps), cached at Cloudflare's edge */
-
-async function getText(url, ttl = CONFIG.CACHE_SECONDS) {
-  const r = await fetch(url, {
-    headers: { "User-Agent": `Mozilla/5.0 (compatible; Audiohub-Comics/${CONFIG.VERSION})`, Accept: "text/xml,application/xml,text/html;q=0.8,*/*;q=0.5" },
-    cf: { cacheTtl: ttl, cacheEverything: true }
-  });
-  const text = await r.text();
-  // A bot-check page: say so instead of pretending nothing was found.
-  if (/_cf_chl_opt|cf-browser-verification|Just a moment\.\.\./.test(text.slice(0, 20000))) {
-    throw new Error(`${new URL(url).hostname} showed its bot check to the server — open it in the browser instead`);
-  }
-  if (!r.ok) throw new Error(`${new URL(url).hostname} answered HTTP ${r.status}`);
-  return text;
-}
-
-/* READCOMICSONLINE
-   The site's own pages (search, series, reader) are behind Cloudflare's "managed challenge",
-   which only a real browser passes. Its sitemaps are open to everyone (robots.txt points to
-   them), and list every series (title, cover) and every issue's address — that's what this
-   searches. Reading opens the issue's page in the browser; the site offers no files. */
-
-const RCO = "https://readcomicsonline.ru";
-const RCO_TTL = 6 * 3600; // the sitemaps change a few times a day
-
-function slugify(v) {
-  return String(v || "")
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/['’]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-// "Batman (2016-)" → 2016
-const yearOf = (caption) => (/\((\d{4})/.exec(caption || "") || [])[1] || null;
-
-function rcoEntry(text, at) {
-  const end = text.indexOf("</url>", at);
-  const block = text.slice(at, end < 0 ? at + 2000 : end);
-  const slug = (/\/comic\/([^<\/]+)<\/loc>/.exec(block) || [])[1] || "";
-  const caption = decodeXml((/<image:caption>([\s\S]*?)<\/image:caption>/.exec(block) || [])[1] || "").trim();
-  const cover = decodeXml((/<image:loc>([^<]+)<\/image:loc>/.exec(block) || [])[1] || "").trim();
-  const lastmod = (/<lastmod>([^<]+)<\/lastmod>/.exec(block) || [])[1] || null;
-  return { slug, caption, cover, lastmod };
-}
-
-function rcoResult(e) {
-  const title = e.caption || e.slug.replace(/-/g, " ");
-  const page = `${RCO}/comic/${e.slug}`;
-  return unify({
-    id: `readcomicsonline:${e.slug}`,
-    provider: "readcomicsonline",
-    provider_name: "ReadComicsOnline",
-    title: `[ReadComicsOnline] ${title}`,
-    original_title: title,
-    series: title.replace(/\s*\(\d{4}[^)]*\)\s*$/, ""),
-    cover: e.cover || null,
-    publication_date: yearOf(title),
-    date: e.lastmod,
-    format: "comic",
-    content_type: "series",
-    access_type: "free",
-    reading_url: page,
-    external_url: page,
-    url: page,
-    source_url: page,
-    download_available: false,
-    issues_url: `${WORKER}/api/readcomicsonline/series?slug=${encodeURIComponent(e.slug)}`,
-    reader: "browser",
-    reader_note: "Opens in the browser: the site checks every visitor (Cloudflare), so its pages can't be shown inside the app."
-  });
-}
-
-async function searchReadComicsOnline(q, limit) {
-  const text = await getText(`${RCO}/sitemap-comics.xml`, RCO_TTL);
-  const want = slugify(q);
-  const words = want.split("-").filter(w => w.length > 1 || /\d/.test(w));
-  if (!words.length) return { success: true, source: "readcomicsonline", total: 0, results: [] };
-  const marker = `<loc>${RCO}/comic/`;
-  const hits = [];
-  // Addresses are lowercase slugs ("the-amazing-spider-man-2018"): matched word by word,
-  // so the whole list is read once without decoding every entry.
-  for (let i = text.indexOf(marker); i >= 0; i = text.indexOf(marker, i + marker.length)) {
-    const s = i + marker.length;
-    const slug = text.slice(s, text.indexOf("<", s));
-    const parts = slug.split("-");
-    if (!words.every(w => parts.includes(w))) continue;
-    const base = slug.replace(/-\d{4}$/, "");
-    const score = base === want ? 3 : base.startsWith(want + "-") || slug.startsWith(want) ? 2 : 1;
-    hits.push({ at: text.lastIndexOf("<url>", i), score, slug });
-  }
-  hits.sort((a, b) => b.score - a.score || a.slug.length - b.slug.length);
-  const results = hits.slice(0, limit).map(h => rcoResult(rcoEntry(text, h.at))).filter(r => r.reading_url);
-  return {
-    success: true,
-    source: "readcomicsonline",
-    provider_name: "ReadComicsOnline",
-    query: q,
-    total: hits.length,
-    results,
-    search_scope: "Series titles from the site's public sitemap (its search page is behind a bot check)"
-  };
-}
-
-async function rcoSeries(slug) {
-  slug = slugify(slug);
-  if (!slug) throw new Error("Missing series");
-  const comics = await getText(`${RCO}/sitemap-comics.xml`, RCO_TTL);
-  const at = comics.indexOf(`<loc>${RCO}/comic/${slug}</loc>`);
-  if (at < 0) throw new Error("Series not found on ReadComicsOnline");
-  const series = rcoResult(rcoEntry(comics, comics.lastIndexOf("<url>", at)));
-
-  // Every issue's address is in the chapter sitemaps the index lists.
-  const index = await getText(`${RCO}/sitemap.xml`, RCO_TTL);
-  const maps = [...index.matchAll(/<loc>([^<]*sitemap-chapters[^<]*)<\/loc>/g)].map(m => m[1]).slice(0, 6);
-  const seen = new Set();
-  const issues = [];
-  const marker = `${RCO}/comic/${slug}/`;
-  for (const map of maps) {
-    const text = await getText(map, RCO_TTL);
-    for (let i = text.indexOf(marker); i >= 0; i = text.indexOf(marker, i + marker.length)) {
-      const s = i + marker.length;
-      const end = text.indexOf("<", s);
-      const num = decodeXml(text.slice(s, end));
-      if (!num || num.includes("/") || seen.has(num)) continue;
-      seen.add(num);
-      const lastmod = (/^<\/loc>\s*<lastmod>([^<]+)/.exec(text.slice(end, end + 80)) || [])[1] || null;
-      const page = `${marker}${num}`;
-      issues.push({
-        id: `readcomicsonline:${slug}:${num}`,
-        issue_number: num,
-        title: `${series.series} #${num.replace(/-/g, ".")}`,
-        reading_url: page,
-        external_url: page,
-        date: lastmod,
-        access_type: "free",
-        download_available: false
-      });
-    }
-  }
-  const n = (v) => parseFloat(String(v).replace(/-/g, ".")) || 0;
-  issues.sort((a, b) => n(b.issue_number) - n(a.issue_number) || String(b.issue_number).localeCompare(String(a.issue_number)));
-  return {
-    success: true,
-    source: "readcomicsonline",
-    provider_name: "ReadComicsOnline",
-    series: { ...series, issue_count: issues.length },
-    total: issues.length,
-    issues,
-    reader: "browser",
-    reader_note: series.reader_note
-  };
-}
-
-/* KITSU (manga titles, covers and synopses only — nothing to read or download) */
-
-function normalizeKitsu(item) {
-  const a = item.attributes || {};
-  const t = a.titles || {};
-  const originalTitle = a.canonicalTitle || t.en || t.en_jp || t.ja_jp || "Untitled";
-  const page = `https://kitsu.io/manga/${a.slug || item.id}`;
-  return unify({
-    id: `kitsu:${item.id}`,
-    provider: "kitsu",
-    provider_name: "Kitsu",
-    title: `[Kitsu] ${originalTitle}`,
-    original_title: originalTitle,
-    alternate_titles: t,
-    description: a.synopsis || a.description || "",
-    cover: a.posterImage?.large || a.posterImage?.original || a.posterImage?.medium || null,
-    format: a.mangaType || a.subtype || "manga",
-    status: a.status || null,
-    issue_count: a.chapterCount ?? null,
-    volume_count: a.volumeCount ?? null,
-    date: a.startDate || null,
-    rating: a.averageRating || null,
-    url: page,
-    source_url: page,
-    external_url: page,
-    content_type: "metadata_only",
-    access_type: "metadata",
-    download_available: false
-  });
-}
-
-async function searchKitsu(q, limit) {
-  const p = new URLSearchParams();
-  p.set("filter[text]", q);
-  p.set("page[limit]", String(Math.min(limit, 20)));
-  const d = await getJSON(`${CONFIG.KITSU_API}/manga?${p}`, { Accept: "application/vnd.api+json" });
-  const results = (d.data || []).map(normalizeKitsu);
-  return { success: true, source: "kitsu", provider_name: "Kitsu", total: d.meta?.count ?? results.length, results };
-}
-
-async function kitsuItem(id) {
-  const d = await getJSON(`${CONFIG.KITSU_API}/manga/${encodeURIComponent(id)}`, { Accept: "application/vnd.api+json" });
-  if (!d.data) throw new Error("Not found on Kitsu");
-  return { success: true, source: "kitsu", result: normalizeKitsu(d.data) };
-}
-
 /* COMICS PLUS — opened in its own reader, never searched by this server
    Comics Plus (LibraryPass): its catalogue API is licensed to libraries (they ask LibraryPass
    support), not to readers, and each library has its own sign-in. Your library's Comics Plus
@@ -923,129 +701,6 @@ function webOnly(id, q) {
   };
 }
 
-/* WEEB CENTRAL (manga)
-   Its own search, series and chapter pages answer plain requests (no bot check; robots.txt
-   allows everything, with a 10-second crawl delay — so answers are cached here and nothing is
-   crawled ahead). A chapter's pages are plain picture links that load in any app, so chapters
-   open in the app's own comic reader (right to left). Nothing is downloaded by this server. */
-
-const WC = "https://weebcentral.com";
-const WC_UA = `Mozilla/5.0 (compatible; Audiohub-Comics/${CONFIG.VERSION})`;
-
-async function wcText(path, ttl) {
-  const r = await fetch(`${WC}${path}`, {
-    headers: { "User-Agent": WC_UA, Accept: "text/html,*/*;q=0.8", "HX-Request": "true" },
-    cf: { cacheTtl: ttl, cacheEverything: true }
-  });
-  const text = await r.text();
-  if (/_cf_chl_opt|Just a moment\.\.\./.test(text.slice(0, 20000))) throw new Error("Weeb Central showed its bot check to the server");
-  if (!r.ok) throw new Error(`Weeb Central answered HTTP ${r.status}`);
-  return text;
-}
-
-const strip = (v) => decodeXml(String(v || "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
-// What follows a label like "<strong class=…>Author(s): </strong>" up to the end of its row.
-const after = (block, label) => {
-  const m = new RegExp(`<strong[^>]*>\\s*${label}`).exec(block);
-  if (!m) return "";
-  const from = block.indexOf("</strong>", m.index) + 9;
-  const end = block.indexOf("</div>", from);
-  return block.slice(from, end < 0 ? from + 600 : end);
-};
-
-function wcResult(block) {
-  const m = /href="https:\/\/weebcentral\.com\/series\/([0-9A-Z]{20,30})\/([^"]*)"/.exec(block);
-  if (!m) return null;
-  const [, id, slug] = m;
-  const title = strip((new RegExp(`series/${id}/[^"]*">([^<]+)</a>`).exec(block) || [])[1]) ||
-    strip((/alt="([^"]+?) cover"/.exec(block) || [])[1]) || slug.replace(/-/g, " ");
-  const authors = [...after(block, "Author").matchAll(/>([^<>]+)<\/a>/g)].map((x) => strip(x[1])).filter(Boolean);
-  const tags = [...after(block, "Tag").matchAll(/<span>([^<]+)<\/span>/g)].map((x) => strip(x[1]).replace(/,$/, "")).filter(Boolean);
-  const year = strip(after(block, "Year:")) || null;
-  const type = strip(after(block, "Type:")) || "Manga";
-  const status = strip(after(block, "Status:")) || null;
-  const page = `${WC}/series/${id}/${slug}`;
-  return unify({
-    id: `weebcentral:${id}`,
-    provider: "weebcentral",
-    provider_name: "Weeb Central",
-    title: `[Weeb Central] ${title}`,
-    original_title: title,
-    series: title,
-    author: authors.join(", "),
-    creator: authors.join(", "),
-    cover: `https://temp.compsci88.com/cover/fallback/${id}.jpg`,
-    genres: tags,
-    publication_date: /^\d{4}$/.test(year || "") ? year : null,
-    status,
-    format: type,
-    content_type: "series",
-    access_type: "free",
-    language: "en",
-    reading_url: page,
-    external_url: page,
-    url: page,
-    source_url: page,
-    download_available: false,
-    issues_url: `${WORKER}/api/weebcentral/series?id=${id}&title=${encodeURIComponent(title)}`,
-    reader: "app",
-    // Manga and manhua read right to left; manhwa / webtoons top to bottom.
-    reading_direction: /manhwa|webtoon/i.test(type) ? "vertical" : /manga/i.test(type) ? "rtl" : "ltr"
-  });
-}
-
-async function searchWeebCentral(q, limit) {
-  const p = new URLSearchParams({ text: q, sort: "Best Match", order: "Descending", official: "Any", display_mode: "Full Display" });
-  const html = await wcText(`/search/data?${p}`, 600);
-  const blocks = html.split(/<article class="bg-base-300 flex gap-4 p-4">/).slice(1);
-  const results = blocks.map(wcResult).filter(Boolean).slice(0, limit);
-  return { success: true, source: "weebcentral", provider_name: "Weeb Central", query: q, total: results.length, results };
-}
-
-async function wcSeries(id, title) {
-  if (!/^[0-9A-Z]{20,30}$/.test(id)) throw new Error("Missing series");
-  const html = await wcText(`/series/${id}/full-chapter-list`, 1800);
-  const name = title || "Chapter";
-  const chapters = [];
-  const seen = new Set();
-  for (const m of html.matchAll(/<a href="(?:https:\/\/weebcentral\.com)?\/chapters\/([0-9A-Z]{20,30})"([\s\S]*?)<\/a>/g)) {
-    const [, cid, inner] = m;
-    if (seen.has(cid)) continue;
-    seen.add(cid);
-    const label = strip((/<span class="">([^<]+)<\/span>/.exec(inner) || /<span[^>]*>\s*((?:Chapter|Episode|Volume|Special|Side|Extra)[^<]*)<\/span>/i.exec(inner) || [])[1]) || "Chapter";
-    const date = (/datetime="([^"]+)"/.exec(inner) || /checkNewChapter\('([^']+)'\)/.exec(html.slice(Math.max(0, m.index - 400), m.index)) || [])[1] || null;
-    chapters.push({
-      id: `weebcentral:${cid}`,
-      issue_number: (/[\d.]+/.exec(label) || [""])[0],
-      title: `${name} · ${label}`,
-      reading_url: `${WC}/chapters/${cid}`,
-      external_url: `${WC}/chapters/${cid}`,
-      pages_url: `${WORKER}/api/weebcentral/chapter?id=${cid}`,
-      date,
-      access_type: "free",
-      download_available: false
-    });
-  }
-  return {
-    success: true,
-    source: "weebcentral",
-    provider_name: "Weeb Central",
-    series: { title: name, issue_count: chapters.length, external_url: `${WC}/series/${id}` },
-    total: chapters.length,
-    issues: chapters,
-    reader: "app"
-  };
-}
-
-async function wcChapter(id) {
-  if (!/^[0-9A-Z]{20,30}$/.test(id)) throw new Error("Missing chapter");
-  const html = await wcText(`/chapters/${id}/images?is_prev=False&current_page=1&reading_style=long_strip`, 86400);
-  const pages = [...new Set([...html.matchAll(/<img[^>]+src="(https:\/\/[^"]+\.(?:png|jpe?g|webp|gif|avif))"/gi)].map((m) => m[1]))]
-    .filter((u) => !/\/static\//.test(u));
-  if (!pages.length) throw new Error("No pages found for this chapter");
-  return { success: true, source: "weebcentral", provider_name: "Weeb Central", id, total: pages.length, pages, external_url: `${WC}/chapters/${id}` };
-}
-
 /* SOURCE REGISTRY */
 
 function sources() {
@@ -1067,30 +722,6 @@ function sources() {
       note: "Access depends on each item's rights and lending restrictions."
     },
     {
-      id: "readcomicsonline",
-      name: "ReadComicsOnline",
-      status: "active",
-      in_all: false,
-      capabilities: ["series_search", "covers", "issue_list", "read_in_browser"],
-      note: "Searched through the site's public sitemaps (source=readcomicsonline only). Its pages are behind a Cloudflare bot check and full of pop-ups, so it's left out of source=all. The site offers no downloads."
-    },
-    {
-      id: "weebcentral",
-      name: "Weeb Central",
-      status: "active",
-      in_all: true,
-      capabilities: ["search", "covers", "chapter_list", "chapter_pages", "read_in_app"],
-      note: "Manga. Search, chapter lists and chapter pages from its own pages (cached; robots.txt asks a 10 s crawl delay, nothing is crawled ahead). Chapters open in the app's comic reader. No downloads."
-    },
-    {
-      id: "kitsu",
-      name: "Kitsu",
-      status: "active",
-      in_all: false,
-      capabilities: ["search", "metadata"],
-      note: "Manga titles, covers and synopses only — nothing to read or download. Not part of source=all."
-    },
-    {
       id: "comicsplus",
       name: "Comics Plus (LibraryPass)",
       status: "web_only",
@@ -1109,7 +740,7 @@ function manifest(base) {
     id: "audiohub-comics",
     name: "Audiohub Comics",
     version: CONFIG.VERSION,
-    description: "Comics from GetComics and the Internet Archive with download options, manga from Weeb Central read in the app's comic reader, plus your library's Comics Plus.",
+    description: "Comics from GetComics and the Internet Archive with download options and the app's comic reader, plus your library's Comics Plus.",
     icon: "https://archive.org/images/glogo.jpg",
     provides: ["source"],
     contentType: "comic",
@@ -1163,9 +794,7 @@ function manifest(base) {
             external_url: "external_url",
             issue_count: "issue_count",
             publication_date: "publication_date",
-            issues_url: "issues_url",
             reader: "reader",
-            reading_direction: "reading_direction",
             download_available: "download_available",
             download_links_url: "download_links_url"
           }
@@ -1245,41 +874,6 @@ export default {
         return json(await getComicsDownloads(pageUrl));
       }
 
-      if (path === "/api/readcomicsonline/search") {
-        if (!q) return error("Missing query. Use ?q=batman");
-        return json(await searchReadComicsOnline(q, limit));
-      }
-
-      if (path === "/api/readcomicsonline/series" || path === "/api/readcomicsonline/issues") {
-        const slug = clean(u.searchParams.get("slug"), 150);
-        if (!slug) return error("Missing series. Use ?slug=batman-2016");
-        return json(await rcoSeries(slug));
-      }
-
-      if (path === "/api/weebcentral/search") {
-        if (!q) return error("Missing query. Use ?q=one%20piece");
-        return json(await searchWeebCentral(q, limit));
-      }
-
-      if (path === "/api/weebcentral/series") {
-        return json(await wcSeries(clean(u.searchParams.get("id"), 40), clean(u.searchParams.get("title"), 150)));
-      }
-
-      if (path === "/api/weebcentral/chapter") {
-        return json(await wcChapter(clean(u.searchParams.get("id"), 40)));
-      }
-
-      if (path === "/api/kitsu/search") {
-        if (!q) return error("Missing query. Use ?q=one%20piece");
-        return json(await searchKitsu(q, limit));
-      }
-
-      if (path === "/api/kitsu/item") {
-        const id = clean(u.searchParams.get("id"), 40).replace(/^kitsu:/, "");
-        if (!id) return error("Missing Kitsu id");
-        return json(await kitsuItem(id));
-      }
-
       if (path === "/api/comicsplus/search") {
         return json(webOnly(path.split("/")[2], q));
       }
@@ -1289,7 +883,7 @@ export default {
 
         const source = u.searchParams.get("source") || "all";
 
-        const valid = ["all", "internet_archive", "getcomics", "weebcentral", "readcomicsonline", "kitsu", "comicsplus"];
+        const valid = ["all", "internet_archive", "getcomics", "comicsplus"];
 
         if (!valid.includes(source)) {
           return error("Unsupported source");
@@ -1307,18 +901,6 @@ export default {
 
         if (source === "all" || source === "internet_archive") {
           add("internet_archive", () => searchArchive(q, limit));
-        }
-
-        if (source === "all" || source === "weebcentral") {
-          add("weebcentral", () => searchWeebCentral(q, limit));
-        }
-
-        if (source === "readcomicsonline") {
-          add("readcomicsonline", () => searchReadComicsOnline(q, limit));
-        }
-
-        if (source === "kitsu") {
-          add("kitsu", () => searchKitsu(q, limit));
         }
 
         if (source === "comicsplus") {

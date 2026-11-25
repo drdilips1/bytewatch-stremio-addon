@@ -415,6 +415,17 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   Ebook + Listen; series as one book (sample first); fan-fiction EPUB from the book-page ebook lookup; Comics Plus
   full-screen vs official app (choice pending); GPLinks site; BatCave (no address); CBR reading; chapters offline;
   worker 2.7.1 to deploy; unbuilt on work since APK #45: b6d40da (Comics Plus → settings), 0a34ef3 (last link).
+- COMICS WRAP-UP 25 Nov (user: finish the pending comics items, then enough; keep only GetComics, Internet Archive,
+  Comics Plus). Worker 2.8.0 (handoff/workers/audiohub-comics.js): Weeb Central, ReadComicsOnline, Kitsu removed
+  with routes (404); sources getcomics / internet_archive / comicsplus; tested live. App (work): CBR via
+  node-unrar-js 2.0.2 (MIT; src/lib/cbr.js + cbr-wasm.js, wasm 208 KB lazy; tests/cbr.test.js with real RAR4/RAR5
+  fixtures from the rarfile project in tests/files) — open, keep (CBR), cover, Read in Download options, Add files
+  (Android/iOS pickers, Open with, folders); comic book page says Comic/Manga, no Listen / AskCard, badges Comic;
+  fan fiction: src/lib/fanfic.js (tests) ranks it last in findEbookInSources and loadEbook refuses+marks a
+  fan-fiction EPUB from a source; Comics Plus web screen reader mode (InkwellWebActivity "reader" extra: no Copy
+  link / Desktop view, black slim bar, fullscreen). Dropped with the removed sites: series-as-one-book, chapters
+  offline, GPLinks/BatCave/YSK. The generic chapter / issue-list code stays (addon features, unused by 2.8.0).
+  Not built yet. Comics DONE unless the user asks.
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
