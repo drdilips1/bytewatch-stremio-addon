@@ -431,6 +431,17 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   ReadComicsOnline + Kitsu: sources getcomics / internet_archive / weebcentral / comicsplus (tested live: Chainsaw
   Man 232 chapters, 30 pages). 2.8.0 superseded. Series-as-one-book and offline chapters are back on the noted
   list (sample first), not started.
+- 25 Nov: user — include them. BUILT (work): series as one book (lib/comics seriesBook / chapterIndex /
+  seriesPercent, tests; uid ser:…#comic, ebookFormat SERIES, ebookUrl = issues list; reader loads the list, opens
+  your chapter / the picked one / chapter 1 (oldest), page turns past a chapter's end flow into the next / back into
+  the previous, Chapters sheet in the reader bar, progress comicChapter + comicChapterTitle + series percent; old
+  pg: chapter books upgraded to their series and pg progress entries folded; result row Read / Continue · Chapter N
+  (useStoreKey) + Chapters; IssueList Read → series at that chapter; chapterBook / nearChapters removed). Offline
+  chapters: src/lib/chapters.js (Cache API 'audioyam-chapters', keptChapters store, keepChapter / keptChapter /
+  forgetChapter, series list kept for offline) — phone app only (image host sends no CORS; Capacitor's native fetch).
+  Browser-tested live (Solo Leveling: Read → Chapter 0, last page → Chapter 1, back → Chapter 0's last page, sheet
+  201 chapters, pick Chapter 5, Continue · Chapter 5, one Library entry). Offline download NOT testable here (web has
+  no native fetch) — check on the phone. Comics now has nothing open besides phone checks.
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
