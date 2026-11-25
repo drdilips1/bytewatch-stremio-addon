@@ -23,6 +23,7 @@ import { TranscriptView } from './transcript-view.jsx';
 import { StorySheet } from './story-sheet.jsx';
 import { wantRecap } from '../lib/resurrect.js';
 import { TalkButton } from './talk-companion.jsx';
+import { WhisperRecord, WhisperBanner, WhisperList } from './whisper.jsx';
 import { XraySheet } from './xray.jsx';
 import { SceneButton } from './scene-cmd.jsx';
 import { Rows as BookmarkRows } from './bookmarks.jsx';
@@ -476,6 +477,7 @@ export function FullPlayer() {
       )}
 
       <CatchUp book={s.book} />
+      <WhisperBanner book={s.book} time={player.globalTime()} />
 
       {aiOn() && <Signature book={s.book} openXray={() => setSheet('xray')} />}
 
@@ -589,6 +591,12 @@ export function FullPlayer() {
               </>
             )}
             {aiOn() && sheet === 'more' && <Companion book={s.book} />}
+            {!aiOn() && sheet === 'more' && s.book && s.book.source !== 'pod' && (
+              <div class="fp-companion">
+                <WhisperRecord book={s.book} />
+              </div>
+            )}
+            {sheet === 'more' && <WhisperList book={s.book} />}
             {sheet === 'more' && (
               <div class="fp-more">
                 <button onClick={() => (setSheet(null), openDrive())}>
@@ -918,6 +926,7 @@ function Companion({ book }) {
         {saving ? <span class="spinner small" /> : <Icon name="pin" size={19} />}
         Remember
       </button>
+      <WhisperRecord book={book} />
     </div>
   );
 }

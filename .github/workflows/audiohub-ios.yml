@@ -83,7 +83,7 @@ jobs:
           pb "Add :NSAppTransportSecurity:NSAllowsArbitraryLoadsInWebContent bool true"
           pb "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true"
           pb "Add :NSLocalNetworkUsageDescription string Audiohub connects to your home server (Audiobookshelf, qBittorrent)."
-          pb "Add :NSMicrophoneUsageDescription string Ask questions about your book by voice."
+          pb "Add :NSMicrophoneUsageDescription string Ask questions about your book by voice, and record your own voice notes in a book."
           pb "Add :NSSpeechRecognitionUsageDescription string Shows the words of your audiobook as it plays (Text), and lets you ask questions by voice."
           pb "Add :ITSAppUsesNonExemptEncryption bool false"
           # The app's folder shows in the Files app (On My iPhone → Audiohub): put audiobooks there.

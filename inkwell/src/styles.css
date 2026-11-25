@@ -13054,3 +13054,10 @@ html.ios .book-card:not(.broken) { box-shadow: none; }
 .talk-q { margin: 0 0 6px; font-style: italic; color: var(--muted); font-size: 13.5px; }
 .talk-a { margin: 0 0 6px; font-size: 15px; line-height: 1.45; max-height: 9em; overflow: auto; }
 .talk-card small { color: var(--muted); font-size: 12px; }
+
+/* Whisper Notes: recording, the "you left a note here" banner, and the list in More. */
+.comp-btn.rec { color: #e5484d; }
+.whisper-list { margin-top: 14px; padding: 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+.whisper-row { display: flex; align-items: center; gap: 6px; }
+.whisper-row .link-btn { flex: 1; text-align: left; font-size: 13.5px; }
+.whisper-auto { display: flex; gap: 8px; align-items: center; margin-top: 6px; font-size: 13px; color: var(--muted); }
