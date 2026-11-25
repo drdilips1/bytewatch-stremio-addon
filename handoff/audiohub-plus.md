@@ -180,3 +180,27 @@
 - 25 Nov fixes (from AudioYam's feedback list, applied here): iPhone import accepts .mp4 (picker .mpeg4Movie, Swift audio set, local.js AUDIO on iPhone only); import says why a copy failed (f.failed / added) and "Add audiobooks (files or folders)" / "Add ebooks (EPUB / PDF)" labels; iPhone downloads folder renamed "Audiohub downloads" (a picked "Downloads" folder is no longer skipped). Author page: bioOf(name, titles) — Wikipedia / Open Library only if they name one of your books, else Wikipedia search "name + title" (people.js mentionsBook, tested; cache v2). Source cards: smaller action buttons so the "…" stays on the row; "Show more" / "loose matches" as wide as the source boxes (checked in a 390 px mock-up). Home "Downloading for you": whole card tappable (ready → play, else progress toast). Ebook download progress: already in Audiohub+. Floating play button: not found in Audiohub+ (AudioYam only?). Battery, Find-books-from-link: need data / an example. Not built yet.
 - Audiobookshelf: Home tile / whole library stopped at 500 books (one request, limit 500) → allPages() fetches 500 a page until total (≤10,000); tests/absitems.test.js. Discover: Recent searches only while you're in the search box (filtered as you type), gone after you search / clear / leave (browser-tested). AudiobookBay: nothing to do here (Audiohub+ uses api.audiohubapp.com, works). Not built yet.
 - Home "Picked for you" banner: cover 112 → 136 px inside the same box (checked: box stays 214 px, long titles still 2 lines); Continue listening unchanged. Not built yet.
+
+## PLAN — ChatGPT idea list (25 Nov, planned, NOT started; source: handoff/audioyam.md "Ideas" 1–32)
+Rules: never touch playing books (new features are separate screens / cards, off or optional); AI ones use the
+user's own key and stay spoiler-safe (never past your place); no new server (Audiohub+ has its own Cloudflare sync
+worker if a shared feature is ever wanted). Build once here, then port to AudioYam (or the reverse) — not twice.
+Building blocks already here: askbook.js (Ask the book, "Remember this"), xray.jsx, scenefind.js, transcripts,
+catchup.jsx / resume.js, quoteshare.js, stats.js, taste.js, series.js, people.js, voiceask.js, highlights.js.
+- Phase 1 — quick wins (small, safe): #21 Book Resurrection (Home card after ~3 weeks away: recap + who's who + your
+  notes, one tap to resume) · #11 Listener Challenges (from stats) · #8 Audio Postcards (quote card + chapter +
+  your reaction).
+- Phase 2 — the core: #1 Story Companion (one tap from the player into spoiler-safe chat, voice too) · #18 Whisper
+  Notes (record a voice note at a moment, it plays back when you reach it again; on-device) · #4 Time Machine
+  (one search across everything heard: transcripts, notes, highlights, chapter titles → jump there) · #2 Character
+  Tracker + X-Ray redesign (samples in handoff/samples/ — need the user's OK first).
+- Phase 3 — discovery: #22 Book Universe (connections page per book) · #7 Audio DNA + #9 Mood Radio · #3/#14 What If /
+  Unheard Chapter (clearly labelled "not the book").
+- Phase 4 — bigger / later: #20 Silence Intelligence (touches playback → off by default, tested hard) · #10 Memory
+  Palace (needs an index) · #12 Living Book · sharing-by-link ideas #16 #17 #19 #26 #27 · study / language / kids /
+  car / sleep modes (#23–#25, #29, #30) · #31 book-to-podcast.
+- Not planned: #5 Dream Cast (actors' faces: rights), #13 location Sidekick (privacy; later maybe), #15 other
+  narrator voices (only TTS of your own EPUB, no voice cloning), listen parties / book club (need a shared server
+  — decide first), #28 / #32 (store-edition money ideas).
+- Questions for the user: which app first (suggest Audiohub+, then port); the X-Ray / Character Tracker samples OK?;
+  start with Phase 1 + Story Companion?
