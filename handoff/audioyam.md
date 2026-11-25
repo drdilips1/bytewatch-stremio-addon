@@ -391,3 +391,13 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
 - 25 Nov: user — GlobalComix is paid, remove it. Worker 2.7.1 (handoff/workers/audiohub-comics.js): no GlobalComix
   webSearch link, route (404), registry entry or web_search in /api/search. Manifest webSearch = Comics Plus only.
   App unchanged (webSearch is generic); the link disappears once 2.7.1 is deployed and the manifest refreshes.
+- 25 Nov: user's library Comics Plus (daytonmetrolibraryohfl.librarypass.com) redirects every page to
+  login.librarypass.com, /search is 404, robots.txt Disallow: / → it can't be searched. User: show it only when it
+  has a result, else nothing → app: webSearches().searches (url has {TITLE}); results show only searching links;
+  site homes (Comics Plus) → Settings → Addons → Audiohub Comics → Your details → "Open Comics Plus" (in-app
+  screen). Comics Plus link on the phone opened a worker "Route not found" page → their saved library link is
+  probably the worker/manifest address — asked the user to check Your details.
+- NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
+  worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
+  (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
+  generic ebook search, or filter fanfiction (Publisher: www.fanfiction.net / FicFab packages).
