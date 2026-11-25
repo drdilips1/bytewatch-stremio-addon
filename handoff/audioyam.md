@@ -267,3 +267,19 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
 30. Sleep story mode (gentle fade, auto-rewind to where you dozed via motion/no-interaction) — Plus.
 31. Book-to-podcast (your highlights + notes as a private mini audio episode via TTS) — Plus.
 32. Classroom pack (teacher shares a relay/quiz link; no accounts) — one-time / school licence.
+
+## Comics (25 Nov) — Audiohub Comics worker integration, on `work`, NOT released
+- Worker https://audiohub-comics.booksources.workers.dev (v2.4.0, user's own; code was pasted in chat, not in a repo).
+  Manifest maps only title/author/url/format/date/cover/description; the app reads unmapped fields from the row.
+- App: sourceaddons.js keeps `provider_name` (r.provider), `original_title` (as title), `download_links_url`
+  (r.downloadsUrl, absolute, only http(s), skipped when download_available === false). source-results.jsx: provider
+  label per result; results with downloadsUrl get "Download options" (in-app list via lib/comiclinks.js, tested:
+  reads {links:[{label,host,url,direct_file}]} and other shapes, drops non-web links) + "Release page"; direct files
+  → existing saveToDownloads, others → open in browser; loading / empty / error (Try again, Open the release page).
+  contentType 'comic' counts as reading (Ebooks group, book icon); the "Connect TorBox…" hint only shows when a
+  result has a magnet.
+- Tested against a local stand-in with the worker's exact shapes (Batman search, provider label, 3 links of which 1
+  Save, empty answer, HTTP 502) + an audiobook torrent source (still Play, no label). Real worker not reachable here.
+- Worker bug to tell the user: getComicsDownloads allowed-hosts list contains a markdown artefact
+  "[www.getcomics.org](https://www.getcomics.org)" instead of "www.getcomics.org".
+- Reader: EPUB / PDF only — CBZ / CBR / manga need an image page reader (see chat 25 Nov).
