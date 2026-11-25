@@ -374,3 +374,10 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   that timed out twice in 30 min gets 10 s and "isn't answering — skipped for now") or a remembered failure that
   isn't cleared once it answers again. To do: ask the user for the exact message / screenshot + Settings → Report a
   problem (recentSearches log), check slowSources reset on success, and offer "Try again" that ignores it.
+  User adds: Audiohub+ AudiobookBay works — it uses its own server: built-in addon
+  inkwell/src/sources/builtin/audiobookbay.json → https://api.audiohubapp.com/abb/api/search (private, POST-style
+  /api/search, 30 s timeout). AudioYam's public pack uses https://sources.booksources.workers.dev/abb/search?q=
+  (Cloudflare worker, 45 s). So the difference is the server: likely AudiobookBay intermittently refusing /
+  slowing the Cloudflare worker (or its domain list being out of date) while the + server gets through. To do
+  (when told): compare the two servers' ABB code (domains / mirrors, headers, retries), port what makes the +
+  one reliable into the public worker — without anything private (no + server address in AudioYam).
