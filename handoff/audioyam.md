@@ -397,6 +397,9 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   site homes (Comics Plus) → Settings → Addons → Audiohub Comics → Your details → "Open Comics Plus" (in-app
   screen). Comics Plus link on the phone opened a worker "Route not found" page → their saved library link is
   probably the worker/manifest address — asked the user to check Your details.
+  Confirmed: the saved value was "https://audiohub-comics…/manifest.jsonhttps://daytonmetrolibraryohfl.librarypass.com/"
+  (pasted onto the manifest link). Fix 0a34ef3: webSearches uses the last http(s) link in a field (test). The
+  library link itself opens the Dayton Metro LibraryPass sign-in fine (checked in an emulated phone).
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
