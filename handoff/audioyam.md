@@ -283,3 +283,6 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
 - Worker bug to tell the user: getComicsDownloads allowed-hosts list contains a markdown artefact
   "[www.getcomics.org](https://www.getcomics.org)" instead of "www.getcomics.org".
 - Reader: EPUB / PDF only — CBZ / CBR / manga need an image page reader (see chat 25 Nov).
+- Corrected worker 2.4.1 given to the user (copy in handoff/workers/audiohub-comics.js): www.getcomics.org host fix
+  (CONFIG.GETCOMICS_HOSTS), one CONFIG.VERSION, manifest maps provider_name / original_title / download_*. Tested
+  locally with a fake fetch (www + plain host accepted, other hosts refused, manifest 2.4.1).
