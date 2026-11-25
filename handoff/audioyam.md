@@ -405,6 +405,16 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   (parked/lander shell, renders empty in an emulated phone) → not the Hindi comics site; asked the user for the real
   address. BatCave — no address yet. Comics Plus in app reader: impossible (DRM / licensed reader); offered
   full-screen web screen or the official app — waiting for the user's choice.
+- NOTED 25 Nov (just note): the Hindi comics site (old comicslovers.com, now parked; real address not given yet)
+  sends download links through GPLinks. App won't get past GPLinks itself. User could pay GPLinks premium (~₹5/day):
+  then — sign in once in the app's web screen (InkwellWebActivity keeps cookies), Download options open links
+  there, premium passes straight to Drive / Mega, finished Drive downloads caught and put on Comics (like
+  importDownload); Mega usually needs the Mega app (decrypts in page) → hand over, then Add files. Needs the
+  site's real address + a sample comic page first.
+- USER 25 Nov: "Leave comics for now." Open comics items (all noted, none started): comic book page says
+  Ebook + Listen; series as one book (sample first); fan-fiction EPUB from the book-page ebook lookup; Comics Plus
+  full-screen vs official app (choice pending); GPLinks site; BatCave (no address); CBR reading; chapters offline;
+  worker 2.7.1 to deploy; unbuilt on work since APK #45: b6d40da (Comics Plus → settings), 0a34ef3 (last link).
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
