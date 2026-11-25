@@ -368,3 +368,9 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   says "Ebook" (under the title and as the chip) and offers Listen (read aloud) — wrong for pictures. To do:
   label it "Comic" / "Manga" (chapter), hide Listen / read-aloud there (and probably the text-only AI chips
   "5 key ideas" etc., or point them at the series), keep Continue. isComicBook() in lib/comics.js tells them apart.
+- NOTED 25 Nov (NOT fixed): app says AudiobookBay is down while its website works. Checked from here at the same
+  time: the addon (sources.booksources.workers.dev/abb/search?q=Project Hail Mary) answered HTTP 200 in 0.2 s with
+  results — so the source is up. Suspect the app's "slow source" memory in sourceaddons.js (slowSources: a source
+  that timed out twice in 30 min gets 10 s and "isn't answering — skipped for now") or a remembered failure that
+  isn't cleared once it answers again. To do: ask the user for the exact message / screenshot + Settings → Report a
+  problem (recentSearches log), check slowSources reset on success, and offer "Try again" that ignores it.
