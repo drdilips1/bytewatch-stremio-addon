@@ -363,3 +363,8 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   uid pg:…#comic, summarize keeps seriesUrl + direction, reader Prev/Next chapter, "Chapters" button, comic titles
   keep brackets. Browser test: headless desktop UA got ERR_BLOCKED_BY_ORB on images; Pixel 7 emulation loads them
   (1200 px) — confirm on the phone. Envs: AudioYam has weebcentral + image hosts.
+- NOTED 25 Nov (test APK #45, NOT fixed — user said "just note"): Weeb Central chapters work on the phone
+  (Solo Leveling · Chapter 1 read, cover + authors show, Continue · 5%). But the book page of a comic / chapter
+  says "Ebook" (under the title and as the chip) and offers Listen (read aloud) — wrong for pictures. To do:
+  label it "Comic" / "Manga" (chapter), hide Listen / read-aloud there (and probably the text-only AI chips
+  "5 key ideas" etc., or point them at the series), keep Continue. isComicBook() in lib/comics.js tells them apart.
