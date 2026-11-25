@@ -20,7 +20,8 @@ concurrency:
 jobs:
   build:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[narrato-ios]')
-    runs-on: macos-15
+    # macos-15 sat unclaimed twice (25 Nov 2026); macos-latest takes whichever current Mac image has room.
+    runs-on: macos-latest
     defaults:
       run:
         working-directory: paper2audio/ios
