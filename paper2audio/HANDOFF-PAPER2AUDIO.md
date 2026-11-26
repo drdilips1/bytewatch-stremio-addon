@@ -30,9 +30,14 @@ word errors 6.1% → 3.9%, repeated/extra words 60 → 15, problem lines 74 → 
   20 readers' recordings were cut mid-word at 29.9 s. Only samples longer than the limit: in 6.9.14 it also
   cut short home recordings, and the user's own copied voices skipped short first sentences ("I heard it.");
   fixed after 6.9.14 (cache key `c9|`). Split reading only for repeats within one sentence. Imported clips start at a breath (`bestWindow`).
-- Crispness: across the 20 readers the copies are already as bright as the real voices (within ~0.5 dB in
-  4-8 kHz; `voice-bench/ltas.py`); a fixed treble lift overshot by ~3 dB and was dropped. Only some voices
-  are dull (Emma, Lily, Isla, Grace: 2-10 dB short) – a per-voice lift is the next step if wanted.
+- Crispness: per-voice treble match (`Brightness.kt` / `Brightness.swift`): each reader's recording vs the
+  copy's average 4.5-8 kHz level; lift by the difference, max 6 dB (11 of 20 readers lifted, e.g. Lily 6,
+  Oscar 5.2, Emma 4.9; the rest untouched). NISQA-TTS naturalness 3.715 → 3.742 over 20 readers, every lifted
+  voice equal or better; DNSMOS unchanged (no added hiss). Cache key `c10|`.
+- Tested and kept as they are (Nov 2026, DNSMOS + NISQA + ASR in `voice-bench`): 5 decode steps (8: +0.02
+  naturalness for 2.6× the work), frames_after_eos 2 (4: worse), narration temperature 0.6 (0.65: worse),
+  hiss gate 30% (60%/off: same), 160-char pieces (whole long sentences: 4× the errors). Copies score as
+  clean as the real recordings on DNSMOS.
 - Exclamations and questions read at temperature 0.7 (narration stays 0.6): more pitch movement, as accurate.
 - Tried and dropped: an audio-only repeat detector (not reliable), reading "Stop!" apart from "he cried"
   (more errors), a fixed treble lift (see above). Numbers already read correctly (no change). Cache key `c7|` so books remake that audio.

@@ -82,6 +82,36 @@ object Denoise {
         return out
     }
 
+    /** High shelf (RBJ biquad): everything above [cutoff] raised by [gainDb] (see [Brightness]). Never clips. */
+    internal fun highShelf(x: FloatArray, rate: Int, cutoff: Double, gainDb: Double): FloatArray {
+        val a = Math.pow(10.0, gainDb / 40)
+        val w = 2 * PI * cutoff / rate
+        val c = cos(w)
+        val s = 2 * kotlin.math.sqrt(a) * sin(w) / (2 * 0.7071)
+        val a0 = (a + 1) - (a - 1) * c + s
+        val b0 = a * ((a + 1) + (a - 1) * c + s) / a0
+        val b1 = -2 * a * ((a - 1) + (a + 1) * c) / a0
+        val b2 = a * ((a + 1) + (a - 1) * c - s) / a0
+        val a1 = 2 * ((a - 1) - (a + 1) * c) / a0
+        val a2 = ((a + 1) - (a - 1) * c - s) / a0
+        val out = FloatArray(x.size)
+        var x1 = 0.0
+        var x2 = 0.0
+        var y1 = 0.0
+        var y2 = 0.0
+        var peak = 0f
+        for (i in x.indices) {
+            val x0 = x[i].toDouble()
+            val y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+            out[i] = y0.toFloat()
+            peak = maxOf(peak, kotlin.math.abs(out[i]))
+            x2 = x1; x1 = x0
+            y2 = y1; y1 = y0
+        }
+        if (peak > 0.99f) for (i in out.indices) out[i] *= 0.99f / peak
+        return out
+    }
+
     /** Windowed-sinc low-pass (31 taps), so downsampling doesn't fold high frequencies into speech. */
     internal fun lowPass(x: FloatArray, rate: Int, cutoff: Double, taps: Int = 31): FloatArray {
         val mid = (taps - 1) / 2.0

@@ -153,7 +153,8 @@ final class NeuralEngine {
                     samples += s
                 }
             }
-            // Hiss removed from the whole line.
+            // Treble matched to the real voice where the copy came out duller, then hiss removed from the whole line.
+            if let ref = AudioChecks.reference(name) { samples = Brightness.match(id: name, ref: ref, samples, rate: rate) }
             samples = AudioChecks.dehiss(samples, rate: rate,
                                          lowPassOn: VoiceCatalog.reader(name)?.denoised ?? false)
         }

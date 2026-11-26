@@ -20,3 +20,8 @@ Run (4 cores: about 25 minutes per recipe for 20 readers × 18 lines):
     python3 ltas.py new                                  # brightness of the copies vs the real recordings
 
 Results for 6.9.14 (Nov 2026): word errors 6.1% → 3.9%, extra words 60 → 15 (see HANDOFF-PAPER2AUDIO.md).
+
+Quality scores: `python3 mos.py REAL dir…` (DNSMOS: Microsoft's speech-quality model, from the speechmos
+wheel's dnsmos_models into `$P2A_MODELS/dnsmos/pkx/speechmos/`) and `python3 nisqa.py REAL dir…` (NISQA-TTS
+naturalness; weights/nisqa_tts.tar + nisqa/NISQA_lib.py from github.com/gabrielmittag/NISQA into
+`$P2A_MODELS/nisqa`, loaded with torch weights_only). `post.py` makes post-processing variants of RAW=1 output.

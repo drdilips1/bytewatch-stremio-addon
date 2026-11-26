@@ -128,6 +128,7 @@ object MyVoices {
     class Ref(val samples: FloatArray, val sampleRate: Int)
 
     private lateinit var app: Context
+    val context: Context get() = app
     private val cache = HashMap<String, Ref>()
 
     fun init(context: Context) {
@@ -417,6 +418,7 @@ object MyVoices {
 
     fun delete(id: String) {
         if (::app.isInitialized) pacePrefs.edit().remove("pace:$id").apply()
+        if (::app.isInitialized) Brightness.forget(app, id)
         synchronized(cache) { cache.remove(id) }
         File(dir, "$id.wav").delete()
         save(own().filter { it.id != id })
