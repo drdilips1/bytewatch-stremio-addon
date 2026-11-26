@@ -496,6 +496,11 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   now / on hold / plan to read / completed / favourites / collections / smart filters / stats), chapter preloading,
   auto-download on Wi-Fi, volume keys, gestures, one-hand mode, AniList/MAL sync, mood shelves, ambient themes.
   Gap analysis + proposed order given in chat; nothing built — waiting for the user's pick / "go" (samples first).
+  Sample sent 26 Nov: handoff/samples/audioyam-comic-reader-next-sample.png — reader themes (OLED / warm paper /
+  sepia / grayscale) + page turn + volume keys + orientation lock; "This page" sheet (Translate / Explain / Who's
+  who / Save panel, spoiler-safe, your AI key); "Previously in…" recap with Continue; Comics shelf statuses
+  (Reading / Plan to read / On hold / Completed / Favourites) + panel memories; tablet double-page spread with
+  next chapter preloaded. Waiting for feedback / "go".
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from

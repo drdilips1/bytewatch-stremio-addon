@@ -1,0 +1,173 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#121214;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#eee;padding:26px 22px 30px}
+h1{font-size:20px;font-weight:700;margin:0 0 4px;color:#f3efe8}
+.sub{font-size:13px;color:#9a948c;margin-bottom:18px}
+.row{display:flex;gap:18px;align-items:flex-start}
+.cap{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a49d94;text-align:center;margin-bottom:8px;height:28px;line-height:14px}
+.phone{width:296px;height:620px;border-radius:30px;overflow:hidden;position:relative;background:#000;box-shadow:0 10px 30px #0008}
+/* a drawn manga page */
+.pg{position:absolute;display:grid;gap:6px;padding:8px;background:var(--paper,#fff);grid-template-columns:1fr 1fr;grid-template-rows:1.1fr .9fr 1.2fr}
+.pn{border:3px solid var(--ink,#111);background:linear-gradient(160deg,var(--a,#ddd),var(--b,#aaa));position:relative}
+.pn.w{grid-column:1/3}
+.bub{position:absolute;background:var(--paper,#fff);border:2px solid var(--ink,#111);border-radius:50%;font:700 9px/1.1 Georgia,serif;color:var(--ink,#111);padding:7px 9px;text-align:center}
+.top{position:absolute;top:0;left:0;right:0;padding:30px 14px 10px;display:flex;align-items:center;gap:10px;background:linear-gradient(#000d,#0000);font-size:13px}
+.top b{display:block;font-size:13px}.top span{font-size:11px;color:#bbb}
+.ico{width:28px;height:28px;border-radius:50%;background:#ffffff1c;display:grid;place-items:center;font-size:13px}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#1c1c1f;border-radius:20px 20px 0 0;padding:16px 16px 20px}
+.sheet h3{font-size:15px;margin-bottom:10px}
+.lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#999;margin:10px 0 6px}
+.sw{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sw div{border-radius:12px;height:58px;display:flex;align-items:flex-end;justify-content:center;font-size:10px;padding-bottom:5px;border:2px solid transparent}
+.sw .on{border-color:#e7ad55}
+.seg{display:flex;background:#2a2a2e;border-radius:11px;padding:3px;gap:3px}
+.seg i{flex:1;font-style:normal;text-align:center;font-size:11.5px;padding:7px 2px;border-radius:8px;color:#ddd}
+.seg i.on{background:#e7ad55;color:#111;font-weight:700}
+.chipr{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:11.5px;padding:6px 10px;border-radius:14px;background:#2a2a2e;color:#eee}
+.chip.on{background:#e7ad55;color:#111;font-weight:700}
+.ans{background:#26262b;border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.45;color:#e8e3da;margin-top:8px}
+.ans b{color:#f1c27d}
+.muted{color:#999;font-size:10.5px;margin-top:6px}
+.btn{display:block;text-align:center;border-radius:12px;padding:9px;font-size:12.5px;font-weight:700;background:#e7ad55;color:#111;margin-top:10px}
+.foot{position:absolute;left:0;right:0;bottom:0;padding:10px 14px 18px;background:linear-gradient(#0000,#000e);font-size:11px;color:#bbb}
+.bar{height:4px;border-radius:2px;background:#444;margin:6px 0}.bar i{display:block;height:100%;border-radius:2px;background:#e7ad55}
+/* light screens (library) */
+.light{background:#f6efe4;color:#2b211a}
+.light .lt{font:700 22px/1.1 Georgia,serif;padding:34px 16px 4px}
+.light .ls{font-size:11.5px;color:#8a7b6c;padding:0 16px 10px}
+.tabs{display:flex;gap:6px;padding:0 12px 10px;flex-wrap:wrap}
+.tabs i{font-style:normal;font-size:11px;padding:5px 9px;border-radius:12px;background:#ece2d3;color:#5c4b3c}
+.tabs i.on{background:#2b211a;color:#f6efe4}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 12px}
+.cv{aspect-ratio:2/3;border-radius:8px;position:relative;overflow:hidden;box-shadow:0 3px 8px #0003}
+.cv small{position:absolute;left:5px;top:5px;font-size:8.5px;font-weight:700;background:#000a;color:#fff;padding:2px 5px;border-radius:5px}
+.cv u{position:absolute;left:0;right:0;bottom:0;height:4px;background:#0004;text-decoration:none}.cv u i{display:block;height:100%;background:#e7ad55}
+.ct{font-size:10.5px;font-weight:700;margin-top:4px;line-height:1.2}.cs{font-size:9.5px;color:#8a7b6c}
+.mem{margin:12px 12px 0;padding:10px;border-radius:12px;background:#fffaf2;box-shadow:0 2px 8px #0001}
+.mem h4{font-size:12px;margin-bottom:8px}
+.memrow{display:flex;gap:8px}
+.memrow div{flex:1;height:64px;border-radius:8px;position:relative;overflow:hidden}
+.memrow div span{position:absolute;left:4px;bottom:3px;font-size:8.5px;color:#fff;text-shadow:0 1px 2px #000}
+/* tablet */
+.tablet{width:1246px;height:430px;border-radius:26px;overflow:hidden;position:relative;background:#0b0b0c;margin-top:22px;box-shadow:0 10px 30px #0008}
+.spread{position:absolute;top:44px;bottom:50px;left:50%;transform:translateX(-50%);width:640px;display:flex;gap:2px;transition:none}
+.spread .pg{position:relative;flex:1;height:100%}
+.turn{position:absolute;top:44px;bottom:50px;left:calc(50% + 2px);width:318px;background:linear-gradient(90deg,#0000,#0006);transform-origin:left center;transform:perspective(900px) rotateY(-28deg);opacity:.0}
+.note{position:absolute;right:22px;bottom:16px;font-size:11px;color:#a49d94}
+</style></head><body>
+<h1>AudioYam comic reader — next round (sample)</h1>
+<div class="sub">1 · Reader polish &nbsp;&nbsp; 2 · AI on the page (your own Gemini / Claude key) &nbsp;&nbsp; 3 · Library statuses &amp; panel memories</div>
+
+<div class="row">
+  <!-- 1 THEMES -->
+  <div><div class="cap">Reader themes<br>(this comic)</div>
+  <div class="phone" style="background:#efe4cf">
+    <div class="pg" style="--paper:#f3e8d2;--ink:#3a2a1c;inset:62px 12px 230px">
+      <div class="pn w" style="--a:#e6d5b6;--b:#c9b08a"><span class="bub" style="left:10px;top:8px">THE SEA…<br>IS CALLING.</span></div>
+      <div class="pn" style="--a:#dccaa8;--b:#b89c74"></div>
+      <div class="pn" style="--a:#e9dbbf;--b:#cdb48e"><span class="bub" style="right:6px;bottom:6px">GO!</span></div>
+      <div class="pn w" style="--a:#d8c39e;--b:#b2946b"></div>
+    </div>
+    <div class="top" style="background:#3a2a1c;padding-bottom:8px"><span class="ico">‹</span><div><b>One Piece</b><span>Chapter 1075 · Page 4 of 17</span></div></div>
+    <div class="sheet">
+      <h3>Reading settings · this comic</h3>
+      <div class="lbl">Theme</div>
+      <div class="sw">
+        <div style="background:#000;color:#ddd">OLED black</div>
+        <div class="on" style="background:#efe2c8;color:#4a3523">Warm paper</div>
+        <div style="background:#d8c3a0;color:#4a3523">Sepia</div>
+        <div style="background:linear-gradient(135deg,#ddd,#777);color:#111">Grayscale</div>
+      </div>
+      <div class="lbl">Page turn</div>
+      <div class="seg"><i class="on">Slide</i><i>Curl</i><i>Fade</i><i>None</i></div>
+      <div class="lbl">Buttons</div>
+      <div class="seg"><i class="on">Volume keys turn pages</i><i>Off</i></div>
+      <div class="lbl">Screen</div>
+      <div class="seg"><i>Auto-rotate</i><i class="on">Lock portrait</i><i>Lock landscape</i></div>
+    </div>
+  </div></div>
+
+  <!-- 2 ASK ABOUT THIS PAGE -->
+  <div><div class="cap">Ask about this page<br>(long-press a page)</div>
+  <div class="phone">
+    <div class="pg" style="inset:62px 12px 300px">
+      <div class="pn w" style="--a:#cfd6e3;--b:#8d99ad"><span class="bub" style="left:12px;top:10px">お前は<br>誰だ？</span></div>
+      <div class="pn" style="--a:#d9d9d9;--b:#9a9a9a"></div>
+      <div class="pn" style="--a:#e2e2e2;--b:#a8a8a8"><span class="bub" style="right:8px;top:8px">…ルフィ</span></div>
+      <div class="pn w" style="--a:#cfcfcf;--b:#8e8e8e"></div>
+    </div>
+    <div class="sheet">
+      <h3>This page</h3>
+      <div class="chipr"><span class="chip on">Translate</span><span class="chip">Explain</span><span class="chip">Who's who?</span><span class="chip">Save panel</span></div>
+      <div class="ans"><b>Panel 1</b> — “Who are you?”<br><b>Panel 3</b> — “…Luffy.”<br><span style="color:#aaa">Zoro doesn't recognise him yet — they met two chapters ago, in the rain.</span></div>
+      <div class="muted">Uses only the pages you've read — no spoilers. Your Gemini key, from your phone.</div>
+      <span class="btn">Ask something else…</span>
+    </div>
+  </div></div>
+
+  <!-- 3 RECAP -->
+  <div><div class="cap">Recap so far<br>(opening a series after a break)</div>
+  <div class="phone" style="background:#141416">
+    <div style="position:absolute;inset:0;background:linear-gradient(160deg,#5b2a7a,#1b1b2e 55%,#0e0e10)"></div>
+    <div style="position:absolute;left:22px;top:60px;width:96px;aspect-ratio:2/3;border-radius:10px;background:linear-gradient(160deg,#c9a0ff,#3c1e6b);box-shadow:0 8px 20px #0008"></div>
+    <div style="position:absolute;left:132px;top:66px;right:16px">
+      <b style="font-size:16px">Solo Leveling</b>
+      <div style="font-size:11px;color:#c9c0e0;margin-top:3px">Manhwa · Chapter 43 of 201</div>
+      <div class="bar" style="margin-top:10px"><i style="width:21%"></i></div>
+      <div style="font-size:10px;color:#aaa">Last read 5 weeks ago</div>
+    </div>
+    <div class="sheet" style="background:#1d1b24">
+      <h3>Previously, in Solo Leveling</h3>
+      <div class="ans" style="background:#272432">Jinwoo came back from the double dungeon with the System only he can see. He cleared his daily quests, reached level 20, and used the Instant Dungeon key to train alone — but the Hunters' Association is starting to notice how fast an E-rank is growing.</div>
+      <div class="muted">Up to the end of Chapter 42 — nothing from later chapters.</div>
+      <span class="btn">Continue · Chapter 43</span>
+      <div style="display:flex;gap:6px;margin-top:8px"><span class="chip">Who's who so far</span><span class="chip">Shorter</span></div>
+    </div>
+  </div></div>
+
+  <!-- 4 LIBRARY -->
+  <div><div class="cap">Comics shelf with statuses<br>&amp; panel memories</div>
+  <div class="phone light">
+    <div class="lt">Comics</div>
+    <div class="ls">12 series · 3 reading now</div>
+    <div class="tabs"><i class="on">Reading</i><i>Plan to read</i><i>On hold</i><i>Completed</i><i>♡ Favourites</i></div>
+    <div class="grid">
+      <div><div class="cv" style="background:linear-gradient(160deg,#ff9a57,#7a1f1f)"><small>MANGA</small><u><i style="width:72%"></i></u></div><div class="ct">One Piece</div><div class="cs">Ch 1075 · 72%</div></div>
+      <div><div class="cv" style="background:linear-gradient(160deg,#c9a0ff,#3c1e6b)"><small>MANHWA</small><u><i style="width:21%"></i></u></div><div class="ct">Solo Leveling</div><div class="cs">Ch 43 · 21%</div></div>
+      <div><div class="cv" style="background:linear-gradient(160deg,#5aa3ff,#0d2a52)"><small>CBR</small><u><i style="width:40%"></i></u></div><div class="ct">Absolute Batman</div><div class="cs">#25 · page 9</div></div>
+    </div>
+    <div class="mem">
+      <h4>Panel memories</h4>
+      <div class="memrow">
+        <div style="background:linear-gradient(160deg,#ffb36b,#8a3b10)"><span>“I'll be King of the Pirates!”</span></div>
+        <div style="background:linear-gradient(160deg,#9bb7ff,#1d2c6b)"><span>Arise.</span></div>
+        <div style="background:linear-gradient(160deg,#9f9f9f,#2c2c2c)"><span>Gotham at dawn</span></div>
+      </div>
+    </div>
+    <div class="mem" style="padding:8px 10px"><div style="font-size:11px;color:#6b5a49">Long-press a panel while reading → <b>Save panel</b>. Kept with the chapter, opens at that page.</div></div>
+  </div></div>
+</div>
+
+<!-- 5 TABLET SPREAD -->
+<div class="cap" style="margin-top:22px;text-align:left">Double-page spread — tablet or phone sideways · next chapter already loaded · slide page turn</div>
+<div class="tablet">
+  <div class="top" style="padding:12px 18px"><span class="ico">‹</span><div><b>One Piece</b><span>Chapter 1075 · Pages 6–7 of 17 · right to left</span></div></div>
+  <div class="spread">
+    <div class="pg" style="grid-template-rows:1fr 1fr 1fr">
+      <div class="pn w" style="--a:#e0e0e0;--b:#9a9a9a"></div>
+      <div class="pn" style="--a:#d6d6d6;--b:#8f8f8f"><span class="bub" style="left:6px;top:6px">待て！</span></div>
+      <div class="pn" style="--a:#e5e5e5;--b:#a5a5a5"></div>
+      <div class="pn w" style="--a:#d2d2d2;--b:#8a8a8a"></div>
+    </div>
+    <div class="pg" style="grid-template-rows:1.4fr 1fr">
+      <div class="pn w" style="--a:#dcdcdc;--b:#929292"><span class="bub" style="right:10px;top:10px">ゴムゴムの…</span></div>
+      <div class="pn" style="--a:#e3e3e3;--b:#a0a0a0"></div>
+      <div class="pn" style="--a:#d0d0d0;--b:#888"></div>
+    </div>
+  </div>
+  <div class="foot" style="display:flex;align-items:center;gap:14px;padding:10px 22px 14px"><span>‹ Previous chapter</span><div class="bar" style="flex:1"><i style="width:41%"></i></div><span style="color:#e7ad55">Chapter 1076 ready ›</span></div>
+</div>
+</body></html>
