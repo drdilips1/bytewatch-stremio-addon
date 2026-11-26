@@ -8,7 +8,7 @@ import { logError } from '../lib/report.js';
 import { requestText, requestFull, cleanUrl } from '../lib/http.js';
 import { readTorrent } from '../lib/torrentfile.js';
 import * as absSrc from './audiobookshelf.js';
-import { words, matches, mainTitle, surname } from '../lib/match.js';
+import { words, mainTitle, surname, sameServerBook } from '../lib/match.js';
 import { infoHash, magnetFor, torboxLibrary, realdebridLibrary, tbConnected, rdConnected, hasAudio, forget as forgetCloud } from './debrid.js';
 
 export const qbit = persisted('qbit', { url: '', lanUrl: '', username: '', password: '', apiKey: '', savePath: '', ebookPath: '', category: 'audiobooks', auto: false });
@@ -223,22 +223,6 @@ async function absBooks() {
 }
 const absDown = () => Object.assign(new Error("Couldn't reach your Audiobookshelf to check for duplicates"), { absDown: true });
 
-// This server book is the same book as the torrent: every word of its title in the
-// torrent's name, plus the author's first or last name unless the title is long.
-function sameAs(a, text, hay) {
-  if (a.kind === 'text') return false;
-  // The server's title, or one part of it around a dash ("Right Thing, Right Now - Justice in an
-  // Unjust World": a subtitle the book asked for doesn't have).
-  const whole = mainTitle(a.title);
-  const t = [whole, ...whole.split(/\s+[-–—|]\s+/)].find((p) => words(p).length >= (p === whole ? 1 : 2) && matches(p, text));
-  if (!t) return false;
-  const names = String(a.author || '').split(/,|&|\band\b/).flatMap((n) => {
-    const w = words(n).filter((x) => x.length >= 3);
-    return w.length ? [w[0], w[w.length - 1]] : [];
-  });
-  return names.some((n) => hay.has(n)) || (!names.length && words(t).length >= 2) || words(t).length >= 3;
-}
-
 /**
  * The Audiobookshelf book that is this same book, if your server already has it
  * (so it isn't downloaded twice). Checks your newest 500 books, then asks the server
@@ -248,7 +232,7 @@ function sameAs(a, text, hay) {
 export async function onServer(book) {
   const text = `${book.title || ''} ${book.author || ''} ${book.rawName || ''}`;
   const hay = new Set(words(text));
-  const hit = (await absBooks()).find((a) => sameAs(a, text, hay));
+  const hit = (await absBooks()).find((a) => sameServerBook(a, text, hay, book.author));
   if (hit) return hit;
   if (!absSrc.connected()) return null;
   // Torrent names often read "Author - Title (2021) [MP3]": search the whole title, then each part.
@@ -259,7 +243,7 @@ export async function onServer(book) {
     const found = await absSrc.search(term, { strict: true }).catch((e) => {
       throw e.status ? e : absDown();
     });
-    const hit = found.find((a) => sameAs(a, text, hay));
+    const hit = found.find((a) => sameServerBook(a, text, hay, book.author));
     if (hit) return hit;
   }
   return null;

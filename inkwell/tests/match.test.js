@@ -1,6 +1,6 @@
 // Title matching: phone copies, search titles, copycats, "another book".
 import { describe, it, expect } from 'vitest';
-import { words, mainTitle, searchTitle, surname, cleanAuthor, matches, otherBook, samePhoneBook, sinkCopycats, sameBook } from '../src/lib/match.js';
+import { sameServerBook, words, mainTitle, searchTitle, surname, cleanAuthor, matches, otherBook, samePhoneBook, sinkCopycats, sameBook } from '../src/lib/match.js';
 
 describe('words / mainTitle', () => {
   it('ignores case, accents, punctuation and small words', () => {
@@ -130,5 +130,18 @@ describe('sameBook (a copy you have is this book)', () => {
     expect(sameBook({ title: 'Dune Messiah' }, 'Dune', 'Frank Herbert')).toBe(false);
     expect(sameBook({ title: 'Dune', author: 'Someone Else' }, 'Dune', 'Frank Herbert')).toBe(false);
     expect(sameBook({ title: 'Atomic Habits' }, '', '')).toBe(false);
+  });
+});
+
+describe('already on your Audiobookshelf (sameServerBook)', () => {
+  const asked = (title, author, raw = '') => `${title} ${author} ${raw}`;
+  it('another book by the same author is not "already there", even when the server title has the author after a dash', () => {
+    expect(sameServerBook({ title: 'Vesper Flights - Helen Macdonald', author: 'Helen Macdonald' }, asked('H is for Hawk', 'Helen Macdonald'), undefined, 'Helen Macdonald')).toBe(false);
+    expect(sameServerBook({ title: 'Helen Macdonald - Vesper Flights', author: '' }, asked('H is for Hawk', 'Helen Macdonald'), undefined, 'Helen Macdonald')).toBe(false);
+  });
+  it('the same book still counts: plain, with the author after a dash, or with a subtitle', () => {
+    expect(sameServerBook({ title: 'H is for Hawk - Helen Macdonald', author: 'Helen Macdonald' }, asked('H is for Hawk', 'Helen Macdonald'), undefined, 'Helen Macdonald')).toBe(true);
+    expect(sameServerBook({ title: 'H Is for Hawk', author: 'Helen Macdonald' }, asked('H is for Hawk', 'Helen Macdonald'))).toBe(true);
+    expect(sameServerBook({ title: 'Right Thing, Right Now - Justice in an Unjust World', author: 'Ryan Holiday' }, asked('Right Thing, Right Now', 'Ryan Holiday'))).toBe(true);
   });
 });

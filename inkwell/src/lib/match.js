@@ -146,3 +146,25 @@ export function sinkCopycats(list) {
   const copy = (b) => !(b.rating > 0) && rated.some((r) => r.t.length > 3 && ` ${normTitle(b.title)} `.includes(` ${r.t} `) && !String(b.author || '').toLowerCase().includes(r.a.split(',')[0].trim()));
   return [...list.filter((b) => !copy(b)), ...list.filter(copy)];
 }
+
+/**
+ * This Audiobookshelf book is the same book as the one asked for (or the torrent): every word of
+ * its title in the asked-for title / torrent name, plus the author's first or last name unless the
+ * title is long. A server title is also tried one part at a time around a dash ("Right Thing, Right
+ * Now - Justice in an Unjust World": a subtitle the book asked for doesn't have) — but never a part
+ * that is only the author's name: "Vesper Flights - Helen Macdonald" is not "H is for Hawk" by
+ * Helen Macdonald.
+ */
+export function sameServerBook(a, text, hay = new Set(words(text)), askedAuthor = '') {
+  if (a.kind === 'text') return false;
+  const whole = mainTitle(a.title);
+  const people = new Set(words(`${a.author || ''} ${askedAuthor || ''}`));
+  const justNames = (p) => words(p).every((w) => people.has(w));
+  const t = [whole, ...whole.split(/\s+[-–—|]\s+/)].find((p) => words(p).length >= (p === whole ? 1 : 2) && !(p !== whole && justNames(p)) && matches(p, text));
+  if (!t) return false;
+  const names = String(a.author || '').split(/,|&|\band\b/).flatMap((n) => {
+    const w = words(n).filter((x) => x.length >= 3);
+    return w.length ? [w[0], w[w.length - 1]] : [];
+  });
+  return names.some((n) => hay.has(n)) || (!names.length && words(t).length >= 2) || words(t).length >= 3;
+}
