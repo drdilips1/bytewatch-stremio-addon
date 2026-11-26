@@ -10,6 +10,7 @@
 // Addon links to share: https://api.audiohubapp.com/addons/<name>.json (listed at /health),
 // or all of them at once: https://api.audiohubapp.com/addons/all.json
 // or just the three to share (AudiobookBay, Knaben audiobooks and ebooks): https://api.audiohubapp.com/addons/starter.json
+// or every audiobook one (AudiobookBay, Knaben AudioBooks, EXTto, RuTracker): https://api.audiohubapp.com/addons/audiobooks.json
 
 const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
@@ -777,6 +778,12 @@ export default {
         if (addon[1] === "starter") {
           return reply(JSON.stringify({ name: "Audiobook addons", addons: STARTER.map((n) => `${url.origin}/addons/${n}.json`) }, null, 2));
         }
+        // Every audiobook addon with one link: /addons/audiobooks.json (ebook ones left out; new
+        // audiobook addons join it by themselves).
+        if (addon[1] === "audiobooks") {
+          const names = Object.keys(ADDONS).filter((n) => ADDONS[n].contentType === "audiobook");
+          return reply(JSON.stringify({ name: "Audiobook addons (all)", addons: names.map((n) => `${url.origin}/addons/${n}.json`) }, null, 2));
+        }
         const a = ADDONS[addon[1]];
         return a ? reply(JSON.stringify(a, null, 2)) : reply(JSON.stringify({ error: "No such addon", addons: Object.keys(ADDONS) }), 404);
       }
@@ -795,7 +802,7 @@ export default {
             "/abb/api/debrid-notify"
           ],
           addons: Object.keys(ADDONS).map((n) => `${url.origin}/addons/${n}.json`),
-          lists: [`${url.origin}/addons/all.json`, `${url.origin}/addons/starter.json`]
+          lists: [`${url.origin}/addons/all.json`, `${url.origin}/addons/starter.json`, `${url.origin}/addons/audiobooks.json`]
         }));
       }
 

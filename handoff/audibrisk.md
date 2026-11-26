@@ -187,6 +187,9 @@
   worker; the build bans audiohubapp). The user adds them on their own phone via Settings → Sources
   → paste: https://api.audiohubapp.com/addons/extto.json and …/addons/rutracker-audiobooks.json.
   `syncSources` now drops retired ids only for the app's own copies (no url), so pasted ones stay.
+  Also (26 Nov, user asked): the personal worker `inkwell/workers/audiohub.js` (shared with
+  Audiohub+) serves /addons/audiobooks.json — every audiobook addon on it (ABB, Knaben AudioBooks,
+  EXTto, RuTracker; contentType audiobook, new ones join by themselves). Needs a redeploy (paste).
 - NOTED, not built (24 Nov, user "just note"):
   - iPhone: Save / download for offline (needs a shared iOS downloads plugin — shared native code).
   - ChatGPT list — already in: one-tap resume, copy fallback keeping place, theme dice, chapters,
