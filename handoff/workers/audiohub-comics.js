@@ -1,7 +1,10 @@
-// Audiohub Comics — Cloudflare Worker, version 2.8.2
+// Audiohub Comics — Cloudflare Worker, version 2.8.3
 // Sources: GetComics and the Internet Archive (searched; download options with direct files),
 // Weeb Central (manga: search, chapter lists and chapter pages for the app's comic reader),
 // and Comics Plus (your library's own reader, opened by the app — never searched here).
+// Changes from 2.8.2: GetComics download options also give the release's details from its page —
+// size, year, language, format ("Language : English | Image Format : JPG | Year : 2026 | Size : 127 MB")
+// — so the app can show them and how much of the file has come.
 // Changes from 2.8.1: GetComics download options list only real downloads — not "How To Download",
 // reader apps (YAC Reader, ComicRack, CDisplayEx, 7-Zip…) or "Related Article" links.
 // Changes from 2.7.1: ReadComicsOnline and Kitsu removed, with their routes (the user keeps
@@ -12,7 +15,7 @@
 
 const CONFIG = {
   NAME: "Audiohub Comics",
-  VERSION: "2.8.2",
+  VERSION: "2.8.3",
   ARCHIVE_API: "https://archive.org",
   GETCOMICS_FEED: "https://getcomics.org/feed/",
   GETCOMICS_SEARCH: "https://getcomics.org/wp-json/wp/v2/search",
@@ -575,12 +578,23 @@ async function getComicsDownloads(pageUrl) {
   // Direct files first.
   links.sort((a, b) => Number(b.direct_file) - Number(a.direct_file));
 
+  // The release's details line: "Language : English | Image Format : JPG | Year : 2026 | Size : 127 MB".
+  const text = stripHTML(html).replace(/\s+/g, " ");
+  const field = (name) => (new RegExp(`${name}\\s*:\\s*([^|]{1,40}?)\\s*(?:\\||DOWNLOAD|$)`, "i").exec(text) || [])[1]?.trim() || null;
+  const sizeLabel = field("Size");
+  const m = /([\d.,]+)\s*(KB|MB|GB)/i.exec(sizeLabel || "");
+  const sizeBytes = m ? Math.round(parseFloat(m[1].replace(",", ".")) * { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 }[m[2].toUpperCase()]) : null;
+  const details = { language: field("Language"), year: field("Year"), image_format: field("Image Format"), size: sizeLabel, size_bytes: sizeBytes };
+  // The main files are the whole release: their size is the release's size.
+  for (const l of links) if (l.direct_file && sizeBytes && !l.size_bytes) l.size_bytes = sizeBytes;
+
   return {
     success: true,
     source: "getcomics",
     provider_name: "GetComics",
     access_type: "free",
     release_url: page.href,
+    details,
     total: links.length,
     links,
     note: "These are links discovered on the release page. Some may lead to mirror pages rather than direct files."

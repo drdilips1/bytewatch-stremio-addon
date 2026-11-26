@@ -476,6 +476,11 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   restart via app.jsx import, imports when done → Comics shelf, toast "ready — Library → Comics"); reader uses it
   for remote CBZ/CBR (not loc:), refused files too; Save for comics uses it. (3) Tapping a saved .cbz/.cbr offered
   no AudioYam → AndroidManifest VIEW + SEND mime types for comicbook zip/rar, x-cbz, x-cbr. Not built yet.
+  (4) No file size while downloading → worker 2.8.3 reads the GetComics details line ("Language : English | Image
+  Format : JPG | Year : 2026 | Size : 127 MB") into details + size_bytes on direct links; app comiclinks
+  releaseDetails / link size (tests), Download options header "CBR · 127 MB · English · 2026", Read/Save pass the
+  size, progress falls back to it. (5) Ebooks and comics had the same icon → new 'comic' speech-bubble icon for comic
+  results. Fixed: comicdl follower keys (string ids) and the reader's listener left behind after leaving.
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
