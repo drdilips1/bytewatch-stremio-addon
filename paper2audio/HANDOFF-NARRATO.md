@@ -10,14 +10,14 @@ Google Play** (production, 1.9.26, version code 36).
 |---|---|
 | `claude/narrato-stable` | **The Play Store line.** 1.9.18 (the first production version) plus only tested fixes. Every Play build comes from here. |
 | `backup/narrato-stable` | Backup of the stable line (pushed with `[skip ci]` so it never builds). |
-| `claude/paper2audio-unlimited-u69i8w` | The main development line (Paper to Audio and Narrato). Its Narrato (lite) is older-numbered (1.9.22, code 32) and has extra features not on Play (light voices first, addons, R8, PowerWise charging job…). **Don't build Narrato from here** unless the user asks; if ever, bump lite to version code **40+**. |
+| `claude/paper2audio-unlimited-u69i8w` | The main development line (Paper to Audio and Narrato). Its Narrato (lite) is older-numbered (1.9.22, code 32) and has extra features not on Play (light voices first, addons, R8, PowerWise charging job…). **Don't build Narrato from here** unless the user asks; if ever, bump lite to version code **41+**. |
 
 The user chose: **no experiments on Play – add only to the stable line.**
 
 ## Builds (only when the user says so)
 
 - **"Build now Narrato"**: on `claude/narrato-stable`, bump the `lite` flavor in
-  `paper2audio/android/app/build.gradle.kts` (next: **versionCode 40, versionName 1.9.30**), commit with
+  `paper2audio/android/app/build.gradle.kts` (next: **versionCode 41, versionName 1.9.31**), commit with
   `[narrato-only]` in the message, push the branch. CI "Paper2Audio Android APK" builds and publishes to the
   release **narrato-lite**: `Narrato.aab` (for Play) and `Narrato.apk` (phone test – it can't install over the
   Play copy, different signature; test through Play internal testing instead).

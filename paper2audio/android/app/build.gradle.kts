@@ -35,8 +35,8 @@ android {
             // Permanent once uploaded to Google Play.
             applicationId = "com.narrato.reader"
             targetSdk = 36
-            versionCode = 39
-            versionName = "1.9.29"
+            versionCode = 40
+            versionName = "1.9.30"
             buildConfigField("boolean", "LITE", "true")
         }
     }
