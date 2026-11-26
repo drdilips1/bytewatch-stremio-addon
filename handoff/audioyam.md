@@ -458,6 +458,14 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   To do (when told): wait for voiceschanged + re-list; iPhone hint "add voices: Settings → Accessibility → Spoken
   Content → Voices (Enhanced / Premium), they then show here"; bigger: an iOS AVSpeechSynthesizer plugin (premium
   voices, screen-off) and/or the Microsoft voices on iPhone.
+  26 Nov user: "go for both". BUILT (work): ios-plugins/tts (InkwellTts, Swift, AVSpeechSynthesizer: getEngines /
+  getVoices (identifier as name, title with Enhanced/Premium, quality 300/400/500, novelty voices skipped) / speak
+  (.playback + .spokenAudio) / stop / synthesize (write → WAV in Caches via a temp *.part.wav) / clearCache), added to
+  ios.yml; nativeTts true on iPhone → Listen narrates into an audiobook for the iOS player. settings-extra: v.title,
+  iPhone "More iPhone voices" hint instead of Play Store engines, re-list on return. tts.js web voices wait for
+  voiceschanged (≤2 s). Microsoft voices NOT ported to iPhone: EdgeTts is an unofficial protocol posing as the Edge
+  browser with its built-in token — declined; Apple Premium voices offered instead. Swift not compiled here (no
+  Xcode) — needs an iPhone build ("build iPhone"; ios.yml is manual).
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
