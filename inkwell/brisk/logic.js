@@ -41,14 +41,16 @@ export function fitsWords(book, term) {
 }
 
 /**
- * The sources kept the same as the bundle: new ones added, changed ones replaced, retired ones
- * dropped (the old EXTto / RuTracker / personal-worker sources give way to the public ones).
+ * The sources kept the same as the bundle: new ones added, changed ones replaced, retired built-in
+ * ones dropped (the old EXTto / RuTracker / personal-worker sources gave way to the public ones).
  * Returns the same list when nothing changed, so nothing is saved needlessly.
  */
 export function syncSources(list, bundle) {
   const gone = new Set(bundle.retired || []);
   const ours = new Map(bundle.addons.map((m) => [m.id, m]));
-  const out = list.filter((a) => !gone.has(a.manifest?.id)).map((a) => (ours.has(a.manifest?.id) ? { ...a, manifest: ours.get(a.manifest.id) } : a));
+  // Only the app's own old copies go (they have no link); one you added from a link stays, even
+  // with the same id (e.g. your own EXTto / RuTracker, pasted in Settings → Sources).
+  const out = list.filter((a) => !(gone.has(a.manifest?.id) && !a.url)).map((a) => (ours.has(a.manifest?.id) ? { ...a, manifest: ours.get(a.manifest.id) } : a));
   const have = new Set(out.map((a) => a.manifest?.id));
   for (const m of bundle.addons) if (!have.has(m.id)) out.push({ kind: 'source', url: '', manifest: m });
   const same = out.length === list.length && out.every((a, i) => JSON.stringify(a.manifest) === JSON.stringify(list[i].manifest));

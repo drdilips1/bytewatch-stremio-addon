@@ -178,6 +178,10 @@
   scenes.jsx (themes: Ivory/Midnight + Auto; scenes become optional), player.jsx (Now Playing +
   mini), screens.jsx (Home hero, library grid/list + sort, settings groups), app.jsx (page
   transitions). Open questions to the user: Ivory default?; keep the dice scenes?; sage → champagne.
+- Personal sources (26 Nov): the user's EXTto / RuTracker stay OFF the public bundle (personal
+  worker; the build bans audiohubapp). The user adds them on their own phone via Settings → Sources
+  → paste: https://api.audiohubapp.com/addons/extto.json and …/addons/rutracker-audiobooks.json.
+  `syncSources` now drops retired ids only for the app's own copies (no url), so pasted ones stay.
 - NOTED, not built (24 Nov, user "just note"):
   - iPhone: Save / download for offline (needs a shared iOS downloads plugin — shared native code).
   - ChatGPT list — already in: one-tap resume, copy fallback keeping place, theme dice, chapters,

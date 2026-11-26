@@ -41,6 +41,9 @@ describe('Audibrisk built-in sources', () => {
     const out = syncSources([...old, ie], bundle);
     expect(out.map((a) => a.manifest.id).sort()).toEqual(['inkandecho-v2-bestsearch-audiobook', 'public-audiobookbay', 'public-knaben-audiobooks']);
     expect(syncSources(out, bundle)).toBe(out); // nothing to do the next time
+    // Your own EXTto, added from its link, stays (only the old built-in copy, with no link, goes).
+    const mine = { kind: 'source', url: 'https://example.org/addons/extto.json', manifest: { id: 'extto-audiohub' } };
+    expect(syncSources([...out, mine], bundle).some((a) => a.manifest.id === 'extto-audiohub')).toBe(true);
   });
 });
 
