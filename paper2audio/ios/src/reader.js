@@ -2,3 +2,5 @@
 // (the same code as the Android app's reader).
 import './host.js';
 import '../../reader-web/src/main.jsx';
+// The player's controls under the page (as on Android).
+import './dock.js';

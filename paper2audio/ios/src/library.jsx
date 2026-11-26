@@ -9,7 +9,7 @@ import { listBooks, putBook, deleteBook, getBook, percentOf } from './db.js';
 import { importFile, fromText, fromWebPage, fromPhotos, fileFromBase64 } from './importers.js';
 import {
   Speech, native, pickVoice, voiceName, rate, setRate, packs, watchDownloads, downloadPack,
-  playBook, positionOf, chaptersOf, setSleep, pronounceSheet,
+  playBook, positionOf, pronounceSheet,
 } from './speech.js';
 
 const VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '';
@@ -120,7 +120,7 @@ async function startBook(id, from) {
 }
 
 /** The book being listened to, on a card with a wash of the theme's colour (Narrato's Now listening card). */
-function Hero({ book, reading, onPlayer }) {
+function Hero({ book, reading }) {
   const here = reading && reading.uid === book.id;
   const playing = here && reading.playing;
   const pct = progressOf(book, reading);
@@ -155,7 +155,7 @@ function Hero({ book, reading, onPlayer }) {
           <Icon d={playing ? I.pause : I.play} fill size={20} />
           {playing ? 'Pause' : 'Resume'}
         </button>
-        <button class="circle" aria-label="Open the player" onClick={() => (native ? onPlayer(book.id) : open(book.id))}>
+        <button class="circle" aria-label="Open the book and its player" onClick={() => open(book.id)}>
           <Icon d={I.headphones} />
         </button>
       </div>
@@ -163,13 +163,13 @@ function Hero({ book, reading, onPlayer }) {
   );
 }
 
-function MiniPlayer({ reading, books, onPlayer }) {
+function MiniPlayer({ reading, books }) {
   if (!reading) return null;
   const b = (books || []).find((x) => x.id === reading.uid);
   const pct = b ? progressOf(b, reading) : 0;
   const voice = voiceName();
   return (
-    <div class="mini" onClick={() => b && onPlayer(b.id)}>
+    <div class="mini" onClick={() => b && open(b.id)}>
       <Cover book={b} size="tiny" />
       <div class="mini-text">
         <b>{b?.title || 'Reading'}</b>
@@ -236,147 +236,6 @@ function VoicePacks() {
       })}
       <p class="muted small">Keep the app open while a download runs (the screen stays on by itself). Wi-Fi recommended.</p>
     </>
-  );
-}
-
-const SLEEPS = [
-  [0, 'Off'],
-  [15, '15 min'],
-  [30, '30 min'],
-  [45, '45 min'],
-  [60, '1 hour'],
-  [-1, 'End of chapter'],
-];
-
-/** The player: the book being listened to, with every control. */
-function PlayerScreen({ id, reading, onClose }) {
-  const [book, setBook] = useState(null);
-  const [panel, setPanel] = useState(null); // 'chapters' | 'speed' | 'sleep'
-  const [speed, setSpeed] = useState(rate());
-  const [drag, setDrag] = useState(null);
-  const [voice, setVoice] = useState(voiceName());
-  useEffect(() => {
-    getBook(id).then(setBook);
-    const t = setInterval(() => setVoice(voiceName()), 800);
-    return () => clearInterval(t);
-  }, [id]);
-  if (!book) return null;
-  const here = reading && reading.uid === id;
-  const total = book.blocks.length;
-  const at = here ? reading.para : positionOf(id) ?? 0;
-  const chapters = chaptersOf(book);
-  const chapter = [...chapters].reverse().find((c) => c.para <= at);
-  const now = book.blocks[Math.min(at, total - 1)]?.t || '';
-  const go = (para) => {
-    const p = Math.max(0, Math.min(total - 1, para));
-    if (here) Speech.seek({ para: p }).catch(() => {});
-    else playBook(book, p).catch(() => {});
-  };
-  const playPause = () => {
-    if (here && reading.finished) return go(0);
-    if (here) return (reading.playing ? Speech.pause() : Speech.resume()).catch(() => {});
-    playBook(book).catch(() => {});
-  };
-  const sleepLabel = here && reading.sleep != null ? (reading.sleep === 'chapter' ? 'End of chapter' : `${Math.ceil(reading.sleep / 60)} min`) : 'Sleep';
-  const pct = Math.round(((drag ?? at) * 100) / Math.max(1, total - 1));
-  return (
-    <div class="screen">
-      <div class="screen-head">
-        <button class="circle plain" aria-label="Close" onClick={onClose}>
-          <Icon d={I.down} />
-        </button>
-        <span class="eyebrow">{chapter?.title || 'Now playing'}</span>
-        <button class="circle plain" aria-label="Read" onClick={() => open(id)}>
-          <Icon d={I.book} />
-        </button>
-      </div>
-      <div class="screen-body">
-        <Cover book={book} size="huge" />
-        <h2 class="p-title serif">{book.title}</h2>
-        {book.author && <p class="muted">{book.author}</p>}
-        <p class="now-text">{now}</p>
-        {here && reading.error && <p class="status err">{reading.error}</p>}
-        <input
-          class="seek"
-          type="range"
-          min="0"
-          max={Math.max(0, total - 1)}
-          value={drag ?? at}
-          onInput={(e) => setDrag(+e.currentTarget.value)}
-          onChange={(e) => {
-            setDrag(null);
-            go(+e.currentTarget.value);
-          }}
-        />
-        <div class="seek-row muted small">
-          <span>{pct}%</span>
-          <span>{minutes(((book.words || 0) * (100 - pct)) / 100, speed)} left</span>
-        </div>
-        <div class="controls">
-          <button class="circle plain big" aria-label="Previous paragraph" onClick={() => go(at - 1)}>
-            <Icon d={I.prev} size={26} />
-          </button>
-          <button class="play-big" aria-label={here && reading.playing ? 'Pause' : 'Play'} onClick={playPause}>
-            <Icon d={here && reading.playing ? I.pause : I.play} fill size={30} />
-          </button>
-          <button class="circle plain big" aria-label="Next paragraph" onClick={() => go(at + 1)}>
-            <Icon d={I.next} size={26} />
-          </button>
-        </div>
-        <div class="tools">
-          <button onClick={() => setPanel(panel === 'speed' ? null : 'speed')}>{speed}×</button>
-          <button onClick={() => pickVoice()}>{voice ? voice.split(' · ')[0].slice(0, 18) : 'Voice'}</button>
-          <button onClick={() => setPanel(panel === 'sleep' ? null : 'sleep')}>
-            <Icon d={I.moon} size={16} /> {sleepLabel}
-          </button>
-          {chapters.length > 0 && <button onClick={() => setPanel(panel === 'chapters' ? null : 'chapters')}>Chapters</button>}
-        </div>
-        {panel === 'speed' && (
-          <div class="chips center-chips">
-            {SPEEDS.map((v) => (
-              <button
-                class={v === speed ? 'on' : ''}
-                onClick={() => {
-                  setSpeed(v);
-                  setRate(v);
-                }}
-              >
-                {v}×
-              </button>
-            ))}
-          </div>
-        )}
-        {panel === 'sleep' && (
-          <div class="chips center-chips">
-            {SLEEPS.map(([m, l]) => (
-              <button
-                onClick={() => {
-                  setSleep(m).catch(() => {});
-                  setPanel(null);
-                }}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-        )}
-        {panel === 'chapters' && (
-          <ul class="chapters">
-            {chapters.map((c) => (
-              <li
-                class={c === chapter ? 'on' : ''}
-                onClick={() => {
-                  go(c.para);
-                  setPanel(null);
-                }}
-              >
-                {c.title}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -528,7 +387,6 @@ function Library() {
   const [menu, setMenu] = useState(null); // the book whose menu is open
   const [tab, setTab] = useState('home'); // 'home' | 'library'
   const [, setNameTick] = useState(0);
-  const [player, setPlayer] = useState(null); // the book shown in the player
   const reading = useReading();
   const file = useRef();
   const photos = useRef();
@@ -685,7 +543,7 @@ function Library() {
         <>
           <h2 class="greet serif">{name ? `${greeting()}, ${name}` : greeting()}</h2>
           <p class="muted tagline">A little time for listening.</p>
-          {current && <Hero book={current} reading={reading} onPlayer={setPlayer} />}
+          {current && <Hero book={current} reading={reading} />}
           <h3 class="section serif">Your library</h3>
         </>
       )}
@@ -735,7 +593,7 @@ function Library() {
         })}
       </ul>
 
-      <MiniPlayer reading={reading} books={books} onPlayer={setPlayer} />
+      <MiniPlayer reading={reading} books={books} />
 
       <nav class="tabs" aria-label="Main">
         {[
@@ -751,7 +609,6 @@ function Library() {
         ))}
       </nav>
 
-      {player && <PlayerScreen id={player} reading={reading} onClose={() => setPlayer(null)} />}
       {adding && (
         <AddMenu
           onClose={() => setAdding(false)}

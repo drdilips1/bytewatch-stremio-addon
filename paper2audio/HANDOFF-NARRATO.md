@@ -104,6 +104,11 @@ voices cards. EPUB covers extracted (thumbnails). `reader-web` is identical on b
   `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_B64` (base64 of the .p8), `APPLE_TEAM_ID` it also archives,
   signs (automatic, via the API key) and uploads to TestFlight. The user has an Apple developer account; the
   App Store Connect app record for `com.narrato.reader` must exist first. Signing step is untested.
+- 26 Nov (after the user's iPad test): one place to listen, as on Android – the reader with the player's
+  controls under the page (`src/dock.js`: bar, chapter · %, time left, back/play/next, speed, voice, sleep,
+  More = chapters, text and page, pronunciations); they slide away while playing (mini pause button, a tap
+  brings them back). The home card, books and player strip all open it; the separate player screen is gone.
+  Battery: the audio engine is let go when paused, the speed changer bypassed at 1x, the maker's wait 1 s.
 - Stage 2 (not done): Tonight's list (iOS BGProcessingTask with external power), first-run tour, Look up /
   double-tap checks on device, subscription with 7-day trial (App Store Connect).
 

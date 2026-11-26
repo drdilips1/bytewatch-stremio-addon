@@ -61,6 +61,8 @@ final class NeuralReader {
     func pause() {
         guard playing else { return }
         player.pause()
+        // The audio hardware stays on while the engine runs: paused, it is let go (battery).
+        if engine.isRunning { engine.pause() }
         playing = false
         onState?(current, false, false, nil)
     }
@@ -117,7 +119,7 @@ final class NeuralReader {
             if myRun != run { return }
             for piece in piecesOf(para) {
                 // Waits for room ahead, giving up when reading moved on (a seek or stop starts a new run).
-                while ahead.wait(timeout: .now() + 0.3) == .timedOut {
+                while ahead.wait(timeout: .now() + 1.0) == .timedOut {
                     if myRun != run { return }
                 }
                 if myRun != run { ahead.signal(); return }
@@ -179,6 +181,8 @@ final class NeuralReader {
             format = f
         }
         pitch.rate = max(1.0 / 32, min(32, playback))
+        // At 1x the speed changer has nothing to do: passed by, so it doesn't work on every sample (battery).
+        pitch.bypass = abs(pitch.rate - 1) < 0.001
         let silence = Int(gap * sr)
         let total = audio.samples.count + silence
         guard let fmt = format, let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: AVAudioFrameCount(total)), let ch = buf.floatChannelData else {
