@@ -19,7 +19,7 @@ import * as phone from '../src/sources/local.js';
 import { samePhoneBook } from '../src/lib/match.js';
 import { registerPlugin } from '@capacitor/core';
 import { toast } from '../src/components/common.jsx';
-import { rankResults, fitsWords, syncSources, mixFree, deepSearchFor, rescueOrder, copyKey, applyChapters, seriesOf, nextInSeries, healthBonus } from './logic.js';
+import { rankResults, fitsWords, syncSources, mixFree, deepSearchFor, rescueOrder, copyKey, applyChapters, seriesOf, nextInSeries, healthBonus, earlierPlace } from './logic.js';
 
 const Web = registerPlugin('InkwellWeb');
 // Opening a book never waits for a details lookup (covers, descriptions): what's known already is
@@ -371,8 +371,31 @@ export async function play(book, onStatus, copies, { percent } = {}) {
       throw e;
     })
     .finally(() => busy.now--);
+  // A copy with no place of its own (Real-Debrid re-added it under a new id, or another copy took
+  // over): your latest place in this book from the earlier copy, and its speed and volume boost.
+  if (!(percent > 0.002)) {
+    const was = earlierPlace(progress.get(), book, d.uid, sameBook);
+    if (was) {
+      percent = was.percent;
+      carryPrefs(was.from, d.uid);
+    }
+  }
   player.playBook(d, { exact: true, ...(percent > 0.002 ? { percent } : {}) });
   return d;
+}
+
+/** The same book (title and author's surname), whatever copy or release name it plays from. */
+export function sameBook(a, b) {
+  const t = searchTitle(a?.title || '');
+  if (!t || !matches(t, `${b?.title || ''} ${b?.author || ''}`)) return false;
+  const sn = String(a?.author || '').split(',')[0].trim().split(/\s+/).pop()?.toLowerCase();
+  return !sn || !b?.author || `${b.title} ${b.author}`.toLowerCase().includes(sn);
+}
+/** This book's own speed and volume boost, from the copy it played as before. */
+function carryPrefs(from, to) {
+  const all = player.bookPrefs.get();
+  if (!all[from] || all[to]) return;
+  player.bookPrefs.set((p) => ({ ...p, [to]: { ...p[from] } }));
 }
 
 // ---- ready before you tap ---------------------------------------------------------------------
@@ -415,6 +438,7 @@ async function rescue(failedBook, percent) {
       if (rescuing.failed.has(d.uid)) continue; // the same copy again
       rememberCopy(d.uid, r);
       links.set((l) => ({ ...l, [book.uid]: summary(d) }));
+      carryPrefs(failedBook.uid, d.uid);
       player.playBook(d, { exact: true, ...(percent > 0.002 ? { percent } : {}) });
       toast('Playing another copy', 3000);
       return true;
@@ -551,7 +575,10 @@ export const offline = (all = downloads.get()) =>
 export async function resume(b) {
   if (/^au:/.test(b.uid || '') || b.free) return play(b); // a catalogue book: its copy is found first
   const d = b.dl?.status === 'done' ? b.dl.book : await warmed({ uid: b.uid, source: b.source, title: b.title, author: b.author, cover: b.cover });
-  player.playBook({ ...d, title: b.title || d.title, author: b.author || d.author, cover: b.cover || d.cover });
+  // The same book under a new Real-Debrid / TorBox id: its place and speed come along.
+  const was = earlierPlace(progress.get(), b, d.uid || b.uid, sameBook);
+  if (was) carryPrefs(was.from, d.uid || b.uid);
+  player.playBook({ ...d, title: b.title || d.title, author: b.author || d.author, cover: b.cover || d.cover }, was ? { percent: was.percent } : {});
 }
 
 // ---- your own cloud ----------------------------------------------------------------------------

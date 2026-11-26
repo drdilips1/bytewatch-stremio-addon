@@ -318,3 +318,21 @@ export function readBackup(text) {
     .filter(([k]) => BACKUP_KEYS.includes(k))
     .map(([k, v]) => [k, JSON.stringify(v)]);
 }
+
+/**
+ * Your place in this book from an earlier copy (Real-Debrid gives a re-added copy a new id; a
+ * failed copy is swapped for another): the most recent unfinished place saved for the same book
+ * under another id — or null when this copy has its own, newer place. `same(bookA, bookB)` says
+ * whether two books are the same title and author.
+ */
+export function earlierPlace(all, book, uid, same) {
+  const own = all?.[uid];
+  let best = null;
+  for (const [k, p] of Object.entries(all || {})) {
+    if (k === uid || !p?.book || p.finished || !(p.percent > 0.002)) continue;
+    if (!same(book, p.book)) continue;
+    if (!best || (p.updatedAt || 0) > (best.p.updatedAt || 0)) best = { uid: k, p };
+  }
+  if (!best || (own && (own.updatedAt || 0) >= (best.p.updatedAt || 0))) return null;
+  return { from: best.uid, percent: best.p.percent, global: best.p.global, total: best.p.total };
+}

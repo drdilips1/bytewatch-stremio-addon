@@ -198,6 +198,14 @@
   sunrise champagne/serif, sunset terracotta/serif, night indigo/sans-light, meadow sage/serif,
   mountains slate/condensed, autumn rust/serif, dunes sand/sans 500, aurora teal/sans-light,
   blossom rose/serif italic (Android system fonts only). Champagne on cream deepened to #94703c.
+- Fix (26 Nov, committed, not built): place and speed lost after hours ("from 0", book page Play).
+  Cause: Real-Debrid re-adds the copy under a NEW id when the old one won't serve (expired /
+  hoster unavailable) → no saved place/speed for that id. Now `earlierPlace` (logic.js) finds the
+  latest unfinished place of the same book (`sameBook`: title + author surname) under another id
+  and `play()` / `resume()` pass its percent; `carryPrefs` copies speed/boost (bookPrefs) to the
+  new id (also in the auto-rescue). Also fixed: Your library was hidden with no debrid even with
+  Want to listen / Finished books. Cross-app / cross-phone sync still an open question (options
+  1–3 given to the user: opt-in own-server sync, Audibrisk-only sync, or Back up / Restore).
 - Personal sources (26 Nov): the user's EXTto / RuTracker stay OFF the public bundle (personal
   worker; the build bans audiohubapp). The user adds them on their own phone via Settings → Sources
   → paste: https://api.audiohubapp.com/addons/extto.json and …/addons/rutracker-audiobooks.json.

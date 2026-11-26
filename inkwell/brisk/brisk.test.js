@@ -238,3 +238,22 @@ describe('Audibrisk listening line and backups', () => {
     expect(() => readBackup('not json')).toThrow('Audibrisk backup');
   });
 });
+
+describe('Audibrisk keeps your place when the copy changes', () => {
+  const same = (a, b) => a.title.toLowerCase() === b.title.toLowerCase();
+  it('takes the latest place from an earlier copy of the same book', async () => {
+    const { earlierPlace } = await import('./logic.js');
+    const all = {
+      'rd:old': { percent: 0.4, global: 4000, total: 10000, updatedAt: 100, book: { title: 'Dune' } },
+      'rd:older': { percent: 0.2, global: 2000, total: 10000, updatedAt: 50, book: { title: 'Dune' } },
+      'tb:t:x': { percent: 0.9, updatedAt: 200, book: { title: 'Atomic Habits' } },
+    };
+    expect(earlierPlace(all, { title: 'Dune' }, 'rd:new', same)).toEqual({ from: 'rd:old', percent: 0.4, global: 4000, total: 10000 });
+  });
+  it('keeps the copy’s own place when it is newer, and ignores finished books', async () => {
+    const { earlierPlace } = await import('./logic.js');
+    const all = { 'rd:new': { percent: 0.5, updatedAt: 300, book: { title: 'Dune' } }, 'rd:old': { percent: 0.4, updatedAt: 100, book: { title: 'Dune' } } };
+    expect(earlierPlace(all, { title: 'Dune' }, 'rd:new', same)).toBe(null);
+    expect(earlierPlace({ 'rd:old': { percent: 1, finished: true, updatedAt: 1, book: { title: 'Dune' } } }, { title: 'Dune' }, 'rd:new', same)).toBe(null);
+  });
+});

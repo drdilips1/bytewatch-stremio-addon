@@ -753,7 +753,7 @@ function YourLibrary({ skip = [] }) {
   const LABEL = { saved: 'Saved', phone: 'Phone', tb: 'TorBox', rd: 'Real-Debrid', ad: 'AllDebrid', pm: 'Premiumize', free: 'Free', want: 'Want to listen', finished: 'Finished' };
   const view = useStore(libView);
   const shown = sortBooks(only === 'want' ? wanted : only === 'finished' ? finished : only === 'all' ? items : items.filter((b) => placeOf(b, dls[b.uid]?.status === 'done')?.key === only), view.sort);
-  if (!items.length && !bk.provider() && !phone.connected()) return null;
+  if (!items.length && !wanted.length && !finished.length && !bk.provider() && !phone.connected()) return null;
   return (
     <section class="b-sec">
       <div class="b-sec-head">
