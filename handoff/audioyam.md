@@ -523,4 +523,6 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   - the banner (`heroCache`) and the TorBox / Real-Debrid rows now reload as soon as the switch changes (`forgetHero`, `clearRowCache`, banner effect depends on `showMusic`);
   - the music check moved to `src/lib/music.js`, tested in `tests/music.test.js`; a single FLAC / WAV file under 150 MB now counts as a song.
   - Still a guess: a song without file sizes from TorBox can still slip through. If it happens again, ask for the item's exact name. No reply posted.
-- **#13** (tehrzky, feature request): "Open in your torrent app" for AudiobookBay when no TorBox / Real-Debrid is set. Plan: the result's magnet link → Android "Open with…"; iPhone = copy the magnet. NOT started, waiting on the user.
+- **#13** (tehrzky, feature request): done on `work`, not built. When no cloud service and no home server are set up (`offerTorrentApp`), torrent results show a "Torrent app" chip. Android opens the magnet (`InkwellWeb.openExternal`, ACTION_VIEW); if no app takes it, the magnet is copied. iPhone copies it; web opens it and copies it.
+  - `src/lib/magnet.js` now holds `TRACKERS`, `withTrackers` (moved from qbit.js, which re-exports it) and `appMagnet`; tested in `tests/magnet.test.js`.
+  - What's new card added, EDITION `nov-2026i`. No reply posted on GitHub.
