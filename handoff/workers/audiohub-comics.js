@@ -1,7 +1,10 @@
-// Audiohub Comics — Cloudflare Worker, version 2.8.3
+// Audiohub Comics — Cloudflare Worker, version 2.8.4
 // Sources: GetComics and the Internet Archive (searched; download options with direct files),
 // Weeb Central (manga: search, chapter lists and chapter pages for the app's comic reader),
 // and Comics Plus (your library's own reader, opened by the app — never searched here).
+// Changes from 2.8.3: results come with their covers and details — GetComics through its posts
+// (featured image, the "Year : 2026 | Size : 127 MB" line, the blurb, the publisher from the
+// address: /dc/, /marvel/…), the Internet Archive with each item's own thumbnail.
 // Changes from 2.8.2: GetComics download options also give the release's details from its page —
 // size, year, language, format ("Language : English | Image Format : JPG | Year : 2026 | Size : 127 MB")
 // — so the app can show them and how much of the file has come.
@@ -15,10 +18,10 @@
 
 const CONFIG = {
   NAME: "Audiohub Comics",
-  VERSION: "2.8.3",
+  VERSION: "2.8.4",
   ARCHIVE_API: "https://archive.org",
   GETCOMICS_FEED: "https://getcomics.org/feed/",
-  GETCOMICS_SEARCH: "https://getcomics.org/wp-json/wp/v2/search",
+  GETCOMICS_SEARCH: "https://getcomics.org/wp-json/wp/v2/posts",
   GETCOMICS_HOSTS: ["getcomics.org", "www.getcomics.org"],
   MAX_RESULTS: 20,
   CACHE_SECONDS: 300
@@ -118,7 +121,8 @@ function _normalizeArchive(x) {
     provider: "internet_archive",
     provider_name: "Internet Archive",
     format: "archive",
-    cover: null,
+    // Every Internet Archive item has a thumbnail (a comic's cover).
+    cover: `https://archive.org/services/img/${encodeURIComponent(x.identifier)}`,
     url: `https://archive.org/details/${encodeURIComponent(x.identifier)}`,
     source_url: `https://archive.org/details/${encodeURIComponent(x.identifier)}`,
     availability: "Check individual item access and file rights",
@@ -322,8 +326,21 @@ function getComicsDownloadEndpoint(link) {
   return `${WORKER}/api/getcomics/downloads?url=${encodeURIComponent(link)}`;
 }
 
+// GetComics' address says the publisher: getcomics.org/dc/…, /marvel/…, /image/…
+const GC_PUBLISHERS = { dc: "DC", marvel: "Marvel", image: "Image", "dark-horse": "Dark Horse", idw: "IDW", boom: "BOOM! Studios", "boom-studios": "BOOM! Studios", dynamite: "Dynamite", valiant: "Valiant", manga: "Manga", "indie": "Indie" };
+// "Year : 2026 | Size : 127 MB FRACTION & CHING REACH…" → { year, size, sizeBytes, blurb }
+function gcDetails(text) {
+  const t = String(text || "").replace(/\s+/g, " ").trim();
+  const year = (/Year\s*:\s*(\d{4})/i.exec(t) || [])[1] || null;
+  const size = (/Size\s*:\s*([\d.,]+\s*(?:KB|MB|GB))/i.exec(t) || [])[1] || null;
+  const m = /([\d.,]+)\s*(KB|MB|GB)/i.exec(size || "");
+  const sizeBytes = m ? Math.round(parseFloat(m[1].replace(",", ".")) * { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 }[m[2].toUpperCase()]) : null;
+  const blurb = t.replace(/^.*?Size\s*:\s*[\d.,]+\s*(?:KB|MB|GB)\s*/i, "").replace(/^Year\s*:\s*\d{4}\s*\|?\s*/i, "").trim();
+  return { year, size, sizeBytes, blurb };
+}
+
 function _normalizeGCPost(x) {
-  const link = x.url || "";
+  const link = x.url || x.link || "";
 
   const rawTitle =
     typeof x.title === "string"
@@ -336,8 +353,24 @@ function _normalizeGCPost(x) {
     id: String(x.id || slugFromURL(link, "")),
     title: `[GetComics] ${originalTitle}`,
     original_title: originalTitle,
-    description: stripHTML(x.excerpt?.rendered || x.description || ""),
-    cover: imageFromHTML(x.excerpt?.rendered || "") || null,
+    ...(() => {
+      const d = gcDetails(stripHTML(x.excerpt?.rendered || x.description || ""));
+      const section = (() => {
+        try {
+          return new URL(link).pathname.split("/").filter(Boolean)[0] || "";
+        } catch {
+          return "";
+        }
+      })();
+      return {
+        description: d.blurb.slice(0, 400),
+        publication_date: d.year,
+        size: d.size,
+        size_bytes: d.sizeBytes,
+        publisher: GC_PUBLISHERS[section] || null
+      };
+    })(),
+    cover: x.jetpack_featured_media_url || x.yoast_head_json?.og_image?.[0]?.url || imageFromHTML(x.excerpt?.rendered || "") || null,
     provider: "getcomics",
     provider_name: "GetComics",
     access_type: "free",
@@ -415,12 +448,12 @@ async function getGCRSS() {
 
 async function searchGetComics(q, limit) {
   try {
+    // Posts (not the bare search list): each comes with its cover and its details line.
     const p = new URLSearchParams({
       search: q,
       per_page: String(Math.min(limit, 20)),
       page: "1",
-      type: "post",
-      subtype: "post"
+      _fields: "id,title,link,date,excerpt,jetpack_featured_media_url,yoast_head_json.og_image"
     });
 
     const d = await getJSON(`${CONFIG.GETCOMICS_SEARCH}?${p}`);
@@ -946,6 +979,7 @@ function manifest(base) {
             provider_name: "provider_name",
             original_title: "original_title",
             publisher: "publisher",
+            sizeBytes: "size_bytes",
             access_type: "access_type",
             reading_url: "reading_url",
             external_url: "external_url",

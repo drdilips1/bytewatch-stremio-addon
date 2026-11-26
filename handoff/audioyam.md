@@ -481,6 +481,14 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   releaseDetails / link size (tests), Download options header "CBR · 127 MB · English · 2026", Read/Save pass the
   size, progress falls back to it. (5) Ebooks and comics had the same icon → new 'comic' speech-bubble icon for comic
   results. Fixed: comicdl follower keys (string ids) and the reader's listener left behind after leaving.
+  (6) No covers on comic results → worker 2.8.4: GetComics search via wp/v2/posts (_fields incl.
+  jetpack_featured_media_url, excerpt) → cover, "Year : | Size :" + blurb from the excerpt, publisher from the URL
+  section (/dc/, /marvel/…), size_bytes mapped; IA cover = archive.org/services/img/{id}. App: r.publisher, r.blurb
+  (2 lines), size in meta. (7) "Comics can have a similar page" → comicPage(r) (comics.js, test) opens the book page
+  (kind discover, comic, source cmx): whole cover, Comic · size · year, by publisher, blurb, Where to read it with
+  SourceResults; no Goodreads/Audible/editions/Usenet for comics. Fixed Cover (common.jsx): tall pictures shown whole
+  (shaped ratio wins over the fraction-based frame), and a cached cover's ratio re-read after the uid reset effect.
+  Optional later: ComicVine (free API key, worker secret) for writers/artists/issue data — not added (needs a key).
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
