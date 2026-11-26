@@ -183,6 +183,13 @@
   in main.jsx — bump EDITION for future news) + Settings → About → "Report a problem"
   (`reportUrl` in logic.js → github.com/drdilips1/audibrisk/issues/new, pre-filled with version,
   platform, service names, book, last error — never keys; reporters need a GitHub login).
+- Next (26 Nov, committed, not built): the dice changes the WHOLE look again (user: like AudioYam).
+  `data-look` on <html> (scenes.jsx applyLook) = the scene, unless Settings → "The dice changes:
+  Picture" (`briskDiceAll`). Per look: accent pair + on-accent, light bg tint (light mode only:
+  `:root:not([data-mode='dark'])[data-look]`), Midnight tint (dark), heading font for both:
+  sunrise champagne/serif, sunset terracotta/serif, night indigo/sans-light, meadow sage/serif,
+  mountains slate/condensed, autumn rust/serif, dunes sand/sans 500, aurora teal/sans-light,
+  blossom rose/serif italic (Android system fonts only). Champagne on cream deepened to #94703c.
 - Personal sources (26 Nov): the user's EXTto / RuTracker stay OFF the public bundle (personal
   worker; the build bans audiohubapp). The user adds them on their own phone via Settings → Sources
   → paste: https://api.audiohubapp.com/addons/extto.json and …/addons/rutracker-audiobooks.json.

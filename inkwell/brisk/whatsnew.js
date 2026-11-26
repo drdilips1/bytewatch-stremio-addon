@@ -7,7 +7,8 @@ export const EDITION = 1;
 export const seenEdition = persisted('briskSeenEdition', 0);
 export const NEWS = [
   'A new look: champagne for everything you press to play, and Midnight for dark mode.',
-  'Now Playing glows in the colours of the cover. Nine scenes for the dice on Home.',
+  'Roll the dice on Home for a whole new look — picture, colours and headings (nine to find).',
+  'Now Playing glows in the colours of the cover.',
   'Search shows results at once, your own books first, with Audible’s ratings.',
   'Your library: sort by title, author or series, as a grid or a list.',
   'A copy that won’t play is swapped for another by itself — your place is kept.',

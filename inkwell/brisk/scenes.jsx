@@ -5,6 +5,8 @@
 import { persisted, useStore } from '../src/lib/store.js';
 
 export const sceneChoice = persisted('briskScene', 'sunrise');
+/** The dice changes everything (picture, colours, headings) — or only the picture. */
+export const diceAll = persisted('briskDiceAll', true);
 /** Light, dark, or whatever the phone is set to ('auto'). */
 export const modeChoice = persisted('briskMode', 'auto');
 
@@ -15,6 +17,7 @@ let onLook = () => {};
 export function applyLook() {
   const root = document.documentElement;
   root.dataset.scene = sceneChoice.get();
+  root.dataset.look = diceAll.get() ? sceneChoice.get() : 'sunrise'; // sunrise = the champagne look
   root.dataset.mode = isDark() ? 'dark' : 'light';
   const bg = getComputedStyle(root).getPropertyValue('--b-bg').trim();
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg || '#f6efe4');
@@ -26,6 +29,7 @@ export function watchLook(fn) {
   applyLook();
   sceneChoice.subscribe(applyLook);
   modeChoice.subscribe(applyLook);
+  diceAll.subscribe(applyLook);
   darkQuery?.addEventListener?.('change', applyLook);
 }
 export const SCENES = ['sunrise', 'sunset', 'night', 'meadow', 'mountains', 'autumn', 'dunes', 'aurora', 'blossom'];

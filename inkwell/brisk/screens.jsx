@@ -11,7 +11,7 @@ import { metaFixes } from '../src/lib/meta.js';
 import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
 import { VERSION, checkUpdate, installUpdate, updState, newer, isIphone } from './update.js';
-import { Scene, rollScene, modeChoice } from './scenes.jsx';
+import { Scene, rollScene, modeChoice, diceAll } from './scenes.jsx';
 import { copyFacts, thumb, placeOf, fmtRating, libraryMatches, sortBooks, reportUrl } from './logic.js';
 import { EDITION, NEWS, seenEdition } from './whatsnew.js';
 import { Browser } from '@capacitor/browser';
@@ -1037,6 +1037,27 @@ function Sources() {
   );
 }
 
+/** What the dice on Home changes: the whole look, or just the picture (keeping champagne). */
+function DiceChoice() {
+  const all = useStore(diceAll);
+  return (
+    <div class="b-set-row">
+      <div>
+        <b>The dice changes</b>
+        <small>{all ? 'Picture, colours and headings — a new look each roll' : 'Only the picture — colours stay champagne'}</small>
+      </div>
+      <div class="b-seg b-seg-sm">
+        <button class={all ? 'on' : ''} onClick={() => diceAll.set(true)}>
+          Everything
+        </button>
+        <button class={!all ? 'on' : ''} onClick={() => diceAll.set(false)}>
+          Picture
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** One debrid service: connected (with Disconnect), or a box for its key. */
 function ServiceRow({ which }) {
   useStore(debrid);
@@ -1103,6 +1124,7 @@ function SettingsSheet({ close }) {
         <h3>Settings</h3>
         <h4 class="b-sheet-h">Appearance</h4>
         <ModeSwitch />
+        <DiceChoice />
         <h4 class="b-sheet-h">Listening services</h4>
         <p class="b-sheet-sub">Connect one service or several. A copy ready on any of them plays at once.</p>
         <ServiceRow which="torbox" />
