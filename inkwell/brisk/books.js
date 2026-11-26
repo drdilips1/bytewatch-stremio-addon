@@ -361,9 +361,16 @@ export async function prepare(book, onStatus, copies = null) {
 }
 
 /** Play a book; `percent` carries your place over when you switch to another copy. */
+/** The last thing that went wrong, for "Report a problem" (text only). */
+export const lastProblem = { text: '', book: null };
 export async function play(book, onStatus, copies, { percent } = {}) {
   busy.now++;
-  const d = await prepare(book, onStatus, copies).finally(() => busy.now--);
+  const d = await prepare(book, onStatus, copies)
+    .catch((e) => {
+      if (!e.pending) Object.assign(lastProblem, { text: e.message || String(e), book });
+      throw e;
+    })
+    .finally(() => busy.now--);
   player.playBook(d, { exact: true, ...(percent > 0.002 ? { percent } : {}) });
   return d;
 }

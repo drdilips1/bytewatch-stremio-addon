@@ -261,3 +261,23 @@ export function sortBooks(list, by = 'recent') {
   }[by];
   return cmp ? [...list].sort(cmp) : list;
 }
+
+/**
+ * A pre-filled problem report for the public repository: what happened, plus the app version,
+ * phone, services (names only — never keys) and the book. Nothing private.
+ */
+export function reportUrl({ version = '', platform = '', services = [], book = null, error = '' } = {}) {
+  const lines = [
+    '**What happened?**',
+    '(Tell me in your own words — which book, what you tapped, what you expected.)',
+    '',
+    '---',
+    `- Audibrisk: ${version || '?'}`,
+    `- Phone: ${platform || '?'}`,
+    `- Services: ${services.length ? services.join(', ') : 'none'}`,
+    book?.title ? `- Book: ${book.title}${book.author ? ` — ${String(book.author).split(',')[0]}` : ''} (${book.source || '?'})` : '',
+    error ? `- Last error: ${String(error).slice(0, 300)}` : '',
+  ].filter((l) => l !== '');
+  const title = error ? `Problem: ${String(error).slice(0, 60)}` : 'Problem: ';
+  return `https://github.com/drdilips1/audibrisk/issues/new?${new URLSearchParams({ title, body: lines.join('\n') })}`;
+}

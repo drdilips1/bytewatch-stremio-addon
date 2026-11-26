@@ -7,13 +7,17 @@ import { settings } from '../src/lib/store.js';
 import { installSources, startWatching, watchFailures, watchEndings, findReadyNow } from './books.js';
 import { App } from './app.jsx';
 import { watchLook } from './scenes.jsx';
+import { EDITION, seenEdition } from './whatsnew.js';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 
 try {
   aiOff.set(true);
   const s = settings.get();
-  if (!s.briskV) settings.set({ ...s, briskV: 1, voiceOff: true, skipCredits: true });
+  if (!s.briskV) {
+    settings.set({ ...s, briskV: 1, voiceOff: true, skipCredits: true });
+    seenEdition.set(EDITION); // a fresh install: everything is new, no "What's new" card
+  }
 } catch {}
 installSources();
 startWatching(); // books your service was still getting ready when you closed the app

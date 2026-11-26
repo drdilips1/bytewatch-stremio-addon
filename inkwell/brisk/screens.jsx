@@ -12,7 +12,10 @@ import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
 import { VERSION, checkUpdate, installUpdate, updState, newer, isIphone } from './update.js';
 import { Scene, rollScene, modeChoice } from './scenes.jsx';
-import { copyFacts, thumb, placeOf, fmtRating, libraryMatches, sortBooks } from './logic.js';
+import { copyFacts, thumb, placeOf, fmtRating, libraryMatches, sortBooks, reportUrl } from './logic.js';
+import { EDITION, NEWS, seenEdition } from './whatsnew.js';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 import { persisted } from '../src/lib/store.js';
 import { searchCovers, setFix, fixFor } from '../src/lib/meta.js';
 import { searchTitle } from '../src/lib/match.js';
@@ -415,6 +418,7 @@ export function Home() {
           <em>Connect →</em>
         </button>
       )}
+      {!q && <WhatsNew />}
       {!q && <UpNext />}
       {!q && <Jobs />}
       {results ? (
@@ -597,6 +601,46 @@ function ReadyNow() {
       </div>
     </section>
   );
+}
+
+/** After an update: what's new, in plain words, until you close it. */
+function WhatsNew() {
+  const seen = useStore(seenEdition);
+  if (seen >= EDITION) return null;
+  return (
+    <section class="b-sec b-news">
+      <div class="b-news-card">
+        <div class="b-news-head">
+          <b>What’s new in Audibrisk</b>
+          <button class="b-job-x" aria-label="Close" onClick={() => seenEdition.set(EDITION)}>
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+        <ul>
+          {NEWS.map((n) => (
+            <li>{n}</li>
+          ))}
+        </ul>
+        <button class="b-pill b-pill-go" onClick={() => seenEdition.set(EDITION)}>
+          Got it
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** "Report a problem": a ready-filled note on the public repository (nothing private in it). */
+function reportProblem() {
+  const s = player.getState();
+  const book = s.error && s.book ? s.book : bk.lastProblem.book || s.book;
+  const url = reportUrl({
+    version: VERSION,
+    platform: `${Capacitor.getPlatform()} · ${(/Android [\d.]+|iPhone OS [\d_]+/.exec(navigator.userAgent) || [''])[0].replace(/_/g, '.')}`,
+    services: bk.providers().map(bk.nameOf),
+    book: book && { title: book.title, author: book.author, source: book.source },
+    error: s.error || bk.lastProblem.text,
+  });
+  Browser.open({ url }).catch(() => window.open(url, '_blank'));
 }
 
 /** "Good morning" / afternoon / evening / night, by the phone's clock. */
@@ -1103,6 +1147,15 @@ function SettingsSheet({ close }) {
         <Sources />
         <h4 class="b-sheet-h">About</h4>
         <UpdateRow />
+        <div class="b-set-row">
+          <div>
+            <b>Report a problem</b>
+            <small>Opens a ready-filled note on GitHub — no keys or private details in it</small>
+          </div>
+          <button class="b-pill" onClick={reportProblem}>
+            Report
+          </button>
+        </div>
       </div>
     </div>
   );

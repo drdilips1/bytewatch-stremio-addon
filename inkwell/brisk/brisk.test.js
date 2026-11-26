@@ -204,3 +204,17 @@ describe('Audibrisk library order', () => {
     expect(sortBooks(l, 'recent')).toBe(l);
   });
 });
+
+describe('Audibrisk problem report', () => {
+  it('fills in version, phone, service names and the book — never a key', async () => {
+    const { reportUrl } = await import('./logic.js');
+    const u = new URL(reportUrl({ version: '1.0.15', platform: 'Android 14', services: ['TorBox'], book: { title: 'Dune', author: 'Frank Herbert', source: 'tb' }, error: 'HTTP 503 — hoster_unavailable' }));
+    expect(u.host).toBe('github.com');
+    expect(u.pathname).toBe('/drdilips1/audibrisk/issues/new');
+    const body = u.searchParams.get('body');
+    expect(body).toContain('Audibrisk: 1.0.15');
+    expect(body).toContain('Services: TorBox');
+    expect(body).toContain('Book: Dune — Frank Herbert (tb)');
+    expect(u.searchParams.get('title')).toBe('Problem: HTTP 503 — hoster_unavailable');
+  });
+});

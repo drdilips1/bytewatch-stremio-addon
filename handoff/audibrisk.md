@@ -178,6 +178,11 @@
   scenes.jsx (themes: Ivory/Midnight + Auto; scenes become optional), player.jsx (Now Playing +
   mini), screens.jsx (Home hero, library grid/list + sort, settings groups), app.jsx (page
   transitions). Open questions to the user: Ivory default?; keep the dice scenes?; sage → champagne.
+- Building (26 Nov, Android only — "add both and build"): the redesign (steps 1–5) + "What's new"
+  card (`brisk/whatsnew.js`: EDITION 1 + NEWS list, `briskSeenEdition`; fresh installs marked seen
+  in main.jsx — bump EDITION for future news) + Settings → About → "Report a problem"
+  (`reportUrl` in logic.js → github.com/drdilips1/audibrisk/issues/new, pre-filled with version,
+  platform, service names, book, last error — never keys; reporters need a GitHub login).
 - Personal sources (26 Nov): the user's EXTto / RuTracker stay OFF the public bundle (personal
   worker; the build bans audiohubapp). The user adds them on their own phone via Settings → Sources
   → paste: https://api.audiohubapp.com/addons/extto.json and …/addons/rutracker-audiobooks.json.

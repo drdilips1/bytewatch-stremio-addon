@@ -380,3 +380,11 @@ button, a, .b-cont, .b-job-text { touch-action: manipulation; -webkit-tap-highli
 @keyframes b-page-in { from { opacity: 0; transform: translateY(8px); } }
 .b-cover img { opacity: 0; transition: opacity 0.35s ease-out; }
 .b-cover img.in { opacity: 1; }
+
+/* what's new */
+.b-news-card { padding: 16px 18px; border-radius: 22px; background: var(--b-card); border: 1px solid color-mix(in srgb, var(--b-acc) 35%, var(--b-line)); box-shadow: var(--b-shadow); }
+.b-news-head { display: flex; align-items: center; justify-content: space-between; }
+.b-news-head b { font-family: var(--b-serif); font-weight: 400; font-size: 19px; }
+.b-news-card ul { margin: 10px 0 14px; padding-left: 18px; color: var(--b-mid); font-size: 14px; line-height: 1.5; }
+.b-news-card li { margin: 4px 0; }
+.b-news-card li::marker { color: var(--b-acc); }
