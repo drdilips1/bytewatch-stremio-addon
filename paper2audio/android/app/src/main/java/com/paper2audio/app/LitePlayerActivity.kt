@@ -565,6 +565,7 @@ class LitePlayerActivity : Activity() {
     private fun showMore() {
         LiteSheet(this, Speaker.doc?.title, null)
             .row(R.drawable.ic_read, "Read", "As an ebook: themes, fonts, highlights, read aloud") { startActivity(Intent(this, ReaderActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
+            .row(R.drawable.ic_people, "Character Studio", "Every character in their own voice") { CharacterStudio.show(this, scope) }
             .row(R.drawable.ic_voice, "Pronunciations", "Fix how words are said (or press and hold a word)") { Pronounce.show(this) }
             .apply {
                 // A PDF: its pages as printed (the reader shows the text reflowed).

@@ -872,7 +872,9 @@ object Speaker {
         ) else listOf(
             "en-US-AvaMultilingualNeural", "en-US-EmmaMultilingualNeural", "en-US-AriaNeural", "en-GB-SoniaNeural", "en-AU-NatashaNeural",
         )).map { EDGE + it }
-        main.startsWith(CLONE) -> MyVoices.BUILT_IN.filter { it.description.startsWith(if (male) "male" else "female") }.map { CLONE + it.id }
+        // Narrato casts only its own readers (not the full edition's sample voices).
+        main.startsWith(CLONE) -> (if (BuildConfig.LITE) MyVoices.NARRATO else MyVoices.BUILT_IN)
+            .filter { it.description.startsWith(if (male) "male" else "female") }.map { CLONE + it.id }
         main.startsWith(SUPER) -> LocalTts.SUPERTONIC_VOICES.filter { it.name.startsWith(if (male) "M" else "F") }.map { SUPER + it.name }
         main.startsWith(KOKORO) -> Kokoro.VOICES.filter { (it.name[1] == 'm') == male }.map { KOKORO + it.name }
         else -> emptyList()
@@ -923,6 +925,10 @@ object Speaker {
         castFor = null
         restartAudio()
     }
+
+    /** The voices characters can be given (Character Studio): the narrator's family, downloaded, women first. */
+    fun castCandidates(): List<String> =
+        (defaultPool(voiceId, false) + defaultPool(voiceId, true)).distinct().filter { LocalTts.missing(it) == null }
 
     /** The voice [speaker] reads with now (for the Characters list). */
     fun voiceOfCharacter(d: Doc, speaker: String): String = castVoice(d, speaker)

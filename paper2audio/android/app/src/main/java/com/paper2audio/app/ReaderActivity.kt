@@ -742,6 +742,7 @@ class ReaderActivity : Activity() {
         val item = Library.get(this, Library.currentId)
         val d = Speaker.doc
         LiteSheet(this, d?.title, null)
+            .row(R.drawable.ic_people, "Character Studio", "Every character in their own voice") { CharacterStudio.show(this, scope) }
             .row(R.drawable.ic_voice, "Pronunciations", "Fix how words are said (or select a word, then Pronounce)") { Pronounce.show(this) }
             .apply {
                 // A PDF: its pages as printed (the reader shows the text reflowed).

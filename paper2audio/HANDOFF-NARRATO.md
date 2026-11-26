@@ -124,6 +124,16 @@ iPhone real readers: only Lily, Grace, Sophie, Ava, Maya, Daniel, Henry, Jack, A
 Not done: "diffi ult" (letter lost next to the ffi ligature; needs the PDF). Items 4 and 8 (repetitions,
 skipped lines starting with “) were about **Paper to Audio's new engine**: leave them out of Narrato.
 
+## Character Studio (v1, Android, committed, not built)
+
+User's vision "Narrato Character Studio – bring every character to life". v1 = UI on the existing full-cast
+engine (`Cast.kt`, `Speaker.castVoice`): `CharacterStudio.kt`, opened from More (reader and player). Voice cast
+on/off, narrator voice, characters by line count with voice · man/woman/child · lines, per character: hear
+their own line, pick a voice of the narrator's family (`Speaker.castCandidates`), or automatic / by gender.
+Choices kept per author (series). Narrato's cast pool is now only Narrato's readers (not the full edition's
+sample voices). Planned: v2 role-labelled personalities (user to say which reader suits which role), livelier
+dialogue timing, shareable cast packs; v3 emotional takes (voice update, by ear); iPhone port (needs Cast in JS).
+
 ## Other pending items
 
 - Declare EU trader status in Play Console (public details).
