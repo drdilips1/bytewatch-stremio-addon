@@ -150,7 +150,8 @@ on/off, narrator voice, characters by line count with voice · man/woman/child �
 their own line, pick a voice of the narrator's family (`Speaker.castCandidates`), or automatic / by gender.
 Choices kept per author (series). Narrato's cast pool is now only Narrato's readers (not the full edition's
 sample voices). Planned: v2 role-labelled personalities (user to say which reader suits which role), livelier
-dialogue timing, shareable cast packs; v3 emotional takes (voice update, by ear); iPhone port (needs Cast in JS).
+dialogue timing, shareable cast packs; v3 emotional takes (voice update, by ear).
+**User decision (26 Nov 2026): do NOT port Character Studio / voice cast to iPhone – battery must stay perfect there.**
 
 ## Other pending items
 
