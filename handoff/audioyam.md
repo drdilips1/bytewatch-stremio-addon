@@ -517,3 +517,10 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
   generic ebook search, or filter fanfiction (Publisher: www.fanfiction.net / FicFab packages).
+
+## GitHub issues #12 / #13 (26 Nov)
+- **#12 "Torbox music"** (Shabbypenguin, iPhone): the song "sombr — 12 to 12" was in the Home banner with "Show music too" off. Fixed on `work` (612fffe, not built):
+  - the banner (`heroCache`) and the TorBox / Real-Debrid rows now reload as soon as the switch changes (`forgetHero`, `clearRowCache`, banner effect depends on `showMusic`);
+  - the music check moved to `src/lib/music.js`, tested in `tests/music.test.js`; a single FLAC / WAV file under 150 MB now counts as a song.
+  - Still a guess: a song without file sizes from TorBox can still slip through. If it happens again, ask for the item's exact name. No reply posted.
+- **#13** (tehrzky, feature request): "Open in your torrent app" for AudiobookBay when no TorBox / Real-Debrid is set. Plan: the result's magnet link → Android "Open with…"; iPhone = copy the magnet. NOT started, waiting on the user.
