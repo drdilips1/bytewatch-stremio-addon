@@ -185,3 +185,19 @@ describe('Audibrisk ratings and your own books in search', () => {
     expect(libraryMatches(mine, 'herbert dune').map((b) => b.uid)).toEqual(['tb:2']);
   });
 });
+
+describe('Audibrisk library order', () => {
+  it('sorts by title, author surname and series', async () => {
+    const { sortBooks } = await import('./logic.js');
+    const l = [
+      { title: 'The Hobbit', author: 'J. R. R. Tolkien' },
+      { title: 'Dune', author: 'Frank Herbert', series: 'Dune #1' },
+      { title: "Caliban's War", author: 'James S. A. Corey', series: 'The Expanse #2' },
+      { title: 'Leviathan Wakes', author: 'James S. A. Corey', series: 'The Expanse #1' },
+    ];
+    expect(sortBooks(l, 'title').map((b) => b.title)).toEqual(["Caliban's War", 'Dune', 'The Hobbit', 'Leviathan Wakes']);
+    expect(sortBooks(l, 'author').map((b) => b.author.split(' ').pop())[0]).toBe('Corey');
+    expect(sortBooks(l, 'series').map((b) => b.title)).toEqual(['Dune', 'Leviathan Wakes', "Caliban's War", 'The Hobbit']);
+    expect(sortBooks(l, 'recent')).toBe(l);
+  });
+});

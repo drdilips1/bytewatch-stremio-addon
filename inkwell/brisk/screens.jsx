@@ -12,7 +12,8 @@ import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
 import { VERSION, checkUpdate, installUpdate, updState, newer, isIphone } from './update.js';
 import { Scene, rollScene, modeChoice } from './scenes.jsx';
-import { copyFacts, thumb, placeOf, fmtRating, libraryMatches } from './logic.js';
+import { copyFacts, thumb, placeOf, fmtRating, libraryMatches, sortBooks } from './logic.js';
+import { persisted } from '../src/lib/store.js';
 import { searchCovers, setFix, fixFor } from '../src/lib/meta.js';
 import { searchTitle } from '../src/lib/match.js';
 import * as phone from '../src/sources/local.js';
@@ -25,7 +26,7 @@ export function Cover({ book, class: cls = '', px = 0 }) {
   return (
     <div class={'b-cover ' + cls}>
       {src ? (
-        <img src={src} alt="" decoding="async" onError={() => setBad(book.cover)} />
+        <img src={src} alt="" decoding="async" onLoad={(e) => e.currentTarget.classList.add('in')} onError={() => setBad(book.cover)} />
       ) : (
         <div class="b-cover-blank">
           <b>{book?.title}</b>
@@ -105,13 +106,45 @@ function ContinueCard({ b, onOpen }) {
 }
 
 /** A grid of books (Library, Downloads). */
-function Grid({ items, onOpen, empty }) {
+function Grid({ items, onOpen, empty, list = false }) {
   // A big cloud library: the first 30 at once, the rest when asked (drawing hundreds is slow).
   const [all, setAll] = useState(false);
   const opening = useOpening();
   const dls = useStore(downloads);
   if (!items.length) return <p class="b-quiet">{empty}</p>;
   const shown = all ? items : items.slice(0, 30);
+  if (list)
+    return (
+      <>
+        <div class="b-list-books">
+          {shown.map((b) => {
+            const at = placeOf(b, dls[b.uid]?.status === 'done');
+            return (
+              <button class="b-result" onClick={() => onOpen(b)} {...holdProps(b)}>
+                <div class="b-tile-art">
+                  <Cover book={b} px={160} />
+                  {opening === b.uid && (
+                    <span class="b-tile-wait">
+                      <span class="b-spin small" />
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <b>{b.title}</b>
+                  <span>{String(b.author || '').split(',')[0]}</span>
+                  <small>{[at?.label, b.percent > 0.002 && `${Math.round(b.percent * 100)}%`].filter(Boolean).join(' · ')}</small>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        {items.length > 30 && !all && (
+          <button class="b-link" onClick={() => setAll(true)}>
+            Show all {items.length}
+          </button>
+        )}
+      </>
+    );
   return (
     <>
     <div class="b-grid">
@@ -574,6 +607,8 @@ const greeting = (h = new Date().getHours()) => (h >= 5 && h < 12 ? 'Good mornin
  * saved here — in one grid, each cover labelled with where it plays from. Little filters appear
  * when there's more than one kind. (No separate tabs: one screen does it all.)
  */
+// How you like your library: grid or list, and its order (kept on the phone).
+const libView = persisted('briskLibView', { list: false, sort: 'recent' });
 function YourLibrary({ skip = [] }) {
   const cloudBooks = useStore(bk.cloudShelf).books;
   const local = useStore(phone.localCfg);
@@ -592,12 +627,28 @@ function YourLibrary({ skip = [] }) {
     .map(bk.withCover);
   const kinds = [...new Set(items.map((b) => placeOf(b, dls[b.uid]?.status === 'done')?.key).filter(Boolean))];
   const LABEL = { saved: 'Saved', phone: 'Phone', tb: 'TorBox', rd: 'Real-Debrid', ad: 'AllDebrid', pm: 'Premiumize', free: 'Free' };
-  const shown = only === 'all' ? items : items.filter((b) => placeOf(b, dls[b.uid]?.status === 'done')?.key === only);
+  const view = useStore(libView);
+  const shown = sortBooks(only === 'all' ? items : items.filter((b) => placeOf(b, dls[b.uid]?.status === 'done')?.key === only), view.sort);
   if (!items.length && !bk.provider() && !phone.connected()) return null;
   return (
     <section class="b-sec">
       <div class="b-sec-head">
         <h2>Your library</h2>
+        {items.length > 1 && (
+          <div class="b-lib-tools">
+            <label class="b-sort">
+              <select value={view.sort} onChange={(e) => libView.set({ ...libView.get(), sort: e.currentTarget.value })} aria-label="Sort">
+                <option value="recent">Recent</option>
+                <option value="title">Title</option>
+                <option value="author">Author</option>
+                <option value="series">Series</option>
+              </select>
+            </label>
+            <button class="b-icon b-icon-sm" aria-label={view.list ? 'Show as grid' : 'Show as list'} onClick={() => libView.set({ ...libView.get(), list: !view.list })}>
+              <Icon name={view.list ? 'grid' : 'list'} size={17} />
+            </button>
+          </div>
+        )}
       </div>
       {kinds.length > 1 && (
         <div class="b-chips">
@@ -608,7 +659,7 @@ function YourLibrary({ skip = [] }) {
           ))}
         </div>
       )}
-      <Grid items={shown} onOpen={playIt} empty={bk.provider() ? 'Books in your cloud, your phone folder and the ones you save show here.' : 'Connect a debrid service in Settings to see your cloud.'} />
+      <Grid items={shown} list={view.list} onOpen={playIt} empty={bk.provider() ? 'Books in your cloud, your phone folder and the ones you save show here.' : 'Connect a debrid service in Settings to see your cloud.'} />
     </section>
   );
 }
@@ -1006,7 +1057,9 @@ function SettingsSheet({ close }) {
     <div class="b-sheet-bg" onClick={close}>
       <div class="b-sheet" onClick={(e) => e.stopPropagation()}>
         <h3>Settings</h3>
+        <h4 class="b-sheet-h">Appearance</h4>
         <ModeSwitch />
+        <h4 class="b-sheet-h">Listening services</h4>
         <p class="b-sheet-sub">Connect one service or several. A copy ready on any of them plays at once.</p>
         <ServiceRow which="torbox" />
         <ServiceRow which="realdebrid" />
@@ -1048,6 +1101,7 @@ function SettingsSheet({ close }) {
           </>
         )}
         <Sources />
+        <h4 class="b-sheet-h">About</h4>
         <UpdateRow />
       </div>
     </div>

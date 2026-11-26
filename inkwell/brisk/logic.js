@@ -238,3 +238,24 @@ export function libraryMatches(books, term, max = 4) {
   const seen = new Set();
   return (books || []).filter((b) => b?.title && fitsWords(b, term) && !seen.has(b.uid) && seen.add(b.uid)).slice(0, max);
 }
+
+/**
+ * Your library in the order you chose: 'recent' (as it comes), 'title' (A–Z, ignoring "The"),
+ * 'author' (by surname), 'series' (series name, then its number, books without one last).
+ */
+export function sortBooks(list, by = 'recent') {
+  const bare = (t) => String(t || '').toLowerCase().replace(/^(the|a|an)\s+/, '');
+  const surname = (a) => String(a || '').split(',')[0].trim().split(/\s+/).pop().toLowerCase();
+  const sr = (b) => seriesOf(b.series) || (b.series ? { name: String(b.series), n: 0 } : null);
+  const cmp = {
+    title: (a, b) => bare(a.title).localeCompare(bare(b.title)),
+    author: (a, b) => surname(a.author).localeCompare(surname(b.author)) || bare(a.title).localeCompare(bare(b.title)),
+    series: (a, b) => {
+      const x = sr(a);
+      const y = sr(b);
+      if (!x || !y) return x ? -1 : y ? 1 : bare(a.title).localeCompare(bare(b.title));
+      return x.name.localeCompare(y.name) || x.n - y.n;
+    },
+  }[by];
+  return cmp ? [...list].sort(cmp) : list;
+}

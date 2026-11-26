@@ -164,8 +164,12 @@
   --b-sage → --b-acc/--b-acc2 + --b-on-acc; dark = Midnight; per-scene colour tints removed;
   champagne gradient on play buttons / chips / segments / progress; Now Playing glow from the cover
   colour (champagne when no cover), 26px artwork, glowing progress, halo play button; frosted mini
-  player; reduced-motion respected. Scenes +4: autumn, dunes, aurora, blossom (9 in all). NEXT:
-  step 3 Home + Library (grid/list, sort), 4 Settings groups + sheets, 5 motion. Earlier plan: Two themes: Ivory (#F5F3EE / white / #202630 / accent #9C8055) as the
+  player; reduced-motion respected. Scenes +4: autumn, dunes, aurora, blossom (9 in all).
+  DONE steps 3–5 (26 Nov): Continue card bigger (serif title, 100px cover); Your library: sort
+  (Recent / Title / Author / Series — `sortBooks`) and grid/list switch, kept in `briskLibView`;
+  Settings grouped (Appearance / Listening services / Folder on this phone / About) with uppercase
+  champagne headings; sheets with a handle and a soft spring; pages ease in, covers fade in on
+  load, small vibration on the big play button. Not built yet. Earlier plan: Two themes: Ivory (#F5F3EE / white / #202630 / accent #9C8055) as the
   default, Midnight (#0B1018 / #151E2B / #F4F2ED / champagne #D6BD91) for dark; champagne play
   button with glow, ambient cover-colour light on Now Playing, thin glowing progress, Continue
   hero card, glass only on the small floating mini player. Keep: one screen (no bottom tabs /

@@ -188,7 +188,7 @@ export function FullPlayer() {
           <Icon name="replay" size={30} />
           <small>15</small>
         </button>
-        <button class="b-big-play" aria-label={s.playing ? 'Pause' : 'Play'} onClick={() => player.toggle()}>
+        <button class="b-big-play" aria-label={s.playing ? 'Pause' : 'Play'} onClick={() => (navigator.vibrate?.(10), player.toggle())}>
           {s.loading ? <span class="b-spin" /> : <Icon name={s.playing ? 'pause' : 'play'} size={32} />}
         </button>
         <button class="b-fwd" aria-label="Forward 30 seconds" onClick={() => player.skip(30)}>

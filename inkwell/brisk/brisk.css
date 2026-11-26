@@ -353,3 +353,30 @@ button, a, .b-cont, .b-job-text { touch-action: manipulation; -webkit-tap-highli
 /* the mini player: frosted glass (small, so it stays quick) */
 .b-mini { background: color-mix(in srgb, var(--b-card) 80%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+/* ---- Home: Continue listening as the centrepiece ---- */
+.b-kicker { display: block; margin: 0 0 4px !important; font-size: 10.5px !important; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--b-acc) !important; }
+.b-cont { border-radius: 24px; padding: 16px; position: relative; overflow: hidden; }
+.b-cont .b-cover { width: 100px; border-radius: 14px; }
+.b-cont-text b { font-family: var(--b-serif); font-weight: 400; font-size: 19px; }
+
+/* ---- Library: order and grid / list ---- */
+.b-lib-tools { display: flex; align-items: center; gap: 8px; }
+.b-sort select { -webkit-appearance: none; appearance: none; height: 34px; padding: 0 28px 0 12px; border-radius: 99px; border: 1px solid var(--b-line); background: var(--b-card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23999' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 11px center; color: var(--b-text); font: inherit; font-size: 13.5px; }
+.b-icon-sm { width: 34px; height: 34px; }
+.b-list-books .b-result .b-tile-art { width: 56px; flex: none; }
+.b-list-books .b-result .b-cover { width: 56px; border-radius: 9px; }
+.b-list-books .b-result small { color: var(--b-acc); }
+
+/* ---- Settings and sheets: grouped, with a handle ---- */
+.b-sheet { border-radius: 28px 28px 0 0; animation: b-sheet-in 0.36s cubic-bezier(0.2, 0.9, 0.3, 1.06); }
+.b-sheet::before { content: ''; display: block; width: 40px; height: 5px; margin: -8px auto 14px; border-radius: 3px; background: var(--b-soft2); }
+.b-sheet-h { margin: 24px 0 8px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--b-acc); }
+.b-sheet h3 + .b-sheet-h { margin-top: 8px; }
+@keyframes b-sheet-in { from { transform: translateY(60px); opacity: 0; } }
+
+/* ---- motion: pages ease in, covers fade in as they arrive ---- */
+.b-page { animation: b-page-in 0.28s ease-out; }
+@keyframes b-page-in { from { opacity: 0; transform: translateY(8px); } }
+.b-cover img { opacity: 0; transition: opacity 0.35s ease-out; }
+.b-cover img.in { opacity: 1; }
