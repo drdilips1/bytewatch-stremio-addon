@@ -1073,6 +1073,18 @@ object Speaker {
                     else -> dialogueVoice!!
                 }
             }
+                // Neighbouring pieces in the same voice (two quotes of one character, a quote and the narration
+                // read by the same voice) go together: copied voices repeat very short lines said alone
+                // ("Nothing." three times), and fewer pieces cost less battery.
+                .fold(ArrayList<Pair<String, String>>()) { acc, seg ->
+                    acc.apply {
+                        val last = lastOrNull()
+                        if (last != null && last.second == seg.second && (last.first.length < 45 || seg.first.length < 45) &&
+                            last.first.length + seg.first.length < 160
+                        ) this[lastIndex] = (last.first.trimEnd() + " " + seg.first.trimStart()) to seg.second
+                        else add(seg)
+                    }
+                }
             // On-device voices read quotes flatly inside a long sentence: give dialogue its own piece,
             // so there's a narrator's breath between "she said," and the words spoken.
             // A quote and the words after it that carry on the sentence ("“Really?” she asked.") stay together.

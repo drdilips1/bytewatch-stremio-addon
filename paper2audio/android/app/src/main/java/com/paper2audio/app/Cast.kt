@@ -34,14 +34,16 @@ object Cast {
     private val DESCRIBED: Map<String, String> = (
         "man boy giant wizard king prince lord gentleman father son brother uncle husband old man young man stranger " +
             "guard soldier knight priest monk farmer sailor captain doctor professor butler driver boy waiter innkeeper " +
-            "dwarf goblin troll warlock beggar fisherman shopkeeper headmaster sir").split(' ').associateWith { "male" } +
+            "dwarf goblin troll warlock beggar fisherman shopkeeper headmaster sir grandfather grandpa dad").split(' ').associateWith { "male" } +
         ("woman girl witch queen princess lady mother daughter sister aunt wife old woman young woman maid nurse " +
-            "grandmother headmistress waitress landlady nun madam").split(' ').associateWith { "female" }
+            "grandmother headmistress waitress landlady nun madam grandma granny mum mom").split(' ').associateWith { "female" }
+    /** "the giant", and also "his aunt", "her mother", "their uncle" (the same person, whoever's they are). */
+    private const val DET = """(?:the|his|her|their|my|our|your)"""
     private const val ADJ = """(?:(?:old|young|little|tall|short|small|big|thin|fat|elderly|strange|other|first|second|younger|elder|older)\s+)?"""
     private val NOUNS = DESCRIBED.keys.sortedByDescending { it.length }.joinToString("|") { it.replace(" ", "\\s+") }
-    private val AFTER_DESC = Regex("""^[,.!?]?\s*(?:$VERBS)\s+the\s+$ADJ($NOUNS)\b""", RegexOption.IGNORE_CASE)
-    private val AFTER_DESC_FIRST = Regex("""^[,.!?]?\s*the\s+$ADJ($NOUNS)\s+(?:$VERBS)\b""", RegexOption.IGNORE_CASE)
-    private val BEFORE_DESC = Regex("""\bthe\s+$ADJ($NOUNS)\s+(?:$VERBS)[,:.]?\s*$""", RegexOption.IGNORE_CASE)
+    private val AFTER_DESC = Regex("""^[,.!?]?\s*(?:$VERBS)\s+$DET\s+$ADJ($NOUNS)\b""", RegexOption.IGNORE_CASE)
+    private val AFTER_DESC_FIRST = Regex("""^[,.!?]?\s*$DET\s+$ADJ($NOUNS)\s+(?:$VERBS)\b""", RegexOption.IGNORE_CASE)
+    private val BEFORE_DESC = Regex("""\b$DET\s+$ADJ($NOUNS)\s+(?:$VERBS)[,:.]?\s*$""", RegexOption.IGNORE_CASE)
 
     /** The character id for a description: "the giant" (its gender comes from [DESCRIBED]). */
     private fun described(noun: String) = "the " + noun.lowercase().replace(Regex("""\s+"""), " ")
