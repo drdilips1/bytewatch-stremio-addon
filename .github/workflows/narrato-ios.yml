@@ -169,10 +169,12 @@ jobs:
           if [ -n "$ASC_KEY_P8" ]; then printf '%s\n' "$ASC_KEY_P8" > "$KEY"; else echo "$ASC_KEY_P8_B64" | base64 --decode > "$KEY"; fi
           if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
           AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
+          # The archive is made unsigned (automatic signing wanted a development profile, which needs a registered
+          # device); the export below signs it for the App Store with Apple's cloud-managed distribution certificate.
           xcodebuild -quiet $SRC -scheme App -configuration Release -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/Narrato.xcarchive" $AUTH \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic PRODUCT_BUNDLE_IDENTIFIER=com.narrato.reader \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
+            -archivePath "$RUNNER_TEMP/Narrato.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER=com.narrato.reader \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             MARKETING_VERSION="1.0.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" archive
           cat > "$RUNNER_TEMP/export.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
@@ -182,6 +184,7 @@ jobs:
             <key>destination</key><string>upload</string>
             <key>teamID</key><string>$APPLE_TEAM_ID</string>
             <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
           </dict></plist>
           PLIST
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Narrato.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
