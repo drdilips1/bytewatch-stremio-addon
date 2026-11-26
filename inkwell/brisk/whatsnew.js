@@ -14,4 +14,7 @@ export const NEWS = [
   'A copy that won’t play is swapped for another by itself — your place is kept.',
   'Press and hold a book: other copies, its page, or Find cover. × closes the player strip.',
   '“Ready to play now” on Home, and the next book of a series when one ends.',
+  'Dream mode: start the sleep timer and the player turns warm and dim.',
+  'Bookmarks can carry a note. Speeds from 0.5× to 3×.',
+  'Want to listen and Finished in your library. Back up / Restore in Settings.',
 ];

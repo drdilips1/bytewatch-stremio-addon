@@ -183,7 +183,15 @@
   in main.jsx — bump EDITION for future news) + Settings → About → "Report a problem"
   (`reportUrl` in logic.js → github.com/drdilips1/audibrisk/issues/new, pre-filled with version,
   platform, service names, book, last error — never keys; reporters need a GitHub login).
-- Next (26 Nov, committed, not built): the dice changes the WHOLE look again (user: like AudioYam).
+- v1.0.16 (26 Nov, building, Android only — user "build 1 to 6"): Dream mode (`dreamOn` /
+  `briskDream` in player.jsx: while the sleep timer runs the player turns warm and dim; switch in
+  the sleep sheet), bookmark notes (NoteSheet after "Bookmark this moment" → shared
+  renameBookmark), Want to listen (`briskWant`, book page ♡ + long-press) and Finished (from
+  progress) as library chips, speeds 0.5–3×, listening line under the greeting (shared stats
+  summary → `listeningLine`), Back up / Restore in Settings → About (`makeBackup`/`readBackup`,
+  BACKUP_KEYS — never debrid keys; restore writes, waits 3.5 s for pending saves, writes again,
+  reloads). Also in it: the full-look dice.
+- (Built in v1.0.16) the dice changes the WHOLE look again (user: like AudioYam).
   `data-look` on <html> (scenes.jsx applyLook) = the scene, unless Settings → "The dice changes:
   Picture" (`briskDiceAll`). Per look: accent pair + on-accent, light bg tint (light mode only:
   `:root:not([data-mode='dark'])[data-look]`), Midnight tint (dark), heading font for both:

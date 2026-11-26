@@ -281,3 +281,40 @@ export function reportUrl({ version = '', platform = '', services = [], book = n
   const title = error ? `Problem: ${String(error).slice(0, 60)}` : 'Problem: ';
   return `https://github.com/drdilips1/audibrisk/issues/new?${new URLSearchParams({ title, body: lines.join('\n') })}`;
 }
+
+/** "12 h listened this month · 3 books finished" ("" before there's anything to say). */
+export function listeningLine(monthSecs = 0, finished = 0) {
+  const h = monthSecs / 3600;
+  const time = h >= 1 ? `${Math.round(h)} h listened this month` : monthSecs >= 60 ? `${Math.round(monthSecs / 60)} min listened this month` : '';
+  const done = finished ? `${finished} book${finished === 1 ? '' : 's'} finished` : '';
+  return [time, done].filter(Boolean).join(' · ');
+}
+
+// ---- back up / restore: your places, library and choices, in one file (never your keys) ----
+export const BACKUP_KEYS = [
+  'progress', 'bookmarks', 'settings', 'addons', 'bookPrefs', 'listenLog', 'metaFixes',
+  'briskLinks', 'briskWant', 'briskCovers', 'briskLibView', 'briskScene', 'briskMode', 'briskDiceAll',
+  'briskSourcesOff', 'briskHealth', 'briskChapters', 'briskSeenEdition', 'briskDream',
+];
+/** The backup file's text, from a reader of the saved values (key → string or null). */
+export function makeBackup(read, at = new Date()) {
+  const data = {};
+  for (const k of BACKUP_KEYS) {
+    const v = read(k);
+    if (v != null) data[k] = JSON.parse(v);
+  }
+  return JSON.stringify({ app: 'audibrisk', version: 1, savedAt: at.toISOString(), data });
+}
+/** The values in a backup file, ready to save back ([key, text] pairs); throws on a wrong file. */
+export function readBackup(text) {
+  let file;
+  try {
+    file = JSON.parse(text);
+  } catch {
+    throw new Error('That isn’t an Audibrisk backup file');
+  }
+  if (file?.app !== 'audibrisk' || typeof file.data !== 'object') throw new Error('That isn’t an Audibrisk backup file');
+  return Object.entries(file.data)
+    .filter(([k]) => BACKUP_KEYS.includes(k))
+    .map(([k, v]) => [k, JSON.stringify(v)]);
+}

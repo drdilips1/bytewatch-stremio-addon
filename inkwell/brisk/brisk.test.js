@@ -218,3 +218,23 @@ describe('Audibrisk problem report', () => {
     expect(u.searchParams.get('title')).toBe('Problem: HTTP 503 — hoster_unavailable');
   });
 });
+
+describe('Audibrisk listening line and backups', () => {
+  it('says how much you listened, quietly', async () => {
+    const { listeningLine } = await import('./logic.js');
+    expect(listeningLine(12 * 3600 + 900, 3)).toBe('12 h listened this month · 3 books finished');
+    expect(listeningLine(25 * 60, 1)).toBe('25 min listened this month · 1 book finished');
+    expect(listeningLine(0, 0)).toBe('');
+  });
+  it('backs up places and choices — never debrid keys — and reads them back', async () => {
+    const { makeBackup, readBackup } = await import('./logic.js');
+    const saved = { progress: '{"rd:1":{"percent":0.5}}', briskLinks: '{"au:1":{"uid":"rd:1"}}', debrid: '{"torbox":"SECRET"}' };
+    const text = makeBackup((k) => saved[k] ?? null, new Date('2026-11-26T00:00:00Z'));
+    expect(text).not.toContain('SECRET');
+    const back = Object.fromEntries(readBackup(text));
+    expect(JSON.parse(back.progress)['rd:1'].percent).toBe(0.5);
+    expect(back.debrid).toBeUndefined();
+    expect(() => readBackup('{"app":"other"}')).toThrow('Audibrisk backup');
+    expect(() => readBackup('not json')).toThrow('Audibrisk backup');
+  });
+});

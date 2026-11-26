@@ -7,7 +7,11 @@ import { Cover, UpNext } from './screens.jsx';
 import { Icon } from '../src/components/icons.jsx';
 import { nav, useBackClose } from '../src/lib/nav.js';
 import { fmtTime, fmtDuration } from '../src/lib/format.js';
-import { bookmarks, settings, useStore } from '../src/lib/store.js';
+import { bookmarks, settings, useStore, persisted } from '../src/lib/store.js';
+
+// Dream mode: while the sleep timer runs, the player turns warm and dim (the shared player fades
+// the sound out at the end). On unless you switch it off in the sleep timer.
+export const dreamOn = persisted('briskDream', true);
 import * as player from '../src/lib/player.js';
 import { useCoverColor } from '../src/components/player-ui.jsx';
 import { backAfterInterruption } from './logic.js';
@@ -92,7 +96,7 @@ export function MiniPlayer() {
   );
 }
 
-const SPEEDS = [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2];
+const SPEEDS = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2, 2.25, 2.5, 3];
 const SLEEPS = [
   [10, '10 minutes'],
   [20, '20 minutes'],
@@ -117,7 +121,9 @@ function Sheet({ title, close, children }) {
 export function FullPlayer() {
   const s = usePlayer();
   const color = useCoverColor(s.book);
-  const [sheet, setSheet] = useState(null); // 'speed' | 'sleep' | 'chapters' | 'more'
+  const [sheet, setSheet] = useState(null); // 'speed' | 'sleep' | 'chapters' | 'more' | 'note'
+  const [noteFor, setNoteFor] = useState(null); // the bookmark just made, for its note
+  const dream = useStore(dreamOn) && !!(s.sleepUntil || s.sleepEndOfTrack);
   const [drag, setDrag] = useState(null);
   const [tab, setTab] = useState('chapters');
   if (!s.book) return null;
@@ -133,7 +139,7 @@ export function FullPlayer() {
   const at = Math.max(0, Math.min(len, (drag ?? player.globalTime()) - start));
   const sleeping = s.sleepUntil ? `${Math.max(1, Math.round((s.sleepUntil - Date.now()) / 60e3))}m` : s.sleepEndOfTrack ? 'Chapter' : '';
   return (
-    <div class="b-player" style={color && s.book.cover ? { '--b-tint': color } : null}>
+    <div class={'b-player' + (dream ? ' b-dream' : '')} style={color && s.book.cover ? { '--b-tint': color } : null}>
       <div class="b-p-top">
         <button class="b-grab" aria-label="Close player" onClick={() => nav.closeOverlay()}>
           <Icon name="down" size={22} />
@@ -211,7 +217,8 @@ export function FullPlayer() {
           More
         </button>
       </div>
-      {sheet === 'more' && <MoreSheet s={s} close={() => setSheet(null)} open={(k, t) => (t && setTab(t), setSheet(k))} />}
+      {sheet === 'more' && <MoreSheet s={s} close={() => setSheet(null)} open={(k, t) => (t && setTab(t), setSheet(k))} onMark={(bm) => (setNoteFor(bm), setSheet('note'))} />}
+      {sheet === 'note' && noteFor && <NoteSheet uid={s.book.uid} bm={noteFor} close={() => setSheet(null)} />}
       {sheet === 'speed' && (
         <Sheet title="Speed" close={() => setSheet(null)}>
           <div class="b-pills">
@@ -230,6 +237,15 @@ export function FullPlayer() {
               <button onClick={() => (player.setSleep(m), setSheet(null), toast(`Sleep: ${label.toLowerCase()}`))}>{label}</button>
             ))}
             {(s.sleepUntil || s.sleepEndOfTrack) && <button onClick={() => (player.setSleep(null), setSheet(null))}>Turn off</button>}
+          </div>
+          <div class="b-set-row">
+            <div>
+              <b>Dream mode</b>
+              <small>Warm, dim colours while the timer runs; the sound fades out at the end</small>
+            </div>
+            <button class={'b-switch' + (dreamOn.get() ? ' on' : '')} role="switch" aria-checked={dreamOn.get()} aria-label="Dream mode" onClick={() => dreamOn.set(!dreamOn.get())}>
+              <i />
+            </button>
           </div>
         </Sheet>
       )}
@@ -304,7 +320,7 @@ const BOOSTS = [
   [10, 'High'],
 ];
 /** The small menu: chapters, bookmarks, skip silence, skip credits and volume boost (kept for this book). */
-function MoreSheet({ s, close, open }) {
+function MoreSheet({ s, close, open, onMark }) {
   const st = useStore(settings);
   useStore(player.bookPrefs);
   const boost = player.bookPrefs.get()[s.book.uid]?.boost ?? st.boost ?? 0;
@@ -320,8 +336,8 @@ function MoreSheet({ s, close, open }) {
         <button
           onClick={() => {
             const bm = player.addBookmark();
-            if (bm) toast(`Bookmarked at ${fmtTime(bm.global)}`);
-            close();
+            if (bm) onMark(bm); // then a line of your own, if you like
+            else close();
           }}
         >
           <Icon name="plus" size={18} /> Bookmark this moment
@@ -357,6 +373,30 @@ function MoreSheet({ s, close, open }) {
             </button>
           ))}
         </div>
+      </div>
+    </Sheet>
+  );
+}
+
+/** A note on the bookmark just made: a quote, a name to remember… (optional — Skip keeps it as is). */
+function NoteSheet({ uid, bm, close }) {
+  const [text, setText] = useState('');
+  const save = () => {
+    if (text.trim()) player.renameBookmark(uid, bm.createdAt, text.trim());
+    toast(`Bookmarked at ${fmtTime(bm.global)}`);
+    close();
+  };
+  return (
+    <Sheet title={`Bookmark at ${fmtTime(bm.global)}`} close={save}>
+      <p class="b-sheet-sub">Add a note — a quote, a name to remember, a thought. Tapping the bookmark brings you back to this second.</p>
+      <input class="b-input" placeholder={bm.label} value={text} onInput={(e) => setText(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && save()} autofocus />
+      <div class="b-upnext-actions">
+        <button class="b-pill" onClick={() => (toast(`Bookmarked at ${fmtTime(bm.global)}`), close())}>
+          Skip
+        </button>
+        <button class="b-pill b-pill-go" onClick={save}>
+          Save note
+        </button>
       </div>
     </Sheet>
   );

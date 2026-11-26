@@ -422,3 +422,15 @@ button, a, .b-cont, .b-job-text { touch-action: manipulation; -webkit-tap-highli
 :root[data-mode='dark'][data-look='aurora'] { --b-bg: #08120f; --b-bg2: #12201c; --b-card: #12201c; --b-soft: #192b26; --b-soft2: #1f342e; --b-acc: #86d7c2; --b-acc2: #a7e4d4; --b-on-acc: #06201b; --b-gold: #86d7c2; }
 :root[data-mode='dark'][data-look='blossom'] { --b-bg: #140c0f; --b-bg2: #22161a; --b-card: #22161a; --b-soft: #2d1e23; --b-soft2: #35242a; --b-acc: #efa7ba; --b-acc2: #f5c2cf; --b-on-acc: #2c0d16; --b-gold: #efa7ba; }
 .b-seg-sm { margin: 0; flex: none; } .b-seg-sm button { height: 34px; padding: 0 12px; font-size: 13px; }
+
+/* listening line, want to listen, backup buttons */
+.b-listened { position: relative; z-index: 1; margin: -4px 0 10px; color: var(--b-acc); font-size: 13px; }
+.b-want { display: block; margin: 12px auto 0; font-size: 14px; }
+.b-want.on { color: var(--b-acc); }
+.b-row-btns { display: flex; gap: 8px; flex: none; }
+
+/* dream mode: warm, dim, quiet — while the sleep timer runs */
+.b-player.b-dream { --b-blank1: #2a1f17; --b-blank2: #1a120c; --b-chip: rgba(255, 220, 180, 0.08); --b-bg: #120c08; --b-card: #1d150f; --b-soft2: #2a1f17; --b-text: #e6d5bd; --b-muted: #9c8a74; --b-ink: #e6d5bd; --b-line: rgba(255, 220, 180, 0.08); --b-acc: #c9925a; --b-acc2: #e0b07a; --b-on-acc: #1f1208; --b-tint: #7a4a24; color: var(--b-text); }
+.b-player.b-dream .b-player-cover { filter: brightness(0.72) saturate(0.85); }
+.b-player.b-dream .b-p-top small::after { content: '  ☾'; }
+.b-player.b-dream, .b-player.b-dream * { transition: background-color 1.2s ease, color 1.2s ease, filter 1.2s ease; }

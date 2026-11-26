@@ -12,7 +12,8 @@ import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
 import { VERSION, checkUpdate, installUpdate, updState, newer, isIphone } from './update.js';
 import { Scene, rollScene, modeChoice, diceAll } from './scenes.jsx';
-import { copyFacts, thumb, placeOf, fmtRating, libraryMatches, sortBooks, reportUrl } from './logic.js';
+import { copyFacts, thumb, placeOf, fmtRating, libraryMatches, sortBooks, reportUrl, listeningLine, makeBackup, readBackup } from './logic.js';
+import { summary as listenSummary } from '../src/lib/stats.js';
 import { EDITION, NEWS, seenEdition } from './whatsnew.js';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
@@ -337,6 +338,9 @@ function HoldSheet() {
           <button onClick={go(() => setPickCover(b))}>
             <Icon name="image" size={18} /> Find cover
           </button>
+          <button onClick={go(() => toast(bk.toggleWant(b) ? 'Added to Want to listen' : 'Removed from Want to listen'))}>
+            <Icon name="heart" size={18} /> {bk.isWanted(b) ? 'Remove from Want to listen' : 'Want to listen'}
+          </button>
         </div>
       </div>
     </div>
@@ -394,6 +398,7 @@ export function Home() {
       {!q && (
         <div class="b-hero">
           <p class="b-hello">{greeting()}</p>
+          <ListeningLine />
           <h1>What shall we listen to?</h1>
           <svg class="b-swoosh" viewBox="0 0 200 12" aria-hidden="true">
             <path d="M2 10 C60 2 130 1 198 4" fill="none" stroke="var(--b-gold)" stroke-width="2.4" stroke-linecap="round" />
@@ -629,6 +634,66 @@ function WhatsNew() {
   );
 }
 
+/**
+ * Back up / Restore: your places, bookmarks, library choices and settings in one file — for a new
+ * phone or after reinstalling. Debrid keys are never in it (you add those again).
+ */
+function BackupRow() {
+  const [busy, setBusy] = useState('');
+  const fileRef = useRef(null);
+  const backup = async () => {
+    setBusy('save');
+    try {
+      const text = makeBackup((k) => localStorage.getItem('inkwell:' + k));
+      const name = `audibrisk-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      if (phone.available) await phone.saveTextFile({ name, text, mime: 'application/json' });
+      else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+        a.download = name;
+        a.click();
+      }
+      toast('Backup saved');
+    } catch (e) {
+      if (!/cancel/i.test(e?.message || '')) toast(e?.message || 'Couldn’t save the backup');
+    } finally {
+      setBusy('');
+    }
+  };
+  const restore = async (e) => {
+    const f = e.currentTarget.files?.[0];
+    e.currentTarget.value = '';
+    if (!f) return;
+    try {
+      const entries = readBackup(await f.text());
+      setBusy('restore');
+      const put = () => entries.forEach(([k, v]) => localStorage.setItem('inkwell:' + k, v));
+      // Written, then again after the app's own pending saves (up to 3 s), then a fresh start.
+      put();
+      setTimeout(() => (put(), location.reload()), 3500);
+    } catch (err) {
+      toast(err.message);
+    }
+  };
+  return (
+    <div class="b-set-row">
+      <div>
+        <b>Back up / Restore</b>
+        <small>{busy === 'restore' ? 'Restoring — the app restarts in a moment…' : 'Your places, bookmarks and choices in one file (no keys)'}</small>
+      </div>
+      <span class="b-row-btns">
+        <button class="b-pill" disabled={!!busy} onClick={backup}>
+          {busy === 'save' ? <span class="b-spin small" /> : 'Back up'}
+        </button>
+        <button class="b-pill" disabled={!!busy} onClick={() => fileRef.current?.click()}>
+          Restore
+        </button>
+        <input ref={fileRef} type="file" accept="application/json,.json" style="display:none" onChange={restore} />
+      </span>
+    </div>
+  );
+}
+
 /** "Report a problem": a ready-filled note on the public repository (nothing private in it). */
 function reportProblem() {
   const s = player.getState();
@@ -641,6 +706,17 @@ function reportProblem() {
     error: s.error || bk.lastProblem.text,
   });
   Browser.open({ url }).catch(() => window.open(url, '_blank'));
+}
+
+/** A quiet line: hours this month, books finished. No streaks, no pressure. */
+function ListeningLine() {
+  useStore(progress);
+  let line = '';
+  try {
+    const st = listenSummary('listen');
+    line = listeningLine(st.month, st.finishedAll);
+  } catch {}
+  return line ? <p class="b-listened">{line}</p> : null;
 }
 
 /** "Good morning" / afternoon / evening / night, by the phone's clock. */
@@ -669,10 +745,14 @@ function YourLibrary({ skip = [] }) {
   const items = [...bk.offline(dls), ...cloudBooks, ...(phone.connected() ? local.books.filter((b) => b.kind !== 'text') : [])]
     .filter((b) => b?.uid && !ids.has(b.uid) && !seen.has(b.uid) && seen.add(b.uid))
     .map(bk.withCover);
+  const wanted = Object.values(useStore(bk.want)).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).map(bk.withCover);
+  const finished = bk.finishedBooks(useStore(progress)).map(bk.withCover);
   const kinds = [...new Set(items.map((b) => placeOf(b, dls[b.uid]?.status === 'done')?.key).filter(Boolean))];
-  const LABEL = { saved: 'Saved', phone: 'Phone', tb: 'TorBox', rd: 'Real-Debrid', ad: 'AllDebrid', pm: 'Premiumize', free: 'Free' };
+  // Two lists of your own beside where books play from: what you want to hear, and what you finished.
+  const lists = [wanted.length && 'want', finished.length && 'finished'].filter(Boolean);
+  const LABEL = { saved: 'Saved', phone: 'Phone', tb: 'TorBox', rd: 'Real-Debrid', ad: 'AllDebrid', pm: 'Premiumize', free: 'Free', want: 'Want to listen', finished: 'Finished' };
   const view = useStore(libView);
-  const shown = sortBooks(only === 'all' ? items : items.filter((b) => placeOf(b, dls[b.uid]?.status === 'done')?.key === only), view.sort);
+  const shown = sortBooks(only === 'want' ? wanted : only === 'finished' ? finished : only === 'all' ? items : items.filter((b) => placeOf(b, dls[b.uid]?.status === 'done')?.key === only), view.sort);
   if (!items.length && !bk.provider() && !phone.connected()) return null;
   return (
     <section class="b-sec">
@@ -694,9 +774,9 @@ function YourLibrary({ skip = [] }) {
           </div>
         )}
       </div>
-      {kinds.length > 1 && (
+      {(kinds.length > 1 || lists.length > 0) && (
         <div class="b-chips">
-          {['all', ...kinds].map((k) => (
+          {['all', ...lists, ...(kinds.length > 1 ? kinds : [])].map((k) => (
             <button class={only === k ? 'on' : ''} onClick={() => setOnly(k)}>
               {k === 'all' ? 'All' : LABEL[k] || k}
             </button>
@@ -859,6 +939,7 @@ export function BookPage({ book, fresh = false }) {
           </button>
         )}
       </div>
+      <WantButton book={book} />
       {pct != null && (
         <i class="b-cont-bar b-book-bar">
           <em style={{ width: Math.round(pct * 100) + '%' }} />
@@ -878,6 +959,17 @@ export function BookPage({ book, fresh = false }) {
       )}
       {book.description && <p class={'b-desc' + (more ? ' open' : '')} onClick={() => setMore(!more)}>{book.description}</p>}
     </div>
+  );
+}
+
+/** ♡ Want to listen: kept in your library to come back to. */
+function WantButton({ book }) {
+  useStore(bk.want);
+  const on = bk.isWanted(book);
+  return (
+    <button class={'b-link b-want' + (on ? ' on' : '')} onClick={() => toast(bk.toggleWant(book) ? 'Added to Want to listen' : 'Removed from Want to listen')}>
+      {on ? '♥ In Want to listen' : '♡ Want to listen'}
+    </button>
   );
 }
 
@@ -1169,6 +1261,7 @@ function SettingsSheet({ close }) {
         <Sources />
         <h4 class="b-sheet-h">About</h4>
         <UpdateRow />
+        <BackupRow />
         <div class="b-set-row">
           <div>
             <b>Report a problem</b>

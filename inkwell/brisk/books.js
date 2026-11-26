@@ -716,3 +716,23 @@ export async function findReadyNow({ force = false } = {}) {
     scanning = false;
   }
 }
+
+// ---- Want to listen, and Finished --------------------------------------------------------------
+export const want = persisted('briskWant', {}); // uid -> book (to listen to later)
+const slimBook = (b) => ({ uid: b.uid, source: b.source, title: b.title, author: b.author || '', narrator: b.narrator || '', cover: b.cover || '', duration: b.duration || 0, series: b.series || '', addedAt: Date.now() });
+export const isWanted = (b) => !!want.get()[b?.uid];
+export function toggleWant(b) {
+  want.set((w) => {
+    const next = { ...w };
+    if (next[b.uid]) delete next[b.uid];
+    else next[b.uid] = slimBook(b);
+    return next;
+  });
+  return isWanted(b);
+}
+/** Books you finished, most recent first. */
+export const finishedBooks = (all = progress.get()) =>
+  Object.entries(all)
+    .filter(([, p]) => p?.finished && p.book?.title && p.kind !== 'text')
+    .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0))
+    .map(([uid, p]) => ({ ...p.book, uid }));
