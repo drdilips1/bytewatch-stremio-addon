@@ -154,6 +154,12 @@ dialogue timing, shareable cast packs; v3 emotional takes (voice update, by ear)
 **User decision (26 Nov 2026): do NOT port Character Studio / voice cast to iPhone – battery must stay perfect there.**
 **Also switched off on Android from 1.9.31** (`CharacterStudio.ENABLED = false`: no menu rows, `fullCast` forced off in Narrato); the code stays for later.
 
+## Expressive reading: rejected (26 Nov 2026)
+
+Sample clips were made (Daniel, Lily, Henry; plain vs expressive: pauses ±, pace ±5–7% by WSOLA, loudness
+±2–5 dB from emotional cues). **User verdict: keep plain only – the expressive clips had unnatural abrupt
+ends.** Don't propose or build emotional/expressive delivery again unless the user asks.
+
 ## Other pending items
 
 - Declare EU trader status in Play Console (public details).
