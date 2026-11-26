@@ -2358,7 +2358,33 @@ select {
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent);
   transition: background 0.3s;
 }
-/* The start point: a paragraph tapped once (Play reads from there). */
+/* "Play from here": the button beside a tapped paragraph. */
+.play-here {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  min-height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: 600 16px/1 system-ui, -apple-system, sans-serif;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  animation: play-here-in 0.15s ease-out;
+}
+.play-here svg {
+  width: 18px;
+  height: 18px;
+}
+@keyframes play-here-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+}
+/* The tapped paragraph, while "Play from here" is offered. */
 .reader-text .start-here {
   border-radius: 8px;
   box-shadow: -10px 0 0 -6px var(--accent), 0 0 0 6px color-mix(in srgb, var(--accent) 10%, transparent);

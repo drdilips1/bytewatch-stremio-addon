@@ -123,13 +123,16 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
 
   // Highlight + follow the paragraph being read (from either engine).
   const lit = useRef(null);
+  /** When the page was last touched or scrolled by hand. */
+  const browsedAt = useRef(0);
   const aloudHandlers = () => ({
     onIndex: (i, el) => {
       if (trRef.current) keepAhead(el);
       lit.current?.classList.remove('aloud');
       el.classList.add('aloud');
       lit.current = el;
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Follows the voice, but not while the reader is looking around the page (it jumped back mid-search).
+      if (Date.now() - browsedAt.current > 8000) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setAloud((a) => ({ playing: a?.playing ?? true, index: i }));
     },
     // Native engine: pause/play from the notification or lock screen shows here too.
@@ -285,28 +288,19 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     else ctl.current?.stop();
     setAloud((a) => a && { ...a, playing: false });
   };
-  /**
-   * The start point: a paragraph tapped once is marked, and Play (here or under the page) starts there.
-   * (Double-tapping to read from a paragraph jumped about: a tap only marks, Play reads.)
-   */
-  const startMark = useRef(null);
-  const markStart = (el) => {
-    startMark.current?.classList.remove('start-here');
-    if (startMark.current === el) {
-      startMark.current = null;
-      return;
-    }
-    startMark.current = el;
+  /** "Play from here": a paragraph tapped once offers to read from it (a button beside it). */
+  const [playHere, setPlayHere] = useState(null); // { el, y }
+  const hereTimer = useRef(0);
+  const offerPlayHere = (el, y) => {
+    playHere?.el.classList.remove('start-here');
     el.classList.add('start-here');
+    setPlayHere({ el, y });
+    clearTimeout(hereTimer.current);
+    hereTimer.current = setTimeout(() => closePlayHere(el), 5000);
   };
-  /** Plays from the marked paragraph, if one is marked (and clears the mark); false otherwise. */
-  const playFromMark = () => {
-    const el = startMark.current;
-    if (!el || !el.isConnected) return false;
-    el.classList.remove('start-here');
-    startMark.current = null;
-    readFrom(el);
-    return true;
+  const closePlayHere = (el) => {
+    (el || playHere?.el)?.classList.remove('start-here');
+    setPlayHere(null);
   };
   /** Read from this element (a tapped paragraph or a chapter), even in skipped front matter. */
   const readFrom = (el) => {
@@ -341,7 +335,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
   };
   // Paper to Audio / Narrato: the player's controls under the page work this Read aloud.
   window.__p2aAloud = {
-    play: () => playFromMark() || (ctl.current?.native ? playAloud(aloud?.index ?? 0) : startAloud()),
+    play: () => (ctl.current?.native ? playAloud(aloud?.index ?? 0) : startAloud()),
     follow: async () => {
       if (ctl.current?.native || !doc) return;
       const attached = await attachAloud(book.uid, speakBlocks(), aloudHandlers());
@@ -571,7 +565,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         )}
         <button
           class={'icon-btn' + (aloud ? ' on' : '')}
-          onClick={() => (aloud ? setPanel(panel === 'listen' ? null : 'listen') : (setPanel(null), playFromMark() || startAloud()))}
+          onClick={() => (aloud ? setPanel(panel === 'listen' ? null : 'listen') : (setPanel(null), startAloud()))}
           aria-label={aloud ? 'Voice' : 'Read aloud'}
         >
           <Icon name="headphones" />
@@ -587,6 +581,21 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         </button>
       </header>
 
+      {playHere && (
+        <button
+          class="play-here"
+          style={{ top: Math.max(70, Math.min(window.innerHeight - 160, playHere.y - 64)) + 'px' }}
+          onClick={() => {
+            const el = playHere.el;
+            clearTimeout(hereTimer.current);
+            closePlayHere(el);
+            browsedAt.current = 0; // follow the voice from here on
+            readFrom(el);
+          }}
+        >
+          <Icon name="play" /> Play from here
+        </button>
+      )}
       {pages && PagesView && doc?.bytes && (
         <PagesView bytes={doc.bytes} startPage={progress.get()[book.uid]?.pdfPage || 1} onPage={savePage} />
       )}
@@ -594,7 +603,14 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         class="reader-scroll"
         style={pages ? { display: 'none' } : null}
         ref={scroller}
-        onPointerDown={(e) => (downAt.current = { t: Date.now(), x: e.clientX, y: e.clientY })}
+        onPointerDown={(e) => {
+          downAt.current = { t: Date.now(), x: e.clientX, y: e.clientY };
+          browsedAt.current = Date.now();
+        }}
+        onScroll={() => {
+          if (Date.now() - (downAt.current?.t || 0) < 1500 || Date.now() - browsedAt.current < 1500) browsedAt.current = Date.now();
+          if (playHere && Date.now() - (downAt.current?.t || 0) > 700) closePlayHere();
+        }}
         onClick={(e) => {
           if (e.target.closest('a')) return;
           // Finishing or adjusting a selection (or tapping it away): not a page turn.
@@ -610,12 +626,10 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
           const x = e.clientX / window.innerWidth;
           if (x < 0.22) return (page(-1), setPanel(null));
           if (x > 0.78) return (page(1), setPanel(null));
-          // On a paragraph: it becomes the start point (Play reads from there). Elsewhere: the bars.
+          // On a paragraph: offer "Play from here". Elsewhere: the bars.
           const block = blocks().find((b) => b.contains(e.target));
-          if (block) {
-            markStart(block);
-            setChrome(true);
-          } else setChrome((c) => !c);
+          if (block) offerPlayHere(block, e.clientY);
+          else setChrome((c) => !c);
           setPanel(null);
         }}
       >
@@ -703,7 +717,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
           <button class="icon-btn" onClick={() => startAloud(Math.max(0, aloud.index - 1), aloudAll.current)} aria-label="Previous paragraph">
             <Icon name="prev" size={20} />
           </button>
-          <button class="play-btn small" onClick={() => (aloud.playing ? pauseAloud() : playFromMark() || playAloud(aloud.index))} aria-label={aloud.playing ? 'Pause' : 'Play'}>
+          <button class="play-btn small" onClick={() => (aloud.playing ? pauseAloud() : playAloud(aloud.index))} aria-label={aloud.playing ? 'Pause' : 'Play'}>
             <Icon name={aloud.playing ? 'pause' : 'play'} size={20} />
           </button>
           <button class="icon-btn" onClick={() => startAloud(aloud.index + 1, aloudAll.current)} aria-label="Next paragraph">
