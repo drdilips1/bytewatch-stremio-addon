@@ -451,6 +451,13 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   calc(100% + 20px), margin -10px. (3) whole "Downloading for you" card tappable. (4) iPhone .mp4 import: picker
   .mpeg4Movie, Swift audio set + mp4, local.js AUDIO mp4 on iPhone only. → To PORT to AudioYam when the user says
   (3-way merge as before; scrub anything private). Not ported yet.
+- NOTED 26 Nov (Reddit, r/audiohubapp, Shabbypenguin): "different voices on iOS? choose voice setting but you can't
+  install or pick any others". Cause: on iPhone only SystemVoices (settings-extra.jsx) — Microsoft (Edge) needs
+  nativeReader and offline voices need InkwellVoices, both Android-only; and tts.voices() reads
+  speechSynthesis.getVoices() once (WKWebView fills it async → empty/short list, no voiceschanged wait).
+  To do (when told): wait for voiceschanged + re-list; iPhone hint "add voices: Settings → Accessibility → Spoken
+  Content → Voices (Enhanced / Premium), they then show here"; bigger: an iOS AVSpeechSynthesizer plugin (premium
+  voices, screen-off) and/or the Microsoft voices on iPhone.
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
