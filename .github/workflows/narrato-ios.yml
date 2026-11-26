@@ -29,6 +29,8 @@ jobs:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
+      # Or the .p8 file's text pasted as it is (easier than base64).
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
@@ -134,14 +136,14 @@ jobs:
           ls -la Narrato.ipa
 
       # Signed for the App Store and sent to TestFlight, once the App Store Connect API key and Team ID are saved
-      # as repository secrets (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_B64, APPLE_TEAM_ID). Xcode creates the
+      # as repository secrets (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 or ASC_KEY_P8_B64, APPLE_TEAM_ID). Xcode creates the
       # signing certificate and profile itself through the key.
       - name: Sign and upload to TestFlight
-        if: env.ASC_KEY_ID != '' && env.ASC_ISSUER_ID != '' && env.ASC_KEY_P8_B64 != '' && env.APPLE_TEAM_ID != ''
+        if: env.ASC_KEY_ID != '' && env.ASC_ISSUER_ID != '' && (env.ASC_KEY_P8 != '' || env.ASC_KEY_P8_B64 != '') && env.APPLE_TEAM_ID != ''
         working-directory: paper2audio/ios/ios/App
         run: |
           KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
-          echo "$ASC_KEY_P8_B64" | base64 --decode > "$KEY"
+          if [ -n "$ASC_KEY_P8" ]; then printf '%s\n' "$ASC_KEY_P8" > "$KEY"; else echo "$ASC_KEY_P8_B64" | base64 --decode > "$KEY"; fi
           if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
           AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
           xcodebuild -quiet $SRC -scheme App -configuration Release -destination 'generic/platform=iOS' \
