@@ -159,8 +159,13 @@
   session and each retried after a day (`briskCoverTried`); long-press → "Find cover"
   (`CoverSheet`, shared searchCovers → setFix). NOT done: iPhone downloads (needs a new shared
   Swift plugin — can't compile/test it here or read the public repo's logs).
-- PROPOSED redesign (25 Nov, ChatGPT "premium" brief) — plan + sample shown, WAITING for the
-  user's OK; nothing changed. Two themes: Ivory (#F5F3EE / white / #202630 / accent #9C8055) as the
+- Redesign IN PROGRESS (26 Nov, not built). User: no Ivory (light = the warm cream look, now with
+  champagne), keep the scenes and add more, champagne everywhere. DONE steps 1–2: tokens renamed
+  --b-sage → --b-acc/--b-acc2 + --b-on-acc; dark = Midnight; per-scene colour tints removed;
+  champagne gradient on play buttons / chips / segments / progress; Now Playing glow from the cover
+  colour (champagne when no cover), 26px artwork, glowing progress, halo play button; frosted mini
+  player; reduced-motion respected. Scenes +4: autumn, dunes, aurora, blossom (9 in all). NEXT:
+  step 3 Home + Library (grid/list, sort), 4 Settings groups + sheets, 5 motion. Earlier plan: Two themes: Ivory (#F5F3EE / white / #202630 / accent #9C8055) as the
   default, Midnight (#0B1018 / #151E2B / #F4F2ED / champagne #D6BD91) for dark; champagne play
   button with glow, ambient cover-colour light on Now Playing, thin glowing progress, Continue
   hero card, glass only on the small floating mini player. Keep: one screen (no bottom tabs /

@@ -133,7 +133,7 @@ export function FullPlayer() {
   const at = Math.max(0, Math.min(len, (drag ?? player.globalTime()) - start));
   const sleeping = s.sleepUntil ? `${Math.max(1, Math.round((s.sleepUntil - Date.now()) / 60e3))}m` : s.sleepEndOfTrack ? 'Chapter' : '';
   return (
-    <div class="b-player" style={color ? { '--b-tint': color } : null}>
+    <div class="b-player" style={color && s.book.cover ? { '--b-tint': color } : null}>
       <div class="b-p-top">
         <button class="b-grab" aria-label="Close player" onClick={() => nav.closeOverlay()}>
           <Icon name="down" size={22} />
