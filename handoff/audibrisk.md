@@ -191,6 +191,14 @@
   Audiohub+) serves /addons/audiobooks.json — every audiobook addon on it (ABB, Knaben AudioBooks,
   EXTto, RuTracker; contentType audiobook, new ones join by themselves). Needs a redeploy (paste).
 - NOTED, not built (24 Nov, user "just note"):
+  - Covers for badly named books (26 Nov, user "note down"). Auto finder (shared meta lookup:
+    queryFor tidies, `plausible` needs ≥60% of the hit's title words in the name) gives nothing for
+    glued words ("AtomicHabits"), codes ("HP7"), misspellings, author-only folders, other
+    languages. Plan: (1) Find cover gets an editable search box, prefilled with the tidied name;
+    (2) picking a cover can also fix the shown title + author (setFix title/author, used by
+    withCover/search); (3) smarter auto guesses in Audibrisk before giving up — split
+    "Author - Title", split glued CamelCase, drop "Book 3 –"/codes, title alone — still requiring
+    a sensible match (never a wrong cover).
   - iPhone: Save / download for offline (needs a shared iOS downloads plugin — shared native code).
   - ChatGPT list — already in: one-tap resume, copy fallback keeping place, theme dice, chapters,
     continuity across files, sleep fade (shared player fades out). Worth doing: search your own
