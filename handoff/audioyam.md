@@ -489,6 +489,13 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   SourceResults; no Goodreads/Audible/editions/Usenet for comics. Fixed Cover (common.jsx): tall pictures shown whole
   (shaped ratio wins over the fraction-based frame), and a cached cover's ratio re-read after the uid reset effect.
   Optional later: ComicVine (free API key, worker secret) for writers/artists/issue data — not added (needs a key).
+- NOTED 26 Nov (user shared a "dream comic/manga reader" vision, from another AI chat): immersive reader, modes
+  (RTL/LTR/vertical/paginated/double spreads), page transitions, reading environments (warm paper, OLED, sepia,
+  grayscale), PanelFlow (panel-by-panel), smart zoom, character encyclopedia, panel memories, AI translator /
+  tap-to-understand / Who's who / recaps with Spoiler Shield, image enhancement, streaming-style library (reading
+  now / on hold / plan to read / completed / favourites / collections / smart filters / stats), chapter preloading,
+  auto-download on Wi-Fi, volume keys, gestures, one-hand mode, AniList/MAL sync, mood shelves, ambient themes.
+  Gap analysis + proposed order given in chat; nothing built — waiting for the user's pick / "go" (samples first).
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
