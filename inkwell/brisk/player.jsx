@@ -152,6 +152,8 @@ export function FullPlayer() {
       <p class="b-p-author">{s.book.author}</p>
       <p class="b-p-ch">{s.loading ? s.phase || 'Opening the book…' : ch?.title || ''}</p>
       {s.error && <p class="b-p-err">{s.error}</p>}
+      <Bedtime s={s} />
+      {s.awayDays > 0 && <p class="b-p-away">Welcome back after {s.awayDays >= 60 ? `${Math.round(s.awayDays / 30)} months` : `${Math.round(s.awayDays / 7)} weeks`} — picking up where you left off</p>}
       {s.error && !s.book.offline && (
         // That copy won't play (e.g. Real-Debrid's "hoster_unavailable"): pick another, keeping your place.
         <button
@@ -399,5 +401,33 @@ function NoteSheet({ uid, bm, close }) {
         </button>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * Late at night (10 pm – 4 am) with no sleep timer: a small offer — "☾ Sleep in 30 min?". One tap
+ * sets it (with Dream mode); × hides it for tonight.
+ */
+let bedtimeHidden = 0;
+function Bedtime({ s }) {
+  const [, redraw] = useState(0);
+  const h = new Date().getHours();
+  const late = h >= 22 || h < 4;
+  if (!late || !s.playing || s.sleepUntil || s.sleepEndOfTrack || Date.now() - bedtimeHidden < 8 * 3600e3) return null;
+  return (
+    <div class="b-bedtime">
+      <button
+        class="b-pill"
+        onClick={() => {
+          player.setSleep(30);
+          toast('Sleep in 30 minutes');
+        }}
+      >
+        ☾ Sleep in 30 min?
+      </button>
+      <button class="b-job-x" aria-label="Not tonight" onClick={() => ((bedtimeHidden = Date.now()), redraw((n) => n + 1))}>
+        <Icon name="close" size={14} />
+      </button>
+    </div>
   );
 }

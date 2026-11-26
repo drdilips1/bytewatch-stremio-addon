@@ -198,6 +198,14 @@
   sunrise champagne/serif, sunset terracotta/serif, night indigo/sans-light, meadow sage/serif,
   mountains slate/condensed, autumn rust/serif, dunes sand/sans 500, aurora teal/sans-light,
   blossom rose/serif italic (Android system fonts only). Champagne on cream deepened to #94703c.
+- Next (26 Nov, committed, not built — user "build all" of the dream list 1–5): Continue card line
+  (`ContNote`: `awayText` "Back after 9 days — you were 42% in · your note…" after ≥7 days, else
+  `finishText` from shared finishGuess "Finish by Thursday"); player: "Welcome back after N weeks"
+  (shared state.awayDays ≥14) and a late-night (22–4 h) "☾ Sleep in 30 min?" chip (`Bedtime`, ×
+  hides 8 h); book page: author / narrator tappable → `PeoplePage` (route `people`, audible
+  byAuthor / byNarrator); `SeriesStrip` (audible.series, ✓ finished via sameBook, this one ringed).
+  NOT done: #6 "save the next few hours" — shared applyLocal treats a saved book as complete
+  (would hide the unsaved parts); needs a shared downloads change — ask first.
 - Fix (26 Nov, committed, not built): place and speed lost after hours ("from 0", book page Play).
   Cause: Real-Debrid re-adds the copy under a NEW id when the old one won't serve (expired /
   hoster unavailable) → no saved place/speed for that id. Now `earlierPlace` (logic.js) finds the

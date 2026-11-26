@@ -6,11 +6,11 @@ import { Capacitor } from '@capacitor/core';
 import { nav } from '../src/lib/nav.js';
 import { Toaster, Guard } from '../src/components/common.jsx';
 import * as player from '../src/lib/player.js';
-import { Home, BookPage } from './screens.jsx';
+import { Home, BookPage, PeoplePage } from './screens.jsx';
 import { MiniPlayer, FullPlayer } from './player.jsx';
 import './update.js';
 
-const ROUTES = { book: BookPage };
+const ROUTES = { book: BookPage, people: PeoplePage };
 
 export function App() {
   const [route, setRoute] = useState(nav.state());

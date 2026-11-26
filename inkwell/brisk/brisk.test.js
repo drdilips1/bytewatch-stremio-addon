@@ -257,3 +257,21 @@ describe('Audibrisk keeps your place when the copy changes', () => {
     expect(earlierPlace({ 'rd:old': { percent: 1, finished: true, updatedAt: 1, book: { title: 'Dune' } } }, { title: 'Dune' }, 'rd:new', same)).toBe(null);
   });
 });
+
+describe('Audibrisk finish line and coming back', () => {
+  it('says when you will likely finish', async () => {
+    const { finishText } = await import('./logic.js');
+    const mon = new Date('2026-11-23T10:00:00'); // a Monday
+    expect(finishText(1, mon)).toBe('Finish tomorrow');
+    expect(finishText(3, mon)).toBe('Finish by Thursday');
+    expect(finishText(12, mon)).toBe('Finish in about 12 days');
+    expect(finishText(0, mon)).toBe('');
+  });
+  it('welcomes you back after a while, with your last note', async () => {
+    const { awayText } = await import('./logic.js');
+    const now = Date.parse('2026-11-26T10:00:00');
+    expect(awayText({ updatedAt: now - 9 * 864e5, percent: 0.42 }, 'Watch the uncle', now)).toBe('Back after 9 days — you were 42% in · your note: “Watch the uncle”');
+    expect(awayText({ updatedAt: now - 21 * 864e5, percent: 0.1 }, '', now)).toBe('Back after 3 weeks — you were 10% in');
+    expect(awayText({ updatedAt: now - 2 * 864e5, percent: 0.4 }, '', now)).toBe('');
+  });
+});

@@ -12,8 +12,10 @@ import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
 import { VERSION, checkUpdate, installUpdate, updState, newer, isIphone } from './update.js';
 import { Scene, rollScene, modeChoice, diceAll } from './scenes.jsx';
-import { copyFacts, thumb, placeOf, fmtRating, libraryMatches, sortBooks, reportUrl, listeningLine, makeBackup, readBackup } from './logic.js';
-import { summary as listenSummary } from '../src/lib/stats.js';
+import { copyFacts, thumb, placeOf, fmtRating, libraryMatches, sortBooks, reportUrl, listeningLine, makeBackup, readBackup, finishText, awayText, seriesOf } from './logic.js';
+import { summary as listenSummary, finishGuess } from '../src/lib/stats.js';
+import { audible } from '../src/sources/catalogs.js';
+import { bookmarks } from '../src/lib/store.js';
 import { EDITION, NEWS, seenEdition } from './whatsnew.js';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
@@ -101,12 +103,28 @@ function ContinueCard({ b, onOpen }) {
           <em style={{ width: Math.round((b.percent || 0) * 100) + '%' }} />
         </i>
         <small>{leftOf(b)}</small>
+        <ContNote b={b} />
       </div>
       <button class="b-cont-play" aria-label="Play">
         {opening ? <span class="b-spin" /> : <Icon name="play" size={20} />}
       </button>
     </div>
   );
+}
+
+/** Under a book you're listening to: when you'll likely finish, or — back after a while — where you were. */
+function ContNote({ b }) {
+  const p = progress.get()[b.uid];
+  const marks = bookmarks.get()[b.uid] || [];
+  const note = [...marks].sort((x, y) => (y.createdAt || 0) - (x.createdAt || 0)).find((m) => m.label && !/^(track|part|chapter)?\s*\d+$/i.test(m.label))?.label || '';
+  const away = awayText(p, note);
+  let line = away;
+  if (!line) {
+    try {
+      line = finishText(finishGuess(b.uid)?.days);
+    } catch {}
+  }
+  return line ? <em class={'b-cont-note' + (away ? ' away' : '')}>{line}</em> : null;
 }
 
 /** A grid of books (Library, Downloads). */
@@ -916,11 +934,23 @@ export function BookPage({ book, fresh = false }) {
       </div>
       <Cover book={book} class="b-book-cover" />
       <h1>{book.title}</h1>
-      <p class="b-by">{book.author}</p>
+      <p class="b-by">
+        {book.author ? (
+          <button class="b-name" onClick={() => nav.push('people', { name: String(book.author).split(',')[0].trim(), kind: 'author' })}>
+            {book.author}
+          </button>
+        ) : null}
+      </p>
       <p class="b-facts">
-        {[book.narrator && `Read by ${book.narrator.split(',')[0]}`, book.duration && fmtDuration(book.duration), book.year].filter(Boolean).join('  ·  ')}
+        {book.narrator && (
+          <button class="b-name small" onClick={() => nav.push('people', { name: book.narrator.split(',')[0].trim(), kind: 'narrator' })}>
+            Read by {book.narrator.split(',')[0]}
+          </button>
+        )}
+        {[book.narrator && ' ', book.duration && fmtDuration(book.duration), book.year].filter(Boolean).join('  ·  ')}
       </p>
       {book.series && <p class="b-series">{book.series}</p>}
+      {book.series && <SeriesStrip book={book} />}
       {fmtRating(book) && <p class="b-rating">{fmtRating(book)} ratings on Audible</p>}
       <div class="b-actions">
         <button class="b-play" onClick={onPlay} disabled={!!status}>
@@ -958,6 +988,86 @@ export function BookPage({ book, fresh = false }) {
         </button>
       )}
       {book.description && <p class={'b-desc' + (more ? ' open' : '')} onClick={() => setMore(!more)}>{book.description}</p>}
+    </div>
+  );
+}
+
+/**
+ * The series at a glance: its books as small numbered covers — the ones you finished ticked,
+ * this one marked; tap another to open it.
+ */
+const seriesCache = new Map();
+function SeriesStrip({ book }) {
+  const s = seriesOf(book.series);
+  const [list, setList] = useState(() => (s ? seriesCache.get(s.name) : null) || null);
+  useEffect(() => {
+    if (!s || list) return;
+    let alive = true;
+    audible
+      .series(s.name, String(book.author || '').split(',')[0])
+      .then((l) => (seriesCache.set(s.name, l), alive && setList(l)))
+      .catch(() => {});
+    return () => (alive = false);
+  }, [book.uid]);
+  if (!s || !list || list.length < 2) return null;
+  const done = bk.finishedBooks();
+  const isDone = (b) => done.some((f) => bk.sameBook(b, f));
+  return (
+    <div class="b-series-strip">
+      {list.slice(0, 20).map((b) => {
+        const here = b.uid === book.uid || b.seriesN === s.n;
+        return (
+          <button class={'b-ser' + (here ? ' here' : '')} onClick={() => !here && nav.push('book', { book: b })} aria-label={b.title}>
+            <Cover book={b} px={160} />
+            <small>
+              {isDone(b) ? '✓ ' : ''}#{b.seriesN ?? '?'}
+            </small>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** An author's or narrator's other books (from Audible), to find the next one. */
+export function PeoplePage({ name, kind = 'author' }) {
+  const [list, setList] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    (kind === 'narrator' ? audible.byNarrator(name) : audible.byAuthor(name))
+      .then((l) => alive && setList(l.filter((b) => b.title)))
+      .catch(() => alive && setList([]));
+    return () => (alive = false);
+  }, [name, kind]);
+  return (
+    <div class="b-tab">
+      <div class="b-book-top">
+        <button class="b-icon" aria-label="Back" onClick={() => nav.back()}>
+          <Icon name="back" size={20} />
+        </button>
+      </div>
+      <p class="b-hello">{kind === 'narrator' ? 'Read by' : 'Books by'}</p>
+      <h1 class="b-title">{name}</h1>
+      {list == null ? (
+        <p class="b-quiet">
+          <span class="b-spin small" />
+        </p>
+      ) : !list.length ? (
+        <p class="b-quiet">Nothing found right now.</p>
+      ) : (
+        <div class="b-results">
+          {list.map((b) => (
+            <button class="b-result" onClick={() => nav.push('book', { book: b })}>
+              <Cover book={b} px={160} />
+              <div>
+                <b>{b.title}</b>
+                <span>{b.series || String(b.author || '').split(',')[0]}</span>
+                <small>{[fmtRating(b), b.duration && fmtDuration(b.duration)].filter(Boolean).join(' · ')}</small>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -434,3 +434,20 @@ button, a, .b-cont, .b-job-text { touch-action: manipulation; -webkit-tap-highli
 .b-player.b-dream .b-player-cover { filter: brightness(0.72) saturate(0.85); }
 .b-player.b-dream .b-p-top small::after { content: '  ☾'; }
 .b-player.b-dream, .b-player.b-dream * { transition: background-color 1.2s ease, color 1.2s ease, filter 1.2s ease; }
+
+/* finish line / welcome back, tappable names, the series strip, the bedtime offer */
+.b-cont-note { display: block; margin-top: 4px; font-style: normal; font-size: 12.5px; color: var(--b-acc); }
+.b-cont-note.away { color: var(--b-mid); }
+.b-name { color: inherit; font: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 30%, transparent); text-underline-offset: 3px; }
+.b-name.small { display: inline; }
+.b-series-strip { display: flex; gap: 10px; overflow-x: auto; margin: 14px -22px 0; padding: 4px 22px; scrollbar-width: none; justify-content: safe center; }
+.b-series-strip::-webkit-scrollbar { display: none; }
+.b-ser { flex: none; width: 58px; text-align: center; opacity: 0.85; }
+.b-ser .b-cover { border-radius: 8px; }
+.b-ser small { display: block; margin-top: 4px; font-size: 11px; color: var(--b-muted); }
+.b-ser.here { opacity: 1; }
+.b-ser.here .b-cover { box-shadow: 0 0 0 2px var(--b-acc); }
+.b-ser.here small { color: var(--b-acc); font-weight: 700; }
+.b-bedtime { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.b-p-away { margin: 8px 0 0; color: var(--b-acc); font-size: 13px; }
+.b-save, .b-play { white-space: nowrap; }

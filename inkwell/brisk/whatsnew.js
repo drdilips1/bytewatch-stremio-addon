@@ -17,4 +17,6 @@ export const NEWS = [
   'Dream mode: start the sleep timer and the player turns warm and dim.',
   'Bookmarks can carry a note. Speeds from 0.5× to 3×.',
   'Want to listen and Finished in your library. Back up / Restore in Settings.',
+  'Tap an author or narrator for their other books; a series shows all its books at a glance.',
+  '“Finish by Thursday” on the Continue card, and a gentle “Sleep in 30 min?” late at night.',
 ];

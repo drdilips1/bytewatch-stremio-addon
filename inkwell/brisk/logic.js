@@ -336,3 +336,21 @@ export function earlierPlace(all, book, uid, same) {
   if (!best || (own && (own.updatedAt || 0) >= (best.p.updatedAt || 0))) return null;
   return { from: best.uid, percent: best.p.percent, global: best.p.global, total: best.p.total };
 }
+
+/** "Finish tomorrow" / "Finish by Thursday" / "Finish in about 12 days" — from your own pace. */
+export function finishText(days, now = new Date()) {
+  if (!(days >= 1)) return '';
+  if (days === 1) return 'Finish tomorrow';
+  if (days <= 6) return `Finish by ${new Date(now.getTime() + days * 864e5).toLocaleDateString('en-GB', { weekday: 'long' })}`;
+  if (days <= 60) return `Finish in about ${days} days`;
+  return `Finish in about ${Math.round(days / 30)} months`;
+}
+
+/** Back to a book after a while: "Back after 9 days — you were 42% in · your note: “…”" ('' within a week). */
+export function awayText(p, note = '', now = Date.now()) {
+  const days = p?.updatedAt ? Math.floor((now - p.updatedAt) / 864e5) : 0;
+  if (days < 7 || !p || p.finished) return '';
+  const when = days >= 60 ? `${Math.round(days / 30)} months` : days >= 14 ? `${Math.round(days / 7)} weeks` : `${days} days`;
+  const where = p.percent > 0 ? ` — you were ${Math.round(p.percent * 100)}% in` : '';
+  return `Back after ${when}${where}${note ? ` · your note: “${String(note).slice(0, 80)}”` : ''}`;
+}
