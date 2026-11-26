@@ -178,7 +178,7 @@
   scenes.jsx (themes: Ivory/Midnight + Auto; scenes become optional), player.jsx (Now Playing +
   mini), screens.jsx (Home hero, library grid/list + sort, settings groups), app.jsx (page
   transitions). Open questions to the user: Ivory default?; keep the dice scenes?; sage → champagne.
-- Building (26 Nov, Android only — "add both and build"): the redesign (steps 1–5) + "What's new"
+- v1.0.15 BUILT OK (26 Nov, run 15, private test: https://github.com/drdilips1/bytewatch-stremio-addon/releases/tag/audibrisk-v1.0.15 — Android only): the redesign (steps 1–5) + "What's new"
   card (`brisk/whatsnew.js`: EDITION 1 + NEWS list, `briskSeenEdition`; fresh installs marked seen
   in main.jsx — bump EDITION for future news) + Settings → About → "Report a problem"
   (`reportUrl` in logic.js → github.com/drdilips1/audibrisk/issues/new, pre-filled with version,
