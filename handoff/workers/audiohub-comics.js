@@ -1,7 +1,9 @@
-// Audiohub Comics — Cloudflare Worker, version 2.8.1
+// Audiohub Comics — Cloudflare Worker, version 2.8.2
 // Sources: GetComics and the Internet Archive (searched; download options with direct files),
 // Weeb Central (manga: search, chapter lists and chapter pages for the app's comic reader),
 // and Comics Plus (your library's own reader, opened by the app — never searched here).
+// Changes from 2.8.1: GetComics download options list only real downloads — not "How To Download",
+// reader apps (YAC Reader, ComicRack, CDisplayEx, 7-Zip…) or "Related Article" links.
 // Changes from 2.7.1: ReadComicsOnline and Kitsu removed, with their routes (the user keeps
 // GetComics, Weeb Central, Internet Archive and Comics Plus).
 // Kept: one result shape for every source (unify), GetComics search + release download options
@@ -10,7 +12,7 @@
 
 const CONFIG = {
   NAME: "Audiohub Comics",
-  VERSION: "2.8.1",
+  VERSION: "2.8.2",
   ARCHIVE_API: "https://archive.org",
   GETCOMICS_FEED: "https://getcomics.org/feed/",
   GETCOMICS_SEARCH: "https://getcomics.org/wp-json/wp/v2/search",
@@ -468,6 +470,20 @@ async function getComicsLatest(limit) {
 
 /* GETCOMICS DOWNLOAD LINK DISCOVERY */
 
+// A real download on a GetComics release page: its own download / mirror buttons ("Download Now",
+// "Mirror Download", /dls/ links) or a file host — not the "How To Download" guide, the reader
+// apps it recommends (YAC Reader, ComicRack, CDisplayEx, 7-Zip…) or "Related Article" posts.
+const FILE_HOSTS = /mega\.nz|mediafire|pixeldrain|1fichier|terabox|vikingfile|rapidgator|filecrypt|katfile|gofile|turbobit|nitroflare|krakenfiles|buzzheavier|send\.cm|userscloud|zippyshare|drive\.google|dropbox/i;
+const NOT_DOWNLOADS = /how to download|related article|read online|yacreader|comicrack|cyolito|cdisplay|7-zip|7zip|rarlab|winrar|peazip|bandizip/i;
+function isDownloadLink(label, host, href) {
+  if (NOT_DOWNLOADS.test(`${label} ${host} ${href}`)) return false;
+  if (CONFIG.GETCOMICS_HOSTS.includes(host)) {
+    // On GetComics itself only its download buttons: /dls/ links, or labelled as a download / mirror / host.
+    return /\/dls\//i.test(href) || /download now|main server|mirror|mega|mediafire|pixeldrain|terabox|viking|1fichier|gofile/i.test(label);
+  }
+  return FILE_HOSTS.test(`${host} ${href}`) || /\.(cbz|cbr|cb7|zip|rar|pdf|epub)(?:[?#]|$)/i.test(href);
+}
+
 async function getComicsDownloads(pageUrl) {
   let page;
 
@@ -528,12 +544,7 @@ async function getComicsDownloads(pageUrl) {
       continue;
     }
 
-    const relevant =
-      /download|mirror|mega|mediafire|pixeldrain|1fichier|terabox|viking|rapidgator|filecrypt|katfile|gofile|turbobit|nitroflare/i.test(
-        `${label} ${host} ${href}`
-      );
-
-    if (!relevant) continue;
+    if (!isDownloadLink(label, host, href)) continue;
 
     seen.add(href);
 

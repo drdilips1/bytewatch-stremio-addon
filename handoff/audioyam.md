@@ -468,6 +468,14 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   Xcode) — needs an iPhone build ("build iPhone"; ios.yml is manual).
   26 Nov: iPhone build 12 (e8f1fe5) passed — InkwellTtsIos compiled in. User checks voices on the iPad at home.
   User: "comics thing needs more refinement" — no specifics yet; wait for the user's list / screenshots.
+- Comics refinement 26 Nov: (1) Download options cluttered (How To Download, YAC Reader, ComicRack, CDisplayEx,
+  7-Zip, Related Article) → worker 2.8.2 isDownloadLink (GetComics: /dls/ or download/mirror/host labels; else known
+  file hosts or file extensions; NOT_DOWNLOADS list) + app comiclinks.js NOT_DOWNLOADS (test) + Download options
+  shows files first, browser-only mirrors under "Other mirrors (N)". (2) Read download stopped when leaving the page
+  → src/lib/comicdl.js: Android DownloadManager for comic files (persisted pending, 1 s watcher, resumes after
+  restart via app.jsx import, imports when done → Comics shelf, toast "ready — Library → Comics"); reader uses it
+  for remote CBZ/CBR (not loc:), refused files too; Save for comics uses it. (3) Tapping a saved .cbz/.cbr offered
+  no AudioYam → AndroidManifest VIEW + SEND mime types for comicbook zip/rar, x-cbz, x-cbr. Not built yet.
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
