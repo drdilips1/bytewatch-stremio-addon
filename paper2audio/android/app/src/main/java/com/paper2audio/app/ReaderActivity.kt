@@ -742,6 +742,12 @@ class ReaderActivity : Activity() {
         val item = Library.get(this, Library.currentId)
         val d = Speaker.doc
         LiteSheet(this, d?.title, null)
+            .row(R.drawable.ic_people, if (Speaker.fullCast) "Voice cast: on" else "Voice cast: off",
+                if (Speaker.fullCast) "Each character in their own voice · tap to turn off (uses more battery)" else "One voice reads everything · tap to give characters their own voices",
+                checked = Speaker.fullCast) {
+                Speaker.setFullCast(!Speaker.fullCast)
+                Toast.makeText(this, if (Speaker.fullCast) "Voice cast on" else "Voice cast off", Toast.LENGTH_SHORT).show()
+            }
             .row(R.drawable.ic_people, "Character Studio", "Every character in their own voice") { CharacterStudio.show(this, scope) }
             .row(R.drawable.ic_voice, "Pronunciations", "Fix how words are said (or select a word, then Pronounce)") { Pronounce.show(this) }
             .apply {

@@ -610,6 +610,12 @@ class LiteMainActivity : Activity() {
             .row(R.drawable.ic_timer, "Tonight's list", "Books prepared overnight, to save battery") { showTonight() }
             .row(R.drawable.ic_info, "How Narrato works", "The short tour, and getting better voices") { LiteWelcome.show(this) }
             .row(R.drawable.ic_palette, "Theme", "Colors of the app") { Themes.showPicker(this) }
+            .row(R.drawable.ic_people, if (Speaker.fullCast) "Voice cast: on" else "Voice cast: off",
+                if (Speaker.fullCast) "Each character in their own voice · tap to turn off (uses more battery)" else "One voice reads everything · tap to give characters their own voices",
+                checked = Speaker.fullCast) {
+                Speaker.setFullCast(!Speaker.fullCast)
+                Toast.makeText(this, if (Speaker.fullCast) "Voice cast on" else "Voice cast off", Toast.LENGTH_SHORT).show()
+            }
             .row(R.drawable.ic_text, "Medical articles", when (Speaker.medicalMode) {
                 "on" -> "Always: doses, units and clinical terms read in full"
                 "off" -> "Never: read as written"
