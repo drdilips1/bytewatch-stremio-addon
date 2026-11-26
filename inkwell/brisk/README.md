@@ -26,3 +26,4 @@ AllDebrid, Premiumize (any or all), a folder on the phone, and a folded Sources 
 - v1.0.12: Audible ratings, faster search with your own books first, catalogue covers for cloud books, Find cover.
 - v1.0.15: the premium redesign (champagne, Midnight, new Now Playing, nine scenes, library sort/list), What's new card, Report a problem.
 - v1.0.16: dice changes the whole look, Dream mode, bookmark notes, Want to listen / Finished, 0.5–3× speeds, listening line, Back up / Restore.
+- iPhone 26 Nov: build for the user's wife (redesign + all features of v1.0.16).
