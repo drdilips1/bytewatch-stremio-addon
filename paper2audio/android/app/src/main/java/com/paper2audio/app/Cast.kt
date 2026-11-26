@@ -30,6 +30,22 @@ object Cast {
     private const val NM = """[A-Z][a-z]+(?:[A-Z][a-z]+)?"""
     private val AFTER_NAME = Regex("""^[,.!?]?\s*(?:$VERBS)\s+(?:the\s+)?$TITLE($NM(?: $NM)?)""")
     private val AFTER_NAME_FIRST = Regex("""^[,.!?]?\s*$TITLE($NM(?: $NM)?)\s+(?:$VERBS)\b""")
+    /** "said the giant", "the old woman asked": a character known only by what they are, and so their gender. */
+    private val DESCRIBED: Map<String, String> = (
+        "man boy giant wizard king prince lord gentleman father son brother uncle husband old man young man stranger " +
+            "guard soldier knight priest monk farmer sailor captain doctor professor butler driver boy waiter innkeeper " +
+            "dwarf goblin troll warlock beggar fisherman shopkeeper headmaster sir").split(' ').associateWith { "male" } +
+        ("woman girl witch queen princess lady mother daughter sister aunt wife old woman young woman maid nurse " +
+            "grandmother headmistress waitress landlady nun madam").split(' ').associateWith { "female" }
+    private const val ADJ = """(?:(?:old|young|little|tall|short|small|big|thin|fat|elderly|strange|other|first|second|younger|elder|older)\s+)?"""
+    private val NOUNS = DESCRIBED.keys.sortedByDescending { it.length }.joinToString("|") { it.replace(" ", "\\s+") }
+    private val AFTER_DESC = Regex("""^[,.!?]?\s*(?:$VERBS)\s+the\s+$ADJ($NOUNS)\b""", RegexOption.IGNORE_CASE)
+    private val AFTER_DESC_FIRST = Regex("""^[,.!?]?\s*the\s+$ADJ($NOUNS)\s+(?:$VERBS)\b""", RegexOption.IGNORE_CASE)
+    private val BEFORE_DESC = Regex("""\bthe\s+$ADJ($NOUNS)\s+(?:$VERBS)[,:.]?\s*$""", RegexOption.IGNORE_CASE)
+
+    /** The character id for a description: "the giant" (its gender comes from [DESCRIBED]). */
+    private fun described(noun: String) = "the " + noun.lowercase().replace(Regex("""\s+"""), " ")
+
     private val AFTER_PRONOUN = Regex("""^[,.!?]?\s*(he|she)\s+(?:$VERBS)\b""", RegexOption.IGNORE_CASE)
     /** Before a quote, also "so she went on." / "He carried on:" (the same person keeps talking). */
     private const val BEFORE_VERBS = VERBS
@@ -72,10 +88,13 @@ object Cast {
             val before = parts.getOrNull(i - 1)?.takeIf { !it.first }?.second.orEmpty()
             val speaker = AFTER_NAME.find(after)?.groupValues?.get(1)?.takeIf { it !in NOT_NAMES }
                 ?: AFTER_NAME_FIRST.find(after)?.groupValues?.get(1)?.takeIf { it !in NOT_NAMES }
+                ?: AFTER_DESC.find(after)?.groupValues?.get(1)?.let(::described)
+                ?: AFTER_DESC_FIRST.find(after)?.groupValues?.get(1)?.let(::described)
                 // "he"/"she" stay pronouns: the whole-book pass gives them a character of that gender (the last
                 // name before them can be someone else: "a glance at Dumbledore… so she went on").
                 ?: AFTER_PRONOUN.find(after)?.groupValues?.get(1)?.lowercase()
                 ?: BEFORE_NAME.find(before)?.groupValues?.get(1)?.takeIf { it !in NOT_NAMES }
+                ?: BEFORE_DESC.find(before)?.groupValues?.get(1)?.let(::described)
                 ?: BEFORE_PRONOUN.find(before)?.groupValues?.get(1)?.lowercase()
                 ?: "?"
             out += Segment(text, speaker)
@@ -151,6 +170,11 @@ object Cast {
         val names = raw.values.flatten().mapNotNull { it.speaker }.filter { it != "he" && it != "she" && it != "?" }.toSet()
         val genders = HashMap<String, String>()
         for (name in names) {
+            // "the giant", "the old woman": the description says it.
+            if (name.startsWith("the ")) {
+                DESCRIBED[name.removePrefix("the ")]?.let { genders[name] = it }
+                continue
+            }
             val text = doc.paragraphs.asSequence().filter { name in it }.joinToString(" ")
             (genderOf(name, text, names) ?: NAME_GENDER[name.substringBefore(' ').lowercase()])?.let { genders[name] = it }
         }
