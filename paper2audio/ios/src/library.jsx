@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import './library.css';
 import { listBooks, putBook, deleteBook, getBook, percentOf } from './db.js';
 import { importFile, fromText, fromWebPage, fromPhotos, fileFromBase64 } from './importers.js';
+import { MEDICAL_KEY, medicalMode } from './spoken.js';
 import {
   Speech, native, pickVoice, voiceName, rate, setRate, packs, watchDownloads, downloadPack,
   playBook, positionOf, pronounceSheet,
@@ -306,6 +307,7 @@ function BookMenu({ book, onClose, onRemove }) {
 function Settings({ onClose, onName }) {
   const [speed, setSpeed] = useState(rate());
   const [theme, setTheme] = useState(localStorage.getItem(THEME_KEY) || 'system');
+  const [medical, setMedical] = useState(medicalMode());
   const [about, setAbout] = useState(false);
   const name = localStorage.getItem(NAME_KEY) || '';
   return (
@@ -329,6 +331,26 @@ function Settings({ onClose, onName }) {
           </button>
         ))}
       </div>
+
+      <div class="k">Medical articles</div>
+      <div class="chips">
+        {[
+          ['auto', 'Automatic'],
+          ['on', 'Always'],
+          ['off', 'Never'],
+        ].map(([v, l]) => (
+          <button
+            class={v === medical ? 'on' : ''}
+            onClick={() => {
+              setMedical(v);
+              localStorage.setItem(MEDICAL_KEY, v);
+            }}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+      <p class="muted small">Doses, units, lab names and clinical shorthand read in full; Automatic does it in medical documents.</p>
 
       <div class="k">Reading speed</div>
       <div class="chips">

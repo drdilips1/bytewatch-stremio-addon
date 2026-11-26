@@ -182,10 +182,10 @@ object Speech {
 
     /** Dosing, routes and clinical-trial terms (medical mode). */
     private val MEDICAL = listOf(
-        Regex("""\b(?:b\.i\.d\.|BID|bd)\b""", IC) to "twice daily",
-        Regex("""\b(?:t\.i\.d\.|TID|tds)\b""", IC) to "three times daily",
-        Regex("""\b(?:q\.i\.d\.|QID|qds)\b""", IC) to "four times daily",
-        Regex("""\b(?:q\.d\.|QD|OD)\b""") to "once daily",
+        Regex("""\b(?:b\.i\.d\.|BID\b|bd\b)""", IC) to "twice daily",
+        Regex("""\b(?:t\.i\.d\.|TID\b|tds\b)""", IC) to "three times daily",
+        Regex("""\b(?:q\.i\.d\.|QID\b|qds\b)""", IC) to "four times daily",
+        Regex("""\b(?:q\.d\.|QD\b|OD\b)""") to "once daily",
         Regex("""\bq\.?(\d+)\s?h\b""", IC) to "every $1 hours",
         Regex("""\bPRN\b|\bp\.r\.n\.""", IC) to "as needed",
         Regex("""\bPO\b""") to "by mouth",

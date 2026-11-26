@@ -1,6 +1,7 @@
 // Shared by the library and the reader: the iPhone's reading engine (PaperSpeech), the voice list,
 // the reading speed, and small sheets for choosing them.
 import { Capacitor as Cap, registerPlugin } from '@capacitor/core/dist/index.js';
+import { forVoice } from './spoken.js';
 
 export const Speech = registerPlugin('PaperSpeech');
 export const native = Cap.isNativePlatform() && Cap.isPluginAvailable('PaperSpeech');
@@ -318,7 +319,7 @@ export function playBook(book, from) {
     uid: book.id,
     title: book.title,
     author: book.author || '',
-    paras,
+    paras: forVoice(paras),
     from: Math.min(at, Math.max(0, paras.length - 1)),
     rate: rate(),
     voice: localStorage.getItem(VOICE_ID) || '',

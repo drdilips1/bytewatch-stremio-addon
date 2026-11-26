@@ -5,6 +5,7 @@
 // Reading aloud is done by the iPhone itself (PaperSpeech, ios-plugins/speech): it keeps reading with the
 // screen off and shows the book on the lock screen; the reader just follows it, as on Android.
 import { getBook } from './db.js';
+import { forVoice } from './spoken.js';
 import { Speech, native, VOICE_KEY, VOICE_ID, sheet, pickVoice, whenVoiceChosen, pronunciations, pronounceSheet, chaptersOf } from './speech.js';
 
 let loaded = null; // the book as stored (its blocks: what each paragraph says)
@@ -82,7 +83,8 @@ async function readAloud(method, a) {
         uid: a.uid || loaded?.id || bookId || '',
         title: a.title || loaded?.title || '',
         author: loaded?.author || '',
-        paras,
+        // As the voice should say them: statistics, units, symbols; medical terms in medical documents.
+        paras: forVoice(paras),
         from,
         rate: a.rate || 1,
         voice: localStorage.getItem(VOICE_ID) || '',

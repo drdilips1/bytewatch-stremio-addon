@@ -2,7 +2,13 @@
 // blocks ({ t: text, h: true for a heading }), one block per paragraph as the reader shows them.
 import JSZip from 'jszip';
 
-const clean = (s) => s.replace(/­/g, '').replace(/\s+/g, ' ').trim();
+// Ligatures spelled out, soft hyphens dropped, and words a PDF split at a line's end ("clin- ically",
+// "der‐ matoses") joined again (not "pre- and post-operative"), as on Android.
+const LIGATURES = { 'ﬁ': 'fi', 'ﬂ': 'fl', 'ﬀ': 'ff', 'ﬃ': 'ffi', 'ﬄ': 'ffl', 'ﬅ': 'st', 'ﬆ': 'st' };
+const SPLIT_WORD = /([a-z]{2,})[-\u2010\u2011]\s+(?!(?:and|or|nor|to|vs)\b)([a-z]{2,})/g;
+const clean = (s) =>
+  s.replace(/\u00AD/g, '').replace(/[ﬁﬂﬀﬃﬄﬅﬆ]/g, (c) => LIGATURES[c]).replace(/\s+/g, ' ').replace(SPLIT_WORD, '$1$2').trim();
+const HYPHEN_END = /[-\u00AD\u2010\u2011]$/;
 const newId = () => 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const baseName = (name) => name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Untitled';
 
@@ -153,7 +159,7 @@ async function fromPdf(data, name) {
       const gap = i ? real[i - 1].y - l.y : 0;
       // A bigger gap than usual (or a jump up to a new column) starts a new paragraph.
       if (i && (gap > usual * 1.45 || gap < 0)) flush();
-      if (para.endsWith('-') && /^[a-z]/.test(l.text)) para = para.slice(0, -1) + l.text;
+      if (HYPHEN_END.test(para) && /^[a-z]/.test(l.text) && !/^(?:and|or|nor|to|vs)\b/.test(l.text)) para = para.slice(0, -1) + l.text;
       else para += (para ? ' ' : '') + l.text;
     });
     // A page that ends a sentence ends its paragraph too.

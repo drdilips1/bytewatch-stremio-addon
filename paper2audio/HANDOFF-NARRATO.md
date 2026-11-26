@@ -122,6 +122,11 @@ voices cards. EPUB covers extracted (thumbnails). `reader-web` is identical on b
   More = chapters, text and page, pronunciations); they slide away while playing (mini pause button, a tap
   brings them back). The home card, books and player strip all open it; the separate player screen is gone.
   Battery: the audio engine is let go when paused, the speed changer bypassed at 1x, the maker's wait 1 s.
+- Medical reading and PDF fixes on iPhone too: `src/spoken.js` ports Android's `Speech` rules (statistics,
+  units, symbols, Greek, abbreviations; medical: dosing, shorthand, lab names) and `MedicalText` detection,
+  applied in JS to the paragraphs before `Speech.start` (host.js and playBook); Settings › Medical articles
+  (Automatic/Always/Never, `narrato:medical`). No look-behind in these regexes (older iOS web views).
+  PDF import: typographic/soft hyphens and ligatures as on Android (`importers.js`).
 - Stage 2 (not done): Tonight's list (iOS BGProcessingTask with external power), first-run tour, Look up /
   double-tap checks on device, subscription with 7-day trial (App Store Connect).
 
