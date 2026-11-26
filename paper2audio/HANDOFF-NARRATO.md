@@ -61,6 +61,19 @@ Ads → "No"; Data safety → remove advertising ID / ad data; Advertising ID de
 privacy policy (`docs/privacy.html` on main, gh-pages `privacy.html`) to drop the ads section. The
 `remove_ads` product need not be created; the BillDesk KYC is no longer needed for it. AdMob setup items are moot.
 
+## Battery baseline (keep in mind)
+
+- **Last version with battery confirmed fine: 1.9.28 (code 38, commit `86cf220`)**: Tonight's list + screen-off
+  wake-up fixes; user measured **3% in 50 min** (book prepared overnight). 1.9.27 (no ads): 17%/h on new text.
+- 1.9.29 (code 39, `8f0ee11`): look/theme, Library tab, menu flicker only (no playback change); battery not
+  measured by the user.
+- **1.9.30 (code 40, `aa65791`): user reports battery "too bad".** New in it: Character Studio / voice cast
+  (with the cast on, prepared audio no longer matches and dialogue becomes many short pieces, each with the
+  copied voices' lead-in and second takes), medical reading, folder import, PDF hyphens, reader tap/retract.
+  Suspect the voice cast; to check: cast off on a stretch heard before. Any battery-affecting change must be
+  compared against 1.9.28. (Release `narrato-lite` keeps only the latest APK; older builds can be rebuilt from
+  their commit.)
+
 ## Battery work (after 1.9.27)
 
 - User's test with 1.9.27 (no ads), new book, online, screen off: **17%/h** (was ~30–40% with ads); Android
