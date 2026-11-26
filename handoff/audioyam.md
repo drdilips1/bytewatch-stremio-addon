@@ -501,6 +501,18 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   who / Save panel, spoiler-safe, your AI key); "Previously in…" recap with Continue; Comics shelf statuses
   (Reading / Plan to read / On hold / Completed / Favourites) + panel memories; tablet double-page spread with
   next chapter preloaded. Waiting for feedback / "go".
+  26 Nov user: "Build all" → BUILT (work bff5ed4) + test APK started: comicLook {theme oled/paper/sepia/gray (filter +
+  bg), turn slide/curl/fade/none (keyed .comic-page animation, rtl mirrored, reduced-motion off), pages single/
+  double/auto (landscape) via comics.js spreadStart/turnSpread, volume (Android: InkwellWebPlugin.volumeKeys +
+  MainActivity.dispatchKeyEvent → "volumeKey" event), orient (InkwellWebPlugin.orientation)}; long-press / ✦ →
+  PageSheet (comic-extras.jsx; lib/comicai.js askPage via askAiImage, pagePrompt spoiler-safe, answers kept in
+  comicNotes for recaps; Save panel → lib/memories.js snapshot (crop when zoomed) + addMemory); RecapCard (offered
+  when a series is reopened after 7+ days, or Settings → Recap so far; recapPrompt); next chapter preloaded near the
+  end ("Chapter N ready"); lib/comicstatus.js (hold / completed) + comics.js shelfStatus → Library Comics chips
+  Reading / Plan to read / On hold / Completed / ♡ Favourites + Panel memories row (tap → reader startPage, long-
+  press → remove). Browser-tested (themes, curl, long-press sheet, no-key message, memory saved + opens at page,
+  spreads 2–3 → 4–5, recap card, chips, Weeb Central "Chapter 1 ready"). Not tested: AI answers (no key here),
+  volume keys / orientation (Android only).
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
