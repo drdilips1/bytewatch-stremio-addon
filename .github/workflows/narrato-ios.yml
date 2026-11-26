@@ -176,18 +176,16 @@ jobs:
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER=com.narrato.reader \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             MARKETING_VERSION="1.0.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" archive
-          # sherpa-onnx and onnxruntime come as static libraries wrapped like frameworks: their code is already
-          # linked into the app, but Xcode also copies the wrappers into App.app/Frameworks, and App Store
-          # validation rejects them ("not properly signed"). Those copies are removed (only if not dynamic).
+          # The engine's frameworks (onnxruntime, SherpaOnnxC) are copied in unsigned with the unsigned archive, and the
+          # export didn't sign them properly ("Code failed to satisfy specified code requirement(s)"). Each is given
+          # a placeholder signature with its own bundle identifier first; the export then re-signs it for the App Store.
           APPDIR="$RUNNER_TEMP/Narrato.xcarchive/Products/Applications/App.app"
-          for fw in onnxruntime SherpaOnnxC; do
-            f="$APPDIR/Frameworks/$fw.framework"
-            if [ -d "$f" ]; then
-              file "$f/$fw"
-              if ! file "$f/$fw" | grep -q "dynamically linked"; then rm -rf "$f"; echo "Removed the static $fw.framework copy"; fi
-            fi
+          for f in "$APPDIR"/Frameworks/*.framework; do
+            [ -d "$f" ] || continue
+            id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$f/Info.plist" 2>/dev/null || basename "$f" .framework)
+            codesign --force --sign - --timestamp=none --identifier "$id" "$f"
+            codesign -dv "$f" 2>&1 | grep -E "Identifier|Format" || true
           done
-          ls "$APPDIR/Frameworks" || true
           cat > "$RUNNER_TEMP/export.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
