@@ -827,7 +827,7 @@ object Speaker {
     class Piece(val paragraph: Int, val index: Int, val text: String, val lastInParagraph: Boolean, val voice: String)
 
     /** Full cast: a voice per character in stories (instead of one dialogue voice). */
-    val fullCast: Boolean get() = prefs.getBoolean("fullCast", false)
+    val fullCast: Boolean get() = (!BuildConfig.LITE || CharacterStudio.ENABLED) && prefs.getBoolean("fullCast", false)
 
     /** Full cast switched off by the listener: one voice for everything, scripts and dialogue too. */
     private val singleVoice: Boolean get() = prefs.getBoolean("singleVoice", false)

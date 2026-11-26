@@ -14,6 +14,12 @@ import kotlinx.coroutines.withContext
  * ([Cast], [Speaker.castVoice]); the voices are the narrator's family (Narrato's readers, or the light voices).
  */
 object CharacterStudio {
+    /**
+     * Off for now (user decision, 26 Nov 2026: battery first): no menu rows, and Narrato reads with one voice
+     * even if the voice cast was turned on. Kept, to be used later: set to true to bring it all back.
+     */
+    const val ENABLED = false
+
     fun show(activity: Activity, scope: CoroutineScope) {
         val doc = Speaker.doc ?: return toast(activity, "Open a book first.")
         val sheet = LiteSheet(activity, "Character Studio", doc.title)

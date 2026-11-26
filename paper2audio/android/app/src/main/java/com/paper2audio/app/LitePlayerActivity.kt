@@ -565,13 +565,18 @@ class LitePlayerActivity : Activity() {
     private fun showMore() {
         LiteSheet(this, Speaker.doc?.title, null)
             .row(R.drawable.ic_read, "Read", "As an ebook: themes, fonts, highlights, read aloud") { startActivity(Intent(this, ReaderActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
-            .row(R.drawable.ic_people, if (Speaker.fullCast) "Voice cast: on" else "Voice cast: off",
-                if (Speaker.fullCast) "Each character in their own voice · tap to turn off (uses more battery)" else "One voice reads everything · tap to give characters their own voices",
-                checked = Speaker.fullCast) {
-                Speaker.setFullCast(!Speaker.fullCast)
-                Toast.makeText(this, if (Speaker.fullCast) "Voice cast on" else "Voice cast off", Toast.LENGTH_SHORT).show()
+            // Character Studio and the voice cast: kept, switched off for now (CharacterStudio.ENABLED).
+            .apply {
+                if (CharacterStudio.ENABLED) {
+                    row(R.drawable.ic_people, if (Speaker.fullCast) "Voice cast: on" else "Voice cast: off",
+                        if (Speaker.fullCast) "Each character in their own voice · tap to turn off (uses more battery)" else "One voice reads everything · tap to give characters their own voices",
+                        checked = Speaker.fullCast) {
+                        Speaker.setFullCast(!Speaker.fullCast)
+                        Toast.makeText(this@LitePlayerActivity, if (Speaker.fullCast) "Voice cast on" else "Voice cast off", Toast.LENGTH_SHORT).show()
+                    }
+                    row(R.drawable.ic_people, "Character Studio", "Every character in their own voice") { CharacterStudio.show(this@LitePlayerActivity, scope) }
+                }
             }
-            .row(R.drawable.ic_people, "Character Studio", "Every character in their own voice") { CharacterStudio.show(this, scope) }
             .row(R.drawable.ic_voice, "Pronunciations", "Fix how words are said (or press and hold a word)") { Pronounce.show(this) }
             .apply {
                 // A PDF: its pages as printed (the reader shows the text reflowed).
