@@ -1,6 +1,6 @@
 # Audibrisk (minimal search & play)
 
-- iPhone: build only when the user asks (24 Nov). 26 Nov: user asked an IPA for his wife — built (kit → public repo). Personal worker sources can NOT be built in (public); she adds the links in Settings → Sources
+- iPhone: build only when the user asks (24 Nov). 26 Nov: user asked an IPA for his wife — built (kit → public repo). Personal worker sources can NOT be built in (public); she adds the links in Settings → Sources — OUT: ios-1.0.6 (26 Nov 03:30 UTC) https://github.com/drdilips1/audibrisk/releases/download/ios-1.0.6/Audibrisk.ipa, in the AltStore/SideStore source
   (no `[build brisk ios]` in commits). Its 24 Nov kit had already gone to the public repo.
 - iPhone: private Mac minutes ran out (first run 23 Nov queued 15 min, cancelled, never started),
   so the IPA is built in the PUBLIC repo drdilips1/audibrisk (free Mac runners), source stays
