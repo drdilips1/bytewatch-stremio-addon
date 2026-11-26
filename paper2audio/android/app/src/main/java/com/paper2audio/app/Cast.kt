@@ -12,14 +12,29 @@ object Cast {
 
     private val SCRIPT_LINE = Regex("""^([A-Z][\w.'\-]*(?: [A-Z0-9][\w.'\-]*){0,2}):\s+(\S.*)$""", RegexOption.DOT_MATCHES_ALL)
     private const val VERBS = "said|asked|replied|answered|whispered|shouted|cried|called|added|muttered|murmured|" +
-        "exclaimed|yelled|laughed|snapped|sighed|began|continued|insisted|told|warned|agreed|admitted|explained|repeated"
+        "exclaimed|yelled|laughed|snapped|sighed|began|continued|insisted|told|warned|agreed|admitted|explained|repeated|" +
+        // More of the ways books say someone spoke ("she pressed on", "he retorted"); several were read in the wrong voice.
+        "pressed on|went on|carried on|persisted|retorted|demanded|inquired|enquired|gasped|breathed|hissed|growled|" +
+        "groaned|sobbed|snarled|roared|barked|stammered|stuttered|protested|suggested|observed|remarked|declared|" +
+        "announced|interrupted|corrected|conceded|mumbled|grumbled|squeaked|screamed|shrieked|wailed|moaned|pleaded|" +
+        "begged|urged|offered|ventured|countered|mused|noted|chuckled|giggled|sniffed|spluttered|panted|wondered|" +
+        "volunteered|prompted|teased|scoffed|sneered|choked|croaked|bellowed|thundered|purred|cooed|blurted|confessed|" +
+        "promised|reminded|said again|went on quickly|faltered|quavered|whimpered|piped up|piped|snorted|chirped|" +
+        "drawled|rasped|hollered|joked|guessed|reasoned|argued|complained|objected|pointed out|cut in|broke in|" +
+        "put in|called out|cried out|shouted out|stammered out|sputtered|murmured again|whispered back|shot back"
     /** "Mrs. ", "Aunt " before a name: skipped, so the name itself is the character. */
-    private const val TITLE = """(?:(?:Mrs|Mr|Ms|Miss|Dr|Sir|Lady|Lord|Aunt|Uncle|Captain|Madame|Monsieur)\.?\s+)?"""
-    private val AFTER_NAME = Regex("""^[,.!?]?\s*(?:$VERBS)\s+(?:the\s+)?$TITLE([A-Z][a-z]+(?: [A-Z][a-z]+)?)""")
-    private val AFTER_NAME_FIRST = Regex("""^[,.!?]?\s*$TITLE([A-Z][a-z]+(?: [A-Z][a-z]+)?)\s+(?:$VERBS)\b""")
+    private const val TITLE = """(?:(?:Mrs|Mr|Ms|Miss|Dr|Sir|Lady|Lord|Aunt|Uncle|Captain|Madame|Madam|Monsieur|Professor|Prof|""" +
+        """Headmaster|Headmistress|Inspector|Detective|Doctor|Mister|Officer|Sergeant|Colonel|General|Major|Father|Mother|""" +
+        """Sister|Brother|King|Queen|Prince|Princess)\.?\s+)?"""
+    /** A name: "Maya", "McGonagall", "MacDonald" (a capital inside counts too), optionally two words. */
+    private const val NM = """[A-Z][a-z]+(?:[A-Z][a-z]+)?"""
+    private val AFTER_NAME = Regex("""^[,.!?]?\s*(?:$VERBS)\s+(?:the\s+)?$TITLE($NM(?: $NM)?)""")
+    private val AFTER_NAME_FIRST = Regex("""^[,.!?]?\s*$TITLE($NM(?: $NM)?)\s+(?:$VERBS)\b""")
     private val AFTER_PRONOUN = Regex("""^[,.!?]?\s*(he|she)\s+(?:$VERBS)\b""", RegexOption.IGNORE_CASE)
-    private val BEFORE_NAME = Regex("""$TITLE([A-Z][a-z]+(?: [A-Z][a-z]+)?)\s+(?:$VERBS)[,:]?\s*$""")
-    private val BEFORE_PRONOUN = Regex("""\b(he|she)\s+(?:$VERBS)[,:]?\s*$""", RegexOption.IGNORE_CASE)
+    /** Before a quote, also "so she went on." / "He carried on:" (the same person keeps talking). */
+    private const val BEFORE_VERBS = VERBS
+    private val BEFORE_NAME = Regex("""$TITLE($NM(?: $NM)?)\s+(?:$BEFORE_VERBS)[,:.]?\s*$""")
+    private val BEFORE_PRONOUN = Regex("""\b(he|she)\s+(?:$BEFORE_VERBS)[,:.]?\s*$""", RegexOption.IGNORE_CASE)
     private val NOT_NAMES = setOf("The", "Then", "But", "And", "She", "He", "It", "They", "We", "You", "I", "This", "That", "When", "Now", "Mrs", "Mr", "Ms", "Miss", "Dr")
 
     /** "Host: Welcome back." -> ("Host", "Welcome back."). */
@@ -55,13 +70,13 @@ object Cast {
             }
             val after = parts.getOrNull(i + 1)?.takeIf { !it.first }?.second.orEmpty()
             val before = parts.getOrNull(i - 1)?.takeIf { !it.first }?.second.orEmpty()
-            // The previous named speaker: "he said" right after them is usually the other person.
-            val previous = out.lastOrNull { it.speaker != null && it.speaker != "?" && it.speaker != "he" && it.speaker != "she" }?.speaker
             val speaker = AFTER_NAME.find(after)?.groupValues?.get(1)?.takeIf { it !in NOT_NAMES }
                 ?: AFTER_NAME_FIRST.find(after)?.groupValues?.get(1)?.takeIf { it !in NOT_NAMES }
-                ?: AFTER_PRONOUN.find(after)?.groupValues?.get(1)?.lowercase()?.let { lastName(parts, i, previous) ?: it }
+                // "he"/"she" stay pronouns: the whole-book pass gives them a character of that gender (the last
+                // name before them can be someone else: "a glance at Dumbledore… so she went on").
+                ?: AFTER_PRONOUN.find(after)?.groupValues?.get(1)?.lowercase()
                 ?: BEFORE_NAME.find(before)?.groupValues?.get(1)?.takeIf { it !in NOT_NAMES }
-                ?: BEFORE_PRONOUN.find(before)?.groupValues?.get(1)?.lowercase()?.let { lastName(parts, i, previous) ?: it }
+                ?: BEFORE_PRONOUN.find(before)?.groupValues?.get(1)?.lowercase()
                 ?: "?"
             out += Segment(text, speaker)
         }
@@ -154,9 +169,12 @@ object Cast {
                     "?" -> thisParagraph ?: if (recent.size == 2) recent[0] else null
                     "he", "she" -> {
                         val g = if (who == "he") "male" else "female"
-                        // Someone named in this paragraph's narration with that gender, else one of the two talking.
-                        NAME_WORD.findAll(narration).map { it.value }.filter { it in names && genders[it] == g }.lastOrNull()
+                        val named = NAME_WORD.findAll(narration).map { it.value }.filter { it in names && it !in NOT_NAMES }.toList()
+                        // Someone named in this paragraph's narration with that gender, else one of the two talking,
+                        // else (genders not known) the last one named who isn't known to be the other gender.
+                        named.lastOrNull { genders[it] == g }
                             ?: recent.filter { genders[it] == g }.singleOrNull()
+                            ?: named.lastOrNull { genders[it] == null && it != thisParagraph }
                     }
                     else -> who
                 }
@@ -172,7 +190,7 @@ object Cast {
         return Book(out, genders, single)
     }
 
-    private val NAME_WORD = Regex("""\b[A-Z][a-z]{1,15}\b""")
+    private val NAME_WORD = Regex("""\b[A-Z][a-z]{1,15}(?:[A-Z][a-z]+)?\b""")
 
     /**
      * Common first names (English and Indian) for when the book itself doesn't say (no "he" or
@@ -195,16 +213,6 @@ object Cast {
     private val NAME = Regex("""\b([A-Z][a-z]{1,15})\b""")
     private val MALE = Regex("""\b(he|his|him|himself)\b""")
     private val FEMALE = Regex("""\b(she|her|hers|herself)\b""")
-
-    /** The last character named in the narration before quote [i] ("Tom looked up. “No,” he said" -> Tom). */
-    private fun lastName(parts: List<Pair<Boolean, String>>, i: Int, exclude: String?): String? {
-        for (k in i - 1 downTo 0) {
-            if (parts[k].first) continue
-            val names = NAME.findAll(parts[k].second).map { it.value }.filter { it !in NOT_NAMES && it != exclude }.toList()
-            if (names.isNotEmpty()) return names.last()
-        }
-        return null
-    }
 
     /**
      * "male", "female" or null, from the pronouns right after a character's name in
