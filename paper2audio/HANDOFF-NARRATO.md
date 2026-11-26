@@ -117,7 +117,13 @@ voices cards. EPUB covers extracted (thumbnails). `reader-web` is identical on b
   `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (the .p8 text as it is; or `ASC_KEY_P8_B64`, base64), `APPLE_TEAM_ID` it also archives,
   signs (automatic, via the API key) and uploads to TestFlight. The user has an Apple developer account; the
   App Store Connect app record for `com.narrato.reader` must exist first (created 26 Nov 2026 as **"Narrato."** –
-  "Narrato" was taken; the home-screen name stays "Narrato"). Signing step is untested.
+  "Narrato" was taken; the home-screen name stays "Narrato"). **TestFlight upload works (first success 26 Nov 2026, build 1.0.x from run 45880958360).** How signing works
+  (each found by a failed attempt): secrets trimmed (Team ID had a line break); archive made **unsigned**
+  (automatic signing wanted a development profile → needs a device); the engine frameworks (onnxruntime,
+  SherpaOnnxC – Xcode turns the static xcframeworks into embedded dynamic ones) get a placeholder ad-hoc
+  signature with their bundle id, then `-exportArchive` (app-store-connect, automatic, API key) signs with the
+  cloud-managed distribution certificate and uploads. Unsigned IPA is published before signing. macOS runners
+  are often unclaimed for 15 min ("cancelled", no steps): just re-run.
 - 26 Nov (after the user's iPad test): one place to listen, as on Android – the reader with the player's
   controls under the page (`src/dock.js`: bar, chapter · %, time left, back/play/next, speed, voice, sleep,
   More = chapters, text and page, pronunciations); they slide away while playing (mini pause button, a tap
