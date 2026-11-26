@@ -183,7 +183,7 @@
   in main.jsx — bump EDITION for future news) + Settings → About → "Report a problem"
   (`reportUrl` in logic.js → github.com/drdilips1/audibrisk/issues/new, pre-filled with version,
   platform, service names, book, last error — never keys; reporters need a GitHub login).
-- v1.0.16 (26 Nov, building, Android only — user "build 1 to 6"): Dream mode (`dreamOn` /
+- v1.0.16 (26 Nov, BUILT OK — run 16, https://github.com/drdilips1/bytewatch-stremio-addon/releases/tag/audibrisk-v1.0.16 — Android only — user "build 1 to 6"): Dream mode (`dreamOn` /
   `briskDream` in player.jsx: while the sleep timer runs the player turns warm and dim; switch in
   the sleep sheet), bookmark notes (NoteSheet after "Bookmark this moment" → shared
   renameBookmark), Want to listen (`briskWant`, book page ♡ + long-press) and Finished (from
