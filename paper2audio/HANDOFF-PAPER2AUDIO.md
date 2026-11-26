@@ -34,6 +34,11 @@ word errors 6.1% → 3.9%, repeated/extra words 60 → 15, problem lines 74 → 
   copy's average 4.5-8 kHz level; lift by the difference, max 6 dB (11 of 20 readers lifted, e.g. Lily 6,
   Oscar 5.2, Emma 4.9; the rest untouched). NISQA-TTS naturalness 3.715 → 3.742 over 20 readers, every lifted
   voice equal or better; DNSMOS unchanged (no added hiss). Cache key `c10|`.
+- Emotional character (`Emotion.kt`, Android only so far): a copied voice's line of dialogue with a cue in
+  its sentence ("whispered", "roared", "sobbed", "laughed", "snapped", "stammered", "gently"…) is shaped:
+  loudness (kept past the player's levelling via a `.gain` file beside the audio) and pace (WSOLA, 40 ms,
+  normalised correlation). No pitch shift: it changed the timbre (NISQA 3.80 → 3.54). Final moods cost
+  0.00-0.06 naturalness. Narration (no quote marks) is never shaped. Cache key `c11|`.
 - Tested and kept as they are (Nov 2026, DNSMOS + NISQA + ASR in `voice-bench`): 5 decode steps (8: +0.02
   naturalness for 2.6× the work), frames_after_eos 2 (4: worse), narration temperature 0.6 (0.65: worse),
   hiss gate 30% (60%/off: same), 160-char pieces (whole long sentences: 4× the errors). Copies score as

@@ -128,7 +128,8 @@ object Renderer {
             // (sample cut at a pause, repeated phrases read in parts, "Right." warm-up, livelier exclamations); c9: own
             // voices' samples used whole again and only true repeats split (6.9.14 skipped short first sentences); c10: dull
             // copies' treble matched to the real voice (Brightness).
-            v.voiceId.startsWith(Speaker.CLONE) -> (if (BuildConfig.LITE) "c8|" else "c10|") + (MyVoices.seedOf(v.voiceId.removePrefix(Speaker.CLONE)).takeIf { it > 0 }?.let { "s$it|" } ?: "") +
+            // c11: dialogue said in a mood is shaped (Emotion).
+            v.voiceId.startsWith(Speaker.CLONE) -> (if (BuildConfig.LITE) "c8|" else "c11|") + (MyVoices.seedOf(v.voiceId.removePrefix(Speaker.CLONE)).takeIf { it > 0 }?.let { "s$it|" } ?: "") +
                 (if (MyVoices.leadInOf(v.voiceId.removePrefix(Speaker.CLONE))) "" else "nl|")
             v.voiceId.startsWith(Speaker.KOKORO) -> "s1|"
             else -> ""
@@ -396,7 +397,12 @@ object Renderer {
             } else if (LocalTts.isLocal(voice)) {
                 withContext(if (spare && LocalTts.hasSpare) spareThread else localThread) {
                     val t0 = System.nanoTime()
-                    val pcm = LocalTts.synthesize(voice, spoken, es, v.lang, useSpare = spare)
+                    var pcm = LocalTts.synthesize(voice, spoken, es, v.lang, useSpare = spare)
+                    // A copied voice's line of dialogue said in a mood ("she whispered"): shaped to match (Emotion).
+                    val mood = if (voice.startsWith(Speaker.CLONE)) Emotion.of(text) else null
+                    if (mood != null) pcm = Emotion.shape(pcm, mood)
+                    if (mood != null && mood.gainDb != 0f) Emotion.gainFile(target).writeText(mood.gainDb.toString())
+                    else Emotion.gainFile(target).delete()
                     RenderSpeed.record(context, voice, (System.nanoTime() - t0) / 1e9, pcm.bytes.size / 2.0 / pcm.sampleRate)
                     LocalTts.writeWav(tmp, pcm)
                 }

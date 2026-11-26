@@ -266,7 +266,17 @@ object AudioDecode {
         }
         // On-device voices make each sentence separately and some come out louder or softer:
         // bring every sentence to the same speaking level.
-        return trim(raw).let { if (local) level(it) else it }
+        // A copied voice's line said in a mood keeps its loudness (a whisper stays soft): see Emotion.
+        val mood = if (local) Emotion.gainOf(file) else 0f
+        return trim(raw).let { if (local) level(it) else it }.let { if (mood != 0f) gain(it, mood) else it }
+    }
+
+    /** [p] made [db] louder or softer, never clipping. */
+    private fun gain(p: Pcm16, db: Float): Pcm16 {
+        val s = p.samples
+        val peak = s.maxOfOrNull { abs(it.toInt()) }?.coerceAtLeast(1) ?: return p
+        val g = Math.pow(10.0, db / 20.0).coerceAtMost(32000.0 / peak)
+        return Pcm16(ShortArray(s.size) { (s[it] * g).toInt().coerceIn(-32768, 32767).toShort() }, p.sampleRate)
     }
 
     /** The voice's usual speaking level (RMS of voiced parts), averaged over recent sentences. */
