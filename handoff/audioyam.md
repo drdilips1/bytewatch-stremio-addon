@@ -466,6 +466,8 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   voiceschanged (≤2 s). Microsoft voices NOT ported to iPhone: EdgeTts is an unofficial protocol posing as the Edge
   browser with its built-in token — declined; Apple Premium voices offered instead. Swift not compiled here (no
   Xcode) — needs an iPhone build ("build iPhone"; ios.yml is manual).
+  26 Nov: iPhone build 12 (e8f1fe5) passed — InkwellTtsIos compiled in. User checks voices on the iPad at home.
+  User: "comics thing needs more refinement" — no specifics yet; wait for the user's list / screenshots.
 - NOTED: fan-fiction EPUB ("JUSTICE(1) Batman: Under the Red Hood", fanfiction.net) opened as the comic. Live
   worker 2.7.0 returns only GetComics for that title, so it came from the app's ebook lookup on the book page
   (Internet Archive EPUBs). Asked where it was tapped. Fix idea: for comic titles, don't offer "the ebook" from
