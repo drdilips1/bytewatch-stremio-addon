@@ -116,7 +116,8 @@ voices cards. EPUB covers extracted (thumbnails). `reader-web` is identical on b
   `Narrato.ipa` → release **narrato-ios** (unsigned, Sideloadly/AltStore). With repository secrets
   `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (the .p8 text as it is; or `ASC_KEY_P8_B64`, base64), `APPLE_TEAM_ID` it also archives,
   signs (automatic, via the API key) and uploads to TestFlight. The user has an Apple developer account; the
-  App Store Connect app record for `com.narrato.reader` must exist first. Signing step is untested.
+  App Store Connect app record for `com.narrato.reader` must exist first (created 26 Nov 2026 as **"Narrato."** –
+  "Narrato" was taken; the home-screen name stays "Narrato"). Signing step is untested.
 - 26 Nov (after the user's iPad test): one place to listen, as on Android – the reader with the player's
   controls under the page (`src/dock.js`: bar, chapter · %, time left, back/play/next, speed, voice, sleep,
   More = chapters, text and page, pronunciations); they slide away while playing (mini pause button, a tap
