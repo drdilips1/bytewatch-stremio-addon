@@ -599,3 +599,7 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
 - Free tab speed (27 Nov, work d0f0f25, not built): it waited for both IA (~0.5 s) and Gutendex (slow) — now each list shows on arrival; Gutendex timeout 12 s; the last list per lang|genre|sort is kept (freeClassicsSeen, 1 day, 8 newest) and shown at once.
 - Phone copy deleted (27 Nov, work, not built): local.details throws { gone: true }; Book.jsx then shows the page as kind 'discover' (goneFromPhone): a quiet note, Where to get it, findEditions + SourceResults, no red error, no Phone badge.
   - Extended (27 Nov): tbDetails (missing or download_state inactive/expired), rdDetails (404 unknown_ressource, or status dead/error/virus) and RD sent/downloaded lists throw { gone: true }. Book.jsx uses goneFrom = source for the note. Offline downloads whose files were deleted already stream again (iPhone afterFiles; Android player falls back).
+- ABS still 500 on APK #51 (user, 27 Nov). Likely cause: page 2 failed or timed out (15 s), all() threw, and the persisted yourBookCounts kept the old 500. Fix (work, not built):
+  - `count()` = sum of server totals (limit=1) for the tile;
+  - pages 60 s (call() now passes timeout);
+  - allPages retries a failed later page once, then returns what it has (partial). Test added.
