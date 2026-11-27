@@ -51,6 +51,16 @@ function Face({ x, size = 44, dot = false, place = false }) {
   );
 }
 
+/** A scene card's picture: the person's photo when there is one, else initials on their colour. */
+function CardArt({ x, place }) {
+  const photo = usePhoto(x, place);
+  return (
+    <span class={'xr-card-art' + (photo ? ' has-photo' : '')}>
+      {photo ? <img src={photo.url} alt="" loading="lazy" referrerpolicy="no-referrer" onError={(e) => (e.currentTarget.style.display = 'none')} /> : place ? '📍' : initials(x.name)}
+    </span>
+  );
+}
+
 /**
  * The relationship map: this person in the middle with a soft glow, their connections evenly round
  * an orbit — each face ringed in the colour of the bond (family, ally, enemy), with the bond
@@ -176,7 +186,7 @@ export function XraySheet({ s }) {
           <div class="xr-scene">
             {[...now.people, ...now.places].slice(0, 8).map((x) => (
               <button class="xr-card" onClick={() => setPick(x)} style={{ '--h': hueOf(x.name) }}>
-                <span class="xr-card-art">{isPlace(x) ? '📍' : initials(x.name)}</span>
+                <CardArt x={x} place={isPlace(x)} />
                 <b>{x.name}</b>
                 <small>{short(x.role || x.about || '', 34)}</small>
               </button>

@@ -13227,3 +13227,20 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .storage-item > div { flex: 1; min-width: 0; }
 .storage-item b { display: block; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .storage-item small { color: var(--muted); font-size: 12px; }
+/* X-Ray: the names on the scene cards in the main text colour in every theme (a theme's rule for
+   bold text made them dark red on a dark card), photos filling the card's picture, and the search
+   box in the theme's colours (it was a bright white field in dark themes). */
+.xr .xr-card > b { color: var(--text) !important; }
+.xr-card-art.has-photo { position: relative; padding: 0; overflow: hidden; }
+.xr-card-art.has-photo img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+.xr .story-search {
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+.xr .story-search::placeholder { color: var(--muted); }
+.xr .story-search:focus { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
