@@ -21,6 +21,9 @@
     ['treated', 'Treatment so far and response', '', 2], ['labs', 'Investigations (typed)', 'e.g. ANA 1:320 speckled, ESR 40, KOH negative', 2],
     ['biopsy', 'Biopsy / histopathology report', 'findings and the reported diagnosis', 2],
   ];
+  const TRI = { urgent: 'Urgent: today', soon: 'See soon', routine: 'Routine' };
+  const triOf = (r) => { const l = String(r?.triage?.level || r?.triage || '').toLowerCase(); return TRI[l] ? l : ''; };
+  const triBadge = (r) => { const l = triOf(r); return l ? `<span class="tri ${l}">${TRI[l]}</span>` : ''; };
   const titleOf = (c) => c.title || c.final?.dx || (c.assessments.length ? list(last(c)?.r?.differentials)[0]?.name || 'Assessed case' : 'New case');
   const last = (c) => c.assessments[c.assessments.length - 1];
   const ptLine = (c) => [c.patient, c.pt.age && c.pt.age + ' y', c.pt.sex, c.pt.site].filter(Boolean).join(' · ');
@@ -51,7 +54,7 @@
     const kinds = [...new Set(c.pics.map((p) => KINDS[p.kind]?.[0]))].join(', ');
     return `<button class="li" data-act="go" data-to="case/${esc(c.id)}">${c.pics[0] ? `<img src="${c.pics[0].url}" alt="">` : `<span class="ph">${icon('image')}</span>`}
       <span><b>${esc(titleOf(c))}</b><small>${esc([ptLine(c), kinds].filter(Boolean).join(' · ') || 'No evidence yet')}</small>
-      <small>${c.final?.dx ? '✓ Final: ' + esc(c.final.dx) : top ? 'Leading: ' + esc(top.name) : 'Not assessed'} · ${fmtDay(c.updated)}</small></span></button>`;
+      <small>${!c.final?.dx && triOf(a?.r) && triOf(a?.r) !== 'routine' ? triBadge(a.r) + ' ' : ''}${c.final?.dx ? '✓ Final: ' + esc(c.final.dx) : top ? 'Leading: ' + esc(top.name) : 'Not assessed'} · ${fmtDay(c.updated)}</small></span></button>`;
   };
 
   // ================================================================ Case list
@@ -128,7 +131,7 @@
         ${PT.map(([k, l, ph, w]) => `<label class="f ${w ? 'wide' : ''}">${l}${w === 2 ? `<textarea data-pt="${k}" rows="2" placeholder="${esc(ph)}">${esc(c.pt[k] || '')}</textarea>` : `<input data-pt="${k}" value="${esc(c.pt[k] || '')}" placeholder="${esc(ph)}">`}</label>`).join('')}</div></details>
       <div class="sec"><div class="sec-h"><h3>Evidence · ${c.pics.length}/${MAX}</h3></div>
         <div class="chips">${Object.entries(KINDS).map(([k, [l]]) => `<button class="chip ${k === addKind ? 'on' : ''}" data-act="kind" data-k="${k}">${esc(l)}</button>`).join('')}</div>
-        <div class="pics" id="pics"></div></div>
+        <div class="guide" id="guide"></div><div class="pics" id="pics"></div></div>
       ${c.answers.length ? `<div class="card"><h4>Your answers</h4>${c.answers.map((x, i) => `<p class="small"><b>${esc(x.q)}</b> ${esc(x.a)} <button class="btn sm ghost" data-act="ans-del" data-i="${i}">Remove</button></p>`).join('')}</div>` : ''}
       <button class="btn pri full" style="margin-top:16px" data-act="assess" ${isRunning('assess') ? 'disabled' : ''}>${icon('spark')}${isRunning('assess') ? 'Assessing…' : c.assessments.length ? 'Re-assess with all the evidence' : 'Assess case'}</button>
       <p class="disc">Leave out names and faces: the pictures and history go to the AI you chose when you assess.</p>`;
@@ -136,9 +139,19 @@
     $('[data-k=patient]').addEventListener('input', (e) => { c.patient = e.target.value.trim(); saveSoon(); });
     paintPics();
   }
+  /** The next shot worth taking, from what the case already has. */
+  function guideText() {
+    const cl = c.pics.filter((p) => p.kind === 'clinical').length, ds = c.pics.some((p) => p.kind === 'dermoscopy');
+    const tip = 'Daylight, no flash, plain background; a ruler or coin shows size.';
+    if (!cl) return 'Start with an <b>overview</b> of the whole area, so the distribution shows. ' + tip;
+    if (cl === 1) return 'Now a <b>close-up</b> of one typical lesion, a hand-span away and in focus. Then its <b>edge</b>.';
+    if (!ds) return 'Add <b>dermoscopy</b> if you have it, and other affected sites (nails, mouth, scalp).';
+    return 'Good set. Add histology, DIF or reports when you have them.';
+  }
   function paintPics() {
     const el = $('#pics'); if (!el) return;
-    el.innerHTML = c.pics.map((p, i) => `<div class="pic"><img src="${p.url}" alt="" data-act="zoom" data-i="${i}"><span class="lab"><b>${i + 1}</b> ${esc(KINDS[p.kind]?.[0] || p.kind)}${p.note ? ' · ' + esc(p.note) : ''}</span>
+    const g = $('#guide'); if (g) g.innerHTML = icon('camera') + '<span>' + guideText() + '</span>';
+    el.innerHTML = c.pics.map((p, i) => `<div class="pic"><img src="${p.url}" alt="" data-act="zoom" data-i="${i}">${p.q ? `<span class="qbad">${esc(p.q)}</span>` : ''}<span class="lab"><b>${i + 1}</b> ${esc(KINDS[p.kind]?.[0] || p.kind)}${p.note ? ' · ' + esc(p.note) : ''}</span>
         <button class="pm" data-act="pic-menu" data-i="${i}" aria-label="Picture options">${icon('dots')}</button></div>`).join('')
       + (c.pics.length < MAX ? `<button class="addpic" data-act="add-gallery">${icon('image')}Add ${esc(KINDS[addKind][0])}<small class="muted">from gallery</small></button>
         <button class="addpic" data-act="add-camera">${icon('camera')}Take photo<small class="muted">${esc(KINDS[addKind][0])}</small></button>` : '');
@@ -152,10 +165,62 @@
     let urls;
     try { urls = cam ? await L.camera() : await L.pickImages(room); } catch (e) { if (!/cancel/i.test(e.message || '')) toast(e.message); return; }
     const k = c;
-    for (const u of urls.slice(0, room)) k.pics.push({ url: await L.shrink(u, 1024), kind, note: '', at: Date.now() });
+    const added = [];
+    for (const u of urls.slice(0, room)) {
+      const p = { url: await L.shrink(u, 1024), kind, note: '', at: Date.now() };
+      // Only photos are checked (slides and reports look different).
+      if (kind === 'clinical' || kind === 'dermoscopy') { const q = await photoCheck(u); if (q) { p.q = q.label; p.qTip = q.tip; } }
+      k.pics.push(p); added.push(p);
+    }
     if (urls.length > room) toast(`${MAX} pictures at most: the first ${room} were added`);
     await DB.put(k);
     if (c === k && tab === 'evidence') paint();
+    const bad = added.find((p) => p.q);
+    if (bad && c === k) {
+      const i = k.pics.indexOf(bad);
+      sheet(`<h3>${icon('camera')} Picture ${i + 1} looks ${esc(bad.q)}</h3><p class="small">${esc(bad.qTip)}</p>
+        <div class="acts"><button class="btn" data-act="q-keep" data-i="${i}">Keep it</button><button class="btn pri" data-act="q-retake" data-i="${i}">${icon('camera')}Retake</button></div>`);
+    }
+  }
+  actions['q-keep'] = async (b) => { const p = c.pics[+b.dataset.i]; if (p) { delete p.q; delete p.qTip; } closeSheet(); await save(); paint(); };
+  actions['q-retake'] = async (b) => {
+    const i = +b.dataset.i, old = c.pics[i]; closeSheet();
+    let urls; try { urls = await L.camera(); } catch (e) { if (!/cancel/i.test(e.message || '')) toast(e.message); return; }
+    const p = { ...old, url: await L.shrink(urls[0], 1024), at: Date.now() }; delete p.q; delete p.qTip;
+    const q = await photoCheck(urls[0]); if (q) { p.q = q.label; p.qTip = q.tip; }
+    c.pics[i] = p; await save(); paint();
+    if (q) toast(`Still looks ${q.label}: keep it or try once more`);
+  };
+  /** Sharpness, light and glare, measured on a small copy of the photo; null when it looks fine. */
+  function photoCheck(url) {
+    return new Promise((res) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          if (Math.max(img.width, img.height) < 480) { res({ label: 'too small', tip: 'It has very few pixels. Use the camera directly, or a larger copy.' }); return; }
+          const W = 320, k = W / Math.max(img.width, img.height), w = Math.round(img.width * k), h = Math.round(img.height * k);
+          const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+          const g = cv.getContext('2d'); g.drawImage(img, 0, 0, w, h);
+          const d = g.getImageData(0, 0, w, h).data, Y = new Float32Array(w * h);
+          let sum = 0, hot = 0, dark = 0;
+          for (let i = 0; i < w * h; i++) { const y = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]; Y[i] = y; sum += y; if (y > 250) hot++; if (y < 18) dark++; }
+          const mean = sum / (w * h);
+          // Variance of the Laplacian over the middle of the picture: low = blurred.
+          let n = 0, m1 = 0, m2 = 0;
+          for (let y = Math.round(h * 0.15); y < h * 0.85; y++) for (let x = Math.round(w * 0.15); x < w * 0.85; x++) {
+            const i = y * w + x, v = 4 * Y[i] - Y[i - 1] - Y[i + 1] - Y[i - w] - Y[i + w];
+            n++; m1 += v; m2 += v * v;
+          }
+          const lap = n ? m2 / n - (m1 / n) ** 2 : 999;
+          if (mean < 45 || dark / (w * h) > 0.5) res({ label: 'too dark', tip: 'Move to daylight or turn on more light (no flash, it causes glare).' });
+          else if (hot / (w * h) > 0.08) res({ label: 'shiny', tip: 'There is glare. Tilt the phone slightly, turn off the flash, or use cross-polarised dermoscopy.' });
+          else if (lap < 18) res({ label: 'blurred', tip: 'Hold steady, tap the lesion to focus, and keep a hand-span away.' });
+          else res(null);
+        } catch { res(null); }
+      };
+      img.onerror = () => res(null);
+      img.src = url;
+    });
   }
   actions.zoom = (b) => L.lightbox(c.pics.map((p, i) => ({ src: p.url, label: `${i + 1}. ${KINDS[p.kind]?.[0] || ''}`, caption: p.note })), +b.dataset.i);
   actions['pic-menu'] = (b) => {
@@ -229,13 +294,14 @@ Leave a field "" when the documents don't say it; never guess. Leave out names, 
 Rules: describe what is actually visible before interpreting; never invent findings. Say where sources agree and point out contradictions. Rank diagnoses by how well each explains ALL the evidence, with supporting findings, findings against and missing characteristic features. Include dangerous conditions that must not be missed. Lesionaut is picture-first: read the photographs as an expert would and commit to the most likely diagnosis from the image alone. Missing history, laboratory results or histology is normal and is never a reason to withhold, hedge or downgrade a diagnosis, nor a "limitation"; what would refine it goes in one short optional line. Call the evidence insufficient only when the picture itself can't be read (blurred, too far, glare, too dark), and then give one short line of retake advice. Never give numeric probabilities. Consider skin of colour. For histology name the reaction pattern first. Interpret laboratory values in dermatological context. In India also consider leprosy, tuberculosis, deep fungal infections and drug reactions where relevant. Be concise and clinical: this is decision support for a clinician.`;
   const SCHEMA = `Reply with JSON only (no Markdown), exactly this shape:
 {"summary":"2-4 sentences: what the pictures show and the most likely diagnosis, stated plainly","changed":"what changed compared with the previous assessment ('' if none)","sufficiency":"readable | unreadable (unreadable ONLY if the pictures themselves can't be read)","refine":"one short optional line: the history or test that would refine it ('' if nothing needed)","pattern":"the clinical, dermoscopic and/or histological pattern in a few words",
+"triage":{"level":"routine | soon | urgent","why":"one short line"},
 "pictures":[{"n":1,"quality":"good | adequate | poor","observations":["what is visible"],"retake":"only if this picture can't be read: one short line such as 'closer, in focus, daylight'; otherwise ''"}],
 "differentials":[{"name":"diagnosis","strength":"strong | consider | alternative | unlikely","reasoning":"one or two sentences","supporting":["finding (source)"],"against":["finding (source)"],"missing":["expected feature not seen"]}],
 "matrix":[{"finding":"key finding","source":"clinical | dermoscopy | histology | DIF | lab | history","verdicts":["supports | against | nonspecific | neutral, one per differential, same order"]}],
 "mustNotMiss":[{"name":"condition","why":"why it needs excluding"}],
 "tests":[{"test":"investigation","why":"what it distinguishes","ifPositive":"meaning","ifNegative":"meaning","limits":"false negatives or caveats"}],
 "questions":["short questions or examination findings that would change the differential"]}
-Give 3-6 differentials (most likely first; the first is your committed diagnosis), 5-8 matrix rows with the most discriminating findings, at most 5 tests (most useful first) and at most 5 questions. Never list absent history, labs or histology under "against" or "missing". Keep every string short so the JSON stays complete.`;
+Give 3-6 differentials (most likely first; the first is your committed diagnosis), 5-8 matrix rows with the most discriminating findings, at most 5 tests (most useful first) and at most 5 questions. Triage: "urgent" = needs care today (e.g. SJS/TEN, DRESS, erythroderma, eczema herpeticum, necrotising soft-tissue infection, purpura fulminans or meningococcaemia, extensive pemphigus, angioedema with airway signs, suspected rapidly growing or ulcerated melanoma); "soon" = within 1-2 weeks (suspected skin cancer, active vasculitis, new blistering disease, severe flare); otherwise "routine". Never list absent history, labs or histology under "against" or "missing". Keep every string short so the JSON stays complete.`;
   function caseText(k, prev) {
     const pt = PT.map(([key, l]) => (k.pt[key] ? `${l}: ${k.pt[key]}` : '')).filter(Boolean).join('\n') || 'No history given.';
     const pics = k.pics.map((p, i) => `Picture ${i + 1}: ${KINDS[p.kind]?.[1] || p.kind}${p.note ? ' — ' + p.note : ''}`).join('\n') || 'No pictures.';
@@ -258,8 +324,15 @@ Give 3-6 differentials (most likely first; the first is your committed diagnosis
   const PEND = 'pendingAssess';
   const setPending = (id, v) => { const all = store.get(PEND, {}); if (v) all[id] = v; else delete all[id]; store.set(PEND, all); };
   const visible = () => new Promise((res) => { if (!document.hidden) { res(); return; } const f = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', f); res(); } }; document.addEventListener('visibilitychange', f); });
+  const QUICK = `Give a FAST first look only. Reply with JSON only: {"leading":"the most likely diagnosis","summary":"one sentence: the key visible findings","triage":"routine | soon | urgent","alt":["2-3 alternatives"]}`;
   async function assessRun(k, j) {
     const t0 = Date.now(), urls = k.pics.map((p) => p.url), task = caseText(k, last(k)) + '\n\n' + SCHEMA;
+    // A short answer in seconds, shown until the full reading arrives.
+    L.aiPics(caseText(k, null) + '\n\n' + QUICK, urls, { system: SYSTEM, max: 1200 }).then(L.json).then((q) => {
+      if (j.state !== 'running' || !q?.leading) return;
+      j.quick = q;
+      if (c?.id === k.id && tab === 'assessment' && L.cur.name === 'case') paint();
+    }).catch(() => {});
     const meta = { at: t0, n: k.pics.length, kinds: [...new Set(k.pics.map((p) => p.kind))] };
     const ask = async (extra = '') => {
       const reqId = 'keep_as_' + k.id + '_' + Date.now();
@@ -326,7 +399,12 @@ Give 3-6 differentials (most likely first; the first is your committed diagnosis
 
   // ---- Assessment tab
   function tabAssessment() {
-    if (isRunning('assess')) { box().innerHTML = busy(`Reading ${c.pics.length} picture${c.pics.length === 1 ? '' : 's'} with the history…`); return; }
+    if (isRunning('assess')) {
+      const q = L.jobs['assess:' + c.id]?.quick;
+      box().innerHTML = (q ? `<div class="card quick" style="margin-bottom:10px"><div class="row wrap"><span class="tag">First look</span>${triBadge({ triage: q.triage })}</div><b class="dxq">${esc(q.leading)}</b><p class="small">${esc(q.summary || '')}</p>${list(q.alt).length ? `<p class="tiny muted">Also: ${list(q.alt).map(esc).join(' · ')}</p>` : ''}</div>` : '')
+        + busy(q ? 'Writing the full reading: differential, evidence matrix, tests…' : `Reading ${c.pics.length} picture${c.pics.length === 1 ? '' : 's'} with the history…`);
+      return;
+    }
     const idx = shown >= 0 && shown < c.assessments.length ? shown : c.assessments.length - 1;
     const a = c.assessments[idx];
     if (!a) { box().innerHTML = jobError('assess') + `<div class="empty">${icon('spark')}<b>Not assessed yet</b>Add evidence on the Evidence tab, then tap Assess.</div><button class="btn pri full" data-act="assess">${icon('spark')}Assess case</button>`; return; }
@@ -334,14 +412,14 @@ Give 3-6 differentials (most likely first; the first is your committed diagnosis
     const poor = list(r.pictures).filter((p) => p && p.retake && p.quality === 'poor');
     box().innerHTML = jobError('assess') + `
       ${!latest ? `<div class="note" style="margin-bottom:10px">Earlier assessment from ${fmt(a.at)}. <button class="btn sm" data-act="show" data-i="-1">Back to the latest</button></div>` : ''}
-      <div class="card summary">${r.pattern ? `<span class="tag">${esc(r.pattern)}</span>` : ''}<p>${esc(r.summary || '')}</p>
+      <div class="card summary"><div class="row wrap">${triBadge(r)}${r.pattern ? `<span class="tag">${esc(r.pattern)}</span>` : ''}</div>${r.triage?.why && triOf(r) !== 'routine' ? `<p class="tri-why">${esc(oneLine(r.triage.why))}</p>` : ''}<p>${esc(r.summary || '')}</p>
         ${r.changed ? `<p class="small"><b>What changed:</b> ${esc(r.changed)}</p>` : ''}
         ${r.sufficiency === 'unreadable' ? `<div class="note warn" style="margin-top:10px"><b>The pictures are hard to read.</b> ${esc(oneLine(poor.map((p) => p.retake).filter(Boolean)[0] || 'Retake closer, in focus, in daylight.'))}</div>` : ''}
         ${r.refine || r.uncertainty ? `<p class="refine"><b>Would refine:</b> ${esc(oneLine(r.refine || r.uncertainty))}</p>` : ''}
         <p class="tiny muted">${fmt(a.at)} · ${a.n} picture${a.n === 1 ? '' : 's'}${a.secs ? ' · ' + a.secs + ' s' : ''}</p></div>
       ${poor.length && r.sufficiency !== 'unreadable' ? `<p class="refine">${icon('camera')} <b>Retake</b> picture ${poor.slice(0, 2).map((p) => `${esc(p.n)}: ${esc(oneLine(p.retake || 'closer and in focus'))}`).join('; ')}</p>` : ''}
       <div class="sec"><div class="sec-h"><h3>Ranked differential</h3></div>
-      ${dx.map((d, i) => `<details class="dx" ${i === 0 ? 'open' : ''}><summary><span class="n">${i + 1}</span><span class="t"><b>${esc(d.name)}</b><span class="st ${esc(d.strength)}">${STR[d.strength] || 'Consider'}</span></span></summary>
+      ${dx.map((d, i) => `<details class="dx ${i === 0 ? 'lead' : ''}" ${i === 0 ? 'open' : ''}><summary><span class="n">${i + 1}</span><span class="t"><b>${esc(d.name)}</b><span class="st ${esc(d.strength)}">${STR[d.strength] || 'Consider'}</span></span></summary>
         <div class="body"><p>${esc(d.reasoning || '')}</p>
         ${list(d.supporting).length ? `<p><span class="k-for">For</span> ${list(d.supporting).map(esc).join(' · ')}</p>` : ''}
         ${list(d.against).length ? `<p><span class="k-against">Against</span> ${list(d.against).map(esc).join(' · ')}</p>` : ''}

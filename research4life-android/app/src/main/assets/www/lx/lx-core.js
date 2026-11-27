@@ -421,11 +421,26 @@
   function openLink(url) { if (N.openBrowser) N.openBrowser(url); else window.open(url, '_blank', 'noopener'); }
 
   // ---- Theme
+  const THEMES = { system: 'Auto', light: 'Clinical light', dark: 'Midnight', amoled: 'AMOLED black', sepia: 'Warm sepia', contrast: 'High contrast' };
   function applyTheme() {
-    const t = store.get('theme', 'system');
-    const dark = t === 'dark' || (t === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    let t = store.get('theme', 'system');
+    if (!THEMES[t]) t = 'system';
+    const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+    const name = t === 'system' ? (dark ? 'dark' : 'light') : t;
+    document.documentElement.dataset.theme = name;
+    // The browser's / phone's top bar follows the theme (web app).
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    let m = document.querySelector('meta[name=theme-color]');
+    if (!m) { m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); }
+    if (bg) m.content = bg;
   }
+  // A shine sweeps across buttons and tiles when tapped.
+  document.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest?.('.btn, .tile');
+    if (!el) return;
+    el.classList.remove('shine'); void el.offsetWidth; el.classList.add('shine');
+    setTimeout(() => el.classList.remove('shine'), 750);
+  }, { passive: true });
   window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
 
   // ---- What the phone sends back
@@ -465,5 +480,5 @@
   const fmtDay = (t) => new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
   const list = (x) => (Array.isArray(x) ? x.filter(Boolean) : []);
   window.LX = { N, $, $$, esc, icon, MARK, store, toast, sheet, closeSheet, lightbox, md, ai, aiPics, json, hasKey, keyErr, pickImages, pickFiles, camera, shrink, crop, DB, norm, jobs, runJob, jobBar, canKeepAlive,
-    routes, actions, go, render, bar, on, openLink, applyTheme, start, fmt, fmtDay, list, get cur() { return cur; } };
+    routes, actions, go, render, bar, on, openLink, applyTheme, THEMES, start, fmt, fmtDay, list, get cur() { return cur; } };
 })();
