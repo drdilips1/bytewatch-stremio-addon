@@ -414,7 +414,13 @@ function Library() {
   const photos = useRef();
   const camera = useRef();
   const refresh = () => listBooks().then(setBooks).catch((e) => setMsg(e.message));
-  useEffect(() => void refresh(), []);
+  useEffect(() => {
+    refresh();
+    // Back from Files or another app: the library is read again (iOS may have closed its storage meanwhile).
+    const back = () => document.visibilityState === 'visible' && refresh();
+    document.addEventListener('visibilitychange', back);
+    return () => document.removeEventListener('visibilitychange', back);
+  }, []);
 
   // Files opened in the app from elsewhere (Files, Mail, Share → Narrato): added to the library.
   useEffect(() => {
