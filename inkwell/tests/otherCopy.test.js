@@ -28,8 +28,23 @@ vi.mock('../src/lib/store.js', () => ({
   persisted: (k, v) => mem(v), removeBookmark: () => {}, library: mem({}), useStore: () => ({}),
 }));
 vi.mock('../src/sources/audiobookshelf.js', () => ({ syncProgress: async () => {}, switchTracks: () => {}, closeSession: async () => {}, serverPlace: async () => null, mirrorPlace: () => {}, connected: () => false }));
-vi.mock('../src/sources/debrid.js', () => ({ fetchStatus: async () => null }));
-vi.mock('../src/lib/downloads.js', () => ({ applyLocal: (d) => d, isDownloaded: () => false, downloads: mem({}) }));
+vi.mock('../src/sources/debrid.js', () => ({
+  fetchStatus: async () => null,
+  preferredProvider: () => 'torbox',
+  providerName: () => 'TorBox',
+  prepareMagnet: async (p, r) => ({ uid: 'tb:t:fresh', source: 'tb', kind: 'audio', title: r.title }),
+}));
+vi.mock('../src/sources/sourceaddons.js', () => ({
+  sourceAddons: () => [{ manifest: { name: 'Knaben' } }],
+  // A source has the book, ready (cached) in TorBox.
+  searchSources: async (q, cb) => cb('Knaben', [{ title: 'Dune', hash: 'abc', magnet: 'magnet:?xt=urn:btih:abc', cache: { torbox: true }, seeders: 40 }]),
+}));
+const dls = mem({});
+vi.mock('../src/lib/downloads.js', () => ({
+  downloads: dls,
+  isDownloaded: (uid) => dls.get()[uid]?.status === 'done',
+  applyLocal: (d) => ({ ...d, tracks: dls.get()[d.uid].tracks.map((t) => ({ url: t.uri, title: t.title, duration: 3600 })), offline: true }),
+}));
 vi.mock('../src/sources/local.js', () => ({ localCfg: mem({ books: [] }), localUrl: (u) => u }));
 vi.mock('../src/lib/meta.js', () => ({ fixFor: () => null }));
 vi.mock('../src/lib/stats.js', () => ({ start: () => {}, stop: () => {}, tick: () => {}, note: () => {} }));
@@ -37,13 +52,19 @@ vi.mock('../src/lib/report.js', () => ({ logError: () => {} }));
 
 const gone = { uid: 'tb:t:1', source: 'tb', kind: 'audio', title: 'Project Hail Mary', author: 'Andy Weir' };
 const other = { uid: 'rd:2', source: 'rd', kind: 'audio', title: 'Project Hail Mary', author: 'Andy Weir' };
+const inactive = { uid: 'tb:t:9', source: 'tb', kind: 'audio', title: 'Dune', author: 'Frank Herbert' };
+const downloaded = { uid: 'abs:7', source: 'abs', kind: 'audio', title: 'Circe', author: 'Madeline Miller' };
 const getDetails = vi.fn(async (b) => {
   if (b.uid === gone.uid) throw new Error('This item is no longer in your TorBox account');
+  // In TorBox, but inactive: its link can't be fetched any more.
+  if (b.uid === inactive.uid) return { ...b, tracks: [{ title: 'Dune 01', duration: 3600, resolve: async () => { throw new Error('This torrent is inactive in TorBox'); } }] };
   return { ...b, tracks: [{ url: 'https://x/1.mp3', title: 'Part 1', duration: 3600 }] };
 });
+// The phone answers "not there" for a deleted file.
+globalThis.fetch = async (u) => ({ ok: !/deleted/.test(String(u)), status: /deleted/.test(String(u)) ? 404 : 206 });
 vi.mock('../src/sources/index.js', () => ({
   getDetails: (...a) => getDetails(...a),
-  findOwned: async () => ({ server: [], cloud: [other] }),
+  findOwned: async (b) => ({ server: [], cloud: b.title === other.title ? [other] : [] }),
   searchSources: async () => {},
   localSrc: { localCfg: { get: () => ({ books: [] }) } },
   cloud: { preferredProvider: () => null, tbConnected: () => false },
@@ -56,4 +77,19 @@ describe('a copy that is gone', () => {
     await vi.waitFor(() => expect(player.getState().book?.uid).toBe(other.uid), { timeout: 3000 });
     expect(player.getState().error).toBeFalsy();
   });
+
+  it('a download whose files were deleted streams from where it came from (and shows as needing a new download)', async () => {
+    const player = await import('../src/lib/player.js');
+    dls.set({ [downloaded.uid]: { status: 'done', book: downloaded, tracks: [{ uri: 'file:///Downloads/deleted/01.mp3', title: '01' }] } });
+    await player.openAndPlay(downloaded, getDetails);
+    await vi.waitFor(() => expect(player.getState().tracks[0]?.url).toBe('https://x/1.mp3'), { timeout: 3000 });
+    expect(player.getState().error).toBeFalsy();
+    expect(dls.get()[downloaded.uid].status).toBe('error');
+  });
+  it('a TorBox copy gone inactive plays a copy ready in your sources', async () => {
+    const player = await import('../src/lib/player.js');
+    await player.openAndPlay(inactive, getDetails);
+    await vi.waitFor(() => expect(player.getState().book?.uid).toBe('tb:t:fresh'), { timeout: 8000 });
+    expect(player.getState().error).toBeFalsy();
+  }, 10000);
 });

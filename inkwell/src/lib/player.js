@@ -136,8 +136,23 @@ async function recover(msg = '') {
   }
   if (rescue.step <= 1) {
     rescue.step = 2;
-    rescueTried.add(b.uid);
     const g = globalTime();
+    // The downloaded files of this book won't play (deleted from the phone): the same book,
+    // streamed from where it came from, at the same point.
+    if (b.offline && downloads.get()[b.uid]?.status === 'done') {
+      forgetDownload(b.uid);
+      try {
+        const { getDetails } = await import('../sources/index.js');
+        set({ loading: true, error: null, phase: 'The downloaded files are gone — streaming it instead…' });
+        const d = await getDetails({ ...b, tracks: undefined, offline: undefined });
+        rescuing = true;
+        await playBook(d, { globalStart: g, percent: progress.get()[b.uid]?.percent });
+        return true;
+      } catch {
+        rescuing = false;
+      }
+    }
+    rescueTried.add(b.uid);
     // A TorBox / Real-Debrid copy whose torrent went inactive (TorBox lets old ones go): added
     // again by itself — usually ready at once — and carried on at the same point.
     let refetching = null;
@@ -200,8 +215,9 @@ async function recover(msg = '') {
     const alt = await otherCopy(b).catch(() => null);
     // No copy of your own: one ready to stream from your sources (your server down, or the
     // cloud copy downloading again).
-    if (!alt && (b.source === 'abs' || refetching)) {
-      const inst = await instantCopy(b, refetching || 'Your server isn’t answering').catch(() => null);
+    // (Any copy that's gone — removed from TorBox or inactive there too — not just a server that's down.)
+    if (!alt && (refetching || shouldTryOtherCopy(b, msg))) {
+      const inst = await instantCopy(b, refetching || (b.source === 'abs' ? 'Your server isn’t answering' : 'This copy isn’t available any more')).catch(() => null);
       if (inst) {
         rescuing = true;
         await playBook(inst.details, { globalStart: g, percent: progress.get()[b.uid]?.percent });
@@ -825,24 +841,36 @@ async function phoneCopy(book) {
   const d = await getDetails(hit);
   if (!d?.tracks?.length) return null;
   // Deleted since the last folder scan? Open the first file (2 bytes); if it's gone, stream as before.
-  const u = d.tracks[0].url;
-  if (u) {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 2000);
-    try {
-      const r = await fetch(/^(content|file):/.test(u) ? localUrl(u) : u, { headers: { Range: 'bytes=0-1' }, signal: ctl.signal });
-      if (!r.ok) {
-        note(`“${hit.title}”: file check answered ${r.status} — streaming instead`);
-        return null;
-      }
-    } catch (e) {
-      note(`“${hit.title}”: file check failed (${e.message}) — streaming instead`);
-      return null;
-    } finally {
-      clearTimeout(t);
-    }
+  if (!(await fileThere(d.tracks[0].url, localUrl))) {
+    note(`“${hit.title}”: its file isn't there any more — streaming instead`);
+    return null;
   }
   return d;
+}
+
+/**
+ * Is this file on the phone still there? Opens 2 bytes of it (2 s at most). True for no URL or a
+ * file that isn't on the phone; false when it's gone or didn't answer. `sure`: false only when the
+ * phone said it isn't there (a slow answer counts as there — a download is never dropped for that).
+ */
+async function fileThere(u, toUrl = null, sure = false) {
+  if (!u || !/^(content|file|capacitor|blob):|_capacitor_/.test(u)) return true;
+  if (!toUrl) toUrl = (await import('../sources/local.js')).localUrl;
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 2000);
+  try {
+    const r = await fetch(/^(content|file):/.test(u) ? toUrl(u) : u, { headers: { Range: 'bytes=0-1' }, signal: ctl.signal });
+    return r.ok;
+  } catch {
+    return sure;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** A download whose files are gone: shown as needing to be downloaded again, and not used. */
+function forgetDownload(uid) {
+  downloads.set((all) => (all[uid] ? { ...all, [uid]: { ...all[uid], status: 'error', done: 0, error: 'Its files were deleted from the phone — download it again' } } : all));
 }
 
 // A part missing from the book's numbering (its book check found it): said when the player
@@ -873,7 +901,13 @@ export async function playBook(details, { index, time, globalStart, percent, aut
   if (!rescuing) rescueTried.clear();
   const wasRescue = rescuing;
   rescuing = false;
-  if (details && !details.offline && isDownloaded(details.uid)) details = applyLocal(details);
+  if (details && !details.offline && isDownloaded(details.uid)) {
+    const local = applyLocal(details);
+    // Its files deleted since (in My Files, or by a cleaner app): stream it from where it came from,
+    // and the download shows as needing to be done again — not a "can't play" on a gone file.
+    if (await fileThere(local.tracks?.[0]?.url, null, true)) details = local;
+    else forgetDownload(details.uid);
+  }
   // The same book is also on this phone ("On this phone" folders): play that, not the cloud.
   if (!wasRescue && !exact && details && !details.offline && !NO_PHONE_SWAP.has(details.source) && details.kind !== 'text') {
     const phone = await phoneCopy(details).catch(() => null);
