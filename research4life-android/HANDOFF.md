@@ -12,7 +12,7 @@
 - The owner is credit-conscious: short replies, no guess-builds; ask for the exact error text instead of guessing.
 - After each build, check the runs with the GitHub MCP `actions_list` (and a `send_later` reminder ~7 min later), then give links. Maven Central HTTP 429 = re-run once. iOS runs can fail/cancel when GitHub's Mac minutes run out (not our code).
 
-**Current versions:** DermScholar **5.48** (versionCode 76, 27 Nov 2026: Diagnose from picture takes 12 pictures, BACKLOG #90); before that 5.47 (versionCode 75, 17 Nov, commit 6dfa9a2), iPhone build `dermscholar-ios-41`; Lesionaut **2.1** (versionCode 3).
+**Current versions (27 Nov 2026):** DermScholar **5.49** (versionCode 77: Diagnose from picture takes 12 pictures, BACKLOG #90; 5.48/76 was the Lesionaut L1–L6 build, commit c2504df); Lesionaut **2.2** (versionCode 4).
 - DermScholar APK: https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/dermscholar-latest/DermScholar.apk
 - DermScholar IPA: `releases/download/dermscholar-ios-<run>/DermScholar.ipa` (owner installs with **SideStore** now; AltStore's servers gave HTTP 503)
 - DermScholar web: https://drdilips1.github.io/bytewatch-stremio-addon/dermscholar/
