@@ -65,7 +65,7 @@ jobs:
           cd ios/App
           if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
           xcodebuild -quiet $SRC -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
-            -derivedDataPath "$PWD/build" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            -derivedDataPath "$PWD/build" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${VERSION##*.}" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/App.app Payload/
@@ -86,7 +86,8 @@ jobs:
           node -e '
             const [tag, version, repo, size, date] = process.argv.slice(1);
             const url = `https://github.com/${repo}/releases/download/${tag}/Audibrisk.ipa`;
-            const v = { version, buildVersion: version, date, downloadURL: url, size: +size, localizedDescription: `Audibrisk ${version}`, minOSVersion: "15.0" };
+            // The build number SideStore / AltStore check against the app: the same as inside it (1.0.8 → "8").
+            const v = { version, buildVersion: version.split(".").pop(), date, downloadURL: url, size: +size, localizedDescription: `Audibrisk ${version}`, minOSVersion: "15.0" };
             const app = { name: "Audibrisk", bundleIdentifier: "app.audibrisk.player", developerName: "Audibrisk",
               subtitle: "Search a book, press play", localizedDescription: "Audiobooks through your own TorBox, Real-Debrid, AllDebrid or Premiumize, and free LibriVox books.",
               iconURL: `https://github.com/${repo}/releases/download/altstore/icon-512.png`, tintColor: "#66754F",

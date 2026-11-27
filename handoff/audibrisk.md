@@ -12,6 +12,9 @@
   Audibrisk.ipa → pre-release `ios-<version>` (never latest) + AltStore source
   https://github.com/drdilips1/audibrisk/releases/download/altstore/altstore.json. Kit tested on
   Linux (npm install + cap add ios → 6 plugins). Token has Contents + Workflows (user, 23 Nov).
+  27 Nov fix: SideStore refused ios-1.0.7 ("mismatch… found 4"): the app's CFBundleVersion was the
+  public repo's run number (4) while the source said buildVersion 1.0.7. ios.yml now sets
+  CURRENT_PROJECT_VERSION and the source's buildVersion both to the last part of the version.
   FIRST IPA OK (23 Nov): kit run #2 → public Mac build → release ios-1.0.2
   https://github.com/drdilips1/audibrisk/releases/download/ios-1.0.2/Audibrisk.ipa (1.5 MB) and the
   AltStore source above (both checked 200). This session can't read the public repo's logs (not
