@@ -358,34 +358,18 @@ export function FullPlayer() {
       {!showText && (
         <>
       <div class="fp-meta">
-        <ChapterLeft chapters={chapters} g={g} rate={s.rate} />
         <h2>{s.book.title}</h2>
         <p>
           {s.book.author}
           {s.book.narrator ? ` · read by ${String(s.book.narrator).split(',')[0]}` : ''}
         </p>
-        {/* Chapter (one tap to the list) and X-Ray, as pills. */}
-        <div class="fp-pills">
-          {chapters.length > 1 ? (
-            <button class="fp-chapters mo-flash" key={chapterLabel(chapters, g)} onClick={() => setSheet('chapters')}>
-              <Icon name="list" size={15} />
-              <span class="fp-ch-label">{chapterLabel(chapters, g)}</span>
-            </button>
-          ) : (
-            s.tracks.length > 1 && (
-              <button class="fp-chapters" onClick={() => setSheet('chapters')}>
-                <Icon name="list" size={15} />
-                <span class="fp-ch-label" key={s.index}>{s.tracks[s.index]?.title || `Part ${s.index + 1}`}</span>
-              </button>
-            )
-          )}
-          {aiOn() && s.book.source !== 'pod' && (
-            <button class="fp-chapters" onClick={() => setSheet('xray')}>
-              <Icon name="xray" size={15} />
-              <span>X-Ray</span>
-            </button>
-          )}
-        </div>
+        {/* The chapter (or part) you're in, one line in the accent colour — tap for the list.
+            (X-Ray is in the AI row below; the time left in it is under the bar.) */}
+        {(chapters.length > 1 || s.tracks.length > 1) && (
+          <button class="fp-chline mo-flash" key={chapters.length > 1 ? chapterLabel(chapters, g) : s.index} onClick={() => setSheet('chapters')}>
+            {chapters.length > 1 ? chapterLabel(chapters, g) : s.tracks[s.index]?.title || `Part ${s.index + 1}`}
+          </button>
+        )}
         {s.preparing && <PrepBar st={s.preparing} />}
         {s.interrupted && !s.loading && (
           <div class="loading-line">
@@ -408,15 +392,6 @@ export function FullPlayer() {
       </div>
 
 
-      {barModesHere.length > 1 && (
-        <div class="segmented fp-barmode" role="tablist" aria-label="Progress bar shows">
-          {barModesHere.map((m) => (
-            <button class={m === barMode ? 'on' : ''} onClick={() => (setScrub(null), settings.patch({ barMode: m }))}>
-              {m === 'book' ? 'Book' : m === 'chapter' ? 'Chapter' : 'File'}
-            </button>
-          ))}
-        </div>
-      )}
       <div class={"fp-scrub fp-scrub-" + barMode + (s.playing ? " playing" : "")}>
         {sweep && (
           <span class="mo-sweep" key={sweep.k} style={{ left: `${Math.min(sweep.from, sweep.to)}%`, width: `${Math.abs(sweep.to - sweep.from)}%`, '--dir': sweep.to >= sweep.from ? 1 : -1 }} />
@@ -447,15 +422,31 @@ export function FullPlayer() {
           onTouchCancel={() => ((held.current = false), setScrub(null))}
           onBlur={() => ((held.current = false), setScrub(null))}
         />
+        {/* Time | Book · Chapter · File | time left — then one quiet line: the chapter's time left and how far through the book. */}
         <div class="fp-times">
           <span>{fmtTime(pos)}</span>
-          {total > dur + 1 && (
-            <span class="fp-total">
-              {Math.min(99, Math.round((g / total) * 100))}% of book · {s.rate && s.rate !== 1 ? `${fmtTime((total - g) / s.rate)} left at ${s.rate}×` : `${fmtTime(total - g)} left`}
-            </span>
+          {barModesHere.length > 1 ? (
+            <div class="fp-barmode" role="tablist" aria-label="Progress bar shows">
+              {barModesHere.map((m) => (
+                <button class={m === barMode ? 'on' : ''} onClick={() => (setScrub(null), settings.patch({ barMode: m }))}>
+                  {m === 'book' ? 'Book' : m === 'chapter' ? 'Chapter' : 'File'}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span />
           )}
           <span>-{fmtTime(Math.max(0, view.max - pos))}</span>
         </div>
+        <p class="fp-under">
+          <ChapterLeft chapters={chapters} g={g} rate={s.rate} />
+          {total > dur + 1 && (
+            <span>
+              {Math.min(99, Math.round((g / total) * 100))}% of book
+              {s.rate && s.rate !== 1 ? ` · ${fmtTime((total - g) / s.rate)} left at ${s.rate}×` : barMode === 'book' ? '' : ` · ${fmtTime(total - g)} left`}
+            </span>
+          )}
+        </p>
       </div>
 
       <div class="fp-controls">
