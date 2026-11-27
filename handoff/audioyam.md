@@ -528,5 +528,10 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   - What's new card added, EDITION `nov-2026i`. No reply posted on GitHub.
 - Built 27 Nov: test APK (run 48) and iPhone ios-14 from 368661a, both green (include #12, #13, iPad Save to Files). Not released to main.
 
-## Premium polish (27 Nov) — SAMPLE ONLY, waiting for the user
+## Premium polish (27 Nov) — BUILT on work (user: greeting + name on one line, tagline stays; will judge in the app)
 - handoff/samples/audioyam-premium-sample.html/.png: Fraunces heads + spaced eyebrow labels, book-like covers (spine shade, 2-layer shadow), 1px top sheen on cards, glossy accent pills, cover-colour glow, film grain (off on AMOLED / reduce motion), 20/30 px spacing, fewer top-bar icons (Ask into search, tagline gone), floating glass tab bar. Applies on top of every palette. Nothing built.
+- Done: `src/premium.css`, loaded after styles.css, everything under `:root[data-polish]`. Set by applyTheme unless `settings.finish === 'plain'`; Settings → Appearance → Finish: Premium / Plain.
+  - Fonts: own `--serif` (Fraunces), because some palettes set `--display` to their plain font. Row subtitles become spaced labels above the title (column-reverse). Greeting stays on one line (clamp + ellipsis), name in an accent italic `<em>`.
+  - Covers get a spine via `.cover::before`; `.cover::after` already had the sheen.
+  - Tab bar floats with NO backdrop blur (blur was removed earlier for Android scroll flicker); `.tabbar::after` is a fade behind it; `--tabbar-h` is 76px.
+  - Ask button kept in the top bar. What's new EDITION `nov-2026j`. Test APK + iPhone build started.
