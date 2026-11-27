@@ -615,3 +615,10 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
   - InkwellUpdatePlugin.load() deletes the old update APK at start.
   - src/lib/storage.js storageGroups / voiceLabel / fmtBytes (tests/storage.test.js); components/storage-card.jsx; epub.js ebookBytes, chapters.js chapterBytes.
   - Remove: forgetEbook, forgetChapter, removeImported, voices.remove. On iPhone only the app-side groups show.
+- Comics & ebooks in Downloads/Audiohub (27 Nov, work 8ecba68 + fix 4a?, not built; Android only):
+  - Native: InkwellDownloads writeStart / writeChunk (base64, 3 MB) / writeEnd / adopt (own 'files' executor); saveToDownloads folder param; importDownload { link } returns the DownloadManager uri (no copy).
+  - lib/sharedfiles.js (folderFor, fileName, mimeOf tested). epub.js keepBytes writes there (savedEbooks fileUri); cachedBytes reads via convertFileSrc and forgets a deleted file; forgetEbook deletes it.
+  - One-time moves: Cache API → Downloads (savedEbooks.__moved, 20 s after start); files/books → adopt (localCfg.movedOut, 25 s).
+  - local.js imported shared entries: ebookUri; details 'gone' check by Range fetch. comicdl → Audiohub/Comics.
+  - Storage screen: group 'shared' (outside the app's total).
+  - Lesson: an unescaped apostrophe in whats-new broke the build, and was pushed because the commit didn't stop on lint. Always check lint output before committing.
