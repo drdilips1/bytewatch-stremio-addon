@@ -29,6 +29,8 @@
   config `inkwell/vite.brisk.config.js`, workflow `.github/workflows/brisk-apk.yml`.
   Tests: `inkwell/brisk/brisk.test.js` (runs in `npm test`). The shared eslint config only covers
   `src/`; lint brisk with a temp copy of it that adds `brisk/**/*.{js,jsx}` (clean as of v1.0.6).
+- v1.0.21 RELEASED publicly (27 Nov, run 21): https://github.com/drdilips1/audibrisk/releases/latest
+  (first public release since v1.0.10; in-app Update now offers it to older installs).
 - RELEASE POLICY (27 Nov, user "go"): nobody but the user has Audibrisk yet (wife: iPhone via
   SideStore), so EVERY Android build is a release — use `[release brisk]` (not `[build brisk]`) in
   build commits, so the in-app updater (public repo latest) always has the newest. When the user
