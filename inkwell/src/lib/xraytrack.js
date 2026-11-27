@@ -76,9 +76,12 @@ export function mapAround(person, people = []) {
   }
   const n = ring.length;
   const nodes = [{ name: person.name, x: 0.5, y: 0.5, centre: true }];
+  // Evenly round an orbit, starting at the top; with an even number, turned half a step so no
+  // line runs straight down through the centre person's name.
+  const step = (2 * Math.PI) / Math.max(n, 1);
   ring.forEach((c, i) => {
-    const a = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(n, 1);
-    nodes.push({ name: c.to, x: 0.5 + 0.38 * Math.cos(a), y: 0.5 + 0.36 * Math.sin(a) });
+    const a = -Math.PI / 2 + i * step + (n % 2 === 0 ? step / 2 : 0);
+    nodes.push({ name: c.to, x: 0.5 + 0.36 * Math.cos(a), y: 0.5 + 0.33 * Math.sin(a), label: c.label || '', type: c.type || 'other' });
   });
   const edges = ring.map((c) => ({ a: person.name, b: c.to, label: c.label || '', type: c.type || 'other' }));
   const inRing = new Map(ring.map((c) => [key(c.to), c.to]));

@@ -51,36 +51,76 @@ function Face({ x, size = 44, dot = false, place = false }) {
   );
 }
 
-/** The relationship map: this person in the middle, their connections around (tap to go there). */
-function RelationMap({ x, people, open }) {
+/**
+ * The relationship map: this person in the middle with a soft glow, their connections evenly round
+ * an orbit — each face ringed in the colour of the bond (family, ally, enemy), with the bond
+ * ("father", "sworn enemy") as a small tag under the name instead of text on the lines. Lines stop
+ * at the faces; links between neighbours on the ring curve along the orbit.
+ */
+export function RelationMap({ x, people, open }) {
   const { nodes, edges } = mapAround(x, people);
   if (nodes.length < 2) return null;
-  const at = new Map(nodes.map((n) => [n.name, n]));
-  const W = 320, H = 290;
+  // Shorter when there are only a few around (two sit left and right of the middle).
+  const W = 340, H = nodes.length <= 3 ? 210 : nodes.length <= 5 ? 330 : 372;
+  const at = new Map(nodes.map((n) => [n.name, { ...n, px: n.x * W, py: n.y * H }]));
+  const c = at.get(x.name);
+  const ring = nodes.length - 1;
+  const R = { centre: 38, node: 26 };
+  // Links between two of the others are drawn only for neighbours on the ring (a curve along the
+  // orbit); across the circle they would cut behind other faces. Their own pages show the rest.
+  const ringIndex = new Map(nodes.slice(1).map((n, i) => [n.name, i]));
+  const neighbours = (p, q) => {
+    const d = Math.abs(ringIndex.get(p) - ringIndex.get(q));
+    return d === 1 || d === ring - 1;
+  };
+  // A line from a to b that stops short of both faces.
+  const trim = (a, b, ra, rb) => {
+    const dx = b.px - a.px, dy = b.py - a.py, d = Math.hypot(dx, dy) || 1;
+    return [a.px + (dx / d) * ra, a.py + (dy / d) * ra, b.px - (dx / d) * rb, b.py - (dy / d) * rb];
+  };
+  const person = (name) => people.find((p) => p.name === name) || { name };
   return (
     <div class="xr-map" style={{ aspectRatio: `${W} / ${H}` }}>
       <svg viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+        <defs>
+          <radialGradient id="xrGlow">
+            <stop offset="0" stop-color="var(--accent)" stop-opacity="0.35" />
+            <stop offset="1" stop-color="var(--accent)" stop-opacity="0" />
+          </radialGradient>
+        </defs>
+        <circle cx={c.px} cy={c.py} r="92" fill="url(#xrGlow)" />
+        <ellipse class="xr-orbit" cx={c.px} cy={c.py} rx={0.36 * W} ry={0.33 * H} />
         {edges.map((e) => {
           const a = at.get(e.a), b = at.get(e.b);
           if (!a || !b) return null;
-          return <line class={'xr-edge ' + e.type} x1={a.x * W} y1={a.y * H} x2={b.x * W} y2={b.y * H} />;
-        })}
-        {edges.map((e) => {
-          const a = at.get(e.a), b = at.get(e.b);
-          if (!a || !b || !e.label) return null;
-          return (
-            <text class={'xr-edge-label ' + e.type} x={((a.x + b.x) / 2) * W} y={((a.y + b.y) / 2) * H - 4} text-anchor="middle">
-              {e.label.length > 16 ? e.label.slice(0, 15) + '…' : e.label}
-            </text>
-          );
+          if (a.centre || b.centre) {
+            const [x1, y1, x2, y2] = a.centre ? trim(a, b, R.centre + 4, R.node + 4) : trim(b, a, R.centre + 4, R.node + 4);
+            return <line class={'xr-edge ' + e.type} x1={x1} y1={y1} x2={x2} y2={y2} />;
+          }
+          // Between two neighbours: a curve bowing away from the middle, along the orbit.
+          if (!neighbours(e.a, e.b)) return null;
+          const [x1, y1, x2, y2] = trim(a, b, R.node + 4, R.node + 4);
+          const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+          // The curve's middle lands on the orbit (a quadratic's midpoint is halfway between the chord's middle and its control point).
+          const ox = mx - c.px, oy = my - c.py, od = Math.hypot(ox, oy) || 1;
+          const on = [c.px + (ox / od) * Math.hypot((0.36 * W * ox) / od, (0.33 * H * oy) / od), c.py + (oy / od) * Math.hypot((0.36 * W * ox) / od, (0.33 * H * oy) / od)];
+          const [qx, qy] = [2 * on[0] - mx, 2 * on[1] - my];
+          return <path class={'xr-edge side ' + e.type} d={`M${x1},${y1} Q${qx},${qy} ${x2},${y2}`} />;
         })}
       </svg>
-      {nodes.map((n) => (
-        <button class={'xr-node' + (n.centre ? ' centre' : '')} style={{ left: `${n.x * 100}%`, top: `${n.y * 100}%` }} onClick={() => !n.centre && open(n.name)}>
-          <Face x={people.find((p) => p.name === n.name) || { name: n.name }} size={n.centre ? 64 : 46} />
-          <small>{n.name.length > 14 ? n.name.slice(0, 13) + '…' : n.name}</small>
+      {nodes.map((n, i) => (
+        <button
+          class={'xr-node ' + (n.centre ? 'centre' : n.type)}
+          style={{ left: `${n.x * 100}%`, top: `${n.y * 100}%`, animationDelay: `${n.centre ? 0 : 60 + i * 45}ms` }}
+          onClick={() => !n.centre && open(n.name)}
+          aria-label={n.centre ? n.name : `${n.name}${n.label ? `, ${n.label}` : ''}`}
+        >
+          <Face x={person(n.name)} size={n.centre ? 2 * R.centre : 2 * R.node} />
+          <span class="xr-node-name">{n.name}</span>
+          {!n.centre && n.label && <span class={'xr-node-tag ' + n.type}>{n.label.length > 16 ? n.label.slice(0, 15) + '…' : n.label}</span>}
         </button>
       ))}
+      {ring >= 8 && x.connections.length > 8 && <span class="xr-map-more">+{x.connections.length - 8} more below</span>}
     </div>
   );
 }
@@ -336,10 +376,13 @@ function Person({ x, data, place, back, open }) {
           <b class="xr-kick">Connections</b>
           <RelationMap x={x} people={data.people} open={open} />
           <p class="xr-legend">
-            <i class="xr-line family" /> family / bond <i class="xr-line enemy" /> enemies <i class="xr-line ally" /> allies · links only as the story reveals them
+            <span><i class="xr-key family" /> Family &amp; bonds</span>
+            <span><i class="xr-key ally" /> Allies</span>
+            <span><i class="xr-key enemy" /> Enemies</span>
           </p>
+          <p class="xr-legend-note">Only links the story has revealed so far · tap a face to see that person</p>
           <div class="xr-faces">
-            {x.connections.map((c) => (
+            {x.connections.slice(8).map((c) => (
               <button onClick={() => open(c.to)}>
                 <Face x={{ name: c.to }} size={52} />
                 <small class={'xr-link ' + c.type}>{short(c.label || c.to, 14)}</small>
