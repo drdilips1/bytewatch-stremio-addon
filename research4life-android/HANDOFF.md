@@ -32,13 +32,17 @@
 - Sync no longer overwrites an AI key already on the phone (MainActivity `importSecrets`): the account is shared with the owner's wife's phone and the iPad, which kept uploading old keys.
 - Owner's experience: Gemini free daily quota runs out (it's per Google **project**, not per key); the phone's DNS once failed for Gemini/Claude (fixed with Private DNS `dns.google`).
 
-### PENDING (nothing below is built)
-**Lesionaut backlog (BACKLOG.md, Lesionaut table):**
-- **L1** Assess only finishes if the app stays open → keep the request alive (Android foreground service with an "Assessing…" notification; resume/retry on return; web: warn to keep the page open).
-- **L2** Picture-first: commit to the most likely diagnosis from the image alone; no "Insufficient evidence: no history" banner; refinements as one optional line; "insufficient" only when the picture itself is unreadable; one-line retake advice.
-- **L3** Photograph/upload reports, biopsy reports, prescriptions, referral notes, old case papers (photos or PDFs) → AI extracts age, sex, duration, medicines, treatment, labs, biopsy findings into the case, shows them for a quick check; manual typing becomes optional.
-- **L4** Teach me this slide: × to remove the picture, "Replace" label, clear old teaching on change, crop step (printed captions gave the answer away).
-- **L5** Save everything with a **History tab**: cases, Teach-me sessions, detective searches, Explore answers, calculator results, with pictures and answers; search, filters (cases · slides · dermoscopy · detective · notes), reopen as it was, ★ keep / delete.
+### Lesionaut L1–L6: done locally, NOT built yet (commit after 6dfa9a2, all `[skip ci]`)
+Next "build for both" ships them: bump Lesionaut to versionCode 4 / 2.2 (and DermScholar as usual, since the Android project is shared: the new `AiKeepService`, `pickFiles`, `keepAlive`, `aiTake` are in MainActivity for both flavours). The Java was **not compiled** here (no Android SDK in the sandbox): check the first build's log carefully.
+- **L1** `AiKeepService.java` (foreground service type dataSync + `FOREGROUND_SERVICE_DATA_SYNC`, `WAKE_LOCK`), JS `runJob` calls `Native.keepAlive(true/false, label)`; `keepAliveReset` on page load. Requests with ids starting `keep_` are kept in SharedPreferences `ai_results` until `Native.aiTake(id)`; lx-case.js `pendingAssess` + `recoverAssess()`; retry once if the job saw the app hidden.
+- **L2** SYSTEM/SCHEMA in lx-case.js picture-first; `refine` line; banner only for `sufficiency: unreadable`.
+- **L3** Evidence → "Reports and case papers"; `L.pickFiles` (Android `pickFiles` + PdfRenderer; web pdf.js from `../vendor/pdfjs/`); `SCAN_TASK`, review sheet, `c.papers`, `c.scan`, PT field `biopsy`.
+- **L4** Teach me: × remove, Replace, Crop (`L.crop` in lx-core.js), clears old teaching.
+- **L5** `lx-history.js` + History tab; IndexedDB `lesionaut` v2 store `history`; `L.keep` in lx-explore.js; calculators save after 1.5 s idle.
+- **L6** broken-format fix: `L.json` repairs cut-off JSON (`closeJson`), higher token limits, one re-ask.
+Tested in Chromium with a mocked AI (scan → fill → assess with a cut-off answer, teach + crop, calculator, History, recovery after a rebuilt screen).
+
+### PENDING
 **DermScholar:**
 - Research4Life/ClinicalKey Get PDF: last state 5.41+ (taps "Log in here" by its link, menu → Content → Reference Sources → Clinical Key, 20 s re-tap); the owner reported it worked once after ~2 min and once needed manual taps; awaiting the "Details" text if it stalls again.
 - Older open items: see "Roadmap: still open" below and the DermScholar rows of BACKLOG.md.

@@ -58,9 +58,11 @@
       <p class="disc">Standard published formulas. Check every input; scores support, not replace, clinical judgement.</p>`;
   };
 
-  routes.tool = (k) => {
+  routes.tool = (k, params = {}) => {
     const t = TOOLS[k];
     if (!t) { L.go('tools', { replace: true }); return; }
+    // Opened from History: the saved inputs come back.
+    if (params.from) { const saved = store.get('histTool', null); if (saved?.tool === k) store.set('tool.' + k, saved.state); }
     const s = store.get('tool.' + k, {});
     view().innerHTML = `${bar(t.name, { right: `<button class="ib" data-act="tool-reset" data-k="${k}" aria-label="Reset">${icon('refresh')}</button>` })}
       <div class="calc-out"><b id="t-val"></b><span id="t-band"></span></div>
@@ -70,11 +72,20 @@
         : `<div class="opts">${it.opts.map((o, i) => `<button class="${+(s[it.k] ?? (it.opts[0])) === o && (s[it.k] !== undefined || i === 0) ? 'on' : ''}" data-opt="${it.k}" data-v="${o}">${esc(it.hint ? it.hint[i] : o)}</button>`).join('')}</div>`}</div>`).join('')}</div>`).join('')}
       ${t.note ? `<p class="disc">${esc(t.note)}</p>` : ''}
       <button class="btn full" data-act="tool-share" data-k="${k}">${icon('share')}Share result</button>`;
-    const update = () => { const [val, b] = t.calc(s); $('#t-val').textContent = val; $('#t-band').textContent = b; store.set('tool.' + k, s); };
-    $$('[data-opt]').forEach((b) => b.addEventListener('click', () => { s[b.dataset.opt] = +b.dataset.v; $$(`[data-opt="${b.dataset.opt}"]`).forEach((x) => x.classList.toggle('on', x === b)); update(); }));
-    $$('[data-num]').forEach((el) => el.addEventListener('input', () => { s[el.dataset.num] = el.value === '' ? undefined : +el.value; update(); }));
+    // Each visit to a calculator is one History entry, saved a moment after the last tap.
+    const hid = 'calc-' + k + '-' + Date.now().toString(36);
+    let keepT = 0, touched = false;
+    const update = () => {
+      const [val, b] = t.calc(s); $('#t-val').textContent = val; $('#t-band').textContent = b; store.set('tool.' + k, s);
+      if (!touched) return;
+      clearTimeout(keepT);
+      keepT = setTimeout(() => L.DB.hist.put({ id: hid, kind: 'score', title: `${t.name} ${val}`, sub: b, data: { tool: k, state: { ...s }, val: String(val), band: b } }).catch(() => {}), 1500);
+    };
+    $$('[data-opt]').forEach((b) => b.addEventListener('click', () => { touched = true; s[b.dataset.opt] = +b.dataset.v; $$(`[data-opt="${b.dataset.opt}"]`).forEach((x) => x.classList.toggle('on', x === b)); update(); }));
+    $$('[data-num]').forEach((el) => el.addEventListener('input', () => { touched = true; s[el.dataset.num] = el.value === '' ? undefined : +el.value; update(); }));
     update();
   };
   actions['tool-reset'] = (b) => { store.set('tool.' + b.dataset.k, {}); routes.tool(b.dataset.k); };
   actions['tool-share'] = (b) => { const t = TOOLS[b.dataset.k]; L.share(t.name, `${t.full}: ${$('#t-val').textContent} (${$('#t-band').textContent}) — calculated in Lesionaut, ${new Date().toLocaleDateString()}`); };
+  L.TOOLS = TOOLS;
 })();

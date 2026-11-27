@@ -58,6 +58,8 @@ public class MainActivity extends Activity {
     private static final int REQUEST_CAMERA_AI = 19;
     /** Which web request asked for an image (pickImage). */
     private String pendingImageId;
+    /** How many pictures a pickFiles may return (PDF pages count); 12 for photo picks. */
+    private int pendingPickMax = 12;
     private Uri cameraUri;
 
     private WebView webView;
@@ -297,6 +299,10 @@ public class MainActivity extends Activity {
     }
 
     private void emit(JSONObject event) {
+        // Answers to requests the web app marked "keep_" are also kept until it collects them
+        // (Native.aiTake), in case the screen was in the background or rebuilt meanwhile.
+        if ("ai".equals(event.optString("type")) && event.optString("id").startsWith("keep_"))
+            AiKeepService.keep(this, event.optString("id"), event);
         String js = "window.App&&App.onNative(" + event + ")";
         main.post(() -> webView.evaluateJavascript(js, null));
     }
@@ -618,6 +624,46 @@ public class MainActivity extends Activity {
                     }
                 }
             });
+        }
+
+        /**
+         * Photos or PDFs (reports, prescriptions, case papers), answered like pickImages: each PDF
+         * page becomes a picture (the first 8 pages of each PDF), up to {@code max} pictures in all.
+         */
+        @JavascriptInterface
+        public void pickFiles(String id, int max) {
+            main.post(() -> {
+                pendingImageId = id;
+                pendingPickMax = Math.max(1, Math.min(max, 16));
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("*/*");
+                i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/*", "application/pdf"});
+                i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                try {
+                    startActivityForResult(i, REQUEST_IMAGE_AI);
+                } catch (ActivityNotFoundException e) {
+                    emit(event("imagePicked", "id", id, "error", "No file picker on this phone"));
+                }
+            });
+        }
+
+        /** Long AI work starts (on) or ends: a foreground notification keeps it going in the background. */
+        @JavascriptInterface
+        public void keepAlive(boolean on, String what) {
+            AiKeepService.hold(MainActivity.this, on, what);
+        }
+
+        /** The web app's background-job list starts afresh (page loaded): no holds left open. */
+        @JavascriptInterface
+        public void keepAliveReset() {
+            AiKeepService.releaseAll(MainActivity.this);
+        }
+
+        /** A kept answer ("ai" event JSON) for a "keep_" request, or "" if none; removed once taken. */
+        @JavascriptInterface
+        public String aiTake(String id) {
+            return AiKeepService.take(MainActivity.this, id == null ? "" : id);
         }
 
         /** An AI question about an image (data URL); answers with an "ai" event like aiRun. */
@@ -1528,11 +1574,13 @@ public class MainActivity extends Activity {
         } else if (requestCode == REQUEST_IMAGE_AI) {
             String id = pendingImageId;
             pendingImageId = null;
+            final int cap = pendingPickMax;
+            pendingPickMax = 12;
             if (id == null) return;
             java.util.List<Uri> uris = new java.util.ArrayList<>();
             if (resultCode == RESULT_OK && data != null) {
                 android.content.ClipData clip = data.getClipData();
-                if (clip != null) for (int k = 0; k < clip.getItemCount() && k < 12; k++) uris.add(clip.getItemAt(k).getUri());
+                if (clip != null) for (int k = 0; k < clip.getItemCount() && k < 16; k++) uris.add(clip.getItemAt(k).getUri());
                 else if (data.getData() != null) uris.add(data.getData());
             }
             if (uris.isEmpty()) {
@@ -1542,12 +1590,41 @@ public class MainActivity extends Activity {
             io.execute(() -> {
                 org.json.JSONArray all = new org.json.JSONArray();
                 for (Uri u : uris) {
-                    try { all.put(imageDataUrl(u)); } catch (Exception ignored) { }
+                    if (all.length() >= cap) break;
+                    String type = getContentResolver().getType(u);
+                    try {
+                        if (type != null && type.contains("pdf")) for (String pg : pdfPageDataUrls(u, Math.min(8, cap - all.length()))) all.put(pg);
+                        else all.put(imageDataUrl(u));
+                    } catch (Exception ignored) { }
                 }
                 if (all.length() == 0) emit(event("imagePicked", "id", id, "error", "Couldn't read that image"));
                 else emit(event("imagePicked", "id", id, "dataUrl", all.optString(0), "dataUrls", all));
             });
         }
+    }
+
+    /** The first {@code max} pages of a PDF as JPEG data URLs (white background, about 1600 px tall). */
+    private java.util.List<String> pdfPageDataUrls(Uri uri, int max) throws java.io.IOException {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        try (android.os.ParcelFileDescriptor fd = getContentResolver().openFileDescriptor(uri, "r")) {
+            if (fd == null) return out;
+            try (android.graphics.pdf.PdfRenderer r = new android.graphics.pdf.PdfRenderer(fd)) {
+                for (int i = 0; i < r.getPageCount() && i < max; i++) {
+                    try (android.graphics.pdf.PdfRenderer.Page pg = r.openPage(i)) {
+                        float k = 1600f / Math.max(pg.getWidth(), pg.getHeight());
+                        int w = Math.max(1, Math.round(pg.getWidth() * k)), h = Math.max(1, Math.round(pg.getHeight() * k));
+                        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
+                        bmp.eraseColor(android.graphics.Color.WHITE);
+                        pg.render(bmp, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, bo);
+                        bmp.recycle();
+                        out.add("data:image/jpeg;base64," + android.util.Base64.encodeToString(bo.toByteArray(), android.util.Base64.NO_WRAP));
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     /** A picked image as a JPEG data URL, scaled so its longer side is at most 1280 px. */

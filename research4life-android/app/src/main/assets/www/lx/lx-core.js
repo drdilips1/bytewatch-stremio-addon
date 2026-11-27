@@ -35,6 +35,7 @@
     note: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>', link: '<path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/>',
     key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/>', layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
     compare: '<rect x="3" y="5" width="8" height="14" rx="2"/><rect x="13" y="5" width="8" height="14" rx="2"/>', refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/><path d="M12 7v5l3 2"/>', star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', doc: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 12h6M9 16h6"/>', crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
     graduation: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c2 2 10 2 12 0v-5"/>', grid: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
   };
   const icon = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ''}</svg>`;
@@ -108,38 +109,66 @@
   const keyErr = (e) => (e?.message === 'NO_KEY' ? 'Add an AI key in Settings first.' : e?.message || String(e));
 
   /** A text question to the AI (the saved keys, falling back between them). */
-  async function ai(task, { system = '', max = 3000, doc = '' } = {}) {
+  async function ai(task, { system = '', max = 3000, doc = '', reqId = '' } = {}) {
     if (!hasKey()) throw new Error('NO_KEY');
     if (!N.aiRun) throw new Error('The AI needs the Lesionaut app or its web version.');
-    const id = nid('ai');
+    const id = reqId || nid('ai');
     const p = wait(id, 240000, 'No AI answered within 4 minutes. Try again.');
     N.aiRun(id, system, doc, task, max, null);
     const e = await p;
+    taken(id);
     if (e.state !== 'done') throw new Error(e.message || 'The AI request failed.');
     return e.text || '';
   }
   /** One question about several pictures (data URLs). */
-  async function aiPics(task, urls, { system = '', max = 4000 } = {}) {
+  async function aiPics(task, urls, { system = '', max = 4000, reqId = '' } = {}) {
     if (!hasKey()) throw new Error('NO_KEY');
-    if (!urls.length) return ai(task, { system, max });
-    const id = nid('vis');
+    if (!urls.length) return ai(task, { system, max, reqId });
+    const id = reqId || nid('vis');
     const p = wait(id, 240000, 'No AI answered about the pictures within 4 minutes. They may be busy: try again (Gemini and Claude read pictures best).');
     if (N.aiRunImages) N.aiRunImages(id, system, task, JSON.stringify(urls), max);
     else if (N.aiRunImage) N.aiRunImage(id, system, urls.length > 1 ? task + '\n(The pictures are numbered tiles in one image.)' : task, urls.length > 1 ? await collage(urls) : urls[0], max);
     else throw new Error('Pictures need the Lesionaut app or its web version.');
     const e = await p;
+    taken(id);
     if (e.state !== 'done') throw new Error(e.message || 'The AI request failed.');
     return e.text || '';
   }
-  /** JSON from an AI answer, with light repairs. */
+  /** A "keep_" answer arrived here: the phone's kept copy is no longer needed. */
+  const taken = (id) => { if (String(id).startsWith('keep_')) try { N.aiTake?.(id); } catch { /* old app */ } };
+  /** JSON from an AI answer, with light repairs (including an answer cut off part-way). */
   function json(text) {
     try { return JSON.parse(text); } catch { /* below */ }
-    const m = String(text).replace(/```(?:json)?/gi, '').match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    const t = String(text).replace(/```(?:json)?/gi, '');
+    const fix = (x) => x.replace(/,\s*([}\]])/g, '$1').replace(/"(?:[^"\\]|\\.)*"/g, (s) => s.replace(/\n/g, '\\n'));
+    const m = t.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
     if (m) {
       try { return JSON.parse(m[0]); } catch { /* repairs */ }
-      try { return JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1').replace(/"(?:[^"\\]|\\.)*"/g, (s) => s.replace(/\n/g, '\\n'))); } catch { /* give up */ }
+      try { return JSON.parse(fix(m[0])); } catch { /* maybe cut off */ }
     }
+    const start = t.search(/[{[]/);
+    if (start >= 0) { try { return JSON.parse(fix(closeJson(t.slice(start)))); } catch { /* give up */ } }
     throw new Error('The AI answer came back in a broken format. Try again.');
+  }
+  /** Closes an answer that stopped part-way: drops the unfinished last item, closes strings and brackets. */
+  function closeJson(x) {
+    const stack = []; let inStr = false, esc2 = false, lastSafe = 0;
+    for (let i = 0; i < x.length; i++) {
+      const ch = x[i];
+      if (inStr) { if (esc2) esc2 = false; else if (ch === '\\') esc2 = true; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') inStr = true;
+      else if (ch === '{' || ch === '[') stack.push(ch === '{' ? '}' : ']');
+      else if (ch === '}' || ch === ']') { stack.pop(); lastSafe = i + 1; if (!stack.length) return x.slice(0, i + 1); }
+      else if (ch === ',') lastSafe = i;
+    }
+    // Cut back to the last complete item, then close what is still open there.
+    let cut = x.slice(0, lastSafe).replace(/[,:]\s*$/, '');
+    const st = []; inStr = false; esc2 = false;
+    for (const ch of cut) {
+      if (inStr) { if (esc2) esc2 = false; else if (ch === '\\') esc2 = true; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') inStr = true; else if (ch === '{' || ch === '[') st.push(ch === '{' ? '}' : ']'); else if (ch === '}' || ch === ']') st.pop();
+    }
+    return cut + st.reverse().join('');
   }
 
   // ---- Pictures
@@ -149,6 +178,52 @@
     const p = wait(id, 600000, 'cancelled');
     N.pickImages(id, max);
     return p.then((e) => { if (e.error) throw new Error(e.error); return e.dataUrls?.length ? e.dataUrls : [e.dataUrl]; });
+  }
+  /** Photos or PDFs (reports, prescriptions, case papers); every PDF page becomes a picture. */
+  function pickFiles(max) {
+    if (N.pickFiles) {
+      const id = nid('img');
+      const p = wait(id, 600000, 'cancelled');
+      N.pickFiles(id, max);
+      return p.then((e) => { if (e.error) throw new Error(e.error); return e.dataUrls?.length ? e.dataUrls : [e.dataUrl]; });
+    }
+    if (N.pickImages && !window.WebNative) return pickImages(max); // an older phone app: photos only
+    return new Promise((resolve, reject) => {
+      const inp = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*,application/pdf', multiple: true });
+      inp.style.display = 'none';
+      inp.onchange = async () => {
+        const files = [...(inp.files || [])]; inp.remove();
+        if (!files.length) { reject(new Error('cancelled')); return; }
+        const out = [];
+        try {
+          for (const f of files) {
+            if (out.length >= max) break;
+            if (/pdf/i.test(f.type) || /\.pdf$/i.test(f.name)) out.push(...await pdfPages(await f.arrayBuffer(), Math.min(8, max - out.length)));
+            else out.push(await new Promise((r, j) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => j(new Error('Couldn\'t read ' + f.name)); fr.readAsDataURL(f); }));
+          }
+        } catch (e) { if (!out.length) { reject(e); return; } }
+        if (!out.length) reject(new Error('Couldn\'t read those files')); else resolve(out);
+      };
+      document.body.appendChild(inp); inp.click();
+    });
+  }
+  /** PDF pages as JPEG data URLs, with the pdf.js the app already carries. */
+  async function pdfPages(buf, max) {
+    const modern = (() => { try { new Function('class A { static {} }'); return true; } catch { return false; } })();
+    const dir = new URL(modern ? '../vendor/pdfjs/' : '../vendor/pdfjs/legacy/', location.href).href;
+    const pdfjs = await import(dir + 'pdf.min.js');
+    pdfjs.GlobalWorkerOptions.workerSrc = dir + 'pdf.worker.min.js';
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
+    const out = [];
+    for (let i = 1; i <= doc.numPages && out.length < max; i++) {
+      const pg = await doc.getPage(i), v0 = pg.getViewport({ scale: 1 });
+      const vp = pg.getViewport({ scale: 1600 / Math.max(v0.width, v0.height) });
+      const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      await pg.render({ canvasContext: g, viewport: vp }).promise;
+      out.push(c.toDataURL('image/jpeg', 0.85));
+    }
+    return out;
   }
   function camera() {
     if (N.captureImage) {
@@ -184,6 +259,46 @@
       img.src = url;
     });
   }
+  /** Full-screen crop: drag the corners (or the box); resolves with the cropped picture, or null. */
+  function crop(url) {
+    return new Promise((resolve) => {
+      document.body.insertAdjacentHTML('beforeend', `<div class="cropper"><div class="tools"><button data-c="cancel">${icon('x')}Cancel</button><span class="small" style="flex:1;color:#cfd8dc">Drag the corners to cut off captions or labels</span><button data-c="reset">Reset</button><button data-c="ok" class="on">${icon('check')}Use</button></div>
+        <div class="crop-stage"><div class="crop-img"><img src="${url}" alt=""><div class="crop-box"><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div></div></div></div>`);
+      const root = $('.cropper'), img = root.querySelector('img'), boxEl = root.querySelector('.crop-box');
+      let b = { x: 0.05, y: 0.05, w: 0.9, h: 0.9 }, drag = null;
+      const paintBox = () => Object.assign(boxEl.style, { left: b.x * 100 + '%', top: b.y * 100 + '%', width: b.w * 100 + '%', height: b.h * 100 + '%' });
+      paintBox();
+      const at = (e) => { const r = img.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
+      root.querySelector('.crop-img').addEventListener('pointerdown', (e) => {
+        const h = e.target.dataset?.h; if (!h && e.target !== boxEl) return;
+        e.preventDefault(); e.target.setPointerCapture?.(e.pointerId);
+        drag = { h: h || 'move', p: at(e), b: { ...b } };
+      });
+      root.addEventListener('pointermove', (e) => {
+        if (!drag) return;
+        const [x, y] = at(e), dx = x - drag.p[0], dy = y - drag.p[1], o = drag.b, MIN = 0.08;
+        if (drag.h === 'move') { b.x = Math.min(1 - o.w, Math.max(0, o.x + dx)); b.y = Math.min(1 - o.h, Math.max(0, o.y + dy)); }
+        else {
+          let x1 = o.x, y1 = o.y, x2 = o.x + o.w, y2 = o.y + o.h;
+          if (drag.h.includes('w')) x1 = Math.min(x2 - MIN, x); if (drag.h.includes('e')) x2 = Math.max(x1 + MIN, x);
+          if (drag.h.includes('n')) y1 = Math.min(y2 - MIN, y); if (drag.h.includes('s')) y2 = Math.max(y1 + MIN, y);
+          b = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+        }
+        paintBox();
+      });
+      root.addEventListener('pointerup', () => { drag = null; });
+      root.addEventListener('click', (e) => {
+        const c = e.target.closest('[data-c]')?.dataset.c; if (!c) return;
+        if (c === 'reset') { b = { x: 0, y: 0, w: 1, h: 1 }; paintBox(); return; }
+        root.remove();
+        if (c === 'cancel') { resolve(null); return; }
+        const W = img.naturalWidth, H = img.naturalHeight, cv = document.createElement('canvas');
+        cv.width = Math.max(1, Math.round(b.w * W)); cv.height = Math.max(1, Math.round(b.h * H));
+        cv.getContext('2d').drawImage(img, b.x * W, b.y * H, cv.width, cv.height, 0, 0, cv.width, cv.height);
+        resolve(cv.toDataURL('image/jpeg', 0.9));
+      });
+    });
+  }
   async function collage(urls) {
     const imgs = await Promise.all(urls.map((u) => new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = u; })));
     const cols = urls.length <= 4 ? 2 : 3, rows = Math.ceil(urls.length / cols), T = Math.round(2048 / cols);
@@ -202,13 +317,23 @@
   const DB = (() => {
     let dbp = null;
     const open = () => (dbp ||= new Promise((res, rej) => {
-      const r = indexedDB.open('lesionaut', 1);
-      r.onupgradeneeded = () => r.result.createObjectStore('cases', { keyPath: 'id' });
+      const r = indexedDB.open('lesionaut', 2);
+      r.onupgradeneeded = () => {
+        if (!r.result.objectStoreNames.contains('cases')) r.result.createObjectStore('cases', { keyPath: 'id' });
+        if (!r.result.objectStoreNames.contains('history')) r.result.createObjectStore('history', { keyPath: 'id' });
+      };
       r.onsuccess = () => res(r.result);
       r.onerror = () => rej(r.error);
     }));
-    const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('cases', mode); const q = fn(t.objectStore('cases')); t.oncomplete = () => res(q?.result); t.onerror = () => rej(t.error); }); };
+    const tx = async (mode, fn, name = 'cases') => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction(name, mode); const q = fn(t.objectStore(name)); t.oncomplete = () => res(q?.result); t.onerror = () => rej(t.error); }); };
     return {
+      // History: Teach-me sessions, detective searches, Explore answers, scores (cases have their own store).
+      hist: {
+        all: () => tx('readonly', (s) => s.getAll(), 'history').then((l) => (l || []).sort((a, b) => b.at - a.at)),
+        get: (id) => tx('readonly', (s) => s.get(id), 'history'),
+        put: (h) => { h.at = h.at || Date.now(); h.updated = Date.now(); return tx('readwrite', (s) => s.put(h), 'history'); },
+        del: (id) => tx('readwrite', (s) => s.delete(id), 'history'),
+      },
       all: () => tx('readonly', (s) => s.getAll()).then((l) => (l || []).map(norm).sort((a, b) => b.updated - a.updated)),
       get: (id) => tx('readonly', (s) => s.get(id)).then((c) => (c ? norm(c) : null)),
       put: (c) => { c.updated = Date.now(); return tx('readwrite', (s) => s.put(c)); },
@@ -217,7 +342,7 @@
   })();
   /** Fills in fields added after a case was made. */
   function norm(c) {
-    return Object.assign({ title: '', patient: '', visitOf: '', pt: {}, pics: [], answers: [], assessments: [], thread: [], final: { dx: '', note: '' }, docs: {}, debate: null, rare: null, treat: {}, compare: null }, c);
+    return Object.assign({ title: '', patient: '', visitOf: '', pt: {}, pics: [], papers: [], scan: null, star: false, answers: [], assessments: [], thread: [], final: { dx: '', note: '' }, docs: {}, debate: null, rare: null, treat: {}, compare: null }, c);
   }
 
   // ---- Background jobs: a bar shows them on other screens
@@ -233,12 +358,18 @@
     el.dataset.case = j.caseId || '';
     el.innerHTML = j.state === 'running' ? `<span class="spin"></span>${esc(j.label)}…` : `${j.state === 'done' ? '✓' : '!'} ${esc(j.label)} ${j.state === 'done' ? 'ready' : 'stopped'} · <b>Open</b>`;
   }
+  // Whether the app went to the background while a job ran (the web pauses it; a retry helps).
+  document.addEventListener('visibilitychange', () => { if (document.hidden) Object.values(jobs).forEach((j) => { if (j.state === 'running') j.hidden = true; }); else listeners.visible?.forEach((f) => f()); });
+  const canKeepAlive = () => !!N.keepAlive;
   const onCase = (id) => !!id && cur.name === 'case' && cur.arg.split('/')[0] === id;
   async function runJob(key, label, caseId, fn) {
     if (jobs[key]?.state === 'running') return null;
-    const j = jobs[key] = { label, state: 'running', caseId, started: Date.now() };
+    const j = jobs[key] = { label, state: 'running', caseId, started: Date.now(), hidden: document.hidden };
     jobBar();
-    try { const r = await fn(); j.state = 'done'; return r; } catch (e) { j.state = 'error'; j.message = keyErr(e); throw e; } finally {
+    // A notification keeps the request alive if the user leaves the app (Android); see AiKeepService.
+    try { N.keepAlive?.(true, label); } catch { /* old app */ }
+    try { const r = await fn(j); j.state = 'done'; return r; } catch (e) { j.state = 'error'; j.message = keyErr(e); throw e; } finally {
+      try { N.keepAlive?.(false, ''); } catch { /* old app */ }
       if (onCase(caseId)) { j.seen = true; render(); } else if (j.state === 'done') toast(`${label}: ready`);
       jobBar();
     }
@@ -246,7 +377,7 @@
 
   // ---- Router and tabs
   const routes = {};
-  const TAB = { home: 'home', cases: 'cases', case: 'cases', new: 'cases', explore: 'explore', pattern: 'explore', teach: 'explore', detective: 'explore', relations: 'explore', lit: 'explore', tools: 'tools', tool: 'tools', settings: 'settings' };
+  const TAB = { home: 'home', history: 'history', hist: 'history', cases: 'cases', case: 'cases', new: 'cases', explore: 'explore', pattern: 'explore', teach: 'explore', detective: 'explore', relations: 'explore', lit: 'explore', tools: 'tools', tool: 'tools', settings: 'settings' };
   let cur = { name: 'home', arg: '', params: {} };
   let depth = 0;
   function parse() {
@@ -323,15 +454,16 @@
     applyTheme();
     $$('nav.tabs button').forEach((b) => {
       b.insertAdjacentHTML('afterbegin', icon(b.dataset.icon));
-      b.addEventListener('click', () => { const to = { home: '', cases: 'cases', explore: 'explore', tools: 'tools', settings: 'settings' }[b.dataset.tab]; if (parse().name === (to || 'home')) window.scrollTo({ top: 0, behavior: 'smooth' }); else go(to); });
+      b.addEventListener('click', () => { const to = { home: '', cases: 'cases', history: 'history', explore: 'explore', tools: 'tools', settings: 'settings' }[b.dataset.tab]; if (parse().name === (to || 'home')) window.scrollTo({ top: 0, behavior: 'smooth' }); else go(to); });
     });
     try { navigator.storage?.persist?.(); } catch { /* not offered */ }
+    try { N.keepAliveReset?.(); } catch { /* old app */ }
     render();
   }
 
   const fmt = (t) => new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const fmtDay = (t) => new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
   const list = (x) => (Array.isArray(x) ? x.filter(Boolean) : []);
-  window.LX = { N, $, $$, esc, icon, MARK, store, toast, sheet, closeSheet, lightbox, md, ai, aiPics, json, hasKey, keyErr, pickImages, camera, shrink, DB, norm, jobs, runJob, jobBar,
+  window.LX = { N, $, $$, esc, icon, MARK, store, toast, sheet, closeSheet, lightbox, md, ai, aiPics, json, hasKey, keyErr, pickImages, pickFiles, camera, shrink, crop, DB, norm, jobs, runJob, jobBar, canKeepAlive,
     routes, actions, go, render, bar, on, openLink, applyTheme, start, fmt, fmtDay, list, get cur() { return cur; } };
 })();
