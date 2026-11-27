@@ -20,7 +20,7 @@
 // Deploy. Share https://sources.booksources.workers.dev/addons/all.json
 // (moving it to another address? change ORIGIN below).
 
-const VERSION_PUBLIC = "1.0.0";
+const VERSION_PUBLIC = "1.0.1"; // 1.0.1 (27 Nov): AudiobookBay / LibGen searches with nothing found are no results, not "down"
 // This worker's public address: the addon files and download links all point here.
 const ORIGIN = "https://sources.booksources.workers.dev";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
