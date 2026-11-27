@@ -3,7 +3,7 @@ import { useEffect } from 'preact/hooks';
 // book from that moment (straight in if it's the book playing now).
 import { Icon } from './icons.jsx';
 import { Cover, toast } from './common.jsx';
-import { bookmarks, progress, library, useStore, removeBookmark } from '../lib/store.js';
+import { bookmarks, progress, library, useStore, removeBookmark, persisted } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { fmtTime } from '../lib/format.js';
 import * as player from '../lib/player.js';
@@ -81,6 +81,7 @@ export function Rows({ uid, book, list, onPlay }) {
 }
 
 /** The book page's "Bookmarks" section (nothing when there are none). */
+const bookmarksOpen = persisted('bookmarksOpen', true);
 export function BookBookmarks({ book }) {
   const all = useStore(bookmarks);
   const list = all[book.uid] || [];
@@ -88,11 +89,18 @@ export function BookBookmarks({ book }) {
   useEffect(() => {
     if (list.length) import('../lib/bookmarkname.js').then((m) => m.renamePlain(book)).catch(() => {});
   }, [book.uid, list.length]);
+  const open = useStore(bookmarksOpen);
   if (!list.length) return null;
+  // Folds away (remembered for every book): a long list pushed the rest of the page far down.
   return (
     <section class="pad">
-      <h3 class="section-label">Bookmarks · {list.length}</h3>
-      <Rows uid={book.uid} book={book} list={list} />
+      <button class="section-label bm-fold" aria-expanded={open} onClick={() => bookmarksOpen.set(!open)}>
+        Bookmarks · {list.length}
+        <span class={'bm-fold-icon' + (open ? ' open' : '')}>
+          <Icon name="chevron" size={14} />
+        </span>
+      </button>
+      {open && <Rows uid={book.uid} book={book} list={list} />}
     </section>
   );
 }

@@ -13284,3 +13284,16 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .cc-grid .cc-tags { gap: 4px; margin-top: 2px; }
 .cc-grid .cc-tag { font-size: 9.5px; padding: 2px 6px; }
 .cc-grid .cc-note { font-size: 11px; }
+/* Book page: Bookmarks fold away (tap the heading). */
+.bm-fold { display: flex; align-items: center; gap: 6px; width: 100%; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
+.bm-fold-icon { display: inline-flex; transform: rotate(90deg); transition: transform 0.2s; }
+.bm-fold-icon.open { transform: rotate(-90deg); }
+
+/* Your copies under Available: small tiles of one size in a row, in the Available tiles' style. */
+.copies-check { margin: 10px 16px 0; }
+.cc-grid { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.cc-grid::-webkit-scrollbar { display: none; }
+.cc-grid .cc-copy { flex: 0 0 150px; height: 104px; overflow: hidden; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--dyn, var(--accent)) 35%, transparent); }
+.cc-grid .cc-copy.on { border-color: color-mix(in srgb, var(--dyn, var(--accent)) 80%, transparent); }
+.cc-grid .cc-tags { flex-wrap: nowrap; overflow: hidden; }
+.cc-grid .cc-note { display: none; }

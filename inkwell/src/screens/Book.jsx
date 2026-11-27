@@ -236,6 +236,8 @@ export function Book({ book: initial }) {
       {book.source !== "pod" && book.source !== "sum" && (
         <Available book={book} editions={editions} />
       )}
+      {/* Your copies: right under the places it's available, small tiles in the same row style. */}
+      {canListen && <CopiesCheck book={book} />}
       {book.source !== "pod" && book.source !== "sum" && <SeriesCard book={book} />}
       <StoryShotsLink book={book} />
       {(book.libbyLoan || book.libbyHold) && <LibbyLoanActions book={book} />}
@@ -497,7 +499,6 @@ export function Book({ book: initial }) {
         </div>
       )}
       {book.partsCheck && <BookCheck check={book.partsCheck} />}
-      {canListen && <CopiesCheck book={book} />}
       <AbsSending uid={initial.uid} />
       {pct > 0 && !prog.finished && !canRead && finishLine(initial.uid) && <p class="book-finish">{finishLine(initial.uid)}</p>}
 
