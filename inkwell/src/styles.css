@@ -9848,10 +9848,10 @@ button.notes-book-head {
 }
 
 /* Transcript highlights: long-pressed lines, and their quotes in Notes */
+/* Text: select any words (long-press, then drag the handles) → Highlight / Copy. */
 .tl {
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
+  -webkit-user-select: text;
+  user-select: text;
 }
 .tl.hl {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
@@ -11422,9 +11422,8 @@ button.notes-book-head {
 }
 .transcript .tb-s {
   cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
+  -webkit-user-select: text;
+  user-select: text;
   transition: color 0.3s, background 0.3s;
   border-radius: 6px;
 }
@@ -13257,5 +13256,8 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .full-player .text-strip .icon-btn,
 .full-player .tl-top .icon-btn { color: rgba(255, 255, 255, 0.9); }
 :root[data-mode='light'][data-palette='paperink'] .full-player.text-mode :is(.text-strip .icon-btn, .tl-top .icon-btn) { color: var(--text); }
-/* Text view: carrying a highlight on over more sentences. */
-.tl-extend { position: sticky; bottom: 8px; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; padding: 8px 10px 8px 14px; border-radius: 14px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 13px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+/* Text: the bar for the words you selected (as in AudioYam), and the selection colour. */
+.tl-sel-bar { position: fixed; left: 50%; bottom: calc(var(--safe-bottom) + 132px); transform: translateX(-50%); z-index: 70; display: flex; gap: 8px; padding: 8px; border-radius: 999px; background: rgba(18, 16, 24, 0.94); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
+.tl-sel-bar .pill { display: inline-flex; align-items: center; gap: 6px; }
+.transcript .tb-s.hl { box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.transcript ::selection { background: color-mix(in srgb, var(--accent) 45%, transparent); }

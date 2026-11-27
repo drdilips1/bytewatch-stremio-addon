@@ -321,9 +321,12 @@ function PickSheet({ close, children }) {
 }
 
 export function TranscriptView({ s }) {
-  // Long-press a line to highlight it (a bookmark with its words, in Notes); again to remove.
+  // Highlight whatever you like (as in AudioYam): long-press a word, drag the handles over exactly
+  // the words you want, then Highlight (a bookmark with those words, in Notes) or Copy. Before, a
+  // long-press took one whole line or sentence and couldn't be stretched.
   const marks = useStore(bookmarks);
-  const press = useRef({ timer: 0, fired: false, pending: null, x: 0, y: 0 });
+  const [sel, setSel] = useState(null); // { text, time } while some words are selected
+  const segsRef = useRef([]);
   // A highlighted line: its moment falls within the line, or its words are the line's (lines
   // are recognised afresh each time you play, so their exact start can shift a little).
   const squash = (v) => String(v || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -341,60 +344,42 @@ export function TranscriptView({ s }) {
     if (tx.length < 12) return false;
     return (marks[s.book?.uid] || []).some((b) => b.quote && b.track === s.index && (squash(b.label).includes(tx.slice(0, 60)) || tx.includes(squash(b.label).slice(0, 60))));
   };
-  // A highlight being stretched over more sentences: { from, time, text } of where it began.
-  const [extend, setExtend] = useState(null);
-  // Long-press: Android's own long-press (contextmenu) or ~half a second held still (iPhone has no
-  // contextmenu). It used to give up whenever the finger "left" the line or Android cancelled the
-  // touch — and with the text scrolling along with the narrator, or Android taking the long-press
-  // as its own, it gave up nearly every time ("long press does nothing"). Now only moving the
-  // finger more than a little cancels it.
-  const fire = () => {
-    const p = press.current;
-    clearTimeout(p.timer);
-    if (!p.pending) return;
-    const { start, text, sentence } = p.pending;
-    p.pending = null;
-    p.fired = true;
-    const added = player.toggleQuote(start, typeof text === 'string' ? text : String(text || ''));
+  useEffect(() => {
+    const onSel = () => {
+      const g = window.getSelection();
+      if (!g || g.isCollapsed || !g.rangeCount) return setSel(null);
+      const range = g.getRangeAt(0);
+      const start = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+      if (!start?.closest?.('.transcript')) return setSel(null);
+      const text = g.toString().replace(/\s+/g, ' ').trim();
+      if (text.length < 2) return setSel(null);
+      // The moment it's from: the sentence (ebook words) or line where the selection starts.
+      const w = start.closest('[data-w]');
+      const li = start.closest('[data-i]');
+      const time = w ? timeAtWord(Number(w.dataset.w)) : li ? segsRef.current[Number(li.dataset.i)]?.start : null;
+      setSel({ text, time: time ?? player.getState().time ?? 0 });
+    };
+    document.addEventListener('selectionchange', onSel);
+    return () => document.removeEventListener('selectionchange', onSel);
+  }, []);
+  const clearSel = () => {
+    window.getSelection()?.removeAllRanges();
+    setSel(null);
+  };
+  const highlightSel = () => {
+    if (!sel) return;
+    const added = player.toggleQuote(Math.max(0, sel.time), sel.text);
     navigator.vibrate?.(15);
-    // A sentence of the book: tap another one to carry the highlight on to it (it was one sentence only).
-    if (added && sentence) setExtend({ from: sentence.from, time: start, text: String(text || '') });
-    else setExtend(null);
-    toast(added ? (sentence ? 'Highlighted — tap where it should end to take in more' : 'Highlighted — find it in Notes') : 'Highlight removed');
+    toast(added ? 'Highlighted — find it in Notes' : 'Highlight removed');
+    clearSel();
   };
-  const hold = (start, text, sentence = null, e = null) => {
-    const p = press.current;
-    clearTimeout(p.timer);
-    p.pending = { start, text, sentence };
-    p.x = e?.clientX ?? 0;
-    p.y = e?.clientY ?? 0;
-    p.timer = setTimeout(fire, 550);
+  const copySel = () => {
+    if (!sel) return;
+    navigator.clipboard?.writeText(sel.text).then(() => toast('Copied'), () => toast('Couldn’t copy'));
+    clearSel();
   };
-  const release = () => {
-    clearTimeout(press.current.timer);
-    press.current.pending = null;
-  };
-  const moved = (e) => {
-    const p = press.current;
-    if (p.pending && Math.hypot((e.clientX ?? 0) - p.x, (e.clientY ?? 0) - p.y) > 12) {
-      release();
-      p.last = null; // a real move: not a long-press, whatever follows
-    }
-  };
-  // A scroll starting (the browser cancels the touch): no highlight — unless Android's long-press
-  // follows straight after, on a finger that hadn't moved (it cancels the touch for that too).
-  const cancelled = () => {
-    const p = press.current;
-    if (p.pending) p.last = { ...p.pending, at: Date.now() };
-    release();
-  };
-  const longPress = (e) => {
-    e.preventDefault();
-    const p = press.current;
-    if (!p.pending && p.last && Date.now() - p.last.at < 1500) p.pending = p.last;
-    p.last = null;
-    fire();
-  };
+  // A tap while words are selected only ends the selection (it doesn't jump in the book).
+  const selecting = () => !(window.getSelection()?.isCollapsed ?? true);
   const [t, setT] = useState(null);
   const chars = useStore(knownCharacters);
   const [card, setCard] = useState(null);
@@ -434,6 +419,7 @@ export function TranscriptView({ s }) {
   }, [s.book?.uid, s.index]);
 
   const segs = t?.segments || [];
+  segsRef.current = segs;
   let active = -1;
   for (let i = segs.length - 1; i >= 0; i--) {
     if (segs[i].start != null && segs[i].start <= s.time + 0.2) {
@@ -555,21 +541,7 @@ export function TranscriptView({ s }) {
                   data-w={se.from}
                   class={'tb-s' + (se.from === litFrom ? ' on' : se.to <= word ? ' past' : '') + (quotedText(se.text) ? ' hl' : '')}
                   onClick={() => {
-                    if (press.current.fired) return (press.current.fired = false);
-                    // Carrying a highlight on: everything from where it began to this sentence.
-                    if (extend && se.from !== extend.from) {
-                      const all = paras.flatMap((p) => p.sentences);
-                      const lo = Math.min(extend.from, se.from);
-                      const hi = Math.max(extend.from, se.from);
-                      const span = all.filter((x) => x.from >= lo && x.from <= hi);
-                      const text = span.map((x) => x.text).join(' ');
-                      const first = timeAtWord(lo) ?? (lo === extend.from ? extend.time : null) ?? extend.time;
-                      player.toggleQuote(extend.time, extend.text); // the one-sentence highlight goes…
-                      player.toggleQuote(first, text); // …and the whole stretch takes its place
-                      setExtend(null);
-                      navigator.vibrate?.(15);
-                      return toast(`Highlighted ${span.length} sentences — find them in Notes`);
-                    }
+                    if (selecting()) return;
                     const tt = timeAtWord(se.from);
                     if (tt != null) return player.seek(Math.max(0, tt));
                     // Not lined up exactly yet: from about here (by how far through the book it is);
@@ -580,12 +552,6 @@ export function TranscriptView({ s }) {
                       toast('Playing from about here');
                     } else toast('The book isn’t lined up with the audio yet — a moment');
                   }}
-                  // Long-press a sentence to highlight it, as with heard lines.
-                  onContextMenu={longPress}
-                  onPointerDown={(e) => hold(timeAtWord(se.from) ?? s.time ?? 0, se.text, se, e)}
-                  onPointerUp={release}
-                  onPointerMove={moved}
-                  onPointerCancel={cancelled}
                 >
                   {withNames(se.text, names, (n) => setCard(lookup.get(n)))}{' '}
                 </span>
@@ -596,26 +562,23 @@ export function TranscriptView({ s }) {
           <p
             data-i={i}
             class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '') + (g.start != null && quoted(i) ? ' hl' : '')}
-            onClick={() => (press.current.fired ? (press.current.fired = false) : g.start != null && player.seek(g.start))}
-            onContextMenu={longPress}
-            onPointerDown={(e) => g.start != null && hold(g.start, !t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text, i), null, e)}
-            onPointerUp={release}
-            onPointerMove={moved}
-            onPointerCancel={cancelled}
+            onClick={() => !selecting() && g.start != null && player.seek(g.start)}
           >
             {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text, i), names, (n) => setCard(lookup.get(n)))}
           </p>
         ))}
         {segs.length > 0 && t?.status === 'error' && <p class="err small">{t.error}</p>}
-        {extend && (
-          <div class="tl-extend">
-            <span>Tap the sentence where the highlight should end</span>
-            <button class="pill small" onClick={() => setExtend(null)}>
-              Done
+        {card && <CharacterCard c={card} close={() => setCard(null)} />}
+        {sel && (
+          <div class="tl-sel-bar" role="toolbar" aria-label="Selected words">
+            <button class="pill small active" onPointerDown={(e) => e.preventDefault()} onClick={highlightSel}>
+              <Icon name="bookmark" size={14} /> Highlight
+            </button>
+            <button class="pill small" onPointerDown={(e) => e.preventDefault()} onClick={copySel}>
+              Copy
             </button>
           </div>
         )}
-        {card && <CharacterCard c={card} close={() => setCard(null)} />}
         <div class="transcript-pad" />
       </div>
     </div>
