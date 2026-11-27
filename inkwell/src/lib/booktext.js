@@ -2,6 +2,7 @@
 // unusual words wrong; when the same book's ebook is on the phone (kept, in a phone
 // folder, or in the audiobook's own folder), each recognised line is found in the
 // ebook and its real words are shown instead — recognition only supplies the timing.
+import { isFanfic } from './fanfic.js';
 import { savedEbooks, loadCloudEbook, cloudReaderBook, directEbookFile, directReaderBook, probeEbook, isBadEbook } from './epub.js';
 import { localCfg } from '../sources/local.js';
 import { mainTitle, matches, words } from './match.js';
@@ -222,7 +223,8 @@ export function titleFit(hit, title) {
   const name = plain(`${hit.r?.title || ''} ${hit.file?.name || ''}`);
   const t = plain(title).trim();
   const at = t ? name.indexOf(` ${t}`) : -1;
-  return (COMPANION.test(name) ? 3 : 0) + (at === 0 ? 0 : at > 0 && at < 60 ? 1 : 2);
+  // Fan fiction named as such ("… (fanfiction)", "AO3", "Wattpad") after everything else.
+  return (COMPANION.test(name) ? 3 : 0) + (isFanfic(name) ? 4 : 0) + (at === 0 ? 0 : at > 0 && at < 60 ? 1 : 2);
 }
 
 /** A found ebook ready to open: one of unknown type is fetched and checked first (EPUB / PDF only). */

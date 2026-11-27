@@ -9,6 +9,7 @@ import { ttsCfg, engines as listEngines, voices as listVoices, speak, stopSpeaki
 import { CATALOG, builtinAvailable, installedIds, download as downloadVoice, remove as removeVoice, activeDownload, follow as followDownload } from '../lib/voices.js';
 import { downloads, canDownload, iosDownloads, removeDownload, publicAvailable, fmtBytes, unsorted, sortDownloads } from '../lib/downloads.js';
 import { settings } from '../lib/store.js';
+import { isIos } from '../sources/local.js';
 
 const ago = (t) => {
   if (!t) return 'never';
@@ -374,12 +375,19 @@ function SystemVoices() {
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
+  const [seen, setSeen] = useState(0);
   useEffect(() => {
     setVs(null);
     listVoices(c.engine)
       .then(setVs)
       .catch((e) => setErr(e.message));
-  }, [c.engine]);
+  }, [c.engine, seen]);
+  // Back from the phone's settings (a voice just downloaded there): list the voices again.
+  useEffect(() => {
+    const onVis = () => document.visibilityState === 'visible' && setSeen((n) => n + 1);
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
   const installed = eng?.engines || [];
   const hasEngine = (hint) => installed.some((e) => hint.test(e.name) || hint.test(e.label));
@@ -396,13 +404,14 @@ function SystemVoices() {
         </select>
       </div>
       <div class="set-row column">
-        <b>Voice</b>
+        {/* How many there are: the list is in the box below (tap it). */}
+        <b>Voice{vs?.voices?.length ? ` · ${vs.voices.length} to choose from (tap the box)` : ''}</b>
         <div class="btn-row">
           <select value={c.voice} onChange={(e) => ttsCfg.patch({ voice: e.currentTarget.value })} disabled={!vs}>
             <option value="">{vs ? 'Engine default' : 'Loading voices…'}</option>
             {(vs?.voices || []).map((v) => (
               <option value={v.name}>
-                {v.name} · {v.langLabel || v.lang} · {qualityLabel(v.quality)}
+                {v.title || v.name} · {v.langLabel || v.lang} · {qualityLabel(v.quality)}
                 {v.network ? ' · online' : ''}
               </option>
             ))}
@@ -438,21 +447,31 @@ function SystemVoices() {
         </div>
         {err && <small class="err">{err}</small>}
       </div>
-      <div class="set-row column">
-        <b>More phone voice engines</b>
-        <small class="muted">Install one, open it once to download a voice, then pick it under Voice engine above.</small>
-        {RECOMMENDED.map((r) => (
-          <a class="voice-rec" href={r.url} target="_blank" rel="noopener">
-            <div>
-              <b>
-                {r.name} {hasEngine(r.pkgHint) && <span class="chip ready">INSTALLED</span>}
-              </b>
-              <small>{r.what}</small>
-            </div>
-            <Icon name="external" size={16} />
-          </a>
-        ))}
-      </div>
+      {isIos ? (
+        // iPhone / iPad: more (and much better) voices come from the phone's own settings, free.
+        <div class="set-row column">
+          <b>More voices for your iPhone / iPad</b>
+          <small class="muted">
+            On your iPhone or iPad: Settings → Accessibility → Spoken Content → Voices → your language. Download an <b>Enhanced</b> or <b>Premium</b> voice (they sound far more natural), then come back here and pick it under Voice. Listen on a book makes it an audiobook that keeps playing with the screen off.
+          </small>
+        </div>
+      ) : (
+        <div class="set-row column">
+          <b>More phone voice engines</b>
+          <small class="muted">Install one, open it once to download a voice, then pick it under Voice engine above.</small>
+          {RECOMMENDED.map((r) => (
+            <a class="voice-rec" href={r.url} target="_blank" rel="noopener">
+              <div>
+                <b>
+                  {r.name} {hasEngine(r.pkgHint) && <span class="chip ready">INSTALLED</span>}
+                </b>
+                <small>{r.what}</small>
+              </div>
+              <Icon name="external" size={16} />
+            </a>
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -641,7 +660,7 @@ export function VoicesCard() {
   return (
     <>
       <p class="muted pad-s">
-        Voices that read your ebooks aloud. Tap <b>Listen</b> on an ebook to use them; on Android reading keeps going with the screen off.
+        Voices that read your ebooks aloud. Tap <b>Listen</b> on an ebook: it plays like an audiobook, and keeps going with the screen off.
       </p>
       {builtinAvailable && (
         <div class="segmented tight">

@@ -42,6 +42,8 @@ import { rollTheme, previousLook } from '../lib/theme.js';
 // Shows the last banner instantly, then merges each service as it answers
 // (a slow service never holds the others back).
 const heroCache = persisted('heroCache', { items: [] });
+// Forget the last banner (e.g. after "Show music too" is turned off, so a song picked earlier doesn't stay on it).
+export const forgetHero = () => heroCache.set({ items: [] });
 // Books the banner has actually shown, and when (a few days kept): it brings new ones first,
 // and a book seen recently goes to the back.
 const heroSeen = persisted('heroSeen', {}, { delay: 2000 }); // uid -> when last on screen
@@ -371,6 +373,8 @@ function Feature({ items, index, onDot }) {
 }
 
 function Hero() {
+  // "Show music too" switched: pick again, so songs leave (or join) the banner at once.
+  const music = !!useStore(debrid).showMusic;
   const [items, setItems] = useState(() => (heroCache.get().items.length ? heroCache.get().items : null));
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(0);
@@ -428,7 +432,7 @@ function Hero() {
         .finally(settle);
     });
     return () => (alive = false);
-  }, [round]);
+  }, [round, music]);
   // One steady timer: books arriving from slower services don't restart it.
   const count = useRef(0);
   count.current = items?.length || 0;
@@ -756,8 +760,8 @@ export function Home() {
         </>
       ),
     loc: localSrc.connected() && enabled('loc') && <Row title="On this phone" subtitle="Audiobooks in your folders" icon="headphones" cacheKey="loc" load={audioOnly(localSrc.library)} deps={[localCfg.scannedAt]} onMore={() => nav.push('shelf', { title: 'On this phone', subtitle: 'Audiobooks in your folders', load: audioOnly(localSrc.library) })} emptyText="No audiobooks found in your folder." />,
-    tb: cloud.tbConnected() && enabled('tb') && <Row title="Your TorBox" subtitle="Audiobooks in your cloud" icon="download" cacheKey="tb" load={audioOnly(cloud.torboxLibrary)} deps={[deb.torbox]} onMore={() => nav.push('shelf', { title: 'Your TorBox', subtitle: 'Audiobooks in your TorBox cloud', load: audioOnly(cloud.torboxLibrary) })} showErrors emptyText="No audiobooks in your TorBox yet." />,
-    rd: cloud.rdConnected() && enabled('rd') && <Row title="Your Real-Debrid" subtitle="Audiobooks in your cloud" icon="download" cacheKey="rd" load={audioOnly(cloud.realdebridLibrary)} deps={[deb.realdebrid]} onMore={() => nav.push('shelf', { title: 'Your Real-Debrid', subtitle: 'Audiobooks in your Real-Debrid cloud', load: audioOnly(cloud.realdebridLibrary) })} showErrors emptyText="No audiobooks in your Real-Debrid yet." />,
+    tb: cloud.tbConnected() && enabled('tb') && <Row title="Your TorBox" subtitle="Audiobooks in your cloud" icon="download" cacheKey="tb" load={audioOnly(cloud.torboxLibrary)} deps={[deb.torbox, deb.showMusic]} onMore={() => nav.push('shelf', { title: 'Your TorBox', subtitle: 'Audiobooks in your TorBox cloud', load: audioOnly(cloud.torboxLibrary) })} showErrors emptyText="No audiobooks in your TorBox yet." />,
+    rd: cloud.rdConnected() && enabled('rd') && <Row title="Your Real-Debrid" subtitle="Audiobooks in your cloud" icon="download" cacheKey="rd" load={audioOnly(cloud.realdebridLibrary)} deps={[deb.realdebrid, deb.showMusic]} onMore={() => nav.push('shelf', { title: 'Your Real-Debrid', subtitle: 'Audiobooks in your Real-Debrid cloud', load: audioOnly(cloud.realdebridLibrary) })} showErrors emptyText="No audiobooks in your Real-Debrid yet." />,
     // AllDebrid, Premiumize, Debrid-Link: a row each, like TorBox and Real-Debrid.
     ...Object.fromEntries(
       moreServices().map(([p, m]) => [

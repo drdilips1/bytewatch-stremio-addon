@@ -12,7 +12,7 @@ import { Icon } from '../components/icons.jsx';
 import { toast, AskButton, clearRowCache } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup, kindle, progress, library } from '../lib/store.js';
 import { GENRES } from './genres.js';
-import { learnedTopics } from './Home.jsx';
+import { learnedTopics, forgetHero } from './Home.jsx';
 import { aiVoiceOn, stopAnswer } from '../lib/voiceask.js';
 import { annas as annasStore } from '../sources/annas.js';
 import { notInterested, alreadyRead, myRatings, profile } from '../lib/taste.js';
@@ -313,6 +313,9 @@ function MusicToggle() {
       onChange={(v) => {
         debrid.patch({ showMusic: v });
         cloud.forget?.();
+        // The banner and the cloud rows on Home keep their last books: drop them so the change shows at once.
+        forgetHero();
+        clearRowCache(['tb', 'rd']);
         setOn(v);
       }}
     />

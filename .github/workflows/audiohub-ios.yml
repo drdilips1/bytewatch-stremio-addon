@@ -48,7 +48,9 @@ jobs:
           npm pkg set "dependencies.inkwell-mail-ios=file:ios-plugins/mail"
           # iPhone-only: offline downloads (Files → Audiohub → Downloads), the same calls as Android.
           npm pkg set "dependencies.inkwell-downloads-ios=file:ios-plugins/downloads"
-          npm i --install-links --no-audit --no-fund "@capacitor/ios@$CORE" ./ios-plugins/transcribe ./ios-plugins/files ./ios-plugins/player ./ios-plugins/unpack ./ios-plugins/mail ./ios-plugins/downloads
+          # iPhone-only: Apple's own voices (Enhanced / Premium too) for reading aloud and Listen.
+          npm pkg set "dependencies.inkwell-tts-ios=file:ios-plugins/tts"
+          npm i --install-links --no-audit --no-fund "@capacitor/ios@$CORE" ./ios-plugins/transcribe ./ios-plugins/files ./ios-plugins/player ./ios-plugins/unpack ./ios-plugins/mail ./ios-plugins/downloads ./ios-plugins/tts
 
       - name: Build the screens
         env:

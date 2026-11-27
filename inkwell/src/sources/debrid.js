@@ -1,5 +1,6 @@
 // Debrid cloud libraries — stream the audiobooks already sitting in your
 // TorBox or Real-Debrid account, and add new magnets / links to it.
+import { looksLikeMusic, BOOKISH } from '../lib/music.js';
 import { mimeFor } from '../lib/mime.js';
 import { tbGone, rdGone, toKeepReady } from '../lib/revive.js';
 import { getJson, sendForm, qs } from '../lib/http.js';
@@ -36,37 +37,8 @@ export function cleanTitle(name) {
     .trim() || String(name);
 }
 
-// ---- music in the same cloud ----------------------------------------------------
-// Many people keep music albums in TorBox / Real-Debrid too. An item is treated as
-// music (and hidden unless "Show music" is on) only when it clearly looks like it;
-// anything book-like always stays.
-const BOOKISH = /\b(audio ?books?|unabridged|abridged|narrated|read by|novel|memoir|chapters?|book \d+|m4b)\b/i;
-const MUSICAL = /\b(discography|albums?|ost|soundtrack|deluxe edition|remaster(ed)?|greatest hits|anthology|single|mixtape|live at|vinyl|hi-?res|24 ?bit|16 ?bit|\d{2,3}(\.\d)? ?khz|web-?flac|cd ?rip|feat\.?|ft\.)\b/i;
-export function looksLikeMusic(name, files = []) {
-  const n = String(name || '');
-  if (BOOKISH.test(n)) return false;
-  const fname = (f) => baseName(f.short_name || f.name || f.filename || f.path || '');
-  const audio = files.filter((f) => AUDIO.test(fname(f)));
-  if (audio.some((f) => /\.m4b$/i.test(fname(f)))) return false;
-  if (audio.some((f) => /chapter|kapitel|chapitre|capitulo|\bpart ?\d|\bdisc ?\d+.*\bpart\b/i.test(fname(f)))) return false;
-  if (MUSICAL.test(n)) return true;
-  if (audio.length >= 2 && audio.filter((f) => /\.flac$/i.test(fname(f))).length / audio.length > 0.5) return true;
-  // Single songs (e.g. saved by music apps like Eclipse, one track per item): 1–3 small
-  // files. Even a short audiobook is rarely under ~40 MB.
-  const all = audio.map((f) => Number(f.size || f.bytes) || 0);
-  if (audio.length && audio.length <= 3 && all.every(Boolean) && all.reduce((a, b) => a + b, 0) < 40e6) return true;
-  // An album: 6–30 tracks of a few MB each (under ~200 MB in all), with different titles ("01 - Song name").
-  const sizes = audio.map((f) => Number(f.size || f.bytes) || 0);
-  if (audio.length >= 6 && audio.length <= 30 && sizes.every(Boolean)) {
-    const avg = sizes.reduce((a, b) => a + b, 0) / sizes.length;
-    const stems = audio.map((f) => fname(f).replace(/\.[a-z0-9]+$/i, '').replace(/^[\d\s._\-–)(\]\[]+/, '').replace(/[\d\s._\-–]+$/, '').toLowerCase());
-    const distinct = new Set(stems.filter(Boolean)).size / audio.length;
-    const total = sizes.reduce((a, b) => a + b, 0);
-    // A whole audiobook is rarely under ~200 MB; an album usually is.
-    if (avg < 12e6 && total < 200e6 && distinct >= 0.7) return true;
-  }
-  return false;
-}
+// Music in the same cloud (hidden unless "Show music too" is on): see lib/music.js.
+export { looksLikeMusic };
 export const showMusic = () => !!debrid.get().showMusic;
 
 // Films and TV in the same cloud (Real-Debrid only gives the item's name):

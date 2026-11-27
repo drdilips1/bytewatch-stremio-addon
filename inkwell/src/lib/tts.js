@@ -91,7 +91,16 @@ export async function engines() {
 
 export async function voices(engine = ttsCfg.get().engine) {
   if (!nativeTts) {
-    const list = (window.speechSynthesis?.getVoices() || []).map((v) => ({ name: v.name, lang: v.lang, langLabel: v.lang, quality: 300, network: !v.localService }));
+    // The browser fills its voice list a moment after the page opens (Safari / iPhone especially):
+    // asked too early it's empty or short, so wait for it (at most 2 s).
+    const synth = window.speechSynthesis;
+    if (synth && !synth.getVoices().length)
+      await new Promise((res) => {
+        const done = () => (synth.removeEventListener?.('voiceschanged', done), res());
+        synth.addEventListener?.('voiceschanged', done);
+        setTimeout(done, 2000);
+      });
+    const list = (synth?.getVoices() || []).map((v) => ({ name: v.name, lang: v.lang, langLabel: v.lang, quality: 300, network: !v.localService }));
     return { voices: list, defaultVoice: '' };
   }
   const r = await Native.getVoices({ engine });

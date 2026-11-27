@@ -1,6 +1,7 @@
 // EPUB → reader HTML: unzip in the app, follow the spine (reading order) and
 // turn the chapters into one sanitized document with inline images, in the
 // same { html, headings } shape the reader uses for Gutenberg books.
+import { isFanfic } from './fanfic.js';
 import { unzip, strFromU8 } from 'fflate';
 import { details as cloudDetails } from '../sources/debrid.js';
 import { getBytes } from './http.js';
@@ -228,7 +229,8 @@ export async function epubToHtml(bytes) {
     })
     .filter((h) => h.text && h.text.length < 120);
   const meta = (sel) => opf.getElementsByTagName(sel)[0]?.textContent?.trim() || '';
-  return { html: out.innerHTML, headings, paras, title: meta('dc:title'), author: meta('dc:creator'), urls: [...urls.values()] };
+  const all = (sel) => [...opf.getElementsByTagName(sel)].map((e) => e.textContent || '').join(' ');
+  return { html: out.innerHTML, headings, paras, title: meta('dc:title'), author: meta('dc:creator'), urls: [...urls.values()], fanfic: isFanfic(`${all('dc:publisher')} ${all('dc:source')} ${all('dc:subject')} ${all('dc:identifier')}`) };
 }
 
 // ---- ebooks in your TorBox / Real-Debrid -------------------------------------
@@ -448,6 +450,12 @@ async function loadEbook(book, signal) {
   if (file.format !== 'EPUB' && file.format !== 'PDF') throw new Error(`${file.format} files can't be opened in the reader — use Send to Kindle / Open in another app on the book page`);
   const bytes = await ebookBytes(await file.resolve(), { signal });
   const doc = await toDoc(bytes); // throws before caching if it isn't a readable EPUB / PDF
+  // A source's "ebook" that turns out to be fan fiction (a fan-written EPUB under the real title):
+  // not kept, and not offered again for this book.
+  if (doc.fanfic && book.uid.startsWith('src:')) {
+    markBadEbook(book.uid);
+    throw new Error("This file is fan fiction, not the book — it won't be offered again. Try another copy.");
+  }
   if (!book.uid.startsWith('loc:')) keepBytes(book, bytes, isPdf(bytes) ? 'PDF' : 'EPUB'); // phone files are already on the phone
   return remember(book.uid, doc);
 }

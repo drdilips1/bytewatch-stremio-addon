@@ -35,8 +35,20 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 const WebPlugin = registerPlugin('InkwellWeb');
 const canSaveFiles = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
 const MIMES = { EPUB: 'application/epub+zip', PDF: 'application/pdf', MOBI: 'application/x-mobipocket-ebook', AZW3: 'application/vnd.amazon.ebook', DJVU: 'image/vnd.djvu' };
+// iPhone / iPad: files go to the app's folder in the Files app (On My iPhone → Audiohub → Audiohub
+// downloads → Ebooks). Before, Save only handed the link to the browser, so the file ended up
+// wherever Safari put it, or nowhere.
+const IosDownloads = registerPlugin('InkwellDownloads');
+const iosFiles = Capacitor.getPlatform() === 'ios' && Capacitor.isPluginAvailable('InkwellDownloads');
+async function saveToIosFiles(link, name) {
+  toast(`Saving “${name}”…`);
+  await IosDownloads.download({ url: link, name, folder: 'Ebooks', job: `save-${Date.now()}` });
+  toast(`Saved — Files app → On My ${/iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 ? 'iPad' : 'iPhone'} → Audiohub → Audiohub downloads → Ebooks`);
+}
+
 /** Any ebook file into the phone's Downloads folder (open it with any reader app). */
 async function saveToDownloads(link, name, format) {
+  if (iosFiles) return saveToIosFiles(link, name);
   if (!canSaveFiles) return window.open(link, '_blank');
   await WebPlugin.saveToDownloads({ url: link, name, mime: MIMES[format] || 'application/octet-stream' });
   toast(`Saving “${name}” to Downloads — see the notification`);
@@ -902,6 +914,8 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
     try {
       await loadCloudEbook(rb);
       toast('Saved on this phone — Library → Ebooks → Downloaded');
+      // iPhone / iPad: a copy in the Files app too, to open with other apps.
+      if (iosFiles) saveToIosFiles(r.link, ebook?.name || `${r.title}.epub`).catch(() => {});
     } catch (e) {
       toast(e.message);
     } finally {

@@ -1,0 +1,11 @@
+{
+  "name": "inkwell-tts-ios",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iPhone: Apple's own voices (including the Enhanced and Premium ones you download in Settings) for reading ebooks aloud and making them into audiobooks — the same calls as the Android InkwellTts plugin. Added to the app only by the iPhone build (.github/workflows/audiohub-ios.yml).",
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  }
+}
