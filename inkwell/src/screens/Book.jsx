@@ -33,6 +33,7 @@ import { openSearch } from "./Discover.jsx";
 import { mainTitle, searchTitle, matches, surname } from "../lib/match.js";
 import { STARTERS } from "../lib/askbook.js";
 import { SourceResults } from "../components/source-results.jsx";
+import { unavailableNote } from "../lib/fallback.js";
 import { UsenetResults } from "../components/usenet-results.jsx";
 import { FixDetails } from "../components/fix-details.jsx";
 import { Available, useWhere } from "../components/available.jsx";
@@ -137,6 +138,9 @@ export function Book({ book: initial }) {
   const listen = (opts) => {
     if (isCurrent && !opts) return player.toggle();
     nav.openOverlay("player");
+    // This copy's details didn't load: asked once more, and if it still won't open, the player
+    // plays another copy of the book (never a red "Can't play" while other copies are there).
+    if (error) return player.openAndPlay(initial, getDetails, opts);
     // The copy you chose to play first (Your copies): that one, exactly.
     const pref = preferredFor(book);
     if (pref && pref.uid !== book.uid)
@@ -497,12 +501,9 @@ export function Book({ book: initial }) {
       <AbsSending uid={initial.uid} />
       {pct > 0 && !prog.finished && !canRead && finishLine(initial.uid) && <p class="book-finish">{finishLine(initial.uid)}</p>}
 
-      {error &&
-        (book.source === 'abs' ? (
-          <p class="err pad">Your Audiobookshelf server isn't answering ({error}). Play still works: it uses your copy on the phone or in TorBox / Real-Debrid when there is one.</p>
-        ) : (
-          <p class="err pad">Couldn't load details: {error}</p>
-        ))}
+      {/* This copy can't be reached: a calm note (not a red error) — Listen / Read find another
+          copy by themselves, and every source is listed below. */}
+      {error && <p class="muted pad book-unavailable">{unavailableNote(book)}</p>}
 
       <Description
         text={bestDescription(book.description, gr?.description)}
@@ -571,7 +572,7 @@ export function Book({ book: initial }) {
           book={book}
         />
       )}
-      {((book.kind === "audio" && OTHER_SOURCES.has(book.source)) ||
+      {((book.kind === "audio" && (OTHER_SOURCES.has(book.source) || (error && book.source !== "pod" && book.source !== "sum"))) ||
         book.kind === "text") &&
         sourceAddons().length > 0 &&
         !loading && (
@@ -584,7 +585,7 @@ export function Book({ book: initial }) {
           </section>
         )}
       {/* Usenet: Easynews and your indexers (Settings → Usenet). */}
-      {(book.kind === "discover" || book.kind === "text" || (book.kind === "audio" && OTHER_SOURCES.has(book.source))) && !loading && (
+      {(book.kind === "discover" || book.kind === "text" || (book.kind === "audio" && (OTHER_SOURCES.has(book.source) || (error && book.source !== "pod" && book.source !== "sum")))) && !loading && (
         <section class="pad">
           <UsenetResults title={srcTitle} author={srcAuthor} book={book} />
         </section>

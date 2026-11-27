@@ -14,6 +14,7 @@ export const CHANGES = [
       ['⏳', 'Time Machine', 'Library → menu → Time Machine: search everything you’ve heard with Text on, your bookmarks, highlights and saved ideas, across all your books — and go back to that moment.'],
       ['📬', 'Quote postcards', 'Sharing a bookmark adds its chapter, your reaction and a sound-wave strip to the card.'],
       ['🏅', 'Listener challenges', 'Stats: a small set of goals each month — hours, books finished, days in a row, a new author.'],
+      ['🔁', 'Another copy, not an error', 'Tap a book whose copy is gone (from your TorBox, the phone, a source): Listen and Read now open another copy of it by themselves — on the phone, downloaded, your server, your cloud or a source that has it ready — and the book page lists every source instead of a red error.'],
       ['✨', 'A more polished look', 'Titles and headings in a bookish serif, covers with a spine, a soft shine on cards and buttons, a floating tab bar, clearer quiet text in dark themes and a fine paper grain. Prefer the flat look? Settings → Appearance → Finish → Plain.'],
       ['🗣️', 'Better voices on iPhone and iPad', 'Settings → Voices: every voice on your iPhone or iPad reads your ebooks, the Enhanced and Premium ones too (download them in Settings → Accessibility → Spoken Content → Voices). Listen makes an ebook an audiobook that plays with the screen off.'],
       ['📁', 'Save to the Files app on iPhone', 'Save on an ebook puts it in Files → On My iPhone → Audiohub → Audiohub downloads → Ebooks, and says so.'],

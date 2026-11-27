@@ -16,6 +16,7 @@ import { VoicesCard } from './settings-extra.jsx';
 import { narrate, canNarrate } from '../sources/ttsbooks.js';
 import * as player from '../lib/player.js';
 import { toast } from '../components/common.jsx';
+import { shouldTryOtherCopy } from '../lib/fallback.js';
 import { HighlightCards, AudioNotes, hasAudioNotes } from '../components/book-notes.jsx';
 import { highlights, forWork, addHighlight, updateHighlight, removeHighlight, markText, unmark, selectionParts, growSelection } from '../lib/highlights.js';
 import { SelectionBar, AiSheet, HighlightSheet } from '../components/reader-select.jsx';
@@ -354,13 +355,37 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     }
   };
 
+  const [opening, setOpening] = useState('');
   useEffect(() => {
     let alive = true;
-    (book.source === 'sum' ? loadSummary(book) : book.source === 'ss' ? loadStoryShots(book) : isCloudEbook(book) ? loadCloudEbook(book) : gb.loadText(book))
+    const load = (b) => (b.source === 'sum' ? loadSummary(b) : b.source === 'ss' ? loadStoryShots(b) : isCloudEbook(b) ? loadCloudEbook(b) : gb.loadText(b));
+    setOpening('');
+    load(book)
       .then((d) => alive && setDoc(d))
-      .catch((e) => {
+      .catch(async (e) => {
         // Not a book file after all: don't offer it again.
-        if (/isn't a readable|not a readable|unsupported|corrupt/i.test(e.message || '')) import('../lib/epub.js').then((m) => m.markBadEbook(book.uid));
+        if (/isn't a readable|not a readable|unsupported|corrupt|fan fiction/i.test(e.message || '')) import('../lib/epub.js').then((m) => m.markBadEbook(book.uid));
+        // This copy won't open (gone from your cloud, a link that's dead…): another copy of the
+        // same book — one already on the phone, else the best one from your sources — instead of
+        // stopping here. Your place stays this book's.
+        if (alive && shouldTryOtherCopy(book, e)) {
+          setOpening('That copy can’t be opened — finding another copy of this book…');
+          try {
+            const bt = await import('../lib/booktext.js');
+            const near = bt.ebooksOnHand(book).filter((b) => b.uid !== book.uid);
+            for (const b of near) {
+              const d = await load(b).catch(() => null);
+              if (d && alive) return setDoc(d), toast('Opened your other copy of this book');
+            }
+            for (const hit of (await bt.findEbookInSources(book)).slice(0, 3)) {
+              if (!alive) return;
+              setOpening(`That copy can’t be opened — opening one from ${hit.source}…`);
+              const b = await bt.readyHit(hit, book).catch(() => null);
+              const d = b && (await load(b).catch(() => null));
+              if (d && alive) return setDoc(d), toast(`Opened a copy from ${hit.source}`);
+            }
+          } catch {}
+        }
         if (alive) setError(e.message);
       });
     return () => (alive = false);
@@ -639,7 +664,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         ) : !doc ? (
           <div class="reader-msg">
             <span class="spinner" />
-            <p>Opening {book.title}…</p>
+            <p>{opening || `Opening ${book.title}…`}</p>
           </div>
         ) : (
           <article class="reader-text" dangerouslySetInnerHTML={{ __html: doc.html }} />

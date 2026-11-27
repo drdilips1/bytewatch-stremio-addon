@@ -10,6 +10,7 @@ import { syncProgress, switchTracks, closeSession, serverPlace, mirrorPlace, con
 import { fetchStatus } from '../sources/debrid.js';
 import { applyLocal, isDownloaded, downloads } from './downloads.js';
 import { otherCopyProgress, sameWork } from './works.js';
+import { shouldTryOtherCopy, switchingLine } from './fallback.js';
 import { estimateDuration, copyPlace, partByPercent, fitted } from './place.js';
 import { samePhoneBook } from './match.js';
 import { localCfg } from '../sources/local.js';
@@ -753,13 +754,15 @@ export async function openAndPlay(book, getDetails, opts) {
 }
 
 /**
- * Your Audiobookshelf server (or the place the book is from) can't be reached: play
- * another copy of the same book — on the phone, downloaded, or in TorBox / Real-Debrid —
- * from the same place, instead of stopping at an error.
+ * The copy you tapped won't open — your server is down, it's gone from your TorBox, its file was
+ * deleted, its source says "not available": play another copy of the same book (on the phone,
+ * downloaded, your Audiobookshelf, TorBox / Real-Debrid, else one ready in your sources) from the
+ * same place, instead of stopping at an error. Before, only a server that was down or a network
+ * error got this; anything else ended at a red "Can't play" while other copies were there.
  */
-async function playOtherCopy(book, err, opts = {}) {
-  const msg = String(err?.message || err || '');
-  if (!book?.uid || !(book.source === 'abs' || /timed out|time out|reach|network|failed to fetch|offline|ECONN|50[234]/i.test(msg))) return false;
+async function playOtherCopy(book, err, opts = {}, tries = 0) {
+  if (tries > 3 || !shouldTryOtherCopy(book, err)) return false;
+  rescueTried.add(book.uid); // never back to the copy that just failed
   try {
     const { localCfg } = await import('../sources/local.js');
     const { findOwned, getDetails } = await import('../sources/index.js');
@@ -776,7 +779,7 @@ async function playOtherCopy(book, err, opts = {}) {
       copy = near.find((c) => c && c.uid !== book.uid && sameWork(c, named) && !rescueTried.has(c.uid));
       if (!copy) {
         const o = await findOwned({ title, author: book.author || '' }).catch(() => null);
-        copy = (o?.cloud || []).find((c) => c.kind !== 'text' && c.uid !== book.uid && sameWork(c, named) && !rescueTried.has(c.uid));
+        copy = [...(o?.server || []), ...(o?.cloud || [])].find((c) => c.kind !== 'text' && c.uid !== book.uid && sameWork(c, named) && !rescueTried.has(c.uid));
       }
       if (copy) break;
     }
@@ -789,8 +792,8 @@ async function playOtherCopy(book, err, opts = {}) {
       return true;
     }
     rescueTried.add(copy.uid);
-    const where = { loc: 'on this phone', tb: 'in TorBox', rd: 'in Real-Debrid' }[copy.source] || (downloads.get()[copy.uid] ? 'downloaded' : 'another copy');
-    set({ loading: true, error: null, phase: `${book.source === 'abs' ? 'Your server isn’t answering' : 'That copy isn’t available'} — playing your copy ${where}…` });
+    const where = { loc: 'on this phone', tb: 'in TorBox', rd: 'in Real-Debrid', abs: 'on your Audiobookshelf' }[copy.source] || (downloads.get()[copy.uid] ? 'downloaded' : 'another copy');
+    set({ loading: true, error: null, phase: switchingLine(book, where) });
     const d = await getDetails(copy);
     const g = opts.globalStart ?? (opts.index == null && opts.time == null ? progress.get()[book.uid]?.global : undefined);
     rescuing = true;
@@ -798,7 +801,8 @@ async function playOtherCopy(book, err, opts = {}) {
     return true;
   } catch {
     rescuing = false;
-    return false;
+    // That copy wouldn't open either: the next one (each tried copy is remembered, so no loop).
+    return playOtherCopy(book, err, opts, tries + 1);
   }
 }
 
