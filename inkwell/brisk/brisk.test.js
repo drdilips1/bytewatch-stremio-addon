@@ -275,3 +275,19 @@ describe('Audibrisk finish line and coming back', () => {
     expect(awayText({ updatedAt: now - 2 * 864e5, percent: 0.4 }, '', now)).toBe('');
   });
 });
+
+describe('Audibrisk names for books saved under a torrent id', () => {
+  it('spots a torrent id in place of a name', async () => {
+    const { isCodeName } = await import('./logic.js');
+    expect(isCodeName('f02291ff3ffb630e00c9e056513f2a7b11c0d9e4')).toBe(true);
+    expect(isCodeName('The Pull of the Stars')).toBe(false);
+  });
+  it('finds the name the parts share', async () => {
+    const { nameFromParts } = await import('./logic.js');
+    expect(nameFromParts(['The Searcher 01', 'The Searcher 02', 'The Searcher 03'])).toBe('The Searcher');
+    expect(nameFromParts(['01 - The Searcher - Part 1.mp3', '02 - The Searcher - Part 2.mp3'])).toBe('The Searcher');
+    expect(nameFromParts(['The Searcher.m4b'])).toBe('The Searcher');
+    expect(nameFromParts(['Track 01', 'Track 02'])).toBe('');
+    expect(nameFromParts(['Opening Credits', 'Chapter One: Arrival', 'Chapter Two: Home'])).toBe('');
+  });
+});

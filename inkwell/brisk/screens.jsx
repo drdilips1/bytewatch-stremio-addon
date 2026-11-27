@@ -756,6 +756,7 @@ function YourLibrary({ skip = [] }) {
   useStore(bk.covers);
   useEffect(() => {
     bk.refreshCloud();
+    bk.fixCodeNames(bk.cloudShelf.get().books); // books saved under a torrent id get their real name
     if (phone.connected()) phone.library().then((l) => bk.fillCovers(l)).catch(() => {});
   }, [bk.provider()]);
   const ids = new Set(skip.map((b) => b.uid));

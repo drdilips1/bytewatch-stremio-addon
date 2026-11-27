@@ -13,13 +13,13 @@ import { downloads, downloadBook, canDownload } from '../src/lib/downloads.js';
 import * as player from '../src/lib/player.js';
 import bundle from './audio-sources.json';
 import { getJson, qs } from '../src/lib/http.js';
-import { coverNow, lookup } from '../src/lib/meta.js';
+import { coverNow, lookup, fixFor, setFix } from '../src/lib/meta.js';
 import * as librivox from '../src/sources/librivox.js';
 import * as phone from '../src/sources/local.js';
 import { samePhoneBook } from '../src/lib/match.js';
 import { registerPlugin } from '@capacitor/core';
 import { toast } from '../src/components/common.jsx';
-import { rankResults, fitsWords, syncSources, mixFree, deepSearchFor, rescueOrder, copyKey, applyChapters, seriesOf, nextInSeries, healthBonus, earlierPlace } from './logic.js';
+import { rankResults, fitsWords, syncSources, mixFree, deepSearchFor, rescueOrder, copyKey, applyChapters, seriesOf, nextInSeries, healthBonus, earlierPlace, isCodeName, nameFromParts } from './logic.js';
 
 const Web = registerPlugin('InkwellWeb');
 // Opening a book never waits for a details lookup (covers, descriptions): what's known already is
@@ -597,13 +597,54 @@ export function refreshCloud(force = false) {
       cloudShelf.set({ books, at: Date.now() });
       // Real covers for the ones without (looked up once, quietly).
       fillCovers(books);
+      fixCodeNames(books);
       return books;
     })
     .catch(() => cloudShelf.get().books)
     .finally(() => (cloudRun = null));
   return cloudRun;
 }
-export const withCover = (b) => ({ ...b, cover: coverNow(b) || covers.get()[b.uid] || linkCover(b.uid) || b.cover || '' });
+export const withCover = (b) => {
+  // A name found for a book saved under a torrent id (or one you fixed) wins over the raw name.
+  const fix = fixFor(b.uid);
+  const named = fix?.title ? { ...b, title: fix.title, author: fix.author || b.author } : b;
+  return { ...named, cover: coverNow(named) || covers.get()[b.uid] || linkCover(b.uid) || b.cover || '' };
+};
+
+// ---- proper names for books TorBox / Real-Debrid saved under their torrent id ----------------
+// "f02291ff3ffb…" → "The Searcher · Tana French": the catalogue book you played it as, else what
+// its files' names share, then looked up for the author. One at a time, quietly; kept for good.
+const named = new Set();
+let naming = false;
+export function fixCodeNames(books) {
+  const todo = books.filter((b) => b?.uid && isCodeName(b.title) && !fixFor(b.uid)?.title && !named.has(b.uid));
+  if (naming || !todo.length) return;
+  naming = true;
+  (async () => {
+    for (const b of todo.slice(0, 20)) {
+      named.add(b.uid);
+      while (busy.now > 0) await new Promise((r) => setTimeout(r, 3000));
+      try {
+        const owner = Object.values(links.get()).find((l) => l?.uid === b.uid && l.title && !isCodeName(l.title));
+        if (owner) {
+          setFix(b.uid, { ...(fixFor(b.uid) || {}), title: owner.title, author: owner.author || '', ...(owner.cover ? { cover: owner.cover } : {}) });
+          continue;
+        }
+        const d = await getDetails({ uid: b.uid, source: b.source, title: b.title }, FAST);
+        const guess = nameFromParts((d?.tracks || []).map((t) => t.title));
+        if (!guess) continue;
+        const m = await lookup({ uid: `name:${b.uid}`, title: guess }).catch(() => null);
+        const fits = m?.title && searchTitle(m.title).toLowerCase().includes(searchTitle(guess).toLowerCase().split(/\s+/)[0] || '#');
+        setFix(b.uid, { ...(fixFor(b.uid) || {}), title: fits ? m.title : guess, ...(fits && m.author ? { author: m.author } : {}), ...(fits && m.cover ? { cover: m.cover } : {}) });
+        // Playing it now: the player shows the name at once.
+        const f = fixFor(b.uid);
+        if (player.getState().book?.uid === b.uid) player.patchBook(b.uid, { title: f.title, author: f.author || '' });
+      } catch {}
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    naming = false;
+  })();
+}
 // The catalogue cover of the book a cloud copy was played as (books you played here, then find in
 // your Real-Debrid / TorBox later): known already, nothing to look up.
 let linkCovers = null;

@@ -354,3 +354,32 @@ export function awayText(p, note = '', now = Date.now()) {
   const where = p.percent > 0 ? ` — you were ${Math.round(p.percent * 100)}% in` : '';
   return `Back after ${when}${where}${note ? ` · your note: “${String(note).slice(0, 80)}”` : ''}`;
 }
+
+/** A name that's only a torrent id ("f02291ff3ffb630e00c9e056513f2…"): 32–40 hex characters. */
+export const isCodeName = (t) => /^[a-f0-9]{32,40}$/i.test(String(t || '').trim());
+
+/**
+ * The book's name from its files' names, when the torrent only has an id: what the parts share
+ * once track numbers are taken off — "The Searcher 01", "The Searcher 02" → "The Searcher";
+ * "01 - The Searcher - Part 1" → "The Searcher". '' when the parts say nothing ("Track 01").
+ */
+export function nameFromParts(titles) {
+  const clean = (t) =>
+    String(t || '')
+      .replace(/\.[a-z0-9]{2,4}$/i, '')
+      .replace(/[_.]+/g, ' ')
+      .replace(/\b(part|pt|track|chapter|ch|cd|disc|disk|file|section)\s*\d+\b/gi, ' ')
+      .replace(/^\s*\d+\s*[-–.)]?\s*/, '')
+      .replace(/\s*[-–(]?\s*\d+\s*[)]?\s*$/, '')
+      .replace(/\s*[-–]\s*$/, '')
+      .replace(/^\s*[-–]\s*/, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  const names = (titles || []).map(clean).filter((t) => t && !/^\d+$/.test(t) && !isCodeName(t));
+  if (!names.length) return '';
+  const count = new Map();
+  for (const n of names) count.set(n.toLowerCase(), (count.get(n.toLowerCase()) || 0) + 1);
+  const [top, n] = [...count.entries()].sort((a, b) => b[1] - a[1])[0];
+  // Shared by most parts (or the only part): that's the book. Otherwise the first part's name.
+  return n >= Math.max(1, names.length / 2) ? names.find((x) => x.toLowerCase() === top) : names.length === 1 ? names[0] : '';
+}

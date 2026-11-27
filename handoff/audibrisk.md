@@ -214,6 +214,13 @@
   byAuthor / byNarrator); `SeriesStrip` (audible.series, ✓ finished via sameBook, this one ringed).
   NOT done: #6 "save the next few hours" — shared applyLocal treats a saved book as complete
   (would hide the unsaved parts); needs a shared downloads change — ask first.
+- Next (27 Nov, committed, not built): books TorBox / RD saved under their torrent id
+  ("f02291ff3ffb…", user screenshot) get a real name — `fixCodeNames` (books.js, from refreshCloud
+  and Your library): catalogue book it was played as (`links`), else `nameFromParts` (what the
+  file names share, numbers stripped) + shared meta lookup for author/cover; saved with shared
+  setFix (so the player, search and covers use it too); one at a time, ≤20 a run. `withCover`
+  shows fixed titles. Not covered yet: title/author swapped by the shared name splitter ("Neil
+  Gaiman, Dirk Maggs 2020 / The Sandman") — the noted Find-cover rename would fix it by hand.
 - Fix (26 Nov, committed, not built): place and speed lost after hours ("from 0", book page Play).
   Cause: Real-Debrid re-adds the copy under a NEW id when the old one won't serve (expired /
   hoster unavailable) → no saved place/speed for that id. Now `earlierPlace` (logic.js) finds the
