@@ -17,6 +17,10 @@
   AltStore source above (both checked 200). This session can't read the public repo's logs (not
   attached) — ask the user to paste errors from github.com/drdilips1/audibrisk/actions. No Save on iPhone (shared downloads are
   Android-only); Settings says updates come through AltStore.
+- Daily reminder (27 Nov, user asked): scheduled task "Audibrisk daily reminder" (trig_01PwViGMHj1sRpkXyTc3mper),
+  every day 19:37 India time, fresh session, push notification, REPORT ONLY: reads this file +
+  RULES.md, lists pending (unreleased / unbuilt / noted / waiting on the user) and suggests 3–5 new
+  ideas. Keep the PENDING and NOTED parts of this file current — that's what it reports from.
 - Code: `inkwell/brisk/` (screens.jsx, player.jsx, books.js, logic.js, scenes.jsx, brisk.css, app.jsx),
   config `inkwell/vite.brisk.config.js`, workflow `.github/workflows/brisk-apk.yml`.
   Tests: `inkwell/brisk/brisk.test.js` (runs in `npm test`). The shared eslint config only covers
