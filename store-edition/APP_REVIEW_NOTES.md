@@ -26,8 +26,7 @@ To try it: Discover → Free → pick any LibriVox book → Play.
 - Age rating: 12+ suggested (user-added content, unrestricted web access via add-ons → answer
   "Unrestricted Web Access: No" only if add-ons can't open web pages; they open the site's reader
   for comics → answer Yes → 17+). Decide when filling the questionnaire.
-- Sign in with Apple: required if the account sign-in offers Google — check before submitting
-  (account sign-in uses Supabase with email + Google).
+- Sign in with Apple: not needed — the store edition offers email sign-in only (no Google button).
 - Content rights: "Does your app contain, show or access third-party content?" → Yes; "Do you have
   the rights?" → the app shows content the user adds from their own sources and public-domain works.
 
