@@ -124,6 +124,8 @@ voices cards. EPUB covers extracted (thumbnails). `reader-web` is identical on b
   signature with their bundle id, then `-exportArchive` (app-store-connect, automatic, API key) signs with the
   cloud-managed distribution certificate and uploads. Unsigned IPA is published before signing. macOS runners
   are often unclaimed for 15 min ("cancelled", no steps): just re-run.
+- SideStore / AltStore source, updated by each iPhone build:
+  https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/narrato-ios/sidestore.json
 - 26 Nov (after the user's iPad test): one place to listen, as on Android – the reader with the player's
   controls under the page (`src/dock.js`: bar, chapter · %, time left, back/play/next, speed, voice, sleep,
   More = chapters, text and page, pronunciations); they slide away while playing (mini pause button, a tap

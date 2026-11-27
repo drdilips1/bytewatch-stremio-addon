@@ -154,6 +154,40 @@ jobs:
           retry gh release upload narrato-ios Narrato.ipa --clobber
           retry gh release edit narrato-ios --notes "$NOTES"
 
+      # A SideStore / AltStore source (SideStore → Sources → +): new builds then show up as updates there.
+      # Link: https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/narrato-ios/sidestore.json
+      - name: Update the SideStore source
+        working-directory: paper2audio/ios/ios/App
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.run_number }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+        run: |
+          SIZE=$(stat -f%z Narrato.ipa)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          node -e '
+            const [run, repo, ref, size, date] = process.argv.slice(1);
+            const url = `https://github.com/${repo}/releases/download/narrato-ios/Narrato.ipa`;
+            const version = { version: `1.0.${run}`, buildVersion: run, date, downloadURL: url, size: +size,
+              localizedDescription: `Narrato for iPhone, build 1.0.${run}`, minOSVersion: "15.0" };
+            const app = {
+              name: "Narrato", bundleIdentifier: "com.narrato.reader", developerName: "Aashvee Labs",
+              subtitle: "Your books, read aloud", localizedDescription:
+                "Listen to books, PDFs and documents with natural voices that run on your iPhone, offline. Free, unlimited, no ads.",
+              iconURL: `https://raw.githubusercontent.com/${repo}/${ref}/paper2audio/ios/public/icon-1024.png`, tintColor: "#3F5FD6",
+              category: "utilities", versions: [version], version: version.version, versionDate: date, downloadURL: url,
+              size: +size, appPermissions: { entitlements: [], privacy: {
+                NSCameraUsageDescription: "Photograph printed pages to listen to them.",
+                NSPhotoLibraryUsageDescription: "Choose photos of printed pages to listen to them." } },
+            };
+            require("fs").writeFileSync("sidestore.json", JSON.stringify({ name: "Narrato", identifier: "com.narrato.reader.source",
+              sourceURL: `https://github.com/${repo}/releases/download/narrato-ios/sidestore.json`,
+              website: "https://drdilips1.github.io/bytewatch-stremio-addon/", apps: [app], news: [] }, null, 2));
+          ' "$RUN" "$REPO" "$REF" "$SIZE" "$DATE"
+          cat sidestore.json
+          for i in 1 2 3 4 5; do gh release upload narrato-ios sidestore.json --clobber && break; sleep $((i * 10)); done
+
       # Last, so the unsigned IPA above is published even if signing fails.
       # Signed for the App Store and sent to TestFlight, once the App Store Connect API key and Team ID are saved
       # as repository secrets (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 or ASC_KEY_P8_B64, APPLE_TEAM_ID). Xcode creates the
