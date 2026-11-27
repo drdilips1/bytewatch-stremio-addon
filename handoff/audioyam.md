@@ -150,7 +150,7 @@
   destination testflight. Money model decided (store edition only, see store-edition/STORE_PLAN.md): free +
   one-time Plus + optional AI pass. `src/lib/plus.js` (hasPlus, always true here) added as groundwork.
 - Porting from Audiohub+: 3-way merge per file (`git merge-file`, base = the Audiohub+ commit of the last
-  port, now 41dac5c), then scrub everything private (see RULES.md) and grep.
+  port, now abafa7ac), then scrub everything private (see RULES.md) and grep.
 - Pending: try the iPhone build (files + player) and a test APK when the user says "build"; Usenet only
   tested with sample answers; see ROADMAP.
 
@@ -554,7 +554,7 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
 - Ebooks via torrent app (on work, not built): Read → playViaApp(r, book, 'text'); findDownloaded matches kind both ways (+ ebookName); complete() checks ebookUri; opens nav.push('reader'). Save/Kindle hidden when viaApp.
 
 ## Audiohub+ → AudioYam: not ported yet (checked 27 Nov; Audiohub+ commits since the last port base 41dac5c)
-User: skip Audiohub+'s new look (AudioYam keeps its own premium finish). Waiting for the user to pick.
+User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look / c1699299 / 82cfee01).
 - Fixes:
   - f9660234 (iPhone .mp4 import + why a file failed; right author on author pages; tidier source cards; Downloading-for-you card opens).
   - 06cb3557: Audiobookshelf whole library (AudioYam still has limit 500 in audiobookshelf.js) + recent searches only while typing.
@@ -572,3 +572,21 @@ User: skip Audiohub+'s new look (AudioYam keeps its own premium finish). Waiting
   - 7c13293a: bigger cover in the Picked-for-you banner.
 - X-Ray family: a7b1877a (Character Tracker), 7397d43e (relationship map + Wikipedia photos), b38456d9 (Fandom pictures), abafa7ac (map redesign), 8cbbe520 (character card fix).
 - Never: 452b5223 (Mobilism). Skipped: 1a246588 / 76fba596 (look), c1699299 (AudioYam already has it).
+
+- PORT DONE 27 Nov (work 4ee6223, test APK + iPhone build started). Method: `git am -p2 --3way` of per-commit patches (inkwell/ paths), with bytewatch objects as a temporary alternate (removed after repack).
+  - Already in AudioYam: c01e080e.
+  - Hand-merged: transcript-view (AudioYam's takeEbook kept; then added `onDownloadProgress` in http.js — getBytes tells subscribers — plus the progress line in Text "Get the ebook").
+  - local.js / InkwellLocalPlugin.swift: mp4 on iPhone AND cbz/cbr kept. AudioYam names kept (AudioYam downloads, Open in AudioYam). Tidy screen NOT ported (only the Time Machine link). qbit.js imports trimmed.
+  - What's new EDITION `nov-2026l` (3 cards). iOS mic text mentions Whisper Notes.
+  - New port base for next time: Audiohub+ abafa7ac.
+- Still pending in AudioYam (need the user / outside):
+  - AudiobookBay public worker reliability (compare with the + server, nothing private);
+  - Find books from a link (needs an example link);
+  - battery "what was busy" line;
+  - GitHub replies;
+  - TestFlight secrets;
+  - Support link;
+  - ComicVine key;
+  - GPLinks site address;
+  - comic vision items;
+  - release to main.
