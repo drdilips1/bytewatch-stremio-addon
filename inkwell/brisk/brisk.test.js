@@ -291,3 +291,28 @@ describe('Audibrisk names for books saved under a torrent id', () => {
     expect(nameFromParts(['Opening Credits', 'Chapter One: Arrival', 'Chapter Two: Home'])).toBe('');
   });
 });
+
+describe('Audibrisk part order', () => {
+  it('reads book and chapter numbers, Roman or not', async () => {
+    const { partKey } = await import('./logic.js');
+    expect(partKey('Book I - Chapter 08 - Fog on the Barrow Downs')).toEqual([1, 8]);
+    expect(partKey('Book 1 - Chapter 8')).toEqual([1, 8]);
+    expect(partKey('Book II - Chapter 01 - Many Meetings')).toEqual([2, 1]);
+    expect(partKey('Prologue')).toBe(null);
+  });
+  it('puts an unevenly named chapter back in its place', async () => {
+    const { orderParts } = await import('./logic.js');
+    const t = (title) => ({ title });
+    const list = [t('Book 1 - Chapter 08 - Fog on the Barrow Downs'), t('Book I - Chapter 01 - A Long Expected Party'), t('Book I - Chapter 02 - The Shadow of the Past'), t('Book I - Chapter 07 - In the House of Tom Bombadil'), t('Book I - Chapter 09 - At the Sign of the Prancing Pony')];
+    const out = orderParts(list);
+    expect(out.map((x) => x.title.slice(0, 22))).toEqual(['Book I - Chapter 01 - ', 'Book I - Chapter 02 - ', 'Book I - Chapter 07 - ', 'Book 1 - Chapter 08 - ', 'Book I - Chapter 09 - ']);
+    expect(out[3].was).toBe(0);
+  });
+  it('leaves books alone when the names don’t clearly say', async () => {
+    const { orderParts } = await import('./logic.js');
+    const plain = [{ title: 'Opening' }, { title: 'The Road' }, { title: 'Home' }];
+    expect(orderParts(plain)).toBe(plain);
+    const dup = [{ title: 'Chapter 1' }, { title: 'Chapter 1' }, { title: 'Chapter 2' }];
+    expect(orderParts(dup)).toBe(dup);
+  });
+});

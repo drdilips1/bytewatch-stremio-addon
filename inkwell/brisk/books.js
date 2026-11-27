@@ -19,7 +19,7 @@ import * as phone from '../src/sources/local.js';
 import { samePhoneBook } from '../src/lib/match.js';
 import { registerPlugin } from '@capacitor/core';
 import { toast } from '../src/components/common.jsx';
-import { rankResults, fitsWords, syncSources, mixFree, deepSearchFor, rescueOrder, copyKey, applyChapters, seriesOf, nextInSeries, healthBonus, earlierPlace, isCodeName, nameFromParts } from './logic.js';
+import { rankResults, fitsWords, syncSources, mixFree, deepSearchFor, rescueOrder, copyKey, applyChapters, seriesOf, nextInSeries, healthBonus, earlierPlace, isCodeName, nameFromParts, orderParts } from './logic.js';
 
 const Web = registerPlugin('InkwellWeb');
 // Opening a book never waits for a details lookup (covers, descriptions): what's known already is
@@ -212,6 +212,7 @@ async function ready(book, r, onStatus, via = provider()) {
   }
   noteHealth(r, true);
   rememberCopy(d.uid, r);
+  d = inOrder(d);
   const out = { ...d, title: book.title, author: book.author || d.author, cover: book.cover || d.cover, narrator: book.narrator || d.narrator };
   return withChapters(out, await Promise.race([chapters, new Promise((res) => setTimeout(() => res(null), 1200))]));
 }
@@ -299,7 +300,7 @@ export async function prepare(book, onStatus, copies = null) {
     if (local) {
       try {
         if (local.dl) return { ...local.dl.book, title: book.title || local.dl.book.title, cover: book.cover || local.dl.book.cover };
-        const d = await getDetails(local, FAST);
+        const d = inOrder(await getDetails(local, FAST));
         if (d?.tracks?.length) return { ...d, title: book.title || d.title, author: book.author || d.author, cover: book.cover || d.cover };
       } catch {}
     }
@@ -360,6 +361,25 @@ export async function prepare(book, onStatus, copies = null) {
   throw lastErr || new Error('Couldn’t open this book');
 }
 
+// ---- parts in the right order ----------------------------------------------------------------
+// Files named unevenly ("Book 1 - Chapter 08" among "Book I - Chapter 0X") sorted to the front;
+// they're put back by book and chapter number. The first time a book you were already in gets
+// reordered, your place moves to the same part in the new order.
+const reordered = persisted('briskReordered', {}); // uid -> true once its place was moved
+function inOrder(d) {
+  const tracks = orderParts(d?.tracks);
+  return tracks === d?.tracks ? d : { ...d, tracks };
+}
+/** Where to start a reordered book you were already in: { index, time } in the new order, once. */
+function placeInNewOrder(d) {
+  if (!d?.tracks?.some((t) => t.was != null) || reordered.get()[d.uid]) return null;
+  reordered.set((r) => ({ ...r, [d.uid]: true }));
+  const p = progress.get()[d.uid];
+  if (!p || p.finished) return null;
+  const i = d.tracks.findIndex((t) => t.was === p.track);
+  return i >= 0 ? { index: i, time: p.time || 0 } : null;
+}
+
 /** Play a book; `percent` carries your place over when you switch to another copy. */
 /** The last thing that went wrong, for "Report a problem" (text only). */
 export const lastProblem = { text: '', book: null };
@@ -380,7 +400,8 @@ export async function play(book, onStatus, copies, { percent } = {}) {
       carryPrefs(was.from, d.uid);
     }
   }
-  player.playBook(d, { exact: true, ...(percent > 0.002 ? { percent } : {}) });
+  const moved = placeInNewOrder(d);
+  player.playBook(d, { exact: true, ...(moved || (percent > 0.002 ? { percent } : {})) });
   return d;
 }
 
@@ -405,7 +426,7 @@ const warm = new Map(); // uid -> { p, at }
 export function warmed(book) {
   const hit = warm.get(book.uid);
   if (hit && Date.now() - hit.at < 10 * 60e3) return hit.p;
-  const p = getDetails(book, FAST);
+  const p = getDetails(book, FAST).then(inOrder);
   warm.set(book.uid, { p, at: Date.now() });
   p.catch(() => warm.delete(book.uid));
   return p;
@@ -578,7 +599,8 @@ export async function resume(b) {
   // The same book under a new Real-Debrid / TorBox id: its place and speed come along.
   const was = earlierPlace(progress.get(), b, d.uid || b.uid, sameBook);
   if (was) carryPrefs(was.from, d.uid || b.uid);
-  player.playBook({ ...d, title: b.title || d.title, author: b.author || d.author, cover: b.cover || d.cover }, was ? { percent: was.percent } : {});
+  const moved = placeInNewOrder(d);
+  player.playBook({ ...d, title: b.title || d.title, author: b.author || d.author, cover: b.cover || d.cover }, moved || (was ? { percent: was.percent } : {}));
 }
 
 // ---- your own cloud ----------------------------------------------------------------------------

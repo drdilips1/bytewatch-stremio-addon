@@ -29,6 +29,12 @@
   config `inkwell/vite.brisk.config.js`, workflow `.github/workflows/brisk-apk.yml`.
   Tests: `inkwell/brisk/brisk.test.js` (runs in `npm test`). The shared eslint config only covers
   `src/`; lint brisk with a temp copy of it that adds `brisk/**/*.{js,jsx}` (clean as of v1.0.6).
+- Next (27 Nov, committed, not built): (1) parts ordered by book + chapter number when every
+  part has one (`partKey`/`orderParts`: "Book 1 - Chapter 08" among "Book I - Chapter 0X" no longer
+  first — user's Fellowship of the Ring); applied in ready()/warmed()/phone books; first time a
+  started book is reordered its place moves to the same part (`placeInNewOrder`, `briskReordered`).
+  (2) Book page follows the player: "Now playing" / "Continue" instead of "Resume" for the book
+  that's on (tap opens the player; when paused it carries on).
 - v1.0.21 RELEASED publicly (27 Nov, run 21): https://github.com/drdilips1/audibrisk/releases/latest
   (first public release since v1.0.10; in-app Update now offers it to older installs).
 - RELEASE POLICY (27 Nov, user "go"): nobody but the user has Audibrisk yet (wife: iPhone via

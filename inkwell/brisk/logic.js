@@ -383,3 +383,44 @@ export function nameFromParts(titles) {
   // Shared by most parts (or the only part): that's the book. Otherwise the first part's name.
   return n >= Math.max(1, names.length / 2) ? names.find((x) => x.toLowerCase() === top) : names.length === 1 ? names[0] : '';
 }
+
+// ---- parts in the right order, even when the files are named unevenly ------------------------
+const ROMAN = { i: 1, v: 5, x: 10, l: 50, c: 100 };
+const roman = (s) => {
+  let n = 0;
+  const t = String(s).toLowerCase();
+  for (let i = 0; i < t.length; i++) {
+    const v = ROMAN[t[i]];
+    if (!v) return NaN;
+    n += i + 1 < t.length && ROMAN[t[i + 1]] > v ? -v : v;
+  }
+  return n;
+};
+const num = (s) => (/^\d+$/.test(s) ? Number(s) : roman(s));
+/** "Book I - Chapter 08 - …" → [1, 8]; "Book 1 - Chapter 8" → [1, 8] too. null when there's no chapter number. */
+export function partKey(title) {
+  const t = String(title || '');
+  const book = /\b(?:book|part|volume|vol)\s*\.?\s*([ivxlc]+|\d+)\b/i.exec(t);
+  const ch = /\b(?:chapter|ch|kapitel|chap)\s*\.?\s*([ivxlc]+|\d+)\b/i.exec(t);
+  const c = ch ? num(ch[1]) : NaN;
+  if (!(c >= 0)) return null;
+  const b = book ? num(book[1]) : 0;
+  return [b >= 0 ? b : 0, c];
+}
+/**
+ * The parts ordered by book and chapter number ("Book 1 - Chapter 08" between "Book I - Chapter 07"
+ * and "Book I - Chapter 09", not first). The same list when they're already in order, or when the
+ * names don't clearly say (fewer than 90% numbered, or two parts with the same number).
+ */
+export function orderParts(tracks) {
+  const list = tracks || [];
+  if (list.length < 3) return list;
+  const keys = list.map((t) => partKey(t.title));
+  const known = keys.filter(Boolean);
+  if (known.length < list.length * 0.9 || known.length !== list.length) return list;
+  const seen = new Set(keys.map((k) => k.join('.')));
+  if (seen.size !== keys.length) return list;
+  const idx = list.map((_, i) => i).sort((a, b) => keys[a][0] - keys[b][0] || keys[a][1] - keys[b][1]);
+  if (idx.every((v, i) => v === i)) return list;
+  return idx.map((from, i) => ({ ...list[from], index: i, was: from }));
+}

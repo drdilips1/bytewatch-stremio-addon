@@ -821,7 +821,9 @@ export function BookPage({ book, fresh = false }) {
   const dls = useStore(downloads);
   const job = useStore(bk.jobs)[book.uid];
   useStore(phone.localCfg);
-  const ps = player.getState();
+  // Follows the player, so the button says "Now playing" / "Continue" for the book that's on.
+  const [ps, setPs] = useState(player.getState());
+  useEffect(() => player.subscribe((st) => setPs((old) => (old.book?.uid === st.book?.uid && old.playing === st.playing ? old : st))), []);
   const link = bk.linkOf(book);
   const free = bk.isFree(book);
   const uid = bk.playUid(book);
@@ -857,7 +859,10 @@ export function BookPage({ book, fresh = false }) {
     }
   };
   const onPlay = async () => {
-    if (ps.book && uid && ps.book.uid === uid) return nav.openOverlay('player');
+    if (onNow) {
+      if (!ps.playing) player.toggle(); // paused: carry on
+      return nav.openOverlay('player');
+    }
     if (await run(bk.play)()) nav.openOverlay('player');
   };
   // On your service now, to play later at once (the next of a series, a long trip…).
@@ -895,6 +900,8 @@ export function BookPage({ book, fresh = false }) {
       setErr(e.message || String(e));
     }
   };
+  // This book (or the copy it plays from) is the one in the player right now.
+  const onNow = !!ps.book && (ps.book.uid === uid || ps.book.uid === book.uid || (ps.book.uid && ps.book.uid === link?.uid));
   const savePct = saved?.total ? Math.round(((saved.done || 0) / saved.total) * 100) : 0;
   // One clear line about where this book will play from.
   const where = want && !copies?.length && searching
@@ -955,8 +962,8 @@ export function BookPage({ book, fresh = false }) {
       {fmtRating(book) && <p class="b-rating">{fmtRating(book)} ratings on Audible</p>}
       <div class="b-actions">
         <button class="b-play" onClick={onPlay} disabled={!!status}>
-          {status ? <span class="b-spin" /> : <Icon name="play" size={20} />}
-          {status ? (pct != null ? `${Math.round(pct * 100)}%` : 'Opening') : link || (free && progress.get()[uid]) ? 'Resume' : 'Play'}
+          {status ? <span class="b-spin" /> : <Icon name={onNow && ps.playing ? 'chart' : 'play'} size={20} />}
+          {status ? (pct != null ? `${Math.round(pct * 100)}%` : 'Opening') : onNow ? (ps.playing ? 'Now playing' : 'Continue') : link || (free && progress.get()[uid]) ? 'Resume' : 'Play'}
         </button>
         {!free && !local && !link && !mine && bk.provider() && !job && (
           <button class="b-save" onClick={onReady} disabled={!!status}>
