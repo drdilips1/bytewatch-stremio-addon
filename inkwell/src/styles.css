@@ -13305,3 +13305,11 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .cc-grid .cc-word.ok { color: #3fb36b; } .cc-grid .cc-word.warn { color: #e0a33a; } .cc-grid .cc-word.bad { color: #e5484d; }
 .cc-grid .cc-bar, .cc-grid .cc-tags, .cc-grid .cc-note { display: none; }
 .book .bm-fold .icon { display: inline-block; }
+/* Book page: the description and Goodreads in one box (what it's about, then what readers think). */
+.book .about-card { margin: 18px 16px 0; padding: 16px; border-radius: var(--card-r, 18px); background: var(--surface); border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.book .about-card .description { margin: 0; }
+.book .about-card .link-btn { margin-top: 6px; }
+.about-gr { margin-top: 14px; padding-top: 14px; border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.about-card > .about-gr:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.about-gr .gr-genres { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0 44px; }
+.about-gr .gr-genre { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface-2); border: 0; }

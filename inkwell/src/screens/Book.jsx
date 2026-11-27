@@ -506,10 +506,12 @@ export function Book({ book: initial }) {
           copy by themselves, and every source is listed below. */}
       {error && <p class="muted pad book-unavailable">{unavailableNote(book)}</p>}
 
+      {/* The description and Goodreads in one box: what it's about, then what readers think. */}
       <Description
         text={bestDescription(book.description, gr?.description)}
         expanded={expanded}
         setExpanded={setExpanded}
+        gr={gr}
       />
       {book.source !== "sum" && book.source !== "pod" && (
         <AskCard
@@ -518,7 +520,6 @@ export function Book({ book: initial }) {
           genres={(gr?.genres || []).map((g) => g.name)}
         />
       )}
-      {gr && <GoodreadsCard gr={gr} />}
 
       {book.metaSource && (
         <p class="muted pad meta-credit">Details from {book.metaSource}</p>
@@ -1075,36 +1076,41 @@ function bestDescription(own, fromGr) {
 }
 
 /** The description, 5 lines at first; "Read more" only when there's more to show. */
-function Description({ text, expanded, setExpanded }) {
+function Description({ text, expanded, setExpanded, gr = null }) {
   const ref = useRef(null);
   const [more, setMore] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (el && !expanded) setMore(el.scrollHeight > el.clientHeight + 4);
   }, [text, expanded]);
-  if (!text) return null;
+  if (!text && !gr) return null;
   return (
-    <section class="pad">
-      <p
-        ref={ref}
-        class={"description" + (expanded ? " open" : "")}
-        onClick={() => more && setExpanded(!expanded)}
-      >
-        {text}
-      </p>
-      {(more || expanded) && (
-        <button class="link-btn" onClick={() => setExpanded(!expanded)}>
-          {expanded ? "Show less" : "Read more"}
-        </button>
+    <section class="about-card">
+      {text && (
+        <>
+          <p
+            ref={ref}
+            class={"description" + (expanded ? " open" : "")}
+            onClick={() => more && setExpanded(!expanded)}
+          >
+            {text}
+          </p>
+          {(more || expanded) && (
+            <button class="link-btn" onClick={() => setExpanded(!expanded)}>
+              {expanded ? "Show less" : "Read more"}
+            </button>
+          )}
+        </>
       )}
+      {gr && <GoodreadsCard gr={gr} inside={!!text} />}
     </section>
   );
 }
 
 /** Goodreads, as a small tile: rating, top genres, and links to rate or read reviews there. */
-function GoodreadsCard({ gr }) {
+function GoodreadsCard({ gr, inside = false }) {
   return (
-    <section class="gr-card gr-tile">
+    <section class={inside ? "about-gr" : "gr-card gr-tile"}>
       <button class="gr-main" onClick={() => openExternal(gr.url)}>
         <span class="gr-logo">g</span>
         <span class="gr-text">
