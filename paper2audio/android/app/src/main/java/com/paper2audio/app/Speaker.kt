@@ -1391,7 +1391,9 @@ object Speaker {
     private val PREVIEW_TEXT =
         // Narrato: shorter, so a sample starts sooner when trying voice after voice.
         if (BuildConfig.LITE) "Hello! This is how I sound reading your books aloud."
-        else "Hello! This is how I will sound reading your papers and books aloud. Choose the voice you like best."
+        // One flowing sentence: a lone "Hello!" came out "Hello, hello" or garbled, and the short second sentence
+        // ("Choose the voice…") started with a stray sound, for some copied voices (all 20 readers clean like this).
+        else "Hello there, this is how I will sound reading your papers and books aloud, so choose the voice you like best."
 
     private var castPreview: Job? = null
     private var castStream: AudioStream? = null

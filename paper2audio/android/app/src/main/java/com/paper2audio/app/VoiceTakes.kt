@@ -17,6 +17,25 @@ object VoiceTakes {
     /** One line for every take: a little narration and a little speech, as in a book. */
     private const val LINE = "She opened the door, looked outside, and smiled. \u201CNearly there,\u201D she said quietly, \u201Cjust a little further.\u201D"
 
+    /**
+     * The line as the voices are given text when reading a book (quote marks out, as Renderer does): given the
+     * quote marks, the copies stumbled, and the takes started oddly and sounded unlike the voice.
+     */
+    private fun spoken(text: String) = Renderer.plainQuotes(Speech.normalize(text))
+
+    /**
+     * One take as a book is read: the line in the same pieces (a sentence or so each), each made on its own,
+     * with the voice's own pause between them. The whole line in one go sounded unlike the reading.
+     */
+    private fun take(voiceId: String, id: String, seed: Int): LocalTts.Pcm {
+        val parts = Renderer.pieces(LINE, voiceId).map { LocalTts.synthesize(voiceId, spoken(it), 1f, "en", seed = seed) }
+        val rate = parts.first().sampleRate
+        val gap = ByteArray(rate * 2 * (MyVoices.pauseOf(id).takeIf { it > 0 } ?: 450) / 1000)
+        val out = java.io.ByteArrayOutputStream()
+        parts.forEachIndexed { i, p -> if (i > 0) out.write(gap); out.write(p.bytes) }
+        return LocalTts.Pcm(out.toByteArray(), rate)
+    }
+
     /** Closes [dialog] if its screen is still there: closing it after the screen went away crashed the app. */
     private fun closeSafely(activity: Activity, dialog: AlertDialog) {
         if (!activity.isDestroyed && dialog.isShowing) runCatching { dialog.dismiss() }
@@ -37,7 +56,7 @@ object VoiceTakes {
             val files = try {
                 withContext(Dispatchers.Default) {
                     seeds.mapIndexed { i, s ->
-                        java.io.File(dir, "take$i.wav").also { LocalTts.writeWav(it, LocalTts.synthesize(voiceId, LINE, 1f, "en", seed = s)) }
+                        java.io.File(dir, "take$i.wav").also { LocalTts.writeWav(it, take(voiceId, v.id, s)) }
                     }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -50,6 +69,8 @@ object VoiceTakes {
                 if (!activity.isFinishing && !activity.isDestroyed) Toast.makeText(activity, e.message ?: "Couldn't make the takes", Toast.LENGTH_LONG).show()
                 return@launch
             }
+            // The other takes went into the voice's treble match (each take is brighter or duller): learned afresh.
+            Brightness.forget(activity, v.id)
             closeSafely(activity, progress)
             if (activity.isFinishing || activity.isDestroyed) return@launch
             var player: android.media.MediaPlayer? = null
