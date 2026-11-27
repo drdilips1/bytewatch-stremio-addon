@@ -355,12 +355,16 @@ public class InkwellDownloadsPlugin extends Plugin {
         com.getcapacitor.JSArray names = call.getArray("names", new com.getcapacitor.JSArray());
         String folder = call.getString("folder", "Audiobook").replaceAll("[\\\\/:*?\"<>|]+", " ").trim();
         String job = call.getString("job", "");
+        // Into the phone's Downloads/Audiohub (seen in My Files, kept if the app is removed, not
+        // counted as the app's own data) — as books you download already are.
+        boolean toPublic = Boolean.TRUE.equals(call.getBoolean("public", false)) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q;
         if (urls.length() == 0) {
             call.reject("Nothing to unpack");
             return;
         }
         unpacks.execute(() -> {
             File work = new File(getContext().getCacheDir(), "unpack-" + System.currentTimeMillis());
+            File[] made = new File[1]; // the book's folder, removed again if the unpack fails
             try {
                 work.mkdirs();
                 List<File> got = new java.util.ArrayList<>();
@@ -372,8 +376,11 @@ public class InkwellDownloadsPlugin extends Plugin {
                     fetch(url, f, job, i, urls.length());
                     got.add(f);
                 }
-                File out = new File(getContext().getExternalFilesDir(null), "Unpacked/" + (folder.isEmpty() ? "Audiobook" : folder));
+                // Unpacked first inside the app (work space), then moved to Downloads when asked.
+                File out = toPublic ? new File(work, "out") : new File(getContext().getExternalFilesDir(null), "Unpacked/" + (folder.isEmpty() ? "Audiobook" : folder));
+                boolean existed = out.exists();
                 out.mkdirs();
+                if (!existed) made[0] = out;
                 List<File> files = new java.util.ArrayList<>();
                 // Audio files that came as they are (not every part is an archive).
                 for (File f : got) if (KEEP.matcher(f.getName()).matches()) files.add(move(f, out));
@@ -386,17 +393,20 @@ public class InkwellDownloadsPlugin extends Plugin {
                     else if (!KEEP.matcher(n).matches() && !n.matches(".*\\.(part\\d+\\.rar|r\\d\\d)$")) sniff(f, out, files, job);
                 }
                 if (files.isEmpty()) throw new Exception("no audio files inside");
+                String sub = "Audiohub/" + (folder.isEmpty() ? "Audiobook" : folder);
                 JSArray arr = new JSArray();
                 for (File f : files) {
                     JSObject o = new JSObject();
-                    o.put("uri", Uri.fromFile(f).toString());
+                    long size = f.length();
+                    o.put("uri", toPublic ? publish(f, sub) : Uri.fromFile(f).toString());
                     o.put("name", f.getName());
-                    o.put("size", f.length());
+                    o.put("size", size);
                     arr.put(o);
                 }
+                made[0] = null; // a finished book stays
                 JSObject r = new JSObject();
                 r.put("files", arr);
-                r.put("folder", out.getAbsolutePath());
+                r.put("folder", toPublic ? "Downloads/" + sub : out.getAbsolutePath());
                 call.resolve(r);
             } catch (Throwable e) {
                 String m = String.valueOf(e.getMessage());
@@ -404,6 +414,9 @@ public class InkwellDownloadsPlugin extends Plugin {
                 call.reject("cancelled".equals(m) ? "cancelled" : "Couldn't unpack: " + m);
             } finally {
                 deleteAll(work);
+                // A failed or cancelled unpack leaves nothing behind (it used to: half-unpacked
+                // folders nothing could delete).
+                if (made[0] != null) deleteAll(made[0]);
                 cancelled.remove(job);
             }
         });
@@ -537,6 +550,59 @@ public class InkwellDownloadsPlugin extends Plugin {
         File to = new File(dir, f.getName());
         if (!f.renameTo(to)) return f;
         return to;
+    }
+
+    /** A file of the app's into the phone's Downloads/<sub> (Android 10+): its content:// address. The app's copy is removed. */
+    private String publish(File f, String sub) throws Exception {
+        ContentResolver cr = getContext().getContentResolver();
+        String n = f.getName().toLowerCase(java.util.Locale.ROOT);
+        String mime = n.endsWith(".m4b") || n.endsWith(".m4a") ? "audio/mp4" : n.endsWith(".flac") ? "audio/flac" : n.endsWith(".ogg") || n.endsWith(".opus") ? "audio/ogg" : n.endsWith(".jpg") || n.endsWith(".jpeg") ? "image/jpeg" : n.endsWith(".png") ? "image/png" : "audio/mpeg";
+        ContentValues v = new ContentValues();
+        v.put(MediaStore.Downloads.DISPLAY_NAME, f.getName());
+        v.put(MediaStore.Downloads.MIME_TYPE, mime);
+        v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + sub);
+        v.put(MediaStore.Downloads.IS_PENDING, 1);
+        Uri u = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+        if (u == null) throw new Exception("Could not create the file in Downloads");
+        try (InputStream in = new FileInputStream(f); OutputStream os = cr.openOutputStream(u)) {
+            if (os == null) throw new Exception("Could not write to Downloads");
+            byte[] b = new byte[1 << 16];
+            int k;
+            while ((k = in.read(b)) > 0) os.write(b, 0, k);
+        } catch (Exception e) {
+            cr.delete(u, null, null);
+            throw e;
+        }
+        ContentValues done = new ContentValues();
+        done.put(MediaStore.Downloads.IS_PENDING, 0);
+        cr.update(u, done, null, null);
+        //noinspection ResultOfMethodCallIgnored
+        f.delete();
+        return u.toString();
+    }
+
+    /** Move a book unpacked inside the app to the phone's Downloads/Audiohub: { uri, folder } → { uri }. */
+    @PluginMethod
+    public void publishFile(PluginCall call) {
+        String uri = call.getString("uri", "");
+        String folder = call.getString("folder", "Audiobook").replaceAll("[\\\\/:*?\"<>|]+", " ").trim();
+        new Thread(() -> {
+            try {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) throw new Exception("Needs Android 10 or newer");
+                if (!uri.startsWith("file://")) throw new Exception("Already in Downloads");
+                File f = new File(Uri.parse(uri).getPath()).getCanonicalFile();
+                String mine = getContext().getExternalFilesDir(null).getCanonicalPath() + File.separator;
+                if (!f.getPath().startsWith(mine)) throw new Exception("Not one of the app's files");
+                File parent = f.getParentFile();
+                JSObject r = new JSObject();
+                r.put("uri", publish(f, "Audiohub/" + (folder.isEmpty() ? "Audiobook" : folder)));
+                String[] left = parent != null ? parent.list() : null;
+                if (parent != null && left != null && left.length == 0) deleteAll(parent);
+                call.resolve(r);
+            } catch (Exception e) {
+                call.reject(String.valueOf(e.getMessage()));
+            }
+        }).start();
     }
 
     // ---- Storage: what the app keeps on the phone, and clearing the big parts ----

@@ -52,6 +52,19 @@ export function StorageCard() {
       const out = await Native.deleteFolder({ path: r.path });
       return out?.freed || r.size;
     });
+  // A book unpacked inside the app → the phone's Downloads/Audiohub (it stops counting as app data).
+  const toPhone = (r) =>
+    run(r.path, async () => {
+      const d = downloads.get()[r.uid];
+      if (!d) return 0;
+      const tracks = [];
+      for (const t of d.tracks || []) tracks.push(/^file:/.test(t.uri) ? { ...t, uri: (await Native.publishFile({ uri: t.uri, folder: d.book?.title || r.name })).uri } : t);
+      downloads.set((all) => ({ ...all, [r.uid]: { ...all[r.uid], tracks, folder: `Downloads/Audiohub/${d.book?.title || r.name}` } }));
+      // Anything else left in the folder (covers, text files) goes with it.
+      await Native.deleteFolder({ path: r.path }).catch(() => {});
+      toast('Moved to Downloads/Audiohub — it plays as before');
+      return r.size;
+    });
   const dropLeftovers = () =>
     run('leftovers', async () => {
       let n = 0;
@@ -91,7 +104,7 @@ export function StorageCard() {
       {line(
         'Unpacked Mobilism books',
         use?.unpacked,
-        spare ? `${fmtSize(spare)} of it is left over from unpacks nothing plays any more` : 'Archives unpacked to play; each book listed below',
+        spare ? `${fmtSize(spare)} of it is left over from unpacks nothing plays any more` : 'Books unpacked inside the app before they went to Downloads/Audiohub — Move to phone frees the space and keeps the book',
         spare ? (
           <button class="pill small" disabled={!!busy} onClick={dropLeftovers}>
             {busy === 'leftovers' ? <span class="spinner small" /> : 'Clear leftovers'}
@@ -109,8 +122,13 @@ export function StorageCard() {
                   {r.leftover ? ' · left over (not in your library)' : ' · in Downloads'}
                 </small>
               </div>
+              {!r.leftover && (
+                <button class="pill small" disabled={!!busy} onClick={() => toPhone(r)}>
+                  {busy === r.path ? <span class="spinner small" /> : 'Move to phone'}
+                </button>
+              )}
               <button class="pill small" disabled={!!busy} onClick={() => (r.leftover || confirm(`Delete “${r.title}” from this phone? It plays from its source again when you need it.`)) && dropFolder(r)}>
-                {busy === r.path ? <span class="spinner small" /> : 'Delete'}
+                Delete
               </button>
             </div>
           ))}

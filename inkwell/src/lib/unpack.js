@@ -2,7 +2,7 @@
 // they're archives (.zip / .rar, often split) — downloaded and unpacked on the phone, then
 // played from there (kept like a download: Library → Downloaded).
 import { Capacitor, registerPlugin } from '@capacitor/core';
-import { persisted } from './store.js';
+import { persisted, settings } from './store.js';
 import { downloads } from './downloads.js';
 
 // Android: part of the downloads plugin; iPhone: its own small plugin (ios-plugins/unpack), same calls.
@@ -32,7 +32,10 @@ export async function unpackAndPlay(r, files) {
     patch(key, { pct: e.total > 0 ? e.got / e.total : 0, text: `Downloading ${part}${e.total > 0 ? `${mb(e.got)} of ${mb(e.total)}` : mb(e.got)}` });
   });
   try {
-    const out = await Native.unpack({ urls: files.map((f) => f.url), names: files.map((f) => f.name), folder: r.title || 'Audiobook', job });
+    // Android: into the phone's Downloads/Audiohub like other downloads (seen in My Files, not counted
+    // as the app's data — unpacked books there took gigabytes), unless downloads are set to app storage.
+    const toPublic = !IOS && (settings.get().downloadTarget || 'public') !== 'app';
+    const out = await Native.unpack({ urls: files.map((f) => f.url), names: files.map((f) => f.name), folder: r.title || 'Audiobook', job, public: toPublic });
     const audio = (out.files || [])
       .filter((f) => /\.(mp3|m4b|m4a|aac|ogg|oga|opus|flac|wav|wma)$/i.test(f.name))
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
