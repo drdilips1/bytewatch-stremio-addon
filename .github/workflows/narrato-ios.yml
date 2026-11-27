@@ -26,6 +26,9 @@ jobs:
       run:
         working-directory: paper2audio/ios
     env:
+      # The version people see (and the App Store version it is submitted as); the build number counts up by
+      # itself. Raise it for a new release (1.1, 1.2…).
+      IOS_VERSION: "1.0"
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
@@ -81,7 +84,7 @@ jobs:
 
       - name: Build the screens
         env:
-          APP_VERSION: 1.0.${{ github.run_number }}
+          APP_VERSION: ${{ env.IOS_VERSION }} (${{ github.run_number }})
         run: npx vite build
 
       - name: Generate the iOS project
@@ -128,7 +131,7 @@ jobs:
           if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
           xcodebuild -quiet $SRC -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
             -derivedDataPath "$PWD/build" \
-            MARKETING_VERSION="1.0.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            MARKETING_VERSION="$IOS_VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/App.app Payload/
@@ -146,7 +149,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NOTES="Build 1.0.${{ github.run_number }} (${{ github.sha }}). Unsigned Narrato for iPhone: install with Sideloadly or AltStore using your Apple ID. Signed builds go to TestFlight."
+          NOTES="Version $IOS_VERSION, build ${{ github.run_number }} (${{ github.sha }}). Unsigned Narrato for iPhone: install with Sideloadly or AltStore using your Apple ID. Signed builds go to TestFlight."
           # GitHub's release service now and then answers "HTTP 500": each call is tried a few times.
           retry() { for i in 1 2 3 4 5; do "$@" && return 0; echo "Retrying in $((i * 10)) s…"; sleep $((i * 10)); done; return 1; }
           gh release view narrato-ios >/dev/null 2>&1 || retry gh release create narrato-ios --target "${{ github.sha }}" \
@@ -167,10 +170,10 @@ jobs:
           SIZE=$(stat -f%z Narrato.ipa)
           DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           node -e '
-            const [run, repo, ref, size, date] = process.argv.slice(1);
+            const [run, repo, ref, size, date, ver] = process.argv.slice(1);
             const url = `https://github.com/${repo}/releases/download/narrato-ios/Narrato.ipa`;
-            const version = { version: `1.0.${run}`, buildVersion: run, date, downloadURL: url, size: +size,
-              localizedDescription: `Narrato for iPhone, build 1.0.${run}`, minOSVersion: "15.0" };
+            const version = { version: ver, buildVersion: run, date, downloadURL: url, size: +size,
+              localizedDescription: `Narrato for iPhone ${ver} (build ${run})`, minOSVersion: "15.0" };
             const app = {
               name: "Narrato", bundleIdentifier: "com.narrato.reader", developerName: "Aashvee Labs",
               subtitle: "Your books, read aloud", localizedDescription:
@@ -184,7 +187,7 @@ jobs:
             require("fs").writeFileSync("sidestore.json", JSON.stringify({ name: "Narrato", identifier: "com.narrato.reader.source",
               sourceURL: `https://github.com/${repo}/releases/download/narrato-ios/sidestore.json`,
               website: "https://drdilips1.github.io/bytewatch-stremio-addon/", apps: [app], news: [] }, null, 2));
-          ' "$RUN" "$REPO" "$REF" "$SIZE" "$DATE"
+          ' "$RUN" "$REPO" "$REF" "$SIZE" "$DATE" "$IOS_VERSION"
           cat sidestore.json
           for i in 1 2 3 4 5; do gh release upload narrato-ios sidestore.json --clobber && break; sleep $((i * 10)); done
 
@@ -209,7 +212,7 @@ jobs:
             -archivePath "$RUNNER_TEMP/Narrato.xcarchive" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER=com.narrato.reader \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            MARKETING_VERSION="1.0.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" archive
+            MARKETING_VERSION="$IOS_VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" archive
           # The engine's frameworks (onnxruntime, SherpaOnnxC) are copied in unsigned with the unsigned archive, and the
           # export didn't sign them properly ("Code failed to satisfy specified code requirement(s)"). Each is given
           # a placeholder signature with its own bundle identifier first; the export then re-signs it for the App Store.
@@ -234,4 +237,4 @@ jobs:
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Narrato.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
             -exportPath "$RUNNER_TEMP/export" $AUTH
           rm -f "$KEY"
-          echo "Uploaded build 1.0.${{ github.run_number }} to App Store Connect: it appears in TestFlight after Apple processes it."
+          echo "Uploaded $IOS_VERSION (${{ github.run_number }}) to App Store Connect: it appears in TestFlight after Apple processes it."
