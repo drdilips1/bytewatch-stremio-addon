@@ -13284,18 +13284,16 @@ html.ios:root .book-card:not(.broken) { box-shadow: var(--edge-light); }
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 28px 50px -18px rgba(0, 0, 0, 0.65), 0 8px 18px -8px rgba(0, 0, 0, 0.4);
 }
 
-/* The main buttons: a gloss on top and a sheen that sweeps across when pressed. */
+/* The main buttons: a gloss on top, made with an inner light only — never by replacing the
+   button's own background (in v1.0.247 that wiped gradient buttons like Read / Play to dark, with
+   their dark text unreadable on it). */
 :root[data-mode]:root :is(.continue-big-play, .lh-play, .continue-play, .d-pill, .btn.primary, .pill.active) {
-  background-image: var(--sheen), var(--gloss);
-  background-size: 260% 100%, 100% 100%;
-  background-position: 160% 0, 0 0;
-  background-repeat: no-repeat;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 6px 16px -8px color-mix(in srgb, var(--accent) 70%, transparent);
-  transition: background-position 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.12s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 14px 18px -12px rgba(255, 255, 255, 0.22), 0 6px 16px -8px color-mix(in srgb, var(--accent) 60%, transparent);
+  transition: transform 0.12s, filter 0.2s;
 }
 :root[data-mode]:root :is(.continue-big-play, .lh-play, .continue-play, .d-pill, .btn.primary):active {
-  background-position: -60% 0, 0 0;
   transform: scale(0.97);
+  filter: brightness(1.08);
 }
 :root[data-mode]:root .pill { transition: background-color 0.2s, color 0.2s, box-shadow 0.2s; }
 :root[data-mode]:root .pill:not(.active) { border-color: var(--hairline); }
