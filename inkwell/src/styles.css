@@ -13218,3 +13218,12 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 :root[data-polish] p.book-facts { background-image: none; box-shadow: none; }
 /* A long label above a section head ends in "…" inside the screen instead of running off it. */
 :root[data-polish] .row-head > div { flex: 1; min-width: 0; }
+/* Settings → Storage */
+.storage-row { display: flex; align-items: center; gap: 10px; }
+.storage-row > div { flex: 1; min-width: 0; }
+.storage-size { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.storage-list { display: grid; gap: 6px; padding: 0 16px 10px 16px; }
+.storage-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--surface-2, var(--surface)); }
+.storage-item > div { flex: 1; min-width: 0; }
+.storage-item b { display: block; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.storage-item small { color: var(--muted); font-size: 12px; }

@@ -539,6 +539,97 @@ public class InkwellDownloadsPlugin extends Plugin {
         return to;
     }
 
+    // ---- Storage: what the app keeps on the phone, and clearing the big parts ----
+    private static long sizeOf(File f) {
+        if (f == null || !f.exists()) return 0;
+        if (f.isFile()) return f.length();
+        long n = 0;
+        File[] kids = f.listFiles();
+        if (kids != null) for (File k : kids) n += sizeOf(k);
+        return n;
+    }
+
+    private File extDir(String name) {
+        File base = getContext().getExternalFilesDir(null);
+        if (base == null) base = getContext().getFilesDir();
+        return new File(base, name);
+    }
+
+    /** How much each part takes: { unpacked, downloads, voices, books, web, cache } in bytes. */
+    @PluginMethod
+    public void storageUse(PluginCall call) {
+        new Thread(() -> {
+            JSObject r = new JSObject();
+            r.put("unpacked", sizeOf(extDir("Unpacked")));
+            r.put("downloads", sizeOf(extDir("downloads")));
+            r.put("voices", sizeOf(new File(getContext().getFilesDir(), "voices")));
+            r.put("books", sizeOf(new File(getContext().getFilesDir(), "books")));
+            r.put("web", sizeOf(new File(getContext().getApplicationInfo().dataDir, "app_webview")));
+            r.put("cache", sizeOf(getContext().getCacheDir()));
+            call.resolve(r);
+        }).start();
+    }
+
+    /** The unpacked books' folders: [{ name, path, size, at }]. */
+    @PluginMethod
+    public void unpackedFolders(PluginCall call) {
+        new Thread(() -> {
+            com.getcapacitor.JSArray list = new com.getcapacitor.JSArray();
+            File[] kids = extDir("Unpacked").listFiles();
+            if (kids != null) for (File k : kids) {
+                if (!k.isDirectory()) continue;
+                JSObject o = new JSObject();
+                o.put("name", k.getName());
+                o.put("path", k.getAbsolutePath());
+                o.put("size", sizeOf(k));
+                o.put("at", k.lastModified());
+                list.put(o);
+            }
+            JSObject r = new JSObject();
+            r.put("folders", list);
+            call.resolve(r);
+        }).start();
+    }
+
+    /** Delete a folder — only inside the app's own Unpacked or downloads folders, never anything else. */
+    @PluginMethod
+    public void deleteFolder(PluginCall call) {
+        String path = call.getString("path", "");
+        new Thread(() -> {
+            try {
+                File f = new File(path).getCanonicalFile();
+                String un = extDir("Unpacked").getCanonicalPath() + File.separator;
+                String dl = extDir("downloads").getCanonicalPath() + File.separator;
+                String p2 = f.getPath() + File.separator;
+                if (!(p2.startsWith(un) || p2.startsWith(dl)) || p2.equals(un) || p2.equals(dl)) {
+                    call.reject("Only the app's own unpacked or downloaded books can be deleted here");
+                    return;
+                }
+                long n = sizeOf(f);
+                deleteAll(f);
+                JSObject r = new JSObject();
+                r.put("freed", n);
+                call.resolve(r);
+            } catch (Exception e) {
+                call.reject(String.valueOf(e.getMessage()));
+            }
+        }).start();
+    }
+
+    /** Empty the cache (read-aloud audio, temporary files, the last update): Android may do it anyway. */
+    @PluginMethod
+    public void clearCache(PluginCall call) {
+        new Thread(() -> {
+            File c = getContext().getCacheDir();
+            long n = sizeOf(c);
+            File[] kids = c.listFiles();
+            if (kids != null) for (File k : kids) deleteAll(k);
+            JSObject r = new JSObject();
+            r.put("freed", n);
+            call.resolve(r);
+        }).start();
+    }
+
     private static void deleteAll(File f) {
         if (f == null || !f.exists()) return;
         File[] kids = f.listFiles();

@@ -28,6 +28,7 @@ import { APP_VERSION } from '../components/update.jsx';
 import { ReportCard, SupportLinks } from '../components/report.jsx';
 import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
 import { AccountCard, NameRow, VoicesCard, DownloadsCard, FindOrderCard } from './settings-extra.jsx';
+import { StorageCard } from '../components/storage-card.jsx';
 import { UpdateCard } from '../components/update.jsx';
 import * as qb from '../sources/qbit.js';
 import { QbitListActions } from '../components/qbit-actions.jsx';
@@ -2022,6 +2023,9 @@ export function Settings() {
       </Section>
       <Section icon="download" title="Downloads" keys="storage offline phone files space">
         <DownloadsCard />
+      </Section>
+      <Section icon="database" title="Storage" keys="storage space data gb full phone memory clear unpacked cache">
+        <StorageCard />
       </Section>
       <Section icon="upload" title="Send to Kindle">
         <KindleCard />
