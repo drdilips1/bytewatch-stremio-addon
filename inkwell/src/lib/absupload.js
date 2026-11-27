@@ -26,6 +26,7 @@ export async function sendToAbs(book, { keepOnPhone = false } = {}) {
   busy.add(uid);
   const absSrc = await import('../sources/audiobookshelf.js');
   try {
+    absSrc.forgetAll(); // the library is changing: "already on your server?" reads it afresh
     const target = await absSrc.uploadTarget();
     if (!target) throw new Error('No library folder found on your Audiobookshelf server');
     const had = downloads.get()[uid]?.status === 'done';
@@ -70,5 +71,6 @@ export async function sendToAbs(book, { keepOnPhone = false } = {}) {
     throw e;
   } finally {
     busy.delete(uid);
+    absSrc.forgetAll();
   }
 }

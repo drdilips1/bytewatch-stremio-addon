@@ -265,26 +265,55 @@ export async function recent() {
  * stop at the first 500, so a library of 800 showed "500" (up to 10,000 here).
  */
 export async function allPages(fetchPage, size = 500, maxPages = 20) {
-  const out = [];
-  for (let page = 0; page < maxPages; page++) {
-    const d = await fetchPage(page);
-    const got = d?.results || [];
+  const first = await fetchPage(0);
+  const out = [...(first?.results || [])];
+  const total = Number(first?.total) || 0;
+  if (out.length < size) return out;
+  // The server said how many there are: the other pages all at once (a 3,000-book library took
+  // a minute page by page on a slow server), kept in order.
+  if (total) {
+    const pages = Math.min(maxPages, Math.ceil(total / size));
+    const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => fetchPage(i + 1)));
+    for (const d of rest) out.push(...(d?.results || []));
+    return out;
+  }
+  for (let page = 1; page < maxPages; page++) {
+    const got = (await fetchPage(page))?.results || [];
     out.push(...got);
-    const total = Number(d?.total) || 0;
-    if (got.length < size || (total && out.length >= total)) break;
+    if (got.length < size) break;
   }
   return out;
+}
+
+// The whole library is asked for by several screens (Hidden gems, Browse, "already on your
+// server?", search). Read once and kept 10 minutes; screens asking at the same moment share it.
+const ALL_KEEP = 10 * 60e3;
+let allKept = null; // { key, at, promise }
+/** Forget the kept library (after adding or uploading a book). */
+export function forgetAll() {
+  allKept = null;
 }
 
 /** Whole library (every book, in pages), newest first. */
 export async function all({ strict = false } = {}) {
   if (!connected() || !(await ensureLibrary())) return [];
-  const res = await Promise.allSettled(
+  const key = libIds().join(',');
+  if (allKept && allKept.key === key && Date.now() - allKept.at < ALL_KEEP) {
+    const kept = await allKept.promise;
+    if (!strict || !kept.partial) return kept.books;
+  }
+  const promise = Promise.allSettled(
     libIds().map((id) => allPages((page) => call(`/api/libraries/${id}/items?` + qs({ limit: 500, page, sort: 'addedAt', desc: 1, minified: 1 }))))
-  );
-  const bad = res.filter((r) => r.status === 'rejected');
-  if (bad.length && (strict || bad.length === res.length)) throw bad[0].reason;
-  return res.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])).map(toBook);
+  ).then((res) => {
+    const bad = res.filter((r) => r.status === 'rejected');
+    return { bad, partial: bad.length > 0, books: res.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])).map(toBook) };
+  });
+  allKept = { key, at: Date.now(), promise };
+  const got = await promise;
+  // A library that couldn't be read isn't kept: asked again next time.
+  if (got.partial && allKept?.promise === promise) allKept = null;
+  if (got.bad.length && (strict || got.bad.length === libIds().length)) throw got.bad[0].reason;
+  return got.books;
 }
 
 export async function inProgress() {

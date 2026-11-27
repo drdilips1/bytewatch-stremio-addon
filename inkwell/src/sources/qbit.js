@@ -208,13 +208,21 @@ function folderFor(ebook) {
 // Your Audiobookshelf library, looked up at most every 10 minutes.
 let absList = null;
 let absAt = 0;
+let absFailedAt = 0;
 async function absBooks() {
   if (!absSrc.connected()) return [];
   if (!absList || Date.now() - absAt > 10 * 60e3) {
+    // The server didn't answer a moment ago: not asked again for a minute. Before, every book page
+    // opened while it was slow or down started another read of the whole library.
+    if (Date.now() - absFailedAt < 60e3) {
+      if (absList) return absList;
+      throw absDown();
+    }
     try {
       absList = await absSrc.all({ strict: true });
       absAt = Date.now();
     } catch {
+      absFailedAt = Date.now();
       // An older copy of the list is fine; with none, we can't tell what you have.
       if (!absList) throw absDown();
     }
