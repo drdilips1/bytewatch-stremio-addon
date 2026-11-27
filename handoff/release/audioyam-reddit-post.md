@@ -5,7 +5,8 @@
 Hi everyone! A big AudioYam update is out. Here are the highlights:
 
 **📚 Comics & manga, with a proper reader**
-- Search comics through the *Audiohub Comics* addon: GetComics, Weeb Central, the Internet Archive and your library's Comics Plus.
+- Add the comics addon: Settings → Addons → paste **https://audiohub-comics.booksources.workers.dev/manifest.json**
+- Then search comics from GetComics, Weeb Central and the Internet Archive. If your library offers Comics Plus, you can add your library's link in the addon's settings.
 - The reader does page by page or long scroll, right-to-left for manga, two-page spreads on tablets, OLED / sepia themes and volume-key page turns.
 - Manga series read as one book, chapter after chapter, and chapters can be downloaded for offline.
 - Long-press a page to translate it, explain it, or ask who's who (with your own AI key, spoiler-free).
