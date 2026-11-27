@@ -34,7 +34,9 @@ Hi everyone! A big AudioYam update is out. Here are the highlights:
 
 **Get it**
 - **Android:** update from inside the app, or download it from https://github.com/drdilips1/Audiohub/releases/latest
-- **iPhone / iPad (SideStore / AltStore):** add the source https://github.com/drdilips1/Audiohub/releases/download/ios-source/altstore.json
+- **iPhone / iPad:**
+  - Direct IPA (sideload with SideStore, AltStore, Sideloadly…): https://github.com/drdilips1/Audiohub/releases/download/ios-latest/AudioYam.ipa
+  - Or add the source for automatic updates in SideStore / AltStore: https://github.com/drdilips1/Audiohub/releases/download/ios-source/altstore.json
 - **Web (PC, iPhone, iPad):** https://listen.audiohubapp.com
 
 Full notes are in the app under What's new. Bugs and ideas are very welcome, here or on GitHub issues. Thanks to everyone who reported problems; a lot of this update came from you. 🙏
