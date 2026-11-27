@@ -9,7 +9,7 @@ import { PhoneButtons, usePhoneRun } from './Library.jsx';
 import { LibbySettings } from '../components/libby-settings.jsx';
 import { ssBadges } from '../sources/storyshots.js';
 import { Icon } from '../components/icons.jsx';
-import { toast, AskButton, clearRowCache } from '../components/common.jsx';
+import { toast, clearRowCache } from '../components/common.jsx';
 import { settings, addons, abs, debrid, hardcover, goodreads, useStore, exportBackup, importBackup, kindle, progress, library } from '../lib/store.js';
 import { GENRES } from './genres.js';
 import { learnedTopics, forgetHero } from './Home.jsx';
@@ -29,7 +29,7 @@ import { ReportCard, SupportLinks } from '../components/report.jsx';
 import { PROVIDERS, clearMetaCache } from '../lib/meta.js';
 import { AccountCard, NameRow, VoicesCard, DownloadsCard, FindOrderCard } from './settings-extra.jsx';
 import { StorageCard } from '../components/storage-card.jsx';
-import { UpdateCard } from '../components/update.jsx';
+import { UpdateCard, updateAvailable } from '../components/update.jsx';
 import * as qb from '../sources/qbit.js';
 import { QbitListActions } from '../components/qbit-actions.jsx';
 import { TrackerCard } from './Tracker.jsx';
@@ -1957,7 +1957,6 @@ export function Settings() {
     <div class="screen settings" ref={root}>
       <div class="screen-head">
         <h1 class="screen-title">Settings</h1>
-        <AskButton />
       </div>
       <div class="set-search">
         <Icon name="search" size={17} />
@@ -1970,7 +1969,8 @@ export function Settings() {
         </button>
       ))}
 
-      <UpdateCard />
+      {/* The version and Check live at the end; up here only while an update is waiting. */}
+      {updateAvailable() && <UpdateCard />}
       {isWeb && (
         <Section icon="link" title="Web app">
           <WebRelayCard />
@@ -2252,6 +2252,7 @@ export function Settings() {
         <ReportCard />
       </Section>
 
+      {!updateAvailable() && <UpdateCard />}
       <p class="about">
         Audiohub {APP_VERSION}
         <br />
