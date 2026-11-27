@@ -13313,3 +13313,29 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .about-card > .about-gr:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .about-gr .gr-genres { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0 44px; }
 .about-gr .gr-genre { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface-2); border: 0; }
+/* ---- Settings: the groups (first screen) and a group's page ---- */
+.sh { padding-bottom: 8px; }
+.sh-band { margin: 20px 22px 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.sh-card { margin: 0 16px; border-radius: 22px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--text) 8%, transparent); overflow: hidden; }
+.sh-card + .sh-card { margin-top: 14px; }
+.sh > .sh-card:first-child { margin-top: 4px; }
+.sh-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 13px 16px; background: none; border: 0; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.sh-row + .sh-row { border-top: 1px solid color-mix(in srgb, var(--text) 7%, transparent); }
+.sh-row:active { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.sh-row > .icon { flex: none; color: var(--faint); }
+.sh-ic { flex: none; width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(145deg, color-mix(in oklab, var(--accent) 88%, #fff 8%), color-mix(in oklab, var(--accent-2, var(--accent)) 80%, #000 18%));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 10px -4px color-mix(in srgb, var(--accent) 60%, transparent); }
+.sh-ic .icon { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); }
+.sh-t { flex: 1; min-width: 0; }
+.sh-t b { display: block; font-size: 16px; font-weight: 600; }
+.sh-t small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-about { margin: 22px 0 6px; text-align: center; font-size: 12.5px; color: var(--muted); }
+.sh-about .link-btn { font-size: 12.5px; }
+/* A group's page: a back arrow by the title; the old group headings aren't needed there. */
+.settings.in-group .set-group { display: none; }
+.settings .screen-head:has(.set-back) { display: flex; align-items: center; gap: 6px; }
+.settings .set-back { flex: none; margin-left: -6px; }
+/* A one-section page (Playback, Appearance…): the page title says it, no second heading inside. */
+.settings.in-group.solo .set-section > .set-head { display: none; }
+.settings.in-group.solo .set-section { border: 0; background: transparent; box-shadow: none; }

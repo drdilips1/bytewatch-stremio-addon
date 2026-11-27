@@ -1,6 +1,8 @@
 import { useContext, useEffect, useRef, useState } from 'preact/hooks';
 import { createContext } from 'preact';
-import { nav } from '../lib/nav.js';
+import { nav, useBackClose } from '../lib/nav.js';
+import { GROUPS, groupOf, soloGroup } from '../lib/settingsgroups.js';
+import { SettingsHome } from '../components/settings-home.jsx';
 import { MORE } from '../sources/moredebrid.js';
 import { smtpFor, knownServer } from '../lib/smtp.js';
 import { usenetCfg, easynewsSearch, searchIndexer, apiBase, relayOf } from '../sources/usenet.js';
@@ -42,10 +44,16 @@ const openSections = new Set();
 const SearchCtx = createContext('');
 
 /** A settings group that stays collapsed until you tap its title (or a search finds it). */
+// The group page being shown ('' = searching: every section, filtered).
+const GroupCtx = createContext('');
+const KNOWN = new Set(GROUPS.flatMap((g) => g.sections));
 function Section({ icon, title, keys = '', children }) {
   const searching = !!useContext(SearchCtx);
+  const page = useContext(GroupCtx);
   const [opened, setOpen] = useState(openSections.has(title));
-  const open = searching || opened;
+  // On a group's page: only that group's sections (a one-section group opens straight in).
+  if (!searching && page && groupOf(title, { debrid: icon === 'cloud' && !KNOWN.has(title) }) !== page) return null;
+  const open = searching || opened || (!!page && soloGroup(page));
   const toggle = () => {
     if (open) openSections.delete(title);
     else openSections.add(title);
@@ -1951,12 +1959,27 @@ export function Settings() {
   const [q, setQ] = useState('');
   const root = useRef(null);
   useFilter(root, q.trim());
+  // Which group's page is open ('' = the list of groups). Back returns to the list.
+  const [page, setPage] = useState('');
+  useBackClose(!!page, () => setPage(''));
+  const searching = !!q.trim();
+  const openPage = (id) => {
+    setPage(id);
+    root.current?.closest('.screen-scroll, .screen')?.scrollTo?.(0, 0);
+    window.scrollTo?.(0, 0);
+  };
+  const pageTitle = GROUPS.find((g) => g.id === page)?.title || 'Settings';
   const away = q.trim() ? ELSEWHERE.filter((x) => q.trim().toLowerCase().split(/\s+/).some((w) => w.length > 2 && x.words.includes(w))) : [];
   return (
     <SearchCtx.Provider value={q.trim()}>
-    <div class="screen settings" ref={root}>
+    <div class={'screen settings' + (page && !searching ? ' in-group' + (soloGroup(page) ? ' solo' : '') : '')} ref={root}>
       <div class="screen-head">
-        <h1 class="screen-title">Settings</h1>
+        {page && !searching && (
+          <button class="icon-btn set-back" aria-label="All settings" onClick={() => setPage('')}>
+            <Icon name="back" size={20} />
+          </button>
+        )}
+        <h1 class="screen-title">{searching ? 'Settings' : pageTitle}</h1>
       </div>
       <div class="set-search">
         <Icon name="search" size={17} />
@@ -1970,7 +1993,11 @@ export function Settings() {
       ))}
 
       {/* The version and Check live at the end; up here only while an update is waiting. */}
-      {updateAvailable() && <UpdateCard />}
+      {updateAvailable() && !page && <UpdateCard />}
+      {/* The first screen: the groups. A group (or a search) shows the sections below. */}
+      {!page && !searching && <SettingsHome open={openPage} />}
+      {(page || searching) && (
+      <GroupCtx.Provider value={searching ? '' : page}>
       {isWeb && (
         <Section icon="link" title="Web app">
           <WebRelayCard />
@@ -2239,25 +2266,31 @@ export function Settings() {
 
       <p class="set-group">Help</p>
       {/* A row like the sections around it (it opens a sheet instead of folding open). */}
-      <section class="set-section">
-        <button class="set-head" onClick={() => import('../components/whats-new.jsx').then((m) => m.showWhatsNew())}>
-          <Icon name="sparkle" size={20} />
-          <span>What’s new in this version</span>
-          <Icon name="next" size={18} />
-        </button>
-      </section>
+      {(searching || page === 'help') && (
+        <section class="set-section">
+          <button class="set-head" onClick={() => import('../components/whats-new.jsx').then((m) => m.showWhatsNew())}>
+            <Icon name="sparkle" size={20} />
+            <span>What’s new in this version</span>
+            <Icon name="next" size={18} />
+          </button>
+        </section>
+      )}
       <Section icon="alert" title="Issues & support">
         <SupportLinks />
         <b class="set-sub">Report a problem</b>
         <ReportCard />
       </Section>
+      </GroupCtx.Provider>
+      )}
 
-      {!updateAvailable() && <UpdateCard />}
-      <p class="about">
-        Audiohub {APP_VERSION}
-        <br />
-        Addons and servers you add are your responsibility.
-      </p>
+      {(searching || page === 'help') && !updateAvailable() && <UpdateCard />}
+      {(searching || page === 'help') && (
+        <p class="about">
+          Audiohub {APP_VERSION}
+          <br />
+          Addons and servers you add are your responsibility.
+        </p>
+      )}
       {q.trim() && <p class="muted pad set-none">Not what you're after? Try another word — or ask in Issues & support.</p>}
       <div class="footer-space" />
     </div>
