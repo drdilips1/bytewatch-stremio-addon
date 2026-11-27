@@ -13379,3 +13379,8 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 :root[data-mode='light'][data-palette='paperink'] .full-player.text-mode .fp-under { color: var(--muted); }
 /* Night: a soft warm glow round play (not the coloured halo of the day). */
 :root[data-polish] .full-player.night .play-btn.big { box-shadow: 0 0 36px -6px rgba(227, 192, 143, 0.35); }
+/* The chapter line is a button you can see: list icon, the chapter, an arrow — in a soft pill. */
+.fp-chline { display: inline-flex; align-items: center; gap: 6px; max-width: 92%; margin: 10px auto 0; padding: 6px 12px 6px 11px; border-radius: 99px; background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); }
+.fp-chline > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-chline > .icon { flex: none; }
+.full-player .fp-meta { display: flex; flex-direction: column; align-items: center; }

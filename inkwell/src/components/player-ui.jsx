@@ -366,8 +366,10 @@ export function FullPlayer() {
         {/* The chapter (or part) you're in, one line in the accent colour — tap for the list.
             (X-Ray is in the AI row below; the time left in it is under the bar.) */}
         {(chapters.length > 1 || s.tracks.length > 1) && (
-          <button class="fp-chline mo-flash" key={chapters.length > 1 ? chapterLabel(chapters, g) : s.index} onClick={() => setSheet('chapters')}>
-            {chapters.length > 1 ? chapterLabel(chapters, g) : s.tracks[s.index]?.title || `Part ${s.index + 1}`}
+          <button class="fp-chline mo-flash" key={chapters.length > 1 ? chapterLabel(chapters, g) : s.index} onClick={() => setSheet('chapters')} aria-label="Chapters">
+            <Icon name="list" size={15} />
+            <span>{chapters.length > 1 ? chapterLabel(chapters, g) : s.tracks[s.index]?.title || `Part ${s.index + 1}`}</span>
+            <Icon name="chevron" size={14} />
           </button>
         )}
         {s.preparing && <PrepBar st={s.preparing} />}
