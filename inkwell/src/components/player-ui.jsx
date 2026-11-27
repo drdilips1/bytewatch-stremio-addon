@@ -1,4 +1,5 @@
 import { BgImage } from './bg-image.jsx';
+import { barModes, pickMode, barView } from '../lib/barview.js';
 import { wallpaperUrl, useCustomWallpaper } from '../lib/wallpaper.js';
 import { loadImage } from '../lib/image.js';
 import { CatchUp } from './catchup.jsx';
@@ -290,6 +291,12 @@ export function FullPlayer() {
   const chapters = player.chapters();
   const g = player.globalTime();
   const total = player.totalDuration();
+  // The bar as the whole Book (default), the current Chapter or the current File — your choice kept.
+  const barModesHere = barModes({ chapters, files: s.tracks.length });
+  const barMode = pickMode(st.barMode || 'book', barModesHere);
+  const view = barView(barMode, { t: s.time, dur, g, total, chapters });
+  const pos = scrub ?? view.pos;
+  const seekBar = (v) => (view.base == null ? player.seek(v) : player.playAt(view.base + v));
   const showText = useStore(transcriptCfg).open;
   const sleepLeft = s.sleepUntil ? Math.max(0, (s.sleepUntil - Date.now()) / 1000) : 0;
 
@@ -401,20 +408,29 @@ export function FullPlayer() {
       </div>
 
 
-      <div class={"fp-scrub" + (s.playing ? " playing" : "")}>
+      {barModesHere.length > 1 && (
+        <div class="segmented fp-barmode" role="tablist" aria-label="Progress bar shows">
+          {barModesHere.map((m) => (
+            <button class={m === barMode ? 'on' : ''} onClick={() => (setScrub(null), settings.patch({ barMode: m }))}>
+              {m === 'book' ? 'Book' : m === 'chapter' ? 'Chapter' : 'File'}
+            </button>
+          ))}
+        </div>
+      )}
+      <div class={"fp-scrub fp-scrub-" + barMode + (s.playing ? " playing" : "")}>
         {sweep && (
           <span class="mo-sweep" key={sweep.k} style={{ left: `${Math.min(sweep.from, sweep.to)}%`, width: `${Math.abs(sweep.to - sweep.from)}%`, '--dir': sweep.to >= sweep.from ? 1 : -1 }} />
         )}
         <input
           type="range"
           min="0"
-          max={dur || 1}
+          max={view.max}
           step="0.5"
-          value={t}
-          style={{ '--pct': (dur ? (t / dur) * 100 : 0) + '%' }}
+          value={pos}
+          style={{ '--pct': (view.max ? (pos / view.max) * 100 : 0) + '%' }}
           onInput={(e) => setScrub(+e.currentTarget.value)}
           onChange={(e) => {
-            player.seek(+e.currentTarget.value);
+            seekBar(+e.currentTarget.value);
             setScrub(null);
           }}
           // The finger lifted without a "change" (same spot, or the pull-down gesture took the
@@ -424,7 +440,7 @@ export function FullPlayer() {
             held.current = false;
             if (scrub == null) return;
             const v = +e.currentTarget.value;
-            if (Math.abs(v - s.time) > 1) player.seek(v);
+            if (Math.abs(v - view.pos) > 1) seekBar(v);
             setScrub(null);
           }}
           onPointerCancel={() => ((held.current = false), setScrub(null))}
@@ -432,13 +448,13 @@ export function FullPlayer() {
           onBlur={() => ((held.current = false), setScrub(null))}
         />
         <div class="fp-times">
-          <span>{fmtTime(t)}</span>
+          <span>{fmtTime(pos)}</span>
           {total > dur + 1 && (
             <span class="fp-total">
               {Math.min(99, Math.round((g / total) * 100))}% of book · {s.rate && s.rate !== 1 ? `${fmtTime((total - g) / s.rate)} left at ${s.rate}×` : `${fmtTime(total - g)} left`}
             </span>
           )}
-          <span>-{fmtTime(Math.max(0, dur - t))}</span>
+          <span>-{fmtTime(Math.max(0, view.max - pos))}</span>
         </div>
       </div>
 
