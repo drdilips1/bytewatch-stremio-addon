@@ -630,3 +630,9 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
   - (1) iPhone ios-19: Find books → Photo of the cover crashed. Cause: no NSCameraUsageDescription. Added it, plus NSPhotoLibraryUsageDescription, in ios.yml.
   - (2) 'Gap between the navigation toolbar & keyboard': the iOS form accessory bar (⌃ ⌄ Done). Added @capacitor/keyboard 8.0.5; main.jsx hides the accessory bar on iOS only.
   - On work, NOT built (needs 'build iPhone').
+- Store edition (27 Nov, user: sources and debrid stay as bring-your-own with neutral wording): on Audiohub work, not built.
+  - src/lib/edition.js STORE (VITE_EDITION=store); ios.yml input edition full|store.
+  - Hidden in store: qBittorrent, Tracker, Torrent app, Usenet (settings + Book page); seeds; torrent hand-off. Wording: 'Your cloud services' / 'Default cloud service' / 'Connect your cloud service'. What's new: full-only cards + storeText.
+  - public/privacy.html (+ #support). Delete my account added (sync.deleteAccount + SQL audiohub_delete_me — the user must re-run the setup SQL in Supabase).
+  - Review notes: store-edition/APP_REVIEW_NOTES.md.
+  - Open: Sign in with Apple if Google sign-in is offered; age rating; screenshots.
