@@ -13261,3 +13261,26 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .tl-sel-bar .pill { display: inline-flex; align-items: center; gap: 6px; }
 .transcript .tb-s.hl { box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .transcript ::selection { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+/* Book page: every block on one width — the same 16 px from the screen's edges as Your copies.
+   The source cards sat inside two paddings (the section's and the results' own), so source cards,
+   "Show … loose matches", "… with no seeders" and the library cards were each a different width. */
+.book .book-body .pad { padding-left: 16px; padding-right: 16px; }
+.book .source-results { padding: 0 16px; }
+.book .pad > .source-results, .book .pad .source-results { padding: 0; }
+.book .source-results .src-group { margin-left: 0; margin-right: 0; }
+.book .source-results .src-fold { width: 100%; margin-left: 0; margin-right: 0; }
+.book .source-results .btn.ghost-wide { width: 100%; }
+
+/* Your copies: small tiles, two to a row (one copy per full-width card took a whole screen). */
+.cc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.cc-grid:has(> .cc-copy:only-child) { grid-template-columns: 1fr; }
+.cc-grid .cc-copy { padding: 10px 11px; border-radius: 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cc-grid .cc-top { gap: 6px; }
+.cc-grid .cc-top b { font-size: 13.5px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-grid .cc-radio { width: 20px; height: 20px; flex: none; }
+.cc-grid .cc-meta { font-size: 11.5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cc-grid .cc-bar { margin-top: 2px; gap: 6px; }
+.cc-grid .cc-bar small { font-size: 10.5px; }
+.cc-grid .cc-tags { gap: 4px; margin-top: 2px; }
+.cc-grid .cc-tag { font-size: 9.5px; padding: 2px 6px; }
+.cc-grid .cc-note { font-size: 11px; }

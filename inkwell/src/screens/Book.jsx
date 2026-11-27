@@ -757,6 +757,7 @@ function CopiesCheck({ book }) {
         Your copies · {copies.length}
         {full?.runtime > 0 && <small> · full audiobook {hm(full.runtime)}</small>}
       </h4>
+      <div class="cc-grid">
       {judged.map(({ c, j }, k) => {
         const chosen = pref ? pref === c.uid : k === 0;
         const note =
@@ -788,6 +789,7 @@ function CopiesCheck({ book }) {
           </div>
         );
       })}
+      </div>
       {!full && copies.length > 1 && <small class="cc-foot">The full audiobook's length wasn't found, so copies aren't compared yet.</small>}
     </section>
   );
