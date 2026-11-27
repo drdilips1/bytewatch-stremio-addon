@@ -622,3 +622,4 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
   - local.js imported shared entries: ebookUri; details 'gone' check by Range fetch. comicdl → Audiohub/Comics.
   - Storage screen: group 'shared' (outside the app's total).
   - Lesson: an unescaped apostrophe in whats-new broke the build, and was pushed because the commit didn't stop on lint. Always check lint output before committing.
+- Text free highlighting (27 Nov, work, not built): .tl is user-select:text (was none + touch-callout none). Long-press-a-line removed. selectionchange inside .transcript → floating .tl-sel-bar (Highlight → player.toggleQuote(time at the selection start via data-w / data-i, text), Copy). A tap while selecting doesn't seek. Ebook sentences inside a quote get .tb-s.hl.
