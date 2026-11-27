@@ -208,8 +208,18 @@ jobs:
           AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
           # The archive is made unsigned (automatic signing wanted a development profile, which needs a registered
           # device); the export below signs it for the App Store with Apple's cloud-managed distribution certificate.
+          # Apple rejected builds 10-12 after upload (ITMS-90208: "onnxruntime.framework does not support the minimum
+          # OS Version specified in the Info.plist"). The app's lowest iOS is raised to what the engine's frameworks
+          # were built for, and each framework's Info.plist is made to state the iOS its binary really needs.
+          minos() { otool -l "$1" | awk '/LC_BUILD_VERSION/{b=1} b&&/minos/{print $2; exit} /LC_VERSION_MIN_IPHONEOS/{v=1} v&&/ version/{print $2; exit}'; }
+          TARGET=15.0
+          for b in "$GITHUB_WORKSPACE"/paper2audio/ios/ios-plugins/speech/Frameworks/*.xcframework/ios-arm64/*.framework; do
+            n=$(basename "$b" .framework); m=$(minos "$b/$n"); echo "$n is built for iOS $m"
+            [ -n "$m" ] && TARGET=$(printf '%s\n%s\n' "$TARGET" "$m" | sort -V | tail -1)
+          done
+          echo "Lowest iOS for Narrato: $TARGET"
           xcodebuild -quiet $SRC -scheme App -configuration Release -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/Narrato.xcarchive" \
+            -archivePath "$RUNNER_TEMP/Narrato.xcarchive" IPHONEOS_DEPLOYMENT_TARGET="$TARGET" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER=com.narrato.reader \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             MARKETING_VERSION="$IOS_VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" archive
@@ -219,6 +229,13 @@ jobs:
           APPDIR="$RUNNER_TEMP/Narrato.xcarchive/Products/Applications/App.app"
           for f in "$APPDIR"/Frameworks/*.framework; do
             [ -d "$f" ] || continue
+            n=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$f/Info.plist" 2>/dev/null || basename "$f" .framework)
+            m=$(minos "$f/$n")
+            if [ -n "$m" ]; then
+              /usr/libexec/PlistBuddy -c "Set :MinimumOSVersion $m" "$f/Info.plist" 2>/dev/null \
+                || /usr/libexec/PlistBuddy -c "Add :MinimumOSVersion string $m" "$f/Info.plist"
+            fi
+            echo "$(basename "$f"): MinimumOSVersion $(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$f/Info.plist" 2>/dev/null)"
             id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$f/Info.plist" 2>/dev/null || basename "$f" .framework)
             codesign --force --sign - --timestamp=none --identifier "$id" "$f"
             codesign -dv "$f" 2>&1 | grep -E "Identifier|Format" || true
@@ -238,3 +255,13 @@ jobs:
             -exportPath "$RUNNER_TEMP/export" $AUTH
           rm -f "$KEY"
           echo "Uploaded $IOS_VERSION (${{ github.run_number }}) to App Store Connect: it appears in TestFlight after Apple processes it."
+
+      # Apple checks the build after the upload and can reject it without an email: ask for its verdict.
+      - name: Apple's verdict on the upload
+        if: env.ASC_KEY_ID != '' && env.ASC_ISSUER_ID != '' && (env.ASC_KEY_P8 != '' || env.ASC_KEY_P8_B64 != '') && env.APPLE_TEAM_ID != ''
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}
+        run: |
+          sleep 120
+          python3 -m venv "$RUNNER_TEMP/asc" && "$RUNNER_TEMP/asc/bin/pip" install --quiet pyjwt cryptography
+          "$RUNNER_TEMP/asc/bin/python" .github/scripts/asc_status.py 20

@@ -60,11 +60,25 @@ def report():
         print("\nbuildUploads:", ups["http_error"], ups["body"][:500])
     else:
         print("\nUploads (newest first):")
+        first = True
         for u in sorted(ups.get("data", []), key=lambda u: u["attributes"].get("uploadedDate") or "", reverse=True):
             a = u["attributes"]
             print(f"  {a.get('cfBundleShortVersionString')} ({a.get('cfBundleVersion')})  "
                   f"{json.dumps(a.get('state'))}")
+            if first:
+                first = False
+                up = (a.get("state") or {}).get("state")
+                if up in ("PROCESSING", "AWAITING_UPLOAD") or (up == "COMPLETE" and newest in (None, "PROCESSING")):
+                    newest = "PROCESSING"
+                elif up == "FAILED":
+                    newest = "FAILED"
     return newest
+
+
+def done(state):
+    print(f"\nNewest upload: {state}")
+    if state == "FAILED":
+        sys.exit("Apple rejected the newest upload: see its errors above.")
 
 
 wait = float(sys.argv[1]) if len(sys.argv) > 1 else 0
@@ -72,6 +86,7 @@ end = time.time() + wait * 60
 while True:
     state = report()
     if state != "PROCESSING" or time.time() > end:
+        done(state)
         break
     print("\nStill processing; asking again in 2 minutes.\n")
     time.sleep(120)

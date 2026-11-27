@@ -196,3 +196,10 @@ ends.** Don't propose or build emotional/expressive delivery again unless the us
   into `android/app/src/main/assets/reader` (committed).
 - A weekly check runs as a scheduled task ("Weekly app check", Mondays 05:59 IST): fixes with `[skip ci]`
   only, never builds.
+
+### TestFlight "No Builds" (27 Nov 2026)
+Builds 1.0.10-1.0.12 uploaded fine but Apple rejected them afterwards, with no email: ITMS-90208 "onnxruntime.framework
+does not support the minimum OS Version specified in the Info.plist". Fix in narrato-ios.yml: the app's deployment
+target is raised to the engine frameworks' real minimum iOS, and each embedded framework's Info.plist MinimumOSVersion
+is set from its binary. Check Apple's verdict any time with a push whose message has `[testflight-status]`
+(workflow narrato-testflight-status.yml, script .github/scripts/asc_status.py); every iPhone build now ends with it too.
