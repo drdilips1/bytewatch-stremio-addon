@@ -209,3 +209,42 @@ nav.tabs button.on { color: var(--brand-ink); background: var(--brand-soft); }
 .sc .opts button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
 .sc input { width: 92px; text-align: right; }
 .region h4 { margin: 0 0 4px; }
+
+/* Six tabs fit on a phone */
+nav.tabs button { min-width: 0; font-size: 10.5px; }
+nav.tabs button svg { width: 22px; height: 22px; }
+
+/* Crop (Teach me this slide) */
+.cropper { position: fixed; inset: 0; z-index: 27; background: #0b0f12; display: flex; flex-direction: column; }
+.cropper .tools { display: flex; gap: 6px; padding: 8px; align-items: center; background: #12181d; }
+.cropper .tools button { flex: none; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #2a343c; background: #1a2229; color: #e6eef2; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.cropper .tools button svg { width: 16px; height: 16px; }
+.cropper .tools button.on { background: #e2bb6b; color: #1d1405; border-color: #e2bb6b; }
+.crop-stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 18px; overflow: hidden; touch-action: none; }
+.crop-img { position: relative; display: inline-block; touch-action: none; }
+.crop-img img { display: block; max-width: calc(100vw - 36px); max-height: calc(100vh - 110px); user-select: none; -webkit-user-drag: none; }
+.crop-box { position: absolute; border: 2px solid #e2bb6b; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .55); cursor: move; touch-action: none; }
+.crop-box i { position: absolute; width: 26px; height: 26px; border-radius: 50%; background: #e2bb6b; border: 2px solid #fff; touch-action: none; }
+.crop-box i[data-h=nw] { left: -14px; top: -14px; } .crop-box i[data-h=ne] { right: -14px; top: -14px; }
+.crop-box i[data-h=sw] { left: -14px; bottom: -14px; } .crop-box i[data-h=se] { right: -14px; bottom: -14px; }
+
+/* Teach me: the picture with its actions */
+.teach-pic { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: var(--card-2); }
+.teach-pic img { display: block; width: 100%; max-height: 360px; object-fit: contain; background: #000; }
+.teach-pic .pm { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .6); color: #fff; display: grid; place-items: center; }
+.teach-pic .pm svg { width: 18px; height: 18px; }
+
+/* Documents read into a case (L3) */
+.scan { background: linear-gradient(135deg, var(--brand-soft), var(--card)); }
+.scan .row .btn { flex: 1; }
+.papers { display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; }
+.papers img { width: 54px; height: 70px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); flex: none; }
+.ext { display: grid; gap: 8px; }
+.ext .f small { font-weight: 400; color: var(--text-3); }
+.refine { margin: 8px 0 0; font-size: 13px; color: var(--text-2); }
+
+/* History */
+.hist-star { color: var(--gold); }
+.li .hk { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--brand-ink); }
+.ext .f > span { display: flex; align-items: center; gap: 8px; }
+.ext .f input[type=checkbox] { width: 20px; height: 20px; flex: none; padding: 0; accent-color: var(--brand); }

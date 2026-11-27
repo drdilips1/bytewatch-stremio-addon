@@ -19,6 +19,7 @@
     ['site', 'Site and distribution', 'e.g. extensor forearms, symmetric', 1], ['symptoms', 'Symptoms', 'itch, pain, burning, systemic symptoms', 1],
     ['history', 'History and examination', 'morphology, mucosa, nails, hair, past and family history', 2], ['meds', 'Medicines', 'current and recent, with start dates', 1],
     ['treated', 'Treatment so far and response', '', 2], ['labs', 'Investigations (typed)', 'e.g. ANA 1:320 speckled, ESR 40, KOH negative', 2],
+    ['biopsy', 'Biopsy / histopathology report', 'findings and the reported diagnosis', 2],
   ];
   const titleOf = (c) => c.title || c.final?.dx || (c.assessments.length ? list(last(c)?.r?.differentials)[0]?.name || 'Assessed case' : 'New case');
   const last = (c) => c.assessments[c.assessments.length - 1];
@@ -112,11 +113,17 @@
   const box = () => $('#ctab');
   const isRunning = (k) => L.jobs[k + ':' + c.id]?.state === 'running';
   const jobError = (k) => { const j = L.jobs[k + ':' + c.id]; return j?.state === 'error' ? `<div class="note bad" style="margin-bottom:10px"><b>Didn't finish:</b> ${esc(j.message)}</div>` : ''; };
-  const busy = (msg) => `<div class="card busy"><span class="spin"></span><span>${msg}<br><small class="muted">You can leave this screen; it keeps going.</small></span></div>`;
+  const busy = (msg) => `<div class="card busy"><span class="spin"></span><span>${msg}<br><small class="muted">${L.canKeepAlive() ? 'You can leave the app: a notification keeps it going, and the answer will be here.' : 'Keep Lesionaut open until it finishes: the browser pauses pages in the background.'}</small></span></div>`;
 
   // ---- Evidence
   function tabEvidence() {
-    box().innerHTML = `<details class="card fold" ${c.assessments.length ? '' : 'open'}><summary><span><b>Patient, history and examination</b><br><small class="muted">${esc(ptLine(c) || 'What you know changes the differential')}</small></span><span class="chev">${icon('chev')}</span></summary>
+    box().innerHTML = `<div class="card scan"><b>${icon('doc')} Reports and case papers</b>
+        <p class="small muted" style="margin:4px 0 10px">Photograph or upload lab or biopsy reports, prescriptions, referral notes or old case papers (photos or PDFs). The AI reads them and fills in the case; you check it.</p>
+        <div class="row"><button class="btn sm pri" data-act="scan-cam" ${isRunning('scan') ? 'disabled' : ''}>${icon('camera')}Photograph</button><button class="btn sm" data-act="scan-pick" ${isRunning('scan') ? 'disabled' : ''}>${icon('doc')}Photos or PDFs</button></div>
+        ${isRunning('scan') ? '<div style="margin-top:10px">' + busy('Reading the documents…') + '</div>' : ''}${jobError('scan')}
+        ${c.scan?.r && !isRunning('scan') ? `<p class="small" style="margin:10px 0 0">${list(c.scan.r.docs).map((d) => `<b>${esc(d.type || 'Document')}</b>${d.summary ? ': ' + esc(d.summary) : ''}`).join(' · ') || 'Documents read.'} <button class="btn sm ghost" data-act="scan-review">Check what was read</button></p>` : ''}
+        ${c.papers.length ? `<div class="papers">${c.papers.map((p, i) => `<img src="${p.url}" alt="" data-act="paper-zoom" data-i="${i}">`).join('')}</div>` : ''}</div>
+      <details class="card fold" style="margin-top:10px"><summary><span><b>Typed details (optional)</b><br><small class="muted">${esc(ptLine(c) || 'Patient label, history, medicines, labs: edit or add by hand')}</small></span><span class="chev">${icon('chev')}</span></summary>
         <div class="grid2" style="margin-top:12px"><label class="f wide">Patient label (initials or ID, to link visits)<input data-k="patient" value="${esc(c.patient)}" placeholder="e.g. RK-0412"></label>
         ${PT.map(([k, l, ph, w]) => `<label class="f ${w ? 'wide' : ''}">${l}${w === 2 ? `<textarea data-pt="${k}" rows="2" placeholder="${esc(ph)}">${esc(c.pt[k] || '')}</textarea>` : `<input data-pt="${k}" value="${esc(c.pt[k] || '')}" placeholder="${esc(ph)}">`}</label>`).join('')}</div></details>
       <div class="sec"><div class="sec-h"><h3>Evidence · ${c.pics.length}/${MAX}</h3></div>
@@ -163,24 +170,79 @@
   actions['pic-del'] = async (b) => { c.pics.splice(+b.dataset.i, 1); closeSheet(); await save(); paint(); };
   actions['ans-del'] = async (b) => { c.answers.splice(+b.dataset.i, 1); await save(); paint(); };
 
+  // ---- Documents → case: reports, prescriptions and case papers read by the AI (L3)
+  const SCAN_TASK = `These are photos or scans of medical documents for ONE dermatology patient: lab reports, biopsy or histopathology reports, prescriptions, referral notes or old case papers (some may be handwritten). Read them carefully and extract what they say.
+Reply with JSON only, exactly this shape:
+{"docs":[{"n":1,"type":"lab report | biopsy report | prescription | referral note | case paper | other","date":"","summary":"one short line"}],
+"fields":{"age":"","sex":"","phototype":"","duration":"duration and course","site":"site and distribution","symptoms":"","history":"history and examination findings","meds":"current and recent medicines with doses and dates","treated":"treatment so far and the response","labs":"laboratory values with units and dates, abnormal ones first","biopsy":"histopathology / DIF findings and the reported diagnosis"},
+"unclear":["anything that couldn't be read"]}
+Leave a field "" when the documents don't say it; never guess. Leave out names, phone numbers and addresses.`;
+  const SCAN_FIELDS = PT.filter(([k]) => k !== 'patient');
+  actions['scan-cam'] = () => scanFrom(true);
+  actions['scan-pick'] = () => scanFrom(false);
+  actions['paper-zoom'] = (b) => L.lightbox(c.papers.map((p, i) => ({ src: p.url, label: 'Document page ' + (i + 1) })), +b.dataset.i);
+  async function scanFrom(cam) {
+    let raw;
+    try { raw = cam ? await L.camera() : await L.pickFiles(12); } catch (e) { if (!/cancel/i.test(e.message || '')) toast(e.message); return; }
+    const k = c;
+    const urls = [];
+    for (const u of raw.slice(0, 12)) urls.push(await L.shrink(u, 1600, 0.85));
+    k.papers.push(...urls.map((url) => ({ url, at: Date.now() })));
+    await DB.put(k);
+    L.runJob('scan:' + k.id, 'Reading the documents', k.id, async () => {
+      const r = L.json(await L.aiPics(SCAN_TASK, urls, { system: 'You read medical documents accurately for a dermatologist. You copy values exactly as written and never invent anything.', max: 6000 }));
+      const f = await fresh(k.id);
+      // Several reads (e.g. one photo at a time) add up.
+      const was = f.scan?.r && !f.scan.applied ? f.scan.r : null;
+      if (was) {
+        r.docs = [...list(was.docs), ...list(r.docs)];
+        r.unclear = [...list(was.unclear), ...list(r.unclear)];
+        for (const [key] of SCAN_FIELDS) { const a = String(was.fields?.[key] || ''), b = String(r.fields?.[key] || ''); r.fields = r.fields || {}; r.fields[key] = a && b && a !== b ? a + '\n' + b : a || b; }
+      }
+      f.scan = { at: Date.now(), r, applied: false };
+      await DB.put(f);
+      if (c?.id === f.id) c = f;
+    }).then(() => { if (c?.id === k.id && L.cur.name === 'case') scanReview(); }).catch(() => {});
+    paint();
+  }
+  actions['scan-review'] = () => scanReview();
+  function scanReview() {
+    const r = c.scan?.r; if (!r) return;
+    const found = SCAN_FIELDS.filter(([k]) => String(r.fields?.[k] || '').trim());
+    const merged = (k) => { const now = (c.pt[k] || '').trim(), got = String(r.fields[k]).trim(); return !now || now === got ? got : now.includes(got) ? now : now + '\n' + got; };
+    sheet(`<h3>What the documents say</h3>
+      ${list(r.docs).length ? `<p class="small muted" style="margin-top:0">${list(r.docs).map((d) => `${esc(d.type || 'Document')}${d.date ? ' (' + esc(d.date) + ')' : ''}`).join(' · ')}</p>` : ''}
+      ${found.length ? `<div class="ext">${found.map(([k, l]) => `<label class="f"><span><input type="checkbox" data-use="${k}" checked> ${esc(l)}${c.pt[k] && c.pt[k] !== r.fields[k] ? ' <small>(added to what you had)</small>' : ''}</span><textarea data-ext="${k}" rows="${String(r.fields[k]).length > 60 ? 3 : 1}">${esc(merged(k))}</textarea></label>`).join('')}</div>`
+        : '<div class="note">Nothing usable was found in these pages. Try a sharper, closer photo of each page.</div>'}
+      ${list(r.unclear).length ? `<p class="small muted"><b>Couldn't read:</b> ${list(r.unclear).map(esc).join(' · ')}</p>` : ''}
+      <div class="acts"><button class="btn" data-act="close-sheet">Later</button>${found.length ? `<button class="btn" data-act="scan-apply">Fill the case</button><button class="btn pri" data-act="scan-apply" data-go="1">${icon('spark')}Fill and assess</button>` : ''}</div>`);
+  }
+  actions['scan-apply'] = async (b) => {
+    $$('[data-ext]').forEach((el) => { if ($(`[data-use="${el.dataset.ext}"]`)?.checked) c.pt[el.dataset.ext] = el.value.trim(); });
+    c.scan.applied = true;
+    closeSheet(); await save();
+    if (b.dataset.go) actions.assess(); else { toast('Case filled from the documents'); paint(); }
+  };
+
   // ---- The correlation engine
   const SYSTEM = `You are Lesionaut, a diagnostic copilot for dermatologists. You think like an experienced clinical dermatologist, dermoscopist, dermatopathologist and immunodermatologist working together, and you correlate every piece of evidence (history, clinical photographs, dermoscopy, histopathology, immunofluorescence, microscopy, laboratory results) instead of reading each in isolation.
-Rules: describe what is actually visible before interpreting; never invent findings. Say where sources agree and point out contradictions. Rank diagnoses by how well each explains ALL the evidence, with supporting findings, findings against and missing characteristic features. Include dangerous conditions that must not be missed. Do not force a diagnosis; when the evidence or the pictures are insufficient, say so and what would settle it. Never give numeric probabilities. Consider skin of colour. For histology name the reaction pattern first. Interpret laboratory values in dermatological context. In India also consider leprosy, tuberculosis, deep fungal infections and drug reactions where relevant. Be concise and clinical: this is decision support for a clinician.`;
+Rules: describe what is actually visible before interpreting; never invent findings. Say where sources agree and point out contradictions. Rank diagnoses by how well each explains ALL the evidence, with supporting findings, findings against and missing characteristic features. Include dangerous conditions that must not be missed. Lesionaut is picture-first: read the photographs as an expert would and commit to the most likely diagnosis from the image alone. Missing history, laboratory results or histology is normal and is never a reason to withhold, hedge or downgrade a diagnosis, nor a "limitation"; what would refine it goes in one short optional line. Call the evidence insufficient only when the picture itself can't be read (blurred, too far, glare, too dark), and then give one short line of retake advice. Never give numeric probabilities. Consider skin of colour. For histology name the reaction pattern first. Interpret laboratory values in dermatological context. In India also consider leprosy, tuberculosis, deep fungal infections and drug reactions where relevant. Be concise and clinical: this is decision support for a clinician.`;
   const SCHEMA = `Reply with JSON only (no Markdown), exactly this shape:
-{"summary":"2-4 sentences: the integrated clinicopathological assessment","changed":"what changed compared with the previous assessment ('' if none)","sufficiency":"adequate | limited | insufficient","uncertainty":"what limits confidence","pattern":"the clinical, dermoscopic and/or histological pattern in a few words",
-"pictures":[{"n":1,"quality":"good | adequate | poor","observations":["what is visible"],"retake":"advice to retake, or ''"}],
+{"summary":"2-4 sentences: what the pictures show and the most likely diagnosis, stated plainly","changed":"what changed compared with the previous assessment ('' if none)","sufficiency":"readable | unreadable (unreadable ONLY if the pictures themselves can't be read)","refine":"one short optional line: the history or test that would refine it ('' if nothing needed)","pattern":"the clinical, dermoscopic and/or histological pattern in a few words",
+"pictures":[{"n":1,"quality":"good | adequate | poor","observations":["what is visible"],"retake":"only if this picture can't be read: one short line such as 'closer, in focus, daylight'; otherwise ''"}],
 "differentials":[{"name":"diagnosis","strength":"strong | consider | alternative | unlikely","reasoning":"one or two sentences","supporting":["finding (source)"],"against":["finding (source)"],"missing":["expected feature not seen"]}],
 "matrix":[{"finding":"key finding","source":"clinical | dermoscopy | histology | DIF | lab | history","verdicts":["supports | against | nonspecific | neutral, one per differential, same order"]}],
 "mustNotMiss":[{"name":"condition","why":"why it needs excluding"}],
 "tests":[{"test":"investigation","why":"what it distinguishes","ifPositive":"meaning","ifNegative":"meaning","limits":"false negatives or caveats"}],
 "questions":["short questions or examination findings that would change the differential"]}
-Give 3-6 differentials (most likely first), 5-10 matrix rows with the most discriminating findings, at most 5 tests (most useful first) and at most 6 questions.`;
+Give 3-6 differentials (most likely first; the first is your committed diagnosis), 5-8 matrix rows with the most discriminating findings, at most 5 tests (most useful first) and at most 5 questions. Never list absent history, labs or histology under "against" or "missing". Keep every string short so the JSON stays complete.`;
   function caseText(k, prev) {
     const pt = PT.map(([key, l]) => (k.pt[key] ? `${l}: ${k.pt[key]}` : '')).filter(Boolean).join('\n') || 'No history given.';
     const pics = k.pics.map((p, i) => `Picture ${i + 1}: ${KINDS[p.kind]?.[1] || p.kind}${p.note ? ' — ' + p.note : ''}`).join('\n') || 'No pictures.';
+    const docs = k.scan?.r && k.scan.applied && list(k.scan.r.docs).length ? '\nDocuments read into this case: ' + list(k.scan.r.docs).map((d) => `${d.type || 'document'}${d.summary ? ' — ' + d.summary : ''}`).join('; ') : '';
     const ans = k.answers.length ? '\nAnswers to earlier questions:\n' + k.answers.map((x) => `- ${x.q} → ${x.a}`).join('\n') : '';
     const was = prev ? `\nPrevious assessment (${fmt(prev.at)}): ${list(prev.r.differentials).map((d) => `${d.name} (${d.strength})`).join('; ')}. ${prev.r.summary || ''}` : '';
-    return `CASE\n${pt}${ans}\n\nPICTURES (in the order attached)\n${pics}${was}`;
+    return `CASE\n${pt}${docs}${ans}\n\nPICTURES (in the order attached)\n${pics}${was}`;
   }
   const reading = (k) => { const a = last(k); return a ? JSON.stringify({ summary: a.r.summary, pattern: a.r.pattern, differentials: list(a.r.differentials).map((d) => ({ name: d.name, strength: d.strength, supporting: d.supporting, against: d.against })), tests: list(a.r.tests).map((t) => t.test) }) : 'Not assessed yet.'; };
 
@@ -189,17 +251,78 @@ Give 3-6 differentials (most likely first), 5-10 matrix rows with the most discr
     if (!c.pics.length && !Object.values(c.pt).some(Boolean)) { toast('Add pictures or some history first'); return; }
     const k = c;
     tab = 'assessment'; shown = -1;
-    L.runJob('assess:' + k.id, 'Assessing the case', k.id, async () => {
-      const t0 = Date.now();
-      const r = L.json(await L.aiPics(caseText(k, last(k)) + '\n\n' + SCHEMA, k.pics.map((p) => p.url), { system: SYSTEM, max: 4500 }));
-      if (!Array.isArray(r?.differentials)) throw new Error('The AI answer came back incomplete. Try again.');
-      const f = await fresh(k.id);
-      f.assessments.push({ at: Date.now(), n: k.pics.length, kinds: [...new Set(k.pics.map((p) => p.kind))], r, secs: Math.round((Date.now() - t0) / 1000) });
-      await DB.put(f);
-      if (c?.id === f.id) c = f;
-    }).catch(() => {});
+    L.runJob('assess:' + k.id, 'Assessing the case', k.id, (j) => assessRun(k, j)).catch(() => {});
     paint();
   };
+  // Pending assessments by case, so an answer that arrives after Android rebuilt the screen is still used.
+  const PEND = 'pendingAssess';
+  const setPending = (id, v) => { const all = store.get(PEND, {}); if (v) all[id] = v; else delete all[id]; store.set(PEND, all); };
+  const visible = () => new Promise((res) => { if (!document.hidden) { res(); return; } const f = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', f); res(); } }; document.addEventListener('visibilitychange', f); });
+  async function assessRun(k, j) {
+    const t0 = Date.now(), urls = k.pics.map((p) => p.url), task = caseText(k, last(k)) + '\n\n' + SCHEMA;
+    const meta = { at: t0, n: k.pics.length, kinds: [...new Set(k.pics.map((p) => p.kind))] };
+    const ask = async (extra = '') => {
+      const reqId = 'keep_as_' + k.id + '_' + Date.now();
+      setPending(k.id, { ...meta, reqId });
+      return L.aiPics(task + extra, urls, { system: SYSTEM, max: 8000, reqId });
+    };
+    try {
+      let text;
+      try { text = await ask(); } catch (e) {
+        // Cut off while the app was in the background: once more, now that it is open again.
+        if (!j.hidden || e.message === 'NO_KEY') throw e;
+        await visible(); j.hidden = false; text = await ask();
+      }
+      let r;
+      try { r = L.json(text); } catch { r = null; }
+      if (!Array.isArray(r?.differentials)) r = L.json(await ask('\n\nYour previous answer was not complete, valid JSON. Reply again with compact, valid JSON only, keeping every list and string short.'));
+      if (!Array.isArray(r?.differentials)) throw new Error('The AI answer came back incomplete. Try again.');
+      await keepAssessment(k.id, r, meta, Math.round((Date.now() - t0) / 1000));
+    } finally { setPending(k.id, null); }
+  }
+  async function keepAssessment(id, r, meta, secs) {
+    const f = await fresh(id);
+    if (!f) return;
+    f.assessments.push({ at: Date.now(), n: meta.n, kinds: meta.kinds, r, secs });
+    await DB.put(f);
+    if (c?.id === f.id) c = f;
+  }
+  // After a rebuilt screen: collect answers the phone kept, or wait a little for one still coming.
+  const waitingKept = {};
+  function finishKept(id, p, e) {
+    delete waitingKept[p.reqId];
+    setPending(id, null);
+    const j = L.jobs['assess:' + id] || (L.jobs['assess:' + id] = { label: 'Assessing the case', caseId: id });
+    let r = null;
+    if (e?.state === 'done') { try { r = L.json(e.text); } catch { r = null; } }
+    const ok = Array.isArray(r?.differentials);
+    (ok ? keepAssessment(id, r, p, Math.round((Date.now() - p.at) / 1000)) : Promise.resolve()).then(() => {
+      j.state = ok ? 'done' : 'error';
+      if (!ok) j.message = e?.message || (e ? 'The AI answer came back in a broken format. Tap Assess again.' : 'Stopped when the app was closed. Tap Assess again.');
+      if (L.cur.name === 'case' && L.cur.arg.split('/')[0] === id) { j.seen = true; render(); } else if (ok) toast('Assessment ready');
+      L.jobBar();
+    });
+  }
+  function recoverAssess() {
+    for (const [id, p] of Object.entries(store.get(PEND, {}))) {
+      if (L.jobs['assess:' + id]?.state === 'running' || waitingKept[p.reqId]) continue;
+      let got = '';
+      try { got = L.N.aiTake?.(p.reqId) || ''; } catch { /* old app */ }
+      if (got) { try { finishKept(id, p, JSON.parse(got)); } catch { finishKept(id, p, null); } continue; }
+      if (L.N.aiTake && Date.now() - p.at < 5 * 60000) {
+        waitingKept[p.reqId] = { id, p };
+        L.jobs['assess:' + id] = { label: 'Assessing the case', state: 'running', caseId: id, started: p.at };
+        const poll = setInterval(() => {
+          if (!waitingKept[p.reqId]) { clearInterval(poll); return; }
+          let g = ''; try { g = L.N.aiTake(p.reqId) || ''; } catch { /* below */ }
+          if (g) { clearInterval(poll); try { finishKept(id, p, JSON.parse(g)); } catch { finishKept(id, p, null); } }
+          else if (Date.now() - p.at > 5 * 60000) { clearInterval(poll); finishKept(id, p, null); }
+        }, 4000);
+      } else finishKept(id, p, null);
+    }
+  }
+  L.on('ai', (e) => { const w = waitingKept[e.id]; if (w) { try { L.N.aiTake?.(e.id); } catch { /* old app */ } finishKept(w.id, w.p, e); } });
+  recoverAssess();
 
   // ---- Assessment tab
   function tabAssessment() {
@@ -208,14 +331,15 @@ Give 3-6 differentials (most likely first), 5-10 matrix rows with the most discr
     const a = c.assessments[idx];
     if (!a) { box().innerHTML = jobError('assess') + `<div class="empty">${icon('spark')}<b>Not assessed yet</b>Add evidence on the Evidence tab, then tap Assess.</div><button class="btn pri full" data-act="assess">${icon('spark')}Assess case</button>`; return; }
     const r = a.r, dx = list(r.differentials), head = dx.slice(0, 4), latest = idx === c.assessments.length - 1;
-    const poor = list(r.pictures).filter((p) => p && (p.retake || p.quality === 'poor'));
+    const poor = list(r.pictures).filter((p) => p && p.retake && p.quality === 'poor');
     box().innerHTML = jobError('assess') + `
       ${!latest ? `<div class="note" style="margin-bottom:10px">Earlier assessment from ${fmt(a.at)}. <button class="btn sm" data-act="show" data-i="-1">Back to the latest</button></div>` : ''}
       <div class="card summary">${r.pattern ? `<span class="tag">${esc(r.pattern)}</span>` : ''}<p>${esc(r.summary || '')}</p>
         ${r.changed ? `<p class="small"><b>What changed:</b> ${esc(r.changed)}</p>` : ''}
-        ${r.sufficiency && r.sufficiency !== 'adequate' || r.uncertainty ? `<div class="note warn" style="margin-top:10px"><b>${r.sufficiency === 'insufficient' ? 'Insufficient evidence' : r.sufficiency === 'limited' ? 'Limited evidence' : 'Uncertainty'}:</b> ${esc(r.uncertainty || '')}</div>` : ''}
+        ${r.sufficiency === 'unreadable' ? `<div class="note warn" style="margin-top:10px"><b>The pictures are hard to read.</b> ${esc(oneLine(poor.map((p) => p.retake).filter(Boolean)[0] || 'Retake closer, in focus, in daylight.'))}</div>` : ''}
+        ${r.refine || r.uncertainty ? `<p class="refine"><b>Would refine:</b> ${esc(oneLine(r.refine || r.uncertainty))}</p>` : ''}
         <p class="tiny muted">${fmt(a.at)} · ${a.n} picture${a.n === 1 ? '' : 's'}${a.secs ? ' · ' + a.secs + ' s' : ''}</p></div>
-      ${poor.length ? `<div class="note warn" style="margin-top:10px">${icon('camera')} <b>Retake:</b> ${poor.map((p) => `picture ${esc(p.n)} — ${esc(p.retake || 'poor quality')}`).join('; ')}</div>` : ''}
+      ${poor.length && r.sufficiency !== 'unreadable' ? `<p class="refine">${icon('camera')} <b>Retake</b> picture ${poor.slice(0, 2).map((p) => `${esc(p.n)}: ${esc(oneLine(p.retake || 'closer and in focus'))}`).join('; ')}</p>` : ''}
       <div class="sec"><div class="sec-h"><h3>Ranked differential</h3></div>
       ${dx.map((d, i) => `<details class="dx" ${i === 0 ? 'open' : ''}><summary><span class="n">${i + 1}</span><span class="t"><b>${esc(d.name)}</b><span class="st ${esc(d.strength)}">${STR[d.strength] || 'Consider'}</span></span></summary>
         <div class="body"><p>${esc(d.reasoning || '')}</p>
@@ -227,7 +351,7 @@ Give 3-6 differentials (most likely first), 5-10 matrix rows with the most discr
         ${list(r.matrix).map((m) => `<tr><td>${esc(m.finding)}${m.source ? `<small>${esc(m.source)}</small>` : ''}</td>${head.map((_, i) => { const v = VER[String(list(m.verdicts)[i] || 'neutral').toLowerCase()] || VER.neutral; return `<td class="${v[1]}">${v[0]}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>
         <p class="tiny muted">✓ supports · ✗ against · ~ nonspecific · – not informative</p></div>` : ''}
       ${list(r.mustNotMiss).length ? `<div class="note bad" style="margin-top:12px"><b>${icon('alert')} Must not miss</b>${list(r.mustNotMiss).map((m) => `<p class="small" style="margin:6px 0 0"><b>${esc(m.name)}:</b> ${esc(m.why)}</p>`).join('')}</div>` : ''}
-      ${latest && list(r.questions).length ? `<div class="sec"><div class="sec-h"><h3>Questions that would help</h3></div><div class="card">${list(r.questions).map((q, i) => `<div class="qrow"><span class="small">${esc(q)}</span><input class="in" data-q="${i}" placeholder="Answer (optional)"></div>`).join('')}
+      ${latest && list(r.questions).length ? `<div class="sec"><div class="sec-h"><h3>Optional: answers that would refine it</h3></div><div class="card">${list(r.questions).map((q, i) => `<div class="qrow"><span class="small">${esc(q)}</span><input class="in" data-q="${i}" placeholder="Answer (optional)"></div>`).join('')}
         <button class="btn sm pri" data-act="answers">${icon('spark')}Add answers and re-assess</button></div></div>` : ''}
       ${latest ? `<div class="sec"><div class="sec-h"><h3>Challenge the reading</h3></div><div class="row wrap">
         <button class="btn sm" data-act="debate">${icon('people')}Specialist debate</button>
@@ -237,6 +361,8 @@ Give 3-6 differentials (most likely first), 5-10 matrix rows with the most discr
       ${c.assessments.length > 1 ? `<div class="sec"><div class="sec-h"><h3>How the diagnosis evolved</h3></div><div class="card evo">${c.assessments.map((x, i) => `<button class="${i === idx ? 'on' : ''}" data-act="show" data-i="${i}"><b>${fmt(x.at)}</b> · ${x.n} picture${x.n === 1 ? '' : 's'}${x.kinds?.length ? ' (' + x.kinds.map((k) => KINDS[k]?.[0] || k).join(', ') + ')' : ''}<small>${list(x.r.differentials).slice(0, 3).map((d) => `${esc(d.name)} — ${esc((STR[d.strength] || '').toLowerCase())}`).join(' → ')}</small></button>`).join('')}</div></div>` : ''}`;
     paintDebate(); paintThread();
   }
+  /** The first sentence, at most ~140 characters: advice stays one short line. */
+  const oneLine = (t) => { const x = (/^[^.;]*[.;]?/.exec(String(t || '').trim()) || [''])[0].trim(); return x.length > 140 ? x.slice(0, 137) + '…' : x; };
   actions.show = (b) => { shown = +b.dataset.i; paint(); };
   actions.answers = async () => {
     const qs = list(last(c)?.r?.questions); let n = 0;
@@ -256,8 +382,8 @@ Give 3-6 differentials (most likely first), 5-10 matrix rows with the most discr
     const k = c;
     L.runJob('debate:' + k.id, 'Specialist debate', k.id, async () => {
       const views = await Promise.all(ROLES.map(([role, focus]) => L.aiPics(`${caseText(k, null)}\n\nYou are the ${role} on a case conference. ${focus}\nReply with JSON only: {"view":"2-3 sentences","differentials":[{"name":"","strength":"strong | consider | alternative | unlikely","key":"the decisive finding for you"}],"wouldWant":"the one extra piece of evidence you want most"}`,
-        k.pics.map((p) => p.url), { system: SYSTEM, max: 1500 }).then(L.json).catch((e) => ({ view: 'No answer: ' + keyErr(e), differentials: [] }))));
-      const rec = L.json(await L.ai(`Three specialists reviewed the same dermatology case.\n${ROLES.map(([r], i) => `${r}: ${JSON.stringify(views[i])}`).join('\n')}\n\nAct as the chair of the case conference. Reply with JSON only: {"agreements":["..."],"disagreements":[{"topic":"","positions":"who thinks what and why"}],"reconciled":[{"name":"","strength":"strong | consider | alternative | unlikely","why":""}],"resolve":["the evidence that would settle the disagreements, most useful first"]}`, { system: SYSTEM, max: 1800 }));
+        k.pics.map((p) => p.url), { system: SYSTEM, max: 3000 }).then(L.json).catch((e) => ({ view: 'No answer: ' + keyErr(e), differentials: [] }))));
+      const rec = L.json(await L.ai(`Three specialists reviewed the same dermatology case.\n${ROLES.map(([r], i) => `${r}: ${JSON.stringify(views[i])}`).join('\n')}\n\nAct as the chair of the case conference. Reply with JSON only: {"agreements":["..."],"disagreements":[{"topic":"","positions":"who thinks what and why"}],"reconciled":[{"name":"","strength":"strong | consider | alternative | unlikely","why":""}],"resolve":["the evidence that would settle the disagreements, most useful first"]}`, { system: SYSTEM, max: 3000 }));
       const f = await fresh(k.id);
       f.debate = { at: Date.now(), views, rec };
       await DB.put(f);
@@ -338,7 +464,7 @@ Give 3-6 differentials (most likely first), 5-10 matrix rows with the most discr
 {"keyClues":["the most discriminating clues"],"contradictions":["findings that don't fit the leading diagnoses"],"uncommon":[{"name":"diagnosis","why":"why it deserves consideration","fits":["matching findings"],"against":["findings against"],"test":"how to confirm or exclude"}],"categories":["e.g. genodermatosis, drug reaction, infection, metabolic, autoinflammatory"],"searchTerms":["2-3 short PubMed search phrases for similar case reports"]}
 Give 4-7 uncommon diagnoses, only where the evidence warrants them; include treatable mimics.`;
   async function rareRun(text, urls) {
-    const r = L.json(await L.aiPics(text + '\n\n' + RARE_TASK, urls, { system: SYSTEM, max: 3000 }));
+    const r = L.json(await L.aiPics(text + "\n\n" + RARE_TASK, urls, { system: SYSTEM, max: 6000 }));
     r.reports = [];
     for (const t of list(r.searchTerms).slice(0, 2)) {
       try { r.reports.push(...await epmc(`(${t}) AND PUB_TYPE:"case reports"`, 4)); } catch { /* offline: no reports */ }
@@ -429,7 +555,9 @@ Compare like with like (same site where possible). In Markdown: ## Overall chang
   actions['case-menu'] = () => sheet(`<h3>${esc(titleOf(c))}</h3>
     <button class="btn full" data-act="case-share">${icon('share')}Share a summary (text, no pictures)</button><div style="height:8px"></div>
     <button class="btn full" data-act="new-visit">${icon('plus')}New visit for this patient</button><div style="height:8px"></div>
+    <button class="btn full" data-act="case-star">${icon('star')}${c.star ? 'Unmark ★ keep' : '★ Keep (pin in History)'}</button><div style="height:8px"></div>
     <button class="btn full danger" data-act="case-del">${icon('trash')}Delete this case</button>`);
+  actions['case-star'] = async () => { c.star = !c.star; closeSheet(); await save(); toast(c.star ? '★ Kept' : 'Unmarked'); };
   actions['case-del'] = async () => { if (!confirm('Delete this case and its pictures from this device?')) return; closeSheet(); await DB.del(c.id); c = null; go('cases', { replace: true }); };
   actions['case-share'] = () => {
     closeSheet();
@@ -504,5 +632,5 @@ Compare like with like (same site where possible). In Markdown: ## Overall chang
     });
   }
 
-  Object.assign(L, { KINDS, SYSTEM, rareRun, rareHtml, epmc, reportsHtml, share });
+  Object.assign(L, { KINDS, SYSTEM, rareRun, rareHtml, epmc, reportsHtml, share, titleOf, ptLine, last });
 })();

@@ -42,33 +42,61 @@
       quiz: `Write 4 single-best-answer questions testing recognition and differentiation within the ${p.g.toLowerCase()} pattern "${p.name}", each with 5 options, the answer and a short explanation. Markdown.` }[b.dataset.m];
     const out = $('#pat-out');
     out.innerHTML = `<div class="card busy"><span class="spin"></span>Writing…</div>`;
-    try { out.innerHTML = `<div class="card">${md(await L.ai(ask, { system: L.SYSTEM, max: 2500 }))}</div>`; } catch (e) { out.innerHTML = `<div class="note bad">${esc(L.keyErr(e))}</div>`; }
+    try {
+      const text = await L.ai(ask, { system: L.SYSTEM, max: 4000 });
+      out.innerHTML = `<div class="card">${md(text)}</div>`;
+      keep({ id: 'h' + Date.now().toString(36), kind: 'notes', title: `${p.name}: ${{ table: 'comparison table', approach: 'step-by-step approach', quiz: 'quiz' }[b.dataset.m]}`, sub: p.g + ' pattern', data: { text, link: 'pattern/' + p.k } });
+    } catch (e) { out.innerHTML = `<div class="note bad">${esc(L.keyErr(e))}</div>`; }
   };
 
+  // ---- Saved to History (lx-history.js): every session, search and answer, with its pictures
+  const thumbOf = (url) => (url ? L.shrink(url, 240, 0.7) : Promise.resolve(''));
+  const keep = (h) => L.DB.hist.put(h).catch(() => toast('Couldn\'t save to History (storage full?)'));
+  L.keep = keep;
+
   // ---- Teach me this slide
-  let teachPic = null, teachOut = '';
-  routes.teach = () => {
+  let teachPic = null, teachOut = '', teachId = '', teachCtx = '';
+  routes.teach = (_, params) => {
+    if (params.h && params.h !== teachId) { openTeach(params.h); return; }
     view().innerHTML = `${bar('Teach me this slide')}
-      <p class="muted small" style="margin-top:0">One H&E, special stain, DIF or dermoscopy image. You get a structured teaching session: what to see, what it means, and how to tell it from look-alikes.</p>
-      <div class="pics">${teachPic ? `<div class="pic"><img src="${teachPic}" alt="" data-act="teach-zoom"></div>` : ''}
-        <button class="addpic" data-act="teach-pick">${icon('image')}${teachPic ? 'Another' : 'Choose image'}</button><button class="addpic" data-act="teach-cam">${icon('camera')}Photograph</button></div>
-      <label class="f" style="margin-top:12px">What is it (optional)<input id="teach-ctx" class="in" value="${esc(store.get('teachCtx', ''))}" placeholder="e.g. H&E ×100, skin biopsy from the forearm"></label>
+      <p class="muted small" style="margin-top:0">One H&E, special stain, DIF or dermoscopy image. You get a structured teaching session: what to see, what it means, and how to tell it from look-alikes. Crop off printed captions or labels so they don't give the answer away.</p>
+      ${teachPic ? `<div class="teach-pic"><img src="${teachPic}" alt="" data-act="teach-zoom"><button class="pm" data-act="teach-remove" aria-label="Remove picture">${icon('x')}</button></div>
+        <div class="row wrap" style="margin-top:8px"><button class="btn sm" data-act="teach-pick">${icon('image')}Replace</button><button class="btn sm" data-act="teach-cam">${icon('camera')}Photograph</button><button class="btn sm" data-act="teach-crop">${icon('crop')}Crop</button></div>`
+        : `<div class="pics"><button class="addpic" data-act="teach-pick">${icon('image')}Choose image</button><button class="addpic" data-act="teach-cam">${icon('camera')}Photograph</button></div>`}
+      <label class="f" style="margin-top:12px">What is it (optional)<input id="teach-ctx" class="in" value="${esc(teachCtx || (teachPic ? '' : store.get('teachCtx', '')))}" placeholder="e.g. H&E ×100, skin biopsy from the forearm"></label>
       <div class="row" style="margin-top:12px"><button class="btn pri" data-act="teach-go" style="flex:1">${icon('graduation')}Teach me</button><button class="btn" data-act="teach-quiz">Quiz first</button></div>
       <div id="teach-out" style="margin-top:12px">${teachOut ? `<div class="card">${md(teachOut)}</div>` : ''}</div>`;
   };
-  const setTeach = async (urls) => { teachPic = await L.shrink(urls[0], 1280); teachOut = ''; routes.teach(); };
+  async function openTeach(id) {
+    const h = await L.DB.hist.get(id).catch(() => null);
+    if (!h) { go('teach', { replace: true }); return; }
+    teachId = h.id; teachPic = h.data.pic; teachCtx = h.data.ctx || ''; teachOut = h.data.out || '';
+    routes.teach('', {});
+  }
+  // A new or changed picture starts a new session: the old teaching goes (it's kept in History).
+  const setTeach = async (urls) => { teachPic = await L.shrink(urls[0], 1280); teachOut = ''; teachId = ''; teachCtx = $('#teach-ctx')?.value.trim() || ''; routes.teach('', {}); };
   actions['teach-pick'] = () => L.pickImages(1).then(setTeach).catch((e) => { if (!/cancel/i.test(e.message)) toast(e.message); });
   actions['teach-cam'] = () => L.camera().then(setTeach).catch((e) => { if (!/cancel/i.test(e.message)) toast(e.message); });
   actions['teach-zoom'] = () => L.lightbox([{ src: teachPic, label: 'Slide' }]);
+  actions['teach-remove'] = () => { teachPic = null; teachOut = ''; teachId = ''; routes.teach('', {}); };
+  actions['teach-crop'] = async () => { const u = await L.crop(teachPic); if (u) await setTeach([u]); };
   async function teach(quiz) {
     if (!teachPic) { toast('Choose an image first'); return; }
-    const ctx = $('#teach-ctx').value.trim(); store.set('teachCtx', ctx);
+    const ctx = $('#teach-ctx').value.trim(); store.set('teachCtx', ctx); teachCtx = ctx;
+    const pic = teachPic;
     const out = $('#teach-out');
     out.innerHTML = `<div class="card busy"><span class="spin"></span>Studying the image…</div>`;
     const task = quiz
       ? `${ctx ? 'Context: ' + ctx + '\n' : ''}Act as a dermatopathology teacher. Don't reveal the diagnosis yet. Ask me 4 short questions that lead me through this image (architecture, reaction pattern, key cells, decisive clue), each followed by a hidden answer in the form "Answer: …" on its own line, then a final line "Diagnosis to consider: …". Markdown.`
       : `${ctx ? 'Context: ' + ctx + '\n' : ''}Teach me this image as an expert dermatopathologist / dermoscopist teaching a resident. Markdown with headings:\n## What we are looking at (type, stain, magnification, quality)\n## Architecture (low power)\n## Reaction pattern\n## Cells and infiltrate\n## The decisive clues\n## Differential diagnosis (table: diagnosis · for · against)\n## Pitfalls\n## What else I would want (stains, DIF, clinical information)\n## One question to test yourself (answer at the end)\nDescribe only what is visible; say when the image can't show something.`;
-    try { teachOut = await L.aiPics(task, [teachPic], { system: L.SYSTEM, max: 3000 }); out.innerHTML = `<div class="card">${md(teachOut)}</div>`; } catch (e) { out.innerHTML = `<div class="note bad">${esc(L.keyErr(e))}</div>`; }
+    try {
+      const text = await L.aiPics(task, [pic], { system: L.SYSTEM, max: 5000 });
+      if (pic !== teachPic) return; // the picture was replaced meanwhile
+      teachOut = text; out.innerHTML = `<div class="card">${md(teachOut)}</div>`;
+      teachId ||= 'h' + Date.now().toString(36);
+      const head = (/Diagnosis to consider:\s*(.+)/i.exec(text) || /##\s*Differential[^\n]*\n[\s\S]*?\|\s*\**([^|*\n]{3,60})\**\s*\|/i.exec(text) || [])[1];
+      keep({ id: teachId, kind: /dermoscop/i.test(ctx + text.slice(0, 400)) ? 'dermoscopy' : 'slide', title: (ctx || (head ? head.trim() : 'Slide')).slice(0, 90), sub: quiz ? 'Quiz' : 'Teaching', thumb: await thumbOf(pic), data: { pic, ctx, out: text, quiz } });
+    } catch (e) { out.innerHTML = `<div class="note bad">${esc(L.keyErr(e))}</div>`; }
   }
   actions['teach-go'] = () => teach(false);
   actions['teach-quiz'] = () => teach(true);
@@ -91,7 +119,10 @@
     if (!text && !detPics.length) { toast('Describe the case first'); return; }
     const out = $('#det-out');
     out.innerHTML = `<div class="card busy"><span class="spin"></span>Looking beyond the common diagnoses…</div>`;
-    try { detOut = await L.rareRun('CASE\n' + (text || 'See pictures.'), detPics); out.innerHTML = L.rareHtml(detOut); } catch (e) { out.innerHTML = `<div class="note bad">${esc(L.keyErr(e))}</div>`; }
+    try {
+      detOut = await L.rareRun('CASE\n' + (text || 'See pictures.'), detPics); out.innerHTML = L.rareHtml(detOut);
+      keep({ id: 'h' + Date.now().toString(36), kind: 'detective', title: (text || 'Pictures only').slice(0, 90), sub: L.list(detOut.uncommon).slice(0, 3).map((u) => u.name).join(', '), thumb: await thumbOf(detPics[0]), data: { text, pics: [...detPics], out: detOut } });
+    } catch (e) { out.innerHTML = `<div class="note bad">${esc(L.keyErr(e))}</div>`; }
   };
 
   // ---- Disease relationship explorer
@@ -107,7 +138,9 @@
     const out = $('#rel-out');
     out.innerHTML = `<div class="card busy"><span class="spin"></span>Mapping relationships…</div>`;
     try {
-      out.innerHTML = `<div class="card">${md(await L.ai(`Map the diseases related to "${q}" for a dermatologist. Markdown with headings:\n## Clinical look-alikes (and how to tell them apart)\n## Histological relatives (shared reaction pattern; distinguishing clues)\n## Immunological links (shared autoantibodies, pathways, associations)\n## Genetic or syndromic links\n## Overlap syndromes and associations to screen for\n## Treatments that cross over\nBe specific and concise; no invented citations.`, { system: L.SYSTEM, max: 2500 }))}</div>`;
+      const text = await L.ai(`Map the diseases related to "${q}" for a dermatologist. Markdown with headings:\n## Clinical look-alikes (and how to tell them apart)\n## Histological relatives (shared reaction pattern; distinguishing clues)\n## Immunological links (shared autoantibodies, pathways, associations)\n## Genetic or syndromic links\n## Overlap syndromes and associations to screen for\n## Treatments that cross over\nBe specific and concise; no invented citations.`, { system: L.SYSTEM, max: 4000 });
+      out.innerHTML = `<div class="card">${md(text)}</div>`;
+      keep({ id: 'h' + Date.now().toString(36), kind: 'notes', title: `Relationships: ${q}`, sub: 'Disease relationships', data: { text, link: 'relations?q=' + encodeURIComponent(q) } });
     } catch (e) { out.innerHTML = `<div class="note bad">${esc(L.keyErr(e))}</div>`; }
   }
 
@@ -121,6 +154,9 @@
       <div class="card list" id="lit-out" style="margin-top:8px">${q ? '<div class="busy"><span class="spin"></span>Searching Europe PMC…</div>' : '<div class="empty">' + icon('book') + '<b>Search PubMed and more</b>Free, through Europe PMC.</div>'}</div>`;
     $('[data-form=lit]').addEventListener('submit', (e) => { e.preventDefault(); go(`lit?q=${encodeURIComponent(e.target.q.value.trim())}&f=${f}`, { replace: true }); });
     if (!q) return;
-    try { const rs = await L.epmc(`(${q})${LIT[f][1]}`, 20); $('#lit-out').innerHTML = rs.length ? L.reportsHtml(rs) : '<div class="empty"><b>Nothing found</b>Try fewer words.</div>'; } catch (e) { $('#lit-out').innerHTML = `<div class="note bad">${esc(e.message)}</div>`; }
+    try {
+      const rs = await L.epmc(`(${q})${LIT[f][1]}`, 20); $('#lit-out').innerHTML = rs.length ? L.reportsHtml(rs) : '<div class="empty"><b>Nothing found</b>Try fewer words.</div>';
+      if (rs.length) keep({ id: 'lit-' + f + '-' + q.toLowerCase().slice(0, 80), at: Date.now(), kind: 'notes', title: `Literature: ${q}`, sub: `${LIT[f][0]} · ${rs.length} results`, data: { reports: rs, link: `lit?q=${encodeURIComponent(q)}&f=${f}` } });
+    } catch (e) { $('#lit-out').innerHTML = `<div class="note bad">${esc(e.message)}</div>`; }
   };
 })();
