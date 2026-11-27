@@ -31,3 +31,4 @@ AllDebrid, Premiumize (any or all), a folder on the phone, and a folded Sources 
 - iPhone: build number now matches the SideStore source (SideStore refused 1.0.7: app said build 4, source said 1.0.7).
 - v1.0.19: real names for books saved under a torrent id.
 - v1.0.21: first release since v1.0.10 — everything since (redesign, Dream mode, names, place kept…).
+- v1.0.22 + iPhone: chapter order fixed for unevenly named files, Now playing on the book page and the Continue card.

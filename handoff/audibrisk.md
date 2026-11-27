@@ -29,7 +29,7 @@
   config `inkwell/vite.brisk.config.js`, workflow `.github/workflows/brisk-apk.yml`.
   Tests: `inkwell/brisk/brisk.test.js` (runs in `npm test`). The shared eslint config only covers
   `src/`; lint brisk with a temp copy of it that adds `brisk/**/*.{js,jsx}` (clean as of v1.0.6).
-- Next (27 Nov, committed, not built): (1) parts ordered by book + chapter number when every
+- v1.0.22 + iPhone (27 Nov, building both, release): (1) parts ordered by book + chapter number when every
   part has one (`partKey`/`orderParts`: "Book 1 - Chapter 08" among "Book I - Chapter 0X" no longer
   first — user's Fellowship of the Ring); applied in ready()/warmed()/phone books; first time a
   started book is reordered its place moves to the same part (`placeInNewOrder`, `briskReordered`).
