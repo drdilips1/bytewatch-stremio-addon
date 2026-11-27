@@ -610,3 +610,8 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
 - Public sources worker: fixes live (checked 27 Nov: empty AudiobookBay / LibGen searches → 200 []); the label still says 1.0.0 (the user pasted the file before the bump).
 
 ## Daily suggestions
+- Settings → Storage (27 Nov, work, not built):
+  - Android: InkwellWeb.storageUsage / storageClear('update'|'temp'); temp spares local-covers and the WebView dir (clearCache(true) instead).
+  - InkwellUpdatePlugin.load() deletes the old update APK at start.
+  - src/lib/storage.js storageGroups / voiceLabel / fmtBytes (tests/storage.test.js); components/storage-card.jsx; epub.js ebookBytes, chapters.js chapterBytes.
+  - Remove: forgetEbook, forgetChapter, removeImported, voices.remove. On iPhone only the app-side groups show.
