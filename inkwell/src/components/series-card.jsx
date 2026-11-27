@@ -3,7 +3,7 @@ import { Cover } from './common.jsx';
 import { useStore, library, progress } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { mainTitle, matches } from '../lib/match.js';
-import { seriesOf, seriesBooks, statusIn, nextIn } from '../lib/series.js';
+import { seriesOf, seriesBooks, statusIn, nextIn, findSeries } from '../lib/series.js';
 
 const LABEL = { finished: '✓ Finished', have: 'You have it', reading: '' };
 
@@ -12,7 +12,16 @@ const LABEL = { finished: '✓ Finished', have: 'You have it', reading: '' };
  * order with where you are, and what's next. Missing volumes are easy to spot.
  */
 export function SeriesCard({ book }) {
-  const s = seriesOf(book);
+  // From the book's details at once; else found (Audible, by title) — the details' own lookup
+  // can finish after the page opens, and some copies never say their series.
+  const [s, setS] = useState(() => seriesOf(book));
+  useEffect(() => {
+    let alive = true;
+    const own = seriesOf(book);
+    setS(own);
+    if (!own?.name) findSeries(book).then((x) => alive && x && setS(x)).catch(() => {});
+    return () => (alive = false);
+  }, [book.uid, book.series, book.title]);
   const [books, setBooks] = useState(null);
   useStore(progress);
   useStore(library);

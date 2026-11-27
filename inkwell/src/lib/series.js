@@ -17,6 +17,38 @@ export function parseSeries(s) {
 export const seriesOf = (book) => parseSeries(book?.series || metaNow(book)?.series || '');
 
 const cache = persisted('seriesCache', {}, { delay: 2000 }); // "name|author" -> { t, books }
+
+/**
+ * Audible's match for this book, when it's the same book (its main title fits): its series, or
+ * null. A copy whose details don't say its series (a TorBox file name, a server without it)
+ * still shows the series row.
+ */
+export function seriesFromMatch(book, found) {
+  if (!found?.series || !book?.title || !found.title) return null;
+  const t = mainTitle(book.title);
+  if (!t || !(matches(t, found.title) || matches(mainTitle(found.title), book.title))) return null;
+  return parseSeries(found.series);
+}
+const named = persisted('seriesNamed', {}, { delay: 2000 }); // "title|author" -> { t, s }
+/** The book's series from its details, else looked up on Audible by title (kept 30 days; a miss 3). */
+export async function findSeries(book) {
+  const own = seriesOf(book);
+  if (own?.name) return own;
+  if (!book?.title || book.source === 'pod') return null;
+  const key = `${mainTitle(book.title)}|${String(book.author || '').split(',')[0].trim()}`.toLowerCase();
+  const hit = named.get()[key];
+  if (hit && Date.now() - hit.t < (hit.s ? 30 : 3) * DAY) return hit.s;
+  const found = await audible.find(mainTitle(book.title), String(book.author || '').split(',')[0].trim()).catch(() => undefined);
+  if (found === undefined) return null; // couldn't ask: try again next time
+  const s = seriesFromMatch(book, found);
+  named.set((all) => {
+    const next = { ...all, [key]: { t: Date.now(), s } };
+    const keys = Object.keys(next);
+    if (keys.length > 500) keys.slice(0, keys.length - 500).forEach((k) => delete next[k]);
+    return next;
+  });
+  return s;
+}
 const DAY = 864e5;
 const inflight = new Map();
 
@@ -31,6 +63,12 @@ export function seriesBooks(name, author = '') {
       audible
         .series(name, String(author).split(',')[0].trim())
         .then((books) => {
+          // Nothing found (Audible busy, or blocked a moment): asked again tomorrow, not in two
+          // weeks — an empty answer kept for 14 days hid books' series ("missing sometimes").
+          if (!books.length) {
+            cache.set((c) => ({ ...c, [key]: { t: Date.now() - 13 * DAY, books: [] } }));
+            return [];
+          }
           const slim = books.slice(0, 40).map(({ uid, source, kind, title, author, narrator, cover, year, duration, series, seriesN, link, rating, ratings }) => ({ uid, source, kind, title, author, narrator, cover, year, duration, series, seriesN, link, rating, ratings }));
           cache.set((c) => ({ ...c, [key]: { t: Date.now(), books: slim } }));
           return slim;
