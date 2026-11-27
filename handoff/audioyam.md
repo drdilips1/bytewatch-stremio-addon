@@ -547,3 +547,7 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   - The folder is checked every 20 s ONLY while the app is visible (timer cleared when hidden). `findDownloaded` (magnet.js, tested) matches by samePhoneBook or folder name (local.js audio books now carry `rawName`). Gives up after 3 days. Auto-plays unless something else is playing.
   - Playing a half-downloaded book: NOT done. Libtorrent apps preallocate files, so completeness can't be told; the user was told to use the app's "move after download" folder.
   - What's new EDITION `nov-2026k`.
+- 27 Nov, user test of run #50: a book played at 20% (the user's app downloads INTO the chosen folder; files are preallocated at full size, sequential didn't help). Also, Play after deleting the download played the stale scanned entry (IO error).
+  - Fixed on `work` (e54f519), not built: `InkwellLocal.filled({uris})` reads 7 × 16 KB blocks per file (incl. the last); any all-zero block = not complete.
+  - JS `finished()` rescans, then checks the size (≥ 95 % of the result's size) and `filled`. The same check runs before Play's "already there".
+  - Settings text: the folder = the one it downloads to.
