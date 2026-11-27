@@ -323,7 +323,7 @@ function PickSheet({ close, children }) {
 export function TranscriptView({ s }) {
   // Long-press a line to highlight it (a bookmark with its words, in Notes); again to remove.
   const marks = useStore(bookmarks);
-  const press = useRef({ timer: 0, fired: false });
+  const press = useRef({ timer: 0, fired: false, pending: null, x: 0, y: 0 });
   // A highlighted line: its moment falls within the line, or its words are the line's (lines
   // are recognised afresh each time you play, so their exact start can shift a little).
   const squash = (v) => String(v || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -343,19 +343,58 @@ export function TranscriptView({ s }) {
   };
   // A highlight being stretched over more sentences: { from, time, text } of where it began.
   const [extend, setExtend] = useState(null);
-  const hold = (start, text, sentence = null) => {
-    clearTimeout(press.current.timer);
-    press.current.timer = setTimeout(() => {
-      press.current.fired = true;
-      const added = player.toggleQuote(start, typeof text === 'string' ? text : String(text || ''));
-      navigator.vibrate?.(15);
-      // A sentence of the book: tap another one to carry the highlight on to it (it was one sentence only).
-      if (added && sentence) setExtend({ from: sentence.from, time: start, text: String(text || '') });
-      else setExtend(null);
-      toast(added ? (sentence ? 'Highlighted — tap where it should end to take in more' : 'Highlighted — find it in Notes') : 'Highlight removed');
-    }, 550);
+  // Long-press: Android's own long-press (contextmenu) or ~half a second held still (iPhone has no
+  // contextmenu). It used to give up whenever the finger "left" the line or Android cancelled the
+  // touch — and with the text scrolling along with the narrator, or Android taking the long-press
+  // as its own, it gave up nearly every time ("long press does nothing"). Now only moving the
+  // finger more than a little cancels it.
+  const fire = () => {
+    const p = press.current;
+    clearTimeout(p.timer);
+    if (!p.pending) return;
+    const { start, text, sentence } = p.pending;
+    p.pending = null;
+    p.fired = true;
+    const added = player.toggleQuote(start, typeof text === 'string' ? text : String(text || ''));
+    navigator.vibrate?.(15);
+    // A sentence of the book: tap another one to carry the highlight on to it (it was one sentence only).
+    if (added && sentence) setExtend({ from: sentence.from, time: start, text: String(text || '') });
+    else setExtend(null);
+    toast(added ? (sentence ? 'Highlighted — tap where it should end to take in more' : 'Highlighted — find it in Notes') : 'Highlight removed');
   };
-  const release = () => clearTimeout(press.current.timer);
+  const hold = (start, text, sentence = null, e = null) => {
+    const p = press.current;
+    clearTimeout(p.timer);
+    p.pending = { start, text, sentence };
+    p.x = e?.clientX ?? 0;
+    p.y = e?.clientY ?? 0;
+    p.timer = setTimeout(fire, 550);
+  };
+  const release = () => {
+    clearTimeout(press.current.timer);
+    press.current.pending = null;
+  };
+  const moved = (e) => {
+    const p = press.current;
+    if (p.pending && Math.hypot((e.clientX ?? 0) - p.x, (e.clientY ?? 0) - p.y) > 12) {
+      release();
+      p.last = null; // a real move: not a long-press, whatever follows
+    }
+  };
+  // A scroll starting (the browser cancels the touch): no highlight — unless Android's long-press
+  // follows straight after, on a finger that hadn't moved (it cancels the touch for that too).
+  const cancelled = () => {
+    const p = press.current;
+    if (p.pending) p.last = { ...p.pending, at: Date.now() };
+    release();
+  };
+  const longPress = (e) => {
+    e.preventDefault();
+    const p = press.current;
+    if (!p.pending && p.last && Date.now() - p.last.at < 1500) p.pending = p.last;
+    p.last = null;
+    fire();
+  };
   const [t, setT] = useState(null);
   const chars = useStore(knownCharacters);
   const [card, setCard] = useState(null);
@@ -542,11 +581,11 @@ export function TranscriptView({ s }) {
                     } else toast('The book isn’t lined up with the audio yet — a moment');
                   }}
                   // Long-press a sentence to highlight it, as with heard lines.
-                  onContextMenu={(e) => e.preventDefault()}
-                  onPointerDown={() => hold(timeAtWord(se.from) ?? s.time ?? 0, se.text, se)}
+                  onContextMenu={longPress}
+                  onPointerDown={(e) => hold(timeAtWord(se.from) ?? s.time ?? 0, se.text, se, e)}
                   onPointerUp={release}
-                  onPointerLeave={release}
-                  onPointerCancel={release}
+                  onPointerMove={moved}
+                  onPointerCancel={cancelled}
                 >
                   {withNames(se.text, names, (n) => setCard(lookup.get(n)))}{' '}
                 </span>
@@ -558,11 +597,11 @@ export function TranscriptView({ s }) {
             data-i={i}
             class={'tl' + (i === active ? ' on' : i < active ? ' past' : '') + (t?.bookText?.state === 'on' && !g.book && !t?.published ? ' heard' : '') + (g.start != null && quoted(i) ? ' hl' : '')}
             onClick={() => (press.current.fired ? (press.current.fired = false) : g.start != null && player.seek(g.start))}
-            onContextMenu={(e) => e.preventDefault()}
-            onPointerDown={() => g.start != null && hold(g.start, !t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text, i))}
+            onContextMenu={longPress}
+            onPointerDown={(e) => g.start != null && hold(g.start, !t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text, i), null, e)}
             onPointerUp={release}
-            onPointerLeave={release}
-            onPointerCancel={release}
+            onPointerMove={moved}
+            onPointerCancel={cancelled}
           >
             {withNames(!t?.published && t?.bookText?.state === 'on' && g.book ? g.book : heard(g.text, i), names, (n) => setCard(lookup.get(n)))}
           </p>
