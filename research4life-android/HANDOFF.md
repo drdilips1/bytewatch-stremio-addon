@@ -1,4 +1,51 @@
-# DermScholar: handoff for a new session
+# DermScholar + Lesionaut: handoff for a new session
+
+## READ FIRST: state on 27 Nov 2026 (newest; overrides older notes below)
+
+**Repo / branch:** `drdilips1/bytewatch-stremio-addon`, branch **`claude/dreamy-einstein-sphnl8`**, folder `research4life-android/`. Both apps live here and share the Android project (two Gradle flavours).
+
+**Owner's standing rules**
+- **Build only when the owner says "build for both" / "build for Android" / "build for iOS"** (a plain "Build" has been treated as both). Otherwise commit with `[skip ci]`. When the owner says "just note", add the point to `BACKLOG.md` (Lesionaut table at the bottom) and don't build.
+- Bump versions for every build: DermScholar `versionCode`/`versionName` in `defaultConfig` of `app/build.gradle` **and** `'5.xx iOS' : '5.xx web'` in `web/web.js`; Lesionaut `versionCode`/`versionName` inside `productFlavors { lesionaut { … } }`.
+- The owner's reports are about **iOS** unless they say Android (Lesionaut reports so far are Android).
+- Never ask for API keys in chat; never put keys in code. No `#` comment lines in Terminal commands for the owner. No Sci-Hub/LibGen. Don't remove features. No visible AI-limit/countdown messages.
+- The owner is credit-conscious: short replies, no guess-builds; ask for the exact error text instead of guessing.
+- After each build, check the runs with the GitHub MCP `actions_list` (and a `send_later` reminder ~7 min later), then give links. Maven Central HTTP 429 = re-run once. iOS runs can fail/cancel when GitHub's Mac minutes run out (not our code).
+
+**Current versions (last build 17 Nov 2026, commit 6dfa9a2):** DermScholar **5.47** (versionCode 75), iPhone build `dermscholar-ios-41`; Lesionaut **2.1** (versionCode 3).
+- DermScholar APK: https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/dermscholar-latest/DermScholar.apk
+- DermScholar IPA: `releases/download/dermscholar-ios-<run>/DermScholar.ipa` (owner installs with **SideStore** now; AltStore's servers gave HTTP 503)
+- DermScholar web: https://drdilips1.github.io/bytewatch-stremio-addon/dermscholar/
+- Lesionaut APK: https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/lesionaut-latest/Lesionaut.apk (own channel `lesionaut-latest` + version.json)
+- Lesionaut web (iPhone): https://drdilips1.github.io/bytewatch-stremio-addon/dermscholar/lesionaut/ (must stay inside `dermscholar/`: Audiohub's gh-pages publisher deletes other top-level folders)
+
+### Lesionaut (the diagnosis app)
+- **Separate app, own UI and code** in `app/src/main/assets/www/lx/`: `index.html`, `lx.css`, `lx-core.js` (shell, router, tabs, sheets, phone bridge `window.Native` or web.js `WebNative`, AI calls `ai()`/`aiPics()`, IndexedDB `lesionaut` cases, background jobs bar), `lx-data.js` (pattern library), `lx-case.js` (home, cases, case workspace Evidence/Assessment/Work-up/Notes, correlation engine prompt+JSON schema, specialist debate, rare-disease detective + Europe PMC case reports, treatment assistant, linked follow-up visits + AI comparison, SOAP/referral/presentation/MCQ/patient docs, annotation studio), `lx-explore.js` (pattern library, Teach me this slide, standalone detective, disease relationships, literature), `lx-tools.js` (PASI, EASI, SCORAD, SALT, VASI, UAS7, DLQI, GAGS, BSA/BMI, eGFR), `lx-settings.js` (AI keys, "Bring keys from your DermScholar account" = decrypts the Supabase vault, theme, updates, privacy/about).
+- Android flavour `lesionaut` (`applicationId app.lesionaut`, `START_PAGE lx/index.html`, `RELEASE_TAG lesionaut-latest`, `APK_NAME Lesionaut.apk`), icon `app/src/lesionaut/res/drawable/ic_launcher.xml`, name in `app/src/lesionaut/res/values/strings.xml`. Web build: `bash web/build-lesionaut.sh <out>` (icons/manifest in `web/lesionaut/`).
+- Tested only in a browser with a mocked AI (Playwright, served on localhost:8765); the sandbox can't reach the real AI/EPMC hosts.
+- Cases and pictures stay on the device (not synced).
+
+### AI layer (both apps)
+- Several pictures in one request: `Native.aiRunImages(id, system, task, dataUrlsJson, max)` (MainActivity `runImages`, Gemini/Claude/Groq `completeWithImages`; web.js `aiRunImages`). Android also has `Native.captureImage(id)` (camera → `imagePicked`) and picks up to 12 photos at once.
+- Picture order: **Claude (always Sonnet 5.5 for pictures, even if Opus is chosen for text) → Gemini → Groq → OpenRouter**; per-AI read timeouts 45 s (one picture) / 75 s (several). Text order unchanged (chosen AI first, then Groq, Claude, Gemini, OpenRouter).
+- Errors name the cause (`LlmProvider.netWhy`: DNS, timeout, secure connection, refused).
+- Sync no longer overwrites an AI key already on the phone (MainActivity `importSecrets`): the account is shared with the owner's wife's phone and the iPad, which kept uploading old keys.
+- Owner's experience: Gemini free daily quota runs out (it's per Google **project**, not per key); the phone's DNS once failed for Gemini/Claude (fixed with Private DNS `dns.google`).
+
+### PENDING (nothing below is built)
+**Lesionaut backlog (BACKLOG.md, Lesionaut table):**
+- **L1** Assess only finishes if the app stays open → keep the request alive (Android foreground service with an "Assessing…" notification; resume/retry on return; web: warn to keep the page open).
+- **L2** Picture-first: commit to the most likely diagnosis from the image alone; no "Insufficient evidence: no history" banner; refinements as one optional line; "insufficient" only when the picture itself is unreadable; one-line retake advice.
+- **L3** Photograph/upload reports, biopsy reports, prescriptions, referral notes, old case papers (photos or PDFs) → AI extracts age, sex, duration, medicines, treatment, labs, biopsy findings into the case, shows them for a quick check; manual typing becomes optional.
+- **L4** Teach me this slide: × to remove the picture, "Replace" label, clear old teaching on change, crop step (printed captions gave the answer away).
+- **L5** Save everything with a **History tab**: cases, Teach-me sessions, detective searches, Explore answers, calculator results, with pictures and answers; search, filters (cases · slides · dermoscopy · detective · notes), reopen as it was, ★ keep / delete.
+**DermScholar:**
+- DermScholar's own "Diagnose from picture" still limited to 3 pictures (Lesionaut has 12).
+- Research4Life/ClinicalKey Get PDF: last state 5.41+ (taps "Log in here" by its link, menu → Content → Reference Sources → Clinical Key, 20 s re-tap); the owner reported it worked once after ~2 min and once needed manual taps; awaiting the "Details" text if it stalls again.
+- Older open items: see "Roadmap: still open" below and the DermScholar rows of BACKLOG.md.
+
+---
+
 
 > **Owner's build rule (6 Oct 2026):** build only on "build for iOS", "build for Android" or "build for both" (not a plain "build now"); commit everything else with `[skip ci]`. Android Get PDF works — don't change Android unless asked. **Research4Life → ClinicalKey link:** `https://auth.elsevier.com/ShibAuth/institutionLogin?entityID=http://stsr4l.who.int/adfs/services/trust&appReturnURL=<article>` (WHO ADFS sign-in). **The owner's reports are about iOS (iPhone/iPad) unless they say Android.**
 
