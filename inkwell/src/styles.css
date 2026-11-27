@@ -13289,11 +13289,19 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .bm-fold-icon { display: inline-flex; transform: rotate(90deg); transition: transform 0.2s; }
 .bm-fold-icon.open { transform: rotate(-90deg); }
 
-/* Your copies under Available: small tiles of one size in a row, in the Available tiles' style. */
-.copies-check { margin: 10px 16px 0; }
+/* Your copies under Available: the same size and look as the Available tiles — two lines (where,
+   then length · narrator · how complete), the play-first button at the right, swiped sideways. */
+.copies-check { margin: 10px 16px 0; gap: 6px; }
+.copies-check h4 { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.copies-check h4 small { text-transform: none; letter-spacing: 0; }
 .cc-grid { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .cc-grid::-webkit-scrollbar { display: none; }
-.cc-grid .cc-copy { flex: 0 0 150px; height: 104px; overflow: hidden; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--dyn, var(--accent)) 35%, transparent); }
-.cc-grid .cc-copy.on { border-color: color-mix(in srgb, var(--dyn, var(--accent)) 80%, transparent); }
-.cc-grid .cc-tags { flex-wrap: nowrap; overflow: hidden; }
-.cc-grid .cc-note { display: none; }
+.cc-grid .cc-copy { flex: none; display: flex; flex-direction: column; justify-content: center; gap: 1px; width: auto; max-width: 220px; height: auto; padding: 8px 12px 8px 12px; border-radius: 14px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--dyn, var(--accent)) 35%, transparent); }
+.cc-grid .cc-copy.on { border-color: color-mix(in srgb, var(--dyn, var(--accent)) 85%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dyn, var(--accent)) 40%, transparent); }
+.cc-grid .cc-top { display: flex; align-items: center; gap: 10px; }
+.cc-grid .cc-top b { font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-grid .cc-radio { width: 18px; height: 18px; flex: none; margin-left: auto; }
+.cc-grid .cc-meta { font-size: 12px; line-height: 1.3; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.cc-grid .cc-word.ok { color: #3fb36b; } .cc-grid .cc-word.warn { color: #e0a33a; } .cc-grid .cc-word.bad { color: #e5484d; }
+.cc-grid .cc-bar, .cc-grid .cc-tags, .cc-grid .cc-note { display: none; }
+.book .bm-fold .icon { display: inline-block; }

@@ -771,7 +771,12 @@ function CopiesCheck({ book }) {
               <b>{WHERE[c.source] || c.addonName || "Copy"}</b>
               <button class={"cc-radio" + (chosen ? " on" : "")} aria-label="Play this copy first" onClick={() => (setPreferred(book, c), toast(`Play uses ${WHERE[c.source] || "this copy"} for this book`))} />
             </div>
-            <small class="cc-meta">{[c.narrator && `Read by ${c.narrator}`, j.len > 0 && hm(j.len), c.format].filter(Boolean).join(" · ") || "Length not known yet"}</small>
+            {/* One line under the name, like the Available tiles: length · narrator · how complete. */}
+            <small class="cc-meta">
+              {[j.len > 0 && hm(j.len), c.narrator, !j.len && c.format].filter(Boolean).join(" · ") || "Length not known yet"}
+              {TAG[j.tag] && <span class={"cc-word " + TAG[j.tag][1]}> · {j.tag === "full" ? "complete" : TAG[j.tag][0].toLowerCase()}</span>}
+              {j.otherNarrator && <span class="cc-word"> · other narrator</span>}
+            </small>
             {j.ratio > 0 && (
               <div class="cc-bar">
                 <span>
