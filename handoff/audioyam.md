@@ -541,4 +541,9 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   - grain sits behind the content (z-index -1);
   - dark mode --muted / --faint mixed closer to --text;
   - Home banner 236 px with a lighter edge in dark.
-- Torrent app follow-up asked by the user: pick your torrent app, then the normal Play button starts it downloading there and plays as it downloads. Limits explained to the user (outside apps show their own add screen; random piece order). NOT started, waiting on their choice.
+- Torrent app follow-up: the user chose the external app ("no compromise on battery"). Done on `work` (ec71c01), not built.
+  - Settings → Torrent app (Android only, `TorrentAppCard`): pick an app (`InkwellWeb.magnetApps`, `<queries>` for magnet) and its "move after download" folder (added as a phone folder). Stored in `settings.torrentApp {package, name, folder, folderName}`.
+  - Play on torrent results (no cloud, no home server) → `src/lib/appwait.js` `playViaApp`: if the book is already in phone folders it plays; else `openExternal({url, package})` and an entry in `torrentAppWaits`.
+  - The folder is checked every 20 s ONLY while the app is visible (timer cleared when hidden). `findDownloaded` (magnet.js, tested) matches by samePhoneBook or folder name (local.js audio books now carry `rawName`). Gives up after 3 days. Auto-plays unless something else is playing.
+  - Playing a half-downloaded book: NOT done. Libtorrent apps preallocate files, so completeness can't be told; the user was told to use the app's "move after download" folder.
+  - What's new EDITION `nov-2026k`.
