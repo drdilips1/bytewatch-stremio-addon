@@ -552,3 +552,23 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   - JS `finished()` rescans, then checks the size (≥ 95 % of the result's size) and `filled`. The same check runs before Play's "already there".
   - Settings text: the folder = the one it downloads to.
 - Ebooks via torrent app (on work, not built): Read → playViaApp(r, book, 'text'); findDownloaded matches kind both ways (+ ebookName); complete() checks ebookUri; opens nav.push('reader'). Save/Kindle hidden when viaApp.
+
+## Audiohub+ → AudioYam: not ported yet (checked 27 Nov; Audiohub+ commits since the last port base 41dac5c)
+User: skip Audiohub+'s new look (AudioYam keeps its own premium finish). Waiting for the user to pick.
+- Fixes:
+  - f9660234 (iPhone .mp4 import + why a file failed; right author on author pages; tidier source cards; Downloading-for-you card opens).
+  - 06cb3557: Audiobookshelf whole library (AudioYam still has limit 500 in audiobookshelf.js) + recent searches only while typing.
+  - 5682af2b: a same-author different book shows as "on your Audiobookshelf".
+  - c01e080e: deleted bookmarks / highlights come back via sync — only if AudioYam's account sync has the same path.
+- Features:
+  - ae7926e1: Discover Free tab (LibriVox + Gutenberg; AudioYam has the sources, no tab).
+  - ee11545f: Home "Come back to …".
+  - 3f6cc783: Listener Challenges.
+  - 1bddae54: quote postcards.
+  - 6c9dec6a: Talk (ask out loud in the player).
+  - 8f81459d: Whisper Notes.
+  - 982ef590: Time Machine search.
+  - 91a9c427: pick the ebook for Text (15 s auto).
+  - 7c13293a: bigger cover in the Picked-for-you banner.
+- X-Ray family: a7b1877a (Character Tracker), 7397d43e (relationship map + Wikipedia photos), b38456d9 (Fandom pictures), abafa7ac (map redesign), 8cbbe520 (character card fix).
+- Never: 452b5223 (Mobilism). Skipped: 1a246588 / 76fba596 (look), c1699299 (AudioYam already has it).
