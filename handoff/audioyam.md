@@ -527,3 +527,6 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   - `src/lib/magnet.js` now holds `TRACKERS`, `withTrackers` (moved from qbit.js, which re-exports it) and `appMagnet`; tested in `tests/magnet.test.js`.
   - What's new card added, EDITION `nov-2026i`. No reply posted on GitHub.
 - Built 27 Nov: test APK (run 48) and iPhone ios-14 from 368661a, both green (include #12, #13, iPad Save to Files). Not released to main.
+
+## Premium polish (27 Nov) — SAMPLE ONLY, waiting for the user
+- handoff/samples/audioyam-premium-sample.html/.png: Fraunces heads + spaced eyebrow labels, book-like covers (spine shade, 2-layer shadow), 1px top sheen on cards, glossy accent pills, cover-colour glow, film grain (off on AMOLED / reduce motion), 20/30 px spacing, fewer top-bar icons (Ask into search, tagline gone), floating glass tab bar. Applies on top of every palette. Nothing built.

@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AudioYam Premium Polish</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --page: #0c0a10; --ink: #f3eef6; --ink-2: #b8afc2; --ink-3: #7d7488;
+    --accent: #d77fa1; --accent-2: #f0b48a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font-family: Figtree, system-ui, sans-serif; padding: 28px 16px 60px; }
+  h1.page { font-family: Fraunces, serif; font-weight: 600; font-size: 30px; margin: 0 auto 6px; max-width: 1180px; letter-spacing: -0.5px; }
+  p.lead { color: var(--ink-2); max-width: 1180px; margin: 0 auto 26px; line-height: 1.5; }
+  .pair { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; max-width: 1180px; margin: 0 auto 40px; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .tag { font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--ink-3); font-weight: 700; }
+  .tag.new { color: var(--accent); }
+  .phone { width: 360px; height: 740px; border-radius: 44px; overflow: hidden; position: relative; border: 10px solid #1d1a22; box-shadow: 0 40px 80px -30px #000; }
+
+  /* ---------------- NOW (as the app looks today) ---------------- */
+  .now { background: #1b0f1a; font-family: Figtree, sans-serif; }
+  .now .bar { display: flex; align-items: center; justify-content: space-between; padding: 40px 12px 0 16px; }
+  .now .brand { display: flex; gap: 8px; align-items: center; }
+  .now .logo { width: 34px; height: 34px; border-radius: 9px; background: #c96f92; }
+  .now .brand b { font-size: 16px; display: block; }
+  .now .brand small { font-size: 10px; color: #b9a8b6; }
+  .now .icons { display: flex; gap: 10px; color: #eee; font-size: 15px; }
+  .now h2.greet { margin: 12px 16px 0; font-size: 22px; font-weight: 800; }
+  .now .hero { margin: 14px 16px 0; height: 180px; border-radius: 22px; border: 1px solid rgba(255,255,255,.1); background: linear-gradient(120deg,#3a3315,#6b5d16); display: flex; gap: 14px; padding: 18px; align-items: center; }
+  .now .cov { width: 96px; height: 96px; border-radius: 10px; flex: none; }
+  .now .hero small { font-size: 9px; letter-spacing: 1.5px; color: #e6dcc0; }
+  .now .hero b { display: block; font-size: 17px; margin: 4px 0; }
+  .now .hero span { font-size: 11px; color: #ddd; }
+  .now .btn { margin-top: 10px; display: inline-block; background: #c96f92; padding: 7px 16px; border-radius: 99px; font-size: 12px; font-weight: 700; }
+  .now h3 { margin: 22px 16px 8px; font-size: 16px; font-weight: 800; }
+  .now .card { margin: 0 16px; height: 108px; border-radius: 18px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); display: flex; overflow: hidden; }
+  .now .card .cov { width: 78px; height: 108px; border-radius: 0; }
+  .now .card div { padding: 12px; font-size: 12px; }
+  .now .row { display: flex; gap: 10px; padding: 0 16px; }
+  .now .row .cov { width: 96px; height: 96px; }
+  .now .tabs { position: absolute; bottom: 0; left: 0; right: 0; height: 70px; background: #241725; display: flex; justify-content: space-around; align-items: center; font-size: 10px; color: #a08c9c; }
+  .now .tabs .on { color: #fff; background: rgba(201,111,146,.3); padding: 6px 12px; border-radius: 99px; }
+
+  /* ---------------- PREMIUM ---------------- */
+  .pr {
+    --bg: #120b12; --bg-2: #1a1019;
+    --surface: linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.025));
+    --hair: rgba(255,255,255,.08);
+    --sheen: inset 0 1px 0 rgba(255,255,255,.07);
+    background:
+      radial-gradient(120% 60% at 100% 0%, rgba(215,127,161,.18), transparent 60%),
+      radial-gradient(90% 50% at 0% 30%, rgba(240,180,138,.08), transparent 60%),
+      var(--bg);
+  }
+  /* fine film grain over everything, like printed paper */
+  .pr::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .07; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+  .pr .scroll { position: absolute; inset: 0; overflow: hidden; }
+  .pr .bar { display: flex; align-items: center; justify-content: space-between; padding: 44px 18px 0 20px; }
+  .pr .brand { display: flex; gap: 10px; align-items: center; }
+  .pr .logo { width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(145deg,#e79bb8,#b8577f); box-shadow: var(--sheen), 0 6px 16px -6px rgba(215,127,161,.7); }
+  .pr .brand b { font-family: Fraunces, serif; font-weight: 600; font-size: 19px; letter-spacing: -.3px; }
+  .pr .icons { display: flex; gap: 4px; }
+  .pr .ib { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-2); }
+  .pr .ib.search { background: var(--surface); box-shadow: var(--sheen); border: 1px solid var(--hair); color: var(--ink); }
+  .pr .eyebrow { font-size: 10.5px; letter-spacing: 1.8px; text-transform: uppercase; font-weight: 700; color: var(--ink-3); }
+  .pr .greet { padding: 22px 20px 0; }
+  .pr .greet h2 { margin: 6px 0 0; font-family: Fraunces, serif; font-weight: 600; font-size: 30px; letter-spacing: -.6px; line-height: 1.05; }
+  .pr .greet h2 em { font-style: italic; color: var(--accent); }
+  .pr .hero { margin: 18px 20px 0; height: 196px; border-radius: 26px; position: relative; overflow: hidden; padding: 18px; display: flex; gap: 16px; align-items: flex-end;
+    background: radial-gradient(80% 120% at 15% 20%, #8a7420 0%, transparent 60%), radial-gradient(70% 90% at 100% 100%, #4a1f3a, transparent 70%), #24161f;
+    box-shadow: var(--sheen), 0 24px 40px -24px rgba(0,0,0,.9); border: 1px solid var(--hair); }
+  .pr .hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.08) 48%, transparent 60%); }
+  .book { position: relative; flex: none; border-radius: 4px 7px 7px 4px; box-shadow: 0 1px 1px rgba(0,0,0,.4), 0 14px 24px -10px rgba(0,0,0,.85); overflow: hidden; }
+  .book::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,.35) 0, rgba(255,255,255,.18) 3%, rgba(0,0,0,.12) 6%, transparent 12%), linear-gradient(180deg, rgba(255,255,255,.1), transparent 30%); }
+  .pr .hero .book { width: 104px; height: 156px; }
+  .pr .hero .meta { position: relative; padding-bottom: 4px; }
+  .pr .hero .eyebrow { color: #f1dc8f; }
+  .pr .hero h4 { margin: 6px 0 2px; font-family: Fraunces, serif; font-weight: 600; font-size: 21px; letter-spacing: -.3px; line-height: 1.1; }
+  .pr .hero .by { font-size: 12.5px; color: rgba(255,255,255,.75); }
+  .pr .stats { display: flex; gap: 8px; margin-top: 8px; font-size: 11px; color: rgba(255,255,255,.7); font-variant-numeric: tabular-nums; }
+  .pr .stats b { color: #f6d46b; font-weight: 700; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 9px 16px; border-radius: 99px; font-weight: 700; font-size: 12.5px; color: #1b0f16;
+    background: linear-gradient(180deg, #f2a9c4, #d77fa1); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -1px 0 rgba(0,0,0,.15), 0 8px 18px -8px rgba(215,127,161,.9); }
+  .pr .dots { position: absolute; right: 18px; bottom: 14px; display: flex; gap: 4px; }
+  .pr .dots i { width: 5px; height: 5px; border-radius: 9px; background: rgba(255,255,255,.3); }
+  .pr .dots i.on { width: 16px; background: #fff; }
+  .pr .sec { display: flex; align-items: baseline; justify-content: space-between; padding: 30px 20px 12px; }
+  .pr .sec h3 { margin: 4px 0 0; font-family: Fraunces, serif; font-weight: 600; font-size: 21px; letter-spacing: -.3px; }
+  .pr .sec a { font-size: 12.5px; color: var(--accent); font-weight: 600; text-decoration: none; }
+  .pr .cont { margin: 0 20px; border-radius: 22px; padding: 12px; display: flex; gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--hair); box-shadow: var(--sheen); }
+  .pr .cont .book { width: 62px; height: 92px; }
+  .pr .cont .t { flex: 1; min-width: 0; }
+  .pr .cont .t b { display: block; font-size: 15px; font-weight: 700; letter-spacing: -.1px; }
+  .pr .cont .t small { color: var(--ink-2); font-size: 12px; }
+  .pr .track { height: 4px; border-radius: 9px; background: rgba(255,255,255,.08); margin: 10px 0 6px; overflow: hidden; }
+  .pr .track i { display: block; height: 100%; width: 38%; border-radius: 9px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 10px rgba(215,127,161,.7); }
+  .pr .left { font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .pr .play { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; flex: none; background: linear-gradient(180deg, #f2a9c4, #d77fa1); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 10px 20px -8px rgba(215,127,161,.9); color: #1b0f16; }
+  .pr .shelf { display: flex; gap: 14px; padding: 0 20px; }
+  .pr .shelf .it { width: 100px; }
+  .pr .shelf .book { width: 100px; height: 150px; }
+  .pr .shelf b { display: block; font-size: 12.5px; margin-top: 9px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pr .shelf small { font-size: 11px; color: var(--ink-3); }
+  .pr .tabs { position: absolute; left: 12px; right: 12px; bottom: 14px; height: 62px; border-radius: 24px; display: flex; justify-content: space-around; align-items: center; z-index: 2;
+    background: rgba(30,20,30,.72); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); border: 1px solid var(--hair); box-shadow: var(--sheen), 0 18px 30px -12px rgba(0,0,0,.9); }
+  .pr .tabs span { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; color: var(--ink-3); font-weight: 600; }
+  .pr .tabs .on { color: var(--ink); }
+  .pr .tabs .on::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .pr .tabs svg, .pr .ib svg { width: 19px; height: 19px; }
+  .fade-b { position: absolute; left: 0; right: 0; bottom: 0; height: 120px; background: linear-gradient(transparent, var(--bg) 70%); z-index: 1; pointer-events: none; }
+
+  /* book page */
+  .bp .top { position: relative; height: 330px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 18px;
+    background: radial-gradient(70% 70% at 50% 35%, rgba(60,110,160,.55), transparent 70%); }
+  .bp .top .book { width: 150px; height: 225px; }
+  .bp .top .glow { position: absolute; width: 160px; height: 40px; bottom: 6px; border-radius: 50%; background: rgba(0,0,0,.6); filter: blur(14px); }
+  .bp .head { text-align: center; padding: 6px 28px 0; }
+  .bp .head h2 { margin: 6px 0 4px; font-family: Fraunces, serif; font-weight: 600; font-size: 26px; letter-spacing: -.5px; line-height: 1.1; }
+  .bp .head .by { color: var(--ink-2); font-size: 13.5px; }
+  .bp .facts { display: flex; justify-content: center; margin: 16px 20px 0; border-radius: 18px; background: var(--surface); border: 1px solid var(--hair); box-shadow: var(--sheen); }
+  .bp .facts div { flex: 1; text-align: center; padding: 11px 4px; font-variant-numeric: tabular-nums; }
+  .bp .facts div + div { border-left: 1px solid var(--hair); }
+  .bp .facts b { display: block; font-size: 14.5px; font-weight: 700; }
+  .bp .facts small { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink-3); font-weight: 700; }
+  .bp .acts { display: flex; gap: 10px; margin: 16px 20px 0; }
+  .bp .acts .pill { flex: 1; justify-content: center; margin: 0; padding: 13px; font-size: 14px; }
+  .bp .ghost { width: 48px; height: 46px; border-radius: 99px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--hair); box-shadow: var(--sheen); }
+  .bp .blurb { margin: 20px 20px 0; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
+  .bp .blurb::first-letter { font-family: Fraunces, serif; font-size: 38px; float: left; line-height: .9; padding: 4px 6px 0 0; color: var(--ink); }
+  .bp .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 20px 0; }
+  .bp .chips span { font-size: 11.5px; padding: 5px 11px; border-radius: 99px; border: 1px solid var(--hair); color: var(--ink-2); }
+
+  /* kit */
+  .kit { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .kit div { border-radius: 18px; padding: 16px 18px; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border: 1px solid rgba(255,255,255,.08); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+  .kit h4 { margin: 0 0 6px; font-family: Fraunces, serif; font-weight: 600; font-size: 17px; }
+  .kit p { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 1.5; }
+  .kit b { color: var(--ink); }
+  h2.k { font-family: Fraunces, serif; font-weight: 600; max-width: 1180px; margin: 10px auto 14px; font-size: 22px; }
+  @media (max-width: 420px) { .phone { width: 100%; max-width: 360px; } }
+</style>
+</head>
+<body>
+<h1 class="page">AudioYam — premium polish (sample)</h1>
+<p class="lead">Left: how Home looks today (from vibe369's screenshot, plum palette). Middle and right: the same screens with the polish applied. Nothing is built yet. The changes are a layer on top of every palette: your colours stay, the finish changes. Covers here are drawn shapes, not real art.</p>
+
+<div class="pair">
+  <div class="col"><span class="tag">Now</span>
+    <div class="phone now">
+      <div class="bar"><div class="brand"><div class="logo"></div><div><b>AudioYam</b><small>Your books, Your way</small></div></div><div class="icons">🚗 🎙 💬 🎨 🔍</div></div>
+      <h2 class="greet">Good evening, vibe369!</h2>
+      <div class="hero"><div class="cov" style="background:linear-gradient(#e9c84a,#c9962a)"></div><div><small>TOP RATED NOW</small><b>The Rose Code</b><span>Kate Quinn · 2021 · 16h 2m · ★ 4.4</span><br /><span class="btn">ⓘ Details</span></div></div>
+      <h3>Continue listening</h3>
+      <div class="card"><div class="cov" style="background:linear-gradient(#6b5040,#1a1a1a)"></div><div><small style="color:#d77fa1">LISTENING</small><br /><b>A Tale of Two Cities</b><br />Charles Dickens<br />0% · 14h 38m left</div></div>
+      <h3>New from people you follow</h3>
+      <div class="row"><div class="cov" style="background:linear-gradient(#555,#222)"></div></div>
+      <div class="tabs"><span class="on">Home</span><span>Discover</span><span>Podcasts</span><span>Library</span><span>Settings</span></div>
+    </div>
+  </div>
+
+  <div class="col"><span class="tag new">Premium — Home</span>
+    <div class="phone pr"><div class="scroll">
+      <div class="bar">
+        <div class="brand"><div class="logo"></div><b>AudioYam</b></div>
+        <div class="icons">
+          <span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 16V11l2-5h10l2 5v5M5 16h14M7 19v-3M17 19v-3"/><circle cx="8" cy="13" r=".8"/><circle cx="16" cy="13" r=".8"/></svg></span>
+          <span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+          <span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1.5-1.6 0-1.2-1-1.4-1-2.4 0-.8.7-1.5 1.5-1.5H16a5 5 0 0 0 5-5C21 6.5 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7" r="1"/></svg></span>
+          <span class="ib search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4-4"/></svg></span>
+        </div>
+      </div>
+      <div class="greet"><div class="eyebrow">Friday · 27 November</div><h2>Good evening,<br /><em>vibe369</em></h2></div>
+      <div class="hero">
+        <div class="dots"><i></i><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="book" style="background:linear-gradient(160deg,#f4d65a,#c58f22)"></div>
+        <div class="meta"><div class="eyebrow">Top rated now</div><h4>The Rose Code</h4><div class="by">Kate Quinn</div>
+          <div class="stats"><span><b>★ 4.4</b></span><span>·</span><span>16h 2m</span><span>·</span><span>2021</span></div>
+          <span class="pill">▶ Listen</span></div>
+      </div>
+      <div class="sec"><div><div class="eyebrow">Pick up where you left off</div><h3>Continue listening</h3></div><a href="#">All 12</a></div>
+      <div class="cont"><div class="book" style="background:linear-gradient(170deg,#7b5b45,#2a211c 55%,#0d0d0d)"></div>
+        <div class="t"><b>A Tale of Two Cities</b><small>Dickens · Ch. 7</small><div class="track"><i></i></div><div class="left">5h 34m in · 9h 4m left</div></div>
+        <span class="play">▶</span></div>
+      <div class="sec"><div><div class="eyebrow">From authors you follow</div><h3>New releases</h3></div><a href="#">See all</a></div>
+      <div class="shelf">
+        <div class="it"><div class="book" style="background:linear-gradient(170deg,#5a5a5a,#1d1d1d)"></div><b>Other Worlds Than These</b><small>Stephen King</small></div>
+        <div class="it"><div class="book" style="background:linear-gradient(170deg,#2f5f8a,#0f2236)"></div><b>The Women</b><small>Kristin Hannah</small></div>
+        <div class="it"><div class="book" style="background:linear-gradient(170deg,#a9452f,#3b130d)"></div><b>Onyx Storm</b><small>Rebecca Yarros</small></div>
+      </div>
+    </div>
+      <div class="fade-b"></div>
+      <div class="tabs">
+        <span class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>Home</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4-4"/></svg>Discover</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="11" r="2"/><path d="M8 15a5 5 0 1 1 8 0M5.5 17.5a8.5 8.5 0 1 1 13 0M12 13v8"/></svg>Podcasts</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 4v16M9 4v16M13 5l5 15"/></svg>Library</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Settings</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="col"><span class="tag new">Premium — book page</span>
+    <div class="phone pr bp"><div class="scroll">
+      <div class="top"><div class="glow"></div><div class="book" style="background:linear-gradient(165deg,#3f78a8,#16304a 60%,#0b1622)"></div></div>
+      <div class="head"><div class="eyebrow">Audiobook · Unabridged</div><h2>Project Hail Mary</h2><div class="by">Andy Weir · read by Ray Porter</div></div>
+      <div class="facts"><div><b>16h 10m</b><small>Length</small></div><div><b>★ 4.8</b><small>Audible</small></div><div><b>2021</b><small>Year</small></div><div><b>3</b><small>Copies</small></div></div>
+      <div class="acts"><span class="pill">▶ Listen</span><span class="ghost">＋</span><span class="ghost">↓</span></div>
+      <p class="blurb">Ryland Grace is the sole survivor on a desperate, last-chance mission — and if he fails, humanity and the earth itself will perish. Except that right now, he doesn't know that.</p>
+      <div class="chips"><span>Science fiction</span><span>Space</span><span>Funny</span><span>Hopeful</span></div>
+    </div></div>
+  </div>
+</div>
+
+<h2 class="k">What changes, everywhere in the app</h2>
+<div class="kit">
+  <div><h4>Type with character</h4><p><b>Fraunces</b> (already in the app) for the greeting, book titles and section heads; Figtree for everything else. A short label above each section ("Pick up where you left off") in small spaced capitals. Times and percentages in <b>even-width numbers</b> so they don't jiggle while playing.</p></div>
+  <div><h4>Covers that look like books</h4><p>A faint <b>spine shadow and light edge</b> on the left, a soft top shine, and a two-layer shadow (a crisp one where it touches, a long soft one below). Book-shaped (2:3) covers on shelves instead of squares where the cover is tall.</p></div>
+  <div><h4>Sheen and depth</h4><p>Cards get a <b>1-pixel top highlight</b> and a gently fading fill instead of a flat grey box. The banner gets a slow diagonal light sweep. Main buttons are glossy pills with a soft glow in your accent colour.</p></div>
+  <div><h4>Colour from the cover</h4><p>The banner and book page pick up the <b>cover's own colours</b> as a soft glow behind it (the app already reads cover colours). The rest of the app keeps your palette.</p></div>
+  <div><h4>Quiet texture</h4><p>A barely-there <b>film grain</b> over the background so big dark areas feel like paper, not plastic. Off for AMOLED black and in Reduce motion / plain mode.</p></div>
+  <div><h4>Room to breathe</h4><p>One spacing rhythm: <b>20 px side margins, 30 px between sections</b>, nothing touching the edges. Fewer icons in the top bar (Ask moves into the search page), and the long tagline goes, so the name is never squeezed.</p></div>
+  <div><h4>Floating glass tab bar</h4><p>The tab bar floats as a <b>frosted glass pill</b> above the bottom with a small glowing dot under the current tab; lists fade out under it instead of being cut off.</p></div>
+  <div><h4>Little things</h4><p>Pressed buttons sink slightly; rows fade in one after another; loading shapes match the real cards; empty shelves get a friendly line and one clear button instead of blank space; a big first letter on book descriptions.</p></div>
+</div>
+</body>
+</html>
