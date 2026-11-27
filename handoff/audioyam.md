@@ -603,3 +603,10 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
   - `count()` = sum of server totals (limit=1) for the tile;
   - pages 60 s (call() now passes timeout);
   - allPages retries a failed later page once, then returns what it has (partial). Test added.
+
+## Pipeline (27 Nov)
+- Ko-fi / GitHub Sponsors: the user will make a page. When the link comes, fill KOFI_URL / SPONSORS_URL in src/components/report.jsx (the line stays hidden until then). Remind them daily.
+- Daily check-in: scheduled task "AudioYam daily pending + ideas" (trig_01PCpiyjJTBAffk5JnV6Rknr), 9:23 am IST, fires into this session. It covers pending items + new GitHub issues + 3–5 fresh suggestions (logged below under "Daily suggestions"). It never builds, pushes or posts by itself.
+- Public sources worker: fixes live (checked 27 Nov: empty AudiobookBay / LibGen searches → 200 []); the label still says 1.0.0 (the user pasted the file before the bump).
+
+## Daily suggestions
