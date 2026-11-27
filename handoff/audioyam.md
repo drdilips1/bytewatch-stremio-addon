@@ -636,3 +636,8 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
   - public/privacy.html (+ #support). Delete my account added (sync.deleteAccount + SQL audiohub_delete_me — the user must re-run the setup SQL in Supabase).
   - Review notes: store-edition/APP_REVIEW_NOTES.md.
   - Open: Sign in with Apple if Google sign-in is offered; age rating; screenshots.
+- 27–28 Nov, Reddit (nikhil48) + user (work c347fb6, not built):
+  - Ebook Pages layout: settings.readerLayout 'pages'; lib/paging.js (tested); Reader columns via --colw / --gap / --aw; paged firstVisible / reveal / goPage; tap or swipe turns; Page X of Y; FollowAudio takes reveal / paged; chapters content-visibility visible when paged. Checked in the browser with a 5-chapter EPUB: 44 pages phone, 19 tablet (2 columns), taps and swipes turn.
+  - Ebook recap: lib/ebookrecap.js (recapDue after 7 days, readSoFar, ebookRecapPrompt; tested); recap panel in Reader (auto when due + Contents → Recap the story so far).
+  - Discover .d-tabs one line (from Audiohub+).
+  - Also on work: Home horizontal overflow fix (a7ac629), iOS camera / keyboard (425aac6). What's new EDITION nov-2026-ebooks.
