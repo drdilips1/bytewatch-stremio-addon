@@ -1,6 +1,6 @@
 // The public addons worker: its files point at itself, nothing personal, searches kept and limited.
 import { describe, it, expect } from 'vitest';
-import worker, { overLimit, searchKey, abbParse } from '../workers/public-addons.js';
+import worker, { overLimit, searchKey, abbParse, abbAnswered } from '../workers/public-addons.js';
 import { readFileSync } from 'node:fs';
 
 const ctx = { waitUntil: () => {} };
@@ -33,5 +33,13 @@ describe('public addons worker', () => {
     const [r] = abbParse(html, 'audiobookbay.lu');
     expect(r).toMatchObject({ title: 'Atomic Habits - James Clear', pageUrl: 'https://audiobookbay.lu/abss/atomic-habits/', format: 'M4B', date: '17 Aug 2024', language: 'English' });
     expect(r.sizeBytes).toBeGreaterThan(150 * 1024 * 1024);
+  });
+  it("a search with no results is still AudiobookBay answering (not 'down')", () => {
+    const empty = '<!DOCTYPE html><html lang="en"><head><title>Search Results for xqzv | AudioBook Bay</title></head><body>' + 'x'.repeat(2000) + '<div id="content"><h2>Sorry, but you are looking for something that isn\'t here.</h2></div></body></html>';
+    expect(abbAnswered(200, empty)).toBe(true);
+    expect(abbAnswered(200, '<div class="post">…</div>')).toBe(true);
+    expect(abbAnswered(526, empty)).toBe(false);
+    expect(abbAnswered(200, '<html><title>Just a moment...</title>' + 'x'.repeat(2000) + 'audiobook</html>')).toBe(false);
+    expect(abbAnswered(200, 'short')).toBe(false);
   });
 });

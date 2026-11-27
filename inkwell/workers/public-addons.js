@@ -123,15 +123,32 @@ async function cachedSearch(ctx, key, run) {
 const ABB_MIRRORS = ["audiobookbay.lu", "audiobookbay.is", "theaudiobookbay.se", "audiobookbay.fi"];
 const ABB_PAGES = 12; // result pages opened per search, for their info hash (each is one more request)
 
+/**
+ * Did AudiobookBay answer this search? Its results page has posts; its "nothing found" page has
+ * none and not always the words "Nothing Found" — but it is still the site's own page (a full
+ * HTML page from one of its addresses). Before 27 Nov only the words counted, so every search
+ * with no results tried all four addresses, one of them failed (HTTP 526), and the app showed
+ * "AudiobookBay didn't answer" after ~17 s while the site was fine.
+ */
+export function abbAnswered(status, html) {
+  if (status < 200 || status >= 300) return false;
+  const t = String(html || "");
+  if (/class="post"|postTitle|Nothing Found|No results/i.test(t)) return true;
+  // A bot check or a parked domain isn't an answer.
+  if (/cf-browser-verification|challenge-platform|Just a moment\.\.\.|domain (is )?for sale/i.test(t)) return false;
+  return t.length > 1500 && /<html[\s>]/i.test(t) && /audiobook/i.test(t);
+}
+
 async function abbSearchPage(q) {
   q = q.toLowerCase(); // its title search misses capitalised words
   let last = "";
   for (const host of ABB_MIRRORS) {
     try {
       // tt=1: titles only (the plain search returns collections and near misses).
-      const r = await get(`https://${host}/?s=${encodeURIComponent(q).replace(/%20/g, "+")}&tt=1`, { headers: { Accept: "text/html" } });
+      // 10 s an address, so the app (45 s) still hears back if the first one hangs.
+      const r = await get(`https://${host}/?s=${encodeURIComponent(q).replace(/%20/g, "+")}&tt=1`, { headers: { Accept: "text/html" } }, 10000);
       const html = await r.text();
-      if (r.ok && /class="post"|postTitle|Nothing Found|No results/i.test(html)) return { host: new URL(r.url).host, html };
+      if (abbAnswered(r.status, html)) return { host: new URL(r.url).host, html };
       last = `${host}: HTTP ${r.status}`;
     } catch (e) {
       last = `${host}: ${e.message}`;

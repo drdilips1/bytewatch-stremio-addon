@@ -590,3 +590,7 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
   - GPLinks site address;
   - comic vision items;
   - release to main.
+- AudiobookBay "down" FIXED (27 Nov) in the public worker `inkwell/workers/public-addons.js` (the public worker's own file; Audiohub+ uses its server):
+  - Cause: a search with no results came back without the "Nothing Found" words, so every mirror was tried (.fi gives HTTP 526) and the worker answered 502 "AudiobookBay didn't answer" after ~17 s. The app then retried and said down. Reproduced with q=xqzv nonsense; real titles answered in 1–2 s.
+  - Fix: `abbAnswered(status, html)`: any 2xx full HTML page from the site counts (bot-check / parked pages don't); 10 s per mirror. Test in inkwell/tests/publicaddons.test.js.
+  - The USER must paste the file into the sources.booksources.workers.dev worker.
