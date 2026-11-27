@@ -551,3 +551,4 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   - Fixed on `work` (e54f519), not built: `InkwellLocal.filled({uris})` reads 7 × 16 KB blocks per file (incl. the last); any all-zero block = not complete.
   - JS `finished()` rescans, then checks the size (≥ 95 % of the result's size) and `filled`. The same check runs before Play's "already there".
   - Settings text: the folder = the one it downloads to.
+- Ebooks via torrent app (on work, not built): Read → playViaApp(r, book, 'text'); findDownloaded matches kind both ways (+ ebookName); complete() checks ebookUri; opens nav.push('reader'). Save/Kindle hidden when viaApp.
