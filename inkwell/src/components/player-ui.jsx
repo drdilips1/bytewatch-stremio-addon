@@ -1,4 +1,5 @@
 import { BgImage } from './bg-image.jsx';
+import { chapterName } from '../lib/chaptername.js';
 import { barModes, pickMode, barView } from '../lib/barview.js';
 import { wallpaperUrl, useCustomWallpaper } from '../lib/wallpaper.js';
 import { loadImage } from '../lib/image.js';
@@ -209,12 +210,34 @@ function ChapterLeft({ chapters, g, rate }) {
   return <span class="fp-chleft">{left < 60 ? 'Under a minute' : left < 3600 ? `${Math.round(left / 60)} min` : fmtTime(left)} left in chapter</span>;
 }
 
-function chapterLabel(chapters, g) {
+function chapterLabel(chapters, g, bookTitle = '') {
   let i = chapters.findIndex((c) => g >= c.start && g < (c.end || Infinity));
   if (i < 0) i = 0;
-  const t = String(chapters[i]?.title || '').trim();
-  const plain = !t || /^(track)?\s*\d+$/i.test(t);
-  return plain ? `Chapter ${i + 1} of ${chapters.length}` : `${t} · ${i + 1}/${chapters.length}`;
+  const name = chapterName(chapters[i]?.title, bookTitle);
+  return name ? `${name} · ${i + 1}/${chapters.length}` : `Chapter ${i + 1} of ${chapters.length}`;
+}
+/** The chapter button's text: the chapter's real name first; the "3/107" small and faded after it. */
+function ChapterButtonText({ chapters, g, tracks, index, bookTitle }) {
+  if (chapters.length > 1) {
+    let i = chapters.findIndex((c) => g >= c.start && g < (c.end || Infinity));
+    if (i < 0) i = 0;
+    const name = chapterName(chapters[i]?.title, bookTitle);
+    return name ? (
+      <>
+        <span class="fp-chname">{name}</span>
+        <small class="fp-chnum">{i + 1}/{chapters.length}</small>
+      </>
+    ) : (
+      <span class="fp-chname">Chapter {i + 1} of {chapters.length}</span>
+    );
+  }
+  const name = chapterName(tracks[index]?.title, bookTitle);
+  return (
+    <>
+      <span class="fp-chname">{name || `Part ${index + 1}`}</span>
+      <small class="fp-chnum">{index + 1}/{tracks.length}</small>
+    </>
+  );
 }
 
 export function FullPlayer() {
@@ -368,7 +391,7 @@ export function FullPlayer() {
         {(chapters.length > 1 || s.tracks.length > 1) && (
           <button class="fp-chline mo-flash" key={chapters.length > 1 ? chapterLabel(chapters, g) : s.index} onClick={() => setSheet('chapters')} aria-label="Chapters">
             <Icon name="list" size={15} />
-            <span>{chapters.length > 1 ? chapterLabel(chapters, g) : s.tracks[s.index]?.title || `Part ${s.index + 1}`}</span>
+            <ChapterButtonText chapters={chapters} g={g} tracks={s.tracks} index={s.index} bookTitle={s.book.title} />
             <Icon name="chevron" size={14} />
           </button>
         )}

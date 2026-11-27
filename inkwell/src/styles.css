@@ -13384,3 +13384,5 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .fp-chline > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fp-chline > .icon { flex: none; }
 .full-player .fp-meta { display: flex; flex-direction: column; align-items: center; }
+.fp-chline .fp-chname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-chline .fp-chnum { flex: none; font-size: 11.5px; font-weight: 600; opacity: 0.6; }
