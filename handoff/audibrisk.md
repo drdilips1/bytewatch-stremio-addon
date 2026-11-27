@@ -214,7 +214,7 @@
   byAuthor / byNarrator); `SeriesStrip` (audible.series, ✓ finished via sameBook, this one ringed).
   NOT done: #6 "save the next few hours" — shared applyLocal treats a saved book as complete
   (would hide the unsaved parts); needs a shared downloads change — ask first.
-- Next (27 Nov, committed, not built): books TorBox / RD saved under their torrent id
+- v1.0.19 (27 Nov, building, Android only): books TorBox / RD saved under their torrent id
   ("f02291ff3ffb…", user screenshot) get a real name — `fixCodeNames` (books.js, from refreshCloud
   and Your library): catalogue book it was played as (`links`), else `nameFromParts` (what the
   file names share, numbers stripped) + shared meta lookup for author/cover; saved with shared
