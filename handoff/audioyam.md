@@ -535,3 +535,10 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
   - Covers get a spine via `.cover::before`; `.cover::after` already had the sheen.
   - Tab bar floats with NO backdrop blur (blur was removed earlier for Android scroll flicker); `.tabbar::after` is a fade behind it; `--tabbar-h` is 76px.
   - Ask button kept in the top bar. What's new EDITION `nov-2026j`. Test APK + iPhone build started.
+- Fixes from the user's first look (27 Nov, on work, not built yet):
+  - the gloss is now shadows only (background-image hid gradient-painted buttons in dark themes);
+  - tabular numbers only in the player and progress lines (they cut "4.1 (2" on cards);
+  - grain sits behind the content (z-index -1);
+  - dark mode --muted / --faint mixed closer to --text;
+  - Home banner 236 px with a lighter edge in dark.
+- Torrent app follow-up asked by the user: pick your torrent app, then the normal Play button starts it downloading there and plays as it downloads. Limits explained to the user (outside apps show their own add screen; random piece order). NOT started, waiting on their choice.
