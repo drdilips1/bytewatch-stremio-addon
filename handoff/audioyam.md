@@ -626,3 +626,7 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
 - 27 Nov: ported Audiohub+ X-Ray commits a479b575, e8be964e, 4cd61da8 (photo from the character's own page; no mother / family / wand pages; scene-card names readable, card photos, themed search box); styles conflict → kept only the X-Ray part. New port base: 4cd61da8. Not yet ported (offer): b7ff931e / 9e891158 / a88a3241 Text view (tap plays, light-mode readability), 1b94ea49 ABS speed. What's new rewritten for the release: 9 cards, EDITION nov-2026-release. Test APK + iPhone ios-19 started from 2b40e39.
 - RELEASED 27 Nov 09:04 UTC: main = work 2b40e39 (fast-forward; banned-words grep clean). Android release + web deploy running; the version is expected to be 1.0.56. Reddit post: handoff/release/audioyam-reddit-post.md (title without AI features; put the version in the title once confirmed).
 - RELEASE CONFIRMED: v1.0.56 (https://github.com/drdilips1/Audiohub/releases/tag/v1.0.56, AudioYam-v1.0.56.apk 22.5 MB, published 09:07 UTC). Web app workflow run 16 succeeded. Release base for the next notes: 2b40e39.
+- Reddit 27 Nov (after v1.0.56):
+  - (1) iPhone ios-19: Find books → Photo of the cover crashed. Cause: no NSCameraUsageDescription. Added it, plus NSPhotoLibraryUsageDescription, in ios.yml.
+  - (2) 'Gap between the navigation toolbar & keyboard': the iOS form accessory bar (⌃ ⌄ Done). Added @capacitor/keyboard 8.0.5; main.jsx hides the accessory bar on iOS only.
+  - On work, NOT built (needs 'build iPhone').
