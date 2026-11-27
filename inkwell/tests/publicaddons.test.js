@@ -1,6 +1,6 @@
 // The public addons worker: its files point at itself, nothing personal, searches kept and limited.
 import { describe, it, expect } from 'vitest';
-import worker, { overLimit, searchKey, abbParse, abbAnswered } from '../workers/public-addons.js';
+import worker, { overLimit, searchKey, abbParse, abbAnswered, libgenDown } from '../workers/public-addons.js';
 import { readFileSync } from 'node:fs';
 
 const ctx = { waitUntil: () => {} };
@@ -41,5 +41,11 @@ describe('public addons worker', () => {
     expect(abbAnswered(526, empty)).toBe(false);
     expect(abbAnswered(200, '<html><title>Just a moment...</title>' + 'x'.repeat(2000) + 'audiobook</html>')).toBe(false);
     expect(abbAnswered(200, 'short')).toBe(false);
+  });
+  it('LibGen with nothing for a search is no results, not down', () => {
+    expect(libgenDown([{ page: 1, ok: false, upstreamStatus: 200, tableFound: false, error: 'LibGen result table was not found.' }])).toBe(false);
+    expect(libgenDown([{ page: 1, ok: false, upstreamStatus: null, error: 'No LibGen mirror answered.' }])).toBe(true);
+    expect(libgenDown([{ page: 1, ok: false, upstreamStatus: 503 }])).toBe(true);
+    expect(libgenDown([])).toBe(false);
   });
 });

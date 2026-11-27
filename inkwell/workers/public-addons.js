@@ -118,6 +118,16 @@ async function cachedSearch(ctx, key, run) {
   return res;
 }
 
+// ---------------- LibGen: down, or just nothing found? ----------------
+/**
+ * LibGen's page for a search it has nothing for has no results table. Before 27 Nov that counted
+ * as "No LibGen mirror answered" (HTTP 502) and the app said LibGen was down. Down means: no
+ * mirror answered, a server error, or a block (403 / 429).
+ */
+export function libgenDown(reports) {
+  return (reports || []).some((r) => r && r.ok === false && (r.upstreamStatus == null || r.upstreamStatus >= 500 || r.upstreamStatus === 403 || r.upstreamStatus === 429));
+}
+
 // ---------------- AudiobookBay ----------------
 // It moves between addresses; the first one that answers is used.
 const ABB_MIRRORS = ["audiobookbay.lu", "audiobookbay.is", "theaudiobookbay.se", "audiobookbay.fi"];
@@ -1324,7 +1334,8 @@ const LibGen = (() => {
       const pages = Math.max(1, Math.min(MAX_PAGES, parseInt(url.searchParams.get("pages") || "2", 10) || 2));
       const res = await runSearch(q, 1, pages, `${ORIGIN}/libgen`);
       const d = await res.json();
-      if (!d.ok && !(d.results || []).length) throw new Error("No LibGen mirror answered — try again later");
+      // Only "down" when LibGen couldn't be reached — a search it has nothing for is just no results.
+      if (!d.ok && !(d.results || []).length && libgenDown(d.pageReports)) throw new Error("No LibGen mirror answered — try again later");
       return { results: d.results || [] };
     },
     download: (id, request) => resolveLibgenDownload(id, request),
