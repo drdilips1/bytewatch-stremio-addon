@@ -91,10 +91,21 @@ const leftOf = (b) => {
 };
 
 /** One book you're listening to: cover, title, progress, time left, play. */
+/** The book in the player and whether it's playing (redraws only when one of those changes). */
+function useNowPlaying() {
+  const pick = (st) => ({ uid: st.book?.uid || '', playing: !!st.playing });
+  const [v, setV] = useState(() => pick(player.getState()));
+  useEffect(() => player.subscribe((st) => setV((old) => (old.uid === (st.book?.uid || '') && old.playing === !!st.playing ? old : pick(st)))), []);
+  return v;
+}
+
 function ContinueCard({ b, onOpen }) {
   const opening = useOpening() === b.uid;
+  // The one in the player: pause / carry on right here; the card opens the player.
+  const now = useNowPlaying();
+  const isNow = now.uid === b.uid;
   return (
-    <div class="b-cont" onClick={() => onOpen(b)} {...holdProps(b)}>
+    <div class={'b-cont' + (isNow ? ' now' : '')} onClick={() => (isNow ? nav.openOverlay('player') : onOpen(b))} {...holdProps(b)}>
       <Cover book={b} px={240} />
       <div class="b-cont-text">
         <b>{b.title}</b>
@@ -102,11 +113,19 @@ function ContinueCard({ b, onOpen }) {
         <i class="b-cont-bar">
           <em style={{ width: Math.round((b.percent || 0) * 100) + '%' }} />
         </i>
-        <small>{leftOf(b)}</small>
-        <ContNote b={b} />
+        <small>{isNow && now.playing ? <b class="b-now">● Now playing</b> : leftOf(b)}</small>
+        {!(isNow && now.playing) && <ContNote b={b} />}
       </div>
-      <button class="b-cont-play" aria-label="Play">
-        {opening ? <span class="b-spin" /> : <Icon name="play" size={20} />}
+      <button
+        class="b-cont-play"
+        aria-label={isNow && now.playing ? 'Pause' : 'Play'}
+        onClick={(e) => {
+          if (!isNow) return; // the card opens and plays it
+          e.stopPropagation();
+          player.toggle();
+        }}
+      >
+        {opening ? <span class="b-spin" /> : <Icon name={isNow && now.playing ? 'pause' : 'play'} size={20} />}
       </button>
     </div>
   );

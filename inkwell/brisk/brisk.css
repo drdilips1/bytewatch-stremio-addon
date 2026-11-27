@@ -451,3 +451,7 @@ button, a, .b-cont, .b-job-text { touch-action: manipulation; -webkit-tap-highli
 .b-bedtime { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
 .b-p-away { margin: 8px 0 0; color: var(--b-acc); font-size: 13px; }
 .b-save, .b-play { white-space: nowrap; }
+
+/* the book that's playing, on Home */
+.b-cont.now { border-color: color-mix(in srgb, var(--b-acc) 40%, var(--b-line)); }
+.b-cont-text small .b-now { display: inline; line-height: inherit; font-size: 13px; font-weight: 600; color: var(--b-acc); font-family: var(--b-sans); }

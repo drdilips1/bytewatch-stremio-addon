@@ -35,6 +35,8 @@
   started book is reordered its place moves to the same part (`placeInNewOrder`, `briskReordered`).
   (2) Book page follows the player: "Now playing" / "Continue" instead of "Resume" for the book
   that's on (tap opens the player; when paused it carries on).
+  (3) Continue card on Home follows the player too (`useNowPlaying`): "● Now playing" + pause
+  button for the book that's on (button pauses / carries on; the card opens the player).
 - v1.0.21 RELEASED publicly (27 Nov, run 21): https://github.com/drdilips1/audibrisk/releases/latest
   (first public release since v1.0.10; in-app Update now offers it to older installs).
 - RELEASE POLICY (27 Nov, user "go"): nobody but the user has Audibrisk yet (wife: iPhone via
