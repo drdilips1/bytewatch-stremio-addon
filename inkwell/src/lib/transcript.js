@@ -749,6 +749,16 @@ export function timeAtWord(word) {
 }
 
 /**
+ * Before enough lines are found to place the book exactly: the audiobook's time (from its start)
+ * for a word, by its share of the book — the same rough guess the lit place uses (bookAt). null
+ * when the length isn't known.
+ */
+export function roughTimeAtWord(word, total) {
+  if (!bt?.tokens?.length || !(total > 0)) return null;
+  return Math.max(0, Math.min(total - 1, (word / bt.tokens.length) * total));
+}
+
+/**
  * The book's paragraphs around a word, split into sentences: [{ sentences: [{ from, to, text }] }].
  * `before` / `after`: how many words either side.
  */

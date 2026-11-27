@@ -9,7 +9,7 @@ import * as player from '../lib/player.js';
 import { knownCharacters, CharacterCard } from './story-sheet.jsx';
 import { useStore, bookmarks } from '../lib/store.js';
 import { onDownloadProgress } from '../lib/http.js';
-import { bookAt, bookAround, timeAtWord } from '../lib/transcript.js';
+import { bookAt, bookAround, timeAtWord, roughTimeAtWord } from '../lib/transcript.js';
 import { fixCredit } from '../lib/booksync.js';
 import { MODELS, transcriptAvailable, subscribeTranscript, follow, installedModels, downloadModel, restartTranscript, findEbook, takeEbook, ebooksOnPhone, takeOnPhone, heardLines, fixHeard, stopLooking, transcriptCfg, autoPickEbook } from '../lib/transcript.js';
 import { ebookMode } from '../lib/findorder.js';
@@ -341,13 +341,18 @@ export function TranscriptView({ s }) {
     if (tx.length < 12) return false;
     return (marks[s.book?.uid] || []).some((b) => b.quote && b.track === s.index && (squash(b.label).includes(tx.slice(0, 60)) || tx.includes(squash(b.label).slice(0, 60))));
   };
-  const hold = (start, text) => {
+  // A highlight being stretched over more sentences: { from, time, text } of where it began.
+  const [extend, setExtend] = useState(null);
+  const hold = (start, text, sentence = null) => {
     clearTimeout(press.current.timer);
     press.current.timer = setTimeout(() => {
       press.current.fired = true;
       const added = player.toggleQuote(start, typeof text === 'string' ? text : String(text || ''));
       navigator.vibrate?.(15);
-      toast(added ? 'Highlighted — find it in Notes' : 'Highlight removed');
+      // A sentence of the book: tap another one to carry the highlight on to it (it was one sentence only).
+      if (added && sentence) setExtend({ from: sentence.from, time: start, text: String(text || '') });
+      else setExtend(null);
+      toast(added ? (sentence ? 'Highlighted — tap where it should end to take in more' : 'Highlighted — find it in Notes') : 'Highlight removed');
     }, 550);
   };
   const release = () => clearTimeout(press.current.timer);
@@ -512,12 +517,33 @@ export function TranscriptView({ s }) {
                   class={'tb-s' + (se.from === litFrom ? ' on' : se.to <= word ? ' past' : '') + (quotedText(se.text) ? ' hl' : '')}
                   onClick={() => {
                     if (press.current.fired) return (press.current.fired = false);
+                    // Carrying a highlight on: everything from where it began to this sentence.
+                    if (extend && se.from !== extend.from) {
+                      const all = paras.flatMap((p) => p.sentences);
+                      const lo = Math.min(extend.from, se.from);
+                      const hi = Math.max(extend.from, se.from);
+                      const span = all.filter((x) => x.from >= lo && x.from <= hi);
+                      const text = span.map((x) => x.text).join(' ');
+                      const first = timeAtWord(lo) ?? (lo === extend.from ? extend.time : null) ?? extend.time;
+                      player.toggleQuote(extend.time, extend.text); // the one-sentence highlight goes…
+                      player.toggleQuote(first, text); // …and the whole stretch takes its place
+                      setExtend(null);
+                      navigator.vibrate?.(15);
+                      return toast(`Highlighted ${span.length} sentences — find them in Notes`);
+                    }
                     const tt = timeAtWord(se.from);
-                    if (tt != null) player.seek(Math.max(0, tt));
+                    if (tt != null) return player.seek(Math.max(0, tt));
+                    // Not lined up exactly yet: from about here (by how far through the book it is);
+                    // the lit place settles on the exact spot as the narrator reads on.
+                    const g = roughTimeAtWord(se.from, totalT);
+                    if (g != null) {
+                      player.playAt(g);
+                      toast('Playing from about here');
+                    } else toast('The book isn’t lined up with the audio yet — a moment');
                   }}
                   // Long-press a sentence to highlight it, as with heard lines.
                   onContextMenu={(e) => e.preventDefault()}
-                  onPointerDown={() => hold(timeAtWord(se.from) ?? s.time ?? 0, se.text)}
+                  onPointerDown={() => hold(timeAtWord(se.from) ?? s.time ?? 0, se.text, se)}
                   onPointerUp={release}
                   onPointerLeave={release}
                   onPointerCancel={release}
@@ -542,6 +568,14 @@ export function TranscriptView({ s }) {
           </p>
         ))}
         {segs.length > 0 && t?.status === 'error' && <p class="err small">{t.error}</p>}
+        {extend && (
+          <div class="tl-extend">
+            <span>Tap the sentence where the highlight should end</span>
+            <button class="pill small" onClick={() => setExtend(null)}>
+              Done
+            </button>
+          </div>
+        )}
         {card && <CharacterCard c={card} close={() => setCard(null)} />}
         <div class="transcript-pad" />
       </div>

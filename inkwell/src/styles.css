@@ -13257,3 +13257,5 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .full-player .text-strip .icon-btn,
 .full-player .tl-top .icon-btn { color: rgba(255, 255, 255, 0.9); }
 :root[data-mode='light'][data-palette='paperink'] .full-player.text-mode :is(.text-strip .icon-btn, .tl-top .icon-btn) { color: var(--text); }
+/* Text view: carrying a highlight on over more sentences. */
+.tl-extend { position: sticky; bottom: 8px; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; padding: 8px 10px 8px 14px; border-radius: 14px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 13px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
