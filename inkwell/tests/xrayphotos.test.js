@@ -25,7 +25,9 @@ describe('pickPage', () => {
 describe('fan wiki photos (characters)', () => {
   it('the fan wiki page with this name, not another character or a gallery of something else', () => {
     const pages = [pg('Leto Atreides I', '', 'leto.jpg'), pg('Paul Atreides/Gallery', '', 'gal.jpg'), pg('Paul Atreides', '', 'paul.jpg')];
-    expect(pickFandom(pages, 'Paul Atreides')).toEqual({ url: 'gal.jpg', page: 'Paul Atreides/Gallery' });
+    // The exact page wins over a gallery listed before it.
+    expect(pickFandom(pages, 'Paul Atreides')).toEqual({ url: 'paul.jpg', page: 'Paul Atreides' });
+    expect(pickFandom(pages.slice(0, 2), 'Paul Atreides')).toEqual({ url: 'gal.jpg', page: 'Paul Atreides/Gallery' });
     expect(pickFandom([pg('Leto Atreides I', '', 'leto.jpg')], 'Paul Atreides')).toBe(null);
     expect(pickFandom([pg('Paul Atreides', '', null)], 'Paul Atreides')).toBe(null);
     expect(pickFandom([pg('Paul Atreides', '', 'paul.jpg')], 'Paul')).toEqual({ url: 'paul.jpg', page: 'Paul Atreides' });
@@ -44,5 +46,11 @@ describe('fan wiki photos (characters)', () => {
     http.getJson.mockResolvedValueOnce({ query: { pages: { 1: { index: 1, title: 'Winston Churchill', description: 'Prime Minister of the United Kingdom', thumbnail: { source: 'wc.jpg' } } } } });
     expect(await photoFor({ name: 'Winston Churchill', kind: 'real' }, { title: 'The Splendid and the Vile' })).toMatchObject({ url: 'wc.jpg', from: 'Wikipedia' });
     expect(http.getJson).toHaveBeenCalledTimes(1);
+  });
+  it('a page about the book (or film, game) of the same name is never the character', () => {
+    const pages = [pg('Harry Potter (book series)', '', 'boxset.jpg'), pg('Harry Potter (film series)', '', 'film.jpg'), pg('Harry Potter', '', 'harry.jpg')];
+    expect(pickFandom(pages, 'Harry Potter')).toEqual({ url: 'harry.jpg', page: 'Harry Potter' });
+    expect(pickFandom(pages.slice(0, 2), 'Harry Potter')).toBe(null);
+    expect(pickFandom([pg('Gandalf (character)', '', 'g.jpg')], 'Gandalf')).toEqual({ url: 'g.jpg', page: 'Gandalf (character)' });
   });
 });

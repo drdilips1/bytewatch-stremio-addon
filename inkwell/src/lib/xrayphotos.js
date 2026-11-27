@@ -39,18 +39,31 @@ export function wikiName(w) {
   return /^[a-z0-9][a-z0-9-]{1,40}$/.test(s) ? s : '';
 }
 
-/** On a fan wiki every page is about the book's world: the name alone must match the title. */
+/**
+ * On a fan wiki every page is about the book's world, so the name alone decides — but a page with
+ * something in brackets is about something else of that name: "Harry Potter (book series)" gave
+ * Harry a photo of the box set. Best first: the exact name, then "(character)", then a page whose
+ * title holds the name (a longer full name, a gallery). Other bracketed pages are never taken.
+ */
 export function pickFandom(pages, name) {
   const want = words(name).filter((w) => w.length > 1);
   if (!want.length) return null;
+  let best = null;
   for (const p of pages || []) {
     const url = p?.thumbnail?.source;
     if (!url) continue;
-    const got = words(String(p.title).split('/')[0]);
+    const title = String(p.title || '');
+    const bracket = (title.match(/\(([^)]*)\)/) || [])[1] || '';
+    if (bracket && !/character/i.test(bracket)) continue;
+    const got = words(title.split('/')[0]);
     const [a, b] = want.length <= got.length ? [want, got] : [got, want];
-    if (a.length && a.every((w) => b.includes(w)) && got.includes(want[want.length - 1])) return { url, page: p.title };
+    if (!a.length || !a.every((w) => b.includes(w)) || !got.includes(want[want.length - 1])) continue;
+    const exact = got.length === want.length && !title.includes('/');
+    const rank = exact && !bracket ? 0 : exact ? 1 : 2;
+    if (!best || rank < best.rank) best = { rank, url, page: title };
+    if (rank === 0) break;
   }
-  return null;
+  return best && { url: best.url, page: best.page };
 }
 
 /** Fan wikis to try for a book: the one the X-Ray named, else a guess from its series or title. */
@@ -61,19 +74,25 @@ export function wikisFor(book, wiki) {
 
 async function fromFandom(x, book, wiki) {
   for (const w of wikisFor(book, wiki)) {
-    try {
-      const d = await getJson(`https://${w}.fandom.com/api.php?` + qs({ action: 'query', format: 'json', origin: '*', generator: 'search', gsrsearch: x.name, gsrlimit: 5, prop: 'pageimages', piprop: 'thumbnail', pithumbsize: 300 }), { timeout: 8000 });
-      const pages = Object.values(d?.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
-      const hit = pickFandom(pages, x.name);
-      if (hit) return { ...hit, from: 'Fandom' };
-    } catch {}
+    const api = `https://${w}.fandom.com/api.php?`;
+    const base = { action: 'query', format: 'json', origin: '*', prop: 'pageimages', piprop: 'thumbnail', pithumbsize: 300 };
+    // The person's own page by name first (redirects followed: "Hermione" → "Hermione Granger"),
+    // then a search — a search for "Harry Potter" puts the book series first.
+    for (const ask of [{ titles: `${x.name}|${x.name} (character)`, redirects: 1 }, { generator: 'search', gsrsearch: x.name, gsrlimit: 5 }]) {
+      try {
+        const d = await getJson(api + qs({ ...base, ...ask }), { timeout: 8000 });
+        const pages = Object.values(d?.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
+        const hit = pickFandom(pages, x.name);
+        if (hit) return { ...hit, from: 'Fandom' };
+      } catch {}
+    }
   }
   return null;
 }
 
 /** A photo for someone in a book's X-Ray: { url, page, from } or null (from what's kept when it can). */
 export async function photoFor(x, book, wiki = '') {
-  const key = `v2|${mainTitle(book?.title || '').toLowerCase()}|${String(x.name).toLowerCase()}`;
+  const key = `v3|${mainTitle(book?.title || '').toLowerCase()}|${String(x.name).toLowerCase()}`;
   const hit = kept.get()[key];
   if (hit && Date.now() - hit.t < MONTH) return hit.url ? hit : null;
   let found = x.kind === 'real' ? null : await fromFandom(x, book, wiki);
