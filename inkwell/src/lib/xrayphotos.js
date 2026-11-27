@@ -58,6 +58,9 @@ export function pickFandom(pages, name) {
     const got = words(title.split('/')[0]);
     const [a, b] = want.length <= got.length ? [want, got] : [got, want];
     if (!a.length || !a.every((w) => b.includes(w)) || !got.includes(want[want.length - 1])) continue;
+    // A page about someone else named after them ("Hermione Granger's mother", "Harry Potter's
+    // wand", "Potter family") is never their photo.
+    if (/['’]s\b/i.test(title.split('/')[0]) || /\b(mother|father|parents?|wife|husband|son|daughter|sister|brother|family|children|wand|house|home|room|ghost|portrait|statue|grave|patronus|boggart|timeline|relationship|appearances?|quotes?)\b/i.test(title.split('/')[0])) continue;
     const exact = got.length === want.length && !title.includes('/');
     const rank = exact && !bracket ? 0 : exact ? 1 : 2;
     if (!best || rank < best.rank) best = { rank, url, page: title };
@@ -92,7 +95,7 @@ async function fromFandom(x, book, wiki) {
 
 /** A photo for someone in a book's X-Ray: { url, page, from } or null (from what's kept when it can). */
 export async function photoFor(x, book, wiki = '') {
-  const key = `v3|${mainTitle(book?.title || '').toLowerCase()}|${String(x.name).toLowerCase()}`;
+  const key = `v4|${mainTitle(book?.title || '').toLowerCase()}|${String(x.name).toLowerCase()}`;
   const hit = kept.get()[key];
   if (hit && Date.now() - hit.t < MONTH) return hit.url ? hit : null;
   let found = x.kind === 'real' ? null : await fromFandom(x, book, wiki);

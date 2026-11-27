@@ -53,4 +53,12 @@ describe('fan wiki photos (characters)', () => {
     expect(pickFandom(pages.slice(0, 2), 'Harry Potter')).toBe(null);
     expect(pickFandom([pg('Gandalf (character)', '', 'g.jpg')], 'Gandalf')).toEqual({ url: 'g.jpg', page: 'Gandalf (character)' });
   });
+  it('a page about their mother, family or wand is never their photo', () => {
+    const pages = [pg("Hermione Granger's mother", '', 'mum.jpg'), pg('Granger family', '', 'fam.jpg'), pg('Hermione Granger', '', 'hermione.jpg')];
+    expect(pickFandom(pages, 'Hermione Granger')).toEqual({ url: 'hermione.jpg', page: 'Hermione Granger' });
+    expect(pickFandom(pages.slice(0, 2), 'Hermione Granger')).toBe(null);
+    expect(pickFandom([pg("Harry Potter's wand", '', 'w.jpg')], 'Harry Potter')).toBe(null);
+    // A fuller name is still them.
+    expect(pickFandom([pg('Hermione Jean Granger', '', 'h2.jpg')], 'Hermione Granger')).toEqual({ url: 'h2.jpg', page: 'Hermione Jean Granger' });
+  });
 });
