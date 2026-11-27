@@ -12,7 +12,7 @@
 - The owner is credit-conscious: short replies, no guess-builds; ask for the exact error text instead of guessing.
 - After each build, check the runs with the GitHub MCP `actions_list` (and a `send_later` reminder ~7 min later), then give links. Maven Central HTTP 429 = re-run once. iOS runs can fail/cancel when GitHub's Mac minutes run out (not our code).
 
-**Current versions (last build 17 Nov 2026, commit 6dfa9a2):** DermScholar **5.47** (versionCode 75), iPhone build `dermscholar-ios-41`; Lesionaut **2.1** (versionCode 3).
+**Current versions:** DermScholar **5.48** (versionCode 76, 27 Nov 2026: Diagnose from picture takes 12 pictures, BACKLOG #90); before that 5.47 (versionCode 75, 17 Nov, commit 6dfa9a2), iPhone build `dermscholar-ios-41`; Lesionaut **2.1** (versionCode 3).
 - DermScholar APK: https://github.com/drdilips1/bytewatch-stremio-addon/releases/download/dermscholar-latest/DermScholar.apk
 - DermScholar IPA: `releases/download/dermscholar-ios-<run>/DermScholar.ipa` (owner installs with **SideStore** now; AltStore's servers gave HTTP 503)
 - DermScholar web: https://drdilips1.github.io/bytewatch-stremio-addon/dermscholar/
@@ -40,7 +40,6 @@
 - **L4** Teach me this slide: × to remove the picture, "Replace" label, clear old teaching on change, crop step (printed captions gave the answer away).
 - **L5** Save everything with a **History tab**: cases, Teach-me sessions, detective searches, Explore answers, calculator results, with pictures and answers; search, filters (cases · slides · dermoscopy · detective · notes), reopen as it was, ★ keep / delete.
 **DermScholar:**
-- DermScholar's own "Diagnose from picture" still limited to 3 pictures (Lesionaut has 12).
 - Research4Life/ClinicalKey Get PDF: last state 5.41+ (taps "Log in here" by its link, menu → Content → Reference Sources → Clinical Key, 20 s re-tap); the owner reported it worked once after ~2 min and once needed manual taps; awaiting the "Details" text if it stalls again.
 - Older open items: see "Roadmap: still open" below and the DermScholar rows of BACKLOG.md.
 

@@ -248,8 +248,8 @@
 
   // ================================================================ Diagnose from picture
   // Clinical, dermoscopy, trichoscopy, nail, histopathology, KOH or other smears, Wood's lamp: up to
-  // three pictures of one case (e.g. clinical + dermoscopy + histology) are joined into one labelled
-  // image, read together with the clinical details, and answered as a structured differential that
+  // 12 pictures of one case (e.g. clinical + dermoscopy + histology) are sent to the AI together
+  // (joined into one labelled grid where the app can only send one picture), read together with the clinical details, and answered as a structured differential that
   // links to the evidence, published images and case reports.
   const DX_KINDS = {
     clinical: ['Clinical', 'a clinical photograph: describe the primary lesion, colour, surface, border, configuration, distribution and site'],
@@ -266,30 +266,32 @@
     const [cls, word, n] = LIKE[l] || LIKE.low;
     return `<span class="strength s-${cls}" title="${word} likelihood"><span class="meter">${Array.from({ length: 10 }, (_, i) => `<i${i < n ? ' class="on"' : ''}></i>`).join('')}</span><em>${word}</em></span>`;
   };
+  const DX_MAX = 12;
   let dxPics = [];     // [{ url, kind }]
   let dxKind = 'clinical';
   let dxShown = null;  // the last answer, kept when you come back to the screen
   const dxRecent = () => store.get('dx.recent', []);
 
-  /** Joins the pictures into one image, each labelled with its number and type. */
+  /** Joins the pictures into one image (a grid of up to 4 per row), each labelled with its number and type. */
   function collage(pics) {
     if (pics.length === 1) return Promise.resolve(pics[0].url);
     return Promise.all(pics.map((p) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = p.url; })))
       .then((imgs) => {
-        const H = 900, GAP = 12, BAR = 44;
-        const sized = imgs.map((im) => (im ? { im, w: Math.round(im.width * (H / im.height)) } : null)).filter(Boolean);
-        let W = sized.reduce((s, x) => s + x.w, 0) + GAP * (sized.length - 1);
-        const k = Math.min(1, 2400 / W);
+        const cells = imgs.map((im, i) => (im ? { im, i } : null)).filter(Boolean);
+        const cols = Math.min(4, Math.ceil(Math.sqrt(cells.length)));
+        const rows = Math.ceil(cells.length / cols);
+        const CW = Math.round(2400 / cols), CH = Math.round(CW * 0.8), GAP = 10, BAR = 40;
         const c = document.createElement('canvas');
-        c.width = Math.round(W * k); c.height = Math.round((H + BAR) * k);
+        c.width = cols * CW + GAP * (cols - 1); c.height = rows * (CH + BAR) + GAP * (rows - 1);
         const g = c.getContext('2d');
         g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
-        let x = 0;
-        sized.forEach((s, i) => {
-          g.drawImage(s.im, x * k, BAR * k, s.w * k, H * k);
-          g.fillStyle = '#111'; g.font = `bold ${Math.round(30 * k)}px sans-serif`;
-          g.fillText(`${i + 1}. ${DX_KINDS[pics[i].kind]?.[0] || 'Image'}`, (x + 8) * k, 32 * k);
-          x += s.w + GAP;
+        cells.forEach(({ im, i }, n) => {
+          const x0 = (n % cols) * (CW + GAP), y0 = Math.floor(n / cols) * (CH + BAR + GAP);
+          const k = Math.min(CW / im.width, CH / im.height);
+          const w = im.width * k, h = im.height * k;
+          g.drawImage(im, x0 + (CW - w) / 2, y0 + BAR + (CH - h) / 2, w, h);
+          g.fillStyle = '#111'; g.font = 'bold 28px sans-serif';
+          g.fillText(`${i + 1}. ${DX_KINDS[pics[i].kind]?.[0] || 'Image'}`, x0 + 8, y0 + 30);
         });
         return c.toDataURL('image/jpeg', 0.85);
       });
@@ -302,7 +304,7 @@
       if (old && dxShown?.at !== old.at) { dxShown = old; dxPics = []; }
     }
     view.innerHTML = `${D.topbar('Diagnose from picture')}
-      <p class="small">Add up to three pictures of one case (e.g. clinical, dermoscopy and histology together). Use photos taken with consent, without faces or other identifying features.</p>
+      <p class="small">Add up to 12 pictures of one case (e.g. clinical, dermoscopy and histology together). Use photos taken with consent, without faces or other identifying features.</p>
       <div class="row wrap" id="dx-kinds">${Object.entries(DX_KINDS).map(([k, [l]]) => `<button class="chip ${k === dxKind ? 'on' : ''}" data-act="dx-kind" data-v="${k}">${esc(l)}</button>`).join('')}</div>
       <div id="dx-pics" class="dx-pics"></div>
       <textarea id="dx-ctx" class="dx-ctx" rows="2" placeholder="Clinical details (optional): age, sex, site, duration, symptoms, stain or magnification" style="margin-top:8px">${esc(store.get('dx.ctx', ''))}</textarea>
@@ -320,7 +322,7 @@
     const el = $('#dx-pics');
     if (!el) return;
     el.innerHTML = dxPics.map((p, i) => `<div class="dx-pic"><img src="${p.url}" alt=""><small>${i + 1}. ${esc(DX_KINDS[p.kind][0])}</small><button class="dx-x" data-act="dx-del" data-i="${i}" aria-label="Remove">×</button></div>`).join('')
-      + (dxPics.length < 3 ? `<button class="dx-add" data-act="dx-pick">${icon('camera')}<span>${dxPics.length ? 'Add another' : 'Add picture'}<br><small>${esc(DX_KINDS[dxKind][0])}</small></span></button>` : '');
+      + (dxPics.length < DX_MAX ? `<button class="dx-add" data-act="dx-pick">${icon('camera')}<span>${dxPics.length ? 'Add another' : 'Add picture'}<br><small>${esc(DX_KINDS[dxKind][0])}</small></span></button>` : '');
   }
   function paintRecent() {
     const el = $('#dx-recent');
@@ -332,8 +334,8 @@
   actions['dx-kind'] = (b) => { dxKind = b.dataset.v; $$('[data-act=dx-kind]').forEach((x) => x.classList.toggle('on', x === b)); paintPics(); };
   actions['dx-pick'] = async () => {
     let urls;
-    try { urls = await I.pickImages(3 - dxPics.length); } catch (e) { if (!/cancel/i.test(e.message || '')) toast(e.message || 'Couldn\'t open the photos'); return; }
-    for (const u of urls.slice(0, 3 - dxPics.length)) dxPics.push({ url: await I.shrink(u, 1400), kind: dxKind });
+    try { urls = await I.pickImages(DX_MAX - dxPics.length); } catch (e) { if (!/cancel/i.test(e.message || '')) toast(e.message || 'Couldn\'t open the photos'); return; }
+    for (const u of urls.slice(0, DX_MAX - dxPics.length)) dxPics.push({ url: await I.shrink(u, 1400), kind: dxKind });
     dxShown = null;
     paintPics();
   };
@@ -371,8 +373,9 @@
     const job = dxJob;
     try {
       const image = await collage(pics);
-      const what = pics.map((p, i) => `${pics.length > 1 ? `Picture ${i + 1} (labelled "${i + 1}. ${DX_KINDS[p.kind][0]}") is ` : 'The picture is '}${DX_KINDS[p.kind][1]}.`).join('\n');
-      const text = await I.aiImage(`${what}
+      const many = pics.length > 1 && D.Native?.aiRunImages ? pics.map((p) => p.url) : null;
+      const what = pics.map((p, i) => `${pics.length > 1 ? `Picture ${i + 1}${many ? '' : ` (labelled "${i + 1}. ${DX_KINDS[p.kind][0]}")`} is ` : 'The picture is '}${DX_KINDS[p.kind][1]}.`).join('\n');
+      const dxTask = `${what}
 ${ctx ? 'Clinical details: ' + ctx : 'No clinical details were given.'}
 
 Work like an experienced dermatologist and dermatopathologist: first describe exactly what is visible, then reason from those findings (and the clinical details) to a diagnosis. Consider common conditions before rare ones, and name serious ones that must not be missed. If the pictures are of different types, use them together.
@@ -387,8 +390,9 @@ Answer only as JSON:
  "mustNotMiss": ["serious diagnoses to exclude, if any"],
  "nextSteps": ["the tests or views that would confirm it (biopsy site, stain, IHC, culture, KOH, dermoscopy, labs)"],
  "pearl": "one teaching point that separates the top two possibilities"}
-Give 3-5 differentials. Base everything on what is visible; say so plainly when a picture can't show something.`, image,
-      'You are an expert dermatologist and dermatopathologist reviewing images for a fellow clinician. Be precise, use standard terminology, and never invent findings that are not visible. This supports, and does not replace, clinical examination and histopathology.');
+Give 3-5 differentials. Base everything on what is visible; say so plainly when a picture can't show something.`;
+      const dxSys = 'You are an expert dermatologist and dermatopathologist reviewing images for a fellow clinician. Be precise, use standard terminology, and never invent findings that are not visible. This supports, and does not replace, clinical examination and histopathology.';
+      const text = await ((many && I.aiImages(dxTask, many, dxSys)) || I.aiImage(dxTask, image, dxSys));
       const r = D.aiJson(text);
       const entry = { r, at: Date.now(), kinds: pics.map((p) => DX_KINDS[p.kind][0]).join(' + '), thumb: await thumb(pics[0].url), ctx };
       store.set('dx.recent', [entry, ...dxRecent()].slice(0, 20));
