@@ -31,6 +31,7 @@ const trackerWords = (name, book) => {
 import { openExternal } from '../sources/summaries.js';
 import { directEbookFile, directReaderBook, loadCloudEbook, savedEbooks, cloudReaderBook, probeEbook } from '../lib/epub.js';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { sharedOk } from '../lib/sharedfiles.js';
 
 const WebPlugin = registerPlugin('InkwellWeb');
 const canSaveFiles = Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('InkwellWeb');
@@ -50,8 +51,10 @@ async function saveToIosFiles(link, name) {
 async function saveToDownloads(link, name, format) {
   if (iosFiles) return saveToIosFiles(link, name);
   if (!canSaveFiles) return window.open(link, '_blank');
-  await WebPlugin.saveToDownloads({ url: link, name, mime: MIMES[format] || 'application/octet-stream' });
-  toast(`Saving “${name}” to Downloads — see the notification`);
+  // Ebooks into Downloads/Audiohub/Ebooks (easy to find in the file manager); anything else Downloads/Audiohub.
+  const folder = /^(EPUB|PDF|MOBI|AZW3?|DJVU|FB2|TXT)$/i.test(format || '') ? 'Audiohub/Ebooks' : 'Audiohub';
+  await WebPlugin.saveToDownloads({ url: link, name, mime: MIMES[format] || 'application/octet-stream', folder });
+  toast(`Saving “${name}” to Downloads/${folder} — see the notification`);
 }
 import { shareEbook } from '../lib/kindle.js';
 import { onFreeNote } from '../sources/annas.js';
@@ -913,7 +916,8 @@ function SourceRow({ r, provider, providers = [], book, inAccount, onChanged }) 
     setStatus({ text: 'Downloading the ebook…', pct: null });
     try {
       await loadCloudEbook(rb);
-      toast('Saved on this phone — Library → Ebooks → Downloaded');
+      // Android: the one copy is in the phone's storage, Downloads/Audiohub/Ebooks (seen in the file manager).
+      toast(`Saved on this phone — Library → Ebooks → Downloaded${sharedOk ? ' (and in Downloads/Audiohub/Ebooks)' : ''}`);
       // iPhone / iPad: a copy in the Files app too, to open with other apps.
       if (iosFiles) saveToIosFiles(r.link, ebook?.name || `${r.title}.epub`).catch(() => {});
     } catch (e) {

@@ -33,7 +33,8 @@ export function StorageCard() {
   const again = () => setRound((n) => n + 1);
   const rows = unpackedRows(folders || [], dls);
   const spare = leftoverBytes(rows);
-  const keptBytes = Object.values(kept || {}).reduce((n, x) => n + (x?.size || 0), 0);
+  // Ebooks kept inside the app (on Android they now live in Downloads/Audiohub/Ebooks instead).
+  const keptBytes = Object.values(kept || {}).reduce((n, x) => n + (x && !x.fileUri ? x.size || 0 : 0), 0);
   const run = async (key, work) => {
     setBusy(key);
     try {
@@ -75,7 +76,8 @@ export function StorageCard() {
     if (!confirm('Delete every ebook kept on this phone (Library → Ebooks → Downloaded)? Your reading places and highlights stay; a book opens again from its source when you read it.')) return;
     run('kept', async () => {
       await caches.delete('kathava-ebooks').catch(() => {});
-      savedEbooks.set({});
+      // Those in Downloads/Audiohub/Ebooks stay (they're your files now, not the app's).
+      savedEbooks.set((all) => Object.fromEntries(Object.entries(all).filter(([k, v]) => k.startsWith('__') || v?.fileUri)));
       return keptBytes;
     });
   };
@@ -146,7 +148,7 @@ export function StorageCard() {
       {line(
         'Ebooks kept on this phone',
         keptBytes,
-        'Ebooks you saved or opened, so they open at once',
+        'Ebooks kept inside the app — on Android new ones go to Downloads/Audiohub/Ebooks instead',
         keptBytes ? (
           <button class="pill small" disabled={!!busy} onClick={dropKept}>
             {busy === 'kept' ? <span class="spinner small" /> : 'Clear'}

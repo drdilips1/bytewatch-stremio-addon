@@ -1,6 +1,7 @@
 // EPUB → reader HTML: unzip in the app, follow the spine (reading order) and
 // turn the chapters into one sanitized document with inline images, in the
 // same { html, headings } shape the reader uses for Gutenberg books.
+import { sharedOk, writeToDownloads, folderFor, fileName, mimeOf, fileUrl } from './sharedfiles.js';
 import { isFanfic } from './fanfic.js';
 import { unzip, strFromU8 } from 'fflate';
 import { details as cloudDetails } from '../sources/debrid.js';
@@ -364,6 +365,24 @@ function remember(uid, doc) {
 const CACHE = 'kathava-ebooks';
 const cacheKey = (uid) => `https://kathava.local/ebook/${encodeURIComponent(uid)}`;
 async function cachedBytes(uid) {
+  // Kept in Downloads/Audiohub/Ebooks (Android): read from there. Deleted there (in the file
+  // manager): forgotten, so it downloads again like any book not kept.
+  const kept = savedEbooks.get()[uid];
+  if (kept?.fileUri) {
+    try {
+      const r = await fetch(fileUrl(kept.fileUri));
+      if (r.ok) {
+        const bytes = new Uint8Array(await r.arrayBuffer());
+        if (bytes.length) return bytes;
+      }
+    } catch {}
+    savedEbooks.set((all) => {
+      const next = { ...all };
+      delete next[uid];
+      return next;
+    });
+    return null;
+  }
   try {
     const hit = await (await caches.open(CACHE)).match(cacheKey(uid));
     return hit ? new Uint8Array(await hit.arrayBuffer()) : null;
@@ -393,7 +412,41 @@ setTimeout(async () => {
     savedEbooks.set((all) => ({ ...all, ...found, __checked: 1 }));
   } catch {}
 }, 6000);
+// Once (Android): ebooks kept inside the app before this move out to Downloads/Audiohub/Ebooks —
+// one book at a time, a piece at a time, then the inside copy goes.
+setTimeout(async () => {
+  if (!sharedOk || savedEbooks.get().__moved) return;
+  try {
+    const cache = await caches.open(CACHE);
+    for (const [uid, v] of Object.entries(savedEbooks.get())) {
+      if (uid.startsWith('__') || !v || v.fileUri) continue;
+      const hit = await cache.match(cacheKey(uid));
+      if (!hit) continue;
+      const blob = await hit.blob();
+      const format = v.format || 'EPUB';
+      const folder = folderFor(format);
+      const fileUri = await writeToDownloads(blob, { name: fileName(v.book || {}, format), folder, mime: mimeOf(format) });
+      savedEbooks.set((all) => (all[uid] ? { ...all, [uid]: { ...all[uid], fileUri, folder, size: blob.size } } : all));
+      await cache.delete(cacheKey(uid));
+    }
+    savedEbooks.set((all) => ({ ...all, __moved: 1 }));
+  } catch {
+    // Try again next start (no room, or Android said no).
+  }
+}, 20000);
 async function keepBytes(book, bytes, format) {
+  // Android: one copy in the phone's storage (Downloads/Audiohub/Ebooks — seen in the file
+  // manager, opened by other apps, kept after reinstalling), not inside the app.
+  if (sharedOk) {
+    try {
+      const folder = folderFor(format);
+      const fileUri = await writeToDownloads(bytes, { name: fileName(book, format), folder, mime: mimeOf(format) });
+      savedEbooks.set((all) => ({ ...all, [book.uid]: { book: { ...summarize(book), kind: 'text' }, format, size: bytes.length, at: Date.now(), fileUri, folder } }));
+      return;
+    } catch {
+      // No room in Downloads, or no permission: kept inside the app as before.
+    }
+  }
   try {
     await (await caches.open(CACHE)).put(cacheKey(book.uid), new Response(bytes, { headers: { 'Content-Type': format === 'PDF' ? 'application/pdf' : 'application/epub+zip' } }));
     savedEbooks.set((all) => ({ ...all, [book.uid]: { book: { ...summarize(book), kind: 'text' }, format, size: bytes.length, at: Date.now() } }));

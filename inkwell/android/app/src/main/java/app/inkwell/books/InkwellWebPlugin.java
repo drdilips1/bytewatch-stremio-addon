@@ -385,7 +385,9 @@ public class InkwellWebPlugin extends Plugin {
             req.setTitle(name);
             req.setMimeType(call.getString("mime", "application/octet-stream"));
             req.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            req.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, name);
+            // Ebooks go to Downloads/Audiohub/Ebooks (found in the file manager, next to the audiobooks).
+            String folder = call.getString("folder", "").replaceAll("[^A-Za-z0-9 /_-]", "").replaceAll("^/+|/+$", "");
+            req.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, folder.isEmpty() ? name : folder + "/" + name);
             dm.enqueue(req);
             call.resolve();
         } catch (Throwable e) {

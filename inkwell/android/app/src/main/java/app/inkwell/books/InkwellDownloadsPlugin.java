@@ -605,6 +605,99 @@ public class InkwellDownloadsPlugin extends Plugin {
         }).start();
     }
 
+    // ---- Ebooks in Downloads/Audiohub/Ebooks (from AudioYam): seen in the file manager, one copy ----
+
+    // Its own line, so writing an ebook isn't held up behind an audiobook downloading.
+    private final ExecutorService files = Executors.newSingleThreadExecutor();
+
+    /** A new file in Downloads/<folder> (Android 10+: through MediaStore, hidden until writeEnd). */
+    private Uri newDownload(String name, String folder, String mime) throws Exception {
+        String safe = name.replaceAll("[\\/:*?\"<>|]+", " ").trim();
+        if (safe.isEmpty()) safe = "book";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentValues v = new ContentValues();
+            v.put(MediaStore.Downloads.DISPLAY_NAME, safe);
+            v.put(MediaStore.Downloads.MIME_TYPE, mime);
+            v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + folder);
+            v.put(MediaStore.Downloads.IS_PENDING, 1);
+            Uri u = getContext().getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+            if (u == null) throw new Exception("Could not create the file in Downloads");
+            return u;
+        }
+        File base = getContext().getExternalFilesDir(null);
+        if (base == null) base = getContext().getFilesDir();
+        File dir = new File(new File(base, "downloads"), folder);
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        File f = new File(dir, safe);
+        return Uri.fromFile(f);
+    }
+
+    private OutputStream openOut(Uri u, boolean append) throws Exception {
+        if ("file".equals(u.getScheme())) return new FileOutputStream(new File(u.getPath()), append);
+        OutputStream o = getContext().getContentResolver().openOutputStream(u, append ? "wa" : "w");
+        if (o == null) throw new Exception("Could not write the file");
+        return o;
+    }
+
+    private void publishUri(Uri u) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && "content".equals(u.getScheme())) {
+            ContentValues v = new ContentValues();
+            v.put(MediaStore.Downloads.IS_PENDING, 0);
+            getContext().getContentResolver().update(u, v, null, null);
+        }
+    }
+
+    /**
+     * A comic or ebook the app already has (downloaded to read it) written into Downloads, a piece
+     * at a time (writeStart → writeChunk… → writeEnd), so a 300 MB comic never crosses over at once.
+     */
+    @PluginMethod
+    public void writeStart(PluginCall call) {
+        try {
+            Uri u = newDownload(call.getString("name", "book"), call.getString("folder", "Audiohub"), call.getString("mime", "application/octet-stream"));
+            JSObject r = new JSObject();
+            r.put("uri", u.toString());
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject(e.getMessage() != null ? e.getMessage() : e.toString());
+        }
+    }
+
+    @PluginMethod
+    public void writeChunk(PluginCall call) {
+        String uri = call.getString("uri", "");
+        String data = call.getString("data", "");
+        boolean first = Boolean.TRUE.equals(call.getBoolean("first", false));
+        files.execute(() -> {
+            try (OutputStream o = openOut(Uri.parse(uri), !first)) {
+                o.write(android.util.Base64.decode(data, android.util.Base64.DEFAULT));
+                call.resolve();
+            } catch (Exception e) {
+                call.reject(e.getMessage() != null ? e.getMessage() : e.toString());
+            }
+        });
+    }
+
+    @PluginMethod
+    public void writeEnd(PluginCall call) {
+        String uri = call.getString("uri", "");
+        boolean failed = Boolean.TRUE.equals(call.getBoolean("failed", false));
+        files.execute(() -> {
+            try {
+                Uri u = Uri.parse(uri);
+                if (failed) {
+                    if ("file".equals(u.getScheme())) //noinspection ResultOfMethodCallIgnored
+                        new File(u.getPath()).delete();
+                    else getContext().getContentResolver().delete(u, null, null);
+                } else publishUri(u);
+                call.resolve();
+            } catch (Exception e) {
+                call.reject(e.getMessage() != null ? e.getMessage() : e.toString());
+            }
+        });
+    }
+
     // ---- Storage: what the app keeps on the phone, and clearing the big parts ----
     private static long sizeOf(File f) {
         if (f == null || !f.exists()) return 0;
