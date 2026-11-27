@@ -128,7 +128,7 @@ export function App() {
   useEffect(() => {
     if (Capacitor.isNativePlatform()) onThemeApplied((light) => StatusBar.setStyle({ style: light ? Style.Light : Style.Dark }).catch(() => {}));
     applyTheme(st);
-  }, [st.mode, st.accent, st.palette, st.paletteLight, st.paletteDark]);
+  }, [st.mode, st.accent, st.palette, st.paletteLight, st.paletteDark, st.finish]);
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const h = CapApp.addListener('backButton', () => {

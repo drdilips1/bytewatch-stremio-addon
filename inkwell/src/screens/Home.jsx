@@ -873,7 +873,14 @@ export function Home() {
 function Greeting({ me }) {
   return (
     <div class="home-greet">
-      <h1>{me ? `${greeting()}, ${me}` : greeting()}</h1>
+      <h1>
+        {greeting()}
+        {me ? (
+          <>
+            , <em>{me}</em>
+          </>
+        ) : null}
+      </h1>
     </div>
   );
 }

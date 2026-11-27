@@ -2038,7 +2038,7 @@ export function Settings() {
       </Section>
 
       <p class="set-group">App</p>
-      <Section icon="palette" title="Appearance" keys="covers theme colours dark light motion">
+      <Section icon="palette" title="Appearance" keys="covers theme colours dark light motion finish premium plain">
         <div class="set-row column">
           <div>
             <b>Mode</b>
@@ -2048,6 +2048,22 @@ export function Settings() {
             {['system', 'light', 'dark', 'amoled'].map((m) => (
               <button class={'pill small' + (st.mode === m ? ' active' : '')} onClick={() => settings.patch({ mode: m })}>
                 {m === 'amoled' ? 'Black' : m === 'system' ? 'Like phone' : m[0].toUpperCase() + m.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div class="set-row column">
+          <div>
+            <b>Finish</b>
+            <small>Premium: book titles and headings in a bookish font, covers with a spine, a soft shine on cards and buttons, a floating tab bar and a fine paper grain. Plain: the flat look from before. Your colours stay the same either way.</small>
+          </div>
+          <div class="chips">
+            {[
+              ['premium', 'Premium'],
+              ['plain', 'Plain'],
+            ].map(([m, label]) => (
+              <button class={'pill small' + ((st.finish || 'premium') === m ? ' active' : '')} onClick={() => settings.patch({ finish: m })}>
+                {label}
               </button>
             ))}
           </div>

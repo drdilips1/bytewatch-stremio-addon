@@ -57,6 +57,9 @@ export function applyTheme(st) {
   const root = document.documentElement;
   const light = mode === 'light';
   root.dataset.mode = mode;
+  // The premium finish (serif heads, sheen, floating tab bar, paper grain) unless Appearance → Finish is Plain.
+  if (st.finish === 'plain') delete root.dataset.polish;
+  else root.dataset.polish = '';
   // Palette: the colour of the whole app (backgrounds and text), per mode.
   const pal = PALETTES.find((p) => p.id === pid && p.light === light);
   // Ivory & Gold uses Paper & Ink's styles, with its own colours on top (data-variant).

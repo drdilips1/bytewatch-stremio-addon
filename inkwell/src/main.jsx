@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { App } from './app.jsx';
 import './styles.css';
+import './premium.css';
 import { settings, library, progress, cleanLibrary, cleanProgress } from './lib/store.js';
 import { ttsCfg, nativeReader } from './lib/tts.js';
 import './lib/keep.js';
