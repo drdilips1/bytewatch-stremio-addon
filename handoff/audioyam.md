@@ -526,3 +526,4 @@ User's 12 ideas + "social network around stories". Status = what AudioYam alread
 - **#13** (tehrzky, feature request): done on `work`, not built. When no cloud service and no home server are set up (`offerTorrentApp`), torrent results show a "Torrent app" chip. Android opens the magnet (`InkwellWeb.openExternal`, ACTION_VIEW); if no app takes it, the magnet is copied. iPhone copies it; web opens it and copies it.
   - `src/lib/magnet.js` now holds `TRACKERS`, `withTrackers` (moved from qbit.js, which re-exports it) and `appMagnet`; tested in `tests/magnet.test.js`.
   - What's new card added, EDITION `nov-2026i`. No reply posted on GitHub.
+- Built 27 Nov: test APK (run 48) and iPhone ios-14 from 368661a, both green (include #12, #13, iPad Save to Files). Not released to main.
