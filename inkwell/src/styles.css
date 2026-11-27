@@ -13164,3 +13164,167 @@ html.ios .book-card:not(.broken) { box-shadow: none; }
 .xr-key.ally { color: #3fb36b; } .xr-key.enemy { color: #e5484d; }
 .xr-legend-note { margin: 0 0 8px; font-size: 11.5px; color: var(--muted); }
 :root[data-mode='light'] .xr-map { --fam: #9a7434; --ally: #23894c; --enemy: #c9353a; }
+
+/* =====================================================================================
+   Polish (27 Nov): one layer on top of every theme, so it can be tuned or taken out in one
+   place. Light catching the top edge of cards, a faint paper grain and warm glow behind
+   everything, a serif for the big titles, calmer colour on the book page, category tiles in
+   the theme's own tones, a soft sheen on the main buttons, and a pill behind the active tab.
+   `:root[data-mode]:root` only makes these win over the theme layers above.
+   ===================================================================================== */
+:root {
+  --hairline: color-mix(in srgb, var(--text) 9%, transparent);
+  --edge-light: inset 0 1px 0 color-mix(in srgb, #fff 7%, transparent);
+  --lift: var(--edge-light), 0 1px 2px rgba(0, 0, 0, 0.12), 0 12px 30px -16px rgba(0, 0, 0, 0.45);
+  --sheen: linear-gradient(110deg, transparent 38%, rgba(255, 255, 255, 0.28) 50%, transparent 62%);
+  --gloss: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 55%);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.45 0 0 0 0 0.4 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+:root[data-mode='light'] {
+  --edge-light: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --lift: var(--edge-light), 0 1px 2px rgba(60, 40, 10, 0.06), 0 12px 28px -18px rgba(60, 40, 10, 0.3);
+}
+
+/* Depth behind everything: a warm glow from the top and a faint grain, like good paper. */
+:root[data-mode]:root body {
+  background:
+    radial-gradient(130% 55% at 50% -12%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 62%),
+    var(--grain),
+    var(--bg);
+  background-attachment: fixed;
+  background-size: auto, 160px 160px, auto;
+}
+:root[data-mode='light']:root body {
+  background:
+    radial-gradient(130% 55% at 50% -12%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%),
+    var(--grain),
+    var(--bg);
+  background-attachment: fixed;
+  background-size: auto, 160px 160px, auto;
+}
+html.ios:root body { background-attachment: scroll; }
+
+/* Type: the big titles in the serif the app already carries; headings tighter and even. */
+:root[data-mode]:root :is(.screen-title, .home-greet h1) {
+  font-family: 'Fraunces Variable', Georgia, serif;
+  font-weight: 600;
+  font-variation-settings: 'opsz' 72, 'SOFT' 50;
+  letter-spacing: -0.025em;
+}
+:root[data-mode]:root .screen-title { font-size: 33px; }
+:root[data-mode]:root .home-greet h1 { font-size: 27px; }
+:root[data-mode]:root .screen.book .book-hero h1 {
+  font-family: 'Fraunces Variable', Georgia, serif;
+  font-weight: 600;
+  font-variation-settings: 'opsz' 72, 'SOFT' 50;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+}
+:root[data-mode]:root :is(.row-head h2, .d-head h3, .lh-head h2, .lh-head h3) {
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+:root[data-mode]:root :is(.progress-bar, .lh-bar) + * { font-variant-numeric: tabular-nums; }
+
+/* Breathing room: sections spaced evenly down the page. */
+:root[data-mode]:root .home :is(.row, .cat-section, .continue-section) { margin-top: 22px; }
+:root[data-mode]:root .home .plan-row .row-head { padding-bottom: 8px; }
+
+/* Cards: light catching the top edge and a soft lift instead of flat boxes. */
+:root[data-mode]:root :is(.continue-big, .lh-continue, .set-section, .update-card, .plan-chips > *, .d-surprise, .set-away) {
+  box-shadow: var(--lift);
+  border-color: var(--hairline);
+}
+
+/* Book tiles: one tile per book still, with a fine frame instead of a glowing outline. */
+:root[data-mode]:root .book-card:not(.broken) {
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--hairline));
+  box-shadow: var(--lift);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, var(--surface)), var(--surface));
+}
+html.ios:root .book-card:not(.broken) { box-shadow: var(--edge-light); }
+/* Covers: a faint gloss across the top, as on a printed jacket. */
+:root[data-mode]:root .book-card:not(.broken) .book-card-cover { position: relative; }
+:root[data-mode]:root .book-card:not(.broken) .book-card-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 38%);
+  pointer-events: none;
+}
+
+/* Category tiles: the theme's own tones (each genre's hue blended into the accent), a fine
+   woven pattern and a soft highlight, instead of bright off-palette purples and blues. */
+:root[data-mode]:root .cat-tile {
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(255, 255, 255, 0.16), transparent 55%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 7px),
+    linear-gradient(145deg, color-mix(in oklab, hsl(var(--h) 32% 40%) 72%, var(--accent)), color-mix(in oklab, hsl(calc(var(--h) + 18) 28% 20%) 80%, var(--accent)));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 10px 22px -14px rgba(0, 0, 0, 0.55);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+:root[data-mode='light']:root .cat-tile {
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(255, 255, 255, 0.22), transparent 55%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 7px),
+    linear-gradient(145deg, color-mix(in oklab, hsl(var(--h) 34% 46%) 70%, var(--accent)), color-mix(in oklab, hsl(calc(var(--h) + 18) 30% 28%) 78%, var(--accent)));
+}
+:root[data-mode]:root .cat-tile::after { display: none; }
+
+/* Book page: the cover's colour as a calm wash, not at full strength. */
+:root[data-mode]:root .screen.book .book-hero-bg {
+  background:
+    radial-gradient(90% 60% at 50% 18%, color-mix(in oklab, var(--dyn) 42%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in oklab, var(--dyn) 38%, var(--bg)) 0%, color-mix(in oklab, var(--dyn) 14%, var(--bg)) 45%, var(--bg) 80%);
+}
+:root[data-mode]:root .screen.book .book-cover {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 28px 50px -18px rgba(0, 0, 0, 0.65), 0 8px 18px -8px rgba(0, 0, 0, 0.4);
+}
+
+/* The main buttons: a gloss on top and a sheen that sweeps across when pressed. */
+:root[data-mode]:root :is(.continue-big-play, .lh-play, .continue-play, .d-pill, .btn.primary, .pill.active) {
+  background-image: var(--sheen), var(--gloss);
+  background-size: 260% 100%, 100% 100%;
+  background-position: 160% 0, 0 0;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 6px 16px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+  transition: background-position 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.12s;
+}
+:root[data-mode]:root :is(.continue-big-play, .lh-play, .continue-play, .d-pill, .btn.primary):active {
+  background-position: -60% 0, 0 0;
+  transform: scale(0.97);
+}
+:root[data-mode]:root .pill { transition: background-color 0.2s, color 0.2s, box-shadow 0.2s; }
+:root[data-mode]:root .pill:not(.active) { border-color: var(--hairline); }
+
+/* Tab bar: a soft pill behind the active tab's icon, and a hairline above. */
+:root[data-mode]:root .tabbar { border-top-color: var(--hairline); box-shadow: 0 -10px 30px -20px rgba(0, 0, 0, 0.5); }
+:root[data-mode]:root .tabbar button .icon { padding: 4px 16px; border-radius: 99px; box-sizing: content-box; transition: background-color 0.25s; }
+:root[data-mode]:root .tabbar button.on .icon {
+  background: color-mix(in srgb, var(--accent) 17%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent);
+  filter: none;
+  animation: tabPill 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+:root[data-mode]:root .tabbar button.on::before { display: none; }
+@keyframes tabPill { from { background-color: transparent; transform: scale(0.85); } to { transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-mode]:root :is(.continue-big-play, .lh-play, .continue-play, .d-pill, .btn.primary, .pill.active) { transition: none; }
+  :root[data-mode]:root .tabbar button.on .icon { animation: none; }
+}
+/* Discover's tabs on one line (they scroll sideways if the screen is narrow). */
+:root[data-mode]:root .d-tabs { display: flex; gap: 8px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+:root[data-mode]:root .d-tabs::-webkit-scrollbar { display: none; }
+:root[data-mode]:root .d-tabs > * { flex: 1 0 auto; padding-left: 14px; padding-right: 14px; }
+/* Home: every section heading the same size. */
+:root[data-mode]:root .home :is(.row-head h2, .d-head h3) { font-size: 18px; }
+:root[data-mode='light']:root .tabbar { box-shadow: none; }
+:root[data-mode='light']:root .screen.book .book-hero-bg {
+  background:
+    radial-gradient(90% 60% at 50% 18%, color-mix(in oklab, var(--dyn) 26%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in oklab, var(--dyn) 24%, var(--bg)) 0%, color-mix(in oklab, var(--dyn) 9%, var(--bg)) 45%, var(--bg) 80%);
+}
