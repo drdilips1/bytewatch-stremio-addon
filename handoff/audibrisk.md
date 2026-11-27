@@ -198,7 +198,7 @@
   sunrise champagne/serif, sunset terracotta/serif, night indigo/sans-light, meadow sage/serif,
   mountains slate/condensed, autumn rust/serif, dunes sand/sans 500, aurora teal/sans-light,
   blossom rose/serif italic (Android system fonts only). Champagne on cream deepened to #94703c.
-- v1.0.17 + iPhone (27 Nov, building both — user "build for both"; dream list 1–5): Continue card line
+- v1.0.18 + iPhone 1.0.7 (27 Nov, BOTH BUILT OK — Android run 18 https://github.com/drdilips1/bytewatch-stremio-addon/releases/tag/audibrisk-v1.0.18 ; iPhone https://github.com/drdilips1/audibrisk/releases/download/ios-1.0.7/Audibrisk.ipa ; dream list 1–5): Continue card line
   (`ContNote`: `awayText` "Back after 9 days — you were 42% in · your note…" after ≥7 days, else
   `finishText` from shared finishGuess "Finish by Thursday"); player: "Welcome back after N weeks"
   (shared state.awayDays ≥14) and a late-night (22–4 h) "☾ Sleep in 30 min?" chip (`Bedtime`, ×
