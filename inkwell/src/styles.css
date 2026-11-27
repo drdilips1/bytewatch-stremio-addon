@@ -13244,3 +13244,16 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 }
 .xr .story-search::placeholder { color: var(--muted); }
 .xr .story-search:focus { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+/* Text view on the player's dark background: the book's sentences already read and the one being
+   read follow the transcript's own ink, not the theme's text colour — in Light mode that was dark
+   ink on the dark player (27 Nov: unreadable). The light Paper & Ink / Ivory text view keeps its
+   own dark ink on paper (it sets --tl-on to the theme's text). */
+.transcript { --tl-on: #fff; }
+:root[data-palette='paperink'] .transcript { --tl-on: var(--text); }
+.transcript .tb-s.past { color: inherit; opacity: 0.6; }
+.transcript .tb-s.on { color: var(--tl-on); }
+/* The skip buttons and the bookmark / search buttons there: light on the dark player (they took
+   the theme's dark accent / text in Light mode). The light paper text view sets its own above. */
+.full-player .text-strip .icon-btn,
+.full-player .tl-top .icon-btn { color: rgba(255, 255, 255, 0.9); }
+:root[data-mode='light'][data-palette='paperink'] .full-player.text-mode :is(.text-strip .icon-btn, .tl-top .icon-btn) { color: var(--text); }
