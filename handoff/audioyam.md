@@ -647,3 +647,4 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
   3. Ebook dictionary: long-press one word → a quick definition from a free dictionary, no AI key needed.
   4. Stats → "Your month in books" share card (image), so listeners spread the word instead of Reddit posts.
   5. Store-edition App Store screenshots made automatically from the web build (Playwright, the 6.7" and 5.5" sizes).
+- 28 Nov Reddit (sinai5151): Premiumize for Usenet NZBs. Done on work 31b4908, not built: moredebrid.sendNzbToPremiumize (transfer/create src=NZB link, polls transfer/list up to 30 s, then a book or pending); usenet-results shows a button per connected service (TorBox / Premiumize). Untested against a real Premiumize account.
