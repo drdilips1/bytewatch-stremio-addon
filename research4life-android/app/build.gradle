@@ -32,8 +32,8 @@ android {
         lesionaut {
             dimension 'app'
             applicationId 'app.lesionaut'
-            versionCode 5
-            versionName '2.3'
+            versionCode 6
+            versionName '2.4'
             buildConfigField 'String', 'START_PAGE', '"lx/index.html"'
             buildConfigField 'String', 'RELEASE_TAG', '"lesionaut-latest"'
             buildConfigField 'String', 'APK_NAME', '"Lesionaut.apk"'

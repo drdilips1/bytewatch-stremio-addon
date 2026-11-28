@@ -43,7 +43,7 @@
     const out = $('#pat-out');
     out.innerHTML = `<div class="card busy"><span class="spin"></span>Writing…</div>`;
     try {
-      const text = await L.ai(ask, { system: L.SYSTEM, max: 4000 });
+      const text = await L.aiStream(ask, { system: L.SYSTEM, max: 4000, onText: (t) => { out.innerHTML = `<div class="card">${md(t)}</div>`; } });
       out.innerHTML = `<div class="card">${md(text)}</div>`;
       keep({ id: 'h' + Date.now().toString(36), kind: 'notes', title: `${p.name}: ${{ table: 'comparison table', approach: 'step-by-step approach', quiz: 'quiz' }[b.dataset.m]}`, sub: p.g + ' pattern', data: { text, link: 'pattern/' + p.k } });
     } catch (e) { out.innerHTML = `<div class="note bad">${esc(L.keyErr(e))}</div>`; }
@@ -120,7 +120,7 @@
     const out = $('#det-out');
     out.innerHTML = `<div class="card busy"><span class="spin"></span>Looking beyond the common diagnoses…</div>`;
     try {
-      detOut = await L.rareRun('CASE\n' + (text || 'See pictures.'), detPics); out.innerHTML = L.rareHtml(detOut);
+      detOut = await L.rareRun('CASE\n' + (text || 'See pictures.'), await Promise.all(detPics.map((u) => L.hideFaces(u)))); out.innerHTML = L.rareHtml(detOut);
       keep({ id: 'h' + Date.now().toString(36), kind: 'detective', title: (text || 'Pictures only').slice(0, 90), sub: L.list(detOut.uncommon).slice(0, 3).map((u) => u.name).join(', '), thumb: await thumbOf(detPics[0]), data: { text, pics: [...detPics], out: detOut } });
     } catch (e) { out.innerHTML = `<div class="note bad">${esc(L.keyErr(e))}</div>`; }
   };
@@ -138,7 +138,7 @@
     const out = $('#rel-out');
     out.innerHTML = `<div class="card busy"><span class="spin"></span>Mapping relationships…</div>`;
     try {
-      const text = await L.ai(`Map the diseases related to "${q}" for a dermatologist. Markdown with headings:\n## Clinical look-alikes (and how to tell them apart)\n## Histological relatives (shared reaction pattern; distinguishing clues)\n## Immunological links (shared autoantibodies, pathways, associations)\n## Genetic or syndromic links\n## Overlap syndromes and associations to screen for\n## Treatments that cross over\nBe specific and concise; no invented citations.`, { system: L.SYSTEM, max: 4000 });
+      const text = await L.aiStream(`Map the diseases related to "${q}" for a dermatologist. Markdown with headings:\n## Clinical look-alikes (and how to tell them apart)\n## Histological relatives (shared reaction pattern; distinguishing clues)\n## Immunological links (shared autoantibodies, pathways, associations)\n## Genetic or syndromic links\n## Overlap syndromes and associations to screen for\n## Treatments that cross over\nBe specific and concise; no invented citations.`, { system: L.SYSTEM, max: 4000, onText: (t) => { out.innerHTML = `<div class="card">${md(t)}</div>`; } });
       out.innerHTML = `<div class="card">${md(text)}</div>`;
       keep({ id: 'h' + Date.now().toString(36), kind: 'notes', title: `Relationships: ${q}`, sub: 'Disease relationships', data: { text, link: 'relations?q=' + encodeURIComponent(q) } });
     } catch (e) { out.innerHTML = `<div class="note bad">${esc(L.keyErr(e))}</div>`; }

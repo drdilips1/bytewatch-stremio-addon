@@ -134,6 +134,22 @@
     if (e.state !== 'done') throw new Error(e.message || 'The AI request failed.');
     return e.text || '';
   }
+  /** A text answer shown while it is being written (onText gets the text so far); falls back to ai(). */
+  const partials = {};
+  async function aiStream(task, { system = '', max = 3000, onText } = {}) {
+    if (!N.aiRunStream || !onText) return ai(task, { system, max });
+    if (!hasKey()) throw new Error('NO_KEY');
+    const id = nid('st');
+    const p = wait(id, 240000, 'No AI answered within 4 minutes. Try again.');
+    let last = 0;
+    partials[id] = (t) => { const now = Date.now(); if (now - last > 120) { last = now; onText(t); } };
+    N.aiRunStream(id, system, '', task, max);
+    try {
+      const e = await p;
+      if (e.state !== 'done') throw new Error(e.message || 'The AI request failed.');
+      return e.text || '';
+    } finally { delete partials[id]; }
+  }
   /** A "keep_" answer arrived here: the phone's kept copy is no longer needed. */
   const taken = (id) => { if (String(id).startsWith('keep_')) try { N.aiTake?.(id); } catch { /* old app */ } };
   /** JSON from an AI answer, with light repairs (including an answer cut off part-way). */
@@ -313,6 +329,56 @@
     return c.toDataURL('image/jpeg', 0.85);
   }
 
+  // ---- Privacy: hide the eyes (or the whole face) before a clinical photo goes to the AI
+  /** Faces as {x, y, d}: eye midpoint and eye distance, fractions of width/height. */
+  async function faces(url, img) {
+    try { if (N.detectFaces) return JSON.parse(N.detectFaces(url) || '[]'); } catch { /* below */ }
+    try {
+      if (window.FaceDetector) {
+        const fs = await new window.FaceDetector({ fastMode: true, maxDetectedFaces: 5 }).detect(img);
+        return fs.map((f) => {
+          const b = f.boundingBox, eyes = (f.landmarks || []).filter((l) => l.type === 'eye').map((l) => l.locations[0]).filter(Boolean);
+          const x = eyes.length === 2 ? (eyes[0].x + eyes[1].x) / 2 : b.x + b.width / 2, y = eyes.length === 2 ? (eyes[0].y + eyes[1].y) / 2 : b.y + b.height * 0.4;
+          const d = eyes.length === 2 ? Math.hypot(eyes[0].x - eyes[1].x, eyes[0].y - eyes[1].y) : b.width * 0.42;
+          return { x: x / img.width, y: y / img.height, d: d / img.width };
+        });
+      }
+    } catch { /* not offered */ }
+    return [];
+  }
+  const masked = new Map(); // original data URL → masked copy
+  /** The photo with an eye band (mode "eyes") or the whole face (mode "face") pixelated; the same URL if no face. */
+  async function hideFaces(url, mode = store.get('faceMode', 'eyes')) {
+    if (mode === 'off' || !url) return url;
+    const key = mode + url.length + url.slice(-64);
+    if (masked.has(key)) return masked.get(key);
+    const img = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = url; });
+    if (!img) return url;
+    const fs = await faces(url, img);
+    let out = url;
+    if (fs.length) {
+      const W = img.width, H = img.height, c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      for (const f of fs) {
+        const cx = f.x * W, cy = f.y * H, d = f.d * W;
+        const box = mode === 'face' ? [cx - d * 1.6, cy - d * 1.5, d * 3.2, d * 3.9] : [cx - d * 1.25, cy - d * 0.5, d * 2.5, d * 1.0];
+        if (mode === 'face') pixelate(g, ...box.map(Math.round), Math.max(10, Math.round(d / 2)));
+        else { g.fillStyle = '#111'; g.fillRect(...box.map(Math.round)); }
+      }
+      out = c.toDataURL('image/jpeg', 0.88);
+    }
+    masked.set(key, out);
+    return out;
+  }
+  function pixelate(g, x, y, w, h, cell) {
+    x = Math.max(0, x); y = Math.max(0, y); w = Math.min(g.canvas.width - x, w); h = Math.min(g.canvas.height - y, h);
+    if (w < 2 || h < 2) return;
+    const tw = Math.max(1, Math.round(w / cell)), th = Math.max(1, Math.round(h / cell));
+    const t = document.createElement('canvas'); t.width = tw; t.height = th;
+    t.getContext('2d').drawImage(g.canvas, x, y, w, h, 0, 0, tw, th);
+    g.save(); g.imageSmoothingEnabled = false; g.drawImage(t, 0, 0, tw, th, x, y, w, h); g.restore();
+  }
+
   // ---- Cases (this device; IndexedDB)
   const DB = (() => {
     let dbp = null;
@@ -336,7 +402,7 @@
       },
       all: () => tx('readonly', (s) => s.getAll()).then((l) => (l || []).map(norm).sort((a, b) => b.updated - a.updated)),
       get: (id) => tx('readonly', (s) => s.get(id)).then((c) => (c ? norm(c) : null)),
-      put: (c) => { c.updated = Date.now(); return tx('readwrite', (s) => s.put(c)); },
+      put: (c, keepTime) => { if (!keepTime || !c.updated) c.updated = Date.now(); return tx('readwrite', (s) => s.put(c)); },
       del: (id) => tx('readwrite', (s) => s.delete(id)),
     };
   })();
@@ -448,7 +514,8 @@
   window.App = {
     onNative(e) {
       if (!e) return;
-      if (e.id && waits[e.id] && (e.type === 'ai' || e.type === 'imagePicked')) { const f = waits[e.id]; delete waits[e.id]; f(e); return; }
+      if (e.type === 'aiPartial') { partials[e.id]?.(e.text || ''); return; }
+      if (e.id && waits[e.id] && (e.type === 'ai' || e.type === 'imagePicked' || e.type === 'backupPicked')) { const f = waits[e.id]; delete waits[e.id]; f(e); return; }
       (listeners[e.type] || []).forEach((f) => f(e));
     },
     back() {
@@ -479,6 +546,6 @@
   const fmt = (t) => new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const fmtDay = (t) => new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
   const list = (x) => (Array.isArray(x) ? x.filter(Boolean) : []);
-  window.LX = { N, $, $$, esc, icon, MARK, store, toast, sheet, closeSheet, lightbox, md, ai, aiPics, json, hasKey, keyErr, pickImages, pickFiles, camera, shrink, crop, DB, norm, jobs, runJob, jobBar, canKeepAlive,
+  window.LX = { N, $, $$, esc, icon, MARK, store, toast, sheet, closeSheet, lightbox, md, ai, aiPics, aiStream, json, hideFaces, pixelate, wait, nid, hasKey, keyErr, pickImages, pickFiles, camera, shrink, crop, DB, norm, jobs, runJob, jobBar, canKeepAlive,
     routes, actions, go, render, bar, on, openLink, applyTheme, THEMES, start, fmt, fmtDay, list, get cur() { return cur; } };
 })();

@@ -28,6 +28,8 @@
   const last = (c) => c.assessments[c.assessments.length - 1];
   const ptLine = (c) => [c.patient, c.pt.age && c.pt.age + ' y', c.pt.sex, c.pt.site].filter(Boolean).join(' · ');
   const keyErr = L.keyErr;
+  /** The pictures as sent to the AI: clinical photos with eyes (or faces) hidden, per Settings. */
+  const aiUrls = (pics) => Promise.all(pics.map((p) => (p.kind === 'clinical' ? L.hideFaces(p.url) : p.url)));
 
   // ================================================================ Home
   routes.home = async () => {
@@ -107,7 +109,7 @@
       <div class="casehead">${c.pics[0] ? `<img class="ph" src="${c.pics[0].url}" alt="">` : `<span class="ph">${icon('image')}</span>`}
         <div style="flex:1;min-width:0"><input id="c-title" value="${esc(c.title)}" placeholder="${esc(titleOf(c))}" aria-label="Case title">
         <small>${esc([c.patient && '👤 ' + c.patient, c.visitOf ? 'Follow-up visit' : '', 'Started ' + fmtDay(c.created)].filter(Boolean).join(' · '))}</small></div></div>
-      <div class="seg">${[['evidence', 'Evidence'], ['assessment', 'Assessment'], ['workup', 'Work-up'], ['notes', 'Notes']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-act="ctab" data-t="${k}">${l}${running.some((r) => (k === 'assessment' && /assess|debate/.test(r)) || (k === 'workup' && /rare|treat|compare/.test(r)) || (k === 'notes' && /doc/.test(r))) ? ' •' : ''}</button>`).join('')}</div>
+      <div class="seg">${[['evidence', 'Evidence'], ['assessment', 'Assessment'], ['workup', 'Work-up'], ['notes', 'Notes']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-act="ctab" data-t="${k}">${l}${running.some((r) => (k === 'assessment' && /assess|debate/.test(r)) || (k === 'workup' && /rare|treat|compare|drug/.test(r)) || (k === 'notes' && /doc/.test(r))) ? ' •' : ''}</button>`).join('')}</div>
       <div id="ctab"></div>`;
     $('#c-title').addEventListener('input', (e) => { c.title = e.target.value.trim(); saveSoon(); });
     ({ evidence: tabEvidence, assessment: tabAssessment, workup: tabWorkup, notes: tabNotes })[tab]();
@@ -306,9 +308,10 @@ Give 3-6 differentials (most likely first; the first is your committed diagnosis
     const pt = PT.map(([key, l]) => (k.pt[key] ? `${l}: ${k.pt[key]}` : '')).filter(Boolean).join('\n') || 'No history given.';
     const pics = k.pics.map((p, i) => `Picture ${i + 1}: ${KINDS[p.kind]?.[1] || p.kind}${p.note ? ' — ' + p.note : ''}`).join('\n') || 'No pictures.';
     const docs = k.scan?.r && k.scan.applied && list(k.scan.r.docs).length ? '\nDocuments read into this case: ' + list(k.scan.r.docs).map((d) => `${d.type || 'document'}${d.summary ? ' — ' + d.summary : ''}`).join('; ') : '';
+    const drug = k.drug && list(k.drug.drugs).length ? `\nDrug-reaction check: ${list(k.drug.drugs).slice(0, 4).map((x) => `${x.name} — ${x.verdict}${x.latency ? ', latency ' + x.latency : ''}`).join('; ')}` : '';
     const ans = k.answers.length ? '\nAnswers to earlier questions:\n' + k.answers.map((x) => `- ${x.q} → ${x.a}`).join('\n') : '';
     const was = prev ? `\nPrevious assessment (${fmt(prev.at)}): ${list(prev.r.differentials).map((d) => `${d.name} (${d.strength})`).join('; ')}. ${prev.r.summary || ''}` : '';
-    return `CASE\n${pt}${docs}${ans}\n\nPICTURES (in the order attached)\n${pics}${was}`;
+    return `CASE\n${pt}${k.pt.onset ? '\nRash onset: ' + k.pt.onset : ''}${docs}${drug}${ans}\n\nPICTURES (in the order attached)\n${pics}${was}`;
   }
   const reading = (k) => { const a = last(k); return a ? JSON.stringify({ summary: a.r.summary, pattern: a.r.pattern, differentials: list(a.r.differentials).map((d) => ({ name: d.name, strength: d.strength, supporting: d.supporting, against: d.against })), tests: list(a.r.tests).map((t) => t.test) }) : 'Not assessed yet.'; };
 
@@ -326,9 +329,9 @@ Give 3-6 differentials (most likely first; the first is your committed diagnosis
   const visible = () => new Promise((res) => { if (!document.hidden) { res(); return; } const f = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', f); res(); } }; document.addEventListener('visibilitychange', f); });
   const QUICK = `Give a FAST first look only. Reply with JSON only: {"leading":"the most likely diagnosis","summary":"one sentence: the key visible findings","triage":"routine | soon | urgent","alt":["2-3 alternatives"]}`;
   async function assessRun(k, j) {
-    const t0 = Date.now(), urls = k.pics.map((p) => p.url), task = caseText(k, last(k)) + '\n\n' + SCHEMA;
+    const t0 = Date.now(), urls = await aiUrls(k.pics), task = caseText(k, last(k)) + '\n\n' + SCHEMA;
     // A short answer in seconds, shown until the full reading arrives.
-    L.aiPics(caseText(k, null) + '\n\n' + QUICK, urls, { system: SYSTEM, max: 1200 }).then(L.json).then((q) => {
+    if (store.get('quickLook', true)) Promise.all(urls.slice(0, 2).map((u) => L.shrink(u, 512, 0.75))).then((small) => L.aiPics(caseText(k, null) + '\n\n' + QUICK, small, { system: SYSTEM, max: 900 })).then(L.json).then((q) => {
       if (j.state !== 'running' || !q?.leading) return;
       j.quick = q;
       if (c?.id === k.id && tab === 'assessment' && L.cur.name === 'case') paint();
@@ -459,8 +462,8 @@ Give 3-6 differentials (most likely first; the first is your committed diagnosis
   actions.debate = () => {
     const k = c;
     L.runJob('debate:' + k.id, 'Specialist debate', k.id, async () => {
-      const views = await Promise.all(ROLES.map(([role, focus]) => L.aiPics(`${caseText(k, null)}\n\nYou are the ${role} on a case conference. ${focus}\nReply with JSON only: {"view":"2-3 sentences","differentials":[{"name":"","strength":"strong | consider | alternative | unlikely","key":"the decisive finding for you"}],"wouldWant":"the one extra piece of evidence you want most"}`,
-        k.pics.map((p) => p.url), { system: SYSTEM, max: 3000 }).then(L.json).catch((e) => ({ view: 'No answer: ' + keyErr(e), differentials: [] }))));
+      const views = await Promise.all(ROLES.map(async ([role, focus]) => L.aiPics(`${caseText(k, null)}\n\nYou are the ${role} on a case conference. ${focus}\nReply with JSON only: {"view":"2-3 sentences","differentials":[{"name":"","strength":"strong | consider | alternative | unlikely","key":"the decisive finding for you"}],"wouldWant":"the one extra piece of evidence you want most"}`,
+        await aiUrls(k.pics), { system: SYSTEM, max: 3000 }).then(L.json).catch((e) => ({ view: 'No answer: ' + keyErr(e), differentials: [] }))));
       const rec = L.json(await L.ai(`Three specialists reviewed the same dermatology case.\n${ROLES.map(([r], i) => `${r}: ${JSON.stringify(views[i])}`).join('\n')}\n\nAct as the chair of the case conference. Reply with JSON only: {"agreements":["..."],"disagreements":[{"topic":"","positions":"who thinks what and why"}],"reconciled":[{"name":"","strength":"strong | consider | alternative | unlikely","why":""}],"resolve":["the evidence that would settle the disagreements, most useful first"]}`, { system: SYSTEM, max: 3000 }));
       const f = await fresh(k.id);
       f.debate = { at: Date.now(), views, rec };
@@ -485,7 +488,7 @@ Give 3-6 differentials (most likely first; the first is your committed diagnosis
   // ---- Discussion
   function paintThread() {
     const el = $('#thread'); if (!el) return;
-    el.innerHTML = c.thread.length ? `<div class="sec"><div class="sec-h"><h3>Discussion</h3></div>${c.thread.map((t) => `<div class="card"><p class="small"><b>${icon('chat')} ${esc(t.q)}</b></p>${t.a == null ? '<div class="busy"><span class="spin"></span>Thinking…</div>' : md(t.a)}</div>`).join('')}</div>` : '';
+    el.innerHTML = c.thread.length ? `<div class="sec"><div class="sec-h"><h3>Discussion</h3></div>${c.thread.map((t) => `<div class="card"><p class="small"><b>${icon('chat')} ${esc(t.q)}</b></p>${t.a == null ? (t.live ? `<div class="live">${md(t.live)}</div>` : '<div class="live"><div class="busy"><span class="spin"></span>Thinking…</div></div>') : md(t.a)}</div>`).join('')}</div>` : '';
   }
   actions['ask-open'] = () => {
     sheet(`<h3>Ask about this case</h3><textarea id="askq" class="in" rows="3" placeholder="e.g. Could this be a drug reaction? Best biopsy site? Is DIF needed?"></textarea><div class="acts"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn pri" data-act="ask-send">Ask</button></div>`);
@@ -499,7 +502,8 @@ Give 3-6 differentials (most likely first; the first is your committed diagnosis
     paintThread();
     $('#thread')?.lastElementChild?.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     const earlier = k.thread.slice(0, -1).slice(-4).map((t) => `Q: ${t.q}\nA: ${String(t.a || '').slice(0, 600)}`).join('\n');
-    try { turn.a = await L.ai(`${caseText(k, null)}\n\nLatest reading: ${reading(k)}${earlier ? '\n\nEarlier discussion:\n' + earlier : ''}\n\nThe clinician asks: ${q}\nAnswer directly and concisely in Markdown. Say when the pictures or history can't answer it.`, { system: SYSTEM, max: 1800 }); } catch (e) { turn.a = '_No answer: ' + keyErr(e) + '_'; }
+    const live = (t) => { turn.live = t; if (c?.id === k.id) { const el = $('#thread .card:last-child .live'); if (el) el.innerHTML = md(t); else paintThread(); } };
+    try { turn.a = await L.aiStream(`${caseText(k, null)}\n\nLatest reading: ${reading(k)}${earlier ? '\n\nEarlier discussion:\n' + earlier : ''}\n\nThe clinician asks: ${q}\nAnswer directly and concisely in Markdown. Say when the pictures or history can't answer it.`, { system: SYSTEM, max: 2500, onText: live }); } catch (e) { turn.a = '_No answer: ' + keyErr(e) + '_'; }
     const f = await fresh(k.id); f.thread = k.thread; await DB.put(f);
     if (c?.id === k.id) { c.thread = k.thread; paintThread(); }
   }
@@ -516,9 +520,16 @@ Give 3-6 differentials (most likely first; the first is your committed diagnosis
       <div class="sec"><div class="sec-h"><h3>Treatment assistant</h3></div>${jobError('treat')}
         <div class="card"><p class="small muted" style="margin-top:0">Evidence-oriented options for the diagnosis you choose, adjusted to this patient.</p>
         <div class="chips" style="flex-wrap:wrap">${[...new Set([c.final?.dx, ...dx.slice(0, 4).map((d) => d.name)].filter(Boolean))].map((n) => `<button class="chip" data-act="treat-for" data-dx="${esc(n)}">${esc(n)}</button>`).join('') || '<span class="small muted">Assess the case or set a final diagnosis first.</span>'}</div></div>
-        ${isRunning('treat') ? busy('Writing the treatment summary…') : ''}
+        ${isRunning('treat') ? `<div class="card" id="treat-live">${busy('Writing the treatment summary…')}</div>` : ''}
         ${Object.entries(c.treat || {}).map(([n, t]) => `<details class="card fold"><summary><b>${esc(n)}</b><span class="chev">${icon('chev')}</span></summary>${md(t.text)}<p class="tiny muted">${fmt(t.at)} · check doses against current guidelines and the product information.</p>
           <button class="btn sm" data-act="open" data-url="https://europepmc.org/search?query=${encodeURIComponent(`"${n}" AND (PUB_TYPE:"guideline" OR guideline)`)}">${icon('link')}Find guidelines</button></details>`).join('')}</div>
+      <div class="sec"><div class="sec-h"><h3>Drug-reaction check</h3></div>${jobError('drug')}
+        <div class="card"><p class="small muted" style="margin-top:0">Each medicine against the rash onset: latency, how often it causes this reaction, and a suggested ALDEN (SJS/TEN) or Naranjo score.</p>
+        <div class="row wrap"><label class="f" style="flex:1;min-width:150px">Rash started on<input type="date" id="rash-onset" value="${esc(c.pt.onset || '')}"></label>
+        <button class="btn sm pri" data-act="drug" ${isRunning('drug') ? 'disabled' : ''}>${icon('pill')}Check the medicines</button></div>
+        ${c.pt.meds ? `<p class="tiny muted">Medicines: ${esc(c.pt.meds.slice(0, 160))}</p>` : '<p class="tiny muted">Add medicines with their start dates on the Evidence tab (or read them from a prescription).</p>'}
+        <div class="row wrap" style="margin-top:6px"><button class="chip" data-act="go" data-to="tool/alden">ALDEN calculator</button><button class="chip" data-act="go" data-to="tool/naranjo">Naranjo calculator</button></div></div>
+        ${isRunning('drug') ? busy('Weighing each medicine…') : c.drug ? drugHtml(c.drug) : ''}</div>
       <div class="sec"><div class="sec-h"><h3>Rare-disease detective</h3></div>${jobError('rare')}
         ${isRunning('rare') ? busy('Looking beyond the common diagnoses…') : c.rare ? rareHtml(c.rare) : `<div class="card"><p class="small" style="margin-top:0">When the case doesn't fit: key clues, contradictions, uncommon diagnoses worth considering, and published case reports.</p><button class="btn sm pri" data-act="rare">${icon('detective')}Investigate</button></div>`}
         ${c.rare && !isRunning('rare') ? `<button class="btn sm" style="margin-top:8px" data-act="rare">${icon('refresh')}Investigate again</button>` : ''}</div>
@@ -527,11 +538,34 @@ Give 3-6 differentials (most likely first; the first is your committed diagnosis
         <div class="row wrap"><button class="btn sm" data-act="new-visit">${icon('plus')}New visit for this patient</button>${c.visitOf ? `<button class="btn sm" data-act="compare">${icon('compare')}Compare with the previous visit</button>` : ''}</div></div>
         ${isRunning('compare') ? busy('Comparing the visits…') : c.compare ? `<div class="card">${md(c.compare.text)}<p class="tiny muted">${fmt(c.compare.at)}</p></div>` : ''}</div>`;
   }
+  const DRUG_TASK = `Assess each medicine as a possible cause of this skin reaction. Use the rash onset date and the medicine start/stop dates where given. Reply with JSON only:
+{"pattern":"the reaction pattern if drug-induced (e.g. SJS/TEN, DRESS, AGEP, fixed drug eruption, exanthem, urticaria, lichenoid, photosensitive)","drugs":[{"name":"","latency":"time from start to onset, or 'unknown'","notoriety":"strongly associated | associated | suspected | unknown | not suspected","alden":"estimated ALDEN score (number) if SJS/TEN is possible, else ''","naranjo":"estimated Naranjo score (number)","verdict":"very probable | probable | possible | unlikely | very unlikely","why":"one line"}],"advice":"one or two lines: which medicine to stop first and what to monitor"}
+Most likely culprit first. Never invent dates; say 'unknown'.`;
+  actions.drug = () => {
+    const k = c, onset = $('#rash-onset')?.value || '';
+    if (onset !== (k.pt.onset || '')) { k.pt.onset = onset; save(); }
+    if (!k.pt.meds && !k.pt.history) { toast('Add the medicines first (Evidence tab)'); return; }
+    tab = 'workup';
+    L.runJob('drug:' + k.id, 'Drug-reaction check', k.id, async () => {
+      const r = L.json(await L.ai(`${caseText(k, null)}\nRash onset: ${onset || 'not given'}\nLatest reading: ${reading(k)}\n\n${DRUG_TASK}`, { system: SYSTEM, max: 3000 }));
+      if (!Array.isArray(r?.drugs)) throw new Error('The AI answer came back incomplete. Try again.');
+      const f = await fresh(k.id); f.drug = { ...r, at: Date.now() }; await DB.put(f); if (c?.id === f.id) c = f;
+    }).catch(() => {});
+    paint();
+  };
+  const VERD = { 'very probable': 'bad', probable: 'bad', possible: 'warn', unlikely: 'ok', 'very unlikely': 'ok' };
+  function drugHtml(d) {
+    return `<div class="card" style="margin-top:8px">${d.pattern ? `<span class="tag">${esc(d.pattern)}</span>` : ''}
+      ${list(d.drugs).map((x) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>${esc(x.name)}</b> <span class="tri ${VERD[String(x.verdict).toLowerCase()] === 'bad' ? 'urgent' : VERD[String(x.verdict).toLowerCase()] === 'warn' ? 'soon' : 'routine'}" style="animation:none">${esc(x.verdict || '')}</span>
+        <div class="small muted">${esc([x.latency && 'Latency ' + x.latency, x.notoriety, x.alden !== '' && x.alden != null ? 'ALDEN ≈ ' + x.alden : '', x.naranjo !== '' && x.naranjo != null ? 'Naranjo ≈ ' + x.naranjo : ''].filter(Boolean).join(' · '))}</div>
+        ${x.why ? `<div class="small">${esc(x.why)}</div>` : ''}</div>`).join('')}
+      ${d.advice ? `<p class="small"><span class="k-miss">Advice</span> ${esc(d.advice)}</p>` : ''}<p class="tiny muted">${fmt(d.at)} · AI estimates: confirm the scores with the calculators.</p></div>`;
+  }
   actions['treat-for'] = (b) => {
     const n = b.dataset.dx, k = c;
     tab = 'workup';
     L.runJob('treat:' + k.id, 'Treatment summary', k.id, async () => {
-      const text = await L.ai(`${caseText(k, null)}\n\nDiagnosis to treat: ${n}\n\nWrite a concise, evidence-oriented treatment summary for a dermatologist, adjusted to this patient (age, sex, pregnancy potential, comorbidities and medicines if known). Use Markdown headings:\n## First line\n## Alternatives and second line\n## Doses and duration (typical adult doses; paediatric notes)\n## Contraindications and interactions\n## Monitoring\n## Pregnancy and lactation\n## If it fails\n## Maintenance and recurrence\n## Why the first line is preferred\nName guideline bodies (e.g. BAD, AAD, EADV, IADVL) only when sure; never invent citations or numbers. Flag anything needing specialist or systemic work-up.`, { system: SYSTEM, max: 3000 });
+      const text = await L.aiStream(`${caseText(k, null)}\n\nDiagnosis to treat: ${n}\n\nWrite a concise, evidence-oriented treatment summary for a dermatologist, adjusted to this patient (age, sex, pregnancy potential, comorbidities and medicines if known). Use Markdown headings:\n## First line\n## Alternatives and second line\n## Doses and duration (typical adult doses; paediatric notes)\n## Contraindications and interactions\n## Monitoring\n## Pregnancy and lactation\n## If it fails\n## Maintenance and recurrence\n## Why the first line is preferred\nName guideline bodies (e.g. BAD, AAD, EADV, IADVL) only when sure; never invent citations or numbers. Flag anything needing specialist or systemic work-up.`, { system: SYSTEM, max: 4000, onText: (t) => { const el = $('#treat-live'); if (el && c?.id === k.id) el.innerHTML = `<h4>${esc(n)}</h4>` + md(t); } });
       const f = await fresh(k.id); f.treat = { ...(f.treat || {}), [n]: { text, at: Date.now() } }; await DB.put(f); if (c?.id === f.id) c = f;
     }).catch(() => {});
     paint();
@@ -561,7 +595,7 @@ Give 4-7 uncommon diagnoses, only where the evidence warrants them; include trea
   actions.rare = () => {
     const k = c; tab = 'workup';
     L.runJob('rare:' + k.id, 'Rare-disease detective', k.id, async () => {
-      const r = await rareRun(`${caseText(k, null)}\nLatest reading: ${reading(k)}`, k.pics.map((p) => p.url));
+      const r = await rareRun(`${caseText(k, null)}\nLatest reading: ${reading(k)}`, await aiUrls(k.pics));
       const f = await fresh(k.id); f.rare = { ...r, at: Date.now() }; await DB.put(f); if (c?.id === f.id) c = f;
     }).catch(() => {});
     paint();
@@ -593,7 +627,7 @@ Give 4-7 uncommon diagnoses, only where the evidence warrants them; include trea
     tab = 'workup';
     L.runJob('compare:' + k.id, 'Comparing visits', k.id, async () => {
       const text = await L.aiPics(`Pictures 1-${a.length} are from the earlier visit (${fmtDay(prev.created)}); pictures ${a.length + 1}-${a.length + b.length} are from today (${fmtDay(k.created)}). Treatment between visits: ${k.pt.treated || prev.pt.treated || 'not stated'}. Diagnosis: ${prev.final?.dx || list(last(prev)?.r?.differentials)[0]?.name || 'not set'}.
-Compare like with like (same site where possible). In Markdown: ## Overall change (improved / unchanged / worse, in one line) ## What changed (erythema, scale, induration, size, borders, colour, new lesions, pigment) ## Estimated activity (state if a score like PASI/EASI/VASI could be estimated, as a rough guide only) ## Suggestions. Say when angle, lighting or site differ too much to compare.`, [...a, ...b].map((p) => p.url), { system: SYSTEM, max: 1800 });
+Compare like with like (same site where possible). In Markdown: ## Overall change (improved / unchanged / worse, in one line) ## What changed (erythema, scale, induration, size, borders, colour, new lesions, pigment) ## Estimated activity (state if a score like PASI/EASI/VASI could be estimated, as a rough guide only) ## Suggestions. Say when angle, lighting or site differ too much to compare.`, await aiUrls([...a, ...b]), { system: SYSTEM, max: 1800 });
       const f = await fresh(k.id); f.compare = { text, at: Date.now() }; await DB.put(f); if (c?.id === f.id) c = f;
     }).catch(() => {});
     paint();
@@ -654,7 +688,7 @@ Compare like with like (same site where possible). In Markdown: ## Overall chang
     let tool = 'arrow', color = COLORS[0];
     const shapes = [];
     document.body.insertAdjacentHTML('beforeend', `<div class="studio"><div class="tools">
-      <button data-st="close">${icon('x')}</button>${[['arrow', 'Arrow'], ['circle', 'Circle'], ['pen', 'Pen'], ['text', 'Label'], ['biopsy', 'Biopsy site']].map(([k, l]) => `<button data-tool="${k}" class="${k === tool ? 'on' : ''}">${l}</button>`).join('')}
+      <button data-st="close">${icon('x')}</button>${[['arrow', 'Arrow'], ['circle', 'Circle'], ['pen', 'Pen'], ['text', 'Label'], ['biopsy', 'Biopsy site'], ['blur', 'Hide (blur)']].map(([k, l]) => `<button data-tool="${k}" class="${k === tool ? 'on' : ''}">${l}</button>`).join('')}
       ${COLORS.map((x) => `<button class="sw" data-col="${x}" style="background:${x}"></button>`).join('')}<button data-st="undo">Undo</button><button data-st="save" class="on">Save</button></div>
       <div class="canvas-wrap"><canvas></canvas></div></div>`);
     const root = $('.studio'), cv = root.querySelector('canvas'), g = cv.getContext('2d');
@@ -664,6 +698,7 @@ Compare like with like (same site where possible). In Markdown: ## Overall chang
     const lw = () => Math.max(3, Math.round(cv.width / 220));
     function shape(s) {
       g.strokeStyle = g.fillStyle = s.color; g.lineWidth = lw(); g.lineCap = g.lineJoin = 'round';
+      if (s.t === 'blur') { const x = Math.min(s.x1, s.x2), y = Math.min(s.y1, s.y2); L.pixelate(g, Math.round(x), Math.round(y), Math.round(Math.abs(s.x2 - s.x1)), Math.round(Math.abs(s.y2 - s.y1)), Math.max(8, Math.round(cv.width / 60))); return; }
       if (s.t === 'pen') { g.beginPath(); s.pts.forEach(([x, y], j) => (j ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); }
       else if (s.t === 'circle') { g.beginPath(); g.ellipse((s.x1 + s.x2) / 2, (s.y1 + s.y2) / 2, Math.abs(s.x2 - s.x1) / 2 || 1, Math.abs(s.y2 - s.y1) / 2 || 1, 0, 0, Math.PI * 2); g.stroke(); }
       else if (s.t === 'arrow') {

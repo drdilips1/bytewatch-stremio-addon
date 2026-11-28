@@ -56,6 +56,13 @@ public class MainActivity extends Activity {
     private static final int REQUEST_SPEECH = 14;
     private static final int REQUEST_IMAGE_AI = 15;
     private static final int REQUEST_CAMERA_AI = 19;
+    private static final int REQUEST_BACKUP_OPEN = 21;
+    /** The Lesionaut backup being written (backupStart → backupAppend… → backupFinish). */
+    private Writer backupOut;
+    private File backupFile;
+    private String pendingBackupId;
+    private java.io.BufferedReader backupIn;
+    private long backupPos;
     /** Which web request asked for an image (pickImage). */
     private String pendingImageId;
     /** How many pictures a pickFiles may return (PDF pages count); 12 for photo picks. */
@@ -646,6 +653,129 @@ public class MainActivity extends Activity {
                     emit(event("imagePicked", "id", id, "error", "No file picker on this phone"));
                 }
             });
+        }
+
+        /**
+         * Faces in a photo (data URL), for hiding the eyes before a picture goes to the AI: a JSON array
+         * of {x, y, d} (midpoint between the eyes and the eye distance, as fractions of the width/height).
+         */
+        @JavascriptInterface
+        public String detectFaces(String dataUrl) {
+            org.json.JSONArray out = new org.json.JSONArray();
+            try {
+                byte[] b = android.util.Base64.decode(dataUrl.substring(dataUrl.indexOf(',') + 1), android.util.Base64.DEFAULT);
+                android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+                o.inPreferredConfig = android.graphics.Bitmap.Config.RGB_565;
+                android.graphics.Bitmap src = android.graphics.BitmapFactory.decodeByteArray(b, 0, b.length, o);
+                if (src == null) return "[]";
+                // FaceDetector needs an even width and RGB_565.
+                float k = Math.min(1f, 800f / Math.max(src.getWidth(), src.getHeight()));
+                int w = Math.max(2, Math.round(src.getWidth() * k) & ~1), h = Math.max(2, Math.round(src.getHeight() * k));
+                android.graphics.Bitmap bmp = android.graphics.Bitmap.createScaledBitmap(src, w, h, true).copy(android.graphics.Bitmap.Config.RGB_565, false);
+                android.media.FaceDetector.Face[] faces = new android.media.FaceDetector.Face[5];
+                int n = new android.media.FaceDetector(w, h, faces.length).findFaces(bmp, faces);
+                android.graphics.PointF mid = new android.graphics.PointF();
+                for (int i = 0; i < n; i++) {
+                    if (faces[i] == null || faces[i].confidence() < 0.3f) continue;
+                    faces[i].getMidPoint(mid);
+                    JSONObject f = new JSONObject();
+                    f.put("x", mid.x / w);
+                    f.put("y", mid.y / h);
+                    f.put("d", faces[i].eyesDistance() / w);
+                    out.put(f);
+                }
+                bmp.recycle();
+                if (bmp != src) src.recycle();
+            } catch (Throwable ignored) {
+            }
+            return out.toString();
+        }
+
+        /** A Lesionaut backup is written in pieces (it holds every picture, so it can be large). */
+        @JavascriptInterface
+        public boolean backupStart(String fileName) {
+            try {
+                File dir = new File(getCacheDir(), "export");
+                dir.mkdirs();
+                backupFile = new File(dir, fileName.replaceAll("[^A-Za-z0-9_.-]", "_"));
+                backupOut = new java.io.BufferedWriter(new OutputStreamWriter(new FileOutputStream(backupFile), StandardCharsets.UTF_8));
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public boolean backupAppend(String text) {
+            try {
+                backupOut.write(text);
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        /** Closes the backup and opens the share sheet (save to Drive or Files, send by email…). */
+        @JavascriptInterface
+        public boolean backupFinish() {
+            try {
+                backupOut.close();
+                backupOut = null;
+                Uri uri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", backupFile);
+                main.post(() -> {
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType("application/json");
+                    i.putExtra(Intent.EXTRA_STREAM, uri);
+                    i.putExtra(Intent.EXTRA_SUBJECT, backupFile.getName());
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(Intent.createChooser(i, "Save the backup"));
+                });
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        /** Choose a backup file: answered by a "backupPicked" event {id, size} (or error); then read it with backupRead. */
+        @JavascriptInterface
+        public void backupPick(String id) {
+            main.post(() -> {
+                pendingBackupId = id;
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("*/*");
+                try {
+                    startActivityForResult(i, REQUEST_BACKUP_OPEN);
+                } catch (ActivityNotFoundException e) {
+                    emit(event("backupPicked", "id", id, "error", "No file picker on this phone"));
+                }
+            });
+        }
+
+        /** Part of the picked backup: {@code len} characters from character {@code from} ("" at the end). */
+        @JavascriptInterface
+        public synchronized String backupRead(int from, int len) {
+            try {
+                // Read on from where the last piece ended; reopen only if asked for another place.
+                if (backupIn == null || from != backupPos) {
+                    if (backupIn != null) backupIn.close();
+                    backupIn = new java.io.BufferedReader(new java.io.InputStreamReader(new FileInputStream(new File(getCacheDir(), "import.json")), StandardCharsets.UTF_8));
+                    backupPos = 0;
+                    while (backupPos < from) {
+                        long n = backupIn.skip(from - backupPos);
+                        if (n <= 0) return "";
+                        backupPos += n;
+                    }
+                }
+                char[] buf = new char[len];
+                int got = 0, n;
+                while (got < len && (n = backupIn.read(buf, got, len - got)) > 0) got += n;
+                backupPos += got;
+                if (got == 0) { backupIn.close(); backupIn = null; }
+                return new String(buf, 0, got);
+            } catch (Exception e) {
+                return "";
+            }
         }
 
         /** Long AI work starts (on) or ends: a foreground notification keeps it going in the background. */
@@ -1570,6 +1700,24 @@ public class MainActivity extends Activity {
             io.execute(() -> {
                 try { emit(event("imagePicked", "id", id, "dataUrl", imageDataUrl(shot))); }
                 catch (Exception e) { emit(event("imagePicked", "id", id, "error", "Couldn't read the photo")); }
+            });
+        } else if (requestCode == REQUEST_BACKUP_OPEN) {
+            String id = pendingBackupId;
+            pendingBackupId = null;
+            if (id == null) return;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) { emit(event("backupPicked", "id", id, "error", "cancelled")); return; }
+            final Uri src = data.getData();
+            io.execute(() -> {
+                try (java.io.InputStream in = getContentResolver().openInputStream(src);
+                     FileOutputStream out = new FileOutputStream(new File(getCacheDir(), "import.json"))) {
+                    byte[] buf = new byte[65536];
+                    long size = 0;
+                    int n;
+                    while ((n = in.read(buf)) > 0) { out.write(buf, 0, n); size += n; }
+                    emit(event("backupPicked", "id", id, "size", size));
+                } catch (Exception e) {
+                    emit(event("backupPicked", "id", id, "error", "Couldn't read that file"));
+                }
             });
         } else if (requestCode == REQUEST_IMAGE_AI) {
             String id = pendingImageId;
