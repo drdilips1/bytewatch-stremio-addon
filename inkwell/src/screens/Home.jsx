@@ -216,8 +216,12 @@ function freshFirst(list, max = 6) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   const fresh = a.filter((b) => !seen[b.uid]);
-  const old = a.filter((b) => seen[b.uid]).sort((x, y) => seen[x.uid] - seen[y.uid]);
-  return [...fresh, ...old].slice(0, max);
+  // Shown in the last 12 hours: left out while there are other books (user, 28 Nov: "it keeps
+  // repeating a few books"); older ones come back, the longest-unseen first.
+  const recent = (b) => Date.now() - seen[b.uid] < 12 * 36e5;
+  const old = a.filter((b) => seen[b.uid] && !recent(b)).sort((x, y) => seen[x.uid] - seen[y.uid]);
+  const lately = a.filter((b) => seen[b.uid] && recent(b)).sort((x, y) => seen[x.uid] - seen[y.uid]);
+  return [...fresh, ...old, ...(fresh.length + old.length >= max ? [] : lately)].slice(0, max);
 }
 
 function roundRobin(groups) {
@@ -432,7 +436,7 @@ function Hero() {
       setTimeout(settle, 8000);
       Promise.resolve()
         .then(load)
-        .then((r) => (groups[k] = freshFirst(r || [], kind === 'ai' || kind === 'top' ? 6 : 2).map((x) => ({ ...x, heroTag: tag }))))
+        .then((r) => (groups[k] = freshFirst(r || [], kind === 'ai' || kind === 'top' ? 10 : 4).map((x) => ({ ...x, heroTag: tag }))))
         .catch(() => {})
         .finally(settle);
     });
