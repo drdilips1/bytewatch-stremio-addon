@@ -641,3 +641,9 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
   - Ebook recap: lib/ebookrecap.js (recapDue after 7 days, readSoFar, ebookRecapPrompt; tested); recap panel in Reader (auto when due + Contents → Recap the story so far).
   - Discover .d-tabs one line (from Audiohub+).
   - Also on work: Home horizontal overflow fix (a7ac629), iOS camera / keyboard (425aac6). What's new EDITION nov-2026-ebooks.
+- 28 Nov:
+  1. Port Audiohub+ 1b94ea49 — Hidden gems / Browse open in seconds (Audiobookshelf read once, pages fetched together, kept 10 min). Speed.
+  2. Port Audiohub+ b7ff931e / a88a3241 — Text view: tapping a sentence always plays from it; readable in Light mode.
+  3. Ebook dictionary: long-press one word → a quick definition from a free dictionary, no AI key needed.
+  4. Stats → "Your month in books" share card (image), so listeners spread the word instead of Reddit posts.
+  5. Store-edition App Store screenshots made automatically from the web build (Playwright, the 6.7" and 5.5" sizes).
