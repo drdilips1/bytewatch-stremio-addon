@@ -1144,26 +1144,34 @@ function Description({ text, expanded, setExpanded, gr = null, credit = "", chil
   );
 }
 
-/** Goodreads, as a small tile: rating, top genres, and links to rate or read reviews there. */
+/**
+ * Goodreads: one line (logo, name, link out), then the rating, ratings and reviews in three equal
+ * boxes, then the top genres from the left edge — aligned, no indent under the logo (user, 28 Nov).
+ */
 function GoodreadsCard({ gr, inside = false }) {
+  const stats = [
+    gr.rating > 0 && [<><Icon name="star" size={13} fill /> {gr.rating.toFixed(2)}</>, "rating"],
+    gr.count > 0 && [fmtK(gr.count), "ratings"],
+    gr.reviews > 0 && [fmtK(gr.reviews), "reviews"],
+  ].filter(Boolean);
   return (
     <section class={inside ? "about-gr" : "gr-card gr-tile"}>
       <button class="gr-main" onClick={() => openExternal(gr.url)}>
         <span class="gr-logo">g</span>
-        <span class="gr-text">
-          <b>Goodreads</b>
-          {gr.rating > 0 ? (
-            <small>
-              <Icon name="star" size={12} fill /> {gr.rating.toFixed(2)}
-              {gr.count > 0 && ` · ${fmtK(gr.count)} ratings`}
-              {gr.reviews > 0 && ` · ${fmtK(gr.reviews)} reviews`}
-            </small>
-          ) : (
-            <small>Reviews and ratings</small>
-          )}
-        </span>
+        <b class="gr-name">Goodreads</b>
+        {!stats.length && <small class="gr-none">Reviews and ratings</small>}
         <Icon name="external" size={16} />
       </button>
+      {stats.length > 0 && (
+        <div class="gr-stats" style={{ "--n": stats.length }}>
+          {stats.map(([v, l]) => (
+            <div>
+              <b>{v}</b>
+              <small>{l}</small>
+            </div>
+          ))}
+        </div>
+      )}
       {gr.genres?.length > 0 && (
         <div class="gr-genres">
           {gr.genres.slice(0, 5).map((g) => (

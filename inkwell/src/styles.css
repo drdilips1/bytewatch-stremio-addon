@@ -13528,3 +13528,25 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 :root[data-mode='dark'] .screen.book .book-actions > .btn.primary.big {
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.26), rgba(0, 0, 0, 0.26)), linear-gradient(0deg, color-mix(in srgb, var(--accent) 40%, transparent), color-mix(in srgb, var(--accent) 40%, transparent)), var(--grad, var(--accent));
 }
+/* Descriptions read clearly (user, 28 Nov: "quite pale"): Plus Jakarta Sans at medium weight,
+   full text colour — was a thin Figtree at 85% opacity in a muted colour. */
+.description, .book .description, .pod-desc {
+  font-family: 'Plus Jakarta Sans Variable', var(--font);
+  font-weight: 500;
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--text);
+  opacity: 1;
+}
+/* Goodreads: aligned — one header line, three equal numbers, genres from the left edge. */
+.about-gr .gr-main, .gr-tile .gr-main { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; }
+.gr-main .gr-name { flex: 1; font-size: 15px; font-weight: 700; }
+.gr-main .gr-none { color: var(--muted); font-size: 13px; }
+.gr-main > .icon { color: var(--muted); flex: none; }
+.gr-stats { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); margin-top: 12px; border-radius: 14px; background: color-mix(in srgb, var(--bg) 70%, transparent); border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.gr-stats > div { padding: 10px 4px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.gr-stats > div + div { border-left: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.gr-stats b { display: inline-flex; align-items: center; gap: 4px; font-size: 17px; font-weight: 700; }
+.gr-stats b .icon { color: #f5b301; }
+.gr-stats small { color: var(--muted); font-size: 12px; }
+.about-gr .gr-genres, .gr-tile .gr-genres { margin: 12px 0 0 !important; }
