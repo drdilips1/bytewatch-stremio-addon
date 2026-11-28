@@ -13454,7 +13454,7 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
    one About card (title, description, Goodreads, Ask, the credit), your verdict filling the
    row, the series with the playing book lit and "Up next", then Files / Home server / Summary
    as one row of tiles. */
-.book-publisher { display: block; margin: 10px auto 0; padding: 2px 8px; border: 0; background: none; color: var(--dyn, var(--accent)); font: inherit; font-size: 14px; font-weight: 600; }
+.book-publisher { display: block; margin: 10px auto 0; padding: 2px 8px; border: 0; background: none; color: color-mix(in srgb, var(--dyn, var(--accent)) 45%, var(--text)); font: inherit; font-size: 14px; font-weight: 600; }
 .book-prog { margin: 12px 20px 0; }
 .book-prog .book-progress { margin: 0; }
 .book-prog small { display: block; margin-top: 7px; font-size: 13px; color: var(--muted); line-height: 1.4; }
