@@ -465,3 +465,32 @@ button, a, .b-cont, .b-job-text { touch-action: manipulation; -webkit-tap-highli
 .b-grid .b-tile-bar { left: 7px; right: 7px; bottom: 7px; height: 3px; }
 .b-grid .b-cover-blank b { font-size: 11px; }
 .b-grid .b-cover-blank small { font-size: 8.5px; }
+
+/* Scrolled: a fade in the page's own colour under the status bar. */
+.b-topfade { position: fixed; z-index: 35; top: 0; left: 0; right: 0; height: calc(var(--safe-top) + 18px); pointer-events: none; background: linear-gradient(180deg, var(--b-bg) 0%, var(--b-bg) 55%, color-mix(in srgb, var(--b-bg) 0%, transparent) 100%); opacity: 0; transition: opacity 0.2s; }
+.b-topfade.on { opacity: 1; }
+
+/* A book without a picture: its own gentle colour (from its title), in the look's tone. */
+.b-cover-blank { background: linear-gradient(160deg, color-mix(in oklab, hsl(var(--h, 30) 55% 78%) 45%, var(--b-blank1)), color-mix(in oklab, hsl(var(--h, 30) 45% 62%) 40%, var(--b-blank2))); }
+.b-cover-blank::before { content: ''; position: absolute; left: 12%; right: 12%; top: 9%; height: 1px; background: color-mix(in srgb, var(--b-text) 22%, transparent); }
+.b-cover-blank small { color: color-mix(in oklab, hsl(var(--h, 30) 45% 32%) 70%, var(--b-text)); }
+:root[data-mode='dark'] .b-cover-blank { background: linear-gradient(160deg, color-mix(in oklab, hsl(var(--h, 30) 40% 34%) 55%, var(--b-blank1)), color-mix(in oklab, hsl(var(--h, 30) 35% 22%) 50%, var(--b-blank2))); }
+:root[data-mode='dark'] .b-cover-blank small { color: hsl(var(--h, 30) 45% 78%); }
+
+/* While a book is in the player: a slim Home header. */
+.b-hero.slim { padding-top: 10px; padding-bottom: 0; }
+.b-hero.slim + .b-search { margin-top: 14px; }
+.b-hero.slim .b-hello { margin-bottom: 2px; }
+
+/* "Searching…" under the search box. */
+.b-searching { display: flex; align-items: center; gap: 10px; margin: 4px 4px 12px; color: var(--b-muted); font-size: 14px; }
+
+/* "See All" in the look's colour. */
+.b-sec-head button { color: var(--b-acc); font-weight: 600; }
+
+/* Copies, folded into one line on the book page. */
+.b-copies-fold { display: flex; width: 100%; align-items: center; justify-content: space-between; margin-top: 18px; padding: 13px 16px; border-radius: 14px; background: var(--b-card); border: 1px solid var(--b-line); color: var(--b-mid); font-size: 14.5px; }
+
+/* Mini player: a clearer progress line over a faint track. */
+.b-mini::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: color-mix(in srgb, var(--b-acc) 14%, transparent); }
+.b-mini-bar { height: 4px; z-index: 1; border-radius: 0 4px 4px 0; }

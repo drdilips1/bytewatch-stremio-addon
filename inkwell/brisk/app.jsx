@@ -17,6 +17,13 @@ export function App() {
   const [hasBook, setHasBook] = useState(!!player.getState().book);
   useEffect(() => nav.subscribe(setRoute), []);
   useEffect(() => player.subscribe((s) => setHasBook(!!s.book)), []);
+  // Scrolled down: a soft fade under the clock and battery, so the page doesn't run under them.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 6);
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const h = CapApp.addListener('backButton', () => {
@@ -28,6 +35,7 @@ export function App() {
   const Screen = top ? ROUTES[top.name] : Home;
   return (
     <div class={'b-app' + (hasBook ? ' b-has-player' : '')}>
+      <i class={'b-topfade' + (scrolled ? ' on' : '')} aria-hidden="true" />
       <main class="b-page" key={top?.key || 'home'}>
         <Guard key={top?.key || 'home'}>{Screen && <Screen {...(top?.params || {})} />}</Guard>
       </main>

@@ -316,3 +316,25 @@ describe('Audibrisk part order', () => {
     expect(orderParts(dup)).toBe(dup);
   });
 });
+
+describe('Audibrisk Home touches', () => {
+  it('gives a book without a cover the same colour every time, different from others', async () => {
+    const { hueOf } = await import('./logic.js');
+    expect(hueOf('Sapiens')).toBe(hueOf('sapiens'));
+    expect(hueOf('Sapiens')).not.toBe(hueOf('Dune'));
+    expect(hueOf('')).toBeGreaterThanOrEqual(0);
+    expect(hueOf('A very long title about something')).toBeLessThan(360);
+  });
+  it('puts the book in the player first in Continue listening', async () => {
+    const { nowFirst } = await import('./logic.js');
+    const list = [{ uid: 'a', title: 'Fellowship' }, { uid: 'b', title: 'Sapiens' }, { uid: 'c', title: 'Dune' }];
+    expect(nowFirst(list, { uid: 'b', title: 'Sapiens' }).map((b) => b.uid)).toEqual(['b', 'a', 'c']);
+    expect(nowFirst(list, { uid: 'a', title: 'Fellowship' })).toBe(list);
+    // Another copy of the same book in the player: found by title.
+    const same = (x, y) => x.title === y.title;
+    expect(nowFirst(list, { uid: 'z', title: 'Dune' }, same).map((b) => b.uid)).toEqual(['c', 'a', 'b']);
+    // Not in the list yet: in front.
+    expect(nowFirst(list, { uid: 'n', title: 'New' }).map((b) => b.uid)).toEqual(['n', 'a', 'b', 'c']);
+    expect(nowFirst(list, null)).toBe(list);
+  });
+});

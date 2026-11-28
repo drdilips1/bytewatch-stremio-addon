@@ -12,7 +12,7 @@ import * as player from '../src/lib/player.js';
 import * as bk from './books.js';
 import { VERSION, checkUpdate, installUpdate, updState, newer, isIphone } from './update.js';
 import { Scene, rollScene, modeChoice, diceAll } from './scenes.jsx';
-import { copyFacts, thumb, placeOf, fmtRating, libraryMatches, sortBooks, reportUrl, listeningLine, makeBackup, readBackup, finishText, awayText, seriesOf } from './logic.js';
+import { copyFacts, thumb, placeOf, fmtRating, libraryMatches, sortBooks, reportUrl, listeningLine, makeBackup, readBackup, finishText, awayText, seriesOf, hueOf, nowFirst } from './logic.js';
 import { summary as listenSummary, finishGuess } from '../src/lib/stats.js';
 import { audible } from '../src/sources/catalogs.js';
 import { bookmarks } from '../src/lib/store.js';
@@ -34,7 +34,7 @@ export function Cover({ book, class: cls = '', px = 0 }) {
       {src ? (
         <img src={src} alt="" decoding="async" onLoad={(e) => e.currentTarget.classList.add('in')} onError={() => setBad(book.cover)} />
       ) : (
-        <div class="b-cover-blank">
+        <div class="b-cover-blank" style={{ '--h': hueOf(book?.title) }}>
           <b>{book?.title}</b>
           <small>{String(book?.author || '').split(',')[0]}</small>
         </div>
@@ -422,7 +422,10 @@ export function Home() {
       });
     }, 250);
   }, [q]);
-  const cont = bk.continuing(allProgress).map(bk.withCover);
+  // The book in the player leads, even when another one was touched last.
+  const now = useNowPlaying();
+  const inPlayer = now.uid ? player.getState().book : null;
+  const cont = nowFirst(bk.continuing(allProgress), inPlayer && !allProgress[inPlayer.uid]?.finished && { ...inPlayer, percent: allProgress[inPlayer.uid]?.percent || 0 }, bk.sameBook).map(bk.withCover);
   const open = (b) => nav.push('book', { book: b });
   // The book you'll most likely tap: its copy fetched ahead, so it starts at once.
   useEffect(() => {
@@ -433,14 +436,19 @@ export function Home() {
     <div class={'b-home' + (q ? ' searching' : '')}>
       <Header onSettings={() => setSheet(true)} dice={!q} />
       {!q && (
-        <div class="b-hero">
+        // While a book is in the player the picture steps aside, so Continue and your library sit higher.
+        <div class={'b-hero' + (now.uid ? ' slim' : '')}>
           <p class="b-hello">{greeting()}</p>
           <ListeningLine />
-          <h1>What shall we listen to?</h1>
-          <svg class="b-swoosh" viewBox="0 0 200 12" aria-hidden="true">
-            <path d="M2 10 C60 2 130 1 198 4" fill="none" stroke="var(--b-gold)" stroke-width="2.4" stroke-linecap="round" />
-          </svg>
-          <Scene />
+          {!now.uid && (
+            <>
+              <h1>What shall we listen to?</h1>
+              <svg class="b-swoosh" viewBox="0 0 200 12" aria-hidden="true">
+                <path d="M2 10 C60 2 130 1 198 4" fill="none" stroke="var(--b-gold)" stroke-width="2.4" stroke-linecap="round" />
+              </svg>
+              <Scene />
+            </>
+          )}
         </div>
       )}
       <label class="b-search">
@@ -463,6 +471,11 @@ export function Home() {
       {!q && <WhatsNew />}
       {!q && <UpNext />}
       {!q && <Jobs />}
+      {q && busy && (
+        <p class="b-searching">
+          <span class="b-spin small" /> {results?.length ? 'Finding more…' : 'Searching…'}
+        </p>
+      )}
       {results ? (
         // Scrolling the results puts the keyboard away, so the first tap on a book opens it.
         <div class="b-results" onTouchStart={() => document.activeElement?.blur?.()}>
@@ -1008,7 +1021,7 @@ export function BookPage({ book, fresh = false }) {
           Stop saving
         </button>
       )}
-      {!!copies?.length && (!local || want) && !free && <Copies copies={copies} provider={bk.provider()} onPick={pick} busy={!!status} />}
+      {!!copies?.length && (!local || want) && !free && <Copies copies={copies} provider={bk.provider()} onPick={pick} busy={!!status} open={want || !!err} />}
       {!want && !free && bk.provider() && (link || local || mine) && (
         <button class="b-link" onClick={() => setWant(true)}>
           Find other copies
@@ -1114,9 +1127,23 @@ function WantButton({ book }) {
  * The copies found, as small boxes: instant (ready on your service) or seeds, size and format.
  * Tap one to play exactly that copy. No site names — they don't help you choose.
  */
-function Copies({ copies, provider, onPick, busy }) {
+/** The copies found, folded under one line (Play picks the best); open to choose one yourself. */
+function Copies({ copies, provider, onPick, busy, open: opened = false }) {
   const [all, setAll] = useState(false);
+  const [open, setOpen] = useState(opened);
+  useEffect(() => opened && setOpen(true), [opened]);
   const shown = all ? copies.slice(0, 24) : copies.slice(0, 6);
+  const instant = copies.filter((r) => copyFacts(r, provider).instant).length;
+  if (!open)
+    return (
+      <button class="b-copies-fold" onClick={() => setOpen(true)}>
+        <span>
+          {copies.length} {copies.length === 1 ? 'copy' : 'copies'}
+          {instant ? ` · ${instant} instant` : ''}
+        </span>
+        <Icon name="chevron" size={16} />
+      </button>
+    );
   return (
     <div class="b-copies">
       <h2 class="b-label">Copies</h2>

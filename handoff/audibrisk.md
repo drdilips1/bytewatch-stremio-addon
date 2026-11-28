@@ -29,8 +29,15 @@
   config `inkwell/vite.brisk.config.js`, workflow `.github/workflows/brisk-apk.yml`.
   Tests: `inkwell/brisk/brisk.test.js` (runs in `npm test`). The shared eslint config only covers
   `src/`; lint brisk with a temp copy of it that adds `brisk/**/*.{js,jsx}` (clean as of v1.0.6).
-- Next (28 Nov, committed, not built): Your library grid three across on a phone (minmax 92px,
-  smaller titles / labels) — user asked for "3".
+- v1.0.23 (28 Nov, release build): library grid three across (minmax 92px, smaller titles /
+  labels); appearance pass the user chose ("Build all" of 6 suggestions): (1) `.b-topfade` fade
+  under the status bar once scrolled (app.jsx); (2) coloured placeholder covers (`hueOf(title)` →
+  `--h`, mixed with the look's blank colours, light + dark); (3) the book in the player leads
+  Continue listening (`nowFirst`, matched by uid or sameBook, prepended if missing); (4) slim Home
+  hero while a book is in the player (greeting + listening line only, no headline/scene);
+  (5) mini-player progress 4px over a faint track; (6) Copies folded into one line on the book page
+  ("12 copies · 3 instant", opens by itself on Find other copies or an error), See All in accent,
+  "Searching… / Finding more…" under the search box. What's new EDITION 2.
 - v1.0.22 RELEASED + iPhone 1.0.11 (27 Nov, both OK — public APK checked 200; iPhone source 1.0.11 / build 11 = app): (1) parts ordered by book + chapter number when every
   part has one (`partKey`/`orderParts`: "Book 1 - Chapter 08" among "Book I - Chapter 0X" no longer
   first — user's Fellowship of the Ring); applied in ready()/warmed()/phone books; first time a

@@ -424,3 +424,26 @@ export function orderParts(tracks) {
   if (idx.every((v, i) => v === i)) return list;
   return idx.map((from, i) => ({ ...list[from], index: i, was: from }));
 }
+
+/**
+ * A book without a picture gets its own gentle colour, the same every time: a hue (0–359) from its
+ * title, so "Sapiens" and "Dune" look different on the shelf instead of two pale squares.
+ */
+export function hueOf(text) {
+  let h = 0;
+  for (const ch of String(text || '').toLowerCase()) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return h % 360;
+}
+
+/**
+ * Continue listening with the book in the player first. It's found by its id, else by title and
+ * author (`same`), because the player may hold another copy of it; a book in the player that
+ * isn't in the list yet goes in front of it.
+ */
+export function nowFirst(list, now, same = () => false) {
+  if (!now?.title) return list;
+  const i = list.findIndex((b) => b.uid === now.uid || same(now, b));
+  if (i === 0) return list;
+  if (i > 0) return [list[i], ...list.slice(0, i), ...list.slice(i + 1)];
+  return [now, ...list];
+}
