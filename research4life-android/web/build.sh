@@ -7,7 +7,7 @@ out="${1:-$here/_site}"
 rm -rf "$out"
 mkdir -p "$out"
 cp -R "$here/../app/src/main/assets/www/." "$out/"
-cp "$here/web.js" "$here/manifest.webmanifest" "$here"/icon-*.png "$out/"
+cp "$here/web.js" "$here/sw.js" "$here/manifest.webmanifest" "$here"/icon-*.png "$out/"
 mkdir -p "$out/vendor/pdfjs/legacy"
 cp "$here"/pdfjs-legacy/*.js "$here/pdfjs-legacy/LICENSE" "$out/vendor/pdfjs/legacy/"
 # perl, not sed -i: the same command works on Linux and on GitHub's Mac builders (iPhone app).

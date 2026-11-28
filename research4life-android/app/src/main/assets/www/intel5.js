@@ -297,6 +297,39 @@
       });
   }
   const thumb = (url) => I.shrink(url, 220);
+  // Kinds whose photos are checked for blur, light and glare (microscopy and Wood's lamp are dark or soft by nature).
+  const DX_CHECK = new Set(['clinical', 'dermoscopy', 'tricho', 'nail']);
+  /** Sharpness, light and glare, measured on the phone on a small copy of the photo; null when it looks fine (same check as Lesionaut). */
+  function photoCheck(url) {
+    return new Promise((res) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          if (Math.max(img.width, img.height) < 480) { res({ label: 'too small', tip: 'It has very few pixels. Use the camera directly, or a larger copy.' }); return; }
+          const W = 320, k = W / Math.max(img.width, img.height), w = Math.round(img.width * k), h = Math.round(img.height * k);
+          const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+          const g = cv.getContext('2d'); g.drawImage(img, 0, 0, w, h);
+          const d = g.getImageData(0, 0, w, h).data, Y = new Float32Array(w * h);
+          let sum = 0, hot = 0, dark = 0;
+          for (let i = 0; i < w * h; i++) { const y = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]; Y[i] = y; sum += y; if (y > 250) hot++; if (y < 18) dark++; }
+          const mean = sum / (w * h);
+          // Variance of the Laplacian over the middle of the picture: low = blurred.
+          let n = 0, m1 = 0, m2 = 0;
+          for (let y = Math.round(h * 0.15); y < h * 0.85; y++) for (let x = Math.round(w * 0.15); x < w * 0.85; x++) {
+            const i = y * w + x, v = 4 * Y[i] - Y[i - 1] - Y[i + 1] - Y[i - w] - Y[i + w];
+            n++; m1 += v; m2 += v * v;
+          }
+          const lap = n ? m2 / n - (m1 / n) ** 2 : 999;
+          if (mean < 45 || dark / (w * h) > 0.5) res({ label: 'too dark', tip: 'Move to daylight or turn on more light (no flash, it causes glare).' });
+          else if (hot / (w * h) > 0.08) res({ label: 'shiny', tip: 'There is glare. Tilt the phone slightly, turn off the flash, or use cross-polarised dermoscopy.' });
+          else if (lap < 18) res({ label: 'blurred', tip: 'Hold steady, tap the lesion to focus, and keep a hand-span away.' });
+          else res(null);
+        } catch { res(null); }
+      };
+      img.onerror = () => res(null);
+      img.src = url;
+    });
+  }
 
   function renderDx(_, p = {}) {
     if (p.at) {
@@ -321,8 +354,10 @@
   function paintPics() {
     const el = $('#dx-pics');
     if (!el) return;
-    el.innerHTML = dxPics.map((p, i) => `<div class="dx-pic"><img src="${p.url}" alt=""><small>${i + 1}. ${esc(DX_KINDS[p.kind][0])}</small><button class="dx-x" data-act="dx-del" data-i="${i}" aria-label="Remove">×</button></div>`).join('')
-      + (dxPics.length < DX_MAX ? `<button class="dx-add" data-act="dx-pick">${icon('camera')}<span>${dxPics.length ? 'Add another' : 'Add picture'}<br><small>${esc(DX_KINDS[dxKind][0])}</small></span></button>` : '');
+    const tips = dxPics.map((p, i) => (p.q ? `<li><b>${i + 1}. ${esc(p.q)}:</b> ${esc(p.qTip)}</li>` : '')).join('');
+    el.innerHTML = dxPics.map((p, i) => `<div class="dx-pic${p.q ? ' dx-warnpic' : ''}"><img src="${p.url}" alt="">${p.q ? `<em class="dx-q">${esc(p.q)}</em>` : ''}<small>${i + 1}. ${esc(DX_KINDS[p.kind][0])}</small><button class="dx-x" data-act="dx-del" data-i="${i}" aria-label="Remove">×</button></div>`).join('')
+      + (dxPics.length < DX_MAX ? `<button class="dx-add" data-act="dx-pick">${icon('camera')}<span>${dxPics.length ? 'Add another' : 'Add picture'}<br><small>${esc(DX_KINDS[dxKind][0])}</small></span></button>` : '')
+      + (tips ? `<ul class="dx-tips small">${tips}<li class="muted">You can still diagnose; a retake usually reads better.</li></ul>` : '');
   }
   function paintRecent() {
     const el = $('#dx-recent');
@@ -335,7 +370,11 @@
   actions['dx-pick'] = async () => {
     let urls;
     try { urls = await I.pickImages(DX_MAX - dxPics.length); } catch (e) { if (!/cancel/i.test(e.message || '')) toast(e.message || 'Couldn\'t open the photos'); return; }
-    for (const u of urls.slice(0, DX_MAX - dxPics.length)) dxPics.push({ url: await I.shrink(u, 1400), kind: dxKind });
+    for (const u of urls.slice(0, DX_MAX - dxPics.length)) {
+      const pic = { url: await I.shrink(u, 1400), kind: dxKind };
+      if (DX_CHECK.has(dxKind)) { const q = await photoCheck(u); if (q) { pic.q = q.label; pic.qTip = q.tip; } }
+      dxPics.push(pic);
+    }
     dxShown = null;
     paintPics();
   };
@@ -686,6 +725,68 @@ Answer only as JSON: {"best": "the diagnosis the clinician's picture matches bes
       ${warnHtml()}<div class="list-card hist-card">${list.map(histRow).join('')}</div></div>` : '';
   };
   actions['go-history'] = () => go('history');
+
+  // ================================================================ Weekly digest (Monday)
+  // New papers of the last 7 days from the journals you follow and the questions you watch,
+  // ranked by the AI into a 5-minute brief you can read or listen to. One per week, kept.
+  const weekStart = (t = Date.now()) => { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };
+  const weekKey = () => weekStart().toISOString().slice(0, 10);
+  const DIGEST = I.obj({ headline: I.S.str, items: { type: 'array', items: I.obj({ cite: { type: 'integer' }, theme: I.S.str, summary: I.S.str, why: I.S.str }) }, close: I.S.str });
+  async function renderDigest() {
+    const wk = weekKey();
+    view.innerHTML = `${D.topbar('Weekly digest')}<p class="muted small">Week of ${new Date(wk).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}: new papers from the journals you follow and the questions you watch, ranked into a 5-minute brief.</p><div id="dg">${D.skeletons(4)}</div>`;
+    store.set('digest.seen', wk);
+    const el = $('#dg');
+    const follows = (store.get('follows', []) || []);
+    const jr = (window.JOURNALS || []).filter((j) => follows.includes(j.abbr));
+    const watches = store.get('watches', []).slice(0, 4);
+    if (!jr.length && !watches.length) { el.innerHTML = '<div class="empty"><b>Nothing to follow yet</b><div>Follow journals on the Journals tab, or tap ★ on an Evidence Map to watch a question. The digest is made from them.</div></div>'; return; }
+    const range = `FIRST_PDATE:[${I.daysAgo(7)} TO ${I.today()}] AND HAS_ABSTRACT:y ${D.NOISE}`;
+    const asks = [];
+    if (jr.length) asks.push(I.epmc({ query: '(' + jr.map(D.journalQuery).join(' OR ') + ') AND ' + range, sort: 'FIRST_PDATE_D desc' }, 40).then((r) => r.results.map((a) => ({ a, from: a.jAbbr || a.journal }))).catch(() => []));
+    for (const w of watches) asks.push(I.epmc({ query: `(${(D.keywordTerms ? D.keywordTerms(w.q) : w.q.split(/\s+/)).map((t) => t.replace(/["“”()[\]{}:]/g, '')).filter((t) => t && !/^(and|or|not)$/i.test(t)).join(' AND ')}) AND ${range}`, sort: 'CITED desc' }, 6).then((r) => r.results.map((a) => ({ a, from: '★ ' + w.q }))).catch(() => []));
+    const seen = new Set();
+    const pool = (await Promise.all(asks)).flat().filter(({ a }) => !seen.has(a.id) && seen.add(a.id)).slice(0, 45);
+    if (D.current.name !== 'digest') return;
+    const refs = pool.map(({ a }, i) => ({ kind: 'paper', a, type: D.studyType(a).label, n: i + 1 }));
+    const list = `<div class="section"><div class="section-h"><h3>All new papers this week (${pool.length})</h3></div>${pool.map(({ a }) => D.card(a, { compact: true })).join('')}</div>`;
+    if (!pool.length) { el.innerHTML = '<div class="empty"><b>No new papers this week yet</b><div>Your journals and questions had nothing new with an abstract in the last 7 days.</div></div>'; return; }
+    if (I.needKey()) { el.innerHTML = I.keyCard() + list; return; }
+    const ck = 'digest.' + wk + '.' + follows.slice().sort().join(',') + '.' + watches.map((w) => w.q).join('|');
+    let dg = I.cacheGet(ck);
+    if (!dg) {
+      el.innerHTML = I.busyHtml('Reading this week\'s papers and choosing what matters…') + list;
+      try {
+        dg = await I.aiJsonCall('Write a weekly digest for a practising dermatologist from these new papers. Choose the 5-7 that matter most for practice or research (strong designs, practice-changing, new treatments, safety signals; skip minor case reports unless striking). '
+          + 'headline: one sentence on the week. For each item: cite (its number), theme (2-4 words, e.g. "Psoriasis · biologics"), summary (2-3 sentences: what they did and found, with key numbers), why (one sentence: why it matters in practice). close: one sentence to finish. Together about 5 minutes to read aloud.', refs, DIGEST, 4000);
+        I.cacheSet(ck, dg);
+      } catch (e) { if (D.current.name === 'digest') el.innerHTML = I.aiErr(e) + list; return; }
+    }
+    if (D.current.name !== 'digest') return;
+    const items = (dg.items || []).map((x) => ({ ...x, r: refs.find((r) => r.n === x.cite) })).filter((x) => x.r);
+    el.innerHTML = `<div class="panel digest-head"><p class="digest-hl">${esc(dg.headline || '')}</p>
+        <button class="btn primary small" data-act="dg-listen">${icon('audio')}Listen · about 5 min</button></div>
+      ${items.map((x) => `<div class="panel today"><div class="label">${esc(x.theme || '')}</div><b>${esc(x.r.a.title)}</b>
+        <div class="muted small">${esc(pool[x.cite - 1]?.from || '')} · ${esc(x.r.type)}</div><p>${esc(x.summary)}</p><p class="small muted">${esc(x.why)}</p>
+        <div class="row wrap"><button class="btn xs" data-act="open" data-id="${esc(x.r.a.id)}">${icon('file')}Paper</button></div></div>`).join('')}
+      ${dg.close ? `<p class="muted small">${esc(dg.close)}</p>` : ''}` + list;
+    actions['dg-listen'] = () => {
+      const lines = [{ t: 'Your DermScholar weekly digest. ' + (dg.headline || '') }];
+      items.forEach((x, i) => { lines.push({ t: `${i + 1}. ${x.r.a.title}.` }); lines.push({ t: x.summary }); lines.push({ t: x.why }); });
+      if (dg.close) lines.push({ t: dg.close });
+      D.ttsPlayScript?.('Weekly digest', lines, { title: 'Weekly digest' });
+    };
+  }
+  // Home: a card from Monday to Wednesday until this week's digest is opened (always on the Intel tab).
+  const homeTop0 = ext.homeTop;
+  ext.homeTop = () => {
+    const day = new Date().getDay();
+    const show = (day >= 1 && day <= 3) && store.get('digest.seen', '') !== weekKey() && ((store.get('follows', []) || []).length || store.get('watches', []).length);
+    return (show ? `<button class="digest-card" data-act="intel-go" data-k="digest"><span class="e">📰</span><span><b>Your weekly digest is ready</b><small>This week's papers from your journals and questions · 5 minutes</small></span><span class="badge b-oa">New</span></button>` : '')
+      + (homeTop0 ? homeTop0() : '');
+  };
+  I.TILES.splice(2, 0, ['digest', '📰', 'Weekly digest', 'Your journals and questions this week · 5 min']);
+  ext.routes.digest = renderDigest;
 
   // On the Intel tab, beside the evidence map.
   I.TILES.splice(2, 0, ['review', '📑', 'Deep review', 'Screens 100+ papers · structured, referenced review']);

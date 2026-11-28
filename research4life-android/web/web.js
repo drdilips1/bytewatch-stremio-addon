@@ -12,6 +12,10 @@
   // The iPhone app's native side (ios/DermScholar/MainViewController.swift), when running inside it.
   const IOS = (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.ios) || null;
   const ios = (cmd, o = {}) => IOS.postMessage({ cmd, ...o });
+  // Web app (not the iPhone app, not Lesionaut): keep the screens on the phone so it opens offline (sw.js).
+  if (!IOS && 'serviceWorker' in navigator && location.protocol === 'https:' && !/\/lesionaut\//.test(location.pathname)) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
   const emit = (e) => setTimeout(() => window.App && window.App.onNative(e), 0);
   const toast = (m) => (window.DS ? window.DS.toast(m) : console.log(m));
   // Own prefix: kept out of the account sync (which syncs "ds." keys), so API keys stay on this phone.
@@ -627,7 +631,7 @@
   const N = {
     isWeb: !IOS,
     isIos: !!IOS,
-    version: () => (IOS ? '5.49 iOS' : '5.49 web'),
+    version: () => (IOS ? '5.50 iOS' : '5.50 web'),
 
     // ---- PDFs
     listPdfs: () => JSON.stringify(Object.entries(pdfIndex()).map(([key, o]) => ({ ...o, key }))),

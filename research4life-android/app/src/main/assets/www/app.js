@@ -247,6 +247,7 @@
       async del(id) { return tx('readwrite', (s) => (s ? s.delete(id) : mem.delete(id))); },
       async getReflow(k) { return tx('readonly', (s) => (s ? s.get(k) : { result: mem.get('r:' + k) }), 'reflow'); },
       async putReflow(o) { return tx('readwrite', (s) => (s ? s.put(o) : mem.set('r:' + o.key, o)), 'reflow'); },
+      async allReflow() { return (await tx('readonly', (s) => (s ? s.getAll() : { result: [...mem.entries()].filter(([k]) => String(k).startsWith('r:')).map(([, v]) => v) }), 'reflow')) || []; },
       async delReflow(k) { return tx('readwrite', (s) => (s ? s.delete(k) : mem.delete('r:' + k)), 'reflow'); },
       async allReflow() { return (await tx('readonly', (s) => (s ? s.getAll() : { result: [...mem.entries()].filter(([k]) => String(k).startsWith('r:')).map(([, v]) => v) }), 'reflow')) || []; },
     };
@@ -600,7 +601,7 @@
     }, { passive: true });
   })();
 
-  const TAB_OF = { intel: 'intel', research: 'intel', project: 'intel', rp: 'intel', gaps: 'intel', compare: 'intel', drug: 'intel', images: 'intel', imgread: 'intel', alerts: 'intel', living: 'intel', sr: 'intel', cases: 'intel', case: 'intel', drugs: 'intel', lasers: 'intel', cme: 'intel', confs: 'intel', network: 'intel', graph: 'intel', visual: 'intel', clin: 'intel', shared: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', mlq: 'library', pyramid: 'search', meter: 'search', cites: 'intel', pipeline: 'intel', histo: 'intel', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
+  const TAB_OF = { intel: 'intel', research: 'intel', project: 'intel', rp: 'intel', gaps: 'intel', compare: 'intel', drug: 'intel', images: 'intel', imgread: 'intel', alerts: 'intel', living: 'intel', sr: 'intel', cases: 'intel', case: 'intel', drugs: 'intel', lasers: 'intel', cme: 'intel', confs: 'intel', network: 'intel', graph: 'intel', visual: 'intel', clin: 'intel', shared: 'intel', ev: 'intel', trials: 'intel', guides: 'intel', today: 'intel', digest: 'intel', mlq: 'library', pyramid: 'search', meter: 'search', cites: 'intel', pipeline: 'intel', histo: 'intel', desk: 'intel', updates: 'intel', home: 'search', search: 'search', a: null, read: null, pdf: null, utd: null, doc: null, study: null, journals: 'journals', j: 'journals', ji: 'journals', library: 'library', notes: 'library', settings: null };
 
   const tabPlace = {};
   async function render() {
@@ -705,15 +706,27 @@
       <div class="section">
         <div class="section-h"><h3>New in your journals</h3><button data-act="tab" data-tab="journals">Manage</button></div>
         ${followed.length ? `<div class="scroll-x covers" style="margin-bottom:12px">${followed.map(jcover).join('')}</div>` : ''}
-        <div id="feed">${followed.length ? skeletons(3) : `<div class="muted small">Follow journals to see their latest articles here.</div>`}</div>
+        <div id="feed">${followed.length ? feedCached(followed) || skeletons(3) : `<div class="muted small">Follow journals to see their latest articles here.</div>`}</div>
       </div>`;
     if (followed.length) loadFeed(followed);
     loadJournalArt(view);
     ext.afterHome?.();
   }
 
+  // The feed is kept on the phone: Home shows the last copy at once and refreshes it in the background
+  // (at most every 20 minutes, or when the followed journals change).
+  const feedKey = (followed) => followed.map((j) => j.abbr).sort().join(',');
+  function feedCached(followed) {
+    const c = store.get('feed.home', null);
+    if (!c || c.k !== feedKey(followed) || !Array.isArray(c.list) || !c.list.length) return '';
+    c.list.forEach((a) => { if (!cache.has(a.id)) cache.set(a.id, a); });
+    return c.list.map((a) => card(a, { compact: true })).join('');
+  }
   async function loadFeed(followed) {
     const el = $('#feed');
+    const c = store.get('feed.home', null);
+    const fresh = c && c.k === feedKey(followed) && Date.now() - (c.t || 0) < 20 * 60e3 && c.list?.length;
+    if (fresh) return;
     try {
       // Newest online first (sorting by issue date kept papers in future issues on top for weeks).
       const from = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
@@ -723,10 +736,12 @@
         res = await epmcSearch(q, { size: 60 });
         res.results = res.results.sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 8);
       }
+      if (res.results.length) store.set('feed.home', { k: feedKey(followed), t: Date.now(), list: res.results });
       if (!el.isConnected) return;
       el.innerHTML = res.results.map((a) => card(a, { compact: true })).join('') ||
         '<div class="muted small">No recent articles.</div>';
     } catch (e) {
+      if (c?.list?.length && c.k === feedKey(followed)) return; // keep showing the saved copy
       if (el.isConnected) el.innerHTML = `<div class="muted small">Couldn't load the feed${navigator.onLine ? '' : ' (offline)'}.</div>`;
     }
   }
@@ -3048,11 +3063,14 @@
     if (filter === 'offline') items = items.filter((a) => pdfKeys.has(a.id) || a.fullText || a.doc);
     if (filter.startsWith('t-')) items = items.filter((a) => (a.docType || (a.utd ? 'document' : 'paper')) === filter.slice(2));
     if (coll) items = items.filter((a) => (a.collections || []).includes(coll));
-    if (q) items = items.filter((a) => [a.title, a.authors, a.journal, a.notes, ...(a.keywords || [])].join(' ').toLowerCase().includes(q));
+    // Highlights and notes made while reading count too (the snippet shows under the card).
+    const markHit = new Map();
+    if (q) for (const m of store.get('marks', [])) { const t = `${m.text || ''} ${m.note || ''}`; if (!markHit.has(m.key) && t.toLowerCase().includes(q)) markHit.set(m.key, t); }
+    if (q) items = items.filter((a) => markHit.has(a.id) || [a.title, a.authors, a.journal, a.notes, ...(a.keywords || [])].join(' ').toLowerCase().includes(q));
     const nav = (patch) => go('library?' + new URLSearchParams(Object.fromEntries(Object.entries({ f: filter, c: coll, q: p.q || '', ...patch }).filter(([, v]) => v))), { replace: true });
 
     view.innerHTML = `${topbar(`Library · ${saved.size}`, { back: false, right: `<button class="icon-btn" data-act="settings" aria-label="Settings">${icon('settings')}</button>` })}
-      <label class="search-inline">${icon('search')}<input id="lq" placeholder="Search titles, notes, authors" value="${esc(p.q || '')}" autocomplete="off"></label>
+      <label class="search-inline">${icon('search')}<input id="lq" placeholder="Search titles, notes, highlights, full text" value="${esc(p.q || '')}" autocomplete="off"></label>
       ${ext.libraryTop ? ext.libraryTop(p) : ''}
       <div class="scroll-x" style="margin-top:8px">
         ${[['all', 'All'], ['unread', 'To read'], ['read', 'Read'], ['offline', 'Offline'], ['pdf', 'PDFs'], ['t-paper', 'Papers'], ['t-book', 'Books'], ['t-article', 'Articles'], ['t-notes', 'Study material'], ['t-document', 'Documents']].map(([k, l]) => `<button class="chip ${filter === k ? 'on' : ''}" data-act="lf" data-v="${k}">${l}</button>`).join('')}
@@ -3067,8 +3085,10 @@
         <button class="btn small" data-act="export" ${saved.size ? '' : 'disabled'}>${icon('download')}Export</button>
         <button class="btn small" data-act="lib-clean" ${saved.size ? '' : 'disabled'}>${icon('trash')}Clean up</button>
       </div>
-      <div id="lib">${items.length ? items.map((a) => libCard(a)).join('') : `<div class="empty">${icon('bookmark')}<b>${saved.size ? 'Nothing matches' : 'Your library is empty'}</b>
-        <div>${saved.size ? 'Try another filter.' : 'Save papers from search, or import PDFs you already have. Everything here works offline.'}</div></div>`}</div>`;
+      <div id="lib">${items.length ? items.map((a) => libCard(a) + (markHit.has(a.id) ? hitLine(markHit.get(a.id), q, 'Highlight') : '')).join('') : `<div class="empty" id="lib-none">${icon('bookmark')}<b>${saved.size ? 'Nothing matches' : 'Your library is empty'}</b>
+        <div>${saved.size ? 'Try another filter.' : 'Save papers from search, or import PDFs you already have. Everything here works offline.'}</div></div>`}</div>
+      <div id="lib-inside"></div>`;
+    if (q.length >= 3) searchInside(q, new Set(items.map((a) => a.id)), filter, coll);
 
     let t;
     $('#lq').addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => nav({ q: e.target.value }), 300); });
@@ -3101,6 +3121,39 @@
         actions['lib-clean-ok'] = async () => { closeSheet(true); await removeFromLibrary(list.map((a) => a.id)); toast(`Removed ${list.length}`); render(); };
       };
     };
+  }
+
+  /** One line of matching text under a card, with the words found in bold. */
+  function hitLine(text, q, label) {
+    const t = String(text).replace(/\s+/g, ' ');
+    const i = t.toLowerCase().indexOf(q);
+    const from = Math.max(0, i - 60);
+    const cut = (from ? '…' : '') + t.slice(from, i + q.length + 90) + (i + q.length + 90 < t.length ? '…' : '');
+    const j = cut.toLowerCase().indexOf(q);
+    const html = j < 0 ? esc(cut) : esc(cut.slice(0, j)) + '<b>' + esc(cut.slice(j, j + q.length)) + '</b>' + esc(cut.slice(j + q.length));
+    return `<p class="lib-hit small muted">${esc(label)}: ${html}</p>`;
+  }
+  /** Looks for the words inside the text of saved PDFs and full texts (kept on the phone after the first opening). */
+  async function searchInside(q, shown, filter, coll) {
+    let models = [];
+    try { models = await db.allReflow(); } catch { return; }
+    const box = $('#lib-inside');
+    if (!box || current.name !== 'library') return;
+    const hits = [];
+    for (const m of models) {
+      const a = saved.get(m.key);
+      if (!a || shown.has(a.id) || !Array.isArray(m.blocks)) continue;
+      if (filter === 'unread' && a.status === 'read') continue;
+      if (filter === 'read' && a.status !== 'read') continue;
+      if (coll && !(a.collections || []).includes(coll)) continue;
+      const b = m.blocks.find((x) => String(x.text ?? (x.html || '').replace(/<[^>]+>/g, ' ')).toLowerCase().includes(q));
+      if (b) hits.push([a, b.text ?? (b.html || '').replace(/<[^>]+>/g, ' ')]);
+      if (hits.length >= 30) break;
+    }
+    if (!hits.length) return;
+    $('#lib-none')?.remove();
+    box.innerHTML = `<div class="section"><div class="section-h"><h3>Found inside the text · ${hits.length}</h3></div>
+      ${hits.map(([a, t]) => libCard(a) + hitLine(t, q, 'In the text')).join('')}</div>`;
   }
 
   function libCard(a) {
@@ -3236,6 +3289,16 @@
   // ---------------------------------------------------------------- settings
   const ACCENTS = { gold: '#b8924c', ocean: '#2563eb', teal: '#0d9488', violet: '#7c3aed', rose: '#e11d48', amber: '#d97706', forest: '#16a34a', indigo: '#4f46e5', slate: '#475569' };
   const BG_LIGHT = { ivory: ['#f8f6f1', 'Ivory'], white: ['#ffffff', 'White'], paper: ['#faf6ef', 'Paper'], mist: ['#f3f6fb', 'Mist'], mint: ['#f1faf6', 'Mint'], blush: ['#fdf4f5', 'Blush'] };
+  // One-tap looks: [label, mode, accent, light background, dark background, high contrast, preview colours]
+  const LOOKS = {
+    classic: ['Classic', 'system', 'gold', 'ivory', 'ink', false, ['#f8f6f1', '#b8924c']],
+    clinical: ['Clinical light', 'light', 'teal', 'mist', 'ink', false, ['#f3f6fb', '#0d9488']],
+    midnight: ['Midnight', 'dark', 'indigo', 'ivory', 'midnight', false, ['#0b1224', '#818cf8']],
+    amoled: ['AMOLED black', 'dark', 'slate', 'ivory', 'amoled', false, ['#000000', '#94a3b8']],
+    sepia: ['Warm sepia', 'light', 'amber', 'paper', 'ink', false, ['#faf6ef', '#d97706']],
+    contrast: ['High contrast', 'light', 'indigo', 'white', 'amoled', true, ['#ffffff', '#000000']],
+  };
+  const lookOn = (k) => { const l = LOOKS[k]; return settings.theme === l[1] && settings.accent === l[2] && settings.bgLight === l[3] && settings.bgDark === l[4] && !!settings.contrast === l[5]; };
   const BG_DARK = { ink: ['#0d0f13', 'Ink'], graphite: ['#0f1115', 'Graphite'], midnight: ['#0b1224', 'Midnight'], forest: ['#0c1512', 'Forest'], amoled: ['#000000', 'Black'] };
 
   function renderSettings() {
@@ -3264,7 +3327,9 @@
     view.innerHTML = `${topbar('Settings')}
       <div class="section"><div class="section-h"><h3>Appearance</h3></div>
         <div class="panel">
-          <label class="field" style="margin-top:0">Mode</label>
+          <label class="field" style="margin-top:0">Look</label>
+          <div class="looks">${Object.entries(LOOKS).map(([k, l]) => `<button class="look ${lookOn(k) ? 'on' : ''}" data-act="look" data-v="${k}" style="--lb:${l[6][0]};--la:${l[6][1]}"><i></i>${esc(l[0])}</button>`).join('')}</div>
+          <label class="field">Mode</label>
           <div class="seg wide">${['system', 'light', 'dark'].map((t) => `<button class="${settings.theme === t ? 'on' : ''}" data-act="theme" data-t="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>
           <label class="field">Accent colour</label>
           <div class="swatches">${Object.entries(ACCENTS).map(([k, c]) => `<button class="swatch ${settings.accent === k ? 'on' : ''}" data-act="accent" data-v="${k}" style="--sw:${c}" aria-label="${k}"></button>`).join('')}</div>
@@ -3272,6 +3337,8 @@
           <div class="swatches">${Object.entries(BG_LIGHT).map(([k, [c, l]]) => `<button class="bgswatch ${settings.bgLight === k ? 'on' : ''}" data-act="bg-light" data-v="${k}" style="--sw:${c}"><i></i>${l}</button>`).join('')}</div>
           <label class="field">Dark background</label>
           <div class="swatches">${Object.entries(BG_DARK).map(([k, [c, l]]) => `<button class="bgswatch dark ${settings.bgDark === k ? 'on' : ''}" data-act="bg-dark" data-v="${k}" style="--sw:${c}"><i></i>${l}</button>`).join('')}</div>
+          <div class="setting" style="margin-top:12px"><div class="body"><b>High contrast</b><span>Darker text and stronger lines, in light and dark mode</span></div>
+            <label class="switch"><input type="checkbox" id="set-contrast" ${settings.contrast ? 'checked' : ''}><span></span></label></div>
           <p class="muted small" style="margin:12px 0 0">Reading colours and fonts for papers are in the reader's <b>Aa</b> menu.</p>
         </div></div>
       <div class="section"><div class="section-h"><h3>Accounts</h3></div>
@@ -3301,6 +3368,8 @@
     actions['set-sort'] = () => pickOne('Default sort', Object.fromEntries(Object.entries(SORTS).map(([k, v]) => [k, v.label])), settings.sort, (v) => { settings.sort = v; saveSettings(); render(); });
     const keepScroll = (fn) => { const y = scrollY; fn(); saveSettings(); applyTheme(); render(); requestAnimationFrame(() => window.scrollTo(0, y)); };
     actions.theme = (b) => keepScroll(() => { settings.theme = b.dataset.t; });
+    actions.look = (b) => keepScroll(() => { const l = LOOKS[b.dataset.v]; Object.assign(settings, { theme: l[1], accent: l[2], bgLight: l[3], bgDark: l[4], contrast: l[5] }); });
+    $('#set-contrast')?.addEventListener('change', (e) => keepScroll(() => { settings.contrast = e.target.checked; }));
     actions.accent = (b) => keepScroll(() => { settings.accent = b.dataset.v; });
     actions['bg-light'] = (b) => keepScroll(() => { settings.bgLight = b.dataset.v; if (settings.theme === 'dark') settings.theme = 'light'; });
     actions['bg-dark'] = (b) => keepScroll(() => { settings.bgDark = b.dataset.v; if (settings.theme === 'light') settings.theme = 'dark'; });
@@ -3323,6 +3392,7 @@
     root.dataset.theme = dark ? 'dark' : 'light';
     root.dataset.accent = settings.accent;
     root.dataset.bg = dark ? settings.bgDark : settings.bgLight;
+    if (settings.contrast) root.dataset.contrast = '1'; else delete root.dataset.contrast;
   }
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
 
@@ -3721,6 +3791,10 @@
   applyTheme();
   applyNav();
   (async () => {
+    // Home doesn't need the library to draw: show it at once, then mark saved papers when it's loaded.
+    const h0 = location.hash.replace(/^#\/?/, '');
+    const homeFirst = !h0 || h0 === 'home' || h0.startsWith('home?');
+    if (homeFirst) try { render(); } catch { /* drawn again below */ }
     try { await loadSaved(); await syncPdfs(); } catch { /* library unavailable */ }
     // Papers whose PDF arrived before they were saved show as bare "imported" entries: fill in
     // their details in the background (title, journal, abstract), once.
@@ -3732,7 +3806,7 @@
         } catch { /* offline: try next start */ }
       }
     }, 4000);
-    render();
+    if (homeFirst && current.name === 'home') refreshCards(); else render();
     try {
       const r = Native.consumeReceived && Native.consumeReceived();
       const list = r ? JSON.parse(r) : [];
