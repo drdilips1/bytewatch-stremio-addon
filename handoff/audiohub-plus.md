@@ -4,7 +4,7 @@
 - Build ("build"): dispatch `inkwell-apk.yml` and `audiohub-ios.yml` on the branch; when the APK
   release is out, dispatch `inkwell-web.yml` (its pages job failing is expected). Releases
   `inkwell-v1.0.N` (Android, in-app update), `audiohub-ios-N` (unsigned IPA for AltStore).
-- Latest: Android v1.0.259 + iPhone build 141 (28 Nov — player cover fits above the title; book page: Last played in Your copies, real description (no TorBox stand-in), series back above Resume, gap above Resume, full audio studio name; greeting not italic).
+- Latest: Android v1.0.260 + iPhone build 142 (28 Nov — Resume button in theme colours; descriptions in Plus Jakarta Sans, darker; Goodreads aligned with three stat boxes).
 - In v1.0.233 / iOS 114 (built 21 Nov): instant play (server place asked in the background),
   glow fade on player background, Libby live availability, auto-send never re-sends backlog + skips torrents
   qBittorrent has, Goodreads clearer refusal + CSV hint, ebook cards, banner title fit, Play timing line.
