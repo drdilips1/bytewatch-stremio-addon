@@ -13642,3 +13642,6 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .ask-chips .ask-label { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 700; font-size: 13px; margin-right: 2px; }
 .book .about-card .ask-chips .pill { flex: none; }
 .book .about-card .meta-credit { margin-top: 8px; }
+/* Your copies tiles tinted like the Available tiles above them (user, 28 Nov). */
+.book .copies-check .cc-copy { background: color-mix(in srgb, var(--dyn, var(--accent)) 18%, var(--surface)) !important; border: 1px solid color-mix(in srgb, var(--dyn, var(--accent)) 35%, transparent) !important; }
+.book .copies-check .cc-copy.last { border-color: var(--dyn, var(--accent)) !important; }
