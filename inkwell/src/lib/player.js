@@ -626,6 +626,13 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
       meta: { title: b.title || t.title, artist: b.author || '', album: b.title, artwork: art, bookId: b.uid, ...(t.mime ? { mime: t.mime } : {}) },
     });
     if (!autoplay) set({ loading: false, phase: '' });
+    // A downloaded file that never starts (it sat on "Connecting…" for ever — user, 28 Nov):
+    // after 8 s it counts as broken, and the book or episode streams from where it came from.
+    if (autoplay && b.offline) {
+      setTimeout(() => {
+        if (token === loadToken && state.book?.uid === b.uid && state.loading && !state.playing && !state.error) handlers.error("The downloaded file won't start");
+      }, 8000);
+    }
     // One long file with chapter marks inside (M4B): read them, for the chapter list,
     // "end of chapter" and "next chapter".
     if (state.tracks.length === 1 && !b.chaptersMeta?.length) {

@@ -254,7 +254,30 @@ export async function loadChapters(url, duration = 0) {
     end: list[i + 1]?.startTime ?? (c.endTime || duration || c.startTime),
   }));
 }
-export const details = async (book) => book;
+/**
+ * An episode to play. Saved places and Continue keep only a summary (no audio link), and so did
+ * the "downloaded file gone — stream it instead" step: it then said "No audio tracks found" (user,
+ * 28 Nov). Without a link, the episode is found again in your saved feeds or Up next.
+ */
+export const details = async (book) => {
+  if (book?.tracks?.length) return book;
+  const ep = findEpisode(book?.uid);
+  if (!ep) return book;
+  const full = asBook(ep, ep.podcast);
+  return { ...full, ...book, tracks: full.tracks };
+};
+
+/** An episode by its id, from Up next or the saved feeds (no network). */
+export function findEpisode(uid) {
+  if (!uid) return null;
+  const q = podcasts.get().queue.find((e) => e.uid === uid);
+  if (q?.url) return q;
+  for (const f of Object.values(feedsCache.get() || {})) {
+    const e = f?.episodes?.find((x) => x.uid === uid);
+    if (e?.url) return { ...e, podcast: f.podcast };
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------- OPML
 export function exportOpml() {

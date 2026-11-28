@@ -3,7 +3,6 @@ import { rankForYou, profile } from '../lib/taste.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Row, BookCard, withMeta } from '../components/common.jsx';
 import { heroWindow, HERO_POOL } from '../lib/heroset.js';
-import { openDrive } from '../components/drive-mode.jsx';
 import { useTileRating } from '../lib/ratings.js';
 import { openExternal } from '../sources/summaries.js';
 import { useMeta } from '../lib/meta.js';
@@ -822,11 +821,9 @@ export function Home() {
           <Icon name="headphones" size={24} /> Audiohub+
         </div>
         <div class="home-top-actions">
-          <button class="icon-btn drive-btn" onClick={() => openDrive()} aria-label="Driving mode">
-            <Icon name="car" />
-          </button>
-          {/* Voice, AI and Search left the top (user, 28 Nov): Ask and the camera are in Discover's
-              search box, the voice button is in the player's ✦ AI, Search is the Discover tab. */}
+          {/* Only the theme dice up here (user, 28 Nov). Ask and the camera are in Discover's search
+              box, voice in the player's ✦ AI, driving mode in the player's More, Search is the
+              Discover tab. */}
           <ThemeDice />
         </div>
       </header>
