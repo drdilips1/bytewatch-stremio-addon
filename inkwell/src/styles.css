@@ -13716,3 +13716,4 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .pod-day { padding: 10px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .pod2 .ep-filters { margin: 0 -16px 10px !important; padding: 0 16px !important; gap: 6px !important; }
 .pod2 .ep-filters .pill { height: 30px !important; padding: 0 12px !important; font-size: 12.5px !important; font-weight: 500; }
+.ask-chips .ask-tag { flex: none; background: var(--surface-2, var(--surface)); border-color: transparent; color: var(--muted); }

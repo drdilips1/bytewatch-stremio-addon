@@ -406,16 +406,10 @@ export function Book({ book: initial }) {
             book={book}
             description={bestDescription(ownDescription(book, found), gr?.description)}
             genres={(gr?.genres || []).map((g) => g.name)}
+            tags={!gr?.genres?.length ? (book.subjects || []).slice(0, 8) : []}
           />
         )}
       </Description>
-      {book.subjects?.length > 0 && !gr?.genres?.length && (
-        <div class="chips pad">
-          {book.subjects.slice(0, 8).map((s) => (
-            <span class="pill small">{s}</span>
-          ))}
-        </div>
-      )}
 
       {/* Files, home server and the summary side by side in one row of tiles (before: three
           different-looking rows between Resume and your place). */}
@@ -1164,7 +1158,7 @@ function BookMenu({ book, onClose, onFixed, hcStatus, setHcStatus }) {
 
 /** Missing or wrong cover / title? Search Audible and Google Books and pick the right one. */
 /** Ask AI about this book: one slim row of one-tap questions, and "Ask…" for your own. */
-function AskCard({ book, description, genres }) {
+function AskCard({ book, description, genres, tags = [] }) {
   const open = (extra = {}) =>
     nav.push("ask", { book, description, genres, ...extra });
   const QUICK = [
@@ -1174,9 +1168,6 @@ function AskCard({ book, description, genres }) {
   ];
   return (
     <div class="ask-chips pad">
-      <span class="ask-label">
-        <Icon name="ai" size={14} /> Ask
-      </span>
       {QUICK.map(([label, q]) => (
         <button class="pill small" onClick={() => open({ question: q, askId: `${Date.now()}` })}>
           {label}
@@ -1185,6 +1176,11 @@ function AskCard({ book, description, genres }) {
       <button class="pill small" onClick={() => open()}>
         Ask…
       </button>
+      {/* The book's own subjects ("Other", "Self-help") at the end of the same row, when there's no
+          Goodreads genre row (user, 28 Nov: not a line of their own). */}
+      {tags.map((t) => (
+        <span class="pill small ask-tag">{t}</span>
+      ))}
     </div>
   );
 }
