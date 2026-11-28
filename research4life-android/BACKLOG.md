@@ -179,3 +179,8 @@ New ideas from the daily reminder (appearance, speed, functionality), newest las
 
 | Date | Idea | Status |
 |------|------|--------|
+| 28 Nov 2026 | **Photo check in Diagnose from picture**: reuse Lesionaut 2.3's on-phone check (blur, too dark, glare, too small) with a one-line retake tip before sending. | 🟡 noted |
+| 28 Nov 2026 | **Themes**: Settings → Appearance with a few themes (clinical light, midnight, AMOLED black, sepia, high contrast), as Lesionaut has. | 🟡 noted |
+| 28 Nov 2026 | **Monday digest**: new papers from followed journals and topics, AI-ranked into a 5-minute brief (readable or as a short podcast), with a badge on Home. | 🟡 noted |
+| 28 Nov 2026 | **Faster start**: show Home from the last saved copy at once and refresh in the background; the web/iPhone app keeps its screens and recent results offline (service worker). | 🟡 noted |
+| 28 Nov 2026 | **Search inside highlights and PDFs**: Library search also finds words in highlights and the full text of saved PDFs, with the matching line shown. | 🟡 noted |
