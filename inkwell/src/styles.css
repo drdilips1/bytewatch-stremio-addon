@@ -13649,13 +13649,3 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
    view doesn't take and cancel them; rows that scroll sideways still scroll (they're their own
    scroll areas). Up-and-down scrolling and pull-to-refresh are unchanged. */
 .app > main.page { touch-action: pan-y; }
-/* "Where to listen or read" and "At your libraries": a simple squared box with a clearer title
-   (user, 28 Nov), so these big sections stand out from the small labels inside them. */
-#where-to-get > .section-label, .libby > .section-label {
-  display: flex; align-items: center; gap: 8px;
-  margin: 0 0 12px; padding: 10px 14px;
-  border-radius: 8px; border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
-  background: var(--surface);
-  font-family: var(--font); font-size: 15.5px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text);
-}
-#where-to-get > .section-label .icon, .libby > .section-label .icon { color: var(--accent); }
