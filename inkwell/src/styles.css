@@ -13515,3 +13515,16 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 }
 /* A little air between Your copies (or the series) and Resume (user, 28 Nov). */
 .book .book-actions { margin-top: 18px; }
+/* Resume / Listen now follows your theme: the theme's gradient (as on "Get · Home" in the
+   results), deepened with your accent colour so its white text stands out — it was plain black
+   in light themes and white in dark ones whatever the theme (user, 28 Nov). */
+:root .screen.book .book-actions > .btn.primary.big,
+:root[data-mode] .screen.book .book-actions > .btn.primary.big {
+  background: linear-gradient(0deg, color-mix(in srgb, color-mix(in srgb, var(--accent) 80%, #000) 55%, transparent), color-mix(in srgb, color-mix(in srgb, var(--accent) 80%, #000) 55%, transparent)), var(--grad, var(--accent));
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+:root .screen.book .book-actions > .btn.primary.big svg { color: #fff; fill: #fff; }
+:root[data-mode='dark'] .screen.book .book-actions > .btn.primary.big {
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.26), rgba(0, 0, 0, 0.26)), linear-gradient(0deg, color-mix(in srgb, var(--accent) 40%, transparent), color-mix(in srgb, var(--accent) 40%, transparent)), var(--grad, var(--accent));
+}
