@@ -29,6 +29,8 @@
   config `inkwell/vite.brisk.config.js`, workflow `.github/workflows/brisk-apk.yml`.
   Tests: `inkwell/brisk/brisk.test.js` (runs in `npm test`). The shared eslint config only covers
   `src/`; lint brisk with a temp copy of it that adds `brisk/**/*.{js,jsx}` (clean as of v1.0.6).
+- Next (28 Nov, committed, not built): Your library grid three across on a phone (minmax 92px,
+  smaller titles / labels) — user asked for "3".
 - v1.0.22 RELEASED + iPhone 1.0.11 (27 Nov, both OK — public APK checked 200; iPhone source 1.0.11 / build 11 = app): (1) parts ordered by book + chapter number when every
   part has one (`partKey`/`orderParts`: "Book 1 - Chapter 08" among "Book I - Chapter 0X" no longer
   first — user's Fellowship of the Ring); applied in ready()/warmed()/phone books; first time a
