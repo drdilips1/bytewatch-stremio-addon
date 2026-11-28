@@ -17,3 +17,16 @@ describe("a cloud copy's stand-in description", () => {
     expect(ownDescription({ description: 'Sapiens tells the story.' }, { description: 'Other.' })).toBe('Sapiens tells the story.');
   });
 });
+
+import { tidyDescription } from '../src/lib/describe.js';
+describe("a description's opening shouting", () => {
+  it('is removed, with the empty lines', () => {
+    expect(tidyDescription('OVER TEN MILLION COPIES SOLD\n\n#1 INTERNATIONAL BESTSELLER\n\nWhat are the most valuable things?\n\nAcclaimed psychologist…')).toBe('What are the most valuable things?\nAcclaimed psychologist…');
+  });
+  it('leaves a normal description alone', () => {
+    expect(tidyDescription('Harry Potter has no idea how famous he is.')).toBe('Harry Potter has no idea how famous he is.');
+  });
+  it('keeps an all-caps description rather than emptying it', () => {
+    expect(tidyDescription('A NOVEL')).toBe('A NOVEL');
+  });
+});

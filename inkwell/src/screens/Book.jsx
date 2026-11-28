@@ -26,7 +26,7 @@ import { BookTags } from "../components/book-tags.jsx";
 import { Publisher } from "../components/publisher.jsx";
 import { fmtDuration, fmtTime } from "../lib/format.js";
 import { finishLine } from "../lib/stats.js";
-import { ownDescription } from "../lib/describe.js";
+import { ownDescription, tidyDescription } from "../lib/describe.js";
 import { lastOfWork, copyFor } from "../lib/lastplayed.js";
 import { nav, useBackClose } from "../lib/nav.js";
 import * as qb from "../sources/qbit.js";
@@ -1025,19 +1025,19 @@ function Description({ text, expanded, setExpanded, gr = null, credit = "", chil
   if (!text && !gr) return null;
   return (
     <section class="about-card">
-      <h3 class="about-title">About this book</h3>
+      <h3 class="about-title">About</h3>
       {text && (
         <>
           <p
             ref={ref}
-            class={"description" + (expanded ? " open" : "")}
+            class={"description" + (expanded ? " open" : more ? " fade" : "")}
             onClick={() => more && setExpanded(!expanded)}
           >
-            {text}
+            {tidyDescription(text)}
           </p>
           {(more || expanded) && (
-            <button class="link-btn" onClick={() => setExpanded(!expanded)}>
-              {expanded ? "Show less" : "Read more"}
+            <button class="link-btn about-more" onClick={() => setExpanded(!expanded)}>
+              {expanded ? "Less" : "More"}
             </button>
           )}
         </>
@@ -1050,33 +1050,14 @@ function Description({ text, expanded, setExpanded, gr = null, credit = "", chil
 }
 
 /**
- * Goodreads: one line (logo, name, link out), then the rating, ratings and reviews in three equal
- * boxes, then the top genres from the left edge — aligned, no indent under the logo (user, 28 Nov).
+ * Goodreads: the top genres, then one slim line — g · 4.17 ★★★★☆ · 75 ratings · 2 reviews ↗ —
+ * that opens the book on Goodreads (user, 28 Nov: the three boxes looked hasty).
  */
 function GoodreadsCard({ gr, inside = false }) {
-  const stats = [
-    gr.rating > 0 && [<><Icon name="star" size={13} fill /> {gr.rating.toFixed(2)}</>, "rating"],
-    gr.count > 0 && [fmtK(gr.count), "ratings"],
-    gr.reviews > 0 && [fmtK(gr.reviews), "reviews"],
-  ].filter(Boolean);
+  const full = gr.rating > 0 ? Math.round(gr.rating) : 0;
+  const counts = [gr.count > 0 && `${fmtK(gr.count)} ratings`, gr.reviews > 0 && `${fmtK(gr.reviews)} reviews`].filter(Boolean).join(" · ");
   return (
     <section class={inside ? "about-gr" : "gr-card gr-tile"}>
-      <button class="gr-main" onClick={() => openExternal(gr.url)}>
-        <span class="gr-logo">g</span>
-        <b class="gr-name">Goodreads</b>
-        {!stats.length && <small class="gr-none">Reviews and ratings</small>}
-        <Icon name="external" size={16} />
-      </button>
-      {stats.length > 0 && (
-        <div class="gr-stats" style={{ "--n": stats.length }}>
-          {stats.map(([v, l]) => (
-            <div>
-              <b>{v}</b>
-              <small>{l}</small>
-            </div>
-          ))}
-        </div>
-      )}
       {gr.genres?.length > 0 && (
         <div class="gr-genres">
           {gr.genres.slice(0, 5).map((g) => (
@@ -1086,6 +1067,22 @@ function GoodreadsCard({ gr, inside = false }) {
           ))}
         </div>
       )}
+      <button class="gr-line" onClick={() => openExternal(gr.url)} aria-label="Open on Goodreads">
+        <span class="gr-logo">g</span>
+        {gr.rating > 0 ? (
+          <>
+            <b>{gr.rating.toFixed(2)}</b>
+            <span class="gr-stars" aria-hidden="true">
+              {"★".repeat(full)}
+              <i>{"★".repeat(5 - full)}</i>
+            </span>
+            {counts && <small>{counts}</small>}
+          </>
+        ) : (
+          <small>Reviews and ratings on Goodreads</small>
+        )}
+        <Icon name="external" size={15} />
+      </button>
     </section>
   );
 }
@@ -1174,9 +1171,12 @@ function AskCard({ book, description, genres }) {
   ];
   return (
     <div class="ask-chips pad">
+      <span class="ask-label">
+        <Icon name="ai" size={14} /> Ask
+      </span>
       {QUICK.map(([label, q]) => (
         <button class="pill small" onClick={() => open({ question: q, askId: `${Date.now()}` })}>
-          {label === QUICK[0][0] && <Icon name="ai" size={14} />} {label}
+          {label}
         </button>
       ))}
       <button class="pill small" onClick={() => open()}>
