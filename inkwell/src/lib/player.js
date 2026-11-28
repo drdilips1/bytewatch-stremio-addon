@@ -19,6 +19,43 @@ import { fixFor } from './meta.js';
 /** The cover the app shows for a book (your pick, a phone book's own) — for the lock screen too. */
 const artworkOf = (b) => fixFor(b?.uid)?.cover || (b?.source === 'loc' && (localCfg.get().books || []).find((x) => x.uid === b.uid)?.cover) || b?.cover || '';
 
+// The lock screen's cover: a small picture handed over as data, not an address. A cover on your
+// Audiobookshelf (http://192.168…, signed in) or any plain-http host never showed there (the
+// phone made it https:// and couldn't load it; user, 28 Nov). Made once per cover, 512 px.
+const lockArtCache = new Map();
+function lockArt(b) {
+  const url = artworkOf(b);
+  if (!url || /^data:/.test(url)) return Promise.resolve(url);
+  if (lockArtCache.has(url)) return lockArtCache.get(url);
+  const p = import('./image.js')
+    .then((m) => (m.needsProxy(url) ? m.loadImage(url) : url))
+    .then((src) => (/^data:/.test(src) ? shrinkArt(src) : src))
+    .catch(() => url);
+  lockArtCache.set(url, p);
+  return p;
+}
+function shrinkArt(src) {
+  return new Promise((ok) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const k = Math.min(1, 512 / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * k);
+        c.height = Math.round(img.naturalHeight * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        ok(c.toDataURL('image/jpeg', 0.85));
+      } catch {
+        ok(src);
+      }
+    };
+    img.onerror = () => ok(src);
+    img.src = src;
+  });
+}
+// Waits for the picture a moment at most (playback never waits longer than that for a cover).
+const lockArtNow = (b) => Promise.race([lockArt(b), new Promise((r) => setTimeout(() => r(artworkOf(b)), 800))]);
+
 // ---- safety net: a part that won't play --------------------------------------
 // First a fresh link and one more try; then another copy of the same book you
 // have (downloaded, on the phone, Audiobookshelf, TorBox / Real-Debrid), at the
@@ -578,12 +615,15 @@ async function loadTrack(i, startAt = 0, autoplay = true) {
     if (token !== loadToken) return;
     if (!url) throw new Error('No playable stream for this part');
     const b = state.book;
+    const art = await lockArtNow(b);
+    if (token !== loadToken) return;
     await engine.load(url, {
       start: startAt,
       autoplay,
       rate: state.rate,
       headers: t.headers,
-      meta: { title: t.title || b.title, artist: b.author || '', album: b.title, artwork: artworkOf(b), bookId: b.uid, ...(t.mime ? { mime: t.mime } : {}) },
+      // The lock screen: the book's title (not the file's name, "…ness - George Loewenstein.mp3").
+      meta: { title: b.title || t.title, artist: b.author || '', album: b.title, artwork: art, bookId: b.uid, ...(t.mime ? { mime: t.mime } : {}) },
     });
     if (!autoplay) set({ loading: false, phase: '' });
     // One long file with chapter marks inside (M4B): read them, for the chapter list,
@@ -631,7 +671,7 @@ async function queueAhead(token) {
       break; // e.g. still downloading on TorBox: the app starts it itself later
     }
     if (token !== loadToken || !t.url) break;
-    items.push({ url: t.url, title: t.title || b.title, artist: b.author || '', album: b.title, artwork: artworkOf(b), ...(t.mime ? { mime: t.mime } : {}) });
+    items.push({ url: t.url, title: b.title || t.title, artist: b.author || '', album: b.title, artwork: await lockArtNow(b), ...(t.mime ? { mime: t.mime } : {}) });
   }
   if (token === loadToken) engine.queue(items).catch?.(() => {});
 }
@@ -888,6 +928,7 @@ function sayGap(i) {
 let pctSeek = null; // { i, frac }: go to this point of part i once its length is known
 let bookStartedAt = 0; // when a copy the app switched to started (one that 'ends' at once isn't finished)
 export async function playBook(details, { index, time, globalStart, percent, autoplay = true, exact = false } = {}) {
+  if (details) lockArt(details); // the lock screen's cover, ready by the time the audio starts
   if (autoplay) startTiming(details);
   bookStartedAt = rescuing ? Date.now() : 0;
   pctSeek = null;

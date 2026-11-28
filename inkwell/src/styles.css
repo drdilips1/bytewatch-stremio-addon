@@ -13720,3 +13720,8 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 /* "Source: Audible" under the book's details; Audible opens the book there. */
 .book-source { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); text-align: center; }
 .book-source a { color: color-mix(in srgb, var(--dyn, var(--accent)) 45%, var(--text)); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+/* Sheets open without a see-through flash (user, 28 Nov: the chapter list "flickers"): the dark
+   layer behind a sheet used to fade in its opacity — and the sheet inside it faded with it, so the
+   play button and buttons showed through the list for a moment. Now only the tint fades in. */
+.sheet-backdrop { animation: backdropIn 0.2s ease-out !important; }
+@keyframes backdropIn { from { background-color: transparent; } }
