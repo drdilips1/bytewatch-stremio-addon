@@ -435,6 +435,20 @@ const handlers = {
         stallTimer = null;
         if (state.loading && !state.error) trySwitch();
       }, 12000);
+    // Anything else stuck on "Buffering…" (a podcast or cloud link that expired during a pause —
+    // user, 28 Nov): the part is opened again at the same point, once; still stuck, it says so.
+    else if (!isAbs(state.book) && !stallTimer)
+      stallTimer = setTimeout(() => {
+        stallTimer = null;
+        if (!state.loading || state.error || !state.book) return;
+        const here = `${state.book.uid}|${state.index}|${Math.round((state.time || 0) / 10)}`;
+        if (reopenedAt === here) return set({ loading: false, phase: '', error: "It stopped loading — check your connection, then press play" });
+        reopenedAt = here;
+        const t = state.tracks[state.index];
+        if (t?.resolve) t.url = undefined; // a cloud link: asked for afresh
+        set({ phase: 'Reconnecting…' });
+        loadTrack(state.index, state.time || 0, true);
+      }, 12000);
   },
   ready() {
     clearTimeout(stallTimer);
@@ -540,6 +554,7 @@ let outroAt = 0; // seconds into the episode where its outro starts (0 = none)
 // --- Audiobookshelf: carry on from the same second on the server's other address ---
 const isAbs = (b) => (b?.uid || '').startsWith('abs:');
 let stallTimer = null;
+let reopenedAt = ''; // where a stuck part was last opened again (once per place)
 let lastSwitch = 0;
 let switching = null;
 let loadingAt = null; // { index, at } from starting a part until it plays
