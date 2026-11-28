@@ -2,6 +2,7 @@ import { BgImage } from '../components/bg-image.jsx';
 import { rankForYou, profile } from '../lib/taste.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Row, BookCard, withMeta } from '../components/common.jsx';
+import { heroWindow, HERO_POOL } from '../lib/heroset.js';
 import { openDrive } from '../components/drive-mode.jsx';
 import { useTileRating } from '../lib/ratings.js';
 import { openExternal } from '../sources/summaries.js';
@@ -222,10 +223,10 @@ function freshFirst(list, max = 6) {
 function roundRobin(groups) {
   const picks = [];
   const seen = new Set();
-  for (let i = 0; picks.length < 10 && groups.some((g) => g && g[i]); i++) {
+  for (let i = 0; picks.length < HERO_POOL && groups.some((g) => g && g[i]); i++) {
     for (const g of groups) {
       const b = g && g[i];
-      if (b && !seen.has(b.uid) && picks.length < 10) {
+      if (b && !seen.has(b.uid) && picks.length < HERO_POOL) {
         seen.add(b.uid);
         picks.push(b);
       }
@@ -377,6 +378,9 @@ function Hero() {
   const [items, setItems] = useState(() => (heroCache.get().items.length ? heroCache.get().items : null));
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(0);
+  // Five at a time from the mix; after each full turn the next five (see lib/heroset.js).
+  const [turn, setTurn] = useState(0);
+  const shown = heroWindow(items || [], turn);
   // A new set when you come back to the app after 30 minutes or more.
   const [round, setRound] = useState(0);
   useEffect(() => {
@@ -386,12 +390,14 @@ function Hero() {
       else if (away && Date.now() - away > 30 * 60e3) setRound((r) => r + 1);
     };
     document.addEventListener('visibilitychange', vis);
-    return () => document.removeEventListener('visibilitychange', vis);
+    // And a fresh mix every 30 minutes while the app stays open.
+    const fresh = setInterval(() => setRound((r) => r + 1), 30 * 60e3);
+    return () => (document.removeEventListener('visibilitychange', vis), clearInterval(fresh));
   }, []);
   // What's actually on screen counts as seen.
   useEffect(() => {
-    if (items?.length) markHeroSeen(items[i % items.length]?.uid);
-  }, [i, items]);
+    if (shown.length) markHeroSeen(shown[i % shown.length]?.uid);
+  }, [i, turn, items]);
   useEffect(() => {
     const sources = heroSources();
     const groups = new Array(sources.length).fill(null);
@@ -434,11 +440,20 @@ function Hero() {
   }, [round, music]);
   // One steady timer: books arriving from slower services don't restart it.
   const count = useRef(0);
-  count.current = items?.length || 0;
+  count.current = shown.length;
+  const more = useRef(false);
+  more.current = (items?.length || 0) > shown.length;
   useEffect(() => {
     // Only while Home is on screen (it stays alive in the background on other tabs).
     const onScreen = () => document.visibilityState === 'visible' && nav.state().tab === 'home' && !nav.state().top && !nav.state().overlay;
-    const t = setInterval(() => count.current && onScreen() && setI((x) => (x + 1) % count.current), 7000);
+    const t = setInterval(() => {
+      if (!count.current || !onScreen()) return;
+      setI((x) => {
+        if (x + 1 < count.current) return x + 1;
+        if (more.current) setTurn((n) => n + 1); // a full turn: the next five books
+        return 0;
+      });
+    }, 7000);
     return () => clearInterval(t);
   }, [paused]);
   if (!items) return <section class="feature shimmer" />;
@@ -446,8 +461,8 @@ function Hero() {
   if (!items.length) return <div class="feature-spacer" />;
   return (
     <Feature
-      items={items}
-      index={i % items.length}
+      items={shown}
+      index={i % shown.length}
       onDot={(k) => {
         setI(k);
         setPaused((p) => p + 1); // restart the auto-advance timer after a manual swipe
