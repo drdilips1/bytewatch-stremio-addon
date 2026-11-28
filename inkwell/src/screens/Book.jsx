@@ -48,10 +48,6 @@ import {
   myRatings,
   rateKey,
   rateBook,
-  clearRating,
-  VERDICTS,
-  PARTS,
-  REASONS,
 } from "../lib/taste.js";
 import { narrate, canNarrate } from "../sources/ttsbooks.js";
 import { nativeReader } from "../lib/tts.js";
@@ -418,12 +414,6 @@ export function Book({ book: initial }) {
         </div>
       )}
 
-      {/* Your verdict and your tags: one line, just above the source results. */}
-      {!loading && book.source !== "sum" && book.source !== "pod" && (
-        <MyRating book={book}>
-          <BookTags book={book} inline />
-        </MyRating>
-      )}
       {/* Files, home server and the summary side by side in one row of tiles (before: three
           different-looking rows between Resume and your place). */}
       <div class="book-tiles">
@@ -1015,91 +1005,6 @@ function HeroFacts({ book, tracks }) {
 }
 
 /** Your own verdict: how you found it, the story and the narration, and why if it didn't work. Feeds your picks. */
-function MyRating({ book, children }) {
-  const all = useStore(myRatings);
-  const mine = all[rateKey(book)];
-  const r = mine?.verdict ? mine : null;
-  const [open, setOpen] = useState(false);
-  const down = r && (r.verdict === "dislike" || r.verdict === "dnf");
-  const Chips = ({ label, field, options }) => (
-    <div class="myrate-row">
-      <span class="myrate-label">{label}</span>
-      <div class="chips">
-        {options.map(([k, text]) => (
-          <button
-            class={"pill small" + (r?.[field] === k ? " active" : "")}
-            onClick={() =>
-              rateBook(book, { [field]: r?.[field] === k ? "" : k })
-            }
-          >
-            {text}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-  return (
-    <section class="myrate pad myrate-line">
-      <div class="myrate-verdicts">
-        {VERDICTS.map(([k, emoji, label]) => (
-          <button
-            class={"myrate-v" + (r?.verdict === k ? " on" : "")}
-            title={label}
-            onClick={() => {
-              rateBook(book, { verdict: k });
-              setOpen(true);
-            }}
-          >
-            <span class="myrate-emoji">{emoji}</span>
-            <small>{label}</small>
-          </button>
-        ))}
-        {children && <span class="myrate-sep" />}
-        {children}
-      </div>
-      {r && (open || r.story || r.narration || r.reasons?.length) && (
-        <div class="myrate-more">
-          <Chips label="Story" field="story" options={PARTS} />
-          {book.kind !== "text" && (
-            <Chips label="Narration" field="narration" options={PARTS} />
-          )}
-          {down && (
-            <div class="myrate-row">
-              <span class="myrate-label">Why</span>
-              <div class="chips">
-                {REASONS.map((x) => {
-                  const on = (r.reasons || []).includes(x);
-                  return (
-                    <button
-                      class={"pill small" + (on ? " active" : "")}
-                      onClick={() =>
-                        rateBook(book, {
-                          reasons: on
-                            ? r.reasons.filter((y) => y !== x)
-                            : [...(r.reasons || []), x],
-                        })
-                      }
-                    >
-                      {x}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          <p class="muted small">
-            <button class="link-btn" onClick={() => (clearRating(book), setOpen(false))}>
-              Clear verdict
-            </button>{" "}
-            · Your ratings shape the picks in For you and on Home. Narrators you
-            mark weak are kept out.
-          </p>
-        </div>
-      )}
-    </section>
-  );
-}
-
 // Listings often carry a shortened blurb ("…and…"); Goodreads has the full description.
 function bestDescription(own, fromGr) {
   const a = String(own || "").trim();
@@ -1203,6 +1108,13 @@ function BookMenu({ book, onClose, onFixed, hcStatus, setHcStatus }) {
                 onClose();
               }}
             />
+          </div>
+        )}
+        {/* Your tags live here now; ♡ 👍 👎 under the cover are your verdict (user, 28 Nov). */}
+        {book.source !== "sum" && book.source !== "pod" && (
+          <div class="menu-block">
+            <b>Your tags</b>
+            <BookTags book={book} inline />
           </div>
         )}
         {hc.connected() && hcStatus !== null && (

@@ -1,3 +1,4 @@
+import { mainTitle } from '../lib/match.js';
 import { BgImage } from './bg-image.jsx';
 import { chapterName } from '../lib/chaptername.js';
 import { barModes, pickMode, barView } from '../lib/barview.js';
@@ -511,8 +512,6 @@ export function FullPlayer() {
       <CatchUp book={s.book} />
       <WhisperBanner book={s.book} time={player.globalTime()} />
 
-      {aiOn() && <Signature book={s.book} openXray={() => setSheet('xray')} />}
-
       {/* One row of the everyday buttons; the rest under More. */}
       <div class="fp-actions one-row">
         <button class="chip-btn" onClick={() => setSheet('speed')} aria-label="Speed">
@@ -523,6 +522,14 @@ export function FullPlayer() {
           <Icon name="moon" size={16} />
           <small>{s.sleepUntil ? fmtTime(sleepLeft) : s.sleepEndOfTrack ? 'Ch. end' : 'Sleep'}</small>
         </button>
+        {/* One ✦ AI button for Ask, Explain, Find, X-Ray, Talk and Voice (user, 28 Nov: "one AI
+            button is sufficient") — they were a row of five above this one. */}
+        {aiOn() && s.book.source !== 'pod' && (
+          <button class="chip-btn fp-ai-btn" onClick={() => setSheet('ai')} aria-label="AI: ask, explain, find, X-Ray, talk">
+            <Icon name="ai" size={19} />
+            <small>AI</small>
+          </button>
+        )}
         <button
           class={'chip-btn' + (showText ? ' active' : '')}
           onClick={() => {
@@ -534,7 +541,7 @@ export function FullPlayer() {
           <Icon name="text" size={16} />
           <small>Text</small>
         </button>
-        {s.book.source !== 'pod' && <SceneButton chip />}
+        {s.book.source !== 'pod' && !aiOn() && <SceneButton chip />}
         <button
           class="chip-btn"
           aria-label="Add a bookmark (hold for the list)"
@@ -616,6 +623,7 @@ export function FullPlayer() {
             {sheet === 'story' && <StorySheet close={() => setSheet(null)} />}
             {sheet === 'recap' && <StorySheet close={() => setSheet(null)} start="story" />}
             {sheet === 'xray' && <XraySheet s={s} />}
+            {sheet === 'ai' && <AiSheet book={s.book} openXray={() => setSheet('xray')} close={() => setSheet(null)} />}
             {sheet === 'upnext' && (
               <>
                 <h3>Up next</h3>
@@ -887,35 +895,49 @@ function ChapterSummary({ book, chapters, i, total }) {
   );
 }
 
-/** The player's AI row: Ask, Explain (what's being said), Find (in what you've heard), X-Ray, Talk (ask out loud). */
-function Signature({ book, openXray }) {
+/**
+ * ✦ AI, opened from the one AI button: Ask, Explain (what's being said), Find (in what you've
+ * heard), X-Ray, Talk (ask out loud) and Voice (commands), plus a box to ask anything.
+ */
+function AiSheet({ book, openXray, close }) {
+  const [q, setQ] = useState('');
   if (!book || book.source === 'pod') return null;
   const ask = (question) => {
     if (!aiReady()) return toast(aiHint());
     player.pause();
+    close();
     nav.closeOverlay();
     nav.push('ask', { book, description: book.description || '', question, here: !!question, askId: question ? `${Date.now()}` : '' });
   };
   const explain = COMPANION.find((c) => c[0] === 'explain');
   return (
-    <div class="fp-signature">
-      <button onClick={() => ask('')}>
-        <Icon name="ai" size={19} />
-        Ask
-      </button>
-      <button onClick={() => ask(explain[3])}>
-        <Icon name="bulb" size={19} />
-        Explain
-      </button>
-      <button onClick={() => transcriptCfg.set({ open: true, find: true })}>
-        <Icon name="search" size={19} />
-        Find
-      </button>
-      <button onClick={openXray}>
-        <Icon name="xray" size={19} />
-        X-Ray
-      </button>
-      <TalkButton book={book} />
+    <div class="ai-sheet">
+      <h3>
+        <Icon name="ai" size={18} /> AI — about this book, right where you are
+      </h3>
+      <div class="fp-signature ai-grid">
+        <button onClick={() => ask('')}>
+          <Icon name="ai" size={20} />
+          Ask
+        </button>
+        <button onClick={() => ask(explain[3])}>
+          <Icon name="bulb" size={20} />
+          Explain this bit
+        </button>
+        <button onClick={() => (close(), transcriptCfg.set({ open: true, find: true }))}>
+          <Icon name="search" size={20} />
+          Find a moment
+        </button>
+        <button onClick={openXray}>
+          <Icon name="xray" size={20} />
+          X-Ray
+        </button>
+        <TalkButton book={book} />
+        <SceneButton chip />
+      </div>
+      <form class="ai-ask" onSubmit={(e) => (e.preventDefault(), q.trim() && ask(q.trim()))}>
+        <input value={q} onInput={(e) => setQ(e.currentTarget.value)} placeholder={`Ask anything about ${mainTitle(book.title || 'this book')}…`} enterkeyhint="send" />
+      </form>
     </div>
   );
 }

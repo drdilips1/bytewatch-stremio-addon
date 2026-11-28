@@ -157,6 +157,8 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   const [showLoose, setShowLoose] = useState(false);
   const [moreAudio, setMoreAudio] = useState(false);
   const [moreEbooks, setMoreEbooks] = useState(false);
+  // Audio or Ebook: one list at a time (user, 28 Nov — the page was a long column of big cards).
+  const [kind, setKind] = useState('');
   // Already on your Audiobookshelf server? Say so before anything is added or downloaded again.
   const [onServer, setOnServer] = useState(null);
   useEffect(() => {
@@ -261,8 +263,10 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           <span>{name}</span>
           <small>{groups.length}</small>
         </div>
-        {/* A heading per source (AudiobookBay, Knaben, Mobilism…), its results under it. */}
-        {bySource(more ? groups : topOf(groups)).map(([src, gs]) => (
+        {/* Folded: the best three as one list, the first marked Best (the source is named on each
+            row). Open: a heading per source (AudiobookBay, Knaben, Mobilism…), its results under it. */}
+        {!more && <div class="src-list src-best">{groups.slice(0, TOP).map(item)}</div>}
+        {more && bySource(groups).map(([src, gs]) => (
           <div class="src-group" key={src}>
             <div class="src-group-head">
               <span>{sourceLabel(src) || 'Other'}</span>
@@ -271,16 +275,16 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
             <div class="src-list">{gs.map(item)}</div>
           </div>
         ))}
-        {groups.length > topOf(groups).length && (
+        {groups.length > TOP && (
           <button class="src-more" onClick={() => setMore(!more)}>
             {more ? (
               'Show fewer'
             ) : (
               <span class="src-more-text">
                 <b>
-                  Show {groups.length - topOf(groups).length} more {name.toLowerCase()}
+                  Show all {groups.length} {name.toLowerCase()}
                 </b>
-                <small>{moreFrom(groups)}</small>
+                <small>{moreFrom(groups.slice(TOP))}</small>
               </span>
             )}
             <Icon name={more ? 'up' : 'down'} size={14} />
@@ -311,6 +315,11 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
   useEffect(() => {
     if (book?.uid) publishQuick(book.uid, { instant: instant.slice(0, 3), readable: readable.slice(0, 2), fetch: instant.length ? [] : fetchable.slice(0, 2), pending });
   }, [quickKey, pending, book?.uid]);
+
+  // The list shown: the one you picked; else audio (an audiobook app), or ebooks when that's all
+  // there is — or when the book is an ebook.
+  const ebookFirst = ebookGroups.length > 0 && (!audioGroups.length || book?.kind === 'text');
+  const showKind = kind || (ebookFirst ? 'ebook' : 'audio');
 
   // Nothing from the other sources: MyAnonamouse can still have it.
   if (!count)
@@ -349,7 +358,17 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
           </span>
         </button>
       )}
-      {qb.canGrab() && title && <MamResults words={trackerWords('', { title, author })} title={title} author={author} ebook={qb.isEbookName(query)} />}
+      {audioGroups.length > 0 && ebookGroups.length > 0 && (
+        <div class="src-kind" role="tablist">
+          <button class={showKind === 'audio' ? 'on' : ''} onClick={() => setKind('audio')}>
+            Audio {audioGroups.length}
+          </button>
+          <button class={showKind === 'ebook' ? 'on' : ''} onClick={() => setKind('ebook')}>
+            Ebook {ebookGroups.length}
+          </button>
+        </div>
+      )}
+      {(showKind === 'audio' || qb.isEbookName(query)) && qb.canGrab() && title && <MamResults words={trackerWords('', { title, author })} title={title} author={author} ebook={qb.isEbookName(query)} />}
       {!provider && (
         <button class="btn ghost-wide" onClick={() => nav.tab('settings')}>
           <Icon name="link" size={16} /> Connect TorBox or Real-Debrid to play these
@@ -414,8 +433,8 @@ export function SourceResults({ title: rawTitle = '', author: rawAuthor = '', qu
         </p>
       )}
       {!pending && !total && entries.length > 0 && <p class="muted pad-s">{looseCount ? 'No results that are clearly this book.' : 'No source results.'}</p>}
-      {section('Audiobooks', audioGroups, moreAudio, setMoreAudio)}
-      {section('Ebooks', ebookGroups, moreEbooks, setMoreEbooks)}
+      {showKind === 'audio' && section('Audiobooks', audioGroups, moreAudio, setMoreAudio)}
+      {showKind === 'ebook' && section('Ebooks', ebookGroups, moreEbooks, setMoreEbooks)}
       {looseCount > 0 && (
         <button class="btn ghost-wide src-fold" onClick={() => setShowLoose(!showLoose)}>
           <b>

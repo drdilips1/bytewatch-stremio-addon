@@ -13550,3 +13550,36 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .gr-stats b .icon { color: #f5b301; }
 .gr-stats small { color: var(--muted); font-size: 12px; }
 .about-gr .gr-genres, .gr-tile .gr-genres { margin: 12px 0 0 !important; }
+/* Player: the one ✦ AI button, raised in the middle of the row, and its sheet. */
+.fp-actions .fp-ai-btn { position: relative; }
+.fp-actions .fp-ai-btn .icon { width: 40px; height: 40px; padding: 10px; margin: -14px 0 1px; border-radius: 50%; color: #fff; background: linear-gradient(135deg, color-mix(in srgb, var(--dyn, var(--accent)) 70%, #fff 30%), var(--dyn, var(--accent))); box-shadow: 0 8px 18px -8px var(--dyn, var(--accent)); box-sizing: border-box; }
+.ai-sheet h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 16px; }
+.ai-sheet h3 .icon { color: var(--accent); }
+.ai-grid { grid-template-columns: repeat(3, 1fr) !important; margin-top: 0 !important; gap: 8px; }
+.ai-grid > button, .ai-grid > .chip-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 76px; padding: 12px 6px; border-radius: 16px; font: inherit; font-size: 13px; font-weight: 600; background: var(--surface); border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); color: var(--text); text-align: center; }
+.ai-grid > .chip-btn small { font-size: 13px; font-weight: 600; opacity: 1; }
+.ai-grid .icon { color: var(--accent); }
+.ai-grid > button.on { border-color: var(--accent); }
+.ai-grid .talk-card { grid-column: 1 / -1; }
+.ai-ask { margin-top: 12px; }
+.ai-ask input { width: 100%; height: 46px; padding: 0 18px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); background: var(--surface); color: var(--text); font: inherit; font-size: 15px; outline: none; }
+.ai-ask input:focus { border-color: var(--accent); }
+/* Sources, decluttered (28 Nov, user approved the mock-up): Audio / Ebook switch, the best three
+   in one card of slim rows (first one marked Best), smaller buttons on the right. */
+.src-kind { display: flex; gap: 6px; margin: 4px 0 12px; }
+.src-kind button { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); background: none; color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600; }
+.src-kind button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.source-results .src-list { display: flex; flex-direction: column; gap: 0; border-radius: 18px; overflow: hidden; background: var(--surface); border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.source-results .src-list > .src-row, .source-results .src-list > .src-folder { margin: 0; border: 0; border-radius: 0; background: none; padding: 11px 12px; box-shadow: none; animation: none; }
+.source-results .src-list > * + * { border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent) !important; }
+.source-results .src-list > .src-row.is-ready { box-shadow: inset 3px 0 0 var(--ready); }
+.source-results .src-row .src-top { gap: 10px; align-items: center; }
+.source-results .src-row .src-fmt { width: 42px; height: 42px; min-width: 42px; border-radius: 12px; font-size: 11.5px; }
+.source-results .src-row .src-title { font-size: 14px; }
+.source-results .src-row .src-sub { font-size: 12.5px; margin-top: 1px; }
+.source-results .src-row .src-meta { margin-top: 3px; font-size: 12px; }
+.source-results .src-actions.ready { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+.source-results .src-actions.ready > .btn { height: 34px; font-size: 13px; padding: 0 12px; border-radius: 999px; }
+.source-results .src-actions.ready > .btn:first-child { flex: 0 1 auto; min-width: 0; }
+.src-best > .src-row:first-child .src-title::after, .src-best > .src-folder:first-child .src-folder-title::after { content: 'Best'; display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 2px; }
+.source-results .src-more { margin-top: 8px; }
