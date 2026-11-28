@@ -147,12 +147,19 @@ export function App() {
       swipe.current = null;
       if (!t || e.touches.length > 1 || document.querySelector('.sheet-backdrop, .full-player')) return;
       if (keepsSwipe(e.target, t.clientX, window.innerWidth)) return;
-      swipe.current = { x: t.clientX, y: t.clientY, at: Date.now() };
+      swipe.current = { x: t.clientX, y: t.clientY, at: Date.now(), lx: t.clientX, ly: t.clientY };
+    };
+    // Where the finger is now: Android's web view can cancel the touch (not end it) once it
+    // decides the move is its own, and a cancel carries no position.
+    const move = (e) => {
+      const t = e.touches?.[0];
+      if (swipe.current && t) (swipe.current.lx = t.clientX), (swipe.current.ly = t.clientY);
     };
     const end = (e) => {
       const s0 = swipe.current;
       swipe.current = null;
-      const t = e.changedTouches?.[0];
+      const c = e.changedTouches?.[0];
+      const t = c && e.type === 'touchend' ? c : s0 && { clientX: s0.lx, clientY: s0.ly };
       if (!s0 || !t) return;
       const tabs = TABS.map(([k]) => k).filter((k) => k !== 'podcasts' || settings.get().podcastsTab !== false);
       const cur = routeNow.current;
@@ -160,9 +167,17 @@ export function App() {
       const to = swipeTab(tabs, cur.tab, t.clientX - s0.x, t.clientY - s0.y, Date.now() - s0.at);
       if (to) nav.tab(to);
     };
-    document.addEventListener('touchstart', start, { passive: true });
-    document.addEventListener('touchend', end, { passive: true });
-    return () => (document.removeEventListener('touchstart', start), document.removeEventListener('touchend', end));
+    const opts = { passive: true };
+    document.addEventListener('touchstart', start, opts);
+    document.addEventListener('touchmove', move, opts);
+    document.addEventListener('touchend', end, opts);
+    document.addEventListener('touchcancel', end, opts);
+    return () => {
+      document.removeEventListener('touchstart', start);
+      document.removeEventListener('touchmove', move);
+      document.removeEventListener('touchend', end);
+      document.removeEventListener('touchcancel', end);
+    };
   }, []);
   routeNow.current = route;
 
