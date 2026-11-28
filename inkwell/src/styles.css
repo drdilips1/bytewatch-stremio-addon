@@ -13657,9 +13657,11 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
    ("Atomi Habits"); a tall ebook cover shows whole on a blur of itself. */
 .home .continue-big { align-items: center; }
 .home .continue-big .cover { width: 104px; height: 104px; aspect-ratio: 1; align-self: center; margin-left: 14px; border-radius: 12px; overflow: hidden; box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.35); }
-/* Home's big carousel a little less dark (user, 28 Nov): more of the cover's colour shows, with a
-   light shade left behind the words so the white text still reads. */
-:root .home .feature-art img { filter: blur(30px) saturate(1.35) brightness(0.8) !important; }
-:root .home .feature-art::after { background: linear-gradient(90deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.42) 48%, rgba(0, 0, 0, 0.22)) !important; }
-:root .home .feature-content { text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35); }
+/* Home's big carousel a little see-through (user, 28 Nov: "less opaque — a bit transparent, text
+   still clearly readable"): the same colours, but the card and its blurred cover let the page show
+   through; the words stay solid with a soft shadow. */
+:root .home .feature { background-color: color-mix(in srgb, #15121c 55%, transparent) !important; }
+:root .home .feature-art { opacity: 0.8; }
+:root .home .feature-content { text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4); }
 :root[data-polish] .home .feature { box-shadow: var(--sheen), 0 18px 34px -24px rgba(0, 0, 0, 0.5) !important; }
+:root[data-polish]:is([data-mode='dark'], [data-mode='amoled']) .home .feature { background-color: color-mix(in srgb, var(--bg) 60%, transparent) !important; }
