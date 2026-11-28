@@ -95,6 +95,8 @@ export function Book({ book: initial }) {
   const ps = usePlayerBasics();
   // Audible's narrator and studio, for copies that don't know them (a phone M4B).
   const facts = useAudibleFacts(book);
+  // Whether the big rating line already shows Audible's stars (then "Source: Audible" adds none).
+  const heroAudible = !!useRatings(book).audible || (book.source === "au" && book.rating > 0);
   const narrator = book.narrator || facts.narrator;
   const [filesOpen, setFilesOpen] = useState(false);
   const color = useCoverColor(book);
@@ -215,6 +217,12 @@ export function Book({ book: initial }) {
               ) : (
                 book.metaSource
               )}
+              {/* Audible's own rating, when the details came from there: "(★ 4.6 · 12k)" — only when the
+                  big rating line above shows Goodreads (it shows Audible's when it has it). */}
+              {(() => {
+                const r = /audible/i.test(book.metaSource) && !heroAudible ? (found?.rating > 0 ? found : null) : null;
+                return r ? ` (★ ${Number(r.rating).toFixed(1)}${r.ratings > 0 ? ` · ${fmtK(r.ratings)}` : ""})` : "";
+              })()}
             </p>
           )}
           {(book.author || narrator) && (
