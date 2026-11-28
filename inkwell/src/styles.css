@@ -13649,3 +13649,11 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
    view doesn't take and cancel them; rows that scroll sideways still scroll (they're their own
    scroll areas). Up-and-down scrolling and pull-to-refresh are unchanged. */
 .app > main.page { touch-action: pan-y; }
+/* No small capital lines above row titles ("NON-FICTION FROM YOUR LISTENING AND RATINGS",
+   "YOU ASKED FOR MORE LIKE IT"…) anywhere (user, 28 Nov) — the title says enough. */
+.row-head > div > p, :root[data-polish] .row-head p { display: none !important; }
+/* Continue listening / reading: the cover is a whole square with its own rounded corners, set in
+   from the card's edge — it was stretched to the card's height and cut by the card's corners
+   ("Atomi Habits"); a tall ebook cover shows whole on a blur of itself. */
+.home .continue-big { align-items: center; }
+.home .continue-big .cover { width: 104px; height: 104px; aspect-ratio: 1; align-self: center; margin-left: 14px; border-radius: 12px; overflow: hidden; box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.35); }
