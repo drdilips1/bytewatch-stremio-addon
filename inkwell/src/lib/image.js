@@ -58,7 +58,8 @@ export function useImage(url) {
 // scaled up evenly and its middle kept. Results are remembered per picture.
 const frames = new Map();
 const small = (url) => (/media-amazon\.com|images-amazon\.com/.test(url) ? url.replace(/\._[A-Z0-9_,]+_\.(jpg|jpeg|png)/i, '._SL96_.$1') : url);
-const FRAME_KEY = 'coverFrames';
+// v2: frames found before the even-padding rule could cut a cream cover's own top line.
+const FRAME_KEY = 'coverFrames2';
 let saved = null;
 function savedFrames() {
   if (saved) return saved;
@@ -135,12 +136,12 @@ function findFrame(img) {
   const plainCol = (x) => {
     let n = 0;
     for (let y = 0; y < H; y++) if (near(px(x, y), bg)) n++;
-    return n / H > 0.97;
+    return n / H > 0.99;
   };
   const plainRow = (y, x0, x1) => {
     let n = 0;
     for (let x = x0; x <= x1; x++) if (near(px(x, y), bg)) n++;
-    return n / (x1 - x0 + 1) > 0.97;
+    return n / (x1 - x0 + 1) > 0.99;
   };
   let l = 0;
   let r = W - 1;
@@ -150,6 +151,24 @@ function findFrame(img) {
   let b = H - 1;
   while (t < H / 2 && plainRow(t, l, r)) t++;
   while (b > H / 2 && plainRow(b, l, r)) b--;
+  return paddedBox(l, r, t, b, W, H);
+}
+
+/**
+ * The cover inside plain strips found at the edges — only when they look like padding added to
+ * make a picture square: about as wide on the left as on the right, and as tall at the top as at
+ * the bottom. A cream cover whose thin top line ("Tiny Changes, Remarkable Results" on Atomic
+ * Habits) looks plain when small has a "strip" at the top only, so it isn't cut (28 Nov).
+ * l, r, t, b: the first and last non-plain column / row of a W×H sample.
+ */
+export function paddedBox(l, r, t, b, W, H) {
+  const left = l;
+  const right = W - 1 - r;
+  const top = t;
+  const bottom = H - 1 - b;
+  const even = (a, c, n) => Math.abs(a - c) <= Math.max(2, n * 0.04);
+  if ((left || right) && !even(left, right, W)) return null;
+  if ((top || bottom) && !even(top, bottom, H)) return null;
   const w = (r - l + 1) / W;
   const h = (b - t + 1) / H;
   // Only real padding: at least 6% trimmed, and the rest still a cover-sized picture.
