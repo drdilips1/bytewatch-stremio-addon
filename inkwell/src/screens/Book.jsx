@@ -23,7 +23,7 @@ import { library, progress, toggleLibrary, useStore } from "../lib/store.js";
 import { readLater, toggleReadLater } from "../lib/readlists.js";
 import { namesIn } from "../lib/people.js";
 import { BookTags } from "../components/book-tags.jsx";
-import { Publisher } from "../components/publisher.jsx";
+import { Publisher, useAudibleFacts } from "../components/publisher.jsx";
 import { fmtDuration, fmtTime } from "../lib/format.js";
 import { finishLine } from "../lib/stats.js";
 import { ownDescription, tidyDescription } from "../lib/describe.js";
@@ -93,6 +93,9 @@ export function Book({ book: initial }) {
   const [editions, setEditions] = useState(null);
   const allProgress = useStore(progress);
   const ps = usePlayerBasics();
+  // Audible's narrator and studio, for copies that don't know them (a phone M4B).
+  const facts = useAudibleFacts(book);
+  const narrator = book.narrator || facts.narrator;
   const [filesOpen, setFilesOpen] = useState(false);
   const color = useCoverColor(book);
   const isCurrent = ps.book?.uid === book.uid;
@@ -202,24 +205,24 @@ export function Book({ book: initial }) {
           <h1>{splitTitle(book).main}</h1>
           {splitTitle(book).sub && <p class="book-sub">{splitTitle(book).sub}</p>}
           <HeroFacts book={book} tracks={tracks} />
-          {(book.author || book.narrator) && (
-            <div class={"book-people" + (book.author && book.narrator ? "" : " one")}>
+          {(book.author || narrator) && (
+            <div class={"book-people" + (book.author && narrator ? "" : " one")}>
               {book.author && (
                 <div>
                   <small>By</small>
                   <PeopleLinks names={book.author} role="author" />
                 </div>
               )}
-              {book.author && book.narrator && <i />}
-              {book.narrator && (
+              {book.author && narrator && <i />}
+              {narrator && (
                 <div>
                   <small>Read by</small>
-                  <PeopleLinks names={book.narrator} role="narrator" />
+                  <PeopleLinks names={narrator} role="narrator" />
                 </div>
               )}
             </div>
           )}
-          {book.source !== "pod" && book.source !== "sum" && <Publisher book={book} />}
+          {book.source !== "pod" && book.source !== "sum" && <Publisher book={book} facts={facts} />}
           <WhereBadges book={book} />
           {!loading &&
             !book.cover &&
