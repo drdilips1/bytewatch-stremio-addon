@@ -13505,3 +13505,13 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .cc-copy.last { border-color: var(--dyn, var(--accent)) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--dyn, var(--accent)) 18%, transparent), 0 8px 18px -8px var(--dyn, var(--accent)); }
 .cc-copy > .avail-last { position: absolute; top: -9px; left: 12px; padding: 1px 8px; border-radius: 999px; background: var(--dyn, var(--accent)); color: #fff; font-size: 10px; font-weight: 700; line-height: 1.5; z-index: 1; }
 .book .series-card { margin: 18px 16px 4px; }
+/* The cover fits the space the player leaves it, not a share of the screen: with the chapter
+   pill, Book / Chapter and two rows of buttons it overlapped the title on a 20:9 phone
+   (user, 28 Nov). 18 px for the ring's padding, 36 px for the art's own padding. */
+.full-player .fp-art { container-type: size; overflow: visible; min-height: 172px; }
+@supports (width: 1cqh) {
+  .full-player .fp-art .cover { width: clamp(118px, calc(100cqh - 54px), min(78vw, 380px)); }
+  .full-player.night .fp-art .cover { width: min(52vw, calc(100cqh - 54px), 240px); }
+}
+/* A little air between Your copies (or the series) and Resume (user, 28 Nov). */
+.book .book-actions { margin-top: 18px; }
