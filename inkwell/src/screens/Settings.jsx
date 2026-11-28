@@ -73,7 +73,7 @@ function Section({ icon, title, keys = '', children }) {
 
 /**
  * Usenet: Easynews (plays straight from it with your sign-in) and Newznab indexers (NZBgeek,
- * NinjaCentral, Treasure Maps…: their NZBs go to TorBox's Usenet downloader). Kept on this phone.
+ * NinjaCentral, Treasure Maps…: their NZBs go to TorBox's or Premiumize's Usenet downloader). Kept on this phone.
  */
 /**
  * Easynews through your own Cloudflare worker, for networks that block it (some Indian
@@ -185,7 +185,7 @@ function UsenetCard() {
         <div class="set-row">
           <div>
             <b>{x.name || apiBase(x.url)}</b>
-            <small>{apiBase(x.url)} · NZBs go to your TorBox</small>
+            <small>{apiBase(x.url)} · NZBs go to your TorBox or Premiumize</small>
           </div>
           <button class="icon-btn" aria-label={`Remove ${x.name}`} onClick={() => usenetCfg.set((c) => ({ ...c, indexers: c.indexers.filter((_, j) => j !== i) }))}>
             <Icon name="trash" size={18} />

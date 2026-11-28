@@ -20,7 +20,9 @@ import { HighlightCards, AudioNotes, hasAudioNotes } from '../components/book-no
 import { highlights, forWork, addHighlight, updateHighlight, removeHighlight, markText, unmark, selectionParts, growSelection } from '../lib/highlights.js';
 import { SelectionBar, AiSheet, HighlightSheet } from '../components/reader-select.jsx';
 import { FollowAudio } from '../components/follow-audio.jsx';
-import { aiOn } from '../lib/ai.js';
+import { aiOn, aiReady, aiHint, askAi } from '../lib/ai.js';
+import { pageLayout, pageCount, pageOf, turnTo, swipeDir } from '../lib/paging.js';
+import { recapDue, readSoFar, ebookRecapPrompt } from '../lib/ebookrecap.js';
 
 // Reading fonts (bundled, so they work offline). Literata is the default serif.
 const FONTS = [
@@ -71,6 +73,14 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
   const [panel, setPanel] = useState(null); // 'toc' | 'style'
   const [pct, setPct] = useState(0);
   const scroller = useRef();
+  // Layout: one long scroll (as before), or pages turned like a book (Text settings → Layout).
+  const paged = st.readerLayout === 'pages';
+  const pagedRef = useRef(paged);
+  pagedRef.current = paged;
+  const [pg, setPg] = useState(null); // the column sizes for pages, measured from the screen
+  const [pageNo, setPageNo] = useState({ at: 0, of: 1 });
+  const swipedAt = useRef(0);
+  const [recap, setRecap] = useState(null); // { auto, text, busy } — "Previously, in …"
   const [aloud, setAloud] = useState(null); // { playing, index }
   // Reading stats: time with the book open and in use (any tap, swipe, page turn, scroll or
   // key in the last three minutes), being read aloud, or following its audiobook as it plays —
@@ -148,7 +158,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
       lit.current?.classList.remove('aloud');
       el.classList.add('aloud');
       lit.current = el;
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      reveal(el);
       setAloud((a) => ({ playing: a?.playing ?? true, index: i }));
     },
     // Native engine: pause/play from the notification or lock screen shows here too.
@@ -409,6 +419,18 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
   // order, and measuring every one would lay out the whole book.
   const firstVisible = (list) => {
     if (!scroller.current) return -1; // reader already closed
+    if (pagedRef.current) {
+      // Pages: the first paragraph that reaches onto the page on screen.
+      const left = scroller.current.getBoundingClientRect().left + 10;
+      let lo = 0;
+      let hi = list.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (list[mid].getBoundingClientRect().right < left) lo = mid + 1;
+        else hi = mid;
+      }
+      return list.length ? lo : -1;
+    }
     const top = scroller.current.getBoundingClientRect().top + 60;
     let lo = 0;
     let hi = list.length - 1;
@@ -420,6 +442,42 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     return list.length ? lo : -1;
   };
   const topBlock = () => firstVisible(blocks());
+
+  // Pages: where you are, and moving to a page or to a paragraph's page. Scroll: as before.
+  const pageW = () => scroller.current?.clientWidth || 1;
+  const curPage = () => Math.round((scroller.current?.scrollLeft || 0) / pageW());
+  const goPage = (n, smooth = true) => scroller.current?.scrollTo({ left: n * pageW(), behavior: smooth && document.documentElement.dataset.motion !== 'off' ? 'smooth' : 'auto' });
+  const reveal = (el, { smooth = true, block = 'center' } = {}) => {
+    if (!el || !scroller.current) return;
+    if (!pagedRef.current) return el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block });
+    const box = scroller.current.getBoundingClientRect();
+    goPage(pageOf(el.getBoundingClientRect().left - box.left + scroller.current.scrollLeft, pageW()), smooth);
+  };
+  // Pages: the column sizes follow the screen (turning the phone, a tablet) and the margins.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || !paged) return setPg(null);
+    const measure = () => setPg(pageLayout(el.clientWidth, st.readerMargin ?? 24));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [paged, !!doc, st.readerMargin]);
+  // After the layout changes (pages on / off, text size, font, spacing, turning the phone):
+  // back to the paragraph you were reading.
+  useEffect(() => {
+    if (!doc || !scroller.current) return;
+    const at = progress.get()[book.uid]?.anchor;
+    const settle = () => {
+      const list = blocks();
+      if (at >= 0 && list[at]) reveal(list[at], { smooth: false, block: 'start' });
+      if (pagedRef.current && scroller.current) setPageNo({ at: curPage(), of: pageCount(scroller.current.scrollWidth, pageW()) });
+    };
+    const id = requestAnimationFrame(settle);
+    // Again once the book's fonts have loaded (they change how many pages there are).
+    const ts = [450, 1500].map((ms) => setTimeout(settle, ms));
+    return () => (cancelAnimationFrame(id), ts.forEach(clearTimeout));
+  }, [paged, !!doc, pg?.colW, st.readerSize, st.readerLine, st.readerFont]);
 
   // Restore position once the text is rendered: to the exact paragraph when we
   // know it (long ebooks lay out lazily, so a percentage is only approximate).
@@ -436,10 +494,14 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         toast(sharedAt >= 0 ? 'Opened at the shared quote' : "Couldn't find the shared quote in this edition");
       }
       const target = sharedAt >= 0 ? blocks()[sharedAt] : at != null ? blocks()[at] : saved?.anchor >= 0 ? blocks()[saved.anchor] : null;
-      if (target) {
+      if (target && pagedRef.current) reveal(target, { smooth: false });
+      else if (target) {
         target.scrollIntoView({ block: 'start' });
         el.scrollTop -= 70;
-      } else if (saved?.percent) el.scrollTop = saved.percent * (el.scrollHeight - el.clientHeight);
+      } else if (saved?.percent && pagedRef.current) goPage(Math.round(saved.percent * (pageCount(el.scrollWidth, pageW()) - 1)), false);
+      else if (saved?.percent) el.scrollTop = saved.percent * (el.scrollHeight - el.clientHeight);
+      // Back after a week or more: "Previously, in …" (your own AI key, from what you've read).
+      if (aiReady() && recapDue(saved)) setRecap({ auto: true });
     });
   }, [doc]);
 
@@ -520,9 +582,11 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     if (!el) return;
     let t;
     const onScroll = () => {
-      const p = el.scrollHeight > el.clientHeight ? el.scrollTop / (el.scrollHeight - el.clientHeight) : 0;
+      const pagedNow = pagedRef.current;
+      const p = pagedNow ? (el.scrollWidth > el.clientWidth ? el.scrollLeft / (el.scrollWidth - el.clientWidth) : 0) : el.scrollHeight > el.clientHeight ? el.scrollTop / (el.scrollHeight - el.clientHeight) : 0;
       setPct(p);
-      if (chrome && el.scrollTop > 200) setChrome(false);
+      if (pagedNow) setPageNo({ at: curPage(), of: pageCount(el.scrollWidth, pageW()) });
+      if (chrome && (pagedNow ? el.scrollLeft : el.scrollTop) > 200) setChrome(false);
       clearTimeout(t);
       t = setTimeout(() => {
         progress.set((all) => ({
@@ -541,15 +605,40 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
   const tapTimer = useRef(null);
   const downAt = useRef(null);
   const doubleAt = useRef(0);
+  // "Previously, in …": a recap made only from what you've read (up to the paragraph on screen).
+  const runRecap = async () => {
+    if (!aiReady()) return toast(aiHint());
+    setRecap((r) => ({ ...r, busy: true }));
+    try {
+      const list = blocks();
+      const at = Math.max(0, topBlock());
+      const headings = (doc?.headings || [])
+        .map((h) => {
+          const el = scroller.current?.querySelector('#' + CSS.escape(h.id));
+          return { text: h.text, at: el ? list.findIndex((b) => b === el || b.contains(el) || el.contains(b)) : -1 };
+        })
+        .filter((h) => h.at >= 0);
+      const read = readSoFar({ blocks: list.map((b) => b.textContent || ''), upTo: at, headings });
+      if (read.text.length < 200) throw new Error('Read a little more first — there isn’t enough to recap yet');
+      const text = String(await askAi(ebookRecapPrompt({ title: book.title, author: book.author, ...read }))).trim();
+      setRecap((r) => ({ ...r, busy: false, text }));
+    } catch (e) {
+      toast(e.message);
+      setRecap(null);
+    }
+  };
+  useBackClose(!!recap, () => setRecap(null));
+
   const page = (dir) => {
     const el = scroller.current;
+    if (pagedRef.current) return goPage(turnTo(curPage(), dir, pageCount(el.scrollWidth, pageW())));
     el.scrollBy({ top: dir * (el.clientHeight - 60), behavior: 'smooth' });
   };
 
   return (
     <div
-      class={`reader theme-${st.readerTheme} font-${st.readerFont}${st.readerJustify === false ? ' nojustify' : ''}`}
-      style={{ '--rs': st.readerSize + 'px', '--rl': st.readerLine || 1.72, '--rm': (st.readerMargin ?? 24) + 'px' }}
+      class={`reader theme-${st.readerTheme} font-${st.readerFont}${st.readerJustify === false ? ' nojustify' : ''}${paged && pg ? ' paged' : ''}`}
+      style={{ '--rs': st.readerSize + 'px', '--rl': st.readerLine || 1.72, '--rm': (st.readerMargin ?? 24) + 'px', ...(paged && pg ? { '--colw': pg.colW + 'px', '--gap': pg.gap + 'px', '--aw': pg.articleW + 'px' } : {}) }}
     >
       <header class={'reader-bar' + (chrome ? '' : ' hidden')}>
         <button class="icon-btn" onClick={() => nav.back()} aria-label="Back">
@@ -595,6 +684,15 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         onPointerDown={(e) => (downAt.current = { t: Date.now(), x: e.clientX, y: e.clientY })}
         onPointerUp={(e) => {
           const d = downAt.current;
+          // Pages: a swipe sideways turns the page (not while selecting words).
+          if (pagedRef.current && d && Date.now() - d.t < 800 && !selecting()) {
+            const dir = swipeDir(e.clientX - d.x, e.clientY - d.y);
+            if (dir) {
+              swipedAt.current = Date.now();
+              page(dir);
+              return;
+            }
+          }
           if (!d || Date.now() - d.t > 350 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 20) return; // a scroll or a long press
           if (selecting()) return (lastTap.current = null); // moving the selection handles
           const now = Date.now();
@@ -617,6 +715,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         onClick={(e) => {
           if (e.target.closest('a')) return;
           if (Date.now() - doubleAt.current < 500) return; // the second tap of a double tap
+          if (Date.now() - swipedAt.current < 400) return; // the end of a swipe
           // Finishing or adjusting a selection (or tapping it away): not a page turn.
           if (sel || selecting()) return;
           const mark = e.target.closest('mark.hl');
@@ -661,10 +760,29 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         <div class="progress-bar">
           <div style={{ width: pct * 100 + '%' }} />
         </div>
-        <span>{Math.round(pct * 100)}%</span>
+        <span>{paged && pg ? `Page ${pageNo.at + 1} of ${pageNo.of}` : `${Math.round(pct * 100)}%`}</span>
       </footer>
 
-      {doc && !error && <FollowAudio book={book} blocks={blocks} scroller={scroller} ready={!!doc} />}
+      {recap && (
+        <div class="reader-panel recap-panel" role="dialog" aria-label="Recap so far">
+          <PanelHead title={`Previously, in ${book.title}`} onClose={() => setRecap(null)} />
+          {recap.text ? (
+            <p class="recap-text">{recap.text}</p>
+          ) : (
+            <p class="muted">{recap.auto ? 'It’s been a while. A short recap of the story so far?' : 'A short recap of the story up to where you are.'}</p>
+          )}
+          <p class="muted small">Made only from the part you’ve read — nothing later. Uses your AI key from Settings → AI.</p>
+          {!recap.text && (
+            <button class="btn primary" disabled={recap.busy} onClick={runRecap}>
+              {recap.busy ? <span class="spinner small" /> : <Icon name="sparkle" size={15} />} Recap so far
+            </button>
+          )}
+          <button class="btn secondary" onClick={() => setRecap(null)}>
+            {recap.text ? 'Carry on reading' : 'Not now'}
+          </button>
+        </div>
+      )}
+      {doc && !error && <FollowAudio book={book} blocks={blocks} scroller={scroller} ready={!!doc} reveal={reveal} paged={paged} />}
       {sel && !sheet && <SelectionBar sel={sel} onAction={onSelAction} onGrow={(kind) => growSelection(kind, blocks(), sel.range) || toast('Nothing more to add')} />}
       {sheet?.type === 'ai' && (
         <AiSheet
@@ -754,6 +872,9 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
       {panel === 'toc' && doc && (
         <div class="reader-panel">
           <PanelHead title="Contents" onClose={() => setPanel(null)} />
+          <button class="pill small recap-btn" onClick={() => (setPanel(null), setRecap({ auto: false }))}>
+            <Icon name="sparkle" size={14} /> Recap the story so far
+          </button>
           <ol class="toc">
             {doc.headings.length ? (
               doc.headings.map((h) => (
@@ -761,7 +882,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
                   <button
                     onClick={() => {
                       const el = scroller.current.querySelector('#' + CSS.escape(h.id));
-                      el?.scrollIntoView({ behavior: 'smooth' });
+                      reveal(el, { block: 'start' });
                       setPanel(null);
                       // Reading aloud: the voice moves to the chapter too (preface etc. included).
                       if (aloud && el) readFrom(el);
@@ -784,7 +905,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
             book={book}
             onOpen={(h) => {
               const m = scroller.current.querySelector(`mark.hl[data-id="${h.id}"]`) || blocks()[h.parts[0].a];
-              m?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              reveal(m);
               setPanel(null);
             }}
           />
@@ -808,6 +929,17 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
             <button class="pill" onClick={() => settings.patch({ readerSize: Math.min(32, st.readerSize + 1) })}>
               A+
             </button>
+          </div>
+          <div class="reader-row labeled">
+            <span>Layout</span>
+            {[
+              ['scroll', 'Scroll'],
+              ['pages', 'Pages'],
+            ].map(([v, label]) => (
+              <button class={'pill small' + ((st.readerLayout || 'scroll') === v ? ' active' : '')} onClick={() => settings.patch({ readerLayout: v })}>
+                {label}
+              </button>
+            ))}
           </div>
           <div class="reader-fonts">
             {FONTS.map(([f, label]) => (

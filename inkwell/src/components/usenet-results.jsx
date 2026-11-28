@@ -48,16 +48,28 @@ export function UsenetResults({ title, author, book }) {
       setBusy('');
     }
   };
-  const sendNzb = async (r) => {
-    setBusy(r.nzb);
+  // Where an NZB can go: TorBox and Premiumize both download Usenet (each shown when connected;
+  // with neither, TorBox — its message says to connect it).
+  const [nzbTo, setNzbTo] = useState(['torbox']);
+  useEffect(() => {
+    Promise.all([import('../sources/debrid.js'), import('../sources/moredebrid.js')]).then(([c, m]) => {
+      const to = [c.tbConnected() && 'torbox', m.moreConnected('premiumize') && 'premiumize'].filter(Boolean);
+      setNzbTo(to.length ? to : ['torbox']);
+    });
+  }, []);
+  const NAME = { torbox: 'TorBox', premiumize: 'Premiumize' };
+  const sendNzb = async (r, to = 'torbox') => {
+    setBusy(r.nzb + to);
     try {
-      const cloud = await import('../sources/debrid.js');
-      const out = await cloud.sendNzbToTorbox(r.nzb, r.title, (t) => toast(t));
+      const out =
+        to === 'premiumize'
+          ? await (await import('../sources/moredebrid.js')).sendNzbToPremiumize(r.nzb, r.title, (t) => toast(t))
+          : await (await import('../sources/debrid.js')).sendNzbToTorbox(r.nzb, r.title, (t) => toast(t));
       if (out.book) {
         const { getDetails } = await import('../sources/index.js');
         nav.openOverlay('player');
         player.playBook(await getDetails({ ...out.book, title: book?.title || out.book.title, author: book?.author || out.book.author, cover: book?.cover || '' }), { exact: true });
-      } else toast('Sent to TorBox — it shows in Your TorBox when the download is done (usually a few minutes)');
+      } else toast(`Sent to ${NAME[to]} — it shows in Your ${NAME[to]} when the download is done (usually a few minutes)`);
     } catch (e) {
       toast(e.message);
     } finally {
@@ -114,9 +126,13 @@ export function UsenetResults({ title, author, book }) {
                       {x.r.date ? ` · ${new Date(x.r.date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}` : ''}
                     </small>
                   </div>
-                  <button class="pill small" disabled={!!busy} onClick={() => sendNzb(x.r)}>
-                    {busy === x.r.nzb ? <span class="spinner small" /> : <Icon name="download" size={14} />} TorBox
-                  </button>
+                  <div class="usenet-to">
+                    {nzbTo.map((to) => (
+                      <button class="pill small" disabled={!!busy} onClick={() => sendNzb(x.r, to)}>
+                        {busy === x.r.nzb + to ? <span class="spinner small" /> : <Icon name="download" size={14} />} {NAME[to]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )
             )}

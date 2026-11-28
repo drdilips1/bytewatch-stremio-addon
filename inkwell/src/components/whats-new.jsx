@@ -5,6 +5,17 @@ import { persisted, useStore, library, progress } from '../lib/store.js';
 
 export const CHANGES = [
   {
+    id: '2026-11-28',
+    title: 'A calmer app, and ebooks with pages',
+    items: [
+      ['📖', 'Ebooks turn pages like a book', 'In an ebook: the T button → Layout: Pages. Tap the edges or swipe, with page numbers (two pages on a tablet). Coming back after a while? “Previously, in …” recaps what you’ve read, with your own AI key. Long-press and drag the handles to highlight as many words as you like.'],
+      ['👉', 'Swipe between tabs', 'Swipe left or right on Home, Discover, Podcasts, Library or Settings.'],
+      ['✦', 'One AI button in the player', 'Ask, Explain, Find, X-Ray, Talk and Voice are under the ✦ AI button.'],
+      ['📚', 'Tidier book pages', 'The copy you last played is marked, the series shows what’s up next, the publisher and narrator are a tap away, and sources show the best three first.'],
+      ['📰', 'Usenet to Premiumize', 'NZBs from your indexers can go to Premiumize as well as TorBox.'],
+    ],
+  },
+  {
     id: '2026-11-25',
     title: 'Your books, remembered',
     items: [

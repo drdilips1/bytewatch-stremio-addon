@@ -13665,3 +13665,20 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 :root .home .feature-content { text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4); }
 :root[data-polish] .home .feature { box-shadow: var(--sheen), 0 18px 34px -24px rgba(0, 0, 0, 0.5) !important; }
 :root[data-polish]:is([data-mode='dark'], [data-mode='amoled']) .home .feature { background-color: color-mix(in srgb, var(--bg) 60%, transparent) !important; }
+
+/* Usenet results: one button per service that takes NZBs (TorBox, Premiumize) — from AudioYam. */
+.usenet-to { display: flex; flex-direction: column; gap: 6px; flex: none; }
+/* No screen can be wider than the phone (from AudioYam: on iPhone a long label made Home 470 px
+   wide, so the whole screen slid sideways when a book row was swiped to its end). */
+.screen { overflow-x: clip; }
+/* From AudioYam — ebook pages (Text settings → Layout: Pages): the text in columns one screen wide, turned by a
+   tap at the edges or a swipe. Chapters are all laid out (the off-screen skip breaks columns). */
+.reader.paged .reader-scroll { overflow: hidden; overscroll-behavior: contain; }
+.reader.paged .reader-text { max-width: none; width: var(--aw); margin: 0 calc(var(--gap) / 2); padding: 0; height: 100%; column-width: var(--colw); column-gap: var(--gap); column-fill: auto; }
+.reader.paged .reader-text > .chapter { content-visibility: visible; }
+.reader.paged .reader-text img { max-height: 92%; object-fit: contain; break-inside: avoid; }
+.reader.paged .reader-text h1, .reader.paged .reader-text h2 { break-after: avoid; }
+/* "Previously, in …" */
+.recap-panel .recap-text { white-space: pre-line; line-height: 1.6; font-size: 15.5px; }
+.recap-panel .btn { width: 100%; margin-top: 8px; }
+.recap-btn { margin: 4px 0 10px; display: inline-flex; align-items: center; gap: 6px; }

@@ -212,3 +212,24 @@ export async function morePrepare(provider, magnet, hash, title, onStatus) {
   }
   throw pending(0);
 }
+
+/**
+ * A Usenet download (an NZB link from your indexer) sent to Premiumize, which downloads Usenet too
+ * (asked for on Reddit: until now only TorBox took them). Waits a little: { book } when it's done,
+ * else { pending: true } — it then shows in Your Premiumize when finished.
+ */
+export async function sendNzbToPremiumize(nzbUrl, name, onStatus) {
+  if (!moreConnected('premiumize')) throw new Error('Connect Premiumize in Settings to send Usenet downloads there');
+  onStatus?.('Sending to Premiumize…');
+  const r = await pmPost('/transfer/create', { src: nzbUrl });
+  for (let i = 0; i < 12; i++) {
+    const t = ((await pm('/transfer/list').catch(() => null))?.transfers || []).find((x) => x.id === r.id);
+    if (t?.status === 'finished' && (t.folder_id || t.file_id)) {
+      return { book: bookOf('premiumize', t.folder_id ? `f-${t.folder_id}` : `i-${t.file_id}`, t.name || name) };
+    }
+    if (t && /error|deleted|banned|timeout/i.test(t.status || '')) throw new Error(`Premiumize couldn't download it${t.message ? ` (${t.message})` : ''}`);
+    onStatus?.(`Premiumize is fetching it… ${t?.progress ? Math.round(t.progress * 100) + '%' : ''}`.trim());
+    await sleep(2500);
+  }
+  return { pending: true };
+}

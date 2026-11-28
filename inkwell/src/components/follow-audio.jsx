@@ -8,7 +8,7 @@ import { sameWork } from '../lib/works.js';
 import { blockText } from '../lib/tts.js';
 import { toast } from './common.jsx';
 
-export function FollowAudio({ book, blocks, scroller, ready }) {
+export function FollowAudio({ book, blocks, scroller, ready, reveal, paged }) {
   const [ps, setPs] = useState(player.getState());
   useEffect(() => player.subscribe(setPs), []);
   const [on, setOn] = useState(false);
@@ -81,7 +81,9 @@ export function FollowAudio({ book, blocks, scroller, ready }) {
       // Keep it in view (unless you've been scrolling yourself just now).
       const box = scroller.current?.getBoundingClientRect();
       const b = el.getBoundingClientRect();
-      if (box && Date.now() - touched.current > 6000 && (b.top < box.top + 60 || b.bottom > box.bottom - 120)) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Pages: off the page on screen → its page. Scroll: near the edges → into the middle.
+      const off = paged ? b.left < box.left - 4 || b.left > box.right : b.top < box.top + 60 || b.bottom > box.bottom - 120;
+      if (box && Date.now() - touched.current > 6000 && off) (reveal ? reveal(el) : el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
     }, 1200);
     return () => {
       alive = false;
