@@ -4,7 +4,7 @@
 - Build ("build"): dispatch `inkwell-apk.yml` and `audiohub-ios.yml` on the branch; when the APK
   release is out, dispatch `inkwell-web.yml` (its pages job failing is expected). Releases
   `inkwell-v1.0.N` (Android, in-app update), `audiohub-ios-N` (unsigned IPA for AltStore).
-- Latest: Android v1.0.261 + iPhone build 143 (28 Nov — one ✦ AI button in the player; book page one set of reactions, tags in ⋯; sources Audio/Ebook switch + best 3).
+- Latest: Android v1.0.262 + iPhone build 144 (28 Nov — swipe between tabs; Libby folds to the best two; tighter book page, Your copies the size of Available; About flat in Inter without shouting lines; Goodreads one slim line).
 - In v1.0.233 / iOS 114 (built 21 Nov): instant play (server place asked in the background),
   glow fade on player background, Libby live availability, auto-send never re-sends backlog + skips torrents
   qBittorrent has, Goodreads clearer refusal + CSV hint, ebook cards, banner title fit, Play timing line.
