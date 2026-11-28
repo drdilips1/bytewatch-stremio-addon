@@ -195,6 +195,9 @@ const PTABS = [
   ['discover', 'Discover'],
 ];
 
+// When an episode came out, in ms (feeds give a number; older saves a date text).
+const epTime = (e) => (typeof e?.date === 'number' ? e.date : Date.parse(e?.date || '') || 0);
+
 export function Podcasts() {
   const p = useStore(pod.podcasts);
   const [q, setQ] = useState('');
@@ -241,16 +244,6 @@ export function Podcasts() {
     };
   }, [q]);
 
-  const refresh = async () => {
-    setBusy(true);
-    try {
-      setLatest(await pod.refreshAll({ fresh: true }));
-      toast('Podcasts refreshed');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const isFeed = /^https?:\/\//i.test(q.trim());
   const [epFilter, setEpFilter] = useState('all');
   const dls = useStore(downloads);
@@ -261,7 +254,6 @@ export function Podcasts() {
   const picks = latest ? pod.recommendedEpisodes(latest, prog) : [];
 
   const tab = useStore(podTab);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [allQ, setAllQ] = useState(false);
   // New episodes per show (for the number on its artwork).
   const newBy = {};
@@ -304,7 +296,7 @@ export function Podcasts() {
   );
   const opml = (
     <section class="d-sec pod-opml">
-      <button class="pill small" onClick={() => fileRef.current?.click()}>
+      <button class="pill small" disabled={busy} onClick={() => fileRef.current?.click()}>
         <Icon name="upload" size={14} /> Import from another app (OPML)
       </button>
       {p.subs.length > 0 && (
@@ -345,27 +337,20 @@ export function Podcasts() {
     <div class="screen podcasts pod2">
       <header class="pod-head">
         <h1 class="screen-title">Podcasts</h1>
-        <div class="pod-tools">
-          <button class="icon-btn" aria-label="Search podcasts" onClick={() => setSearchOpen(!searchOpen)}>
-            <Icon name="search" size={21} />
-          </button>
-          <AskButton />
-          <button class="icon-btn" aria-label="Refresh" disabled={busy} onClick={refresh}>
-            {busy ? <span class="spinner small" /> : <Icon name="replay" size={19} />}
-          </button>
-        </div>
       </header>
-      {(searchOpen || q) && (
-        <div class="search-box">
-          <Icon name="search" size={20} />
-          <input value={q} autoFocus placeholder="Search podcasts or paste a feed link" onInput={(e) => setQ(e.currentTarget.value)} enterkeyhint="search" />
-          {q && (
-            <button class="icon-btn" onClick={() => (setQ(''), setSearchOpen(false))} aria-label="Clear">
-              <Icon name="close" size={18} />
-            </button>
-          )}
-        </div>
-      )}
+      {/* One search box, always there, with Ask inside — like Discover (the 🔍, chat and ↻ buttons
+          went; pull down to refresh). */}
+      <div class="search-box d-search">
+        <Icon name="search" size={20} />
+        <input value={q} placeholder="Search shows, or paste a feed link" onInput={(e) => setQ(e.currentTarget.value)} enterkeyhint="search" />
+        {q ? (
+          <button class="icon-btn" onClick={() => setQ('')} aria-label="Clear">
+            <Icon name="close" size={18} />
+          </button>
+        ) : (
+          <AskButton />
+        )}
+      </div>
       {isFeed && (
         <button class="btn ghost-wide" onClick={() => nav.push('podcast', { show: { feedUrl: q.trim(), title: '' } })}>
           <Icon name="search" size={16} /> Preview this feed
@@ -448,7 +433,18 @@ export function Podcasts() {
                       <span class="spinner small" /> Checking your podcasts…
                     </p>
                   ) : unplayed.length ? (
-                    unplayed.map((ep) => <EpisodeRow ep={ep} podcast={ep.podcast} showShow />)
+                    <div class="d-card pod-list">
+                      {unplayed.map((ep, k) => {
+                        const week = Date.now() - epTime(ep) < 7 * 864e5;
+                        const prevWeek = k > 0 && Date.now() - epTime(unplayed[k - 1]) < 7 * 864e5;
+                        return (
+                          <>
+                            {(k === 0 || week !== prevWeek) && <div class="pod-day">{week ? 'This week' : 'Earlier'}</div>}
+                            <EpisodeRow ep={ep} podcast={ep.podcast} showShow />
+                          </>
+                        );
+                      })}
+                    </div>
                   ) : (
                     <p class="muted">{epFilter === 'all' ? "You're all caught up." : 'Nothing new matches this filter.'}</p>
                   )}

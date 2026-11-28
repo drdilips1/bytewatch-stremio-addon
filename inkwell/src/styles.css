@@ -13682,3 +13682,37 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .recap-panel .recap-text { white-space: pre-line; line-height: 1.6; font-size: 15.5px; }
 .recap-panel .btn { width: 100%; margin-top: 8px; }
 .recap-btn { margin: 4px 0 10px; display: inline-flex; align-items: center; gap: 6px; }
+
+/* Podcasts in the app's own look (28 Nov, user approved the mock-up): the heading at the same
+   height as Discover / Library (the status-bar room was added twice), one search box with Ask,
+   small tabs, small-caps section titles, a compact Now listening card, smaller show covers,
+   and new episodes in one card of slim rows, grouped This week / Earlier. */
+:root .pod2 .pod-head { padding-top: 0 !important; padding-right: 16px; }
+.pod2 .search-box.d-search { margin: 4px 16px 0; }
+:root .pod2 .pod-tabs { display: flex; gap: 6px; padding: 0 16px; margin-top: 12px; }
+:root .pod2 .pod-tabs > button { flex: 1 1 0; height: 32px; font-size: 13px; padding: 0 6px; }
+.pod2 .d-sec { padding: 18px 16px 0; }
+.pod2 .d-head { margin-bottom: 8px; gap: 8px; }
+.pod2 .d-head .d-ico { display: none; }
+:root .pod2 .d-head h3, :root[data-polish] .pod2 .d-head h3 { font-family: var(--font) !important; font-size: 11.5px !important; font-weight: 700 !important; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.pod2 .d-head .d-more { font-size: 13px; }
+.pod2 .pod-now { min-height: 0; padding: 10px; gap: 12px; border-radius: 18px; }
+.pod2 .pod-now-art { width: 72px !important; height: 72px !important; align-self: center; border-radius: 12px !important; }
+.pod2 .pod-now-m { padding: 0; gap: 3px; }
+.pod2 .pod-now-m em { font-size: 11px; letter-spacing: 0.08em; }
+.pod2 .pod-now-m b { font-size: 15px; }
+.pod2 .pod-now .d-play { margin-right: 4px; width: 42px; height: 42px; }
+.pod2 .pod-strip { grid-auto-columns: 76px; gap: 10px; margin: 0 -16px; padding: 6px 16px 2px; }
+.pod2 .pod-strip-show img, .pod2 .pod-strip-show .show-ph { width: 76px; height: 76px; border-radius: 12px; }
+.pod2 .pod-strip-show small { font-size: 11.5px; margin-top: 4px; }
+.pod2 .pod-list { padding: 0; border-radius: 18px; overflow: hidden; }
+.pod2 .pod-list .ep2 { padding: 9px 12px; border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.pod2 .pod-list .ep2:last-child { border-bottom: 0; }
+.pod2 .pod-list .ep-art { width: 52px; height: 52px; border-radius: 10px; }
+.pod2 .pod-list .ep-text b, .pod2 .pod-list .ep-title { font-size: 14px; line-height: 1.3; -webkit-line-clamp: 2; }
+.pod2 .pod-list .ep-text small, .pod2 .pod-list .ep-meta { font-size: 12px; }
+.pod2 .pod-list .ep-ring { width: 34px; height: 34px; }
+.pod2 .pod-list .ep-ring svg { width: 34px; height: 34px; }
+.pod-day { padding: 10px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.pod2 .ep-filters { margin: 0 -16px 10px !important; padding: 0 16px !important; gap: 6px !important; }
+.pod2 .ep-filters .pill { height: 30px !important; padding: 0 12px !important; font-size: 12.5px !important; font-weight: 500; }

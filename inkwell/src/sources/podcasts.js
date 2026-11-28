@@ -178,7 +178,13 @@ const newest = (feeds) => {
 export const cachedLatest = () => newest(podcasts.get().subs.map((s) => feedsCache.get()[s.feedUrl]));
 
 /** Refresh every subscription (six at a time); resolves the newest episodes across them. */
+// Pull down to refresh (the whole app) asks every feed afresh next time (the ↻ button is gone).
+let freshNext = false;
+export const refreshFeedsNext = () => (freshNext = true);
+
 export async function refreshAll({ fresh = false } = {}) {
+  fresh = fresh || freshNext;
+  freshNext = false;
   const subs = podcasts.get().subs;
   const feeds = new Array(subs.length);
   let next = 0;

@@ -49,6 +49,7 @@ import { SharedQuoteSheet, ShareQuoteSheet } from './components/shared-quote.jsx
 import { BookActionsSheet } from './components/book-actions.jsx';
 import { parseQuoteLink, openSharedQuote } from './lib/quoteshare.js';
 import { swipeTab, keepsSwipe } from './lib/swipetabs.js';
+import { refreshFeedsNext } from './sources/podcasts.js';
 
 const TABS = [
   ['home', 'Home', 'home'],
@@ -103,6 +104,7 @@ export function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => {
     clearHttpCache();
+    refreshFeedsNext();
     cloud.forget();
     hc.resetCache();
     setRefreshKey((k) => k + 1);
