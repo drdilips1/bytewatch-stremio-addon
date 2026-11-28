@@ -9,7 +9,6 @@ import { isCloudEbook, loadCloudEbook } from '../lib/epub.js';
 import { progress, settings, summarize, useStore } from '../lib/store.js';
 import { nav, useBackClose } from '../lib/nav.js';
 import { readAloud, attachAloud } from '../lib/readaloud.js';
-import { dragSelect } from '../lib/dragselect.js';
 import { trCfg, LANGS, lang, voiceFor, bookTranslation, translateParas } from '../lib/translate.js';
 import { paragraphs, estimate, textBlocks, isSkippable, skipFrontMatter, nativeReader, ttsCfg, voiceSpec, speakable, blockText, Reader as ReadAloudNative } from '../lib/tts.js';
 import { VoicesCard } from './settings-extra.jsx';
@@ -468,7 +467,7 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
     return highlights.subscribe(() => requestAnimationFrame(markAll));
   }, [doc]);
 
-  // Long-press selection → the action bar (after the selection settles).
+  // Selected words → the action bar (after the selection settles).
   useEffect(() => {
     if (!doc) return;
     let t;
@@ -487,26 +486,13 @@ export function Reader({ book, readAloud: autoAloud, at = null }) {
         setSel({ text, parts, context, rect: range.getBoundingClientRect(), range: range.cloneRange() });
       }, 250);
     };
-    // Press, hold and slide to select (the bar shows once the finger lifts).
-    let dragging = false;
-    const off = dragSelect(scroller.current, '.reader-text', {
-      onStart: () => {
-        dragging = true;
-        selAt.current = Date.now();
-        setSel(null);
-      },
-      onDone: () => {
-        dragging = false;
-        selAt.current = Date.now();
-        onSel();
-      },
-    });
-    const onSelWhenFree = () => !dragging && onSel();
-    document.addEventListener('selectionchange', onSelWhenFree);
+    // The phone's own selection (user, 28 Nov: "just one word gets highlighted"): long-press
+    // picks a word with handles, drag them over as many words as you like, and the bar follows.
+    // (Our own press-and-slide selection set one word in code, so the phone showed no handles.)
+    document.addEventListener('selectionchange', onSel);
     return () => {
       clearTimeout(t);
-      off();
-      document.removeEventListener('selectionchange', onSelWhenFree);
+      document.removeEventListener('selectionchange', onSel);
     };
   }, [doc]);
 
