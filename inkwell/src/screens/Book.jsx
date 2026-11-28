@@ -26,7 +26,7 @@ import { BookTags } from "../components/book-tags.jsx";
 import { Publisher, useAudibleFacts } from "../components/publisher.jsx";
 import { fmtDuration, fmtTime } from "../lib/format.js";
 import { finishLine } from "../lib/stats.js";
-import { ownDescription, tidyDescription } from "../lib/describe.js";
+import { ownDescription, tidyDescription, sourceLink } from "../lib/describe.js";
 import { lastOfWork, copyFor } from "../lib/lastplayed.js";
 import { nav, useBackClose } from "../lib/nav.js";
 import * as qb from "../sources/qbit.js";
@@ -205,6 +205,18 @@ export function Book({ book: initial }) {
           <h1>{splitTitle(book).main}</h1>
           {splitTitle(book).sub && <p class="book-sub">{splitTitle(book).sub}</p>}
           <HeroFacts book={book} tracks={tracks} />
+          {/* Where the title, cover and description came from — with the details, a tap opens the
+              book there (was "Details from Audible" at the end of About; user, 28 Nov). */}
+          {book.metaSource && (
+            <p class="book-source">
+              Source:{" "}
+              {sourceLink(book.metaSource, { asin: found?.asin || book.asin, title: book.title, author: book.author, market: book.market }) ? (
+                <a onClick={() => openExternal(sourceLink(book.metaSource, { asin: found?.asin || book.asin, title: book.title, author: book.author, market: book.market }))}>{book.metaSource}</a>
+              ) : (
+                book.metaSource
+              )}
+            </p>
+          )}
           {(book.author || narrator) && (
             <div class={"book-people" + (book.author && narrator ? "" : " one")}>
               {book.author && (
@@ -399,7 +411,6 @@ export function Book({ book: initial }) {
         expanded={expanded}
         setExpanded={setExpanded}
         gr={gr}
-        credit={book.metaSource}
       >
         {book.source !== "sum" && book.source !== "pod" && (
           <AskCard
@@ -1012,7 +1023,7 @@ function bestDescription(own, fromGr) {
 }
 
 /** The description, 5 lines at first; "Read more" only when there's more to show. */
-function Description({ text, expanded, setExpanded, gr = null, credit = "", children }) {
+function Description({ text, expanded, setExpanded, gr = null, children }) {
   const ref = useRef(null);
   const [more, setMore] = useState(false);
   useEffect(() => {
@@ -1041,7 +1052,6 @@ function Description({ text, expanded, setExpanded, gr = null, credit = "", chil
       )}
       {gr && <GoodreadsCard gr={gr} inside={!!text} />}
       {children}
-      {credit && <p class="meta-credit">Details from {credit}</p>}
     </section>
   );
 }

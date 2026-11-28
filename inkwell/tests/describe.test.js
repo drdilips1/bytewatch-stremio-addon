@@ -30,3 +30,16 @@ describe("a description's opening shouting", () => {
     expect(tidyDescription('A NOVEL')).toBe('A NOVEL');
   });
 });
+
+import { sourceLink } from '../src/lib/describe.js';
+describe('where "Source: …" links to', () => {
+  it("is the book's Audible page when its id is known", () => {
+    expect(sourceLink('Audible', { asin: 'B0F1', title: 'X' })).toBe('https://www.audible.com/pd/B0F1');
+  });
+  it('is a search on that site otherwise', () => {
+    expect(sourceLink('Apple Books', { title: 'Sapiens', author: 'Yuval Noah Harari, X' })).toBe('https://books.apple.com/search?term=Sapiens%20Yuval%20Noah%20Harari');
+  });
+  it('is nothing for an unknown source', () => {
+    expect(sourceLink('Somewhere', { title: 'X' })).toBe('');
+  });
+});

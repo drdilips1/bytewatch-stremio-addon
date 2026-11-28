@@ -23,3 +23,19 @@ export function tidyDescription(text) {
   while (lines.length && (!lines[0] || shouting(lines[0]))) lines.shift();
   return lines.filter(Boolean).join('\n').trim() || String(text || '').trim();
 }
+
+/**
+ * Where "Source: Audible" (the book's details) links to: the book's own Audible page when its id is
+ * known, else a search for it on that site.
+ */
+export function sourceLink(source, { asin = '', title = '', author = '', market = '' } = {}) {
+  const q = encodeURIComponent([title, String(author || '').split(',')[0]].filter(Boolean).join(' '));
+  const s = String(source || '').toLowerCase();
+  const audible = `https://www.audible.${market === 'in' ? 'in' : 'com'}`;
+  if (s.includes('audible')) return asin ? `${audible}/pd/${asin}` : `${audible}/search?keywords=${q}`;
+  if (s.includes('apple')) return `https://books.apple.com/search?term=${q}`;
+  if (s.includes('google')) return `https://www.google.com/search?tbm=bks&q=${q}`;
+  if (s.includes('goodreads')) return `https://www.goodreads.com/search?q=${q}`;
+  if (s.includes('open library')) return `https://openlibrary.org/search?q=${q}`;
+  return '';
+}
