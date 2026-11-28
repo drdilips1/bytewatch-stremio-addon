@@ -1,9 +1,8 @@
 import { BgImage } from '../components/bg-image.jsx';
 import { rankForYou, profile } from '../lib/taste.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Row, BookCard, withMeta, AskButton } from '../components/common.jsx';
+import { Row, BookCard, withMeta } from '../components/common.jsx';
 import { openDrive } from '../components/drive-mode.jsx';
-import { SceneButton } from '../components/scene-cmd.jsx';
 import { useTileRating } from '../lib/ratings.js';
 import { openExternal } from '../sources/summaries.js';
 import { useMeta } from '../lib/meta.js';
@@ -807,12 +806,9 @@ export function Home() {
           <button class="icon-btn drive-btn" onClick={() => openDrive()} aria-label="Driving mode">
             <Icon name="car" />
           </button>
-          <SceneButton />
-          <AskButton />
+          {/* Voice, AI and Search left the top (user, 28 Nov): Ask and the camera are in Discover's
+              search box, the voice button is in the player's ✦ AI, Search is the Discover tab. */}
           <ThemeDice />
-          <button class="icon-btn home-search" onClick={() => nav.tab('discover')} aria-label="Search">
-            <Icon name="search" />
-          </button>
         </div>
       </header>
       <Greeting me={me} />
