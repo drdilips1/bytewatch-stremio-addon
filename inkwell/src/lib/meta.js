@@ -81,6 +81,7 @@ const lookups = {
       narrator: (p.narrators || []).map((a) => a.name).slice(0, 2).join(', '),
       cover: img['1024'] || img['500'] || '',
       description: stripHtml(p.publisher_summary || p.merchandising_summary || ''),
+      publisher: p.publisher_name || '',
       series: p.series?.[0] ? `${p.series[0].title}${p.series[0].sequence ? ` #${p.series[0].sequence}` : ''}` : '',
       runtime: p.runtime_length_min ? p.runtime_length_min * 60 : 0,
       year: (p.release_date || '').slice(0, 4),

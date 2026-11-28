@@ -95,6 +95,17 @@ export function statusIn(books) {
   });
 }
 
+/**
+ * "Up next" on a book's page: the book after the one you're on ("Sorcerer's Stone" at 89% →
+ * "Chamber of Secrets"), skipping any you've finished. Not on a book of the series (or on the
+ * last one): the first you haven't finished after the last you did. (Before, on book 1 with
+ * nothing finished, "next" was book 1 itself, so nothing showed.)
+ */
+export function upNext(list, here) {
+  if (here >= 0) return list.slice(here + 1).find((x) => x.state !== 'finished') || null;
+  return nextIn(list);
+}
+
 /** The first book of the series you haven't finished, after the last one you did. */
 export function nextIn(list) {
   let lastDone = -1;

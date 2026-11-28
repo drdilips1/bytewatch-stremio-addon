@@ -338,6 +338,7 @@ export async function details(book) {
     description: md.description || '',
     subjects: md.genres || [],
     narrator: md.narratorName,
+    ...(md.publisher ? { publisher: md.publisher } : {}),
     series: md.seriesName,
     chaptersMeta: (li.media?.chapters || []).map((c) => ({ title: c.title, start: c.start, end: c.end })),
     // Its ebook file (EPUB opens in the reader; any format can go to Kindle / another app).

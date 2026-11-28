@@ -27,6 +27,7 @@ function fromAudible(p, market = '') {
     duration: p.runtime_length_min ? p.runtime_length_min * 60 : 0,
     series: s ? `${s.title}${s.sequence ? ` #${s.sequence}` : ''}` : '',
     description: stripHtml(p.publisher_summary || p.merchandising_summary || ''),
+    ...(p.publisher_name ? { publisher: p.publisher_name } : {}),
     link: `https://www.audible.${market === 'in' ? 'in' : 'com'}/pd/${p.asin}`,
     ...(market ? { market } : {}),
     ...(p.language ? { language: p.language } : {}),
@@ -111,6 +112,13 @@ export const audible = {
   async byAuthor(name) {
     if (!name) return [];
     const run = (sort) => getJson(`${AUDIBLE}?` + qs({ author: name, num_results: 24, products_sort_by: sort, response_groups: GROUPS, image_sizes: '500,1024' }));
+    const d = await run('BestSellers').catch(() => run('Relevance'));
+    return products(d);
+  },
+  /** A publisher's audiobooks (Tantor Audio, Penguin Audio…), best-selling first. */
+  async byPublisher(name) {
+    if (!name) return [];
+    const run = (sort) => getJson(`${AUDIBLE}?` + qs({ publisher: name, num_results: 40, products_sort_by: sort, response_groups: GROUPS, image_sizes: '500,1024' }));
     const d = await run('BestSellers').catch(() => run('Relevance'));
     return products(d);
   },

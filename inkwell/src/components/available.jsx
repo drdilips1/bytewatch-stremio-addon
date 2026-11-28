@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
-import { useStore } from '../lib/store.js';
+import { useStore, progress } from '../lib/store.js';
+import { lastPlayed } from '../lib/lastplayed.js';
 import { nav } from '../lib/nav.js';
 import * as player from '../lib/player.js';
 import { getDetails, findOwned, localSrc, absSrc } from '../sources/index.js';
@@ -154,14 +155,20 @@ export function Available({ book, editions }) {
     whereSubs.forEach((f) => f());
   }, [chips, book.uid]);
 
+  // The copy you played last: first in the row, lit, labelled — so you carry on there instead
+  // of tapping another copy that starts from the beginning.
+  const prog = useStore(progress);
+  const lastUid = lastPlayed(chips.map((c) => c.act?.book?.uid), prog, book.uid);
+  const shown = lastUid ? [...chips.filter((c) => c.act?.book?.uid === lastUid), ...chips.filter((c) => c.act?.book?.uid !== lastUid)] : chips;
   const searching = book.kind === 'discover' && (!editions || quick?.pending);
   if (!chips.length && !searching) return null;
   return (
     <div class="available">
       <span class="available-label">Available</span>
       <div class="available-row">
-        {chips.map((c) => (
-          <button class={'avail-chip ' + c.act.kind} disabled={!!busy} onClick={() => run(c)}>
+        {shown.map((c) => (
+          <button class={'avail-chip ' + c.act.kind + (lastUid && c.act?.book?.uid === lastUid ? ' last' : '')} disabled={!!busy} onClick={() => run(c)}>
+            {lastUid && c.act?.book?.uid === lastUid && <span class="avail-last">Last played</span>}
             {busy === c.key ? <span class="spinner small" /> : <Icon name={c.icon} size={16} />}
             <span>
               <b>{c.label}</b>

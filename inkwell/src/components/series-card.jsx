@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Cover } from './common.jsx';
 import { useStore, library, progress } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
 import { mainTitle, matches } from '../lib/match.js';
-import { seriesOf, seriesBooks, statusIn, nextIn, findSeries } from '../lib/series.js';
+import { seriesOf, seriesBooks, statusIn, upNext, findSeries } from '../lib/series.js';
+import { usePlayerBasics } from './player-ui.jsx';
 
 const LABEL = { finished: '✓ Finished', have: 'You have it', reading: '' };
 
@@ -35,38 +36,34 @@ export function SeriesCard({ book }) {
     return () => (alive = false);
   }, [s?.name, book.author]);
   const list = useMemo(() => (books ? statusIn(books) : []), [books]);
-  if (!s?.name || (books && books.length < 2)) return null;
+  const ps = usePlayerBasics();
+  const row = useRef(null);
   const here = list.findIndex((x) => matches(mainTitle(book.title), x.book.title));
-  const next = nextIn(list);
-  const done = list.filter((x) => x.state === 'finished').length;
+  // The book playing now, when it's one of these; else the one this page is about.
+  const playingAt = ps.book ? list.findIndex((x) => matches(mainTitle(ps.book.title || ''), x.book.title)) : -1;
+  const lit = playingAt >= 0 ? playingAt : here;
+  const next = upNext(list, lit);
+  // The lit book in view (book 9 of 14 isn't off the right edge).
+  useEffect(() => {
+    const el = row.current?.children?.[lit];
+    if (el && row.current) row.current.scrollLeft = Math.max(0, el.offsetLeft - row.current.offsetLeft - 24);
+  }, [lit, list.length]);
+  if (!s?.name || (books && books.length < 2)) return null;
+  const label = (x, i) =>
+    i === playingAt && ps.playing ? `▶ ${x.pct ?? ''}${x.pct != null ? '%' : 'Playing'}` : x === next ? 'Up next' : x.state === 'reading' ? `${x.pct}%` : i === here ? 'This book' : LABEL[x.state] || 'Not yet';
   return (
     <section class="series-card">
       <div class="series-head">
-        <div>
-          <span class="available-label">Series</span>
-          <b>
-            {s.n != null ? `Book ${s.n} of ` : ''}
-            {s.name}
-          </b>
-          <small>
-            {books ? `${list.length} books` : 'Looking up the series…'}
-            {done ? ` · ${done} finished` : ''}
-          </small>
-        </div>
-        {next && next.book.uid !== list[here]?.book.uid && (
-          <button class="pill small" onClick={() => nav.push('book', { book: next.book })}>
-            Next: {next.book.seriesN != null ? `#${next.book.seriesN} ` : ''}
-            {mainTitle(next.book.title).slice(0, 28)}
-          </button>
-        )}
+        <span class="series-name">{s.name}</span>
+        <small>{s.n != null ? `Book ${s.n} of ${books ? list.length : '…'}` : books ? `${list.length} books` : 'Looking up…'}</small>
       </div>
       {list.length > 0 && (
-        <div class="series-row">
+        <div class="series-row" ref={row}>
           {list.map((x, i) => (
-            <button class={'series-item' + (i === here ? ' here' : '') + (x.state ? ' ' + x.state : '')} onClick={() => i !== here && nav.push('book', { book: x.book })}>
+            <button class={'series-item' + (i === here ? ' here' : '') + (i === lit ? ' lit' : '') + (x === next ? ' next' : '') + (x.state ? ' ' + x.state : '')} onClick={() => i !== here && nav.push('book', { book: x.book })}>
               <Cover book={x.book} />
               <span class="series-num">{x.book.seriesN != null ? `#${x.book.seriesN}` : '·'}</span>
-              <small>{x.state === 'reading' ? `${x.pct}%` : i === here ? 'This book' : LABEL[x.state] || 'Not yet'}</small>
+              <small>{label(x, i)}</small>
             </button>
           ))}
         </div>

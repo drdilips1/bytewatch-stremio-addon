@@ -13448,3 +13448,54 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 /* The tabs share the whole line evenly, 🎲 included — no gap at the end. */
 .disc2 .d-tabs > button { flex: 1 1 0; min-width: 0; padding: 0 6px; }
 .disc2 .d-tabs > .d-dice { flex: 0 0 34px; width: 34px; margin-left: 0; }
+
+/* Book page, tidied (28 Nov, user approved the mock-up): Resume with your place right under it,
+   one About card (title, description, Goodreads, Ask, the credit), your verdict filling the
+   row, the series with the playing book lit and "Up next", then Files / Home server / Summary
+   as one row of tiles. */
+.book-publisher { display: block; margin: 10px auto 0; padding: 2px 8px; border: 0; background: none; color: var(--dyn, var(--accent)); font: inherit; font-size: 14px; font-weight: 600; }
+.book-prog { margin: 12px 20px 0; }
+.book-prog .book-progress { margin: 0; }
+.book-prog small { display: block; margin-top: 7px; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.book-prog small b { color: var(--text); font-weight: 600; }
+.book .about-card .about-title { margin: 0 0 8px; font-size: 17px; font-weight: 700; }
+.about-card .ask-chips { margin: 14px -16px 0; padding: 12px 16px 0; border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.about-card .gr-genres { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
+.about-card .gr-genre { flex: none; }
+.about-card .meta-credit { margin: 12px 0 0; padding: 0; font-size: 11.5px; color: var(--muted); text-align: right; opacity: 0.85; }
+/* Your verdict: the five faces and + Tag share the row evenly. */
+.book .myrate-line .myrate-verdicts { margin: 0; padding: 14px 0 0; gap: 6px; overflow: visible; }
+.book .myrate-line .myrate-verdicts > * { padding: 0; }
+.book .myrate-line .myrate-v { flex: 1 1 0; min-width: 0; height: 42px; justify-content: center; border-radius: 999px; }
+.book .myrate-line .myrate-v small { display: none; }
+.book .myrate-line .myrate-sep { display: none; }
+.book .myrate-line .tag-add, .book .myrate-line .myrate-verdicts > .pill { flex: 1.4 1 0; height: 42px; justify-content: center; }
+/* Series: a plain heading, no box; the lit book pops a little with a glow, "Up next" ringed. */
+.book .series-card { margin: 22px 16px 0; padding: 0; background: none; border: 0; box-shadow: none; }
+.book .series-head { align-items: baseline; }
+.series-name { font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.book .series-head small { flex: none; font-size: 12.5px; color: var(--muted); opacity: 1; }
+.book .series-row { padding: 10px 6px 4px; margin: 0 -6px; gap: 12px; }
+.book .series-item, .book .series-item .cover { width: 72px; }
+.series-item .cover { transition: transform 0.2s, box-shadow 0.2s; }
+.book .series-item.here .cover { outline: none; }
+.series-item.lit .cover { transform: scale(1.08); box-shadow: 0 0 0 2px var(--dyn, var(--accent)), 0 10px 22px -6px color-mix(in srgb, var(--dyn, var(--accent)) 80%, transparent); opacity: 1 !important; }
+.series-item.lit { margin: 0 4px; }
+.series-item.lit small, .series-item.next small { color: var(--dyn, var(--accent)); font-weight: 700; opacity: 1; }
+.series-item.next .cover { box-shadow: 0 0 0 2px color-mix(in srgb, var(--dyn, var(--accent)) 45%, transparent); opacity: 1 !important; }
+/* Files · Home server · Summary */
+.book-tiles { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; margin: 22px 16px 0; }
+.book-tiles:empty { display: none; }
+.book-tiles .tool { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 12px; border-radius: 16px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); color: var(--text); font: inherit; text-align: left; }
+.book-tiles .tool.on { border-color: var(--dyn, var(--accent)); }
+.book-tiles .tool-icon { width: 34px; height: 34px; border-radius: 11px; color: #fff; background: linear-gradient(135deg, #9a7fe0, #6f55c4); }
+.book-tiles .tool:nth-child(2) .tool-icon { background: linear-gradient(135deg, #5aa8e0, #3a7fc0); }
+.book-tiles .tool.done .tool-icon { background: linear-gradient(135deg, #5cc98d, #2e9b62); color: #fff; }
+.book-tiles .ss-ic { background: linear-gradient(135deg, #5b8af0, #3460d8) !important; font-weight: 800; font-size: 15px; }
+.book-tiles .tool-text { width: 100%; }
+.book-tiles .tool-text small { white-space: normal; line-height: 1.3; }
+/* The copy you played last, in Available. */
+.available-row { padding-top: 10px; }
+.avail-chip { position: relative; }
+.avail-chip.last { background: var(--bg); border-color: var(--dyn, var(--accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dyn, var(--accent)) 18%, transparent), 0 8px 18px -8px var(--dyn, var(--accent)); margin: 0 4px; }
+.avail-chip span.avail-last { position: absolute; top: -9px; left: 10px; display: block; padding: 1px 8px; border-radius: 999px; background: var(--dyn, var(--accent)); color: #fff; font-size: 10px; font-weight: 700; line-height: 1.5; }

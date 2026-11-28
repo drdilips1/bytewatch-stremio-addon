@@ -161,6 +161,7 @@ async function getDetailsRaw(book, { fast = false } = {}) {
     series: d.series || meta.series || '',
     year: d.year || meta.year || '',
     duration: d.duration || meta.runtime || 0,
+    publisher: d.publisher || meta.publisher || '',
     metaSource: meta.source,
   };
 }

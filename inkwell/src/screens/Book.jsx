@@ -23,6 +23,7 @@ import { library, progress, toggleLibrary, useStore } from "../lib/store.js";
 import { readLater, toggleReadLater } from "../lib/readlists.js";
 import { namesIn } from "../lib/people.js";
 import { BookTags } from "../components/book-tags.jsx";
+import { Publisher } from "../components/publisher.jsx";
 import { fmtDuration, fmtTime } from "../lib/format.js";
 import { finishLine } from "../lib/stats.js";
 import { nav, useBackClose } from "../lib/nav.js";
@@ -94,6 +95,7 @@ export function Book({ book: initial }) {
   const [editions, setEditions] = useState(null);
   const allProgress = useStore(progress);
   const ps = usePlayerBasics();
+  const [filesOpen, setFilesOpen] = useState(false);
   const color = useCoverColor(book);
   const isCurrent = ps.book?.uid === book.uid;
   const [hcStatus, setHcStatus] = useState(null);
@@ -219,6 +221,7 @@ export function Book({ book: initial }) {
               )}
             </div>
           )}
+          {book.source !== "pod" && book.source !== "sum" && <Publisher book={book} />}
           <WhereBadges book={book} />
           {!loading &&
             !book.cover &&
@@ -238,8 +241,6 @@ export function Book({ book: initial }) {
       )}
       {/* Your copies: right under the places it's available, small tiles in the same row style. */}
       {canListen && <CopiesCheck book={book} />}
-      {book.source !== "pod" && book.source !== "sum" && <SeriesCard book={book} />}
-      <StoryShotsLink book={book} />
       {(book.libbyLoan || book.libbyHold) && <LibbyLoanActions book={book} />}
       <div class="book-actions">
         {book.kind === "discover" && !book.libbyLoan && (
@@ -352,6 +353,154 @@ export function Book({ book: initial }) {
           </button>
         )}
       </div>
+      {/* Downloading: how far it is (the square beside Play starts and stops it). */}
+      {dl?.status === "downloading" && (
+        <div class="book-dl">
+          <span>
+            Saving to this phone · part {Math.min((dl.done || 0) + 1, dl.total || 1)} of {dl.total || "…"}
+            {dl.currentTotal > 0 ? ` · ${Math.round((dl.current / dl.currentTotal) * 100)}%` : ""}
+          </span>
+          <span class="progress-bar">
+            <span style={{ width: `${dl.total ? (((dl.done || 0) + (dl.currentTotal ? dl.current / dl.currentTotal : 0)) / dl.total) * 100 : 2}%` }} />
+          </span>
+        </div>
+      )}
+      {(dl?.status === "error" || dl?.status === "paused") && (
+        <p class="book-dl-note">
+          {dl.status === "error" ? dl.error || "The download stopped" : `${dl.done || 0} of ${dl.total || "?"} parts saved`} — tap <Icon name="download" size={13} /> to {dl.status === "error" ? "try again" : "carry on"}
+        </p>
+      )}
+      {/* Where you are, in one place under Resume: the bar, then one line (before: a line, the
+          bar and "Started 4 days ago…" were split around the file list). */}
+      {pct > 0 && (
+        <div class="book-prog">
+          <div class="progress-bar book-progress">
+            <div style={{ width: pct + "%" }} />
+          </div>
+          <small>
+            <b>{prog.finished ? "Finished" : `${pct}% ${canRead ? "read" : "listened"}`}</b>
+            {!prog.finished && !canRead && finishLine(initial.uid) ? ` · ${finishLine(initial.uid).replace(/^S/, "s")}` : ""}
+          </small>
+        </div>
+      )}
+      {book.partsCheck && <BookCheck check={book.partsCheck} />}
+      <AbsSending uid={initial.uid} />
+
+      {/* This copy can't be reached: a calm note (not a red error) — Listen / Read find another
+          copy by themselves, and every source is listed below. */}
+      {error && <p class="muted pad book-unavailable">{unavailableNote(book)}</p>}
+
+      {/* The description and Goodreads in one box: what it's about, then what readers think. */}
+      <Description
+        text={bestDescription(book.description, gr?.description)}
+        expanded={expanded}
+        setExpanded={setExpanded}
+        gr={gr}
+        credit={book.metaSource}
+      >
+        {book.source !== "sum" && book.source !== "pod" && (
+          <AskCard
+            book={book}
+            description={bestDescription(book.description, gr?.description)}
+            genres={(gr?.genres || []).map((g) => g.name)}
+          />
+        )}
+      </Description>
+      {book.subjects?.length > 0 && !gr?.genres?.length && (
+        <div class="chips pad">
+          {book.subjects.slice(0, 8).map((s) => (
+            <span class="pill small">{s}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Your verdict and your tags: one line, just above the source results. */}
+      {!loading && book.source !== "sum" && book.source !== "pod" && (
+        <MyRating book={book}>
+          <BookTags book={book} inline />
+        </MyRating>
+      )}
+      {book.source !== "pod" && book.source !== "sum" && <SeriesCard book={book} />}
+      {/* Files, home server and the summary side by side in one row of tiles (before: three
+          different-looking rows between Resume and your place). */}
+      <div class="book-tiles">
+        {(tracks.length > 0 || cloudEbooks.length > 0) && (
+          <button class={"tool" + (filesOpen ? " on" : "")} onClick={() => setFilesOpen(!filesOpen)}>
+            <span class="tool-icon">
+              <Icon name="headphones" size={18} />
+            </span>
+            <span class="tool-text">
+              <b>Files</b>
+              <small>{filesLine(tracks, cloudEbooks)}</small>
+            </span>
+          </button>
+        )}
+        {book.hash && (book.source === "tb" || book.source === "rd") && qb.available && (
+          <button
+                  class={"tool" + (qb.wasSent(book.hash) ? " done" : "")}
+                  disabled={qbBusy}
+                  onClick={async () => {
+                    if (!qb.configured())
+                      return toast(
+                        "Set up your home server first (Settings → Home server)",
+                      );
+                    if (
+                      qb.wasSent(book.hash) &&
+                      !confirm("Already sent to your home server. Send it again?")
+                    )
+                      return;
+                    const have =
+                      !qb.wasSent(book.hash) &&
+                      (await qb.onServer(book).catch(() => "down"));
+                    if (
+                      have === "down" &&
+                      !confirm(
+                        "Couldn't reach your Audiobookshelf to check whether you already have this. Send it home anyway?",
+                      )
+                    )
+                      return;
+                    if (
+                      have &&
+                      have !== "down" &&
+                      !confirm(
+                        `Your Audiobookshelf already has “${have.title}”. Send it home again anyway?`,
+                      )
+                    )
+                      return;
+                    setQbBusy(true);
+                    try {
+                      toast(await qb.send(book));
+                    } catch (e) {
+                      toast(e.message);
+                    } finally {
+                      setQbBusy(false);
+                    }
+                  }}
+                >
+                  <span class="tool-icon">
+                    {qbBusy ? (
+                      <span class="spinner small" />
+                    ) : (
+                      <Icon
+                        name={qb.wasSent(book.hash) ? "check" : "server"}
+                        size={18}
+                      />
+                    )}
+                  </span>
+                  <span class="tool-text">
+                    <b>Home server</b>
+                    <small>
+                      {qb.wasSent(book.hash)
+                        ? "Sent · tap to resend"
+                        : "Send to qBittorrent"}
+                    </small>
+                  </span>
+                </button>
+        )}
+        <StoryShotsLink book={book} />
+      </div>
+      {filesOpen && (
+        <>
       {/* The audio files, then the ebook files — the same kind of row, together near the top. */}
       {tracks.length > 0 && (
         <section class="pad cloud-ebooks audio-files">
@@ -400,143 +549,7 @@ export function Book({ book: initial }) {
       {cloudEbooks.length > 0 && (
         <CloudEbooks book={book} files={cloudEbooks} />
       )}
-      {/* Downloading: how far it is (the square beside Play starts and stops it). */}
-      {dl?.status === "downloading" && (
-        <div class="book-dl">
-          <span>
-            Saving to this phone · part {Math.min((dl.done || 0) + 1, dl.total || 1)} of {dl.total || "…"}
-            {dl.currentTotal > 0 ? ` · ${Math.round((dl.current / dl.currentTotal) * 100)}%` : ""}
-          </span>
-          <span class="progress-bar">
-            <span style={{ width: `${dl.total ? (((dl.done || 0) + (dl.currentTotal ? dl.current / dl.currentTotal : 0)) / dl.total) * 100 : 2}%` }} />
-          </span>
-        </div>
-      )}
-      {(dl?.status === "error" || dl?.status === "paused") && (
-        <p class="book-dl-note">
-          {dl.status === "error" ? dl.error || "The download stopped" : `${dl.done || 0} of ${dl.total || "?"} parts saved`} — tap <Icon name="download" size={13} /> to {dl.status === "error" ? "try again" : "carry on"}
-        </p>
-      )}
-      {(book.hash &&
-          (book.source === "tb" || book.source === "rd") &&
-          qb.available) && (
-        <div class="book-tools">
-          {book.hash &&
-            (book.source === "tb" || book.source === "rd") &&
-            qb.available && (
-              <button
-                class={"tool" + (qb.wasSent(book.hash) ? " done" : "")}
-                disabled={qbBusy}
-                onClick={async () => {
-                  if (!qb.configured())
-                    return toast(
-                      "Set up your home server first (Settings → Home server)",
-                    );
-                  if (
-                    qb.wasSent(book.hash) &&
-                    !confirm("Already sent to your home server. Send it again?")
-                  )
-                    return;
-                  const have =
-                    !qb.wasSent(book.hash) &&
-                    (await qb.onServer(book).catch(() => "down"));
-                  if (
-                    have === "down" &&
-                    !confirm(
-                      "Couldn't reach your Audiobookshelf to check whether you already have this. Send it home anyway?",
-                    )
-                  )
-                    return;
-                  if (
-                    have &&
-                    have !== "down" &&
-                    !confirm(
-                      `Your Audiobookshelf already has “${have.title}”. Send it home again anyway?`,
-                    )
-                  )
-                    return;
-                  setQbBusy(true);
-                  try {
-                    toast(await qb.send(book));
-                  } catch (e) {
-                    toast(e.message);
-                  } finally {
-                    setQbBusy(false);
-                  }
-                }}
-              >
-                <span class="tool-icon">
-                  {qbBusy ? (
-                    <span class="spinner small" />
-                  ) : (
-                    <Icon
-                      name={qb.wasSent(book.hash) ? "check" : "server"}
-                      size={18}
-                    />
-                  )}
-                </span>
-                <span class="tool-text">
-                  <b>Home server</b>
-                  <small>
-                    {qb.wasSent(book.hash)
-                      ? "Sent · tap to resend"
-                      : "Send to qBittorrent"}
-                  </small>
-                </span>
-              </button>
-            )}
-        </div>
-      )}
-      {pct > 0 && (
-        <div class="book-prog">
-          <small>
-            {prog.finished ? "Finished" : `${pct}% ${canRead ? "read" : "listened"}`}
-            {!prog.finished && !canRead && book.duration > 0 ? ` · ${fmtDuration(book.duration * (1 - pct / 100))} left` : ""}
-          </small>
-          <div class="progress-bar book-progress">
-            <div style={{ width: pct + "%" }} />
-          </div>
-        </div>
-      )}
-      {book.partsCheck && <BookCheck check={book.partsCheck} />}
-      <AbsSending uid={initial.uid} />
-      {pct > 0 && !prog.finished && !canRead && finishLine(initial.uid) && <p class="book-finish">{finishLine(initial.uid)}</p>}
-
-      {/* This copy can't be reached: a calm note (not a red error) — Listen / Read find another
-          copy by themselves, and every source is listed below. */}
-      {error && <p class="muted pad book-unavailable">{unavailableNote(book)}</p>}
-
-      {/* The description and Goodreads in one box: what it's about, then what readers think. */}
-      <Description
-        text={bestDescription(book.description, gr?.description)}
-        expanded={expanded}
-        setExpanded={setExpanded}
-        gr={gr}
-      />
-      {book.source !== "sum" && book.source !== "pod" && (
-        <AskCard
-          book={book}
-          description={bestDescription(book.description, gr?.description)}
-          genres={(gr?.genres || []).map((g) => g.name)}
-        />
-      )}
-
-      {book.metaSource && (
-        <p class="muted pad meta-credit">Details from {book.metaSource}</p>
-      )}
-      {book.subjects?.length > 0 && !gr?.genres?.length && (
-        <div class="chips pad">
-          {book.subjects.slice(0, 8).map((s) => (
-            <span class="pill small">{s}</span>
-          ))}
-        </div>
-      )}
-
-      {/* Your verdict and your tags: one line, just above the source results. */}
-      {!loading && book.source !== "sum" && book.source !== "pod" && (
-        <MyRating book={book}>
-          <BookTags book={book} inline />
-        </MyRating>
+        </>
       )}
       {book.kind === "discover" && !book.libbyLoan && (
         <section class="pad" id="where-to-get">
@@ -649,11 +662,24 @@ function StoryShotsLink({ book }) {
   const ss = useStoryShots(book, { always: true });
   if (!ss) return null;
   return (
-    <button class="ss-link" onClick={() => chooseStoryShots(book, ss)}>
-      <span class={"ss-badge" + (ss.ep ? "" : " outline")}>S</span>{" "}
-      {ss.ep ? "StoryShots audio summary" : "Summary in StoryShots"}
+    <button class="tool ss-tile" onClick={() => chooseStoryShots(book, ss)}>
+      <span class="tool-icon ss-ic">S</span>
+      <span class="tool-text">
+        <b>Summary</b>
+        <small>{ss.ep ? "Audio · StoryShots" : "Text · StoryShots"}</small>
+      </span>
     </button>
   );
+}
+
+/** "1 audio file · 3.0 GB", "14 audio files · 2 ebooks" — what the Files tile opens. */
+function filesLine(tracks, ebooks) {
+  const size = tracks.reduce((n, t) => n + (t.size || 0), 0);
+  const parts = [];
+  if (tracks.length) parts.push(`${tracks.length} ${tracks.length === 1 ? "file" : "files"}`);
+  if (size > 1e5) parts.push(fmtBytes(size));
+  if (ebooks.length) parts.push(`${ebooks.length} ebook${ebooks.length === 1 ? "" : "s"}`);
+  return parts.join(" · ");
 }
 
 /** Ebook files in the user's TorBox / Real-Debrid item. */
@@ -1076,7 +1102,7 @@ function bestDescription(own, fromGr) {
 }
 
 /** The description, 5 lines at first; "Read more" only when there's more to show. */
-function Description({ text, expanded, setExpanded, gr = null }) {
+function Description({ text, expanded, setExpanded, gr = null, credit = "", children }) {
   const ref = useRef(null);
   const [more, setMore] = useState(false);
   useEffect(() => {
@@ -1086,6 +1112,7 @@ function Description({ text, expanded, setExpanded, gr = null }) {
   if (!text && !gr) return null;
   return (
     <section class="about-card">
+      <h3 class="about-title">About this book</h3>
       {text && (
         <>
           <p
@@ -1103,6 +1130,8 @@ function Description({ text, expanded, setExpanded, gr = null }) {
         </>
       )}
       {gr && <GoodreadsCard gr={gr} inside={!!text} />}
+      {children}
+      {credit && <p class="meta-credit">Details from {credit}</p>}
     </section>
   );
 }
