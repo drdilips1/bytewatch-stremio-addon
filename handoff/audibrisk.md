@@ -29,7 +29,7 @@
   config `inkwell/vite.brisk.config.js`, workflow `.github/workflows/brisk-apk.yml`.
   Tests: `inkwell/brisk/brisk.test.js` (runs in `npm test`). The shared eslint config only covers
   `src/`; lint brisk with a temp copy of it that adds `brisk/**/*.{js,jsx}` (clean as of v1.0.6).
-- v1.0.23 (28 Nov, release build): library grid three across (minmax 92px, smaller titles /
+- v1.0.23 RELEASED (28 Nov, Android only; public publish step OK): library grid three across (minmax 92px, smaller titles /
   labels); appearance pass the user chose ("Build all" of 6 suggestions): (1) `.b-topfade` fade
   under the status bar once scrolled (app.jsx); (2) coloured placeholder covers (`hueOf(title)` →
   `--h`, mixed with the look's blank colours, light + dark); (3) the book in the player leads
