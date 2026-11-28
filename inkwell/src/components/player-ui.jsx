@@ -514,6 +514,14 @@ export function FullPlayer() {
 
       {/* One row of the everyday buttons; the rest under More. */}
       <div class="fp-actions one-row">
+        {/* One ✦ AI button for Ask, Explain, Find, X-Ray, Talk and Voice (user, 28 Nov: "one AI
+            button is sufficient") — they were a row of five above this one. First in the row, a ✦ only
+            (no word). */}
+        {aiOn() && s.book.source !== 'pod' && (
+          <button class="chip-btn fp-ai-btn" onClick={() => setSheet('ai')} aria-label="AI: ask, explain, find, X-Ray, talk">
+            <Icon name="star4" size={20} fill />
+          </button>
+        )}
         <button class="chip-btn" onClick={() => setSheet('speed')} aria-label="Speed">
           <b>{s.rate}×</b>
           <small>Speed</small>
@@ -522,14 +530,6 @@ export function FullPlayer() {
           <Icon name="moon" size={16} />
           <small>{s.sleepUntil ? fmtTime(sleepLeft) : s.sleepEndOfTrack ? 'Ch. end' : 'Sleep'}</small>
         </button>
-        {/* One ✦ AI button for Ask, Explain, Find, X-Ray, Talk and Voice (user, 28 Nov: "one AI
-            button is sufficient") — they were a row of five above this one. */}
-        {aiOn() && s.book.source !== 'pod' && (
-          <button class="chip-btn fp-ai-btn" onClick={() => setSheet('ai')} aria-label="AI: ask, explain, find, X-Ray, talk">
-            <Icon name="ai" size={19} />
-            <small>AI</small>
-          </button>
-        )}
         <button
           class={'chip-btn' + (showText ? ' active' : '')}
           onClick={() => {

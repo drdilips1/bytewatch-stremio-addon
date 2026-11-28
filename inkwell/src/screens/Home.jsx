@@ -170,25 +170,6 @@ function TasteShelves() {
   return shelves.map((sh) => <Row key={sh.key} title={sh.title} subtitle={sh.subtitle} icon="sparkle" cacheKey={'shelf:' + sh.key} rec load={sh.load} deps={[sh.key]} />);
 }
 
-/** Explore categories: colourful tiles, two rows that scroll sideways. */
-function CategoryTiles() {
-  const list = [...(enabled('hi') ? [{ ...HINDI_ALL, name: 'हिंदी', hindi: true }] : []), ...GENRES];
-  return (
-    <section class="cat-section">
-      <div class="row-head">
-        <h2>Explore categories</h2>
-      </div>
-      <div class="cat-grid">
-        {list.map((g) => (
-          <button class="cat-tile" style={{ '--h': g.hue }} lang={g.hindi ? 'hi' : undefined} onClick={() => nav.push('browse', { genre: g.hindi ? HINDI_ALL : g })}>
-            <span>{g.name}</span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function heroSources() {
   const list = [];
   list.push([() => picksForYou().then((r) => rankForYou(notOwned(r))), 'Picked for you', 'ai']);
@@ -858,8 +839,6 @@ export function Home() {
             return <Row key={id} title="New releases" subtitle={`New in ${topicNames()}`} icon="flame" cacheKey="homeNew" shuffle rec load={newReleases} deps={[]} />;
           case 'top':
             return <Row key={id} title="Top titles this month" subtitle={`Best sellers in ${topicNames()}`} icon="star" cacheKey="homeTop" shuffle load={topThisMonth} deps={[]} />;
-          case 'cats':
-            return <CategoryTiles key={id} />;
           case 'sources':
             return (
               <Fragment key={id}>
@@ -935,7 +914,8 @@ function YourBooks() {
           </span>
           <h3>Your books</h3>
         </div>
-        <div class={'yours-tiles n' + Math.min(list.length, 4)}>
+        {/* One row of small tiles (user, 28 Nov): the count, the place; more than four scroll. */}
+        <div class="yours-tiles yours-row">
           {list.map((s) => (
             <button class="yours-tile" onClick={() => nav.push('shelf', { title: s.name, subtitle: s.sub, load: s.load })}>
               <span class="yours-i">
@@ -960,7 +940,6 @@ const HOME_SECTIONS = [
   ['rec', 'Recommended for you', 'From your listening and ratings'],
   ['new', 'New releases', 'In your topics'],
   ['top', 'Top titles this month', 'Best sellers in your topics'],
-  ['cats', 'Explore categories', 'Genre tiles'],
   ['sources', 'Your services', 'Audiobookshelf, phone, TorBox, Real-Debrid, Hardcover… (their order: Settings → Sources)'],
 ];
 const homeOrder = (st) => {
