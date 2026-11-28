@@ -13553,7 +13553,7 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .about-gr .gr-genres, .gr-tile .gr-genres { margin: 12px 0 0 !important; }
 /* Player: the one ✦ AI button, raised in the middle of the row, and its sheet. */
 .fp-actions .fp-ai-btn { position: relative; }
-.fp-actions .fp-ai-btn .icon { width: 40px; height: 40px; padding: 10px; margin: -14px 0 1px; border-radius: 50%; color: #fff; background: linear-gradient(135deg, color-mix(in srgb, var(--dyn, var(--accent)) 70%, #fff 30%), var(--dyn, var(--accent))); box-shadow: 0 8px 18px -8px var(--dyn, var(--accent)); box-sizing: border-box; }
+
 .ai-sheet h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 16px; }
 .ai-sheet h3 .icon { color: var(--accent); }
 .ai-grid { grid-template-columns: repeat(3, 1fr) !important; margin-top: 0 !important; gap: 8px; }
@@ -13733,6 +13733,5 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .yours-row .yours-i .icon { width: 15px; height: 15px; }
 .yours-row .yours-tile b { font-size: 17px; }
 .yours-row .yours-tile small { font-size: 11px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* The ✦ AI button: first in the row, a round button with the star only (no word, so not raised). */
+/* The ✦ AI button: first in the row, the star only, in the same colour as the other buttons. */
 .fp-actions .fp-ai-btn { justify-content: center; }
-.fp-actions .fp-ai-btn .icon { margin: 0 !important; width: 40px !important; height: 40px !important; padding: 10px !important; }
